@@ -1,8 +1,8 @@
 #!/bin/bash
 # Build the web-installer release artifacts into docs/installer/:
-#   * firmware/kiss-wallet-<version>-<commit>-full.bin  (merged, offset 0)
+#   * firmware/kiss-wallet-<version>.bin                (merged, offset 0)
 #   * SHA256SUMS + SHA256SUMS.asc                       (GPG, if a key exists)
-#   * firmware/...-full.bin.minisig                     (minisign, if key exists)
+#   * firmware/kiss-wallet-<version>.bin.minisig        (minisign, if key exists)
 #   * manifest.json / release.json                      (rewritten in place)
 #
 # Signing, the typical bitcoin-project way (see docs/installer/SIGNING.md):
