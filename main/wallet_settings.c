@@ -423,11 +423,7 @@ void wallet_settings_open(lv_obj_t *parent)
                               "only its backup words can bring it back.");
 
     // build identity, bottom-left (shared with the wallet home corner)
-    {
-        lv_obj_t *bi = lv_label_create(s_scr);
-        lv_obj_set_pos(bi, 48, 436);
-        wallet_build_id_apply(bi);
-    }
+    wallet_build_id_make(s_scr, 48, 436);
 
     mk_pill("BACK", 610, 404, 140, close_cb, NULL);
     restyle();
