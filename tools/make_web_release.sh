@@ -74,13 +74,31 @@ PY
 
 # 4. signatures (each honest and optional)
 GPGSIGNED=0
+GPG_FPR=""
 if command -v gpg >/dev/null && gpg --list-secret-keys ${GPG_KEY_ID:+"$GPG_KEY_ID"} >/dev/null 2>&1; then
     gpg --batch --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
       --detach-sign -o "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS"
-    GPGSIGNED=1
-    echo "gpg: $OUT/SHA256SUMS.asc"
-    [ -f "$GPG_PUB_FILE" ] || echo "NOTE: export your public key into the repo:" \
-      " gpg --armor --export ${GPG_KEY_ID:-<your key id>} > $GPG_PUB_FILE"
+    # self-check: the signature we just wrote must verify against the PUBLIC key
+    # in the repo (not just the local keyring), or the release is not "signed".
+    if [ ! -f "$GPG_PUB_FILE" ]; then
+        echo "ERROR: $GPG_PUB_FILE missing - export it first:"
+        echo "  gpg --armor --export ${GPG_KEY_ID:-<your key id>} > $GPG_PUB_FILE"
+        exit 1
+    fi
+    VERIFY_RING="$(mktemp -d)"
+    gpg --homedir "$VERIFY_RING" --import "$GPG_PUB_FILE" 2>/dev/null
+    if gpg --homedir "$VERIFY_RING" --verify "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS" 2>/dev/null; then
+        GPGSIGNED=1
+        GPG_FPR=$(gpg --with-colons --show-keys "$GPG_PUB_FILE" 2>/dev/null \
+                  | awk -F: '/^fpr:/ {print $10; exit}')
+        echo "gpg: $OUT/SHA256SUMS.asc (verifies against $GPG_PUB_FILE, fpr $GPG_FPR)"
+    else
+        rm -rf "$VERIFY_RING"
+        echo "ERROR: signature does NOT verify against $GPG_PUB_FILE"
+        echo "(the repo public key and the signing key disagree - fix before release)"
+        exit 1
+    fi
+    rm -rf "$VERIFY_RING"
 else
     rm -f "$OUT/SHA256SUMS.asc"
     echo "NOTE: no GPG secret key found - SHA256SUMS left unsigned (see docs/installer/SIGNING.md)"
@@ -97,6 +115,7 @@ fi
 # 5. manifest.json + release.json
 GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
 GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
+GPG_FPR="$GPG_FPR" \
 "$PY" - <<'PY'
 import hashlib, json, os, datetime
 
@@ -142,6 +161,8 @@ auth = {
 }
 if gpg_signed:
     auth["gpgSignaturePath"] = "SHA256SUMS.asc"
+    if os.environ.get("GPG_FPR"):
+        auth["gpgFingerprint"] = os.environ["GPG_FPR"]
     if os.path.exists(os.environ["GPG_PUB_FILE"]):
         auth["gpgPublicKeyPath"] = os.path.basename(os.environ["GPG_PUB_FILE"])
 if mini_signed:

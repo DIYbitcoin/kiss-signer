@@ -46,20 +46,26 @@ function setReceipt(el, text, state) {
 
 function renderAuthenticity(release) {
   const auth = release.authenticity || {};
-  // signed = explicit flag, or any status that isn't an "unsigned-*" marker
-  const isSigned = auth.signed === true ||
+  // A signature FILE being present is not the same as this browser having
+  // verified it. We do not do in-browser GPG verification, so the honest state
+  // is "amber: signature present, verify yourself", never a green "verified".
+  const hasSig = auth.signed === true ||
     (typeof auth.signatureStatus === "string" &&
      auth.signatureStatus.length > 0 &&
      !auth.signatureStatus.startsWith("unsigned"));
-  setReceipt(signatureCheck, auth.signatureLabel || "missing", isSigned ? "ok" : "warn");
-  if (auth.publicKey) {
-    // show the real key material, tap to copy the full key
-    setReceipt(keyCheck, shortHex(auth.publicKey), isSigned ? "ok" : "warn");
-    keyCheck.title = auth.publicKey;
+  setReceipt(signatureCheck,
+    hasSig ? (auth.signatureLabel || "signed") + " (verify yourself)" : "unsigned",
+    hasSig ? "warn" : "stop");
+  // key receipt: prefer the GPG fingerprint (that's the trust anchor users
+  // cross-check), fall back to a minisign public key, else say not published
+  const keyId = auth.gpgFingerprint || auth.publicKey;
+  if (keyId) {
+    setReceipt(keyCheck, shortHex(keyId), hasSig ? "ok" : "warn");
+    keyCheck.title = keyId + " (tap to copy, cross-check via a second channel)";
     keyCheck.style.cursor = "copy";
-    keyCheck.onclick = () => navigator.clipboard?.writeText(auth.publicKey);
+    keyCheck.onclick = () => navigator.clipboard?.writeText(keyId);
   } else {
-    setReceipt(keyCheck, auth.keyLabel || "not published", isSigned ? "ok" : "warn");
+    setReceipt(keyCheck, auth.keyLabel || "not published", "warn");
   }
 }
 
