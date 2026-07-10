@@ -28,6 +28,7 @@
 #include "menu_logo.h"
 #include "gameover_img.h"
 #include "wallet_img.h"
+#include "tile_lbls.h"
 #include "wallet_ui.h"
 #include "wallet_recv.h"
 #include "wallet_sign.h"
@@ -183,6 +184,9 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 
 // ---- hidden KISS wallet: revealed by drawing a "K" on the game menu (cover -> wallet) ----
 static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
+static lv_obj_t *s_tile_lbl[4];    // live tile labels (settle in on unlock)
+#define N_MOTES 5
+static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim motes drifting up
 static bool s_wallet_on;
 // dev-seed fingerprint for the top-right chip; filled from the boot selftest on
 // device (sim build has no libwally, keeps the placeholder)
@@ -1054,7 +1058,8 @@ static void fp_fly_glide(void) {
   lv_anim_set_path_cb(&a, lv_anim_path_linear);
   lv_anim_set_ready_cb(&a, fly_del_cb);
   lv_anim_start(&a);
-  // ...while the chip + caption fade in underneath it
+  // ...while the chip + caption fade in underneath it (then hold still: an
+  // opacity pulse on the chip read as a shake on the real panel — reverted)
   lv_anim_set_ready_cb(&a, NULL);
   lv_anim_set_var(&a, s_fp_chip);
   lv_anim_set_values(&a, 0, 255);
@@ -1139,6 +1144,68 @@ void sim_home_status(const char *msg) {
 }
 #endif
 
+// the tile labels settle in: a short staggered drop + fade, left to right,
+// then they hold still (translate/opa only). Runs on every unlock.
+static void tiles_settle(void) {
+  for (int i = 0; i < 4; i++) {
+    if (!s_tile_lbl[i]) return;
+    lv_anim_delete(s_tile_lbl[i], NULL);    // re-unlock mid-settle: start clean
+    lv_obj_set_style_opa(s_tile_lbl[i], 0, 0);
+    lv_obj_set_y(s_tile_lbl[i], TILE_LBL_Y - 12);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, s_tile_lbl[i]);
+    lv_anim_set_delay(&a, 120 + i * 70);
+    lv_anim_set_duration(&a, 260);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&a, fly_y_cb);
+    lv_anim_set_values(&a, TILE_LBL_Y - 12, TILE_LBL_Y);
+    lv_anim_start(&a);
+    lv_anim_set_exec_cb(&a, anim_opa_cb);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_start(&a);
+  }
+}
+
+// Ambient life while the home idles: dim ink motes rising slowly through the
+// grid. Each lane has its own period + fade so the pattern never visibly
+// repeats; 4px dots = tiny dirty rects, translate/opa only.
+static void motes_start(void) {
+  static const int mx[N_MOTES]  = {150, 260, 430, 590, 735};
+  static const int mms[N_MOTES] = {9000, 12400, 7600, 10800, 14200};
+  for (int i = 0; i < N_MOTES; i++) {
+    if (!s_mote[i]) return;
+    lv_anim_delete(s_mote[i], NULL);
+    lv_obj_set_pos(s_mote[i], mx[i], 488);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, s_mote[i]);
+    lv_anim_set_exec_cb(&a, fly_y_cb);
+    lv_anim_set_values(&a, 488, -8);
+    lv_anim_set_duration(&a, mms[i]);
+    lv_anim_set_delay(&a, i * 900);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_repeat_delay(&a, 500 + i * 400);
+    lv_anim_start(&a);
+    lv_anim_set_exec_cb(&a, anim_opa_cb);   // independent shimmer on top
+    lv_anim_set_values(&a, 25, 100);        // ₿ is bigger than a dot: stay faint
+    lv_anim_set_duration(&a, 2600 + i * 500);
+    lv_anim_set_reverse_duration(&a, 2600 + i * 500);
+    lv_anim_set_delay(&a, 0);
+    lv_anim_set_repeat_delay(&a, 0);
+    lv_anim_start(&a);
+  }
+}
+
+static void motes_stop(void) {
+  for (int i = 0; i < N_MOTES; i++) {
+    if (!s_mote[i]) return;
+    lv_anim_delete(s_mote[i], NULL);
+    lv_obj_set_style_opa(s_mote[i], 0, 0);
+    lv_obj_set_y(s_mote[i], 500);           // parked below the panel
+  }
+}
+
 static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
   s_wallet_on = true;
@@ -1159,6 +1226,8 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_wallet);
+  tiles_settle();                          // labels drop in, staggered
+  motes_start();                           // ambient idle drift
   wallet_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
 }
@@ -1173,6 +1242,7 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 #endif
   s_wallet_on = false;
   wallet_session_close();                  // locked: no key material stays in RAM
+  motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   s_state = ST_MENU;
   lv_obj_clear_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
@@ -1529,6 +1599,29 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_pad_ver(s_net_lbl, 6, 0);
   lv_obj_align(s_net_lbl, LV_ALIGN_TOP_MID, 0, 48);
   lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+
+  // Build identity, bottom-left — the baked art used to carry a permanent
+  // CAUTION pill here (a status light that never changed = dead chrome); now
+  // this corner tells the truth instead, same line as the Settings footer.
+  lv_obj_t *bid = lv_label_create(s_wallet);
+  lv_obj_set_pos(bid, 48, 424);
+  wallet_build_id_apply(bid);
+
+  // Tile labels, un-baked so the unlock can settle them in (coords match the
+  // old baked text exactly; strips are full tile width, so x needs no centering)
+  for (int i = 0; i < 4; i++) {
+    s_tile_lbl[i] = lv_image_create(s_wallet);
+    lv_image_set_src(s_tile_lbl[i], &img_tile_lbls[i]);
+    lv_obj_set_pos(s_tile_lbl[i], 50 + i * 180, TILE_LBL_Y);
+  }
+
+  // idle motes: small ₿ glyphs (started/stopped with the session)
+  for (int i = 0; i < N_MOTES; i++) {
+    s_mote[i] = lv_image_create(s_wallet);
+    lv_image_set_src(s_mote[i], &img_mote_btc);
+    lv_obj_set_style_opa(s_mote[i], 0, 0);
+    lv_obj_set_pos(s_mote[i], 0, 500);
+  }
 
   // ---- idle screensaver (attract mode): baked sunset backdrop + pulsing prompt ----
   // Floating fruit are created on activation; this just sets up the backdrop + "tap to play".
