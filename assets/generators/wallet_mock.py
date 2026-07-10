@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""Cyberpunk KISS-wallet main-menu THEME (visual shell only — no wallet logic).
+Landscape 800x480 to match the game. Emits the DEFAULT mono-white menu as a baked
+LVGL RGB565 image (main/wallet_img.{c,h}) shown after the KISS unlock gesture, plus
+a preview sheet demoing the switchable accent themes AND the safety status light.
+
+Two independent visual systems:
+  * THEME accent  — colors the chrome (brackets, grid, tiles, fingerprint). Shown as a
+    SINGLE dot in that color, bottom-right (white dot = mono theme, orange dot = orange…).
+  * STATUS light  — a Block/Verify/Warn safety guide, bottom-left. Green = ready / just
+    saved, Yellow = default "go slow & verify", Red = stop · read · back up.
+"""
+import os
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+W, H = 800, 480
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.path.join(ROOT, "main")
+INK = (232, 238, 247)
+MUT = (122, 134, 156)
+SUB = (176, 188, 205)   # brighter muted — card subtitles must out-read the faint bg grid
+CARD = (14, 18, 28)
+GRID_PITCH = 46         # background grid spacing (original density)
+
+
+def font(size, mono=False):
+    cands = (["/System/Library/Fonts/Menlo.ttc"] if mono else
+             ["/System/Library/Fonts/Supplemental/Futura.ttc",
+              "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+              "/System/Library/Fonts/Supplemental/Arial.ttf"])
+    for p in cands:
+        try:
+            return ImageFont.truetype(p, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
+def hx(h):
+    h = h.lstrip("#"); return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+THEMES = [("Mono", "#E8EEF7"), ("Krux green", "#3DEE8B"),
+          ("Cypherpink", "#FF3D9A"), ("Bitcoin orange", "#FF8A1E")]
+
+# Safety status light — independent of the theme accent.
+STATUS = {
+    "go":      ("READY",   "safe to proceed",       (46, 222, 138)),
+    "caution": ("CAUTION", "go slow  ·  verify",    (245, 197, 66)),
+    "stop":    ("VERIFY",  "stop · read · back up", (255, 77, 77)),
+}
+
+
+def icon_sign(d, cx, cy, s, A):
+    # pencil signing on a baseline: tip lower-left, eraser end upper-right
+    ux, uy = 0.7071, -0.7071     # toward the tail (up-right)
+    px, py = 0.7071, 0.7071      # perpendicular across the body
+    w = s * .15
+    tipx, tipy = cx - s * .5, cy + s * .5
+    tailx, taily = cx + s * .5, cy - s * .5
+    nbx, nby = tipx + ux * s * .26, tipy + uy * s * .26   # base of the sharpened nib
+    a1, a2 = (nbx + px * w, nby + py * w), (tailx + px * w, taily + py * w)
+    b1, b2 = (nbx - px * w, nby - py * w), (tailx - px * w, taily - py * w)
+    d.line([a1, a2], fill=A, width=3)                     # body long edges
+    d.line([b1, b2], fill=A, width=3)
+    d.line([a2, b2], fill=A, width=3)                     # tail cap (eraser end)
+    d.line([a1, (tipx, tipy)], fill=A, width=3)           # nib
+    d.line([b1, (tipx, tipy)], fill=A, width=3)
+    fx, fy = tailx - ux * s * .26, taily - uy * s * .26   # ferrule band
+    d.line([(fx + px * w, fy + py * w), (fx - px * w, fy - py * w)], fill=A, width=3)
+    d.line([(cx - s * .62, cy + s * .74), (cx + s * .5, cy + s * .74)], fill=A, width=3)  # baseline
+
+
+def icon_receive(d, cx, cy, s, A):
+    b = s * .42
+    for ox, oy in [(-1, -1), (1, -1), (-1, 1)]:
+        x0, y0 = cx + ox * b - s * .22, cy + oy * b - s * .22
+        d.rectangle([x0, y0, x0 + s * .44, y0 + s * .44], outline=A, width=3)
+        d.rectangle([x0 + s * .15, y0 + s * .15, x0 + s * .29, y0 + s * .29], fill=A)
+    d.rectangle([cx + s * .22, cy + s * .22, cx + s * .34, cy + s * .34], fill=A)
+    d.rectangle([cx + s * .5, cy + s * .22, cx + s * .62, cy + s * .34], fill=A)
+
+
+def icon_key(d, cx, cy, s, A):
+    # universal vertical key (🔑): round bow on top, stem down, teeth at the bottom
+    r = s * .34
+    by = cy - s * .4                                                          # bow center (top)
+    d.ellipse([cx - r, by - r, cx + r, by + r], outline=A, width=3)           # bow
+    d.ellipse([cx - r * .38, by - r * .38, cx + r * .38, by + r * .38], outline=A, width=2)  # hole
+    sy1 = cy + s * .74                                                        # stem bottom (tip)
+    d.line([(cx, by + r * .92), (cx, sy1)], fill=A, width=3)                  # stem
+    for ty in (sy1, sy1 - s * .24):                                           # teeth (to the right)
+        d.line([(cx, ty), (cx + s * .3, ty)], fill=A, width=3)
+
+
+def icon_settings(d, cx, cy, s, A):
+    for i, yy in enumerate((-s * .42, 0, s * .42)):
+        d.line([(cx - s * .6, cy + yy), (cx + s * .6, cy + yy)], fill=A, width=3)
+        kx = cx + (s * .3 if i == 1 else -s * .25 if i == 0 else s * .05)
+        d.ellipse([kx - 7, cy + yy - 7, kx + 7, cy + yy + 7], fill=CARD, outline=A, width=3)
+
+
+ICONS = [("Sign", "a transaction", icon_sign), ("Receive", "an address", icon_receive),
+         ("Wallet", "keys & export", icon_key), ("Settings", "device & theme", icon_settings)]
+
+BY = H - 46  # bottom-row baseline for the status / theme indicators
+
+
+def accent_art(d, struct, theme_col, status_col):
+    """struct = chrome stroke color (opaque sharp pass, or alpha tuple for glow pass).
+    theme_col / status_col are always drawn in their true colors."""
+    for (ox, oy, dx, dy) in [(26, 26, 1, 1), (W - 26, 26, -1, 1), (26, H - 26, 1, -1), (W - 26, H - 26, -1, -1)]:
+        d.line([(ox, oy), (ox + dx * 26, oy)], fill=struct, width=3)
+        d.line([(ox, oy), (ox, oy + dy * 26)], fill=struct, width=3)
+    d.line([(46, 96), (188, 96)], fill=struct, width=3)
+    d.rounded_rectangle([566, 40, 760, 86], 10, outline=struct, width=2)
+    tw = 160
+    for i in range(4):
+        x0 = 50 + i * (tw + 20)
+        d.rounded_rectangle([x0, 150, x0 + tw, 332], 12, outline=struct, width=2)
+        ICONS[i][2](d, x0 + tw / 2, 212, 46, struct)
+    # status light pill (bottom-left)
+    d.rounded_rectangle([44, BY - 22, 250, BY + 22], 22, outline=status_col, width=2)
+    d.ellipse([62 - 9, BY - 9, 62 + 9, BY + 9], fill=status_col)
+    # theme dot (bottom-right)
+    d.ellipse([684 - 7, BY - 7, 684 + 7, BY + 7], fill=theme_col)
+    d.ellipse([684 - 11, BY - 11, 684 + 11, BY + 11], outline=theme_col, width=2)
+
+
+def render(active, status="caution", fp=None, grid_a=44, bake_chip=True):
+    # grid_a = solid-grid opacity 0-255 (lower = more transparent)
+    # bake_chip=False leaves the fingerprint chip area BLANK: the firmware bake uses it
+    # because the chip is dynamic (EMPTY vs live fingerprint) and is drawn as LVGL labels.
+    A = hx(THEMES[active][1])
+    slab, ssub, scol = STATUS[status]
+    base = Image.new("RGBA", (W, H), (7, 10, 16, 255))
+    g = ImageDraw.Draw(base)
+    if grid_a:   # SOLID background grid (0 = off). Draw on a SEPARATE transparent layer, then
+                 # alpha_composite. Drawing an alpha fill straight onto the opaque base does NOT
+                 # blend — PIL paints it full-strength and drops the alpha, which is why every
+                 # grid_a value looked identically bright before. grid_a is now a REAL opacity
+                 # dial (0-255): lower = more transparent.
+        gl_grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        gg = ImageDraw.Draw(gl_grid)
+        for x in range(0, W, GRID_PITCH):
+            gg.line([(x, 0), (x, H)], fill=(*A, grid_a), width=1)
+        for y in range(0, H, GRID_PITCH):
+            gg.line([(0, y), (W, y)], fill=(*A, grid_a), width=1)
+        # Fade the grid out toward the edges/corners so the four corner items (KISS logo,
+        # fingerprint, status pill, theme dot) sit on clean darkness. Elliptical radial mask:
+        # full grid mid-screen, gone at the corners.
+        gy2, gx2 = np.mgrid[0:H, 0:W]
+        nd = np.sqrt(((gx2 - W / 2) / (W / 2)) ** 2 + ((gy2 - H / 2) / (H / 2)) ** 2)
+        fade = np.clip((1.15 - nd) / 0.5, 0, 1)          # 1 until nd~0.65, ->0 by nd~1.15 (corners)
+        ga = (np.asarray(gl_grid.getchannel("A")).astype(np.float32) * fade).astype(np.uint8)
+        gl_grid.putalpha(Image.fromarray(ga))
+        base.alpha_composite(gl_grid)
+    yy, xx = np.mgrid[0:H, 0:W]
+    vig = (np.clip((np.sqrt((xx - W / 2) ** 2 + (yy - H / 2) ** 2) / 520 - 0.5) / 0.5, 0, 1) * 150).astype(np.uint8)
+    base.alpha_composite(Image.fromarray(np.dstack([np.zeros((H, W, 3), np.uint8), vig]), "RGBA"))
+    gl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    accent_art(ImageDraw.Draw(gl), (*A, 200), theme_col=A, status_col=scol)
+    base.alpha_composite(gl.filter(ImageFilter.GaussianBlur(6)))
+    d = ImageDraw.Draw(base)
+    accent_art(d, A, theme_col=A, status_col=scol)
+    # header
+    d.text((44, 44), "KISS", font=font(44), fill=INK)
+    d.text((48, 100), "airgapped bitcoin signer", font=font(15, mono=True), fill=MUT)
+    # fingerprint chip — EMPTY until a wallet exists (skipped entirely for the firmware
+    # bake: live LVGL labels own this area)
+    if bake_chip:
+        if fp:
+            d.text((584, 48), "◇ " + fp, font=font(20, mono=True), fill=A)
+            d.text((584, 70), "fingerprint", font=font(12, mono=True), fill=MUT)
+        else:
+            d.text((584, 48), "◇ EMPTY", font=font(20, mono=True), fill=MUT)
+            d.text((584, 70), "no wallet yet", font=font(12, mono=True), fill=MUT)
+    # tiles
+    tw = 160
+    for i, (lab, sub, _) in enumerate(ICONS):
+        x0 = 50 + i * (tw + 20)
+        d.text((x0 + (tw - d.textlength(lab, font=font(23))) / 2, 268), lab, font=font(23), fill=INK)
+        d.text((x0 + (tw - d.textlength(sub, font=font(13, mono=True))) / 2, 300), sub, font=font(13, mono=True), fill=SUB)
+    # status light label
+    d.text((84, BY - 14), slab, font=font(20), fill=scol)
+    d.text((84, BY + 8), ssub, font=font(11, mono=True), fill=MUT)
+    # theme dot label
+    nm = THEMES[active][0].upper()
+    fn = font(15, mono=True)
+    d.text((704, BY - 9), nm, font=fn, fill=INK)
+    d.text((704, BY - 28), "theme", font=font(10, mono=True), fill=MUT)
+    return base.convert("RGB")
+
+
+# preview sheet — demo the themes (per row) AND the three status states
+ROWS = [(0, "caution", None), (1, "go", "7F3A·9C21"),
+        (2, "stop", "B2C8·41DE"), (3, "caution", "5A19·7766")]
+pad, lab_h = 10, 30
+sheet = Image.new("RGB", (W + 2 * pad, (H + lab_h) * len(ROWS) + pad), (10, 12, 18))
+sd = ImageDraw.Draw(sheet)
+for r, (ti, st, fp) in enumerate(ROWS):
+    name, hexv = THEMES[ti]
+    y = pad + r * (H + lab_h)
+    sd.text((pad + 4, y + 6), f"■ {name} theme   ·   status: {st.upper()}", font=font(16, mono=True), fill=hx(hexv))
+    sheet.paste(render(ti, st, fp), (pad, y + lab_h))
+sheet.save("/tmp/wallet_mock.png")
+print("saved /tmp/wallet_mock.png", sheet.size)
+
+# emit the DEFAULT baked menu: mono theme, CAUTION status, chip area blank (the chip
+# is dynamic — EMPTY vs fingerprint — so the firmware draws it with live LVGL labels)
+img = render(0, "caution", None, bake_chip=False)
+rgb = np.array(img)
+v = (((rgb[..., 0] >> 3).astype(np.uint16) << 11) | ((rgb[..., 1] >> 2).astype(np.uint16) << 5) | (rgb[..., 2] >> 3))
+data = np.dstack([(v & 0xFF).astype(np.uint8), (v >> 8).astype(np.uint8)]).reshape(-1)
+with open(OUT + "/wallet_img.c", "w") as f:
+    f.write('#include "lvgl.h"\n\n')
+    f.write("static const uint8_t wallet_map[] = {%s};\n\n" % ",".join(map(str, data.tolist())))
+    f.write("const lv_image_dsc_t img_wallet = {\n")
+    f.write("  .header = { .magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565,\n")
+    f.write("             .flags = 0, .w = %d, .h = %d, .stride = %d },\n" % (W, H, W * 2))
+    f.write("  .data_size = sizeof(wallet_map), .data = wallet_map,\n};\n")
+with open(OUT + "/wallet_img.h", "w") as f:
+    f.write('#pragma once\n#include "lvgl.h"\nextern const lv_image_dsc_t img_wallet;\n')
+print("wrote main/wallet_img.c (img_wallet: mono theme, CAUTION, EMPTY)")

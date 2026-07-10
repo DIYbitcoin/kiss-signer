@@ -1,0 +1,10 @@
+TEST_PARTS_FORMAT_MULTIPART_UR = [
+    "ur:crypto-psbt/2-8/lpaoaycfadcycyamgrmswlhddkplkooncmswqdampahlvloyglaeaeaeaeaezczmzmzmaokefhhlahaeaeaeaecmaebbdleepktpcpnyde",
+    "ur:crypto-psbt/1-8/lpadaycfadcycyamgrmswlhddkhkadchjojkidjyzmadaejsaoaeaeaeadtkfnhdsrdtlfplcxgdlotarygawmndaopsurgtfswmwkinva",
+    "ur:crypto-psbt/3-8/lpaxaycfadcycyamgrmswlhddkcewtbkgupfgooemenbftkifewtolmklugmlamtmkaeaeaeaeaecmaebbvaimzezmsrlsmnjseylanegy",
+    "ur:crypto-psbt/4-8/lpaaaycfadcycyamgrmswlhddkwtoekgatvlpfbaueimvsvyhnaeaeaeaeaeadadctaevyykahaeaeaeaecmaebbtissotwsaskeisuold",
+    "ur:crypto-psbt/5-8/lpahaycfadcycyamgrmswlhddkwlmsrpwlnneskbgymyvlvecybylkoycpamaovdpydaemretynnmsaxaspkvtjtnngawfjzvychtbfxax",
+    "ur:crypto-psbt/6-8/lpamaycfadcycyamgrmswlhddksozerktyglspvtttsfnbqzytsrcfcsjksktnbkghaeaelaadaeaelaaeaeaelaaeaeaeaeaestwncstl",
+    "ur:crypto-psbt/7-8/lpataycfadcycyamgrmswlhddkaeaeaeaecpaoaxhlgawpsnghtiasnnfxioidktstoltyidhlhscapdlehlwkndytgyknktmevltdqzhn",
+    "ur:crypto-psbt/8-8/lpayaycfadcycyamgrmswlhddkosktoncsjksktnbkghaeaelaadaeaelaaeaeaelaadaeaeaeaeaeaeaeaeaeaeaeaeaeaeaefxktbtbb",
+]

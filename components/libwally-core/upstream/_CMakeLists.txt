@@ -1,0 +1,81 @@
+cmake_minimum_required(VERSION 3.18)
+
+project(
+  libwallycore
+  VERSION 1.5.4
+  DESCRIPTION "A collection of useful primitives for cryptocurrency wallets"
+  LANGUAGES C
+)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+option(BUILD_SHARED_LIBS "Build as shared library" OFF)
+option(WALLYCORE_ENABLE_TESTS "Build tests" OFF)
+option(WALLYCORE_INSTALL "Enable install" OFF)
+option(WALLYCORE_COVERAGE "Enable coverage" OFF)
+option(WALLYCORE_BUILD_ELEMENTS "Build elements" ON)
+option(WALLYCORE_ENABLE_FUZZING "Enable fuzzing support" OFF)
+option(WALLYCORE_ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" OFF)
+option(WALLYCORE_ENABLE_UB_SANITIZER "Enable undefined behavior sanitizer" OFF)
+
+if(WALLYCORE_ENABLE_FUZZING)
+    add_compile_options(-fsanitize=fuzzer-no-link)
+endif()
+
+if(WALLYCORE_ENABLE_ADDRESS_SANITIZER)
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+endif()
+
+if(WALLYCORE_ENABLE_UB_SANITIZER)
+    add_compile_options(-fsanitize=undefined)
+    add_link_options(-fsanitize=undefined)
+endif()
+
+include(cmake/utils.cmake)
+generate_config_file()
+configure_file(src/ccan_config.h ccan_config.h COPYONLY)
+
+# libsec256k1-zkp
+set(SECP256K1_ENABLE_MODULE_ECDH ON)
+set(SECP256K1_ENABLE_MODULE_RECOVERY ON)
+set(SECP256K1_ENABLE_MODULE_EXTRAKEYS ON)
+set(SECP256K1_ENABLE_MODULE_SCHNORRSIG ON)
+set(SECP256K1_ENABLE_MODULE_ELLSWIFT OFF)
+set(SECP256K1_ENABLE_MODULE_GENERATOR ON)
+set(SECP256K1_ENABLE_MODULE_RANGEPROOF ON)
+set(SECP256K1_ENABLE_MODULE_SURJECTIONPROOF ON)
+set(SECP256K1_ENABLE_MODULE_WHITELIST ON)
+set(SECP256K1_ENABLE_MODULE_MUSIG OFF)
+set(SECP256K1_ENABLE_MODULE_ECDSA_ADAPTOR OFF)
+set(SECP256K1_ENABLE_MODULE_ECDSA_S2C ON)
+set(SECP256K1_ENABLE_MODULE_BPPP OFF)
+set(SECP256K1_BUILD_BENCHMARK OFF)
+set(SECP256K1_BUILD_TESTS OFF)
+set(SECP256K1_BUILD_EXHAUSTIVE_TESTS OFF)
+set(SECP256K1_BUILD_CTIME_TESTS OFF)
+set(SECP256K1_BUILD_EXAMPLES OFF)
+set(SECP256K1_INSTALL ${WALLYCORE_INSTALL})
+add_subdirectory(./src/secp256k1/)
+
+add_subdirectory(./src)
+
+if(WALLYCORE_ENABLE_FUZZING)
+    add_executable(fuzz_psbt_from_bytes fuzz/fuzz_psbt_from_bytes.c)
+    target_include_directories(fuzz_psbt_from_bytes PRIVATE include)
+    target_link_libraries(fuzz_psbt_from_bytes PRIVATE wallycore)
+    target_link_options(fuzz_psbt_from_bytes PRIVATE -fsanitize=fuzzer)
+    set_target_properties(fuzz_psbt_from_bytes PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/fuzz)
+
+    add_executable(fuzz_tx_from_bytes fuzz/fuzz_tx_from_bytes.c)
+    target_include_directories(fuzz_tx_from_bytes PRIVATE include)
+    target_link_libraries(fuzz_tx_from_bytes PRIVATE wallycore)
+    target_link_options(fuzz_tx_from_bytes PRIVATE -fsanitize=fuzzer)
+    set_target_properties(fuzz_tx_from_bytes PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/fuzz)
+endif()
+
+if(NOT WALLYCORE_ENABLE_TESTS)
+    return()
+endif()
+
+enable_testing()
+add_subdirectory(src/ctest)

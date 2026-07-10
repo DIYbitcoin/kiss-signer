@@ -1,0 +1,58 @@
+// QR transport for PSBTs (step 6): assemble scanned QR strings into a PSBT,
+// and emit a PSBT as QR part strings. Thin glue over components/cUR (BC-UR
+// fountain codes); pMofN + static base64 handled locally. No LVGL, no camera,
+// no libwally — pure data layer, tested on desktop by sim/test_qr.c.
+#ifndef QR_TRANSPORT_H
+#define QR_TRANSPORT_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+// Detected / requested wire format.
+#define QRT_FMT_NONE   0
+#define QRT_FMT_STATIC 1   // one QR: base64 text or raw binary PSBT
+#define QRT_FMT_PMOFN  2   // "pMofN <base64>" legacy animated (Specter/Krux)
+#define QRT_FMT_UR     3   // ur:crypto-psbt, single or fountain multi-part
+
+#define QRT_MAX_PSBT   4096   // matches the Sign screen input buffer
+
+// ---- decode: feed scanned QR payloads until complete ----
+typedef struct qrt_parser qrt_parser_t;
+
+qrt_parser_t *qrt_parser_new(void);
+void qrt_parser_free(qrt_parser_t *p);
+
+// Feed one scanned QR payload (may contain NULs for binary QRs).
+// 0 = accepted (including harmless duplicates), -1 = not usable for this scan
+// (unknown format, or a format different from the one already in progress).
+int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len);
+
+bool qrt_parser_complete(const qrt_parser_t *p);
+int qrt_parser_format(const qrt_parser_t *p);   // QRT_FMT_* (NONE until first feed)
+
+// Progress for the scan UI. total = 0 while still unknown.
+int qrt_parser_seen(const qrt_parser_t *p);
+int qrt_parser_total(const qrt_parser_t *p);
+
+// Copy the assembled raw PSBT into out. 0 on success (only when complete and
+// it fits in cap), else nonzero.
+int qrt_parser_result(qrt_parser_t *p, uint8_t *out, size_t cap, size_t *out_len);
+
+// ---- encode: turn a PSBT into QR part strings ----
+typedef struct qrt_encoder qrt_encoder_t;
+
+// fmt = QRT_FMT_UR / QRT_FMT_PMOFN / QRT_FMT_STATIC.
+// STATIC refuses PSBTs too big for one QR.
+qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len);
+void qrt_encoder_free(qrt_encoder_t *e);
+
+// Parts in one display cycle (1 = static / single-part UR).
+int qrt_encoder_parts(const qrt_encoder_t *e);
+
+// Write the next part string into out (NUL-terminated). Animated formats
+// cycle forever (UR fountain parts keep evolving past the pure fragments —
+// that is what makes lossy scanning converge). 0 on success.
+int qrt_encoder_next(qrt_encoder_t *e, char *out, size_t cap);
+
+#endif // QR_TRANSPORT_H

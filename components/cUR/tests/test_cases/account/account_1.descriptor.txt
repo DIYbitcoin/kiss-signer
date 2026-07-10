@@ -1,0 +1,1 @@
+wpkh([65fb43fe/84'/0'/0']xpub6D6bHSbztVpLnASrsBByEL7YWQTRt7a9t8C7FQnfbCzGpGMCUUqpkb5NUA6vUKGVVp9sPDavVr5Z5EbhBkpxDNrbQxPtjskKtMBNe7D65Xw)#xmemgyql
