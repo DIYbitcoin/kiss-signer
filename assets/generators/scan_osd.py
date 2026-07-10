@@ -28,7 +28,7 @@ STRIPS = [
     ("OSD_ENT_LOW", "Point at something with detail",
                     "books, a plant, your desk — not a blank wall"),
     ("OSD_ENT_OK",  "Looking good — tap to capture",
-                    "the photo becomes your wallet's randomness"),
+                    "the photo's randomness makes your words impossible to guess"),
     ("OSD_CLOSE",   "", ""),   # placeholder; rendered specially below
 ]
 

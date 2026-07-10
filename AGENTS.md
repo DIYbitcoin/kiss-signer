@@ -1,4 +1,4 @@
-# kiss-wallet-os — project notes
+# kiss-wallet — project notes
 
 A **decoy fruit-slash game** ("FRUIT ISLAND", Fruit-Ninja style) that will eventually hide a
 KISS/Krux Bitcoin wallet behind a secret unlock gesture. Make the game look **10/10 professional**,
