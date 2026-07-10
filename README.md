@@ -12,10 +12,7 @@ Krux, and Kern.
   different passphrase simply opens a different wallet (deniability built in).
 - **Airgapped:** transactions move by animated QR (BC-UR) or SD card. The
   device never touches a network.
-- **Coordinator-friendly:** exports a watch-only output descriptor per address
-  type (native / nested / legacy segwit) for Sparrow and friends; verifies and
-  signs PSBTs with full output display, change re-derivation, network + script
-  type checks, and hard STOPs on anything it cannot verify.
+- **Online wallet compatible:** exports descriptors for Sparrow and friends. The online wallet builds and broadcasts transactions; KISS stays offline, verifies the PSBT, and signs only what it can fully show.
 
 ## Hardware
 
@@ -24,8 +21,7 @@ panel (ST7701 + GT911), OV02C10 MIPI-CSI camera, SDMMC card slot.
 
 ## Flash it (first time)
 
-You need [Docker](https://docs.docker.com/get-docker/) to build and
-[uv](https://docs.astral.sh/uv/) to run the flasher — no local ESP-IDF install.
+You need [Docker](https://docs.docker.com/get-docker/) to build with ESP-IDF v6.0.1. For terminal flashing, use a local ESP-IDF install if you have one. Direct esptool stays as a fallback because ESP-IDF uses esptool under the hood.
 
 ```sh
 git clone <this repo> && cd kiss-wallet
@@ -36,7 +32,10 @@ tools/build_release.sh
 # 2. plug the board in over USB-C and find its port
 ls /dev/cu.usbmodem* 2>/dev/null || ls /dev/ttyACM*   # macOS | Linux
 
-# 3. flash everything (bootloader + partition table + app)
+# 3. flash with ESP-IDF (local ESP-IDF install)
+idf.py -B build-release -p <port> flash
+
+# fallback: direct esptool
 uvx esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
@@ -52,7 +51,7 @@ engineering-sample quirk). A black screen after flashing means you skipped this.
 The build script ends by verifying the binary (no development seed material
 inside, version + commit string present) and re-prints these flash commands.
 
-Reflashing later: only the `0x10000 ...` app line is needed.
+Reflashing later: use `idf.py -B build-release -p <port> app-flash` with local ESP-IDF, or the app-only esptool fallback printed by `tools/build_release.sh`.
 
 For development builds instead (boot log fingerprint, dev banner):
 
@@ -73,10 +72,7 @@ docker run --rm -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
    camera a detailed scene for entropy, write the words on paper, pass the
    word quiz, set your passphrase.
 5. Stay on **TESTNET** (Settings) while you learn — coins: coinfaucet.eu.
-6. Pair a watch-only wallet: **Wallet → EXPORT** shows a descriptor QR for
-   [Sparrow Wallet](https://sparrowwallet.com). Sparrow builds transactions;
-   this device verifies and signs them via camera QR or `.psbt` on SD card.
-   Nothing else ever crosses.
+6. Pair Sparrow: **Wallet -> EXPORT** shows a descriptor QR. Sparrow builds and broadcasts transactions; this device verifies and signs PSBTs via camera QR or `.psbt` on SD card.
 
 Settings shows exactly what's on the board, bottom-left:
 `KISS <version> (<commit>)` plus an honest note while flash encryption is off.
