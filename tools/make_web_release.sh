@@ -1,21 +1,22 @@
 #!/bin/bash
 # Build the web-installer release artifacts into docs/installer/:
 #   * firmware/kiss-wallet-<version>-<commit>-full.bin  (merged, offset 0)
-#   * firmware/...-full.bin.minisig                     (if a signing key exists)
-#   * SHA256SUMS                                        (all parts + merged bin)
+#   * SHA256SUMS + SHA256SUMS.asc                       (GPG, if a key exists)
+#   * firmware/...-full.bin.minisig                     (minisign, if key exists)
 #   * manifest.json / release.json                      (rewritten in place)
 #
-# Signing uses minisign (https://jedisct1.github.io/minisign/):
-#   one-time: brew install minisign && minisign -G -p docs/installer/kiss_wallet.pub \
-#             -s ~/.kiss-wallet/minisign.key
-# The SECRET key stays on the maintainer machine (never in the repo); only the
-# .pub travels. Without a key the release is emitted unsigned and labeled so.
-# See docs/installer/SIGNING.md for the full flow + user verification steps.
+# Signing, the typical bitcoin-project way (see docs/installer/SIGNING.md):
+#   * GPG (primary, community convention): detached armor signature over the
+#     SHA256SUMS manifest. Uses your default key, or GPG_KEY_ID if set.
+#   * minisign (optional extra): signature over the merged firmware image.
+# Secret keys stay on the maintainer machine; only public keys enter the repo.
+# Without keys the release is emitted unsigned and labeled so.
 set -e
 cd "$(dirname "$0")/.."
 
 MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-wallet/minisign.key}"
 PUBKEY_FILE="docs/installer/kiss_wallet.pub"
+GPG_PUB_FILE="docs/installer/kiss_wallet_pgp.asc"
 PY="${PY:-/tmp/spritevenv/bin/python}"
 [ -x "$PY" ] || PY=python3
 
@@ -38,25 +39,57 @@ mkdir -p "$OUT/firmware"
 # drop stale firmware images so the served folder only holds this release
 find "$OUT/firmware" -name 'kiss-wallet-*-full.bin*' ! -name "$NAME*" -delete
 
-# 3. sign (or honestly mark unsigned)
-SIGNED=0
+# 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
+NAME="$NAME" "$PY" - <<'PY'
+import hashlib, os
+out = "docs/installer"
+name = os.environ["NAME"]
+def sha(p): return hashlib.sha256(open(p, "rb").read()).hexdigest()
+parts = [
+    ("bootloader",      "build-release/bootloader/bootloader.bin"),
+    ("partition table", "build-release/partition_table/partition-table.bin"),
+    ("application",     "build-release/guition_kiss_bringup.bin"),
+]
+with open(f"{out}/SHA256SUMS", "w") as f:
+    f.write(f"{sha(f'{out}/firmware/{name}')}  firmware/{name}\n")
+    for label, p in parts:
+        f.write(f"{sha(p)}  {p}  ({label})\n")
+print(f"wrote {out}/SHA256SUMS")
+PY
+
+# 4. signatures (each honest and optional)
+GPGSIGNED=0
+if command -v gpg >/dev/null && gpg --list-secret-keys ${GPG_KEY_ID:+"$GPG_KEY_ID"} >/dev/null 2>&1; then
+    gpg --batch --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
+      --detach-sign -o "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS"
+    GPGSIGNED=1
+    echo "gpg: $OUT/SHA256SUMS.asc"
+    [ -f "$GPG_PUB_FILE" ] || echo "NOTE: export your public key into the repo:" \
+      " gpg --armor --export ${GPG_KEY_ID:-<your key id>} > $GPG_PUB_FILE"
+else
+    rm -f "$OUT/SHA256SUMS.asc"
+    echo "NOTE: no GPG secret key found - SHA256SUMS left unsigned (see docs/installer/SIGNING.md)"
+fi
+
+MINISIGNED=0
 if command -v minisign >/dev/null && [ -f "$MINISIGN_KEY" ]; then
     minisign -S -s "$MINISIGN_KEY" -m "$OUT/firmware/$NAME" \
       -t "kiss-wallet $VERSION $GIT_REV" -x "$OUT/firmware/$NAME.minisig"
-    SIGNED=1
-    echo "signed: $OUT/firmware/$NAME.minisig"
-else
-    echo "NOTE: unsigned release (no minisign key at $MINISIGN_KEY - see docs/installer/SIGNING.md)"
+    MINISIGNED=1
+    echo "minisign: $OUT/firmware/$NAME.minisig"
 fi
 
-# 4. hashes + manifest.json + release.json
-SIGNED=$SIGNED NAME="$NAME" VERSION="$VERSION" GIT_REV="$GIT_REV" \
-PUBKEY_FILE="$PUBKEY_FILE" "$PY" - <<'PY'
+# 5. manifest.json + release.json
+GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
+GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
+"$PY" - <<'PY'
 import hashlib, json, os, datetime
 
 out = "docs/installer"
 name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
-signed = os.environ["SIGNED"] == "1"
+gpg_signed = os.environ["GPGSIGNED"] == "1"
+mini_signed = os.environ["MINISIGNED"] == "1"
+signed = gpg_signed or mini_signed
 
 def sha(p):
     return hashlib.sha256(open(p, "rb").read()).hexdigest()
@@ -67,11 +100,6 @@ parts = [
     ("partition table", "build-release/partition_table/partition-table.bin",  0x8000),
     ("application",     "build-release/guition_kiss_bringup.bin",             0x10000),
 ]
-
-with open(f"{out}/SHA256SUMS", "w") as f:
-    f.write(f"{sha(full)}  firmware/{name}\n")
-    for label, p, _ in parts:
-        f.write(f"{sha(p)}  {p}  ({label})\n")
 
 json.dump({
     "name": "KISS Wallet",
@@ -85,18 +113,29 @@ json.dump({
     }],
 }, open(f"{out}/manifest.json", "w"), indent=2)
 
+status = ("pgp+minisign" if gpg_signed and mini_signed
+          else "pgp" if gpg_signed
+          else "minisign" if mini_signed
+          else "unsigned-release-candidate")
 auth = {
-    "signatureStatus": "minisign" if signed else "unsigned-release-candidate",
-    "signatureLabel": "minisign-signed" if signed else "Unsigned RC",
+    "signed": signed,
+    "signatureStatus": status,
+    "signatureLabel": {"pgp+minisign": "GPG + minisign signed",
+                       "pgp": "GPG signed",
+                       "minisign": "minisign signed"}.get(status, "Unsigned RC"),
     "finalReleaseRequiresSignature": True,
 }
-if signed:
+if gpg_signed:
+    auth["gpgSignaturePath"] = "SHA256SUMS.asc"
+    if os.path.exists(os.environ["GPG_PUB_FILE"]):
+        auth["gpgPublicKeyPath"] = os.path.basename(os.environ["GPG_PUB_FILE"])
+if mini_signed:
     auth["signaturePath"] = f"firmware/{name}.minisig"
     pub = os.environ["PUBKEY_FILE"]
     if os.path.exists(pub):
         auth["publicKey"] = open(pub).read().strip().splitlines()[-1]
         auth["publicKeyPath"] = os.path.basename(pub)
-else:
+if not signed:
     auth["keyLabel"] = "final release key pending"
 
 json.dump({
@@ -125,9 +164,9 @@ json.dump({
         "After flashing, unplug the board, wait about 3 seconds, then plug it back in.",
     ],
 }, open(f"{out}/release.json", "w"), indent=2)
-print(f"wrote {out}/manifest.json, release.json, SHA256SUMS")
+print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")
 PY
 
 echo
 echo "web release ready: $OUT/firmware/$NAME"
-[ "$SIGNED" = "1" ] || echo "REMINDER: generate the signing key before the first public release."
+[ "$GPGSIGNED" = "1" ] || echo "REMINDER: set up the GPG release key before the first public release."
