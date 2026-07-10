@@ -20,12 +20,27 @@ GPG_PUB_FILE="docs/installer/kiss_wallet_pgp.asc"
 PY="${PY:-/tmp/spritevenv/bin/python}"
 [ -x "$PY" ] || PY=python3
 
+# A release must come from a fully committed tree, so the version/commit it
+# reports match code that actually exists in git (no "-dirty"). If you have
+# uncommitted work, commit it first, then rerun. (ALLOW_DIRTY=1 overrides for
+# a throwaway test build.)
+if [ -z "$ALLOW_DIRTY" ] && [ -n "$(git status --porcelain)" ]; then
+    echo "You have uncommitted changes, so this would be a messy '-dirty' release."
+    echo "To make a clean release:"
+    echo "  1. git add -A && git commit -m \"...\"   (save your work)"
+    echo "  2. rerun this script"
+    echo "(only building a throwaway test? prefix the command with ALLOW_DIRTY=1)"
+    exit 1
+fi
+
 # 1. fresh verified release build
 tools/build_release.sh
 
 VERSION=$(cat VERSION)
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
-NAME="kiss-wallet-${VERSION}-${GIT_REV}-full.bin"
+# Clean, beginner-readable filename: just the version. The exact commit lives
+# inside release.json and on the device Settings screen for verifiers.
+NAME="kiss-wallet-${VERSION}.bin"
 OUT="docs/installer"
 mkdir -p "$OUT/firmware"
 
@@ -37,7 +52,7 @@ mkdir -p "$OUT/firmware"
   0x10000 build-release/guition_kiss_bringup.bin
 
 # drop stale firmware images so the served folder only holds this release
-find "$OUT/firmware" -name 'kiss-wallet-*-full.bin*' ! -name "$NAME*" -delete
+find "$OUT/firmware" -name 'kiss-wallet-*.bin*' ! -name "$NAME*" -delete
 
 # 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
 NAME="$NAME" "$PY" - <<'PY'
