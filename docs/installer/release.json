@@ -4,7 +4,7 @@
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
   "version": "0.8.0-beta1",
-  "commit": "0f200e7-dirty",
+  "commit": "2a6fd14",
   "status": "release-candidate",
   "generated": "2026-07-10",
   "authenticity": {
@@ -13,6 +13,7 @@
     "signatureLabel": "GPG signed",
     "finalReleaseRequiresSignature": true,
     "gpgSignaturePath": "SHA256SUMS.asc",
+    "gpgFingerprint": "166ACBF37786FCEAA69496DE886F1BFEB84EF1C0",
     "gpgPublicKeyPath": "kiss_wallet_pgp.asc"
   },
   "flash": {
@@ -21,10 +22,10 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-wallet-0.8.0-beta1-0f200e7-dirty-full.bin",
+    "path": "firmware/kiss-wallet-0.8.0-beta1.bin",
     "offset": 0,
     "size": 5724848,
-    "sha256": "588974d92b6760f8f5f4e284fa4d3214919fcec3c013b496949dd3e2fdce1caf"
+    "sha256": "0a526ead58a773d7367842dfbf983cb3623a2e38b51670807ad1b0ab19e8a597"
   },
   "sourceParts": [
     {
@@ -46,7 +47,7 @@
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 65536,
       "size": 5659312,
-      "sha256": "b0f7b5b1289922958838b49c5d9aaa2b329e2d1829d75d38a4f90625048cbcba"
+      "sha256": "eb3a04d65657e6423cc26773643a282f0bb12d5e710b800f11015a7092e4c399"
     }
   ],
   "warnings": [
