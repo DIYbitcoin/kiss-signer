@@ -6,278 +6,94 @@
     <meta name="theme-color" content="#050607">
     <meta
       name="description"
-      content="KISS Wallet docs: an airgapped Bitcoin signer hidden behind a fruit-slash arcade game."
+      content="KISS Wallet browser firmware installer for the Guition JC4880P443C ESP32-P4 board."
     >
-    <title>KISS Wallet Docs</title>
+    <title>KISS Wallet Installer</title>
     <link rel="stylesheet" href="styles.css">
+    <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#start">Skip to docs</a>
-    <header class="site-header" aria-label="Primary">
-      <a class="brand" href="#top" aria-label="KISS Wallet home">
-        <span class="brand-mark" aria-hidden="true">K</span>
-        <span>
-          <strong>kiss-wallet</strong>
-          <small>airgapped signer docs</small>
-        </span>
-      </a>
-      <nav class="top-nav" aria-label="Docs sections">
-        <a href="#start">Start</a>
-        <a href="#safety">Safety</a>
-        <a href="#flows">Flows</a>
-        <a href="#release">Release</a>
-        <a href="#stack">Stack</a>
-      </nav>
-    </header>
-
-    <main id="top">
-      <section class="hero-shell" aria-labelledby="hero-title">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">FRUIT ISLAND outside. Bitcoin signer inside.</p>
-            <h1 id="hero-title">KISS Wallet docs for the weird little device that should stay simple.</h1>
-            <p class="hero-lede">
-              A clean path from decoy game to passphrase wallet, descriptor export, PSBT verification,
-              and release hardening. Built as plain static files for free GitHub Pages hosting.
-            </p>
-            <div class="hero-actions" aria-label="Quick links">
-              <a class="primary-action" href="#start">Read the quickstart</a>
-              <a class="secondary-action" href="#release">Check release gate</a>
-            </div>
-            <div class="status-row" aria-label="Project status">
-              <span class="status-pill ready">v0.8.0-beta1</span>
-              <span class="status-pill caution">release candidate</span>
-              <span class="status-pill stop">flash encryption pending</span>
-            </div>
-          </div>
-
-          <div class="device-lab" aria-label="KISS Wallet screenshots">
-            <div class="shot-toolbar" role="tablist" aria-label="Screenshot selector">
-              <button class="shot-tab is-active" type="button" data-shot="wallet-home.png" role="tab" aria-selected="true">Wallet</button>
-              <button class="shot-tab" type="button" data-shot="sign-verify.png" role="tab" aria-selected="false">Sign</button>
-              <button class="shot-tab" type="button" data-shot="export-descriptor.png" role="tab" aria-selected="false">Export</button>
-              <button class="shot-tab" type="button" data-shot="game-menu.png" role="tab" aria-selected="false">Decoy</button>
-            </div>
-            <div class="device-frame">
-              <img
-                id="hero-shot"
-                src="media/wallet-home.png"
-                width="800"
-                height="480"
-                alt="KISS Wallet home screen on the simulated device"
-              >
-            </div>
-            <p class="shot-caption" id="shot-caption">Wallet home: receive, sign, export, settings.</p>
-          </div>
+    <main class="shell">
+      <section class="hero reveal">
+        <p class="eyebrow">KISS Wallet Installer</p>
+        <h1>Install firmware</h1>
+        <p class="lede">
+          For the Guition JC4880P443C ESP32-P4 board. Use Chrome, Brave, or Edge on desktop.
+        </p>
+        <div class="status-row" aria-label="Release status">
+          <span class="status-pill caution">release candidate</span>
+          <span class="status-pill ready">hash checked</span>
+          <span class="status-pill stop">no meaningful funds yet</span>
         </div>
       </section>
 
-      <section class="alert-band" aria-label="Current safety status">
-        <div>
-          <strong>Current posture:</strong>
-          release-candidate firmware, not a final funds build. Keep meaningful funds off it until the
-          release gate is closed.
+      <section class="install-card reveal" id="install" aria-label="Firmware install">
+        <div class="verify-line">
+          <div class="verify-light pending" id="verify-light"></div>
+          <div>
+            <strong id="verify-title">Checking firmware</strong>
+            <span id="release-title">loading build</span>
+          </div>
         </div>
-        <a href="#release">See gate</a>
+
+        <label class="ack-row">
+          <input id="ack" type="checkbox">
+          <span>I understand this can overwrite firmware. I will test on a no-funds board first.</span>
+        </label>
+
+        <div class="install-actions">
+          <button class="flash-button" id="locked-button" type="button" disabled>
+            Connect and install firmware (checking...)
+          </button>
+
+          <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
+            <button slot="activate" class="flash-button" type="button">
+              Connect and install firmware
+            </button>
+            <span slot="unsupported">
+              Web Serial is not available here. Use Chrome, Brave, or Edge on desktop.
+            </span>
+            <span slot="not-allowed">
+              Web Serial requires localhost or HTTPS.
+            </span>
+          </esp-web-install-button>
+        </div>
+
+        <p class="power-note">
+          After flashing: unplug, wait about 3 seconds, plug back in. Expected boot: FRUIT ISLAND.
+        </p>
       </section>
 
-      <section class="docs-layout" id="start" aria-label="Documentation">
-        <aside class="doc-rail" aria-label="On this page">
-          <p>Docs map</p>
-          <a href="#start">Quickstart</a>
-          <a href="#safety">Safety model</a>
-          <a href="#flows">Wallet flows</a>
-          <a href="#commands">Commands</a>
-          <a href="#release">Release gate</a>
-          <a href="#stack">Stack</a>
-        </aside>
-
-        <div class="doc-content">
-          <section class="section-block">
-            <div class="section-heading">
-              <p class="section-kicker">Start here</p>
-              <h2>Boot from fruit game to watch-only pairing.</h2>
-            </div>
-            <div class="steps-grid">
-              <article class="step-card">
-                <span>01</span>
-                <h3>Build release candidate</h3>
-                <p>Use the Docker-backed release script. It verifies version metadata and keeps dev seed material out.</p>
-              </article>
-              <article class="step-card">
-                <span>02</span>
-                <h3>Flash, then power-cycle</h3>
-                <p>Use full flash for first install. Unplug, wait about 3 seconds, and replug so the board truly boots.</p>
-              </article>
-              <article class="step-card">
-                <span>03</span>
-                <h3>Unlock with KISS</h3>
-                <p>The device opens as FRUIT ISLAND. Draw KISS on the menu, then type your passphrase.</p>
-              </article>
-              <article class="step-card">
-                <span>04</span>
-                <h3>Export descriptor</h3>
-                <p>Pair Sparrow or another coordinator with a watch-only descriptor. Keys never leave the device.</p>
-              </article>
-            </div>
-          </section>
-
-          <section class="section-block split-block" id="safety">
-            <div class="section-heading">
-              <p class="section-kicker">Safety model</p>
-              <h2>The UI should say exactly what the signer can prove.</h2>
-            </div>
-            <div class="safety-list">
-              <article class="signal-item">
-                <strong>Passphrase is part of the wallet</strong>
-                <p>Words alone can open an empty or decoy wallet. Words plus the right passphrase reveal the real one.</p>
-              </article>
-              <article class="signal-item">
-                <strong>Unknown data stops signing</strong>
-                <p>Unknown PSBT fields, hidden outputs, unreadable scripts, network mismatch, and change mismatch stop hard.</p>
-              </article>
-              <article class="signal-item">
-                <strong>Descriptors over xpub ambiguity</strong>
-                <p>The export carries fingerprint, path, script wrapper, and change branch without SLIP-132 guesswork.</p>
-              </article>
-            </div>
-            <figure class="inline-shot">
-              <img
-                src="media/passphrase-warning.png"
-                width="800"
-                height="480"
-                alt="KISS Wallet passphrase warning screen"
-              >
-              <figcaption>Setup makes the passphrase warning impossible to miss.</figcaption>
-            </figure>
-          </section>
-
-          <section class="section-block" id="flows">
-            <div class="section-heading">
-              <p class="section-kicker">Use it</p>
-              <h2>Four flows, no mystery meat.</h2>
-            </div>
-            <div class="flow-grid">
-              <article class="flow-card">
-                <h3>Create wallet</h3>
-                <p>Camera entropy, dice entropy, word backup, quiz, passphrase twice, fingerprint check.</p>
-              </article>
-              <article class="flow-card">
-                <h3>Receive</h3>
-                <p>Native, nested, or legacy address type. Testnet sticks while you learn. Path is visible.</p>
-              </article>
-              <article class="flow-card">
-                <h3>Export</h3>
-                <p>Descriptor QR for a watch-only coordinator. The app can build transactions but cannot spend.</p>
-              </article>
-              <article class="flow-card">
-                <h3>Sign</h3>
-                <p>QR or SD PSBT in, every output shown, actual script type surfaced, signed PSBT or STOP out.</p>
-              </article>
-            </div>
-            <div class="image-strip" aria-label="Wallet flow screenshots">
-              <img src="media/export-descriptor.png" width="800" height="480" alt="Descriptor export screen">
-              <img src="media/sign-verify.png" width="800" height="480" alt="PSBT verification screen">
-              <img src="media/qr-scan.png" width="800" height="480" alt="QR scan screen">
-            </div>
-          </section>
-
-          <section class="section-block" id="commands">
-            <div class="section-heading">
-              <p class="section-kicker">Commands</p>
-              <h2>Copy, run, power-cycle.</h2>
-            </div>
-            <div class="command-grid">
-              <article class="command-panel">
-                <div class="panel-head">
-                  <h3>Build</h3>
-                  <button type="button" class="copy-btn" data-copy="#cmd-build">copy</button>
-                </div>
-                <pre><code id="cmd-build">tools/build_release.sh</code></pre>
-              </article>
-              <article class="command-panel">
-                <div class="panel-head">
-                  <h3>Find port</h3>
-                  <button type="button" class="copy-btn" data-copy="#cmd-port">copy</button>
-                </div>
-                <pre><code id="cmd-port">ls /dev/cu.usbmodem* 2>/dev/null || ls /dev/ttyACM*</code></pre>
-              </article>
-              <article class="command-panel wide">
-                <div class="panel-head">
-                  <h3>Full flash</h3>
-                  <button type="button" class="copy-btn" data-copy="#cmd-flash">copy</button>
-                </div>
-                <pre><code id="cmd-flash">uvx esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
-  --before default-reset --after no-reset write-flash \
-  --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0x2000  build-release/bootloader/bootloader.bin \
-  0x8000  build-release/partition_table/partition-table.bin \
-  0x10000 build-release/guition_kiss_bringup.bin</code></pre>
-              </article>
-            </div>
-          </section>
-
-          <section class="section-block release-block" id="release">
-            <div class="section-heading">
-              <p class="section-kicker">Release gate</p>
-              <h2>What still separates beta from meaningful funds.</h2>
-            </div>
-            <div class="gate-grid">
-              <article class="gate-item done">
-                <span>ready</span>
-                <h3>Dev seed removed</h3>
-                <p>Release builds compile out the selftest mnemonic and quiet the development fingerprint path.</p>
-              </article>
-              <article class="gate-item done">
-                <span>ready</span>
-                <h3>Version visible</h3>
-                <p>Settings exposes version and commit so a release binary can match release notes.</p>
-              </article>
-              <article class="gate-item pending">
-                <span>pending</span>
-                <h3>Flash encryption</h3>
-                <p>Final funds build needs encrypted flash enabled and tested on the exact target board flow.</p>
-              </article>
-              <article class="gate-item pending">
-                <span>pending</span>
-                <h3>Mainnet dust rehearsal</h3>
-                <p>After hardening, repeat the full testnet checklist, then test tiny mainnet dust before real value.</p>
-              </article>
-            </div>
-          </section>
-
-          <section class="section-block" id="stack">
-            <div class="section-heading">
-              <p class="section-kicker">Stack</p>
-              <h2>Small app code on boring, reviewed Bitcoin primitives.</h2>
-            </div>
-            <div class="stack-table" role="table" aria-label="KISS Wallet stack">
-              <div role="row">
-                <strong role="cell">Hardware</strong>
-                <span role="cell">Guition JC4880P443C, ESP32-P4, ST7701 touch panel, OV02C10 camera, SDMMC</span>
-              </div>
-              <div role="row">
-                <strong role="cell">UI</strong>
-                <span role="cell">LVGL, baked FRUIT ISLAND artwork, simulator-rendered wallet screens</span>
-              </div>
-              <div role="row">
-                <strong role="cell">Bitcoin</strong>
-                <span role="cell">libwally-core, embit-compatible descriptors, BC-UR via cUR, QR decode via k_quirc</span>
-              </div>
-              <div role="row">
-                <strong role="cell">Release</strong>
-                <span role="cell">ESP-IDF v6.0.1 Docker build, verified release script, GitHub Pages docs</span>
-              </div>
-            </div>
-          </section>
+      <section class="receipt reveal" aria-label="Security checks">
+        <div class="receipt-row">
+          <span>Firmware hash</span>
+          <strong id="hash-check">checking</strong>
         </div>
+        <div class="receipt-row">
+          <span>Release signature</span>
+          <strong id="signature-check">checking</strong>
+        </div>
+        <div class="receipt-row">
+          <span>Release key</span>
+          <strong id="key-check">checking</strong>
+        </div>
+      </section>
+
+      <section class="know reveal" aria-label="What this does">
+        <article>
+          <span>VERIFY</span>
+          <p>The browser hashes the firmware before the install button appears.</p>
+        </article>
+        <article>
+          <span>SIGNER</span>
+          <p>Your online wallet builds and broadcasts. KISS verifies and signs offline.</p>
+        </article>
+        <article>
+          <span>WAIT</span>
+          <p>Meaningful funds wait for the flash-encrypted release build.</p>
+        </article>
       </section>
     </main>
-
-    <footer class="site-footer">
-      <span>kiss-wallet docs</span>
-      <span>Experimental firmware. Do not trust meaningful funds yet.</span>
-    </footer>
 
     <script src="app.js"></script>
   </body>
