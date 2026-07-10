@@ -1,6 +1,6 @@
 {
   "name": "KISS Wallet",
-  "version": "0.8.0-beta1-4c8ef88",
+  "version": "0.8.0-beta1-0f200e7-dirty",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 0,
   "builds": [
@@ -9,7 +9,7 @@
       "improv": false,
       "parts": [
         {
-          "path": "firmware/kiss-wallet-0.8.0-beta1-4c8ef88-full.bin",
+          "path": "firmware/kiss-wallet-0.8.0-beta1-0f200e7-dirty-full.bin",
           "offset": 0
         }
       ]
