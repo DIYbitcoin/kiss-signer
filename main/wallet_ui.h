@@ -22,7 +22,7 @@ void wallet_ui_last_fp(uint8_t out[4]);
 // before the first login and needs touch too).
 void wallet_ui_ensure_indev(void);
 
-// Fill a label with the build-identity line (release: version + commit and the
-// flash-encryption state read from the chip; dev: amber warning banner).
-// Shared by the Settings footer and the wallet home corner.
-void wallet_build_id_apply(lv_obj_t *lbl);
+// Create the build-identity line at (x,y): version + commit in calm ink, plus
+// an amber warning while the chip reports flash encryption off (dev builds get
+// the amber dev banner). Shared by the Settings footer and wallet home corner.
+void wallet_build_id_make(lv_obj_t *parent, int x, int y);

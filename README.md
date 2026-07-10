@@ -26,7 +26,8 @@ You need [Docker](https://docs.docker.com/get-docker/) to build with ESP-IDF v6.
 ```sh
 git clone <this repo> && cd kiss-wallet
 
-# 1. build the release firmware (first run pulls the ESP-IDF v6.0.1 image)
+# 1. build the release-candidate firmware — not flash-encrypted yet
+#    (first run pulls the ESP-IDF v6.0.1 image)
 tools/build_release.sh
 
 # 2. plug the board in over USB-C and find its port

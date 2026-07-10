@@ -28,7 +28,7 @@
 #include "menu_logo.h"
 #include "gameover_img.h"
 #include "wallet_img.h"
-#include "tile_lbls.h"
+#include "mote_img.h"
 #include "wallet_ui.h"
 #include "wallet_recv.h"
 #include "wallet_sign.h"
@@ -184,7 +184,6 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 
 // ---- hidden KISS wallet: revealed by drawing a "K" on the game menu (cover -> wallet) ----
 static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
-static lv_obj_t *s_tile_lbl[4];    // live tile labels (settle in on unlock)
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim motes drifting up
 static bool s_wallet_on;
@@ -1144,29 +1143,6 @@ void sim_home_status(const char *msg) {
 }
 #endif
 
-// the tile labels settle in: a short staggered drop + fade, left to right,
-// then they hold still (translate/opa only). Runs on every unlock.
-static void tiles_settle(void) {
-  for (int i = 0; i < 4; i++) {
-    if (!s_tile_lbl[i]) return;
-    lv_anim_delete(s_tile_lbl[i], NULL);    // re-unlock mid-settle: start clean
-    lv_obj_set_style_opa(s_tile_lbl[i], 0, 0);
-    lv_obj_set_y(s_tile_lbl[i], TILE_LBL_Y - 12);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, s_tile_lbl[i]);
-    lv_anim_set_delay(&a, 120 + i * 70);
-    lv_anim_set_duration(&a, 260);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, TILE_LBL_Y - 12, TILE_LBL_Y);
-    lv_anim_start(&a);
-    lv_anim_set_exec_cb(&a, anim_opa_cb);
-    lv_anim_set_values(&a, 0, 255);
-    lv_anim_start(&a);
-  }
-}
-
 // Ambient life while the home idles: dim ink motes rising slowly through the
 // grid. Each lane has its own period + fade so the pattern never visibly
 // repeats; 4px dots = tiny dirty rects, translate/opa only.
@@ -1226,7 +1202,6 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_wallet);
-  tiles_settle();                          // labels drop in, staggered
   motes_start();                           // ambient idle drift
   wallet_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
@@ -1603,17 +1578,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // Build identity, bottom-left — the baked art used to carry a permanent
   // CAUTION pill here (a status light that never changed = dead chrome); now
   // this corner tells the truth instead, same line as the Settings footer.
-  lv_obj_t *bid = lv_label_create(s_wallet);
-  lv_obj_set_pos(bid, 48, 424);
-  wallet_build_id_apply(bid);
-
-  // Tile labels, un-baked so the unlock can settle them in (coords match the
-  // old baked text exactly; strips are full tile width, so x needs no centering)
-  for (int i = 0; i < 4; i++) {
-    s_tile_lbl[i] = lv_image_create(s_wallet);
-    lv_image_set_src(s_tile_lbl[i], &img_tile_lbls[i]);
-    lv_obj_set_pos(s_tile_lbl[i], 50 + i * 180, TILE_LBL_Y);
-  }
+  wallet_build_id_make(s_wallet, 48, 424);
 
   // idle motes: small ₿ glyphs (started/stopped with the session)
   for (int i = 0; i < N_MOTES; i++) {
