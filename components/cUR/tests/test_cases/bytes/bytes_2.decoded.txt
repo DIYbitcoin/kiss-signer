@@ -1,0 +1,1 @@
+tr([65fb43fe/48'/1'/0'/2']tpubDFM6mziafLfJPA9StFuzvdC5htjaMTsVaPSAjsahgE4c2CMWpg9yKaK4JyoaBjVYJKUFX9Kdyb4fgFaFUQmZNGU71Q1wZgZiGM1Go7p59NW/<0;1>/*,and_v(v:pk([07bd7483/48'/1'/0'/2']tpubDFB86S1BrGk2nJitTZqASWV1r3JMQizjtYtKY8nMNVoW5f9HMxZUUAFVFTfq448PGsGaaGL1n11nKQwRkWTsL5SjzPTEQHwCy4BrKyHvHYc/<0;1>/*),older(65535)))#qhgusech

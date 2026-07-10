@@ -1,0 +1,188 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+stages:
+  - test
+  - release
+  - docker_build
+
+.test_template:
+  stage: test
+  image: blockstream/wallycore@sha256:f8409731379488d4f0b4a1692df2e4d42e8bfa952630e8174be08dc412ae4a82
+  tags:
+    - ga
+
+test_with_valgrind:
+  extends: .test_template
+  parallel:
+    matrix:
+      - CONFIGURE_ARGS: [--enable-elements=yes,--enable-elements=no,--enable-minimal=yes]
+  artifacts:
+    reports:
+      codequality: valgrind.json
+  script:
+    - ./tools/cleanup.sh && ./tools/autogen.sh
+    - CFLAGS='-Werror' ./configure --enable-export-all --enable-swig-python --enable-swig-java $CONFIGURE_ARGS --enable-shared --disable-static
+    - make -j $(($(grep ^processor /proc/cpuinfo | wc -l) / 2))
+    - for t in $(ls src/.libs/test_* | egrep -v '_clear|xml|json' | tr '\n' ' '); do LD_LIBRARY_PATH=./src/.libs/ valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --xml=yes --xml-file=$t.xml $t; done
+    - for t in $(ls src/.libs/test_* | egrep -v '_clear|xml|json' | tr '\n' ' '); do valgrind-codequality --input-file $t.xml --output-file $t.json; done
+    - for t in $(ls src/test/test_*.py | tr '\n' ' '); do WALLY_SKIP_EXPENSIVE_TESTS=1 PYTHONMALLOC=malloc PYTHONDEVMODE=1 MALLOC_CHECK_=3 valgrind --tool=memcheck --leak-check=no --verbose --xml=yes --xml-file=$t.xml python $t; done
+    - for t in $(ls src/test/test_*.py | tr '\n' ' '); do valgrind-codequality --input-file $t.xml --output-file $t.json; done
+    - jq '[.[]|.[]]' -s ./src/.libs/test_*.json src/test/test_*.json > valgrind.json || true
+
+test_asan_ubsan_gcc:
+  extends: .test_template
+  parallel:
+    matrix:
+      - CONFIGURE_ARGS: [ --enable-elements=no, --enable-elements=no --enable-minimal=yes, "", --enable-minimal=yes ]
+  script:
+    - ./tools/cleanup.sh && ./tools/autogen.sh
+    - CC=gcc CFLAGS="-O2 -fsanitize=address -fsanitize=bounds -fsanitize=undefined -fsanitize=alignment -fsanitize-address-use-after-scope -fno-sanitize-recover=all" ./configure --enable-export-all --enable-swig-python --enable-swig-java $CONFIGURE_ARGS --enable-shared --disable-static --disable-clear-tests --disable-asm
+    - sed -i 's/^PYTHON = /PYTHON = LD_PRELOAD=\/usr\/lib\/gcc\/x86_64-linux-gnu\/14\/libasan.so /g' src/Makefile
+    - sed -i 's/^JAVA = /JAVA = LD_PRELOAD=\/usr\/lib\/gcc\/x86_64-linux-gnu\/14\/libasan.so /g' src/Makefile
+    - make -j $(($(grep ^processor /proc/cpuinfo | wc -l) / 2))
+    - ASAN_OPTIONS=abort_on_error=1:fast_unwind_on_malloc=0:detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 make check V=1
+
+test_scan_build_clang:
+  extends: .test_template
+  parallel:
+    matrix:
+      - CONFIGURE_ARGS: [ --enable-elements=no, --enable-elements=no --enable-minimal=yes, "", --enable-minimal=yes ]
+  script:
+    - ./tools/cleanup.sh && ./tools/autogen.sh
+    - CC=clang scan-build-19 ./configure --enable-export-all --enable-swig-python --enable-swig-java --disable-clear-tests --disable-asm $CONFIGURE_ARGS
+    - scan-build-19 --keep-cc --exclude src/secp256k1/ --status-bugs --keep-empty -o scan-build-output make -j $(($(grep ^processor /proc/cpuinfo | wc -l) / 2))
+  artifacts:
+    expire_in: 3 days
+    name: scan-build-output
+    when: on_success
+    paths:
+    - scan-build-output/
+
+test_cmake:
+  extends: .test_template
+  script:
+    - mv _cmake cmake
+    - mv _CMakeLists.txt CMakeLists.txt
+    - mv src/_CMakeLists.txt src/CMakeLists.txt
+    - mv src/ctest/_CMakeLists.txt src/ctest/CMakeLists.txt
+    - cmake -B build-cmake -S .
+      -DBUILD_SHARED_LIBS:BOOL=FALSE
+      -DCMAKE_BUILD_TYPE:STRING=Debug
+      -DWALLYCORE_ENABLE_TESTS:BOOL=TRUE
+      -DWALLYCORE_ENABLE_COVERAGE:BOOL=TRUE
+    - cmake --build build-cmake
+    #- ctest --test-dir build-cmake --output-junit report.xml --output-on-failure -E "test_(clear|elements_tx)"
+    - cd build-cmake
+    - ctest --output-on-failure
+    - cd -
+    - gcovr --xml-pretty --exclude-unreachable-branches --print-summary -o coverage.xml --root ${CI_PROJECT_DIR}
+  coverage: /^\s*lines:\s*\d+.\d+\%/
+  artifacts:
+    reports:
+      # junit: build-cmake/report.xml # junit report generation not available in cmake 3.18
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+test_amalgamation:
+  extends: .test_template
+  parallel:
+    matrix:
+      - CC: [gcc, clang ]
+        BUILD_ARGS: [ "", -DBUILD_MINIMAL, -DBUILD_ELEMENTS, -DBUILD_ELEMENTS -DBUILD_MINIMAL ]
+  script:
+    - touch config.h
+    - $CC $BUILD_ARGS -Wall -W -Wextra -Werror -I. -I./src -I./src/ccan -I./src/secp256k1/include src/ctest/amalgamation_compile_test.c
+
+test_mingw_static_build:
+  extends: .test_template
+  script:
+    - ./tools/cleanup.sh && ./tools/autogen.sh
+    - CC=x86_64-w64-mingw32-gcc ./configure --host=x86_64-w64-mingw32 --disable-swig-python --disable-swig-java --disable-shared --enable-static
+    - make -j $(($(grep ^processor /proc/cpuinfo | wc -l) / 2))
+
+test_no_elements_abi:
+  extends: .test_template
+  artifacts:
+  script:
+    - ./tools/cleanup.sh && ./tools/autogen.sh
+    - CFLAGS='-Wall -W -Wextra -Werror' ./configure --disable-swig-python --disable-swig-java --disable-clear-tests --enable-elements=no --enable-elements-abi=no
+    - make -j $(($(grep ^processor /proc/cpuinfo | wc -l) / 2))
+
+build_wally_release_files:
+  extends: .test_template
+  stage: release
+  needs: [test_mingw_static_build,test_with_valgrind,test_asan_ubsan_gcc,test_scan_build_clang,test_cmake,test_amalgamation]
+  artifacts:
+    expire_in: 7 days
+    name: wallycore-bindings
+    when: on_success
+    paths:
+    - dist/*
+  script:
+    - python3 -m build --wheel
+    - mv dist/*.whl ${CI_PROJECT_DIR}
+    - python3 -m build --sdist
+    - virtualenv -p python3 .smoketest
+    - source .smoketest/bin/activate
+    - pip install --find-links=${CI_PROJECT_DIR} wallycore
+    - python -c "import wallycore as w; assert w.hex_from_bytes(w.hex_to_bytes('ff')) == 'ff'"
+    - deactivate
+    - rm -rf .smoketest ${CI_PROJECT_DIR}/*.whl
+    - mv dist wally_dist
+    - ./tools/build_android_libraries.sh
+    - mv release wallycore-android-jni
+    - tar czf wally_dist/wallycore-android-jni.tar.gz --remove-files wallycore-android-jni
+    - source /opt/emsdk/emsdk_env.sh
+    - tools/build_wasm.sh
+    - cp contrib/wally_js_example.html dist/wallycore.html
+    - cd dist
+    - tar czf ../wally_dist/wallycore-wasm.tar.gz --remove-files wallycore.html wallycore.js wallycore.wasm
+    - cd ..
+    - EMCC_OPTIONS="-s MODULARIZE=1 -s EXPORT_NAME=InitWally" EXPORTED_FUNCTIONS="['_malloc','_free','_wally_init','_wally_asset_value_commitment','_wally_asset_generator_from_bytes']" tools/build_wasm.sh
+    - cd dist
+    - tar czf ../wally_dist/esplora-wasm.tar.gz --remove-files wallycore.js wallycore.wasm
+    - cd ..
+    - sphinx-build -b html -a -c docs/source docs/source docs/build/html
+    - cd docs/build
+    - tar czf ../../wally_dist/apidocs.tar.gz html/
+    - cd ../..
+    - mv wally_dist/* dist/
+    - rmdir wally_dist
+
+.docker_build_template:
+  stage: docker_build
+  needs: []
+  when: manual
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_BUILDKIT: 1
+    BUILDX_GIT_INFO: false
+  image: docker:23
+  services:
+    - docker:23-dind
+  tags:
+    - cloud
+  retry:
+    max: 2
+    when: [runner_system_failure, unknown_failure, stuck_or_timeout_failure]
+  script:
+    - echo "$DOCKER_HUB_TOKEN" | docker login --username "$DOCKER_HUB_USER" --password-stdin
+    - docker buildx create --use --platform=linux/amd64,linux/arm64 --name wally-multi-builder --buildkitd-flags '--allow-insecure-entitlement network.host'
+    - docker buildx inspect --bootstrap
+    - cd contrib
+    - docker buildx build
+      --network=host
+      -t blockstream/wallycore:${CI_COMMIT_SHA}
+      ${DOCKER_BUILD_ARGS}
+      .
+      --progress=plain
+      --push
+
+# Debian stable
+build_docker_trixie:
+  extends: .docker_build_template
+  variables:
+    DOCKER_BUILD_ARGS: -f Dockerfile_trixie --platform linux/amd64,linux/arm64

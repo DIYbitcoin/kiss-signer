@@ -1,0 +1,13 @@
+dependencies:
+  idf:
+    version: ">=6.0"
+  espressif/esp_lcd_st7701: "^2.0.0"
+  espressif/esp_lcd_touch_gt911: "^1.1.0"
+  espressif/esp_lvgl_port: "^2.0.0"
+  espressif/esp_video: "^2"
+  # Vendored override: registry 2.3.0 + the OV02C10 driver from Guition's board demo
+  # (reviewed; Espressif-authored, Apache-2.0). The registry component lacks OV02C10,
+  # which is the sensor actually shipped on the JC4880P443C camera ribbon.
+  espressif/esp_cam_sensor:
+    version: "*"
+    override_path: "../components/esp_cam_sensor"
