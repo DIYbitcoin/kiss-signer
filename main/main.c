@@ -1143,40 +1143,11 @@ void sim_home_status(const char *msg) {
 }
 #endif
 
-// Ambient life: faint ₿ glyphs drifting slowly up the home. TRANSLATE ONLY —
-// NO opacity animation. On this panel's rotated flush path an animated opacity
-// reads as a shake/twitch (same reason the chip "breathe" was dropped), so the
-// motes hold a FIXED faint alpha and only move. Both travel endpoints are fully
-// offscreen (glyph ~21px tall) so the repeat teleport is never visible.
-static void motes_start(void) {
-  static const int mx[N_MOTES]  = {150, 260, 430, 590, 735};
-  static const int mms[N_MOTES] = {9000, 12400, 7600, 10800, 14200};
-  for (int i = 0; i < N_MOTES; i++) {
-    if (!s_mote[i]) return;
-    lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_style_opa(s_mote[i], 70, 0);   // fixed faint alpha, never animated
-    lv_obj_set_pos(s_mote[i], mx[i], 484);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, s_mote[i]);
-    lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 484, -26);
-    lv_anim_set_duration(&a, mms[i]);
-    lv_anim_set_delay(&a, i * 900);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_repeat_delay(&a, 500 + i * 400);
-    lv_anim_start(&a);
-  }
-}
-
-static void motes_stop(void) {
-  for (int i = 0; i < N_MOTES; i++) {
-    if (!s_mote[i]) return;
-    lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_y(s_mote[i], 500);             // parked below the panel
-  }
-}
+// Ambient ₿ motes are STATIC. Any moving/animating object forces this panel's
+// rotated flush to re-blit the whole frame each tick, which reads as a periodic
+// twitch (tried: position+opacity, translate-only, offscreen wrap — all twitch;
+// only NOT animating is smooth). So the motes are just fixed faint glyphs
+// scattered on the home. Do not animate them without a real flush-path fix.
 
 static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
@@ -1198,7 +1169,6 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_wallet);
-  motes_start();                           // ambient idle drift (translate only)
   wallet_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
 }
@@ -1213,7 +1183,6 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 #endif
   s_wallet_on = false;
   wallet_session_close();                  // locked: no key material stays in RAM
-  motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   s_state = ST_MENU;
   lv_obj_clear_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
@@ -1576,13 +1545,17 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // this corner tells the truth instead, same line as the Settings footer.
   wallet_build_id_make(s_wallet, 48, 424);
 
-  // ambient ₿ motes (started/stopped with the session; parked offscreen until then)
+  // static ₿ motes: fixed faint glyphs scattered in the empty band between the
+  // tiles and the footer (never over text). No animation (see wallet_start note).
+  static const int mx[N_MOTES]   = {150, 300, 470, 560, 700};
+  static const int my[N_MOTES]   = {372, 400, 366, 404, 384};
+  static const int mopa[N_MOTES] = { 64,  48,  56,  44,  60};   // slight variety
   for (int i = 0; i < N_MOTES; i++) {
     s_mote[i] = lv_image_create(s_wallet);
     lv_image_set_src(s_mote[i], &img_mote_btc);
     lv_obj_clear_flag(s_mote[i], LV_OBJ_FLAG_CLICKABLE);   // must never eat a tap
-    lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_pos(s_mote[i], 0, 500);
+    lv_obj_set_style_opa(s_mote[i], mopa[i], 0);
+    lv_obj_set_pos(s_mote[i], mx[i], my[i]);
   }
 
 
