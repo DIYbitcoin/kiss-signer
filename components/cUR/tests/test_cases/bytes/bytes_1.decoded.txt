@@ -1,0 +1,1 @@
+wsh(or_d(pk([65fb43fe/48'/1'/0'/2']tpubDFM6mziafLfJPA9StFuzvdC5htjaMTsVaPSAjsahgE4c2CMWpg9yKaK4JyoaBjVYJKUFX9Kdyb4fgFaFUQmZNGU71Q1wZgZiGM1Go7p59NW/<0;1>/*),and_v(v:pkh([ce58cb20/48'/1'/0'/2']tpubDEUEv99NSYi33JszxnR2ykWWgBiZo1YShCyRyVEjdHm1as8wtxvCCJMYJ6GtMJfsz7DKXkKBMSQKVQfpj7PaHKnoRrm2HNCBAbZqC25Shf3/<0;1>/*),older(65535))))#34cvq0nn

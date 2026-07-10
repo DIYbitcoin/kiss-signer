@@ -1,0 +1,20 @@
+coverage_html/
+src/obj
+src/obj_cov
+tests/test_ur_*
+!tests/test_ur_*.c
+*.o
+*.a
+*.info
+*.gcda
+*.gcno
+*_cov
+
+# ESP-IDF build artifacts (component is built inside parent project,
+# but keep patterns in case of in-tree builds)
+build/
+sdkconfig
+sdkconfig.old
+
+# AI
+CLAUDE.md
