@@ -10,6 +10,16 @@
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 
+#ifndef SIMULATOR
+#include "esp_flash_encrypt.h"
+#endif
+#ifndef KISS_VERSION_STR
+#define KISS_VERSION_STR "dev"
+#endif
+#ifndef KISS_COMMIT_STR
+#define KISS_COMMIT_STR "local"
+#endif
+
 #define BG_COL   lv_color_hex(0x070A10)
 #define INK_COL  lv_color_hex(0xE8EEF7)   // Mono theme accent
 #define MUT_COL  lv_color_hex(0x7A869C)
@@ -788,4 +798,24 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_bg_color(s_kb, lv_color_hex(0x24406B),
                             LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_add_event_cb(s_kb, kb_cb, LV_EVENT_VALUE_CHANGED, NULL);
+}
+
+// ---- build identity (shared: Settings footer + wallet home corner) ----
+// Honest about what this firmware is. The flash-encryption state is read from
+// the CHIP at runtime, never assumed from the build.
+void wallet_build_id_apply(lv_obj_t *lbl)
+{
+  lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+#ifdef KISS_RELEASE
+  bool enc = false;
+#ifndef SIMULATOR
+  enc = esp_flash_encryption_enabled();
+#endif
+  lv_label_set_text_fmt(lbl, "KISS %s (%s)%s", KISS_VERSION_STR, KISS_COMMIT_STR,
+                        enc ? "" : "  -  flash not yet encrypted");
+  lv_obj_set_style_text_color(lbl, enc ? MUT_COL : INK_COL, 0);
+#else
+  lv_label_set_text(lbl, "developer build  -  words stored unencrypted");
+  lv_obj_set_style_text_color(lbl, lv_color_hex(0xF2B84B), 0);
+#endif
 }

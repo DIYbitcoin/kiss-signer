@@ -315,6 +315,8 @@ int main(void) {
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
   save("/tmp/sim_wallet.ppm");
+  pump(90);                                         // ~1.4s idle: motes drift, chip breathes
+  save("/tmp/sim_home_idle.ppm");                   // motes must be at new positions here
 
   // preview the SD-insert indicator (device polls this; sim just sets the text)
   sim_home_status("SD card ready");
@@ -336,6 +338,9 @@ int main(void) {
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
   save("/tmp/sim_sign_choose.ppm");
+  touch(718, 170); pump(3); release(); pump(6);     // "?" chip -> coordinator card
+  save("/tmp/sim_sign_help.ppm");
+  touch(400, 366); pump(3); release(); pump(6);     // OK closes the card
   touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD -> file list
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)

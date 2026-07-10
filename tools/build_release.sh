@@ -42,15 +42,26 @@ open("sdkconfig.release", "w").write("\n".join(out) + "\n")
 print("wrote sdkconfig.release (logs: WARN)")
 PY
 
+# short commit from the HOST's git (the container can't read the bind-mounted
+# repo's ownership); baked into the Settings/home build-identity line
+GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+echo "commit: $GIT_REV"
+
 docker run --rm -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
-  idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 build
+  idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 \
+  -DKISS_COMMIT="$GIT_REV" build
 
 # ---- verify the release binary ----
-python3 - <<'PY'
-import sys
+GIT_REV="$GIT_REV" python3 - <<'PY'
+import os, sys
 bin_path = "build-release/guition_kiss_bringup.bin"
 blob = open(bin_path, "rb").read()
 fails = 0
+rev = os.environ.get("GIT_REV", "").encode()
+if rev and rev in blob:
+    print(f"PASS: commit {rev.decode()} present")
+else:
+    print(f"FAIL: commit {rev.decode()} missing"); fails += 1
 if b"abandon abandon" in blob:
     print("FAIL: dev mnemonic found in release binary"); fails += 1
 else:
@@ -69,5 +80,19 @@ sys.exit(1 if fails else 0)
 PY
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"
-echo "flash:  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
-echo "        write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m 0x10000 build-release/guition_kiss_bringup.bin"
+echo
+echo "app-only reflash (bootloader + partition table already on the board):"
+echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
+echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
+echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo
+echo "FULL flash (fresh board, or whenever bootloader/partitions changed;"
+echo "offsets from build-release/flash_args - the encrypted-release lane will"
+echo "need this full set):"
+echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
+echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
+echo "    0x2000  build-release/bootloader/bootloader.bin \\"
+echo "    0x8000  build-release/partition_table/partition-table.bin \\"
+echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo
+echo "then: unplug -> ~3s -> replug (v1.3 sample never boots off a USB reset)"

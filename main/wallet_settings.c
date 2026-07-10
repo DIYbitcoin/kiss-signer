@@ -8,15 +8,11 @@
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"
+#include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
 
 #ifndef SIMULATOR
 #include "nvs.h"
 #include "nvs_flash.h"
-#include "esp_flash_encrypt.h"
-#endif
-
-#ifndef KISS_VERSION_STR
-#define KISS_VERSION_STR "dev"
 #endif
 
 // main.c: closes any wallet screen and runs the seed wizard, then the
@@ -403,43 +399,34 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_align(s_type_pfx[i], LV_ALIGN_BOTTOM_MID, 0, -7);
     }
     s_type_expl = mk_wrap(48, 350, 360);
+    lv_obj_t *sep_n = mk_wrap(48, 394, 360);   // one line; fits the wrap width
+    lv_label_set_text(sep_n, "each network + type is its own separate wallet");
 
-    // RIGHT: wallet (create/restore) + shared note
+    // RIGHT: wallet actions, each pill with its own caption. Caption lines are
+    // hand-broken well under the wrap width so LVGL never re-wraps them into
+    // orphan words (the old copy stacked "separate" / "coins." on own lines).
     mk_section("WALLET", 430, 78);
     s_replace_arm = false;
     s_replace_pill = mk_pillh("CREATE NEW WALLET", 430, 104, 320, 52, replace_cb, NULL);
-    lv_obj_t *wn = mk_wrap(430, 168, 330);
-    lv_label_set_text(wn, "make a fresh wallet, or restore one from its\n"
-                          "backup words. this REPLACES the wallet on\n"
-                          "here, so back up its words first if it holds coins.");
-    lv_obj_t *note = mk_wrap(430, 262, 330);
-    lv_label_set_text(note, "the same words + passphrase make a separate\n"
-                            "wallet for each network and address type");
+    lv_obj_t *wn = mk_wrap(430, 166, 340);
+    lv_label_set_text(wn, "make a fresh wallet, or restore one from\n"
+                          "backup words. this REPLACES the wallet\n"
+                          "on here - back up the old words first.");
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; second tap confirms.
     s_wipe_arm = false;
-    s_wipe_pill = mk_pillh("WIPE WALLET", 430, 320, 320, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh("WIPE WALLET", 430, 268, 320, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
+    lv_obj_t *wipe_n = mk_wrap(430, 330, 340);
+    lv_label_set_text(wipe_n, "removes the wallet from this device.\n"
+                              "only its backup words can bring it back.");
 
-    // build identity, bottom-left: honest about what this firmware is. The
-    // flash-encryption state is read from the CHIP, not assumed from the build.
+    // build identity, bottom-left (shared with the wallet home corner)
     {
         lv_obj_t *bi = lv_label_create(s_scr);
-        lv_obj_set_style_text_font(bi, &lv_font_montserrat_14, 0);
         lv_obj_set_pos(bi, 48, 436);
-#ifdef KISS_RELEASE
-        bool enc = false;
-#ifndef SIMULATOR
-        enc = esp_flash_encryption_enabled();
-#endif
-        lv_label_set_text_fmt(bi, "KISS %s%s", KISS_VERSION_STR,
-                              enc ? "" : "  -  flash not yet encrypted");
-        lv_obj_set_style_text_color(bi, enc ? MUT_COL : WARN_COL, 0);
-#else
-        lv_label_set_text(bi, "developer build  -  words stored unencrypted");
-        lv_obj_set_style_text_color(bi, WARN_COL, 0);
-#endif
+        wallet_build_id_apply(bi);
     }
 
     mk_pill("BACK", 610, 404, 140, close_cb, NULL);

@@ -166,7 +166,7 @@ void wallet_recv_open(lv_obj_t *parent) {
 // ---- watch-only export ----
 void wallet_export_open(lv_obj_t *parent) {
   if (s_scr) return;
-  mk_screen(parent, "EXPORT", "scan this into Sparrow or another wallet app to pair it with this device");
+  mk_screen(parent, "EXPORT", "scan this into Sparrow Wallet or another app to pair it with this device");
   mk_qr_card();
 
   char desc[256];

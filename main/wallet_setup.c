@@ -41,6 +41,7 @@ static bool s_restore;
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
 static int s_quiz_correct;     // which of the 4 pills is right
+static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 
 static char s_prefix[12];       // restore: letters typed for the current word
 static lv_obj_t *s_word_lbl, *s_sug[3];
@@ -196,9 +197,18 @@ static void quiz_screen(void)
     s_quiz_pos = (s_quiz_round * 5) % s_count;   // fixed for scripted taps
     s_quiz_correct = s_quiz_round;               // round 0 -> pill 0, etc.
 #else
-    s_quiz_pos = (int)(ui_rand() % (uint32_t)s_count);
+    // never re-ask a word already proven this pass: asking #6 twice checks
+    // less of the backup (QUIZ_ROUNDS <= every word count, so this terminates)
+    int again;
+    do {
+        s_quiz_pos = (int)(ui_rand() % (uint32_t)s_count);
+        again = 0;
+        for (int i = 0; i < s_quiz_round; i++)
+            if (s_quiz_asked[i] == s_quiz_pos) again = 1;
+    } while (again);
     s_quiz_correct = (int)(ui_rand() % 4);
 #endif
+    s_quiz_asked[s_quiz_round] = s_quiz_pos;
     mk_screen("PROVE IT", "no peeking. these words are your only way back\n"
                           "into this wallet if you ever lose the device.");
     snprintf(buf, sizeof buf, "which is word #%d?", s_quiz_pos + 1);

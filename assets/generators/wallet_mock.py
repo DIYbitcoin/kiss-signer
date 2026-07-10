@@ -107,9 +107,11 @@ ICONS = [("Sign", "a transaction", icon_sign), ("Receive", "an address", icon_re
 BY = H - 46  # bottom-row baseline for the status / theme indicators
 
 
-def accent_art(d, struct, theme_col, status_col):
+def accent_art(d, struct, theme_col, status_col, status=True):
     """struct = chrome stroke color (opaque sharp pass, or alpha tuple for glow pass).
-    theme_col / status_col are always drawn in their true colors."""
+    theme_col / status_col are always drawn in their true colors.
+    status=False skips the status pill: the firmware bake leaves that corner to a
+    live build-identity label (a light that never changes is a fake light)."""
     for (ox, oy, dx, dy) in [(26, 26, 1, 1), (W - 26, 26, -1, 1), (26, H - 26, 1, -1), (W - 26, H - 26, -1, -1)]:
         d.line([(ox, oy), (ox + dx * 26, oy)], fill=struct, width=3)
         d.line([(ox, oy), (ox, oy + dy * 26)], fill=struct, width=3)
@@ -120,15 +122,17 @@ def accent_art(d, struct, theme_col, status_col):
         x0 = 50 + i * (tw + 20)
         d.rounded_rectangle([x0, 150, x0 + tw, 332], 12, outline=struct, width=2)
         ICONS[i][2](d, x0 + tw / 2, 212, 46, struct)
-    # status light pill (bottom-left)
-    d.rounded_rectangle([44, BY - 22, 250, BY + 22], 22, outline=status_col, width=2)
-    d.ellipse([62 - 9, BY - 9, 62 + 9, BY + 9], fill=status_col)
+    # status light pill (bottom-left) — preview sheet only, see status=False
+    if status:
+        d.rounded_rectangle([44, BY - 22, 250, BY + 22], 22, outline=status_col, width=2)
+        d.ellipse([62 - 9, BY - 9, 62 + 9, BY + 9], fill=status_col)
     # theme dot (bottom-right)
     d.ellipse([684 - 7, BY - 7, 684 + 7, BY + 7], fill=theme_col)
     d.ellipse([684 - 11, BY - 11, 684 + 11, BY + 11], outline=theme_col, width=2)
 
 
-def render(active, status="caution", fp=None, grid_a=44, bake_chip=True):
+def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
+           bake_status=True, bake_tile_labels=True):
     # grid_a = solid-grid opacity 0-255 (lower = more transparent)
     # bake_chip=False leaves the fingerprint chip area BLANK: the firmware bake uses it
     # because the chip is dynamic (EMPTY vs live fingerprint) and is drawn as LVGL labels.
@@ -160,10 +164,11 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True):
     vig = (np.clip((np.sqrt((xx - W / 2) ** 2 + (yy - H / 2) ** 2) / 520 - 0.5) / 0.5, 0, 1) * 150).astype(np.uint8)
     base.alpha_composite(Image.fromarray(np.dstack([np.zeros((H, W, 3), np.uint8), vig]), "RGBA"))
     gl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    accent_art(ImageDraw.Draw(gl), (*A, 200), theme_col=A, status_col=scol)
+    accent_art(ImageDraw.Draw(gl), (*A, 200), theme_col=A, status_col=scol,
+               status=bake_status)
     base.alpha_composite(gl.filter(ImageFilter.GaussianBlur(6)))
     d = ImageDraw.Draw(base)
-    accent_art(d, A, theme_col=A, status_col=scol)
+    accent_art(d, A, theme_col=A, status_col=scol, status=bake_status)
     # header
     d.text((44, 44), "KISS", font=font(44), fill=INK)
     d.text((48, 100), "airgapped bitcoin signer", font=font(15, mono=True), fill=MUT)
@@ -176,15 +181,18 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True):
         else:
             d.text((584, 48), "◇ EMPTY", font=font(20, mono=True), fill=MUT)
             d.text((584, 70), "no wallet yet", font=font(12, mono=True), fill=MUT)
-    # tiles
+    # tiles (labels skipped for the firmware bake: they live as RGB565A8 image
+    # objects so the unlock can settle them in — see tile_lbls.c below)
     tw = 160
-    for i, (lab, sub, _) in enumerate(ICONS):
-        x0 = 50 + i * (tw + 20)
-        d.text((x0 + (tw - d.textlength(lab, font=font(23))) / 2, 268), lab, font=font(23), fill=INK)
-        d.text((x0 + (tw - d.textlength(sub, font=font(13, mono=True))) / 2, 300), sub, font=font(13, mono=True), fill=SUB)
-    # status light label
-    d.text((84, BY - 14), slab, font=font(20), fill=scol)
-    d.text((84, BY + 8), ssub, font=font(11, mono=True), fill=MUT)
+    if bake_tile_labels:
+        for i, (lab, sub, _) in enumerate(ICONS):
+            x0 = 50 + i * (tw + 20)
+            d.text((x0 + (tw - d.textlength(lab, font=font(23))) / 2, 268), lab, font=font(23), fill=INK)
+            d.text((x0 + (tw - d.textlength(sub, font=font(13, mono=True))) / 2, 300), sub, font=font(13, mono=True), fill=SUB)
+    # status light label (preview sheet only)
+    if bake_status:
+        d.text((84, BY - 14), slab, font=font(20), fill=scol)
+        d.text((84, BY + 8), ssub, font=font(11, mono=True), fill=MUT)
     # theme dot label
     nm = THEMES[active][0].upper()
     fn = font(15, mono=True)
@@ -207,9 +215,12 @@ for r, (ti, st, fp) in enumerate(ROWS):
 sheet.save("/tmp/wallet_mock.png")
 print("saved /tmp/wallet_mock.png", sheet.size)
 
-# emit the DEFAULT baked menu: mono theme, CAUTION status, chip area blank (the chip
-# is dynamic — EMPTY vs fingerprint — so the firmware draws it with live LVGL labels)
-img = render(0, "caution", None, bake_chip=False)
+# emit the DEFAULT baked menu: mono theme, chip area blank (dynamic: EMPTY vs live
+# fingerprint), NO status pill (that corner is the live build-identity label now —
+# the baked CAUTION never changed, which made it a fake status light) and NO tile
+# labels (they settle in as live image objects on unlock)
+img = render(0, "caution", None, bake_chip=False, bake_status=False,
+             bake_tile_labels=False)
 rgb = np.array(img)
 v = (((rgb[..., 0] >> 3).astype(np.uint16) << 11) | ((rgb[..., 1] >> 2).astype(np.uint16) << 5) | (rgb[..., 2] >> 3))
 data = np.dstack([(v & 0xFF).astype(np.uint8), (v >> 8).astype(np.uint8)]).reshape(-1)
@@ -222,4 +233,90 @@ with open(OUT + "/wallet_img.c", "w") as f:
     f.write("  .data_size = sizeof(wallet_map), .data = wallet_map,\n};\n")
 with open(OUT + "/wallet_img.h", "w") as f:
     f.write('#pragma once\n#include "lvgl.h"\nextern const lv_image_dsc_t img_wallet;\n')
-print("wrote main/wallet_img.c (img_wallet: mono theme, CAUTION, EMPTY)")
+print("wrote main/wallet_img.c (img_wallet: mono theme, no status pill, EMPTY chip)")
+
+# ---- tile label strips (RGB565A8, same typography as the old bake) ----
+# Full tile width so main.c places them at the exact baked coords: x = 50+i*180,
+# y = TILE_LBL_Y. Title baseline/colors identical to the previous baked text.
+TILE_LBL_Y = 262            # strip origin on screen (title was baked at y=268)
+TILE_LBL_H = 60
+lc = ['#include "lvgl.h"', ""]
+metas = []
+for i, (lab, sub, _) in enumerate(ICONS):
+    im = Image.new("RGBA", (160, TILE_LBL_H), (0, 0, 0, 0))
+    d2 = ImageDraw.Draw(im)
+    f1, f2 = font(23), font(13, mono=True)
+    d2.text(((160 - d2.textlength(lab, font=f1)) / 2, 268 - TILE_LBL_Y),
+            lab, font=f1, fill=INK)
+    d2.text(((160 - d2.textlength(sub, font=f2)) / 2, 300 - TILE_LBL_Y),
+            sub, font=f2, fill=SUB)
+    a = np.array(im)
+    r16 = a[..., 0].astype(np.uint16)
+    g16 = a[..., 1].astype(np.uint16)
+    b16 = a[..., 2].astype(np.uint16)
+    al = a[..., 3].astype(np.uint8)
+    v16 = (r16 >> 3) << 11 | (g16 >> 2) << 5 | (b16 >> 3)
+    data = np.concatenate([
+        np.dstack([(v16 & 0xFF).astype(np.uint8),
+                   (v16 >> 8).astype(np.uint8)]).reshape(-1),
+        al.reshape(-1)])
+    lc.append("static const uint8_t tile_lbl%d_map[] = {%s};" %
+              (i, ",".join(str(int(x)) for x in data)))
+    metas.append(i)
+lc.append("")
+lc.append("const lv_image_dsc_t img_tile_lbls[4] = {")
+for i in metas:
+    lc.append("  {.header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565A8,")
+    lc.append("              .flags = 0, .w = 160, .h = %d, .stride = 320}," % TILE_LBL_H)
+    lc.append("   .data_size = sizeof(tile_lbl%d_map), .data = tile_lbl%d_map}," % (i, i))
+lc.append("};")
+with open(OUT + "/tile_lbls.c", "w") as f:
+    f.write("// GENERATED by assets/generators/wallet_mock.py - do not hand-edit\n")
+    f.write("\n".join(lc) + "\n")
+with open(OUT + "/tile_lbls.h", "w") as f:
+    f.write("// GENERATED by assets/generators/wallet_mock.py - do not hand-edit\n"
+            "#pragma once\n#include \"lvgl.h\"\n\n"
+            "#define TILE_LBL_Y %d   // screen y for every strip; x = 50 + i*180\n"
+            "extern const lv_image_dsc_t img_tile_lbls[4];\n" % TILE_LBL_Y)
+print("wrote main/tile_lbls.c/.h (4 RGB565A8 label strips, 160x%d)" % TILE_LBL_H)
+
+# ---- ambient ₿ mote sprite ----
+# U+20BF is missing from every licensable system font here, so build it the way
+# the symbol is constructed anyway: the Arial Rounded "B" plus the two
+# protruding vertical strokes. 2x supersampled for clean 13px edges.
+S = 4
+bw, bh = 15 * S, 21 * S
+bim = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+bd = ImageDraw.Draw(bim)
+bf = font(16 * S)
+tw_ = bd.textlength("B", font=bf)
+bx = (bw - tw_) / 2
+bd.text((bx, int(2.5 * S)), "B", font=bf, fill=INK)
+bb = bd.textbbox((bx, int(2.5 * S)), "B", font=bf)   # actual B extents
+for fx in (0.40, 0.66):                          # the two strokes, above + below,
+    x = bb[0] + (bb[2] - bb[0]) * fx             # overlapping into the B ink
+    bd.rectangle([x - S * 0.75, 0, x + S * 0.75, bb[1] + 2 * S], fill=INK)
+    bd.rectangle([x - S * 0.75, bb[3] - 2 * S, x + S * 0.75, bh - 1], fill=INK)
+bim = bim.resize((bw // S, bh // S), Image.LANCZOS)
+bim.save("/tmp/mote_btc_mock.png")
+a = np.array(bim)
+r16 = a[..., 0].astype(np.uint16)
+g16 = a[..., 1].astype(np.uint16)
+b16 = a[..., 2].astype(np.uint16)
+al = a[..., 3].astype(np.uint8)
+v16 = (r16 >> 3) << 11 | (g16 >> 2) << 5 | (b16 >> 3)
+data = np.concatenate([
+    np.dstack([(v16 & 0xFF).astype(np.uint8),
+               (v16 >> 8).astype(np.uint8)]).reshape(-1),
+    al.reshape(-1)])
+with open(OUT + "/tile_lbls.c", "a") as f:
+    f.write("\nstatic const uint8_t mote_btc_map[] = {%s};\n"
+            % ",".join(str(int(x)) for x in data))
+    f.write("const lv_image_dsc_t img_mote_btc = {\n"
+            "  .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565A8,\n"
+            "             .flags = 0, .w = %d, .h = %d, .stride = %d},\n"
+            "  .data_size = sizeof(mote_btc_map), .data = mote_btc_map};\n"
+            % (bim.width, bim.height, bim.width * 2))
+with open(OUT + "/tile_lbls.h", "a") as f:
+    f.write("extern const lv_image_dsc_t img_mote_btc;   // ambient home mote\n")
+print("appended img_mote_btc (%dx%d) + /tmp/mote_btc_mock.png" % bim.size)
