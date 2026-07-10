@@ -1156,8 +1156,10 @@ static void motes_start(void) {
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_mote[i]);
+    // both endpoints FULLY offscreen (glyph is 21px tall): the repeat teleport
+    // then moves an invisible object, so no tall merged redraw = no twitch
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 488, -8);
+    lv_anim_set_values(&a, 484, -26);
     lv_anim_set_duration(&a, mms[i]);
     lv_anim_set_delay(&a, i * 900);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
