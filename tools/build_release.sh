@@ -36,6 +36,12 @@ for l in lines:
         out.append("CONFIG_LOG_DEFAULT_LEVEL=2")
     elif l.startswith("CONFIG_LOG_MAXIMUM_LEVEL="):
         out.append("CONFIG_LOG_MAXIMUM_LEVEL=2")
+    elif l == "CONFIG_ESPTOOLPY_AFTER_RESET=y":
+        out.append("# CONFIG_ESPTOOLPY_AFTER_RESET is not set")
+    elif l == "# CONFIG_ESPTOOLPY_AFTER_NORESET is not set":
+        out.append("CONFIG_ESPTOOLPY_AFTER_NORESET=y")
+    elif l.startswith("CONFIG_ESPTOOLPY_AFTER="):
+        out.append("CONFIG_ESPTOOLPY_AFTER=\"no-reset\"")
     else:
         out.append(l)
 open("sdkconfig.release", "w").write("\n".join(out) + "\n")
@@ -81,12 +87,18 @@ PY
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"
 echo
-echo "app-only reflash (bootloader + partition table already on the board):"
+echo "ESP-IDF flash (local ESP-IDF install; sdkconfig uses no-reset):"
+echo "  idf.py -B build-release -p <port> flash"
+echo
+echo "ESP-IDF app-only reflash:"
+echo "  idf.py -B build-release -p <port> app-flash"
+echo
+echo "direct esptool fallback - app-only reflash:"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
 echo "    0x10000 build-release/guition_kiss_bringup.bin"
 echo
-echo "FULL flash (fresh board, or whenever bootloader/partitions changed;"
+echo "direct esptool fallback - full flash (fresh board, or whenever bootloader/partitions changed;"
 echo "offsets from build-release/flash_args - the encrypted-release lane will"
 echo "need this full set):"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
