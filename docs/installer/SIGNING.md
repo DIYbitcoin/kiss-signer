@@ -59,7 +59,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 shasum -a 256 -c SHA256SUMS --ignore-missing
 
 # optional extra check (minisign)
-minisign -Vm kiss-wallet-<version>-full.bin -p kiss_wallet.pub
+minisign -Vm kiss-wallet-<version>.bin -p kiss_wallet.pub
 ```
 
 Cross-check the key fingerprint against a second channel (repo history,
