@@ -1,4 +1,4 @@
-# KISS Wallet OS
+# kiss-wallet
 
 An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.
 The device looks and plays like **FRUIT ISLAND**; a secret unlock gesture opens
