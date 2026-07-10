@@ -1,4 +1,4 @@
-588974d92b6760f8f5f4e284fa4d3214919fcec3c013b496949dd3e2fdce1caf  firmware/kiss-wallet-0.8.0-beta1-0f200e7-dirty-full.bin
+0a526ead58a773d7367842dfbf983cb3623a2e38b51670807ad1b0ab19e8a597  firmware/kiss-wallet-0.8.0-beta1.bin
 c8bd41a352ece6fefd1e2a22d107a832050da5be7e9fa12435ba6f962eb50de1  build-release/bootloader/bootloader.bin  (bootloader)
 fabcbebf733457e9706b46544b2a1cb9672a8e1ce626f5dc7d7e6fb4738d5b0e  build-release/partition_table/partition-table.bin  (partition table)
-b0f7b5b1289922958838b49c5d9aaa2b329e2d1829d75d38a4f90625048cbcba  build-release/guition_kiss_bringup.bin  (application)
+eb3a04d65657e6423cc26773643a282f0bb12d5e710b800f11015a7092e4c399  build-release/guition_kiss_bringup.bin  (application)
