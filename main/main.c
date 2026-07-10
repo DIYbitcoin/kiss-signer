@@ -28,7 +28,6 @@
 #include "menu_logo.h"
 #include "gameover_img.h"
 #include "wallet_img.h"
-#include "mote_img.h"
 #include "wallet_ui.h"
 #include "wallet_recv.h"
 #include "wallet_sign.h"
@@ -184,8 +183,6 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 
 // ---- hidden KISS wallet: revealed by drawing a "K" on the game menu (cover -> wallet) ----
 static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
-#define N_MOTES 5
-static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim motes drifting up
 static bool s_wallet_on;
 // dev-seed fingerprint for the top-right chip; filled from the boot selftest on
 // device (sim build has no libwally, keeps the placeholder)
@@ -1143,46 +1140,10 @@ void sim_home_status(const char *msg) {
 }
 #endif
 
-// Ambient life while the home idles: dim ink motes rising slowly through the
-// grid. Each lane has its own period + fade so the pattern never visibly
-// repeats; 4px dots = tiny dirty rects, translate/opa only.
-static void motes_start(void) {
-  static const int mx[N_MOTES]  = {150, 260, 430, 590, 735};
-  static const int mms[N_MOTES] = {9000, 12400, 7600, 10800, 14200};
-  for (int i = 0; i < N_MOTES; i++) {
-    if (!s_mote[i]) return;
-    lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_pos(s_mote[i], mx[i], 488);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, s_mote[i]);
-    // both endpoints FULLY offscreen (glyph is 21px tall): the repeat teleport
-    // then moves an invisible object, so no tall merged redraw = no twitch
-    lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 484, -26);
-    lv_anim_set_duration(&a, mms[i]);
-    lv_anim_set_delay(&a, i * 900);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_repeat_delay(&a, 500 + i * 400);
-    lv_anim_start(&a);
-    lv_anim_set_exec_cb(&a, anim_opa_cb);   // independent shimmer on top
-    lv_anim_set_values(&a, 25, 100);        // ₿ is bigger than a dot: stay faint
-    lv_anim_set_duration(&a, 2600 + i * 500);
-    lv_anim_set_reverse_duration(&a, 2600 + i * 500);
-    lv_anim_set_delay(&a, 0);
-    lv_anim_set_repeat_delay(&a, 0);
-    lv_anim_start(&a);
-  }
-}
-
-static void motes_stop(void) {
-  for (int i = 0; i < N_MOTES; i++) {
-    if (!s_mote[i]) return;
-    lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_y(s_mote[i], 500);           // parked below the panel
-  }
-}
+// NOTE: ambient home animation (drifting ₿ motes) was tried and REMOVED —
+// any infinitely-repeating animation reads as periodic twitching on this
+// panel's rotated flush path. The home stays fully static after the unlock
+// glide; do not add idle animations here without a device pass first.
 
 static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
@@ -1204,7 +1165,6 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_wallet);
-  motes_start();                           // ambient idle drift
   wallet_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
 }
@@ -1219,7 +1179,6 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 #endif
   s_wallet_on = false;
   wallet_session_close();                  // locked: no key material stays in RAM
-  motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   s_state = ST_MENU;
   lv_obj_clear_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
@@ -1582,13 +1541,6 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // this corner tells the truth instead, same line as the Settings footer.
   wallet_build_id_make(s_wallet, 48, 424);
 
-  // idle motes: small ₿ glyphs (started/stopped with the session)
-  for (int i = 0; i < N_MOTES; i++) {
-    s_mote[i] = lv_image_create(s_wallet);
-    lv_image_set_src(s_mote[i], &img_mote_btc);
-    lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_pos(s_mote[i], 0, 500);
-  }
 
   // ---- idle screensaver (attract mode): baked sunset backdrop + pulsing prompt ----
   // Floating fruit are created on activation; this just sets up the backdrop + "tap to play".
