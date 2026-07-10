@@ -46,9 +46,25 @@ function setReceipt(el, text, state) {
 
 function renderAuthenticity(release) {
   const auth = release.authenticity || {};
-  const isSigned = auth.signatureStatus === "signed" || auth.signatureStatus === "signature-verified";
+  // signed = explicit flag, or any status that isn't an "unsigned-*" marker
+  const isSigned = auth.signed === true ||
+    (typeof auth.signatureStatus === "string" &&
+     auth.signatureStatus.length > 0 &&
+     !auth.signatureStatus.startsWith("unsigned"));
   setReceipt(signatureCheck, auth.signatureLabel || "missing", isSigned ? "ok" : "warn");
-  setReceipt(keyCheck, auth.keyLabel || "not published", isSigned ? "ok" : "warn");
+  if (auth.publicKey) {
+    // show the real key material, tap to copy the full key
+    setReceipt(keyCheck, shortHex(auth.publicKey), isSigned ? "ok" : "warn");
+    keyCheck.title = auth.publicKey;
+    keyCheck.style.cursor = "copy";
+    keyCheck.onclick = () => navigator.clipboard?.writeText(auth.publicKey);
+  } else {
+    setReceipt(keyCheck, auth.keyLabel || "not published", isSigned ? "ok" : "warn");
+  }
+}
+
+function shortHex(s) {
+  return s.length > 20 ? s.slice(0, 8) + "…" + s.slice(-8) : s;
 }
 
 function renderRelease(release) {
@@ -90,7 +106,11 @@ async function verifyFirmware() {
 
     verified = true;
     setVerifyState("ready", "Firmware verified");
-    setReceipt(hashCheck, "verified", "ok");
+    // show the actual hash, not just a verdict; tap to copy the full digest
+    setReceipt(hashCheck, shortHex(digest), "ok");
+    hashCheck.title = digest;
+    hashCheck.style.cursor = "copy";
+    hashCheck.onclick = () => navigator.clipboard?.writeText(digest);
   } catch (error) {
     verified = false;
     setVerifyState("stop", "Verification failed");
