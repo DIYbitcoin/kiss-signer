@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#050607">
+    <meta
+      name="description"
+      content="KISS Wallet documentation: verify releases, flash, build from source, flash encryption, first boot."
+    >
+    <title>KISS Wallet Docs</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+      .doc-card {
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 8px;
+        background: rgba(9, 13, 13, 0.9);
+        padding: 22px;
+        margin-top: 16px;
+      }
+      .doc-card h2 {
+        margin: 0 0 6px;
+        font-size: 1.55rem;
+        line-height: 1.15;
+      }
+      .doc-card h3 {
+        margin: 22px 0 6px;
+        font-size: 1.05rem;
+      }
+      .doc-card p,
+      .doc-card li {
+        color: var(--muted);
+      }
+      .doc-card strong {
+        color: var(--ink);
+      }
+      .doc-card a {
+        color: var(--cyan);
+      }
+      code {
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.88em;
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 4px;
+        padding: 1px 5px;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.45);
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.84rem;
+        line-height: 1.55;
+        color: var(--ink);
+      }
+      pre code {
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+      .fp {
+        color: var(--green);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        overflow-wrap: anywhere;
+      }
+      .danger {
+        border: 1px solid rgba(255, 93, 108, 0.45);
+        border-radius: 8px;
+        background: rgba(255, 93, 108, 0.06);
+        padding: 14px 16px;
+        margin: 14px 0;
+      }
+      .danger h3 {
+        margin: 0 0 8px;
+        color: var(--red);
+      }
+      .note {
+        border: 1px solid rgba(255, 203, 87, 0.4);
+        border-radius: 8px;
+        background: rgba(255, 203, 87, 0.06);
+        padding: 14px 16px;
+        margin: 14px 0;
+        color: var(--amber);
+      }
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 14px 0;
+      }
+      .shots figure {
+        margin: 0;
+      }
+      .shots img,
+      .shot-wide img {
+        width: 100%;
+        display: block;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 8px;
+      }
+      .shots figcaption {
+        margin-top: 6px;
+        color: var(--dim);
+        font-size: 0.85rem;
+      }
+      .toc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 22px;
+      }
+      .toc a {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        padding: 6px 12px;
+        color: var(--ink);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.78rem;
+        text-decoration: none;
+        background: rgba(0, 0, 0, 0.38);
+      }
+      .toc a:hover {
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .back-link {
+        display: block;
+        width: fit-content;
+        margin-bottom: 18px;
+        color: var(--cyan);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.82rem;
+        text-decoration: none;
+      }
+      @media (max-width: 720px) {
+        .shots {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero reveal">
+        <a class="back-link motion-link" href="index.html">&larr; web installer</a>
+        <p class="eyebrow">KISS Wallet Documentation</p>
+        <h1>Docs</h1>
+        <p class="lede">
+          Everything the README summarizes, in full: verifying releases, flashing,
+          building from source, the flash-encryption build, and first boot.
+        </p>
+        <nav class="toc" aria-label="Sections">
+          <a href="#verify">verify</a>
+          <a href="#esptool">esptool</a>
+          <a href="#source">build from source</a>
+          <a href="#encryption">flash encryption</a>
+          <a href="#firstboot">first boot</a>
+          <a href="#simulator">simulator</a>
+          <a href="#release">cutting a release</a>
+          <a href="#hardware">hardware</a>
+        </nav>
+      </section>
+
+      <section class="doc-card reveal" id="verify">
+        <p class="eyebrow">01 / trust, then flash</p>
+        <h2>Verify the release</h2>
+        <p>
+          Release artifacts live in <code>docs/installer/</code> in the repo (not the
+          GitHub Releases tab): the merged firmware image
+          <code>firmware/kiss-wallet-&lt;version&gt;.bin</code> (flashed at offset 0),
+          <code>SHA256SUMS</code> plus its detached GPG signature
+          <code>SHA256SUMS.asc</code>, the release public key
+          <code>kiss_wallet_pgp.asc</code>, and <code>release.json</code>.
+        </p>
+<pre><code>cd docs/installer
+gpg --import kiss_wallet_pgp.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+# expect: "Good signature from KISS Wallet releases"
+
+shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
+sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
+        <p>
+          The signature must come from this fingerprint, and the fingerprint is only
+          as trustworthy as the place you read it. Cross-check it from more than one
+          channel:
+        </p>
+        <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
+        <h3>Windows</h3>
+        <p>
+          Hash with <code>Get-FileHash firmware\kiss-wallet-&lt;version&gt;.bin</code>
+          in PowerShell and compare against <code>SHA256SUMS</code> by eye. Verify the
+          signature with <a href="https://gpg4win.org">Gpg4win</a>.
+        </p>
+        <p>
+          The web installer hashes the firmware in your browser before the install
+          button unlocks, but it cannot verify the GPG signature for you. Do that
+          yourself once per release.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="esptool">
+        <p class="eyebrow">02 / command-line flash</p>
+        <h2>Flash the signed binary with esptool</h2>
+        <p>Works the same on macOS, Linux, and Windows:</p>
+<pre><code>pip install esptool        # or: pipx install esptool / uvx esptool
+
+# port: /dev/cu.usbmodem* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
+esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
+  --before default-reset --after no-reset write-flash \
+  --flash-mode dio --flash-size 16MB --flash-freq 80m \
+  0 docs/installer/firmware/kiss-wallet-&lt;version&gt;.bin</code></pre>
+        <p class="power-note">
+          Then unplug the board, wait about 3 seconds, and plug it back in. The board
+          only starts new firmware from a real power-on; a black screen means you
+          skipped this.
+        </p>
+        <p>
+          The merged image covers the wallet-storage area, so every flash is a clean
+          start.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="source">
+        <p class="eyebrow">03 / strongest verification</p>
+        <h2>Build from source</h2>
+        <p>
+          Only requirement is <a href="https://docs.docker.com/get-docker/">Docker</a>;
+          the ESP-IDF v6.0.1 toolchain runs inside the container. Builds are
+          <strong>reproducible</strong>: no compile date is embedded, so the same
+          commit produces the same bytes and your hashes must match CI's.
+        </p>
+<pre><code>tools/build_release.sh     # release profile -> build-release/
+                           # macOS/Linux; Windows: WSL or Git Bash</code></pre>
+        <p>
+          The script verifies its own output: no development seed material in the
+          binary, version and commit present. It fails loudly otherwise, and prints
+          the exact flash commands when it passes.
+        </p>
+        <p>
+          CI rebuilds every push to main in the same Docker toolchain and publishes
+          the firmware hashes
+          (<code>.github/workflows/reproducible-build.yml</code>).
+        </p>
+        <h3>Development profile</h3>
+        <p>Adds a boot fingerprint and a dev banner; any OS:</p>
+<pre><code>docker run --rm -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
+  idf.py -B build-disp build          # PowerShell: -v "${PWD}:/project"</code></pre>
+      </section>
+
+      <section class="doc-card reveal" id="encryption">
+        <p class="eyebrow">04 / read twice, flash once</p>
+        <h2>Flash encryption (final-board build)</h2>
+        <p>
+          <code>tools/build_encrypted_release.sh</code> builds the hardened profile:
+          flash encryption in <strong>release mode</strong> plus
+          <strong>NVS encryption</strong> (the stored seed words are covered; plain
+          flash encryption alone would leave the NVS data partition readable).
+          Secure boot lands later as its own pass.
+        </p>
+        <p>
+          <strong>What it gives you:</strong> the flash contents, including the
+          stored seed, cannot be read out of the chip. The AES key is generated on
+          the device, burned into eFuse, and is never readable by anyone, including
+          you.
+        </p>
+        <div class="danger">
+          <h3>These costs are permanent</h3>
+          <ul>
+            <li>The first boot <strong>burns eFuses. No undo.</strong></li>
+            <li>
+              After that boot the board can <strong>never be reflashed</strong>: no
+              serial, no web installer, no OTA. The firmware is frozen forever,
+              which also locks out evil-maid reflashing. That is the point.
+            </li>
+            <li>
+              First boot encrypts ~6 MB in place and can sit on a black screen for
+              minutes. <strong>Do not unplug</strong> until the game menu appears;
+              losing power mid-encryption can brick the board.
+            </li>
+            <li>
+              Fresh board you intend as your final signer only. Test the normal
+              release on it first.
+            </li>
+          </ul>
+        </div>
+<pre><code>tools/build_encrypted_release.sh    # builds + 14 safety checks,
+                                    # prints the one-time flash command</code></pre>
+        <p>
+          The script never flashes anything itself. It refuses a dirty tree, builds
+          in Docker, then verifies the binary (no dev seed, version and commit
+          present) and the security config (release-mode flash encryption on,
+          development mode off, NVS encryption on, secure boot off, no-stub esptool)
+          before printing the one-time erase + flash procedure with the encrypted
+          lane's shifted offsets.
+        </p>
+        <p>
+          Settings shows an amber "flash not yet encrypted" line read live from
+          eFuse. After the encrypted first boot it disappears, and only then create
+          a wallet you care about.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="firstboot">
+        <p class="eyebrow">05 / hand it to anyone</p>
+        <h2>First boot</h2>
+        <ol>
+          <li>You get a fruit game. It really plays. Hand it to anyone.</li>
+          <li>
+            <strong>Unlock:</strong> draw the word <strong>KISS</strong> across the
+            menu with your finger: a clear <strong>K</strong> first, then the
+            remaining letters stretching well to the right.
+          </li>
+          <li>
+            Type a <strong>passphrase</strong>. Any passphrase opens <em>a</em>
+            wallet; only yours opens <em>yours</em>. Recognise your wallet by the
+            fingerprint shown after entry; there is deliberately no "wrong
+            passphrase" error.
+          </li>
+          <li>
+            First time: Settings &rarr; <strong>CREATE NEW WALLET</strong>. Pick a
+            word count, feed the camera a detailed scene for entropy, write the
+            words on paper, pass the word quiz, set your passphrase.
+          </li>
+          <li>
+            Stay on <strong>TESTNET</strong> (Settings) while you learn. Coins:
+            coinfaucet.eu.
+          </li>
+          <li>
+            Pair Sparrow Wallet: <strong>Wallet &rarr; EXPORT</strong> shows a
+            descriptor QR. Sparrow builds and broadcasts; the device verifies and
+            signs PSBTs via camera QR or <code>.psbt</code> on SD card.
+          </li>
+        </ol>
+        <div class="shots">
+          <figure>
+            <img src="media/passphrase-warning.png" alt="Passphrase warning screen">
+            <figcaption>The passphrase is part of the wallet: lose it, lose the wallet.</figcaption>
+          </figure>
+          <figure>
+            <img src="media/export-descriptor.png" alt="Descriptor export QR screen">
+            <figcaption>EXPORT pairs a watch-only wallet; keys never leave the device.</figcaption>
+          </figure>
+        </div>
+        <div class="shot-wide">
+          <figure style="margin:0">
+            <img src="media/sign-verify.png" alt="PSBT verification screen before signing">
+            <figcaption style="margin-top:6px;color:var(--dim);font-size:0.85rem">
+              Before signing, every output, the fee, and the change are shown and verified on-device.
+            </figcaption>
+          </figure>
+        </div>
+        <p>
+          Settings shows exactly what is on the board, bottom-left:
+          <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus an honest note
+          while flash encryption is off.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="simulator">
+        <p class="eyebrow">06 / no hardware required</p>
+        <h2>Desktop simulator &amp; tests</h2>
+<pre><code>sim/build_sim.sh      # headless LVGL sim -> /tmp/fruitsim (renders .ppm frames)
+sim/build_test.sh     # crypto/PSBT test suite -> /tmp/kisstest
+sim/build_fuzz.sh     # parser fuzz harness (ASAN/UBSAN) -> /tmp/kissfuzz
+sim/mk_test_qrs.sh d  # scan-test QR page (static/pMofN/BC-UR + STOP case)</code></pre>
+        <p>
+          The sim compiles the real <code>main/</code> sources against vendored LVGL
+          and scripts touch input, so UI changes are previewed as frames before any
+          flash. The screenshots on this site are its output.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="release">
+        <p class="eyebrow">07 / maintainer</p>
+        <h2>Cutting a release</h2>
+<pre><code>tools/build_release.sh        # verified release build -> build-release/
+tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
+                              # -> docs/installer/ (refuses a dirty tree,
+                              #    self-verifies against the repo public key)</code></pre>
+        <p>
+          Signing happens on the maintainer machine; the private key never touches
+          the repo or CI.
+        </p>
+      </section>
+
+      <section class="doc-card reveal" id="hardware">
+        <p class="eyebrow">08 / the board</p>
+        <h2>Hardware</h2>
+        <p>
+          Guition <strong>JC4880P443C</strong> dev board: ESP32-P4 (RISC-V), 480x800
+          MIPI-DSI touch panel (ST7701 + GT911), OV02C10 MIPI-CSI camera, SDMMC card
+          slot. No soldering.
+        </p>
+        <p>
+          The ESP32-P4 has no WiFi or Bluetooth silicon and the firmware contains no
+          networking stack. The air gap is physical: there is no radio to
+          accidentally leave on.
+        </p>
+      </section>
+
+      <p class="lede" style="margin-top:26px;font-size:0.9rem;color:var(--dim)">
+        While this repo is private, this site is served locally
+        (<code>python3 -m http.server 8321 -d docs</code>). It becomes GitHub Pages
+        when the repo goes public.
+      </p>
+    </main>
+
+    <script>
+      const revealEls = document.querySelectorAll(".reveal");
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.14 }
+        );
+        revealEls.forEach((el) => observer.observe(el));
+      } else {
+        revealEls.forEach((el) => el.classList.add("is-visible"));
+      }
+    </script>
+  </body>
+</html>
