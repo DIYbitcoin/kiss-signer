@@ -1,0 +1,17 @@
+# Encrypted-lane partition table (tools/build_encrypted_release.sh).
+#
+# Differences from partitions.csv, and why:
+# * nvs_key partition: plain flash encryption does NOT cover "nvs" data
+#   partitions, and the seed words live in NVS - so the lane enables NVS
+#   encryption, whose XTS keys live here (this partition IS flash-encrypted).
+# * everything shifted: the flash-encryption bootloader is ~0x8840 bytes and
+#   no longer fits under the stock 0x8000 table offset. The table moves to
+#   0x10000 (CONFIG_PARTITION_TABLE_OFFSET, set by the build script), which
+#   also leaves bootloader headroom for a future secure-boot pass. The app
+#   keeps its required 64KB alignment at 0x20000.
+# This lane is FULL-flash-only on a fresh board, so moved offsets cost nothing.
+# Name,    Type, SubType,  Offset,   Size,      Flags
+nvs,       data, nvs,      0x11000,  0x6000,
+phy_init,  data, phy,      0x17000,  0x1000,
+factory,   app,  factory,  0x20000,  0x600000,
+nvs_key,   data, nvs_keys, 0x620000, 0x1000,   encrypted
