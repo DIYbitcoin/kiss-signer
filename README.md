@@ -1,12 +1,33 @@
-# kiss-wallet
+<div align="center">
 
-An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.
-The device looks and plays like **FRUIT ISLAND**; a secret unlock gesture opens
-**KISS Wallet**. Inspired by
-[Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet), the only
-other decoy hardware wallet — a signer hidden under a Tetris game.
+# KISS Wallet
 
-> Keep it small. Make it safe. Make it clear.
+**An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.**
+
+<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: none">
+
+<table>
+<tr>
+<td align="center"><img src="docs/readme/menu.png" alt="FRUIT ISLAND game menu" width="400"></td>
+<td align="center"><img src="docs/readme/wallet.png" alt="KISS wallet home screen" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>What everyone sees</b> — a real, playable game</sub></td>
+<td align="center"><sub><b>What only you see</b> — gesture + passphrase</sub></td>
+</tr>
+</table>
+
+<sub>Both frames rendered by the desktop simulator from the real firmware sources.</sub>
+
+*Keep it small. Make it safe. Make it clear.*
+
+</div>
+
+Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
+the only other decoy hardware wallet — a signer hidden under a Tetris game.
+
+> [!CAUTION]
+> **`0.8.0-beta1` is experimental. Do not trust it with meaningful funds.**
 
 - **Seed + passphrase = your wallet.** The BIP39 passphrase is typed fresh every
   time, never stored, and there is no "wrong passphrase" error by design — a
@@ -18,8 +39,6 @@ other decoy hardware wallet — a signer hidden under a Tetris game.
   The watch-only wallet builds and broadcasts; KISS stays offline, verifies the
   PSBT, and signs only what it can fully show.
 
-**Status: `0.8.0-beta1` — experimental. Do not trust it with meaningful funds.**
-
 ## Hardware
 
 Guition **JC4880P443C** dev board — ESP32-P4 (RISC-V), 480×800 MIPI-DSI touch
@@ -29,10 +48,12 @@ panel (ST7701 + GT911), OV02C10 MIPI-CSI camera, SDMMC card slot. No soldering.
 
 ## Install
 
-Three ways, easiest first. All of them end the same way:
-**unplug the board, wait ~3 seconds, plug it back in.** The board only starts
-new firmware from a real power-on. A black screen after flashing means you
-skipped this.
+Three ways, easiest first.
+
+> [!IMPORTANT]
+> All of them end the same way: **unplug the board, wait ~3 seconds, plug it
+> back in.** The board only starts new firmware from a real power-on. A black
+> screen after flashing means you skipped this.
 
 ### Option A — web installer (easiest)
 
@@ -73,8 +94,9 @@ Windows: `Get-FileHash firmware\kiss-wallet-<version>.bin` in PowerShell and
 compare against `SHA256SUMS` by eye; verify the signature with
 [Gpg4win](https://gpg4win.org).
 
-Cross-check the fingerprint from more than one place — it is only as
-trustworthy as this README.
+> [!TIP]
+> Cross-check the fingerprint from more than one place — it is only as
+> trustworthy as this README.
 
 ### Option B — flash the signed binary
 
@@ -128,17 +150,17 @@ readable). Secure boot lands later as its own pass.
 be read out of the chip. The AES key is generated on the device, burned into
 eFuse, and is never readable by anyone — including you.
 
-**What it costs — permanent:**
-
-- The first boot **burns eFuses. No undo.**
-- After that boot the board can **never be reflashed** — no serial, no web
-  installer, no OTA. The firmware is frozen forever (which also locks out
-  evil-maid reflashing — that is the point).
-- First boot encrypts ~6 MB in place and can sit on a black screen for
-  minutes. **Do not unplug** until the game menu appears; losing power
-  mid-encryption can brick the board.
-- Fresh board you intend as your final signer only. Test the normal release
-  on it first.
+> [!WARNING]
+> **These costs are permanent:**
+> - The first boot **burns eFuses. No undo.**
+> - After that boot the board can **never be reflashed** — no serial, no web
+>   installer, no OTA. The firmware is frozen forever (which also locks out
+>   evil-maid reflashing — that is the point).
+> - First boot encrypts ~6 MB in place and can sit on a black screen for
+>   minutes. **Do not unplug** until the game menu appears; losing power
+>   mid-encryption can brick the board.
+> - Fresh board you intend as your final signer only. Test the normal release
+>   on it first.
 
 ```sh
 tools/build_encrypted_release.sh    # builds + 14 safety checks,
@@ -182,7 +204,8 @@ sim/mk_test_qrs.sh d  # scan-test QR page (static/pMofN/BC-UR + STOP case)
 ```
 
 The sim compiles the real `main/` sources against vendored LVGL and scripts
-touch input, so UI changes are previewed as frames before any flash.
+touch input, so UI changes are previewed as frames before any flash — the
+screenshots at the top of this page are its output.
 
 ## Cutting a release (maintainer)
 
