@@ -45,6 +45,10 @@ force = {
     # keys auto-generated on first use into the nvs_key partition
     "CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC":   "y",
     "CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC":        None,
+    # reproducible binaries: no compile date/time embedded, so the same
+    # commit always builds the same bytes (CI and verifiers can compare)
+    "CONFIG_APP_REPRODUCIBLE_BUILD":                "y",
+    "CONFIG_APP_COMPILE_TIME_DATE":                 None,
     # partition table with the nvs_key (NVS-encryption XTS keys) partition;
     # table offset moves to 0x10000 because the flash-encryption bootloader
     # (~0x8840 bytes) no longer fits under 0x8000 (also secure-boot headroom)
@@ -111,6 +115,8 @@ checks += [
     (on("CONFIG_NVS_ENCRYPTION"),                       "NVS encryption enabled"),
     (on("CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC"),  "NVS keys via flash-enc scheme (nvs_key partition)"),
     (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
+    (on("CONFIG_ESPTOOLPY_NO_STUB"),                    "esptool no-stub mode (required with flash encryption)"),
+    (on("CONFIG_APP_REPRODUCIBLE_BUILD"),               "reproducible build (no compile date embedded)"),
 ]
 
 pt = open("build-encrypted-release/partition_table/partition-table.bin", "rb").read()
@@ -147,9 +153,10 @@ encrypted release build OK: build-encrypted-release/
    uvx esptool --chip esp32p4 -p <port> erase-flash
 
 2. one full plaintext flash (first boot encrypts it in place; note the
-   encrypted lane's SHIFTED offsets - table 0x10000, app 0x20000):
+   encrypted lane's SHIFTED offsets - table 0x10000, app 0x20000 - and
+   --no-stub, which flash-encrypted builds require):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
-     write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
+     --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
      0x2000  build-encrypted-release/bootloader/bootloader.bin \\
      0x10000 build-encrypted-release/partition_table/partition-table.bin \\
      0x20000 build-encrypted-release/guition_kiss_bringup.bin
