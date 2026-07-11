@@ -2,8 +2,9 @@
 
 An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.
 The device looks and plays like **FRUIT ISLAND**; a secret unlock gesture opens
-**KISS Wallet**. Inspired by Jade, Specter-DIY, SeedSigner, Krux, Kern, and
-Shieldsigner.
+**KISS Wallet**. Inspired by
+[Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet), the only
+other decoy hardware wallet — a signer hidden under a Tetris game.
 
 > Keep it small. Make it safe. Make it clear.
 
