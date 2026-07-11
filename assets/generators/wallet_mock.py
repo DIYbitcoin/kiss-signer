@@ -231,3 +231,4 @@ with open(OUT + "/wallet_img.h", "w") as f:
     f.write('#pragma once\n#include "lvgl.h"\nextern const lv_image_dsc_t img_wallet;\n')
 print("wrote main/wallet_img.c (img_wallet: mono theme, no status pill, EMPTY chip)")
 
+
