@@ -84,6 +84,19 @@ h1 {
   font-size: 1.08rem;
 }
 
+.docs-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--cyan);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.docs-link:hover {
+  color: var(--green);
+}
+
 .status-row {
   display: flex;
   flex-wrap: wrap;
