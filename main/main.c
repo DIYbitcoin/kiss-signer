@@ -1145,8 +1145,12 @@ void sim_home_status(const char *msg) {
 #endif
 
 // Ambient life while the home idles: dim ink dots rising slowly through the
-// grid (the original mote look). Each lane has its own period + fade so the
-// pattern never visibly repeats; 4px dots = tiny dirty rects, translate/opa only.
+// grid. HARD RULE (found the hard way): every animated position, including
+// travel endpoints and parking spots, must stay INSIDE the parent's bounds.
+// A child moving outside the parent makes LVGL invalidate the WHOLE parent
+// every tick -> the entire baked home re-renders + re-blits = panel-wide
+// twitching. In-bounds, only the dots' tiny dirty rects redraw (sim-proven:
+// 24,774 changed px/frame out-of-bounds vs 133 in-bounds).
 // the tile labels settle in: a short staggered drop + fade, left to right,
 // then they hold still (translate/opa only). Runs on every unlock.
 static void tiles_settle(void) {
@@ -1176,12 +1180,12 @@ static void motes_start(void) {
   for (int i = 0; i < N_MOTES; i++) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_pos(s_mote[i], mx[i], 484);
+    lv_obj_set_pos(s_mote[i], mx[i], 474);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_mote[i]);
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 484, -10);
+    lv_anim_set_values(&a, 474, 2);
     lv_anim_set_duration(&a, mms[i]);
     lv_anim_set_delay(&a, i * 900);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
@@ -1202,7 +1206,7 @@ static void motes_stop(void) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_y(s_mote[i], 500);           // parked below the panel
+    lv_obj_set_y(s_mote[i], 474);           // parked in-bounds (invisible: opa 0)
   }
 }
 
@@ -1559,6 +1563,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_wallet = lv_image_create(scr);
   lv_image_set_src(s_wallet, &img_wallet);
   lv_obj_set_pos(s_wallet, 0, 0);
+  // THE home-twitch bug: motes travel outside the 480px bounds (park at y=500,
+  // exit above the top), which silently makes this container scrollable — LVGL
+  // then shifts the ENTIRE page to chase the overflowing children. Same trap
+  // the screensaver already guards against ("floating fruit go off-edge").
+  lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(s_wallet, LV_SCROLLBAR_MODE_OFF);
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
@@ -1623,7 +1633,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_set_style_bg_color(s_mote[i], lv_color_hex(0xE8EEF7), 0);
     lv_obj_set_style_bg_opa(s_mote[i], LV_OPA_COVER, 0);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_pos(s_mote[i], 0, 500);
+    lv_obj_set_pos(s_mote[i], 0, 474);
   }
 
 
