@@ -18,7 +18,9 @@
         <p class="eyebrow">KISS Wallet Installer</p>
         <h1>Install firmware</h1>
         <p class="lede">
-          For the Guition JC4880P443C ESP32-P4 board. Use Chrome, Brave, or Edge on desktop.
+          For the Guition JC4880P443C ESP32-P4 board. Use Chrome, Brave, or Edge
+          on any desktop (macOS, Windows, Linux). Safari and Firefox cannot flash:
+          they do not support Web Serial.
         </p>
         <div class="status-row" aria-label="Release status">
           <span class="status-pill caution">release candidate</span>
@@ -51,7 +53,8 @@
               Connect and install firmware
             </button>
             <span slot="unsupported">
-              Web Serial is not available here. Use Chrome, Brave, or Edge on desktop.
+              This browser has no Web Serial (Safari and Firefox never do).
+              Open this page in Chrome, Brave, or Edge, they work on macOS too.
             </span>
             <span slot="not-allowed">
               Web Serial requires localhost or HTTPS.
