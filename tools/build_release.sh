@@ -36,6 +36,10 @@ for l in lines:
         out.append("CONFIG_LOG_DEFAULT_LEVEL=2")
     elif l.startswith("CONFIG_LOG_MAXIMUM_LEVEL="):
         out.append("CONFIG_LOG_MAXIMUM_LEVEL=2")
+    elif l == "# CONFIG_APP_REPRODUCIBLE_BUILD is not set":
+        out.append("CONFIG_APP_REPRODUCIBLE_BUILD=y")   # same commit = same bytes
+    elif l == "CONFIG_APP_COMPILE_TIME_DATE=y":
+        out.append("# CONFIG_APP_COMPILE_TIME_DATE is not set")
     elif l == "CONFIG_ESPTOOLPY_AFTER_RESET=y":
         out.append("# CONFIG_ESPTOOLPY_AFTER_RESET is not set")
     elif l == "# CONFIG_ESPTOOLPY_AFTER_NORESET is not set":
