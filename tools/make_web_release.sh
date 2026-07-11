@@ -76,8 +76,16 @@ PY
 GPGSIGNED=0
 GPG_FPR=""
 if command -v gpg >/dev/null && gpg --list-secret-keys ${GPG_KEY_ID:+"$GPG_KEY_ID"} >/dev/null 2>&1; then
-    gpg --batch --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
-      --detach-sign -o "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS"
+    # NOT --batch: batch mode suppresses the pinentry passphrase popup, so once
+    # the agent cache expires the sign fails silently ("No such file or
+    # directory"). Interactive lets pinentry prompt; --yes still auto-overwrites.
+    rm -f "$OUT/SHA256SUMS.asc"
+    if ! gpg --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
+           --detach-sign -o "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS"; then
+        echo "ERROR: GPG signing failed (passphrase prompt?). Run in a terminal"
+        echo "with: export GPG_TTY=\$(tty)   then rerun. Nothing was released."
+        exit 1
+    fi
     # self-check: the signature we just wrote must verify against the PUBLIC key
     # in the repo (not just the local keyring), or the release is not "signed".
     if [ ! -f "$GPG_PUB_FILE" ]; then
