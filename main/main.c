@@ -186,6 +186,7 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: faint ₿ glyphs drifting up
+static uint8_t s_mote_ph[N_MOTES]; // per-mote frame counter (varied drift speeds)
 static bool s_wallet_on;
 // dev-seed fingerprint for the top-right chip; filled from the boot selftest on
 // device (sim build has no libwally, keeps the placeholder)
@@ -1143,11 +1144,44 @@ void sim_home_status(const char *msg) {
 }
 #endif
 
-// Ambient ₿ motes are STATIC. Any moving/animating object forces this panel's
-// rotated flush to re-blit the whole frame each tick, which reads as a periodic
-// twitch (tried: position+opacity, translate-only, offscreen wrap — all twitch;
-// only NOT animating is smooth). So the motes are just fixed faint glyphs
-// scattered on the home. Do not animate them without a real flush-path fix.
+// Ambient ₿ motes drift slowly UP the home like Matrix rain. The twitch on
+// earlier attempts was NOT the motion itself: this panel has two hardware
+// framebuffers, and a small partial update on an otherwise-idle screen leaves
+// the two buffers out of sync, so the panel alternates between them = flicker.
+// The game never twitches because it repaints the WHOLE frame every tick,
+// keeping both buffers identical. So we do the same: step the motes from the
+// 16ms game tick and force a full-screen redraw each step. lv_anim is avoided
+// (it renders at its own cadence, which reintroduced the partial-update flicker).
+static const int MOTE_X[N_MOTES]    = {120, 258, 398, 538, 678};
+static const int MOTE_OPA[N_MOTES]  = { 55,  40,  60,  38,  50};
+static const int MOTE_SPD[N_MOTES]  = {  3,   5,   2,   4,   3};   // ticks per 1px up
+
+static void motes_reset(void) {                 // spread them over the full height
+  for (int i = 0; i < N_MOTES; i++) {
+    if (!s_mote[i]) return;
+    s_mote_ph[i] = 0;
+    lv_obj_set_pos(s_mote[i], MOTE_X[i], 40 + i * 92);
+    lv_obj_set_style_opa(s_mote[i], MOTE_OPA[i], 0);
+  }
+}
+
+// called from the game tick while idle on the wallet home (see game_tick)
+static void motes_step(void) {
+  bool moved = false;
+  for (int i = 0; i < N_MOTES; i++) {
+    if (!s_mote[i]) return;
+    if (++s_mote_ph[i] < MOTE_SPD[i]) continue;
+    s_mote_ph[i] = 0;
+    int y = lv_obj_get_y(s_mote[i]) - 1;
+    if (y < -24) y = 484;                        // wrap: fully offscreen top -> bottom
+    lv_obj_set_y(s_mote[i], y);
+    moved = true;
+  }
+  // On any move, force a FULL-frame repaint (like the game) so both hardware
+  // framebuffers stay identical -> no partial-update flicker. On still frames
+  // nothing is dirty, so we leave the panel alone.
+  if (moved) lv_obj_invalidate(lv_screen_active());
+}
 
 static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
@@ -1169,6 +1203,7 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_wallet);
+  motes_reset();                           // ambient drift starts fresh each unlock
   wallet_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
 }
@@ -1222,6 +1257,13 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
       return;
     }
+    // idle on the home: drift the ambient motes (skip while the camera owns the
+    // panel). Full-frame repaint inside motes_step keeps both FBs in sync.
+    bool mote_cam = false;
+#ifndef SIMULATOR
+    mote_cam = camera_spike_is_on();
+#endif
+    if (!mote_cam) motes_step();
 #ifndef SIMULATOR
     // camera spike (step 2): the Sign tile opens the live view (Sign = scan a QR
     // later, so the camera belongs here). While live: top-left corner CLOSES the
@@ -1545,17 +1587,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // this corner tells the truth instead, same line as the Settings footer.
   wallet_build_id_make(s_wallet, 48, 424);
 
-  // static ₿ motes: fixed faint glyphs scattered in the empty band between the
-  // tiles and the footer (never over text). No animation (see wallet_start note).
-  static const int mx[N_MOTES]   = {150, 300, 470, 560, 700};
-  static const int my[N_MOTES]   = {372, 400, 366, 404, 384};
-  static const int mopa[N_MOTES] = { 64,  48,  56,  44,  60};   // slight variety
+  // ambient ₿ motes: created here, positioned + animated by motes_reset/step
   for (int i = 0; i < N_MOTES; i++) {
     s_mote[i] = lv_image_create(s_wallet);
     lv_image_set_src(s_mote[i], &img_mote_btc);
     lv_obj_clear_flag(s_mote[i], LV_OBJ_FLAG_CLICKABLE);   // must never eat a tap
-    lv_obj_set_style_opa(s_mote[i], mopa[i], 0);
-    lv_obj_set_pos(s_mote[i], mx[i], my[i]);
+    lv_obj_set_style_opa(s_mote[i], MOTE_OPA[i], 0);
+    lv_obj_set_pos(s_mote[i], MOTE_X[i], 40 + i * 92);
   }
 
 

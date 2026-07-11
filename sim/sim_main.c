@@ -315,8 +315,10 @@ int main(void) {
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
   save("/tmp/sim_wallet.ppm");
-  pump(90);                                         // ~1.4s idle: motes drift, chip breathes
-  save("/tmp/sim_home_idle.ppm");                   // motes must be at new positions here
+  pump(90);                                         // ~1.4s idle: motes drift up
+  save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
+  pump(120);                                        // more drift
+  save("/tmp/sim_home_idle2.ppm");                  // motes should have moved further up
 
   // preview the SD-insert indicator (device polls this; sim just sets the text)
   sim_home_status("SD card ready");
