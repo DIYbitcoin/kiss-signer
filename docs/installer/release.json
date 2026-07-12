@@ -5,7 +5,7 @@
   "chipFamily": "ESP32-P4",
   "version": "0.1.0-beta1",
   "commit": "bd35873",
-  "status": "release-candidate",
+  "status": "beta",
   "generated": "2026-07-12",
   "authenticity": {
     "signed": true,
@@ -51,7 +51,7 @@
     }
   ],
   "warnings": [
-    "This is a release-candidate build, not a final funds build.",
+    "This is a beta build, not a final funds build.",
     "Do not erase flash on a board that holds a wallet unless you intentionally want to wipe it.",
     "After flashing, unplug the board, wait about 3 seconds, then plug it back in."
   ]
