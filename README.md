@@ -38,16 +38,18 @@ the only other decoy hardware wallet — a signer hidden under a Tetris game.
   wireless stack is compiled in — the release build fails if any radio or
   networking code links.
 - **Online wallet compatible:** exports descriptors for Sparrow and friends.
-  The watch-only wallet builds and broadcasts; KISS stays offline, verifies the
-  PSBT, and signs only what it can fully show.
+  The online coordinator app builds and broadcasts; KISS stays offline, verifies
+  the PSBT, and signs only what it can fully show.
 
 Runs on the Guition **JC4880P443C** dev board — ESP32-P4, 480×800 MIPI-DSI
 touch panel, camera, SD card slot. No soldering.
 
 ## Install (beta)
 
-For this beta, use the signed artifacts attached to the GitHub Release. The
-browser installer comes later, once GitHub Pages is live.
+For this beta, use the signed artifacts attached to the
+[latest GitHub Release](https://github.com/kkdao/kiss-wallet/releases/latest).
+The browser installer comes later, once GitHub Pages is live (Chrome / Edge /
+Brave on desktop only — Safari and Firefox cannot flash over Web Serial).
 
 **1. Download** these release assets into one folder:
 
@@ -69,7 +71,8 @@ shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
 > Cross-check the fingerprint from more than one place — it is only as
 > trustworthy as this README.
 
-**3. Flash** (same command on macOS / Linux / Windows):
+**3. Flash** (macOS / Linux / WSL / Git Bash — on plain Windows, put the
+`esptool` command on one line without the `\` continuations):
 
 ```sh
 pip install esptool   # or: pipx install esptool / uvx esptool
@@ -99,7 +102,7 @@ The game is what boots. A secret gesture on the game menu opens the signer
 </tr>
 <tr>
 <td align="center"><sub>Create a new wallet, or restore from words</sub></td>
-<td align="center"><sub>Write the 12 words on paper — they ARE the wallet</sub></td>
+<td align="center"><sub>Write the 12 words on paper — words + passphrase are the wallet</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/readme/setup-3-quiz.png" alt="Quiz proves the words were written down" width="400"></td>
@@ -113,7 +116,7 @@ The game is what boots. A secret gesture on the game menu opens the signer
 
 ## Day to day
 
-Pair the exported descriptor with a watch-only coordinator (Sparrow Wallet).
+Pair the exported descriptor with an online coordinator app (Sparrow Wallet).
 It watches the chain and builds transactions; KISS only ever sees the PSBT,
 shows you exactly what it spends, and signs. Keys never leave the device.
 
