@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_ldo_regulator.h"
 #include "driver/ledc.h"
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
@@ -231,6 +232,24 @@ static uint32_t rnd(uint32_t n) {
 static int rnd_range(int a, int b) { return a + (int)rnd(b - a + 1); }
 
 #ifndef SIMULATOR
+// The board pairs the radio-less ESP32-P4 with an ESP32-C6 WiFi/Bluetooth
+// coprocessor (SDIO, reset line on GPIO54 per Guition's EV-board-derived
+// BSP). KISS never uses it: hold its reset low from the first code we run
+// so whatever firmware shipped on the C6 never executes, and latch the pad
+// so the level survives soft resets. Logged at W because release builds
+// strip INFO. Settings/home read the pad back via radio_is_held().
+#define C6_RESET_GPIO GPIO_NUM_54
+static void radio_hold_in_reset(void) {
+  gpio_set_level(C6_RESET_GPIO, 0);   // level first: no high glitch on config
+  gpio_config_t io = {.pin_bit_mask = 1ULL << C6_RESET_GPIO,
+                      .mode = GPIO_MODE_INPUT_OUTPUT};
+  ESP_ERROR_CHECK(gpio_config(&io));
+  gpio_set_level(C6_RESET_GPIO, 0);
+  gpio_hold_en(C6_RESET_GPIO);
+  ESP_LOGW(TAG, "C6 radio held in reset (GPIO54 low)");
+}
+bool radio_is_held(void) { return gpio_get_level(C6_RESET_GPIO) == 0; }
+
 static void log_board_info(void) {
   esp_chip_info_t chip;
   uint32_t fs = 0;
@@ -1690,6 +1709,7 @@ bool platform_read_touch(int *x, int *y) {
 }
 
 void app_main(void) {
+  radio_hold_in_reset();   // before anything else: smallest window for the C6
   log_board_info();
 #ifndef KISS_RELEASE
   {  // step 1 of the wallet build order: prove the crypto stack (libwally)
