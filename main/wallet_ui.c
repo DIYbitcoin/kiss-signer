@@ -801,31 +801,30 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
 }
 
 // ---- build identity (shared: Settings footer + wallet home corner) ----
-// Honest about what this firmware is. The flash-encryption state is read from
-// the CHIP eFuse at runtime, never assumed from the build. Version stays calm
-// ink; the not-yet-encrypted part is a WARNING, so it's amber (status color).
+// Honest about what this firmware is: version + commit, then the flash-
+// encryption state read from the CHIP eFuse at runtime, never assumed from
+// the build. OFF is a WARNING, so it's amber; ENABLED goes calm. Dev builds
+// carry a "dev" marker in amber (dev seed, no release hardening).
 void wallet_build_id_make(lv_obj_t *parent, int x, int y)
 {
-  lv_obj_t *v = lv_label_create(parent);
-  lv_obj_set_style_text_font(v, &lv_font_montserrat_14, 0);
-  lv_obj_set_pos(v, x, y);
-#ifdef KISS_RELEASE
   bool enc = false;
 #ifndef SIMULATOR
   enc = esp_efuse_is_flash_encryption_enabled();
 #endif
+  lv_obj_t *v = lv_label_create(parent);
+  lv_obj_set_style_text_font(v, &lv_font_montserrat_14, 0);
+  lv_obj_set_pos(v, x, y);
+#ifdef KISS_RELEASE
   lv_label_set_text_fmt(v, "KISS %s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
   lv_obj_set_style_text_color(v, enc ? MUT_COL : INK_COL, 0);
-  if (!enc) {
-    lv_obj_t *w = lv_label_create(parent);
-    lv_obj_set_style_text_font(w, &lv_font_montserrat_14, 0);
-    lv_label_set_text(w, "-  flash not yet encrypted");
-    lv_obj_set_style_text_color(w, lv_color_hex(0xF2B84B), 0);
-    lv_obj_update_layout(v);
-    lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
-  }
 #else
-  lv_label_set_text(v, "developer build  -  words stored unencrypted");
+  lv_label_set_text_fmt(v, "KISS %s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
   lv_obj_set_style_text_color(v, lv_color_hex(0xF2B84B), 0);
 #endif
+  lv_obj_t *w = lv_label_create(parent);
+  lv_obj_set_style_text_font(w, &lv_font_montserrat_14, 0);
+  lv_label_set_text_fmt(w, "-  flash encryption: %s", enc ? "ENABLED" : "OFF");
+  lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+  lv_obj_update_layout(v);
+  lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
 }
