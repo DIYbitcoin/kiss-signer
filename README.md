@@ -110,8 +110,9 @@ read out of the chip.
 
 Project license: TBD. Vendored third-party components keep their own licenses:
 [libwally-core](components/libwally-core) (MIT/BSD), Espressif components
-(Apache-2.0), CC0 game art under `assets/`. No copyrighted or watermarked
-assets are used anywhere.
+(Apache-2.0), CC0 game art and the [Twemoji](https://github.com/twitter/twemoji)
+kiss mark (CC-BY 4.0) under `assets/`. No unlicensed or watermarked assets are
+used anywhere.
 
 **Use at your own risk. This is experimental firmware; do not trust it with
 meaningful funds.**
