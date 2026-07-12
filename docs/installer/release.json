@@ -4,7 +4,7 @@
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
   "version": "0.1.0-beta1",
-  "commit": "bd35873",
+  "commit": "d6e9f1a",
   "status": "beta",
   "generated": "2026-07-12",
   "authenticity": {
@@ -25,7 +25,7 @@
     "path": "firmware/kiss-wallet-0.1.0-beta1.bin",
     "offset": 0,
     "size": 5842288,
-    "sha256": "9024f6f878d43b2f16c854bf35c87c93876e6e08643942252b27383cfc63eea1"
+    "sha256": "991ac06428b78629afd44ae20858c3dad5cdf9966795f99c94c0d9d2fe568a25"
   },
   "sourceParts": [
     {
@@ -47,7 +47,7 @@
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 65536,
       "size": 5776752,
-      "sha256": "af2d6938e9232101a792516691dfa742dcafd8f5b44f60071e6594359779f7c0"
+      "sha256": "ac5dea689cd6d8f30f454d47cd4c3c460c499e8d77cf9a0b06eb5245522ae0cd"
     }
   ],
   "warnings": [
