@@ -297,9 +297,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           lane's shifted offsets.
         </p>
         <p>
-          Settings shows an amber "flash not yet encrypted" line read live from
-          eFuse. After the encrypted first boot it disappears, and only then create
-          a wallet you care about.
+          Settings and the wallet home show an amber "flash encryption: OFF" line
+          read live from eFuse. After the encrypted first boot it flips to a calm
+          "flash encryption: ENABLED", and only then create a wallet you care
+          about.
         </p>
       </section>
 
@@ -395,9 +396,9 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
           slot. No soldering.
         </p>
         <p>
-          The ESP32-P4 has no WiFi or Bluetooth silicon and the firmware contains no
-          networking stack. The air gap is physical: there is no radio to
-          accidentally leave on.
+          KISS has no networking feature and no wireless path, and the ESP32-P4
+          has no WiFi or Bluetooth radio. The air gap is physical: there is no
+          radio to accidentally leave on.
         </p>
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
