@@ -15,6 +15,10 @@ never childish. Runs on a Guition ESP32-P4 dev board.
   `components/esp_cam_sensor` (registry 2.3.0 + `sensors/ov02c10/`, reviewed line-by-line
   2026-07-02, wired via `override_path`). Board docs/demos: `pan.jczn1688.com` download center
   (sharded zip; see JC4880P443C_I_W.zip manifest API).
+- Radio: the board carries an **ESP32-C6** WiFi6/BT coprocessor (SDIO on GPIO14-19, **reset on
+  GPIO54**). KISS never uses it: `radio_hold_in_reset()` in `main/main.c` drives GPIO54 low +
+  `gpio_hold_en` as the first thing in `app_main`; Settings/home show `radio: held in reset` read
+  back from the pad; release scripts fail if any radio/network lib links (linker-map check).
 - Serial port: `/dev/cu.usbmodem1201`.
 
 ## Build & flash

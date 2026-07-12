@@ -129,6 +129,23 @@ checks += [
     (b"factory" in pt, "factory app partition present"),
 ]
 
+# no-wireless gate: the board's C6 radio chip is held in reset and nothing
+# may talk to it, so the ELF must link ZERO objects from any radio/network
+# library (linker map = what the binary actually contains).
+import re
+mapf = open("build-encrypted-release/guition_kiss_bringup.map").read()
+linked = []
+for lib in ("libesp_wifi", "libesp_wifi_remote", "libesp_hosted", "libbt.",
+            "libwpa_supplicant", "liblwip", "libesp_netif", "libopenthread",
+            "libieee802154", "libesp_phy", "libesp_coex"):
+    n = len(re.findall(re.escape(lib) + r"[^\s(]*\(", mapf))
+    if n: linked.append(f"{lib}:{n}")
+checks += [
+    (b"C6 radio held in reset" in blob, "C6 radio-hold code present"),
+    (not linked, "no wireless/network stack linked (linker map)"
+                 + ("" if not linked else ": " + " ".join(linked))),
+]
+
 for ok, label in checks:
     print(("PASS: " if ok else "FAIL: ") + label)
     fails += 0 if ok else 1

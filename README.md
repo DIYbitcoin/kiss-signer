@@ -4,7 +4,7 @@
 
 **An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.**
 
-<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: none">
+<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: disabled">
 
 <table>
 <tr>
@@ -33,8 +33,10 @@ the only other decoy hardware wallet — a signer hidden under a Tetris game.
   time, never stored, and there is no "wrong passphrase" error by design — a
   different passphrase simply opens a different wallet (deniability built in).
 - **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
-  card. KISS has no networking feature and no wireless path — the ESP32-P4 has
-  no WiFi/Bluetooth radio to accidentally leave on.
+  card. The ESP32-P4 running KISS has no radio; the board's ESP32-C6 radio
+  chip is held in reset from the first instruction, every boot, and no
+  wireless stack is compiled in — the release build fails if any radio or
+  networking code links.
 - **Online wallet compatible:** exports descriptors for Sparrow and friends.
   The watch-only wallet builds and broadcasts; KISS stays offline, verifies the
   PSBT, and signs only what it can fully show.

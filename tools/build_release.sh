@@ -89,6 +89,27 @@ if ver in blob:
     print(f"PASS: version {ver.decode()} present")
 else:
     print(f"FAIL: version {ver.decode()} missing"); fails += 1
+if b"C6 radio held in reset" in blob:
+    print("PASS: C6 radio-hold code present")
+else:
+    print("FAIL: C6 radio-hold code missing"); fails += 1
+# no-wireless gate: the board's C6 radio chip is held in reset and nothing
+# may talk to it, so the ELF must link ZERO objects from any radio/network
+# library. (project_description.json's build_components lists every
+# registered component and proves nothing; the linker map shows what the
+# binary actually contains.)
+import re
+mapf = open("build-release/guition_kiss_bringup.map").read()
+linked = []
+for lib in ("libesp_wifi", "libesp_wifi_remote", "libesp_hosted", "libbt.",
+            "libwpa_supplicant", "liblwip", "libesp_netif", "libopenthread",
+            "libieee802154", "libesp_phy", "libesp_coex"):
+    n = len(re.findall(re.escape(lib) + r"[^\s(]*\(", mapf))
+    if n: linked.append(f"{lib}:{n}")
+if linked:
+    print("FAIL: wireless/network objects linked: " + " ".join(linked)); fails += 1
+else:
+    print("PASS: no wireless/network stack linked (linker map)")
 print(f"release app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY

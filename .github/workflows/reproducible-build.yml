@@ -2,7 +2,8 @@
 # lanes (normal release + the encrypted final-board release, which is what
 # funded firmware actually runs) in the same Docker ESP-IDF toolchain a
 # verifier would use, re-runs each lane's safety checks (dev seed absent,
-# version + commit present, encryption config - the build scripts fail the
+# version + commit present, encryption config, C6 radio-hold code present,
+# zero radio/network objects in the linker map - the build scripts fail the
 # job if any check fails), and publishes the firmware hashes + artifacts.
 # Because both profiles build with CONFIG_APP_REPRODUCIBLE_BUILD (no
 # compile date embedded), the same commit must always produce the same

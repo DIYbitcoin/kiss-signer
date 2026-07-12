@@ -12,6 +12,7 @@
 
 #ifndef SIMULATOR
 #include "esp_efuse.h"
+bool radio_is_held(void);   // main.c: reads back the C6 reset pad (GPIO54)
 #endif
 #ifndef KISS_VERSION_STR
 #define KISS_VERSION_STR "dev"
@@ -802,14 +803,16 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
 
 // ---- build identity (shared: Settings footer + wallet home corner) ----
 // Honest about what this firmware is: version + commit, then the flash-
-// encryption state read from the CHIP eFuse at runtime, never assumed from
-// the build. OFF is a WARNING, so it's amber; ENABLED goes calm. Dev builds
-// carry a "dev" marker in amber (dev seed, no release hardening).
+// encryption state read from the CHIP eFuse at runtime and the C6 radio
+// reset pad read back from the GPIO, never assumed from the build. Bad
+// states are amber WARNINGS; good states go calm. Dev builds carry a "dev"
+// marker in amber (dev seed, no release hardening).
 void wallet_build_id_make(lv_obj_t *parent, int x, int y)
 {
-  bool enc = false;
+  bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
   enc = esp_efuse_is_flash_encryption_enabled();
+  radio_held = radio_is_held();
 #endif
   lv_obj_t *v = lv_label_create(parent);
   lv_obj_set_style_text_font(v, &lv_font_montserrat_14, 0);
@@ -827,4 +830,11 @@ void wallet_build_id_make(lv_obj_t *parent, int x, int y)
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(v);
   lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
+
+  lv_obj_t *r = lv_label_create(parent);
+  lv_obj_set_style_text_font(r, &lv_font_montserrat_14, 0);
+  lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "held in reset" : "NOT HELD");
+  lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+  lv_obj_update_layout(w);
+  lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
 }
