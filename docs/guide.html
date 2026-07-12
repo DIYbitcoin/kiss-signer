@@ -145,7 +145,7 @@
   <body>
     <main class="shell">
       <section class="hero reveal">
-        <a class="back-link motion-link" href="index.html">&larr; web installer</a>
+        <a class="back-link motion-link" href="index.html">&larr; KISS docs</a>
         <p class="eyebrow">KISS Wallet Documentation</p>
         <h1>Docs</h1>
         <p class="lede">
@@ -168,15 +168,14 @@
         <p class="eyebrow">01 / trust, then flash</p>
         <h2>Verify the release</h2>
         <p>
-          Release artifacts live in <code>docs/installer/</code> in the repo (not the
-          GitHub Releases tab): the merged firmware image
-          <code>firmware/kiss-wallet-&lt;version&gt;.bin</code> (flashed at offset 0),
+          For the beta, release artifacts live on the GitHub Releases tab: the
+          merged firmware image
+          <code>kiss-wallet-&lt;version&gt;.bin</code> (flashed at offset 0),
           <code>SHA256SUMS</code> plus its detached GPG signature
           <code>SHA256SUMS.asc</code>, the release public key
           <code>kiss_wallet_pgp.asc</code>, and <code>release.json</code>.
         </p>
-<pre><code>cd docs/installer
-gpg --import kiss_wallet_pgp.asc
+<pre><code>gpg --import kiss_wallet_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 # expect: "Good signature from KISS Wallet releases"
 
@@ -195,9 +194,9 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
         <p>
-          The web installer hashes the firmware in your browser before the install
-          button unlocks, but it cannot verify the GPG signature for you. Do that
-          yourself once per release.
+          The future web installer will hash the firmware in your browser before
+          flashing, but it still will not verify the GPG signature for you. Do
+          that yourself once per release.
         </p>
       </section>
 
@@ -211,7 +210,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 docs/installer/firmware/kiss-wallet-&lt;version&gt;.bin</code></pre>
+  0 kiss-wallet-&lt;version&gt;.bin</code></pre>
         <p class="power-note">
           Then unplug the board, wait about 3 seconds, and plug it back in. The board
           only starts new firmware from a real power-on; a black screen means you
@@ -379,8 +378,8 @@ sim/mk_test_qrs.sh d  # scan-test QR page (static/pMofN/BC-UR + STOP case)</code
         <h2>Cutting a release</h2>
 <pre><code>tools/build_release.sh        # verified release build -> build-release/
 tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
-                              # -> docs/installer/ (refuses a dirty tree,
-                              #    self-verifies against the repo public key)</code></pre>
+                              # staged in docs/installer/ for maintainers,
+                              # then attached to a GitHub Release</code></pre>
         <p>
           Signing happens on the maintainer machine; the private key never touches
           the repo or CI.
@@ -443,9 +442,8 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
       </section>
 
       <p class="lede" style="margin-top:26px;font-size:0.9rem;color:var(--dim)">
-        While this repo is private, this site is served locally
-        (<code>python3 -m http.server 8321 -d docs</code>). It becomes GitHub Pages
-        when the repo goes public.
+        While this repo is private, these docs are local/development-only. The
+        official browser installer comes later on GitHub Pages.
       </p>
     </main>
 
