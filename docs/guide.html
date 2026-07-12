@@ -203,7 +203,11 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
       <section class="doc-card reveal" id="esptool">
         <p class="eyebrow">02 / command-line flash</p>
         <h2>Flash the signed binary with esptool</h2>
-        <p>Works the same on macOS, Linux, and Windows:</p>
+        <p>
+          macOS / Linux / WSL / Git Bash &mdash; on plain Windows, put the
+          <code>esptool</code> command on one line without the <code>\</code>
+          continuations:
+        </p>
 <pre><code>pip install esptool        # or: pipx install esptool / uvx esptool
 
 # port: /dev/cu.usbmodem* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
