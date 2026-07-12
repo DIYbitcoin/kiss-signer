@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the web-installer release artifacts into docs/installer/:
+# Build signed release artifacts into docs/installer/ for staging:
 #   * firmware/kiss-wallet-<version>.bin                (merged, offset 0)
 #   * SHA256SUMS + SHA256SUMS.asc                       (GPG, if a key exists)
 #   * firmware/kiss-wallet-<version>.bin.minisig        (minisign, if key exists)
@@ -66,7 +66,9 @@ parts = [
     ("application",     "build-release/guition_kiss_bringup.bin"),
 ]
 with open(f"{out}/SHA256SUMS", "w") as f:
-    f.write(f"{sha(f'{out}/firmware/{name}')}  firmware/{name}\n")
+    # GitHub Release users download the firmware asset beside SHA256SUMS, so
+    # the signed manifest uses the asset filename, not the web-staging path.
+    f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
     for label, p in parts:
         f.write(f"{sha(p)}  {p}  ({label})\n")
 print(f"wrote {out}/SHA256SUMS")

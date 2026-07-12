@@ -46,25 +46,24 @@ touch panel, camera, SD card slot. No soldering.
 
 ## Install
 
-Flash from the browser with the web installer — **Chrome, Brave, or Edge** on
-any desktop OS (Safari and Firefox have no Web Serial). While this repo is
-private, the installer and docs site are served locally:
+For this beta, use the signed artifacts attached to the GitHub Release. The
+official browser installer comes later, once GitHub Pages is live.
 
-```sh
-git clone https://github.com/kkdao/kiss-wallet.git && cd kiss-wallet
-python3 -m http.server 8321 -d docs
-# open http://localhost:8321 in Chrome / Brave / Edge
-```
+Expected release assets:
+
+- `kiss-wallet-0.1.0-beta1.bin`
+- `SHA256SUMS`
+- `SHA256SUMS.asc`
+- `release.json`
+- `kiss_wallet_pgp.asc`
 
 > [!IMPORTANT]
 > After flashing: **unplug the board, wait ~3 seconds, plug it back in.** The
 > board only starts new firmware from a real power-on.
 
-Verify the release before flashing. Artifacts live in
-[`docs/installer/`](docs/installer/):
+Verify the release before flashing:
 
 ```sh
-cd docs/installer
 gpg --import kiss_wallet_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS      # expect this fingerprint:
 # 166A CBF3 7786 FCEA A694  96DE 886F 1BFE B84E F1C0
@@ -77,9 +76,8 @@ shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
 
 ## Docs
 
-The full guides live on the docs site — the same `http.server` command above
-serves it at `http://localhost:8321/guide.html` (GitHub Pages once the repo is
-public). It covers:
+The full guides live in `docs/` for now and will move to GitHub Pages once the
+repo is public. They cover:
 
 - **Verify the release** — GPG + SHA256 walkthrough, including Windows
 - **Flash with esptool** — command-line install on macOS / Linux / Windows
