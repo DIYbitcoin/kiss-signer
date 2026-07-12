@@ -1,6 +1,6 @@
 <div align="center">
 
-# KISS Wallet
+# KISS Wallet 💋
 
 **An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.**
 
