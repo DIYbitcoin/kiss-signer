@@ -393,12 +393,26 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
         <p>
           Guition <strong>JC4880P443C</strong> dev board: ESP32-P4 (RISC-V), 480x800
           MIPI-DSI touch panel (ST7701 + GT911), OV02C10 MIPI-CSI camera, SDMMC card
-          slot. No soldering.
+          slot, plus an onboard ESP32-C6 radio chip that KISS keeps disabled
+          (next paragraph). No soldering.
         </p>
         <p>
-          KISS has no networking feature and no wireless path, and the ESP32-P4
-          has no WiFi or Bluetooth radio. The air gap is physical: there is no
-          radio to accidentally leave on.
+          The air gap, honestly stated: the ESP32-P4 that runs KISS has no WiFi
+          or Bluetooth radio at all. The board does carry a second chip, an
+          ESP32-C6 radio module, for products that want wireless. KISS holds
+          that chip in reset — the first code that runs on every boot pulls the
+          C6's reset line low, so whatever firmware it shipped with never
+          executes — and no wireless stack is compiled into KISS: the release
+          checks fail the build if any radio or networking code gets linked.
+          The wallet home and Settings show <code>radio: held in reset</code>,
+          read back live from the pin, not assumed.
+        </p>
+        <p>
+          Verify it yourself: the hold is one small function in
+          <code>main/main.c</code> (<code>radio_hold_in_reset</code>), the
+          linker-map check lives in <code>tools/build_release.sh</code>, and
+          hardware folks can probe the C6 reset pad (GPIO54) and watch it sit
+          at 0&nbsp;V.
         </p>
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
