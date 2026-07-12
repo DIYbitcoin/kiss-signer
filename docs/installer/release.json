@@ -3,10 +3,10 @@
   "product": "KISS Wallet",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
-  "version": "0.8.0-beta1",
-  "commit": "a2a63d4",
+  "version": "0.1.0-beta1",
+  "commit": "bd35873",
   "status": "release-candidate",
-  "generated": "2026-07-11",
+  "generated": "2026-07-12",
   "authenticity": {
     "signed": true,
     "signatureStatus": "pgp",
@@ -22,18 +22,18 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-wallet-0.8.0-beta1.bin",
+    "path": "firmware/kiss-wallet-0.1.0-beta1.bin",
     "offset": 0,
-    "size": 5840896,
-    "sha256": "e90284c2f0ae736ecb207860d1075ee9da7c278d0b3234931457e04bfab1d746"
+    "size": 5842288,
+    "sha256": "9024f6f878d43b2f16c854bf35c87c93876e6e08643942252b27383cfc63eea1"
   },
   "sourceParts": [
     {
       "name": "bootloader",
       "sourcePath": "build-release/bootloader/bootloader.bin",
       "offset": 8192,
-      "size": 23072,
-      "sha256": "c8bd41a352ece6fefd1e2a22d107a832050da5be7e9fa12435ba6f962eb50de1"
+      "size": 22992,
+      "sha256": "91f9e4ac25797f09ac0889773568fccd6a56fba085c39f763cd98192e243fdd3"
     },
     {
       "name": "partition table",
@@ -46,8 +46,8 @@
       "name": "application",
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 65536,
-      "size": 5775360,
-      "sha256": "aedf2b818b6d339086b16775999dcefe3cddb88fbf020b0cf90eb38f5b9a0838"
+      "size": 5776752,
+      "sha256": "af2d6938e9232101a792516691dfa742dcafd8f5b44f60071e6594359779f7c0"
     }
   ],
   "warnings": [
