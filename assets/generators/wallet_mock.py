@@ -104,6 +104,48 @@ def icon_settings(d, cx, cy, s, A):
 ICONS = [("Sign", "a transaction", icon_sign), ("Receive", "an address", icon_receive),
          ("Wallet", "keys & export", icon_key), ("Settings", "device & theme", icon_settings)]
 
+# Lips logo mark next to the KISS wordmark. KISS_LIPS env picks the variant for
+# design exploration: 0 = none (current look), 1 = outline + mouth line,
+# 2 = filled kiss print, 3 = pure outline. Drawn inside accent_art so it gets
+# the same glow+sharp chrome treatment as the brackets/tiles.
+LIPS = int(os.environ.get("KISS_LIPS", "0"))
+
+
+def _bez(p0, c1, c2, p3, n=28):
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        mt = 1 - t
+        pts.append((mt**3 * p0[0] + 3 * mt**2 * t * c1[0] + 3 * mt * t**2 * c2[0] + t**3 * p3[0],
+                    mt**3 * p0[1] + 3 * mt**2 * t * c1[1] + 3 * mt * t**2 * c2[1] + t**3 * p3[1]))
+    return pts
+
+
+def lips_mark(d, cx, cy, w, h, A, wd=3):
+    if LIPS in (1, 3):                    # shared closed outline
+        L, R = (cx - w / 2, cy), (cx + w / 2, cy)
+        dip = (cx, cy - h * 0.30)
+        up_l = _bez(L, (cx - w * 0.40, cy - h * 0.72), (cx - w * 0.14, cy - h * 0.62), dip)
+        up_r = _bez(dip, (cx + w * 0.14, cy - h * 0.62), (cx + w * 0.40, cy - h * 0.72), R)
+        low = _bez(L, (cx - w * 0.30, cy + h * 0.72), (cx + w * 0.30, cy + h * 0.72), R)
+        parts = [up_l, up_r, low]
+        if LIPS == 1:                     # + mouth line
+            parts.append(_bez(L, (cx - w * 0.18, cy + h * 0.12), (cx + w * 0.18, cy + h * 0.12), R))
+        for pts in parts:
+            d.line(pts, fill=A, width=wd, joint="curve")
+    elif LIPS == 2:                       # filled kiss print, thin mouth gap
+        g = max(1.5, h * 0.07)
+        L, R = (cx - w / 2, cy - g), (cx + w / 2, cy - g)
+        dip = (cx, cy - g - h * 0.24)
+        up = (_bez(L, (cx - w * 0.40, cy - g - h * 0.78), (cx - w * 0.14, cy - g - h * 0.66), dip)
+              + _bez(dip, (cx + w * 0.14, cy - g - h * 0.66), (cx + w * 0.40, cy - g - h * 0.78), R)
+              + _bez(R, (cx + w * 0.18, cy - g - h * 0.04), (cx - w * 0.18, cy - g - h * 0.04), L))
+        d.polygon(up, fill=A)
+        L2, R2 = (cx - w * 0.46, cy + g), (cx + w * 0.46, cy + g)
+        low = (_bez(L2, (cx - w * 0.30, cy + g + h * 0.80), (cx + w * 0.30, cy + g + h * 0.80), R2)
+               + _bez(R2, (cx + w * 0.16, cy + g + h * 0.10), (cx - w * 0.16, cy + g + h * 0.10), L2))
+        d.polygon(low, fill=A)
+
 BY = H - 46  # bottom-row baseline for the status / theme indicators
 
 
@@ -116,6 +158,8 @@ def accent_art(d, struct, theme_col, status_col, status=True):
         d.line([(ox, oy), (ox + dx * 26, oy)], fill=struct, width=3)
         d.line([(ox, oy), (ox, oy + dy * 26)], fill=struct, width=3)
     d.line([(46, 96), (188, 96)], fill=struct, width=3)
+    if LIPS:
+        lips_mark(d, 214, 68, 44, 26, struct)
     d.rounded_rectangle([566, 40, 760, 86], 10, outline=struct, width=2)
     tw = 160
     for i in range(4):
