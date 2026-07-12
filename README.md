@@ -27,7 +27,7 @@ Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 the only other decoy hardware wallet — a signer hidden under a Tetris game.
 
 > [!CAUTION]
-> **`0.8.0-beta1` is experimental. Do not trust it with meaningful funds.**
+> **`0.1.0-beta1` is experimental. Do not trust it with meaningful funds.**
 
 - **Seed + passphrase = your wallet.** The BIP39 passphrase is typed fresh every
   time, never stored, and there is no "wrong passphrase" error by design — a
