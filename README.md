@@ -24,7 +24,7 @@
 </div>
 
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
-the only other decoy hardware wallet — a signer hidden under a Tetris game.
+a Bitcoin signer hidden under a Tetris game.
 
 > [!CAUTION]
 > **`0.1.0-beta1` is experimental. Do not trust it with meaningful funds.**
