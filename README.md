@@ -33,8 +33,8 @@ the only other decoy hardware wallet — a signer hidden under a Tetris game.
   time, never stored, and there is no "wrong passphrase" error by design — a
   different passphrase simply opens a different wallet (deniability built in).
 - **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
-  card. The ESP32-P4 has no WiFi/Bluetooth silicon and the firmware contains no
-  networking stack — there is no radio to accidentally leave on.
+  card. KISS has no networking feature and no wireless path — the ESP32-P4 has
+  no WiFi/Bluetooth radio to accidentally leave on.
 - **Online wallet compatible:** exports descriptors for Sparrow and friends.
   The watch-only wallet builds and broadcasts; KISS stays offline, verifies the
   PSBT, and signs only what it can fully show.

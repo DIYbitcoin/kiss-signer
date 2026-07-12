@@ -106,7 +106,7 @@ rev = os.environ.get("GIT_REV", "").encode()
 checks = [
     (bool(rev) and rev in blob,          f"commit {rev.decode()} present"),
     (b"abandon abandon" not in blob,     "no dev mnemonic in binary"),
-    (b"developer build" not in blob,     "no dev banner in binary"),
+    (b"KISS %s dev (%s)" not in blob,    "no dev banner in binary"),
     (open("VERSION").read().strip().encode() in blob, "version string present"),
 ]
 
@@ -166,6 +166,6 @@ encrypted release build OK: build-encrypted-release/
      0x20000 build-encrypted-release/guition_kiss_bringup.bin
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
-   When the amber "flash not yet encrypted" line is GONE from Settings,
+   When Settings shows "flash encryption: ENABLED" (calm, not amber),
    the eFuse says encryption is live - only then create the wallet.
 EOF
