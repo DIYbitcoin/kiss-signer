@@ -57,7 +57,11 @@ PY
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
 echo "commit: $GIT_REV"
 
-docker run --rm -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
+docker run --rm \
+  -e GIT_CONFIG_COUNT=1 \
+  -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project \
+  -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
   idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 \
   -DKISS_COMMIT="$GIT_REV" build
 
