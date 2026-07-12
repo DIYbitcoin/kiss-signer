@@ -80,7 +80,7 @@ if b"abandon abandon" in blob:
     print("FAIL: dev mnemonic found in release binary"); fails += 1
 else:
     print("PASS: no dev mnemonic in release binary")
-if b"developer build" in blob:
+if b"KISS %s dev (%s)" in blob:
     print("FAIL: dev build banner found in release binary"); fails += 1
 else:
     print("PASS: no dev banner in release binary")
