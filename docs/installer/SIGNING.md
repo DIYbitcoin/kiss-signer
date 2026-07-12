@@ -45,8 +45,10 @@ tools/make_web_release.sh          # GPG_KEY_ID=<id> to pick a specific key
 
 Builds, merges, writes SHA256SUMS, signs with whatever keys exist (and says so
 honestly in `release.json`'s `authenticity` block), regenerates
-`manifest.json`/`release.json`. Commit the results; the installer page serves
-them. Then tag and attach the same artifacts to a GitHub Release.
+`manifest.json`/`release.json`. Attach the firmware image, `SHA256SUMS`,
+`SHA256SUMS.asc`, `release.json`, and `kiss_wallet_pgp.asc` to the GitHub
+Release. The installer page is a later GitHub Pages path, not the beta install
+path.
 
 ## Verifying a download (user)
 
