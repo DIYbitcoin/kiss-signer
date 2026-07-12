@@ -1,11 +1,12 @@
-# Reproducible release build: every push to main rebuilds the release
-# firmware in the same Docker ESP-IDF toolchain a verifier would use,
-# re-runs the release safety checks (dev seed absent, version + commit
-# present - tools/build_release.sh fails the job if any check fails),
-# and publishes the firmware hashes + artifact. Because the release
-# profile builds with CONFIG_APP_REPRODUCIBLE_BUILD (no compile date
-# embedded), the same commit must always produce the same bytes - so
-# anyone can rebuild locally and compare hashes against this job.
+# Reproducible release builds: every push to main rebuilds BOTH release
+# lanes (normal release + the encrypted final-board release, which is what
+# funded firmware actually runs) in the same Docker ESP-IDF toolchain a
+# verifier would use, re-runs each lane's safety checks (dev seed absent,
+# version + commit present, encryption config - the build scripts fail the
+# job if any check fails), and publishes the firmware hashes + artifacts.
+# Because both profiles build with CONFIG_APP_REPRODUCIBLE_BUILD (no
+# compile date embedded), the same commit must always produce the same
+# bytes - so anyone can rebuild locally and compare hashes against CI.
 name: reproducible release build
 
 on:
@@ -46,3 +47,36 @@ jobs:
             build-release/bootloader/bootloader.bin
             build-release/partition_table/partition-table.bin
             SHA256SUMS-ci.txt
+
+  encrypted-release-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build encrypted release (Docker ESP-IDF v6.0.1)
+        run: tools/build_encrypted_release.sh
+
+      - name: Firmware hashes
+        run: |
+          sha256sum \
+            build-encrypted-release/guition_kiss_bringup.bin \
+            build-encrypted-release/bootloader/bootloader.bin \
+            build-encrypted-release/partition_table/partition-table.bin \
+            | tee SHA256SUMS-encrypted-ci.txt
+          {
+            echo "### Encrypted-release firmware SHA256 (commit ${GITHUB_SHA::7})"
+            echo '```'
+            cat SHA256SUMS-encrypted-ci.txt
+            echo '```'
+            echo "Rebuild locally with \`tools/build_encrypted_release.sh\` and compare."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiss-wallet-encrypted-release-${{ github.sha }}
+          path: |
+            build-encrypted-release/guition_kiss_bringup.bin
+            build-encrypted-release/bootloader/bootloader.bin
+            build-encrypted-release/partition_table/partition-table.bin
+            SHA256SUMS-encrypted-ci.txt
