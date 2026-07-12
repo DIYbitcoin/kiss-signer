@@ -158,7 +158,7 @@ json.dump({
 status = ("pgp+minisign" if gpg_signed and mini_signed
           else "pgp" if gpg_signed
           else "minisign" if mini_signed
-          else "unsigned-release-candidate")
+          else "unsigned-beta")
 auth = {
     "signed": signed,
     "signatureStatus": status,
@@ -189,7 +189,7 @@ json.dump({
     "chipFamily": "ESP32-P4",
     "version": version,
     "commit": rev,
-    "status": "release-candidate",
+    "status": "beta",
     "generated": datetime.date.today().isoformat(),
     "authenticity": auth,
     "flash": {"mode": "dio", "frequency": "80m", "size": "16MB"},
@@ -203,7 +203,7 @@ json.dump({
         for label, p, off in parts
     ],
     "warnings": [
-        "This is a release-candidate build, not a final funds build.",
+        "This is a beta build, not a final funds build.",
         "Do not erase flash on a board that holds a wallet unless you intentionally want to wipe it.",
         "After flashing, unplug the board, wait about 3 seconds, then plug it back in.",
     ],
