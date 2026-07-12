@@ -19,7 +19,7 @@
 
 <sub>All screenshots on this page are rendered by the desktop simulator from the real firmware sources.</sub>
 
-*Keep it small. Make it safe. Make it clear.*
+*Keep it simple. Make it clear. Make it safe.*
 
 </div>
 
