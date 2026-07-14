@@ -182,6 +182,8 @@ static bool s_prev_press;
 // button the new screen put beneath it (the sim caught this on the Sign
 // chooser — the finger sat exactly on a chooser pill).
 static int s_tile_pend;   // 0 none, 1 Sign, 2 Receive, 3 Wallet/export
+static lv_obj_t *s_tile_glow;  // soft highlight under the finger (press feedback)
+
 static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficulty ramp
 
 // ---- hidden KISS wallet: revealed by drawing a "K" on the game menu (cover -> wallet) ----
@@ -1280,6 +1282,31 @@ void wallet_wiped_lock(void) { wallet_lock(); }
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
 #define WALLET_AUTOLOCK_MS 120000    // 2 min without a touch -> lock to the game
 
+// subtle press feedback on the home tiles: a translucent glass pane while the
+// finger is down (opa only — transform_scale hard-hangs LVGL). Stays inside
+// s_wallet bounds so it can never trigger the out-of-bounds invalidation bug.
+static void tile_glow_sync(void) {
+  static const int gx[4] = {40, 230, 410, 590};
+  static const int gw[4] = {180, 160, 160, 160};
+  if (!s_tile_pend) {
+    if (s_tile_glow) lv_obj_add_flag(s_tile_glow, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  if (!s_tile_glow) {
+    s_tile_glow = lv_obj_create(s_wallet);
+    lv_obj_remove_style_all(s_tile_glow);
+    lv_obj_set_style_radius(s_tile_glow, 18, 0);
+    lv_obj_set_style_bg_color(s_tile_glow, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(s_tile_glow, 26, 0);
+    lv_obj_remove_flag(s_tile_glow, LV_OBJ_FLAG_CLICKABLE);
+  }
+  int i = s_tile_pend - 1;
+  lv_obj_set_pos(s_tile_glow, gx[i], 140);
+  lv_obj_set_size(s_tile_glow, gw[i], 200);
+  lv_obj_clear_flag(s_tile_glow, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(s_tile_glow);
+}
+
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -1396,6 +1423,7 @@ static void game_tick(lv_timer_t *t) {
       else wallet_settings_open(lv_screen_active());
     }
 #endif
+    tile_glow_sync();                       // press feedback follows s_tile_pend
     s_prev_press = pressed;
     return;
   }
