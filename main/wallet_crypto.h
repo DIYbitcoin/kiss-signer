@@ -46,6 +46,10 @@ void wallet_session_close(void);
 int wallet_session_address(int change, uint32_t index, char *out, size_t out_len);
 // Watch-only export: "wpkh([<fp>/84h/0h/0h]<xpub>/<0;1>/*)" for Sparrow etc.
 int wallet_session_descriptor(char *out, size_t out_len);
+// BlueWallet-flavored export: "[<fp>/84'/0'/0']<zpub>" — key origin + SLIP-132
+// prefix (zpub/ypub per script type; vpub/upub on testnet; legacy stays xpub).
+// BlueWallet doesn't read descriptor strings; it reads exactly this.
+int wallet_session_bw_export(char *out, size_t out_len);
 
 // INTERNAL — signing module (wallet_psbt.c) only. The session's bip32 master,
 // or NULL when locked. Never expose beyond the crypto layer.

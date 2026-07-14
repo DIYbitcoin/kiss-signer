@@ -35,6 +35,7 @@
 #include "wallet_sign.h"
 #include "wallet_scan.h"
 #include "wallet_settings.h"
+#include "wallet_info.h"
 #include "wallet_setup.h"
 #include "wallet_seed.h"
 #include "wallet_crypto.h"
@@ -1295,13 +1296,14 @@ static void game_tick(lv_timer_t *t) {
       if (wallet_scan_active())     wallet_scan_close();      // camera off first
       if (wallet_sign_active())     wallet_sign_close();      // drops any loaded PSBT
       if (wallet_recv_active())     wallet_recv_close();
+      if (wallet_info_active())     wallet_info_close();
       if (wallet_settings_active()) wallet_settings_close();
       wallet_lock();                              // session key leaves RAM
       s_prev_press = pressed;
       return;
     }
     if (wallet_recv_active() || wallet_sign_active() || wallet_scan_active() ||
-        wallet_settings_active()) {
+        wallet_info_active() || wallet_settings_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
       return;
     }
@@ -1371,7 +1373,7 @@ static void game_tick(lv_timer_t *t) {
       s_tile_pend = 0;
       if (t == 1) wallet_sign_open(lv_screen_active());
       else if (t == 2) wallet_recv_open(lv_screen_active());
-      else if (t == 3) wallet_export_open(lv_screen_active());
+      else if (t == 3) wallet_info_open(lv_screen_active());
       else wallet_settings_open(lv_screen_active());
     }
     if (!pressed) s_zoom_drag = false;
@@ -1390,7 +1392,7 @@ static void game_tick(lv_timer_t *t) {
       s_tile_pend = 0;
       if (t == 1) wallet_sign_open(lv_screen_active());
       else if (t == 2) wallet_recv_open(lv_screen_active());
-      else if (t == 3) wallet_export_open(lv_screen_active());
+      else if (t == 3) wallet_info_open(lv_screen_active());
       else wallet_settings_open(lv_screen_active());
     }
 #endif

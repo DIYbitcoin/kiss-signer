@@ -211,6 +211,50 @@ int wallet_session_descriptor(char *out, size_t out_len)
     return rc;
 }
 
+// SLIP-132 version bytes: how BlueWallet (and Electrum-family wallets) tell
+// the address type from the extended-key prefix instead of a descriptor.
+static uint32_t slip132_version(void)
+{
+    if (s_script == WSCRIPT_NATIVE) return s_testnet ? 0x045F1CF6 : 0x04B24746; // vpub/zpub
+    if (s_script == WSCRIPT_NESTED) return s_testnet ? 0x044A5262 : 0x049D7CB2; // upub/ypub
+    return s_testnet ? 0x043587CF : 0x0488B21E;                                 // tpub/xpub
+}
+
+int wallet_session_bw_export(char *out, size_t out_len)
+{
+    if (!s_session)
+        return 1;
+    struct ext_key acct;
+    if (account_key(&acct))
+        return 2;
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    int rc = bip32_key_get_fingerprint(&s_master, fp, sizeof(fp)) == WALLY_OK ? 0 : 3;
+    if (rc == 0) {
+        uint8_t ser[BIP32_SERIALIZED_LEN];
+        if (bip32_key_serialize(&acct, BIP32_FLAG_KEY_PUBLIC, ser, sizeof ser) == WALLY_OK) {
+            uint32_t v = slip132_version();
+            ser[0] = (uint8_t)(v >> 24); ser[1] = (uint8_t)(v >> 16);
+            ser[2] = (uint8_t)(v >> 8);  ser[3] = (uint8_t)v;
+            char *b58 = NULL;
+            if (wally_base58_from_bytes(ser, sizeof ser, BASE58_FLAG_CHECKSUM, &b58) == WALLY_OK) {
+                int n = snprintf(out, out_len, "[%02x%02x%02x%02x/%u'/%d'/0']%s",
+                                 fp[0], fp[1], fp[2], fp[3],
+                                 (unsigned)script_purpose(), s_testnet ? 1 : 0, b58);
+                if (n < 0 || (size_t)n >= out_len)
+                    rc = 4;
+                wally_free_string(b58);
+            } else {
+                rc = 5;
+            }
+            wally_bzero(ser, sizeof ser);
+        } else {
+            rc = 6;
+        }
+    }
+    wally_bzero(&acct, sizeof(acct));
+    return rc;
+}
+
 // The boot selftest proves the CRYPTO STACK against the published vector —
 // deliberately independent of whatever seed the user stored.
 #ifdef KISS_RELEASE

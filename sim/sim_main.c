@@ -129,6 +129,12 @@ int wallet_session_address(int change, unsigned int index, char *out, unsigned l
              s_sim_testnet ? "tb" : "bc", change ? 'c' : 'q', index % 100u);
   return 0;
 }
+int wallet_session_bw_export(char *out, unsigned long len) {
+  snprintf(out, len, "[73c5da0a/84'/%d'/0']zpub6rFR7y4Q2AijBEqTUquhVz398htDFrt"
+                     "ymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31"
+                     "mGDtKsAYz2oz2AGutZYs", s_sim_testnet ? 1 : 0);
+  return 0;
+}
 int wallet_session_descriptor(char *out, unsigned long len) {
   snprintf(out, len, "wpkh([73c5da0a/84h/0h/0h]xpub6CatWdiZiodmUeTDp8LT5or8nmbKNcuy"
                      "vz7WyksVFkKB4RHwCD3XyuvPEbvqAQY3rAPshWcMLoP2fMFMKHPJ4ZeZXYVUhL"
@@ -195,6 +201,7 @@ static void pump(int frames) {
 }
 
 static void save(const char *path) {
+  lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
   FILE *f = fopen(path, "wb");
   if (!f) return;
   fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
@@ -332,9 +339,22 @@ int main(void) {
   touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
-  touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> descriptor export
-  save("/tmp/sim_export.ppm");
-  touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
+  save("/tmp/sim_winfo.ppm");
+  touch(211, 109); pump(3); release(); pump(14);    // "?" chip (fingerprint) -> card
+  save("/tmp/sim_winfo_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
+  save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
+  touch(580, 182); pump(3); release(); pump(4);     // BLUEWALLET format
+  save("/tmp/sim_pair_bw.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
+  touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning
+  save("/tmp/sim_words_warn.ppm");
+  touch(188, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
+  save("/tmp/sim_words.ppm");
+  touch(680, 430); pump(3); release(); pump(6);     // DONE -> section home
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
 
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP

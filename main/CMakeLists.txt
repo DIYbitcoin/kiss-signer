@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "sprites.c" "menu_img.c" "menu_logo.c" "gameover_img.c" "wallet_img.c" "tile_lbls.c" "wallet_crypto.c" "wallet_psbt.c" "wallet_ui.c" "wallet_theme.c" "wallet_recv.c" "wallet_sign.c" "wallet_scan.c" "wallet_settings.c" "wallet_setup.c" "wallet_seed.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "scan_osd.c"
+    SRCS "main.c" "sprites.c" "menu_img.c" "menu_logo.c" "gameover_img.c" "wallet_img.c" "tile_lbls.c" "wallet_crypto.c" "wallet_psbt.c" "wallet_ui.c" "wallet_theme.c" "wallet_info.c" "wallet_recv.c" "wallet_sign.c" "wallet_scan.c" "wallet_settings.c" "wallet_setup.c" "wallet_seed.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "scan_osd.c"
     INCLUDE_DIRS "."
     REQUIRES esp_system spi_flash esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_touch esp_lcd_touch_gt911 esp_lvgl_port esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc nvs_flash bootloader_support efuse
 )

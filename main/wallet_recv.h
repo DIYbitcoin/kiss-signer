@@ -5,5 +5,4 @@
 
 bool wallet_recv_active(void);              // true while either screen is up (owns touch)
 void wallet_recv_open(lv_obj_t *parent);    // derive + show address, static QR, index nav
-void wallet_export_open(lv_obj_t *parent);  // watch-only descriptor for Sparrow etc.
 void wallet_recv_close(void);               // idle auto-lock: drop whichever is up
