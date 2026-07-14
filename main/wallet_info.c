@@ -260,7 +260,12 @@ static void words_warn_screen(lv_event_t *e)
         "wallet - that's the design, so a forced look\n"
         "reveals nothing.\n\n"
         "never type them into a phone or computer.\n"
-        "never photograph them. paper only.",
+        "never photograph them. paper only.\n\n"
+        "they are a STANDARD backup: lose this device and\n"
+        "words + passphrase restore your coins on any other\n"
+        "signer - or, in a true emergency, a phone/desktop\n"
+        "wallet. after an emergency like that, sweep the\n"
+        "coins to a fresh offline wallet and back IT up.",
         48, 116, &lv_font_montserrat_14, WT_MUT);
     (void)b;
     lv_obj_t *sp = wt_pill(s_scr, "SHOW THE WORDS", 48, 404, 280, words_show_cb, NULL);
