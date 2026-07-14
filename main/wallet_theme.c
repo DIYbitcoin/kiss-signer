@@ -200,6 +200,54 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     return sg;
 }
 
+// ---- explainer-card entrance animation (shared by every "?" card) ----
+static void ci_opa(void *o, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)o, (lv_opa_t)v, 0); }
+static void ci_ty(void *o, int32_t v)  { lv_obj_set_style_translate_y((lv_obj_t *)o, v, 0); }
+static void ci_bg(void *o, int32_t v)  { lv_obj_set_style_bg_opa((lv_obj_t *)o, (lv_opa_t)v, 0); }
+
+void wt_card_intro(lv_obj_t *card)
+{
+    // the dim backdrop eases in first
+    lv_opa_t bg = lv_obj_get_style_bg_opa(card, 0);
+    lv_obj_set_style_bg_opa(card, 0, 0);
+    lv_anim_t d;
+    lv_anim_init(&d);
+    lv_anim_set_var(&d, card);
+    lv_anim_set_values(&d, 0, bg);
+    lv_anim_set_duration(&d, 140);
+    lv_anim_set_path_cb(&d, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&d, ci_bg);
+    lv_anim_start(&d);
+
+    // then the content settles in, one element after the next. translate_y is a
+    // render offset, so it composes cleanly with lv_obj_align and reverts to 0.
+    uint32_t n = lv_obj_get_child_count(card);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *ch = lv_obj_get_child(card, i);
+        lv_obj_set_style_opa(ch, 0, 0);
+        lv_obj_set_style_translate_y(ch, 14, 0);
+        uint32_t delay = 40 + i * 60;
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, ch);
+        lv_anim_set_values(&a, 0, LV_OPA_COVER);
+        lv_anim_set_duration(&a, 220);
+        lv_anim_set_delay(&a, delay);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&a, ci_opa);
+        lv_anim_start(&a);
+        lv_anim_t b;
+        lv_anim_init(&b);
+        lv_anim_set_var(&b, ch);
+        lv_anim_set_values(&b, 14, 0);
+        lv_anim_set_duration(&b, 240);
+        lv_anim_set_delay(&b, delay);
+        lv_anim_set_path_cb(&b, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&b, ci_ty);
+        lv_anim_start(&b);
+    }
+}
+
 void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;

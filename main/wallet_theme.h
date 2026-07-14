@@ -47,6 +47,12 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // white QR card; *qr receives the lv_qrcode (NULL if creation failed)
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
 
+// Explainer-card entrance: fade the dim backdrop in, then stagger the card's
+// direct children (title, body, OK) rising up and fading in with an ease-out
+// settle. Opacity + translate only (never scale — it hangs LVGL). Call once
+// after building an overlay card's children. Every "?" card uses this.
+void wt_card_intro(lv_obj_t *card);
+
 // grouped address with the compare-ends bright: first/last 4 chars ink, middle
 // muted. People check the ends against the other screen — light those up.
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);
