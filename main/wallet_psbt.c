@@ -338,7 +338,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         stop(s, "unknown data in this transaction");
     if (s->status == WPSBT_READY &&
         (s->fee_sats * 10 >= s->send_sats || s->fee_rate_x10 > 5000))
-        caution(s, "high fee");
+        caution(s, "unusually high fee - check it before signing");
 
     s_status = s->status;
     return 0;

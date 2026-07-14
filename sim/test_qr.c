@@ -221,6 +221,48 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
         qrt_encoder_free(e);
     }
 
+    // ---- encoder: easy-scan fragment override still roundtrips (the SIGNED
+    // screen's EASY SCAN mode re-encodes at UR 60 / pMofN 50) ----
+    {
+        qrt_encoder_t *e = qrt_encoder_new_frag(QRT_FMT_UR, psbt, psbt_len, 60);
+        qrt_encoder_t *d = qrt_encoder_new(QRT_FMT_UR, psbt, psbt_len);
+        qchkb("qr ez UR encoder allocs", e != NULL);
+        qchkb("qr ez UR has more, smaller parts",
+              e && d && qrt_encoder_parts(e) > qrt_encoder_parts(d));
+        p = qrt_parser_new();
+        char part[600];
+        int fed = 0, nparts = e ? qrt_encoder_parts(e) : 0;
+        while (p && e && !qrt_parser_complete(p) && fed < nparts * 4 + 8) {
+            if (qrt_encoder_next(e, part, sizeof part) != 0) break;
+            qrt_parser_feed(p, part, strlen(part));
+            fed++;
+        }
+        qchkb("qr ez UR roundtrip completes", p && qrt_parser_complete(p));
+        on = 0;
+        qchki("qr ez UR roundtrip result rc", qrt_parser_result(p, out, sizeof out, &on), 0);
+        qchkb("qr ez UR roundtrip bytes match", on == psbt_len && memcmp(out, psbt, on) == 0);
+        qrt_parser_free(p);
+        qrt_encoder_free(e);
+        qrt_encoder_free(d);
+    }
+    {
+        qrt_encoder_t *e = qrt_encoder_new_frag(QRT_FMT_PMOFN, psbt, psbt_len, 50);
+        qchkb("qr ez pMofN encoder allocs", e != NULL);
+        p = qrt_parser_new();
+        char part[600];
+        int nparts = e ? qrt_encoder_parts(e) : 0;
+        for (int i = 0; e && i < nparts; i++) {
+            if (qrt_encoder_next(e, part, sizeof part) != 0) break;
+            qrt_parser_feed(p, part, strlen(part));
+        }
+        qchkb("qr ez pMofN roundtrip completes", p && qrt_parser_complete(p));
+        on = 0;
+        qchki("qr ez pMofN roundtrip result rc", qrt_parser_result(p, out, sizeof out, &on), 0);
+        qchkb("qr ez pMofN roundtrip bytes match", on == psbt_len && memcmp(out, psbt, on) == 0);
+        qrt_parser_free(p);
+        qrt_encoder_free(e);
+    }
+
     // ---- encoder: static equals libwally's base64 (validates local encoder) ----
     {
         qrt_encoder_t *e = qrt_encoder_new(QRT_FMT_STATIC, psbt, psbt_len);
