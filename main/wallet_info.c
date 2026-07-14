@@ -46,11 +46,6 @@ static void help_ok_cb(lv_event_t *e)
     lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
-static void help_fade(void *obj, int32_t v)
-{
-    lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
-}
-
 static void help_open(const char *title, const char *body)
 {
     lv_obj_t *ovl = lv_obj_create(s_scr);
@@ -70,24 +65,8 @@ static void help_open(const char *title, const char *body)
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
 
-    lv_obj_t *ok = wt_pill(ovl, "OK", 300, 388, 200, help_ok_cb, ovl);
-
-    // fade the whole card in with a small rise: subtle, quick, no layout cost
-    lv_obj_set_style_opa(ovl, 0, 0);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, ovl);
-    lv_anim_set_values(&a, 0, LV_OPA_COVER);
-    lv_anim_set_duration(&a, 160);
-    lv_anim_set_exec_cb(&a, help_fade);
-    lv_anim_start(&a);
-    lv_anim_t r;
-    lv_anim_init(&r);
-    lv_anim_set_var(&r, ok);
-    lv_anim_set_values(&r, 400, 388);
-    lv_anim_set_duration(&r, 160);
-    lv_anim_set_exec_cb(&r, (lv_anim_exec_xcb_t)lv_obj_set_y);
-    lv_anim_start(&r);
+    wt_pill(ovl, "OK", 300, 388, 200, help_ok_cb, ovl);
+    wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
 
 static void help_cb(lv_event_t *e)

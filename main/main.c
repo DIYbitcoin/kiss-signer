@@ -1376,10 +1376,6 @@ static void tile_glow_sync(void) {
 // ---- fingerprint card: tapping the home chip teaches what the number means
 // (locking already has a home: the KISS logo). Same overlay style as the
 // wallet section's "?" cards; opa/translate anims only. ----
-static void fp_card_fade(void *obj, int32_t v) {
-  lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
-}
-
 static void fp_card_close_cb(lv_event_t *e) {
   (void)e;
   if (s_fp_card) { lv_obj_delete_async(s_fp_card); s_fp_card = NULL; }
@@ -1419,23 +1415,8 @@ static void fp_card_open(void) {
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
-  lv_obj_t *ok = wt_pill(ovl, "OK", 300, 388, 200, fp_card_close_cb, NULL);
-
-  lv_obj_set_style_opa(ovl, 0, 0);
-  lv_anim_t a;
-  lv_anim_init(&a);
-  lv_anim_set_var(&a, ovl);
-  lv_anim_set_values(&a, 0, LV_OPA_COVER);
-  lv_anim_set_duration(&a, 160);
-  lv_anim_set_exec_cb(&a, fp_card_fade);
-  lv_anim_start(&a);
-  lv_anim_t r;
-  lv_anim_init(&r);
-  lv_anim_set_var(&r, ok);
-  lv_anim_set_values(&r, 400, 388);
-  lv_anim_set_duration(&r, 160);
-  lv_anim_set_exec_cb(&r, (lv_anim_exec_xcb_t)lv_obj_set_y);
-  lv_anim_start(&r);
+  wt_pill(ovl, "OK", 300, 388, 200, fp_card_close_cb, NULL);
+  wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
 
 static void game_tick(lv_timer_t *t) {
