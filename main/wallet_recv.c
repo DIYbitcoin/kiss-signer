@@ -12,19 +12,30 @@
 #include "wallet_crypto.h"
 #include "wallet_scan.h"
 #include "wallet_theme.h"
+#include "wallet_ui.h"      // wallet_ui_last_fp: keys the reuse guard per wallet
+#include "wallet_usage.h"   // highest receive index this wallet has used
 
 #define VFY_SCAN_DEPTH 200   // how far down each chain VERIFY searches
 
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl;
+static lv_obj_t *s_reuse_lbl, *s_fresh_pill;   // reuse-guard banner + jump button
 static uint32_t s_idx;
+// reuse guard: warn when viewing an index at/below what this wallet already
+// used or showed. s_floor is frozen at open (prior-session usage) so browsing
+// fresh addresses never warns; s_seen_high grows as you view, seeding the next
+// open's fresh landing. s_seen_key detects a wallet/network/type switch.
+static int  s_floor, s_seen_high = -1;
+static char s_seen_key[16];
 
 bool wallet_recv_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
+  s_reuse_lbl = NULL;
+  s_fresh_pill = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -36,9 +47,8 @@ static void recv_refresh(void) {
   int rc = wallet_session_address(0, s_idx, addr, sizeof(addr));
   if (rc != 0)
     snprintf(addr, sizeof(addr), "SESSION LOCKED");
-  if (s_qr) {
-    lv_result_t qres = lv_qrcode_update(s_qr, addr, (uint32_t)strlen(addr));
-  }
+  if (s_qr)
+    lv_qrcode_update(s_qr, addr, (uint32_t)strlen(addr));
   char grouped[120];
   wt_group4(addr, grouped, sizeof(grouped));
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
@@ -50,6 +60,24 @@ static void recv_refresh(void) {
   lv_label_set_text_fmt(s_path_lbl, "m/%dh/%dh/0h/0/%u   %s",
                         purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx,
                         wallet_testnet() ? "on TESTNET" : "");
+
+  // reuse guard: warn on an already-used/shown index; a fresh one stays quiet
+  bool reused = (int)s_idx <= s_floor;
+  if (s_reuse_lbl) {
+    if (reused) lv_obj_clear_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
+    else        lv_obj_add_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (s_fresh_pill) {
+    if (reused) lv_obj_clear_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
+    else        lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
+  }
+  if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
+}
+
+static void fresh_cb(lv_event_t *e) {
+  (void)e;
+  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+  recv_refresh();
 }
 
 static void prev_cb(lv_event_t *e) {
@@ -168,12 +196,39 @@ static void vfy_scan(lv_event_t *e) {
 void wallet_recv_open(lv_obj_t *parent) {
   if (s_scr) return;
   s_parent = parent;
-  s_idx = 0;
   s_addr_sg = NULL;
+
+  // reuse guard: figure out the freshest address to land on. Key by wallet +
+  // network + type; a switch resets the session view-history to the persisted
+  // used-high, otherwise keep growing it (a sign this session may have bumped it).
+  uint8_t fp[4];
+  wallet_ui_last_fp(fp);
+  char key[16];
+  snprintf(key, sizeof key, "%02x%02x%02x%02x%d%d", fp[0], fp[1], fp[2], fp[3],
+           wallet_testnet() ? 1 : 0, wallet_script());
+  int used = wallet_usage_high(fp, wallet_testnet() ? 1 : 0, wallet_script());
+  if (strcmp(key, s_seen_key) != 0) {          // different wallet/net/type
+    snprintf(s_seen_key, sizeof s_seen_key, "%s", key);
+    s_seen_high = used;
+  } else if (used > s_seen_high) {
+    s_seen_high = used;
+  }
+  s_floor = s_seen_high;                        // frozen: warnings compare to prior use
+  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+
   s_scr = wt_screen(parent, "RECEIVE", "this address was made on the device. trust what you see here, not your computer screen.");
   wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
+
+  // reuse banner + FRESH jump (hidden unless the shown index was used/shown before)
+  s_reuse_lbl = wt_lbl(s_scr, LV_SYMBOL_WARNING "  already used\n"
+                              "reusing links your coins",
+                       400, 246, &lv_font_montserrat_14, WT_WARN);
+  lv_obj_add_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
+  s_fresh_pill = wt_pillh(s_scr, "FRESH", 636, 244, 124, 44, fresh_cb, NULL);
+  wt_pill_primary(s_fresh_pill);
+  lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
 
   s_path_lbl = wt_lbl(s_scr, "", 400, 300, &lv_font_montserrat_14, WT_MUT);
   wt_lbl(s_scr, "VERIFY: scan an address your computer shows\n"

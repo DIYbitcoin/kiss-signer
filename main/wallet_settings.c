@@ -10,6 +10,7 @@
 #include "wallet_setup.h"
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
+#include "wallet_usage.h"   // clear the receive-index history on wipe
 
 #ifndef SIMULATOR
 #include "nvs.h"
@@ -278,6 +279,7 @@ static void wipe_cb(lv_event_t *e)
         return;
     }
     wallet_session_close();               // truly gone: session key leaves RAM too
+    wallet_usage_wipe();                   // drop the receive-index history too
 
     // full-screen confirmation as an overlay child (never delete the event
     // target's ancestors mid-event)

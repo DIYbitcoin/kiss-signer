@@ -172,8 +172,17 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->send_sats = 4000; s->fee_sats = 57000; s->outs[0].sats = 4000;
     s->fee_rate_x10 = 4042;
     s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_HIGHFEE;
     snprintf(s->reason, sizeof s->reason,
              "unusually high fee - check it before signing");
+  } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
+    // several cautions at once: proves the summary + WHY card stack up
+    s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
+    s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
+    s->fee_rate_x10 = 570;
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT | WPSBT_C_DUST_CHANGE;
+    snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
   return 0;
 }
@@ -250,6 +259,9 @@ int main(void) {
   unlink("/tmp/simsd/silly-FEE-signed.psbt");
   sd = fopen("/tmp/simsd/silly-FEE.psbt", "wb");
   if (sd) { fputs("FEE", sd); fclose(sd); }
+  unlink("/tmp/simsd/warn-COMBO-signed.psbt");
+  sd = fopen("/tmp/simsd/warn-COMBO.psbt", "wb");
+  if (sd) { fputs("COMBO", sd); fclose(sd); }
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
@@ -428,7 +440,17 @@ int main(void) {
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
   touch(328, 268); pump(3); release(); pump(8);     // the FEE file -> amber caution
-  save("/tmp/sim_sign_fee.ppm");
+  save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
+  touch(626, 430); pump(3); release(); pump(6);     // I UNDERSTAND -> hold pill revealed
+  save("/tmp/sim_sign_fee_ack.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
+  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
+  touch(328, 334); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
+  save("/tmp/sim_sign_combo.ppm");
+  touch(735, 361); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
+  save("/tmp/sim_sign_why.ppm");
+  touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
@@ -465,6 +487,18 @@ int main(void) {
   save("/tmp/sim_qr_out_ez.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
+
+  // reuse guard: those signs spent from receive #0, so Receive now lands past
+  // it; paging back to a used index warns and offers FRESH.
+  touch(310, 240); pump(3); release(); pump(6);     // Receive tile
+  save("/tmp/sim_recv_fresh.ppm");                  // advanced past used, no warning
+  touch(436, 422); pump(3); release(); pump(4);     // PREV
+  touch(436, 422); pump(3); release(); pump(4);     // PREV
+  touch(436, 422); pump(3); release(); pump(4);     // PREV -> down onto a used index
+  save("/tmp/sim_recv_reuse.ppm");                  // amber warning + FRESH pill
+  touch(698, 266); pump(3); release(); pump(4);     // FRESH -> jump back to a new one
+  save("/tmp/sim_recv_fresh2.ppm");                 // warning gone again
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
