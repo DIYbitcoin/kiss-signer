@@ -36,6 +36,7 @@ void wallet_wiped_lock(void);
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
+static lv_obj_t *s_acc_name;            // live name under the dots
 static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
@@ -111,7 +112,12 @@ static void restyle(void)
             lv_obj_set_style_shadow_width(s_acc_dot[i], on ? 12 : 0, 0);
             lv_obj_set_style_shadow_color(s_acc_dot[i], wt_accent(), 0);
             lv_obj_set_style_shadow_opa(s_acc_dot[i], on ? 90 : 0, 0);
+            // detached ink halo: the gap reads even when the dot is white (MONO)
+            lv_obj_set_style_outline_width(s_acc_dot[i], on ? 2 : 0, 0);
+            lv_obj_set_style_outline_pad(s_acc_dot[i], 3, 0);
+            lv_obj_set_style_outline_color(s_acc_dot[i], INK_COL, 0);
         }
+    if (s_acc_name) lv_label_set_text(s_acc_name, wt_accent_name());
     lv_obj_set_style_bg_color(s_main_pill, tn ? KEY_COL : wt_accent_bg(), 0);
     lv_obj_set_style_border_color(s_main_pill, tn ? MUT_COL : wt_primary(), 0);
     lv_obj_set_style_border_width(s_main_pill, tn ? 1 : 2, 0);
@@ -385,6 +391,11 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_add_event_cb(d, theme_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         s_acc_dot[i] = d;
     }
+    s_acc_name = lv_label_create(s_scr);       // names the dressed color
+    lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
+    lv_obj_set_style_text_font(s_acc_name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
+    lv_obj_set_pos(s_acc_name, 560, 74);
 
     // LEFT: network + address type
     mk_section("NETWORK", 48, 78);

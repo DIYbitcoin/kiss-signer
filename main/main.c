@@ -197,6 +197,10 @@ static bool s_wallet_on;
 // device (sim build has no libwally, keeps the placeholder)
 static char s_fp_hex[12] = "--------";
 static lv_obj_t *s_fp_chip;              // home fingerprint chip (updated at unlock)
+static lv_obj_t *s_card_frame[4];        // live accent chrome over the baked skeleton:
+static lv_obj_t *s_corner[4];            // the theme recolors these instantly, no re-bake
+static lv_obj_t *s_underline, *s_chip_frame;
+static lv_obj_t *s_theme_dot, *s_theme_lbl, *s_theme_cap;
 static lv_obj_t *s_fp_cap;               // "fingerprint" caption under the chip frame
 static lv_obj_t *s_fp_fly;               // transient: the code flying from the reveal card
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
@@ -1163,10 +1167,31 @@ static void wallet_home_restyle(void) {
     lv_obj_set_style_text_color(s_cam_lbl, (msg && *msg) ? ac : WT_MUT, 0);
   }
   for (int i = 0; i < 4; i++)
-    if (s_tile_lbl[i]) {
-      lv_obj_set_style_image_recolor(s_tile_lbl[i], ac, 0);
-      lv_obj_set_style_image_recolor_opa(s_tile_lbl[i], LV_OPA_COVER, 0);
+    if (s_tile_lbl[i])   // labels stay their baked white/grey: the CARD wears
+      lv_obj_set_style_image_recolor_opa(s_tile_lbl[i], LV_OPA_TRANSP, 0);  // the theme, not the text
+  for (int i = 0; i < 4; i++) {
+    if (s_card_frame[i]) {
+      lv_obj_set_style_border_color(s_card_frame[i], ac, 0);
+      lv_obj_set_style_bg_color(s_card_frame[i], ac, 0);
+      lv_obj_set_style_shadow_color(s_card_frame[i], ac, 0);
     }
+    if (s_corner[i]) lv_obj_set_style_border_color(s_corner[i], ac, 0);
+  }
+  if (s_underline)  lv_obj_set_style_bg_color(s_underline, ac, 0);
+  if (s_chip_frame) lv_obj_set_style_border_color(s_chip_frame, ac, 0);
+  if (s_theme_dot)  lv_obj_set_style_bg_color(s_theme_dot, ac, 0);
+  if (s_theme_lbl) {
+    lv_label_set_text(s_theme_lbl, wt_accent_name());
+    lv_obj_set_style_text_color(s_theme_lbl, lv_color_hex(0xE8EEF7), 0);
+    lv_obj_update_layout(s_theme_lbl);           // right-align: long names must not
+    int tx = 760 - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
+    lv_obj_set_pos(s_theme_lbl, tx, 428);
+    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - 26, 430);
+    if (s_theme_cap) {
+      lv_obj_update_layout(s_theme_cap);
+      lv_obj_set_pos(s_theme_cap, 760 - lv_obj_get_width(s_theme_cap), 406);
+    }
+  }
   for (int i = 0; i < N_MOTES; i++)
     if (s_mote[i]) lv_obj_set_style_bg_color(s_mote[i], ac, 0);
   if (s_tile_glow) {
@@ -1655,6 +1680,68 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(s_wallet, LV_SCROLLBAR_MODE_OFF);
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
+
+  // Live accent chrome — the baked art carries only a DIM skeleton of these
+  // (wallet_mock.py live_frames): card frames + wash, corner brackets, title
+  // underline, chip frame, theme tag. wallet_home_restyle() paints them in the
+  // active accent, so switching themes recolors the home with zero re-bake.
+  for (int i = 0; i < 4; i++) {
+    lv_obj_t *c = lv_obj_create(s_wallet);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_pos(c, 50 + i * 180, 150);
+    lv_obj_set_size(c, 161, 183);
+    lv_obj_set_style_radius(c, 12, 0);
+    lv_obj_set_style_border_width(c, 2, 0);
+    lv_obj_set_style_bg_opa(c, 26, 0);              // glass wash; icons stay readable
+    lv_obj_set_style_shadow_width(c, 18, 0);        // the baked art's neon glow, live
+    lv_obj_set_style_shadow_opa(c, 70, 0);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    s_card_frame[i] = c;
+  }
+  static const struct { int x, y; lv_border_side_t side; } CORN[4] = {
+    {24, 24, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_TOP},
+    {744, 24, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_TOP},
+    {24, 424, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM},
+    {744, 424, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM},
+  };
+  for (int i = 0; i < 4; i++) {
+    lv_obj_t *c = lv_obj_create(s_wallet);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_pos(c, CORN[i].x, CORN[i].y);
+    lv_obj_set_size(c, 32, 32);
+    lv_obj_set_style_border_width(c, 3, 0);
+    lv_obj_set_style_border_side(c, CORN[i].side, 0);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    s_corner[i] = c;
+  }
+  s_underline = lv_obj_create(s_wallet);
+  lv_obj_remove_style_all(s_underline);
+  lv_obj_set_pos(s_underline, 46, 94);
+  lv_obj_set_size(s_underline, 143, 3);
+  lv_obj_set_style_bg_opa(s_underline, LV_OPA_COVER, 0);
+  s_chip_frame = lv_obj_create(s_wallet);
+  lv_obj_remove_style_all(s_chip_frame);
+  lv_obj_set_pos(s_chip_frame, 566, 40);
+  lv_obj_set_size(s_chip_frame, 195, 47);
+  lv_obj_set_style_radius(s_chip_frame, 10, 0);
+  lv_obj_set_style_border_width(s_chip_frame, 2, 0);
+  lv_obj_remove_flag(s_chip_frame, LV_OBJ_FLAG_CLICKABLE);
+  // live theme tag, bottom-right (replaces the baked dot that always lied MONO)
+  s_theme_dot = lv_obj_create(s_wallet);
+  lv_obj_remove_style_all(s_theme_dot);
+  lv_obj_set_pos(s_theme_dot, 676, 426);
+  lv_obj_set_size(s_theme_dot, 16, 16);
+  lv_obj_set_style_radius(s_theme_dot, 8, 0);
+  lv_obj_set_style_bg_opa(s_theme_dot, LV_OPA_COVER, 0);
+  s_theme_cap = lv_label_create(s_wallet);
+  lv_label_set_text(s_theme_cap, "theme");
+  lv_obj_set_style_text_color(s_theme_cap, lv_color_hex(0x7A869C), 0);
+  lv_obj_set_style_text_font(s_theme_cap, &lv_font_montserrat_14, 0);
+  lv_obj_set_pos(s_theme_cap, 704, 408);
+  s_theme_lbl = lv_label_create(s_wallet);
+  lv_obj_set_style_text_font(s_theme_lbl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_letter_space(s_theme_lbl, 1, 0);
+  lv_obj_set_pos(s_theme_lbl, 704, 428);
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
   // content); live labels own it. Coords from assets/generators/wallet_mock.py.
