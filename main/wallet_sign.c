@@ -202,39 +202,6 @@ static void sign_press_cb(lv_event_t *e)
     }
 }
 
-// grouped address with the compare-ends bright: people check the first and
-// last characters against the coordinator, so those get ink, the middle dims
-static void mk_addr_spans(lv_obj_t *par, const char *grouped, int w)
-{
-    int len = (int)strlen(grouped);
-    int h = len, t = len, raw = 0;
-    for (int i = 0; i < len; i++) {
-        if (grouped[i] != ' ' && ++raw == 4) { h = i + 1; break; }
-    }
-    raw = 0;
-    for (int i = len - 1; i > h; i--) {
-        if (grouped[i] != ' ' && ++raw == 4) { t = i; break; }
-    }
-    char head[8], mid[120];
-    snprintf(head, sizeof head, "%.*s", h, grouped);
-    snprintf(mid, sizeof mid, "%.*s", t - h, grouped + h);
-
-    lv_obj_t *sg = lv_spangroup_create(par);
-    lv_obj_set_width(sg, w);
-    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
-    lv_obj_set_style_text_font(sg, &lv_font_montserrat_14, 0);
-    lv_span_t *s1 = lv_spangroup_new_span(sg);
-    lv_span_set_text(s1, head);
-    lv_style_set_text_color(lv_span_get_style(s1), INK_COL);
-    lv_span_t *s2 = lv_spangroup_new_span(sg);
-    lv_span_set_text(s2, mid);
-    lv_style_set_text_color(lv_span_get_style(s2), MUT_COL);
-    lv_span_t *s3 = lv_spangroup_new_span(sg);
-    lv_span_set_text(s3, grouped + t);
-    lv_style_set_text_color(lv_span_get_style(s3), INK_COL);
-    lv_spangroup_refresh(sg);
-}
-
 static void details_cb(lv_event_t *e);
 
 // ---- verify screen (the heart of the safety model) ----
@@ -294,7 +261,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_width(ad, 340);
             lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
         } else {                             // compare-me: bright ends
-            mk_addr_spans(row, ga, 340);
+            wt_addr_spans(row, ga, 340, &lv_font_montserrat_14);
         }
 
         lv_obj_t *tag = lv_label_create(row);

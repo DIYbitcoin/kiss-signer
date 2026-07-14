@@ -23,6 +23,7 @@ static lv_obj_t *s_prog, *s_hint;
 static lv_timer_t *s_tmr;
 static qrt_parser_t *s_parser;
 static void (*s_on_psbt)(const uint8_t *, size_t, int);
+static void (*s_on_text)(const char *, size_t);   // raw mode (verify-address)
 static void (*s_on_cancel)(void);
 static void *s_bus;
 static uint8_t s_psbt[QRT_MAX_PSBT];
@@ -42,6 +43,7 @@ static void scan_teardown(void)
     camera_scan_stop();
 #endif
     if (s_parser) { qrt_parser_free(s_parser); s_parser = NULL; }
+    s_on_text = NULL;                  // raw mode never survives a teardown
     s_prog = NULL; s_hint = NULL;
 }
 
@@ -100,6 +102,19 @@ static void decode_cb(const char *data, size_t len)
 
 static void feed(const char *data, size_t len)
 {
+    if (s_on_text) {                    // raw mode: first decode wins, verbatim
+        if (len == 0) return;
+        static char txt[sizeof s_pend];
+        if (len >= sizeof txt) len = sizeof txt - 1;
+        memcpy(txt, data, len);
+        txt[len] = 0;
+        void (*cb)(const char *, size_t) = s_on_text;
+        s_on_text = NULL;
+        scan_teardown();
+        if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+        cb(txt, len);
+        return;
+    }
     if (!s_parser) return;
     int rc = qrt_parser_feed(s_parser, data, len);
     int seen = qrt_parser_seen(s_parser), total = qrt_parser_total(s_parser);
@@ -146,15 +161,35 @@ static void poll_cb(lv_timer_t *t)
 #endif
 }
 
+static void scan_open_common(lv_obj_t *parent);
+
 void wallet_scan_open(lv_obj_t *parent,
                       void (*on_psbt)(const uint8_t *, size_t, int),
                       void (*on_cancel)(void))
 {
     if (s_scr) return;
     s_on_psbt = on_psbt;
+    s_on_text = NULL;
     s_on_cancel = on_cancel;
-    s_pend_len = 0;
     s_parser = qrt_parser_new();
+    scan_open_common(parent);
+}
+
+void wallet_scan_open_raw(lv_obj_t *parent,
+                          void (*on_text)(const char *, size_t),
+                          void (*on_cancel)(void))
+{
+    if (s_scr) return;
+    s_on_psbt = NULL;
+    s_on_text = on_text;
+    s_on_cancel = on_cancel;
+    s_parser = NULL;                    // raw: no PSBT assembly
+    scan_open_common(parent);
+}
+
+static void scan_open_common(lv_obj_t *parent)
+{
+    s_pend_len = 0;
 
     s_scr = lv_obj_create(parent);
     lv_obj_remove_style_all(s_scr);
