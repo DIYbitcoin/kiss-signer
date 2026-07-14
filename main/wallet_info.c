@@ -218,9 +218,11 @@ static void pair_screen(void)
 
     s_pair_note = wt_lbl(s_scr, "", 400, 316, &lv_font_montserrat_14, WT_MUT);
 
-    // pairing ends with proof, not hope: point at the address check
+    // pairing ends with proof, not hope: point at the address check, then at a
+    // tiny dress rehearsal before real money rides on it
     wt_lbl(s_scr, "then prove it: RECEIVE > VERIFY - scan the\n"
-                  "app's first address to confirm it's yours.",
+                  "app's first address to confirm it's yours.\n"
+                  "first time? practice with a tiny send first.",
            400, 404, &lv_font_montserrat_14, WT_INK);
 
     wt_pill(s_scr, "BACK", 48, 404, 140, pair_back_cb, NULL);

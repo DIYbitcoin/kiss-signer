@@ -167,6 +167,13 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   if (len >= 4 && memmem(bytes, len, "STOP", 4)) {
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input amount unverifiable");
+  } else if (len >= 3 && memmem(bytes, len, "FEE", 3)) {
+    // mirrors wallet_psbt.c's high-fee caution so the sim can show it
+    s->send_sats = 4000; s->fee_sats = 57000; s->outs[0].sats = 4000;
+    s->fee_rate_x10 = 4042;
+    s->status = WPSBT_CAUTION;
+    snprintf(s->reason, sizeof s->reason,
+             "unusually high fee - check it before signing");
   }
   return 0;
 }
@@ -238,6 +245,11 @@ int main(void) {
   if (sd) { fputs("fake-psbt-binary", sd); fclose(sd); }
   sd = fopen("/tmp/simsd/risky-STOP.psbt", "wb");
   if (sd) { fputs("STOP", sd); fclose(sd); }
+  // sorts AFTER risky-STOP (the list is qsorted) so the older walks' row taps
+  // keep hitting the files they were written for
+  unlink("/tmp/simsd/silly-FEE-signed.psbt");
+  sd = fopen("/tmp/simsd/silly-FEE.psbt", "wb");
+  if (sd) { fputs("FEE", sd); fclose(sd); }
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
@@ -365,6 +377,9 @@ int main(void) {
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(680, 60); pump(3); release(); pump(14);     // fingerprint chip -> education card
+  save("/tmp/sim_home_fp.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
   touch(211, 109); pump(3); release(); pump(14);    // "?" chip (fingerprint) -> card
@@ -410,6 +425,11 @@ int main(void) {
   touch(328, 202); pump(3); release(); pump(8);     // the STOP file -> blocked verify
   save("/tmp/sim_sign_stop.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
+  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
+  touch(328, 268); pump(3); release(); pump(8);     // the FEE file -> amber caution
+  save("/tmp/sim_sign_fee.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -441,6 +461,8 @@ int main(void) {
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part
+  touch(530, 270); pump(3); release(); pump(6);     // EASY SCAN: sparser, slower QR
+  save("/tmp/sim_qr_out_ez.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
 
