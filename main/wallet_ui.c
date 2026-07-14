@@ -152,6 +152,28 @@ static void ensure_indev(void) {
   lv_indev_set_read_cb(indev, indev_read);
 }
 
+// long-passphrase fitting: 28pt holds ~40 glyphs in the 704px slot; past that
+// drop to 14pt, and past ~78 show "..." + the tail (the newest chars are what
+// the user is checking). Never scroll-animate a masked secret.
+static void entry_apply(const char *txt, int chars) {
+  lv_obj_set_style_text_font(s_entry, chars > 40 ? &lv_font_montserrat_14
+                                                 : &lv_font_montserrat_28, 0);
+  if (chars > 78) {
+    const char *p = txt + strlen(txt);
+    int keep = 76;
+    while (keep && p > txt) {                    // step back whole UTF-8 chars
+      p--;
+      while (p > txt && ((*p & 0xC0) == 0x80)) p--;
+      keep--;
+    }
+    static char tail[3 * 76 + 8];
+    snprintf(tail, sizeof tail, "...%s", p);
+    lv_label_set_text(s_entry, tail);
+  } else {
+    lv_label_set_text(s_entry, txt);
+  }
+}
+
 // ---- entry display: dots, optional flash of the newest char, show-all ----
 static void entry_refresh(void) {
   static char buf[PASS_MAX * 3 + 8];
@@ -166,13 +188,14 @@ static void entry_refresh(void) {
     else lv_label_set_text_fmt(s_count, "%d character%s", s_plen, s_plen == 1 ? "" : "s");
   }
   if (s_plen == 0) {
+    lv_obj_set_style_text_font(s_entry, &lv_font_montserrat_28, 0);
     lv_label_set_text(s_entry, "type your passphrase");
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     return;
   }
   lv_obj_set_style_text_color(s_entry, INK_COL, 0);
   if (s_show) {
-    lv_label_set_text(s_entry, s_pass);
+    entry_apply(s_pass, s_plen);
     return;
   }
   int n = 0;
@@ -182,7 +205,7 @@ static void entry_refresh(void) {
   }
   if (s_flash && n < (int)sizeof(buf) - 2) buf[n++] = s_pass[s_plen - 1];
   buf[n] = 0;
-  lv_label_set_text(s_entry, buf);
+  entry_apply(buf, s_plen);
 }
 
 static void mask_cb(lv_timer_t *t) {
