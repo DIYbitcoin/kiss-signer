@@ -170,6 +170,15 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   return 0;
 }
+int wallet_psbt_details(wpsbt_details_t *d) {
+  memset(d, 0, sizeof *d);
+  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1;
+  snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
+  snprintf(d->ins[0].txid, sizeof d->ins[0].txid, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  d->ins[0].vout = 0; d->ins[0].sats = 100000;
+  d->ins[0].purpose = 84; d->ins[0].change = 0; d->ins[0].index = 0;
+  return 0;
+}
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
   size_t n = out_len < 220 ? out_len : 220;
   memset(out, 0xAB, n); *written = n;
@@ -367,6 +376,9 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
+  touch(293, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
+  save("/tmp/sim_sign_details.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> verify again
   touch(626, 430); pump(40);                        // hold the sign pill: ring ~half full
   save("/tmp/sim_sign_hold.ppm");
   pump(45);                                         // past 1.2s: signs + writes SD
