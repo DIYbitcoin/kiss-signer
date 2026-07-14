@@ -14,11 +14,25 @@ static const uint32_t ACC_HEX[WT_ACC_N] = {
     0xFF3EA5,   // CYPHERPINK
     0xFF8A3D,   // ORANGE
 };
+static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
+    0x18202D,   // MONO: cool ink glass
+    0x102417,   // GREEN
+    0x2A1020,   // CYPHERPINK
+    0x2B190D,   // ORANGE
+};
+static const uint32_t ACC_PRESS_HEX[WT_ACC_N] = {
+    0x263044,
+    0x173823,
+    0x3A1730,
+    0x3A2513,
+};
 
 void wt_accent_set(int id) { s_accent = (id >= 0 && id < WT_ACC_N) ? id : WT_ACC_MONO; }
 int  wt_accent_get(void)   { return s_accent; }
 lv_color_t wt_accent(void) { return lv_color_hex(ACC_HEX[s_accent]); }
-lv_color_t wt_primary(void) { return s_accent == WT_ACC_MONO ? WT_OK : wt_accent(); }
+lv_color_t wt_primary(void) { return wt_accent(); }
+lv_color_t wt_accent_bg(void) { return lv_color_hex(ACC_BG_HEX[s_accent]); }
+lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
@@ -56,6 +70,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_set_pos(p, x, y);
     lv_obj_set_style_radius(p, 26, 0);
     lv_obj_set_style_bg_color(p, WT_KEY, 0);
+    lv_obj_set_style_bg_color(p, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(p, 1, 0);
     lv_obj_set_style_border_color(p, WT_MUT, 0);
@@ -78,7 +93,10 @@ lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
 
 void wt_pill_primary(lv_obj_t *pill)
 {
+    lv_obj_set_style_bg_color(pill, wt_accent_bg(), 0);
+    lv_obj_set_style_bg_color(pill, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(pill, wt_primary(), 0);
+    lv_obj_set_style_border_width(pill, 2, 0);
 }
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
@@ -155,13 +173,13 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_obj_set_style_text_font(sg, f, 0);
     lv_span_t *s1 = lv_spangroup_new_span(sg);
     lv_span_set_text(s1, head);
-    lv_style_set_text_color(lv_span_get_style(s1), WT_INK);
+    lv_style_set_text_color(lv_span_get_style(s1), wt_accent());
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, mid);
     lv_style_set_text_color(lv_span_get_style(s2), WT_MUT);
     lv_span_t *s3 = lv_spangroup_new_span(sg);
     lv_span_set_text(s3, grouped + t);
-    lv_style_set_text_color(lv_span_get_style(s3), WT_INK);
+    lv_style_set_text_color(lv_span_get_style(s3), wt_accent());
     lv_spangroup_refresh(sg);
     return sg;
 }

@@ -9,6 +9,7 @@
 
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
+#include "wallet_theme.h"
 
 #ifndef SIMULATOR
 #include "esp_efuse.h"
@@ -21,11 +22,11 @@ bool radio_is_held(void);   // main.c: reads back the C6 reset pad (GPIO54)
 #define KISS_COMMIT_STR "local"
 #endif
 
-#define BG_COL   lv_color_hex(0x070A10)
-#define INK_COL  lv_color_hex(0xE8EEF7)   // Mono theme accent
-#define MUT_COL  lv_color_hex(0x7A869C)
-#define KEY_COL  lv_color_hex(0x10141D)
-#define KEYP_COL lv_color_hex(0x2A3242)
+#define BG_COL   WT_BG
+#define INK_COL  WT_INK
+#define MUT_COL  WT_MUT
+#define KEY_COL  WT_KEY
+#define KEYP_COL wt_accent_pressed()
 
 #define PASS_MAX 128
 #define FLASH_MS 900                       // last char visible this long, then masked
@@ -84,7 +85,7 @@ static void meter_refresh(void) {
     lv_obj_set_style_text_color(s_meter, lv_color_hex(0xF2B84B), 0);
   } else {
     lv_label_set_text(s_meter, "STRONG");
-    lv_obj_set_style_text_color(s_meter, lv_color_hex(0x35D07F), 0);
+    lv_obj_set_style_text_color(s_meter, WT_OK, 0);
   }
 }
 
@@ -193,7 +194,7 @@ static void entry_refresh(void) {
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     return;
   }
-  lv_obj_set_style_text_color(s_entry, INK_COL, 0);
+  lv_obj_set_style_text_color(s_entry, wt_accent(), 0);
   if (s_show) {
     entry_apply(s_pass, s_plen);
     return;
@@ -532,14 +533,14 @@ static void show_fingerprint(void) {
   lv_obj_set_size(box, 420, 118);
   lv_obj_set_style_radius(box, 16, 0);
   lv_obj_set_style_border_width(box, 2, 0);
-  lv_obj_set_style_border_color(box, INK_COL, 0);
+  lv_obj_set_style_border_color(box, wt_accent(), 0);
   lv_obj_set_style_bg_color(box, lv_color_hex(0x0C1018), 0);
   lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
   lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 104);
 
   lv_obj_t *big = lv_label_create(box);
   lv_label_set_text_fmt(big, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-  lv_obj_set_style_text_color(big, INK_COL, 0);
+  lv_obj_set_style_text_color(big, wt_accent(), 0);
   lv_obj_set_style_text_font(big, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_letter_space(big, 4, 0);
   lv_obj_center(big);
@@ -575,8 +576,11 @@ static void show_fingerprint(void) {
   lv_obj_remove_style_all(go);
   lv_obj_set_size(go, 260, 52);
   lv_obj_set_style_radius(go, 26, 0);
-  lv_obj_set_style_bg_color(go, lv_color_hex(0x24406B), 0);
+  lv_obj_set_style_bg_color(go, wt_accent_bg(), 0);
+  lv_obj_set_style_bg_color(go, wt_accent_pressed(), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(go, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(go, 2, 0);
+  lv_obj_set_style_border_color(go, wt_accent(), 0);
   lv_obj_align(go, LV_ALIGN_BOTTOM_MID, 0, -40);
   lv_obj_add_flag(go, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_event_cb(go, fp_tap_cb, LV_EVENT_CLICKED, NULL);
@@ -647,15 +651,15 @@ static void pop_show(const char *ch, uint32_t id) {
     lv_obj_remove_style_all(s_pop);         // pressed key so it visibly grows out of it
     lv_obj_set_size(s_pop, 96, 96);
     lv_obj_set_style_radius(s_pop, 20, 0);
-    lv_obj_set_style_bg_color(s_pop, lv_color_hex(0x33415C), 0);
+    lv_obj_set_style_bg_color(s_pop, wt_accent_bg(), 0);
     lv_obj_set_style_bg_opa(s_pop, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_pop, 2, 0);
-    lv_obj_set_style_border_color(s_pop, INK_COL, 0);
+    lv_obj_set_style_border_color(s_pop, wt_accent(), 0);
     lv_obj_set_style_shadow_width(s_pop, 18, 0);
     lv_obj_set_style_shadow_color(s_pop, lv_color_hex(0x000000), 0);
     lv_obj_set_style_shadow_opa(s_pop, LV_OPA_60, 0);
     s_pop_lbl = lv_label_create(s_pop);
-    lv_obj_set_style_text_color(s_pop_lbl, INK_COL, 0);
+    lv_obj_set_style_text_color(s_pop_lbl, wt_accent(), 0);
     lv_obj_set_style_text_font(s_pop_lbl, &lv_font_montserrat_48, 0);
     lv_obj_center(s_pop_lbl);
   }
@@ -819,7 +823,7 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_radius(s_kb, 8, LV_PART_ITEMS);
   lv_obj_set_style_border_width(s_kb, 0, LV_PART_ITEMS);
   // bottom row: plane switch, CANCEL, wide space, OK
-  lv_obj_set_style_bg_color(s_kb, lv_color_hex(0x24406B),
+  lv_obj_set_style_bg_color(s_kb, wt_accent_bg(),
                             LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_add_event_cb(s_kb, kb_cb, LV_EVENT_VALUE_CHANGED, NULL);
 }
@@ -830,7 +834,21 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
 // reset pad read back from the GPIO, never assumed from the build. Bad
 // states are amber WARNINGS; good states go calm. Dev builds carry a "dev"
 // marker in amber (dev seed, no release hardening).
-void wallet_build_id_make(lv_obj_t *parent, int x, int y)
+void wallet_build_id_restyle(lv_obj_t *version_label)
+{
+  if (!version_label) return;
+  bool enc = false;
+#ifndef SIMULATOR
+  enc = esp_efuse_is_flash_encryption_enabled();
+#endif
+#ifdef KISS_RELEASE
+  lv_obj_set_style_text_color(version_label, enc ? MUT_COL : wt_accent(), 0);
+#else
+  lv_obj_set_style_text_color(version_label, WT_WARN, 0);
+#endif
+}
+
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
 {
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
@@ -842,10 +860,10 @@ void wallet_build_id_make(lv_obj_t *parent, int x, int y)
   lv_obj_set_pos(v, x, y);
 #ifdef KISS_RELEASE
   lv_label_set_text_fmt(v, "KISS %s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
-  lv_obj_set_style_text_color(v, enc ? MUT_COL : INK_COL, 0);
+  wallet_build_id_restyle(v);
 #else
   lv_label_set_text_fmt(v, "KISS %s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
-  lv_obj_set_style_text_color(v, lv_color_hex(0xF2B84B), 0);
+  wallet_build_id_restyle(v);
 #endif
   lv_obj_t *w = lv_label_create(parent);
   lv_obj_set_style_text_font(w, &lv_font_montserrat_14, 0);
@@ -860,4 +878,5 @@ void wallet_build_id_make(lv_obj_t *parent, int x, int y)
   lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(w);
   lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+  return v;
 }

@@ -38,6 +38,7 @@ static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
 static lv_obj_t *s_replace_pill;
+static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static bool s_wipe_arm;         // "wipe wallet" needs a confirming 2nd tap too
 static lv_obj_t *s_type_seg[3], *s_type_pfx[3], *s_type_expl;   // NATIVE/NESTED/LEGACY chooser + example prefix
@@ -101,14 +102,20 @@ static void restyle(void)
     int tn = wallet_testnet();
     // accent follows the picked theme everywhere it appears on this screen
     lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), wt_accent(), 0);  // title
+    wallet_build_id_restyle(s_build_id);
     for (int i = 0; i < WT_ACC_N; i++)
         if (s_acc_dot[i]) {
             bool on = (i == wt_accent_get());
-            lv_obj_set_style_border_color(s_acc_dot[i], on ? INK_COL : KEY_COL, 0);
+            lv_obj_set_style_border_color(s_acc_dot[i], on ? wt_accent() : KEY_COL, 0);
             lv_obj_set_style_border_width(s_acc_dot[i], on ? 3 : 1, 0);
+            lv_obj_set_style_shadow_width(s_acc_dot[i], on ? 12 : 0, 0);
+            lv_obj_set_style_shadow_color(s_acc_dot[i], wt_accent(), 0);
+            lv_obj_set_style_shadow_opa(s_acc_dot[i], on ? 90 : 0, 0);
         }
+    lv_obj_set_style_bg_color(s_main_pill, tn ? KEY_COL : wt_accent_bg(), 0);
     lv_obj_set_style_border_color(s_main_pill, tn ? MUT_COL : wt_primary(), 0);
     lv_obj_set_style_border_width(s_main_pill, tn ? 1 : 2, 0);
+    lv_obj_set_style_bg_color(s_test_pill, tn ? lv_color_hex(0x2A2113) : KEY_COL, 0);
     lv_obj_set_style_border_color(s_test_pill, tn ? WARN_COL : MUT_COL, 0);
     lv_obj_set_style_border_width(s_test_pill, tn ? 2 : 1, 0);
     lv_label_set_text(s_state_lbl, tn
@@ -121,13 +128,14 @@ static void restyle(void)
         int sc = wallet_script();
         for (int i = 0; i < 3; i++) {              // highlight the active type, dim the rest
             bool on = (i == sc);
+            lv_obj_set_style_bg_color(s_type_seg[i], on ? wt_accent_bg() : KEY_COL, 0);
             lv_obj_set_style_border_color(s_type_seg[i], on ? wt_primary() : MUT_COL, 0);
             lv_obj_set_style_border_width(s_type_seg[i], on ? 2 : 1, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(s_type_seg[i], 0),  // name label
                                         on ? INK_COL : MUT_COL, 0);
             lv_label_set_text(s_type_pfx[i], type_prefix(i, tn));            // example prefix
             lv_obj_set_style_text_color(s_type_pfx[i],
-                                        on ? WARN_COL : lv_color_hex(0x525C6E), 0);
+                                        on ? wt_accent() : lv_color_hex(0x525C6E), 0);
         }
         lv_label_set_text(s_type_expl,
             sc == WSCRIPT_LEGACY ? "oldest style, highest fees. only to\nmatch a very old wallet."
@@ -157,6 +165,7 @@ static void theme_pick_cb(lv_event_t *e)
     wt_accent_set((int)(intptr_t)lv_event_get_user_data(e));
     store_u8("accent", (uint8_t)wt_accent_get());
     restyle();
+    wallet_home_refresh();
 }
 
 static void close_cb(lv_event_t *e)
@@ -422,7 +431,7 @@ void wallet_settings_open(lv_obj_t *parent)
                               "only its backup words can bring it back.");
 
     // build identity, bottom-left (shared with the wallet home corner)
-    wallet_build_id_make(s_scr, 48, 436);
+    s_build_id = wallet_build_id_make(s_scr, 48, 436);
 
     mk_pill("BACK", 610, 404, 140, close_cb, NULL);
     restyle();
