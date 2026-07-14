@@ -428,14 +428,12 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_pad_ver(net, 4, 0);
         lv_obj_set_style_text_letter_space(net, 2, 0);
     }
-    // locktime 0 is the boring default (noise); only surface it when it is set,
-    // where it actually means something. The raw value always lives in DETAILS.
-    if (s_sum.locktime)
-        snprintf(buf, sizeof buf, "%s,  time-locked to block %u",
-                 s_sum.rbf ? "replaceable (RBF)" : "final", (unsigned)s_sum.locktime);
-    else
-        snprintf(buf, sizeof buf, "%s",
-                 s_sum.rbf ? "replaceable (RBF)" : "final, not replaceable");
+    // locktime stays off the main screen: wallets set it to the current height
+    // for anti-fee-sniping, so it appears on nearly every tx and reads as a
+    // scary lock when it isn't. Only the actionable RBF/final line here; the raw
+    // locktime value + a plain-words note live in DETAILS.
+    snprintf(buf, sizeof buf, "%s",
+             s_sum.rbf ? "replaceable (RBF)" : "final, not replaceable");
     mk_lbl(buf, 430, 266, &lv_font_montserrat_14, MUT_COL);
 
     // which passphrase-wallet is about to sign — fingerprint = the login check
