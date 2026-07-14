@@ -123,6 +123,9 @@ DESKTOP (descriptor, for Sparrow) or MOBILE (zpub, for BlueWallet). The app
 watches the chain and builds transactions; KISS only ever sees the PSBT, shows
 you exactly what it spends, and signs. Keys never leave the device.
 
+First time? Do a practice run — send a tiny amount in and back out — before
+trusting the setup with real coins.
+
 > [!NOTE]
 > BlueWallet labels the imported wallet **"watch-only." That is expected** — it
 > holds only your public key, so it can show balances, hand out receive
@@ -138,14 +141,14 @@ you exactly what it spends, and signs. Keys never leave the device.
 </tr>
 <tr>
 <td align="center"><sub><b>Receive</b> — verify the address on the device, not the computer</sub></td>
-<td align="center"><sub><b>Sign</b> — every amount, fee, and change output shown first</sub></td>
+<td align="center"><sub><b>Sign</b> — every amount and change output shown first; an unusually high fee turns amber before you can sign</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/readme/use-3-qr.png" alt="Signed transaction returned as animated QR" width="400"></td>
 <td align="center"><img src="docs/readme/use-4-sd.png" alt="Signed PSBT saved to SD card" width="400"></td>
 </tr>
 <tr>
-<td align="center"><sub><b>Hand back by QR</b> — scan the loop with your coordinator</sub></td>
+<td align="center"><sub><b>Hand back by QR</b> — scan the loop with your coordinator; <b>EASY SCAN</b> slows it and enlarges the dots if your phone struggles</sub></td>
 <td align="center"><sub><b>…or by SD card</b> — the device never touched the network</sub></td>
 </tr>
 </table>

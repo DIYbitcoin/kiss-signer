@@ -340,6 +340,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             on SD card. BlueWallet calls the import &ldquo;watch-only&rdquo; —
             that is expected and correct.
           </li>
+          <li>
+            First time? Do a practice run — send a tiny amount in and back
+            out — before trusting the setup with real coins.
+          </li>
         </ol>
         <div class="shots">
           <figure>
@@ -359,6 +363,16 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             </figcaption>
           </figure>
         </div>
+        <p>
+          An unusually high fee (a big share of what you send, or an outsized
+          rate) turns the fee amber and the screen to <strong>CAUTION</strong>
+          before you can hold to sign &mdash; a fat-finger guard, not a block.
+          On the signed-QR screen, <strong>EASY SCAN</strong> slows the loop and
+          enlarges the dots for phone cameras that will not lock onto the default.
+          Anywhere you see a <strong>?</strong>, tap it &mdash; and tapping the
+          home fingerprint explains what that code is. (Tapping the KISS logo on
+          the game menu locks straight back to the game.)
+        </p>
         <p>
           Settings shows exactly what is on the board, bottom-left:
           <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus an honest note

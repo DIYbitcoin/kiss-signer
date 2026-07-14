@@ -183,6 +183,9 @@ static bool s_prev_press;
 // button the new screen put beneath it (the sim caught this on the Sign
 // chooser — the finger sat exactly on a chooser pill).
 static int s_tile_pend;   // 0 none, 1 Sign, 2 Receive, 3 Wallet/export
+static bool s_fp_pend;    // fingerprint chip pressed; opens the card on release (so
+                          // the live LVGL indev binds this press to home, not the
+                          // full-screen overlay we are about to create)
 static lv_obj_t *s_tile_glow;  // soft highlight under the finger (press feedback)
 
 static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficulty ramp
@@ -202,6 +205,7 @@ static lv_obj_t *s_corner[4];            // the theme recolors these instantly, 
 static lv_obj_t *s_underline, *s_chip_frame;
 static lv_obj_t *s_theme_dot, *s_theme_lbl, *s_theme_cap;
 static lv_obj_t *s_fp_cap;               // "fingerprint" caption under the chip frame
+static lv_obj_t *s_fp_card;              // tap the chip -> what-this-number-means card
 static lv_obj_t *s_fp_fly;               // transient: the code flying from the reveal card
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
@@ -1320,6 +1324,7 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
   }
 #endif
   s_wallet_on = false;
+  if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
   wallet_session_close();                  // locked: no key material stays in RAM
   motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
@@ -1368,6 +1373,71 @@ static void tile_glow_sync(void) {
   lv_obj_move_foreground(s_tile_glow);
 }
 
+// ---- fingerprint card: tapping the home chip teaches what the number means
+// (locking already has a home: the KISS logo). Same overlay style as the
+// wallet section's "?" cards; opa/translate anims only. ----
+static void fp_card_fade(void *obj, int32_t v) {
+  lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
+}
+
+static void fp_card_close_cb(lv_event_t *e) {
+  (void)e;
+  if (s_fp_card) { lv_obj_delete_async(s_fp_card); s_fp_card = NULL; }
+}
+
+static void fp_card_open(void) {
+  if (s_fp_card) return;
+  lv_obj_t *ovl = lv_obj_create(s_wallet);
+  lv_obj_remove_style_all(ovl);
+  lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_style_bg_color(ovl, lv_color_hex(0x070A10), 0);
+  lv_obj_set_style_bg_opa(ovl, 245, 0);
+  lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);            // swallow stray taps
+  lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(ovl, fp_card_close_cb, LV_EVENT_CLICKED, NULL);
+  s_fp_card = ovl;
+
+  lv_obj_t *t = lv_label_create(ovl);
+  lv_label_set_text_fmt(t, "FINGERPRINT  %s", s_fp_hex);
+  lv_obj_set_style_text_color(t, wt_accent(), 0);
+  lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_letter_space(t, 2, 0);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
+
+  lv_obj_t *b = lv_label_create(ovl);
+  lv_label_set_text(b,
+      "the short code that identifies THIS wallet - made\n"
+      "from your words + passphrase together, revealing\n"
+      "nothing about either.\n\n"
+      "same fingerprint = same wallet, same coins. type a\n"
+      "different passphrase at unlock and you get a\n"
+      "different fingerprint: a different wallet.\n\n"
+      "your paired app shows this same code - and SIGN\n"
+      "shows it again before anything is signed.");
+  lv_obj_set_style_text_color(b, lv_color_hex(0x7A869C), 0);
+  lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
+
+  lv_obj_t *ok = wt_pill(ovl, "OK", 300, 388, 200, fp_card_close_cb, NULL);
+
+  lv_obj_set_style_opa(ovl, 0, 0);
+  lv_anim_t a;
+  lv_anim_init(&a);
+  lv_anim_set_var(&a, ovl);
+  lv_anim_set_values(&a, 0, LV_OPA_COVER);
+  lv_anim_set_duration(&a, 160);
+  lv_anim_set_exec_cb(&a, fp_card_fade);
+  lv_anim_start(&a);
+  lv_anim_t r;
+  lv_anim_init(&r);
+  lv_anim_set_var(&r, ok);
+  lv_anim_set_values(&r, 400, 388);
+  lv_anim_set_duration(&r, 160);
+  lv_anim_set_exec_cb(&r, (lv_anim_exec_xcb_t)lv_obj_set_y);
+  lv_anim_start(&r);
+}
+
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -1390,8 +1460,8 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
-    if (wallet_recv_active() || wallet_sign_active() || wallet_scan_active() ||
-        wallet_info_active() || wallet_settings_active()) {
+    if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
+        wallet_scan_active() || wallet_info_active() || wallet_settings_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
       return;
     }
@@ -1444,6 +1514,8 @@ static void game_tick(lv_timer_t *t) {
           camera_spike_cycle_orientation();
         }
       }
+    } else if (pressed && !s_prev_press && tx >= 566 && ty < 110) {
+      s_fp_pend = true;                  // fingerprint chip: open the card on release
     } else if (pressed && !s_prev_press &&
                tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340) {  // Sign tile
       s_tile_pend = 1;
@@ -1456,6 +1528,9 @@ static void game_tick(lv_timer_t *t) {
     } else if (pressed && !s_prev_press &&
                tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340) { // Settings tile
       s_tile_pend = 4;
+    } else if (!pressed && s_prev_press && s_fp_pend) {           // finger lifted: card
+      s_fp_pend = false;
+      fp_card_open();
     } else if (!pressed && s_prev_press && s_tile_pend) {          // finger lifted: open
       int t = s_tile_pend;
       s_tile_pend = 0;
@@ -1467,6 +1542,8 @@ static void game_tick(lv_timer_t *t) {
     if (!pressed) s_zoom_drag = false;
 #else
     if (pressed && !s_prev_press && tx < 200 && ty < 110) wallet_lock();
+    else if (pressed && !s_prev_press && tx >= 566 && ty < 110)
+      s_fp_pend = true;                  // fingerprint chip: open the card on release
     else if (pressed && !s_prev_press && tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340)
       s_tile_pend = 1;
     else if (pressed && !s_prev_press && tx >= 230 && tx <= 390 && ty >= 140 && ty <= 340)
@@ -1475,7 +1552,10 @@ static void game_tick(lv_timer_t *t) {
       s_tile_pend = 3;
     else if (pressed && !s_prev_press && tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340)
       s_tile_pend = 4;
-    else if (!pressed && s_prev_press && s_tile_pend) {
+    else if (!pressed && s_prev_press && s_fp_pend) {
+      s_fp_pend = false;
+      fp_card_open();
+    } else if (!pressed && s_prev_press && s_tile_pend) {
       int t = s_tile_pend;
       s_tile_pend = 0;
       if (t == 1) wallet_sign_open(lv_screen_active());
