@@ -15,13 +15,13 @@ static const uint32_t ACC_HEX[WT_ACC_N] = {
     0xFF8A3D,   // ORANGE
 };
 static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
-    0x18202D,   // MONO: cool ink glass
+    0x232E42,   // MONO: cool ink glass, bright enough that "selected" is obvious
     0x102417,   // GREEN
     0x2A1020,   // CYPHERPINK
     0x2B190D,   // ORANGE
 };
 static const uint32_t ACC_PRESS_HEX[WT_ACC_N] = {
-    0x263044,
+    0x33405A,
     0x173823,
     0x3A1730,
     0x3A2513,
@@ -32,6 +32,11 @@ int  wt_accent_get(void)   { return s_accent; }
 lv_color_t wt_accent(void) { return lv_color_hex(ACC_HEX[s_accent]); }
 lv_color_t wt_primary(void) { return wt_accent(); }
 lv_color_t wt_accent_bg(void) { return lv_color_hex(ACC_BG_HEX[s_accent]); }
+const char *wt_accent_name(void)
+{
+    static const char *NM[WT_ACC_N] = {"MONO", "GREEN", "CYPHERPINK", "ORANGE"};
+    return NM[s_accent];
+}
 lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
@@ -89,6 +94,17 @@ lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
                   lv_event_cb_t cb, void *ud)
 {
     return wt_pillh(scr, txt, x, y, w, 52, cb, ud);
+}
+
+void wt_pill_select(lv_obj_t *pill, bool on)
+{
+    // active chooser = filled glass + 2px accent ring + bright text; inactive
+    // recedes. The fill is what makes MONO's selection readable (a white ring
+    // alone disappears next to white text).
+    lv_obj_set_style_bg_color(pill, on ? wt_accent_bg() : WT_KEY, 0);
+    lv_obj_set_style_border_color(pill, on ? wt_primary() : WT_MUT, 0);
+    lv_obj_set_style_border_width(pill, on ? 2 : 1, 0);
+    lv_obj_set_style_text_color(lv_obj_get_child(pill, 0), on ? WT_INK : WT_MUT, 0);
 }
 
 void wt_pill_primary(lv_obj_t *pill)

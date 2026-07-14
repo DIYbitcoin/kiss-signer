@@ -115,32 +115,46 @@ KISS_MARK_POS = (210, 68 - KISS_MARK_SIZE // 2)
 BY = H - 46  # bottom-row baseline for the status / theme indicators
 
 
-def accent_art(d, struct, theme_col, status_col, status=True):
+def accent_art(d, struct, theme_col, status_col, status=True, parts="all",
+               theme_dot=True):
     """struct = chrome stroke color (opaque sharp pass, or alpha tuple for glow pass).
     theme_col / status_col are always drawn in their true colors.
     status=False skips the status pill: the firmware bake leaves that corner to a
-    live build-identity label (a light that never changes is a fake light)."""
-    for (ox, oy, dx, dy) in [(26, 26, 1, 1), (W - 26, 26, -1, 1), (26, H - 26, 1, -1), (W - 26, H - 26, -1, -1)]:
-        d.line([(ox, oy), (ox + dx * 26, oy)], fill=struct, width=3)
-        d.line([(ox, oy), (ox, oy + dy * 26)], fill=struct, width=3)
-    d.line([(46, 96), (188, 96)], fill=struct, width=3)
-    d.rounded_rectangle([566, 40, 760, 86], 10, outline=struct, width=2)
+    live build-identity label (a light that never changes is a fake light).
+    parts: "all" (preview sheet) / "icons" / "frames" — the firmware bake draws
+    icons white and frames DIM, because the frames are re-drawn LIVE in the
+    active theme's accent (LVGL borders + shadow glow), which is how theme
+    switching recolors the home without re-baking 768KB per theme.
+    theme_dot=False skips the baked dot+name (live indicator owns that corner)."""
     tw = 160
-    for i in range(4):
-        x0 = 50 + i * (tw + 20)
-        d.rounded_rectangle([x0, 150, x0 + tw, 332], 12, outline=struct, width=2)
-        ICONS[i][2](d, x0 + tw / 2, 212, 46, struct)
+    if parts in ("all", "frames"):
+        for (ox, oy, dx, dy) in [(26, 26, 1, 1), (W - 26, 26, -1, 1), (26, H - 26, 1, -1), (W - 26, H - 26, -1, -1)]:
+            d.line([(ox, oy), (ox + dx * 26, oy)], fill=struct, width=3)
+            d.line([(ox, oy), (ox, oy + dy * 26)], fill=struct, width=3)
+        d.line([(46, 96), (188, 96)], fill=struct, width=3)
+        d.rounded_rectangle([566, 40, 760, 86], 10, outline=struct, width=2)
+        for i in range(4):
+            x0 = 50 + i * (tw + 20)
+            d.rounded_rectangle([x0, 150, x0 + tw, 332], 12, outline=struct, width=2)
+    if parts in ("all", "icons"):
+        for i in range(4):
+            x0 = 50 + i * (tw + 20)
+            ICONS[i][2](d, x0 + tw / 2, 212, 46, struct)
     # status light pill (bottom-left) — preview sheet only, see status=False
     if status:
         d.rounded_rectangle([44, BY - 22, 250, BY + 22], 22, outline=status_col, width=2)
         d.ellipse([62 - 9, BY - 9, 62 + 9, BY + 9], fill=status_col)
     # theme dot (bottom-right)
-    d.ellipse([684 - 7, BY - 7, 684 + 7, BY + 7], fill=theme_col)
-    d.ellipse([684 - 11, BY - 11, 684 + 11, BY + 11], outline=theme_col, width=2)
+    if theme_dot:
+        d.ellipse([684 - 7, BY - 7, 684 + 7, BY + 7], fill=theme_col)
+        d.ellipse([684 - 11, BY - 11, 684 + 11, BY + 11], outline=theme_col, width=2)
 
 
 def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
-           bake_status=True, bake_tile_labels=True):
+           bake_status=True, bake_tile_labels=True, live_frames=False):
+    # live_frames=True (firmware bake): icons stay white w/ glow; the frame
+    # strokes bake DIM (fallback skeleton) and the theme dot is skipped — the
+    # firmware draws frames/dot live in the active accent.
     # grid_a = solid-grid opacity 0-255 (lower = more transparent)
     # bake_chip=False leaves the fingerprint chip area BLANK: the firmware bake uses it
     # because the chip is dynamic (EMPTY vs live fingerprint) and is drawn as LVGL labels.
@@ -173,10 +187,18 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
     base.alpha_composite(Image.fromarray(np.dstack([np.zeros((H, W, 3), np.uint8), vig]), "RGBA"))
     gl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     accent_art(ImageDraw.Draw(gl), (*A, 200), theme_col=A, status_col=scol,
-               status=bake_status)
+               status=bake_status, parts="icons" if live_frames else "all",
+               theme_dot=not live_frames)
     base.alpha_composite(gl.filter(ImageFilter.GaussianBlur(6)))
     d = ImageDraw.Draw(base)
-    accent_art(d, A, theme_col=A, status_col=scol, status=bake_status)
+    if live_frames:
+        DIMF = (58, 66, 84)      # quiet skeleton; live accent frames sit on top
+        accent_art(d, DIMF, theme_col=A, status_col=scol, status=False,
+                   parts="frames", theme_dot=False)
+        accent_art(d, A, theme_col=A, status_col=scol, status=bake_status,
+                   parts="icons", theme_dot=False)
+    else:
+        accent_art(d, A, theme_col=A, status_col=scol, status=bake_status)
     # header
     d.text((44, 44), "KISS", font=font(44), fill=INK)
     d.text((48, 100), "airgapped bitcoin signer", font=font(15, mono=True), fill=MUT)
@@ -207,11 +229,12 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
     if bake_status:
         d.text((84, BY - 14), slab, font=font(20), fill=scol)
         d.text((84, BY + 8), ssub, font=font(11, mono=True), fill=MUT)
-    # theme dot label
-    nm = THEMES[active][0].upper()
-    fn = font(15, mono=True)
-    d.text((704, BY - 9), nm, font=fn, fill=INK)
-    d.text((704, BY - 28), "theme", font=font(10, mono=True), fill=MUT)
+    # theme dot label (preview sheet only — the firmware's is live)
+    if not live_frames:
+        nm = THEMES[active][0].upper()
+        fn = font(15, mono=True)
+        d.text((704, BY - 9), nm, font=fn, fill=INK)
+        d.text((704, BY - 28), "theme", font=font(10, mono=True), fill=MUT)
     return base.convert("RGB")
 
 
@@ -234,7 +257,7 @@ print("saved /tmp/wallet_mock.png", sheet.size)
 # the baked CAUTION never changed, which made it a fake status light) and NO tile
 # labels (they settle in as live image objects on unlock)
 img = render(0, "caution", None, bake_chip=False, bake_status=False,
-             bake_tile_labels=False)
+             bake_tile_labels=False, live_frames=True)
 rgb = np.array(img)
 v = (((rgb[..., 0] >> 3).astype(np.uint16) << 11) | ((rgb[..., 1] >> 2).astype(np.uint16) << 5) | (rgb[..., 2] >> 3))
 data = np.dstack([(v & 0xFF).astype(np.uint8), (v >> 8).astype(np.uint8)]).reshape(-1)
