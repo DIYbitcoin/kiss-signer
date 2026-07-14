@@ -160,6 +160,24 @@ Only requirement is Docker; builds are reproducible, so your hashes must match
 tools/build_release.sh     # verified release build -> build-release/
 ```
 
+## Reproducible builds
+
+Do not trust a firmware download just because it is attached to a release.
+KISS release builds are rebuilt by GitHub Actions, and the same commit should
+produce the same SHA256 hashes locally.
+
+```sh
+tools/build_release.sh
+shasum -a 256 \
+  build-release/guition_kiss_bringup.bin \
+  build-release/bootloader/bootloader.bin \
+  build-release/partition_table/partition-table.bin
+```
+
+Compare those hashes with the matching GitHub Actions run. For final funded
+boards, use `tools/build_encrypted_release.sh` and compare the encrypted-release
+hashes instead.
+
 ## Flash encryption (final-board build)
 
 `tools/build_encrypted_release.sh` builds the hardened profile: flash
