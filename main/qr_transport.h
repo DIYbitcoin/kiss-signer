@@ -45,6 +45,11 @@ typedef struct qrt_encoder qrt_encoder_t;
 // fmt = QRT_FMT_UR / QRT_FMT_PMOFN / QRT_FMT_STATIC.
 // STATIC refuses PSBTs too big for one QR.
 qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len);
+
+// Same, with a fragment-size override (UR: bytes per fragment; pMofN: base64
+// chars per part; <= 0 = defaults). Smaller fragments = sparser, easier-to-scan
+// QRs — the SIGNED screen's easy-scan mode uses this.
+qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, int frag);
 void qrt_encoder_free(qrt_encoder_t *e);
 
 // Parts in one display cycle (1 = static / single-part UR).

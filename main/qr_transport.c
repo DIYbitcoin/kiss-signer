@@ -261,13 +261,14 @@ struct qrt_encoder {
     // static / pMofN
     char *b64;
     size_t b64_len;
+    size_t chunk;      // pMofN chars per part (PMOFN_CHUNK unless overridden)
     int total;
     int next_i;
     // UR
     ur_encoder_t *ur;
 };
 
-qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
+qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, int frag) {
     if (!psbt || len == 0 || len > QRT_MAX_PSBT) return NULL;
     qrt_encoder_t *e = calloc(1, sizeof *e);
     if (!e) return NULL;
@@ -278,7 +279,8 @@ qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
         size_t cbl = 0;
         uint8_t *cb = pd ? psbt_to_cbor(pd, &cbl) : NULL;
         if (cb)
-            e->ur = ur_encoder_new("crypto-psbt", cb, cbl, UR_MAX_FRAGMENT, 0, 10);
+            e->ur = ur_encoder_new("crypto-psbt", cb, cbl,
+                                   frag > 0 ? (size_t)frag : UR_MAX_FRAGMENT, 0, 10);
         if (cb) free(cb);
         if (pd) psbt_free(pd);
         if (!e->ur) { free(e); return NULL; }
@@ -299,7 +301,8 @@ qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
             if (e->b64_len > STATIC_MAX_B64) { free(e->b64); free(e); return NULL; }
             e->total = 1;
         } else {
-            e->total = (int)((e->b64_len + PMOFN_CHUNK - 1) / PMOFN_CHUNK);
+            e->chunk = frag > 0 ? (size_t)frag : PMOFN_CHUNK;
+            e->total = (int)((e->b64_len + e->chunk - 1) / e->chunk);
             if (e->total < 1) e->total = 1;
             if (e->total > PMOFN_MAX_PARTS) { free(e->b64); free(e); return NULL; }
         }
@@ -308,6 +311,10 @@ qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
 
     free(e);
     return NULL;
+}
+
+qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
+    return qrt_encoder_new_frag(fmt, psbt, len, 0);
 }
 
 void qrt_encoder_free(qrt_encoder_t *e) {
@@ -346,9 +353,9 @@ int qrt_encoder_next(qrt_encoder_t *e, char *out, size_t cap) {
     // pMofN cycles forever
     int i = e->next_i % e->total;
     e->next_i = (e->next_i + 1) % e->total;
-    size_t off = (size_t)i * PMOFN_CHUNK;
+    size_t off = (size_t)i * e->chunk;
     size_t l = e->b64_len - off;
-    if (l > PMOFN_CHUNK) l = PMOFN_CHUNK;
+    if (l > e->chunk) l = e->chunk;
     int n = snprintf(out, cap, "p%dof%d %.*s", i + 1, e->total, (int)l, e->b64 + off);
     return (n > 0 && (size_t)n < cap) ? 0 : -1;
 }
