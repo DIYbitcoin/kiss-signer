@@ -423,6 +423,11 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
+  touch(605, 275); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
+  save("/tmp/sim_sign_rbf_mid.ppm");
+  pump(30);                                          // let the stagger settle
+  save("/tmp/sim_sign_rbf.ppm");
+  touch(400, 426); pump(3); release(); pump(6);     // OK closes the card
   touch(293, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> verify again

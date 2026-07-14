@@ -296,8 +296,54 @@ static void caution_help_cb(lv_event_t *e)
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 96);
 
-    lv_obj_t *ok = wt_pill(ovl, "OK", 300, 412, 200, caution_ok_cb, ovl);
-    (void)ok;
+    wt_pill(ovl, "OK", 300, 412, 200, caution_ok_cb, ovl);
+    wt_card_intro(ovl);
+}
+
+// ---- "?" on the RBF line: plain-words Replace-By-Fee ----
+static void rbf_ok_cb(lv_event_t *e)
+{
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+static void rbf_help_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, 245, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(ovl, rbf_ok_cb, LV_EVENT_CLICKED, ovl);   // tap anywhere = close
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, s_sum.rbf ? "REPLACEABLE (RBF)" : "FINAL");
+    lv_obj_set_style_text_color(t, INK_COL, 0);
+    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_letter_space(t, 2, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
+
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, s_sum.rbf
+        ? "RBF = Replace-By-Fee. if this transaction gets stuck\n"
+          "unconfirmed, it can be re-sent with a higher fee to\n"
+          "speed it up. a normal, standard setting - most\n"
+          "wallets turn it on by default.\n\n"
+          "it does NOT change where your coins go, only whether\n"
+          "the fee can be bumped later."
+        : "this transaction is final: it cannot be re-sent with a\n"
+          "higher fee later (the opposite of RBF). if it gets\n"
+          "stuck, you wait it out.\n\n"
+          "it does NOT change where your coins go.");
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
+
+    wt_pill(ovl, "OK", 300, 400, 200, rbf_ok_cb, ovl);
+    wt_card_intro(ovl);
 }
 
 // "I UNDERSTAND" on a CAUTION: a deliberate second confirm before the hold pill
@@ -435,6 +481,26 @@ static void verify_screen(lv_obj_t *parent)
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? "replaceable (RBF)" : "final, not replaceable");
     mk_lbl(buf, 430, 266, &lv_font_montserrat_14, MUT_COL);
+    {   // "?" -> plain-words RBF explainer (most people don't know the term)
+        int cx = s_sum.rbf ? 592 : 620;
+        lv_obj_t *hc = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(hc);
+        lv_obj_set_size(hc, 26, 26);
+        lv_obj_set_pos(hc, cx, 262);
+        lv_obj_set_style_radius(hc, 13, 0);
+        lv_obj_set_style_bg_color(hc, KEY_COL, 0);
+        lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(hc, 1, 0);
+        lv_obj_set_style_border_color(hc, MUT_COL, 0);
+        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(hc, 12);
+        lv_obj_add_event_cb(hc, rbf_help_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *hl = lv_label_create(hc);
+        lv_label_set_text(hl, "?");
+        lv_obj_set_style_text_color(hl, MUT_COL, 0);
+        lv_obj_set_style_text_font(hl, &lv_font_montserrat_14, 0);
+        lv_obj_center(hl);
+    }
 
     // which passphrase-wallet is about to sign — fingerprint = the login check
     // (spec), so give it the same visual weight as the fee number
@@ -843,6 +909,7 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_set_style_text_font(ol, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_letter_space(ol, 2, 0);
     lv_obj_center(ol);
+    wt_card_intro(ovl);
 }
 
 static void sd_pick_cb(lv_event_t *e)
