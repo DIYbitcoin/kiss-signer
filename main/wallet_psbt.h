@@ -35,6 +35,29 @@ typedef struct {
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
 
+// ---- DETAILS page data (read on demand from the held PSBT) ----
+#define WPSBT_MAX_INS 16
+
+typedef struct {
+    char     txid[65];       // previous txid, display (big-endian) hex
+    uint32_t vout;
+    uint64_t sats;
+    uint32_t purpose;        // 44/49/84 (verify already proved it's ours)
+    uint32_t change, index;  // our derivation tail m/../<change>/<index>
+} wpsbt_in_t;
+
+typedef struct {
+    char     txid[65];       // txid of the tx being signed, display hex
+    bool     txid_final;     // segwit-only spends: signing can't change the txid
+    uint32_t version;
+    uint32_t locktime;
+    uint32_t n_in;           // capped at WPSBT_MAX_INS
+    wpsbt_in_t ins[WPSBT_MAX_INS];
+} wpsbt_details_t;
+
+// Fill *d from the currently loaded PSBT. 0 on success, nonzero if none held.
+int wallet_psbt_details(wpsbt_details_t *d);
+
 // Parse + verify. Returns 0 and fills *s even when s->status == WPSBT_STOP
 // (the UI must say WHY); nonzero only if the bytes aren't a valid PSBT or no
 // session is open. Holds the parsed PSBT internally for wallet_psbt_sign.

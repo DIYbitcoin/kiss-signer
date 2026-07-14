@@ -202,19 +202,66 @@ static void sign_press_cb(lv_event_t *e)
     }
 }
 
+// grouped address with the compare-ends bright: people check the first and
+// last characters against the coordinator, so those get ink, the middle dims
+static void mk_addr_spans(lv_obj_t *par, const char *grouped, int w)
+{
+    int len = (int)strlen(grouped);
+    int h = len, t = len, raw = 0;
+    for (int i = 0; i < len; i++) {
+        if (grouped[i] != ' ' && ++raw == 4) { h = i + 1; break; }
+    }
+    raw = 0;
+    for (int i = len - 1; i > h; i--) {
+        if (grouped[i] != ' ' && ++raw == 4) { t = i; break; }
+    }
+    char head[8], mid[120];
+    snprintf(head, sizeof head, "%.*s", h, grouped);
+    snprintf(mid, sizeof mid, "%.*s", t - h, grouped + h);
+
+    lv_obj_t *sg = lv_spangroup_create(par);
+    lv_obj_set_width(sg, w);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+    lv_obj_set_style_text_font(sg, &lv_font_montserrat_14, 0);
+    lv_span_t *s1 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s1, head);
+    lv_style_set_text_color(lv_span_get_style(s1), INK_COL);
+    lv_span_t *s2 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s2, mid);
+    lv_style_set_text_color(lv_span_get_style(s2), MUT_COL);
+    lv_span_t *s3 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s3, grouped + t);
+    lv_style_set_text_color(lv_span_get_style(s3), INK_COL);
+    lv_spangroup_refresh(sg);
+}
+
+static void details_cb(lv_event_t *e);
+
 // ---- verify screen (the heart of the safety model) ----
 static void verify_screen(lv_obj_t *parent)
 {
     char buf[160], a[32], b[32];
+    s_parent = parent;                    // details page rebuilds us from here
     mk_screen(parent, "SIGN", s_cur);
     mk_status_light();
 
-    // outputs, left column — EVERY output is shown (scroll if it doesn't fit);
-    // nothing the user is asked to sign is ever hidden. change rows say why.
+    // the one number to check first: everything leaving this wallet
+    // (amount sent + fee), in both units the coordinator might display
+    uint64_t total = s_sum.in_sats - s_sum.change_sats;
+    mk_lbl("YOU ARE SENDING", 40, 96, &lv_font_montserrat_14, MUT_COL);
+    fmt_sats(total, a, sizeof a);
+    snprintf(buf, sizeof buf, "%s sats", a);
+    mk_lbl(buf, 40, 116, &lv_font_montserrat_28, INK_COL);
+    wt_fmt_btc(total, b, sizeof b);
+    snprintf(buf, sizeof buf, "%s BTC = amount + fee", b);
+    mk_lbl(buf, 40, 152, &lv_font_montserrat_14, MUT_COL);
+
+    // outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
+    // user is asked to sign is ever hidden. change rows say why they're safe.
     lv_obj_t *ol = lv_obj_create(s_scr);
     lv_obj_remove_style_all(ol);
-    lv_obj_set_pos(ol, 40, 96);
-    lv_obj_set_size(ol, 372, 296);
+    lv_obj_set_pos(ol, 40, 178);
+    lv_obj_set_size(ol, 372, 214);
     lv_obj_set_style_pad_all(ol, 8, 0);
     lv_obj_set_style_pad_row(ol, 4, 0);
     lv_obj_set_flex_flow(ol, LV_FLEX_FLOW_COLUMN);
@@ -230,20 +277,25 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
         fmt_sats(s_sum.outs[i].sats, a, sizeof a);
-        snprintf(buf, sizeof buf, "%s sats", a);
+        wt_fmt_btc(s_sum.outs[i].sats, b, sizeof b);
+        snprintf(buf, sizeof buf, "%s sats   (%s BTC)", a, b);
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_font(amt, &lv_font_montserrat_14, 0);
 
         char ga[120];
         group4(s_sum.outs[i].addr, ga, sizeof ga);
-        lv_obj_t *ad = lv_label_create(row);
-        lv_label_set_text(ad, ga);
-        lv_obj_set_style_text_color(ad, s_sum.outs[i].is_change ? MUT_COL : INK_COL, 0);
-        lv_obj_set_style_text_font(ad, &lv_font_montserrat_14, 0);
-        lv_obj_set_width(ad, 340);
-        lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
+        if (s_sum.outs[i].is_change) {       // verified ours: stays quiet
+            lv_obj_t *ad = lv_label_create(row);
+            lv_label_set_text(ad, ga);
+            lv_obj_set_style_text_color(ad, MUT_COL, 0);
+            lv_obj_set_style_text_font(ad, &lv_font_montserrat_14, 0);
+            lv_obj_set_width(ad, 340);
+            lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
+        } else {                             // compare-me: bright ends
+            mk_addr_spans(row, ga, 340);
+        }
 
         lv_obj_t *tag = lv_label_create(row);
         if (s_sum.outs[i].is_change) {
@@ -325,6 +377,7 @@ static void verify_screen(lv_obj_t *parent)
     }
 
     mk_pill("BACK", 48, 404, 140, close_cb);
+    mk_pill("DETAILS", 208, 404, 170, details_cb);
     if (s_sum.status != WPSBT_STOP) {
         // hold-to-sign: ring fills while pressed; let go = nothing happens
         s_arc = lv_arc_create(s_scr);
@@ -346,6 +399,95 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_border_color(p, OK_COL, 0);
         s_sign_lbl = lv_obj_get_child(p, 0);
     }
+}
+
+// ---- DETAILS: the second page for people who want the raw facts. One page,
+// one tap in, one tap back — the verify screen stays simple. ----
+static void details_back_cb(lv_event_t *e)
+{
+    (void)e;
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    verify_screen(s_parent);
+}
+
+static void details_cb(lv_event_t *e)
+{
+    (void)e;
+    wpsbt_details_t det;
+    if (wallet_psbt_details(&det) != 0)
+        return;
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    mk_screen(s_parent, "DETAILS", s_cur);
+
+    char buf[128], a[32];
+    snprintf(buf, sizeof buf, "INPUTS (%u) - ALL VERIFIED YOURS", (unsigned)det.n_in);
+    mk_lbl(buf, 40, 96, &lv_font_montserrat_14, MUT_COL);
+
+    lv_obj_t *il = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(il);
+    lv_obj_set_pos(il, 40, 118);
+    lv_obj_set_size(il, 372, 274);
+    lv_obj_set_style_pad_all(il, 8, 0);
+    lv_obj_set_style_pad_row(il, 4, 0);
+    lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(il, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(il, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_bg_opa(il, LV_OPA_TRANSP, 0);
+    for (uint32_t i = 0; i < det.n_in; i++) {
+        lv_obj_t *row = lv_obj_create(il);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, lv_pct(100));
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_bottom(row, 10, 0);
+
+        fmt_sats(det.ins[i].sats, a, sizeof a);
+        snprintf(buf, sizeof buf, "%s sats", a);
+        lv_obj_t *amt = lv_label_create(row);
+        lv_label_set_text(amt, buf);
+        lv_obj_set_style_text_color(amt, INK_COL, 0);
+        lv_obj_set_style_text_font(amt, &lv_font_montserrat_14, 0);
+
+        // coin being spent: first 8 + last 8 of its txid, and the output index
+        snprintf(buf, sizeof buf, "%.8s...%s : %u",
+                 det.ins[i].txid, det.ins[i].txid + 56, (unsigned)det.ins[i].vout);
+        lv_obj_t *tid = lv_label_create(row);
+        lv_label_set_text(tid, buf);
+        lv_obj_set_style_text_color(tid, MUT_COL, 0);
+        lv_obj_set_style_text_font(tid, &lv_font_montserrat_14, 0);
+
+        snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/%u'/%d'/0'/%u/%u",
+                 (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
+                 (unsigned)det.ins[i].change, (unsigned)det.ins[i].index);
+        lv_obj_t *pl = lv_label_create(row);
+        lv_label_set_text(pl, buf);
+        lv_obj_set_style_text_color(pl, OK_COL, 0);
+        lv_obj_set_style_text_font(pl, &lv_font_montserrat_14, 0);
+    }
+
+    // the id to find it by, once broadcast — final only for segwit-only spends
+    mk_lbl("TRANSACTION ID", 430, 96, &lv_font_montserrat_14, MUT_COL);
+    char gt[80];
+    group4(det.txid, gt, sizeof gt);
+    lv_obj_t *tx = mk_lbl(gt, 430, 118, &lv_font_montserrat_14, INK_COL);
+    lv_obj_set_width(tx, 330);
+    lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
+    mk_lbl(det.txid_final ? "your coordinator shows this same id"
+                          : "will change when signed (legacy inputs)",
+           430, 210, &lv_font_montserrat_14, MUT_COL);
+
+    snprintf(buf, sizeof buf, "version %u,  locktime %u",
+             (unsigned)det.version, (unsigned)det.locktime);
+    mk_lbl(buf, 430, 258, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl("sighash ALL: signatures cover every\namount and destination above",
+           430, 284, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(s_sum.rbf ? "replaceable (RBF): the fee can be\nbumped after broadcast"
+                     : "final: not replaceable after broadcast",
+           430, 330, &lv_font_montserrat_14, MUT_COL);
+
+    mk_pill("BACK", 48, 404, 140, details_back_cb);
 }
 
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came

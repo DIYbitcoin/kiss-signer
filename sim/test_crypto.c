@@ -531,6 +531,24 @@ int main(int argc, char **argv) {
     chkb("psbt est_vsize sane", sum.est_vsize >= 130 && sum.est_vsize <= 150);
     chki("psbt fee rate x10", sum.fee_rate_x10, sum.est_vsize ? 10000 / sum.est_vsize : -1);
 
+    {   // DETAILS accessor: per-input facts + the unsigned txid (final for segwit)
+        wpsbt_details_t det;
+        chki("psbt details rc", wallet_psbt_details(&det), 0);
+        chki("details version", det.version, 2);
+        chki("details locktime", det.locktime, 0);
+        chki("details n_in", det.n_in, 1);
+        chk("details in0 prev txid", det.ins[0].txid,   // fixture prev = 32x 0xAA
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        chki("details in0 vout", det.ins[0].vout, 0);
+        chki("details in0 sats", (long long)det.ins[0].sats, 100000);
+        chki("details in0 purpose", det.ins[0].purpose, 84);
+        chki("details in0 change", det.ins[0].change, 0);
+        chki("details in0 index", det.ins[0].index, 0);
+        chkb("details txid final (all segwit)", det.txid_final);
+        chkb("details txid is 64 hex", strlen(det.txid) == 64 &&
+             strspn(det.txid, "0123456789abcdef") == 64);
+    }
+
     chki("psbt sign rc", wallet_psbt_sign(sb, sizeof sb, &sw), 0);
     chkb("psbt signed bigger", sw > pl);
     {   // the signed PSBT must finalize + extract to a real tx with a 2-item witness

@@ -143,6 +143,15 @@ void wt_group4(const char *in, char *out, size_t out_len)
     out[o] = 0;
 }
 
+void wt_fmt_btc(uint64_t sats, char *out, size_t out_len)
+{
+    // full 8 decimals, never abbreviated: this string exists to be compared
+    // digit-by-digit against a coordinator that displays BTC
+    snprintf(out, out_len, "%llu.%08llu",
+             (unsigned long long)(sats / 100000000ULL),
+             (unsigned long long)(sats % 100000000ULL));
+}
+
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len)
 {
     char raw[24];
