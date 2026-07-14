@@ -504,7 +504,9 @@ int main(void) {
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
   touch(598, 226); pump(3); release(); pump(4);     // round 2: pill 1
   touch(218, 306); pump(3); release(); pump(6);     // round 3: pill 2 -> stored
-  save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR WALLET PASSWORD
+  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER (what a passphrase is)
+  touch(188, 430); pump(3); release(); pump(6);     // CREATE PASSPHRASE -> keyboard
+  save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
   // CANCEL during setup must confirm (don't throw away a fresh seed on one tap)
   touch(200, 430); pump(3); release(); pump(6);     // CANCEL -> confirm modal
   save("/tmp/sim_setup_cancel.ppm");

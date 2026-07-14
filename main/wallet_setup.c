@@ -281,14 +281,20 @@ static void entropy_screen(void)
     mk_screen("ADD RANDOMNESS", "a wallet is only as safe as how randomly it\n"
                                 "was created. the camera provides that.");
 #ifdef SIMULATOR
-    mk_lbl("(simulator: camera entropy is scripted)", 48, 140,
+    mk_lbl("(simulator: camera entropy is scripted)\n\n"
+           "on the device, the camera shot is MIXED with\n"
+           "the chip's own hardware randomness - neither\n"
+           "source alone decides your words.", 48, 140,
            &lv_font_montserrat_14, MUT_COL);
     mk_pill("CAPTURE", 48, 404, 240, sim_entropy_cb, NULL);
     mk_pill("BACK", 610, 404, 140, goto_choose_cb, NULL);
 #else
     mk_lbl("point the camera at anything messy, like\n"
            "leaves, gravel, or a shuffled deck of cards.\n"
-           "tap the screen once the bar turns green.", 48, 122,
+           "tap the screen once the bar turns green.\n\n"
+           "your shot is then MIXED with the chip's own\n"
+           "hardware randomness - neither source alone\n"
+           "decides your words.", 48, 122,
            &lv_font_montserrat_14, MUT_COL);
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
