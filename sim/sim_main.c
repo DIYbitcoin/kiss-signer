@@ -347,6 +347,17 @@ int main(void) {
   save("/tmp/sim_recv.ppm");
   touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
+  {  // VERIFY: uppercase bitcoin: URI of stub receive addr #7 -> YOURS; junk -> NOT
+    touch(697, 422); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
+    wallet_scan_inject(good, strlen(good)); pump(6);
+    save("/tmp/sim_vfy_yes.ppm");
+    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
+    wallet_scan_inject(bad, strlen(bad)); pump(6);
+    save("/tmp/sim_vfy_no.ppm");
+    touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
+  }
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");

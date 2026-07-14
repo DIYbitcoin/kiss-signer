@@ -4,6 +4,7 @@
 #include "wallet_theme.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static int s_accent = WT_ACC_MONO;
 
@@ -131,6 +132,38 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
     }
     if (qr) *qr = q;
     return card;
+}
+
+lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
+{
+    int len = (int)strlen(grouped);
+    int h = len, t = len, raw = 0;
+    for (int i = 0; i < len; i++) {
+        if (grouped[i] != ' ' && ++raw == 4) { h = i + 1; break; }
+    }
+    raw = 0;
+    for (int i = len - 1; i > h; i--) {
+        if (grouped[i] != ' ' && ++raw == 4) { t = i; break; }
+    }
+    char head[8], mid[120];
+    snprintf(head, sizeof head, "%.*s", h, grouped);
+    snprintf(mid, sizeof mid, "%.*s", t - h, grouped + h);
+
+    lv_obj_t *sg = lv_spangroup_create(par);
+    lv_obj_set_width(sg, w);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+    lv_obj_set_style_text_font(sg, f, 0);
+    lv_span_t *s1 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s1, head);
+    lv_style_set_text_color(lv_span_get_style(s1), WT_INK);
+    lv_span_t *s2 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s2, mid);
+    lv_style_set_text_color(lv_span_get_style(s2), WT_MUT);
+    lv_span_t *s3 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s3, grouped + t);
+    lv_style_set_text_color(lv_span_get_style(s3), WT_INK);
+    lv_spangroup_refresh(sg);
+    return sg;
 }
 
 void wt_group4(const char *in, char *out, size_t out_len)
