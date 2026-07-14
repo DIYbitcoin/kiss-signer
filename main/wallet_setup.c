@@ -200,8 +200,8 @@ static void words_go_cb(lv_event_t *e)
 
 static void words_screen(void)
 {
-    mk_screen("WRITE THESE DOWN", "these words ARE your wallet. copy them onto\n"
-                                  "paper in order. never a photo or a computer file.");
+    mk_screen("WRITE THESE DOWN", "these words ARE your wallet. copy them onto paper in order. never a photo\n"
+                                  "or a computer file. words + passphrase restore on ANY standard wallet.");
     int cols = s_count == 24 ? 4 : 2;
     int rows = s_count / cols;
     for (int i = 0; i < s_count; i++) {
