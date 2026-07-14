@@ -45,6 +45,13 @@ never childish. Runs on a Guition ESP32-P4 dev board.
 - `main/wallet_crypto.c/.h` — KISS wallet crypto layer (libwally). `wallet_selftest()` = BIP39 test
   vector ("abandon…about" → fingerprint `73C5DA0A`), logged at boot on device.
   `wallet_fingerprint(passphrase)` = dev seed + passphrase → master fingerprint.
+- `main/wallet_theme.c/.h` — shared wallet UI kit (screen/pill/label/QR-card builders,
+  grouped/sats/BTC formatting, bright-ends address spans) + the switchable accent
+  (mono/green/pink/orange, NVS "accent", picker dots in Settings). ALL wallet screens
+  build from this — style changes go here, not per-file.
+- `main/wallet_info.c/.h` — WALLET tile section: facts card with "?" explainer popovers,
+  backup-words re-view (NO seed-as-QR export, ever — owner's rule), PAIR COORDINATOR
+  (descriptor for Sparrow + SLIP-132 zpub w/ key origin for BlueWallet).
 - `main/wallet_ui.c/.h` — login flow (KISS gesture → QWERTY passphrase → fingerprint reveal →
   home). Compiled in BOTH device and sim builds; sim stubs `wallet_fingerprint` in sim_main.c.
   Registers the LVGL pointer indev; game ignores touch while `wallet_ui_active()`.
@@ -59,6 +66,11 @@ never childish. Runs on a Guition ESP32-P4 dev board.
 - `main/gameover_img.c/.h` — **generated** baked game-over artwork + NEW BEST ribbon. Do not hand-edit.
 - `assets/` — source art + the generators that emit the three files above. See `assets/README.md`.
 - `sim/` — desktop simulator harness, `lv_conf.h`, build script.
+- `tools/bw_interop/` — BlueWallet QR interop rig: `run.sh` round-trips a PSBT through
+  BlueWallet's exact npm QR stack (@ngraveio/bc-ur 1.1.13 + @keystonehq/bc-ur-registry
+  0.8.0) against our qr_transport via `/tmp/kissqr` (sim/qr_tool.c). Run after any
+  qr_transport/cUR change. BlueWallet is UR-v2 crypto-psbt @ 175-byte fragments,
+  mainnet-only (no vpub import).
 - `sim/build_test.sh` → `/tmp/kisstest` — desktop crypto test runner (wallet_crypto + vendored
   libwally, no LVGL). Must print `PASS: BIP39 test vector -> 73C5DA0A`. Run after any crypto change.
 
