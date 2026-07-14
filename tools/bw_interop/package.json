@@ -1,0 +1,9 @@
+{
+  "name": "kiss-bw-interop",
+  "private": true,
+  "description": "Round-trips PSBTs between KISS's qr_transport (cUR) and BlueWallet's exact QR stack (@ngraveio/bc-ur + @keystonehq/bc-ur-registry, the same pins BlueWallet ships).",
+  "dependencies": {
+    "@keystonehq/bc-ur-registry": "0.8.0",
+    "@ngraveio/bc-ur": "1.1.13"
+  }
+}
