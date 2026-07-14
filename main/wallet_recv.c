@@ -73,28 +73,3 @@ void wallet_recv_open(lv_obj_t *parent) {
   wt_pill(s_scr, "BACK", 48, 404, 140, close_cb, NULL);
   recv_refresh();
 }
-
-// ---- watch-only export ----
-void wallet_export_open(lv_obj_t *parent) {
-  if (s_scr) return;
-  s_scr = wt_screen(parent, "EXPORT", "scan this into Sparrow Wallet or another app to pair it with this device");
-  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
-
-  char desc[256];
-  if (wallet_session_descriptor(desc, sizeof(desc)) != 0)
-    snprintf(desc, sizeof(desc), "SESSION LOCKED");
-  lv_qrcode_update(s_qr, desc, (uint32_t)strlen(desc));
-
-  wt_section(s_scr, "DESCRIPTOR", 400, 102);
-
-  lv_obj_t *d = wt_lbl(s_scr, desc, 400, 130, &lv_font_montserrat_14, WT_INK);
-  lv_obj_set_width(d, 360);
-  lv_label_set_long_mode(d, LV_LABEL_LONG_WRAP);
-
-  wt_lbl(s_scr, "the app sees your balance, receives, and builds\n"
-                "transactions for THIS device to sign. it can't\n"
-                "spend on its own - the keys never leave here.",
-         400, 330, &lv_font_montserrat_14, WT_MUT);
-
-  wt_pill(s_scr, "BACK", 48, 404, 140, close_cb, NULL);
-}

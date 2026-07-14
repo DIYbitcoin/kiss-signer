@@ -321,7 +321,8 @@ static size_t mk_mixed_psbt(uint8_t *out, size_t cap) {
 }
 
 static void test_one_script(int script, uint32_t purpose, const char *label,
-                            const char *prefix, const char *wrapper) {
+                            const char *prefix, const char *wrapper,
+                            const char *bwpre) {
     char nm[64], addr[92];
     wallet_set_network(0);
     wallet_set_script(script);
@@ -355,6 +356,19 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
         char want[16]; snprintf(want, sizeof want, "/%uh/0h/0h]", purpose);
         snprintf(nm, sizeof nm, "%s descriptor purpose", label);
         chkb(nm, strstr(desc, want) != NULL);
+    }
+
+    // BlueWallet export: "[fp/purpose'/0'/0']" origin + the SLIP-132 prefix
+    // BlueWallet wants (zpub/ypub, plain xpub for legacy)
+    {
+        char bw[192], worig[24];
+        snprintf(nm, sizeof nm, "%s bw export rc", label);
+        chki(nm, wallet_session_bw_export(bw, sizeof bw), 0);
+        snprintf(worig, sizeof worig, "[73c5da0a/%u'/0'/0']", purpose);
+        snprintf(nm, sizeof nm, "%s bw export origin", label);
+        chkb(nm, strncmp(bw, worig, strlen(worig)) == 0);
+        snprintf(nm, sizeof nm, "%s bw export prefix %s", label, bwpre);
+        chkb(nm, strncmp(bw + strlen(worig), bwpre, strlen(bwpre)) == 0);
     }
 
     // sign roundtrip
@@ -465,6 +479,29 @@ int main(int argc, char **argv) {
     } else {
         printf("FAIL: descriptor xpub not found\n");
         fails++;
+    }
+
+    // BlueWallet pairing export: key origin + SLIP-132 zpub. The zpub is the
+    // BIP84 document's own account-0 vector, so this proves the whole encode.
+    {
+        char bw[192];
+        if (wallet_session_bw_export(bw, sizeof bw) != 0) {
+            printf("FAIL: bw export rc\n"); fails++;
+        } else {
+            chk("bw export = origin + BIP84 vector zpub", bw,
+                "[73c5da0a/84'/0'/0']"
+                "zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1"
+                "ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs");
+        }
+        // testnet: vpub prefix (no published vector; prefix + origin checked)
+        wallet_set_network(1);
+        if (wallet_session_bw_export(bw, sizeof bw) != 0) {
+            printf("FAIL: bw export testnet rc\n"); fails++;
+        } else {
+            chkb("bw export testnet origin+vpub",
+                 strncmp(bw, "[73c5da0a/84'/1'/0']vpub", 24) == 0);
+        }
+        wallet_set_network(0);
     }
 
     // ---- step 5: PSBT parse / verify / sign ----
@@ -645,9 +682,9 @@ int main(int argc, char **argv) {
     wallet_psbt_free();
 
     // ---- address types: legacy (BIP44), nested (BIP49), native (BIP84) ----
-    test_one_script(WSCRIPT_NATIVE, 84, "native", "bc1", "wpkh(");
-    test_one_script(WSCRIPT_NESTED, 49, "nested", "3",   "sh(wpkh(");
-    test_one_script(WSCRIPT_LEGACY, 44, "legacy", "1",   "pkh(");
+    test_one_script(WSCRIPT_NATIVE, 84, "native", "bc1", "wpkh(",    "zpub");
+    test_one_script(WSCRIPT_NESTED, 49, "nested", "3",   "sh(wpkh(", "ypub");
+    test_one_script(WSCRIPT_LEGACY, 44, "legacy", "1",   "pkh(",     "xpub");
 
     // ---- the signer is TYPE-AGNOSTIC: it signs whatever script type the PSBT's
     // own input paths declare, regardless of the ADDRESS TYPE selected (that
