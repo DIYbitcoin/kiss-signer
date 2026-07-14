@@ -25,4 +25,5 @@ void wallet_ui_ensure_indev(void);
 // Create the build-identity line at (x,y): version + commit in calm ink, plus
 // an amber warning while the chip reports flash encryption off (dev builds get
 // the amber dev banner). Shared by the Settings footer and wallet home corner.
-void wallet_build_id_make(lv_obj_t *parent, int x, int y);
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y);
+void wallet_build_id_restyle(lv_obj_t *version_label);

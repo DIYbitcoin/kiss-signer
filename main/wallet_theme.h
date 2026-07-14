@@ -23,7 +23,9 @@ enum { WT_ACC_MONO = 0, WT_ACC_GREEN, WT_ACC_PINK, WT_ACC_ORANGE, WT_ACC_N };
 void       wt_accent_set(int id);        // clamps to a valid id; caller persists
 int        wt_accent_get(void);
 lv_color_t wt_accent(void);              // MONO -> WT_INK
-lv_color_t wt_primary(void);             // "suggested action" color: MONO -> WT_OK
+lv_color_t wt_primary(void);             // selected/action accent: MONO -> WT_INK
+lv_color_t wt_accent_bg(void);           // dark tinted fill for accent controls
+lv_color_t wt_accent_pressed(void);      // slightly brighter pressed fill
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);

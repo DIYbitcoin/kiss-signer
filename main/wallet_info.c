@@ -158,6 +158,7 @@ static void pair_refresh(void)
           "broadcasts - it cannot sign anything itself.");
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
+        lv_obj_set_style_bg_color(s_pair_pill[i], on ? wt_accent_bg() : WT_KEY, 0);
         lv_obj_set_style_border_color(s_pair_pill[i], on ? wt_primary() : WT_MUT, 0);
         lv_obj_set_style_border_width(s_pair_pill[i], on ? 2 : 1, 0);
         lv_obj_set_style_text_color(lv_obj_get_child(s_pair_pill[i], 0),
