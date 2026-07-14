@@ -344,8 +344,10 @@ static void verify_screen(lv_obj_t *parent)
     }
 
     mk_pill("BACK", 48, 404, 140, close_cb);
-    mk_pill("DETAILS", 208, 404, 170, details_cb);
     if (s_sum.status != WPSBT_STOP) {
+        // no DETAILS on STOP: the details page presents fields as verified,
+        // and a refused transaction has nothing left to decide
+        mk_pill("DETAILS", 208, 404, 170, details_cb);
         // hold-to-sign: ring fills while pressed; let go = nothing happens
         s_arc = lv_arc_create(s_scr);
         lv_obj_set_size(s_arc, 64, 64);
@@ -389,7 +391,12 @@ static void details_cb(lv_event_t *e)
     mk_screen(s_parent, "DETAILS", s_cur);
 
     char buf[128], a[32];
-    snprintf(buf, sizeof buf, "INPUTS (%u) - ALL VERIFIED YOURS", (unsigned)det.n_in);
+    if (det.n_total > det.n_in)          // more inputs than the page can hold
+        snprintf(buf, sizeof buf,
+                 "THIS TRANSACTION HAS %u INPUTS\nshowing %u here - all are verified as yours",
+                 (unsigned)det.n_total, (unsigned)det.n_in);
+    else
+        snprintf(buf, sizeof buf, "INPUTS (%u) - ALL VERIFIED YOURS", (unsigned)det.n_in);
     mk_lbl(buf, 40, 96, &lv_font_montserrat_14, MUT_COL);
 
     lv_obj_t *il = lv_obj_create(s_scr);

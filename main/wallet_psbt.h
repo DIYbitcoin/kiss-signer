@@ -51,11 +51,13 @@ typedef struct {
     bool     txid_final;     // segwit-only spends: signing can't change the txid
     uint32_t version;
     uint32_t locktime;
-    uint32_t n_in;           // capped at WPSBT_MAX_INS
+    uint32_t n_in;           // entries filled in ins[] (capped at WPSBT_MAX_INS)
+    uint32_t n_total;        // real input count; > n_in means ins[] is partial
     wpsbt_in_t ins[WPSBT_MAX_INS];
 } wpsbt_details_t;
 
-// Fill *d from the currently loaded PSBT. 0 on success, nonzero if none held.
+// Fill *d from the currently loaded PSBT. 0 on success; nonzero if none
+// held or the verifier said STOP (a refused tx gets no details page).
 int wallet_psbt_details(wpsbt_details_t *d);
 
 // Parse + verify. Returns 0 and fills *s even when s->status == WPSBT_STOP
