@@ -27,7 +27,7 @@ Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
 
 > [!CAUTION]
-> **`0.1.0-beta1` is experimental. Do not trust it with meaningful funds.**
+> **`0.1.0-beta2` is experimental. Do not trust it with meaningful funds.**
 
 - **Seed + passphrase = your wallet.** The BIP39 passphrase is typed fresh every
   time, never stored, and there is no "wrong passphrase" error by design — a
@@ -53,7 +53,7 @@ Brave on desktop only — Safari and Firefox cannot flash over Web Serial).
 
 **1. Download** these release assets into one folder:
 
-- `kiss-wallet-0.1.0-beta1.bin`
+- `kiss-wallet-0.1.0-beta2.bin`
 - `SHA256SUMS`
 - `SHA256SUMS.asc`
 - `kiss_wallet_pgp.asc`
@@ -81,7 +81,7 @@ pip install esptool   # or: pipx install esptool / uvx esptool
 esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 kiss-wallet-0.1.0-beta1.bin
+  0 kiss-wallet-0.1.0-beta2.bin
 ```
 
 > [!IMPORTANT]
