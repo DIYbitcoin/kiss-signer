@@ -16,6 +16,7 @@
 #include "wallet_scan.h"
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_ui_last_fp: the SIGNING AS fingerprint
+#include "wallet_usage.h"   // reuse guard: mark receive indexes used on sign
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK
@@ -38,6 +39,7 @@ static uint32_t s_hold_t0;
 static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
+static bool s_ack;                      // CAUTION acknowledged? (gates hold-to-sign)
 static uint8_t s_in[4096], s_out[4680];
 static lv_obj_t *s_parent;             // where this flow's screens are built
 static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came from
@@ -157,6 +159,21 @@ static void fail_screen(const char *why)
     mk_pill("BACK", 330, 404, 140, close_cb);
 }
 
+// Spending from receive index N proves N was used: record it so the Receive
+// screen hands out a fresh address next time (reuse guard). Best effort: only
+// the inputs KISS could show; the coordinator remains the source of truth.
+static void mark_used_receives(void)
+{
+    wpsbt_details_t det;
+    if (wallet_psbt_details(&det) != 0)
+        return;
+    uint8_t fp[4];
+    wallet_ui_last_fp(fp);
+    for (uint32_t i = 0; i < det.n_in; i++)
+        if (det.ins[i].change == 0)                  // 0 = receive branch (1 = change)
+            wallet_usage_mark(fp, s_sum.testnet ? 1 : 0, wallet_script(), det.ins[i].index);
+}
+
 static void do_sign_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
@@ -165,6 +182,7 @@ static void do_sign_cb(lv_timer_t *t)
         fail_screen("the transaction could not be signed");
         return;
     }
+    mark_used_receives();
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         qr_out_screen(sw);
         return;
@@ -206,6 +224,92 @@ static void sign_press_cb(lv_event_t *e)
 }
 
 static void details_cb(lv_event_t *e);
+static void verify_screen(lv_obj_t *parent);
+
+// ---- cautions: a short summary on the verify screen, the "why" one tap away ----
+// Terse one-liner naming the categories that fired (user: "main warning short").
+static void caution_summary(uint16_t f, char *out, size_t cap)
+{
+    size_t o = 0;
+    out[0] = 0;
+    const char *parts[4];
+    int n = 0;
+    if (f & WPSBT_C_HIGHFEE)      parts[n++] = "high fee";
+    if (f & WPSBT_C_DUST_INPUT)   parts[n++] = "tiny coin in";
+    if (f & WPSBT_C_DUST_CHANGE)  parts[n++] = "dust change";
+    else if (f & WPSBT_C_SMALL_CHANGE) parts[n++] = "tiny change";
+    for (int i = 0; i < n && o < cap; i++)
+        o += (size_t)snprintf(out + o, cap - o, "%s%s", i ? " + " : "", parts[i]);
+}
+
+static void caution_ok_cb(lv_event_t *e)
+{
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+// The full "why", plain words + the concrete next step (freeze/label in the
+// coordinator). Reuses the app's dim-overlay explainer style.
+static void caution_help_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, 245, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, "WHY FLAGGED");
+    lv_obj_set_style_text_color(t, WARN_COL, 0);
+    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_letter_space(t, 2, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
+
+    char body[640];
+    size_t o = 0;
+    uint16_t f = s_sum.caution_flags;
+    if (f & WPSBT_C_HIGHFEE)
+        o += snprintf(body + o, sizeof body - o,
+            "HIGH FEE: the fee is a big share of what you send.\n"
+            "check the rate is what you meant to pay.\n\n");
+    if (f & WPSBT_C_DUST_INPUT)
+        o += snprintf(body + o, sizeof body - o,
+            "TINY COIN IN: you are spending a very small coin.\n"
+            "it may have been sent to track you (a dust attack);\n"
+            "spending it can link your addresses together.\n\n");
+    if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
+        o += snprintf(body + o, sizeof body - o,
+            "TINY CHANGE: this leaves a very small change coin.\n"
+            "it fragments your balance and can be used to track\n"
+            "you across payments.\n\n");
+    snprintf(body + o, sizeof body - o,
+            "unsure? go BACK, then in your coordinator\n"
+            "(Sparrow / BlueWallet) freeze or label the coin\n"
+            "and rebuild the transaction without it.");
+
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, body);
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 96);
+
+    lv_obj_t *ok = wt_pill(ovl, "OK", 300, 412, 200, caution_ok_cb, ovl);
+    (void)ok;
+}
+
+// "I UNDERSTAND" on a CAUTION: a deliberate second confirm before the hold pill
+// even appears (user: "warn, second OK").
+static void ack_cb(lv_event_t *e)
+{
+    (void)e;
+    s_ack = true;
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    verify_screen(s_parent);
+}
 
 // ---- verify screen (the heart of the safety model) ----
 static void verify_screen(lv_obj_t *parent)
@@ -324,8 +428,14 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_pad_ver(net, 4, 0);
         lv_obj_set_style_text_letter_space(net, 2, 0);
     }
-    snprintf(buf, sizeof buf, "%s,  locktime %u",
-             s_sum.rbf ? "replaceable (RBF)" : "final", (unsigned)s_sum.locktime);
+    // locktime 0 is the boring default (noise); only surface it when it is set,
+    // where it actually means something. The raw value always lives in DETAILS.
+    if (s_sum.locktime)
+        snprintf(buf, sizeof buf, "%s,  time-locked to block %u",
+                 s_sum.rbf ? "replaceable (RBF)" : "final", (unsigned)s_sum.locktime);
+    else
+        snprintf(buf, sizeof buf, "%s",
+                 s_sum.rbf ? "replaceable (RBF)" : "final, not replaceable");
     mk_lbl(buf, 430, 266, &lv_font_montserrat_14, MUT_COL);
 
     // which passphrase-wallet is about to sign — fingerprint = the login check
@@ -339,14 +449,38 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_letter_space(f, 2, 0);
     }
 
-    if (s_sum.status != WPSBT_READY) {
-        lv_obj_t *r = mk_lbl(s_sum.reason, 430, 350, &lv_font_montserrat_14,
-                             s_sum.status == WPSBT_STOP ? STOP_COL : WARN_COL);
+    if (s_sum.status == WPSBT_STOP) {
+        lv_obj_t *r = mk_lbl(s_sum.reason, 430, 350, &lv_font_montserrat_14, STOP_COL);
         lv_obj_set_width(r, 320);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        if (s_sum.status == WPSBT_STOP)
-            mk_lbl("this device will not sign it", 430, 388,
-                   &lv_font_montserrat_14, MUT_COL);
+        mk_lbl("this device will not sign it", 430, 388,
+               &lv_font_montserrat_14, MUT_COL);
+    } else if (s_sum.status == WPSBT_CAUTION) {
+        // short summary + a "?" chip to the full "why" (keeps the screen simple)
+        char sum[64];
+        caution_summary(s_sum.caution_flags, sum, sizeof sum);
+        char line[80];
+        snprintf(line, sizeof line, "CAUTION: %s", sum);
+        lv_obj_t *r = mk_lbl(line, 430, 348, &lv_font_montserrat_14, WARN_COL);
+        lv_obj_set_width(r, 280);
+        lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
+        lv_obj_t *hc = lv_obj_create(s_scr);   // "?" -> WHY FLAGGED card
+        lv_obj_remove_style_all(hc);
+        lv_obj_set_size(hc, 30, 30);
+        lv_obj_set_pos(hc, 720, 346);
+        lv_obj_set_style_radius(hc, 15, 0);
+        lv_obj_set_style_bg_color(hc, KEY_COL, 0);
+        lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(hc, 1, 0);
+        lv_obj_set_style_border_color(hc, WARN_COL, 0);
+        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(hc, 12);
+        lv_obj_add_event_cb(hc, caution_help_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *hl = lv_label_create(hc);
+        lv_label_set_text(hl, "?");
+        lv_obj_set_style_text_color(hl, WARN_COL, 0);
+        lv_obj_set_style_text_font(hl, &lv_font_montserrat_14, 0);
+        lv_obj_center(hl);
     }
 
     mk_pill("BACK", 48, 404, 140, close_cb);
@@ -354,25 +488,33 @@ static void verify_screen(lv_obj_t *parent)
         // no DETAILS on STOP: the details page presents fields as verified,
         // and a refused transaction has nothing left to decide
         mk_pill("DETAILS", 208, 404, 170, details_cb);
-        // hold-to-sign: ring fills while pressed; let go = nothing happens
-        s_arc = lv_arc_create(s_scr);
-        lv_obj_set_size(s_arc, 64, 64);
-        lv_obj_set_pos(s_arc, 420, 398);
-        lv_arc_set_rotation(s_arc, 270);
-        lv_arc_set_bg_angles(s_arc, 0, 360);
-        lv_arc_set_range(s_arc, 0, 100);
-        lv_arc_set_value(s_arc, 0);
-        lv_obj_remove_style(s_arc, NULL, LV_PART_KNOB);
-        lv_obj_remove_flag(s_arc, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_arc_width(s_arc, 6, LV_PART_MAIN);
-        lv_obj_set_style_arc_width(s_arc, 6, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
-        lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
+        if (s_sum.status == WPSBT_CAUTION && !s_ack) {
+            // gate the hold pill behind a deliberate acknowledgement
+            lv_obj_t *ok = mk_pill("I UNDERSTAND", 500, 404, 252, ack_cb);
+            wt_pill_primary(ok);
+            lv_obj_set_style_border_color(ok, WARN_COL, 0);
+            lv_obj_set_style_text_color(lv_obj_get_child(ok, 0), WARN_COL, 0);
+        } else {
+            // hold-to-sign: ring fills while pressed; let go = nothing happens
+            s_arc = lv_arc_create(s_scr);
+            lv_obj_set_size(s_arc, 64, 64);
+            lv_obj_set_pos(s_arc, 420, 398);
+            lv_arc_set_rotation(s_arc, 270);
+            lv_arc_set_bg_angles(s_arc, 0, 360);
+            lv_arc_set_range(s_arc, 0, 100);
+            lv_arc_set_value(s_arc, 0);
+            lv_obj_remove_style(s_arc, NULL, LV_PART_KNOB);
+            lv_obj_remove_flag(s_arc, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_arc_width(s_arc, 6, LV_PART_MAIN);
+            lv_obj_set_style_arc_width(s_arc, 6, LV_PART_INDICATOR);
+            lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
+            lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
 
-        lv_obj_t *p = mk_pill("HOLD TO SIGN", 500, 404, 252, NULL);
-        lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
-        lv_obj_set_style_border_color(p, OK_COL, 0);
-        s_sign_lbl = lv_obj_get_child(p, 0);
+            lv_obj_t *p = mk_pill("HOLD TO SIGN", 500, 404, 252, NULL);
+            lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
+            lv_obj_set_style_border_color(p, OK_COL, 0);
+            s_sign_lbl = lv_obj_get_child(p, 0);
+        }
     }
 }
 
@@ -461,11 +603,14 @@ static void details_cb(lv_event_t *e)
     snprintf(buf, sizeof buf, "version %u,  locktime %u",
              (unsigned)det.version, (unsigned)det.locktime);
     mk_lbl(buf, 430, 258, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(det.locktime ? "locktime: earliest block it can confirm"
+                        : "locktime 0: can confirm any time (normal)",
+           430, 280, &lv_font_montserrat_14, MUT_COL);
     mk_lbl("sighash ALL: signatures cover every\namount and destination above",
-           430, 284, &lv_font_montserrat_14, MUT_COL);
+           430, 306, &lv_font_montserrat_14, MUT_COL);
     mk_lbl(s_sum.rbf ? "replaceable (RBF): the fee can be\nbumped after broadcast"
                      : "final: not replaceable after broadcast",
-           430, 330, &lv_font_montserrat_14, MUT_COL);
+           430, 352, &lv_font_montserrat_14, MUT_COL);
 
     mk_pill("BACK", 48, 404, 140, details_back_cb);
 }
@@ -570,6 +715,7 @@ static void file_tap_cb(lv_event_t *e)
         return;
     }
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
+    s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
         mk_screen(parent, "SIGN", s_cur);
         mk_lbl("that file is not a valid PSBT", 48, 140, &lv_font_montserrat_14, STOP_COL);
@@ -622,6 +768,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     if (len > sizeof s_in) len = sizeof s_in;             // QRT_MAX_PSBT == sizeof s_in
     memcpy(s_in, psbt, len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
+    s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
         mk_screen(s_parent, "SIGN", s_cur);
         mk_lbl("the scanned data is not a valid PSBT", 48, 140,
