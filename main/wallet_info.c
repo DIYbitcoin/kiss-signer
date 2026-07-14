@@ -107,6 +107,16 @@ static void help_cb(lv_event_t *e)
             "the m/... line is the derivation path: the standard\n"
             "shelf inside the seed where these keys live. apps use\n"
             "it to find the same addresses this device does.");
+    else if (!strcmp(key, "pair"))
+        help_open("THE COORDINATOR APP",
+            "the app that watches this wallet online: it sees\n"
+            "balances, builds transactions and broadcasts - using\n"
+            "only a public key, so it can never spend.\n\n"
+            "DESKTOP shares a descriptor (Sparrow-style apps).\n"
+            "MOBILE shares a zpub (BlueWallet-style apps).\n"
+            "same wallet either way - just two dialects.\n\n"
+            "if the app calls it 'watch-only', that is correct:\n"
+            "every spend is reviewed and signed on this device.");
     else
         help_open("FIRST ADDRESS",
             "address #0, shown so you can recognize this wallet\n"
@@ -188,6 +198,7 @@ static void pair_screen(void)
     // where does the coordinator live? two parallel choices, side by side like
     // the Settings ADDRESS TYPE picker (a dropdown would hide one of only two)
     wt_section(s_scr, "SHOW IT TO", 400, 96);
+    mk_help_chip(526, 90, "pair");
     static const char *CAT[2] = {"DESKTOP", "MOBILE"};
     static const char *APP[2] = {"Sparrow + more", "BlueWallet + more"};
     for (int i = 0; i < 2; i++) {
@@ -206,6 +217,11 @@ static void pair_screen(void)
     lv_label_set_long_mode(s_pair_txt, LV_LABEL_LONG_WRAP);
 
     s_pair_note = wt_lbl(s_scr, "", 400, 316, &lv_font_montserrat_14, WT_MUT);
+
+    // pairing ends with proof, not hope: point at the address check
+    wt_lbl(s_scr, "then prove it: RECEIVE > VERIFY - scan the\n"
+                  "app's first address to confirm it's yours.",
+           400, 404, &lv_font_montserrat_14, WT_INK);
 
     wt_pill(s_scr, "BACK", 48, 404, 140, pair_back_cb, NULL);
     pair_refresh();
