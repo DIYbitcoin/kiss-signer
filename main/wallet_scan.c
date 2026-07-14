@@ -11,10 +11,12 @@
 #include "camera_spike.h"
 #endif
 
-#define BG_COL  lv_color_hex(0x070A10)
-#define INK_COL lv_color_hex(0xE8EEF7)
-#define MUT_COL lv_color_hex(0x7A869C)
-#define KEY_COL lv_color_hex(0x10141D)
+#include "wallet_theme.h"
+
+#define BG_COL  WT_BG
+#define INK_COL WT_INK
+#define MUT_COL WT_MUT
+#define KEY_COL WT_KEY
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_prog, *s_hint;

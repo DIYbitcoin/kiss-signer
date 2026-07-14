@@ -14,15 +14,16 @@
 #include "wallet_crypto.h"
 #include "wallet_psbt.h"
 #include "wallet_scan.h"
+#include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_ui_last_fp: the SIGNING AS fingerprint
 
-#define BG_COL   lv_color_hex(0x070A10)
-#define INK_COL  lv_color_hex(0xE8EEF7)
-#define MUT_COL  lv_color_hex(0x7A869C)
-#define KEY_COL  lv_color_hex(0x10141D)
-#define OK_COL   lv_color_hex(0x35D07F)   // status light: label + shape + color,
-#define WARN_COL lv_color_hex(0xF2B84B)   // never color alone (spec)
-#define STOP_COL lv_color_hex(0xFF4D5E)
+#define BG_COL   WT_BG
+#define INK_COL  WT_INK
+#define MUT_COL  WT_MUT
+#define KEY_COL  WT_KEY
+#define OK_COL   WT_OK    // status light: label + shape + color,
+#define WARN_COL WT_WARN  // never color alone (spec)
+#define STOP_COL WT_STOP
 
 #define HOLD_MS   1200
 #define MAX_FILES 8
@@ -73,87 +74,27 @@ static void close_cb(lv_event_t *e)
 
 void wallet_sign_close(void) { close_cb(NULL); }   // idle auto-lock path
 
-// ---- shared bits (style matches wallet_recv.c) ----
+// ---- shared bits: thin wrappers over the wallet_theme kit (module keeps
+// its s_scr; call sites keep their historical signatures) ----
 static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
-    s_scr = lv_obj_create(parent);
-    lv_obj_remove_style_all(s_scr);
-    lv_obj_set_size(s_scr, 800, 480);
-    lv_obj_set_style_bg_color(s_scr, BG_COL, 0);
-    lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_move_foreground(s_scr);
-
-    lv_obj_t *cap = lv_label_create(s_scr);
-    lv_label_set_text(cap, title);
-    lv_obj_set_style_text_color(cap, INK_COL, 0);
-    lv_obj_set_style_text_font(cap, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 48, 30);
-
-    lv_obj_t *s = lv_label_create(s_scr);
-    lv_label_set_text(s, sub);
-    lv_obj_set_style_text_color(s, MUT_COL, 0);
-    lv_obj_set_style_text_font(s, &lv_font_montserrat_14, 0);
-    lv_obj_set_pos(s, 48, 68);
+    s_scr = wt_screen(parent, title, sub);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
 {
-    lv_obj_t *p = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, w, 52);
-    lv_obj_set_pos(p, x, y);
-    lv_obj_set_style_radius(p, 26, 0);
-    lv_obj_set_style_bg_color(p, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(p, 1, 0);
-    lv_obj_set_style_border_color(p, MUT_COL, 0);
-    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l = lv_label_create(p);
-    lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, INK_COL, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_center(l);
-    return p;
+    return wt_pill(s_scr, txt, x, y, w, cb, NULL);
 }
 
 static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_color_t col)
 {
-    lv_obj_t *l = lv_label_create(s_scr);
-    lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, col, 0);
-    lv_obj_set_style_text_font(l, f, 0);
-    lv_obj_set_pos(l, x, y);
-    return l;
+    return wt_lbl(s_scr, txt, x, y, f, col);
 }
 
 // same grouped-by-4 convention as the Receive screen: visual compare against
 // the coordinator is the whole point of this screen
-static void group4(const char *in, char *out, size_t out_len)
-{
-    size_t o = 0;
-    for (size_t i = 0; in[i] && o + 2 < out_len; i++) {
-        if (i && i % 4 == 0) out[o++] = ' ';
-        out[o++] = in[i];
-    }
-    out[o] = 0;
-}
-
-// "1234567" -> "1 234 567" (compare-friendly like the grouped addresses)
-static void fmt_sats(uint64_t v, char *out, size_t out_len)
-{
-    char raw[24];
-    int n = snprintf(raw, sizeof raw, "%llu", (unsigned long long)v);
-    size_t o = 0;
-    for (int i = 0; i < n && o + 2 < out_len; i++) {
-        if (i && (n - i) % 3 == 0) out[o++] = ' ';
-        out[o++] = raw[i];
-    }
-    out[o] = 0;
-}
+#define group4   wt_group4
+#define fmt_sats wt_fmt_sats
 
 static void mk_status_light(void)
 {
@@ -439,18 +380,7 @@ static void qr_out_screen(size_t sw)
     }
 
     mk_screen(parent, "SIGNED", "signed successfully. scan this with your coordinator to broadcast");
-    lv_obj_t *card = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(card);
-    lv_obj_set_size(card, 316, 316);
-    lv_obj_set_pos(card, 48, 100);
-    lv_obj_set_style_radius(card, 14, 0);
-    lv_obj_set_style_bg_color(card, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    s_qr_img = lv_qrcode_create(card);
-    lv_qrcode_set_size(s_qr_img, 288);
-    lv_qrcode_set_dark_color(s_qr_img, lv_color_hex(0x0B0E14));
-    lv_qrcode_set_light_color(s_qr_img, lv_color_white());
-    lv_obj_center(s_qr_img);
+    wt_qr_card(s_scr, &s_qr_img, 48, 100, 316, 288);
 
     int n = qrt_encoder_parts(s_qenc);
     mk_lbl(LV_SYMBOL_OK "  SIGNED", 430, 100, &lv_font_montserrat_14, OK_COL);
@@ -628,7 +558,7 @@ void wallet_sign_open(lv_obj_t *parent)
     s_parent = parent;
     mk_screen(parent, "SIGN", "get the transaction from your coordinator");
     lv_obj_t *q = mk_pill("SCAN QR", 48, 150, 340, scan_pick_cb);
-    lv_obj_set_style_border_color(q, OK_COL, 0);          // QR primary, SD fallback (spec)
+    wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
     mk_pill("FROM SD CARD", 48, 230, 340, sd_pick_cb);
     mk_lbl("point the camera at the QR your\ncoordinator wallet shows", 430, 152,
            &lv_font_montserrat_14, MUT_COL);
