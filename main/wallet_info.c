@@ -151,11 +151,11 @@ static void pair_refresh(void)
     lv_label_set_text(s_pair_txt, txt);
     lv_label_set_text(s_pair_note, s_pair_fmt
         ? "in BlueWallet: add wallet > import wallet >\n"
-          "scan. it becomes watch-only: it sees your\n"
-          "balance, and sends come back here to sign."
+          "scan. it tracks your balance, builds sends and\n"
+          "broadcasts - but every send is signed HERE."
         : "in Sparrow: File > New Wallet > Airgapped\n"
-          "Hardware Wallet > scan. the app watches your\n"
-          "balance; only this device can spend.");
+          "Hardware Wallet > scan. it tracks, builds and\n"
+          "broadcasts - it cannot sign anything itself.");
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         lv_obj_set_style_border_color(s_pair_pill[i], on ? wt_primary() : WT_MUT, 0);

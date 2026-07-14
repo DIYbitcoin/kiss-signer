@@ -172,7 +172,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
 }
 int wallet_psbt_details(wpsbt_details_t *d) {
   memset(d, 0, sizeof *d);
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1;
+  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1; d->n_total = 1;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
   snprintf(d->ins[0].txid, sizeof d->ins[0].txid, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   d->ins[0].vout = 0; d->ins[0].sats = 100000;
