@@ -47,6 +47,9 @@ static lv_timer_t *s_qr_tmr;
 static lv_timer_t *s_done_tmr;   // SD sign: auto-return to home after the success screen
 static lv_obj_t *s_qr_img, *s_part_lbl;
 static int s_part_i;
+static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
+static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
+static lv_obj_t *s_ez_pill;
 
 static void qr_out_screen(size_t sw);
 
@@ -66,7 +69,7 @@ static void close_cb(lv_event_t *e)
     if (s_done_tmr) { lv_timer_delete(s_done_tmr); s_done_tmr = NULL; }
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
-    s_qr_img = NULL; s_part_lbl = NULL;
+    s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
     wallet_psbt_free();
     platform_sd_unmount();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -275,11 +278,14 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_font(tag, &lv_font_montserrat_14, 0);
     }
 
-    // fee + facts, right column
+    // fee + facts, right column. CAUTION today means exactly one thing (the
+    // high-fee check in wallet_psbt.c), so the fee number itself goes amber —
+    // the flagged value must be the loud one, not just the reason line below.
     mk_lbl("FEE", 430, 100, &lv_font_montserrat_14, MUT_COL);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 122, &lv_font_montserrat_28, INK_COL);
+    mk_lbl(buf, 430, 122, &lv_font_montserrat_28,
+           s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
     if (s_sum.send_sats > 0)
         snprintf(buf, sizeof buf, "%u.%u sat/vB,  %llu.%llu%% of what you send",
                  (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10),
@@ -482,14 +488,44 @@ static void qr_tick(lv_timer_t *t)
     }
 }
 
+// (re)create the out-encoder for the current mode. Easy-scan halves the data
+// per frame (sparser QR = bigger modules at the same 288px) and the loop slows
+// below — for phone cameras that never lock onto the default loop.
+static int qr_enc_start(void)
+{
+    int fmt = (s_qr_fmt == QRT_FMT_PMOFN) ? QRT_FMT_PMOFN : QRT_FMT_UR;
+    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, s_out, s_out_len,
+        s_qr_ez ? (fmt == QRT_FMT_PMOFN ? 50 : 60) : 0);
+    if (!ne) return -1;
+    if (s_qenc) qrt_encoder_free(s_qenc);
+    s_qenc = ne;
+    return 0;
+}
+
+static void qr_ez_cb(lv_event_t *e)
+{
+    (void)e;
+    s_qr_ez = !s_qr_ez;
+    if (qr_enc_start() != 0) { s_qr_ez = !s_qr_ez; return; }  // old QR keeps playing
+    wt_pill_select(s_ez_pill, s_qr_ez);
+    if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
+    int n = qrt_encoder_parts(s_qenc);
+    if (n > 1)
+        s_qr_tmr = lv_timer_create(qr_tick, s_qr_ez ? 600 : 250, NULL);
+    else if (s_part_lbl)
+        lv_label_set_text(s_part_lbl, "single QR");
+    s_part_i = 0;
+    qr_tick(NULL);
+}
+
 static void qr_out_screen(size_t sw)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
 
-    int fmt = (s_qr_fmt == QRT_FMT_PMOFN) ? QRT_FMT_PMOFN : QRT_FMT_UR;
-    s_qenc = qrt_encoder_new(fmt, s_out, sw);
-    if (!s_qenc) {
+    s_qr_ez = false;
+    s_out_len = sw;
+    if (qr_enc_start() != 0) {
         mk_screen(parent, "SIGN FAILED", "could not encode the signed transaction");
         mk_pill("BACK", 330, 404, 140, close_cb);
         return;
@@ -509,6 +545,9 @@ static void qr_out_screen(size_t sw)
     }
     mk_lbl("this device never touched the network", 430, 196,
            &lv_font_montserrat_14, MUT_COL);
+    s_ez_pill = wt_pill(s_scr, "EASY SCAN", 430, 244, 200, qr_ez_cb, NULL);
+    mk_lbl("phone won't catch it? bigger dots,\nslower loop - same transaction",
+           430, 310, &lv_font_montserrat_14, MUT_COL);
     mk_pill("DONE", 610, 404, 140, close_cb);
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
