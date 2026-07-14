@@ -353,7 +353,10 @@ static void txid_hex(const uint8_t h[32], char out[65])
 
 int wallet_psbt_details(wpsbt_details_t *d)
 {
-    if (!d || !s_psbt || !s_psbt->tx)
+    // a STOPped transaction failed verification — its raw fields must not be
+    // presented under a page that says "verified" (and there is nothing to
+    // decide: the signer already refused)
+    if (!d || !s_psbt || !s_psbt->tx || s_status == WPSBT_STOP)
         return -1;
     const struct ext_key *master = wallet_session_master();
     if (!master)
@@ -373,6 +376,7 @@ int wallet_psbt_details(wpsbt_details_t *d)
     if (wally_tx_get_txid((struct wally_tx *)tx, h, sizeof h) == WALLY_OK)
         txid_hex(h, d->txid);
 
+    d->n_total = (uint32_t)s_psbt->num_inputs;
     bool any_legacy = false;
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];

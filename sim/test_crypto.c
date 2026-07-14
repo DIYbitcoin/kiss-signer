@@ -547,6 +547,17 @@ int main(int argc, char **argv) {
         chkb("details txid final (all segwit)", det.txid_final);
         chkb("details txid is 64 hex", strlen(det.txid) == 64 &&
              strspn(det.txid, "0123456789abcdef") == 64);
+        chki("details n_total", det.n_total, 1);
+
+        // a STOPped load must refuse the details page (it presents fields as
+        // verified; the verifier just said they are not)
+        uint8_t sb2[1024];
+        size_t sl2 = mk_psbt(MUT_NO_UTXO, sb2, sizeof sb2);
+        wpsbt_summary_t stopsum;
+        chki("details stop-load rc", wallet_psbt_load(sb2, sl2, &stopsum), 0);
+        chki("details stop status", stopsum.status, WPSBT_STOP);
+        chkb("details refused on STOP", wallet_psbt_details(&det) != 0);
+        chki("details reload rc", wallet_psbt_load(pb, pl, &sum), 0);  // restore READY
     }
 
     chki("psbt sign rc", wallet_psbt_sign(sb, sizeof sb, &sw), 0);

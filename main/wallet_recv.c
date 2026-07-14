@@ -79,10 +79,13 @@ static void vfy_norm(const char *in, char *out, size_t cap) {
   for (; *in && *in != '?' && o + 1 < cap; in++)
     out[o++] = *in;
   out[o] = 0;
-  char p0 = out[0] >= 'A' && out[0] <= 'Z' ? out[0] + 32 : out[0];
-  char p1 = out[1] >= 'A' && out[1] <= 'Z' ? out[1] + 32 : out[1];
-  int b32 = (o > 3) && out[2] == '1' &&
-            ((p0 == 'b' && p1 == 'c') || (p0 == 't' && p1 == 'b'));
+  int b32 = 0;
+  if (o > 3) {                           // shorter scans can't even hold "bc1x"
+    char p0 = out[0] >= 'A' && out[0] <= 'Z' ? out[0] + 32 : out[0];
+    char p1 = out[1] >= 'A' && out[1] <= 'Z' ? out[1] + 32 : out[1];
+    b32 = out[2] == '1' &&
+          ((p0 == 'b' && p1 == 'c') || (p0 == 't' && p1 == 'b'));
+  }
   if (b32)
     for (size_t i = 0; i < o; i++)
       if (out[i] >= 'A' && out[i] <= 'Z') out[i] += 32;
