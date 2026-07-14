@@ -150,12 +150,12 @@ static void pair_refresh(void)
         lv_qrcode_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     lv_label_set_text(s_pair_txt, txt);
     lv_label_set_text(s_pair_note, s_pair_fmt
-        ? "on your phone. BlueWallet: add wallet >\n"
-          "import wallet > scan. it tracks your balance\n"
-          "and broadcasts - every send is signed HERE."
-        : "on your computer. Sparrow: File > New Wallet >\n"
-          "Airgapped Hardware Wallet > scan. also fits\n"
-          "Specter, Nunchuk - anything reading descriptors.");
+        ? "phone apps that read a key (zpub): BlueWallet\n"
+          "(add wallet > import > scan), Nunchuk, Ibis...\n"
+          "they track and broadcast; every send signs HERE."
+        : "computer apps that read a descriptor: Sparrow\n"
+          "(File > New Wallet > Airgapped Hardware Wallet),\n"
+          "Specter, Nunchuk, Fully Noded...");
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         wt_pill_select(s_pair_pill[i], on);
@@ -188,7 +188,7 @@ static void pair_screen(void)
     // the Settings ADDRESS TYPE picker (a dropdown would hide one of only two)
     wt_section(s_scr, "SHOW IT TO", 400, 96);
     static const char *CAT[2] = {"DESKTOP", "MOBILE"};
-    static const char *APP[2] = {"Sparrow Wallet", "BlueWallet"};
+    static const char *APP[2] = {"Sparrow + more", "BlueWallet + more"};
     for (int i = 0; i < 2; i++) {
         lv_obj_t *p = wt_pillh(s_scr, CAT[i], 400 + i * 185, 120, 175, 60,
                                pair_fmt_cb, (void *)(intptr_t)i);
