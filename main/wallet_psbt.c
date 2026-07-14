@@ -30,12 +30,20 @@ static void stop(wpsbt_summary_t *s, const char *r)
     snprintf(s->reason, sizeof s->reason, "%s", r);
 }
 
-static void caution(wpsbt_summary_t *s, const char *r)
+static void caution(wpsbt_summary_t *s, uint16_t flag, const char *r)
 {
+    s->caution_flags |= flag;          // accumulate: fee + dust + ... can coexist
     if (s->status == WPSBT_READY) {    // never downgrade a STOP
         s->status = WPSBT_CAUTION;
-        snprintf(s->reason, sizeof s->reason, "%s", r);
+        snprintf(s->reason, sizeof s->reason, "%s", r);   // first caution seeds the light
     }
+}
+
+// Standardness dust floor by output type (sats): an output below this is
+// nonstandard and the tx may not relay. Distinct from the privacy threshold.
+static uint64_t dust_floor(uint32_t purpose)
+{
+    return purpose == 44 ? 546 : purpose == 49 ? 540 : 294;   // p2pkh / nested / segwit
 }
 
 // Find OUR keypath in a PSBT keypath map (master fingerprint match) and parse
@@ -274,6 +282,10 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             continue;
         }
         s->in_sats += utxo_val;
+        // spending a tiny KISS-owned coin is the classic dust-attack tell: a
+        // stranger sends dust hoping you consolidate it and link your coins
+        if (utxo_val > 0 && utxo_val < WPSBT_PRIVACY_SATS)
+            caution(s, WPSBT_C_DUST_INPUT, "spending a tiny coin (privacy)");
         if (purpose == 44) n44++; else if (purpose == 49) n49++; else n84++;
         // re-derive our scriptPubKey for THIS input's own type and require an
         // exact match — the amount above is only trustworthy if this spk is ours
@@ -306,6 +318,12 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             } else {
                 so->is_change = true;
                 s->change_sats += o->satoshi;
+                // a tiny change output fragments your coins (privacy); below the
+                // standardness dust floor it is also likely a coordinator slip
+                if (o->satoshi > 0 && o->satoshi < dust_floor(our_purpose(path, path_len)))
+                    caution(s, WPSBT_C_DUST_CHANGE, "dust change output");
+                else if (o->satoshi > 0 && o->satoshi < WPSBT_PRIVACY_SATS)
+                    caution(s, WPSBT_C_SMALL_CHANGE, "tiny change (privacy)");
             }
         } else {
             s->send_sats += o->satoshi;
@@ -336,9 +354,11 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // past data it doesn't understand (spec safety model).
     if (s->n_unknown > 0)
         stop(s, "unknown data in this transaction");
-    if (s->status == WPSBT_READY &&
-        (s->fee_sats * 10 >= s->send_sats || s->fee_rate_x10 > 5000))
-        caution(s, "unusually high fee - check it before signing");
+    // high fee = a big share of an actual send (skip when send_sats==0, e.g. a
+    // self-consolidation), or an outsized rate regardless
+    if ((s->send_sats > 0 && s->fee_sats * 10 >= s->send_sats) ||
+        s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
+        caution(s, WPSBT_C_HIGHFEE, "unusually high fee - check it before signing");
 
     s_status = s->status;
     return 0;
