@@ -2,7 +2,7 @@
 //   facts   — fingerprint / network / address type / first address, each with a
 //             small "?" chip that opens a plain-words explainer (new users learn,
 //             experienced users ignore).
-//   pair    — the watch-only export: descriptor for Sparrow-family apps, key
+//   pair    — the coordinator export: descriptor for Sparrow-family apps, key
 //             origin + SLIP-132 zpub for BlueWallet (it doesn't read descriptors).
 //   words   — re-view the backup words after a be-alone warning. Words on paper
 //             only: no seed-as-QR export in any form (owner's rule).
@@ -152,7 +152,8 @@ static void pair_refresh(void)
     lv_label_set_text(s_pair_note, s_pair_fmt
         ? "phone apps that read a key (zpub): BlueWallet\n"
           "(add wallet > import > scan), Nunchuk, Ibis...\n"
-          "they track and broadcast; every send signs HERE."
+          "the app may say 'watch-only' - correct: it only\n"
+          "watches + broadcasts. every send signs HERE."
         : "computer apps that read a descriptor: Sparrow\n"
           "(File > New Wallet > Airgapped Hardware Wallet),\n"
           "Specter, Nunchuk, Fully Noded...");
