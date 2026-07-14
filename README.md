@@ -37,9 +37,11 @@ a Bitcoin signer hidden under a Tetris game.
   chip is held in reset from the first instruction, every boot, and no
   wireless stack is compiled in — the release build fails if any radio or
   networking code links.
-- **Online wallet compatible:** exports descriptors for Sparrow and friends.
-  The online coordinator app builds and broadcasts; KISS stays offline, verifies
-  the PSBT, and signs only what it can fully show.
+- **Online wallet compatible:** pairs with desktop apps that read descriptors
+  (Sparrow, Specter, Nunchuk) and mobile apps that read a zpub (BlueWallet,
+  Nunchuk, Ibis). The coordinator app watches balances, builds transactions and
+  broadcasts — it cannot sign or authorize anything by itself. KISS stays
+  offline, verifies the PSBT, and signs only what it can fully show.
 
 Runs on the Guition **JC4880P443C** dev board — ESP32-P4, 480×800 MIPI-DSI
 touch panel, camera, SD card slot. No soldering.
@@ -116,9 +118,18 @@ The game is what boots. A secret gesture on the game menu opens the signer
 
 ## Day to day
 
-Pair the exported descriptor with an online coordinator app (Sparrow Wallet).
-It watches the chain and builds transactions; KISS only ever sees the PSBT,
-shows you exactly what it spends, and signs. Keys never leave the device.
+Pair with an online coordinator app: **WALLET → PAIR COORDINATOR**, then pick
+DESKTOP (descriptor, for Sparrow) or MOBILE (zpub, for BlueWallet). The app
+watches the chain and builds transactions; KISS only ever sees the PSBT, shows
+you exactly what it spends, and signs. Keys never leave the device.
+
+> [!NOTE]
+> BlueWallet labels the imported wallet **"watch-only." That is expected** — it
+> holds only your public key, so it can show balances, hand out receive
+> addresses, build transactions and broadcast signed ones. It cannot sign or
+> authorize a spend by itself; every spend is reviewed and signed on KISS.
+> Quick pairing check: import the zpub, then compare the first receive address
+> in BlueWallet against **Receive → VERIFY** on the device before using it.
 
 <table>
 <tr>

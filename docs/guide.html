@@ -333,9 +333,12 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             coinfaucet.eu.
           </li>
           <li>
-            Pair Sparrow Wallet: <strong>Wallet &rarr; EXPORT</strong> shows a
-            descriptor QR. Sparrow builds and broadcasts; the device verifies and
-            signs PSBTs via camera QR or <code>.psbt</code> on SD card.
+            Pair a coordinator: <strong>Wallet &rarr; PAIR COORDINATOR</strong>,
+            pick DESKTOP (Sparrow, descriptor) or MOBILE (BlueWallet, zpub).
+            The app watches and broadcasts — it cannot sign by itself; the
+            device verifies and signs PSBTs via camera QR or <code>.psbt</code>
+            on SD card. BlueWallet calls the import &ldquo;watch-only&rdquo; —
+            that is expected and correct.
           </li>
         </ol>
         <div class="shots">
