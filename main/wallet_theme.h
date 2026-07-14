@@ -26,6 +26,7 @@ lv_color_t wt_accent(void);              // MONO -> WT_INK
 lv_color_t wt_primary(void);             // selected/action accent: MONO -> WT_INK
 lv_color_t wt_accent_bg(void);           // dark tinted fill for accent controls
 lv_color_t wt_accent_pressed(void);      // slightly brighter pressed fill
+const char *wt_accent_name(void);        // "MONO"/"GREEN"/"CYPHERPINK"/"ORANGE"
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
@@ -36,6 +37,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
 lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
                   lv_event_cb_t cb, void *ud);
 void      wt_pill_primary(lv_obj_t *pill);   // accent border = the suggested action
+void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled when active
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col);
