@@ -374,6 +374,9 @@ int main(void) {
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
   save("/tmp/sim_pair_bw.ppm");
+  touch(541, 105); pump(3); release(); pump(14);    // "?" chip -> coordinator card
+  save("/tmp/sim_pair_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning
   save("/tmp/sim_words_warn.ppm");
