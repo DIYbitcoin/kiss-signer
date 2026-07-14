@@ -20,7 +20,7 @@
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
-static lv_obj_t *s_pair_pill[2], *s_pair_txt, *s_pair_note, *s_pair_qr;
+static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_txt, *s_pair_note, *s_pair_qr;
 
 static void info_screen(void);
 
@@ -150,19 +150,17 @@ static void pair_refresh(void)
         lv_qrcode_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     lv_label_set_text(s_pair_txt, txt);
     lv_label_set_text(s_pair_note, s_pair_fmt
-        ? "in BlueWallet: add wallet > import wallet >\n"
-          "scan. it tracks your balance, builds sends and\n"
-          "broadcasts - but every send is signed HERE."
-        : "in Sparrow: File > New Wallet > Airgapped\n"
-          "Hardware Wallet > scan. it tracks, builds and\n"
-          "broadcasts - it cannot sign anything itself.");
+        ? "on your phone. BlueWallet: add wallet >\n"
+          "import wallet > scan. it tracks your balance\n"
+          "and broadcasts - every send is signed HERE."
+        : "on your computer. Sparrow: File > New Wallet >\n"
+          "Airgapped Hardware Wallet > scan. also fits\n"
+          "Specter, Nunchuk - anything reading descriptors.");
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
-        lv_obj_set_style_bg_color(s_pair_pill[i], on ? wt_accent_bg() : WT_KEY, 0);
-        lv_obj_set_style_border_color(s_pair_pill[i], on ? wt_primary() : WT_MUT, 0);
-        lv_obj_set_style_border_width(s_pair_pill[i], on ? 2 : 1, 0);
-        lv_obj_set_style_text_color(lv_obj_get_child(s_pair_pill[i], 0),
-                                    on ? WT_INK : WT_MUT, 0);
+        wt_pill_select(s_pair_pill[i], on);
+        lv_obj_set_style_text_color(s_pair_app[i],   // app name under the category
+                                    on ? wt_accent() : lv_color_hex(0x525C6E), 0);
     }
 }
 
@@ -186,14 +184,27 @@ static void pair_screen(void)
                       "show this QR to the app that will watch this wallet");
     wt_qr_card(s_scr, &s_pair_qr, 48, 96, 300, 264);
 
-    s_pair_pill[0] = wt_pill(s_scr, "SPARROW + MOST APPS", 400, 96, 360, pair_fmt_cb, (void *)(intptr_t)0);
-    s_pair_pill[1] = wt_pill(s_scr, "BLUEWALLET", 400, 156, 360, pair_fmt_cb, (void *)(intptr_t)1);
+    // where does the coordinator live? two parallel choices, side by side like
+    // the Settings ADDRESS TYPE picker (a dropdown would hide one of only two)
+    wt_section(s_scr, "SHOW IT TO", 400, 96);
+    static const char *CAT[2] = {"DESKTOP", "MOBILE"};
+    static const char *APP[2] = {"Sparrow Wallet", "BlueWallet"};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *p = wt_pillh(s_scr, CAT[i], 400 + i * 185, 120, 175, 60,
+                               pair_fmt_cb, (void *)(intptr_t)i);
+        lv_obj_align(lv_obj_get_child(p, 0), LV_ALIGN_TOP_MID, 0, 9);
+        s_pair_app[i] = lv_label_create(p);
+        lv_label_set_text(s_pair_app[i], APP[i]);
+        lv_obj_set_style_text_font(s_pair_app[i], &lv_font_montserrat_14, 0);
+        lv_obj_align(s_pair_app[i], LV_ALIGN_BOTTOM_MID, 0, -8);
+        s_pair_pill[i] = p;
+    }
 
-    s_pair_txt = wt_lbl(s_scr, "", 400, 224, &lv_font_montserrat_14, WT_INK);
+    s_pair_txt = wt_lbl(s_scr, "", 400, 200, &lv_font_montserrat_14, WT_INK);
     lv_obj_set_width(s_pair_txt, 360);
     lv_label_set_long_mode(s_pair_txt, LV_LABEL_LONG_WRAP);
 
-    s_pair_note = wt_lbl(s_scr, "", 400, 330, &lv_font_montserrat_14, WT_MUT);
+    s_pair_note = wt_lbl(s_scr, "", 400, 316, &lv_font_montserrat_14, WT_MUT);
 
     wt_pill(s_scr, "BACK", 48, 404, 140, pair_back_cb, NULL);
     pair_refresh();
