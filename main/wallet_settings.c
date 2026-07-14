@@ -8,6 +8,7 @@
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"
+#include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
 
 #ifndef SIMULATOR
@@ -24,16 +25,17 @@ void wallet_home_refresh(void);
 // exists; the next KISS unlock lands in first-boot setup).
 void wallet_wiped_lock(void);
 
-#define BG_COL   lv_color_hex(0x070A10)
-#define INK_COL  lv_color_hex(0xE8EEF7)
-#define MUT_COL  lv_color_hex(0x7A869C)
-#define KEY_COL  lv_color_hex(0x10141D)
-#define OK_COL   lv_color_hex(0x35D07F)
-#define WARN_COL lv_color_hex(0xF2B84B)
+#define BG_COL   WT_BG
+#define INK_COL  WT_INK
+#define MUT_COL  WT_MUT
+#define KEY_COL  WT_KEY
+#define OK_COL   WT_OK
+#define WARN_COL WT_WARN
 
-#define STOP_COL lv_color_hex(0xFF4D5E)
+#define STOP_COL WT_STOP
 
 static lv_obj_t *s_scr;
+static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_wipe_pill;
@@ -80,14 +82,16 @@ void wallet_settings_load(void)
     if (err != ESP_OK)
         return;
     nvs_handle_t h;
-    uint8_t tn = 0, sc = 0;
+    uint8_t tn = 0, sc = 0, ac = 0;
     if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
         nvs_get_u8(h, "testnet", &tn);
         nvs_get_u8(h, "script", &sc);
+        nvs_get_u8(h, "accent", &ac);
         nvs_close(h);
     }
     wallet_set_network(tn);
     wallet_set_script(sc);
+    wt_accent_set(ac);
 #endif
 }
 
@@ -95,7 +99,15 @@ void wallet_settings_load(void)
 static void restyle(void)
 {
     int tn = wallet_testnet();
-    lv_obj_set_style_border_color(s_main_pill, tn ? MUT_COL : OK_COL, 0);
+    // accent follows the picked theme everywhere it appears on this screen
+    lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), wt_accent(), 0);  // title
+    for (int i = 0; i < WT_ACC_N; i++)
+        if (s_acc_dot[i]) {
+            bool on = (i == wt_accent_get());
+            lv_obj_set_style_border_color(s_acc_dot[i], on ? INK_COL : KEY_COL, 0);
+            lv_obj_set_style_border_width(s_acc_dot[i], on ? 3 : 1, 0);
+        }
+    lv_obj_set_style_border_color(s_main_pill, tn ? MUT_COL : wt_primary(), 0);
     lv_obj_set_style_border_width(s_main_pill, tn ? 1 : 2, 0);
     lv_obj_set_style_border_color(s_test_pill, tn ? WARN_COL : MUT_COL, 0);
     lv_obj_set_style_border_width(s_test_pill, tn ? 2 : 1, 0);
@@ -109,7 +121,7 @@ static void restyle(void)
         int sc = wallet_script();
         for (int i = 0; i < 3; i++) {              // highlight the active type, dim the rest
             bool on = (i == sc);
-            lv_obj_set_style_border_color(s_type_seg[i], on ? OK_COL : MUT_COL, 0);
+            lv_obj_set_style_border_color(s_type_seg[i], on ? wt_primary() : MUT_COL, 0);
             lv_obj_set_style_border_width(s_type_seg[i], on ? 2 : 1, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(s_type_seg[i], 0),  // name label
                                         on ? INK_COL : MUT_COL, 0);
@@ -137,6 +149,13 @@ static void type_pick_cb(lv_event_t *e)
     int sc = (int)(intptr_t)lv_event_get_user_data(e);   // tap the type you want directly
     wallet_set_script(sc);
     store_u8("script", (uint8_t)sc);
+    restyle();
+}
+
+static void theme_pick_cb(lv_event_t *e)
+{
+    wt_accent_set((int)(intptr_t)lv_event_get_user_data(e));
+    store_u8("accent", (uint8_t)wt_accent_get());
     restyle();
 }
 
@@ -311,26 +330,10 @@ static void replace_cb(lv_event_t *e)
     wallet_begin_setup();
 }
 
+// thin wrappers over the wallet_theme kit (call sites keep their signatures)
 static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
 {
-    lv_obj_t *p = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, w, h);
-    lv_obj_set_pos(p, x, y);
-    lv_obj_set_style_radius(p, 26, 0);
-    lv_obj_set_style_bg_color(p, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(p, 1, 0);
-    lv_obj_set_style_border_color(p, MUT_COL, 0);
-    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, ud);
-    lv_obj_t *l = lv_label_create(p);
-    lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, INK_COL, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_center(l);
-    return p;
+    return wt_pillh(s_scr, txt, x, y, w, h, cb, ud);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb, void *ud)
@@ -340,43 +343,39 @@ static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb,
 
 static lv_obj_t *mk_section(const char *txt, int x, int y)
 {
-    lv_obj_t *l = lv_label_create(s_scr);
-    lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, MUT_COL, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_set_pos(l, x, y);
-    return l;
+    return wt_section(s_scr, txt, x, y);
 }
 
 static lv_obj_t *mk_wrap(int x, int y, int w)
 {
-    lv_obj_t *l = lv_label_create(s_scr);
-    lv_obj_set_style_text_color(l, MUT_COL, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-    lv_obj_set_width(l, w);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(l, x, y);
-    return l;
+    return wt_wrap(s_scr, x, y, w);
 }
 
 void wallet_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
-    s_scr = lv_obj_create(parent);
-    lv_obj_remove_style_all(s_scr);
-    lv_obj_set_size(s_scr, 800, 480);
-    lv_obj_set_style_bg_color(s_scr, BG_COL, 0);
-    lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_move_foreground(s_scr);
+    s_scr = wt_screen(parent, "SETTINGS", NULL);
 
-    lv_obj_t *cap = lv_label_create(s_scr);
-    lv_label_set_text(cap, "SETTINGS");
-    lv_obj_set_style_text_color(cap, INK_COL, 0);
-    lv_obj_set_style_text_font(cap, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 48, 26);
+    // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
+    for (int i = 0; i < WT_ACC_N; i++) {
+        int save = wt_accent_get();
+        wt_accent_set(i);                     // borrow the accent table for the dot fill
+        lv_color_t c = wt_accent();
+        wt_accent_set(save);
+        lv_obj_t *d = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_size(d, 36, 36);
+        lv_obj_set_pos(d, 560 + i * 48, 30);
+        lv_obj_set_style_radius(d, 18, 0);
+        lv_obj_set_style_bg_color(d, c, 0);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(d, 1, 0);
+        lv_obj_set_style_border_color(d, KEY_COL, 0);
+        lv_obj_add_flag(d, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(d, 6);
+        lv_obj_add_event_cb(d, theme_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        s_acc_dot[i] = d;
+    }
 
     // LEFT: network + address type
     mk_section("NETWORK", 48, 78);

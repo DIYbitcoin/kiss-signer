@@ -399,6 +399,9 @@ int main(void) {
   touch(333, 310); pump(3); release(); pump(4);     // pick LEGACY -> highlight moves
   save("/tmp/sim_settings_legacy.ppm");
   touch(103, 310); pump(3); release(); pump(4);     // back to NATIVE
+  touch(674, 48); pump(3); release(); pump(4);      // theme dot: CYPHERPINK
+  save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
+  touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
   touch(218, 176); pump(3); release(); pump(4);     // TESTNET pill (center y=176)
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
