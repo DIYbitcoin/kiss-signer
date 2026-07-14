@@ -89,8 +89,10 @@ static void meter_refresh(void) {
   }
 }
 
+static lv_obj_t *s_pp_intro;   // setup passphrase-intro screen (owns touch too)
+
 bool wallet_ui_active(void) {
-  return s_login != NULL || s_fpscr != NULL || s_errscr != NULL;
+  return s_login != NULL || s_fpscr != NULL || s_errscr != NULL || s_pp_intro != NULL;
 }
 
 // ---- keyboard maps (three planes) ----
@@ -749,11 +751,37 @@ static void show_cb(lv_event_t *e) {
 
 void wallet_ui_ensure_indev(void) { ensure_indev(); }
 
+// setup-only interstitial: the passphrase deserves one calm screen of WHY
+// before the keyboard appears (meter + type-twice enforce the HOW).
+static void (*s_setup_next_cb)(void);
+static void pp_intro_go_cb(lv_event_t *e) {
+  (void)e;
+  lv_obj_delete_async(s_pp_intro);
+  s_pp_intro = NULL;
+  wallet_login_open(s_setup_next_cb);
+}
+
 void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   s_setup_mode = true;
   s_first_done = false;
   s_first[0] = 0;
-  wallet_login_open(unlocked_cb);
+  ensure_indev();
+  s_setup_next_cb = unlocked_cb;
+  lv_obj_t *scr = wt_screen(lv_screen_active(), "ONE MORE LAYER",
+                            "last step: create your passphrase");
+  s_pp_intro = scr;
+  wt_lbl(scr,
+      "your words are the key. the passphrase is a second\n"
+      "secret LAYERED on top - typed fresh at every login,\n"
+      "never stored anywhere, not even on this device.\n\n"
+      "words + passphrase = this wallet.\n"
+      "the words alone open a different, empty wallet.\n\n"
+      "make it strong and MEMORABLE. nobody can reset it,\n"
+      "and a strong passphrase keeps the coins safe even\n"
+      "if someone finds your paper words.",
+      48, 116, &lv_font_montserrat_14, WT_MUT);
+  lv_obj_t *go = wt_pill(scr, "CREATE PASSPHRASE", 48, 404, 280, pp_intro_go_cb, NULL);
+  wt_pill_primary(go);
 }
 
 void wallet_login_open(void (*unlocked_cb)(void)) {
