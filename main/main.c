@@ -39,6 +39,7 @@
 #include "wallet_setup.h"
 #include "wallet_seed.h"
 #include "wallet_crypto.h"
+#include "wallet_theme.h"
 #ifndef SIMULATOR
 #include "wallet_crypto.h"
 #include "camera_spike.h"
@@ -200,6 +201,7 @@ static lv_obj_t *s_fp_cap;               // "fingerprint" caption under the chip
 static lv_obj_t *s_fp_fly;               // transient: the code flying from the reveal card
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
+static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
 #ifndef SIMULATOR
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
@@ -1109,19 +1111,19 @@ static void fp_scramble_cb(lv_timer_t *t) {
   buf[8] = 0;
   lv_label_set_text(s_fp_fly, buf);
   lv_obj_set_style_text_color(s_fp_fly,       // electric flicker while unresolved
-      lv_color_hex((s_fp_scr_step & 1) ? 0x9FE8FF : 0xE8EEF7), 0);
+      (s_fp_scr_step & 1) ? wt_accent() : WT_INK, 0);
   s_fp_scr_step++;
   if (resolved >= 8) {                        // locked: settle to ink and glide away
     lv_timer_delete(s_fp_scr_tmr);
     s_fp_scr_tmr = NULL;
-    lv_obj_set_style_text_color(s_fp_fly, lv_color_hex(0xE8EEF7), 0);
+    lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
     fp_fly_glide();
   }
 }
 static void fp_fly_start(void) {
   s_fp_fly = lv_label_create(lv_layer_top());
   lv_label_set_text(s_fp_fly, s_fp_hex);      // real code first: size the label off it
-  lv_obj_set_style_text_color(s_fp_fly, lv_color_hex(0xE8EEF7), 0);
+  lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
   lv_obj_set_style_text_font(s_fp_fly, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_letter_space(s_fp_fly, 4, 0);
   lv_obj_update_layout(s_fp_fly);
@@ -1150,7 +1152,32 @@ void wallet_begin_setup(void) {
 
 // Sync the home TESTNET badge to the current network. Called on unlock and by
 // Settings when it closes, so flipping the network updates the home immediately.
+static void wallet_home_restyle(void) {
+  if (!s_wallet) return;
+  lv_color_t ac = wt_accent();
+  if (s_fp_chip) lv_obj_set_style_text_color(s_fp_chip, ac, 0);
+  wallet_build_id_restyle(s_home_build_id);
+  if (s_fp_fly)  lv_obj_set_style_text_color(s_fp_fly, ac, 0);
+  if (s_cam_lbl) {
+    const char *msg = lv_label_get_text(s_cam_lbl);
+    lv_obj_set_style_text_color(s_cam_lbl, (msg && *msg) ? ac : WT_MUT, 0);
+  }
+  for (int i = 0; i < 4; i++)
+    if (s_tile_lbl[i]) {
+      lv_obj_set_style_image_recolor(s_tile_lbl[i], ac, 0);
+      lv_obj_set_style_image_recolor_opa(s_tile_lbl[i], LV_OPA_COVER, 0);
+    }
+  for (int i = 0; i < N_MOTES; i++)
+    if (s_mote[i]) lv_obj_set_style_bg_color(s_mote[i], ac, 0);
+  if (s_tile_glow) {
+    lv_obj_set_style_bg_color(s_tile_glow, ac, 0);
+    lv_obj_set_style_border_color(s_tile_glow, ac, 0);
+    lv_obj_set_style_shadow_color(s_tile_glow, ac, 0);
+  }
+}
+
 void wallet_home_refresh(void) {
+  wallet_home_restyle();
   if (!s_net_lbl) return;
   if (wallet_testnet()) lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
   else                  lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
@@ -1162,7 +1189,7 @@ void wallet_home_refresh(void) {
 void sim_home_status(const char *msg) {
   if (!s_cam_lbl) return;
   lv_label_set_text(s_cam_lbl, msg);
-  lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x35D07F), 0);
+  lv_obj_set_style_text_color(s_cam_lbl, wt_accent(), 0);
 }
 #endif
 
@@ -1244,6 +1271,7 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
       fp_chip_place();
       lv_obj_add_flag(s_fp_chip, LV_OBJ_FLAG_HIDDEN);  // revealed when the flight lands
       lv_obj_add_flag(s_fp_cap, LV_OBJ_FLAG_HIDDEN);
+      wallet_home_restyle();
       fp_fly_start();
     }
   }
@@ -1296,10 +1324,18 @@ static void tile_glow_sync(void) {
     s_tile_glow = lv_obj_create(s_wallet);
     lv_obj_remove_style_all(s_tile_glow);
     lv_obj_set_style_radius(s_tile_glow, 18, 0);
-    lv_obj_set_style_bg_color(s_tile_glow, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(s_tile_glow, 26, 0);
+    lv_obj_set_style_bg_color(s_tile_glow, wt_accent(), 0);
+    lv_obj_set_style_bg_opa(s_tile_glow, 38, 0);
+    lv_obj_set_style_border_width(s_tile_glow, 1, 0);
+    lv_obj_set_style_border_color(s_tile_glow, wt_accent(), 0);
+    lv_obj_set_style_shadow_width(s_tile_glow, 20, 0);
+    lv_obj_set_style_shadow_color(s_tile_glow, wt_accent(), 0);
+    lv_obj_set_style_shadow_opa(s_tile_glow, 60, 0);
     lv_obj_remove_flag(s_tile_glow, LV_OBJ_FLAG_CLICKABLE);
   }
+  lv_obj_set_style_bg_color(s_tile_glow, wt_accent(), 0);
+  lv_obj_set_style_border_color(s_tile_glow, wt_accent(), 0);
+  lv_obj_set_style_shadow_color(s_tile_glow, wt_accent(), 0);
   int i = s_tile_pend - 1;
   lv_obj_set_pos(s_tile_glow, gx[i], 140);
   lv_obj_set_size(s_tile_glow, gw[i], 200);
@@ -1357,7 +1393,7 @@ static void game_tick(lv_timer_t *t) {
       bool present = platform_sd_probe() != 0;
       if (present && !s_sd_present && s_cam_lbl) {   // just inserted: show the toast
         lv_label_set_text(s_cam_lbl, "SD card ready");
-        lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x35D07F), 0);
+        lv_obj_set_style_text_color(s_cam_lbl, wt_accent(), 0);
         s_sd_toast = 3;                              // ~3 polls (~4.5s) then fade
       } else if (s_sd_toast > 0 && --s_sd_toast == 0 && s_cam_lbl) {
         lv_label_set_text(s_cam_lbl, "");
@@ -1625,7 +1661,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // Step-1 proof: shows the boot-selftest fingerprint of the dev seed.
   s_fp_chip = lv_label_create(s_wallet);
   lv_label_set_text(s_fp_chip, s_fp_hex);
-  lv_obj_set_style_text_color(s_fp_chip, lv_color_hex(0xE8EEF7), 0);  // Mono theme accent
+  lv_obj_set_style_text_color(s_fp_chip, wt_accent(), 0);
   lv_obj_set_style_text_font(s_fp_chip, &lv_font_montserrat_28, 0);   // fills the chip frame
   lv_obj_set_style_text_letter_space(s_fp_chip, 2, 0);
 
@@ -1662,7 +1698,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // Build identity, bottom-left — the baked art used to carry a permanent
   // CAUTION pill here (a status light that never changed = dead chrome); now
   // this corner tells the truth instead, same line as the Settings footer.
-  wallet_build_id_make(s_wallet, 48, 424);
+  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424);
 
   // Tile labels, un-baked so the unlock can settle them in (coords match the
   // old baked text exactly; strips are full tile width, so x needs no centering)
@@ -1672,6 +1708,8 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_set_pos(s_tile_lbl[i], 50 + i * 180, TILE_LBL_Y);
   }
 
+  wallet_home_restyle();
+
   // idle motes: small dim dots (started/stopped with the session)
   for (int i = 0; i < N_MOTES; i++) {
     s_mote[i] = lv_obj_create(s_wallet);
@@ -1679,7 +1717,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_clear_flag(s_mote[i], LV_OBJ_FLAG_CLICKABLE);   // must never eat a tap
     lv_obj_set_size(s_mote[i], 4, 4);
     lv_obj_set_style_radius(s_mote[i], 2, 0);
-    lv_obj_set_style_bg_color(s_mote[i], lv_color_hex(0xE8EEF7), 0);
+    lv_obj_set_style_bg_color(s_mote[i], wt_accent(), 0);
     lv_obj_set_style_bg_opa(s_mote[i], LV_OPA_COVER, 0);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
     lv_obj_set_pos(s_mote[i], 0, 474);
