@@ -46,3 +46,4 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567
+void wt_fmt_btc(uint64_t sats, char *out, size_t out_len);     // 61000 -> 0.00061000

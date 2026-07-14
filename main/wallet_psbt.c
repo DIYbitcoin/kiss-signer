@@ -344,6 +344,64 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     return 0;
 }
 
+// 32-byte hash (internal little-endian) -> the big-endian hex people compare
+static void txid_hex(const uint8_t h[32], char out[65])
+{
+    for (int i = 0; i < 32; i++)
+        snprintf(out + i * 2, 3, "%02x", h[31 - i]);
+}
+
+int wallet_psbt_details(wpsbt_details_t *d)
+{
+    if (!d || !s_psbt || !s_psbt->tx)
+        return -1;
+    const struct ext_key *master = wallet_session_master();
+    if (!master)
+        return -1;
+    memset(d, 0, sizeof *d);
+
+    const struct wally_tx *tx = s_psbt->tx;
+    d->version = tx->version;
+    d->locktime = tx->locktime;
+
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    struct ext_key m = *master;
+    bip32_key_get_fingerprint(&m, fp, sizeof fp);
+    wally_bzero(&m, sizeof m);
+
+    uint8_t h[32];
+    if (wally_tx_get_txid((struct wally_tx *)tx, h, sizeof h) == WALLY_OK)
+        txid_hex(h, d->txid);
+
+    bool any_legacy = false;
+    for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
+        const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        if (d->n_in >= WPSBT_MAX_INS)
+            break;
+        wpsbt_in_t *di = &d->ins[d->n_in++];
+        txid_hex(tx->inputs[i].txhash, di->txid);
+        di->vout = tx->inputs[i].index;
+        if (in->witness_utxo) {
+            di->sats = in->witness_utxo->satoshi;
+        } else if (in->utxo && di->vout < in->utxo->num_outputs) {
+            di->sats = in->utxo->outputs[di->vout].satoshi;
+        }
+        uint32_t path[8];
+        size_t path_len = 8;
+        if (our_keypath(&in->keypaths, fp, path, &path_len) && path_len == 5) {
+            di->purpose = our_purpose(path, path_len);
+            di->change = path[3];
+            di->index = path[4];
+        }
+        if (di->purpose == 44)
+            any_legacy = true;
+    }
+    // legacy scriptSigs live inside the txid preimage, so signing changes the
+    // txid; segwit signatures live in the witness, which the txid ignores
+    d->txid_final = !any_legacy;
+    return 0;
+}
+
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
 {
     const struct ext_key *master = wallet_session_master();
