@@ -319,6 +319,10 @@ int main(void) {
   save("/tmp/sim_login_hold_a.ppm");                // counter must read 6 characters
   touch(753, 353); pump(80); release(); pump(3);    // hold backspace ~1.3s -> wipes all
   save("/tmp/sim_login_hold_bs.ppm");               // counter must read 0
+  for (int i = 0; i < 44; i++) { touch(46, 278); pump(3); release(); pump(3); } // 44 chars
+  pump(70);                                         // all masked
+  save("/tmp/sim_login_long.ppm");                  // 14pt now, tail visible, no clip
+  touch(753, 353); pump(640); release(); pump(3);   // hold backspace: wipe all 44
   touch(46, 278); pump(3); release(); pump(3);      // retype 'a' so OK unlocks non-empty
   touch(467, 430); pump(3); release(); pump(3);     // space -> counter flags it
   save("/tmp/sim_login_space.ppm");                 // "2 characters (1 space)"
@@ -343,7 +347,9 @@ int main(void) {
   sim_home_status(""); lv_refr_now(NULL); pump(2);   // clear so later frames are unaffected
 
   // step 4: Receive (address #0 QR, next -> #1) and watch-only Export
-  touch(310, 240); pump(3); release(); pump(6);     // Receive tile
+  touch(310, 240); pump(3);
+  save("/tmp/sim_tile_press.ppm");                  // glow under the held tile
+  release(); pump(6);                               // Receive tile
   save("/tmp/sim_recv.ppm");
   touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
