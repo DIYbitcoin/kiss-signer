@@ -14,6 +14,12 @@ void wallet_scan_open(lv_obj_t *parent,
                       void (*on_psbt)(const uint8_t *psbt, size_t len, int fmt),
                       void (*on_cancel)(void));
 
+// Raw single-QR mode (verify-address): the FIRST decoded payload is handed to
+// on_text as-is (NUL-terminated) — no PSBT assembly. Same camera/cancel UX.
+void wallet_scan_open_raw(lv_obj_t *parent,
+                          void (*on_text)(const char *txt, size_t len),
+                          void (*on_cancel)(void));
+
 bool wallet_scan_active(void);
 void wallet_scan_close(void);   // idle auto-lock: stop camera + drop the screen
                                 // WITHOUT firing on_cancel (nothing reopens)

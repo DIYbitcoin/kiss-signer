@@ -43,6 +43,10 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // white QR card; *qr receives the lv_qrcode (NULL if creation failed)
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
 
+// grouped address with the compare-ends bright: first/last 4 chars ink, middle
+// muted. People check the ends against the other screen — light those up.
+lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);
+
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567
