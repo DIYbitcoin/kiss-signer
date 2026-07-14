@@ -14,6 +14,26 @@ typedef enum {
     WPSBT_STOP    = 2,   // blocked: wallet_psbt_sign will refuse
 } wpsbt_status_t;
 
+// Caution reasons, accumulated so several can coexist (fee + dust + ...). The
+// verify screen shows a short summary; DETAILS explains each. STOP uses `reason`
+// for its single root cause and ignores these.
+#define WPSBT_C_HIGHFEE      (1u << 0)   // fee is a big share of the send, or a fat rate
+#define WPSBT_C_DUST_INPUT   (1u << 1)   // spending a tiny KISS-owned coin (dust-attack tell)
+#define WPSBT_C_SMALL_CHANGE (1u << 2)   // change below the privacy threshold
+#define WPSBT_C_DUST_CHANGE  (1u << 3)   // change below the standardness dust limit
+
+// Privacy threshold: coins/change under this are flagged (soft). Not a dust
+// limit — that is a per-type standardness floor (see wallet_psbt.c).
+#define WPSBT_PRIVACY_SATS   5000
+
+// High-fee-rate backstop (sat/vB * 10). Krux warns only on the fee-as-share-of
+// -send (>=10%, which we match) and deliberately never thresholds sat/vB, since
+// a signer can't know the going rate and a low bar just fatigues users in
+// congestion. We keep a *high* backstop (300 sat/vB) purely to catch the case
+// the share check misses: a large send at a fat-finger rate reads as a tiny %.
+// Soft CAUTION either way; 300 stays clear of all but rare peak-day rates.
+#define WPSBT_HIGH_RATE_X10  3000
+
 typedef struct {
     char     addr[92];
     uint64_t sats;
@@ -31,7 +51,8 @@ typedef struct {
     bool     testnet;        // network this summary was verified under
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;
-    char     reason[64];     // why STOP/CAUTION ("" when READY)
+    uint16_t caution_flags;  // WPSBT_C_* bitset (all triggered cautions)
+    char     reason[64];     // STOP root cause, or the first caution ("" when READY)
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
 

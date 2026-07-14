@@ -6,6 +6,7 @@
 #include <string.h>
 #include "wallet_crypto.h"
 #include "wallet_psbt.h"
+#include "wallet_usage.h"
 
 #include <wally_bip32.h>
 #include <wally_bip39.h>
@@ -241,6 +242,59 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint8_t *out, size_t c
     wally_map_keypath_add(m, kchg.pub_key, 33, t_fp, 4, pchg, 5);
     wally_psbt_set_output_keypaths(p, 1, m);
     wally_map_free(m);
+
+    size_t wr = 0;
+    wally_psbt_to_bytes(p, 0, out, cap, &wr);
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+    wally_bzero(&kin, sizeof kin);
+    wally_bzero(&kchg, sizeof kchg);
+    return wr;
+}
+
+// Native-segwit 1-in PSBT with explicit values: input `in_val` (ours, 84h/0/0),
+// one external output `ext_val`, and optionally a change output `chg_val`
+// (84h/1/0). Fee is the remainder. For the dust/privacy warning tests.
+static size_t mk_val_psbt(uint64_t in_val, uint64_t ext_val, uint64_t chg_val,
+                          int with_change, uint8_t *out, size_t cap) {
+    struct ext_key kin, kchg;
+    derive5(84, 0, 0, &kin);
+    derive5(84, 1, 0, &kchg);
+    uint8_t in_spk[22], chg_spk[22]; size_t in_len = 0, chg_len = 0;
+    build_spk(WSCRIPT_NATIVE, kin.pub_key, in_spk, &in_len);
+    build_spk(WSCRIPT_NATIVE, kchg.pub_key, chg_spk, &chg_len);
+    uint8_t ext_spk[22] = {0x00, 0x14};
+    memset(ext_spk + 2, 0x11, 20);
+
+    uint8_t txid[32]; memset(txid, 0xAA, 32);
+    int nout = with_change ? 2 : 1;
+    struct wally_tx *tx = NULL;
+    wally_tx_init_alloc(2, 0, 1, nout, &tx);
+    wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
+    wally_tx_add_raw_output(tx, ext_val, ext_spk, 22, 0);
+    if (with_change)
+        wally_tx_add_raw_output(tx, chg_val, chg_spk, chg_len, 0);
+
+    struct wally_psbt *p = NULL;
+    wally_psbt_init_alloc(0, 1, nout, 1, 0, &p);
+    wally_psbt_set_global_tx(p, tx);
+    struct wally_tx_output *u = NULL;
+    wally_tx_output_init_alloc(in_val, in_spk, in_len, &u);
+    wally_psbt_set_input_witness_utxo(p, 0, u);
+    wally_tx_output_free(u);
+
+    const uint32_t pin[5] = {H + 84, H, H, 0, 0}, pchg[5] = {H + 84, H, H, 1, 0};
+    struct wally_map *m = NULL;
+    wally_map_keypath_public_key_init_alloc(1, &m);
+    wally_map_keypath_add(m, kin.pub_key, 33, t_fp, 4, pin, 5);
+    wally_psbt_set_input_keypaths(p, 0, m);
+    wally_map_free(m); m = NULL;
+    if (with_change) {
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, kchg.pub_key, 33, t_fp, 4, pchg, 5);
+        wally_psbt_set_output_keypaths(p, 1, m);
+        wally_map_free(m);
+    }
 
     size_t wr = 0;
     wally_psbt_to_bytes(p, 0, out, cap, &wr);
@@ -628,7 +682,83 @@ int main(int argc, char **argv) {
     chki("high-fee load rc", wallet_psbt_load(pb, pl, &sum), 0);
     chki("high-fee CAUTION", sum.status, WPSBT_CAUTION);
     chkb("high-fee reason says fee", strstr(sum.reason, "fee") != NULL);
+    chkb("high-fee flag set", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
     wallet_psbt_free();
+
+    // ---- dust / privacy warnings (CAUTION, never STOP; several can stack) ----
+    // clean spend: normal input, normal change, moderate fee -> no cautions
+    pl = mk_val_psbt(100000, 60000, 38000, 1, pb, sizeof pb);
+    chki("clean load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("clean READY", sum.status, WPSBT_READY);
+    chki("clean no caution flags", sum.caution_flags, 0);
+    wallet_psbt_free();
+
+    // spending a tiny KISS-owned coin: dust-input privacy warn, still signable
+    pl = mk_val_psbt(3000, 2700, 0, 0, pb, sizeof pb);
+    chki("dust-input load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("dust-input CAUTION", sum.status, WPSBT_CAUTION);
+    chkb("dust-input flag set", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
+    chkb("dust-input not STOP-signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
+    wallet_psbt_free();
+
+    // small (but above dust) change: privacy warn, not the loud dust-change flag
+    pl = mk_val_psbt(100000, 90000, 4000, 1, pb, sizeof pb);
+    chki("small-change load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chkb("small-change flag set", (sum.caution_flags & WPSBT_C_SMALL_CHANGE) != 0);
+    chkb("small-change not dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) == 0);
+    wallet_psbt_free();
+
+    // change below the standardness dust floor (<294 segwit): loud dust-change
+    pl = mk_val_psbt(100000, 99500, 200, 1, pb, sizeof pb);
+    chki("dust-change load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chkb("dust-change flag set", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
+    chkb("dust-change not small-change", (sum.caution_flags & WPSBT_C_SMALL_CHANGE) == 0);
+    wallet_psbt_free();
+
+    // fee-rate backstop (~300 sat/vB): a big send at a fat-finger rate trips the
+    // rate check even though the fee is a small SHARE of the send
+    pl = mk_val_psbt(2000000, 1900000, 40000, 1, pb, sizeof pb);   // fee 60000 -> ~425 sat/vB
+    chki("high-rate load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("high-rate CAUTION", sum.status, WPSBT_CAUTION);
+    chkb("high-rate flags high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
+    chkb("high-rate share is small", sum.fee_sats * 10 < sum.send_sats);   // not the % check
+    wallet_psbt_free();
+
+    // an elevated-but-normal rate below the backstop stays clean (no congestion
+    // fatigue): ~140 sat/vB, well under the 300 bar and a small share
+    pl = mk_val_psbt(2000000, 1900000, 80000, 1, pb, sizeof pb);   // fee 20000 -> ~140 sat/vB
+    chki("moderate-rate load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("moderate-rate READY", sum.status, WPSBT_READY);
+    chki("moderate-rate no cautions", sum.caution_flags, 0);
+    wallet_psbt_free();
+
+    // combo: tiny input + tiny change + high fee -> all three flags coexist
+    pl = mk_val_psbt(4000, 3000, 200, 1, pb, sizeof pb);
+    chki("combo load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("combo CAUTION", sum.status, WPSBT_CAUTION);
+    chkb("combo has high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
+    chkb("combo has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
+    chkb("combo has dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
+    wallet_psbt_free();
+
+    // ---- receive reuse guard (wallet_usage) ----
+    {
+        uint8_t fp[4] = {0xEC, 0x5A, 0x45, 0x95};
+        wallet_usage_wipe();
+        chki("usage fresh -> -1", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
+        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 3);
+        chki("usage marks 3", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
+        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 1);         // lower: ignored
+        chki("usage monotonic", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
+        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 7);
+        chki("usage advances to 7", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 7);
+        chki("usage isolates network", wallet_usage_high(fp, 1, WSCRIPT_NATIVE), -1);
+        chki("usage isolates type", wallet_usage_high(fp, 0, WSCRIPT_LEGACY), -1);
+        uint8_t fp2[4] = {0x11, 0x22, 0x33, 0x44};
+        chki("usage isolates wallet", wallet_usage_high(fp2, 0, WSCRIPT_NATIVE), -1);
+        wallet_usage_wipe();
+        chki("usage wipe clears", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
+    }
 
     // an output the device can't render as an address = a destination the user
     // can't verify = refuse to sign (STOP, not caution)
