@@ -42,6 +42,12 @@ a Bitcoin signer hidden under a Tetris game.
   Nunchuk, Ibis). The coordinator app watches balances, builds transactions and
   broadcasts — it cannot sign or authorize anything by itself. KISS stays
   offline, verifies the PSBT, and signs only what it can fully show.
+- **Shows everything, warns in plain words, teaches as you go:** before you sign,
+  every amount, the fee, and each change output are re-derived and shown on the
+  device. It flags an unusually high fee, a tiny "dust" coin or change that hurts
+  your privacy, and a reused receive address — each as a soft caution you
+  acknowledge, never a silent surprise. A **?** on any unfamiliar term opens a
+  short plain-words card, with a small diagram where a picture helps.
 
 Runs on the Guition **JC4880P443C** dev board — ESP32-P4, 480×800 MIPI-DSI
 touch panel, camera, SD card slot. No soldering.
@@ -153,6 +159,25 @@ trusting the setup with real coins.
 </tr>
 </table>
 
+### Warnings and learning, on the device
+
+Before every signature KISS re-derives the whole transaction on its own screen
+and calls out anything worth a second look — always a caution you acknowledge,
+never a silent block:
+
+- **High fee** — the fee turns amber if it's a large share of what you send (the
+  rule Krux uses), or an outsized sat/vB rate.
+- **Dust / privacy** — spending a tiny coin, or leaving tiny change, is flagged:
+  both can be used to link and track your addresses. Change below the network
+  dust limit is flagged louder.
+- **Reused address** — Receive hands you a fresh address and warns if you page
+  back to one already used; reusing an address links your payments together.
+
+When any of these fire, the sign button is gated behind an **I UNDERSTAND** tap,
+and a **?** opens a plain-words card explaining exactly why. Tap **?** anywhere a
+term is unfamiliar (RBF, fingerprint, coordinator, dust), or tap the fingerprint
+on the home screen, to learn as you go.
+
 ## Docs
 
 The full guides live in [`docs/`](docs/) for now and move to GitHub Pages once
@@ -164,6 +189,8 @@ the repo is public. They cover:
 - **Flash encryption** — the one-way final-board build and what it costs
 - **First boot** — the unlock gesture, passphrase model, pairing Sparrow
 - **Simulator & tests** — try the UI and run the test suite, no hardware
+
+What changed between releases is in the [changelog](CHANGELOG.md).
 
 ## Build from source
 
