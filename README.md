@@ -27,7 +27,7 @@ Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
 
 > [!CAUTION]
-> **`0.1.0-beta2` is experimental. Do not trust it with meaningful funds.**
+> **`0.1.0-beta3` is experimental. Do not trust it with meaningful funds.**
 
 - **Seed + passphrase = your wallet.** The BIP39 passphrase is typed fresh every
   time, never stored, and there is no "wrong passphrase" error by design — a
@@ -61,7 +61,7 @@ Brave on desktop only — Safari and Firefox cannot flash over Web Serial).
 
 **1. Download** these release assets into one folder:
 
-- `kiss-wallet-0.1.0-beta2.bin`
+- `kiss-wallet-0.1.0-beta3.bin`
 - `SHA256SUMS`
 - `SHA256SUMS.asc`
 - `kiss_wallet_pgp.asc`
@@ -89,7 +89,7 @@ pip install esptool   # or: pipx install esptool / uvx esptool
 esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 kiss-wallet-0.1.0-beta2.bin
+  0 kiss-wallet-0.1.0-beta3.bin
 ```
 
 > [!IMPORTANT]
@@ -121,6 +121,18 @@ The game is what boots. A secret gesture on the game menu opens the signer
 <td align="center"><sub>Pick a passphrase — typed at every unlock, never stored</sub></td>
 </tr>
 </table>
+
+> [!TIP]
+> **Before you fund it, verify your backup.** WALLET → BACKUP WORDS → **VERIFY
+> MY COPY** has you type your words from paper; the device confirms they rebuild
+> this exact wallet and never shows the stored words. A wrong or missing word is
+> reported by position ("word #N"). Bad backups lose more coins than bad signers
+> do — it's worth the two minutes.
+
+<div align="center">
+<img src="docs/readme/verify-backup.png" alt="Backup verified: every word matched" width="400"><br>
+<sub><b>Verify my copy</b> — type the paper words; the device confirms without revealing them</sub>
+</div>
 
 ## Day to day
 
