@@ -100,8 +100,8 @@ static void help_cb(lv_event_t *e)
     else if (!strcmp(key, "pair"))
         help_open_d("THE COORDINATOR APP",
             "an online app that watches this wallet using only a\n"
-            "public key, so it can never spend. it sees balances,\n"
-            "builds transactions and broadcasts them.\n\n"
+            "public key - it cannot sign or authorize a spend by\n"
+            "itself. it just sees balances, builds and broadcasts.\n\n"
             "DESKTOP shares a descriptor (Sparrow-style), MOBILE a\n"
             "zpub (BlueWallet-style) - same wallet, two dialects.\n"
             "'watch-only' is correct: every spend signs HERE.", DIAG_PAIR);
@@ -340,8 +340,8 @@ static void info_screen(void)
     wt_pill_primary(pp);
     lv_obj_t *pn = wt_wrap(s_scr, 430, 166, 340);
     lv_label_set_text(pn, "connect the app that watches your balance\n"
-                          "and prepares transactions. it can never\n"
-                          "spend - only this device signs.");
+                          "and prepares transactions. it cannot sign\n"
+                          "or authorize - only this device does.");
 
     wt_pill(s_scr, "BACKUP WORDS", 430, 252, 320, words_warn_screen, NULL);
     lv_obj_t *wn = wt_wrap(s_scr, 430, 314, 340);
