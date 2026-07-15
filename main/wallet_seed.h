@@ -45,3 +45,10 @@ int wallet_seed_suggest(const char *prefix, const char *out[], int n);
 
 // Wordlist word by index (0..2047). 0 on success.
 int wallet_seed_word(int index, const char **out);
+
+// ---- backup verification ----
+// Compare two space-separated mnemonics word by word. Returns the 0-based index
+// of the FIRST differing word (so the UI can say "word #N"), or -1 if identical.
+// A different word count counts as a mismatch at the first missing/extra word.
+// Reveals only the position, never the correct word.
+int wallet_seed_diff_word(const char *typed, const char *stored);
