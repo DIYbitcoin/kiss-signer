@@ -4,13 +4,18 @@ All notable, user-facing changes to KISS Wallet. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer — entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
-## [0.1.0-beta3] — unreleased
+## [0.1.0-beta3] — 2026-07-15
 
 The safety-and-clarity release: KISS now explains itself as you use it, and
 speaks up in plain words before you sign something you might regret.
 
 ### Added — you see and understand more
 
+- **Verify your backup before funding.** WALLET → BACKUP WORDS → **VERIFY MY
+  COPY** lets you type your written words from paper; the device confirms they
+  rebuild this exact wallet and never shows the stored words. A wrong or missing
+  word is reported by position ("word #N"), never revealed. It never alters the
+  seed — a safe dry run you can repeat any time.
 - **Learn-as-you-go explainers.** A **?** next to any unfamiliar term (RBF,
   fingerprint, coordinator, dust) opens a short plain-words card. Where a picture
   helps, the card carries a small diagram built from the app's own style:
