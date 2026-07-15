@@ -364,14 +364,37 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figure>
         </div>
         <p>
-          An unusually high fee (a big share of what you send, or an outsized
-          rate) turns the fee amber and the screen to <strong>CAUTION</strong>
-          before you can hold to sign &mdash; a fat-finger guard, not a block.
-          On the signed-QR screen, <strong>EASY SCAN</strong> slows the loop and
-          enlarges the dots for phone cameras that will not lock onto the default.
-          Anywhere you see a <strong>?</strong>, tap it &mdash; and tapping the
-          home fingerprint explains what that code is. (Tapping the KISS logo on
-          the game menu locks straight back to the game.)
+          KISS re-derives the whole transaction on its own screen and speaks up,
+          in plain words, before you sign &mdash; always a soft <strong>CAUTION</strong>
+          you acknowledge, never a silent surprise:
+        </p>
+        <ul>
+          <li><strong>High fee</strong> &mdash; the fee turns amber if it is a big
+            share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
+          <li><strong>Dust / privacy</strong> &mdash; spending a tiny coin or
+            leaving tiny change is flagged, because both can be used to link and
+            track your addresses; change below the network dust limit is flagged
+            louder.</li>
+          <li><strong>Reused address</strong> &mdash; Receive lands on a fresh
+            address and warns if you page back to one already used, with a
+            <strong>FRESH</strong> shortcut.</li>
+        </ul>
+        <p>
+          Several cautions stack into one summary; a <strong>?</strong> opens a
+          <em>WHY FLAGGED</em> card explaining each and the fix (freeze or label
+          the coin in your coordinator). When any caution is present, the sign
+          button is gated behind an <strong>I UNDERSTAND</strong> tap. To confirm
+          an incoming address is yours, use <strong>Receive &rarr; VERIFY</strong>
+          and scan what your coordinator shows.
+        </p>
+        <p>
+          Learn as you go: tap the <strong>?</strong> beside any unfamiliar term
+          (RBF, fingerprint, coordinator, dust) for a short card &mdash; some carry
+          a small diagram, like <code>WORDS + PASSPHRASE &rarr; FINGERPRINT</code>.
+          Tapping the home fingerprint explains what that code is. On the signed-QR
+          screen, <strong>EASY SCAN</strong> slows the loop and enlarges the dots
+          for stubborn phone cameras. (Tapping the KISS logo on the game menu locks
+          straight back to the game.)
         </p>
         <p>
           Settings shows exactly what is on the board, bottom-left:
