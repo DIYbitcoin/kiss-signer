@@ -186,6 +186,24 @@ int wallet_seed_word(int index, const char **out)
     return 0;
 }
 
+// ---- backup verification: word-by-word compare (see wallet_seed.h) ----
+static const char *skip_spaces(const char *p) { while (*p == ' ') p++; return p; }
+
+int wallet_seed_diff_word(const char *typed, const char *stored)
+{
+    const char *a = skip_spaces(typed), *b = skip_spaces(stored);
+    for (int idx = 0;; idx++) {
+        // word boundaries in each string
+        const char *ae = a; while (*ae && *ae != ' ') ae++;
+        const char *be = b; while (*be && *be != ' ') be++;
+        size_t al = (size_t)(ae - a), bl = (size_t)(be - b);
+        if (al == 0 && bl == 0) return -1;            // both ended together: match
+        if (al != bl || strncmp(a, b, al) != 0) return idx;   // word differs (or count differs)
+        a = skip_spaces(ae);
+        b = skip_spaces(be);
+    }
+}
+
 int wallet_seed_suggest(const char *prefix, const char *out[], int n)
 {
     // matches get their own stable rows — wallet_seed_word's ring would be

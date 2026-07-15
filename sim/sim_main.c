@@ -104,6 +104,19 @@ int wallet_seed_suggest(const char *prefix, const char *out[], int n) {
       out[found++] = SIM_WORDS[i];
   return found;
 }
+// mirrors main/wallet_seed.c (the shipped, unit-tested one)
+int wallet_seed_diff_word(const char *typed, const char *stored) {
+  const char *a = typed, *b = stored;
+  while (*a == ' ') a++; while (*b == ' ') b++;
+  for (int idx = 0;; idx++) {
+    const char *ae = a; while (*ae && *ae != ' ') ae++;
+    const char *be = b; while (*be && *be != ' ') be++;
+    size_t al = (size_t)(ae - a), bl = (size_t)(be - b);
+    if (al == 0 && bl == 0) return -1;
+    if (al != bl || strncmp(a, b, al) != 0) return idx;
+    a = ae; b = be; while (*a == ' ') a++; while (*b == ' ') b++;
+  }
+}
 
 // network seam: wallet_settings + the verify screen read it (no wallet_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
@@ -406,8 +419,36 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning
-  save("/tmp/sim_words_warn.ppm");
-  touch(188, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
+  save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
+
+  // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
+  // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
+  touch(420, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  save("/tmp/sim_verify_intro.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  save("/tmp/sim_verify_entry.ppm");
+  for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
+    touch(44, 314); pump(3); release(); pump(3);    // a
+    touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
+    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
+  }
+  pump(4);
+  save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
+  touch(198, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
+  for (int i = 0; i < 11; i++) {                    // 11x abandon
+    touch(44, 314); pump(3); release(); pump(3);
+    touch(450, 374); pump(3); release(); pump(3);
+    touch(163, 182); pump(3); release(); pump(3);
+  }
+  touch(44, 314); pump(3); release(); pump(3);      // a
+  touch(450, 374); pump(3); release(); pump(3);     // b
+  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
+  touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
+  save("/tmp/sim_verify_ok.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // DONE -> section home
+
+  touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning again
+  touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home

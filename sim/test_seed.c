@@ -107,6 +107,27 @@ int test_seed_layer(void) {
         schk("suggest(qqq) empty", wallet_seed_suggest("qqq", sug, 3) == 0);
     }
 
+    // backup verification: word-by-word compare, first-mismatch index
+    schk("diff: identical -> -1", wallet_seed_diff_word(DEV_WORDS, DEV_WORDS) == -1);
+    schk("diff: leading/trailing spaces ignored",
+         wallet_seed_diff_word("  " DEV_WORDS " ", DEV_WORDS) == -1);
+    schk("diff: last word wrong -> 11",
+         wallet_seed_diff_word(
+             "abandon abandon abandon abandon abandon abandon "
+             "abandon abandon abandon abandon abandon abandon", DEV_WORDS) == 11);
+    schk("diff: first word wrong -> 0",
+         wallet_seed_diff_word("ability winner thank year wave sausage worth "
+                               "useful legal winner thank yellow", ALT_WORDS) == 0);
+    schk("diff: word #3 wrong -> 2",
+         wallet_seed_diff_word("legal winner THANK year wave sausage worth "
+                               "useful legal winner thank yellow", ALT_WORDS) == 2);
+    schk("diff: prefix-of-word is a mismatch (aban vs abandon)",
+         wallet_seed_diff_word("aban", "abandon") == 0);
+    schk("diff: fewer words -> mismatch at the short end",
+         wallet_seed_diff_word("legal winner", ALT_WORDS) == 2);
+    schk("diff: extra words -> mismatch at the extra one",
+         wallet_seed_diff_word(ALT_WORDS " extra", ALT_WORDS) == 12);
+
     // leave the dev seed stored: the rest of the suite depends on it
     schk("restore dev words for suite", wallet_seed_store(DEV_WORDS) == 0);
     return sfails;
