@@ -216,3 +216,4 @@ PY
 echo
 echo "web release ready: $OUT/firmware/$NAME"
 [ "$GPGSIGNED" = "1" ] || echo "REMINDER: set up the GPG release key before the first public release."
+"$PY" tools/make_release_notes.py --write
