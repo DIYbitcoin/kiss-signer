@@ -178,6 +178,17 @@ and a **?** opens a plain-words card explaining exactly why. Tap **?** anywhere 
 term is unfamiliar (RBF, fingerprint, coordinator, dust), or tap the fingerprint
 on the home screen, to learn as you go.
 
+<table>
+<tr>
+<td align="center"><img src="docs/readme/warn-caution.png" alt="Sign screen showing stacked cautions and an I UNDERSTAND gate" width="400"></td>
+<td align="center"><img src="docs/readme/learn-card.png" alt="Fingerprint explainer card with a WORDS + PASSPHRASE to FINGERPRINT diagram" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>Cautions stack</b> — a short summary, a <b>?</b> for why, and <b>I UNDERSTAND</b> before you can sign</sub></td>
+<td align="center"><sub><b>Learn as you go</b> — plain-words cards, with a small diagram where a picture helps</sub></td>
+</tr>
+</table>
+
 ## Docs
 
 The full guides live in [`docs/`](docs/) for now and move to GitHub Pages once
