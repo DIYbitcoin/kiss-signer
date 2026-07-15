@@ -46,7 +46,9 @@ static void help_ok_cb(lv_event_t *e)
     lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
-static void help_open(const char *title, const char *body)
+enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR };   // optional chip diagram under the body
+
+static void help_open_d(const char *title, const char *body, int diagram)
 {
     lv_obj_t *ovl = lv_obj_create(s_scr);
     lv_obj_remove_style_all(ovl);
@@ -65,20 +67,28 @@ static void help_open(const char *title, const char *body)
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
 
-    wt_pill(ovl, "OK", 300, 388, 200, help_ok_cb, ovl);
+    if (diagram == DIAG_FP)   wt_diagram_fp(ovl, 320);
+    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl, 320);
+
+    wt_pill(ovl, "OK", 300, 392, 200, help_ok_cb, ovl);
     wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
+}
+
+static void help_open(const char *title, const char *body)
+{
+    help_open_d(title, body, DIAG_NONE);
 }
 
 static void help_cb(lv_event_t *e)
 {
     const char *key = (const char *)lv_event_get_user_data(e);
     if (!strcmp(key, "fp"))
-        help_open("FINGERPRINT",
-            "a short code made from this wallet's keys. it identifies\n"
-            "the wallet without revealing anything about it.\n\n"
+        help_open_d("FINGERPRINT",
+            "a short code that identifies this wallet without\n"
+            "revealing anything about it.\n\n"
             "you saw it at login: same fingerprint = same wallet,\n"
             "same coins. a paired app shows it too, so you can\n"
-            "check you're both looking at the same wallet.");
+            "check you both mean the same wallet.", DIAG_FP);
     else if (!strcmp(key, "type"))
         help_open("ADDRESS TYPE",
             "the style of address this wallet hands out. Native\n"
@@ -87,15 +97,13 @@ static void help_cb(lv_event_t *e)
             "shelf inside the seed where these keys live. apps use\n"
             "it to find the same addresses this device does.");
     else if (!strcmp(key, "pair"))
-        help_open("THE COORDINATOR APP",
-            "the app that watches this wallet online: it sees\n"
-            "balances, builds transactions and broadcasts - using\n"
-            "only a public key, so it can never spend.\n\n"
-            "DESKTOP shares a descriptor (Sparrow-style apps).\n"
-            "MOBILE shares a zpub (BlueWallet-style apps).\n"
-            "same wallet either way - just two dialects.\n\n"
-            "if the app calls it 'watch-only', that is correct:\n"
-            "every spend is reviewed and signed on this device.");
+        help_open_d("THE COORDINATOR APP",
+            "an online app that watches this wallet using only a\n"
+            "public key, so it can never spend. it sees balances,\n"
+            "builds transactions and broadcasts them.\n\n"
+            "DESKTOP shares a descriptor (Sparrow-style), MOBILE a\n"
+            "zpub (BlueWallet-style) - same wallet, two dialects.\n"
+            "'watch-only' is correct: every spend signs HERE.", DIAG_PAIR);
     else
         help_open("FIRST ADDRESS",
             "address #0, shown so you can recognize this wallet\n"

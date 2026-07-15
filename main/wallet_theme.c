@@ -248,6 +248,68 @@ void wt_card_intro(lv_obj_t *card)
     }
 }
 
+// ---- chip diagrams (shared by the "?" cards) ----
+lv_obj_t *wt_diagram_row(lv_obj_t *parent, int y)
+{
+    lv_obj_t *row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 8, 0);
+    lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
+    return row;
+}
+
+lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent)
+{
+    lv_obj_t *c = lv_obj_create(row);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_hor(c, 12, 0);
+    lv_obj_set_style_pad_ver(c, 6, 0);
+    lv_obj_set_style_radius(c, 8, 0);
+    lv_obj_set_style_bg_color(c, accent ? wt_accent_bg() : WT_KEY, 0);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(c, accent ? 2 : 1, 0);
+    lv_obj_set_style_border_color(c, accent ? wt_primary() : WT_MUT, 0);
+    lv_obj_t *l = lv_label_create(c);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_color(l, accent ? WT_INK : WT_MUT, 0);
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_center(l);
+    return c;
+}
+
+lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
+{
+    lv_obj_t *l = lv_label_create(row);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    return l;
+}
+
+void wt_diagram_fp(lv_obj_t *parent, int y)
+{
+    lv_obj_t *row = wt_diagram_row(parent, y);
+    wt_chip(row, "WORDS", false);
+    wt_diagram_op(row, "+");
+    wt_chip(row, "PASSPHRASE", false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, "FINGERPRINT", true);
+}
+
+void wt_diagram_pair(lv_obj_t *parent, int y)
+{
+    // the airgap: an online app and the offline signer, bridged only by QR
+    lv_obj_t *row = wt_diagram_row(parent, y);
+    wt_chip(row, "ONLINE APP", false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT " QR " LV_SYMBOL_LEFT);
+    wt_chip(row, "KISS OFFLINE", true);
+}
+
 void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;

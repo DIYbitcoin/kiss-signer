@@ -389,19 +389,19 @@ int main(void) {
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
-  touch(680, 60); pump(3); release(); pump(14);     // fingerprint chip -> education card
+  touch(680, 60); pump(3); release(); pump(30);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
-  touch(211, 109); pump(3); release(); pump(14);    // "?" chip (fingerprint) -> card
+  touch(211, 109); pump(3); release(); pump(30);    // "?" chip (fingerprint) -> card
   save("/tmp/sim_winfo_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
   save("/tmp/sim_pair_bw.ppm");
-  touch(541, 105); pump(3); release(); pump(14);    // "?" chip -> coordinator card
+  touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_pair_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
@@ -416,9 +416,9 @@ int main(void) {
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
   save("/tmp/sim_sign_choose.ppm");
-  touch(718, 170); pump(3); release(); pump(6);     // "?" chip -> coordinator card
+  touch(718, 170); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_sign_help.ppm");
-  touch(400, 366); pump(3); release(); pump(6);     // OK closes the card
+  touch(400, 388); pump(3); release(); pump(6);     // OK closes the card
   touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD -> file list
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)

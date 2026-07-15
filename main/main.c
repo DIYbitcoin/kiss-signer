@@ -1402,20 +1402,18 @@ static void fp_card_open(void) {
 
   lv_obj_t *b = lv_label_create(ovl);
   lv_label_set_text(b,
-      "the short code that identifies THIS wallet - made\n"
-      "from your words + passphrase together, revealing\n"
-      "nothing about either.\n\n"
-      "same fingerprint = same wallet, same coins. type a\n"
-      "different passphrase at unlock and you get a\n"
-      "different fingerprint: a different wallet.\n\n"
-      "your paired app shows this same code - and SIGN\n"
-      "shows it again before anything is signed.");
+      "a short code that identifies THIS wallet, revealing\n"
+      "nothing about your words or passphrase.\n\n"
+      "same fingerprint = same wallet, same coins. a\n"
+      "different passphrase makes a different one: a\n"
+      "different wallet. your app and SIGN show it too.");
   lv_obj_set_style_text_color(b, lv_color_hex(0x7A869C), 0);
   lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
+  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 150);
 
-  wt_pill(ovl, "OK", 300, 388, 200, fp_card_close_cb, NULL);
+  wt_diagram_fp(ovl, 300);                   // WORDS + PASSPHRASE -> FINGERPRINT
+  wt_pill(ovl, "OK", 300, 392, 200, fp_card_close_cb, NULL);
   wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
 

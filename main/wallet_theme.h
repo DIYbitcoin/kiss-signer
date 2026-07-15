@@ -53,6 +53,17 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
 // after building an overlay card's children. Every "?" card uses this.
 void wt_card_intro(lv_obj_t *card);
 
+// Mini "equation" diagrams for the "?" cards, built from the app's own chip
+// vocabulary (so they read on-brand, never like cheap clip-art). A row is a
+// centered flex strip; add chips and operator glyphs to it left to right.
+lv_obj_t *wt_diagram_row(lv_obj_t *parent, int y);            // centered strip at y
+lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
+lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
+// the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
+void wt_diagram_fp(lv_obj_t *parent, int y);
+// the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
+void wt_diagram_pair(lv_obj_t *parent, int y);
+
 // grouped address with the compare-ends bright: first/last 4 chars ink, middle
 // muted. People check the ends against the other screen — light those up.
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);

@@ -881,21 +881,22 @@ static void coord_help_cb(lv_event_t *e)
 
     lv_obj_t *b = lv_label_create(ovl);
     lv_label_set_text(b,
-        "the wallet app on your computer or phone - Sparrow Wallet,\n"
-        "for example. it watches your balance and prepares each\n"
-        "transaction, but it cannot spend on its own.\n\n"
-        "it shows the transaction as a QR code (often a moving one -\n"
-        "that's fine, hold steady and every frame gets read). this\n"
-        "device signs it, then shows a QR to scan back into the app.");
+        "the wallet app on your computer or phone (Sparrow, for\n"
+        "example). it watches your balance and builds each\n"
+        "transaction, but cannot spend on its own.\n\n"
+        "it shows the tx as a QR (often moving - hold steady).\n"
+        "this device signs, then shows a QR back to the app.");
     lv_obj_set_style_text_color(b, MUT_COL, 0);
     lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
+    wt_diagram_pair(ovl, 300);                        // ONLINE APP <- QR -> KISS OFFLINE
+
     lv_obj_t *ok = lv_obj_create(ovl);
     lv_obj_remove_style_all(ok);
     lv_obj_set_size(ok, 200, 52);
-    lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 340);
+    lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 362);
     lv_obj_set_style_radius(ok, 26, 0);
     lv_obj_set_style_bg_color(ok, KEY_COL, 0);
     lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
