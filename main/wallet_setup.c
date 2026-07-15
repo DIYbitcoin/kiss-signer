@@ -38,6 +38,7 @@ static char s_w[24][12];        // the mnemonic under construction, word by word
 static int s_nw;                // words collected so far
 static int s_count;             // 12 or 24
 static bool s_restore;
+static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
 
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
@@ -53,6 +54,8 @@ static void entropy_screen(void);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
+static void verify_finish(void);
+static void verify_finish_exit(void);
 
 static void goto_choose_cb(lv_event_t *e)  { (void)e; choose_screen(); }
 static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
@@ -132,6 +135,73 @@ static void store_and_finish(void)
     void (*cb)(void) = s_done;
     close_all();
     if (cb) cb();
+}
+
+// ---- verify an existing backup: type the paper words, confirm they match the
+// stored seed WITHOUT revealing it. Reuses the restore keypad; never stages or
+// touches the seed. Reached from the wallet's BACKUP screen. ----
+static void verify_finish_exit(void)
+{
+    s_verify = false;
+    void (*cb)(void) = s_done;
+    close_all();                        // wipes the typed words too
+    if (cb) cb();                       // back to the wallet section
+}
+
+static void verify_exit_cb(lv_event_t *e)  { (void)e; verify_finish_exit(); }
+static void verify_retry_cb(lv_event_t *e) { (void)e; restore_screen(); }
+
+static void verify_finish(void)
+{
+    char typed[WSEED_MAX_MNEMONIC], stored[WSEED_MAX_MNEMONIC];
+    join_words(typed, sizeof typed);
+    int mism = wallet_seed_load(stored, sizeof stored) == 0
+             ? wallet_seed_diff_word(typed, stored) : 0;
+    memset(typed, 0, sizeof typed);
+    memset(stored, 0, sizeof stored);
+    wipe_state();                       // the entered words never linger
+
+    if (mism < 0) {
+        mk_screen("BACKUP VERIFIED", "your written words rebuild this exact wallet");
+        mk_lbl(LV_SYMBOL_OK "  every word matched", 48, 150,
+               &lv_font_montserrat_28, OK_COL);
+        mk_lbl("your paper is a correct, complete backup. keep it\n"
+               "offline and private. words + passphrase together\n"
+               "restore this wallet on any standard signer.",
+               48, 206, &lv_font_montserrat_14, MUT_COL);
+        lv_obj_t *p = mk_pill("DONE", 48, 404, 300, verify_exit_cb, NULL);
+        wt_pill_primary(p);
+    } else {
+        char buf[48];
+        snprintf(buf, sizeof buf, "word #%d does not match", mism + 1);
+        mk_screen("DOESN'T MATCH", "as written, your paper would not bring this wallet back");
+        mk_lbl(buf, 48, 150, &lv_font_montserrat_28, STOP_COL);
+        mk_lbl("compare your paper with the words on this device\n"
+               "(WALLET > BACKUP WORDS), fix the copy, then check\n"
+               "again. nothing changed - your wallet is unaffected.",
+               48, 206, &lv_font_montserrat_14, MUT_COL);
+        lv_obj_t *p = mk_pill("TYPE AGAIN", 48, 404, 300, verify_retry_cb, NULL);
+        wt_pill_primary(p);
+        mk_pill("DONE", 610, 404, 140, verify_exit_cb, NULL);
+    }
+}
+
+static void verify_start_cb(lv_event_t *e) { (void)e; restore_screen(); }
+
+static void verify_intro_screen(void)
+{
+    mk_screen("CHECK YOUR BACKUP",
+              "prove your written words really rebuild this wallet");
+    mk_lbl("type your backup words from the paper. the device\n"
+           "confirms they match and never shows them, so it is\n"
+           "safe even with someone watching.\n\n"
+           "one wrong or missing word means your paper would NOT\n"
+           "bring the wallet back - far better to find out now,\n"
+           "before you trust it with coins.",
+           48, 122, &lv_font_montserrat_14, MUT_COL);
+    lv_obj_t *p = mk_pill("TYPE MY WORDS", 48, 404, 300, verify_start_cb, NULL);
+    wt_pill_primary(p);
+    mk_pill("BACK", 610, 404, 140, verify_exit_cb, NULL);
 }
 
 // ---- quiz (prove the backup) ----
@@ -342,7 +412,8 @@ static void restore_accept_cb(lv_event_t *e)
     s_nw++;
     s_prefix[0] = 0;
     if (s_nw >= s_count) {
-        store_and_finish();
+        if (s_verify) verify_finish();     // check the paper, don't stage a seed
+        else store_and_finish();
         return;
     }
     restore_refresh();
@@ -355,6 +426,7 @@ static void restore_kb_cb(lv_event_t *e)
     const char *txt = lv_buttonmatrix_get_button_text(kb, id);
     if (!txt) return;
     if (strcmp(txt, "CANCEL") == 0) {
+        if (s_verify) { verify_finish_exit(); return; }   // verify: back to the wallet
         wipe_state();
         choose_screen();
         return;
@@ -373,7 +445,9 @@ static void restore_screen(void)
 {
     s_nw = 0;
     s_prefix[0] = 0;
-    mk_screen("RESTORE", "type each word, then tap it when it appears");
+    mk_screen(s_verify ? "VERIFY BACKUP" : "RESTORE",
+              s_verify ? "type each word from your paper; the device only confirms"
+                       : "type each word, then tap it when it appears");
 
     s_word_lbl = mk_lbl("", 48, 108, &lv_font_montserrat_28, INK_COL);
 
@@ -447,6 +521,29 @@ void wallet_setup_open(lv_obj_t *parent, void (*done_cb)(void))
     s_parent = parent;
     s_done = done_cb;
     s_restore = false;
+    s_verify = false;
     wipe_state();
     choose_screen();
+}
+
+void wallet_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
+{
+    if (s_scr) return;
+    wallet_ui_ensure_indev();
+    s_parent = parent;
+    s_done = done_cb;
+    s_restore = true;                  // reuse the restore word-entry keypad
+    s_verify = true;
+    wipe_state();
+    char words[WSEED_MAX_MNEMONIC];
+    if (wallet_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check
+        s_verify = false;
+        if (done_cb) done_cb();
+        return;
+    }
+    int n = 1;                                          // fix the entry length to the
+    for (char *p = words; *p; p++) if (*p == ' ') n++;  // stored seed's word count
+    memset(words, 0, sizeof words);
+    s_count = n;
+    verify_intro_screen();
 }

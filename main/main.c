@@ -1423,6 +1423,9 @@ static void game_tick(lv_timer_t *t) {
   bool pressed = read_touch(&tx, &ty);
 
   if (wallet_ui_active() || wallet_setup_active()) {   // login/wizard own the touch
+    // VERIFY BACKUP runs the setup module DURING a session; keep the idle clock
+    // fresh so finishing a long word-entry doesn't insta-lock on return.
+    if (s_wallet_on && pressed) s_wallet_act_t = lv_tick_get();
     s_prev_press = pressed;          // (LVGL indev); the game must not also see it
     return;                          // (and are exempt from auto-lock: writing the
   }                                  //  backup words down takes minutes, untouched)

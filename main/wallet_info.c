@@ -14,6 +14,7 @@
 
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
+#include "wallet_setup.h"   // wallet_setup_open_verify: check the paper backup
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_ui_last_fp
 
@@ -254,6 +255,17 @@ static void words_show_cb(lv_event_t *e)
     wt_pill(s_scr, "DONE", 610, 404, 140, words_back_cb, NULL);
 }
 
+// VERIFY MY COPY: hand off to the setup module's paper-check flow, then reopen
+// this section when it returns.
+static void winfo_after_verify(void) { info_screen(); }
+
+static void verify_copy_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();                       // drop this screen (async: safe mid-event)
+    wallet_setup_open_verify(s_parent, winfo_after_verify);
+}
+
 static void words_warn_screen(lv_event_t *e)
 {
     (void)e;
@@ -274,8 +286,9 @@ static void words_warn_screen(lv_event_t *e)
         "coins to a fresh offline wallet and back IT up.",
         48, 116, &lv_font_montserrat_14, WT_MUT);
     (void)b;
-    lv_obj_t *sp = wt_pill(s_scr, "SHOW THE WORDS", 48, 404, 280, words_show_cb, NULL);
+    lv_obj_t *sp = wt_pill(s_scr, "SHOW THE WORDS", 48, 404, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
+    wt_pill(s_scr, "VERIFY MY COPY", 300, 404, 240, verify_copy_cb, NULL);
     wt_pill(s_scr, "BACK", 610, 404, 140, words_back_cb, NULL);
 }
 
@@ -332,8 +345,8 @@ static void info_screen(void)
 
     wt_pill(s_scr, "BACKUP WORDS", 430, 252, 320, words_warn_screen, NULL);
     lv_obj_t *wn = wt_wrap(s_scr, 430, 314, 340);
-    lv_label_set_text(wn, "see the words that rebuild this wallet.\n"
-                          "make sure you are alone.");
+    lv_label_set_text(wn, "see the words that rebuild this wallet,\n"
+                          "or prove your written copy is correct.");
 
     wt_pill(s_scr, "BACK", 610, 404, 140, close_cb, NULL);
 }
