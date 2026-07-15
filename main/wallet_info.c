@@ -283,7 +283,7 @@ static void words_warn_screen(lv_event_t *e)
         "words + passphrase restore your coins on any other\n"
         "signer - or, in a true emergency, a phone/desktop\n"
         "wallet. after an emergency like that, sweep the\n"
-        "coins to a fresh offline wallet and back IT up.",
+        "coins to a fresh offline wallet and back up the new one.",
         48, 116, &lv_font_montserrat_14, WT_MUT);
     (void)b;
     lv_obj_t *sp = wt_pill(s_scr, "SHOW THE WORDS", 48, 404, 240, words_show_cb, NULL);
