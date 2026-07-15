@@ -193,8 +193,9 @@ static void verify_intro_screen(void)
     mk_screen("CHECK YOUR BACKUP",
               "prove your written words really rebuild this wallet");
     mk_lbl("type your backup words from the paper. the device\n"
-           "confirms they match and never shows them, so it is\n"
-           "safe even with someone watching.\n\n"
+           "only confirms they match - it never shows your\n"
+           "stored words. but you will be typing them, so do\n"
+           "this where no one can see the screen.\n\n"
            "one wrong or missing word means your paper would NOT\n"
            "bring the wallet back - far better to find out now,\n"
            "before you trust it with coins.",

@@ -170,8 +170,14 @@ static void mark_used_receives(void)
     uint8_t fp[4];
     wallet_ui_last_fp(fp);
     for (uint32_t i = 0; i < det.n_in; i++)
-        if (det.ins[i].change == 0)                  // 0 = receive branch (1 = change)
-            wallet_usage_mark(fp, s_sum.testnet ? 1 : 0, wallet_script(), det.ins[i].index);
+        if (det.ins[i].change == 0) {                // 0 = receive branch (1 = change)
+            // key by THIS input's own type, not the current Settings type: we
+            // sign native/nested/legacy regardless of the setting, and Receive
+            // buckets the guard per type, so a mismatch would mark the wrong one
+            int sc = det.ins[i].purpose == 44 ? WSCRIPT_LEGACY
+                   : det.ins[i].purpose == 49 ? WSCRIPT_NESTED : WSCRIPT_NATIVE;
+            wallet_usage_mark(fp, s_sum.testnet ? 1 : 0, sc, det.ins[i].index);
+        }
 }
 
 static void do_sign_cb(lv_timer_t *t)
@@ -883,7 +889,7 @@ static void coord_help_cb(lv_event_t *e)
     lv_label_set_text(b,
         "the wallet app on your computer or phone (Sparrow, for\n"
         "example). it watches your balance and builds each\n"
-        "transaction, but cannot spend on its own.\n\n"
+        "transaction, but cannot sign it on its own.\n\n"
         "it shows the tx as a QR (often moving - hold steady).\n"
         "this device signs, then shows a QR back to the app.");
     lv_obj_set_style_text_color(b, MUT_COL, 0);
