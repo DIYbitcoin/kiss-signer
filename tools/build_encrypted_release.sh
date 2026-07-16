@@ -153,6 +153,11 @@ print(f"encrypted release app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY
 
+# flash budget: baked art is ~75% of the binary; fail while there is still
+# headroom to react, not on the flash step (set -e stops on a FAIL)
+python3 tools/check_flash_budget.py \
+  build-encrypted-release/guition_kiss_bringup.bin partitions_encrypted.csv
+
 cat <<EOF
 
 encrypted release build OK: build-encrypted-release/

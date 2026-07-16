@@ -512,7 +512,13 @@ static void fp_pop_opa_cb(void *v, int32_t o) { lv_obj_set_style_opa((lv_obj_t *
 
 static void show_fingerprint(void) {
   uint8_t fp[4] = {0};
-  wallet_fingerprint(s_plen ? s_pass : NULL, fp);
+  if (wallet_fingerprint(s_plen ? s_pass : NULL, fp) != 0) {
+    // derivation failed: STOP here. Never cache or reveal the zeroed fp —
+    // it would flow into s_last_fp and render as the "SIGNING AS" identity.
+    if (s_setup_mode) wallet_seed_discard();
+    setup_fail_screen();
+    return;
+  }
   memcpy(s_last_fp, fp, 4);
 
   s_fpscr = lv_obj_create(lv_screen_active());
