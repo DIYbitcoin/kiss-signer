@@ -295,6 +295,13 @@ static bool dpi_trans_done(esp_lcd_panel_handle_t p, esp_lcd_dpi_panel_event_dat
   return false;
 }
 
+// Lag triage, kept dormant: uncomment (or -DKISS_FLUSH_STATS) to log pixels
+// rotated/s, flush count/s and the largest dirty rect once per second. The CPU
+// rotate below is the only per-pixel display cost, so if the UI ever feels
+// slow this turns "feels laggy" into a number BEFORE anyone optimizes anything
+// (idle screens should be ~0; the sim's redraw-px diff is the desktop twin).
+// #define KISS_FLUSH_STATS 1
+
 // Landscape WITHOUT the driver's rotation (which panics): LVGL renders the 800x480 logical canvas;
 // we rotate each region 90deg into s_rotbuf, then let the SAME fast DMA blit the portrait build used
 // push it to the panel (CPU pixel writes to the live framebuffer tore on moving content).
@@ -311,6 +318,21 @@ static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map
   }
   uint16_t *src = (uint16_t *)px_map;
   int ah = area->y2 - area->y1 + 1;                 // rotated rect width (panel x)
+#ifdef KISS_FLUSH_STATS
+  static uint32_t st_px, st_n, st_max;
+  static int64_t st_t0;
+  uint32_t px = (uint32_t)ah * (uint32_t)(area->x2 - area->x1 + 1);
+  st_px += px; st_n++;
+  if (px > st_max) st_max = px;
+  int64_t now = esp_timer_get_time();
+  if (st_t0 == 0) st_t0 = now;
+  if (now - st_t0 >= 1000000) {
+    ESP_LOGI(TAG, "flush: %u px/s in %u flushes, max rect %u px",
+             (unsigned)st_px, (unsigned)st_n, (unsigned)st_max);
+    st_px = st_n = st_max = 0;
+    st_t0 = now;
+  }
+#endif
   for (int ly = area->y1; ly <= area->y2; ly++) {
     int j = area->y2 - ly;
     for (int lx = area->x1; lx <= area->x2; lx++)

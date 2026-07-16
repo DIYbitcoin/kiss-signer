@@ -113,6 +113,10 @@ else:
 print(f"release app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY
+
+# flash budget: baked art is ~75% of the binary; fail while there is still
+# headroom to react, not on the flash step (set -e stops on a FAIL)
+python3 tools/check_flash_budget.py build-release/guition_kiss_bringup.bin partitions.csv
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"
 echo
