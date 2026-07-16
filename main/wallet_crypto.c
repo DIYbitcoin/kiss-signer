@@ -34,27 +34,28 @@ static int fingerprint_of(const char *passphrase, uint8_t out[4])
     if (wallet_seed_load(words, sizeof words) != 0)
         return 2;                          // no seed on this device yet
 
+    // single exit below: seed/master are wiped on EVERY path, not just success
     uint8_t seed[BIP39_SEED_LEN_512];
     size_t seed_len = 0;
+    struct ext_key master = {0};
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    int rc = 0;
+
     int mrc = bip39_mnemonic_to_seed(words, passphrase, seed, sizeof(seed), &seed_len);
     wally_bzero(words, sizeof words);
     if (mrc != WALLY_OK || seed_len != sizeof(seed))
-        return 3;
+        rc = 3;
+    else if (bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0, &master) != WALLY_OK)
+        rc = 4;
+    else if (bip32_key_get_fingerprint(&master, fp, sizeof(fp)) != WALLY_OK)
+        rc = 5;
 
-    struct ext_key master;
-    if (bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0, &master) != WALLY_OK)
-        return 4;
-
-    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
-    if (bip32_key_get_fingerprint(&master, fp, sizeof(fp)) != WALLY_OK)
-        return 5;
-
-    if (out)
+    if (rc == 0 && out)
         memcpy(out, fp, 4);
 
     wally_bzero(seed, sizeof(seed));
     wally_bzero(&master, sizeof(master));
-    return 0;
+    return rc;
 }
 
 int wallet_entropy_mix(const uint8_t a[32], const uint8_t b[32], uint8_t out[32])
@@ -86,6 +87,7 @@ int wallet_session_open(const char *passphrase)
         passphrase = NULL;
     if (wally_init(0) != WALLY_OK)
         return 1;
+    wallet_session_close();                // never derive over a stale master
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0)
         return 2;                          // no seed stored: wizard first
@@ -93,10 +95,14 @@ int wallet_session_open(const char *passphrase)
     size_t seed_len = 0;
     int mrc = bip39_mnemonic_to_seed(words, passphrase, seed, sizeof(seed), &seed_len);
     wally_bzero(words, sizeof words);
+    int rc = 0;
     if (mrc != WALLY_OK || seed_len != sizeof(seed))
-        return 3;
-    int rc = bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0, &s_master) == WALLY_OK ? 0 : 4;
-    wally_bzero(seed, sizeof(seed));
+        rc = 3;
+    else if (bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0, &s_master) != WALLY_OK)
+        rc = 4;
+    wally_bzero(seed, sizeof(seed));       // wiped on every path, incl. BIP39 failure
+    if (rc != 0)
+        wally_bzero(&s_master, sizeof(s_master));   // no partial key on failure
     s_session = (rc == 0);
     return rc;
 }

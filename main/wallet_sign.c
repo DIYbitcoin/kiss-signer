@@ -372,8 +372,10 @@ static void verify_screen(lv_obj_t *parent)
     mk_status_light();
 
     // the one number to check first: everything leaving this wallet
-    // (amount sent + fee), in both units the coordinator might display
-    uint64_t total = s_sum.in_sats - s_sum.change_sats;
+    // (amount sent + fee), in both units the coordinator might display.
+    // Built from the two VALIDATED fields — in_sats - change_sats would
+    // underflow on a malformed (STOP) tx and render 18.4 quintillion sats.
+    uint64_t total = s_sum.send_sats + s_sum.fee_sats;
     mk_lbl("YOU ARE SENDING", 40, 96, &lv_font_montserrat_14, MUT_COL);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);

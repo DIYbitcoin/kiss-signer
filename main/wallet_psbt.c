@@ -22,6 +22,12 @@
 static struct wally_psbt *s_psbt;
 static wpsbt_status_t s_status = WPSBT_STOP;   // sign gate; STOP until a good load
 
+// Consensus cap (21M BTC in sats). wally 1.5.4 already refuses bigger amounts
+// at parse (psbt_from_bytes rc=-2, verified) — this cap is defense-in-depth so
+// the sums below can never wrap uint64 even if a future wally lets one through
+// (16 ins + 16 outs * MAX_MONEY is still < 2^63).
+#define MAX_MONEY 2100000000000000ULL
+
 static void stop(wpsbt_summary_t *s, const char *r)
 {
     if (s->status == WPSBT_STOP)
@@ -281,6 +287,10 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                      : "input amount unverifiable");   // fake-fee theft vector
             continue;
         }
+        if (utxo_val > MAX_MONEY) {
+            stop(s, "input amount over 21M BTC (corrupt)");
+            continue;
+        }
         s->in_sats += utxo_val;
         // spending a tiny KISS-owned coin is the classic dust-attack tell: a
         // stranger sends dust hoping you consolidate it and link your coins
@@ -308,6 +318,10 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         so->sats = o->satoshi;
         spk_to_addr(o->script, o->script_len, so->addr, sizeof so->addr, s);
         s->n_unknown += (uint32_t)s_psbt->outputs[j].unknowns.num_items;
+        if (o->satoshi > MAX_MONEY) {
+            stop(s, "output amount over 21M BTC (corrupt)");
+            continue;              // don't let it wrap the sums below
+        }
 
         uint32_t path[8];
         size_t path_len = 8;

@@ -741,6 +741,35 @@ int main(int argc, char **argv) {
     chkb("combo has dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
     wallet_psbt_free();
 
+    // ---- amount sanity: consensus cap + no unsigned wraparound ----
+    // outputs > inputs must STOP with fee_sats untouched (display safety: the
+    // verify screen renders send+fee, which stays sane on this path)
+    pl = mk_val_psbt(50000, 60000, 10000, 1, pb, sizeof pb);
+    chki("exceed load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("exceed STOP", sum.status, WPSBT_STOP);
+    chkb("exceed reason", strstr(sum.reason, "exceed") != NULL);
+    chkb("exceed fee zero", sum.fee_sats == 0);
+    chkb("exceed display no underflow", sum.send_sats + sum.fee_sats == 60000);
+    wallet_psbt_free();
+
+    // absurd per-amount values (> 21M BTC): wally's own builders AND parser
+    // refuse them (verified: from_bytes rc=-2 on a patched amount), so such a
+    // PSBT must never reach the verifier — otherwise send+change could wrap
+    // uint64 and sneak past the outputs-exceed-inputs check. Patch a valid
+    // PSBT's LE64 amount to near-2^64 and require load to reject the bytes.
+    // (wallet_psbt.c ALSO caps per-amount at MAX_MONEY as defense-in-depth.)
+    pl = mk_val_psbt(100000, 60000, 38000, 1, pb, sizeof pb);
+    {
+        const uint8_t old[8] = {0x60, 0xEA, 0, 0, 0, 0, 0, 0};        // 60000 LE
+        const uint8_t evil[8] = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        int patched = 0;
+        for (size_t i = 0; i + 8 <= pl; i++)
+            if (memcmp(pb + i, old, 8) == 0) { memcpy(pb + i, evil, 8); patched = 1; break; }
+        chkb("absurd-out amount patched", patched);
+        chkb("absurd-out bytes rejected", wallet_psbt_load(pb, pl, &sum) != 0);
+    }
+    wallet_psbt_free();
+
     // ---- receive reuse guard (wallet_usage) ----
     {
         uint8_t fp[4] = {0xEC, 0x5A, 0x45, 0x95};

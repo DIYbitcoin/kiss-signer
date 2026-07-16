@@ -30,8 +30,12 @@ static uint8_t s_psbt[QRT_MAX_PSBT];
 
 // camera-task -> LVGL handoff: one pending payload slot. If a decode lands
 // while the slot is full it is dropped — animated formats repeat parts anyway.
+// SPSC protocol: producer fills s_pend then release-stores the length; the
+// consumer acquire-loads it, copies out, then release-stores 0. The barriers
+// matter — the P4 is dual-core with a weak memory model, and a plain/volatile
+// store can publish the length before the payload (torn read on the consumer).
 static char s_pend[2600];
-static volatile size_t s_pend_len;   // 0 = slot empty; written LAST (publish)
+static size_t s_pend_len;            // 0 = slot empty; atomic acquire/release only
 
 bool wallet_scan_active(void) { return s_scr != NULL; }
 void wallet_scan_set_bus(void *bus) { s_bus = bus; }
@@ -93,10 +97,11 @@ static void zoom_drag_cb(lv_event_t *e)
 // camera stream-task context: copy out and publish, nothing else
 static void decode_cb(const char *data, size_t len)
 {
-    if (s_pend_len || len == 0 || len + 1 >= sizeof s_pend) return;
+    if (__atomic_load_n(&s_pend_len, __ATOMIC_ACQUIRE) || len == 0 ||
+        len + 1 >= sizeof s_pend) return;
     memcpy(s_pend, data, len);
     s_pend[len] = 0;                 // defensive: parser is length-bounded anyway
-    s_pend_len = len;
+    __atomic_store_n(&s_pend_len, len, __ATOMIC_RELEASE);   // publish LAST
 }
 #endif
 
@@ -145,11 +150,11 @@ static void poll_cb(lv_timer_t *t)
 {
     (void)t;
 #ifndef SIMULATOR
-    if (s_pend_len) {
+    size_t n = __atomic_load_n(&s_pend_len, __ATOMIC_ACQUIRE);
+    if (n) {
         static char tmp[sizeof s_pend];        // feed() may tear the timer down
-        size_t n = s_pend_len;
         memcpy(tmp, s_pend, n);
-        s_pend_len = 0;
+        __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);  // free the slot
         feed(tmp, n);
         return;
     }
@@ -189,7 +194,7 @@ void wallet_scan_open_raw(lv_obj_t *parent,
 
 static void scan_open_common(lv_obj_t *parent)
 {
-    s_pend_len = 0;
+    __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
 
     s_scr = lv_obj_create(parent);
     lv_obj_remove_style_all(s_scr);
