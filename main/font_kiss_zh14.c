@@ -7804,4 +7804,3 @@ lv_font_t font_kiss_zh14 = {
 
 
 #endif /*#if FONT_KISS_ZH14*/
-

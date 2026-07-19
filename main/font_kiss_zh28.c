@@ -23408,4 +23408,3 @@ lv_font_t font_kiss_zh28 = {
 
 
 #endif /*#if FONT_KISS_ZH28*/
-
