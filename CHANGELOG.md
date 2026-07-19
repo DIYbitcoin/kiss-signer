@@ -4,6 +4,42 @@ All notable, user-facing changes to KISS Wallet. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer — entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
+## [0.1.0-beta4] — 2026-07-19
+
+The speaks-your-language release: the entire wallet now works in 19 languages
+(21 regional variants), with Bitcoin terms as native speakers actually use
+them — not word-for-word translations.
+
+### Added — the wallet in your language
+
+- **21 languages/variants, one firmware.** English, Čeština, Dansk, Deutsch,
+  Español (España / México), Français, Hrvatski, Italiano, Nederlands, Norsk
+  Bokmål, Polski, Português (Brasil / Portugal), Svenska, Tiếng Việt, Türkçe,
+  Русский, 日本語, 한국어, 中文. Every wallet screen — including the home
+  tiles — switches instantly; no reflash, no reboot.
+- **Language picker with flags.** SETTINGS → LANGUAGE lists every language in
+  its own name and script, alphabetically, with the Spanish and Portuguese
+  variants side by side. Each name renders in its own regional font, so
+  Japanese and Chinese keep their correct character shapes.
+- **Choose your language before creating a wallet.** First boot offers the
+  picker on the setup screen, so you never create a wallet in a language you
+  can't read.
+- **Terminology that sounds native.** Each language follows a reviewed
+  glossary anchored to Bitcoin Core and established wallet conventions. The
+  passphrase is never called a "password" in any language — it adds a layer
+  of security; it does not lock the words.
+- The fruit game stays English on purpose. It is the cover story.
+
+### Changed
+
+- **Unlock gesture is more forgiving.** Long KISS swipes no longer drop the
+  trailing letters; the check now tolerates a blurred S while still requiring
+  the full four-letter shape.
+- **Firmware layout changed** (the app partition grew for the new fonts). The
+  release image handles this automatically. As with every beta, flashing
+  erases the wallet stored on the device — restore it afterwards from your
+  written words and passphrase.
+
 ## [0.1.0-beta3] — 2026-07-15
 
 The safety-and-clarity release: KISS now explains itself as you use it, and
