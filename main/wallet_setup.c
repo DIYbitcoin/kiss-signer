@@ -12,7 +12,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "flag_imgs.h"
+#include "i18n.h"
 #include "wallet_seed.h"
+#include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
 #include "wallet_theme.h"
 #include "wallet_ui.h"
 
@@ -126,10 +129,10 @@ static void store_and_finish(void)
     int rc = wallet_seed_stage(words);
     memset(words, 0, sizeof words);
     if (rc != 0) {                          // restore path: checksum failed
-        mk_screen("CHECK YOUR WORDS", "those aren't a valid set of backup words");
-        mk_lbl("one or more words are wrong. check them\nagainst your paper and try again.",
-               48, 140, &lv_font_montserrat_14, STOP_COL);
-        mk_pill("START OVER", 48, 404, 240, goto_restore_cb, NULL);
+        mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
+        mk_lbl(tr(STR_W_CHECK_B),
+               48, 140, wt_font14(), STOP_COL);
+        mk_pill(tr(STR_W_START_OVER), 48, 404, 240, goto_restore_cb, NULL);
         return;
     }
     void (*cb)(void) = s_done;
@@ -162,27 +165,23 @@ static void verify_finish(void)
     wipe_state();                       // the entered words never linger
 
     if (mism < 0) {
-        mk_screen("BACKUP VERIFIED", "your written words rebuild this exact wallet");
-        mk_lbl(LV_SYMBOL_OK "  every word matched", 48, 150,
-               &lv_font_montserrat_28, OK_COL);
-        mk_lbl("your paper is a correct, complete backup. keep it\n"
-               "offline and private. words + passphrase together\n"
-               "restore this wallet on any standard signer.",
-               48, 206, &lv_font_montserrat_14, MUT_COL);
-        lv_obj_t *p = mk_pill("DONE", 48, 404, 300, verify_exit_cb, NULL);
+        mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
+        mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
+               wt_font28(), OK_COL);
+        mk_lbl(tr(STR_W_VOK_B),
+               48, 206, wt_font14(), MUT_COL);
+        lv_obj_t *p = mk_pill(tr(STR_C_DONE), 48, 404, 300, verify_exit_cb, NULL);
         wt_pill_primary(p);
     } else {
-        char buf[48];
-        snprintf(buf, sizeof buf, "word #%d does not match", mism + 1);
-        mk_screen("DOESN'T MATCH", "as written, your paper would not bring this wallet back");
-        mk_lbl(buf, 48, 150, &lv_font_montserrat_28, STOP_COL);
-        mk_lbl("compare your paper with the words on this device\n"
-               "(WALLET > BACKUP WORDS), fix the copy, then check\n"
-               "again. nothing changed - your wallet is unaffected.",
-               48, 206, &lv_font_montserrat_14, MUT_COL);
-        lv_obj_t *p = mk_pill("TYPE AGAIN", 48, 404, 300, verify_retry_cb, NULL);
+        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
+        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
+        mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
+        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
+        mk_lbl(tr(STR_W_VBAD_B),
+               48, 206, wt_font14(), MUT_COL);
+        lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 48, 404, 300, verify_retry_cb, NULL);
         wt_pill_primary(p);
-        mk_pill("DONE", 610, 404, 140, verify_exit_cb, NULL);
+        mk_pill(tr(STR_C_DONE), 610, 404, 140, verify_exit_cb, NULL);
     }
 }
 
@@ -190,19 +189,13 @@ static void verify_start_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 static void verify_intro_screen(void)
 {
-    mk_screen("CHECK YOUR BACKUP",
-              "prove your written words really rebuild this wallet");
-    mk_lbl("type your backup words from the paper. the device\n"
-           "only confirms they match - it never shows your\n"
-           "stored words. but you will be typing them, so do\n"
-           "this where no one can see the screen.\n\n"
-           "one wrong or missing word means your paper would NOT\n"
-           "bring the wallet back - far better to find out now,\n"
-           "before you trust it with coins.",
-           48, 122, &lv_font_montserrat_14, MUT_COL);
-    lv_obj_t *p = mk_pill("TYPE MY WORDS", 48, 404, 300, verify_start_cb, NULL);
+    mk_screen(tr(STR_W_VINTRO_T),
+              tr(STR_W_VINTRO_S));
+    mk_lbl(tr(STR_W_VINTRO_B),
+           48, 122, wt_font14(), MUT_COL);
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 404, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
-    mk_pill("BACK", 610, 404, 140, verify_exit_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, verify_exit_cb, NULL);
 }
 
 // ---- quiz (prove the backup) ----
@@ -223,7 +216,7 @@ static void quiz_pick_cb(lv_event_t *e)
 
 static void quiz_screen(void)
 {
-    char buf[64];
+    char buf[96];   // translated prompt, 3 bytes/char worst
 #ifdef SIMULATOR
     s_quiz_pos = (s_quiz_round * 5) % s_count;   // fixed for scripted taps
     s_quiz_correct = s_quiz_round;               // round 0 -> pill 0, etc.
@@ -240,10 +233,9 @@ static void quiz_screen(void)
     s_quiz_correct = (int)(ui_rand() % 4);
 #endif
     s_quiz_asked[s_quiz_round] = s_quiz_pos;
-    mk_screen("PROVE IT", "no peeking. these words are your only way back\n"
-                          "into this wallet if you ever lose the device.");
-    snprintf(buf, sizeof buf, "which is word #%d?", s_quiz_pos + 1);
-    mk_lbl(buf, 48, 120, &lv_font_montserrat_28, INK_COL);
+    mk_screen(tr(STR_W_PROVE_T), tr(STR_W_PROVE_S));
+    snprintf(buf, sizeof buf, tr(STR_W_WHICH_FMT), s_quiz_pos + 1);
+    mk_lbl(buf, 48, 120, wt_font28(), INK_COL);
 
     for (int i = 0; i < 4; i++) {
         const char *w = s_w[s_quiz_pos];
@@ -257,8 +249,8 @@ static void quiz_screen(void)
         mk_pill(w, 48 + (i % 2) * 380, 200 + (i / 2) * 80, 340,
                 quiz_pick_cb, (void *)(intptr_t)i);
     }
-    snprintf(buf, sizeof buf, "%d of %d", s_quiz_round + 1, QUIZ_ROUNDS);
-    mk_lbl(buf, 680, 30, &lv_font_montserrat_14, MUT_COL);
+    snprintf(buf, sizeof buf, tr(STR_W_QUIZ_N_FMT), s_quiz_round + 1, QUIZ_ROUNDS);
+    mk_lbl(buf, 680, 30, wt_font14(), MUT_COL);
 }
 
 // ---- words on screen (the backup moment) ----
@@ -271,8 +263,7 @@ static void words_go_cb(lv_event_t *e)
 
 static void words_screen(void)
 {
-    mk_screen("WRITE THESE DOWN", "these words ARE your wallet. copy them onto paper in order. never a photo\n"
-                                  "or a computer file. words + passphrase restore on ANY standard wallet.");
+    mk_screen(tr(STR_W_WRITE_T), tr(STR_W_WRITE_S));
     int cols = s_count == 24 ? 4 : 2;
     int rows = s_count / cols;
     for (int i = 0; i < s_count; i++) {
@@ -280,9 +271,9 @@ static void words_screen(void)
         snprintf(buf, sizeof buf, "%2d. %.11s", i + 1, s_w[i]);
         int c = i / rows, r = i % rows;
         mk_lbl(buf, 48 + c * (cols == 4 ? 184 : 300), 108 + r * 42,
-               &lv_font_montserrat_14, INK_COL);
+               wt_font14(), INK_COL);
     }
-    mk_pill("I WROTE THEM DOWN", 430, 404, 320, words_go_cb, NULL);
+    mk_pill(tr(STR_W_WROTE), 430, 404, 320, words_go_cb, NULL);
 }
 
 // ---- entropy (NEW path) ----
@@ -349,33 +340,27 @@ static void ent_back_cb(lv_event_t *e)
 
 static void entropy_screen(void)
 {
-    mk_screen("ADD RANDOMNESS", "a wallet is only as safe as how randomly it\n"
-                                "was created. the camera provides that.");
+    mk_screen(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
 #ifdef SIMULATOR
     mk_lbl("(simulator: camera entropy is scripted)\n\n"
            "on the device, the camera shot is MIXED with\n"
            "the chip's own hardware randomness - neither\n"
            "source alone decides your words.", 48, 140,
-           &lv_font_montserrat_14, MUT_COL);
+           wt_font14(), MUT_COL);
     mk_pill("CAPTURE", 48, 404, 240, sim_entropy_cb, NULL);
-    mk_pill("BACK", 610, 404, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 #else
-    mk_lbl("point the camera at anything messy, like\n"
-           "leaves, gravel, or a shuffled deck of cards.\n"
-           "tap the screen once the bar turns green.\n\n"
-           "your shot is then MIXED with the chip's own\n"
-           "hardware randomness - neither source alone\n"
-           "decides your words.", 48, 122,
-           &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(tr(STR_W_RAND_B), 48, 122,
+           wt_font14(), MUT_COL);
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
         if (!s_ent_tmr) s_ent_tmr = lv_timer_create(ent_poll_cb, 80, NULL);
     } else {
-        mk_lbl("camera unavailable", 48, 240, &lv_font_montserrat_28, STOP_COL);
-        mk_lbl(camera_spike_status(), 48, 284, &lv_font_montserrat_14, MUT_COL);
+        mk_lbl(tr(STR_C_CAM_UNAVAIL), 48, 240, wt_font28(), STOP_COL);
+        mk_lbl(camera_spike_status(), 48, 284, wt_font14(), MUT_COL);
     }
-    mk_pill("BACK", 610, 404, 140, ent_back_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, ent_back_cb, NULL);
 #endif
 }
 
@@ -389,8 +374,8 @@ static const char *RESTORE_MAP[] = {
 
 static void restore_refresh(void)
 {
-    char buf[48];
-    snprintf(buf, sizeof buf, "word %d of %d:  %s_", s_nw + 1, s_count, s_prefix);
+    char buf[96];   // ru "слово %d из %d" + typed prefix overflowed 48
+    snprintf(buf, sizeof buf, tr(STR_W_WORD_N_FMT), s_nw + 1, s_count, s_prefix);
     lv_label_set_text(s_word_lbl, buf);
     const char *sug[3] = {0};
     int n = s_prefix[0] ? wallet_seed_suggest(s_prefix, sug, 3) : 0;
@@ -426,7 +411,7 @@ static void restore_kb_cb(lv_event_t *e)
     uint32_t id = lv_buttonmatrix_get_selected_button(kb);
     const char *txt = lv_buttonmatrix_get_button_text(kb, id);
     if (!txt) return;
-    if (strcmp(txt, "CANCEL") == 0) {
+    if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
         if (s_verify) { verify_finish_exit(); return; }   // verify: back to the wallet
         wipe_state();
         choose_screen();
@@ -446,11 +431,12 @@ static void restore_screen(void)
 {
     s_nw = 0;
     s_prefix[0] = 0;
-    mk_screen(s_verify ? "VERIFY BACKUP" : "RESTORE",
-              s_verify ? "type each word from your paper; the device only confirms"
-                       : "type each word, then tap it when it appears");
+    RESTORE_MAP[30] = tr(STR_C_CANCEL);   // slot 30 = the CANCEL key (localized)
+    mk_screen(s_verify ? tr(STR_W_VERIFY_T) : tr(STR_W_RESTORE_T),
+              s_verify ? tr(STR_W_VERIFY_S)
+                       : tr(STR_W_RESTORE_S));
 
-    s_word_lbl = mk_lbl("", 48, 108, &lv_font_montserrat_28, INK_COL);
+    s_word_lbl = mk_lbl("", 48, 108, wt_font28(), INK_COL);
 
     for (int i = 0; i < 3; i++) {
         s_sug[i] = mk_pill("", 48 + i * 250, 156, 230, restore_accept_cb, NULL);
@@ -468,7 +454,7 @@ static void restore_screen(void)
     lv_obj_set_style_pad_gap(kb, 6, 0);
     lv_obj_set_style_bg_color(kb, KEY_COL, LV_PART_ITEMS);
     lv_obj_set_style_text_color(kb, INK_COL, LV_PART_ITEMS);
-    lv_obj_set_style_text_font(kb, &lv_font_montserrat_28, LV_PART_ITEMS);
+    lv_obj_set_style_text_font(kb, wt_font28(), LV_PART_ITEMS);
     lv_obj_set_style_shadow_width(kb, 0, LV_PART_ITEMS);
     lv_obj_set_style_radius(kb, 8, LV_PART_ITEMS);
     lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
@@ -486,17 +472,15 @@ static void count_pick_cb(lv_event_t *e)
 
 static void count_screen(void)
 {
-    mk_screen(s_restore ? "RESTORE" : "NEW WALLET", "how many words?");
-    lv_obj_t *p = mk_pill("12 WORDS", 48, 150, 340, count_pick_cb, (void *)(intptr_t)12);
+    mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
+    lv_obj_t *p = mk_pill(tr(STR_W_12), 48, 150, 340, count_pick_cb, (void *)(intptr_t)12);
     wt_pill_primary(p);
-    mk_pill("24 WORDS", 48, 230, 340, count_pick_cb, (void *)(intptr_t)24);
-    mk_lbl("recommended. your passphrase\n"
-           "does the heavy lifting anyway.", 430, 150,
-           &lv_font_montserrat_14, MUT_COL);
-    mk_lbl("not safer, just longer to write down.\n"
-           "pick this only to match an old backup.", 430, 230,
-           &lv_font_montserrat_14, MUT_COL);
-    mk_pill("BACK", 610, 404, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_W_24), 48, 230, 340, count_pick_cb, (void *)(intptr_t)24);
+    mk_lbl(tr(STR_W_12_NOTE), 430, 150,
+           wt_font14(), MUT_COL);
+    mk_lbl(tr(STR_W_24_NOTE), 430, 230,
+           wt_font14(), MUT_COL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 }
 
 // ---- entry ----
@@ -504,15 +488,51 @@ static void new_cb(lv_event_t *e)     { (void)e; s_restore = false; count_screen
 static void restore_cb(lv_event_t *e) { (void)e; s_restore = true;  count_screen(); }
 static void cancel_cb(lv_event_t *e)  { (void)e; close_all(); }
 
+static void setup_lang_picked(void)
+{
+    choose_screen();                   // mk_screen replaces s_scr (overlay dies with it)
+}
+
+static void setup_lang_cb(lv_event_t *e)
+{
+    (void)e;
+    wallet_lang_picker_open(s_scr, setup_lang_picked);
+}
+
 static void choose_screen(void)
 {
-    mk_screen("SET UP YOUR WALLET", "there is no wallet on this device yet");
-    lv_obj_t *p = mk_pill("CREATE NEW", 48, 150, 340, new_cb, NULL);
+    mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
+    lv_obj_t *p = mk_pill(tr(STR_W_CREATE_NEW), 48, 150, 340, new_cb, NULL);
     wt_pill_primary(p);
-    mk_pill("RESTORE FROM WORDS", 48, 230, 340, restore_cb, NULL);
-    mk_lbl("a brand-new wallet made on this device", 430, 158, &lv_font_montserrat_14, MUT_COL);
-    mk_lbl("bring back a wallet from its backup words", 430, 238, &lv_font_montserrat_14, MUT_COL);
-    mk_pill("CANCEL", 610, 404, 140, cancel_cb, NULL);
+    mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 230, 340, restore_cb, NULL);
+    lv_obj_t *note = wt_wrap(s_scr, 430, 158, 340);
+    lv_label_set_text(note, tr(STR_W_NEW_NOTE));
+    note = wt_wrap(s_scr, 430, 238, 340);
+    lv_label_set_text(note, tr(STR_W_RESTORE_NOTE));
+    mk_pill(tr(STR_C_CANCEL), 610, 404, 140, cancel_cb, NULL);
+
+    // first boot happens BEFORE Settings is reachable: a fresh device must not
+    // trap its owner in English, so the language picker lives here too
+    {
+        int li = i18n_get_lang();
+        const char *nat = i18n_lang_info(li)->native;
+        const char *par = strstr(nat, " (");
+        char sn[24];
+        size_t n = par ? (size_t)(par - nat) : strlen(nat);
+        if (n >= sizeof sn) n = sizeof sn - 1;
+        memcpy(sn, nat, n);
+        sn[n] = 0;
+        lv_obj_t *lp = wt_pillh(s_scr, sn, 560, 30, 190, 44, setup_lang_cb, NULL);
+        if (img_lang_flags[li]) {
+            lv_obj_t *name = lv_obj_get_child(lp, 0);
+            lv_obj_set_style_text_letter_space(name, 0, 0);
+            lv_obj_align(name, LV_ALIGN_CENTER, 14, 0);
+            lv_obj_t *fl = lv_image_create(lp);
+            lv_image_set_src(fl, img_lang_flags[li]);
+            lv_obj_align(fl, LV_ALIGN_LEFT_MID, 16, 0);
+            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
+        }
+    }
 }
 
 void wallet_setup_open(lv_obj_t *parent, void (*done_cb)(void))

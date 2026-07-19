@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "i18n.h"
 #include "platform_sd.h"
 #include "qr_transport.h"
 #include "wallet_crypto.h"
@@ -96,6 +97,36 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
     return wt_lbl(s_scr, txt, x, y, f, col);
 }
 
+// wallet_psbt.c stays LVGL/i18n-free (it feeds the desktop test runner and the
+// fuzzer), so its English STOP reasons are mapped to translations here, at the
+// UI boundary. Unknown reasons fall back to the raw English string.
+static const char *tr_reason(const char *r)
+{
+    static const struct { const char *en; int id; } MAP[] = {
+        {"nonstandard output script", STR_P_NONSTD_OUT},
+        {"malformed: tx/psbt count mismatch", STR_P_MALFORMED},
+        {"too many outputs", STR_P_TOO_MANY_OUTS},
+        {"sighash is not ALL", STR_P_SIGHASH},
+        {"input is not this wallet's", STR_P_NOT_MINE},
+        {"wrong network: mainnet transaction", STR_P_WRONG_NET_MAIN},
+        {"wrong network: testnet transaction", STR_P_WRONG_NET_TEST},
+        {"unsupported input derivation path", STR_P_BAD_PATH},
+        {"input's previous transaction does not match", STR_P_PREV_MISMATCH},
+        {"legacy input needs its full previous transaction", STR_P_LEGACY_PREV},
+        {"input amount unverifiable", STR_P_AMT_UNVERIFIED},
+        {"input amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_IN},
+        {"input script does not re-derive", STR_P_IN_NO_DERIVE},
+        {"too many outputs to verify safely", STR_P_TOO_MANY_VERIFY},
+        {"output amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_OUT},
+        {"change address does not re-derive", STR_P_CHANGE_NO_DERIVE},
+        {"outputs exceed inputs", STR_P_OUT_GT_IN},
+        {"unknown data in this transaction", STR_P_UNKNOWN_DATA},
+    };
+    for (size_t i = 0; i < sizeof MAP / sizeof MAP[0]; i++)
+        if (strcmp(r, MAP[i].en) == 0) return tr(MAP[i].id);
+    return r;
+}
+
 // same grouped-by-4 convention as the Receive screen: visual compare against
 // the coordinator is the whole point of this screen
 #define group4   wt_group4
@@ -103,9 +134,9 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
 
 static void mk_status_light(void)
 {
-    const char *word = s_sum.status == WPSBT_READY ? LV_SYMBOL_OK "  READY"
-                     : s_sum.status == WPSBT_CAUTION ? LV_SYMBOL_WARNING "  CAUTION"
-                     : LV_SYMBOL_CLOSE "  STOP";
+    const char *word = s_sum.status == WPSBT_READY ? tr_sym(LV_SYMBOL_OK, STR_S_READY)
+                     : s_sum.status == WPSBT_CAUTION ? tr_sym(LV_SYMBOL_WARNING, STR_S_CAUTION)
+                     : tr_sym(LV_SYMBOL_CLOSE, STR_S_STOP);
     lv_color_t col = s_sum.status == WPSBT_READY ? OK_COL
                    : s_sum.status == WPSBT_CAUTION ? WARN_COL : STOP_COL;
     lv_obj_t *p = lv_obj_create(s_scr);
@@ -120,7 +151,7 @@ static void mk_status_light(void)
     lv_obj_t *l = lv_label_create(p);
     lv_label_set_text(l, word);
     lv_obj_set_style_text_color(l, col, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_center(l);
 }
@@ -137,15 +168,15 @@ static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    mk_screen(parent, "SIGNED", "signed successfully. take this card to your coordinator to broadcast");
+    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_DONE_SD_SUB));
     lv_obj_t *big = mk_lbl(LV_SYMBOL_OK, 0, 150, &lv_font_montserrat_48, OK_COL);
     lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 150);
-    lv_obj_t *fn = mk_lbl(outname, 0, 230, &lv_font_montserrat_28, INK_COL);
+    lv_obj_t *fn = mk_lbl(outname, 0, 230, wt_font28(), INK_COL);
     lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 230);
-    lv_obj_t *note = mk_lbl("saved to the card. this device never touched the network", 0, 280,
-                            &lv_font_montserrat_14, MUT_COL);
+    lv_obj_t *note = mk_lbl(tr(STR_S_SAVED_NOTE), 0, 280,
+                            wt_font14(), MUT_COL);
     lv_obj_align(note, LV_ALIGN_TOP_MID, 0, 280);
-    mk_pill("DONE", 330, 404, 140, close_cb);
+    mk_pill(tr(STR_C_DONE), 330, 404, 140, close_cb);
     // nothing needs to stay on screen (the file is saved), so drift back to home
     s_done_tmr = lv_timer_create(auto_home_cb, 6000, NULL);
     lv_timer_set_repeat_count(s_done_tmr, 1);
@@ -155,8 +186,8 @@ static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    mk_screen(parent, "SIGN FAILED", why);
-    mk_pill("BACK", 330, 404, 140, close_cb);
+    mk_screen(parent, tr(STR_S_FAIL_T), why);
+    mk_pill(tr(STR_C_BACK), 330, 404, 140, close_cb);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive
@@ -185,7 +216,7 @@ static void do_sign_cb(lv_timer_t *t)
     lv_timer_delete(t);
     size_t sw = 0;
     if (wallet_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
-        fail_screen("the transaction could not be signed");
+        fail_screen(tr(STR_S_FAIL_SIGN));
         return;
     }
     mark_used_receives();
@@ -199,7 +230,7 @@ static void do_sign_cb(lv_timer_t *t)
     snprintf(outname, sizeof outname, "%.*s-signed.psbt", (int)bl, s_cur);
     int rc = platform_sd_write(outname, s_out, sw);
     if (rc != 0) {
-        fail_screen("could not write to the SD card");
+        fail_screen(tr(STR_S_FAIL_SD_WRITE));
         return;
     }
     done_screen(outname);
@@ -213,7 +244,7 @@ static void hold_tick(lv_timer_t *t)
     if (el >= HOLD_MS) {
         hold_stop();
         if (s_arc) lv_arc_set_value(s_arc, 100);
-        if (s_sign_lbl) lv_label_set_text(s_sign_lbl, "SIGNING...");
+        if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
         lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
     }
 }
@@ -240,12 +271,18 @@ static void caution_summary(uint16_t f, char *out, size_t cap)
     out[0] = 0;
     const char *parts[4];
     int n = 0;
-    if (f & WPSBT_C_HIGHFEE)      parts[n++] = "high fee";
-    if (f & WPSBT_C_DUST_INPUT)   parts[n++] = "tiny coin in";
-    if (f & WPSBT_C_DUST_CHANGE)  parts[n++] = "dust change";
-    else if (f & WPSBT_C_SMALL_CHANGE) parts[n++] = "tiny change";
-    for (int i = 0; i < n && o < cap; i++)
-        o += (size_t)snprintf(out + o, cap - o, "%s%s", i ? " + " : "", parts[i]);
+    if (f & WPSBT_C_HIGHFEE)      parts[n++] = tr(STR_S_C_HIGHFEE);
+    if (f & WPSBT_C_DUST_INPUT)   parts[n++] = tr(STR_S_C_DUSTIN);
+    if (f & WPSBT_C_DUST_CHANGE)  parts[n++] = tr(STR_S_C_DUSTCH);
+    else if (f & WPSBT_C_SMALL_CHANGE) parts[n++] = tr(STR_S_C_SMALLCH);
+    for (int i = 0; i < n && o + 1 < cap; i++) {
+        // snprintf returns the WOULD-BE length: clamp o inside the buffer or
+        // `cap - o` underflows on long (e.g. Cyrillic) translations
+        int w = snprintf(out + o, cap - o, "%s%s", i ? " + " : "", parts[i]);
+        if (w < 0) break;
+        o += (size_t)w;
+        if (o >= cap) o = cap - 1;
+    }
 }
 
 static void caution_ok_cb(lv_event_t *e)
@@ -267,42 +304,39 @@ static void caution_help_cb(lv_event_t *e)
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, "WHY FLAGGED");
+    lv_label_set_text(t, tr(STR_S_WHY_T));
     lv_obj_set_style_text_color(t, WARN_COL, 0);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
 
-    char body[640];
+    // sized for the longest translations (Cyrillic/CJK run 2-3 bytes per char);
+    // every append clamps o because snprintf returns the WOULD-BE length
+    char body[1536];
     size_t o = 0;
     uint16_t f = s_sum.caution_flags;
+    #define BODY_ADD(...) do { \
+        if (o + 1 < sizeof body) { \
+            int w_ = snprintf(body + o, sizeof body - o, __VA_ARGS__); \
+            if (w_ > 0) { o += (size_t)w_; if (o >= sizeof body) o = sizeof body - 1; } \
+        } } while (0)
     if (f & WPSBT_C_HIGHFEE)
-        o += snprintf(body + o, sizeof body - o,
-            "HIGH FEE: the fee is a big share of what you send.\n"
-            "check the rate is what you meant to pay.\n\n");
+        BODY_ADD("%s\n\n", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
-        o += snprintf(body + o, sizeof body - o,
-            "TINY COIN IN: you are spending a very small coin.\n"
-            "it may have been sent to track you (a dust attack);\n"
-            "spending it can link your addresses together.\n\n");
+        BODY_ADD("%s\n\n", tr(STR_S_WHY_DUSTIN));
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
-        o += snprintf(body + o, sizeof body - o,
-            "TINY CHANGE: this leaves a very small change coin.\n"
-            "it fragments your balance and can be used to track\n"
-            "you across payments.\n\n");
-    snprintf(body + o, sizeof body - o,
-            "unsure? go BACK, then in your coordinator\n"
-            "(Sparrow / BlueWallet) freeze or label the coin\n"
-            "and rebuild the transaction without it.");
+        BODY_ADD("%s\n\n", tr(STR_S_WHY_TINYCH));
+    BODY_ADD("%s", tr(STR_S_WHY_FOOT));
+    #undef BODY_ADD
 
     lv_obj_t *b = lv_label_create(ovl);
     lv_label_set_text(b, body);
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(b, wt_font14(), 0);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 96);
 
-    wt_pill(ovl, "OK", 300, 412, 200, caution_ok_cb, ovl);
+    wt_pill(ovl, tr(STR_C_OK), 300, 412, 200, caution_ok_cb, ovl);
     wt_card_intro(ovl);
 }
 
@@ -325,30 +359,20 @@ static void rbf_help_cb(lv_event_t *e)
     lv_obj_add_event_cb(ovl, rbf_ok_cb, LV_EVENT_CLICKED, ovl);   // tap anywhere = close
 
     lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, s_sum.rbf ? "REPLACEABLE (RBF)" : "FINAL");
+    lv_label_set_text(t, s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF));
     lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
 
     lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, s_sum.rbf
-        ? "RBF = Replace-By-Fee. if this transaction gets stuck\n"
-          "unconfirmed, it can be re-sent with a higher fee to\n"
-          "speed it up. a normal, standard setting - most\n"
-          "wallets turn it on by default.\n\n"
-          "it does NOT change where your coins go, only whether\n"
-          "the fee can be bumped later."
-        : "this transaction is final: it cannot be re-sent with a\n"
-          "higher fee later (the opposite of RBF). if it gets\n"
-          "stuck, you wait it out.\n\n"
-          "it does NOT change where your coins go.");
+    lv_label_set_text(b, s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF));
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(b, wt_font14(), 0);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
-    wt_pill(ovl, "OK", 300, 400, 200, rbf_ok_cb, ovl);
+    wt_pill(ovl, tr(STR_C_OK), 300, 400, 200, rbf_ok_cb, ovl);
     wt_card_intro(ovl);
 }
 
@@ -368,7 +392,7 @@ static void verify_screen(lv_obj_t *parent)
 {
     char buf[160], a[32], b[32];
     s_parent = parent;                    // details page rebuilds us from here
-    mk_screen(parent, "SIGN", s_cur);
+    mk_screen(parent, tr(STR_S_T), s_cur);
     mk_status_light();
 
     // the one number to check first: everything leaving this wallet
@@ -376,13 +400,13 @@ static void verify_screen(lv_obj_t *parent)
     // Built from the two VALIDATED fields — in_sats - change_sats would
     // underflow on a malformed (STOP) tx and render 18.4 quintillion sats.
     uint64_t total = s_sum.send_sats + s_sum.fee_sats;
-    mk_lbl("YOU ARE SENDING", 40, 96, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(tr(STR_S_SENDING_CAP), 40, 96, wt_font14(), MUT_COL);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 40, 116, &lv_font_montserrat_28, INK_COL);
+    mk_lbl(buf, 40, 116, wt_font28(), INK_COL);
     wt_fmt_btc(total, b, sizeof b);
-    snprintf(buf, sizeof buf, "%s BTC = amount + fee", b);
-    mk_lbl(buf, 40, 152, &lv_font_montserrat_14, MUT_COL);
+    snprintf(buf, sizeof buf, tr(STR_S_BTC_EQ_FMT), b);
+    mk_lbl(buf, 40, 152, wt_font14(), MUT_COL);
 
     // outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
     // user is asked to sign is ever hidden. change rows say why they're safe.
@@ -410,7 +434,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(amt, wt_font14(), 0);
 
         char ga[120];
         group4(s_sum.outs[i].addr, ga, sizeof ga);
@@ -418,60 +442,60 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *ad = lv_label_create(row);
             lv_label_set_text(ad, ga);
             lv_obj_set_style_text_color(ad, MUT_COL, 0);
-            lv_obj_set_style_text_font(ad, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_font(ad, wt_font14(), 0);
             lv_obj_set_width(ad, 340);
             lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
         } else {                             // compare-me: bright ends
-            wt_addr_spans(row, ga, 340, &lv_font_montserrat_14);
+            wt_addr_spans(row, ga, 340, wt_font14());
         }
 
         lv_obj_t *tag = lv_label_create(row);
         if (s_sum.outs[i].is_change) {
-            lv_label_set_text(tag, LV_SYMBOL_OK " change back to you, verified here");
+            lv_label_set_text(tag, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
             lv_obj_set_style_text_color(tag, OK_COL, 0);
         } else {
-            lv_label_set_text(tag, "sending out");
+            lv_label_set_text(tag, tr(STR_S_SENDING_OUT));
             lv_obj_set_style_text_color(tag, MUT_COL, 0);
         }
-        lv_obj_set_style_text_font(tag, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(tag, wt_font14(), 0);
     }
 
     // fee + facts, right column. CAUTION today means exactly one thing (the
     // high-fee check in wallet_psbt.c), so the fee number itself goes amber —
     // the flagged value must be the loud one, not just the reason line below.
-    mk_lbl("FEE", 430, 100, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(tr(STR_S_FEE), 430, 100, wt_font14(), MUT_COL);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 122, &lv_font_montserrat_28,
+    mk_lbl(buf, 430, 122, wt_font28(),
            s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
     if (s_sum.send_sats > 0)
-        snprintf(buf, sizeof buf, "%u.%u sat/vB,  %llu.%llu%% of what you send",
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
                  (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10),
                  (unsigned long long)(s_sum.fee_sats * 1000 / s_sum.send_sats / 10),
                  (unsigned long long)(s_sum.fee_sats * 1000 / s_sum.send_sats % 10));
     else
-        snprintf(buf, sizeof buf, "%u.%u sat/vB",
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
                  (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
-    mk_lbl(buf, 430, 160, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(buf, 430, 160, wt_font14(), MUT_COL);
 
     fmt_sats(s_sum.in_sats, a, sizeof a);
     fmt_sats(s_sum.change_sats, b, sizeof b);
     // spec: show the DETECTED script type (from the PSBT's own paths, not any
     // setting) — "mixed-type" when a transaction spends more than one kind
-    const char *ity = s_sum.purpose == 44 ? "Legacy"
-                    : s_sum.purpose == 49 ? "Nested SegWit"
-                    : s_sum.purpose == 84 ? "Native SegWit" : "mixed-type";
-    snprintf(buf, sizeof buf, "%u %s input%s",
-             (unsigned)s_sum.n_in, ity, s_sum.n_in == 1 ? "" : "s");
-    mk_lbl(buf, 430, 186, &lv_font_montserrat_14, MUT_COL);
-    snprintf(buf, sizeof buf, "%s sats in,  %s back to you", a, b);
-    mk_lbl(buf, 430, 208, &lv_font_montserrat_14, MUT_COL);
+    const char *ity = s_sum.purpose == 44 ? tr(STR_S_TY_LEGACY)
+                    : s_sum.purpose == 49 ? tr(STR_S_TY_NESTED)
+                    : s_sum.purpose == 84 ? tr(STR_S_TY_NATIVE) : tr(STR_S_TY_MIXED);
+    snprintf(buf, sizeof buf, tr(STR_S_INPUTS_FMT),
+             (unsigned)s_sum.n_in, ity);
+    mk_lbl(buf, 430, 186, wt_font14(), MUT_COL);
+    snprintf(buf, sizeof buf, tr(STR_S_IN_BACK_FMT), a, b);
+    mk_lbl(buf, 430, 208, wt_font14(), MUT_COL);
 
     // network: LOUD amber chip on testnet (spec: loud TESTNET banner); mainnet
     // stays a plain muted word. (No address-type setting shown: the signer is
     // type-agnostic — the PSBT's own paths declare the type, re-derive enforces.)
     lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 232,
-                           &lv_font_montserrat_14, s_sum.testnet ? WARN_COL : MUT_COL);
+                           wt_font14(), s_sum.testnet ? WARN_COL : MUT_COL);
     if (s_sum.testnet) {
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
@@ -487,8 +511,8 @@ static void verify_screen(lv_obj_t *parent)
     // scary lock when it isn't. Only the actionable RBF/final line here; the raw
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
-             s_sum.rbf ? "replaceable (RBF)" : "final, not replaceable");
-    mk_lbl(buf, 430, 266, &lv_font_montserrat_14, MUT_COL);
+             s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
+    mk_lbl(buf, 430, 266, wt_font14(), MUT_COL);
     {   // "?" -> plain-words RBF explainer (most people don't know the term)
         int cx = s_sum.rbf ? 592 : 620;
         lv_obj_t *hc = lv_obj_create(s_scr);
@@ -506,7 +530,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *hl = lv_label_create(hc);
         lv_label_set_text(hl, "?");
         lv_obj_set_style_text_color(hl, MUT_COL, 0);
-        lv_obj_set_style_text_font(hl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(hl, wt_font14(), 0);
         lv_obj_center(hl);
     }
 
@@ -515,25 +539,25 @@ static void verify_screen(lv_obj_t *parent)
     {
         uint8_t fp[4];
         wallet_ui_last_fp(fp);
-        mk_lbl("SIGNING AS", 430, 290, &lv_font_montserrat_14, MUT_COL);
+        mk_lbl(tr(STR_S_SIGNING_AS), 430, 290, wt_font14(), MUT_COL);
         snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        lv_obj_t *f = mk_lbl(buf, 430, 308, &lv_font_montserrat_28, INK_COL);
+        lv_obj_t *f = mk_lbl(buf, 430, 308, wt_font28(), INK_COL);
         lv_obj_set_style_text_letter_space(f, 2, 0);
     }
 
     if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *r = mk_lbl(s_sum.reason, 430, 350, &lv_font_montserrat_14, STOP_COL);
+        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 350, wt_font14(), STOP_COL);
         lv_obj_set_width(r, 320);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        mk_lbl("this device will not sign it", 430, 388,
-               &lv_font_montserrat_14, MUT_COL);
+        mk_lbl(tr(STR_S_WONT_SIGN), 430, 388,
+               wt_font14(), MUT_COL);
     } else if (s_sum.status == WPSBT_CAUTION) {
         // short summary + a "?" chip to the full "why" (keeps the screen simple)
-        char sum[64];
+        char sum[160];   // three parts in a 2-3 byte/char script must fit
         caution_summary(s_sum.caution_flags, sum, sizeof sum);
-        char line[80];
-        snprintf(line, sizeof line, "CAUTION: %s", sum);
-        lv_obj_t *r = mk_lbl(line, 430, 348, &lv_font_montserrat_14, WARN_COL);
+        char line[200];
+        snprintf(line, sizeof line, tr(STR_S_CAUTION_FMT), sum);
+        lv_obj_t *r = mk_lbl(line, 430, 348, wt_font14(), WARN_COL);
         lv_obj_set_width(r, 280);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
         lv_obj_t *hc = lv_obj_create(s_scr);   // "?" -> WHY FLAGGED card
@@ -551,18 +575,18 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *hl = lv_label_create(hc);
         lv_label_set_text(hl, "?");
         lv_obj_set_style_text_color(hl, WARN_COL, 0);
-        lv_obj_set_style_text_font(hl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(hl, wt_font14(), 0);
         lv_obj_center(hl);
     }
 
-    mk_pill("BACK", 48, 404, 140, close_cb);
+    mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
     if (s_sum.status != WPSBT_STOP) {
         // no DETAILS on STOP: the details page presents fields as verified,
         // and a refused transaction has nothing left to decide
-        mk_pill("DETAILS", 208, 404, 170, details_cb);
+        mk_pill(tr(STR_S_DETAILS), 208, 404, 170, details_cb);
         if (s_sum.status == WPSBT_CAUTION && !s_ack) {
             // gate the hold pill behind a deliberate acknowledgement
-            lv_obj_t *ok = mk_pill("I UNDERSTAND", 500, 404, 252, ack_cb);
+            lv_obj_t *ok = mk_pill(tr(STR_C_I_UNDERSTAND), 500, 404, 252, ack_cb);
             wt_pill_primary(ok);
             lv_obj_set_style_border_color(ok, WARN_COL, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(ok, 0), WARN_COL, 0);
@@ -582,7 +606,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
             lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
 
-            lv_obj_t *p = mk_pill("HOLD TO SIGN", 500, 404, 252, NULL);
+            lv_obj_t *p = mk_pill(tr(STR_S_HOLD_TO_SIGN), 500, 404, 252, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
             lv_obj_set_style_border_color(p, OK_COL, 0);
             s_sign_lbl = lv_obj_get_child(p, 0);
@@ -608,21 +632,24 @@ static void details_cb(lv_event_t *e)
         return;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    mk_screen(s_parent, "DETAILS", s_cur);
+    mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
 
-    char buf[128], a[32];
+    char buf[256], a[32];   // ja details header ~140 bytes; 3 bytes/char worst
     if (det.n_total > det.n_in)          // more inputs than the page can hold
         snprintf(buf, sizeof buf,
-                 "THIS TRANSACTION HAS %u INPUTS\nshowing %u here - all are verified as yours",
+                 tr(STR_S_D_MANYIN_FMT),
                  (unsigned)det.n_total, (unsigned)det.n_in);
     else
-        snprintf(buf, sizeof buf, "INPUTS (%u) - ALL VERIFIED YOURS", (unsigned)det.n_in);
-    mk_lbl(buf, 40, 96, &lv_font_montserrat_14, MUT_COL);
+        snprintf(buf, sizeof buf, tr(STR_S_D_INPUTS_FMT), (unsigned)det.n_in);
+    mk_lbl(buf, 40, 96, wt_font14(), MUT_COL);
 
     lv_obj_t *il = lv_obj_create(s_scr);
     lv_obj_remove_style_all(il);
-    lv_obj_set_pos(il, 40, 118);
-    lv_obj_set_size(il, 372, 274);
+    // the many-inputs header wraps to 2 lines: start the list below it
+    // (latent in the original layout, exposed by the 17-input fixture)
+    int ly = det.n_total > det.n_in ? 146 : 118;
+    lv_obj_set_pos(il, 40, ly);
+    lv_obj_set_size(il, 372, 392 - ly);
     lv_obj_set_style_pad_all(il, 8, 0);
     lv_obj_set_style_pad_row(il, 4, 0);
     lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
@@ -642,7 +669,7 @@ static void details_cb(lv_event_t *e)
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(amt, wt_font14(), 0);
 
         // coin being spent: first 8 + last 8 of its txid, and the output index
         snprintf(buf, sizeof buf, "%.8s...%s : %u",
@@ -650,7 +677,7 @@ static void details_cb(lv_event_t *e)
         lv_obj_t *tid = lv_label_create(row);
         lv_label_set_text(tid, buf);
         lv_obj_set_style_text_color(tid, MUT_COL, 0);
-        lv_obj_set_style_text_font(tid, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(tid, wt_font14(), 0);
 
         snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/%u'/%d'/0'/%u/%u",
                  (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
@@ -658,33 +685,33 @@ static void details_cb(lv_event_t *e)
         lv_obj_t *pl = lv_label_create(row);
         lv_label_set_text(pl, buf);
         lv_obj_set_style_text_color(pl, OK_COL, 0);
-        lv_obj_set_style_text_font(pl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(pl, wt_font14(), 0);
     }
 
     // the id to find it by, once broadcast — final only for segwit-only spends
-    mk_lbl("TRANSACTION ID", 430, 96, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(tr(STR_S_D_TXID), 430, 96, wt_font14(), MUT_COL);
     char gt[80];
     group4(det.txid, gt, sizeof gt);
-    lv_obj_t *tx = mk_lbl(gt, 430, 118, &lv_font_montserrat_14, INK_COL);
+    lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
     lv_obj_set_width(tx, 330);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
-    mk_lbl(det.txid_final ? "your coordinator shows this same id"
-                          : "will change when signed (legacy inputs)",
-           430, 210, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(det.txid_final ? tr(STR_S_D_TXID_SAME)
+                          : tr(STR_S_D_TXID_CHANGES),
+           430, 210, wt_font14(), MUT_COL);
 
-    snprintf(buf, sizeof buf, "version %u,  locktime %u",
+    snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);
-    mk_lbl(buf, 430, 258, &lv_font_montserrat_14, MUT_COL);
-    mk_lbl(det.locktime ? "locktime: earliest block it can confirm"
-                        : "locktime 0: can confirm any time (normal)",
-           430, 280, &lv_font_montserrat_14, MUT_COL);
-    mk_lbl("sighash ALL: signatures cover every\namount and destination above",
-           430, 306, &lv_font_montserrat_14, MUT_COL);
-    mk_lbl(s_sum.rbf ? "replaceable (RBF): the fee can be\nbumped after broadcast"
-                     : "final: not replaceable after broadcast",
-           430, 352, &lv_font_montserrat_14, MUT_COL);
+    mk_lbl(buf, 430, 258, wt_font14(), MUT_COL);
+    mk_lbl(det.locktime ? tr(STR_S_D_LT_NONZERO)
+                        : tr(STR_S_D_LT_ZERO),
+           430, 280, wt_font14(), MUT_COL);
+    mk_lbl(tr(STR_S_D_SIGHASH),
+           430, 306, wt_font14(), MUT_COL);
+    mk_lbl(s_sum.rbf ? tr(STR_S_D_RBF_ON)
+                     : tr(STR_S_D_RBF_OFF),
+           430, 352, wt_font14(), MUT_COL);
 
-    mk_pill("BACK", 48, 404, 140, details_back_cb);
+    mk_pill(tr(STR_C_BACK), 48, 404, 140, details_back_cb);
 }
 
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came
@@ -699,8 +726,8 @@ static void qr_tick(lv_timer_t *t)
     int n = qrt_encoder_parts(s_qenc);
     if (s_part_lbl && n > 1) {
         s_part_i = s_part_i % n + 1;
-        char b[32];
-        snprintf(b, sizeof b, "part %d of %d", s_part_i, n);
+        char b[64];
+        snprintf(b, sizeof b, tr(STR_S_QR_PART_FMT), s_part_i, n);
         lv_label_set_text(s_part_lbl, b);
     }
 }
@@ -730,7 +757,7 @@ static void qr_ez_cb(lv_event_t *e)
     if (n > 1)
         s_qr_tmr = lv_timer_create(qr_tick, s_qr_ez ? 600 : 250, NULL);
     else if (s_part_lbl)
-        lv_label_set_text(s_part_lbl, "single QR");
+        lv_label_set_text(s_part_lbl, tr(STR_S_QR_SINGLE));
     s_part_i = 0;
     qr_tick(NULL);
 }
@@ -743,29 +770,29 @@ static void qr_out_screen(size_t sw)
     s_qr_ez = false;
     s_out_len = sw;
     if (qr_enc_start() != 0) {
-        mk_screen(parent, "SIGN FAILED", "could not encode the signed transaction");
-        mk_pill("BACK", 330, 404, 140, close_cb);
+        mk_screen(parent, tr(STR_S_FAIL_T), tr(STR_S_QR_FAIL_ENC));
+        mk_pill(tr(STR_C_BACK), 330, 404, 140, close_cb);
         return;
     }
 
-    mk_screen(parent, "SIGNED", "signed successfully. scan this with your coordinator to broadcast");
+    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
     wt_qr_card(s_scr, &s_qr_img, 48, 100, 316, 288);
 
     int n = qrt_encoder_parts(s_qenc);
-    mk_lbl(LV_SYMBOL_OK "  SIGNED", 430, 100, &lv_font_montserrat_14, OK_COL);
-    s_part_lbl = mk_lbl(n > 1 ? "part 1" : "single QR", 430, 124,
-                        &lv_font_montserrat_28, INK_COL);
+    mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SIGNED_T), 430, 100, wt_font14(), OK_COL);
+    s_part_lbl = mk_lbl(n > 1 ? tr(STR_S_QR_PART1) : tr(STR_S_QR_SINGLE), 430, 124,
+                        wt_font28(), INK_COL);
     if (n > 1) {
-        mk_lbl("it keeps looping, so hold your phone steady", 430, 170,
-               &lv_font_montserrat_14, MUT_COL);
+        mk_lbl(tr(STR_S_QR_LOOP), 430, 170,
+               wt_font14(), MUT_COL);
         s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
     }
-    mk_lbl("this device never touched the network", 430, 196,
-           &lv_font_montserrat_14, MUT_COL);
-    s_ez_pill = wt_pill(s_scr, "EASY SCAN", 430, 244, 200, qr_ez_cb, NULL);
-    mk_lbl("phone won't catch it? bigger dots,\nslower loop - same transaction",
-           430, 310, &lv_font_montserrat_14, MUT_COL);
-    mk_pill("DONE", 610, 404, 140, close_cb);
+    mk_lbl(tr(STR_S_NO_NETWORK), 430, 196,
+           wt_font14(), MUT_COL);
+    s_ez_pill = wt_pill(s_scr, tr(STR_S_EASY_SCAN), 430, 244, 200, qr_ez_cb, NULL);
+    mk_lbl(tr(STR_S_EZ_NOTE),
+           430, 310, wt_font14(), MUT_COL);
+    mk_pill(tr(STR_C_DONE), 610, 404, 140, close_cb);
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
 }
@@ -780,18 +807,18 @@ static void file_tap_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete_async(s_scr); s_scr = NULL;
     if (rrc != 0) {
-        mk_screen(parent, "SIGN", s_cur);
-        mk_lbl("could not read that file (too big or unreadable)",
-               48, 140, &lv_font_montserrat_14, STOP_COL);
-        mk_pill("BACK", 48, 404, 140, close_cb);
+        mk_screen(parent, tr(STR_S_T), s_cur);
+        mk_lbl(tr(STR_S_READ_FAIL),
+               48, 140, wt_font14(), STOP_COL);
+        mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
-        mk_screen(parent, "SIGN", s_cur);
-        mk_lbl("that file is not a valid PSBT", 48, 140, &lv_font_montserrat_14, STOP_COL);
-        mk_pill("BACK", 48, 404, 140, close_cb);
+        mk_screen(parent, tr(STR_S_T), s_cur);
+        mk_lbl(tr(STR_S_NOT_PSBT), 48, 140, wt_font14(), STOP_COL);
+        mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
     verify_screen(parent);
@@ -801,24 +828,24 @@ static void sd_open(lv_obj_t *parent)
 {
     s_src = SRC_SD;
     if (platform_sd_mount() != 0) {
-        mk_screen(parent, "SIGN", "move the transaction by SD card");
-        mk_lbl("no SD card found", 48, 140, &lv_font_montserrat_28, INK_COL);
-        mk_lbl("insert a card holding the PSBT file your coordinator saved",
-               48, 184, &lv_font_montserrat_14, MUT_COL);
-        mk_pill("BACK", 48, 404, 140, close_cb);
+        mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
+        mk_lbl(tr(STR_S_NO_SD), 48, 140, wt_font28(), INK_COL);
+        mk_lbl(tr(STR_S_INSERT_CARD),
+               48, 184, wt_font14(), MUT_COL);
+        mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
     int n = platform_sd_list_psbt(s_files, MAX_FILES);
     if (n <= 0) {
-        mk_screen(parent, "SIGN", "move the transaction by SD card");
-        mk_lbl("no .psbt files on this card", 48, 140, &lv_font_montserrat_28, INK_COL);
-        mk_lbl("in Sparrow Wallet: save the transaction as a PSBT file onto the card",
-               48, 184, &lv_font_montserrat_14, MUT_COL);
-        mk_pill("BACK", 48, 404, 140, close_cb);
+        mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
+        mk_lbl(tr(STR_S_NO_PSBT_FILES), 48, 140, wt_font28(), INK_COL);
+        mk_lbl(tr(STR_S_SPARROW_SAVE),
+               48, 184, wt_font14(), MUT_COL);
+        mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
-    mk_screen(parent, "SIGN", "choose the transaction file to verify");
-    lv_obj_t *sd = mk_lbl(LV_SYMBOL_OK "  SD card ready", 560, 38, &lv_font_montserrat_14, OK_COL);
+    mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
+    lv_obj_t *sd = mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SD_READY), 560, 38, wt_font14(), OK_COL);
     lv_obj_set_style_text_letter_space(sd, 1, 0);
     for (int i = 0; i < n && i < 4; i++) {
         lv_obj_t *p = mk_pill(s_files[i], 48, 110 + i * 66, 560, file_tap_cb);
@@ -826,9 +853,9 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_add_event_cb(p, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     }
     if (n > 4)
-        mk_lbl("(only the first 4 files are shown)", 48, 110 + 4 * 66,
-               &lv_font_montserrat_14, MUT_COL);
-    mk_pill("BACK", 610, 404, 140, close_cb);
+        mk_lbl(tr(STR_S_FIRST4), 48, 110 + 4 * 66,
+               wt_font14(), MUT_COL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb);
 }
 
 // ---- QR source: wallet_scan drives the camera; we get the assembled PSBT ----
@@ -836,16 +863,16 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
 {
     s_src = SRC_QR;
     s_qr_fmt = fmt;
-    snprintf(s_cur, sizeof s_cur, "scanned transaction");
+    snprintf(s_cur, sizeof s_cur, "%s", tr(STR_S_SCANNED_TX));
     if (len > sizeof s_in) len = sizeof s_in;             // QRT_MAX_PSBT == sizeof s_in
     memcpy(s_in, psbt, len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
-        mk_screen(s_parent, "SIGN", s_cur);
-        mk_lbl("the scanned data is not a valid PSBT", 48, 140,
-               &lv_font_montserrat_14, STOP_COL);
-        mk_pill("BACK", 48, 404, 140, close_cb);
+        mk_screen(s_parent, tr(STR_S_T), s_cur);
+        mk_lbl(tr(STR_S_SCAN_NOT_PSBT), 48, 140,
+               wt_font14(), STOP_COL);
+        mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
     verify_screen(s_parent);
@@ -881,21 +908,16 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, "YOUR COORDINATOR WALLET");
+    lv_label_set_text(t, tr(STR_S_COORD_T));
     lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
 
     lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b,
-        "the wallet app on your computer or phone (Sparrow, for\n"
-        "example). it watches your balance and builds each\n"
-        "transaction, but cannot sign it on its own.\n\n"
-        "it shows the tx as a QR (often moving - hold steady).\n"
-        "this device signs, then shows a QR back to the app.");
+    lv_label_set_text(b, tr(STR_S_COORD_B));
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(b, wt_font14(), 0);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
@@ -913,9 +935,9 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_add_flag(ok, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(ok, coord_ok_cb, LV_EVENT_CLICKED, ovl);
     lv_obj_t *ol = lv_label_create(ok);
-    lv_label_set_text(ol, "OK");
+    lv_label_set_text(ol, tr(STR_C_OK));
     lv_obj_set_style_text_color(ol, INK_COL, 0);
-    lv_obj_set_style_text_font(ol, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(ol, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(ol, 2, 0);
     lv_obj_center(ol);
     wt_card_intro(ovl);
@@ -932,12 +954,12 @@ void wallet_sign_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
-    mk_screen(parent, "SIGN", "get the transaction from your coordinator");
-    lv_obj_t *q = mk_pill("SCAN QR", 48, 150, 340, scan_pick_cb);
+    mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
+    lv_obj_t *q = mk_pill(tr(STR_S_SCAN_QR), 48, 150, 340, scan_pick_cb);
     wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
-    mk_pill("FROM SD CARD", 48, 230, 340, sd_pick_cb);
-    mk_lbl("point the camera at the QR your\ncoordinator wallet shows", 430, 152,
-           &lv_font_montserrat_14, MUT_COL);
+    mk_pill(tr(STR_S_FROM_SD), 48, 230, 340, sd_pick_cb);
+    mk_lbl(tr(STR_S_POINT_CAM), 430, 152,
+           wt_font14(), MUT_COL);
     // small "?" chip after the caption -> the coordinator explainer card
     lv_obj_t *hc = lv_obj_create(s_scr);
     lv_obj_remove_style_all(hc);
@@ -954,9 +976,9 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_t *hl = lv_label_create(hc);
     lv_label_set_text(hl, "?");
     lv_obj_set_style_text_color(hl, INK_COL, 0);
-    lv_obj_set_style_text_font(hl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(hl, wt_font14(), 0);
     lv_obj_center(hl);
-    mk_lbl("or load a .psbt file saved on a card", 430, 244,
-           &lv_font_montserrat_14, MUT_COL);
-    mk_pill("BACK", 610, 404, 140, close_cb);
+    mk_lbl(tr(STR_S_OR_LOAD), 430, 244,
+           wt_font14(), MUT_COL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb);
 }
