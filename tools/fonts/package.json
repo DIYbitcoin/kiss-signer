@@ -1,0 +1,8 @@
+{
+  "name": "kiss-fonts",
+  "private": true,
+  "description": "pinned lv_font_conv for tools/fonts/gen_fonts.sh (wallet i18n fonts)",
+  "devDependencies": {
+    "lv_font_conv": "1.5.3"
+  }
+}
