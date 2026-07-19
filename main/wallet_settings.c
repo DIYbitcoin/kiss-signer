@@ -4,7 +4,10 @@
 #include "wallet_settings.h"
 
 #include <stdio.h>
+#include <string.h>
 
+#include "flag_imgs.h"   // language-picker flags (Twemoji, CC-BY; en has none)
+#include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"
@@ -44,6 +47,7 @@ static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static bool s_wipe_arm;         // "wipe wallet" needs a confirming 2nd tap too
 static lv_obj_t *s_type_seg[3], *s_type_pfx[3], *s_type_expl;   // NATIVE/NESTED/LEGACY chooser + example prefix
+static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
 // example address prefix per type, following the current network so it never
 // lies (bc1 on mainnet, tb1 on testnet).
@@ -85,16 +89,18 @@ void wallet_settings_load(void)
     if (err != ESP_OK)
         return;
     nvs_handle_t h;
-    uint8_t tn = 0, sc = 0, ac = 0;
+    uint8_t tn = 0, sc = 0, ac = 0, lg = 0;
     if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
         nvs_get_u8(h, "testnet", &tn);
         nvs_get_u8(h, "script", &sc);
         nvs_get_u8(h, "accent", &ac);
+        nvs_get_u8(h, "lang", &lg);
         nvs_close(h);
     }
     wallet_set_network(tn);
     wallet_set_script(sc);
     wt_accent_set(ac);
+    i18n_set_lang(lg);
 #endif
 }
 
@@ -125,10 +131,7 @@ static void restyle(void)
     lv_obj_set_style_bg_color(s_test_pill, tn ? lv_color_hex(0x2A2113) : KEY_COL, 0);
     lv_obj_set_style_border_color(s_test_pill, tn ? WARN_COL : MUT_COL, 0);
     lv_obj_set_style_border_width(s_test_pill, tn ? 2 : 1, 0);
-    lv_label_set_text(s_state_lbl, tn
-        ? "TESTNET: practice coins with no value.\n"
-          "free from coinfaucet.eu"
-        : "MAINNET: real bitcoin");
+    lv_label_set_text(s_state_lbl, tn ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE));
     lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
 
     if (s_type_seg[0]) {
@@ -145,9 +148,9 @@ static void restyle(void)
                                         on ? wt_accent() : lv_color_hex(0x525C6E), 0);
         }
         lv_label_set_text(s_type_expl,
-            sc == WSCRIPT_LEGACY ? "oldest style, highest fees. only to\nmatch a very old wallet."
-          : sc == WSCRIPT_NESTED ? "older segwit. only to match a\nwallet that needs it."
-                                 : "modern, lowest fees. use this\nunless an app needs another kind.");
+            sc == WSCRIPT_LEGACY ? tr(STR_G_TY_LEGACY_NOTE)
+          : sc == WSCRIPT_NESTED ? tr(STR_G_TY_NESTED_NOTE)
+                                 : tr(STR_G_TY_NATIVE_NOTE));
     }
 }
 
@@ -190,7 +193,7 @@ static void disarm_replace(void)
     if (!s_replace_arm) return;
     s_replace_arm = false;
     lv_obj_t *l = lv_obj_get_child(s_replace_pill, 0);
-    lv_label_set_text(l, "CREATE NEW WALLET");
+    lv_label_set_text(l, tr(STR_G_CREATE_NEW));
     lv_obj_set_style_text_color(l, INK_COL, 0);
     lv_obj_set_style_border_color(s_replace_pill, MUT_COL, 0);
 }
@@ -199,7 +202,7 @@ static void disarm_wipe(void)
     if (!s_wipe_arm) return;
     s_wipe_arm = false;
     lv_obj_t *l = lv_obj_get_child(s_wipe_pill, 0);
-    lv_label_set_text(l, "WIPE WALLET");
+    lv_label_set_text(l, tr(STR_G_WIPE));
     lv_obj_set_style_text_color(l, STOP_COL, 0);
     lv_obj_set_style_border_color(s_wipe_pill, MUT_COL, 0);
 }
@@ -225,7 +228,7 @@ static void wipe_cb(lv_event_t *e)
     if (!s_wipe_arm) {
         s_wipe_arm = true;
         disarm_replace();
-        lv_label_set_text(lbl, "TAP AGAIN TO WIPE");
+        lv_label_set_text(lbl, tr(STR_G_TAP_WIPE));
         lv_obj_set_style_text_color(lbl, STOP_COL, 0);
         lv_obj_set_style_border_color(s_wipe_pill, STOP_COL, 0);
         return;
@@ -233,7 +236,7 @@ static void wipe_cb(lv_event_t *e)
     s_wipe_arm = false;
     if (wallet_seed_wipe() != 0) {        // NVS erase/commit CAN fail: never claim
         // "erased" unless it truly is — reset the pill, tell the truth
-        lv_label_set_text(lbl, "WIPE WALLET");
+        lv_label_set_text(lbl, tr(STR_G_WIPE));
         lv_obj_set_style_text_color(lbl, STOP_COL, 0);
         lv_obj_set_style_border_color(s_wipe_pill, MUT_COL, 0);
 
@@ -246,18 +249,15 @@ static void wipe_cb(lv_event_t *e)
         lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_t *t = lv_label_create(ovl);
-        lv_label_set_text(t, "COULD NOT ERASE");
+        lv_label_set_text(t, tr(STR_G_NOERASE_T));
         lv_obj_set_style_text_color(t, STOP_COL, 0);
-        lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_font(t, wt_font28(), 0);
         lv_obj_set_style_text_letter_space(t, 3, 0);
         lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 150);
         lv_obj_t *st = lv_label_create(ovl);
-        lv_label_set_text(st, "the backup words may STILL be on this device.\n"
-                              "do not sell it or give it away. try the wipe again;\n"
-                              "if it keeps failing, treat the device as if it\n"
-                              "holds your words.");
+        lv_label_set_text(st, tr(STR_G_NOERASE_B));
         lv_obj_set_style_text_color(st, MUT_COL, 0);
-        lv_obj_set_style_text_font(st, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(st, wt_font14(), 0);
         lv_obj_set_style_text_align(st, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(st, LV_ALIGN_TOP_MID, 0, 206);
         lv_obj_t *ok = lv_obj_create(ovl);
@@ -272,9 +272,9 @@ static void wipe_cb(lv_event_t *e)
         lv_obj_add_flag(ok, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(ok, wipe_fail_ok_cb, LV_EVENT_CLICKED, ovl);
         lv_obj_t *okl = lv_label_create(ok);
-        lv_label_set_text(okl, "BACK");
+        lv_label_set_text(okl, tr(STR_C_BACK));
         lv_obj_set_style_text_color(okl, INK_COL, 0);
-        lv_obj_set_style_text_font(okl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(okl, wt_font14(), 0);
         lv_obj_center(okl);
         return;
     }
@@ -293,19 +293,16 @@ static void wipe_cb(lv_event_t *e)
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, "WALLET ERASED");
+    lv_label_set_text(t, tr(STR_G_ERASED_T));
     lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 3, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 140);
 
     lv_obj_t *s = lv_label_create(ovl);
-    lv_label_set_text(s, "the backup words are gone from this device.\n"
-                         "nothing on here can spend from that wallet anymore.\n\n"
-                         "your paper backup still works: restore it any time\n"
-                         "from Settings, or create a brand-new wallet.");
+    lv_label_set_text(s, tr(STR_G_ERASED_B));
     lv_obj_set_style_text_color(s, MUT_COL, 0);
-    lv_obj_set_style_text_font(s, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s, wt_font14(), 0);
     lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 196);
 
@@ -321,9 +318,9 @@ static void wipe_cb(lv_event_t *e)
     lv_obj_add_flag(ok, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(ok, wiped_ok_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *ol = lv_label_create(ok);
-    lv_label_set_text(ol, "OK");
+    lv_label_set_text(ol, tr(STR_C_OK));
     lv_obj_set_style_text_color(ol, INK_COL, 0);
-    lv_obj_set_style_text_font(ol, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(ol, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(ol, 2, 0);
     lv_obj_center(ol);
 }
@@ -337,7 +334,7 @@ static void replace_cb(lv_event_t *e)
     if (!s_replace_arm) {
         s_replace_arm = true;
         disarm_wipe();
-        lv_label_set_text(lbl, "TAP AGAIN TO ERASE");
+        lv_label_set_text(lbl, tr(STR_G_TAP_ERASE));
         lv_obj_set_style_text_color(lbl, STOP_COL, 0);
         lv_obj_set_style_border_color(s_replace_pill, STOP_COL, 0);
         return;
@@ -368,10 +365,101 @@ static lv_obj_t *mk_wrap(int x, int y, int w)
     return wt_wrap(s_scr, x, y, w);
 }
 
+// ---- language picker: full-screen overlay, every name in its own language
+// (a user stuck in a language they can't read must still find the way back).
+// Shared with the first-boot setup screen via wallet_lang_picker_open(). ----
+
+// Display order is NOT the enum order: the enum is append-only (its index is
+// the persisted NVS value), so late additions land at the end and split the
+// es/pt variants apart. This table restores alphabetical order with variants
+// adjacent and non-Latin scripts last. Append a language here too.
+static const uint8_t PICK_ORDER[I18N_LANG_N] = {
+    I18N_CS, I18N_DA, I18N_DE, I18N_EN, I18N_ES_ES, I18N_ES, I18N_FR,
+    I18N_HR, I18N_IT, I18N_NL, I18N_NB, I18N_PL, I18N_PT, I18N_PT_PT,
+    I18N_SV, I18N_VI, I18N_TR, I18N_RU, I18N_JA, I18N_KO, I18N_ZH,
+};
+
+int wallet_lang_pick_slot(int lang)
+{
+    for (int i = 0; i < I18N_LANG_N; i++)
+        if (PICK_ORDER[i] == lang) return i;
+    return 0;
+}
+
+static void (*s_lang_picked_cb)(void);
+
+static void lang_pick_cb(lv_event_t *e)
+{
+    int id = (int)(intptr_t)lv_event_get_user_data(e);
+    i18n_set_lang(id);
+    store_u8("lang", (uint8_t)id);
+    void (*cb)(void) = s_lang_picked_cb;
+    if (cb) cb();          // owner rebuilds its screen; overlay dies with it
+}
+
+static void settings_lang_picked(void)
+{
+    // rebuild the whole screen: unlike the accent, a language change has to
+    // re-set every label's TEXT, and settings screens are create-on-open
+    lv_obj_t *parent = s_parent;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_settings_open(parent);
+    wallet_home_refresh();
+}
+
+static void lang_open_cb(lv_event_t *e)
+{
+    (void)e;
+    wallet_lang_picker_open(s_scr, settings_lang_picked);
+}
+
+void wallet_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
+{
+    s_lang_picked_cb = picked_cb;
+    lv_obj_t *ovl = lv_obj_create(parent);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, 800, 480);
+    lv_obj_set_pos(ovl, 0, 0);
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);   // swallow stray taps
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, tr(STR_G_SEC_LANGUAGE));
+    lv_obj_set_style_text_color(t, wt_accent(), 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
+    lv_obj_set_style_text_letter_space(t, 3, 0);
+    lv_obj_set_pos(t, 48, 30);
+
+    // 21 locales in 3x7. Fixed rows keep every language one tap away without
+    // scrolling, while the compact labels still leave room for each flag.
+    for (int i = 0; i < I18N_LANG_N; i++) {
+        int id = PICK_ORDER[i];
+        lv_obj_t *p = wt_pillh(ovl, i18n_lang_info(id)->native,
+                               16 + (i % 3) * 260, 76 + (i / 3) * 52, 248, 44,
+                               lang_pick_cb, (void *)(intptr_t)id);
+        // Every row is in its own script. Select its regional font explicitly;
+        // the current UI language must not control another locale's glyph form.
+        lv_obj_t *name = lv_obj_get_child(p, 0);
+        lv_obj_set_style_text_font(name, wt_font14_for_lang(id), 0);
+        lv_obj_set_style_text_letter_space(name, 0, 0);
+        if (img_lang_flags[id]) {             // en deliberately has no flag
+            lv_obj_t *fl = lv_image_create(p);
+            lv_image_set_src(fl, img_lang_flags[id]);
+            lv_obj_align(fl, LV_ALIGN_LEFT_MID, 12, 0);
+            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);  // the pill takes the tap
+            lv_obj_align(name, LV_ALIGN_CENTER, 16, 0);
+        }
+        if (id == i18n_get_lang()) wt_pill_select(p, true);
+    }
+}
+
 void wallet_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
-    s_scr = wt_screen(parent, "SETTINGS", NULL);
+    s_parent = parent;
+    s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
     // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
     for (int i = 0; i < WT_ACC_N; i++) {
@@ -395,17 +483,17 @@ void wallet_settings_open(lv_obj_t *parent)
     }
     s_acc_name = lv_label_create(s_scr);       // names the dressed color
     lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_acc_name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
     lv_obj_set_pos(s_acc_name, 560, 74);
 
     // LEFT: network + address type
-    mk_section("NETWORK", 48, 78);
+    mk_section(tr(STR_I_SEC_NET), 48, 78);
     s_main_pill = mk_pillh("MAINNET", 48, 104, 340, 44, pick_cb, (void *)(intptr_t)0);
     s_test_pill = mk_pillh("TESTNET", 48, 154, 340, 44, pick_cb, (void *)(intptr_t)1);
     s_state_lbl = mk_wrap(48, 206, 340);
 
-    mk_section("ADDRESS TYPE", 48, 258);
+    mk_section(tr(STR_I_SEC_TYPE), 48, 258);
     // three visible choices (like the network chooser) so it's obvious you pick
     // one — no hidden cycling. Each shows an example address prefix underneath;
     // restyle() highlights the active type and updates the prefixes per network.
@@ -416,36 +504,59 @@ void wallet_settings_open(lv_obj_t *parent)
         s_type_seg[i] = mk_pillh(tn_name[i], x, 286, 110, 54, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
         lv_obj_align(lv_obj_get_child(s_type_seg[i], 0), LV_ALIGN_TOP_MID, 0, 8);  // name up top
         s_type_pfx[i] = lv_label_create(s_type_seg[i]);                           // example below
-        lv_obj_set_style_text_font(s_type_pfx[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(s_type_pfx[i], wt_font14(), 0);
         lv_obj_align(s_type_pfx[i], LV_ALIGN_BOTTOM_MID, 0, -7);
     }
     s_type_expl = mk_wrap(48, 350, 360);
     lv_obj_t *sep_n = mk_wrap(48, 394, 360);   // one line; fits the wrap width
-    lv_label_set_text(sep_n, "each network + type is its own separate wallet");
+    lv_label_set_text(sep_n, tr(STR_G_SEPARATE));
 
     // RIGHT: wallet actions, each pill with its own caption. Caption lines are
     // hand-broken well under the wrap width so LVGL never re-wraps them into
     // orphan words (the old copy stacked "separate" / "coins." on own lines).
-    mk_section("WALLET", 430, 78);
+    mk_section(tr(STR_I_T), 430, 78);
     s_replace_arm = false;
-    s_replace_pill = mk_pillh("CREATE NEW WALLET", 430, 104, 320, 52, replace_cb, NULL);
+    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 104, 320, 52, replace_cb, NULL);
     lv_obj_t *wn = mk_wrap(430, 166, 340);
-    lv_label_set_text(wn, "make a fresh wallet, or restore one from\n"
-                          "backup words. this REPLACES the wallet\n"
-                          "on here - back up the old words first.");
+    lv_label_set_text(wn, tr(STR_G_CREATE_NOTE));
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; second tap confirms.
     s_wipe_arm = false;
-    s_wipe_pill = mk_pillh("WIPE WALLET", 430, 268, 320, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 268, 320, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
     lv_obj_t *wipe_n = mk_wrap(430, 330, 340);
-    lv_label_set_text(wipe_n, "removes the wallet from this device.\n"
-                              "only its backup words can bring it back.");
+    lv_label_set_text(wipe_n, tr(STR_G_WIPE_NOTE));
 
-    // build identity, bottom-left (shared with the wallet home corner)
-    s_build_id = wallet_build_id_make(s_scr, 48, 436);
+    // LANGUAGE: the current language on the pill; opens the picker. The pill is
+    // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
+    // and let the flag carry the variant instead.
+    mk_section(tr(STR_G_SEC_LANGUAGE), 430, 384);
+    {
+        int li = i18n_get_lang();
+        const char *nat = i18n_lang_info(li)->native;
+        if (li == I18N_NB) nat = "BOKMÅL";  // flag already identifies Norway
+        const char *par = strstr(nat, " (");
+        char shortname[24];
+        size_t n = par ? (size_t)(par - nat) : strlen(nat);
+        if (n >= sizeof shortname) n = sizeof shortname - 1;
+        memcpy(shortname, nat, n);
+        shortname[n] = 0;
+        lv_obj_t *lp = mk_pill(shortname, 430, 404, 160, lang_open_cb, NULL);
+        if (img_lang_flags[li]) {
+            lv_obj_t *name = lv_obj_get_child(lp, 0);
+            lv_obj_set_style_text_letter_space(name, 0, 0);
+            lv_obj_align(name, LV_ALIGN_CENTER, 16, 0);
+            lv_obj_t *fl = lv_image_create(lp);
+            lv_image_set_src(fl, img_lang_flags[li]);
+            lv_obj_align(fl, LV_ALIGN_LEFT_MID, 16, 0);   // clear of the pill's corner radius
+            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
+        }
+    }
 
-    mk_pill("BACK", 610, 404, 140, close_cb, NULL);
+    // build identity, bottom edge (below the pill row; bottom has no overscan)
+    s_build_id = wallet_build_id_make(s_scr, 48, 460);
+
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
     restyle();
 }

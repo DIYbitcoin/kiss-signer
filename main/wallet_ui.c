@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 #include "wallet_theme.h"
@@ -78,13 +79,13 @@ static void meter_refresh(void) {
   if (!s_setup_mode || s_plen == 0) { lv_label_set_text(s_meter, ""); return; }
   int bits = pass_bits();
   if (bits < 40) {
-    lv_label_set_text(s_meter, "WEAK");
+    lv_label_set_text(s_meter, tr(STR_L_WEAK));
     lv_obj_set_style_text_color(s_meter, lv_color_hex(0xFF4D5E), 0);
   } else if (bits < 70) {
-    lv_label_set_text(s_meter, "FAIR");
+    lv_label_set_text(s_meter, tr(STR_L_FAIR));
     lv_obj_set_style_text_color(s_meter, lv_color_hex(0xF2B84B), 0);
   } else {
-    lv_label_set_text(s_meter, "STRONG");
+    lv_label_set_text(s_meter, tr(STR_L_STRONG));
     lv_obj_set_style_text_color(s_meter, WT_OK, 0);
   }
 }
@@ -159,8 +160,8 @@ static void ensure_indev(void) {
 // drop to 14pt, and past ~78 show "..." + the tail (the newest chars are what
 // the user is checking). Never scroll-animate a masked secret.
 static void entry_apply(const char *txt, int chars) {
-  lv_obj_set_style_text_font(s_entry, chars > 40 ? &lv_font_montserrat_14
-                                                 : &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(s_entry, chars > 40 ? wt_font14()
+                                                 : wt_font28(), 0);
   if (chars > 78) {
     const char *p = txt + strlen(txt);
     int keep = 76;
@@ -186,13 +187,12 @@ static void entry_refresh(void) {
     for (int i = 0; i < s_plen; i++) if (s_pass[i] == ' ') sp++;
     if (s_plen == 0) lv_label_set_text(s_count, "");
     else if (sp)     // spaces are the classic invisible typo — call them out
-      lv_label_set_text_fmt(s_count, "%d character%s (%d space%s)",
-                            s_plen, s_plen == 1 ? "" : "s", sp, sp == 1 ? "" : "s");
-    else lv_label_set_text_fmt(s_count, "%d character%s", s_plen, s_plen == 1 ? "" : "s");
+      lv_label_set_text_fmt(s_count, tr(STR_L_COUNT_SP_FMT), s_plen, sp);
+    else lv_label_set_text_fmt(s_count, tr(STR_L_COUNT_FMT), s_plen);
   }
   if (s_plen == 0) {
-    lv_obj_set_style_text_font(s_entry, &lv_font_montserrat_28, 0);
-    lv_label_set_text(s_entry, "type your passphrase");
+    lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
+    lv_label_set_text(s_entry, tr(STR_L_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     return;
   }
@@ -230,8 +230,8 @@ static void flash_last(void) {
 static void setup_cap_reset(void) {
   if (!s_setup_mode || !s_weak_ack || !s_cap) return;
   s_weak_ack = false;
-  lv_label_set_text(s_cap, s_first_done ? "TYPE IT AGAIN TO CONFIRM"
-                                        : "CREATE YOUR PASSPHRASE");
+  lv_label_set_text(s_cap, s_first_done ? tr(STR_L_TYPE_AGAIN)
+                                        : tr(STR_L_CREATE_YOUR_PASS));
   lv_obj_set_style_text_color(s_cap, s_first_done ? lv_color_hex(0xF2B84B) : MUT_COL, 0);
 }
 
@@ -296,16 +296,15 @@ static void show_cancel_confirm(void) {
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t *t = lv_label_create(card);
-  lv_label_set_text(t, "CANCEL SETUP?");
+  lv_label_set_text(t, tr(STR_L_CANCEL_SETUP_T));
   lv_obj_set_style_text_color(t, INK_COL, 0);
-  lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 30);
 
   lv_obj_t *s = lv_label_create(card);
-  lv_label_set_text(s, "the new wallet you just made will be lost.\n"
-                       "you would have to start over from the menu.");
+  lv_label_set_text(s, tr(STR_L_CANCEL_SETUP_B));
   lv_obj_set_style_text_color(s, MUT_COL, 0);
-  lv_obj_set_style_text_font(s, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s, wt_font14(), 0);
   lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 82);
 
@@ -318,7 +317,7 @@ static void show_cancel_confirm(void) {
   lv_obj_set_style_shadow_width(keep, 0, 0);
   lv_obj_add_event_cb(keep, cancel_keep_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *kl = lv_label_create(keep);
-  lv_label_set_text(kl, "KEEP GOING");
+  lv_label_set_text(kl, tr(STR_L_KEEP_GOING));
   lv_obj_set_style_text_color(kl, INK_COL, 0);
   lv_obj_set_style_text_letter_space(kl, 2, 0);
   lv_obj_center(kl);
@@ -332,7 +331,7 @@ static void show_cancel_confirm(void) {
   lv_obj_set_style_shadow_width(disc, 0, 0);
   lv_obj_add_event_cb(disc, cancel_discard_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *dl = lv_label_create(disc);
-  lv_label_set_text(dl, "DISCARD");
+  lv_label_set_text(dl, tr(STR_L_DISCARD));
   lv_obj_set_style_text_color(dl, lv_color_hex(0xFF4D5E), 0);
   lv_obj_set_style_text_letter_space(dl, 2, 0);
   lv_obj_center(dl);
@@ -375,17 +374,17 @@ static void setup_fail_screen(void) {
   lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 120);
 
   lv_obj_t *t = lv_label_create(s_errscr);
-  lv_label_set_text(t, s_setup_mode ? "COULDN'T SET UP THE WALLET"
-                                    : "COULDN'T OPEN THE WALLET");
+  lv_label_set_text(t, s_setup_mode ? tr(STR_L_FAIL_SETUP_T)
+                                    : tr(STR_L_FAIL_OPEN_T));
   lv_obj_set_style_text_color(t, INK_COL, 0);
-  lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 190);
 
   lv_obj_t *s = lv_label_create(s_errscr);
-  lv_label_set_text(s, s_setup_mode ? "nothing was saved. start again from the menu."
-                                    : "something went wrong. try again from the menu.");
+  lv_label_set_text(s, s_setup_mode ? tr(STR_L_FAIL_SETUP_B)
+                                    : tr(STR_L_FAIL_OPEN_B));
   lv_obj_set_style_text_color(s, MUT_COL, 0);
-  lv_obj_set_style_text_font(s, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s, wt_font14(), 0);
   lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 236);
 
   lv_obj_t *btn = lv_button_create(s_errscr);
@@ -395,9 +394,9 @@ static void setup_fail_screen(void) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_add_event_cb(btn, setup_fail_dismiss_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *bl = lv_label_create(btn);
-  lv_label_set_text(bl, "BACK");
+  lv_label_set_text(bl, tr(STR_C_BACK));
   lv_obj_set_style_text_color(bl, INK_COL, 0);
-  lv_obj_set_style_text_font(bl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(bl, wt_font14(), 0);
   lv_obj_center(bl);
 }
 
@@ -439,10 +438,9 @@ static uint8_t s_last_fp[4];               // fingerprint of the wallet just unl
 
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 
-// Post-setup, pre-home: the one thing a new owner must actually understand —
-// the passphrase is PART of the wallet (it locks the words, like encryption),
-// and nothing can recover it. Session is open + seed committed by now; the OK
-// button finishes the unlock. Spec: one screen max, plain words.
+// Post-setup, pre-home: recovery words + passphrase rederive this wallet.
+// Exposed words permit offline passphrase guessing, and nothing can recover a
+// lost passphrase. Session is open + seed committed; OK finishes the unlock.
 static void setup_warn_ok_cb(lv_event_t *e) {
   (void)e;
   void (*cb)(void) = s_unlocked_cb;
@@ -462,23 +460,15 @@ static void setup_warn_screen(void) {
   lv_obj_move_foreground(s_warnscr);
 
   lv_obj_t *t = lv_label_create(s_warnscr);
-  lv_label_set_text(t, "YOUR PASSPHRASE IS PART OF THE WALLET");
+  lv_label_set_text(t, tr(STR_L_WARN_T));
   lv_obj_set_style_text_color(t, lv_color_hex(0xF2B84B), 0);
-  lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 56);
 
   lv_obj_t *b = lv_label_create(s_warnscr);
-  lv_label_set_text(b,
-      "your words + your passphrase TOGETHER make this wallet. the\n"
-      "passphrase adds a layer of security on the words, like encryption.\n\n"
-      "write your words down and keep them offline, but the passphrase\n"
-      "matters most: words alone open a different wallet, never this\n"
-      "one. words AND passphrase together open everything.\n\n"
-      "NOTHING can bring back a lost passphrase. not this device, not\n"
-      "anyone. a typo just opens a different wallet, with no error.\n"
-      "know yours by its fingerprint:");
+  lv_label_set_text(b, tr(STR_L_WARN_B));
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(b, wt_font14(), 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 112);
 
@@ -486,7 +476,7 @@ static void setup_warn_screen(void) {
   lv_label_set_text_fmt(f, "%02X%02X%02X%02X",
                         s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
   lv_obj_set_style_text_color(f, INK_COL, 0);
-  lv_obj_set_style_text_font(f, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(f, wt_font28(), 0);
   lv_obj_set_style_text_letter_space(f, 4, 0);
   lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 322);
 
@@ -499,9 +489,9 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_border_color(ok, MUT_COL, 0);
   lv_obj_add_event_cb(ok, setup_warn_ok_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *ol = lv_label_create(ok);
-  lv_label_set_text(ol, "I UNDERSTAND");
+  lv_label_set_text(ol, tr(STR_C_I_UNDERSTAND));
   lv_obj_set_style_text_color(ol, INK_COL, 0);
-  lv_obj_set_style_text_font(ol, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(ol, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(ol, 2, 0);
   lv_obj_center(ol);
 }
@@ -529,9 +519,9 @@ static void show_fingerprint(void) {
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
 
   lv_obj_t *cap = lv_label_create(s_fpscr);
-  lv_label_set_text(cap, "YOUR WALLET'S FINGERPRINT");
+  lv_label_set_text(cap, tr(STR_L_FP_CAP));
   lv_obj_set_style_text_color(cap, MUT_COL, 0);
-  lv_obj_set_style_text_font(cap, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(cap, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(cap, 2, 0);
   lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 64);
 
@@ -568,15 +558,15 @@ static void show_fingerprint(void) {
   lv_anim_start(&pa);
 
   lv_obj_t *note = lv_label_create(s_fpscr);
-  lv_label_set_text(note, "your passphrase always opens the wallet with this code");
+  lv_label_set_text(note, tr(STR_L_FP_NOTE));
   lv_obj_set_style_text_color(note, lv_color_hex(0xB9C2D4), 0);
-  lv_obj_set_style_text_font(note, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(note, wt_font14(), 0);
   lv_obj_align(note, LV_ALIGN_TOP_MID, 0, 258);
 
   lv_obj_t *note2 = lv_label_create(s_fpscr);
-  lv_label_set_text(note2, "not the code you wrote down?  go back and retype your passphrase");
+  lv_label_set_text(note2, tr(STR_L_FP_NOTE2));
   lv_obj_set_style_text_color(note2, MUT_COL, 0);
-  lv_obj_set_style_text_font(note2, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(note2, wt_font14(), 0);
   lv_obj_align(note2, LV_ALIGN_TOP_MID, 0, 286);
 
   // bottom action pill
@@ -593,9 +583,9 @@ static void show_fingerprint(void) {
   lv_obj_add_flag(go, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_event_cb(go, fp_tap_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *gol = lv_label_create(go);
-  lv_label_set_text(gol, "TAP TO OPEN");
+  lv_label_set_text(gol, tr(STR_L_TAP_TO_OPEN));
   lv_obj_set_style_text_color(gol, INK_COL, 0);
-  lv_obj_set_style_text_font(gol, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(gol, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(gol, 2, 0);
   lv_obj_center(gol);
 
@@ -609,9 +599,9 @@ static void show_fingerprint(void) {
   lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_event_cb(back, fp_back_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *backl = lv_label_create(back);
-  lv_label_set_text(backl, "BACK");
+  lv_label_set_text(backl, tr(STR_C_BACK));
   lv_obj_set_style_text_color(backl, MUT_COL, 0);
-  lv_obj_set_style_text_font(backl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(backl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(backl, 2, 0);
   lv_obj_center(backl);
 
@@ -696,7 +686,7 @@ static void kb_cb(lv_event_t *e) {
   else if (strcmp(txt, "abc") == 0) kb_plane(kb, MAP_LOWER);
   else if (strcmp(txt, "#1!") == 0) kb_plane(kb, MAP_SYM);
   else if (strcmp(txt, "#2~") == 0) kb_plane(kb, MAP_SYM2);
-  else if (strcmp(txt, "CANCEL") == 0) {
+  else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
     if (s_setup_mode) show_cancel_confirm();   // don't throw away a fresh seed on one tap
     else wipe_and_close();                     // normal login: nothing to lose
   }
@@ -704,7 +694,7 @@ static void kb_cb(lv_event_t *e) {
     if (s_setup_mode && !s_first_done && pass_bits() < 40 && !s_weak_ack) {
       // weak passphrase: make "yes, really" a separate deliberate press
       s_weak_ack = true;
-      lv_label_set_text(s_cap, "WEAK PASSPHRASE. TAP OK AGAIN TO USE IT ANYWAY");
+      lv_label_set_text(s_cap, tr(STR_L_WEAK_ACK));
       lv_obj_set_style_text_color(s_cap, lv_color_hex(0xFF4D5E), 0);
     } else if (s_setup_mode && !s_first_done) {
       // setup: capture the first entry, demand it again — a typo here is an
@@ -715,8 +705,8 @@ static void kb_cb(lv_event_t *e) {
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
       s_show = false;
-      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, "SHOW");
-      lv_label_set_text(s_cap, "TYPE IT AGAIN TO CONFIRM");
+      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+      lv_label_set_text(s_cap, tr(STR_L_TYPE_AGAIN));
       lv_obj_set_style_text_color(s_cap, lv_color_hex(0xF2B84B), 0);
       entry_refresh();
     } else if (s_setup_mode && strcmp(s_first, s_pass) != 0) {
@@ -724,7 +714,7 @@ static void kb_cb(lv_event_t *e) {
       s_first_done = false;
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
-      lv_label_set_text(s_cap, "THOSE DIDN'T MATCH. START OVER");
+      lv_label_set_text(s_cap, tr(STR_L_NO_MATCH));
       lv_obj_set_style_text_color(s_cap, lv_color_hex(0xFF4D5E), 0);
       entry_refresh();
     } else {
@@ -751,7 +741,7 @@ static void kb_cb(lv_event_t *e) {
 static void show_cb(lv_event_t *e) {
   (void)e;
   s_show = !s_show;
-  lv_label_set_text(s_showbtn_lbl, s_show ? "HIDE" : "SHOW");
+  lv_label_set_text(s_showbtn_lbl, s_show ? tr(STR_L_HIDE) : tr(STR_L_SHOW));
   entry_refresh();
 }
 
@@ -773,20 +763,12 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   s_first[0] = 0;
   ensure_indev();
   s_setup_next_cb = unlocked_cb;
-  lv_obj_t *scr = wt_screen(lv_screen_active(), "ONE MORE LAYER",
-                            "last step: create your passphrase");
+  lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_PPINTRO_T),
+                            tr(STR_L_PPINTRO_S));
   s_pp_intro = scr;
-  wt_lbl(scr,
-      "your words are the key. the passphrase is a second\n"
-      "secret LAYERED on top - typed fresh at every login,\n"
-      "never stored anywhere, not even on this device.\n\n"
-      "words + passphrase = this wallet.\n"
-      "the words alone open a different, empty wallet.\n\n"
-      "make it strong and MEMORABLE. nobody can reset it,\n"
-      "and a strong passphrase keeps the coins safe even\n"
-      "if someone finds your paper words.",
-      48, 116, &lv_font_montserrat_14, WT_MUT);
-  lv_obj_t *go = wt_pill(scr, "CREATE PASSPHRASE", 48, 404, 280, pp_intro_go_cb, NULL);
+  wt_lbl(scr, tr(STR_L_PPINTRO_B),
+      48, 116, wt_font14(), WT_MUT);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, 404, 280, pp_intro_go_cb, NULL);
   wt_pill_primary(go);
 }
 
@@ -794,6 +776,9 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   if (wallet_ui_active()) return;
   ensure_indev();
   s_unlocked_cb = unlocked_cb;
+  // localized CANCEL on every plane (array slot 32 = button id 29); kb_cb
+  // compares against the same tr() pointer, so the match is exact
+  MAP_LOWER[32] = MAP_UPPER[32] = MAP_SYM[32] = MAP_SYM2[32] = tr(STR_C_CANCEL);
 
   s_login = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_login);
@@ -802,9 +787,9 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_bg_opa(s_login, LV_OPA_COVER, 0);
 
   s_cap = lv_label_create(s_login);
-  lv_label_set_text(s_cap, s_setup_mode ? "CREATE YOUR PASSPHRASE" : "PASSPHRASE");
+  lv_label_set_text(s_cap, s_setup_mode ? tr(STR_L_CREATE_YOUR_PASS) : tr(STR_L_PASSPHRASE_CAP));
   lv_obj_set_style_text_color(s_cap, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_cap, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_cap, wt_font14(), 0);
   lv_obj_set_pos(s_cap, 48, 26);
 
   // show/hide toggle (top-right, inset from the panel's right overscan)
@@ -815,13 +800,13 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_pos(showbtn, 650, 18);
   lv_obj_add_event_cb(showbtn, show_cb, LV_EVENT_CLICKED, NULL);
   s_showbtn_lbl = lv_label_create(showbtn);
-  lv_label_set_text(s_showbtn_lbl, "SHOW");
+  lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
   lv_obj_set_style_text_color(s_showbtn_lbl, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_showbtn_lbl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_showbtn_lbl, wt_font14(), 0);
   lv_obj_center(s_showbtn_lbl);
 
   s_entry = lv_label_create(s_login);
-  lv_obj_set_style_text_font(s_entry, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
   lv_obj_set_width(s_entry, 704);
   lv_label_set_long_mode(s_entry, LV_LABEL_LONG_SCROLL);   // long passphrases scroll
   lv_obj_set_style_text_align(s_entry, LV_TEXT_ALIGN_CENTER, 0);
@@ -830,12 +815,12 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   s_count = lv_label_create(s_login);      // live length readout under the entry
   lv_label_set_text(s_count, "");
   lv_obj_set_style_text_color(s_count, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_count, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_count, wt_font14(), 0);
   lv_obj_set_pos(s_count, 48, 132);
 
   s_meter = lv_label_create(s_login);      // WEAK/FAIR/STRONG (setup mode only)
   lv_label_set_text(s_meter, "");
-  lv_obj_set_style_text_font(s_meter, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_meter, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_meter, 2, 0);
   lv_obj_set_pos(s_meter, 660, 132);
   entry_refresh();
@@ -852,7 +837,7 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_bg_color(s_kb, KEY_COL, LV_PART_ITEMS);
   lv_obj_set_style_bg_color(s_kb, KEYP_COL, LV_PART_ITEMS | LV_STATE_PRESSED);
   lv_obj_set_style_text_color(s_kb, INK_COL, LV_PART_ITEMS);
-  lv_obj_set_style_text_font(s_kb, &lv_font_montserrat_28, LV_PART_ITEMS);
+  lv_obj_set_style_text_font(s_kb, wt_font28(), LV_PART_ITEMS);
   lv_obj_set_style_shadow_width(s_kb, 0, LV_PART_ITEMS);
   lv_obj_set_style_radius(s_kb, 8, LV_PART_ITEMS);
   lv_obj_set_style_border_width(s_kb, 0, LV_PART_ITEMS);
@@ -871,11 +856,11 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
 void wallet_build_id_restyle(lv_obj_t *version_label)
 {
   if (!version_label) return;
+#ifdef KISS_RELEASE
   bool enc = false;
 #ifndef SIMULATOR
   enc = esp_efuse_is_flash_encryption_enabled();
 #endif
-#ifdef KISS_RELEASE
   lv_obj_set_style_text_color(version_label, enc ? MUT_COL : wt_accent(), 0);
 #else
   lv_obj_set_style_text_color(version_label, WT_WARN, 0);
@@ -890,7 +875,7 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
   radio_held = radio_is_held();
 #endif
   lv_obj_t *v = lv_label_create(parent);
-  lv_obj_set_style_text_font(v, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(v, wt_font14(), 0);
   lv_obj_set_pos(v, x, y);
 #ifdef KISS_RELEASE
   lv_label_set_text_fmt(v, "KISS %s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
@@ -900,14 +885,14 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
   wallet_build_id_restyle(v);
 #endif
   lv_obj_t *w = lv_label_create(parent);
-  lv_obj_set_style_text_font(w, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(w, wt_font14(), 0);
   lv_label_set_text_fmt(w, "-  flash encryption: %s", enc ? "ENABLED" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(v);
   lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
 
   lv_obj_t *r = lv_label_create(parent);
-  lv_obj_set_style_text_font(r, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(r, wt_font14(), 0);
   lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "held in reset" : "NOT HELD");
   lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(w);

@@ -29,7 +29,8 @@
 #include "menu_logo.h"
 #include "gameover_img.h"
 #include "wallet_img.h"
-#include "tile_lbls.h"
+#include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
+#include "i18n.h"
 #include "wallet_ui.h"
 #include "wallet_recv.h"
 #include "wallet_sign.h"
@@ -194,7 +195,12 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
-static lv_obj_t *s_tile_lbl[4];    // live tile labels (settle in on unlock)
+static lv_obj_t *s_tile_ttl[4], *s_tile_sub[4];  // live tile labels (settle in on unlock)
+// tile title/subtitle string ids, in tile order (sign, receive, wallet, settings)
+static const int TILE_TTL_STR[4] = {STR_H_TILE_SIGN, STR_H_TILE_RECV,
+                                    STR_H_TILE_WALLET, STR_H_TILE_SETTINGS};
+static const int TILE_SUB_STR[4] = {STR_H_SUB_SIGN, STR_H_SUB_RECV,
+                                    STR_H_SUB_WALLET, STR_H_SUB_SETTINGS};
 static bool s_wallet_on;
 // dev-seed fingerprint for the top-right chip; filled from the boot selftest on
 // device (sim build has no libwally, keeps the placeholder)
@@ -214,7 +220,7 @@ static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unl
 #ifndef SIMULATOR
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
 #endif
-#define GEST_MAX 160               // accumulated points across the strokes of the unlock draw
+#define GEST_MAX 256               // accumulated points across the strokes of the unlock draw
 static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
 static lv_point_t s_gsub[GEST_MAX]; // scratch: the left-letter subset, for the K check
@@ -1018,7 +1024,11 @@ static bool detect_K(const lv_point_t *p, int n) {
 // The secret unlock is the word "KISS": a wide, multi-stroke drawing whose LEFT letter is a
 // K and which extends well to the right. Lenient on the I/S/S shapes (it's cover, not the lock).
 static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
-  (void)strokes;                                      // reliability first: match on shape, not lift count
+  // Deliberateness comes from PEN LIFTS, not x-gaps: writing K I S S means at
+  // least four separate strokes (K may take two or three). Stroke count is
+  // immune to fat-finger blur, so it can be strict where the x-clustering
+  // below stays forgiving -- one wide stroke or a casual zigzag never fires.
+  if (strokes < 4) return false;
   if (n < 12) return false;
   int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
   for (int i = 1; i < n; i++) {
@@ -1060,7 +1070,10 @@ static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
       in = false;
     }
   }
-  if (clusters < 4) return false;                      // need K, I, S, S — not just "KIS"
+  // 3+ letter blobs, not 4: on the real panel a finger-drawn "SS" usually merges
+  // into one blob in x, and demanding a clean gap made the unlock miserably hard
+  // (device finding). The strokes>=4 gate above supplies the missing strictness.
+  if (clusters < 3) return false;
   int kcut = minx + (k_hi + 1) * (w + 1) / KB;         // isolate the leftmost letter
   int ln = 0;
   for (int i = 0; i < n; i++)
@@ -1192,9 +1205,27 @@ static void wallet_home_restyle(void) {
     const char *msg = lv_label_get_text(s_cam_lbl);
     lv_obj_set_style_text_color(s_cam_lbl, (msg && *msg) ? ac : WT_MUT, 0);
   }
+  // labels keep their fixed white/grey (the CARD wears the theme, not the
+  // text); re-set the TEXT though: a language switch lands here via
+  // wallet_home_refresh(), and the home is built once per boot
   for (int i = 0; i < 4; i++)
-    if (s_tile_lbl[i])   // labels stay their baked white/grey: the CARD wears
-      lv_obj_set_style_image_recolor_opa(s_tile_lbl[i], LV_OPA_TRANSP, 0);  // the theme, not the text
+    if (s_tile_ttl[i]) {
+      // These objects survive a Settings language change. Refresh the font as
+      // well as the text so regional CJK glyph forms switch immediately.
+      lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+      lv_obj_set_style_text_font(s_tile_sub[i], wt_font14(), 0);
+      lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
+      lv_label_set_text(s_tile_sub[i], tr(TILE_SUB_STR[i]));
+    }
+  if (s_theme_cap) {
+    lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
+    lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
+  }
+  if (s_fp_cap) {
+    lv_obj_set_style_text_font(s_fp_cap, wt_font14(), 0);
+    lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
+    fp_chip_place();
+  }
   for (int i = 0; i < 4; i++) {
     if (s_card_frame[i]) {
       lv_obj_set_style_border_color(s_card_frame[i], ac, 0);
@@ -1255,22 +1286,28 @@ void sim_home_status(const char *msg) {
 // then they hold still (translate/opa only). Runs on every unlock.
 static void tiles_settle(void) {
   for (int i = 0; i < 4; i++) {
-    if (!s_tile_lbl[i]) return;
-    lv_anim_delete(s_tile_lbl[i], NULL);    // re-unlock mid-settle: start clean
-    lv_obj_set_style_opa(s_tile_lbl[i], 0, 0);
-    lv_obj_set_y(s_tile_lbl[i], TILE_LBL_Y - 12);
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, s_tile_lbl[i]);
-    lv_anim_set_delay(&a, 120 + i * 70);
-    lv_anim_set_duration(&a, 260);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, TILE_LBL_Y - 12, TILE_LBL_Y);
-    lv_anim_start(&a);
-    lv_anim_set_exec_cb(&a, anim_opa_cb);
-    lv_anim_set_values(&a, 0, 255);
-    lv_anim_start(&a);
+    // per-label opa (never on a shared parent: subtree opa forces an LVGL
+    // layer alloc per tile, and 4 at once would strain the 128K pool)
+    lv_obj_t *pair[2] = {s_tile_ttl[i], s_tile_sub[i]};
+    const int base[2] = {TILE_LBL_Y + 6, TILE_LBL_Y + 38};   // baked y: 268 / 300
+    for (int j = 0; j < 2; j++) {
+      if (!pair[j]) return;
+      lv_anim_delete(pair[j], NULL);        // re-unlock mid-settle: start clean
+      lv_obj_set_style_opa(pair[j], 0, 0);
+      lv_obj_set_y(pair[j], base[j] - 12);
+      lv_anim_t a;
+      lv_anim_init(&a);
+      lv_anim_set_var(&a, pair[j]);
+      lv_anim_set_delay(&a, 120 + i * 70);
+      lv_anim_set_duration(&a, 260);
+      lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+      lv_anim_set_exec_cb(&a, fly_y_cb);
+      lv_anim_set_values(&a, base[j] - 12, base[j]);
+      lv_anim_start(&a);
+      lv_anim_set_exec_cb(&a, anim_opa_cb);
+      lv_anim_set_values(&a, 0, 255);
+      lv_anim_start(&a);
+    }
   }
 }
 
@@ -1416,26 +1453,21 @@ static void fp_card_open(void) {
   s_fp_card = ovl;
 
   lv_obj_t *t = lv_label_create(ovl);
-  lv_label_set_text_fmt(t, "FINGERPRINT  %s", s_fp_hex);
+  lv_label_set_text_fmt(t, tr(STR_H_FP_CARD_FMT), s_fp_hex);
   lv_obj_set_style_text_color(t, wt_accent(), 0);
-  lv_obj_set_style_text_font(t, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_set_style_text_letter_space(t, 2, 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
 
   lv_obj_t *b = lv_label_create(ovl);
-  lv_label_set_text(b,
-      "a short code that identifies THIS wallet, revealing\n"
-      "nothing about your words or passphrase.\n\n"
-      "same fingerprint = same wallet, same coins. a\n"
-      "different passphrase makes a different one: a\n"
-      "different wallet. your app and SIGN show it too.");
+  lv_label_set_text(b, tr(STR_H_FP_CARD_B));
   lv_obj_set_style_text_color(b, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_font(b, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(b, wt_font14(), 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 150);
 
   wt_diagram_fp(ovl, 300);                   // WORDS + PASSPHRASE -> FINGERPRINT
-  wt_pill(ovl, "OK", 300, 392, 200, fp_card_close_cb, NULL);
+  wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, fp_card_close_cb, NULL);
   wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
 
@@ -1586,8 +1618,18 @@ static void game_tick(lv_timer_t *t) {
           }
           s_stroke_n0 = s_gn; s_strokes++;
         }
-        if (s_gn < GEST_MAX) { s_gpt[s_gn].x = tx; s_gpt[s_gn].y = ty;
-                               s_gid[s_gn] = (uint8_t)s_strokes; s_gn++; }
+        // Decimate: store a sample only when it actually MOVED (>=10px) from the
+        // last stored point. Samples arrive every tick (~60/s), so without this a
+        // slow, careful draw fills the buffer in ~2.5s and the trailing letters
+        // are silently dropped -- the classic "I drew KISS perfectly and nothing
+        // happened" failure. Decimation bounds points by ink length, not time.
+        if (s_gn < GEST_MAX &&
+            (s_gn == s_stroke_n0 ||
+             LV_ABS(tx - s_gpt[s_gn - 1].x) >= 10 ||
+             LV_ABS(ty - s_gpt[s_gn - 1].y) >= 10)) {
+          s_gpt[s_gn].x = tx; s_gpt[s_gn].y = ty;
+          s_gid[s_gn] = (uint8_t)s_strokes; s_gn++;
+        }
       }
       s_gest_idle = 0; s_idle_ms = 0;
     } else {
@@ -1818,9 +1860,9 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_radius(s_theme_dot, 8, 0);
   lv_obj_set_style_bg_opa(s_theme_dot, LV_OPA_COVER, 0);
   s_theme_cap = lv_label_create(s_wallet);
-  lv_label_set_text(s_theme_cap, "theme");
+  lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
   lv_obj_set_style_text_color(s_theme_cap, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_font(s_theme_cap, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
   lv_obj_set_pos(s_theme_cap, 704, 408);
   s_theme_lbl = lv_label_create(s_wallet);
   lv_obj_set_style_text_font(s_theme_lbl, &lv_font_montserrat_14, 0);
@@ -1837,9 +1879,9 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_letter_space(s_fp_chip, 2, 0);
 
   s_fp_cap = lv_label_create(s_wallet);
-  lv_label_set_text(s_fp_cap, "fingerprint");
+  lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
   lv_obj_set_style_text_color(s_fp_cap, lv_color_hex(0x7A869C), 0);   // muted, like the mock
-  lv_obj_set_style_text_font(s_fp_cap, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_fp_cap, wt_font14(), 0);
   fp_chip_place();
 
   s_cam_lbl = lv_label_create(s_wallet);         // bottom-center status/error slot: blank
@@ -1871,12 +1913,24 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // this corner tells the truth instead, same line as the Settings footer.
   s_home_build_id = wallet_build_id_make(s_wallet, 48, 424);
 
-  // Tile labels, un-baked so the unlock can settle them in (coords match the
-  // old baked text exactly; strips are full tile width, so x needs no centering)
+  // Tile labels, live + translated: same coords/typography the baked strips
+  // used (title y=268 @23px INK, subtitle y=300 @13px SUB; wallet_mock.py).
+  // Live labels instead of re-baked art x19 languages: text costs nothing.
   for (int i = 0; i < 4; i++) {
-    s_tile_lbl[i] = lv_image_create(s_wallet);
-    lv_image_set_src(s_tile_lbl[i], &img_tile_lbls[i]);
-    lv_obj_set_pos(s_tile_lbl[i], 50 + i * 180, TILE_LBL_Y);
+    s_tile_ttl[i] = lv_label_create(s_wallet);
+    lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
+    lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+    lv_obj_set_style_text_color(s_tile_ttl[i], lv_color_hex(0xE8EEF7), 0);
+    lv_obj_set_style_text_align(s_tile_ttl[i], LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_tile_ttl[i], 160);
+    lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 6);
+    s_tile_sub[i] = lv_label_create(s_wallet);
+    lv_label_set_text(s_tile_sub[i], tr(TILE_SUB_STR[i]));
+    lv_obj_set_style_text_font(s_tile_sub[i], wt_font14(), 0);
+    lv_obj_set_style_text_color(s_tile_sub[i], lv_color_hex(0xB0BCCD), 0);
+    lv_obj_set_style_text_align(s_tile_sub[i], LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(s_tile_sub[i], 160);
+    lv_obj_set_pos(s_tile_sub[i], 50 + i * 180, TILE_LBL_Y + 38);
   }
 
   wallet_home_restyle();

@@ -6,8 +6,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "i18n.h"
+#include "wallet_info.h"
+#include "wallet_settings.h"
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
 // (the device reaches it via a one-time panel rotation at boot).
@@ -201,7 +205,10 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
 }
 int wallet_psbt_details(wpsbt_details_t *d) {
   memset(d, 0, sizeof *d);
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1; d->n_total = 1;
+  // n_total > n_in exercises the many-inputs header (S_D_MANYIN_FMT) with a
+  // 2-digit count: the longest formatted line in the whole sign flow (ja is
+  // ~140 bytes) and the exact case that used to truncate in buf[128]
+  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1; d->n_total = 17;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
   snprintf(d->ins[0].txid, sizeof d->ins[0].txid, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   d->ins[0].vout = 0; d->ins[0].sats = 100000;
@@ -238,7 +245,17 @@ static void pump(int frames) {
   for (int i = 0; i < frames; i++) { lv_tick_inc(16); lv_timer_handler(); }
 }
 
+// SIM_LANG=<code> (en, de, es-MX, ...) renders the whole walk in that language
+// and prefixes every frame: /tmp/sim_de_login.ppm etc. NVS is stubbed in the
+// sim, so the env var is the only language input.
+static const char *g_lang_code;
+
 static void save(const char *path) {
+  char lp[160];
+  if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0) {
+    snprintf(lp, sizeof lp, "/tmp/sim_%s_%s", g_lang_code, path + 9);
+    path = lp;
+  }
   lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
   FILE *f = fopen(path, "wb");
   if (!f) return;
@@ -260,6 +277,16 @@ static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 static void release(void) { g_pressed = false; }
 
 int main(void) {
+  const char *sl = getenv("SIM_LANG");
+  if (sl && *sl && strcmp(sl, "en") != 0) {
+    for (int i = 0; i < I18N_LANG_N; i++)
+      if (strcmp(i18n_lang_info(i)->code, sl) == 0) {
+        i18n_set_lang(i);
+        g_lang_code = sl;
+      }
+    if (!g_lang_code) { fprintf(stderr, "unknown SIM_LANG %s\n", sl); return 1; }
+  }
+
   // seed the fake SD card for the step-5 Sign flow
   mkdir("/tmp/simsd", 0777);
   unlink("/tmp/simsd/payment-01-signed.psbt");
@@ -410,6 +437,9 @@ int main(void) {
   touch(211, 109); pump(3); release(); pump(30);    // "?" chip (fingerprint) -> card
   save("/tmp/sim_winfo_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
+  wallet_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
+  save("/tmp/sim_winfo_type_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
   touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
@@ -550,6 +580,13 @@ int main(void) {
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
+  touch(510, 430); pump(3); release(); pump(6);     // LANGUAGE pill -> picker overlay
+  save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
+  {                                                 // re-pick the ACTIVE language so a
+    int li = wallet_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
+    touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
+    pump(3); release(); pump(10);                   // settings rebuilt, same language
+  }
   touch(333, 310); pump(3); release(); pump(4);     // pick LEGACY -> highlight moves
   save("/tmp/sim_settings_legacy.ppm");
   touch(103, 310); pump(3); release(); pump(4);     // back to NATIVE
@@ -657,6 +694,17 @@ int main(void) {
   touch(400, 366); pump(3); release(); pump(130);   // OK -> locked to game menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
+  // LVGL heap watermark: the pool is only 128K (matches the device), and a
+  // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
+  // eye on max_used whenever screens/labels are added (the i18n picker was
+  // the first thing to blow the old 64K pool).
+  {
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
+           (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
+           (unsigned)mon.max_used, (unsigned)mon.frag_pct);
+  }
   printf("sim done\n");
   return 0;
 }

@@ -6,6 +6,62 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "i18n.h"
+#include "kiss_fonts.h"
+
+// Each composite starts with Montserrat for ASCII, symbols, and Latin text,
+// then falls back directly to the active locale's regional CJK font. A single
+// ja -> ko -> zh chain would render shared Han codepoints with whichever font
+// appeared first, mixing Japanese glyph forms into Simplified Chinese.
+static lv_font_t s_font14[I18N_FC_ZH + 1];
+static lv_font_t s_font23[I18N_FC_ZH + 1];
+static lv_font_t s_font28[I18N_FC_ZH + 1];
+static bool s_fonts_ready;
+
+static void fonts_init(void)
+{
+    if (s_fonts_ready) return;
+    for (int i = 0; i <= I18N_FC_ZH; i++) {
+        s_font14[i] = font_kiss_lat14;
+        s_font23[i] = font_kiss_lat23;
+        s_font28[i] = font_kiss_lat28;
+    }
+    s_font14[I18N_FC_JA].fallback = &font_kiss_ja14;
+    s_font14[I18N_FC_KO].fallback = &font_kiss_ko14;
+    s_font14[I18N_FC_ZH].fallback = &font_kiss_zh14;
+    s_font23[I18N_FC_JA].fallback = &font_kiss_ja23;
+    s_font23[I18N_FC_KO].fallback = &font_kiss_ko23;
+    s_font23[I18N_FC_ZH].fallback = &font_kiss_zh23;
+    s_font28[I18N_FC_JA].fallback = &font_kiss_ja28;
+    s_font28[I18N_FC_KO].fallback = &font_kiss_ko28;
+    s_font28[I18N_FC_ZH].fallback = &font_kiss_zh28;
+    s_fonts_ready = true;
+}
+
+static int font_class_for_lang(int lang)
+{
+    int fc = i18n_lang_info(lang)->font_class;
+    return (fc >= I18N_FC_LAT && fc <= I18N_FC_ZH) ? fc : I18N_FC_LAT;
+}
+
+const lv_font_t *wt_font14_for_lang(int lang)
+{
+    fonts_init();
+    return &s_font14[font_class_for_lang(lang)];
+}
+
+const lv_font_t *wt_font14(void) { return wt_font14_for_lang(i18n_get_lang()); }
+const lv_font_t *wt_font23(void)
+{
+    fonts_init();
+    return &s_font23[font_class_for_lang(i18n_get_lang())];
+}
+const lv_font_t *wt_font28(void)
+{
+    fonts_init();
+    return &s_font28[font_class_for_lang(i18n_get_lang())];
+}
+
 static int s_accent = WT_ACC_MONO;
 
 static const uint32_t ACC_HEX[WT_ACC_N] = {
@@ -52,7 +108,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_t *cap = lv_label_create(scr);
     lv_label_set_text(cap, title);
     lv_obj_set_style_text_color(cap, wt_accent(), 0);
-    lv_obj_set_style_text_font(cap, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(cap, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
     lv_obj_set_pos(cap, 48, 30);
 
@@ -60,7 +116,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_t *s = lv_label_create(scr);
         lv_label_set_text(s, sub);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
-        lv_obj_set_style_text_font(s, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(s, wt_font14(), 0);
         lv_obj_set_pos(s, 48, 68);
     }
     return scr;
@@ -84,7 +140,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_t *l = lv_label_create(p);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_INK, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_center(l);
     return p;
@@ -130,7 +186,7 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
 {
     lv_obj_t *l = lv_label_create(scr);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_width(l, w);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(l, x, y);
@@ -142,7 +198,7 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;
@@ -277,7 +333,7 @@ lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent)
     lv_obj_t *l = lv_label_create(c);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, accent ? WT_INK : WT_MUT, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_center(l);
     return c;
 }
@@ -287,27 +343,27 @@ lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
     lv_obj_t *l = lv_label_create(row);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     return l;
 }
 
 void wt_diagram_fp(lv_obj_t *parent, int y)
 {
     lv_obj_t *row = wt_diagram_row(parent, y);
-    wt_chip(row, "WORDS", false);
+    wt_chip(row, tr(STR_D_WORDS), false);
     wt_diagram_op(row, "+");
-    wt_chip(row, "PASSPHRASE", false);
+    wt_chip(row, tr(STR_D_PASSPHRASE), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, "FINGERPRINT", true);
+    wt_chip(row, tr(STR_D_FINGERPRINT), true);
 }
 
 void wt_diagram_pair(lv_obj_t *parent, int y)
 {
     // the airgap: an online app and the offline signer, bridged only by QR
     lv_obj_t *row = wt_diagram_row(parent, y);
-    wt_chip(row, "ONLINE APP", false);
+    wt_chip(row, tr(STR_D_ONLINE_APP), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT " QR " LV_SYMBOL_LEFT);
-    wt_chip(row, "KISS OFFLINE", true);
+    wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
 }
 
 void wt_group4(const char *in, char *out, size_t out_len)

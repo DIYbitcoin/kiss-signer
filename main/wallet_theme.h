@@ -28,6 +28,15 @@ lv_color_t wt_accent_bg(void);           // dark tinted fill for accent controls
 lv_color_t wt_accent_pressed(void);      // slightly brighter pressed fill
 const char *wt_accent_name(void);        // "MONO"/"GREEN"/"CYPHERPINK"/"ORANGE"
 
+// wallet text fonts: the generated i18n fonts (kiss_fonts.h), which carry
+// every script the translations use plus the LV_SYMBOL icons. ALL wallet
+// screens take their 14/28pt fonts from here; the game keeps the built-in
+// Montserrat (ASCII HUD only). 40/48pt stay built-in (digits/symbols only).
+const lv_font_t *wt_font14(void);
+const lv_font_t *wt_font14_for_lang(int lang);  // native-name rows in the language picker
+const lv_font_t *wt_font23(void);   // wallet-home tile titles (baked-art size)
+const lv_font_t *wt_font28(void);
+
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
 
