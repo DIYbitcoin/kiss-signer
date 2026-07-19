@@ -29,7 +29,9 @@ never childish. Runs on a Guition ESP32-P4 dev board.
 - **v1.3 engineering-sample boot quirk:** crashes in ROM SHA on USB soft-reset (`rst:0x17`); only boots
   on a real power-on. So flash with **`--after no-reset`**, then have the user **physically unplug →
   ~3s → replug**. Never tell the user a build is testable without this power-cycle.
-- App partition is **6MB** (`factory` @ `0x10000`, size `0x600000` in `partitions.csv`).
+- App partition is **12MB** (`factory` @ `0x10000`, size `0xC00000` in `partitions.csv`; grown from
+  6MB for the i18n fonts - chip is 16MB). Partition-table changes need a full `flash`, not `app-flash`
+  (NVS at 0x9000 is untouched either way, the seed survives).
 
 ## Desktop simulator (test rendering without the board)
 - `sim/` compiles the **real** `main/main.c` (with `-DSIMULATOR`) against vendored LVGL, renders into an
@@ -57,6 +59,19 @@ never childish. Runs on a Guition ESP32-P4 dev board.
   Registers the LVGL pointer indev; game ignores touch while `wallet_ui_active()`.
 - `main/camera_spike.c/.h` — step-2 camera proof (OV02C10→ISP→PPA→direct framebuffer flip,
   30fps tear-free). Opened from the Sign tile; becomes the QR scanner in step 6.
+- **i18n (all wallet screens INCLUDING the home tiles, which are live labels now; only the game
+  and the baked KISS wordmark/tagline stay English):** `i18n/<locale>.json`
+  (en = source of truth, 21 locales / 19 languages; terms per `i18n/GLOSSARY.md`) →
+  `tools/gen_i18n.py` emits
+  `main/i18n_keys.h` + `main/i18n_tables.c` (generated, do-not-hand-edit) + `tools/fonts/glyphs_*.txt`.
+  `main/i18n.c/.h` = `tr(STR_*)`, `tr_sym()`, language list (NVS "lang", picker in wallet Settings).
+  Fonts: `tools/fonts/gen_fonts.sh` (pinned lv_font_conv; LVGL's vendored Montserrat,
+  FontAwesome, and SourceHanSansSC plus the pinned SourceHanSansJP in `tools/fonts/vendor`, all OFL)
+  → `main/font_kiss_*.c`; `wallet_theme.c` combines Latin/symbols with the active locale's regional
+  CJK font so Japanese and Simplified Chinese never borrow each other's Han glyph forms.
+  Wallet text uses `wt_font14()/wt_font23()/wt_font28()`. **CRITICAL: a glyph missing from the fonts hard-hangs
+  LVGL 9.5's renderer (sim AND device)** — gen_i18n.py enforces coverage, so after editing any
+  translation run gen_i18n.py, and re-run gen_fonts.sh if a glyphs_*.txt changed.
 - `components/libwally-core/` — vendored libwally **1.5.4** (commit `c5591834`, the exact pin both
   Jade and Kern use). Component CMake modeled on theirs, but **internal ccan SHA instead of mbedtls**
   so the identical sources build on desktop too. English-only wordlist (`BUILD_MINIMAL`).
