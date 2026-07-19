@@ -29,7 +29,9 @@ never childish. Runs on a Guition ESP32-P4 dev board.
 - **v1.3 engineering-sample boot quirk:** crashes in ROM SHA on USB soft-reset (`rst:0x17`); only boots
   on a real power-on. So flash with **`--after no-reset`**, then have the user **physically unplug →
   ~3s → replug**. Never tell the user a build is testable without this power-cycle.
-- App partition is **6MB** (`factory` @ `0x10000`, size `0x600000` in `partitions.csv`).
+- App partition is **12MB** (`factory` @ `0x10000`, size `0xC00000` in `partitions.csv`; grown from
+  6MB for the i18n fonts - chip is 16MB). Partition-table changes need a full `flash`, not
+  `app-flash` (NVS at 0x9000 is untouched either way, the seed survives).
 
 ## Desktop simulator (test rendering without the board)
 - `sim/` compiles the **real** `main/main.c` (with `-DSIMULATOR`) against vendored LVGL, renders into an
