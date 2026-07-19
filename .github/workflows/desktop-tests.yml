@@ -1,0 +1,56 @@
+# Desktop test lane: everything that proves correctness WITHOUT hardware or
+# the ESP-IDF toolchain, so it runs in ~2 minutes on every push and PR (the
+# heavyweight reproducible-build workflow covers the firmware itself).
+#
+# Each step is a failure mode this project has actually hit:
+#   * generator drift  - generated i18n tables/glyph lists out of sync with the
+#                        JSONs (a missing glyph hard-hangs LVGL on device)
+#   * crypto suite     - BIP39 vector + PSBT parsing against vendored libwally
+#   * sim smoke walks  - full scripted UI walk in Latin/CJK/Cyrillic locales;
+#                        a rendering hang (missing glyph, heap exhaustion,
+#                        layer-alloc loop) shows up as the timeout firing
+#   * BlueWallet interop - PSBT round-trip through BlueWallet's real npm QR
+#                        stack vs our qr_transport
+name: desktop tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: i18n generator drift
+        run: |
+          python3 tools/gen_i18n.py
+          git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c 'tools/fonts/glyphs_*.txt'
+
+      - name: crypto tests (BIP39 vector + PSBT suite)
+        run: |
+          bash sim/build_test.sh
+          /tmp/kisstest | tee /tmp/kisstest.log
+          grep -q "PASS: BIP39 test vector -> 73C5DA0A" /tmp/kisstest.log
+
+      - name: sim smoke walks (en / ja / ru)
+        run: |
+          bash sim/build_sim.sh
+          for L in en ja ru; do
+            echo "== SIM_LANG=$L =="
+            timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log
+            tail -1 /tmp/sim_$L.log
+          done
+
+      - name: setup node for interop rig
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: BlueWallet QR interop round-trip
+        run: |
+          (cd tools/bw_interop && npm install --no-audit --no-fund)
+          bash tools/bw_interop/run.sh
