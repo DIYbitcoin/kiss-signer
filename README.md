@@ -29,9 +29,13 @@ a Bitcoin signer hidden under a Tetris game.
 > [!CAUTION]
 > **`0.1.0-beta3` is experimental. Do not trust it with meaningful funds.**
 
-- **Seed + passphrase = your wallet.** The BIP39 passphrase is typed fresh every
-  time, never stored, and there is no "wrong passphrase" error by design — a
-  different passphrase simply opens a different wallet (deniability built in).
+- **Recovery words + passphrase derive your wallet.** The ordered words are
+  commonly called a "seed phrase"; technically, BIP39 processes the mnemonic
+  sentence and passphrase into a binary seed. The passphrase is typed fresh
+  every time and never stored. An empty passphrase uses the base wallet; any
+  non-empty entry changes the derived wallet. Every entry is valid, so there is
+  no "wrong passphrase" error. A strong passphrase can protect funds if the
+  words are exposed, but an attacker can test passphrase guesses offline.
 - **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
   card. The ESP32-P4 running KISS has no radio; the board's ESP32-C6 radio
   chip is held in reset from the first instruction, every boot, and no
@@ -106,11 +110,11 @@ The game is what boots. A secret gesture on the game menu opens the signer
 <table>
 <tr>
 <td align="center"><img src="docs/readme/setup-1-choose.png" alt="Set up your wallet: create new or restore" width="400"></td>
-<td align="center"><img src="docs/readme/setup-2-words.png" alt="Write down the 12 seed words" width="400"></td>
+<td align="center"><img src="docs/readme/setup-2-words.png" alt="Write down the 12 recovery words" width="400"></td>
 </tr>
 <tr>
 <td align="center"><sub>Create a new wallet, or restore from words</sub></td>
-<td align="center"><sub>Write the 12 words on paper — words + passphrase are the wallet</sub></td>
+<td align="center"><sub>Write the 12 recovery words on paper; the same passphrase is also required</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/readme/setup-3-quiz.png" alt="Quiz proves the words were written down" width="400"></td>
