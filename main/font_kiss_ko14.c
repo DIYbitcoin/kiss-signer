@@ -4980,4 +4980,3 @@ lv_font_t font_kiss_ko14 = {
 
 
 #endif /*#if FONT_KISS_KO14*/
-

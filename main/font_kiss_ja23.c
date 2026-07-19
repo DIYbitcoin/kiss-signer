@@ -475,4 +475,3 @@ lv_font_t font_kiss_ja23 = {
 
 
 #endif /*#if FONT_KISS_JA23*/
-

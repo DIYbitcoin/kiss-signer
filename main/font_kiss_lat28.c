@@ -16864,4 +16864,3 @@ lv_font_t font_kiss_lat28 = {
 
 
 #endif /*#if FONT_KISS_LAT28*/
-

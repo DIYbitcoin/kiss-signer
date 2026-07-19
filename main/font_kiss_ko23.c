@@ -331,4 +331,3 @@ lv_font_t font_kiss_ko23 = {
 
 
 #endif /*#if FONT_KISS_KO23*/
-

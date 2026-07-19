@@ -379,4 +379,3 @@ lv_font_t font_kiss_zh23 = {
 
 
 #endif /*#if FONT_KISS_ZH23*/
-

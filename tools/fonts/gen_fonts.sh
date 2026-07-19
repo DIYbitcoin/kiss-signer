@@ -81,5 +81,9 @@ for L in ja ko zh; do
     $FB -o "$OUT/font_kiss_${L}23.c"
 done
 
+# lv_font_conv emits an extra blank line; normalize generated sources so
+# regeneration stays clean under git diff --check.
+perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c
+
 ls -la "$OUT"/font_kiss_*.c
 echo "fonts generated"
