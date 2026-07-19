@@ -15,6 +15,3 @@ tests/test_ur_*
 build/
 sdkconfig
 sdkconfig.old
-
-# AI
-CLAUDE.md

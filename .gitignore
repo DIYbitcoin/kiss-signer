@@ -11,8 +11,6 @@ sdkconfig.old
 managed_components/
 
 # local tooling / OS noise
-.claude/
-docs/superpowers/
 tools/fonts/node_modules/
 .DS_Store
 __pycache__/
