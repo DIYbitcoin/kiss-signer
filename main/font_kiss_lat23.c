@@ -10391,4 +10391,3 @@ lv_font_t font_kiss_lat23 = {
 
 
 #endif /*#if FONT_KISS_LAT23*/
-

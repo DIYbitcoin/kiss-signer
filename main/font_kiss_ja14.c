@@ -7027,4 +7027,3 @@ lv_font_t font_kiss_ja14 = {
 
 
 #endif /*#if FONT_KISS_JA14*/
-

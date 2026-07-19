@@ -7003,4 +7003,3 @@ lv_font_t font_kiss_lat14 = {
 
 
 #endif /*#if FONT_KISS_LAT14*/
-
