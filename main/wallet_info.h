@@ -7,3 +7,6 @@
 bool wallet_info_active(void);            // true while any of its screens is up
 void wallet_info_open(lv_obj_t *parent);
 void wallet_info_close(void);             // idle auto-lock: drop whichever is up
+#ifdef SIMULATOR
+void wallet_info_sim_open_type_help(void); // deterministic visual-QA capture
+#endif

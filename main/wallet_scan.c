@@ -11,6 +11,7 @@
 #include "camera_spike.h"
 #endif
 
+#include "i18n.h"
 #include "wallet_theme.h"
 
 #define BG_COL  WT_BG
@@ -126,8 +127,8 @@ static void feed(const char *data, size_t len)
     if (rc != 0) return;                       // some other QR in view: ignore
     if (s_prog) {
         char b[48];
-        if (total > 1) snprintf(b, sizeof b, "%d of %d parts", seen, total);
-        else snprintf(b, sizeof b, "reading...");
+        if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
+        else snprintf(b, sizeof b, "%s", tr(STR_N_READING));
         lv_label_set_text(s_prog, b);
     }
 #ifndef SIMULATOR
@@ -159,8 +160,8 @@ static void poll_cb(lv_timer_t *t)
         return;
     }
     if (camera_spike_check_died() && s_prog) {
-        lv_label_set_text(s_prog, "camera stopped");
-        if (s_hint) lv_label_set_text(s_hint, "tap the top-left corner to go back and retry");
+        lv_label_set_text(s_prog, tr(STR_N_CAM_STOP));
+        if (s_hint) lv_label_set_text(s_hint, tr(STR_N_RETRY));
         lv_obj_invalidate(lv_screen_active()); // video gone: repaint the LVGL screen
     }
 #endif
@@ -209,40 +210,40 @@ static void scan_open_common(lv_obj_t *parent)
 #endif
 
     lv_obj_t *cap = lv_label_create(s_scr);
-    lv_label_set_text(cap, "SCAN");
+    lv_label_set_text(cap, tr(STR_N_T));
     lv_obj_set_style_text_color(cap, INK_COL, 0);
-    lv_obj_set_style_text_font(cap, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(cap, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
     lv_obj_set_pos(cap, 48, 30);
 
     lv_obj_t *sub = lv_label_create(s_scr);
-    lv_label_set_text(sub, "show the coordinator's QR to the camera");
+    lv_label_set_text(sub, tr(STR_N_S));
     lv_obj_set_style_text_color(sub, MUT_COL, 0);
-    lv_obj_set_style_text_font(sub, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(sub, wt_font14(), 0);
     lv_obj_set_pos(sub, 48, 68);
 
     s_prog = lv_label_create(s_scr);
-    lv_label_set_text(s_prog, "starting camera...");
+    lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
-    lv_obj_set_style_text_font(s_prog, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(s_prog, wt_font28(), 0);
     lv_obj_align(s_prog, LV_ALIGN_CENTER, 0, -20);
 
     s_hint = lv_label_create(s_scr);
-    lv_label_set_text(s_hint, "tap the top-left corner to cancel");
+    lv_label_set_text(s_hint, tr(STR_N_TAP_CANCEL));
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_hint, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(s_hint, wt_font14(), 0);
     lv_obj_align(s_hint, LV_ALIGN_CENTER, 0, 24);
 
     s_tmr = lv_timer_create(poll_cb, 80, NULL);
 
 #ifndef SIMULATOR
     if (camera_scan_start(s_bus, decode_cb)) {
-        if (s_prog) lv_label_set_text(s_prog, "waiting for QR");
+        if (s_prog) lv_label_set_text(s_prog, tr(STR_N_WAIT_QR));
     } else {
-        lv_label_set_text(s_prog, "camera unavailable");
+        lv_label_set_text(s_prog, tr(STR_C_CAM_UNAVAIL));
         lv_label_set_text(s_hint, camera_spike_status());
     }
 #else
-    lv_label_set_text(s_prog, "waiting for QR");
+    lv_label_set_text(s_prog, tr(STR_N_WAIT_QR));
 #endif
 }
