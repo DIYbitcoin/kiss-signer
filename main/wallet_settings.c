@@ -369,20 +369,10 @@ static lv_obj_t *mk_wrap(int x, int y, int w)
 // (a user stuck in a language they can't read must still find the way back).
 // Shared with the first-boot setup screen via wallet_lang_picker_open(). ----
 
-// Display order is NOT the enum order: the enum is append-only (its index is
-// the persisted NVS value), so late additions land at the end and split the
-// es/pt variants apart. This table restores alphabetical order with variants
-// adjacent and non-Latin scripts last. Append a language here too.
-static const uint8_t PICK_ORDER[I18N_LANG_N] = {
-    I18N_CS, I18N_DA, I18N_DE, I18N_EN, I18N_ES_ES, I18N_ES, I18N_FR,
-    I18N_HR, I18N_IT, I18N_NL, I18N_NB, I18N_PL, I18N_PT, I18N_PT_PT,
-    I18N_SV, I18N_VI, I18N_TR, I18N_RU, I18N_JA, I18N_KO, I18N_ZH,
-};
-
 int wallet_lang_pick_slot(int lang)
 {
     for (int i = 0; i < I18N_LANG_N; i++)
-        if (PICK_ORDER[i] == lang) return i;
+        if (i18n_pick_order[i] == lang) return i;
     return 0;
 }
 
@@ -434,8 +424,10 @@ void wallet_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
 
     // 21 locales in 3x7. Fixed rows keep every language one tap away without
     // scrolling, while the compact labels still leave room for each flag.
+    // i18n_pick_order (generated) = alphabetical display order, decoupled
+    // from the append-only enum whose index is the stored NVS value.
     for (int i = 0; i < I18N_LANG_N; i++) {
-        int id = PICK_ORDER[i];
+        int id = i18n_pick_order[i];
         lv_obj_t *p = wt_pillh(ovl, i18n_lang_info(id)->native,
                                16 + (i % 3) * 260, 76 + (i / 3) * 52, 248, 44,
                                lang_pick_cb, (void *)(intptr_t)id);

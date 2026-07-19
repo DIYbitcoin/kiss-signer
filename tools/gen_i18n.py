@@ -23,10 +23,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# THE locale manifest: adding a language = one i18n/<stem>.json + one row
+# here (at the END). The generator emits the enum (i18n_keys.h), the metadata
+# + picker-order tables (i18n_tables.c), and the font glyph lists from this
+# list alone - nothing else to keep in sync.
+#
 # enum order = firmware order = NVS "lang" values. APPEND ONLY: inserting a
-# language re-numbers everything after it and breaks stored NVS settings.
-# The native name mirrors main/i18n.c (picker labels); it is listed here so its
-# glyphs are counted into the font subsets. Keep both in sync.
+# language re-numbers everything after it and breaks stored NVS settings
+# (FROZEN_NVS below hard-fails the build if a shipped position moves).
 LOCALES = [
     # (file stem, C identifier, font class, native picker name)
     ("en", "en", "lat", "ENGLISH"),
@@ -51,6 +55,17 @@ LOCALES = [
     ("cs-CZ", "cs", "lat", "ČEŠTINA"),
     ("hr-HR", "hr", "lat", "HRVATSKI"),
 ]
+
+# Every locale that has shipped in a release, frozen at its NVS value. A
+# mismatch against LOCALES means someone reordered/inserted/removed a row -
+# which would silently switch the language on every deployed device. New
+# locales: append to LOCALES, ship, then freeze them here.
+FROZEN_NVS = {
+    "en": 0, "de": 1, "es-MX": 2, "fr": 3, "it": 4, "ja": 5, "ko": 6,
+    "nl": 7, "pl": 8, "pt-BR": 9, "ru": 10, "tr": 11, "vi": 12, "zh-CN": 13,
+    "es-ES": 14, "pt-PT": 15, "nb-NO": 16, "sv-SE": 17, "da-DK": 18,
+    "cs-CZ": 19, "hr-HR": 20,
+}
 
 # Must match LAT_RANGES in tools/fonts/gen_fonts.sh. A character outside the
 # generated font is not a cosmetic problem: LVGL 9.5 hard-hangs rendering a
@@ -96,9 +111,32 @@ def load(stem):
         return json.load(f)
 
 
+def pick_order():
+    """Picker display order: alphabetical with variants adjacent (diacritics
+    folded for sorting), Cyrillic after Latin, CJK last in enum order."""
+    import unicodedata
+
+    def key(i):
+        native = LOCALES[i][3]
+        cp = ord(native[0])
+        bucket = 0 if cp < 0x370 else 1 if cp <= 0x4FF else 2
+        folded = "".join(ch for ch in unicodedata.normalize("NFD", native)
+                         if not unicodedata.combining(ch))
+        return (bucket, folded if bucket < 2 else "", i)
+
+    return sorted(range(len(LOCALES)), key=key)
+
+
 def main():
     errors = []
     warnings = []
+
+    for stem, want in FROZEN_NVS.items():
+        stems = [l[0] for l in LOCALES]
+        if stem not in stems or stems.index(stem) != want:
+            errors.append(f"FROZEN_NVS: shipped locale {stem} must stay at "
+                          f"enum value {want} (NVS 'lang' stores that byte); "
+                          f"LOCALES is APPEND ONLY")
 
     en = load("en")
     if en is None:
@@ -152,7 +190,13 @@ def main():
     # ---- main/i18n_keys.h ----
     h = [GEN_HDR, "#pragma once\n\n", "enum {\n"]
     h += [f"    STR_{k},\n" for k in keys]
-    h += ["    STR_N\n", "};\n"]
+    h += ["    STR_N\n", "};\n\n"]
+    h += ["// Locale ids: order = i18n_tables[] = the persisted NVS 'lang'\n"
+          "// value. APPEND ONLY (FROZEN_NVS in gen_i18n.py enforces it).\n",
+          "enum {\n"]
+    h += [f"    I18N_{ident.upper()}{' = 0' if i == 0 else ''},\n"
+          for i, (_s, ident, _fc, _n) in enumerate(LOCALES)]
+    h += ["    I18N_LANG_N\n", "};\n"]
     (ROOT / "main" / "i18n_keys.h").write_text("".join(h), encoding="utf-8")
 
     # ---- main/i18n_tables.c ----
@@ -165,6 +209,19 @@ def main():
     c.append("const char *const *const i18n_tables[I18N_LANG_N] = {\n")
     for stem, ident, _fc, _nat in LOCALES:
         c.append(f"    tbl_{ident},\n")
+    c.append("};\n\n")
+
+    # locale metadata (code / native picker name / font class) + the picker's
+    # display order - all derived from LOCALES so the manifest is one place
+    c.append("const i18n_lang_t i18n_langs[I18N_LANG_N] = {\n")
+    for stem, ident, fc, native in LOCALES:
+        c.append(f'    [I18N_{ident.upper()}] = {{"{stem}", '
+                 f'"{c_escape(native)}", I18N_FC_{fc.upper()}}},\n')
+    c.append("};\n\n")
+    c.append("// alphabetical, es/pt variants adjacent, non-Latin scripts last\n")
+    c.append("const uint8_t i18n_pick_order[I18N_LANG_N] = {\n")
+    for i in pick_order():
+        c.append(f"    I18N_{LOCALES[i][1].upper()},\n")
     c.append("};\n")
     (ROOT / "main" / "i18n_tables.c").write_text("".join(c), encoding="utf-8")
 

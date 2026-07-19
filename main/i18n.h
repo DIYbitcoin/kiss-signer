@@ -3,33 +3,9 @@
 // Scope: wallet screens and live home-tile labels. The game and baked KISS
 // wordmark/tagline stay English by design (baked artwork + decoy story).
 #pragma once
-#include "i18n_keys.h"
-
-// Order = i18n_tables[] = the NVS "lang" value. APPEND ONLY (see gen_i18n.py).
-enum {
-    I18N_EN = 0,
-    I18N_DE,
-    I18N_ES,
-    I18N_FR,
-    I18N_IT,
-    I18N_JA,
-    I18N_KO,
-    I18N_NL,
-    I18N_PL,
-    I18N_PT,
-    I18N_RU,
-    I18N_TR,
-    I18N_VI,
-    I18N_ZH,
-    I18N_ES_ES,   // appended (enum order = stored NVS value: append only)
-    I18N_PT_PT,
-    I18N_NB,
-    I18N_SV,
-    I18N_DA,
-    I18N_CS,
-    I18N_HR,
-    I18N_LANG_N
-};
+#include <stdint.h>
+#include "i18n_keys.h"   // STR_* keys + the I18N_* locale enum (generated;
+                         // the locale manifest lives in tools/gen_i18n.py)
 
 // Which generated font family renders this locale.
 enum { I18N_FC_LAT = 0, I18N_FC_JA, I18N_FC_KO, I18N_FC_ZH };
@@ -47,3 +23,7 @@ int  i18n_get_lang(void);
 const i18n_lang_t *i18n_lang_info(int lang);
 
 extern const char *const *const i18n_tables[I18N_LANG_N];  // generated
+extern const i18n_lang_t i18n_langs[I18N_LANG_N];          // generated
+extern const uint8_t i18n_pick_order[I18N_LANG_N];         // generated: picker
+                                  // display order (alphabetical, variants
+                                  // adjacent), decoupled from the NVS enum
