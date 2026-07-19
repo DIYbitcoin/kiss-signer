@@ -257,13 +257,14 @@ read out of the chip.
 > reflashed** after it. Fresh final-signer board only. Read the
 > [docs](docs/guide.html) twice before touching it.
 
-## Licensing
+## License
 
-Project license: TBD. Vendored third-party components keep their own licenses:
-[libwally-core](components/libwally-core) (MIT/BSD), Espressif components
-(Apache-2.0), CC0 game art and the [Twemoji](https://github.com/twitter/twemoji)
-kiss mark (CC-BY 4.0) under `assets/`. No unlicensed or watermarked assets are
-used anywhere.
+KISS Wallet's original source code and documentation are licensed under the
+[Apache License 2.0](LICENSE). Vendored third-party components and assets keep
+their own licenses: [libwally-core](components/libwally-core) (MIT/BSD),
+Espressif components (Apache-2.0), CC0 game art, and the
+[Twemoji](https://github.com/twitter/twemoji) kiss mark (CC-BY 4.0) under
+`assets/`. No unlicensed or watermarked assets are used anywhere.
 
 **Use at your own risk. This is experimental firmware; do not trust it with
 meaningful funds.**
