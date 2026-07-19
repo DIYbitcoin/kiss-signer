@@ -87,7 +87,7 @@ Release commit:
 
 ## Install
 
-For beta releases, flash the verified `.bin` locally using the README install steps. If you use an agent/Codex, have it flash this exact release asset.
+For beta releases, flash this exact verified `.bin` using the README install steps.
 
 The browser installer comes later with GitHub Pages. It will require Chrome, Brave, or Edge on desktop; Safari and Firefox cannot flash ESP32 boards over Web Serial.
 
