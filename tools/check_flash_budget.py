@@ -3,7 +3,7 @@
 
     check_flash_budget.py <app.bin> <partitions.csv> [max_pct]
 
-The factory partition (6MB) is the project's real wall: baked full-screen art
+The factory partition (12MB since the i18n fonts) is the project's real wall: baked full-screen art
 is ~75% of the binary and one more RGB565 screen is ~768KB, so the build that
 no longer fits arrives suddenly. Gate at max_pct (default 95) so a release
 fails while there is still headroom to react (compress baked art into PSRAM-
