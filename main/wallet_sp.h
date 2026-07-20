@@ -35,3 +35,16 @@ int sp_ecdh_share(const uint8_t a_sum32[32], const uint8_t scan33[33],
 // (input_hash*share) || k_be32); P_k = spend + t_k*G -> xonly_out.
 int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
                     sp_recip_t *recips, size_t n);
+
+// BIP374 DLEQ: proves share = a*B for A = a*G without revealing a. proof64 =
+// e||s. aux32 = fresh (or deterministic-per-psbt) randomness, REQUIRED.
+// m32 = optional 32-byte message (NULL for the BIP375 flow). g33 = optional
+// custom base point (NULL = secp256k1 G; non-NULL only for test vectors).
+// Prove self-verifies before returning, per the spec.
+int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
+                  const uint8_t aux32[32], const uint8_t *m32,
+                  const uint8_t *g33, uint8_t proof64[64]);
+// Returns 0 = valid; anything else = invalid (never trusts its inputs).
+int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
+                   const uint8_t share33[33], const uint8_t proof64[64],
+                   const uint8_t *m32, const uint8_t *g33);
