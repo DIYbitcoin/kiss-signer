@@ -24,6 +24,8 @@ static int fails;
 int test_qr_transport(const uint8_t *psbt, size_t psbt_len);
 // sim/test_seed.c — step 7 seed layer (runs FIRST; leaves the dev seed stored)
 int test_seed_layer(void);
+// sim/test_sp.c — step 8 silent payments (BIP352/374/375)
+int test_sp(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -813,6 +815,7 @@ int main(int argc, char **argv) {
 
     // step 6: QR transport (pure data layer, session not needed)
     fails += test_qr_transport(pb, pl);
+    fails += test_sp();
 
     // ---- testnet mode: same seed, coin 1h, tb1, tpub, wrong-network STOP ----
     wallet_set_network(1);
