@@ -67,7 +67,9 @@ static secp256k1_context *sp_ctx(void)
 static void sp_tagged_hash(const char *tag, const uint8_t *msg, size_t msg_len,
                            uint8_t out32[32])
 {
-    uint8_t th[32], buf[64 + 128];
+    // largest caller: the DLEQ challenge at 6*33+32 = 230 bytes
+    uint8_t th[32], buf[64 + 256];
+    if (msg_len > 256) { memset(out32, 0, 32); return; }
     wally_sha256((const uint8_t *)tag, strlen(tag), th, 32);
     memcpy(buf, th, 32);
     memcpy(buf + 32, th, 32);
@@ -165,6 +167,194 @@ int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
         memcpy(recips[k].xonly_out, ser + 1, 32);
     }
     return 0;
+}
+// ---- BIP374 DLEQ ----------------------------------------------------------
+// Port of the BIP374 reference (via the embit fork's dleq.py, mirrored
+// operation-for-operation). Scalar arithmetic mod n rides on libsecp's seckey
+// tweak calls plus one conditional subtract for hash outputs >= n.
+
+static const uint8_t SP_N[32] = {
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+    0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
+    0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
+};
+
+static bool sp_is_zero32(const uint8_t x[32])
+{
+    uint8_t acc = 0;
+    for (int i = 0; i < 32; i++) acc |= x[i];
+    return acc == 0;
+}
+
+// x mod n for x < 2^256: n > 2^255, so at most one subtraction is needed
+static void sp_mod_n(uint8_t x[32])
+{
+    if (memcmp(x, SP_N, 32) < 0) return;
+    int borrow = 0;
+    for (int i = 31; i >= 0; i--) {
+        int d = (int)x[i] - (int)SP_N[i] - borrow;
+        borrow = d < 0;
+        x[i] = (uint8_t)(d + (borrow ? 256 : 0));
+    }
+}
+
+// out33 = scalar*base (base NULL = standard G). Scalar 0 = point at infinity,
+// reported as rc 1 with out untouched; rc < 0 = invalid input.
+static int sp_mul_base(const uint8_t *base33, const uint8_t scalar32[32],
+                       uint8_t out33[33])
+{
+    secp256k1_context *ctx = sp_ctx();
+    if (sp_is_zero32(scalar32)) return 1;
+    size_t sl = 33;
+    secp256k1_pubkey p;
+    if (!base33) {
+        if (!secp256k1_ec_pubkey_create(ctx, &p, scalar32)) return -1;
+    } else {
+        if (!secp256k1_ec_pubkey_parse(ctx, &p, base33, 33)) return -1;
+        if (!secp256k1_ec_pubkey_tweak_mul(ctx, &p, scalar32)) return -2;
+    }
+    secp256k1_ec_pubkey_serialize(ctx, out33, &sl, &p, SECP256K1_EC_COMPRESSED);
+    return 0;
+}
+
+// out33 = p1 + p2 where either may be the point at infinity (rc-1 semantics
+// from sp_mul_base): inf + inf or a sum landing on infinity fails.
+static int sp_add_points(const uint8_t *p1_33, int p1_inf,
+                         const uint8_t *p2_33, int p2_inf, uint8_t out33[33])
+{
+    secp256k1_context *ctx = sp_ctx();
+    if (p1_inf && p2_inf) return -1;
+    if (p1_inf) { memcpy(out33, p2_33, 33); return 0; }
+    if (p2_inf) { memcpy(out33, p1_33, 33); return 0; }
+    secp256k1_pubkey a, b;
+    const secp256k1_pubkey *both[2] = { &a, &b };
+    secp256k1_pubkey sum;
+    size_t sl = 33;
+    if (!secp256k1_ec_pubkey_parse(ctx, &a, p1_33, 33) ||
+        !secp256k1_ec_pubkey_parse(ctx, &b, p2_33, 33))
+        return -2;
+    if (!secp256k1_ec_pubkey_combine(ctx, &sum, both, 2)) return -3;  // infinity
+    secp256k1_ec_pubkey_serialize(ctx, out33, &sl, &sum, SECP256K1_EC_COMPRESSED);
+    return 0;
+}
+
+static const uint8_t SP_G33[33] = {
+    0x02, 0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0,
+    0x62, 0x95, 0xce, 0x87, 0x0b, 0x07, 0x02, 0x9b, 0xfc, 0xdb, 0x2d,
+    0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98
+};
+
+// e' = tagged("BIP0374/challenge", A||B||C||G||R1||R2||m') as a 32B scalar
+static void sp_dleq_challenge(const uint8_t A[33], const uint8_t B[33],
+                              const uint8_t C[33], const uint8_t G[33],
+                              const uint8_t R1[33], const uint8_t R2[33],
+                              const uint8_t *m32, uint8_t out32[32])
+{
+    uint8_t msg[33 * 6 + 32];
+    size_t n = 0;
+    memcpy(msg + n, A, 33); n += 33;
+    memcpy(msg + n, B, 33); n += 33;
+    memcpy(msg + n, C, 33); n += 33;
+    memcpy(msg + n, G, 33); n += 33;
+    memcpy(msg + n, R1, 33); n += 33;
+    memcpy(msg + n, R2, 33); n += 33;
+    if (m32) { memcpy(msg + n, m32, 32); n += 32; }
+    sp_tagged_hash("BIP0374/challenge", msg, n, out32);
+}
+
+int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
+                  const uint8_t aux32[32], const uint8_t *m32,
+                  const uint8_t *g33, uint8_t proof64[64])
+{
+    secp256k1_context *ctx = sp_ctx();
+    const uint8_t *G = g33 ? g33 : SP_G33;
+    if (!secp256k1_ec_seckey_verify(ctx, a32)) return -1;
+
+    uint8_t A[33], C[33];
+    if (sp_mul_base(g33, a32, A) != 0) return -2;   // A = a*G
+    if (sp_mul_base(b33, a32, C) != 0) return -3;   // C = a*B
+
+    // t = a XOR H_aux(r)
+    uint8_t aux_h[32], t[32];
+    sp_tagged_hash("BIP0374/aux", aux32, 32, aux_h);
+    for (int i = 0; i < 32; i++) t[i] = a32[i] ^ aux_h[i];
+
+    // k = H_nonce(t || A || C || m') mod n
+    uint8_t nmsg[32 + 33 + 33 + 32], k[32];
+    size_t nl = 0;
+    memcpy(nmsg + nl, t, 32); nl += 32;
+    memcpy(nmsg + nl, A, 33); nl += 33;
+    memcpy(nmsg + nl, C, 33); nl += 33;
+    if (m32) { memcpy(nmsg + nl, m32, 32); nl += 32; }
+    sp_tagged_hash("BIP0374/nonce", nmsg, nl, k);
+    sp_mod_n(k);
+    if (sp_is_zero32(k)) return -4;
+
+    uint8_t R1[33], R2[33];
+    if (sp_mul_base(g33, k, R1) != 0) return -5;    // R1 = k*G
+    if (sp_mul_base(b33, k, R2) != 0) return -6;    // R2 = k*B
+
+    // e = H_challenge(A||B||C||G||R1||R2||m'); s = k + e*a mod n
+    uint8_t e[32], s[32], ea[32];
+    sp_dleq_challenge(A, b33, C, G, R1, R2, m32, e);
+    memcpy(ea, e, 32);
+    sp_mod_n(ea);
+    if (!sp_is_zero32(ea)) {
+        memcpy(s, a32, 32);
+        if (!secp256k1_ec_seckey_tweak_mul(ctx, s, ea)) return -7;  // e*a
+        if (!secp256k1_ec_seckey_tweak_add(ctx, s, k)) return -7;   // + k
+    } else {
+        memcpy(s, k, 32);
+    }
+    memcpy(proof64, e, 32);
+    memcpy(proof64 + 32, s, 32);
+
+    // spec: self-verify before returning
+    if (sp_dleq_verify(A, b33, C, proof64, m32, g33) != 0) return -8;
+    return 0;
+}
+
+int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
+                   const uint8_t share33[33], const uint8_t proof64[64],
+                   const uint8_t *m32, const uint8_t *g33)
+{
+    secp256k1_context *ctx = sp_ctx();
+    const uint8_t *G = g33 ? g33 : SP_G33;
+
+    // parse checks double as the spec's is_infinite(A/B/C) checks
+    secp256k1_pubkey tmp;
+    if (!secp256k1_ec_pubkey_parse(ctx, &tmp, a_pub33, 33) ||
+        !secp256k1_ec_pubkey_parse(ctx, &tmp, b33, 33) ||
+        !secp256k1_ec_pubkey_parse(ctx, &tmp, share33, 33))
+        return -1;
+
+    uint8_t e[32], s[32];
+    memcpy(e, proof64, 32);
+    memcpy(s, proof64 + 32, 32);
+    if (memcmp(s, SP_N, 32) >= 0) return -2;  // s must be < n
+
+    // neg_e = (-e) mod n
+    uint8_t neg_e[32];
+    memcpy(neg_e, e, 32);
+    sp_mod_n(neg_e);
+    if (!sp_is_zero32(neg_e) && !secp256k1_ec_seckey_negate(ctx, neg_e))
+        return -3;
+
+    // R1 = s*G + (-e)*A ; R2 = s*B + (-e)*C (0-scalars = point at infinity)
+    uint8_t sG[33], eA[33], R1[33], sB[33], eC[33], R2[33];
+    int rc_sG = sp_mul_base(g33, s, sG);
+    int rc_eA = sp_mul_base(a_pub33, neg_e, eA);
+    if (rc_sG < 0 || rc_eA < 0) return -4;
+    if (sp_add_points(sG, rc_sG, eA, rc_eA, R1) != 0) return -5;
+    int rc_sB = sp_mul_base(b33, s, sB);
+    int rc_eC = sp_mul_base(share33, neg_e, eC);
+    if (rc_sB < 0 || rc_eC < 0) return -6;
+    if (sp_add_points(sB, rc_sB, eC, rc_eC, R2) != 0) return -7;
+
+    uint8_t e_check[32];
+    sp_dleq_challenge(a_pub33, b33, share33, G, R1, R2, m32, e_check);
+    return memcmp(e, e_check, 32) == 0 ? 0 : -8;
 }
 #endif  // !SIMULATOR
 

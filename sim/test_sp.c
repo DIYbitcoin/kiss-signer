@@ -208,10 +208,56 @@ static void sp_test_bip352(void) {
 #undef RUN352
 }
 
+static void sp_test_dleq(void) {
+    char name[64];
+    uint8_t proof[64];
+    int all = 1;
+
+    // generation vectors (custom G + bound message)
+#define DG(i) do { \
+        int ok = sp_dleq_prove(spvdg_##i##_a, spvdg_##i##_B, spvdg_##i##_aux, \
+                               spvdg_##i##_msg, spvdg_##i##_G, proof) == 0 && \
+                 memcmp(proof, spvdg_##i##_proof, 64) == 0; \
+        if (!ok) all = 0; \
+    } while (0)
+    DG(0); DG(1); DG(2); DG(3); DG(4); DG(5); DG(6); DG(7);
+#undef DG
+    spchk("dleq generation matches all BIP374 vectors", all);
+
+    // verification vectors (positive and negative rows)
+    all = 1;
+#define DV(i) do { \
+        int ok = sp_dleq_verify(spvdv_##i##_A, spvdv_##i##_B, spvdv_##i##_C, \
+                                spvdv_##i##_proof, spvdv_##i##_msg, \
+                                spvdv_##i##_G) == 0; \
+        if (ok != spvdv_##i##_ok) { all = 0; \
+            snprintf(name, sizeof name, "dleq verify vector %d wrong", i); \
+            puts(name); } \
+    } while (0)
+    DV(0); DV(1); DV(2); DV(3); DV(4); DV(5); DV(6); DV(7);
+    DV(8); DV(9); DV(10); DV(11); DV(12); DV(13); DV(14);
+#undef DV
+    spchk("dleq verification matches all BIP374 vectors", all);
+
+    // BIP375 shape: standard G, no message, real BIP352 values
+    uint8_t a_sum[32], a_pub[33], share[33];
+    bool xflags[8] = { false, false };
+    sp_sum_privkeys(spv352_0_privs, xflags, SPV352_0_NIN, a_sum, a_pub);
+    sp_ecdh_share(a_sum, spv352_0_recipkeys, share);
+    uint8_t aux[32] = { 0x42 };
+    spchk("dleq prove/verify roundtrip (BIP375 shape)",
+          sp_dleq_prove(a_sum, spv352_0_recipkeys, aux, NULL, NULL, proof) == 0 &&
+          sp_dleq_verify(a_pub, spv352_0_recipkeys, share, proof, NULL, NULL) == 0);
+    proof[10] ^= 1;
+    spchk("dleq tampered proof rejected",
+          sp_dleq_verify(a_pub, spv352_0_recipkeys, share, proof, NULL, NULL) != 0);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
     sp_test_address();
     sp_test_bip352();
+    sp_test_dleq();
     return sp_fails;
 }
