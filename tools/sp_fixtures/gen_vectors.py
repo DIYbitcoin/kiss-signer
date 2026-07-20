@@ -50,6 +50,14 @@ def chex(b):
     return ", ".join("0x%02x" % x for x in b)
 
 
+def carr_or_null(name, b):
+    """32-byte array, or a NULL pointer when the vector's field is empty
+    (BIP374 messages are optional; C code takes NULL for 'no message')."""
+    if not b:
+        return "static const uint8_t *const %s = NULL;\n" % name
+    return carr(name, b)
+
+
 def carr(name, b):
     return "static const uint8_t %s[%d] = { %s };\n" % (name, len(b), chex(b))
 
@@ -133,7 +141,7 @@ def emit_dleq(out, bips):
         out.append(carr("spvdg_%d_a" % i, bytes.fromhex(r["scalar_a"])))
         out.append(carr("spvdg_%d_B" % i, bytes.fromhex(r["point_B"])))
         out.append(carr("spvdg_%d_aux" % i, bytes.fromhex(r["auxrand_r"])))
-        out.append(carr("spvdg_%d_msg" % i, bytes.fromhex(r["message"])))
+        out.append(carr_or_null("spvdg_%d_msg" % i, bytes.fromhex(r["message"])))
         out.append(carr("spvdg_%d_proof" % i, bytes.fromhex(r["result_proof"])))
     out.append("#define SPV_DLEQ_VER_N %d\n" % len(ver_rows))
     for i, r in enumerate(ver_rows):
@@ -143,7 +151,7 @@ def emit_dleq(out, bips):
         out.append(carr("spvdv_%d_B" % i, bytes.fromhex(r["point_B"])))
         out.append(carr("spvdv_%d_C" % i, bytes.fromhex(r["point_C"])))
         out.append(carr("spvdv_%d_proof" % i, bytes.fromhex(r["proof"])))
-        out.append(carr("spvdv_%d_msg" % i, bytes.fromhex(r["message"])))
+        out.append(carr_or_null("spvdv_%d_msg" % i, bytes.fromhex(r["message"])))
         out.append(
             "static const int spvdv_%d_ok = %d;\n"
             % (i, 1 if r["result_success"] == "TRUE" else 0)
