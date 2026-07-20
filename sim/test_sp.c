@@ -130,9 +130,88 @@ static void sp_test_address(void) {
           strncmp(buf, "sp1", 3) == 0 && strlen(buf) == 116);
 }
 
+// Replicates create_outputs' recipient handling: walk recipients in order,
+// group by scan key (first-appearance order), k = position within the group.
+// The vector's expected data is NALT acceptable output SETS (k assignment is
+// ordering-dependent), so the derived outputs multiset-match against any one.
+static void sp_run_352_vector(int vi, size_t nin, size_t nout, size_t nalt,
+                              const uint8_t *privs, const uint8_t *xonly,
+                              const uint8_t *outpoints, const uint8_t *asum,
+                              const uint8_t *recipkeys, const uint8_t *expect) {
+    char name[64];
+    bool xflags[8];
+    for (size_t i = 0; i < nin && i < 8; i++) xflags[i] = xonly[i] != 0;
+
+    uint8_t a_sum[32], a_pub[33], ih[32];
+    snprintf(name, sizeof name, "v%d key sum", vi);
+    spchk(name, sp_sum_privkeys(privs, xflags, nin, a_sum, a_pub) == 0 &&
+                memcmp(a_sum, asum, 32) == 0);
+    snprintf(name, sizeof name, "v%d input hash", vi);
+    spchk(name, sp_input_hash(outpoints, nin, a_pub, ih) == 0);
+
+    // derive all outputs: group recipients by scan key, k within group
+    uint8_t derived[8][32];
+    sp_recip_t recips[8];
+    int group_of[8], order[8], n_groups = 0, derived_ok = 1;
+    for (size_t o = 0; o < nout && o < 8; o++) {
+        int g = -1;
+        for (int j = 0; j < n_groups; j++)
+            if (memcmp(recipkeys + order[j] * 66, recipkeys + o * 66, 33) == 0) { g = j; break; }
+        if (g < 0) { g = n_groups++; order[g] = (int)o; }
+        group_of[o] = g;
+    }
+    for (int g = 0; g < n_groups && derived_ok; g++) {
+        size_t n_in_group = 0, src_idx[8];
+        for (size_t o = 0; o < nout; o++)
+            if (group_of[o] == g) {
+                memcpy(recips[n_in_group].scan, recipkeys + o * 66, 33);
+                memcpy(recips[n_in_group].spend, recipkeys + o * 66 + 33, 33);
+                src_idx[n_in_group++] = o;
+            }
+        uint8_t share[33];
+        if (sp_ecdh_share(a_sum, recips[0].scan, share) != 0 ||
+            sp_derive_group(share, ih, recips, n_in_group) != 0) {
+            derived_ok = 0;
+            break;
+        }
+        for (size_t j = 0; j < n_in_group; j++)
+            memcpy(derived[src_idx[j]], recips[j].xonly_out, 32);
+    }
+
+    // multiset-compare the derived set against each acceptable alternative
+    int any_alt = 0;
+    for (size_t a = 0; a < nalt && derived_ok && !any_alt; a++) {
+        const uint8_t *alt = expect + a * nout * 32;
+        int used[8] = { 0 }, all = 1;
+        for (size_t o = 0; o < nout && all; o++) {
+            int hit = 0;
+            for (size_t e = 0; e < nout; e++)
+                if (!used[e] && memcmp(derived[o], alt + e * 32, 32) == 0) {
+                    used[e] = 1; hit = 1; break;
+                }
+            if (!hit) all = 0;
+        }
+        any_alt = all;
+    }
+    snprintf(name, sizeof name, "v%d derived outputs match BIP352 vectors", vi);
+    spchk(name, derived_ok && any_alt);
+}
+
+static void sp_test_bip352(void) {
+#define RUN352(i) sp_run_352_vector(i, SPV352_##i##_NIN, SPV352_##i##_NOUT, \
+    SPV352_##i##_NALT, spv352_##i##_privs, spv352_##i##_xonly, \
+    spv352_##i##_outpoints, spv352_##i##_asum, spv352_##i##_recipkeys, \
+    spv352_##i##_expect)
+    RUN352(0);
+    RUN352(1);
+    RUN352(2);
+#undef RUN352
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
     sp_test_address();
+    sp_test_bip352();
     return sp_fails;
 }

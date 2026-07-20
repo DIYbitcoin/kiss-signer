@@ -83,21 +83,28 @@ def emit_bip352(out, picked, embit_mods):
             spk = bytes.fromhex(vin["prevout"]["scriptPubKey"]["hex"])
             is_p2tr = len(spk) == 34 and spk[0] == 0x51 and spk[1] == 0x20
             xonly_flags.append(is_p2tr)
-            outpoints += COutPoint(
-                bytes.fromhex(vin["txid"])[::-1], vin["vout"]
-            ).serialize()
-        # recipients in vector order; decode each address to scan/spend keys
-        recips = []
-        for r in given["recipients"]:
-            addr = r if isinstance(r, str) else r["address"]
-            recips.append(addr)
-        # expected outputs: json groups per recipient; flatten in recipient order
-        exp_flat = []
-        for outs in expected["outputs"]:
-            exp_flat.extend(outs)
+            # NB: the json's txid hex is already in serialization byte order
+            # (verified against the reference: reversing it breaks the vectors)
+            outpoints += COutPoint(bytes.fromhex(vin["txid"]), vin["vout"]).serialize()
+        # one output per recipient ENTRY (duplicates kept, given order). The
+        # json's expected.outputs is a list of ACCEPTABLE OUTPUT SETS: k
+        # assignment depends on recipient ordering, so several sets can be
+        # valid. Emit them all; the C test multiset-matches against any one.
+        from embit.silent_payments.bip352 import decode_silent_payment_address
+
+        recips = [r if isinstance(r, str) else r["address"] for r in given["recipients"]]
+        keyblob = b""
+        for addr in recips:
+            B_scan, B_spend = decode_silent_payment_address(addr)
+            keyblob += B_scan.sec() + B_spend.sec()
+        alts = expected["outputs"]
+        for a in alts:
+            if len(a) != len(recips):
+                sys.exit("vector %r: alternative size != recipient count" % vec["comment"])
         out.append("// vector %d: %s\n" % (vi, vec["comment"]))
         out.append("#define SPV352_%d_NIN %d\n" % (vi, len(vins)))
-        out.append("#define SPV352_%d_NOUT %d\n" % (vi, len(exp_flat)))
+        out.append("#define SPV352_%d_NOUT %d\n" % (vi, len(recips)))
+        out.append("#define SPV352_%d_NALT %d\n" % (vi, len(alts)))
         out.append(carr("spv352_%d_privs" % vi, b"".join(privs)))
         out.append(
             "static const uint8_t spv352_%d_xonly[%d] = { %s };\n"
@@ -107,20 +114,10 @@ def emit_bip352(out, picked, embit_mods):
         out.append(
             carr("spv352_%d_asum" % vi, bytes.fromhex(expected["input_private_key_sum"]))
         )
-        # decoded recipient keys, one 66B blob per expected output, in the same
-        # flattened order (repeat the address's keys for its extra outputs)
-        keyblob = b""
-        from embit.silent_payments.bip352 import decode_silent_payment_address
-
-        per_addr_counts = [len(o) for o in expected["outputs"]]
-        addr_i = 0
-        for addr, n in zip(recips, per_addr_counts):
-            B_scan, B_spend = decode_silent_payment_address(addr)
-            keyblob += (B_scan.sec() + B_spend.sec()) * n
-            addr_i += 1
         out.append(carr("spv352_%d_recipkeys" % vi, keyblob))
         out.append(
-            carr("spv352_%d_expect" % vi, b"".join(bytes.fromhex(x) for x in exp_flat))
+            carr("spv352_%d_expect" % vi,
+                 b"".join(bytes.fromhex(x) for a in alts for x in a))
         )
 
 
