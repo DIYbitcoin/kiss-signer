@@ -36,6 +36,16 @@ jobs:
           /tmp/kisstest | tee /tmp/kisstest.log
           grep -q "PASS: BIP39 test vector -> 73C5DA0A" /tmp/kisstest.log
 
+      # managed_components/ is gitignored (the IDF component manager populates
+      # it during device builds), so fetch LVGL ourselves at the exact version
+      # dependencies.lock pins for the device.
+      - name: fetch LVGL for the sim
+        run: |
+          LV=$(awk '/^  lvgl\/lvgl:/{f=1} f&&/version:/{print $2; exit}' dependencies.lock)
+          echo "dependencies.lock pins lvgl/lvgl $LV"
+          git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
+            https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl
+
       - name: sim smoke walks (en / ja / ru)
         run: |
           bash sim/build_sim.sh
