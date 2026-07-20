@@ -14,13 +14,28 @@
 #include <wally_crypto.h>
 #include <wally_map.h>
 #include <wally_psbt.h>
+#include <wally_psbt_members.h>
 #include <wally_script.h>
 #include <wally_transaction.h>
 
 #include "wallet_crypto.h"
+#include "wallet_sp.h"
 
 static struct wally_psbt *s_psbt;
+static struct wally_tx *s_txv;                 // v2 only: extracted tx view
 static wpsbt_status_t s_status = WPSBT_STOP;   // sign gate; STOP until a good load
+
+// Silent payment outputs found by sp_scan (BIP375), consumed by sp_fill.
+static struct {
+    uint32_t n;
+    struct { uint32_t idx; uint8_t scan[33], spend[33]; } o[WPSBT_MAX_OUTS];
+} s_sp;
+
+// v0 keeps its embedded global tx; v2 uses the view extracted after sp_fill
+static const struct wally_tx *psbt_tx(void)
+{
+    return s_psbt ? (s_psbt->tx ? s_psbt->tx : s_txv) : NULL;
+}
 
 // Consensus cap (21M BTC in sats). wally 1.5.4 already refuses bigger amounts
 // at parse (psbt_from_bytes rc=-2, verified) — this cap is defense-in-depth so
@@ -179,6 +194,241 @@ static void spk_to_addr(const uint8_t *spk, size_t spk_len, char *out, size_t ou
     }
 }
 
+// Remove every unknowns entry whose key starts with `keytype` (and matches
+// key_len when nonzero). Returns how many were removed.
+static int wipe_unknowns(struct wally_map *m, uint8_t keytype, size_t key_len)
+{
+    int n = 0;
+    for (;;) {
+        const struct wally_map_item *hit = NULL;
+        for (size_t i = 0; i < m->num_items; i++)
+            if (m->items[i].key_len >= 1 && m->items[i].key[0] == keytype &&
+                (!key_len || m->items[i].key_len == key_len)) { hit = &m->items[i]; break; }
+        if (!hit)
+            break;
+        if (wally_map_remove(m, hit->key, hit->key_len) != WALLY_OK)
+            break;
+        n++;
+    }
+    return n;
+}
+
+// BIP375 pass over the unknowns maps: record SP outputs, WIPE any incoming
+// ECDH shares/proofs (this signer never endorses foreign crypto - it always
+// recomputes), refuse BIP376 receive-side fields, and count what remains as
+// truly unknown. Returns 0, or -1 after stop() on a malformed/unsupported SP
+// field.
+static int sp_scan(wpsbt_summary_t *s)
+{
+    memset(&s_sp, 0, sizeof s_sp);
+    uint32_t unknown = 0;
+
+    // globals: 0x07/0x08 = SP ECDH share/DLEQ (34-byte keys) -> wipe
+    wipe_unknowns(&s_psbt->unknowns, 0x07, 34);
+    wipe_unknowns(&s_psbt->unknowns, 0x08, 34);
+    unknown += (uint32_t)s_psbt->unknowns.num_items;
+
+    for (size_t i = 0; i < s_psbt->num_inputs; i++) {
+        struct wally_map *m = &s_psbt->inputs[i].unknowns;
+        wipe_unknowns(m, 0x1d, 34);        // per-input share
+        wipe_unknowns(m, 0x1e, 34);        // per-input proof
+        for (size_t j = 0; j < m->num_items; j++) {
+            uint8_t k0 = m->items[j].key_len ? m->items[j].key[0] : 0xff;
+            if (k0 == 0x1f || k0 == 0x20) {   // BIP376: spending RECEIVED SP coins
+                stop(s, "SP receive fields not supported");
+                return -1;
+            }
+            unknown++;
+        }
+    }
+
+    for (size_t i = 0; i < s_psbt->num_outputs; i++) {
+        const struct wally_map *m = &s_psbt->outputs[i].unknowns;
+        for (size_t j = 0; j < m->num_items; j++) {
+            const struct wally_map_item *it = &m->items[j];
+            if (it->key_len == 1 && it->key[0] == 0x09) {
+                if (it->value_len != 66 || s_sp.n >= WPSBT_MAX_OUTS ||
+                    i >= WPSBT_MAX_OUTS) {
+                    stop(s, "malformed SP output info");
+                    return -1;
+                }
+                s_sp.o[s_sp.n].idx = (uint32_t)i;
+                memcpy(s_sp.o[s_sp.n].scan, it->value, 33);
+                memcpy(s_sp.o[s_sp.n].spend, it->value + 33, 33);
+                s_sp.n++;
+            } else if (it->key_len == 1 && it->key[0] == 0x0a) {
+                if (it->value_len != 4) {
+                    stop(s, "malformed SP output label");
+                    return -1;
+                }
+                // label: informational for the recipient; nothing to do here
+            } else {
+                unknown++;
+            }
+        }
+    }
+    s->n_unknown = unknown;
+    return 0;
+}
+
+// The signer role of BIP375, all inputs ours: derive every input scalar, build
+// the global ECDH share + DLEQ proof per scan key, derive and set the P2TR
+// output scripts, lock the modifiable flags - then re-verify the whole result
+// the way the coordinator will before trusting it. Any failure is a STOP.
+static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
+                    const uint8_t fp[4], const uint8_t psbt_hash[32])
+{
+    uint8_t privs[WPSBT_MAX_INS][32];
+    bool xf[WPSBT_MAX_INS] = { false };
+    uint8_t op[WPSBT_MAX_INS][36];
+    size_t n_in = s_psbt->num_inputs;
+    if (n_in == 0 || n_in > WPSBT_MAX_INS) {
+        stop(s, "too many inputs for silent payments");
+        return;
+    }
+
+    for (size_t i = 0; i < n_in; i++) {
+        const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        uint32_t path[8];
+        size_t path_len = 8;
+        if (!our_keypath(&in->keypaths, fp, path, &path_len)) {
+            stop(s, "input is not this wallet's");
+            goto out;
+        }
+        if (our_purpose(path, path_len) != 84) {
+            // eligibility exists for 44/49 in the BIP, but this signer's SP
+            // scope is its native type; other types never co-sign SP sends
+            stop(s, path_is_other_network(path, path_len)
+                     ? (wallet_testnet() ? "wrong network: mainnet transaction"
+                                         : "wrong network: testnet transaction")
+                     : "silent payments need native segwit inputs");
+            goto out;
+        }
+        struct ext_key k;
+        if (bip32_key_from_parent_path(master, path, path_len,
+                                       BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK) {
+            stop(s, "silent payment key derivation failed");
+            goto out;
+        }
+        memcpy(privs[i], k.priv_key + 1, 32);   // ext_key priv_key[0] is 0x00
+        wally_bzero(&k, sizeof k);
+        memcpy(op[i], in->txhash, 32);
+        op[i][32] = (uint8_t)in->index;
+        op[i][33] = (uint8_t)(in->index >> 8);
+        op[i][34] = (uint8_t)(in->index >> 16);
+        op[i][35] = (uint8_t)(in->index >> 24);
+    }
+
+    uint8_t a_sum[32], a_pub[33], ih[32], aux[32];
+    if (sp_sum_privkeys(&privs[0][0], xf, n_in, a_sum, a_pub) != 0 ||
+        sp_input_hash(&op[0][0], n_in, a_pub, ih) != 0) {
+        stop(s, "silent payment derivation failed");
+        goto out;
+    }
+    {   // deterministic DLEQ aux: same psbt + same wallet = same signature bytes
+        uint8_t seed[32 + 4 + 32];
+        memcpy(seed, master->priv_key + 1, 32);
+        memcpy(seed + 32, fp, 4);
+        memcpy(seed + 36, psbt_hash, 32);
+        wally_sha256(seed, sizeof seed, aux, 32);
+        wally_bzero(seed, sizeof seed);
+    }
+
+    // group SP outputs by scan key (first appearance order; k = group position)
+    int group_of[WPSBT_MAX_OUTS], order[WPSBT_MAX_OUTS], n_groups = 0;
+    for (uint32_t o = 0; o < s_sp.n; o++) {
+        int g = -1;
+        for (int j = 0; j < n_groups; j++)
+            if (memcmp(s_sp.o[order[j]].scan, s_sp.o[o].scan, 33) == 0) { g = j; break; }
+        if (g < 0) { g = n_groups++; order[g] = (int)o; }
+        group_of[o] = g;
+    }
+    for (int g = 0; g < n_groups; g++) {
+        sp_recip_t recips[WPSBT_MAX_OUTS];
+        uint32_t idxs[WPSBT_MAX_OUTS], gn = 0;
+        for (uint32_t o = 0; o < s_sp.n; o++)
+            if (group_of[o] == g) {
+                memcpy(recips[gn].scan, s_sp.o[o].scan, 33);
+                memcpy(recips[gn].spend, s_sp.o[o].spend, 33);
+                idxs[gn++] = s_sp.o[o].idx;
+            }
+        uint8_t share[33], proof[64];
+        if (sp_ecdh_share(a_sum, recips[0].scan, share) != 0 ||
+            sp_derive_group(share, ih, recips, gn) != 0 ||
+            sp_dleq_prove(a_sum, recips[0].scan, aux, NULL, NULL, proof) != 0) {
+            stop(s, "silent payment derivation failed");
+            goto out;
+        }
+        for (uint32_t j = 0; j < gn; j++) {
+            uint8_t scr[34] = { 0x51, 0x20 };
+            memcpy(scr + 2, recips[j].xonly_out, 32);
+            if (wally_psbt_set_output_script(s_psbt, idxs[j], scr, 34) != WALLY_OK) {
+                stop(s, "silent payment derivation failed");
+                goto out;
+            }
+        }
+        uint8_t key[34];
+        key[0] = 0x07;
+        memcpy(key + 1, recips[0].scan, 33);
+        if (wally_map_add(&s_psbt->unknowns, key, 34, share, 33) != WALLY_OK) {
+            stop(s, "silent payment derivation failed");
+            goto out;
+        }
+        key[0] = 0x08;
+        if (wally_map_add(&s_psbt->unknowns, key, 34, proof, 64) != WALLY_OK) {
+            stop(s, "silent payment derivation failed");
+            goto out;
+        }
+    }
+    // BIP375: once output scripts are set, nothing may be added or removed
+    if (wally_psbt_set_tx_modifiable_flags(s_psbt, 0) != WALLY_OK) {
+        stop(s, "silent payment derivation failed");
+        goto out;
+    }
+
+    // SELF-VERIFY as the coordinator will: take only the psbt's stored share +
+    // proof, check the proof against A_sum, re-derive every script, compare.
+    for (int g = 0; g < n_groups; g++) {
+        sp_recip_t recips[WPSBT_MAX_OUTS];
+        uint32_t idxs[WPSBT_MAX_OUTS], gn = 0;
+        for (uint32_t o = 0; o < s_sp.n; o++)
+            if (group_of[o] == g) {
+                memcpy(recips[gn].scan, s_sp.o[o].scan, 33);
+                memcpy(recips[gn].spend, s_sp.o[o].spend, 33);
+                idxs[gn++] = s_sp.o[o].idx;
+            }
+        uint8_t key[34], share[33], proof[64];
+        size_t item = 0, wr = 0;
+        key[0] = 0x07;
+        memcpy(key + 1, recips[0].scan, 33);
+        int ok = wally_map_find(&s_psbt->unknowns, key, 34, &item) == WALLY_OK && item &&
+                 s_psbt->unknowns.items[item - 1].value_len == 33;
+        if (ok) memcpy(share, s_psbt->unknowns.items[item - 1].value, 33);
+        key[0] = 0x08;
+        ok = ok && wally_map_find(&s_psbt->unknowns, key, 34, &item) == WALLY_OK && item &&
+             s_psbt->unknowns.items[item - 1].value_len == 64;
+        if (ok) memcpy(proof, s_psbt->unknowns.items[item - 1].value, 64);
+        ok = ok && sp_dleq_verify(a_pub, recips[0].scan, share, proof, NULL, NULL) == 0 &&
+             sp_derive_group(share, ih, recips, gn) == 0;
+        for (uint32_t j = 0; ok && j < gn; j++) {
+            const struct wally_psbt_output *po = &s_psbt->outputs[idxs[j]];
+            ok = po->script && po->script_len == 34 &&
+                 po->script[0] == 0x51 && po->script[1] == 0x20 &&
+                 memcmp(po->script + 2, recips[j].xonly_out, 32) == 0;
+        }
+        (void)wr;
+        if (!ok) {
+            stop(s, "silent payment self-check failed");
+            goto out;
+        }
+    }
+
+out:
+    wally_bzero(privs, sizeof privs);
+    wally_bzero(a_sum, sizeof a_sum);
+    wally_bzero(aux, sizeof aux);
+}
+
 int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 {
     const struct ext_key *master = wallet_session_master();
@@ -201,10 +451,26 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         bytes = b64buf;
         len = wr;
     }
-    if (wally_psbt_from_bytes(bytes, len, 0, &s_psbt) != WALLY_OK || !s_psbt->tx) {
+    // BIP375 PSBTv2s carry script-less SP outputs, which BIP370's mandatory
+    // PSBT_OUT_SCRIPT makes a strict-parse failure in wally 1.5.4 - retry
+    // loose, then require exactly that shape below (anything else that needed
+    // loose to parse is malformed and stops).
+    bool loose = false;
+    if (wally_psbt_from_bytes(bytes, len, 0, &s_psbt) != WALLY_OK) {
+        wallet_psbt_free();
+        if (wally_psbt_from_bytes(bytes, len, WALLY_PSBT_PARSE_FLAG_LOOSE,
+                                  &s_psbt) != WALLY_OK) {
+            wallet_psbt_free();
+            return -2;
+        }
+        loose = true;
+    }
+    if (!(s_psbt->version == 2 || s_psbt->tx)) {
         wallet_psbt_free();
         return -2;
     }
+    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
+    wally_sha256(bytes, len, psbt_hash, 32);
 
     memset(s, 0, sizeof *s);
     s->status = WPSBT_READY;
@@ -215,22 +481,61 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     bip32_key_get_fingerprint(&m, fp, sizeof fp);
     wally_bzero(&m, sizeof m);
 
-    const struct wally_tx *tx = s_psbt->tx;
     s->n_in = (uint32_t)s_psbt->num_inputs;
     s->n_out = (uint32_t)s_psbt->num_outputs;
+    if (s->n_out > WPSBT_MAX_OUTS)
+        stop(s, "too many outputs");
+
+    // silent payments: find SP outputs, wipe foreign shares, refuse BIP376
+    if (sp_scan(s) == 0 && s_sp.n > 0) {
+        if (s_psbt->version != 2)
+            stop(s, "SP output needs PSBTv2");
+        // sighash gate must hold BEFORE we derive/fill anything
+        for (size_t i = 0; i < s_psbt->num_inputs && s->status != WPSBT_STOP; i++) {
+            uint32_t sh = s_psbt->inputs[i].sighash;
+            if (sh != 0 && sh != WALLY_SIGHASH_ALL)
+                stop(s, "sighash is not ALL");
+        }
+        if (s->status != WPSBT_STOP)
+            sp_fill(s, master, fp, psbt_hash);
+    }
+    if (s->status == WPSBT_STOP) {
+        s_status = s->status;
+        return 0;
+    }
+    if (s_psbt->version == 2) {
+        // every output must now have a script (SP ones were just derived) and
+        // an amount; a loose parse that hid any other gap dies here
+        for (size_t j = 0; j < s_psbt->num_outputs; j++) {
+            const struct wally_psbt_output *po = &s_psbt->outputs[j];
+            if (!po->script || !po->has_amount) {
+                stop(s, "malformed transaction (v2 fields)");
+                s_status = s->status;
+                return 0;
+            }
+        }
+        if (wally_psbt_extract(s_psbt, WALLY_PSBT_EXTRACT_NON_FINAL, &s_txv) != WALLY_OK) {
+            stop(s, "malformed transaction (v2 extract)");
+            s_status = s->status;
+            return 0;
+        }
+    } else if (loose) {
+        // v0 that needed loose parsing has a real defect somewhere
+        stop(s, "malformed transaction");
+        s_status = s->status;
+        return 0;
+    }
+
+    const struct wally_tx *tx = psbt_tx();
     s->locktime = tx->locktime;
-    s->n_unknown = (uint32_t)s_psbt->unknowns.num_items;
 
     if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs)
         stop(s, "malformed: tx/psbt count mismatch");
-    if (s->n_out > WPSBT_MAX_OUTS)
-        stop(s, "too many outputs");
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0;   // inputs per type: fee estimate + UI label
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
-        s->n_unknown += (uint32_t)in->unknowns.num_items;
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
             s->rbf = true;
 
@@ -316,11 +621,25 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         const struct wally_tx_output *o = &tx->outputs[j];
         wpsbt_out_t *so = &s->outs[j];
         so->sats = o->satoshi;
-        spk_to_addr(o->script, o->script_len, so->addr, sizeof so->addr, s);
-        s->n_unknown += (uint32_t)s_psbt->outputs[j].unknowns.num_items;
+        // SP outputs display as their sp1/tsp1 address, not the derived bc1p:
+        // the user must approve the DESTINATION they were given, and the
+        // self-verified derivation is what guarantees the script honors it
+        for (uint32_t si = 0; si < s_sp.n; si++)
+            if (s_sp.o[si].idx == (uint32_t)j) {
+                so->is_sp = true;
+                sp_address_encode(s_sp.o[si].scan, s_sp.o[si].spend,
+                                  wallet_testnet() != 0, so->addr, sizeof so->addr);
+                s->n_sp++;
+            }
+        if (!so->is_sp)
+            spk_to_addr(o->script, o->script_len, so->addr, sizeof so->addr, s);
         if (o->satoshi > MAX_MONEY) {
             stop(s, "output amount over 21M BTC (corrupt)");
             continue;              // don't let it wrap the sums below
+        }
+        if (so->is_sp) {           // never change; always part of the send
+            s->send_sats += o->satoshi;
+            continue;
         }
 
         uint32_t path[8];
@@ -390,14 +709,14 @@ int wallet_psbt_details(wpsbt_details_t *d)
     // a STOPped transaction failed verification — its raw fields must not be
     // presented under a page that says "verified" (and there is nothing to
     // decide: the signer already refused)
-    if (!d || !s_psbt || !s_psbt->tx || s_status == WPSBT_STOP)
+    if (!d || !s_psbt || !psbt_tx() || s_status == WPSBT_STOP)
         return -1;
     const struct ext_key *master = wallet_session_master();
     if (!master)
         return -1;
     memset(d, 0, sizeof *d);
 
-    const struct wally_tx *tx = s_psbt->tx;
+    const struct wally_tx *tx = psbt_tx();
     d->version = tx->version;
     d->locktime = tx->locktime;
 
@@ -459,5 +778,10 @@ void wallet_psbt_free(void)
         wally_psbt_free(s_psbt);
         s_psbt = NULL;
     }
+    if (s_txv) {
+        wally_tx_free(s_txv);
+        s_txv = NULL;
+    }
+    memset(&s_sp, 0, sizeof s_sp);
     s_status = WPSBT_STOP;
 }

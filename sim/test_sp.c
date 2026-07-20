@@ -18,6 +18,8 @@
 
 #include "sp_test_vectors.h"
 #include "wallet_sp.h"
+#include "wallet_psbt.h"
+#include "wallet_crypto.h"
 
 static int sp_fails;
 
@@ -253,11 +255,72 @@ static void sp_test_dleq(void) {
           sp_dleq_verify(a_pub, spv352_0_recipkeys, share, proof, NULL, NULL) != 0);
 }
 
+// Full loader-path tests: the coordinator fixture must verify READY with the
+// SP output derived + displayed as its tsp1 address; the negative fixtures
+// must STOP with their specific reasons. Session (abandon-mnemonic dev seed)
+// is already open from the earlier suites; fixtures are testnet.
+static void sp_test_load(void) {
+    wpsbt_summary_t sum;
+    wallet_set_network(1);
+
+    int rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+                              strlen(SPV_PSBT_B64), &sum);
+    spchk("SP fixture load rc", rc == 0);
+    if (rc != 0) printf("  load rc=%d\n", rc);
+    else if (sum.status != WPSBT_READY) printf("  status=%d reason=%s\n", sum.status, sum.reason);
+    spchk("SP fixture READY", rc == 0 && sum.status == WPSBT_READY);
+    spchk("one SP output counted", sum.n_sp == 1 && sum.n_out == 2);
+    spchk("SP output flagged + shown as tsp1 address",
+          sum.outs[0].is_sp && strcmp(sum.outs[0].addr, SPV_ADDR_EXPECT) == 0);
+    spchk("change still re-derives under v2",
+          sum.outs[1].is_change && sum.change_sats == 20000);
+    spchk("v2 fee math", sum.send_sats == 95000 && sum.fee_sats == 5000);
+    spchk("no unknown-field stop for SP fields", sum.n_unknown == 0);
+    wallet_psbt_free();
+
+    // coordinator-supplied per-input shares get wiped, load stays READY
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_FOREIGN_SHARE_B64,
+                          strlen(SPV_PSBT_FOREIGN_SHARE_B64), &sum);
+    spchk("foreign-share fixture still READY",
+          rc == 0 && sum.status == WPSBT_READY && sum.n_sp == 1);
+    wallet_psbt_free();
+
+    // SP info inside a v0 PSBT -> STOP
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_V0_SP_B64,
+                          strlen(SPV_PSBT_V0_SP_B64), &sum);
+    spchk("v0 + SP info stops",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "PSBTv2"));
+    wallet_psbt_free();
+
+    // sighash SINGLE with an SP output -> STOP (existing ALL-only gate)
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_SIGHASH_B64,
+                          strlen(SPV_PSBT_SIGHASH_B64), &sum);
+    spchk("SP sighash SINGLE stops",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "sighash"));
+    wallet_psbt_free();
+
+    // BIP376 receive-side field -> STOP
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_BIP376_B64,
+                          strlen(SPV_PSBT_BIP376_B64), &sum);
+    spchk("BIP376 receive field stops",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "receive"));
+    wallet_psbt_free();
+
+    // same fixture on MAINNET -> wrong-network STOP (input path is 84h/1h)
+    wallet_set_network(0);
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+                          strlen(SPV_PSBT_B64), &sum);
+    spchk("SP fixture on mainnet stops as wrong network",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "network"));
+    wallet_psbt_free();
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
     sp_test_address();
     sp_test_bip352();
     sp_test_dleq();
+    sp_test_load();
     return sp_fails;
 }
