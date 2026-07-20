@@ -35,9 +35,11 @@ typedef enum {
 #define WPSBT_HIGH_RATE_X10  3000
 
 typedef struct {
-    char     addr[92];
+    char     addr[120];  // longest form: a ~117-char sp1/tsp1 silent payment address
     uint64_t sats;
     bool     is_change;  // carries OUR keypath AND the re-derived script matches
+    bool     is_sp;      // BIP375 silent payment output: addr shows the sp1/tsp1
+                         // re-encoding of its scan+spend keys, script derived here
 } wpsbt_out_t;
 
 typedef struct {
@@ -48,6 +50,7 @@ typedef struct {
     bool     rbf;
     uint32_t locktime;
     uint32_t n_unknown;      // unknown/proprietary PSBT fields (global+in+out)
+    uint32_t n_sp;           // silent payment outputs among outs[]
     bool     testnet;        // network this summary was verified under
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;

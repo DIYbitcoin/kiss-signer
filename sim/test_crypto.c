@@ -815,7 +815,6 @@ int main(int argc, char **argv) {
 
     // step 6: QR transport (pure data layer, session not needed)
     fails += test_qr_transport(pb, pl);
-    fails += test_sp();
 
     // ---- testnet mode: same seed, coin 1h, tb1, tpub, wrong-network STOP ----
     wallet_set_network(1);
@@ -871,6 +870,10 @@ int main(int argc, char **argv) {
     chki("mainnet psbt READY again", wallet_psbt_load(pb, pl, &sum), 0);
     chki("mainnet psbt status again", sum.status, WPSBT_READY);
     wallet_psbt_free();
+
+    // step 8: silent payments (needs the open session; flips network itself
+    // and returns in mainnet mode, matching the sweep below)
+    fails += test_sp();
 
     // ---- address types: legacy (BIP44), nested (BIP49), native (BIP84) ----
     test_one_script(WSCRIPT_NATIVE, 84, "native", "bc1", "wpkh(",    "zpub");
