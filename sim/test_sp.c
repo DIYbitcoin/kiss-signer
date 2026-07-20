@@ -17,6 +17,7 @@
 #include <wally_map.h>
 
 #include "sp_test_vectors.h"
+#include "wallet_sp.h"
 
 static int sp_fails;
 
@@ -114,8 +115,24 @@ static void sp_probe_libwally(void) {
     wally_psbt_free(p);
 }
 
+static void sp_test_address(void) {
+    char buf[120];
+    spchk("address encode ok",
+          sp_address_encode(SPV_ADDR_SCAN, SPV_ADDR_SPEND, true, buf, sizeof buf) == 0);
+    spchk("address matches embit encoding", strcmp(buf, SPV_ADDR_EXPECT) == 0);
+    // cap one byte too small must refuse, not truncate
+    char tiny[117];
+    spchk("address encode refuses short buffer",
+          sp_address_encode(SPV_ADDR_SCAN, SPV_ADDR_SPEND, true, tiny, sizeof tiny) != 0);
+    // mainnet flavor: same data, sp1 prefix
+    spchk("mainnet flavor ok",
+          sp_address_encode(SPV_ADDR_SCAN, SPV_ADDR_SPEND, false, buf, sizeof buf) == 0 &&
+          strncmp(buf, "sp1", 3) == 0 && strlen(buf) == 116);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
+    sp_test_address();
     return sp_fails;
 }
