@@ -83,6 +83,7 @@ int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
     secp256k1_context *ctx = sp_ctx();
     if (!n) return -1;
     uint8_t sum[32] = { 0 };
+    bool sum_zero = false;   // running total legitimately at the point at infinity
     for (size_t i = 0; i < n; i++) {
         uint8_t k[32];
         memcpy(k, privs32 + i * 32, 32);
@@ -96,13 +97,18 @@ int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
             secp256k1_ec_pubkey_serialize(ctx, ser, &sl, &pub, SECP256K1_EC_COMPRESSED);
             if (ser[0] == 0x03 && !secp256k1_ec_seckey_negate(ctx, k)) return -2;
         }
-        if (i == 0) {
-            memcpy(sum, k, 32);
+        if (i == 0 || sum_zero) {
+            memcpy(sum, k, 32);   // start, or 0 + k = k after an intermediate zero
+            sum_zero = false;
         } else if (!secp256k1_ec_seckey_tweak_add(ctx, sum, k)) {
-            return -3;  // intermediate/final zero: BIP352 says sending fails
+            // k is a verified scalar in [1, n), so the only way this fails is
+            // sum + k == 0 (mod n). BIP352 permits an intermediate zero and
+            // rejects only a zero FINAL sum, so carry the zero and continue.
+            memset(sum, 0, 32);
+            sum_zero = true;
         }
     }
-    if (!secp256k1_ec_seckey_verify(ctx, sum)) return -3;
+    if (sum_zero || !secp256k1_ec_seckey_verify(ctx, sum)) return -3;
     secp256k1_pubkey apub;
     size_t sl = 33;
     if (!secp256k1_ec_pubkey_create(ctx, &apub, sum)) return -3;

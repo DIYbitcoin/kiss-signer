@@ -31,10 +31,18 @@ static struct {
     struct { uint32_t idx; uint8_t scan[33], spend[33]; } o[WPSBT_MAX_OUTS];
 } s_sp;
 
-// v0 keeps its embedded global tx; v2 uses the view extracted after sp_fill
+// v0 keeps its embedded global tx; v2 uses the view extracted after sp_fill.
+// A v2 psbt is authoritative ONLY through s_txv (built from its own fields, the
+// same data libwally signs). A global unsigned tx must never speak for a v2:
+// that hybrid is exactly how an attacker would show one tx and sign another, so
+// v2 never falls back to s_psbt->tx here (and the load path rejects the hybrid).
 static const struct wally_tx *psbt_tx(void)
 {
-    return s_psbt ? (s_psbt->tx ? s_psbt->tx : s_txv) : NULL;
+    if (!s_psbt)
+        return NULL;
+    if (s_psbt->version == 2)
+        return s_txv;
+    return s_psbt->tx;
 }
 
 // Consensus cap (21M BTC in sats). wally 1.5.4 already refuses bigger amounts
@@ -466,6 +474,13 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         loose = true;
     }
     if (!(s_psbt->version == 2 || s_psbt->tx)) {
+        wallet_psbt_free();
+        return -2;
+    }
+    // A PSBTv2 must not carry a global unsigned tx (BIP370). One present means a
+    // malformed or hostile hybrid: display would read s_psbt->tx while signing
+    // builds the tx from the v2 fields. Refuse it outright, loose parse or not.
+    if (s_psbt->version == 2 && s_psbt->tx) {
         wallet_psbt_free();
         return -2;
     }

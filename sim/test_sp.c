@@ -210,6 +210,54 @@ static void sp_test_bip352(void) {
 #undef RUN352
 }
 
+// Finding #1 was raised as an untested "same scan key, multiple outputs" path.
+// It is already covered: vector 2's recipients 1 and 2 are the SAME silent
+// payment address, so its outputs exercise k=0 then k=1 for one scan key against
+// the reference. Pin that explicitly - deriving that recipient once vs twice
+// must agree on k=0 (the counter is shared and starts at 0) and yield a distinct
+// k=1 output, and both must be among vector 2's reference-expected keys.
+static void sp_test_sameaddr(void) {
+    bool xf[2] = { false, false };
+    uint8_t a_sum[32], a_pub[33], ih[32];
+    if (sp_sum_privkeys(spv352_2_privs, xf, 2, a_sum, a_pub) != 0 ||
+        sp_input_hash(spv352_2_outpoints, 2, a_pub, ih) != 0) {
+        spchk("same-address setup", 0);
+        return;
+    }
+    const uint8_t *scan  = spv352_2_recipkeys + 66;        // recipient 1 == 2
+    const uint8_t *spend = spv352_2_recipkeys + 66 + 33;
+    spchk("vector 2 recipients 1 and 2 are the same address",
+          memcmp(spv352_2_recipkeys + 66, spv352_2_recipkeys + 132, 66) == 0);
+
+    uint8_t share[33];
+    spchk("same-address ecdh share", sp_ecdh_share(a_sum, scan, share) == 0);
+
+    sp_recip_t one[1];
+    memcpy(one[0].scan, scan, 33);
+    memcpy(one[0].spend, spend, 33);
+    spchk("same-address derive x1", sp_derive_group(share, ih, one, 1) == 0);
+
+    sp_recip_t two[2];
+    for (int i = 0; i < 2; i++) {
+        memcpy(two[i].scan, scan, 33);
+        memcpy(two[i].spend, spend, 33);
+    }
+    spchk("same-address derive x2", sp_derive_group(share, ih, two, 2) == 0);
+
+    spchk("k=0 identical whether derived alone or first in a group",
+          memcmp(one[0].xonly_out, two[0].xonly_out, 32) == 0);
+    spchk("k=1 output is distinct from k=0",
+          memcmp(two[0].xonly_out, two[1].xonly_out, 32) != 0);
+
+    int found0 = 0, found1 = 0;
+    for (int e = 0; e < 3; e++) {
+        if (memcmp(two[0].xonly_out, spv352_2_expect + e * 32, 32) == 0) found0 = 1;
+        if (memcmp(two[1].xonly_out, spv352_2_expect + e * 32, 32) == 0) found1 = 1;
+    }
+    spchk("k=0 output matches a BIP352 reference key", found0);
+    spchk("k=1 output matches a BIP352 reference key", found1);
+}
+
 static void sp_test_dleq(void) {
     char name[64];
     uint8_t proof[64];
@@ -277,6 +325,44 @@ static void sp_test_load(void) {
     spchk("v2 fee math", sum.send_sats == 95000 && sum.fee_sats == 5000);
     spchk("no unknown-field stop for SP fields", sum.n_unknown == 0);
     wallet_psbt_free();
+
+    // Finding #2: a PSBTv2 that ALSO smuggles a global unsigned tx (0x00) is a
+    // substitution trap - display reads the embedded tx, signing builds from the
+    // v2 fields. Hand-build the raw hybrid (magic, global tx of 1-in/1-out,
+    // global version=2, empty input+output maps), record what libwally's loose
+    // parser yields, then require our loader to refuse it however wally sees it.
+    static const uint8_t hybrid[] = {
+        0x70,0x73,0x62,0x74,0xff,                 // "psbt\xff"
+        0x01,0x00,                                // key: global unsigned tx
+        0x52,                                     // value: 82-byte tx
+          0x02,0x00,0x00,0x00,                    //   version
+          0x01,                                   //   1 input
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,      //   prevout hash
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0x00,0x00,0x00,0x00,                  //   prevout index
+            0x00,                                 //   scriptSig len
+            0xff,0xff,0xff,0xff,                  //   sequence
+          0x01,                                   //   1 output
+            0x00,0xe1,0xf5,0x05,0x00,0x00,0x00,0x00, // value
+            0x16,0x00,0x14,                       //   P2WPKH spk (22B)
+            0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,
+            0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11,
+          0x00,0x00,0x00,0x00,                    //   locktime
+        0x01,0xfb,0x04,0x02,0x00,0x00,0x00,       // key: psbt version = 2
+        0x00,                                     // end of globals
+        0x00,                                     // input 0 map (empty)
+        0x00,                                     // output 0 map (empty)
+    };
+    struct wally_psbt *hp = NULL;
+    int hrc = wally_psbt_from_bytes(hybrid, sizeof hybrid,
+                                    WALLY_PSBT_PARSE_FLAG_LOOSE, &hp);
+    printf("  [hybrid probe] libwally loose rc=%d version=%d has_tx=%d\n",
+           hrc, hp ? (int)hp->version : -1, hp ? (hp->tx != NULL) : -1);
+    if (hp) wally_psbt_free(hp);
+    rc = wallet_psbt_load(hybrid, sizeof hybrid, &sum);
+    spchk("v2 + embedded global tx hybrid refused",
+          !(rc == 0 && sum.status == WPSBT_READY));
+    if (rc == 0) wallet_psbt_free();
 
     // coordinator-supplied per-input shares get wiped, load stays READY
     rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_FOREIGN_SHARE_B64,
@@ -377,6 +463,7 @@ int test_sp(void) {
     sp_probe_libwally();
     sp_test_address();
     sp_test_bip352();
+    sp_test_sameaddr();
     sp_test_dleq();
     sp_test_load();
     sp_test_sign();
