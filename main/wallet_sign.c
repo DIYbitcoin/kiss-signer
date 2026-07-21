@@ -121,6 +121,18 @@ static const char *tr_reason(const char *r)
         {"change address does not re-derive", STR_P_CHANGE_NO_DERIVE},
         {"outputs exceed inputs", STR_P_OUT_GT_IN},
         {"unknown data in this transaction", STR_P_UNKNOWN_DATA},
+        {"SP output needs PSBTv2", STR_P_SP_NEED_V2},
+        {"SP receive fields not supported", STR_P_SP_RECEIVE},
+        {"silent payments need native segwit inputs", STR_P_SP_INPUTS},
+        {"silent payment key derivation failed", STR_P_SP_DERIVE},
+        {"silent payment derivation failed", STR_P_SP_DERIVE},
+        {"silent payment self-check failed", STR_P_SP_DERIVE},
+        {"too many inputs for silent payments", STR_P_SP_DERIVE},
+        {"malformed SP output info", STR_P_SP_INFO},
+        {"malformed SP output label", STR_P_SP_INFO},
+        {"malformed transaction (v2 fields)", STR_P_MALFORMED_TX},
+        {"malformed transaction (v2 extract)", STR_P_MALFORMED_TX},
+        {"malformed transaction", STR_P_MALFORMED_TX},
     };
     for (size_t i = 0; i < sizeof MAP / sizeof MAP[0]; i++)
         if (strcmp(r, MAP[i].en) == 0) return tr(MAP[i].id);
@@ -436,7 +448,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(amt, INK_COL, 0);
         lv_obj_set_style_text_font(amt, wt_font14(), 0);
 
-        char ga[120];
+        char ga[160];   // sp1/tsp1 is ~117 chars; +grouping spaces needs >120
         group4(s_sum.outs[i].addr, ga, sizeof ga);
         if (s_sum.outs[i].is_change) {       // verified ours: stays quiet
             lv_obj_t *ad = lv_label_create(row);
@@ -445,7 +457,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_text_font(ad, wt_font14(), 0);
             lv_obj_set_width(ad, 340);
             lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
-        } else {                             // compare-me: bright ends
+        } else {                             // compare-me (incl. SP): bright ends
             wt_addr_spans(row, ga, 340, wt_font14());
         }
 
@@ -453,11 +465,23 @@ static void verify_screen(lv_obj_t *parent)
         if (s_sum.outs[i].is_change) {
             lv_label_set_text(tag, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
             lv_obj_set_style_text_color(tag, OK_COL, 0);
+        } else if (s_sum.outs[i].is_sp) {    // BIP375: destination derived here
+            lv_label_set_text(tag, tr(STR_S_SP_BADGE));
+            lv_obj_set_style_text_color(tag, wt_accent(), 0);
         } else {
             lv_label_set_text(tag, tr(STR_S_SENDING_OUT));
             lv_obj_set_style_text_color(tag, MUT_COL, 0);
         }
         lv_obj_set_style_text_font(tag, wt_font14(), 0);
+
+        if (s_sum.outs[i].is_sp) {           // teach why a bc1p never appears here
+            lv_obj_t *note = lv_label_create(row);
+            lv_label_set_text(note, tr(STR_S_SP_NOTE));
+            lv_obj_set_style_text_color(note, MUT_COL, 0);
+            lv_obj_set_style_text_font(note, wt_font14(), 0);
+            lv_obj_set_width(note, 340);
+            lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+        }
     }
 
     // fee + facts, right column. CAUTION today means exactly one thing (the
