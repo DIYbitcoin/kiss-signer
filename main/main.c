@@ -1988,14 +1988,15 @@ void build_game(void) {  // non-static: the simulator harness calls this too
 bool platform_read_touch(int *x, int *y) {
   if (!s_touch) return false;
   esp_lcd_touch_read_data(s_touch);
-  uint16_t tx[1], ty[1];
+  // esp_lcd_touch_get_coordinates is deprecated (removed in component v2.0.0);
+  // esp_lcd_touch_get_data returns the same points in a struct array.
+  esp_lcd_touch_point_data_t pt[1];
   uint8_t cnt = 0;
-  bool pressed = esp_lcd_touch_get_coordinates(s_touch, tx, ty, NULL, &cnt, 1);
-  if (pressed && cnt > 0) {
+  if (esp_lcd_touch_get_data(s_touch, pt, &cnt, 1) == ESP_OK && cnt > 0) {
     // raw GT911 is portrait (x:0..479, y:0..799); map to the logical 800x480 landscape.
     // Must match the 90deg mapping in rot_flush. Flip if it feels mirrored.
-    *x = ty[0];
-    *y = (LCD_H_RES - 1) - tx[0];
+    *x = pt[0].y;
+    *y = (LCD_H_RES - 1) - pt[0].x;
     return true;
   }
   return false;
