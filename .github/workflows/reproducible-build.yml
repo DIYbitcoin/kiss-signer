@@ -48,6 +48,8 @@ jobs:
             build-release/bootloader/bootloader.bin
             build-release/partition_table/partition-table.bin
             SHA256SUMS-ci.txt
+            LICENSE
+            THIRD_PARTY_NOTICES.md
 
   encrypted-release-build:
     runs-on: ubuntu-latest
@@ -81,3 +83,5 @@ jobs:
             build-encrypted-release/bootloader/bootloader.bin
             build-encrypted-release/partition_table/partition-table.bin
             SHA256SUMS-encrypted-ci.txt
+            LICENSE
+            THIRD_PARTY_NOTICES.md
