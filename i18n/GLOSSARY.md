@@ -90,6 +90,7 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
 | address | Adresse | dirección | adresse | indirizzo | adres | adres | endereço | адрес | adres | địa chỉ | アドレス | 주소 | 地址 |
 | change (back) | Wechselgeld | cambio | monnaie | resto | wisselgeld | reszta | troco | сдача | para üstü | tiền thừa | お釣り | 잔돈 | 找零 |
 | transaction | Transaktion | transacción | transaction | transazione | transactie | transakcja | transação | транзакция | işlem | giao dịch | トランザクション | 거래 | 交易 |
+| silent payment | Silent Payment | pago silencioso | paiement silencieux | pagamento silenzioso | stille betaling | cicha płatność | pagamento silencioso | тихий платёж | sessiz ödeme | thanh toán im lặng | サイレントペイメント | 사일런트 페이먼트 | 静默支付 |
 | sign | signieren | firmar | signer | firmare | ondertekenen | podpisać | assinar | подписать | imzala | ký | 署名 | 서명 | 签名 |
 | fee | Gebühr | comisión | frais | commissione | kosten | opłata | taxa | комиссия | ücret | phí | 手数料 | 수수료 | 手续费 |
 | coordinator | Koordinator | coordinador | coordinateur | coordinatore | coördinator | koordynator | coordenador | координатор | koordinatör | điều phối | コーディネーター | 코디네이터 | 协调器 |
@@ -118,6 +119,7 @@ zh-CN keep the period.
 | fingerprint | fingeravtrykk | fingeravtryck | fingeraftryk | otisk | otisak |
 | change (back) | veksel | växel | byttepenge | drobné | ostatak |
 | fee | gebyr | avgift | gebyr | poplatek | naknada |
+| silent payment | stille betaling | tyst betalning | stille betaling | tichá platba | tiha uplata |
 | derivation path | derivasjonssti | härledningsväg | afledningssti | derivační cesta | put derivacije |
 | watch-only | kun observasjon | endast bevakning | kun visning | pouze pro sledování | promatrački (watch-only) |
 | CANCEL (keyboard) | AVBRYT | AVBRYT | AFBRYD | ZRUŠIT | OTKAŽI |
