@@ -192,6 +192,14 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_HIGHFEE;
     snprintf(s->reason, sizeof s->reason,
              "unusually high fee - check it before signing");
+  } else if (len >= 4 && memmem(bytes, len, "SPAY", 4)) {
+    // BIP375 silent payment send: out0 is the tsp1 destination the signer
+    // derived + verified on-device (renders badge + note + ~117-char address)
+    s->n_sp = 1;
+    s->outs[0].is_sp = true;
+    s->outs[0].sats = 60000;
+    snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
+             "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsqmpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
     // several cautions at once: proves the summary + WHY card stack up
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
@@ -302,6 +310,10 @@ int main(void) {
   unlink("/tmp/simsd/warn-COMBO-signed.psbt");
   sd = fopen("/tmp/simsd/warn-COMBO.psbt", "wb");
   if (sd) { fputs("COMBO", sd); fclose(sd); }
+  // sorts LAST (after warn-COMBO) so existing sign-walk row taps stay put
+  unlink("/tmp/simsd/zsp-SPAY-signed.psbt");
+  sd = fopen("/tmp/simsd/zsp-SPAY.psbt", "wb");
+  if (sd) { fputs("SPAY", sd); fclose(sd); }
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
@@ -527,6 +539,18 @@ int main(void) {
   touch(735, 361); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
+  // the list shows only the first 4 files, so clear the others (all frames above
+  // are already saved) to leave zsp-SPAY alone in row 0.
+  unlink("/tmp/simsd/payment-01.psbt");   unlink("/tmp/simsd/payment-01-signed.psbt");
+  unlink("/tmp/simsd/risky-STOP.psbt");
+  unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
+  unlink("/tmp/simsd/warn-COMBO.psbt");
+  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
+  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
+  touch(328, 136); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
+  save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
