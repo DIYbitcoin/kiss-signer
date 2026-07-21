@@ -43,7 +43,7 @@ Pulled by the ESP-IDF component manager into `managed_components/` from
 | Asset | Use | License |
 |-------|-----|---------|
 | Twemoji kiss mark (`assets/twemoji/1f48b.*`) and country flags (`assets/twemoji/flags/`) | brand mark + language flags | CC-BY 4.0 (Twitter / Twemoji), see [`assets/twemoji/README.md`](assets/twemoji/README.md) |
-| Game fruit art (`assets/emoji/`) | decoy-game sprites | **Provenance pending verification** — style matches Microsoft Fluent Emoji (MIT) but is not yet confirmed; must be verified or replaced before a public binary release. See [`assets/README.md`](assets/README.md). |
+| Game fruit art (`assets/emoji/`) | decoy-game sprites | MIT — Microsoft Fluent Emoji (3D), verified byte-for-byte identical to upstream. License text at [`assets/emoji/LICENSE-FluentEmoji.txt`](assets/emoji/LICENSE-FluentEmoji.txt). |
 | OpenGameArt "Sprites Fruits" (`assets/fruit-pack/`) | CC0 fallback art, **not referenced at runtime** | CC0 1.0 |
 
 ## Documentation tooling (not in the firmware)
