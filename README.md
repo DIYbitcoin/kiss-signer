@@ -261,10 +261,16 @@ read out of the chip.
 
 KISS Wallet's original source code and documentation are licensed under the
 [Apache License 2.0](LICENSE). Vendored third-party components and assets keep
-their own licenses: [libwally-core](components/libwally-core) (MIT/BSD),
-Espressif components (Apache-2.0), CC0 game art, and the
-[Twemoji](https://github.com/twitter/twemoji) kiss mark (CC-BY 4.0) under
-`assets/`. No unlicensed or watermarked assets are used anywhere.
+their own licenses: [libwally-core](components/libwally-core) (MIT), Espressif
+components and ESP-IDF (Apache-2.0), LVGL (MIT), the fonts (SIL OFL 1.1), and the
+[Twemoji](https://github.com/twitter/twemoji) kiss mark and language flags
+(CC-BY 4.0) under `assets/`. The full component-by-component list is in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+One open item before a public binary release: the decoy game's fruit art
+(`assets/emoji/`) has **provenance not yet verified** (its style matches
+Microsoft Fluent Emoji, MIT, but this is unconfirmed). It must be verified or
+replaced with a CC0/CC-BY/MIT set before release — see [`assets/README.md`](assets/README.md).
 
 **Use at your own risk. This is experimental firmware; do not trust it with
 meaningful funds.**
