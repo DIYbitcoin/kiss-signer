@@ -30,9 +30,9 @@ Always eyeball the `/tmp/*_mock.png` previews (and `/tmp/newfruit_sheet.png`) be
 - **`emoji/`** — the **only fruit art now in use.** Every whole fruit (watermelon, red_apple,
   tangerine, pineapple, strawberry, cherries, grapes) plus bomb/collision comes from this one
   256x256 3D emoji set; the cut faces are procedural cross-sections in `convert_fruit.py`.
-  ⚠️ **PROVENANCE TO CONFIRM:** the style strongly matches **Microsoft Fluent Emoji** (which is
-  **MIT** — fine for us), but this has **not been verified**. Fine for development; **before any
-  public release, confirm it's Fluent/MIT (or another CC0/CC-BY/MIT set) or replace it.**
+  ✅ **PROVENANCE VERIFIED: Microsoft Fluent Emoji (3D), MIT.** All 9 PNGs are byte-for-byte
+  identical (SHA-256) to the upstream files at github.com/microsoft/fluentui-emoji
+  (`assets/<Name>/3D/<name>_3d.png`). License text vendored at `emoji/LICENSE-FluentEmoji.txt`.
 
 - **`fruit-pack/`** — the OpenGameArt CC0 "Sprites Fruits" pack. **No longer referenced** by any
   generator (fruit moved to the emoji set for a consistent look). Kept for reference / as a
