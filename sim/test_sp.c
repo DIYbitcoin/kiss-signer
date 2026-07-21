@@ -315,6 +315,63 @@ static void sp_test_load(void) {
     wallet_psbt_free();
 }
 
+// Sign path: the loader already derived + filled everything, so signing is the
+// normal signer - but the OUTPUT bytes must contain exactly what Sparrow will
+// verify: the expected P2TR script, the global ECDH share + a valid DLEQ
+// proof, locked modifiable flags, and a signature. Then determinism: same
+// wallet + same psbt = byte-identical result.
+static void sp_test_sign(void) {
+    wpsbt_summary_t sum;
+    uint8_t out1[4096], out2[4096];
+    size_t w1 = 0, w2 = 0;
+    wallet_set_network(1);
+
+    int rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+                              strlen(SPV_PSBT_B64), &sum);
+    spchk("sign: fixture loads READY", rc == 0 && sum.status == WPSBT_READY);
+    spchk("sign rc", wallet_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
+    wallet_psbt_free();
+
+    struct wally_psbt *p = NULL;
+    spchk("signed psbt strict-parses",
+          wally_psbt_from_bytes(out1, w1, 0, &p) == WALLY_OK);
+    if (p) {
+        spchk("SP output script is the expected P2TR",
+              p->outputs[0].script_len == 34 &&
+              memcmp(p->outputs[0].script, SPV_PSBT_EXPECT_SCRIPT, 34) == 0);
+        spchk("modifiable flags locked", p->tx_modifiable_flags == 0);
+
+        uint8_t key[34], share[33] = { 0 }, proof[64] = { 0 };
+        size_t item = 0;
+        key[0] = 0x07;
+        memcpy(key + 1, SPV_ADDR_SCAN, 33);
+        int have = wally_map_find(&p->unknowns, key, 34, &item) == WALLY_OK && item &&
+                   p->unknowns.items[item - 1].value_len == 33;
+        if (have) memcpy(share, p->unknowns.items[item - 1].value, 33);
+        spchk("global ECDH share matches embit's",
+              have && memcmp(share, SPV_PSBT_EXPECT_SHARE, 33) == 0);
+        key[0] = 0x08;
+        have = wally_map_find(&p->unknowns, key, 34, &item) == WALLY_OK && item &&
+               p->unknowns.items[item - 1].value_len == 64;
+        if (have) memcpy(proof, p->unknowns.items[item - 1].value, 64);
+        spchk("global DLEQ proof verifies against A_sum",
+              have && sp_dleq_verify(SPV_PSBT_ASUM_PUB, SPV_ADDR_SCAN, share,
+                                     proof, NULL, NULL) == 0);
+        spchk("input carries a signature", p->inputs[0].signatures.num_items > 0);
+        wally_psbt_free(p);
+    }
+
+    // determinism: an identical load+sign yields identical bytes
+    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+                          strlen(SPV_PSBT_B64), &sum);
+    spchk("re-load READY", rc == 0 && sum.status == WPSBT_READY);
+    spchk("re-sign rc", wallet_psbt_sign(out2, sizeof out2, &w2) == 0);
+    spchk("sign is deterministic", w1 == w2 && memcmp(out1, out2, w1) == 0);
+    wallet_psbt_free();
+
+    wallet_set_network(0);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
@@ -322,5 +379,6 @@ int test_sp(void) {
     sp_test_bip352();
     sp_test_dleq();
     sp_test_load();
+    sp_test_sign();
     return sp_fails;
 }
