@@ -54,6 +54,33 @@ static int b32m_encode(const char *hrp, const uint8_t *data, size_t n_data,
 #ifndef SIMULATOR
 #include <secp256k1.h>
 #include <wally_crypto.h>
+#include <wally_bip32.h>
+
+int sp_receive_keys(const struct ext_key *master, bool testnet,
+                    uint8_t scan_pub33[33], uint8_t spend_pub33[33])
+{
+    if (!master) return -1;
+    const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
+    uint32_t coin = testnet ? 1u : 0u;
+    // BIP352: scan m/352'/coin'/0'/1'/0, spend m/352'/coin'/0'/0'/0
+    uint32_t scan_path[5]  = { 352u | H, coin | H, 0u | H, 1u | H, 0u };
+    uint32_t spend_path[5] = { 352u | H, coin | H, 0u | H, 0u | H, 0u };
+    struct ext_key k;
+    int ret = -1;
+    // hardened levels need the private master; we only copy out the pubkeys
+    if (bip32_key_from_parent_path(master, scan_path, 5,
+                                   BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
+        goto out;
+    memcpy(scan_pub33, k.pub_key, 33);
+    if (bip32_key_from_parent_path(master, spend_path, 5,
+                                   BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
+        goto out;
+    memcpy(spend_pub33, k.pub_key, 33);
+    ret = 0;
+out:
+    wally_bzero(&k, sizeof k);
+    return ret;
+}
 
 static secp256k1_context *sp_ctx(void)
 {
