@@ -9,6 +9,14 @@
 int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
                       bool testnet, char *out, size_t cap);
 
+// This wallet's own BIP352 receive keys from the master: scan pubkey at
+// m/352'/coin'/0'/1'/0 and spend pubkey at m/352'/coin'/0'/0'/0, coin' = 1 on
+// testnet else 0. Compressed pubkeys out. Device/test builds only (needs secp);
+// pair with sp_address_encode to show the sp1/tsp1 receive address.
+struct ext_key;
+int sp_receive_keys(const struct ext_key *master, bool testnet,
+                    uint8_t scan_pub33[33], uint8_t spend_pub33[33]);
+
 // ---- BIP352 sender-side derivation (device/test builds only, needs secp) ----
 
 // One SP recipient output. scan/spend from PSBT_OUT_SP_V0_INFO; xonly_out is
