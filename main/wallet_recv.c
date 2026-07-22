@@ -187,6 +187,48 @@ static void vfy_scan(lv_event_t *e) {
   wallet_scan_open_raw(s_parent, vfy_result, vfy_cancel);
 }
 
+// ---- silent payment (BIP352) static receive address ----
+// One reusable sp1/tsp1, derived on-device (m/352'). No index, no reuse guard:
+// a silent-payment address is meant to be shared and reused; that's the point.
+static void sp_back_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  wallet_recv_open(s_parent);
+}
+
+static void sp_addr_open(lv_obj_t *parent) {
+  s_parent = parent;
+  s_addr_sg = NULL;
+  s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
+  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
+
+  char addr[128];
+  if (wallet_session_sp_address(addr, sizeof(addr)) != 0)
+    snprintf(addr, sizeof(addr), "%s", tr(STR_C_SESSION_LOCKED));
+  if (s_qr)
+    lv_qrcode_update(s_qr, addr, (uint32_t)strlen(addr));
+
+  char grouped[200];
+  wt_group4(addr, grouped, sizeof(grouped));
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font14());
+  lv_obj_set_pos(s_addr_sg, 400, 110);
+
+  lv_obj_t *path = wt_lbl(s_scr, "", 400, 320, wt_font14(), WT_MUT);
+  lv_label_set_text_fmt(path, "m/352h/%dh/0h   %s",
+                        wallet_testnet() ? 1 : 0,
+                        wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
+
+  wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
+}
+
+static void sp_open_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  sp_addr_open(s_parent);
+}
+
 void wallet_recv_open(lv_obj_t *parent) {
   if (s_scr) return;
   s_parent = parent;
@@ -231,5 +273,6 @@ void wallet_recv_open(lv_obj_t *parent) {
   wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 488, 396, 130, next_cb, NULL);
   wt_pill(s_scr, tr(STR_R_VERIFY), 634, 396, 126, vfy_scan, NULL);
   wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, close_cb, NULL);
+  wt_pill(s_scr, tr(STR_S_SP_BADGE), 200, 404, 190, sp_open_cb, NULL);
   recv_refresh();
 }

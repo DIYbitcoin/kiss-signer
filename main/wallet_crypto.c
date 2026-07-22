@@ -1,6 +1,7 @@
 // KISS Wallet crypto layer — step 1: libwally in the build + test vectors.
 // No hand-rolled crypto: everything below is libwally calls.
 #include "wallet_crypto.h"
+#include "wallet_sp.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -182,6 +183,18 @@ int wallet_session_address(int change, uint32_t index, char *out, size_t out_len
     wally_bzero(&acct, sizeof(acct));
     wally_bzero(&child, sizeof(child));
     return rc;
+}
+
+// BIP352 silent-payment receive address (sp1/tsp1) for this wallet + network.
+// Static and reusable by design - no index. Derived entirely on-device.
+int wallet_session_sp_address(char *out, size_t out_len)
+{
+    if (!s_session)
+        return 1;
+    uint8_t scan[33], spend[33];
+    if (sp_receive_keys(&s_master, s_testnet, scan, spend) != 0)
+        return 2;
+    return sp_address_encode(scan, spend, s_testnet, out, out_len) == 0 ? 0 : 3;
 }
 
 int wallet_session_descriptor(char *out, size_t out_len)
