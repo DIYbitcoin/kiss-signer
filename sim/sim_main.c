@@ -146,6 +146,12 @@ int wallet_session_address(int change, unsigned int index, char *out, unsigned l
              s_sim_testnet ? "tb" : "bc", change ? 'c' : 'q', index % 100u);
   return 0;
 }
+int wallet_session_sp_address(char *out, unsigned long len) {
+  snprintf(out, len, "%s", s_sim_testnet
+    ? "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n"
+    : "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g");
+  return 0;
+}
 int wallet_session_bw_export(char *out, unsigned long len) {
   snprintf(out, len, "[73c5da0a/84'/%d'/0']zpub6rFR7y4Q2AijBEqTUquhVz398htDFrt"
                      "ymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31"
@@ -427,6 +433,9 @@ int main(void) {
   save("/tmp/sim_tile_press.ppm");                  // glow under the held tile
   release(); pump(6);                               // Receive tile
   save("/tmp/sim_recv.ppm");
+  touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
+  save("/tmp/sim_recv_sp.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
   touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: uppercase bitcoin: URI of stub receive addr #7 -> YOURS; junk -> NOT
