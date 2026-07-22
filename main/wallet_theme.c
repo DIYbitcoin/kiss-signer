@@ -235,7 +235,7 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     for (int i = len - 1; i > h; i--) {
         if (grouped[i] != ' ' && ++raw == 4) { t = i; break; }
     }
-    char head[8], mid[120];
+    char head[8], mid[256];   // fits a grouped silent-payment addr (~146 chars)
     snprintf(head, sizeof head, "%.*s", h, grouped);
     snprintf(mid, sizeof mid, "%.*s", t - h, grouped + h);
 
