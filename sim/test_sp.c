@@ -258,6 +258,39 @@ static void sp_test_sameaddr(void) {
     spchk("k=1 output matches a BIP352 reference key", found1);
 }
 
+// Stage A receive: derive this wallet's own sp1/tsp1 from the session master
+// (m/352'/coin'/0'/1'/0 scan, m/352'/coin'/0'/0'/0 spend). Reference pubkeys +
+// addresses are from embit (independent of libwally) for the dev mnemonic
+// "abandon...about". Catches a wrong path (coin type, hardening, scan/spend swap).
+static void sp_test_receive(void) {
+    static const uint8_t SP_SCAN_MAIN[33] = { 0x02, 0x41, 0x39, 0xb0, 0xf8, 0x10, 0x42, 0xe2, 0x43, 0xa9, 0x04, 0x78, 0xe4, 0x39, 0x90, 0xc6, 0xa2, 0x7b, 0xe0, 0xe3, 0x34, 0x6f, 0x0c, 0x71, 0xad, 0xbb, 0xcd, 0xd5, 0x11, 0xbe, 0xae, 0xa1, 0xe3 };
+    static const uint8_t SP_SPEND_MAIN[33] = { 0x02, 0xfa, 0x21, 0x0b, 0x3c, 0x4a, 0x60, 0xb8, 0x0d, 0xd1, 0x61, 0x6f, 0x48, 0xae, 0x53, 0xbb, 0xdf, 0x0d, 0xb7, 0x44, 0xb3, 0xf9, 0x08, 0x33, 0x85, 0x10, 0x8f, 0x81, 0xbe, 0x0a, 0xcb, 0x58, 0xc6 };
+    static const uint8_t SP_SCAN_TEST[33] = { 0x03, 0x43, 0x9f, 0xc2, 0x30, 0x18, 0x2b, 0x46, 0xff, 0x22, 0x03, 0x2c, 0xa7, 0xae, 0x2d, 0xff, 0x32, 0x95, 0x8c, 0x9a, 0x0d, 0x17, 0x7c, 0x7b, 0x70, 0x96, 0xdf, 0x0d, 0x4b, 0x71, 0x41, 0xeb, 0x21 };
+    static const uint8_t SP_SPEND_TEST[33] = { 0x02, 0x83, 0x30, 0x85, 0xc9, 0xa7, 0x16, 0xd3, 0x6b, 0x46, 0x75, 0x52, 0xc0, 0x0d, 0x6a, 0xa8, 0xbd, 0x42, 0xe3, 0x9a, 0xdb, 0xe9, 0x8b, 0x05, 0xbc, 0x20, 0x31, 0x10, 0x17, 0x71, 0x92, 0xf7, 0x02 };
+    static const char *SP1_MAIN  = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
+    static const char *TSP1_TEST = "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n";
+
+    const struct ext_key *m = wallet_session_master();
+    if (!m) { spchk("receive: session master available", 0); return; }
+
+    uint8_t scan[33], spend[33];
+    char addr[120];
+
+    spchk("receive keys mainnet rc", sp_receive_keys(m, false, scan, spend) == 0);
+    spchk("receive scan key mainnet", memcmp(scan, SP_SCAN_MAIN, 33) == 0);
+    spchk("receive spend key mainnet", memcmp(spend, SP_SPEND_MAIN, 33) == 0);
+    spchk("receive sp1 address matches embit",
+          sp_address_encode(scan, spend, false, addr, sizeof addr) == 0 &&
+          strcmp(addr, SP1_MAIN) == 0);
+
+    spchk("receive keys testnet rc", sp_receive_keys(m, true, scan, spend) == 0);
+    spchk("receive scan key testnet", memcmp(scan, SP_SCAN_TEST, 33) == 0);
+    spchk("receive spend key testnet", memcmp(spend, SP_SPEND_TEST, 33) == 0);
+    spchk("receive tsp1 address matches embit",
+          sp_address_encode(scan, spend, true, addr, sizeof addr) == 0 &&
+          strcmp(addr, TSP1_TEST) == 0);
+}
+
 static void sp_test_dleq(void) {
     char name[64];
     uint8_t proof[64];
@@ -464,6 +497,7 @@ int test_sp(void) {
     sp_test_address();
     sp_test_bip352();
     sp_test_sameaddr();
+    sp_test_receive();
     sp_test_dleq();
     sp_test_load();
     sp_test_sign();
