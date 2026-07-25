@@ -9,6 +9,13 @@
 int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
                       bool testnet, char *out, size_t cap);
 
+// spscan/tspscan bech32m key expression (BIP-392), no origin, no sp() wrapper:
+// version 0 + convertbits(scan_priv32 || spend_pub33, 8->5). This exposes the
+// scan PRIVATE key (a coordinator can then detect every payment to this wallet;
+// it still cannot spend). cap >= 120. Available in all builds (bech32m only).
+int sp_scan_encode(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
+                   bool testnet, char *out, size_t cap);
+
 // This wallet's own BIP352 receive keys from the master: scan pubkey at
 // m/352'/coin'/0'/1'/0 and spend pubkey at m/352'/coin'/0'/0'/0, coin' = 1 on
 // testnet else 0. Compressed pubkeys out. Device/test builds only (needs secp);
@@ -16,6 +23,43 @@ int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
 struct ext_key;
 int sp_receive_keys(const struct ext_key *master, bool testnet,
                     uint8_t scan_pub33[33], uint8_t spend_pub33[33]);
+
+// Scan PRIVATE key (m/352'/coin'/0'/1'/0) + spend PUBLIC key (m/352'/coin'/0'/0'/0)
+// for the spscan watch-only export. Device/test builds only (needs secp/bip32).
+int sp_scan_export_keys(const struct ext_key *master, bool testnet,
+                        uint8_t scan_priv32[32], uint8_t spend_pub33[33]);
+
+// ---- BIP376: spending a received silent-payment output (device/test only) ----
+
+// This wallet's BIP352 spend PRIVATE key (m/352'/coin'/0'/0'/0), for BIP376
+// spend verification and signing. Caller must wipe it. Returns 0 on success.
+int sp_spend_privkey(const struct ext_key *master, bool testnet,
+                     uint8_t spend_priv32[32]);
+
+// BIP376 signing scalar d = (b_spend + tweak) mod n, verified so that the
+// x-coordinate of d*G equals output_xonly32 (the P2TR key locking the coin being
+// spent). This is BIP376's mandatory anti-theft check: a coordinator-supplied
+// tweak that does not reproduce the on-chain key is refused. Writes d to d_out32
+// (the BIP340 signer normalizes Y parity). Returns 0, or negative on any invalid
+// input or a tweak that does not reproduce output_xonly32.
+int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[32],
+                         const uint8_t output_xonly32[32], uint8_t d_out32[32]);
+
+// BIP340 Schnorr signature of msg32 under scalar d32 (keypair handles Y parity).
+// aux32 = deterministic-per-psbt randomness (never NULL). Self-verifies before
+// returning. Returns 0 on success, negative on failure.
+int sp_schnorr_sign(const uint8_t d32[32], const uint8_t msg32[32],
+                    const uint8_t aux32[32], uint8_t sig64[64]);
+
+// BIP340 verify: sig64 over msg32 under x-only pubkey xonly32. 0 = valid.
+int sp_schnorr_verify(const uint8_t xonly32[32], const uint8_t msg32[32],
+                      const uint8_t sig64[64]);
+
+// BIP0352/Label expected spend key: spend_pub + hash("BIP0352/Label",
+// scan_priv||ser32(label))*G. Used to recognize our own SP outputs; label 0 =
+// change, else a labeled self-transfer. Returns 0, negative on invalid input.
+int sp_label_spend(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
+                   uint32_t label, uint8_t out_spend33[33]);
 
 // ---- BIP352 sender-side derivation (device/test builds only, needs secp) ----
 

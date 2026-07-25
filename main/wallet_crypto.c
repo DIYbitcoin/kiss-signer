@@ -197,6 +197,36 @@ int wallet_session_sp_address(char *out, size_t out_len)
     return sp_address_encode(scan, spend, s_testnet, out, out_len) == 0 ? 0 : 3;
 }
 
+// Scan-key export: sp([fp/352h/coinh/0h]spscan1...) so a scanner (Sparrow/
+// Frigate) can detect payments to this wallet's silent-payment address. Carries
+// the scan PRIVATE key (never the spend key), so the holder can see but never
+// spend. The origin path is the SP account, mirroring how the wpkh descriptor
+// shows [fp/84h/coinh/0h].
+int wallet_session_sp_scan_export(char *out, size_t out_len)
+{
+    if (!s_session)
+        return 1;
+    uint8_t scan_priv[32], spend_pub[33];
+    int rc = sp_scan_export_keys(&s_master, s_testnet, scan_priv, spend_pub) == 0 ? 0 : 2;
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    if (rc == 0 && bip32_key_get_fingerprint(&s_master, fp, sizeof(fp)) != WALLY_OK)
+        rc = 3;
+    if (rc == 0) {
+        char key[128];
+        if (sp_scan_encode(scan_priv, spend_pub, s_testnet, key, sizeof key) != 0) {
+            rc = 4;
+        } else {
+            int n = snprintf(out, out_len, "sp([%02x%02x%02x%02x/352h/%dh/0h]%s)",
+                             fp[0], fp[1], fp[2], fp[3], s_testnet ? 1 : 0, key);
+            if (n < 0 || (size_t)n >= out_len)
+                rc = 5;
+        }
+        wally_bzero(key, sizeof key);
+    }
+    wally_bzero(scan_priv, sizeof scan_priv);
+    return rc;
+}
+
 int wallet_session_descriptor(char *out, size_t out_len)
 {
     if (!s_session)
