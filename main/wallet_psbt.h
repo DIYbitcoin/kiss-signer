@@ -51,6 +51,7 @@ typedef struct {
     uint32_t locktime;
     uint32_t n_unknown;      // unknown/proprietary PSBT fields (global+in+out)
     uint32_t n_sp;           // silent payment outputs among outs[]
+    uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment
     bool     testnet;        // network this summary was verified under
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;
@@ -66,8 +67,9 @@ typedef struct {
     char     txid[65];       // previous txid, display (big-endian) hex
     uint32_t vout;
     uint64_t sats;
-    uint32_t purpose;        // 44/49/84 (verify already proved it's ours)
+    uint32_t purpose;        // 44/49/84 (verify already proved it's ours), 352 = SP spend
     uint32_t change, index;  // our derivation tail m/../<change>/<index>
+    bool     is_sp;          // BIP376: spends a received silent-payment (P2TR) coin
 } wpsbt_in_t;
 
 typedef struct {

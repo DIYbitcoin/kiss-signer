@@ -17,6 +17,7 @@
 #include <wally_map.h>
 
 #include "sp_test_vectors.h"
+#include "sp_spend_vectors.h"
 #include "wallet_sp.h"
 #include "wallet_psbt.h"
 #include "wallet_crypto.h"
@@ -291,6 +292,129 @@ static void sp_test_receive(void) {
           strcmp(addr, TSP1_TEST) == 0);
 }
 
+// Stage B: sp(spscan) scan-key export. The full descriptor (origin + spscan1
+// key expression) must match embit's SilentPaymentDescriptor byte-for-byte for
+// the dev mnemonic on both networks. Also pins the low-level sp_scan_encode.
+static void sp_test_scan_export(void) {
+    char out[200];
+
+    wallet_set_network(0);
+    spchk("scan export mainnet rc", wallet_session_sp_scan_export(out, sizeof out) == 0);
+    spchk("scan export mainnet matches embit sp(spscan)",
+          strcmp(out, SPV_SPSCAN_MAIN) == 0);
+
+    wallet_set_network(1);
+    spchk("scan export testnet rc", wallet_session_sp_scan_export(out, sizeof out) == 0);
+    spchk("scan export testnet matches embit sp(tspscan)",
+          strcmp(out, SPV_SPSCAN_TEST) == 0);
+
+    // low-level encoder: hrp + version-0 + convertbits(scan_priv||spend_pub)
+    const struct ext_key *m = wallet_session_master();
+    uint8_t scan_priv[32], spend_pub[33];
+    char key[120];
+    spchk("scan export keys testnet rc", sp_scan_export_keys(m, true, scan_priv, spend_pub) == 0);
+    spchk("sp_scan_encode tspscan prefix + length",
+          sp_scan_encode(scan_priv, spend_pub, true, key, sizeof key) == 0 &&
+          strncmp(key, "tspscan1", 8) == 0 && strstr(SPV_SPSCAN_TEST, key) != NULL);
+    // one byte too small must refuse, never truncate a secret-bearing string
+    char tiny[64];
+    spchk("sp_scan_encode refuses short buffer",
+          sp_scan_encode(scan_priv, spend_pub, true, tiny, sizeof tiny) != 0);
+    wallet_set_network(0);
+}
+
+// Read a PSBT input's taproot key-path signature (PSBT_IN_TAP_KEY_SIG = 0x13,
+// stored by wally in the psbt_fields map). Returns 0 and fills sig64 on success.
+static int sp_tap_key_sig(const struct wally_psbt *p, size_t idx, uint8_t sig64[64]) {
+    const struct wally_map_item *it =
+        wally_map_get_integer(&p->inputs[idx].psbt_fields, 0x13);
+    if (!it || it->value_len != 64) return -1;
+    memcpy(sig64, it->value, 64);
+    return 0;
+}
+
+// Stage C: BIP376 spend of a received silent-payment coin. The signer must
+// recompute d = b_spend + tweak, refuse a tweak that doesn't reproduce the
+// on-chain P2TR key, and Schnorr-sign the taproot key-path sighash. Verifying
+// the emitted signature against embit's OUTKEY + SIGHASH cross-checks BOTH our
+// tweaked key and our sighash against the independent implementation.
+static void sp_test_spend_one(const char *tag, const char *b64,
+                              const uint8_t *outkey, const uint8_t *sighash) {
+    char name[80];
+    wpsbt_summary_t sum;
+    uint8_t out1[4096], out2[4096];
+    size_t w1 = 0, w2 = 0;
+    wallet_set_network(1);
+
+    int rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    snprintf(name, sizeof name, "%s loads READY", tag);
+    if (rc == 0 && sum.status != WPSBT_READY)
+        printf("  status=%d reason=%s\n", sum.status, sum.reason);
+    spchk(name, rc == 0 && sum.status == WPSBT_READY);
+    snprintf(name, sizeof name, "%s counted as 1 received-SP input", tag);
+    spchk(name, sum.n_sp_in == 1 && sum.n_in == 1);
+    snprintf(name, sizeof name, "%s input amount + fee", tag);
+    spchk(name, sum.in_sats == 100000 && sum.send_sats == 95000 && sum.fee_sats == 5000);
+
+    snprintf(name, sizeof name, "%s sign rc", tag);
+    spchk(name, wallet_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
+    wallet_psbt_free();
+
+    struct wally_psbt *p = NULL;
+    snprintf(name, sizeof name, "%s signed psbt strict-parses", tag);
+    spchk(name, wally_psbt_from_bytes(out1, w1, 0, &p) == WALLY_OK);
+    if (p) {
+        uint8_t sig[64];
+        int have = sp_tap_key_sig(p, 0, sig) == 0;
+        snprintf(name, sizeof name, "%s carries a 64-byte taproot key sig", tag);
+        spchk(name, have);
+        // the crux: our signature verifies under embit's output key AND embit's
+        // sighash - so our tweak math and our BIP341 sighash both match embit
+        snprintf(name, sizeof name, "%s sig verifies vs embit outkey+sighash", tag);
+        spchk(name, have && sp_schnorr_verify(outkey, sighash, sig) == 0);
+        wally_psbt_free(p);
+    }
+
+    // determinism: identical load+sign yields identical bytes
+    rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    spchk(rc == 0 ? "spend re-load READY" : "spend re-load", rc == 0 && sum.status == WPSBT_READY);
+    spchk("spend re-sign rc", wallet_psbt_sign(out2, sizeof out2, &w2) == 0);
+    snprintf(name, sizeof name, "%s sign is deterministic", tag);
+    spchk(name, w1 == w2 && memcmp(out1, out2, w1) == 0);
+    wallet_psbt_free();
+    wallet_set_network(0);
+}
+
+static void sp_test_spend(void) {
+    sp_test_spend_one("spend even-Y", SPV_SPEND_EVEN_B64,
+                      SPV_SPEND_EVEN_OUTKEY, SPV_SPEND_EVEN_SIGHASH);
+    sp_test_spend_one("spend odd-Y", SPV_SPEND_ODD_B64,
+                      SPV_SPEND_ODD_OUTKEY, SPV_SPEND_ODD_SIGHASH);
+
+    // foreign tweak: the PSBT's tweak does NOT reproduce the on-chain P2TR key.
+    // The signer MUST refuse (BIP376 anti-theft), never emit a signature.
+    wpsbt_summary_t sum;
+    wallet_set_network(1);
+    int rc = wallet_psbt_load((const uint8_t *)SPV_SPEND_FOREIGN_B64,
+                              strlen(SPV_SPEND_FOREIGN_B64), &sum);
+    spchk("foreign-tweak spend stops",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "not this wallet"));
+    wallet_psbt_free();
+    wallet_set_network(0);
+}
+
+// change/self detection: the expected spend key for a labeled SP output is
+// spend_pub + hash("BIP0352/Label", scan_priv||ser32(m))*G. label 0 = change.
+static void sp_test_label(void) {
+    uint8_t out[33];
+    spchk("label 0 (change) spend key matches embit",
+          sp_label_spend(SPV_LABEL_SCAN_PRIV, SPV_LABEL_SPEND_PUB, 0, out) == 0 &&
+          memcmp(out, SPV_LABEL0_SPEND, 33) == 0);
+    spchk("label 5 (self) spend key matches embit",
+          sp_label_spend(SPV_LABEL_SCAN_PRIV, SPV_LABEL_SPEND_PUB, SPV_LABEL5, out) == 0 &&
+          memcmp(out, SPV_LABEL5_SPEND, 33) == 0);
+}
+
 static void sp_test_dleq(void) {
     char name[64];
     uint8_t proof[64];
@@ -418,11 +542,14 @@ static void sp_test_load(void) {
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "sighash"));
     wallet_psbt_free();
 
-    // BIP376 receive-side field -> STOP
+    // A BIP376 SP tweak (0x20) on a NON-taproot input is malformed/hostile: SP
+    // spend fields only apply to a received P2TR coin, so the signer must refuse
+    // (this fixture bolts a tweak onto a P2WPKH input). Real P2TR BIP376 spends
+    // are exercised by sp_test_spend against embit-built fixtures.
     rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_BIP376_B64,
                           strlen(SPV_PSBT_BIP376_B64), &sum);
-    spchk("BIP376 receive field stops",
-          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "receive"));
+    spchk("SP tweak on a non-taproot input stops",
+          rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "taproot"));
     wallet_psbt_free();
 
     // same fixture on MAINNET -> wrong-network STOP (input path is 84h/1h)
@@ -498,8 +625,11 @@ int test_sp(void) {
     sp_test_bip352();
     sp_test_sameaddr();
     sp_test_receive();
+    sp_test_scan_export();
+    sp_test_label();
     sp_test_dleq();
     sp_test_load();
     sp_test_sign();
+    sp_test_spend();
     return sp_fails;
 }
