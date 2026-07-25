@@ -465,10 +465,14 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 56);
 
+  // body runs from y=112 down to the fingerprint at y=322: auto-fit keeps the
+  // short English copy big and a long translation off the fingerprint
   lv_obj_t *b = lv_label_create(s_warnscr);
   lv_label_set_text(b, tr(STR_L_WARN_B));
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_font14(), 0);
+  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 720, 200), 0);
+  lv_obj_set_width(b, 720);
+  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 112);
 
@@ -766,8 +770,10 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_PPINTRO_T),
                             tr(STR_L_PPINTRO_S));
   s_pp_intro = scr;
-  wt_lbl(scr, tr(STR_L_PPINTRO_B),
-      48, 116, wt_font14(), WT_MUT);
+  lv_obj_t *ib = wt_lbl(scr, tr(STR_L_PPINTRO_B),
+      48, 116, wt_body_font(tr(STR_L_PPINTRO_B), 704, 280), WT_MUT);
+  lv_obj_set_width(ib, 704);
+  lv_label_set_long_mode(ib, LV_LABEL_LONG_WRAP);
   lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, 404, 280, pp_intro_go_cb, NULL);
   wt_pill_primary(go);
 }
