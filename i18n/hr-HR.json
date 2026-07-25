@@ -151,7 +151,7 @@
   "R_NOT_YOURS": "NIJE IZ OVOG NOVČANIKA",
   "R_NOT_B": "nije među prvih 200 adresa za primanje ili ostatak ovog novčanika.\nmožda je riječ o drugom tipu adrese ili mrežnoj postavci, drugom\nnovčaniku ili zlonamjernom softveru koji mijenja adrese na računalu.\nne šaljite na nju dok ne znate čija je.",
   "R_SCAN_ANOTHER": "SKENIRAJ DRUGU",
-  "R_SP_SCAN_BTN": "KLJUČ ZA SKENIRANJE",
+  "R_SP_SCAN_BTN": "KLJUČ SKENA",
   "R_SP_WARN_S": "pročitaj ovo prije nego ga podijeliš",
   "R_SP_WARN_B": "adresa tihe uplate nikad se ne pojavljuje na lancu, pa poslužitelj mora\ntražiti tvoje uplate ovim ključem za skeniranje.\n\npronalazi svaku uplatu koju primiš, prošlu i buduću, zauvijek.\nnikad ne može potrošiti tvoje novčiće ni promijeniti kamo idu.\n\ntko ga ima, vidi cijelu tvoju povijest primitaka. daj ga samo\nposlužitelju koji sam vodiš ili kojem vjeruješ.\n\novo je ključ za skeniranje SAMO ovog novčanika. novčanik otvoren drugom\nkodnom frazom ima svoj i ostaje skriven.",
   "R_SP_SHOW": "PRIKAŽI KLJUČ",

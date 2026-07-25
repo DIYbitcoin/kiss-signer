@@ -151,7 +151,7 @@
   "R_NOT_YOURS": "NIE Z TEGO PORTFELA",
   "R_NOT_B": "nie ma go wśród pierwszych 200 adresów odbiorczych ani reszty\ntego portfela. to może być inny typ adresu lub sieci, inny\nportfel, albo malware podmieniający adresy na komputerze.\nnie wysyłaj tam, dopóki nie wiesz, czyj to adres.",
   "R_SCAN_ANOTHER": "SKANUJ KOLEJNY",
-  "R_SP_SCAN_BTN": "KLUCZ SKANOWANIA",
+  "R_SP_SCAN_BTN": "KLUCZ SKANU",
   "R_SP_WARN_S": "przeczytaj to, zanim go udostępnisz",
   "R_SP_WARN_B": "adres cichej płatności nigdy nie pojawia się w łańcuchu, więc serwer\nmusi szukać twoich płatności tym kluczem skanowania.\n\nznajduje każdą płatność, którą otrzymujesz, przeszłą i przyszłą, na zawsze.\nnigdy nie może wydać twoich monet ani zmienić ich celu.\n\nkto go ma, widzi całą twoją historię wpłat. daj go tylko serwerowi,\nktóry sam prowadzisz lub któremu ufasz.\n\nto klucz skanowania TYLKO tego portfela. portfel otwarty inną frazą\ndostępu ma własny klucz i pozostaje ukryty.",
   "R_SP_SHOW": "POKAŻ KLUCZ",
