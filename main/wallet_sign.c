@@ -122,8 +122,14 @@ static const char *tr_reason(const char *r)
         {"outputs exceed inputs", STR_P_OUT_GT_IN},
         {"unknown data in this transaction", STR_P_UNKNOWN_DATA},
         {"SP output needs PSBTv2", STR_P_SP_NEED_V2},
-        {"SP receive fields not supported", STR_P_SP_RECEIVE},
         {"silent payments need native segwit inputs", STR_P_SP_INPUTS},
+        // BIP376 receive-spend failures. "not this wallet's" reuses the exact
+        // send-side wording; the malformed-field cases map to the generic
+        // malformed-tx string (rare, hostile-input paths) to avoid new i18n keys.
+        {"silent-payment input is not this wallet's", STR_P_NOT_MINE},
+        {"silent-payment input must be taproot", STR_P_MALFORMED_TX},
+        {"malformed SP spend derivation", STR_P_MALFORMED_TX},
+        {"malformed SP tweak", STR_P_MALFORMED_TX},
         {"silent payment key derivation failed", STR_P_SP_DERIVE},
         {"silent payment derivation failed", STR_P_SP_DERIVE},
         {"silent payment self-check failed", STR_P_SP_DERIVE},
@@ -505,8 +511,11 @@ static void verify_screen(lv_obj_t *parent)
     fmt_sats(s_sum.in_sats, a, sizeof a);
     fmt_sats(s_sum.change_sats, b, sizeof b);
     // spec: show the DETECTED script type (from the PSBT's own paths, not any
-    // setting) — "mixed-type" when a transaction spends more than one kind
-    const char *ity = s_sum.purpose == 44 ? tr(STR_S_TY_LEGACY)
+    // setting) — "mixed-type" when a transaction spends more than one kind. A
+    // received silent-payment input (BIP376) has no BIP84 path, so label it as
+    // such rather than "mixed" (reuses the existing badge string, no new i18n).
+    const char *ity = s_sum.n_sp_in > 0 ? tr(STR_S_SP_BADGE)
+                    : s_sum.purpose == 44 ? tr(STR_S_TY_LEGACY)
                     : s_sum.purpose == 49 ? tr(STR_S_TY_NESTED)
                     : s_sum.purpose == 84 ? tr(STR_S_TY_NATIVE) : tr(STR_S_TY_MIXED);
     snprintf(buf, sizeof buf, tr(STR_S_INPUTS_FMT),
@@ -703,9 +712,15 @@ static void details_cb(lv_event_t *e)
         lv_obj_set_style_text_color(tid, MUT_COL, 0);
         lv_obj_set_style_text_font(tid, wt_font14(), 0);
 
-        snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/%u'/%d'/0'/%u/%u",
-                 (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
-                 (unsigned)det.ins[i].change, (unsigned)det.ins[i].index);
+        // BIP376 received-SP input: its key is spend+tweak, not a BIP84 child,
+        // so show the silent-payment badge instead of a misleading BIP32 path.
+        if (det.ins[i].is_sp)
+            snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/352'/%d'/0'   %s",
+                     s_sum.testnet ? 1 : 0, tr(STR_S_SP_BADGE));
+        else
+            snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/%u'/%d'/0'/%u/%u",
+                     (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
+                     (unsigned)det.ins[i].change, (unsigned)det.ins[i].index);
         lv_obj_t *pl = lv_label_create(row);
         lv_label_set_text(pl, buf);
         lv_obj_set_style_text_color(pl, OK_COL, 0);
