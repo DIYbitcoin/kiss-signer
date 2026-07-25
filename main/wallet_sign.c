@@ -338,13 +338,15 @@ static void caution_help_cb(lv_event_t *e)
             int w_ = snprintf(body + o, sizeof body - o, __VA_ARGS__); \
             if (w_ > 0) { o += (size_t)w_; if (o >= sizeof body) o = sizeof body - 1; } \
         } } while (0)
+    // reasons stack one per line — three at once plus a blank line before the
+    // footer is exactly the 8 rows this card holds at the big font
     if (f & WPSBT_C_HIGHFEE)
-        BODY_ADD("%s\n\n", tr(STR_S_WHY_HIGHFEE));
+        BODY_ADD("%s\n", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
-        BODY_ADD("%s\n\n", tr(STR_S_WHY_DUSTIN));
+        BODY_ADD("%s\n", tr(STR_S_WHY_DUSTIN));
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
-        BODY_ADD("%s\n\n", tr(STR_S_WHY_TINYCH));
-    BODY_ADD("%s", tr(STR_S_WHY_FOOT));
+        BODY_ADD("%s\n", tr(STR_S_WHY_TINYCH));
+    BODY_ADD(o ? "\n%s" : "%s", tr(STR_S_WHY_FOOT));
     #undef BODY_ADD
 
     // several cautions can stack here, so this body is the longest in the app:

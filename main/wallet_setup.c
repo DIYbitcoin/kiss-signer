@@ -95,6 +95,18 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
     return wt_lbl(s_scr, txt, x, y, f, col);
 }
 
+// An explainer paragraph: reads at the big font when the copy is short enough
+// to fit in w x h, drops to the small one when a translation is longer. Width
+// is set so the hard newlines written for the small font can never run off the
+// edge at the big one.
+static lv_obj_t *mk_body(const char *txt, int x, int y, int w, int h, lv_color_t col)
+{
+    lv_obj_t *l = wt_lbl(s_scr, txt, x, y, wt_body_font(txt, w, h), col);
+    lv_obj_set_width(l, w);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    return l;
+}
+
 // join s_w[0..s_nw) into a mnemonic string
 static void join_words(char *out, size_t out_len)
 {
@@ -130,8 +142,7 @@ static void store_and_finish(void)
     memset(words, 0, sizeof words);
     if (rc != 0) {                          // restore path: checksum failed
         mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
-        mk_lbl(tr(STR_W_CHECK_B),
-               48, 140, wt_font14(), STOP_COL);
+        mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
         mk_pill(tr(STR_W_START_OVER), 48, 404, 240, goto_restore_cb, NULL);
         return;
     }
@@ -168,8 +179,7 @@ static void verify_finish(void)
         mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
-        mk_lbl(tr(STR_W_VOK_B),
-               48, 206, wt_font14(), MUT_COL);
+        mk_body(tr(STR_W_VOK_B), 48, 206, 704, 190, MUT_COL);
         lv_obj_t *p = mk_pill(tr(STR_C_DONE), 48, 404, 300, verify_exit_cb, NULL);
         wt_pill_primary(p);
     } else {
@@ -177,8 +187,7 @@ static void verify_finish(void)
         snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
         mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        mk_lbl(tr(STR_W_VBAD_B),
-               48, 206, wt_font14(), MUT_COL);
+        mk_body(tr(STR_W_VBAD_B), 48, 206, 704, 190, MUT_COL);
         lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 48, 404, 300, verify_retry_cb, NULL);
         wt_pill_primary(p);
         mk_pill(tr(STR_C_DONE), 610, 404, 140, verify_exit_cb, NULL);
@@ -191,8 +200,7 @@ static void verify_intro_screen(void)
 {
     mk_screen(tr(STR_W_VINTRO_T),
               tr(STR_W_VINTRO_S));
-    mk_lbl(tr(STR_W_VINTRO_B),
-           48, 122, wt_font14(), MUT_COL);
+    mk_body(tr(STR_W_VINTRO_B), 48, 122, 704, 274, MUT_COL);
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 404, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, verify_exit_cb, NULL);
@@ -356,8 +364,7 @@ static void entropy_screen(void)
     mk_pill("CAPTURE", 48, 404, 240, sim_entropy_cb, NULL);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 #else
-    mk_lbl(tr(STR_W_RAND_B), 48, 122,
-           wt_font14(), MUT_COL);
+    mk_body(tr(STR_W_RAND_B), 48, 122, 704, 274, MUT_COL);
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
