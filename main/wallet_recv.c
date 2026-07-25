@@ -197,6 +197,8 @@ static void sp_back_cb(lv_event_t *e) {
   wallet_recv_open(s_parent);
 }
 
+static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
+
 static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
@@ -220,6 +222,9 @@ static void sp_addr_open(lv_obj_t *parent) {
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
   wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
+  // hand the scan key to a coordinator so it can DETECT payments to this
+  // address (warned two-step; the address alone tells a scanner nothing)
+  wt_pill(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 404, 270, sp_key_warn_cb, NULL);
 }
 
 static void sp_open_cb(lv_event_t *e) {
@@ -227,6 +232,56 @@ static void sp_open_cb(lv_event_t *e) {
   s_addr_sg = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   sp_addr_open(s_parent);
+}
+
+// ---- scan-key export (BIP-392 sp(spscan...) descriptor), warning first ----
+// A silent-payment address is unlinkable on-chain, so a coordinator can only
+// find payments with the SCAN PRIVATE key. Handing it over is a real, permanent
+// privacy decision (it reveals every receive, forever, but can never spend), so
+// it is a deliberate two-step behind an honest warning - not bundled silently
+// into a wallet import. Deniability holds: this is only THIS passphrase's key.
+static void sp_addr_back_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  sp_addr_open(s_parent);
+}
+
+static void sp_key_show_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
+
+  char key[256];
+  if (wallet_session_sp_scan_export(key, sizeof(key)) != 0)
+    snprintf(key, sizeof(key), "%s", tr(STR_C_SESSION_LOCKED));
+  if (s_qr)
+    lv_qrcode_update(s_qr, key, (uint32_t)strlen(key));
+
+  // machine-import string: wrapped whole, not grouped like an address (nobody
+  // compares this by eye, and grouping would break a copy off the screen)
+  lv_obj_t *k = wt_lbl(s_scr, key, 400, 100, wt_font14(), WT_INK);
+  lv_obj_set_width(k, 360);
+  lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
+
+  lv_obj_t *note = wt_lbl(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, wt_font14(), WT_MUT);
+  lv_obj_set_width(note, 360);
+  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+
+  wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 160, sp_addr_back_cb, NULL);
+}
+
+static void sp_key_warn_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_S));
+  wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108, wt_font14(), WT_MUT);
+  lv_obj_t *sp = wt_pill(s_scr, tr(STR_R_SP_SHOW), 48, 404, 300, sp_key_show_cb, NULL);
+  wt_pill_primary(sp);
+  wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, sp_addr_back_cb, NULL);
 }
 
 void wallet_recv_open(lv_obj_t *parent) {
