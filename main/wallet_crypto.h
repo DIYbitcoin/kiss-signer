@@ -48,6 +48,10 @@ int wallet_session_address(int change, uint32_t index, char *out, size_t out_len
 // BIP352 silent-payment receive address (sp1/tsp1) for the current network.
 // Static/reusable by design. Returns 0 on success.
 int wallet_session_sp_address(char *out, size_t out_len);
+// Watch-only SCAN-KEY export: "sp([<fp>/352h/<coin>h/0h]spscan1<...>)" (BIP-392).
+// Exposes the scan PRIVATE key so a coordinator can detect payments to this
+// wallet's silent-payment address; it still cannot spend. Returns 0 on success.
+int wallet_session_sp_scan_export(char *out, size_t out_len);
 // Watch-only export: "wpkh([<fp>/84h/0h/0h]<xpub>/<0;1>/*)" for Sparrow etc.
 int wallet_session_descriptor(char *out, size_t out_len);
 // BlueWallet-flavored export: "[<fp>/84'/0'/0']<zpub>" — key origin + SLIP-132

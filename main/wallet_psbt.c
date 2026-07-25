@@ -31,6 +31,16 @@ static struct {
     struct { uint32_t idx; uint8_t scan[33], spend[33]; } o[WPSBT_MAX_OUTS];
 } s_sp;
 
+// BIP376 inputs that spend a received silent payment: which inputs carry a
+// PSBT_IN_SP_TWEAK (0x20) and its 32-byte tweak. Ownership is re-verified from
+// our own spend key at load; the tweaked key signs at sign time.
+static struct {
+    bool present[WPSBT_MAX_INS];
+    uint8_t tweak[WPSBT_MAX_INS][32];
+} s_sp_in;
+
+static uint8_t s_psbt_hash[32];   // sha256(psbt bytes): deterministic-sign aux seed
+
 // v0 keeps its embedded global tx; v2 uses the view extracted after sp_fill.
 // A v2 psbt is authoritative ONLY through s_txv (built from its own fields, the
 // same data libwally signs). A global unsigned tx must never speak for a v2:
@@ -229,6 +239,7 @@ static int wipe_unknowns(struct wally_map *m, uint8_t keytype, size_t key_len)
 static int sp_scan(wpsbt_summary_t *s)
 {
     memset(&s_sp, 0, sizeof s_sp);
+    memset(&s_sp_in, 0, sizeof s_sp_in);
     uint32_t unknown = 0;
 
     // globals: 0x07/0x08 = SP ECDH share/DLEQ (34-byte keys) -> wipe
@@ -238,13 +249,30 @@ static int sp_scan(wpsbt_summary_t *s)
 
     for (size_t i = 0; i < s_psbt->num_inputs; i++) {
         struct wally_map *m = &s_psbt->inputs[i].unknowns;
-        wipe_unknowns(m, 0x1d, 34);        // per-input share
-        wipe_unknowns(m, 0x1e, 34);        // per-input proof
+        wipe_unknowns(m, 0x1d, 34);        // send per-input share  -> recompute, never trust
+        wipe_unknowns(m, 0x1e, 34);        // send per-input proof  -> recompute, never trust
         for (size_t j = 0; j < m->num_items; j++) {
-            uint8_t k0 = m->items[j].key_len ? m->items[j].key[0] : 0xff;
-            if (k0 == 0x1f || k0 == 0x20) {   // BIP376: spending RECEIVED SP coins
-                stop(s, "SP receive fields not supported");
-                return -1;
+            const struct wally_map_item *it = &m->items[j];
+            uint8_t k0 = it->key_len ? it->key[0] : 0xff;
+            // BIP376: spending a RECEIVED silent-payment coin.
+            if (k0 == 0x1f) {                 // PSBT_IN_SP_SPEND_BIP32_DERIVATION
+                // key = 0x1f || 33-byte spend pubkey; value = fp || LE32 path.
+                // We ignore the coordinator's key/path and derive our own spend
+                // key, so only the shape is checked here (record via the tweak).
+                if (it->key_len != 34 || it->value_len < 4 || (it->value_len - 4) % 4 != 0) {
+                    stop(s, "malformed SP spend derivation");
+                    return -1;
+                }
+                continue;
+            }
+            if (k0 == 0x20) {                 // PSBT_IN_SP_TWEAK (32-byte tweak)
+                if (it->key_len != 1 || it->value_len != 32 || i >= WPSBT_MAX_INS) {
+                    stop(s, "malformed SP tweak");
+                    return -1;
+                }
+                s_sp_in.present[i] = true;
+                memcpy(s_sp_in.tweak[i], it->value, 32);
+                continue;
             }
             unknown++;
         }
@@ -484,8 +512,9 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         wallet_psbt_free();
         return -2;
     }
-    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
+    uint8_t psbt_hash[32];                         // deterministic-DLEQ / -sign seed
     wally_sha256(bytes, len, psbt_hash, 32);
+    memcpy(s_psbt_hash, psbt_hash, 32);            // BIP376 sign-time aux uses it too
 
     memset(s, 0, sizeof *s);
     s->status = WPSBT_READY;
@@ -548,7 +577,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         stop(s, "malformed: tx/psbt count mismatch");
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
-    uint32_t n44 = 0, n49 = 0, n84 = 0;   // inputs per type: fee estimate + UI label
+    uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
@@ -556,6 +585,39 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
         if (in->sighash != 0 && in->sighash != WALLY_SIGHASH_ALL) {
             stop(s, "sighash is not ALL");
+            continue;
+        }
+
+        // BIP376: an input spending a RECEIVED silent payment. It carries no
+        // BIP32 keypath (the key is spend + tweak, not a bip32 child), so prove
+        // ownership by recomputing the tweaked spend key from OUR OWN spend key
+        // and matching the P2TR output key being spent (never trust the tweak
+        // blindly - a wrong tweak would steer a signature onto a foreign key).
+        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+            const struct wally_tx_output *u = in->witness_utxo;
+            if (!u || u->script_len != 34 || u->script[0] != 0x51 || u->script[1] != 0x20) {
+                stop(s, "silent-payment input must be taproot");
+                continue;
+            }
+            uint8_t spend_priv[32], d[32];
+            int owned = sp_spend_privkey(master, wallet_testnet(), spend_priv) == 0 &&
+                        sp_spend_signing_key(spend_priv, s_sp_in.tweak[i],
+                                             u->script + 2, d) == 0;
+            wally_bzero(spend_priv, sizeof spend_priv);
+            wally_bzero(d, sizeof d);
+            if (!owned) {
+                stop(s, "silent-payment input is not this wallet's");
+                continue;
+            }
+            if (u->satoshi > MAX_MONEY) {
+                stop(s, "input amount over 21M BTC (corrupt)");
+                continue;
+            }
+            s->in_sats += u->satoshi;
+            s->n_sp_in++;
+            ntap++;
+            if (u->satoshi > 0 && u->satoshi < WPSBT_PRIVACY_SATS)
+                caution(s, WPSBT_C_DUST_INPUT, "spending a tiny coin (privacy)");
             continue;
         }
 
@@ -693,8 +755,9 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // base data (~107 vB each); nested adds a small scriptSig (~23 vB) plus its
     // witness; every segwit witness weighs 1/4 (~108 WU each + 2 marker bytes)
     s->est_vsize = (uint32_t)(base_vsize + 107 * n44 + 23 * n49);
-    if (n49 + n84)
-        s->est_vsize += (uint32_t)((2 + 108 * (n49 + n84) + 3) / 4);
+    // taproot key-path witness ~= 66 WU (1 item + 1 len + 64-byte schnorr sig)
+    if (n49 + n84 + ntap)
+        s->est_vsize += (uint32_t)((2 + 108 * (n49 + n84) + 66 * ntap + 3) / 4);
     if (s->est_vsize)
         s->fee_rate_x10 = (uint32_t)(s->fee_sats * 10 / s->est_vsize);
 
@@ -758,12 +821,17 @@ int wallet_psbt_details(wpsbt_details_t *d)
         } else if (in->utxo && di->vout < in->utxo->num_outputs) {
             di->sats = in->utxo->outputs[di->vout].satoshi;
         }
-        uint32_t path[8];
-        size_t path_len = 8;
-        if (our_keypath(&in->keypaths, fp, path, &path_len) && path_len == 5) {
-            di->purpose = our_purpose(path, path_len);
-            di->change = path[3];
-            di->index = path[4];
+        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+            di->is_sp = true;          // BIP376: spends a received silent payment
+            di->purpose = 352;         // taproot key-path; signing can't change the txid
+        } else {
+            uint32_t path[8];
+            size_t path_len = 8;
+            if (our_keypath(&in->keypaths, fp, path, &path_len) && path_len == 5) {
+                di->purpose = our_purpose(path, path_len);
+                di->change = path[3];
+                di->index = path[4];
+            }
         }
         if (di->purpose == 44)
             any_legacy = true;
@@ -774,6 +842,53 @@ int wallet_psbt_details(wpsbt_details_t *d)
     return 0;
 }
 
+// BIP376: sign every input that spends a received silent payment, using the
+// tweaked spend key d = b_spend + tweak. wally can't do this (the key is not a
+// bip32 child), so compute the taproot key-path sighash + Schnorr-sign here.
+// aux is deterministic per (wallet, psbt) so signing is reproducible. Returns 0,
+// or negative on any failure (the whole sign then fails - no partial result).
+static int sign_sp_spends(const struct ext_key *master)
+{
+    bool any = false;
+    for (size_t i = 0; i < s_psbt->num_inputs && i < WPSBT_MAX_INS; i++)
+        if (s_sp_in.present[i]) { any = true; break; }
+    if (!any)
+        return 0;
+
+    uint8_t spend_priv[32], aux[32];
+    int rc = -1;
+    if (sp_spend_privkey(master, wallet_testnet(), spend_priv) != 0)
+        return -1;
+    {   // aux = sha256(spend_priv || psbt_hash): deterministic + wallet-specific
+        uint8_t seed[32 + 32];
+        memcpy(seed, spend_priv, 32);
+        memcpy(seed + 32, s_psbt_hash, 32);
+        wally_sha256(seed, sizeof seed, aux, 32);
+        wally_bzero(seed, sizeof seed);
+    }
+    for (size_t i = 0; i < s_psbt->num_inputs && i < WPSBT_MAX_INS; i++) {
+        if (!s_sp_in.present[i])
+            continue;
+        const struct wally_tx_output *u = s_psbt->inputs[i].witness_utxo;
+        uint8_t d[32], sh[32], sig[64];
+        rc = -2;
+        if (u && u->script_len == 34 &&
+            sp_spend_signing_key(spend_priv, s_sp_in.tweak[i], u->script + 2, d) == 0 &&
+            wally_psbt_get_input_signature_hash(s_psbt, i, s_txv, NULL, 0, 0, sh, 32) == WALLY_OK &&
+            sp_schnorr_sign(d, sh, aux, sig) == 0 &&
+            wally_psbt_input_set_taproot_signature(&s_psbt->inputs[i], sig, 64) == WALLY_OK)
+            rc = 0;
+        wally_bzero(d, sizeof d);
+        wally_bzero(sh, sizeof sh);
+        wally_bzero(sig, sizeof sig);
+        if (rc != 0)
+            break;
+    }
+    wally_bzero(spend_priv, sizeof spend_priv);
+    wally_bzero(aux, sizeof aux);
+    return rc;
+}
+
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
 {
     const struct ext_key *master = wallet_session_master();
@@ -781,6 +896,8 @@ int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
         return -1;
     if (wally_psbt_sign_bip32(s_psbt, master, EC_FLAG_GRIND_R) != WALLY_OK)
         return -2;
+    if (sign_sp_spends(master) != 0)
+        return -5;
     size_t need = 0;
     if (wally_psbt_get_length(s_psbt, 0, &need) != WALLY_OK || need > out_len)
         return -3;
@@ -798,5 +915,7 @@ void wallet_psbt_free(void)
         s_txv = NULL;
     }
     memset(&s_sp, 0, sizeof s_sp);
+    memset(&s_sp_in, 0, sizeof s_sp_in);
+    memset(s_psbt_hash, 0, sizeof s_psbt_hash);
     s_status = WPSBT_STOP;
 }

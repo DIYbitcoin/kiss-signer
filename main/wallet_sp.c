@@ -53,6 +53,8 @@ static int b32m_encode(const char *hrp, const uint8_t *data, size_t n_data,
 // ---- BIP352 derivation (not in the sim build: no secp there) ---------------
 #ifndef SIMULATOR
 #include <secp256k1.h>
+#include <secp256k1_extrakeys.h>
+#include <secp256k1_schnorrsig.h>
 #include <wally_crypto.h>
 #include <wally_bip32.h>
 
@@ -76,6 +78,49 @@ int sp_receive_keys(const struct ext_key *master, bool testnet,
                                    BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
         goto out;
     memcpy(spend_pub33, k.pub_key, 33);
+    ret = 0;
+out:
+    wally_bzero(&k, sizeof k);
+    return ret;
+}
+
+int sp_scan_export_keys(const struct ext_key *master, bool testnet,
+                        uint8_t scan_priv32[32], uint8_t spend_pub33[33])
+{
+    if (!master) return -1;
+    const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
+    uint32_t coin = testnet ? 1u : 0u;
+    uint32_t scan_path[5]  = { 352u | H, coin | H, 0u | H, 1u | H, 0u };
+    uint32_t spend_path[5] = { 352u | H, coin | H, 0u | H, 0u | H, 0u };
+    struct ext_key k;
+    int ret = -1;
+    if (bip32_key_from_parent_path(master, scan_path, 5,
+                                   BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
+        goto out;
+    memcpy(scan_priv32, k.priv_key + 1, 32);     // ext_key priv_key[0] is 0x00
+    if (bip32_key_from_parent_path(master, spend_path, 5,
+                                   BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
+        goto out;
+    memcpy(spend_pub33, k.pub_key, 33);
+    ret = 0;
+out:
+    wally_bzero(&k, sizeof k);
+    return ret;
+}
+
+int sp_spend_privkey(const struct ext_key *master, bool testnet,
+                     uint8_t spend_priv32[32])
+{
+    if (!master) return -1;
+    const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
+    uint32_t coin = testnet ? 1u : 0u;
+    uint32_t spend_path[5] = { 352u | H, coin | H, 0u | H, 0u | H, 0u };
+    struct ext_key k;
+    int ret = -1;
+    if (bip32_key_from_parent_path(master, spend_path, 5,
+                                   BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK)
+        goto out;
+    memcpy(spend_priv32, k.priv_key + 1, 32);    // ext_key priv_key[0] is 0x00
     ret = 0;
 out:
     wally_bzero(&k, sizeof k);
@@ -389,19 +434,104 @@ int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
     sp_dleq_challenge(a_pub33, b33, share33, G, R1, R2, m32, e_check);
     return memcmp(e, e_check, 32) == 0 ? 0 : -8;
 }
+
+// ---- BIP376: spend a received silent-payment output ------------------------
+
+int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[32],
+                         const uint8_t output_xonly32[32], uint8_t d_out32[32])
+{
+    secp256k1_context *ctx = sp_ctx();
+    uint8_t d[32];
+    memcpy(d, spend_priv32, 32);
+    int ret = -1;
+    if (!secp256k1_ec_seckey_verify(ctx, d)) { ret = -1; goto out; }
+    if (!secp256k1_ec_seckey_verify(ctx, tweak32)) { ret = -2; goto out; }
+    // d = (b_spend + tweak) mod n; fails only if the sum is 0
+    if (!secp256k1_ec_seckey_tweak_add(ctx, d, tweak32)) { ret = -3; goto out; }
+    // BIP376 MUST: the x-coordinate of d*G must equal the P2TR output key, else
+    // the coordinator's tweak would steer a signature onto a key we don't own.
+    secp256k1_pubkey pub;
+    uint8_t ser[33];
+    size_t sl = sizeof ser;
+    if (!secp256k1_ec_pubkey_create(ctx, &pub, d)) { ret = -4; goto out; }
+    secp256k1_ec_pubkey_serialize(ctx, ser, &sl, &pub, SECP256K1_EC_COMPRESSED);
+    if (memcmp(ser + 1, output_xonly32, 32) != 0) { ret = -5; goto out; }  // theft guard
+    memcpy(d_out32, d, 32);
+    ret = 0;
+out:
+    memset(d, 0, sizeof d);
+    return ret;
+}
+
+int sp_schnorr_sign(const uint8_t d32[32], const uint8_t msg32[32],
+                    const uint8_t aux32[32], uint8_t sig64[64])
+{
+    secp256k1_context *ctx = sp_ctx();
+    secp256k1_keypair kp;
+    int ret = -1;
+    if (!secp256k1_keypair_create(ctx, &kp, d32)) { ret = -1; goto out; }
+    // aux_rand is deterministic-per-psbt (never NULL): reproducible signatures.
+    if (!secp256k1_schnorrsig_sign32(ctx, sig64, msg32, &kp, aux32)) { ret = -2; goto out; }
+    // spec-style self-verify before returning
+    secp256k1_xonly_pubkey xo;
+    if (secp256k1_keypair_xonly_pub(ctx, &xo, NULL, &kp) &&
+        secp256k1_schnorrsig_verify(ctx, sig64, msg32, 32, &xo))
+        ret = 0;
+    else
+        ret = -3;
+out:
+    wally_bzero(&kp, sizeof kp);
+    return ret;
+}
+
+int sp_schnorr_verify(const uint8_t xonly32[32], const uint8_t msg32[32],
+                      const uint8_t sig64[64])
+{
+    secp256k1_context *ctx = sp_ctx();
+    secp256k1_xonly_pubkey xo;
+    if (!secp256k1_xonly_pubkey_parse(ctx, &xo, xonly32)) return -1;
+    return secp256k1_schnorrsig_verify(ctx, sig64, msg32, 32, &xo) ? 0 : -2;
+}
+
+int sp_label_spend(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
+                   uint32_t label, uint8_t out_spend33[33])
+{
+    secp256k1_context *ctx = sp_ctx();
+    uint8_t msg[32 + 4], tw[32];
+    memcpy(msg, scan_priv32, 32);
+    msg[32] = (uint8_t)(label >> 24);
+    msg[33] = (uint8_t)(label >> 16);
+    msg[34] = (uint8_t)(label >> 8);
+    msg[35] = (uint8_t)label;
+    sp_tagged_hash("BIP0352/Label", msg, sizeof msg, tw);
+    secp256k1_pubkey p;
+    size_t sl = 33;
+    int ret = -1;
+    if (!secp256k1_ec_pubkey_parse(ctx, &p, spend_pub33, 33)) { ret = -1; goto out; }
+    if (!secp256k1_ec_pubkey_tweak_add(ctx, &p, tw)) { ret = -2; goto out; }
+    secp256k1_ec_pubkey_serialize(ctx, out_spend33, &sl, &p, SECP256K1_EC_COMPRESSED);
+    ret = 0;
+out:
+    wally_bzero(msg, sizeof msg);
+    wally_bzero(tw, sizeof tw);
+    return ret;
+}
 #endif  // !SIMULATOR
 
-int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
-                      bool testnet, char *out, size_t cap)
+// version 0 + convertbits(payload, 8 -> 5, pad), then bech32m under hrp. Shared
+// by the sp/tsp address (66-byte payload) and the spscan/tspscan export
+// (65-byte payload). data holds 1 version group + ceil(plen*8/5) groups.
+static int b32m_v0(const char *hrp, const uint8_t *payload, size_t plen,
+                   char *out, size_t cap)
 {
-    // version 0 + convertbits(scan||spend, 8 -> 5, pad): 66 bytes -> 106 groups
-    uint8_t data[1 + 106];
+    uint8_t data[1 + 128];                       // 65B payload -> 104 groups
+    if (1 + (plen * 8 + 4) / 5 > sizeof data) return -1;
     size_t n = 0;
     data[n++] = 0;
     uint32_t acc = 0;
     int bits = 0;
-    for (size_t i = 0; i < 66; i++) {
-        acc = (acc << 8) | (i < 33 ? scan33[i] : spend33[i - 33]);
+    for (size_t i = 0; i < plen; i++) {
+        acc = (acc << 8) | payload[i];
         bits += 8;
         while (bits >= 5) {
             bits -= 5;
@@ -409,5 +539,25 @@ int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
         }
     }
     if (bits) data[n++] = (acc << (5 - bits)) & 0x1f;
-    return b32m_encode(testnet ? "tsp" : "sp", data, n, out, cap);
+    return b32m_encode(hrp, data, n, out, cap);
+}
+
+int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
+                      bool testnet, char *out, size_t cap)
+{
+    uint8_t payload[66];
+    memcpy(payload, scan33, 33);
+    memcpy(payload + 33, spend33, 33);
+    return b32m_v0(testnet ? "tsp" : "sp", payload, sizeof payload, out, cap);
+}
+
+int sp_scan_encode(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
+                   bool testnet, char *out, size_t cap)
+{
+    uint8_t payload[65];
+    memcpy(payload, scan_priv32, 32);
+    memcpy(payload + 32, spend_pub33, 33);
+    int rc = b32m_v0(testnet ? "tspscan" : "spscan", payload, sizeof payload, out, cap);
+    memset(payload, 0, sizeof payload);          // carries the scan private key
+    return rc;
 }
