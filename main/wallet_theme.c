@@ -62,6 +62,19 @@ const lv_font_t *wt_font28(void)
     return &s_font28[font_class_for_lang(i18n_get_lang())];
 }
 
+const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
+{
+    if (!txt || !*txt)
+        return wt_font28();
+    lv_point_t sz;
+    // measured per locale: the same sentence is far taller in ja/ko/zh, and a
+    // Cyrillic or Vietnamese translation often runs 40% longer than the English
+    lv_text_get_size(&sz, txt, wt_font28(), 0, 0, w, LV_TEXT_FLAG_NONE);
+    if (sz.y <= max_h)
+        return wt_font28();
+    return wt_font14();
+}
+
 static int s_accent = WT_ACC_MONO;
 
 static const uint32_t ACC_HEX[WT_ACC_N] = {

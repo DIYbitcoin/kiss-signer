@@ -231,7 +231,9 @@ static uint32_t s_gest_idle;       // ms since the last gesture activity (abando
 static bool s_gest_swallow;        // ignore the touch that just woke the screensaver
 
 // ---- idle attract-mode screensaver ----
-#define IDLE_MS 60000              // show the screensaver after 1min with no touch (menu/game-over)
+#define IDLE_MS 300000             // show the screensaver after 5min with no touch (menu/game-over).
+                                   // Cosmetic only: WALLET_AUTOLOCK_MS (2 min) is the security timeout
+                                   // and is deliberately much shorter.
 #define SAVER_N 6
 static lv_obj_t *s_saver;          // full-screen backdrop (img_saver)
 static lv_obj_t *s_saver_fruit[SAVER_N];
@@ -1462,11 +1464,13 @@ static void fp_card_open(void) {
   lv_obj_t *b = lv_label_create(ovl);
   lv_label_set_text(b, tr(STR_H_FP_CARD_B));
   lv_obj_set_style_text_color(b, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_font(b, wt_font14(), 0);
+  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_H_FP_CARD_B), 720, 152), 0);
+  lv_obj_set_width(b, 720);
+  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 150);
 
-  wt_diagram_fp(ovl, 300);                   // WORDS + PASSPHRASE -> FINGERPRINT
+  wt_diagram_fp(ovl, 318);                   // WORDS + PASSPHRASE -> FINGERPRINT
   wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, fp_card_close_cb, NULL);
   wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
