@@ -65,12 +65,19 @@ static void help_open_d(const char *title, const char *body, int diagram)
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
 
-    lv_obj_t *b = wt_lbl(ovl, body, 0, 0, wt_font14(), WT_MUT);
+    // body sizes itself: short copy reads big, a long translation stays inside
+    // the card. Width-capped + wrapping, so the hard newlines written for the
+    // small font can never run off the edge at the big one.
+    // body runs from y=160 to the diagram (y=320) or to the OK pill (y=392)
+    int bw = 720, bh = diagram == DIAG_NONE ? 225 : 155;
+    lv_obj_t *b = wt_lbl(ovl, body, 0, 0, wt_body_font(body, bw, bh), WT_MUT);
+    lv_obj_set_width(b, bw);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
 
-    if (diagram == DIAG_FP)   wt_diagram_fp(ovl, 320);
-    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl, 320);
+    if (diagram == DIAG_FP)   wt_diagram_fp(ovl, 330);
+    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl, 330);
 
     wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, help_ok_cb, ovl);
     wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
@@ -196,8 +203,17 @@ static void pair_screen(void)
     wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
     // The silent-payment SCAN KEY is a coordinator export too, but it is a
     // PRIVATE key, unlike the xpub/zpub above: kept a separate, warned action so
-    // it never reads as just another thing you hand out.
-    wt_pill(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 404, 190, sp_key_warn_cb, NULL);
+    // it never reads as just another thing you hand out. Two-line like the
+    // category pills above: "SCAN KEY" alone doesn't say WHICH key, and the
+    // full phrase won't fit one line in the longer languages.
+    lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 400, 190, 60,
+                             sp_key_warn_cb, NULL);
+    lv_obj_align(lv_obj_get_child(skp, 0), LV_ALIGN_TOP_MID, 0, 9);
+    lv_obj_t *sksub = lv_label_create(skp);
+    lv_label_set_text(sksub, tr(STR_S_SP_BADGE));
+    lv_obj_set_style_text_font(sksub, wt_font14(), 0);
+    lv_obj_set_style_text_color(sksub, WT_MUT, 0);
+    lv_obj_align(sksub, LV_ALIGN_BOTTOM_MID, 0, -8);
     pair_refresh();
 }
 
@@ -243,7 +259,10 @@ static void sp_key_warn_cb(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_S));
-    wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108, wt_font14(), WT_MUT);
+    lv_obj_t *wb = wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108,
+                          wt_body_font(tr(STR_R_SP_WARN_B), 700, 280), WT_MUT);
+    lv_obj_set_width(wb, 700);
+    lv_label_set_long_mode(wb, LV_LABEL_LONG_WRAP);
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_R_SP_SHOW), 48, 404, 300, sp_key_show_cb, NULL);
     wt_pill_primary(sp);
     wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, sp_key_back_cb, NULL);
@@ -303,9 +322,10 @@ static void words_warn_screen(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
-    lv_obj_t *b = wt_lbl(s_scr, tr(STR_I_WARN_B),
-        48, 116, wt_font14(), WT_MUT);
-    (void)b;
+    lv_obj_t *b = wt_lbl(s_scr, tr(STR_I_WARN_B), 48, 116,
+                         wt_body_font(tr(STR_I_WARN_B), 700, 270), WT_MUT);
+    lv_obj_set_width(b, 700);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, 404, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
     wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, 404, 240, verify_copy_cb, NULL);

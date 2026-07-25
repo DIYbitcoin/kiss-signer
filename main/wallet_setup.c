@@ -273,6 +273,12 @@ static void words_screen(void)
         mk_lbl(buf, 48 + c * (cols == 4 ? 184 : 300), 108 + r * 42,
                wt_font14(), INK_COL);
     }
+    // the one rule that matters while they are copying: loud, under the grid,
+    // not buried at the end of the subtitle
+    lv_obj_t *po = mk_lbl(tr(STR_W_PAPER_ONLY), 48, 352,
+                          wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40), WARN_COL);
+    lv_obj_set_width(po, 700);
+    lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
     mk_pill(tr(STR_W_WROTE), 430, 404, 320, words_go_cb, NULL);
 }
 
