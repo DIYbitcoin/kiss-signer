@@ -63,6 +63,7 @@ enum {
     STR_W_RAND_B,
     STR_W_WRITE_T,
     STR_W_WRITE_S,
+    STR_W_PAPER_ONLY,
     STR_W_WROTE,
     STR_W_PROVE_T,
     STR_W_PROVE_S,

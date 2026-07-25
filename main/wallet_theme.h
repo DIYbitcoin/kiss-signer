@@ -36,6 +36,11 @@ const lv_font_t *wt_font14(void);
 const lv_font_t *wt_font14_for_lang(int lang);  // native-name rows in the language picker
 const lv_font_t *wt_font23(void);   // wallet-home tile titles (baked-art size)
 const lv_font_t *wt_font28(void);
+// Largest body font that fits `txt` into w x max_h, measured for the ACTIVE
+// locale's font. Explainers should read at arm's length (and on a 3.5" port),
+// so short copy gets the big font; a long translation degrades to the small one
+// instead of overflowing its card. Shorten the copy to get the big size.
+const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);

@@ -347,10 +347,14 @@ static void caution_help_cb(lv_event_t *e)
     BODY_ADD("%s", tr(STR_S_WHY_FOOT));
     #undef BODY_ADD
 
+    // several cautions can stack here, so this body is the longest in the app:
+    // auto-fit keeps it readable when it is short and inside the card when not
     lv_obj_t *b = lv_label_create(ovl);
     lv_label_set_text(b, body);
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_font14(), 0);
+    lv_obj_set_style_text_font(b, wt_body_font(body, 720, 300), 0);
+    lv_obj_set_width(b, 720);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 96);
 
@@ -383,10 +387,13 @@ static void rbf_help_cb(lv_event_t *e)
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
 
+    const char *rbf_body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
     lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF));
+    lv_label_set_text(b, rbf_body);
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_font14(), 0);
+    lv_obj_set_style_text_font(b, wt_body_font(rbf_body, 720, 230), 0);
+    lv_obj_set_width(b, 720);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
@@ -956,7 +963,9 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_t *b = lv_label_create(ovl);
     lv_label_set_text(b, tr(STR_S_COORD_B));
     lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_font14(), 0);
+    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_S_COORD_B), 720, 144), 0);
+    lv_obj_set_width(b, 720);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
 
