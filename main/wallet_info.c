@@ -156,6 +156,8 @@ static void pair_back_cb(lv_event_t *e)
     info_screen();
 }
 
+static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
+
 static void pair_screen(void)
 {
     swap_screen();
@@ -192,7 +194,59 @@ static void pair_screen(void)
            400, 404, wt_font14(), WT_INK);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
+    // The silent-payment SCAN KEY is a coordinator export too, but it is a
+    // PRIVATE key, unlike the xpub/zpub above: kept a separate, warned action so
+    // it never reads as just another thing you hand out.
+    wt_pill(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 404, 190, sp_key_warn_cb, NULL);
     pair_refresh();
+}
+
+// ---- silent-payment SCAN KEY export (BIP-392 sp(spscan...)), warning first ----
+// Hands a coordinator the scan PRIVATE key so it can DETECT payments to this
+// wallet's silent-payment address. It can never spend. Deliberate two-step
+// behind an honest warning, not bundled silently into a wallet import.
+static void sp_key_back_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    pair_screen();
+}
+
+static void sp_key_show_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+    lv_obj_t *qr = NULL;
+    wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
+
+    char key[256];
+    if (wallet_session_sp_scan_export(key, sizeof key) != 0)
+        snprintf(key, sizeof key, "%s", tr(STR_C_SESSION_LOCKED));
+    if (qr)
+        lv_qrcode_update(qr, key, (uint32_t)strlen(key));
+
+    // machine-import string: wrapped whole, not grouped like an address
+    lv_obj_t *k = wt_lbl(s_scr, key, 400, 100, wt_font14(), WT_INK);
+    lv_obj_set_width(k, 360);
+    lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
+
+    lv_obj_t *note = wt_lbl(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, wt_font14(), WT_MUT);
+    lv_obj_set_width(note, 360);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+
+    wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 160, sp_key_back_cb, NULL);
+}
+
+static void sp_key_warn_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_S));
+    wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108, wt_font14(), WT_MUT);
+    lv_obj_t *sp = wt_pill(s_scr, tr(STR_R_SP_SHOW), 48, 404, 300, sp_key_show_cb, NULL);
+    wt_pill_primary(sp);
+    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, sp_key_back_cb, NULL);
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----

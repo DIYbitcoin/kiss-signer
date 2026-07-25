@@ -108,12 +108,18 @@ static void vfy_norm(const char *in, char *out, size_t cap) {
   for (; *in && *in != '?' && o + 1 < cap; in++)
     out[o++] = *in;
   out[o] = 0;
+  // bech32 families we can be shown: segwit (bc1/tb1) and silent payments
+  // (sp1/tsp1, ~117 chars). QR alphanumeric mode is uppercase, so fold those.
+  static const char *const HRP[] = { "bc1", "tb1", "sp1", "tsp1" };
   int b32 = 0;
-  if (o > 3) {                           // shorter scans can't even hold "bc1x"
-    char p0 = out[0] >= 'A' && out[0] <= 'Z' ? out[0] + 32 : out[0];
-    char p1 = out[1] >= 'A' && out[1] <= 'Z' ? out[1] + 32 : out[1];
-    b32 = out[2] == '1' &&
-          ((p0 == 'b' && p1 == 'c') || (p0 == 't' && p1 == 'b'));
+  for (size_t k = 0; !b32 && k < sizeof HRP / sizeof HRP[0]; k++) {
+    size_t n = strlen(HRP[k]), i = 0;
+    if (o <= n) continue;
+    for (; i < n; i++) {
+      char c = out[i] >= 'A' && out[i] <= 'Z' ? out[i] + 32 : out[i];
+      if (c != HRP[k][i]) break;
+    }
+    b32 = (i == n);
   }
   if (b32)
     for (size_t i = 0; i < o; i++)
@@ -140,34 +146,53 @@ static void vfy_done_cb(lv_event_t *e) {
   wallet_recv_open(s_parent);
 }
 
+// Is this our own silent-payment address? It is not on any bc1/tb1 chain, so
+// vfy_find can never match it: compare against the one we derive ourselves.
+static int vfy_is_sp_mine(const char *addr) {
+  char mine[128];
+  if (wallet_session_sp_address(mine, sizeof mine) != 0)
+    return 0;
+  return strcmp(mine, addr) == 0;
+}
+
 static void vfy_result(const char *txt, size_t len) {
   (void)len;
-  char addr[92], grouped[120], buf[200];   // translated line, 3 bytes/char worst
+  // must hold a silent-payment address (~117 chars) whole: a truncated address
+  // silently becomes a DIFFERENT address, which is the one thing this screen
+  // exists to rule out. grouped adds a space every 4 chars.
+  char addr[128], grouped[200], buf[200];  // translated line, 3 bytes/char worst
   vfy_norm(txt, addr, sizeof addr);
   int change = 0;
   uint32_t idx = 0;
   int mine = vfy_find(addr, &change, &idx);
+  int sp_mine = !mine && vfy_is_sp_mine(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
   wt_group4(addr, grouped, sizeof grouped);
 
-  if (mine) {
-    lv_obj_t *t = wt_lbl(s_scr, tr_sym(LV_SYMBOL_OK, STR_R_YOURS),
-                         48, 130, wt_font28(), WT_OK);
-    (void)t;
-    lv_obj_t *sg = wt_addr_spans(s_scr, grouped, 700, wt_font28());
-    lv_obj_set_pos(sg, 48, 186);
-    if (change)
+  // a silent-payment address needs ~3 lines even at font14; the note below has
+  // to start under whatever the address actually occupies, not a fixed y
+  bool longaddr = strlen(addr) > 64;
+  lv_obj_t *sg = wt_addr_spans(s_scr, grouped, 700,
+                               longaddr ? wt_font14() : wt_font28());
+  lv_obj_set_pos(sg, 48, 186);
+  lv_obj_update_layout(sg);
+  int note_y = 186 + lv_obj_get_height(sg) + 16;
+  if (note_y < 280) note_y = 280;
+
+  if (mine || sp_mine) {
+    wt_lbl(s_scr, tr_sym(LV_SYMBOL_OK, STR_R_YOURS), 48, 130, wt_font28(), WT_OK);
+    if (sp_mine)
+      snprintf(buf, sizeof buf, "%s", tr(STR_S_SP_BADGE));
+    else if (change)
       snprintf(buf, sizeof buf, tr(STR_R_CHANGE_FMT), (unsigned)idx);
     else
       snprintf(buf, sizeof buf, tr(STR_R_RECV_FMT), (unsigned)idx);
-    wt_lbl(s_scr, buf, 48, 280, wt_font14(), WT_MUT);
+    wt_lbl(s_scr, buf, 48, note_y, wt_font14(), WT_MUT);
   } else {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_NOT_YOURS),
            48, 130, wt_font28(), WT_STOP);
-    lv_obj_t *sg = wt_addr_spans(s_scr, grouped, 700, wt_font28());
-    lv_obj_set_pos(sg, 48, 186);
-    lv_obj_t *n = wt_wrap(s_scr, 48, 280, 700);
+    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
     lv_label_set_text(n, tr(STR_R_NOT_B));
   }
 
@@ -197,8 +222,6 @@ static void sp_back_cb(lv_event_t *e) {
   wallet_recv_open(s_parent);
 }
 
-static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
-
 static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
@@ -222,9 +245,6 @@ static void sp_addr_open(lv_obj_t *parent) {
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
   wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
-  // hand the scan key to a coordinator so it can DETECT payments to this
-  // address (warned two-step; the address alone tells a scanner nothing)
-  wt_pill(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 404, 270, sp_key_warn_cb, NULL);
 }
 
 static void sp_open_cb(lv_event_t *e) {
@@ -232,56 +252,6 @@ static void sp_open_cb(lv_event_t *e) {
   s_addr_sg = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   sp_addr_open(s_parent);
-}
-
-// ---- scan-key export (BIP-392 sp(spscan...) descriptor), warning first ----
-// A silent-payment address is unlinkable on-chain, so a coordinator can only
-// find payments with the SCAN PRIVATE key. Handing it over is a real, permanent
-// privacy decision (it reveals every receive, forever, but can never spend), so
-// it is a deliberate two-step behind an honest warning - not bundled silently
-// into a wallet import. Deniability holds: this is only THIS passphrase's key.
-static void sp_addr_back_cb(lv_event_t *e) {
-  (void)e;
-  s_addr_sg = NULL;
-  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-  sp_addr_open(s_parent);
-}
-
-static void sp_key_show_cb(lv_event_t *e) {
-  (void)e;
-  s_addr_sg = NULL;
-  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-  s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
-  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
-
-  char key[256];
-  if (wallet_session_sp_scan_export(key, sizeof(key)) != 0)
-    snprintf(key, sizeof(key), "%s", tr(STR_C_SESSION_LOCKED));
-  if (s_qr)
-    lv_qrcode_update(s_qr, key, (uint32_t)strlen(key));
-
-  // machine-import string: wrapped whole, not grouped like an address (nobody
-  // compares this by eye, and grouping would break a copy off the screen)
-  lv_obj_t *k = wt_lbl(s_scr, key, 400, 100, wt_font14(), WT_INK);
-  lv_obj_set_width(k, 360);
-  lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
-
-  lv_obj_t *note = wt_lbl(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, wt_font14(), WT_MUT);
-  lv_obj_set_width(note, 360);
-  lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
-
-  wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 160, sp_addr_back_cb, NULL);
-}
-
-static void sp_key_warn_cb(lv_event_t *e) {
-  (void)e;
-  s_addr_sg = NULL;
-  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-  s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_S));
-  wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108, wt_font14(), WT_MUT);
-  lv_obj_t *sp = wt_pill(s_scr, tr(STR_R_SP_SHOW), 48, 404, 300, sp_key_show_cb, NULL);
-  wt_pill_primary(sp);
-  wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, sp_addr_back_cb, NULL);
 }
 
 void wallet_recv_open(lv_obj_t *parent) {

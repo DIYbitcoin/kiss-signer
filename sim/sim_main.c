@@ -443,11 +443,6 @@ int main(void) {
   save("/tmp/sim_recv.ppm");
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");
-  touch(335, 430); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
-  save("/tmp/sim_sp_warn.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // SHOW THE SCAN KEY -> export
-  save("/tmp/sim_sp_key.ppm");
-  touch(128, 430); pump(3); release(); pump(6);     // DONE -> SP address view
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
   touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
@@ -460,6 +455,12 @@ int main(void) {
     const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
     wallet_scan_inject(bad, strlen(bad)); pump(6);
     save("/tmp/sim_vfy_no.ppm");
+    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    // our OWN silent-payment address: 117 chars, longer than any bc1/tb1
+    const char *sp = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xq"
+                     "h6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
+    wallet_scan_inject(sp, strlen(sp)); pump(6);
+    save("/tmp/sim_vfy_sp.ppm");
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
@@ -481,6 +482,11 @@ int main(void) {
   touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_pair_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(295, 430); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
+  save("/tmp/sim_sp_warn.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // SHOW THE SCAN KEY -> export
+  save("/tmp/sim_sp_key.ppm");
+  touch(128, 430); pump(3); release(); pump(6);     // DONE -> pair screen
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK

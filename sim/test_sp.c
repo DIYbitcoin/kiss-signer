@@ -284,6 +284,26 @@ static void sp_test_receive(void) {
           sp_address_encode(scan, spend, false, addr, sizeof addr) == 0 &&
           strcmp(addr, SP1_MAIN) == 0);
 
+    // the exact call the Receive screen makes, at the buffer size it passes
+    {
+        char sess[128];
+        int slen;
+        wallet_set_network(0);
+        spchk("session sp address mainnet rc", wallet_session_sp_address(sess, sizeof sess) == 0);
+        slen = (int)strlen(sess);
+        if (strcmp(sess, SP1_MAIN) != 0) printf("  got  %s\n  want %s\n", sess, SP1_MAIN);
+        spchk("session sp address mainnet full + correct",
+              slen == 116 && strcmp(sess, SP1_MAIN) == 0);
+        wallet_set_network(1);
+        spchk("session sp address testnet rc", wallet_session_sp_address(sess, sizeof sess) == 0);
+        slen = (int)strlen(sess);
+        if (strcmp(sess, TSP1_TEST) != 0) printf("  got  %s (%d)\n  want %s (%d)\n",
+                                                 sess, slen, TSP1_TEST, (int)strlen(TSP1_TEST));
+        spchk("session sp address testnet full + correct",
+              slen == 117 && strcmp(sess, TSP1_TEST) == 0);
+        wallet_set_network(0);
+    }
+
     spchk("receive keys testnet rc", sp_receive_keys(m, true, scan, spend) == 0);
     spchk("receive scan key testnet", memcmp(scan, SP_SCAN_TEST, 33) == 0);
     spchk("receive spend key testnet", memcmp(spend, SP_SPEND_TEST, 33) == 0);
