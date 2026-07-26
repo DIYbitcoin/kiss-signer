@@ -88,33 +88,42 @@ static const slot_t SLOTS[] = {
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
     // wallet_info.c — the note under each action pill
-    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340, 89 },
-    { "wallet/words-note",STR_I_WORDS_BTN_NOTE, 340, 90 },
+    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340, 88 },
+    { "wallet/words-note",STR_I_WORDS_BTN_NOTE, 340, 88 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
 // Pill labels. A button must never be smaller than the note beside it, and
 // notes cap at 23, so font14 here is a FAILURE: it means the box is too narrow
 // for that translation and the pill needs widening (or the word shortening).
-typedef struct { const char *surface; int key; int w, h, primary; } pill_t;
+// `key_action` marks a button whose label the user has to READ to act, and act
+// correctly: the one that spends, the one that erases, the one that proves an
+// address. Those may never render at font14 in any locale -- if one does, this
+// program exits nonzero and CI stops. The rest are navigation ("BACK", "NEXT"):
+// shorter words, and the user already knows what they do, so 14 is survivable.
+typedef struct {
+    const char *surface;
+    int key, w, h, primary, key_action;
+} pill_t;
 static const pill_t PILLS[] = {
-    { "sign/hold",        STR_S_HOLD_TO_SIGN, 272, 52, 1 },
-    { "sign/back",        STR_C_BACK,         140, 52, 0 },
-    { "wallet/pair",      STR_I_PAIR_T,       340, 52, 1 },
-    { "wallet/words",     STR_I_WORDS_BTN,    340, 52, 0 },
-    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0 },
-    { "set/wipe",         STR_G_WIPE,         340, 52, 0 },
-    { "recv/verify",      STR_R_VERIFY,       148, 52, 0 },
-    { "recv/next",        STR_R_NEXT,         130, 52, 0 },
-    { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0 },
-    { "recv/fresh",       STR_R_FRESH,        124, 44, 0 },
-    { "pair/scankey",     STR_R_SP_SCAN_BTN,  190, 60 - 22, 0 },
-    { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0 },
-    { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0 },
-    { "common/back",      STR_C_BACK,         140, 44, 0 },
-    { "common/done",      STR_C_DONE,         140, 52, 0 },
-    { "common/ok",        STR_C_OK,           200, 52, 0 },
-    { "common/cancel",    STR_C_CANCEL,       140, 52, 0 },
+    { "sign/hold",        STR_S_HOLD_TO_SIGN, 272, 66, 1, 1 },
+    { "sign/ack",         STR_C_I_UNDERSTAND, 252, 66, 1, 1 },
+    { "sign/details",     STR_S_DETAILS,      170, 66, 0, 0 },
+    { "sign/back",        STR_C_BACK,         140, 66, 0, 0 },
+    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 1, 1 },
+    { "wallet/words",     STR_I_WORDS_BTN,    340, 66, 0, 1 },
+    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0, 1 },
+    { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
+    { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
+    { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
+    { "recv/fresh",       STR_R_FRESH,        124, 44, 0, 0 },
+    { "pair/scankey",     STR_R_SP_SCAN_BTN,  190, 60 - 22, 0, 0 },
+    { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0, 0 },
+    { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0, 0 },
+    { "common/back",      STR_C_BACK,         140, 44, 0, 0 },
+    { "common/done",      STR_C_DONE,         140, 52, 0, 0 },
+    { "common/ok",        STR_C_OK,           200, 52, 0, 0 },
+    { "common/cancel",    STR_C_CANCEL,       140, 52, 0, 0 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
 
@@ -135,7 +144,9 @@ int main(int argc, char **argv)
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    int total_small = 0;
+    int total_small = 0, key_small = 0, nfail = 0;
+#define MAXFAIL 64
+    static char fails[MAXFAIL][96];
     for (int l = 0; l < I18N_LANG_N; l++) {
         const i18n_lang_t *li = i18n_lang_info(l);
         if (argc > 1) {                       // only the locales asked for
@@ -177,26 +188,49 @@ int main(int argc, char **argv)
         char plines[NPILL][160];
         for (int i = 0; i < NPILL; i++) {
             const char *txt = tr(PILLS[i].key);
-            const lv_font_t *f = wt_pill_font(txt, PILLS[i].w, PILLS[i].h,
-                                              PILLS[i].primary);
+            wt_pill_fit_t fit = wt_pill_fit(txt, PILLS[i].w, PILLS[i].h,
+                                            PILLS[i].primary);
+            const lv_font_t *f = fit.font;
+            bool wrap = fit.wrap;
             int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
             lv_point_t sz;
             lv_text_get_size(&sz, txt, wt_font23(), 1, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
-            if (rung == 14) pbad++;
+            if (rung == 14) {
+                pbad++;
+                if (PILLS[i].key_action) {
+                    key_small++;
+                    snprintf(fails[nfail < MAXFAIL ? nfail : MAXFAIL - 1],
+                             sizeof fails[0], "%s  %s (%dpx of %dpx at 23)",
+                             li->code, PILLS[i].surface, (int)sz.x,
+                             PILLS[i].w - 28);
+                    if (nfail < MAXFAIL) nfail++;
+                }
+            }
             snprintf(plines[i], sizeof plines[i],
-                     "  pill %-15s font%-2d  %3dpx / %3dpx%s", PILLS[i].surface,
-                     rung, (int)sz.x, PILLS[i].w - 28,
-                     rung == 14 ? "  WIDEN" : "");
+                     "  pill %-15s font%-2d%s  %3dpx / %3dpx%s", PILLS[i].surface,
+                     rung, wrap ? " wrap" : "     ", (int)sz.x, PILLS[i].w - 28,
+                     rung == 14 ? (PILLS[i].key_action ? "  FAIL" : "  widen") : "");
         }
         printf("%-6s %-22s %2d/%d at font14, %d/%d pills\n", li->code, li->native,
                small, NSLOT, pbad, NPILL);
         for (int i = 0; i < NSLOT; i++)
             if (strstr(lines[i], "cut ")) puts(lines[i]);
         for (int i = 0; i < NPILL; i++)
-            if (strstr(plines[i], "WIDEN")) puts(plines[i]);
+            if (strstr(plines[i], "widen") || strstr(plines[i], "FAIL"))
+                puts(plines[i]);
         total_small += small + pbad;
     }
     printf("\ntotal at font14: %d\n", total_small);
+
+    if (key_small) {
+        printf("\nFAIL: %d key-action button(s) fell to font14:\n", key_small);
+        for (int i = 0; i < nfail; i++)
+            printf("  %s\n", fails[i]);
+        puts("\nA button that spends, erases or verifies must not be the\n"
+             "smallest type on its screen. Fix by shortening that locale's\n"
+             "label, widening the pill, or making it tall enough to wrap.");
+        return 1;
+    }
     return 0;
 }

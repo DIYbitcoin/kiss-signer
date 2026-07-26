@@ -299,9 +299,14 @@ void wallet_recv_open(lv_obj_t *parent) {
   // pixels too narrow shrinks all five. Widths are proportioned to the longest
   // label each one carries rather than to a round number.
   lv_obj_t *row[5];
-  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT, 398, 404, 56, prev_cb, NULL);
-  row[1] = wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 464, 404, 130, next_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 604, 404, 148, vfy_scan, NULL);
+  // A symmetric pair of chevrons under the ADDRESS #N counter they page, not
+  // "<" beside "> NEXT". The word cost 74px, and this row had none to spare:
+  // VERIFY is the button that proves an address is yours, and at 148px wide it
+  // was rendering at font14 in thirteen languages. The counter above says what
+  // the arrows step through, so the label was carrying no weight.
+  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, 404, 56, prev_cb, NULL);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, 404, 56, next_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
   row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
   row[4] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
   wt_pill_row(row, 5);

@@ -125,7 +125,7 @@
   "G_TY_LEGACY_NOTE": "o tipo mais antigo, com taxas maiores.",
   "G_SEPARATE": "cada rede + tipo é uma carteira separada",
   "G_CREATE_NEW": "CRIAR NOVA CARTEIRA",
-  "G_CREATE_NOTE": "criar ou restaurar. SUBSTITUI o que esta aqui.",
+  "G_CREATE_NOTE": "criar ou restaurar. SUBSTITUI o que está aqui.",
   "G_WIPE": "APAGAR CARTEIRA",
   "G_WIPE_NOTE": "apaga a carteira daqui. palavras + passphrase restauram-na.",
   "G_NOERASE_T": "NÃO FOI POSSÍVEL APAGAR",
