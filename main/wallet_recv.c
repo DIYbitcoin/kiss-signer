@@ -181,9 +181,12 @@ static void vfy_result(const char *txt, size_t len) {
     lv_label_set_long_mode(shown, LV_LABEL_LONG_WRAP);
   } else {
     wt_group4(addr, grouped, sizeof grouped);
+    // Same reasoning as the silent-payment receive screen: long meant font14
+    // here too. This column is 700 wide, so 23 wraps a grouped SP address in
+    // three lines and there is no reason to go smaller.
     bool longaddr = strlen(addr) > 64;
     shown = wt_addr_spans(s_scr, grouped, 700,
-                          longaddr ? wt_font14() : wt_font28());
+                          longaddr ? wt_font23() : wt_font28());
     lv_obj_set_pos(shown, 48, 186);
   }
   lv_obj_update_layout(shown);
@@ -259,7 +262,13 @@ static void sp_addr_open(lv_obj_t *parent) {
 
   char grouped[200];
   wt_group4(addr, grouped, sizeof(grouped));
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font14());
+  // A silent-payment address is 116 (sp1) or 117 (tsp1) characters, nearly
+  // three times a bech32 one, and it used to render at font14 purely because it
+  // is long -- which made the one address a user is meant to read aloud and
+  // compare the smallest text on the device. 23 is the largest rung that still
+  // fits the 200px between this column's top and the derivation path: ~30
+  // characters a line, five lines. 28 needs six lines of 37 and collides.
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font23());
   lv_obj_set_pos(s_addr_sg, 400, 110);
 
   lv_obj_t *path = wt_lbl(s_scr, "", 400, 320, wt_font23(), WT_MUT);
