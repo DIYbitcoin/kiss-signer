@@ -319,20 +319,24 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
     return card;
 }
 
+// Only the TAIL is lit. The first characters of a bech32 address are the human
+// readable part and the witness version: every Native SegWit mainnet address
+// starts bc1q and every testnet/signet one tb1q. Highlighting them taught
+// people to compare a constant, which is worse than useless -- it feels like
+// checking while confirming nothing, and an address swapped by malware matches
+// there for free. The last 8 (two groups) carry real entropy and include the
+// bech32 checksum, so any altered address differs in them.
+#define ADDR_TAIL_CHARS 8
+
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
 {
     int len = (int)strlen(grouped);
-    int h = len, t = len, raw = 0;
-    for (int i = 0; i < len; i++) {
-        if (grouped[i] != ' ' && ++raw == 4) { h = i + 1; break; }
+    int t = 0, raw = 0;
+    for (int i = len - 1; i >= 0; i--) {
+        if (grouped[i] != ' ' && ++raw == ADDR_TAIL_CHARS) { t = i; break; }
     }
-    raw = 0;
-    for (int i = len - 1; i > h; i--) {
-        if (grouped[i] != ' ' && ++raw == 4) { t = i; break; }
-    }
-    char head[8], mid[256];   // fits a grouped silent-payment addr (~146 chars)
-    snprintf(head, sizeof head, "%.*s", h, grouped);
-    snprintf(mid, sizeof mid, "%.*s", t - h, grouped + h);
+    char head[256];           // fits a grouped silent-payment addr (~146 chars)
+    snprintf(head, sizeof head, "%.*s", t, grouped);
 
     lv_obj_t *sg = lv_spangroup_create(par);
     lv_obj_set_width(sg, w);
@@ -340,13 +344,10 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_obj_set_style_text_font(sg, f, 0);
     lv_span_t *s1 = lv_spangroup_new_span(sg);
     lv_span_set_text(s1, head);
-    lv_style_set_text_color(lv_span_get_style(s1), wt_accent());
+    lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
     lv_span_t *s2 = lv_spangroup_new_span(sg);
-    lv_span_set_text(s2, mid);
-    lv_style_set_text_color(lv_span_get_style(s2), WT_MUT);
-    lv_span_t *s3 = lv_spangroup_new_span(sg);
-    lv_span_set_text(s3, grouped + t);
-    lv_style_set_text_color(lv_span_get_style(s3), wt_accent());
+    lv_span_set_text(s2, grouped + t);
+    lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
     lv_spangroup_refresh(sg);
     return sg;
 }
