@@ -521,20 +521,18 @@ void wallet_settings_open(lv_obj_t *parent)
     // orphan words (the old copy stacked "separate" / "coins." on own lines).
     mk_section(tr(STR_I_T), 430, 78);
     s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 104, 320, 52, replace_cb, NULL);
-    lv_obj_t *wn = mk_wrap(430, 166, 340);
-    lv_label_set_text(wn, tr(STR_G_CREATE_NOTE));
+    wt_wraph(s_scr, tr(STR_G_CREATE_NOTE), 430, 164, 340, 62);   // to WIPE at 232
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; second tap confirms.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 268, 320, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 232, 320, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-    lv_obj_t *wipe_n = mk_wrap(430, 330, 340);
-    lv_label_set_text(wipe_n, tr(STR_G_WIPE_NOTE));
+    wt_wraph(s_scr, tr(STR_G_WIPE_NOTE), 430, 290, 340, 74);     // to LANGUAGE at 366
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is
     // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
     // and let the flag carry the variant instead.
-    mk_section(tr(STR_G_SEC_LANGUAGE), 430, 384);
+    mk_section(tr(STR_G_SEC_LANGUAGE), 430, 366);
     {
         int li = i18n_get_lang();
         const char *nat = i18n_lang_info(li)->native;

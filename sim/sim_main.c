@@ -713,7 +713,7 @@ int main(void) {
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out
-  touch(218, 256); pump(3); release(); pump(4);     // RESTORE FROM WORDS
+  touch(218, 290); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 264)
   save("/tmp/sim_setup_storage.ppm");               // KEEP ON THIS DEVICE / NOTHING SAVED
   touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
@@ -797,8 +797,8 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  // the WIPE pill is wallet_settings.c's mk_pillh(430, 268, 320, 52), centre 294
-  touch(590, 294); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
+  // the WIPE pill is wallet_settings.c's mk_pillh(430, 232, 320, 52), centre 258
+  touch(590, 258); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen
@@ -827,11 +827,11 @@ int main(void) {
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
   save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WALLET
 
-  touch(218, 266); pump(3); release(); pump(6);     // SCAN A SEED QR -> camera
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR (pill at 264)
   wallet_scan_inject("not a seed qr at all", 20); pump(6);
   save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
   touch(198, 430); pump(3); release(); pump(6);     // TRY AGAIN -> load screen
-  touch(218, 266); pump(3); release(); pump(6);     // SCAN A SEED QR again
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR again
   {   // a numeric SeedQR: 12 indices, four digits each
     const char *sq = "000000000000000000000000000000000000000000000003";
     wallet_scan_inject(sq, 48);

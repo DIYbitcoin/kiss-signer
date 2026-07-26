@@ -56,6 +56,9 @@ void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled whe
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col);
 lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w);      // muted wrapping body text
+// Same, but auto-sized to a known gap: prefer this. wt_wrap is fixed-small and
+// only right where the caller genuinely has no vertical room to give.
+lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
 // white QR card; *qr receives the lv_qrcode (NULL if creation failed)
