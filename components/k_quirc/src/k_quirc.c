@@ -159,7 +159,7 @@ k_quirc_error_t k_quirc_decode(k_quirc_t *q, int index,
 
   quirc_extract_internal(q, index, code);
 
-  /* kiss-wallet-os: corners come from extract and are valid even when decode
+  /* kiss-signer-os: corners come from extract and are valid even when decode
    * fails — export them always so the scanner UI can warn about a QR that is
    * clipped by the frame edge (see VENDOR.kiss.md). */
   for (int i = 0; i < 4; i++) {

@@ -1,4 +1,4 @@
-7d6289d6023b0cc289f10a4fce291e1d35b699e280e08ff496e5adf0661555d4  kiss-wallet-0.1.0-beta4.bin
+7d6289d6023b0cc289f10a4fce291e1d35b699e280e08ff496e5adf0661555d4  kiss-signer-0.1.0-beta4.bin
 91f9e4ac25797f09ac0889773568fccd6a56fba085c39f763cd98192e243fdd3  build-release/bootloader/bootloader.bin  (bootloader)
 3d2823faa69057aef2e36f3fc1e1a022d1366c16bc4cbce3ac1b38332de392a6  build-release/partition_table/partition-table.bin  (partition table)
 f51fc284b1e2f79dae73491830bdbdc165a18c90d6af62a44dfa6e9d16a3a6d1  build-release/guition_kiss_bringup.bin  (application)

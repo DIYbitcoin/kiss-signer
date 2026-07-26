@@ -9,7 +9,7 @@
       "improv": false,
       "parts": [
         {
-          "path": "firmware/kiss-wallet-0.1.0-beta4.bin",
+          "path": "firmware/kiss-signer-0.1.0-beta4.bin",
           "offset": 0
         }
       ]

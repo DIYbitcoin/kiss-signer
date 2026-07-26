@@ -49,7 +49,7 @@ def render(version: str) -> str:
 
     verify_cmds = code_block(
         "sh",
-        f"""gpg --import kiss_wallet_pgp.asc
+        f"""gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 # expect fingerprint: {fingerprint}
 
@@ -70,7 +70,7 @@ Download these assets from this release into one folder:
 - `{filename}` - merged firmware image
 - `SHA256SUMS` - firmware hashes
 - `SHA256SUMS.asc` - GPG signature for `SHA256SUMS`
-- `kiss_wallet_pgp.asc` - KISS release public key
+- `kiss_signer_pgp.asc` - KISS release public key
 - `release.json` - machine-readable release metadata
 
 ## Verify
