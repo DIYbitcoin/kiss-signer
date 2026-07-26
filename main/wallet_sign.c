@@ -48,6 +48,38 @@
 
 static void log_summary(const char *src);   // defined beside the QR path below
 
+// Field-debug escape hatch: dump the received PSBT as hex so it can be pulled
+// off the serial line and parsed on a host with tools/psbt_fields.py. Exists
+// because "what did the coordinator ACTUALLY send" is otherwise unanswerable
+// without asking the user to export a file, which defeats the point of a
+// device whose whole workflow is QR.
+//
+// OFF by default and must stay that way: an unsigned PSBT is not a secret, but
+// it is the user's financial history -- amounts, addresses, counterparties --
+// and none of that belongs on a debug line by accident. Turn it on for one
+// build, read the log, turn it off.
+//   idf.py -B build-disp build -DKISS_PSBT_DUMP=1
+#if defined(ESP_PLATFORM) && defined(KISS_PSBT_DUMP)
+static void log_psbt_hex(const uint8_t *b, size_t n)
+{
+    static const char H[] = "0123456789abcdef";
+    char line[129];                                   // 64 bytes a line
+    SIGN_LOG("PSBT DUMP BEGIN %u bytes", (unsigned)n);
+    for (size_t off = 0; off < n; off += 64) {
+        size_t k = n - off < 64 ? n - off : 64;
+        for (size_t i = 0; i < k; i++) {
+            line[i * 2]     = H[b[off + i] >> 4];
+            line[i * 2 + 1] = H[b[off + i] & 0x0F];
+        }
+        line[k * 2] = 0;
+        SIGN_LOG("PSBT %04u %s", (unsigned)off, line);
+    }
+    SIGN_LOG("PSBT DUMP END");
+}
+#else
+#define log_psbt_hex(b, n) ((void)0)
+#endif
+
 #define HOLD_MS   1200
 #define MAX_FILES 8
 #define SHOW_OUTS 3
@@ -1089,6 +1121,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     if (len > sizeof s_in) len = sizeof s_in;             // QRT_MAX_PSBT == sizeof s_in
     memcpy(s_in, psbt, len);
     SIGN_LOG("QR assembled: %u bytes, fmt %d", (unsigned)len, fmt);
+    log_psbt_hex(s_in, len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {

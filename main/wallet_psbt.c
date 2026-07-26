@@ -344,6 +344,50 @@ static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
 
     for (size_t i = 0; i < n_in; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
+
+        // A BIP376 input -- a coin that arrived at OUR OWN silent-payment
+        // address -- has no BIP32 keypath, and never will: its key is
+        // spend_priv + tweak, not a bip32 child. Demanding a derivation here
+        // rejected the entire transaction as "input is not this wallet's",
+        // which is both wrong and the most misleading thing the device could
+        // have said: the coin is ours, it just isn't reached by a path.
+        //
+        // This fires whenever a wallet spends a received silent payment and
+        // sends change back to its own silent-payment address, which is the
+        // ordinary shape of an SP wallet's transaction, not a corner case:
+        // BIP376 on the input, BIP375 on the output, in one PSBT. sp_fill
+        // needs every input's private key to build a_sum, so it has to know
+        // both ways of getting one.
+        //
+        // Ownership is still proven, not assumed: sp_spend_signing_key
+        // recomputes b_spend + t and MUST match the P2TR key actually being
+        // spent, so a foreign or tampered tweak fails here exactly as it does
+        // on the signing path.
+        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+            const struct wally_tx_output *u = in->witness_utxo;
+            if (!u || u->script_len != 34 || u->script[0] != 0x51 ||
+                u->script[1] != 0x20) {
+                stop(s, "silent-payment input must be taproot");
+                goto out;
+            }
+            uint8_t spend_priv[32];
+            int owned = sp_spend_privkey(master, wallet_testnet(), spend_priv) == 0 &&
+                        sp_spend_signing_key(spend_priv, s_sp_in.tweak[i],
+                                             u->script + 2, privs[i]) == 0;
+            wally_bzero(spend_priv, sizeof spend_priv);
+            if (!owned) {
+                stop(s, "silent-payment input is not this wallet's");
+                goto out;
+            }
+            xf[i] = true;              // P2TR: BIP352 counts its even-Y key
+            memcpy(op[i], in->txhash, 32);
+            op[i][32] = (uint8_t)in->index;
+            op[i][33] = (uint8_t)(in->index >> 8);
+            op[i][34] = (uint8_t)(in->index >> 16);
+            op[i][35] = (uint8_t)(in->index >> 24);
+            continue;
+        }
+
         uint32_t path[8];
         size_t path_len = 8;
         if (!our_keypath(&in->keypaths, fp, path, &path_len)) {
