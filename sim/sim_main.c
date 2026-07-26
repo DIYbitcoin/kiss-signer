@@ -783,6 +783,9 @@ int main(void) {
   touch(218, 290); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 264)
   save("/tmp/sim_setup_storage.ppm");               // KEEP ON THIS DEVICE / NOTHING SAVED
   touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
+  // restoring shows a third option here: a SeedQR carries its own length, so
+  // it sits beside 12/24 rather than after them
+  save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN SEED QR
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_restore.ppm");
   touch(44, 314); pump(3); release(); pump(3);      // 'a'
