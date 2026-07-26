@@ -1,4 +1,4 @@
-# KISS Wallet 0.1.0-beta4
+# KISS Signer 0.1.0-beta4
 
 Beta firmware for the Guition JC4880P443C ESP32-P4 board.
 

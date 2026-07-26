@@ -1,4 +1,4 @@
-# KISS wallet translation glossary
+# KISS Signer translation glossary
 
 The 21 locale files cover 19 languages. Spanish (`es-MX`, `es-ES`) and
 Portuguese (`pt-BR`, `pt-PT`) have regional variants. The table below records

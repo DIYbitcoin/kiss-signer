@@ -57,7 +57,7 @@ shasum -a 256 --ignore-missing -c SHA256SUMS
 # Linux: sha256sum --ignore-missing -c SHA256SUMS""",
     )
 
-    return f"""# KISS Wallet {version}
+    return f"""# KISS Signer {version}
 
 Beta firmware for the Guition JC4880P443C ESP32-P4 board.
 

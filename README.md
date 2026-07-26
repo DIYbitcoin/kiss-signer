@@ -1,6 +1,6 @@
 <div align="center">
 
-# KISS Wallet 💋
+# KISS Signer 💋
 
 **An airgapped single-sig Bitcoin signer hidden behind a fruit-slash arcade game.**
 
@@ -9,7 +9,7 @@
 <table>
 <tr>
 <td align="center"><img src="docs/readme/menu.png" alt="FRUIT ISLAND game menu" width="400"></td>
-<td align="center"><img src="docs/readme/wallet.png" alt="KISS wallet home screen" width="400"></td>
+<td align="center"><img src="docs/readme/wallet.png" alt="KISS Signer home screen" width="400"></td>
 </tr>
 <tr>
 <td align="center"><sub><b>What everyone sees</b> — a real, playable game</sub></td>
@@ -269,7 +269,7 @@ read out of the chip.
 
 ## License
 
-KISS Wallet's original source code and documentation are licensed under the
+KISS Signer's original source code and documentation are licensed under the
 [Apache License 2.0](LICENSE). Vendored third-party components and assets keep
 their own licenses: [libwally-core](components/libwally-core) (MIT), Espressif
 components and ESP-IDF (Apache-2.0), LVGL (MIT), the fonts (SIL OFL 1.1), the

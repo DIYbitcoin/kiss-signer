@@ -1,4 +1,4 @@
-// KISS Wallet — step 5: PSBT parse / verify / sign (libwally only, no UI).
+// KISS Signer — step 5: PSBT parse / verify / sign (libwally only, no UI).
 // Verify order follows the spec's safety model: anything that could lose coins
 // is a STOP (sign refuses); anything odd-but-signable is a CAUTION the user
 // must accept on the verify screen. v1 scope: BIP84 P2WPKH, SIGHASH_ALL,
