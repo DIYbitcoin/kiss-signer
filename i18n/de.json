@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "ERSTE ADRESSE",
   "I_NET_TEST": "TESTNET, Übungs-Coins",
   "I_NET_MAIN": "MAINNET, echtes Bitcoin",
-  "I_H_FP_B": "der Ausweis-Code deiner Wallet.\n\ndeine App muss DENSELBEN Code zeigen.\nschnelle Prüfung, kein Beweis.",
+  "I_H_FP_B": "der Ausweis-Code deiner Wallet.\n\ndeine App muss DENSELBEN Code zeigen.\num sicher zu sein, dass sie deine Adressen hat: EMPFANGEN > PRÜFEN.",
   "I_H_TYPE_B": "wie deine Adressen aussehen.\nbc1... ist die moderne, günstigste.\n\nm/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",
   "I_H_PAIR_T": "DIE KOORDINATOR-APP",
   "I_H_PAIR_B": "eine App, die diese Wallet BEOBACHTET.\nsie sieht Guthaben, baut Zahlungen.\n\nausgeben kann sie nie: das ist HIER.",

@@ -479,10 +479,10 @@ int main(void) {
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
-  touch(553, 430); pump(3); release(); pump(4);     // NEXT -> address #1
+  touch(529, 430); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: uppercase bitcoin: URI of stub receive addr #7 -> YOURS; junk -> NOT
-    touch(697, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    touch(678, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -655,9 +655,9 @@ int main(void) {
   // it; paging back to a used index warns and offers FRESH.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv_fresh.ppm");                  // advanced past used, no warning
-  touch(436, 430); pump(3); release(); pump(4);     // PREV
-  touch(436, 430); pump(3); release(); pump(4);     // PREV
-  touch(436, 430); pump(3); release(); pump(4);     // PREV (row y=404) -> a used index
+  touch(426, 430); pump(3); release(); pump(4);     // PREV
+  touch(426, 430); pump(3); release(); pump(4);     // PREV
+  touch(426, 430); pump(3); release(); pump(4);     // PREV (row y=404) -> a used index
   save("/tmp/sim_recv_reuse.ppm");                  // amber warning + FRESH pill
   touch(698, 266); pump(3); release(); pump(4);     // FRESH -> jump back to a new one
   save("/tmp/sim_recv_fresh2.ppm");                 // warning gone again

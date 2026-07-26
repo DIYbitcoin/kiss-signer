@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PIERWSZY ADRES",
   "I_NET_TEST": "TESTNET, monety ćwiczebne",
   "I_NET_MAIN": "MAINNET, prawdziwy bitcoin",
-  "I_H_FP_B": "kod tożsamości tego portfela.\n\npołączona aplikacja pokaże TEN SAM kod.\nszybkie sprawdzenie, nie dowód.",
+  "I_H_FP_B": "kod tożsamości tego portfela.\n\npołączona aplikacja pokaże TEN SAM kod.\naby mieć pewność co do twoich adresów, użyj ODBIERZ > SPRAWDŹ.",
   "I_H_TYPE_B": "jak wyglądają twoje adresy.\nbc1... jest nowoczesny, najtańszy.\n\nm/... mówi, skąd biorą się klucze.\naplikacja znajduje je po tej ścieżce.",
   "I_H_PAIR_T": "APKA KOORDYNATORA",
   "I_H_PAIR_B": "aplikacja, która TYLKO PATRZY na portfel.\nwidzi saldo i buduje płatności.\n\nnigdy nie wyda: podpis jest TUTAJ.",

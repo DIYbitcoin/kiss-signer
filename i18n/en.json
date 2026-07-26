@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "FIRST ADDRESS",
   "I_NET_TEST": "TESTNET, practice coins",
   "I_NET_MAIN": "MAINNET, real bitcoin",
-  "I_H_FP_B": "your wallet's ID code.\n\na paired app should show the SAME code.\na quick check, not proof.",
+  "I_H_FP_B": "your wallet's ID code.\n\na paired app should show the SAME code.\nto be sure it has your addresses, use RECEIVE > VERIFY.",
   "I_H_TYPE_B": "what your addresses look like.\nbc1... is the modern one, lowest fees.\n\nm/... is where the keys come from.\nyour app uses it to find them.",
   "I_H_PAIR_T": "THE COORDINATOR APP",
   "I_H_PAIR_B": "an app that WATCHES this wallet.\nit sees your balance, builds payments.\n\nit can never spend. signing is HERE.",

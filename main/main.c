@@ -1411,7 +1411,12 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 void wallet_wiped_lock(void) { wallet_lock(); }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
-#define WALLET_AUTOLOCK_MS 120000    // 2 min without a touch -> lock to the game
+// 5 min, matching the cosmetic screensaver (IDLE_MS) and Sparrow's default.
+// It was 2 min since the first commit, which is the timeout people actually
+// hit: reading a warning screen or checking an address against a phone takes
+// longer than that, and being thrown back to the game mid-read reads as a bug.
+// This is the SECURITY timeout, not the screensaver -- it drops the session key.
+#define WALLET_AUTOLOCK_MS 300000
 
 // subtle press feedback on the home tiles: a translucent glass pane while the
 // finger is down (opa only — transform_scale hard-hangs LVGL). Stays inside

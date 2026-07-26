@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "EERSTE ADRES",
   "I_NET_TEST": "TESTNET, oefencoins",
   "I_NET_MAIN": "MAINNET, echte bitcoin",
-  "I_H_FP_B": "de ID-code van je wallet.\n\neen gekoppelde app toont DEZELFDE code.\nsnelle check, geen bewijs.",
+  "I_H_FP_B": "de ID-code van je wallet.\n\neen gekoppelde app toont DEZELFDE code.\nom zeker te zijn van je adressen, gebruik ONTVANGEN > CONTROLEER.",
   "I_H_TYPE_B": "hoe je adressen eruitzien.\nbc1... is de moderne, met de laagste kosten.\n\nm/... is waar de sleutels vandaan komen.\nje app vindt ze daarmee.",
   "I_H_PAIR_T": "DE COÖRDINATOR-APP",
   "I_H_PAIR_B": "een app die deze wallet BEKIJKT.\nhij ziet je saldo, bouwt betalingen.\n\nuitgeven kan hij nooit: dat is HIER.",

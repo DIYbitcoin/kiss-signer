@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PRIMERA DIRECCIÓN",
   "I_NET_TEST": "TESTNET, monedas de práctica",
   "I_NET_MAIN": "MAINNET, bitcoin real",
-  "I_H_FP_B": "el código de identidad de esta billetera.\n\nla app emparejada debe mostrar el MISMO.\nes una comprobación rápida, no una prueba.",
+  "I_H_FP_B": "el código de identidad de esta billetera.\n\nla app emparejada debe mostrar el MISMO.\npara asegurarte de que tiene tus direcciones, usa RECIBIR > VERIFICAR.",
   "I_H_TYPE_B": "cómo son tus direcciones.\nbc1... es la moderna, con menos comisión.\n\nm/... indica de dónde salen las claves.\ntu app las encuentra con eso.",
   "I_H_PAIR_T": "LA APP COORDINADORA",
   "I_H_PAIR_B": "una app que MIRA esta billetera.\nve el saldo y prepara los pagos.\n\nnunca puede gastar: se firma AQUÍ.",

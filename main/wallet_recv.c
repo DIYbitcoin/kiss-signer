@@ -295,10 +295,15 @@ void wallet_recv_open(lv_obj_t *parent) {
   s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
   wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
 
-  wt_pill(s_scr, LV_SYMBOL_LEFT, 400, 404, 72, prev_cb, NULL);
-  wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 488, 404, 130, next_cb, NULL);
-  wt_pill(s_scr, tr(STR_R_VERIFY), 634, 404, 126, vfy_scan, NULL);
-  wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, close_cb, NULL);
-  wt_pill(s_scr, tr(STR_S_SP_BADGE), 200, 404, 190, sp_open_cb, NULL);
+  // Five pills share this row and share one label size, so a single pill a few
+  // pixels too narrow shrinks all five. Widths are proportioned to the longest
+  // label each one carries rather than to a round number.
+  lv_obj_t *row[5];
+  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT, 398, 404, 56, prev_cb, NULL);
+  row[1] = wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 464, 404, 130, next_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 604, 404, 148, vfy_scan, NULL);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
+  row[4] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
+  wt_pill_row(row, 5);
   recv_refresh();
 }

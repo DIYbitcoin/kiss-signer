@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PRIMO INDIRIZZO",
   "I_NET_TEST": "TESTNET, monete di prova",
   "I_NET_MAIN": "MAINNET, bitcoin veri",
-  "I_H_FP_B": "il codice identificativo del portafoglio.\n\nl'app abbinata deve mostrare lo STESSO.\nun controllo rapido, non una prova.",
+  "I_H_FP_B": "il codice identificativo del portafoglio.\n\nl'app abbinata deve mostrare lo STESSO.\nper essere certo che abbia i tuoi indirizzi, usa RICEVI > VERIFICA.",
   "I_H_TYPE_B": "come sono fatti i tuoi indirizzi.\nbc1... è il moderno, con meno commissioni.\n\nm/... dice da dove arrivano le chiavi.\nla tua app le trova con quello.",
   "I_H_PAIR_T": "L'APP COORDINATRICE",
   "I_H_PAIR_B": "un'app che GUARDA questo portafoglio.\nvede il saldo e prepara i pagamenti.\n\nnon può mai spendere: si firma QUI.",
