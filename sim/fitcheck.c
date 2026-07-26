@@ -23,6 +23,7 @@ typedef struct {
     const char *surface;   // where the user sees it
     int key;               // STR_* (or -1 for a composed body)
     int w, h;
+    int may_be_small;      // 1 = font14 is the accepted outcome here
 } slot_t;
 
 static const slot_t SLOTS[] = {
@@ -59,6 +60,36 @@ static const slot_t SLOTS[] = {
     // amnesic mode: seed-QR import + passphrase-from-QR
     { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
+    // wallet_settings.c — the notes under each chooser. These sit in gaps
+    // between controls, so 23 (not 28) is the realistic top rung; what matters
+    // is that none of them falls to 14.
+    { "set/net-main",     STR_G_MAINNET_NOTE, 340, 58 },
+    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 58 },
+    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 360, 58 },
+    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 360, 58 },
+    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 360, 58 },
+    { "set/separate",     STR_G_SEPARATE,     360, 58 },
+    { "set/create-note",  STR_G_CREATE_NOTE,  340, 88 },
+    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 88 },
+    // wallet_recv.c / wallet_info.c — instructions the user has to act on
+    // wt_screen() subtitles: one line, 704px wide, between title and content.
+    { "sub/receive",      STR_R_S,            704, 30, 0 },
+    { "sub/wallet",       STR_I_S,            704, 30, 0 },
+    { "sub/verify",       STR_R_VS,           704, 30, 0 },
+    { "sub/words-warn",   STR_I_WARN_S,       704, 30, 0 },
+    { "sub/sp-export",    STR_R_SP_EXPORT_S,  704, 30, 0 },
+    { "sub/sp-warn",      STR_R_SP_WARN_S,    704, 30, 0 },
+    { "sub/pair",         STR_I_PAIR_S,       704, 30, 0 },
+    // Procedural, read once with the device in hand, and wedged into a 360px
+    // column beside a QR. They auto-fit like everything else, so they grow if
+    // the copy is ever shortened -- but font14 is the accepted answer today.
+    { "recv/verify",      STR_R_VERIFY_NOTE,  360, 90, 1 },
+    { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
+    { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
+    { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
+    // wallet_info.c — the note under each action pill
+    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340, 89 },
+    { "wallet/words-note",STR_I_WORDS_BTN_NOTE, 340, 90 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
@@ -99,27 +130,29 @@ int main(int argc, char **argv)
             else                  { txt = tr(SLOTS[i].key); }
 
             const lv_font_t *f = wt_body_font(txt, SLOTS[i].w, SLOTS[i].h);
+            // Only font14 counts as a failure now. 23 is a real reading size,
+            // and the notes wedged between controls can never reach 28.
+            int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+            int bad  = rung == 14 && !SLOTS[i].may_be_small;
+            if (bad) small++;
+            // how far the copy overflows at 23 is what a translator must delete
             lv_point_t sz;
-            lv_text_get_size(&sz, txt, wt_font28(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
-            int big = (f == wt_font28());
-            if (!big) small++;
-            // rows over budget is what a translator actually has to delete
+            lv_text_get_size(&sz, txt, wt_font23(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
             int over = sz.y - SLOTS[i].h;
-            snprintf(lines[i], sizeof lines[i], "  %-18s %s  %3dpx / %3dpx%s",
-                     SLOTS[i].surface, big ? "BIG " : "small",
-                     (int)sz.y, SLOTS[i].h,
-                     big ? "" : (over > 0 ? "  cut " : ""));
-            if (!big && over > 0) {
+            snprintf(lines[i], sizeof lines[i], "  %-18s font%-2d  %3dpx / %3dpx%s",
+                     SLOTS[i].surface, rung, (int)sz.y, SLOTS[i].h,
+                     bad && over > 0 ? "  cut " : "");
+            if (bad && over > 0) {
                 char n[24];
-                snprintf(n, sizeof n, "%d row(s)", (over + 36) / 37);
+                snprintf(n, sizeof n, "%d row(s) @23", (over + 28) / 29);
                 strncat(lines[i], n, sizeof lines[i] - strlen(lines[i]) - 1);
             }
         }
-        printf("%-6s %-22s %2d/%d small\n", li->code, li->native, small, NSLOT);
+        printf("%-6s %-22s %2d/%d at font14\n", li->code, li->native, small, NSLOT);
         for (int i = 0; i < NSLOT; i++)
-            if (strstr(lines[i], "small")) puts(lines[i]);
+            if (strstr(lines[i], "cut ")) puts(lines[i]);
         total_small += small;
     }
-    printf("\ntotal small: %d\n", total_small);
+    printf("\ntotal at font14: %d\n", total_small);
     return 0;
 }

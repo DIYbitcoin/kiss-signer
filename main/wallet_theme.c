@@ -114,6 +114,9 @@ const char *wt_accent_name(void)
 }
 lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
+// largest of {23, 14} that fits (defined with wt_note); used by the subtitle too
+static const lv_font_t *note_font(const char *txt, int w, int max_h);
+
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
     lv_obj_t *scr = lv_obj_create(parent);
@@ -124,7 +127,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(scr);
 
-    lv_obj_t *cap = lv_label_create(scr);
+    lv_obj_t *cap = lv_label_create(scr);   // note_font: defined with wt_note below
     lv_label_set_text(cap, title);
     lv_obj_set_style_text_color(cap, wt_accent(), 0);
     lv_obj_set_style_text_font(cap, wt_font28(), 0);
@@ -132,10 +135,16 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_pos(cap, 48, 26);
 
     if (sub) {
+        // The subtitle gets ONE line, between the title and content at y=96.
+        // Sized to fit, not assumed to fit: at a fixed font23 the longer
+        // subtitles ran straight off the right edge of the panel, and a label
+        // with no width clips silently instead of wrapping.
         lv_obj_t *s = lv_label_create(scr);
         lv_label_set_text(s, sub);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
-        lv_obj_set_style_text_font(s, wt_font23(), 0);
+        lv_obj_set_style_text_font(s, note_font(sub, 704, 30), 0);
+        lv_obj_set_width(s, 704);
+        lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
         lv_obj_set_pos(s, 48, 64);
     }
     return scr;
@@ -290,12 +299,50 @@ lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
 lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
 {
     lv_obj_t *l = lv_label_create(scr);
-    lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, wt_body_font(txt, w, h), 0);
     lv_obj_set_width(l, w);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(l, x, y);
+    wt_wrap_fit(l, txt, w, h);
+    return l;
+}
+
+// Re-fit a wt_wraph label whose text changes after it is built (the settings
+// chooser captions swap on every tap). The font has to be recomputed with the
+// text: leaving the old one is how a longer translation silently overflows.
+void wt_wrap_fit(lv_obj_t *l, const char *txt, int w, int h)
+{
+    if (!l) return;
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_font(l, wt_body_font(txt, w, h), 0);
+}
+
+// A note that BELONGS to a control: same auto-fit, capped at 23. Left uncapped,
+// a three-word note under a button renders at 28 and ends up shouting louder
+// than the button itself. Explainer cards keep the full ladder; these do not.
+static const lv_font_t *note_font(const char *txt, int w, int max_h)
+{
+    if (!txt || !*txt) return wt_font23();
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, wt_font23(), 0, 0, w, LV_TEXT_FLAG_NONE);
+    return sz.y <= max_h ? wt_font23() : wt_font14();
+}
+
+void wt_note_fit(lv_obj_t *l, const char *txt, int w, int h)
+{
+    if (!l) return;
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_font(l, note_font(txt, w, h), 0);
+}
+
+lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
+{
+    lv_obj_t *l = lv_label_create(scr);
+    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    lv_obj_set_width(l, w);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(l, x, y);
+    wt_note_fit(l, txt, w, h);
     return l;
 }
 
@@ -310,14 +357,16 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
     return l;
 }
 
-// column captions ("NETWORK", "WALLET"): short enough that the middle rung
-// always fits, and they are what tells you which column you are reading
+// Column captions ("NETWORK", "WALLET"). Deliberately SMALL and muted: these
+// are eyebrows, not content. They were briefly font23 and it inverted the whole
+// hierarchy — the label shouted while the value under it whispered. The size
+// belongs to the thing you actually read.
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
 {
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, wt_font23(), 0);
+    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;

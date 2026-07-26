@@ -59,6 +59,7 @@ static char s_first[PASS_MAX + 1];
 static bool s_caps_lock;                   // CAPS plane: stays until tapped off
 static bool s_one_shot;                    // UPPER plane: one character, then back
 static uint32_t s_shift_t0;                // last shift-key tap, for double tap
+static bool s_hold_lock_ok;                // this shift press may lock on hold
 #define SHIFT_DBL_MS 400                   // two shift taps within this = CAPS
 
 // Rough passphrase strength in bits: length x log2(character pool). Only a
@@ -370,7 +371,7 @@ static void setup_warn_screen(void);
 // dismiss the STOP screen back to the game; nothing was saved
 static void setup_fail_dismiss_cb(lv_event_t *e) {
   (void)e;
-  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
+  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
   s_setup_mode = false; s_first_done = false; s_weak_ack = false;
   s_plen = 0; s_show = false; s_flash = false;
   memset(s_pass, 0, sizeof s_pass);
@@ -772,18 +773,22 @@ static void kb_cb(lv_event_t *e) {
   const char *txt = lv_buttonmatrix_get_button_text(kb, id);
   if (!txt) return;
 
-  // shift: tap once for a single capital, twice quickly to lock. Tapping the
-  // locked key unlocks. Same gesture as every phone keyboard.
+  // shift: tap once for a single capital, HOLD it to lock (kb_long_cb), or tap
+  // twice quickly for the same lock. Tapping the locked key unlocks. All three
+  // are what a phone keyboard does.
   if (strcmp(txt, "ABC") == 0 || strcmp(txt, "abc") == 0) {
     uint32_t now = lv_tick_get();
     bool dbl = s_shift_t0 && lv_tick_elaps(s_shift_t0) < SHIFT_DBL_MS;
     s_shift_t0 = now;
+    s_hold_lock_ok = true;
     if (dbl) { s_caps_lock = true;  s_one_shot = false; kb_plane(kb, MAP_CAPS); }
     else if (txt[0] == 'A') { s_one_shot = true;  kb_plane(kb, MAP_UPPER); }
     else                    { s_one_shot = false; kb_plane(kb, MAP_LOWER); }
   }
   else if (strcmp(txt, "CAPS") == 0) {
     s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
+    // a slow tap to UNLOCK must not be read as a hold and re-lock instantly
+    s_hold_lock_ok = false;
     kb_plane(kb, MAP_LOWER);
   }
   else if (strcmp(txt, "#1!") == 0) kb_plane(kb, MAP_SYM);
@@ -844,16 +849,33 @@ static void kb_cb(lv_event_t *e) {
   }
 }
 
-// Hold a letter for its capital, without leaving the lowercase plane.
+// Two holds, both the phone gesture:
+//   hold the SHIFT key   -> caps lock on
+//   hold a LETTER        -> that one letter capitalised, plane unchanged
+//
 // A buttonmatrix fires VALUE_CHANGED on PRESS, so by the time the hold is
-// recognised the lowercase letter has ALREADY been typed. Upcase it in place
-// rather than appending, or a hold silently enters two characters -- invisible
-// behind the dots, and a passphrase you can never reproduce.
+// recognised the press has already been handled: the plane has flipped, and a
+// lowercase letter has ALREADY been typed. Upcase it in place rather than
+// appending, or a hold silently enters two characters -- invisible behind the
+// dots, and a passphrase you can never reproduce.
 static void kb_long_cb(lv_event_t *e) {
   lv_obj_t *kb = lv_event_get_target(e);
   uint32_t id = lv_buttonmatrix_get_selected_button(kb);
   const char *txt = lv_buttonmatrix_get_button_text(kb, id);
-  if (!txt || strlen(txt) != 1) return;
+  if (!txt) return;
+
+  // Read whichever shift label is showing NOW, not the one that was tapped:
+  // the press already swapped the plane under the finger.
+  if (strcmp(txt, "ABC") == 0 || strcmp(txt, "abc") == 0 ||
+      strcmp(txt, "CAPS") == 0) {
+    if (!s_hold_lock_ok) return;            // this press was the unlock tap
+    s_hold_lock_ok = false;
+    s_caps_lock = true; s_one_shot = false; s_shift_t0 = 0;
+    kb_plane(kb, MAP_CAPS);
+    return;
+  }
+
+  if (strlen(txt) != 1) return;
   char c = txt[0];
   if (c < 'a' || c > 'z') return;            // only letters have another case
   if (s_plen == 0 || s_pass[s_plen - 1] != c) return;   // not the char just typed
@@ -1018,7 +1040,7 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   s_kb = lv_buttonmatrix_create(s_login);
   // a fresh keyboard always starts lowercase and unlocked: inheriting a CAPS
   // lock from a previous screen would silently change what gets typed
-  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
+  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
   kb_plane(s_kb, MAP_LOWER);
   lv_obj_set_size(s_kb, 800, 316);
   lv_obj_set_pos(s_kb, 0, 158);

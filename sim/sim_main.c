@@ -479,10 +479,10 @@ int main(void) {
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
-  touch(553, 422); pump(3); release(); pump(4);     // NEXT -> address #1
+  touch(553, 430); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: uppercase bitcoin: URI of stub receive addr #7 -> YOURS; junk -> NOT
-    touch(697, 422); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    touch(697, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -655,9 +655,9 @@ int main(void) {
   // it; paging back to a used index warns and offers FRESH.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv_fresh.ppm");                  // advanced past used, no warning
-  touch(436, 422); pump(3); release(); pump(4);     // PREV
-  touch(436, 422); pump(3); release(); pump(4);     // PREV
-  touch(436, 422); pump(3); release(); pump(4);     // PREV -> down onto a used index
+  touch(436, 430); pump(3); release(); pump(4);     // PREV
+  touch(436, 430); pump(3); release(); pump(4);     // PREV
+  touch(436, 430); pump(3); release(); pump(4);     // PREV (row y=404) -> a used index
   save("/tmp/sim_recv_reuse.ppm");                  // amber warning + FRESH pill
   touch(698, 266); pump(3); release(); pump(4);     // FRESH -> jump back to a new one
   save("/tmp/sim_recv_fresh2.ppm");                 // warning gone again
@@ -667,25 +667,25 @@ int main(void) {
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
-  touch(510, 430); pump(3); release(); pump(6);     // LANGUAGE pill -> picker overlay
+  touch(510, 424); pump(3); release(); pump(6);     // language pill (y=398) -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = wallet_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
     touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
-  touch(333, 310); pump(3); release(); pump(4);     // pick LEGACY -> highlight moves
+  touch(333, 299); pump(3); release(); pump(4);     // pick LEGACY (pills at y=272, h54)
   save("/tmp/sim_settings_legacy.ppm");
-  touch(103, 310); pump(3); release(); pump(4);     // back to NATIVE
+  touch(103, 299); pump(3); release(); pump(4);     // back to NATIVE
   touch(674, 48); pump(3); release(); pump(4);      // theme dot: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home still pink
+  touch(680, 424); pump(3); release(); pump(6);     // BACK (y=398) -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
-  touch(218, 176); pump(3); release(); pump(4);     // TESTNET pill (center y=176)
+  touch(218, 164); pump(3); release(); pump(4);     // TESTNET pill (y=142, h44)
   save("/tmp/sim_settings_tn.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 address now
   save("/tmp/sim_recv_tn.ppm");
@@ -696,8 +696,8 @@ int main(void) {
   save("/tmp/sim_verify_tn.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(218, 126); pump(3); release(); pump(4);     // MAINNET restore (center y=126)
-  touch(680, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(218, 116); pump(3); release(); pump(4);     // MAINNET restore (y=94, h44)
+  touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(100, 60); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
@@ -756,6 +756,15 @@ int main(void) {
   touch(135, 355); pump(3); release(); pump(4);     // Z, and the plane MUST stay
   save("/tmp/sim_kb_caps_stays.ppm");
   touch(46, 355); pump(3); release(); pump(4);      // CAPS off
+  // HOLD the shift key = caps lock. This is the gesture people actually reach
+  // for; the double tap above is the alternative, not the only way in.
+  touch(46, 355); pump(40); release(); pump(4);
+  save("/tmp/sim_kb_hold_caps.ppm");                // key must read "CAPS"
+  touch(135, 355); pump(3); release(); pump(4);     // Z, and the plane MUST stay
+  save("/tmp/sim_kb_hold_caps_stays.ppm");
+  // a SLOW tap on CAPS unlocks; it must NOT also register as a hold and relock
+  touch(46, 355); pump(40); release(); pump(4);
+  save("/tmp/sim_kb_caps_slow_off.ppm");            // key must read "ABC"
   touch(135, 355); pump(40); release(); pump(4);    // HOLD z -> Z, still lowercase
   save("/tmp/sim_kb_hold.ppm");
   for (int i = 0; i < 8; i++) { touch(752, 355); pump(3); release(); pump(3); }
