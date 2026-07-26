@@ -56,6 +56,12 @@ static lv_obj_t *s_word_lbl, *s_sug[3];
 
 static void choose_screen(void);
 static void count_screen(void);
+// SeedQR was only reachable from the amnesic per-session load, so someone
+// restoring a wallet during setup had to type words they were holding as a QR.
+// Same decoder, same staging; only the way back differs.
+static void restore_scan_cb(lv_event_t *e);
+static void goto_count_cb(lv_event_t *e);
+static bool s_qr_from_restore;
 static void entropy_screen(void);
 static void words_screen(void);
 static void quiz_screen(void);
@@ -504,6 +510,12 @@ static void count_screen(void)
     wt_wraph(s_scr, tr(STR_W_12_NOTE), 430, 150, 340, 76);
     mk_lbl(tr(STR_W_24_NOTE), 430, 230,
            wt_font14(), MUT_COL);
+    // Restoring only: a SeedQR carries its own length, so it sits beside the
+    // count rather than after it. Creating a new wallet has nothing to scan.
+    if (s_restore) {
+        mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 310, 340, restore_scan_cb, NULL);
+        wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 310, 340, 76);
+    }
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 }
 
@@ -609,7 +621,8 @@ static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
     mk_body(tr(STR_W_QRBAD_B), 48, 140, 704, 240, STOP_COL);
-    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 300, load_back_cb, NULL);
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 300,
+                          s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
     wt_pill_primary(p);
 }
 
@@ -630,9 +643,22 @@ static void qr_text_cb(const char *txt, size_t len)
 
 static void qr_cancel_cb(void) { load_screen(); }
 
+// Same scan, reached from the wizard's word-count screen instead. Cancel and a
+// bad scan go back there rather than to the amnesic load screen.
+static void goto_count_cb(lv_event_t *e) { (void)e; count_screen(); }
+static void restore_qr_cancel_cb(void)   { count_screen(); }
+
+static void restore_scan_cb(lv_event_t *e)
+{
+    (void)e;
+    s_qr_from_restore = true;
+    wallet_scan_open_raw(s_parent, qr_text_cb, restore_qr_cancel_cb);
+}
+
 static void load_scan_cb(lv_event_t *e)
 {
     (void)e;
+    s_qr_from_restore = false;   // amnesic load: a bad scan goes back to ITS screen
     wallet_scan_open_raw(s_parent, qr_text_cb, qr_cancel_cb);
 }
 
