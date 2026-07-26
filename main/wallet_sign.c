@@ -28,6 +28,26 @@
 #define WARN_COL WT_WARN  // never color alone (spec)
 #define STOP_COL WT_STOP
 
+// Why this file logs at all: a refused PSBT used to say one translated
+// sentence on the glass and nothing anywhere else. wallet_psbt.c is
+// deliberately LVGL- and IDF-free (it feeds the desktop test runner and the
+// fuzzer) so it cannot log, and this file had no logging either -- which meant
+// the only way to find out WHY a transaction was rejected was to get the file
+// off the coordinator and parse it on a laptop. That is a terrible loop when
+// the whole point of the device is that it works over QR with no cable.
+//
+// So the one boundary that sees both the bytes and the verdict says so out
+// loud. Sizes and reasons only: never the PSBT itself, and never anything
+// derived from the seed.
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#define SIGN_LOG(...) ESP_LOGI("sign", __VA_ARGS__)
+#else
+#define SIGN_LOG(...) ((void)0)
+#endif
+
+static void log_summary(const char *src);   // defined beside the QR path below
+
 #define HOLD_MS   1200
 #define MAX_FILES 8
 #define SHOW_OUTS 3
@@ -938,14 +958,17 @@ static void file_tap_cb(lv_event_t *e)
         mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
+    SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
+        SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
         mk_lbl(tr(STR_S_NOT_PSBT), 48, 140, wt_font14(), STOP_COL);
         mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
+    log_summary("SD");
     verify_screen(parent);
 }
 
@@ -1022,6 +1045,32 @@ static void sd_open(lv_obj_t *parent)
     mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb);
 }
 
+// What the device concluded about a PSBT, in one serial line.
+//
+// reason[] is the whole point: it carries the STOP root cause in plain English
+// straight from wallet_psbt.c ("input is not this wallet's", "wrong network:
+// mainnet transaction", "sighash is not ALL"), which is otherwise only ever
+// seen translated on a screen with no way to copy it off.
+//
+// n_sp_in is here because it disambiguates the one refusal that lies about
+// itself. A received silent-payment coin has no BIP32 keypath by design, so a
+// coordinator that omits BIP376's PSBT_IN_SP_TWEAK leaves nothing to prove
+// ownership with, and the input is rejected as though it belonged to a
+// stranger. n_sp_in = 0 alongside that reason means the tweak field never
+// arrived, not that the coin is foreign.
+static void log_summary(const char *src)
+{
+    (void)src;
+    SIGN_LOG("%s PSBT: %u in (%u silent-payment), %u out (%u SP), "
+             "%u unknown fields, purpose %u, %s, status %d",
+             src, (unsigned)s_sum.n_in, (unsigned)s_sum.n_sp_in,
+             (unsigned)s_sum.n_out, (unsigned)s_sum.n_sp,
+             (unsigned)s_sum.n_unknown, (unsigned)s_sum.purpose,
+             s_sum.testnet ? "testnet" : "mainnet", (int)s_sum.status);
+    if (s_sum.reason[0])
+        SIGN_LOG("%s PSBT reason: %s", src, s_sum.reason);
+}
+
 // ---- QR source: wallet_scan drives the camera; we get the assembled PSBT ----
 static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
 {
@@ -1030,15 +1079,18 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     snprintf(s_cur, sizeof s_cur, "%s", tr(STR_S_SCANNED_TX));
     if (len > sizeof s_in) len = sizeof s_in;             // QRT_MAX_PSBT == sizeof s_in
     memcpy(s_in, psbt, len);
+    SIGN_LOG("QR assembled: %u bytes, fmt %d", (unsigned)len, fmt);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     if (lrc != 0) {
+        SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
         mk_lbl(tr(STR_S_SCAN_NOT_PSBT), 48, 140,
                wt_font14(), STOP_COL);
         mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
         return;
     }
+    log_summary("QR");
     verify_screen(s_parent);
 }
 
