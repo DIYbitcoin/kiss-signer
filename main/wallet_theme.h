@@ -79,6 +79,12 @@ typedef struct {
     bool wrap;      // needs LV_LABEL_LONG_WRAP at (w - 28)
 } wt_pill_fit_t;
 wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary);
+// One rung for a whole GROUP of pills: the smallest any member needs, so a
+// row of buttons reads as a set instead of one shouting neighbour. Pass every
+// label that shares a row/column, then wt_pill_apply_fit each pill.
+wt_pill_fit_t wt_pill_group_fit(const char *const *txts, int n, int w, int h,
+                                bool primary);
+void wt_pill_apply_fit(lv_obj_t *pill, wt_pill_fit_t f, int w);
 void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled when active
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,

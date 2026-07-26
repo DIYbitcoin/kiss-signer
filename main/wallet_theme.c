@@ -204,6 +204,50 @@ wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary)
     return (wt_pill_fit_t){ wt_font14(), 1, true };   // out of rungs: wrap
 }
 
+// One rung for a whole group of pills: the SMALLEST that every label needs.
+//
+// wt_pill_fit sizes one label in isolation, and `primary` lets that one label
+// reach 28 while its neighbours start at 23. On the SIGN chooser that put
+// "SCAN QR" at 28 directly above "FROM SD CARD" at 23 -- two buttons doing the
+// same job, one visibly shouting. Per-label fitting is right for a lone pill
+// and wrong for a set, because a set reads as a set.
+//
+// Callers pass every label that shares a visual row or column. The result is
+// applied to all of them via wt_pill_apply_fit, so they land on one size.
+wt_pill_fit_t wt_pill_group_fit(const char *const *txts, int n, int w, int h,
+                                bool primary)
+{
+    wt_pill_fit_t worst = wt_pill_fit(txts && n > 0 ? txts[0] : "", w, h, primary);
+    for (int i = 1; i < n; i++) {
+        wt_pill_fit_t f = wt_pill_fit(txts[i], w, h, primary);
+        // Rank by glyph height first, then by whether the label had to wrap:
+        // a wrapped 23 is a worse fit than a one-line 23 and must win, or the
+        // group settles on a size one of its members cannot actually use.
+        int rank_f = (f.font == wt_font14() ? 0 : f.font == wt_font23() ? 1 : 2) * 2
+                     + (f.wrap ? 0 : 1);
+        int rank_w = (worst.font == wt_font14() ? 0 : worst.font == wt_font23() ? 1 : 2) * 2
+                     + (worst.wrap ? 0 : 1);
+        if (rank_f < rank_w)
+            worst = f;
+    }
+    return worst;
+}
+
+void wt_pill_apply_fit(lv_obj_t *pill, wt_pill_fit_t f, int w)
+{
+    if (!pill) return;
+    lv_obj_t *l = lv_obj_get_child(pill, 0);
+    if (!l) return;
+    lv_obj_set_style_text_font(l, f.font, 0);
+    lv_obj_set_style_text_letter_space(l, f.space, 0);
+    if (f.wrap) {
+        lv_obj_set_width(l, w - 28);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    }
+    lv_obj_center(l);
+}
+
 static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool primary)
 {
     wt_pill_fit_t f = wt_pill_fit(txt, w, h, primary);

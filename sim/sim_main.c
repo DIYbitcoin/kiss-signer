@@ -594,10 +594,12 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
-  // the RBF "?" is wallet_sign.c's 26px chip at (592,332) when replaceable,
-  // (620,332) when final. This is its centre; it moved down when the amount
-  // hierarchy was rebuilt and the old y=275 landed on empty background.
-  touch(605, 345); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
+  // the RBF "?" is wallet_sign.c's 26px chip, now pinned at (740,358) for BOTH
+  // the replaceable and final wordings. It used to sit right after the text at
+  // 592 or 620 depending on which string rendered, so its x moved with the
+  // translation; it is fixed now, and far enough from the caution chip at
+  // (430,330) that neither lands in the other's hit box. This is its centre.
+  touch(753, 371); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
   save("/tmp/sim_sign_rbf_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
