@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "product": "KISS Wallet",
+  "product": "KISS Signer",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
   "version": "0.1.0-beta4",

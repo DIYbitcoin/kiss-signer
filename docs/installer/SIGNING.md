@@ -21,7 +21,7 @@ Krux's sign-file feature works), so the signer vouches for its own firmware.
 GPG (primary):
 
 ```sh
-gpg --quick-generate-key "KISS Wallet releases <diybitcoin@protonmail.com>" ed25519 sign never
+gpg --quick-generate-key "KISS Signer releases <diybitcoin@protonmail.com>" ed25519 sign never
 gpg --armor --export <KEYID> > docs/installer/kiss_wallet_pgp.asc   # commit this
 ```
 

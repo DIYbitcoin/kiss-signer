@@ -1,4 +1,4 @@
-// KISS Wallet crypto layer — step 1: libwally in the build + test vectors.
+// KISS Signer crypto layer — step 1: libwally in the build + test vectors.
 // No hand-rolled crypto: everything below is libwally calls.
 #include "wallet_crypto.h"
 #include "wallet_sp.h"
