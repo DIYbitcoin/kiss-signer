@@ -78,8 +78,11 @@ void wt_diagram_fp(lv_obj_t *parent, int y);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
 void wt_diagram_pair(lv_obj_t *parent, int y);
 
-// grouped address with the compare-ends bright: first/last 4 chars ink, middle
-// muted. People check the ends against the other screen — light those up.
+// Grouped address with only the LAST 8 characters lit, everything before them
+// muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
+// highlighting the front invited people to compare a constant and feel checked.
+// The tail carries real entropy and the bech32 checksum, so a swapped address
+// always differs there.
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);
 
 // Hold-to-confirm pill: the action fires only after the finger has been held
