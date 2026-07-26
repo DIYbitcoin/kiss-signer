@@ -57,6 +57,8 @@ static char s_sim_seed[256] =
 static int s_sim_has_seed = 1;
 static char s_sim_pending[256];
 static int s_sim_has_pending;
+static int s_sim_mode;
+static int s_sim_pending_mode = -1;   // staged wizard answer, -1 = none
 int wallet_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
 int wallet_seed_store(const char *m) {
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", m);
@@ -78,12 +80,18 @@ int wallet_seed_stage(const char *m) {
 }
 int wallet_seed_commit(void) {
   if (!s_sim_has_pending) return -1;
+  if (s_sim_pending_mode >= 0) s_sim_mode = s_sim_pending_mode;
+  s_sim_pending_mode = -1;
+  if (s_sim_mode == WSEED_MODE_AMNESIC) {
+    s_sim_has_seed = 0;          // the old stored wallet goes WITH the commit
+    return 0;                    // the new words stay in RAM until the lock
+  }
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", s_sim_pending);
   s_sim_has_seed = 1;
   s_sim_has_pending = 0;
   return 0;
 }
-void wallet_seed_discard(void) { s_sim_has_pending = 0; }
+void wallet_seed_discard(void) { s_sim_has_pending = 0; s_sim_pending_mode = -1; }
 static const char *SIM_WORDS[] = {
   "gravity", "machine", "north", "sort", "system", "female", "filter",
   "attitude", "volume", "fold", "club", "stay", "feature", "office",
@@ -98,10 +106,18 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
   return 0;
 }
 // storage mode: the real logic + its edge cases live in wallet_seed.c and are
-// covered by kisstest. Here it only has to steer the screens.
-static int s_sim_mode;
-int wallet_seed_mode(void) { return s_sim_mode; }
+// covered by kisstest. Here it only has to steer the screens -- but it has to
+// steer them the same way, so the staged-vs-applied split is mirrored: the
+// wizard stages, commit applies, and only an explicit set_mode erases now.
+int wallet_seed_mode(void) {
+  return s_sim_pending_mode >= 0 ? s_sim_pending_mode : s_sim_mode;
+}
+void wallet_seed_stage_mode(int m) {
+  s_sim_pending_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC
+                                               : WSEED_MODE_KEEP;
+}
 void wallet_seed_set_mode(int m) {
+  s_sim_pending_mode = -1;
   s_sim_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_seed = 0;
 }

@@ -259,6 +259,47 @@ static void sp_test_sameaddr(void) {
     spchk("k=1 output matches a BIP352 reference key", found1);
 }
 
+// BIP375 recipient ordering. Within one scan-key group, k does NOT follow PSBT
+// output order: the codes are sorted lexicographically by spend key ascending,
+// and only a subgroup sharing BOTH scan and spend keys is ordered among itself
+// by output index. Getting this wrong is silent and expensive -- BIP352
+// scanning walks k = 0, 1, 2 ... and STOPS at the first one it cannot find, so
+// a recipient handed k=1 where they expected k=0 never detects the payment at
+// all. Two labelled addresses of one wallet share a scan key, so this is an
+// ordinary payment, not a corner case.
+static void sp_test_order(void) {
+    sp_recip_t r[4];
+    uint32_t idx[4] = { 7, 2, 5, 1 };
+    // one shared scan key; spend keys deliberately DESCENDING, and the middle
+    // two identical so the output-index tiebreak has something to do
+    static const uint8_t SPEND_BYTE[4] = { 0xdd, 0x99, 0x99, 0x11 };
+    for (int i = 0; i < 4; i++) {
+        memset(r[i].scan, 0, 33);
+        r[i].scan[0] = 0x02;
+        r[i].scan[1] = 0xaa;
+        memset(r[i].spend, 0, 33);
+        r[i].spend[0] = 0x02;
+        r[i].spend[1] = SPEND_BYTE[i];
+    }
+
+    sp_sort_group(r, idx, 4);
+
+    spchk("order: lowest spend key takes k=0", r[0].spend[1] == 0x11);
+    spchk("order: equal spend keys take the middle", r[1].spend[1] == 0x99 &&
+                                                     r[2].spend[1] == 0x99);
+    spchk("order: highest spend key takes k=3", r[3].spend[1] == 0xdd);
+    spchk("order: equal spend keys break the tie on output index",
+          idx[1] == 2 && idx[2] == 5);
+    spchk("order: every output index follows its own recipient",
+          idx[0] == 1 && idx[3] == 7);
+
+    // already sorted stays put (the sort must be a no-op, not a shuffle)
+    sp_sort_group(r, idx, 4);
+    spchk("order: sorting twice changes nothing",
+          r[0].spend[1] == 0x11 && r[3].spend[1] == 0xdd &&
+          idx[0] == 1 && idx[1] == 2 && idx[2] == 5 && idx[3] == 7);
+}
+
 // Stage A receive: derive this wallet's own sp1/tsp1 from the session master
 // (m/352'/coin'/0'/1'/0 scan, m/352'/coin'/0'/0'/0 spend). Reference pubkeys +
 // addresses are from embit (independent of libwally) for the dev mnemonic
@@ -344,12 +385,16 @@ static void sp_test_scan_export(void) {
 }
 
 // Read a PSBT input's taproot key-path signature (PSBT_IN_TAP_KEY_SIG = 0x13,
-// stored by wally in the psbt_fields map). Returns 0 and fills sig64 on success.
-static int sp_tap_key_sig(const struct wally_psbt *p, size_t idx, uint8_t sig64[64]) {
+// stored by wally in the psbt_fields map). BIP341 allows two encodings: 64
+// bytes for SIGHASH_DEFAULT, or 65 with the hash type appended for anything
+// else. Returns 0 and fills sig (and *len, 64 or 65) on success.
+static int sp_tap_key_sig(const struct wally_psbt *p, size_t idx,
+                          uint8_t sig[65], size_t *len) {
     const struct wally_map_item *it =
         wally_map_get_integer(&p->inputs[idx].psbt_fields, 0x13);
-    if (!it || it->value_len != 64) return -1;
-    memcpy(sig64, it->value, 64);
+    if (!it || (it->value_len != 64 && it->value_len != 65)) return -1;
+    memcpy(sig, it->value, it->value_len);
+    *len = it->value_len;
     return 0;
 }
 
@@ -384,8 +429,9 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     snprintf(name, sizeof name, "%s signed psbt strict-parses", tag);
     spchk(name, wally_psbt_from_bytes(out1, w1, 0, &p) == WALLY_OK);
     if (p) {
-        uint8_t sig[64];
-        int have = sp_tap_key_sig(p, 0, sig) == 0;
+        uint8_t sig[65];
+        size_t siglen = 0;
+        int have = sp_tap_key_sig(p, 0, sig, &siglen) == 0 && siglen == 64;
         snprintf(name, sizeof name, "%s carries a 64-byte taproot key sig", tag);
         spchk(name, have);
         // the crux: our signature verifies under embit's output key AND embit's
@@ -402,6 +448,58 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     snprintf(name, sizeof name, "%s sign is deterministic", tag);
     spchk(name, w1 == w2 && memcmp(out1, out2, w1) == 0);
     wallet_psbt_free();
+    wallet_set_network(0);
+}
+
+// BIP341: a taproot signature is 64 bytes ONLY for SIGHASH_DEFAULT. With any
+// explicit hash type the byte is appended, making 65 -- and a verifier reads a
+// bare 64-byte signature as DEFAULT, so committing to 0x01 and then emitting 64
+// bytes produces a signature that simply does not verify. The load gate accepts
+// an explicit SIGHASH_ALL, so the signer has to encode one properly.
+// wally handles this for its own bip32 inputs; the SP path is hand-rolled.
+static void sp_test_spend_explicit_sighash(void) {
+    struct wally_psbt *p = NULL;
+    char *b64 = NULL;
+    wpsbt_summary_t sum;
+    uint8_t out[4096];
+    size_t w = 0;
+
+    // same fixture, with PSBT_IN_SIGHASH_TYPE = SIGHASH_ALL set explicitly
+    if (wally_psbt_from_base64(SPV_SPEND_EVEN_B64, 0, &p) != WALLY_OK ||
+        wally_psbt_set_input_sighash(p, 0, WALLY_SIGHASH_ALL) != WALLY_OK ||
+        wally_psbt_to_base64(p, 0, &b64) != WALLY_OK) {
+        spchk("explicit-sighash fixture builds", 0);
+        if (p) wally_psbt_free(p);
+        return;
+    }
+    wally_psbt_free(p);
+    p = NULL;
+
+    wallet_set_network(1);
+    int rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    spchk("explicit SIGHASH_ALL loads READY", rc == 0 && sum.status == WPSBT_READY);
+    spchk("explicit SIGHASH_ALL signs",
+          wallet_psbt_sign(out, sizeof out, &w) == 0 && w > 0);
+    wallet_psbt_free();
+
+    if (wally_psbt_from_bytes(out, w, 0, &p) == WALLY_OK) {
+        uint8_t sig[65];
+        size_t siglen = 0;
+        int have = sp_tap_key_sig(p, 0, sig, &siglen) == 0;
+        spchk("explicit SIGHASH_ALL yields a 65-byte taproot sig",
+              have && siglen == 65);
+        spchk("explicit SIGHASH_ALL appends the 0x01 hash type",
+              have && siglen == 65 && sig[64] == 0x01);
+        // and it must be a signature over the DIFFERENT message that hash type
+        // implies, not the DEFAULT sighash with a byte stapled on the end
+        spchk("explicit SIGHASH_ALL commits to its own sighash",
+              have && sp_schnorr_verify(SPV_SPEND_EVEN_OUTKEY,
+                                        SPV_SPEND_EVEN_SIGHASH, sig) != 0);
+        wally_psbt_free(p);
+    } else {
+        spchk("explicit-sighash signed psbt strict-parses", 0);
+    }
+    wally_free_string(b64);
     wallet_set_network(0);
 }
 
@@ -644,6 +742,7 @@ int test_sp(void) {
     sp_test_address();
     sp_test_bip352();
     sp_test_sameaddr();
+    sp_test_order();
     sp_test_receive();
     sp_test_scan_export();
     sp_test_label();
@@ -651,5 +750,6 @@ int test_sp(void) {
     sp_test_load();
     sp_test_sign();
     sp_test_spend();
+    sp_test_spend_explicit_sighash();
     return sp_fails;
 }

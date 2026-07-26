@@ -12,6 +12,7 @@
 
 #ifdef ESP_PLATFORM
 #include "nvs.h"
+#include "nvs_flash.h"
 #else
 #define SEED_FILE "/tmp/kiss_seed.txt"
 #define MODE_FILE "/tmp/kiss_seed_mode.txt"
@@ -61,15 +62,52 @@ static int storage_write(const char *words)
 #endif
 }
 
+#ifdef ESP_PLATFORM
+// Non-secret settings that must survive an erase. Named here because erasing
+// is a WHOLE-PARTITION operation: everything else in NVS goes with it, and
+// dumping someone back into English is a rotten way to end a wipe.
+static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang" };
+#define N_KEEP (sizeof KEEP_KEYS / sizeof KEEP_KEYS[0])
+#endif
+
+// nvs_erase_key is a LOGICAL delete. NVS is log-structured, so the old entry
+// stays on its page, readable to anyone who dumps the chip, until a compaction
+// that may never come. On the encrypted-release lane that residue is
+// ciphertext and harmless; on a plaintext board it is the seed.
+//
+// This one function sits behind BOTH "ERASE THIS WALLET" and amnesic mode, and
+// amnesic mode's whole promise is that a device which gets searched holds no
+// wallet bytes at all. A logical delete does not deliver that, so erase the
+// flash sectors themselves and put the preferences back afterwards.
 static int storage_erase(void)
 {
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
-    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+    uint8_t keep[N_KEEP];
+    bool have[N_KEEP];
+
+    for (size_t i = 0; i < N_KEEP; i++)
+        have[i] = false;
+    if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
+        for (size_t i = 0; i < N_KEEP; i++)
+            have[i] = nvs_get_u8(h, KEEP_KEYS[i], &keep[i]) == ESP_OK;
+        nvs_close(h);
+    }
+
+    // deinit explicitly: every handle above is closed, and erasing a partition
+    // that is still initialized is not portable across IDF versions
+    nvs_flash_deinit();                    // NOT_INITIALIZED here is fine
+    if (nvs_flash_erase() != ESP_OK)
         return -1;
-    esp_err_t e = nvs_erase_key(h, "words");
-    int rc = (e == ESP_OK || e == ESP_ERR_NVS_NOT_FOUND) &&
-             nvs_commit(h) == ESP_OK ? 0 : -1;
+    if (nvs_flash_init() != ESP_OK)
+        return -1;
+
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return -1;                         // blank partition, which is safe
+    for (size_t i = 0; i < N_KEEP; i++)
+        if (have[i])
+            nvs_set_u8(h, KEEP_KEYS[i], keep[i]);
+    int rc = nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
     return rc;
 #else
@@ -126,11 +164,30 @@ static void storage_mode_write(int mode)
 static char s_pending[WSEED_MAX_MNEMONIC];
 static bool s_has_pending;
 
-int wallet_seed_mode(void) { return storage_mode_read(); }
+// Staged storage mode, or -1 for "no choice pending". The setup wizard asks
+// KEEP vs NOTHING SAVED on its FIRST screen, before a single word of the new
+// wallet exists, so that answer is staged exactly like the mnemonic is.
+// Applying it on the tap erased the wallet the user still had: one BACK press
+// or a power cut and the words were gone with nothing to replace them.
+static int s_pending_mode = -1;
+
+// The staged choice is what the wizard's own screens must reflect, so it wins
+// while it exists. Everywhere else there is nothing staged and this is flash.
+int wallet_seed_mode(void)
+{
+    return s_pending_mode >= 0 ? s_pending_mode : storage_mode_read();
+}
+
+void wallet_seed_stage_mode(int mode)
+{
+    s_pending_mode = mode == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC
+                                                : WSEED_MODE_KEEP;
+}
 
 void wallet_seed_set_mode(int mode)
 {
     mode = mode == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+    s_pending_mode = -1;               // an explicit set overrules any staging
     // Turning amnesic ON has to take the stored seed with it, otherwise the
     // screen would claim "nothing saved" while flash still held the words.
     if (mode == WSEED_MODE_AMNESIC)
@@ -147,24 +204,41 @@ int wallet_seed_stage(const char *mnemonic)
     return 0;
 }
 
+// The ONE moment flash changes. Everything the wizard collected (the words and
+// the storage mode) lands here together, or not at all.
 int wallet_seed_commit(void)
 {
     if (!s_has_pending)
         return -1;
-    // Amnesic: "committing" means keeping it in RAM and nowhere else. The
-    // staged copy stays so the session can derive from it until the lock.
-    if (storage_mode_read() == WSEED_MODE_AMNESIC)
+    int mode = wallet_seed_mode();
+    if (mode == WSEED_MODE_AMNESIC) {
+        // "Committing" means keeping it in RAM and nowhere else, and taking
+        // any previously stored wallet with it -- otherwise the screen would
+        // claim "nothing saved" while flash still held the old words. The
+        // staged copy stays so the session can derive from it until the lock.
+        if (storage_erase() != 0)
+            return -1;
+        storage_mode_write(WSEED_MODE_AMNESIC);
+        s_pending_mode = -1;
         return 0;
+    }
     int rc = storage_write(s_pending);
+    if (rc == 0)
+        storage_mode_write(WSEED_MODE_KEEP);   // only once the words are safe
     wally_bzero(s_pending, sizeof s_pending);
     s_has_pending = false;
+    s_pending_mode = -1;
     return rc;
 }
 
+// Backing out of setup, at any step, for any reason. Nothing was written yet,
+// so this only has to drop what is held in RAM: the words AND the storage-mode
+// answer, which reverts wallet_seed_mode() to whatever flash still says.
 void wallet_seed_discard(void)
 {
     wally_bzero(s_pending, sizeof s_pending);
     s_has_pending = false;
+    s_pending_mode = -1;
 }
 
 // ---- API ----
