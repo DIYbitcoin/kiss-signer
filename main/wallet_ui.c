@@ -39,6 +39,7 @@ static lv_obj_t *s_errscr;                 // setup-failed STOP (never enters ho
 static lv_obj_t *s_entry;                  // the masked entry label
 static lv_obj_t *s_count;                  // "N characters" (catches hidden typos)
 static lv_obj_t *s_showbtn_lbl;
+static lv_obj_t *s_kflash;                 // key-press flash, child of s_login
 static lv_obj_t *s_kb;
 static lv_timer_t *s_mask_tmr;
 static lv_obj_t *s_pop;                    // key-press bubble ("visual haptics")
@@ -279,7 +280,7 @@ static void wipe_and_close(void) {
   s_flash = false;
   if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
   if (s_pop_tmr) { lv_timer_delete(s_pop_tmr); s_pop_tmr = NULL; }
-  s_pop = NULL; s_pop_lbl = NULL;            // children of s_login: die with it
+  s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL;   // children of s_login: die with it
   // async: this runs from event callbacks of children of these screens — deleting
   // an ancestor of the event target mid-event corrupts the rest of the event pass
   if (s_login) { lv_obj_delete_async(s_login); s_login = NULL; }
@@ -382,7 +383,7 @@ static void setup_fail_dismiss_cb(lv_event_t *e) {
 static void setup_fail_screen(void) {
   if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
   if (s_pop_tmr) { lv_timer_delete(s_pop_tmr); s_pop_tmr = NULL; }
-  s_pop = NULL; s_pop_lbl = NULL;
+  s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL;
   if (s_login) { lv_obj_delete_async(s_login); s_login = NULL; }
   if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
 
@@ -667,10 +668,53 @@ static void key_rect(uint32_t id, int *x, int *y, int *w, int *h) {
   *w = (int)(my_units * unit);
 }
 
+static lv_anim_t s_pop_a;
+static void pop_ty(void *o, int32_t v)  { lv_obj_set_style_translate_y((lv_obj_t *)o, v, 0); }
+
 static void pop_hide_cb(lv_timer_t *t) {
   (void)t;
   s_pop_tmr = NULL;
   if (s_pop) lv_obj_add_flag(s_pop, LV_OBJ_FLAG_HIDDEN);
+}
+
+// ---- key flash: the pressed key lights and fades ----
+// The board has no vibration motor, so "the tap registered" has to be carried
+// by the eye alone. The callout above the key answers WHAT was typed; this
+// answers THAT something was, and it outlives the finger by a beat so a fast
+// typist still sees each press land. Opacity only: transform_scale allocates
+// an LVGL layer and hangs the device.
+static lv_anim_t s_kflash_a;
+
+static void kflash_opa(void *o, int32_t v) {
+  lv_obj_set_style_bg_opa((lv_obj_t *)o, (lv_opa_t)v, 0);
+  lv_obj_set_style_border_opa((lv_obj_t *)o, (lv_opa_t)v, 0);
+}
+
+static void key_flash(uint32_t id) {
+  if (!s_login) return;
+  int kx, ky, kw, kh;
+  key_rect(id, &kx, &ky, &kw, &kh);
+  if (!s_kflash) {
+    s_kflash = lv_obj_create(s_login);
+    lv_obj_remove_style_all(s_kflash);
+    lv_obj_set_style_radius(s_kflash, 10, 0);
+    lv_obj_set_style_bg_color(s_kflash, wt_accent(), 0);
+    lv_obj_set_style_border_width(s_kflash, 2, 0);
+    lv_obj_set_style_border_color(s_kflash, wt_accent(), 0);
+    lv_obj_remove_flag(s_kflash, LV_OBJ_FLAG_CLICKABLE);
+  }
+  lv_anim_delete(s_kflash, kflash_opa);      // retrigger cleanly on a fast repeat
+  lv_obj_set_pos(s_kflash, kx, ky);
+  lv_obj_set_size(s_kflash, kw, kh);
+  lv_obj_move_foreground(s_kflash);
+  if (s_pop) lv_obj_move_foreground(s_pop);  // the callout stays on top of it
+  lv_anim_init(&s_kflash_a);
+  lv_anim_set_var(&s_kflash_a, s_kflash);
+  lv_anim_set_exec_cb(&s_kflash_a, kflash_opa);
+  lv_anim_set_path_cb(&s_kflash_a, lv_anim_path_ease_out);
+  lv_anim_set_values(&s_kflash_a, 110, 0);
+  lv_anim_set_duration(&s_kflash_a, 190);
+  lv_anim_start(&s_kflash_a);
 }
 
 static void pop_show(const char *ch, uint32_t id) {
@@ -700,8 +744,24 @@ static void pop_show(const char *ch, uint32_t id) {
   lv_obj_set_pos(s_pop, px, ky - 68);       // bottom ~28px into the key = attached to it
   lv_obj_clear_flag(s_pop, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_pop);
+
+  // Rise, do not fade. The lift is what the eye reads as "that registered".
+  // NOT lv_obj_set_style_opa: the callout has a child label and a shadow, and
+  // whole-object opacity makes LVGL render it through a layer buffer. That
+  // allocation hangs the device (the same trap as transform_scale) and it hung
+  // the simulator on the very first keypress. translate_y is layer free.
+  lv_anim_delete(s_pop, pop_ty);
+  lv_anim_init(&s_pop_a);
+  lv_anim_set_var(&s_pop_a, s_pop);
+  lv_anim_set_path_cb(&s_pop_a, lv_anim_path_ease_out);
+  lv_anim_set_exec_cb(&s_pop_a, pop_ty);
+  lv_anim_set_values(&s_pop_a, 10, -6);      // starts low, lifts off the key
+  lv_anim_set_duration(&s_pop_a, 190);
+  lv_anim_start(&s_pop_a);
+
+  key_flash(id);
   if (s_pop_tmr) lv_timer_delete(s_pop_tmr);
-  s_pop_tmr = lv_timer_create(pop_hide_cb, 280, NULL);
+  s_pop_tmr = lv_timer_create(pop_hide_cb, 300, NULL);
   lv_timer_set_repeat_count(s_pop_tmr, 1);
 }
 

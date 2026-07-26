@@ -742,6 +742,10 @@ int main(void) {
 
   // shift semantics. Row 3 is [ABC z x c v b n m BKSP] at y=355; ABC x=46,
   // z x=135, backspace x=752.
+  touch(135, 277); pump(2); release(); pump(2);      // 's': catch the feedback live
+  lv_refr_now(NULL);
+  save("/tmp/sim_kb_feedback.ppm");                 // key flash + risen callout
+  pump(30); touch(752, 355); pump(3); release(); pump(3);
   touch(46, 355); pump(3); release(); pump(4);      // ABC once -> one-shot upper
   save("/tmp/sim_kb_shift_on.ppm");                 // upper plane, key reads "abc"
   touch(135, 355); pump(3); release(); pump(4);     // Z
