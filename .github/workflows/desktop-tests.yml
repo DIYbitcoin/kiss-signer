@@ -64,6 +64,22 @@ jobs:
             tail -1 /tmp/sim_$L.log
           done
 
+      # The walk drives the UI with hardcoded touch coordinates. When a layout
+      # moves, a tap lands on background: the frame still saves, it is just a
+      # copy of the one before, and the walk still "passes". That is how the
+      # 2min->5min auto-lock change left the wipe and amnesic-mode steps dead
+      # for four commits. Identical consecutive frames mean a dead interaction.
+      - name: simulator taps still hit something
+        run: python3 tools/check_sim_taps.py
+
+      # The walkthrough's screenshots are simulator frames, so a renamed or
+      # deleted save() in sim_main.c silently orphans a picture in the docs.
+      # This checks the manifest still resolves; it deliberately does not
+      # compare pixels, because zlib versions differ and a flaky docs job
+      # teaches people to ignore the docs job.
+      - name: docs screenshots manifest
+        run: python3 tools/gen_docs_shots.py --check
+
       # Type-size ratchet. Fails when a button the user must READ to act
       # correctly (sign, wipe, replace, verify) renders at font14 in ANY of the
       # 21 locales, which is how a translation quietly turns the most

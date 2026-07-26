@@ -11,6 +11,7 @@
 #include "wallet_crypto.h"
 #include "wallet_scan.h"    // wallet_scan_open_raw: passphrase-from-QR
 #include "wallet_seed.h"
+#include "wallet_setup.h"   // optional full post-creation recovery rehearsal
 #include "wallet_theme.h"
 
 #ifndef SIMULATOR
@@ -264,6 +265,8 @@ static void setup_cap_reset(void) {
 
 static lv_obj_t *s_cancel_ovl;             // "cancel setup?" confirm (setup mode only)
 static lv_obj_t *s_warnscr;                // post-setup passphrase warning (one screen)
+static bool s_backup_verified;             // every word + exact passphrase rehearsed
+static bool s_backup_verify_pass;          // keyboard is checking that passphrase now
 
 static void wipe_and_close(void) {
   if (s_cancel_ovl) { lv_obj_delete_async(s_cancel_ovl); s_cancel_ovl = NULL; }
@@ -276,6 +279,8 @@ static void wipe_and_close(void) {
   s_setup_mode = false;
   s_first_done = false;
   s_weak_ack = false;
+  s_backup_verified = false;
+  s_backup_verify_pass = false;
   s_plen = 0;
   s_show = false;
   s_flash = false;
@@ -476,6 +481,42 @@ static void setup_warn_ok_cb(lv_event_t *e) {
   if (cb) cb();
 }
 
+static void setup_warn_words_done(void)
+{
+  if (!wallet_setup_verify_succeeded()) {
+    setup_warn_screen();                    // optional check cancelled or did not match
+    return;
+  }
+
+  // The words matched. Now throw away the passphrase that created the session
+  // and require it fresh: comparing the resulting fingerprint proves the exact
+  // words + exact passphrase combination without ever storing that passphrase.
+  s_backup_verify_pass = true;
+  memset(s_pass, 0, sizeof s_pass);
+  memset(s_first, 0, sizeof s_first);
+  s_plen = 0;
+  s_show = false;
+  s_flash = false;
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
+  if (s_login) {
+    lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(s_login);
+  }
+  if (s_cap) {
+    lv_label_set_text(s_cap, tr(STR_L_VERIFY_PASS));
+    lv_obj_set_style_text_color(s_cap, lv_color_hex(0xF2B84B), 0);
+  }
+  entry_refresh();
+}
+
+static void setup_warn_verify_cb(lv_event_t *e)
+{
+  (void)e;
+  if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
+  wallet_setup_open_verify(lv_screen_active(), setup_warn_words_done);
+}
+
 static void setup_warn_screen(void) {
   if (s_warnscr) return;
   s_warnscr = lv_obj_create(lv_screen_active());
@@ -491,18 +532,18 @@ static void setup_warn_screen(void) {
   lv_label_set_text(t, tr(STR_L_WARN_T));
   lv_obj_set_style_text_color(t, lv_color_hex(0xF2B84B), 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 56);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
 
-  // body runs from y=112 down to the fingerprint at y=322: auto-fit keeps the
+  // body runs from y=92 down to the fingerprint: auto-fit keeps the
   // short English copy big and a long translation off the fingerprint
   lv_obj_t *b = lv_label_create(s_warnscr);
   lv_label_set_text(b, tr(STR_L_WARN_B));
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 720, 200), 0);
+  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 720, 178), 0);
   lv_obj_set_width(b, 720);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 112);
+  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 92);
 
   lv_obj_t *f = lv_label_create(s_warnscr);
   lv_label_set_text_fmt(f, "%02X%02X%02X%02X",
@@ -510,22 +551,28 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_text_color(f, INK_COL, 0);
   lv_obj_set_style_text_font(f, wt_font28(), 0);
   lv_obj_set_style_text_letter_space(f, 4, 0);
-  lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 322);
+  lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 294);
 
-  lv_obj_t *ok = lv_button_create(s_warnscr);
-  lv_obj_set_size(ok, 260, 56);
-  lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 388);
-  lv_obj_set_style_bg_color(ok, KEY_COL, 0);
-  lv_obj_set_style_shadow_width(ok, 0, 0);
-  lv_obj_set_style_border_width(ok, 1, 0);
-  lv_obj_set_style_border_color(ok, MUT_COL, 0);
-  lv_obj_add_event_cb(ok, setup_warn_ok_cb, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *ol = lv_label_create(ok);
-  lv_label_set_text(ol, tr(STR_C_I_UNDERSTAND));
-  lv_obj_set_style_text_color(ol, INK_COL, 0);
-  lv_obj_set_style_text_font(ol, wt_font14(), 0);
-  lv_obj_set_style_text_letter_space(ol, 2, 0);
-  lv_obj_center(ol);
+  lv_obj_t *state = lv_label_create(s_warnscr);
+  lv_label_set_text(state, s_backup_verified ? tr_sym(LV_SYMBOL_OK, STR_L_BACKUP_VERIFIED)
+                                              : tr(STR_L_BACKUP_UNVERIFIED));
+  lv_obj_set_style_text_color(state, s_backup_verified ? WT_OK : WT_STOP, 0);
+  lv_obj_set_style_text_font(state, wt_font14(), 0);
+  lv_obj_set_style_text_letter_space(state, 2, 0);
+  lv_obj_align(state, LV_ALIGN_TOP_MID, 0, 348);
+
+  lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
+                              48, 398, 300, 66, setup_warn_verify_cb, NULL);
+  if (!s_backup_verified)
+    lv_obj_set_style_border_color(verify, WT_WARN, 0);
+
+  // Skipping is allowed, but it must look like a conscious decision. The red
+  // ring disappears only after every word and the exact passphrase have both
+  // recreated the fingerprint above.
+  lv_obj_t *ok = wt_pillh(s_warnscr, tr(STR_C_I_UNDERSTAND),
+                          430, 398, 320, 66, setup_warn_ok_cb, NULL);
+  lv_obj_set_style_border_width(ok, 2, 0);
+  lv_obj_set_style_border_color(ok, s_backup_verified ? WT_OK : WT_STOP, 0);
 }
 
 // reveal pop-in: the code card rises + fades in (one-shot, no per-frame cost after)
@@ -794,11 +841,41 @@ static void kb_cb(lv_event_t *e) {
   else if (strcmp(txt, "#1!") == 0) kb_plane(kb, MAP_SYM);
   else if (strcmp(txt, "#2~") == 0) kb_plane(kb, MAP_SYM2);
   else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
-    if (s_setup_mode) show_cancel_confirm();   // don't throw away a fresh seed on one tap
+    if (s_backup_verify_pass) {
+      // This rehearsal is optional. Cancel returns to the warning with the
+      // unverified red state; it does not abandon the wallet just created.
+      s_backup_verify_pass = false;
+      memset(s_pass, 0, sizeof s_pass);
+      s_plen = 0;
+      entry_refresh();
+      setup_warn_screen();
+    }
+    else if (s_setup_mode) show_cancel_confirm();   // don't throw away a fresh seed on one tap
     else wipe_and_close();                     // normal login: nothing to lose
   }
   else if (strcmp(txt, "OK") == 0) {
-    if (s_setup_mode && !s_first_done && pass_bits() < 40 && !s_weak_ack) {
+    if (s_backup_verify_pass) {
+      uint8_t fp[4] = {0};
+      bool match = wallet_fingerprint(s_plen ? s_pass : NULL, fp) == 0
+                && memcmp(fp, s_last_fp, sizeof fp) == 0;
+      memset(fp, 0, sizeof fp);
+      memset(s_pass, 0, sizeof s_pass);
+      s_plen = 0;
+      s_show = false;
+      s_flash = false;
+      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+      if (!match) {
+        lv_label_set_text(s_cap, tr(STR_L_BACKUP_PASS_BAD));
+        lv_obj_set_style_text_color(s_cap, WT_STOP, 0);
+        entry_refresh();
+      } else {
+        s_backup_verify_pass = false;
+        s_backup_verified = true;
+        entry_refresh();
+        setup_warn_screen();
+      }
+    }
+    else if (s_setup_mode && !s_first_done && pass_bits() < 40 && !s_weak_ack) {
       // weak passphrase: make "yes, really" a separate deliberate press
       s_weak_ack = true;
       lv_label_set_text(s_cap, tr(STR_L_WEAK_ACK));
@@ -953,6 +1030,8 @@ static void pp_intro_go_cb(lv_event_t *e) {
 void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   s_setup_mode = true;
   s_first_done = false;
+  s_backup_verified = false;
+  s_backup_verify_pass = false;
   s_first[0] = 0;
   ensure_indev();
   s_setup_next_cb = unlocked_cb;

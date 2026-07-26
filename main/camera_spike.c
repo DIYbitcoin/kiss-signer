@@ -40,6 +40,7 @@
 #include "wallet_crypto.h"   // wallet_entropy_mix: camera hash + TRNG -> seed
 
 #include "k_quirc.h"
+#include "i18n.h"
 #include "scan_osd.h"
 
 static const char *TAG = "camspike";
@@ -395,14 +396,18 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 // Text strip on the top band, centered along landscape-x.
 static void draw_osd_strip(uint16_t *fb, int idx) {
   if (idx < 0 || idx >= SCAN_OSD_N) return;
-  const scan_osd_strip_t *s = &scan_osd[idx];
+  int lang = i18n_get_lang();
+  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
+  const scan_osd_strip_t *s = &scan_osd[lang][idx];
   blit_a4(fb, s, STRIP_TOP_PX, (PANEL_H - s->w) / 2);
 }
 
 // "Reading  12 of 34" as one line of real type: the baked strip, then live
 // counts from the glyph atlas (total may be unknown early — show seen alone).
 static void draw_read_line(uint16_t *fb, int seen, int total) {
-  const scan_osd_strip_t *strip = &scan_osd[OSD_READ];
+  int lang = i18n_get_lang();
+  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
+  const scan_osd_strip_t *strip = &scan_osd[lang][OSD_READ];
   if (seen > 99) seen = 99;
   if (total > 99) total = 99;
   int gi[8], n = 0;
@@ -410,20 +415,25 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
   gi[n++] = seen % 10;
   if (total > 0) {
     gi[n++] = -1;                       // narrow space
-    gi[n++] = SCAN_OSD_GLYPH_OF;
+    gi[n++] = -2;                       // localized word "of"
     gi[n++] = -1;
     if (total >= 10) gi[n++] = total / 10;
     gi[n++] = total % 10;
   }
   int tw = strip->w + 14;
-  for (int i = 0; i < n; i++) tw += gi[i] < 0 ? 10 : scan_osd_glyph[gi[i]].w + 2;
+  for (int i = 0; i < n; i++)
+    tw += gi[i] == -1 ? 10
+         : gi[i] == -2 ? scan_osd_of[lang].w + 2
+                       : scan_osd_glyph[gi[i]].w + 2;
   int cy = (PANEL_H - tw) / 2;
   blit_a4(fb, strip, STRIP_TOP_PX, cy);
   cy += strip->w + 14;
   for (int i = 0; i < n; i++) {
-    if (gi[i] < 0) { cy += 10; continue; }
-    blit_a4(fb, &scan_osd_glyph[gi[i]], STRIP_TOP_PX, cy);
-    cy += scan_osd_glyph[gi[i]].w + 2;
+    if (gi[i] == -1) { cy += 10; continue; }
+    const scan_osd_strip_t *g = gi[i] == -2 ? &scan_osd_of[lang]
+                                             : &scan_osd_glyph[gi[i]];
+    blit_a4(fb, g, STRIP_TOP_PX, cy);
+    cy += g->w + 2;
   }
 }
 
@@ -631,7 +641,9 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
     darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
     darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
-    blit_a4(fb, &scan_osd[OSD_CLOSE], 449, 22);      // × close, top-left corner
+    int lang = i18n_get_lang();
+    if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
+    blit_a4(fb, &scan_osd[lang][OSD_CLOSE], 449, 22); // localized close, top-left
   }
   if (s_scan_mode) {
     draw_brackets(fb);                // viewfinder corners (solid once located)

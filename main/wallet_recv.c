@@ -16,7 +16,7 @@
 #include "wallet_ui.h"      // wallet_ui_last_fp: keys the reuse guard per wallet
 #include "wallet_usage.h"   // highest receive index this wallet has used
 
-#define VFY_SCAN_DEPTH 200   // how far down each chain VERIFY searches
+#define VFY_SCAN_DEPTH 100   // bounded, honest ownership search per chain
 
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
@@ -166,18 +166,28 @@ static void vfy_result(const char *txt, size_t len) {
   uint32_t idx = 0;
   int mine = vfy_find(addr, &change, &idx);
   int sp_mine = !mine && vfy_is_sp_mine(addr);
+  int validity = (mine || sp_mine) ? WADDR_CURRENT_NETWORK
+                                   : wallet_address_validate(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
-  wt_group4(addr, grouped, sizeof grouped);
-
-  // a silent-payment address needs ~3 lines even at font14; the note below has
-  // to start under whatever the address actually occupies, not a fixed y
-  bool longaddr = strlen(addr) > 64;
-  lv_obj_t *sg = wt_addr_spans(s_scr, grouped, 700,
-                               longaddr ? wt_font14() : wt_font28());
-  lv_obj_set_pos(sg, 48, 186);
-  lv_obj_update_layout(sg);
-  int note_y = 186 + lv_obj_get_height(sg) + 16;
+  // Only format and tail-highlight something that really is an address.
+  // Arbitrary QR text is not grouped address data; feeding a short malformed
+  // string through the span formatter also left LVGL with a broken short-span
+  // layout on the error screen.
+  lv_obj_t *shown;
+  if (validity == WADDR_INVALID) {
+    shown = wt_lbl(s_scr, addr, 48, 186, wt_font28(), WT_MUT);
+    lv_obj_set_width(shown, 700);
+    lv_label_set_long_mode(shown, LV_LABEL_LONG_WRAP);
+  } else {
+    wt_group4(addr, grouped, sizeof grouped);
+    bool longaddr = strlen(addr) > 64;
+    shown = wt_addr_spans(s_scr, grouped, 700,
+                          longaddr ? wt_font14() : wt_font28());
+    lv_obj_set_pos(shown, 48, 186);
+  }
+  lv_obj_update_layout(shown);
+  int note_y = 186 + lv_obj_get_height(shown) + 16;
   if (note_y < 280) note_y = 280;
 
   if (mine || sp_mine) {
@@ -189,11 +199,24 @@ static void vfy_result(const char *txt, size_t len) {
     else
       snprintf(buf, sizeof buf, tr(STR_R_RECV_FMT), (unsigned)idx);
     wt_lbl(s_scr, buf, 48, note_y, wt_font14(), WT_MUT);
-  } else {
-    wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_NOT_YOURS),
+  } else if (validity == WADDR_CURRENT_NETWORK) {
+    snprintf(buf, sizeof buf, tr(STR_R_NOT_FOUND_FMT), VFY_SCAN_DEPTH);
+    lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
+                                wt_body_font(buf, 700, 44), WT_WARN);
+    lv_label_set_text_fmt(headline, LV_SYMBOL_WARNING " %s", buf);
+    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
+    lv_label_set_text(n, tr(STR_R_NOT_FOUND_B));
+    lv_obj_set_style_text_color(n, WT_WARN, 0);
+  } else if (validity == WADDR_WRONG_NETWORK) {
+    wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_WRONG_NET),
            48, 130, wt_font28(), WT_STOP);
     lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
-    lv_label_set_text(n, tr(STR_R_NOT_B));
+    lv_label_set_text(n, tr(STR_R_WRONG_NET_B));
+  } else {
+    wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_INVALID),
+           48, 130, wt_font28(), WT_STOP);
+    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
+    lv_label_set_text(n, tr(STR_R_INVALID_B));
   }
 
   lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, 404, 220, vfy_scan, NULL);

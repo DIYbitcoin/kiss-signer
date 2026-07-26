@@ -43,6 +43,7 @@ static int s_nw;                // words collected so far
 static int s_count;             // 12 or 24
 static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
+static bool s_verify_ok;        // result returned to the caller after this check
 static bool s_load;             // AMNESIC per-session load, not first-boot setup
 
 static int s_quiz_round;
@@ -73,6 +74,7 @@ static void goto_choose_cb(lv_event_t *e)
 static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 bool wallet_setup_active(void) { return s_scr != NULL; }
+bool wallet_setup_verify_succeeded(void) { return s_verify_ok; }
 
 static void wipe_state(void)
 {
@@ -185,6 +187,7 @@ static void verify_finish(void)
     wipe_state();                       // the entered words never linger
 
     if (mism < 0) {
+        s_verify_ok = true;
         mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
@@ -677,6 +680,7 @@ void wallet_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
     s_done = done_cb;
     s_restore = true;                  // reuse the restore word-entry keypad
     s_verify = true;
+    s_verify_ok = false;
     wipe_state();
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check

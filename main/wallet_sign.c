@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #include "i18n.h"
 #include "platform_sd.h"
@@ -152,10 +153,10 @@ static const char *tr_reason(const char *r)
 
 static void mk_status_light(void)
 {
-    const char *word = s_sum.status == WPSBT_READY ? tr_sym(LV_SYMBOL_OK, STR_S_READY)
+    const char *word = s_sum.status == WPSBT_READY ? tr(STR_S_READY)
                      : s_sum.status == WPSBT_CAUTION ? tr_sym(LV_SYMBOL_WARNING, STR_S_CAUTION)
                      : tr_sym(LV_SYMBOL_CLOSE, STR_S_STOP);
-    lv_color_t col = s_sum.status == WPSBT_READY ? OK_COL
+    lv_color_t col = s_sum.status == WPSBT_READY ? MUT_COL
                    : s_sum.status == WPSBT_CAUTION ? WARN_COL : STOP_COL;
     lv_obj_t *p = lv_obj_create(s_scr);
     lv_obj_remove_style_all(p);
@@ -419,24 +420,46 @@ static void verify_screen(lv_obj_t *parent)
 {
     char buf[160], a[32], b[32];
     s_parent = parent;                    // details page rebuilds us from here
-    mk_screen(parent, tr(STR_S_T), s_cur);
+    mk_screen(parent, tr(STR_S_T), NULL);
+    lv_obj_t *src = mk_lbl(s_cur, 40, 64, wt_font14(), MUT_COL);
+    lv_obj_set_width(src, 360);
+    lv_label_set_long_mode(src, LV_LABEL_LONG_CLIP);
+
+    // The wallet identity belongs in the persistent header, not halfway down
+    // the money hierarchy. It remains visible while the user compares every
+    // amount, but no longer competes with fee/total.
+    {
+        uint8_t fp[4];
+        wallet_ui_last_fp(fp);
+        lv_obj_t *cap = mk_lbl(tr(STR_S_SIGNING_AS), 430, 30, wt_font14(), MUT_COL);
+        lv_obj_set_width(cap, 150);
+        lv_label_set_long_mode(cap, LV_LABEL_LONG_CLIP);
+        snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+        lv_obj_t *f = mk_lbl(buf, 430, 50, wt_font23(), INK_COL);
+        lv_obj_set_style_text_letter_space(f, 2, 0);
+    }
     mk_status_light();
 
-    // the one number to check first: everything leaving this wallet
-    // (amount sent + fee), in both units the coordinator might display.
-    // Built from the two VALIDATED fields — in_sats - change_sats would
-    // underflow on a malformed (STOP) tx and render 18.4 quintillion sats.
+    // First question: what do the recipients get? Change stays itemized below
+    // and is never counted as money sent away.
     uint64_t total = s_sum.send_sats + s_sum.fee_sats;
     mk_lbl(tr(STR_S_SENDING_CAP), 40, 96, wt_font14(), MUT_COL);
-    fmt_sats(total, a, sizeof a);
+    fmt_sats(s_sum.send_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
     mk_lbl(buf, 40, 116, wt_font28(), INK_COL);
-    wt_fmt_btc(total, b, sizeof b);
-    snprintf(buf, sizeof buf, tr(STR_S_BTC_EQ_FMT), b);
+    wt_fmt_btc(s_sum.send_sats, b, sizeof b);
+    snprintf(buf, sizeof buf, "%s BTC", b);
     mk_lbl(buf, 40, 152, wt_font14(), MUT_COL);
 
-    // outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
-    // user is asked to sign is ever hidden. change rows say why they're safe.
+    // Outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
+    // user is asked to sign is ever hidden.  In the common one-recipient case,
+    // the amount is already the large "RECIPIENT GETS" value immediately
+    // above, so don't repeat it.  That leaves enough room to show the full
+    // recipient address and verified change without either row running under
+    // the action bar.
+    int recipient_n = 0;
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+        if (!s_sum.outs[i].is_change) recipient_n++;
     lv_obj_t *ol = lv_obj_create(s_scr);
     lv_obj_remove_style_all(ol);
     lv_obj_set_pos(ol, 40, 178);
@@ -455,21 +478,35 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
-        // sats big, BTC small under it. On one line at font23 the BTC figure
-        // ran to the edge of the 372px list and would clip outright once a
-        // locale used a longer unit word.
-        fmt_sats(s_sum.outs[i].sats, a, sizeof a);
-        wt_fmt_btc(s_sum.outs[i].sats, b, sizeof b);
-        snprintf(buf, sizeof buf, "%s sats", a);
-        lv_obj_t *amt = lv_label_create(row);
-        lv_label_set_text(amt, buf);
-        lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, wt_font23(), 0);
-        snprintf(buf, sizeof buf, "%s BTC", b);
-        lv_obj_t *btc = lv_label_create(row);
-        lv_label_set_text(btc, buf);
-        lv_obj_set_style_text_color(btc, MUT_COL, 0);
-        lv_obj_set_style_text_font(btc, wt_font14(), 0);
+        lv_obj_t *tag = lv_label_create(row);
+        if (s_sum.outs[i].is_change) {
+            lv_label_set_text(tag, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
+            lv_obj_set_style_text_color(tag, OK_COL, 0);
+        } else if (s_sum.outs[i].is_sp) {    // BIP375: destination derived here
+            lv_label_set_text(tag, tr(STR_S_SP_BADGE));
+            lv_obj_set_style_text_color(tag, wt_accent(), 0);
+        } else {
+            lv_label_set_text(tag, tr(STR_S_SENDING_OUT));
+            lv_obj_set_style_text_color(tag, MUT_COL, 0);
+        }
+        lv_obj_set_style_text_font(tag, wt_font14(), 0);
+
+        // A multi-recipient transaction still itemizes every recipient amount.
+        // Change always keeps its own amount so "back to you" is explicit.
+        if (s_sum.outs[i].is_change || recipient_n > 1) {
+            fmt_sats(s_sum.outs[i].sats, a, sizeof a);
+            wt_fmt_btc(s_sum.outs[i].sats, b, sizeof b);
+            snprintf(buf, sizeof buf, "%s sats", a);
+            lv_obj_t *amt = lv_label_create(row);
+            lv_label_set_text(amt, buf);
+            lv_obj_set_style_text_color(amt, INK_COL, 0);
+            lv_obj_set_style_text_font(amt, wt_font23(), 0);
+            snprintf(buf, sizeof buf, "%s BTC", b);
+            lv_obj_t *btc = lv_label_create(row);
+            lv_label_set_text(btc, buf);
+            lv_obj_set_style_text_color(btc, MUT_COL, 0);
+            lv_obj_set_style_text_font(btc, wt_font14(), 0);
+        }
 
         char ga[160];   // sp1/tsp1 is ~117 chars; +grouping spaces needs >120
         group4(s_sum.outs[i].addr, ga, sizeof ga);
@@ -484,19 +521,6 @@ static void verify_screen(lv_obj_t *parent)
             wt_addr_spans(row, ga, 340, wt_font14());
         }
 
-        lv_obj_t *tag = lv_label_create(row);
-        if (s_sum.outs[i].is_change) {
-            lv_label_set_text(tag, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
-            lv_obj_set_style_text_color(tag, OK_COL, 0);
-        } else if (s_sum.outs[i].is_sp) {    // BIP375: destination derived here
-            lv_label_set_text(tag, tr(STR_S_SP_BADGE));
-            lv_obj_set_style_text_color(tag, wt_accent(), 0);
-        } else {
-            lv_label_set_text(tag, tr(STR_S_SENDING_OUT));
-            lv_obj_set_style_text_color(tag, MUT_COL, 0);
-        }
-        lv_obj_set_style_text_font(tag, wt_font14(), 0);
-
         if (s_sum.outs[i].is_sp) {           // teach why a bc1p never appears here
             lv_obj_t *note = lv_label_create(row);
             lv_label_set_text(note, tr(STR_S_SP_NOTE));
@@ -507,9 +531,9 @@ static void verify_screen(lv_obj_t *parent)
         }
     }
 
-    // fee + facts, right column. CAUTION today means exactly one thing (the
-    // high-fee check in wallet_psbt.c), so the fee number itself goes amber —
-    // the flagged value must be the loud one, not just the reason line below.
+    // Second and third questions: fee, then the total leaving this wallet.
+    // The three amounts are named explicitly so the user never has to infer
+    // whether a number includes the fee.
     mk_lbl(tr(STR_S_FEE), 430, 100, wt_font14(), MUT_COL);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
@@ -523,7 +547,15 @@ static void verify_screen(lv_obj_t *parent)
     else
         snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
                  (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
-    mk_lbl(buf, 430, 160, wt_font14(), MUT_COL);
+    mk_lbl(buf, 430, 156, wt_font14(), MUT_COL);
+
+    mk_lbl(tr(STR_S_TOTAL_LEAVING), 430, 184, wt_font14(), MUT_COL);
+    fmt_sats(total, a, sizeof a);
+    snprintf(buf, sizeof buf, "%s sats", a);
+    mk_lbl(buf, 430, 204, wt_font23(), INK_COL);
+    wt_fmt_btc(total, b, sizeof b);
+    snprintf(buf, sizeof buf, "%s BTC", b);
+    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
 
     fmt_sats(s_sum.in_sats, a, sizeof a);
     fmt_sats(s_sum.change_sats, b, sizeof b);
@@ -537,14 +569,14 @@ static void verify_screen(lv_obj_t *parent)
                     : s_sum.purpose == 84 ? tr(STR_S_TY_NATIVE) : tr(STR_S_TY_MIXED);
     snprintf(buf, sizeof buf, tr(STR_S_INPUTS_FMT),
              (unsigned)s_sum.n_in, ity);
-    mk_lbl(buf, 430, 186, wt_font14(), MUT_COL);
+    mk_lbl(buf, 430, 258, wt_font14(), MUT_COL);
     snprintf(buf, sizeof buf, tr(STR_S_IN_BACK_FMT), a, b);
-    mk_lbl(buf, 430, 208, wt_font14(), MUT_COL);
+    mk_lbl(buf, 430, 278, wt_font14(), MUT_COL);
 
     // network: LOUD amber chip on testnet (spec: loud TESTNET banner); mainnet
     // stays a plain muted word. (No address-type setting shown: the signer is
     // type-agnostic — the PSBT's own paths declare the type, re-derive enforces.)
-    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 232,
+    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 304,
                            wt_font14(), s_sum.testnet ? WARN_COL : MUT_COL);
     if (s_sum.testnet) {
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -562,13 +594,13 @@ static void verify_screen(lv_obj_t *parent)
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
-    mk_lbl(buf, 430, 266, wt_font14(), MUT_COL);
+    mk_lbl(buf, 430, 336, wt_font14(), MUT_COL);
     {   // "?" -> plain-words RBF explainer (most people don't know the term)
         int cx = s_sum.rbf ? 592 : 620;
         lv_obj_t *hc = lv_obj_create(s_scr);
         lv_obj_remove_style_all(hc);
         lv_obj_set_size(hc, 26, 26);
-        lv_obj_set_pos(hc, cx, 262);
+        lv_obj_set_pos(hc, cx, 332);
         lv_obj_set_style_radius(hc, 13, 0);
         lv_obj_set_style_bg_color(hc, KEY_COL, 0);
         lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
@@ -584,36 +616,23 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_center(hl);
     }
 
-    // which passphrase-wallet is about to sign — fingerprint = the login check
-    // (spec), so give it the same visual weight as the fee number
-    {
-        uint8_t fp[4];
-        wallet_ui_last_fp(fp);
-        mk_lbl(tr(STR_S_SIGNING_AS), 430, 290, wt_font14(), MUT_COL);
-        snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        lv_obj_t *f = mk_lbl(buf, 430, 308, wt_font28(), INK_COL);
-        lv_obj_set_style_text_letter_space(f, 2, 0);
-    }
-
     if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 350, wt_font14(), STOP_COL);
+        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 366, wt_font14(), STOP_COL);
         lv_obj_set_width(r, 320);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        mk_lbl(tr(STR_S_WONT_SIGN), 430, 388,
-               wt_font14(), MUT_COL);
     } else if (s_sum.status == WPSBT_CAUTION) {
         // short summary + a "?" chip to the full "why" (keeps the screen simple)
         char sum[160];   // three parts in a 2-3 byte/char script must fit
         caution_summary(s_sum.caution_flags, sum, sizeof sum);
         char line[200];
         snprintf(line, sizeof line, tr(STR_S_CAUTION_FMT), sum);
-        lv_obj_t *r = mk_lbl(line, 430, 348, wt_font14(), WARN_COL);
+        lv_obj_t *r = mk_lbl(line, 430, 366, wt_font14(), WARN_COL);
         lv_obj_set_width(r, 280);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
         lv_obj_t *hc = lv_obj_create(s_scr);   // "?" -> WHY FLAGGED card
         lv_obj_remove_style_all(hc);
         lv_obj_set_size(hc, 30, 30);
-        lv_obj_set_pos(hc, 720, 346);
+        lv_obj_set_pos(hc, 720, 362);
         lv_obj_set_style_radius(hc, 15, 0);
         lv_obj_set_style_bg_color(hc, KEY_COL, 0);
         lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
@@ -663,12 +682,12 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_width(s_arc, 6, LV_PART_MAIN);
             lv_obj_set_style_arc_width(s_arc, 6, LV_PART_INDICATOR);
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
-            lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
+            lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
 
             lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 480, ACTION_Y,
                                    272, ACTION_H, NULL, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
-            lv_obj_set_style_border_color(p, OK_COL, 0);
+            lv_obj_set_style_border_color(p, wt_primary(), 0);
             wt_pill_label_max(p);      // the most consequential button in the app
             s_sign_lbl = lv_obj_get_child(p, 0);
         }
@@ -685,6 +704,41 @@ static void details_back_cb(lv_event_t *e)
     verify_screen(s_parent);
 }
 
+static void glossary_ok_cb(lv_event_t *e)
+{
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+static void glossary_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, 245, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, tr(STR_S_GLOSSARY_T));
+    lv_obj_set_style_text_color(t, INK_COL, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 44);
+
+    const char *copy = tr(STR_S_GLOSSARY_B);
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, copy);
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, wt_body_font(copy, 704, 294), 0);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(b, 48, 98);
+
+    wt_pill(ovl, tr(STR_C_OK), 300, 404, 200, glossary_ok_cb, ovl);
+    wt_card_intro(ovl);
+}
+
 static void details_cb(lv_event_t *e)
 {
     (void)e;
@@ -694,6 +748,10 @@ static void details_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
+
+    lv_obj_t *learn = wt_pillh(s_scr, tr(STR_S_GLOSSARY_T),
+                               560, 28, 192, 44, glossary_cb, NULL);
+    lv_obj_set_style_border_color(learn, MUT_COL, 0);
 
     char buf[256], a[32];   // ja details header ~140 bytes; 3 bytes/char worst
     if (det.n_total > det.n_in)          // more inputs than the page can hold
@@ -914,14 +972,53 @@ static void sd_open(lv_obj_t *parent)
     mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
     lv_obj_t *sd = mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SD_READY), 560, 38, wt_font14(), OK_COL);
     lv_obj_set_style_text_letter_space(sd, 1, 0);
-    for (int i = 0; i < n && i < 4; i++) {
-        lv_obj_t *p = mk_pill(s_files[i], 48, 110 + i * 66, 560, file_tap_cb);
-        lv_obj_remove_event_cb(p, file_tap_cb);           // re-add with index payload
-        lv_obj_add_event_cb(p, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    mk_lbl(tr(STR_S_FILES_HINT), 48, 88, wt_font14(), MUT_COL);
+
+    // All discovered files fit in one scrollable, deterministic list. Unsigned
+    // work is sorted first; signed PSBTs remain available for multisig handoffs
+    // but are visibly labelled so nobody accidentally treats one as fresh.
+    lv_obj_t *list = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, 48, 112);
+    lv_obj_set_size(list, 560, 278);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(list, 8, 0);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    for (int i = 0; i < n; i++) {
+        size_t nl = strlen(s_files[i]);
+        bool signed_file = nl >= 12
+                        && strcasecmp(s_files[i] + nl - 12, "-signed.psbt") == 0;
+        lv_obj_t *row = lv_obj_create(list);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, lv_pct(100));
+        lv_obj_set_height(row, 56);
+        lv_obj_set_style_radius(row, 26, 0);
+        lv_obj_set_style_bg_color(row, KEY_COL, 0);
+        lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(row, 1, 0);
+        lv_obj_set_style_border_color(row, signed_file ? WARN_COL : MUT_COL, 0);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(row, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+
+        lv_obj_t *name = lv_label_create(row);
+        lv_label_set_text(name, s_files[i]);
+        lv_obj_set_style_text_color(name, signed_file ? MUT_COL : INK_COL, 0);
+        lv_obj_set_style_text_font(name, wt_font14(), 0);
+        lv_obj_set_width(name, 410);
+        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+        lv_obj_align(name, LV_ALIGN_LEFT_MID, 20, 0);
+
+        lv_obj_t *tag = lv_label_create(row);
+        lv_label_set_text(tag, signed_file ? tr(STR_S_SIGNED_T)
+                                           : tr(STR_S_FILE_UNSIGNED));
+        lv_obj_set_style_text_color(tag, signed_file ? WARN_COL : MUT_COL, 0);
+        lv_obj_set_style_text_font(tag, wt_font14(), 0);
+        lv_obj_set_style_text_letter_space(tag, 1, 0);
+        lv_obj_align(tag, LV_ALIGN_RIGHT_MID, -18, 0);
     }
-    if (n > 4)
-        mk_lbl(tr(STR_S_FIRST4), 48, 110 + 4 * 66,
-               wt_font14(), MUT_COL);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb);
 }
 

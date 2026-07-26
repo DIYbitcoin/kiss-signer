@@ -9,6 +9,7 @@
 #include "flag_imgs.h"   // language-picker flags (Twemoji, CC-BY; en has none)
 #include "i18n.h"
 #include "wallet_crypto.h"
+#include "wallet_info.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"
 #include "wallet_theme.h"
@@ -40,9 +41,17 @@ void wallet_wiped_lock(void);
 
 // Vertical budget for the two notes whose text is swapped by restyle(): they
 // have to be re-fitted on every tap, so the gap lives here rather than being
-// written twice and drifting apart. Both are two lines of font23.
-#define NET_NOTE_H  58
-#define TYPE_NOTE_H 58
+// written twice and drifting apart.
+//
+// NETWORK gets font23: its pills are 340 wide and carry their label at 23 too.
+// ADDRESS TYPE does not. Three side-by-side pills only leave 82px of text
+// width each, so NATIVE/NESTED/LEGACY can never be more than font14 -- and a
+// font23 note under them made the sentence explaining the buttons twice the
+// size of the buttons themselves. A budget below one 23pt line (29px) is what
+// pins the note to the same rung as the controls it describes; the reserved
+// space on screen is unchanged, so a long translation still gets three lines.
+#define NET_NOTE_H  50
+#define TYPE_NOTE_H 24
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
@@ -193,6 +202,19 @@ static void close_cb(lv_event_t *e)
 }
 
 void wallet_settings_close(void) { close_cb(NULL); }   // idle auto-lock path
+
+static void settings_after_words(void)
+{
+    wallet_settings_open(s_parent);
+}
+
+static void words_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_info_open_words(parent, settings_after_words);
+}
 
 // Wipe: erase the seed and go back to being just a game. One tap on the pill
 // opens a confirm screen; the erase happens on a HOLD there and takes effect
@@ -497,9 +519,12 @@ void wallet_settings_open(lv_obj_t *parent)
     mk_section(tr(STR_I_SEC_NET), 48, 74);
     s_main_pill = mk_pillh("MAINNET", 48, 94, 340, 44, pick_cb, (void *)(intptr_t)0);
     s_test_pill = mk_pillh("TESTNET", 48, 142, 340, 44, pick_cb, (void *)(intptr_t)1);
-    s_state_lbl = wt_note(s_scr, "", 48, 190, 340, NET_NOTE_H);   // filled by restyle()
+    s_state_lbl = wt_note(s_scr, "", 48, 190, 340, 50);   // filled by restyle()
 
-    mk_section(tr(STR_I_SEC_TYPE), 48, 250);
+    // Leave a full text-row gap between the network note and this heading, and
+    // another between the heading and the chooser. ADDRESS TYPE previously
+    // touched the rounded pills and looked accidentally trapped behind them.
+    mk_section(tr(STR_I_SEC_TYPE), 48, 246);
     // three visible choices (like the network chooser) so it's obvious you pick
     // one — no hidden cycling. Each shows an example address prefix underneath;
     // restyle() highlights the active type and updates the prefixes per network.
@@ -507,34 +532,30 @@ void wallet_settings_open(lv_obj_t *parent)
     static const int   tn_sc[3]   = {WSCRIPT_NATIVE, WSCRIPT_NESTED, WSCRIPT_LEGACY};
     for (int i = 0; i < 3; i++) {
         int x = 48 + i * 115;
-        s_type_seg[i] = mk_pillh(tn_name[i], x, 268, 110, 60, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
+        s_type_seg[i] = mk_pillh(tn_name[i], x, 276, 110, 60, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
         wt_pill_two_line(s_type_seg[i], "");        // prefix filled by restyle()
         s_type_pfx[i] = lv_obj_get_child(s_type_seg[i], 1);
     }
-    s_type_expl = wt_note(s_scr, "", 48, 334, 360, TYPE_NOTE_H);  // filled by restyle()
-    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 396, 360, 58);         // clears the footer at 460
+    s_type_expl = wt_note(s_scr, "", 48, 342, 360, 54);  // filled by restyle()
+    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 400, 360, 54);         // clears the footer at 460
 
-    // RIGHT: wallet actions, each pill with the note that explains it. Both
-    // notes need three lines of font23 in the longer translations, and the
-    // column only holds that if nothing else claims the space -- hence no
-    // LANGUAGE caption below: that pill carries a flag and the language's own
-    // name, which labels it better than the word ever did.
+    // RIGHT: wallet actions. RECOVERY WORDS lives here because it is a
+    // maintenance/security action, not a fact about the wallet currently open.
     mk_section(tr(STR_I_T), 430, 74);
-    // These two stay 52 tall. This column already carries a caption, two
-    // buttons, two notes AND the language row, so the rows a wrapped label
-    // would need can only come out of the notes -- and this is the screen where
-    // shrinking the prose was the complaint in the first place. The labels are
-    // kept short per locale instead; sim/fitcheck.c fails the build if one of
-    // them ever needs font14 to fit.
-    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 340, 52, replace_cb, NULL);
-    wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 154, 340, 88);   // to WIPE at 246
+    // Tall action pills let longer translations wrap at 23pt instead of
+    // collapsing the security-relevant actions to the smallest UI font.
+    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 340, 66, replace_cb, NULL);
+    wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 164, 340, 32);
+
+    mk_pillh(tr(STR_I_WORDS_BTN), 430, 206, 340, 66, words_cb, NULL);
+    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 274, 340, 32);
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; a hold on the next screen
     // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 246, 340, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 310, 340, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 304, 340, 88);     // to the pill row at 400
+    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 366, 340, 32);
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is
     // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
@@ -553,7 +574,7 @@ void wallet_settings_open(lv_obj_t *parent)
         // flag's width used to come straight out of the name's. BACK keeps its
         // 140 -- the extra comes from the gap between them.
 #define LANG_PILL_W 170
-        s_lang_pill = mk_pillh(shortname, 430, 400, LANG_PILL_W, 44, lang_open_cb, NULL);
+        s_lang_pill = mk_pillh(shortname, 430, 404, LANG_PILL_W, 44, lang_open_cb, NULL);
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
@@ -561,7 +582,7 @@ void wallet_settings_open(lv_obj_t *parent)
 
     {
         lv_obj_t *row[2] = { s_lang_pill,
-                             mk_pillh(tr(STR_C_BACK), 610, 400, 140, 44, close_cb, NULL) };
+                             mk_pillh(tr(STR_C_BACK), 610, 404, 140, 44, close_cb, NULL) };
         wt_pill_row(row, 2);
     }
 

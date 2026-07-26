@@ -502,6 +502,30 @@ int main(int argc, char **argv) {
         chk("m/84h/0h/0h/1/0", addr, "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     else { printf("FAIL: address 1/0 rc\n"); fails++; }
 
+    // The on-device verifier distinguishes three materially different cases:
+    // ours/current-network, valid but from the other network, and malformed.
+    // A current-network address that simply is not ours is handled separately
+    // by the UI's bounded 100-address search.
+    {
+        const char *tb = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl";
+        chki("mainnet address validates for mainnet",
+             wallet_address_validate(
+                 "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"),
+             WADDR_CURRENT_NETWORK);
+        chki("testnet address is wrong while on mainnet",
+             wallet_address_validate(tb), WADDR_WRONG_NETWORK);
+        chki("malformed address is invalid",
+             wallet_address_validate("not-an-address"), WADDR_INVALID);
+        wallet_set_network(1);
+        chki("testnet address validates for testnet",
+             wallet_address_validate(tb), WADDR_CURRENT_NETWORK);
+        chki("mainnet address is wrong while on testnet",
+             wallet_address_validate(
+                 "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"),
+             WADDR_WRONG_NETWORK);
+        wallet_set_network(0);
+    }
+
     char desc[256];
     if (wallet_session_descriptor(desc, sizeof desc) != 0) { printf("FAIL: descriptor rc\n"); return 1; }
     printf("descriptor: %s\n", desc);

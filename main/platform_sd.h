@@ -16,7 +16,8 @@ void platform_sd_unmount(void);
 // there); attempts a mount when none is, so it also detects a fresh insert.
 int  platform_sd_probe(void);
 
-// Fill names[] with *.psbt files (sorted, dotfiles skipped). Returns count, <0 on error.
+// Fill names[] with *.psbt files (unsigned first, signed second, A-Z within
+// each group; dotfiles skipped). Returns count, <0 on error.
 int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max);
 int  platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len);
 int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);

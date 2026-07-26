@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "i18n.h"
+#include "wallet_crypto.h"
 #include "wallet_info.h"
 #include "wallet_settings.h"
 
@@ -197,6 +198,18 @@ int wallet_session_address(int change, unsigned int index, char *out, unsigned l
              s_sim_testnet ? "tb" : "bc", change ? 'c' : 'q', index % 100u);
   return 0;
 }
+int wallet_address_validate(const char *addr) {
+  if (!addr || !*addr) return WADDR_INVALID;
+  size_t alen = strlen(addr);
+  int base58_len = alen >= 26 && alen <= 35;
+  int test_addr = strncmp(addr, "tb1", 3) == 0 || strncmp(addr, "tsp1", 4) == 0
+               || (base58_len && (addr[0] == 'm' || addr[0] == 'n' || addr[0] == '2'));
+  int main_addr = strncmp(addr, "bc1", 3) == 0 || strncmp(addr, "sp1", 3) == 0
+               || (base58_len && (addr[0] == '1' || addr[0] == '3'));
+  if (!test_addr && !main_addr) return WADDR_INVALID;
+  return (test_addr == !!s_sim_testnet) ? WADDR_CURRENT_NETWORK
+                                        : WADDR_WRONG_NETWORK;
+}
 int wallet_session_sp_address(char *out, unsigned long len) {
   snprintf(out, len, "%s", s_sim_testnet
     ? "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n"
@@ -349,6 +362,27 @@ void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center st
 static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 static void release(void) { g_pressed = false; }
 
+// Type a short prefix on wallet_setup.c's recovery-word keyboard, then choose
+// its first suggestion.  Keeping this as a real touch walk means the optional
+// recovery rehearsal is tested through the exact UI a person uses.
+static void restore_word(const char *prefix)
+{
+  static const char *rows[] = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+  static const int x0[] = { 44, 47, 53 };
+  static const int dx[] = { 79, 88, 99 };
+  static const int yy[] = { 254, 314, 374 };
+  for (const char *p = prefix; *p; p++) {
+    for (int r = 0; r < 3; r++) {
+      const char *at = strchr(rows[r], *p);
+      if (!at) continue;
+      touch(x0[r] + (int)(at - rows[r]) * dx[r], yy[r]);
+      pump(3); release(); pump(3);
+      break;
+    }
+  }
+  touch(163, 182); pump(3); release(); pump(3);    // first suggestion
+}
+
 int main(void) {
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
@@ -497,7 +531,7 @@ int main(void) {
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
   touch(529, 430); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
-  {  // VERIFY: uppercase bitcoin: URI of stub receive addr #7 -> YOURS; junk -> NOT
+  {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     touch(678, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
@@ -506,6 +540,14 @@ int main(void) {
     const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
     wallet_scan_inject(bad, strlen(bad)); pump(6);
     save("/tmp/sim_vfy_no.ppm");
+    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    const char *wrong_net = "tb1qwrongnetworkwrongnetworkwrongnetwork00";
+    wallet_scan_inject(wrong_net, strlen(wrong_net)); pump(6);
+    save("/tmp/sim_vfy_wrong_net.ppm");
+    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    const char *invalid = "not-an-address";
+    wallet_scan_inject(invalid, strlen(invalid)); pump(6);
+    save("/tmp/sim_vfy_invalid.ppm");
     touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
     // our OWN silent-payment address: 117 chars, longer than any bc1/tb1
     const char *sp = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xq"
@@ -520,7 +562,7 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
-  touch(211, 109); pump(3); release(); pump(30);    // "?" chip (fingerprint) -> card
+  wallet_info_sim_open_fp_help(); pump(30);         // deterministic: see the type chip below
   save("/tmp/sim_winfo_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   wallet_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
@@ -539,39 +581,6 @@ int main(void) {
   save("/tmp/sim_sp_key.ppm");
   touch(128, 430); pump(3); release(); pump(6);     // DONE -> pair screen
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
-  touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning
-  save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
-
-  // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
-  // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  touch(420, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
-  save("/tmp/sim_verify_intro.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
-  save("/tmp/sim_verify_entry.ppm");
-  for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
-    touch(44, 314); pump(3); release(); pump(3);    // a
-    touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
-    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
-  }
-  pump(4);
-  save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
-  for (int i = 0; i < 11; i++) {                    // 11x abandon
-    touch(44, 314); pump(3); release(); pump(3);
-    touch(450, 374); pump(3); release(); pump(3);
-    touch(163, 182); pump(3); release(); pump(3);
-  }
-  touch(44, 314); pump(3); release(); pump(3);      // a
-  touch(450, 374); pump(3); release(); pump(3);     // b
-  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
-  touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
-  save("/tmp/sim_verify_ok.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // DONE -> section home
-
-  touch(590, 278); pump(3); release(); pump(6);     // BACKUP WORDS -> warning again
-  touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
-  save("/tmp/sim_words.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // DONE -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
 
@@ -585,13 +594,19 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
-  touch(605, 275); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
+  // the RBF "?" is wallet_sign.c's 26px chip at (592,332) when replaceable,
+  // (620,332) when final. This is its centre; it moved down when the amount
+  // hierarchy was rebuilt and the old y=275 landed on empty background.
+  touch(605, 345); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
   save("/tmp/sim_sign_rbf_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
   touch(400, 426); pump(3); release(); pump(6);     // OK closes the card
   touch(293, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
+  touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
+  save("/tmp/sim_sign_glossary.ppm");
+  touch(400, 430); pump(3); release(); pump(6);     // OK closes glossary
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> verify again
   touch(626, 430); pump(40);                        // hold the sign pill: ring ~half full
   save("/tmp/sim_sign_hold.ppm");
@@ -683,6 +698,42 @@ int main(void) {
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
+
+  // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
+  // Settings, then separately exercise the sensitive word reveal.
+  touch(600, 216); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
+  save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
+  // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
+  // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
+  touch(420, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  save("/tmp/sim_verify_intro.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  save("/tmp/sim_verify_entry.ppm");
+  for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
+    touch(44, 314); pump(3); release(); pump(3);    // a
+    touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
+    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
+  }
+  pump(4);
+  save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
+  touch(198, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
+  for (int i = 0; i < 11; i++) {                    // 11x abandon
+    touch(44, 314); pump(3); release(); pump(3);
+    touch(450, 374); pump(3); release(); pump(3);
+    touch(163, 182); pump(3); release(); pump(3);
+  }
+  touch(44, 314); pump(3); release(); pump(3);      // a
+  touch(450, 374); pump(3); release(); pump(3);     // b
+  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
+  touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
+  save("/tmp/sim_verify_ok.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
+
+  touch(600, 216); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
+  touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
+  save("/tmp/sim_words.ppm");
+  touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
+
   touch(510, 424); pump(3); release(); pump(6);     // language pill (y=398) -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
@@ -798,13 +849,40 @@ int main(void) {
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   touch(400, 414); pump(3); release(); pump(8);     // TAP TO OPEN -> passphrase warning
   lv_refr_now(NULL); pump(2);
-  save("/tmp/sim_setup_warn.ppm");                  // "YOUR PASSWORD IS PART OF THE WALLET"
-  touch(400, 416); pump(3); release(); pump(140);   // I UNDERSTAND -> home settles
+  save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
+
+  // Optional full recovery rehearsal: all generated words, then the exact
+  // passphrase. Prefixes below uniquely put each expected word in suggestion 0.
+  touch(198, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  save("/tmp/sim_setup_rehearse_intro.ppm");
+  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  static const char *verify_prefixes[] = {
+    "g", "m", "no", "so", "sy", "fem",
+    "fi", "at", "v", "fo", "c", "stay"
+  };
+  for (size_t i = 0; i < sizeof verify_prefixes / sizeof verify_prefixes[0]; i++)
+    restore_word(verify_prefixes[i]);
+  pump(4);                                          // all words -> VERIFIED
+  touch(198, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
+  save("/tmp/sim_setup_rehearse_pass.ppm");
+  touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> verified warning
+  save("/tmp/sim_setup_verified.ppm");              // green full-backup state
+  touch(590, 430); pump(3); release(); pump(140);   // I UNDERSTAND -> home settles
   save("/tmp/sim_setup_home.ppm");
 
-  // step 8: idle auto-lock — 2min untouched on the home must close the session
-  // and land back on the game menu (7700 frames x 16ms > 120s + intro settle)
-  pump(7700);
+  // step 8: idle auto-lock — WALLET_AUTOLOCK_MS untouched on the home must
+  // close the session and land back on the game menu.
+  //
+  // Keep this ahead of WALLET_AUTOLOCK_MS in main.c (300000ms today). When
+  // that went from 2min to 5min in efb60bc this pump stayed at 7700 frames
+  // (123s), so the lock never fired, the KISS gesture below was drawn onto
+  // the still-open home screen, and every frame from here to the end of the
+  // walk silently became a copy of whatever tile that opened. The wipe and
+  // amnesic-mode steps were dead for four commits and still "passed".
+  // tools/check_sim_taps.py is what catches that now; this margin is what
+  // stops it happening in the first place.
+  pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
   // unlock again (wizard wallet, password 'a') for the wipe preview
@@ -822,8 +900,8 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  // the WIPE pill is wallet_settings.c's mk_pillh(430, 232, 320, 52), centre 258
-  touch(590, 258); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
+  // the WIPE pill is wallet_settings.c's mk_pillh(430, 310, 340, 52)
+  touch(590, 336); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen

@@ -106,6 +106,37 @@
         color: var(--dim);
         font-size: 0.85rem;
       }
+      .first-run {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 14px 0 22px;
+      }
+      .first-run figure {
+        margin: 0;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.28);
+      }
+      .first-run figure:last-child {
+        grid-column: 1 / -1;
+      }
+      .first-run img {
+        width: 100%;
+        display: block;
+        border-radius: 6px;
+      }
+      .first-run figcaption {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .first-run b {
+        color: var(--green);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        margin-right: 6px;
+      }
       .toc {
         display: flex;
         flex-wrap: wrap;
@@ -136,8 +167,12 @@
         text-decoration: none;
       }
       @media (max-width: 720px) {
-        .shots {
+        .shots,
+        .first-run {
           grid-template-columns: 1fr;
+        }
+        .first-run figure:last-child {
+          grid-column: auto;
         }
       }
     </style>
@@ -329,11 +364,18 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             words on paper, pass the word quiz, set your passphrase.
           </li>
           <li>
-            Before funding, prove the paper works:
-            <strong>Wallet &rarr; BACKUP WORDS &rarr; VERIFY MY COPY</strong>. You
-            type your words from paper and the device confirms they rebuild this
-            exact wallet, without ever showing the stored words; a wrong or
-            missing word is reported by position. It never alters the seed.
+            After creation, KISS offers an optional
+            <strong>VERIFY FULL BACKUP</strong> rehearsal. Type every word from
+            paper, then type the exact passphrase again. Until both recreate the
+            same fingerprint, <strong>I UNDERSTAND</strong> keeps a red border;
+            success turns it green. You can skip the rehearsal, but it is the
+            strongest check before funding.
+          </li>
+          <li>
+            Later, <strong>Settings &rarr; RECOVERY WORDS</strong> lets you show
+            the words behind a warning or run <strong>VERIFY WORDS</strong>
+            without revealing the stored copy. A wrong or missing word is
+            reported by position. Neither check alters the seed.
           </li>
           <li>
             Stay on <strong>TESTNET</strong> (Settings) while you learn. Coins:
@@ -352,6 +394,44 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             out — before trusting the setup with real coins.
           </li>
         </ol>
+        <h3>Your first TESTNET round trip</h3>
+        <p>
+          This is a visual checklist, not an extra wizard. Complete it once with
+          valueless TESTNET coins before using a wallet you care about.
+        </p>
+        <div class="first-run">
+          <figure>
+            <img src="media/game-menu.png" alt="Fruit Island game menu">
+            <figcaption><b>01</b>Return to KISS: draw a clear
+              <strong>K</strong>, then <strong>I-S-S</strong> across the Fruit
+              Island menu.</figcaption>
+          </figure>
+          <figure>
+            <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
+            <figcaption><b>02</b>Pair Sparrow: Wallet &rarr; PAIR COORDINATOR
+              &rarr; DESKTOP. In Sparrow, create an Airgapped Hardware Wallet
+              and scan this descriptor.</figcaption>
+          </figure>
+          <figure>
+            <img src="media/qr-scan.png" alt="KISS camera scanner">
+            <figcaption><b>03</b>Verify the first address: show address #0 in
+              Sparrow, then KISS &rarr; Receive &rarr; VERIFY and scan it.
+              Continue only when KISS says it is yours.</figcaption>
+          </figure>
+          <figure>
+            <img src="media/wallet-home.png" alt="KISS wallet home">
+            <figcaption><b>04</b>Practice receiving: send a tiny TESTNET amount
+              to that verified address and wait for Sparrow to show it.</figcaption>
+          </figure>
+          <figure>
+            <img src="media/sign-verify.png" alt="KISS transaction verification screen">
+            <figcaption><b>05</b>Practice spending: build the return payment in
+              Sparrow, move its PSBT by QR or SD, compare RECIPIENT GETS,
+              NETWORK FEE, TOTAL LEAVING WALLET, outputs and change, then hold
+              to sign. Return the signed PSBT to Sparrow and
+              <strong>broadcast there</strong>.</figcaption>
+          </figure>
+        </div>
         <div class="shots">
           <figure>
             <img src="media/passphrase-warning.png" alt="Passphrase warning screen">

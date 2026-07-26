@@ -45,6 +45,16 @@ void wallet_session_close(void);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int wallet_session_address(int change, uint32_t index, char *out, size_t out_len);
 
+enum {
+    WADDR_INVALID = 0,
+    WADDR_CURRENT_NETWORK = 1,
+    WADDR_WRONG_NETWORK = 2,
+};
+// Syntax/checksum + network validation for standard Bitcoin and BIP352
+// addresses. It does not answer ownership; Receive > Verify does that by
+// deriving and comparing this wallet's addresses.
+int wallet_address_validate(const char *addr);
+
 // BIP352 silent-payment receive address (sp1/tsp1) for the current network.
 // Static/reusable by design. Returns 0 on success.
 int wallet_session_sp_address(char *out, size_t out_len);

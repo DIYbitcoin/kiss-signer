@@ -1,11 +1,11 @@
-// The WALLET tile. Three jobs, one section:
+// The WALLET tile. Two jobs, one section:
 //   facts   — fingerprint / network / address type / first address, each with a
 //             small "?" chip that opens a plain-words explainer (new users learn,
 //             experienced users ignore).
 //   pair    — the coordinator export: descriptor for Sparrow-family apps, key
 //             origin + SLIP-132 zpub for BlueWallet (it doesn't read descriptors).
-//   words   — re-view the backup words after a be-alone warning. Words on paper
-//             only: no seed-as-QR export in any form (owner's rule).
+// Settings owns the RECOVERY WORDS entry; its warning/reveal implementation
+// remains in this module. Words stay paper-only: no seed-as-QR export.
 // Compiled in BOTH device and sim builds; sim stubs the crypto seams.
 #include "wallet_info.h"
 
@@ -21,6 +21,7 @@
 
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
+static void (*s_words_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
 static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_txt, *s_pair_note, *s_pair_qr;
 
@@ -106,6 +107,11 @@ void wallet_info_sim_open_type_help(void)
 {
     if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B));
 }
+
+void wallet_info_sim_open_fp_help(void)
+{
+    if (s_scr) help_open_d(tr(STR_D_FINGERPRINT), tr(STR_I_H_FP_B), DIAG_FP);
+}
 #endif
 
 static lv_obj_t *mk_help_chip(int x, int y, const char *key)
@@ -171,6 +177,17 @@ static void pair_screen(void)
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
+    if (wallet_testnet()) {
+        lv_obj_t *net = wt_lbl(s_scr, "TESTNET", 672, 30, wt_font14(), WT_WARN);
+        lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
+        lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_color(net, WT_WARN, 0);
+        lv_obj_set_style_border_width(net, 1, 0);
+        lv_obj_set_style_radius(net, 10, 0);
+        lv_obj_set_style_pad_hor(net, 8, 0);
+        lv_obj_set_style_pad_ver(net, 3, 0);
+        lv_obj_set_style_text_letter_space(net, 1, 0);
+    }
     wt_qr_card(s_scr, &s_pair_qr, 48, 96, 300, 264);
 
     // where does the coordinator live? two parallel choices, side by side like
@@ -262,11 +279,19 @@ static void sp_key_warn_cb(lv_event_t *e)
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----
+static void words_finish(void)
+{
+    swap_screen();
+    void (*done)(void) = s_words_done;
+    s_words_done = NULL;
+    if (done) done();
+    else info_screen();
+}
+
 static void words_back_cb(lv_event_t *e)
 {
     (void)e;
-    swap_screen();
-    info_screen();
+    words_finish();
 }
 
 static void words_show_cb(lv_event_t *e)
@@ -299,9 +324,9 @@ static void words_show_cb(lv_event_t *e)
     wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, words_back_cb, NULL);
 }
 
-// VERIFY MY COPY: hand off to the setup module's paper-check flow, then reopen
-// this section when it returns.
-static void winfo_after_verify(void) { info_screen(); }
+// VERIFY MY COPY: hand off to the setup module's paper-check flow, then return
+// to the screen that launched RECOVERY WORDS (normally Settings).
+static void winfo_after_verify(void) { words_finish(); }
 
 static void verify_copy_cb(lv_event_t *e)
 {
@@ -331,7 +356,12 @@ static void pair_open_cb(lv_event_t *e)  { (void)e; pair_screen(); }
 static void info_screen(void)
 {
     s_pair_qr = NULL;
-    s_scr = wt_screen(s_parent, tr(STR_I_T), tr(STR_I_S));
+    s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
+
+    // This is a two-column screen. Its subtitle belongs to the facts column,
+    // so it is measured and wrapped inside that column instead of being given
+    // the generic 704px subtitle lane that crosses into the actions column.
+    wt_note(s_scr, tr(STR_I_S), 48, 64, 340, 58);
 
     // facts, left column
     uint8_t fp[4];
@@ -343,65 +373,63 @@ static void info_screen(void)
     // Caption small, VALUE big. These four values are the whole point of the
     // screen -- the fingerprint you check, the network you are on, the address
     // you read out loud -- so they get the size, and their labels stay eyebrows.
-    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 96);
+    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 128);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 90, "fp");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 122, "fp");
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 118, wt_font28(), WT_INK);
+    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 150, wt_font28(), WT_INK);
     lv_obj_set_style_text_letter_space(f, 2, 0);
 
-    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 168);
+    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 196);
     wt_lbl(s_scr, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-           48, 188, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
+           48, 216, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 226);
+    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 254);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 220, "type");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 248, "type");
     int sc = wallet_script();
     int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
     wt_lbl(s_scr, sc == WSCRIPT_LEGACY ? "Legacy (1...)"
                : sc == WSCRIPT_NESTED ? "Nested SegWit (3...)"
                                       : "Native SegWit (bc1...)",
-           48, 246, wt_font23(), WT_INK);
+           48, 274, wt_font23(), WT_INK);
     snprintf(buf, sizeof buf, "m/%d'/%d'/0'", purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 276, wt_font23(), WT_MUT);
+    wt_lbl(s_scr, buf, 48, 304, wt_font23(), WT_MUT);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 316);
+    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 338);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 310, "addr");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 332, "addr");
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
     wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 336, wt_font23(), WT_INK);
+    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 360, wt_font23(), WT_INK);
     lv_obj_set_width(a, 360);
     lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
 
-    // actions, right column
-    // Gaps here are 6px, not 12: the column has room for exactly three lines of
-    // font23 under each pill, and at 12px both notes came out one pixel short
-    // and dropped to font14.
-    // 66px tall so a long translation takes a SECOND LINE at font23 instead of
-    // collapsing to font14 (two 29px lines plus padding). "PAIR COORDINATOR"
-    // has no one-line size above 14 in twelve of the twenty-one languages.
-    // The notes give up the height: a note explaining a button must never be
-    // the bigger of the two, so its rows are the ones that can go.
-    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 90, 340, 66,
+    // One normal-size action. Pair used to call wt_pill_primary(), which
+    // promoted its label to 28pt and made it shout over every fact on screen.
+    // Selected styling keeps the visual priority while the text stays on the
+    // same 23pt rung as BACK.
+    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 96, 340, 66,
                             pair_open_cb, NULL);
-    wt_pill_primary(pp);
-    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 160, 340, 88);    // to WORDS at 252
-
-    wt_pillh(s_scr, tr(STR_I_WORDS_BTN), 430, 252, 340, 66, words_warn_screen, NULL);
-    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 322, 340, 88);   // to BACK at 412
-
-    // 412, not 404: the two action pills above grew a row so their labels can
-    // wrap instead of shrink, and their notes kept all three of theirs
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 412, 140, close_cb, NULL);
+    wt_pill_select(pp, true);
+    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 170, 340, 74);
+    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
 }
 
 void wallet_info_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
+    s_words_done = NULL;
     s_pair_fmt = 0;
     info_screen();
+}
+
+void wallet_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
+{
+    if (s_scr) return;
+    s_parent = parent;
+    s_words_done = done_cb;
+    words_warn_screen(NULL);
 }
