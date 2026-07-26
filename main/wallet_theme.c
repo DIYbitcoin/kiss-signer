@@ -67,11 +67,17 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
     if (!txt || !*txt)
         return wt_font28();
     lv_point_t sz;
-    // measured per locale: the same sentence is far taller in ja/ko/zh, and a
-    // Cyrillic or Vietnamese translation often runs 40% longer than the English
+    // Three rungs, not two. This used to fall straight from 28 to 14, so one
+    // row of overflow cost a reader 64% of the glyph size for nothing. 23 is
+    // the same face at line height 29 and takes most of what 28 cannot.
+    // Measured per locale: the same sentence is far taller in ja/ko/zh, and a
+    // Cyrillic or Vietnamese translation often runs 40% longer than the English.
     lv_text_get_size(&sz, txt, wt_font28(), 0, 0, w, LV_TEXT_FLAG_NONE);
     if (sz.y <= max_h)
         return wt_font28();
+    lv_text_get_size(&sz, txt, wt_font23(), 0, 0, w, LV_TEXT_FLAG_NONE);
+    if (sz.y <= max_h)
+        return wt_font23();
     return wt_font14();
 }
 
@@ -123,14 +129,14 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_style_text_color(cap, wt_accent(), 0);
     lv_obj_set_style_text_font(cap, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 48, 30);
+    lv_obj_set_pos(cap, 48, 26);
 
     if (sub) {
         lv_obj_t *s = lv_label_create(scr);
         lv_label_set_text(s, sub);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
-        lv_obj_set_style_text_font(s, wt_font14(), 0);
-        lv_obj_set_pos(s, 48, 68);
+        lv_obj_set_style_text_font(s, wt_font23(), 0);
+        lv_obj_set_pos(s, 48, 64);
     }
     return scr;
 }
@@ -277,6 +283,22 @@ lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
     return l;
 }
 
+// Side note with a KNOWN vertical budget: picks the largest of the three fonts
+// that fits, exactly like an explainer card. A blanket font bump here does not
+// work -- these sit in gaps between other controls, so the size has to be
+// derived from the gap, and short copy is what earns the big one.
+lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
+{
+    lv_obj_t *l = lv_label_create(scr);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    lv_obj_set_style_text_font(l, wt_body_font(txt, w, h), 0);
+    lv_obj_set_width(l, w);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(l, x, y);
+    return l;
+}
+
 lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
 {
     lv_obj_t *l = lv_label_create(scr);
@@ -288,12 +310,14 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
     return l;
 }
 
+// column captions ("NETWORK", "WALLET"): short enough that the middle rung
+// always fits, and they are what tells you which column you are reading
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
 {
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
+    lv_obj_set_style_text_font(l, wt_font23(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;
