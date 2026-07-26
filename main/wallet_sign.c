@@ -1067,6 +1067,15 @@ static void log_summary(const char *src)
              (unsigned)s_sum.n_out, (unsigned)s_sum.n_sp,
              (unsigned)s_sum.n_unknown, (unsigned)s_sum.purpose,
              s_sum.testnet ? "testnet" : "mainnet", (int)s_sum.status);
+    SIGN_LOG("%s ownership: device fp %02x%02x%02x%02x, input0 fp "
+             "%02x%02x%02x%02x from %u keypath(s) -> %s",
+             src,
+             s_sum.our_fp[0], s_sum.our_fp[1], s_sum.our_fp[2], s_sum.our_fp[3],
+             s_sum.in0_fp[0], s_sum.in0_fp[1], s_sum.in0_fp[2], s_sum.in0_fp[3],
+             (unsigned)s_sum.in0_keypaths,
+             s_sum.in0_keypaths == 0 ? "NO DERIVATION SENT"
+             : memcmp(s_sum.our_fp, s_sum.in0_fp, 4) == 0 ? "match"
+                                                          : "MISMATCH");
     if (s_sum.reason[0])
         SIGN_LOG("%s PSBT reason: %s", src, s_sum.reason);
 }

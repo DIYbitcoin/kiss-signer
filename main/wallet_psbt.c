@@ -533,6 +533,18 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     struct ext_key m = *master;                    // fingerprint API wants non-const
     bip32_key_get_fingerprint(&m, fp, sizeof fp);
     wally_bzero(&m, sizeof m);
+    memcpy(s->our_fp, fp, 4);
+
+    // Both sides of the ownership memcmp, captured before any verdict. Costs
+    // nothing and turns "not this wallet's" from a dead end into a diff:
+    // in0_keypaths == 0 means the coordinator sent no derivation at all, while
+    // a non-zero in0_fp that differs from our_fp names the mismatch outright.
+    if (s_psbt->num_inputs > 0) {
+        const struct wally_map *k0 = &s_psbt->inputs[0].keypaths;
+        s->in0_keypaths = (uint32_t)k0->num_items;
+        if (k0->num_items > 0 && k0->items[0].value_len >= 4)
+            memcpy(s->in0_fp, k0->items[0].value, 4);
+    }
 
     s->n_in = (uint32_t)s_psbt->num_inputs;
     s->n_out = (uint32_t)s_psbt->num_outputs;
