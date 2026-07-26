@@ -557,13 +557,19 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
     lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
-    // The tail is the part you are actually asked to compare, so it renders one
-    // rung ABOVE the rest of the address. Blowing up the whole string instead
-    // would push the other outputs off a scrolling list -- this buys the same
-    // legibility where it counts for one extra line of height.
+    // The tail is the part you are actually asked to compare, so when the body
+    // is too small to compare comfortably the tail renders one rung ABOVE it.
+    // Blowing up the whole string instead would push the other outputs off a
+    // scrolling list -- this buys the legibility where it counts for one extra
+    // line of height.
+    //
+    // The bump only applies to font14, because it only exists to rescue font14.
+    // At 23 and 28 the body is already readable at arm's length and the accent
+    // colour alone marks the tail: that is what the main receive screen has
+    // always done at 28, and a 23 that jumped to 28 would cost two more lines
+    // on a 117-character silent-payment address for no gain.
     lv_style_set_text_font(lv_span_get_style(s2),
-                           f == wt_font14() ? wt_font23()
-                         : f == wt_font23() ? wt_font28() : f);
+                           f == wt_font14() ? wt_font23() : f);
     lv_spangroup_refresh(sg);
     return sg;
 }
