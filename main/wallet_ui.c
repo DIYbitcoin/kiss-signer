@@ -55,6 +55,10 @@ static bool s_first_done;                  // first of the two entries captured
 static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
 static char s_first[PASS_MAX + 1];
+static bool s_caps_lock;                   // CAPS plane: stays until tapped off
+static bool s_one_shot;                    // UPPER plane: one character, then back
+static uint32_t s_shift_t0;                // last shift-key tap, for double tap
+#define SHIFT_DBL_MS 400                   // two shift taps within this = CAPS
 
 // Rough passphrase strength in bits: length x log2(character pool). Only a
 // guardrail, only shown at CREATION — the normal login never judges (any
@@ -103,10 +107,19 @@ static const char *MAP_LOWER[] = {
     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
     "ABC", "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
     "#1!", "CANCEL", " ", "OK", ""};
+// Two upper planes, identical keys, different shift label. One-shot drops back
+// to lowercase after a single character; CAPS stays until tapped again. They
+// MUST look different: behind the dots a wrong-case passphrase is invisible,
+// and at login there is no error, just a different wallet.
 static const char *MAP_UPPER[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
     "abc", "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
+    "#1!", "CANCEL", " ", "OK", ""};
+static const char *MAP_CAPS[] = {
+    "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
+    "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
+    "CAPS", "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
     "#1!", "CANCEL", " ", "OK", ""};
 // two symbol planes so ALL 32 ASCII punctuation chars are reachable (spec:
 // passphrase = printable ASCII; an untypeable char = an unrecoverable wallet)
@@ -163,6 +176,17 @@ static void ensure_indev(void) {
 static void entry_apply(const char *txt, int chars) {
   lv_obj_set_style_text_font(s_entry, chars > 40 ? wt_font14()
                                                  : wt_font28(), 0);
+  // SHOW means the user has already decided nobody is looking, so showing only
+  // the tail buys nothing and hides the half they are trying to check (and the
+  // half they are about to backspace through). Wrap instead: 128 chars of
+  // font14 fit two lines of the 704px slot.
+  if (s_show) {
+    lv_obj_set_width(s_entry, 704);
+    lv_label_set_long_mode(s_entry, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(s_entry, txt);
+    return;
+  }
+  lv_label_set_long_mode(s_entry, LV_LABEL_LONG_SCROLL);
   if (chars > 78) {
     const char *p = txt + strlen(txt);
     int keep = 76;
@@ -345,6 +369,7 @@ static void setup_warn_screen(void);
 // dismiss the STOP screen back to the game; nothing was saved
 static void setup_fail_dismiss_cb(lv_event_t *e) {
   (void)e;
+  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
   s_setup_mode = false; s_first_done = false; s_weak_ack = false;
   s_plen = 0; s_show = false; s_flash = false;
   memset(s_pass, 0, sizeof s_pass);
@@ -687,8 +712,20 @@ static void kb_cb(lv_event_t *e) {
   const char *txt = lv_buttonmatrix_get_button_text(kb, id);
   if (!txt) return;
 
-  if (strcmp(txt, "ABC") == 0)      kb_plane(kb, MAP_UPPER);
-  else if (strcmp(txt, "abc") == 0) kb_plane(kb, MAP_LOWER);
+  // shift: tap once for a single capital, twice quickly to lock. Tapping the
+  // locked key unlocks. Same gesture as every phone keyboard.
+  if (strcmp(txt, "ABC") == 0 || strcmp(txt, "abc") == 0) {
+    uint32_t now = lv_tick_get();
+    bool dbl = s_shift_t0 && lv_tick_elaps(s_shift_t0) < SHIFT_DBL_MS;
+    s_shift_t0 = now;
+    if (dbl) { s_caps_lock = true;  s_one_shot = false; kb_plane(kb, MAP_CAPS); }
+    else if (txt[0] == 'A') { s_one_shot = true;  kb_plane(kb, MAP_UPPER); }
+    else                    { s_one_shot = false; kb_plane(kb, MAP_LOWER); }
+  }
+  else if (strcmp(txt, "CAPS") == 0) {
+    s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
+    kb_plane(kb, MAP_LOWER);
+  }
   else if (strcmp(txt, "#1!") == 0) kb_plane(kb, MAP_SYM);
   else if (strcmp(txt, "#2~") == 0) kb_plane(kb, MAP_SYM2);
   else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
@@ -740,7 +777,31 @@ static void kb_cb(lv_event_t *e) {
       flash_last();
       pop_show(txt[0] == ' ' ? "_" : txt, id);
     }
+    if (s_one_shot) {                        // one capital, then back to lowercase
+      s_one_shot = false;
+      kb_plane(kb, MAP_LOWER);
+    }
   }
+}
+
+// Hold a letter for its capital, without leaving the lowercase plane.
+// A buttonmatrix fires VALUE_CHANGED on PRESS, so by the time the hold is
+// recognised the lowercase letter has ALREADY been typed. Upcase it in place
+// rather than appending, or a hold silently enters two characters -- invisible
+// behind the dots, and a passphrase you can never reproduce.
+static void kb_long_cb(lv_event_t *e) {
+  lv_obj_t *kb = lv_event_get_target(e);
+  uint32_t id = lv_buttonmatrix_get_selected_button(kb);
+  const char *txt = lv_buttonmatrix_get_button_text(kb, id);
+  if (!txt || strlen(txt) != 1) return;
+  char c = txt[0];
+  if (c < 'a' || c > 'z') return;            // only letters have another case
+  if (s_plen == 0 || s_pass[s_plen - 1] != c) return;   // not the char just typed
+  s_pass[s_plen - 1] = (char)(c - 'a' + 'A');
+  setup_cap_reset();
+  flash_last();
+  char up[2] = { s_pass[s_plen - 1], 0 };
+  pop_show(up, id);
 }
 
 // ---- passphrase from a QR ----
@@ -895,6 +956,9 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   entry_refresh();
 
   s_kb = lv_buttonmatrix_create(s_login);
+  // a fresh keyboard always starts lowercase and unlocked: inheriting a CAPS
+  // lock from a previous screen would silently change what gets typed
+  s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
   kb_plane(s_kb, MAP_LOWER);
   lv_obj_set_size(s_kb, 800, 316);
   lv_obj_set_pos(s_kb, 0, 158);
@@ -914,6 +978,7 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_bg_color(s_kb, wt_accent_bg(),
                             LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_add_event_cb(s_kb, kb_cb, LV_EVENT_VALUE_CHANGED, NULL);
+  lv_obj_add_event_cb(s_kb, kb_long_cb, LV_EVENT_LONG_PRESSED, NULL);
 }
 
 // ---- build identity (shared: Settings footer + wallet home corner) ----

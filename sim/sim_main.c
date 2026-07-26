@@ -739,6 +739,23 @@ int main(void) {
   save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER (what a passphrase is)
   touch(188, 430); pump(3); release(); pump(6);     // CREATE PASSPHRASE -> keyboard
   save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
+
+  // shift semantics. Row 3 is [ABC z x c v b n m BKSP] at y=355; ABC x=46,
+  // z x=135, backspace x=752.
+  touch(46, 355); pump(3); release(); pump(4);      // ABC once -> one-shot upper
+  save("/tmp/sim_kb_shift_on.ppm");                 // upper plane, key reads "abc"
+  touch(135, 355); pump(3); release(); pump(4);     // Z
+  save("/tmp/sim_kb_shift_off.ppm");                // dropped BACK to lowercase
+  touch(46, 355); pump(2); release(); pump(2);      // two taps inside 400ms
+  touch(46, 355); pump(2); release(); pump(4);
+  save("/tmp/sim_kb_caps.ppm");                     // locked: key reads "CAPS"
+  touch(135, 355); pump(3); release(); pump(4);     // Z, and the plane MUST stay
+  save("/tmp/sim_kb_caps_stays.ppm");
+  touch(46, 355); pump(3); release(); pump(4);      // CAPS off
+  touch(135, 355); pump(40); release(); pump(4);    // HOLD z -> Z, still lowercase
+  save("/tmp/sim_kb_hold.ppm");
+  for (int i = 0; i < 8; i++) { touch(752, 355); pump(3); release(); pump(3); }
+  save("/tmp/sim_kb_cleared.ppm");                  // back to an empty field
   // CANCEL during setup must confirm (don't throw away a fresh seed on one tap)
   touch(200, 430); pump(3); release(); pump(6);     // CANCEL -> confirm modal
   save("/tmp/sim_setup_cancel.ppm");
@@ -821,7 +838,13 @@ int main(void) {
   // a passphrase can come from a QR too, behind one warning screen
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
-  touch(680, 430); pump(3); release(); pump(4);     // BACK -> keyboard
+  touch(198, 430); pump(3); release(); pump(6);     // SCAN IT -> camera
+  wallet_scan_inject("correct horse battery staple correct horse battery "
+                     "staple correct horse battery staple xyz", 90);
+  pump(6);
+  touch(696, 38); pump(3); release(); pump(4);      // SHOW
+  save("/tmp/sim_kb_show_long.ppm");                // 90 chars, wrapped not "..."
+  for (int i = 0; i < 90; i++) { touch(752, 355); pump(1); release(); pump(1); }
   touch(46, 278);  pump(3); release(); pump(3);     // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home
