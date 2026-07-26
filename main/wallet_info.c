@@ -141,7 +141,8 @@ static void pair_refresh(void)
     if (s_pair_qr)
         lv_qrcode_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     lv_label_set_text(s_pair_txt, txt);
-    lv_label_set_text(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW));
+    wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
+                360, 86);
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         wt_pill_select(s_pair_pill[i], on);
@@ -193,12 +194,12 @@ static void pair_screen(void)
     lv_obj_set_width(s_pair_txt, 360);
     lv_label_set_long_mode(s_pair_txt, LV_LABEL_LONG_WRAP);
 
-    s_pair_note = wt_lbl(s_scr, "", 400, 316, wt_font14(), WT_MUT);
+    s_pair_note = wt_note(s_scr, "", 400, 312, 360, 86);   // to the note at 404
 
     // pairing ends with proof, not hope: point at the address check, then at a
     // tiny dress rehearsal before real money rides on it
-    wt_lbl(s_scr, tr(STR_I_PROVE),
-           400, 404, wt_font14(), WT_INK);
+    lv_obj_t *pv = wt_note(s_scr, tr(STR_I_PROVE), 400, 404, 360, 72);
+    lv_obj_set_style_text_color(pv, WT_INK, 0);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
     // The silent-payment SCAN KEY is a coordinator export too, but it is a
@@ -347,48 +348,52 @@ static void info_screen(void)
 
     // help chips sit AFTER the section text: titles vary wildly in width
     // across 19 languages, a fixed x overlaps the longer ones (pt, ru)
-    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 100);
+    // Caption small, VALUE big. These four values are the whole point of the
+    // screen -- the fingerprint you check, the network you are on, the address
+    // you read out loud -- so they get the size, and their labels stay eyebrows.
+    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 96);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 94, "fp");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 90, "fp");
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 124, wt_font28(), WT_INK);
+    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 118, wt_font28(), WT_INK);
     lv_obj_set_style_text_letter_space(f, 2, 0);
 
-    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 182);
+    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 168);
     wt_lbl(s_scr, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-           48, 206, wt_font14(), wallet_testnet() ? WT_WARN : WT_INK);
+           48, 188, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 244);
+    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 226);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 238, "type");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 220, "type");
     int sc = wallet_script();
     int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
     wt_lbl(s_scr, sc == WSCRIPT_LEGACY ? "Legacy (1...)"
                : sc == WSCRIPT_NESTED ? "Nested SegWit (3...)"
                                       : "Native SegWit (bc1...)",
-           48, 268, wt_font14(), WT_INK);
+           48, 246, wt_font23(), WT_INK);
     snprintf(buf, sizeof buf, "m/%d'/%d'/0'", purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 290, wt_font14(), WT_MUT);
+    wt_lbl(s_scr, buf, 48, 276, wt_font23(), WT_MUT);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 328);
+    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 316);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 322, "addr");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 310, "addr");
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
     wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 352, wt_font14(), WT_INK);
-    lv_obj_set_width(a, 340);
+    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 336, wt_font23(), WT_INK);
+    lv_obj_set_width(a, 360);
     lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
 
     // actions, right column
-    lv_obj_t *pp = wt_pill(s_scr, tr(STR_I_PAIR_T), 430, 104, 320, pair_open_cb, NULL);
+    // Gaps here are 6px, not 12: the column has room for exactly three lines of
+    // font23 under each pill, and at 12px both notes came out one pixel short
+    // and dropped to font14.
+    lv_obj_t *pp = wt_pill(s_scr, tr(STR_I_PAIR_T), 430, 100, 320, pair_open_cb, NULL);
     wt_pill_primary(pp);
-    lv_obj_t *pn = wt_wrap(s_scr, 430, 166, 340);
-    lv_label_set_text(pn, tr(STR_I_PAIR_BTN_NOTE));
+    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 158, 340, 89);    // to WORDS at 250
 
-    wt_pill(s_scr, tr(STR_I_WORDS_BTN), 430, 252, 320, words_warn_screen, NULL);
-    lv_obj_t *wn = wt_wrap(s_scr, 430, 314, 340);
-    lv_label_set_text(wn, tr(STR_I_WORDS_BTN_NOTE));
+    wt_pill(s_scr, tr(STR_I_WORDS_BTN), 430, 250, 320, words_warn_screen, NULL);
+    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 308, 340, 90);   // to BACK at 404
 
     wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
 }

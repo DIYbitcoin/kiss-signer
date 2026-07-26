@@ -59,6 +59,13 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w);      // muted wrapping bo
 // Same, but auto-sized to a known gap: prefer this. wt_wrap is fixed-small and
 // only right where the caller genuinely has no vertical room to give.
 lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);
+// Re-fit one of those when its text is replaced later (chooser captions).
+void      wt_wrap_fit(lv_obj_t *l, const char *txt, int w, int h);
+// Same auto-fit, capped at font23: for a note that belongs to a control. At 28
+// a short note renders larger than the button it describes, which reads as the
+// note being the important thing. Explainer cards use wt_wraph; notes use this.
+lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);
+void      wt_note_fit(lv_obj_t *l, const char *txt, int w, int h);
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
 // white QR card; *qr receives the lv_qrcode (NULL if creation failed)

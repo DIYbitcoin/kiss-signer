@@ -239,7 +239,7 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font14());
   lv_obj_set_pos(s_addr_sg, 400, 110);
 
-  lv_obj_t *path = wt_lbl(s_scr, "", 400, 320, wt_font14(), WT_MUT);
+  lv_obj_t *path = wt_lbl(s_scr, "", 400, 320, wt_font23(), WT_MUT);
   lv_label_set_text_fmt(path, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
@@ -290,13 +290,14 @@ void wallet_recv_open(lv_obj_t *parent) {
   wt_pill_primary(s_fresh_pill);
   lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
 
-  s_path_lbl = wt_lbl(s_scr, "", 400, 300, wt_font14(), WT_MUT);
-  wt_lbl(s_scr, tr(STR_R_VERIFY_NOTE),
-         400, 330, wt_font14(), WT_MUT);
+  // derivation path stays small (reference), the VERIFY instruction does not.
+  // Both sit under the FRESH pill at 288, above the pill row at 404.
+  s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
+  wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
 
-  wt_pill(s_scr, LV_SYMBOL_LEFT, 400, 396, 72, prev_cb, NULL);
-  wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 488, 396, 130, next_cb, NULL);
-  wt_pill(s_scr, tr(STR_R_VERIFY), 634, 396, 126, vfy_scan, NULL);
+  wt_pill(s_scr, LV_SYMBOL_LEFT, 400, 404, 72, prev_cb, NULL);
+  wt_pill(s_scr, tr_sym(LV_SYMBOL_RIGHT, STR_R_NEXT), 488, 404, 130, next_cb, NULL);
+  wt_pill(s_scr, tr(STR_R_VERIFY), 634, 404, 126, vfy_scan, NULL);
   wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, close_cb, NULL);
   wt_pill(s_scr, tr(STR_S_SP_BADGE), 200, 404, 190, sp_open_cb, NULL);
   recv_refresh();
