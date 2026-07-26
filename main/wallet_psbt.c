@@ -307,6 +307,25 @@ static int sp_scan(wpsbt_summary_t *s)
     return 0;
 }
 
+// Collect scan-key group g into recips/idxs, already in BIP375 k order (see
+// sp_sort_group). Both the fill and the self-check go through this one helper
+// on purpose: if they disagreed about ordering the self-check would happily
+// bless outputs a conforming coordinator rejects, which is the opposite of
+// what it is for. Returns how many recipients the group holds.
+static uint32_t sp_group_collect(int g, const int *group_of,
+                                 sp_recip_t *recips, uint32_t *idxs)
+{
+    uint32_t gn = 0;
+    for (uint32_t o = 0; o < s_sp.n; o++)
+        if (group_of[o] == g) {
+            memcpy(recips[gn].scan, s_sp.o[o].scan, 33);
+            memcpy(recips[gn].spend, s_sp.o[o].spend, 33);
+            idxs[gn++] = s_sp.o[o].idx;
+        }
+    sp_sort_group(recips, idxs, gn);
+    return gn;
+}
+
 // The signer role of BIP375, all inputs ours: derive every input scalar, build
 // the global ECDH share + DLEQ proof per scan key, derive and set the P2TR
 // output scripts, lock the modifiable flags - then re-verify the whole result
@@ -381,13 +400,8 @@ static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
     }
     for (int g = 0; g < n_groups; g++) {
         sp_recip_t recips[WPSBT_MAX_OUTS];
-        uint32_t idxs[WPSBT_MAX_OUTS], gn = 0;
-        for (uint32_t o = 0; o < s_sp.n; o++)
-            if (group_of[o] == g) {
-                memcpy(recips[gn].scan, s_sp.o[o].scan, 33);
-                memcpy(recips[gn].spend, s_sp.o[o].spend, 33);
-                idxs[gn++] = s_sp.o[o].idx;
-            }
+        uint32_t idxs[WPSBT_MAX_OUTS];
+        uint32_t gn = sp_group_collect(g, group_of, recips, idxs);
         uint8_t share[33], proof[64];
         if (sp_ecdh_share(a_sum, recips[0].scan, share) != 0 ||
             sp_derive_group(share, ih, recips, gn) != 0 ||
@@ -426,13 +440,8 @@ static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
     // proof, check the proof against A_sum, re-derive every script, compare.
     for (int g = 0; g < n_groups; g++) {
         sp_recip_t recips[WPSBT_MAX_OUTS];
-        uint32_t idxs[WPSBT_MAX_OUTS], gn = 0;
-        for (uint32_t o = 0; o < s_sp.n; o++)
-            if (group_of[o] == g) {
-                memcpy(recips[gn].scan, s_sp.o[o].scan, 33);
-                memcpy(recips[gn].spend, s_sp.o[o].spend, 33);
-                idxs[gn++] = s_sp.o[o].idx;
-            }
+        uint32_t idxs[WPSBT_MAX_OUTS];
+        uint32_t gn = sp_group_collect(g, group_of, recips, idxs);
         uint8_t key[34], share[33], proof[64];
         size_t item = 0, wr = 0;
         key[0] = 0x07;
@@ -870,14 +879,27 @@ static int sign_sp_spends(const struct ext_key *master)
         if (!s_sp_in.present[i])
             continue;
         const struct wally_tx_output *u = s_psbt->inputs[i].witness_utxo;
-        uint8_t d[32], sh[32], sig[64];
+        uint8_t d[32], sh[32], sig[65];
+        // BIP341 signature encoding: 64 bytes means SIGHASH_DEFAULT, full stop.
+        // wally computes the sighash over whatever PSBT_IN_SIGHASH_TYPE says,
+        // and the load gate lets an explicit SIGHASH_ALL through, so when one
+        // is present the hash type MUST be appended -- otherwise a verifier
+        // reads the bare 64 bytes as DEFAULT, hashes a different message, and
+        // the signature fails. wally appends it on its own bip32 path; this
+        // one is hand-rolled and has to do the same.
+        size_t siglen = 64;
+        uint32_t sh_type = s_psbt->inputs[i].sighash;
         rc = -2;
         if (u && u->script_len == 34 &&
             sp_spend_signing_key(spend_priv, s_sp_in.tweak[i], u->script + 2, d) == 0 &&
             wally_psbt_get_input_signature_hash(s_psbt, i, s_txv, NULL, 0, 0, sh, 32) == WALLY_OK &&
-            sp_schnorr_sign(d, sh, aux, sig) == 0 &&
-            wally_psbt_input_set_taproot_signature(&s_psbt->inputs[i], sig, 64) == WALLY_OK)
-            rc = 0;
+            sp_schnorr_sign(d, sh, aux, sig) == 0) {
+            if (sh_type != 0)
+                sig[siglen++] = (uint8_t)(sh_type & 0xff);
+            if (wally_psbt_input_set_taproot_signature(&s_psbt->inputs[i],
+                                                       sig, siglen) == WALLY_OK)
+                rc = 0;
+        }
         wally_bzero(d, sizeof d);
         wally_bzero(sh, sizeof sh);
         wally_bzero(sig, sizeof sig);
