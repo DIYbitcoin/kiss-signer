@@ -252,6 +252,54 @@ int test_seed_layer(void) {
         wallet_seed_set_mode(WSEED_MODE_KEEP);
     }
 
+    // ---- setup wizard: nothing reaches flash before commit ----
+    // The wizard's FIRST screen asks KEEP vs NOTHING SAVED, long before any
+    // new words exist. Applying that choice on the tap erased the wallet the
+    // user still had: one BACK tap, or a power cut, and it was gone with
+    // nothing to replace it. The choice is staged like the mnemonic is, and
+    // wallet_seed_commit is the single moment flash changes.
+    {
+        char got[WSEED_MAX_MNEMONIC];
+
+        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("wizard: a wallet is stored to begin with",
+             wallet_seed_store(DEV_WORDS) == 0);
+
+        wallet_seed_stage_mode(WSEED_MODE_AMNESIC);
+        schk("wizard: staged mode reads back AMNESIC",
+             wallet_seed_mode() == WSEED_MODE_AMNESIC);
+        schk("wizard: picking NOTHING SAVED does not erase yet",
+             wallet_seed_load(got, sizeof got) == 0 &&
+             strcmp(got, DEV_WORDS) == 0);
+
+        wallet_seed_discard();            // BACK, cancel, or a lost session
+        schk("wizard: backing out restores the stored mode",
+             wallet_seed_mode() == WSEED_MODE_KEEP);
+        schk("wizard: backing out leaves the old wallet intact",
+             wallet_seed_load(got, sizeof got) == 0 &&
+             strcmp(got, DEV_WORDS) == 0);
+
+        // finishing the ritual is what actually applies it
+        wallet_seed_stage_mode(WSEED_MODE_AMNESIC);
+        schk("wizard: stage the new words", wallet_seed_stage(ALT_WORDS) == 0);
+        schk("wizard: commit ok", wallet_seed_commit() == 0);
+        schk("wizard: commit applied the amnesic mode",
+             wallet_seed_mode() == WSEED_MODE_AMNESIC);
+        wallet_seed_forget();             // the amnesic lock drops the RAM copy
+        schk("wizard: commit took the old wallet with it",
+             wallet_seed_exists() == 0);
+
+        // the same guarantee in the other direction: a KEEP wizard that is
+        // abandoned must not overwrite the wallet already on the device
+        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("wizard: restore a stored wallet", wallet_seed_store(DEV_WORDS) == 0);
+        schk("wizard: stage a replacement", wallet_seed_stage(ALT_WORDS) == 0);
+        wallet_seed_discard();
+        schk("wizard: abandoned replacement leaves the old words",
+             wallet_seed_load(got, sizeof got) == 0 &&
+             strcmp(got, DEV_WORDS) == 0);
+    }
+
     // leave the dev seed stored: the rest of the suite depends on it
     schk("restore dev words for suite", wallet_seed_store(DEV_WORDS) == 0);
     return sfails;

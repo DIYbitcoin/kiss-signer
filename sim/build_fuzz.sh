@@ -22,6 +22,7 @@ clang -O1 -w -g \
   "$WALLY/upstream/src/amalgamation/combined.c" \
   components/cUR/src/*.c components/cUR/src/types/*.c components/cUR/src/sha256/sha256.c \
   main/wallet_crypto.c main/wallet_psbt.c main/wallet_seed.c main/qr_transport.c \
+  main/wallet_sp.c \
   sim/test_fuzz.c \
   -o /tmp/kissfuzz
 echo "built /tmp/kissfuzz"

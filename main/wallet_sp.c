@@ -223,6 +223,34 @@ int sp_ecdh_share(const uint8_t a_sum32[32], const uint8_t scan33[33],
     return sp_point_mul(scan33, a_sum32, share33);
 }
 
+// BIP375: k is assigned in SORTED order, not PSBT output order. Codes sharing
+// a scan key sort lexicographically ascending by spend key; a subgroup sharing
+// BOTH keys then sorts by output index ascending. Insertion sort, because n is
+// at most a handful of outputs and being obviously correct beats being clever.
+//
+// The cost of skipping this is invisible and total: BIP352 scanning tries
+// k = 0, 1, 2 ... and stops at the first key it does not find, so one swapped
+// pair means the recipient never sees the payment. Two labelled addresses of
+// the same wallet share a scan key, so this is a normal send.
+void sp_sort_group(sp_recip_t *recips, uint32_t *idxs, size_t n)
+{
+    for (size_t i = 1; i < n; i++) {
+        sp_recip_t r = recips[i];
+        uint32_t x = idxs[i];
+        size_t j = i;
+        while (j > 0) {
+            int c = memcmp(recips[j - 1].spend, r.spend, 33);
+            if (c < 0 || (c == 0 && idxs[j - 1] <= x))
+                break;
+            recips[j] = recips[j - 1];
+            idxs[j] = idxs[j - 1];
+            j--;
+        }
+        recips[j] = r;
+        idxs[j] = x;
+    }
+}
+
 int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
                     sp_recip_t *recips, size_t n)
 {

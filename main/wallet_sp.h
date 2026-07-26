@@ -82,9 +82,16 @@ int sp_input_hash(const uint8_t *outpoints36, size_t n,
 int sp_ecdh_share(const uint8_t a_sum32[32], const uint8_t scan33[33],
                   uint8_t share33[33]);
 
-// Verifier-style derivation for ONE scan-key group in PSBT output order
-// (k = index in the array): t_k = tagged("BIP0352/SharedSecret",
-// (input_hash*share) || k_be32); P_k = spend + t_k*G -> xonly_out.
+// BIP375 ordering for ONE scan-key group: sort the recipients (carrying their
+// PSBT output indices along) lexicographically by spend key ascending, ties
+// broken by output index ascending. Call this BEFORE sp_derive_group -- k is
+// the position in the SORTED array, and PSBT output order is not it.
+void sp_sort_group(sp_recip_t *recips, uint32_t *idxs, size_t n);
+
+// Verifier-style derivation for ONE scan-key group, k = index in the array
+// (so the array must already be in sp_sort_group order): t_k =
+// tagged("BIP0352/SharedSecret", (input_hash*share) || k_be32);
+// P_k = spend + t_k*G -> xonly_out.
 int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
                     sp_recip_t *recips, size_t n);
 

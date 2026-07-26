@@ -17,10 +17,17 @@
 #define WSEED_MODE_KEEP    0
 #define WSEED_MODE_AMNESIC 1
 
+// The staged choice if setup is mid-flight, otherwise what flash holds.
 int  wallet_seed_mode(void);
-// Persists the choice. Switching TO amnesic wipes any stored seed, so the mode
-// shown on screen is always the truth about what is on the device.
+// Persists the choice IMMEDIATELY. Switching TO amnesic wipes any stored seed,
+// so the mode shown on screen is always the truth about what is on the device.
+// Not for the setup wizard: see wallet_seed_stage_mode.
 void wallet_seed_set_mode(int mode);
+// The wizard's version: remember the answer, touch nothing. The wizard asks
+// KEEP vs NOTHING SAVED before the new wallet exists, so applying it there
+// would erase a wallet the user might still back out and keep.
+// wallet_seed_commit applies it; wallet_seed_discard forgets it.
+void wallet_seed_stage_mode(int mode);
 
 // 1 if a seed is stored on this device.
 int wallet_seed_exists(void);
@@ -35,8 +42,8 @@ int wallet_seed_store(const char *mnemonic);
 // abandoned setup leaves no half-made wallet. While staged, load/exists/session
 // all see the staged mnemonic (so the fingerprint can be shown pre-commit).
 int wallet_seed_stage(const char *mnemonic);   // validate + hold in RAM
-int wallet_seed_commit(void);                  // staged RAM -> flash
-void wallet_seed_discard(void);                // drop the staged mnemonic
+int wallet_seed_commit(void);                  // staged RAM + mode -> flash
+void wallet_seed_discard(void);                // drop the staged mnemonic + mode
 
 // Copy the stored mnemonic into out. 0 on success, nonzero if none/too small.
 int wallet_seed_load(char *out, size_t out_len);

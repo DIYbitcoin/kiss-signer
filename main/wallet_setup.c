@@ -505,9 +505,13 @@ static void count_screen(void)
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
+// STAGE the answer, never apply it. This screen is step one of the wizard, so
+// "NOTHING SAVED" here used to erase the wallet the user already had before a
+// single new word existed -- and BACK, or a power cut, then left them with
+// neither. wallet_seed_commit applies it once the whole ritual is done.
 static void storage_pick_cb(lv_event_t *e)
 {
-    wallet_seed_set_mode((int)(intptr_t)lv_event_get_user_data(e));
+    wallet_seed_stage_mode((int)(intptr_t)lv_event_get_user_data(e));
     count_screen();
 }
 
