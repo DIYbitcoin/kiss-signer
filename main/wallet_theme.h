@@ -36,6 +36,11 @@ const lv_font_t *wt_font14(void);
 const lv_font_t *wt_font14_for_lang(int lang);  // native-name rows in the language picker
 const lv_font_t *wt_font23(void);   // wallet-home tile titles (baked-art size)
 const lv_font_t *wt_font28(void);
+// Page titles + primary buttons. Latin/Cyrillic get a real 34px face;
+// CJK locales get 28 (no CJK face exists at 34, and CJK glyphs already
+// read larger at a given pixel size). Never returns a Latin-only font to
+// a CJK locale.
+const lv_font_t *wt_font34(void);
 // Largest body font that fits `txt` into w x max_h, measured for the ACTIVE
 // locale's font. Explainers should read at arm's length (and on a 3.5" port),
 // so short copy gets the big font; a long translation degrades to the small one

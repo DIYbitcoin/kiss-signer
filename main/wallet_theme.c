@@ -16,6 +16,11 @@
 static lv_font_t s_font14[I18N_FC_ZH + 1];
 static lv_font_t s_font23[I18N_FC_ZH + 1];
 static lv_font_t s_font28[I18N_FC_ZH + 1];
+// 34 exists for Latin/Cyrillic ONLY -- the CJK subsets at this size would add
+// ~4.5MB to an app already using 8.9MB of a 12MB partition, and CJK glyphs read
+// considerably larger than Latin at the same pixel size anyway. Hence a single
+// face, not an array: there is deliberately no per-class variant to pick.
+static lv_font_t s_font34;
 static bool s_fonts_ready;
 
 static void fonts_init(void)
@@ -35,6 +40,13 @@ static void fonts_init(void)
     s_font28[I18N_FC_JA].fallback = &font_kiss_ja28;
     s_font28[I18N_FC_KO].fallback = &font_kiss_ko28;
     s_font28[I18N_FC_ZH].fallback = &font_kiss_zh28;
+    // Chains to the 28px Japanese face, the largest CJK size that exists. A
+    // glyph missing from an LVGL font is an infinite loop in the renderer, not
+    // a tofu box, so this must never dead-end -- even though wt_font34() is
+    // supposed to keep CJK locales away from this face entirely. Belt and
+    // braces, because the failure mode is a hung device.
+    s_font34 = font_kiss_lat34;
+    s_font34.fallback = &font_kiss_ja28;
     s_fonts_ready = true;
 }
 
@@ -60,6 +72,21 @@ const lv_font_t *wt_font28(void)
 {
     fonts_init();
     return &s_font28[font_class_for_lang(i18n_get_lang())];
+}
+
+// The top rung, for page titles and primary buttons. Latin/Cyrillic locales
+// get the real 34px face; every CJK locale gets 28 instead, because no CJK
+// face exists at 34 and handing a Latin-only font to a locale whose every
+// string is CJK would put the renderer on the fallback path for the whole
+// screen. 28 is not a downgrade there: Han and Kana fill their em box far more
+// than Latin does, so a 28px CJK title already reads about as large as a 34px
+// Latin one.
+const lv_font_t *wt_font34(void)
+{
+    fonts_init();
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_font34
+             : &s_font28[font_class_for_lang(i18n_get_lang())];
 }
 
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
@@ -203,12 +230,23 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(scr);
 
+    // The page title is the one label on every screen, so it sets the tone for
+    // how big the device "feels". wt_font34 gives Latin/Cyrillic a real 34px
+    // face and hands CJK locales 28, which is why this can grow without a CJK
+    // font at 34 existing.
+    //
+    // Header geometry is tight and deliberate: 34 has a ~45px line box, so the
+    // title moved up to y=18 to keep its descenders off the subtitle, and the
+    // subtitle moved to y=66 with a 29px budget -- exactly one line at font23,
+    // landing on 95, one pixel clear of the y=96 content line every screen
+    // builds against. Loosen any of those three numbers and the subtitle either
+    // drops to font14 or collides with the first row of content.
     lv_obj_t *cap = lv_label_create(scr);   // note_font: defined with wt_note below
     lv_label_set_text(cap, title);
     lv_obj_set_style_text_color(cap, wt_accent(), 0);
-    lv_obj_set_style_text_font(cap, wt_font28(), 0);
+    lv_obj_set_style_text_font(cap, wt_font34(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 48, 26);
+    lv_obj_set_pos(cap, 48, 18);
 
     if (sub) {
         // The subtitle gets ONE line, between the title and content at y=96.
@@ -218,10 +256,10 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_t *s = lv_label_create(scr);
         lv_label_set_text(s, sub);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
-        lv_obj_set_style_text_font(s, note_font(sub, 704, 30), 0);
+        lv_obj_set_style_text_font(s, note_font(sub, 704, 29), 0);
         lv_obj_set_width(s, 704);
         lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(s, 48, 64);
+        lv_obj_set_pos(s, 48, 66);
     }
     return scr;
 }
