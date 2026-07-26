@@ -57,6 +57,17 @@ typedef struct {
     wpsbt_status_t status;
     uint16_t caution_flags;  // WPSBT_C_* bitset (all triggered cautions)
     char     reason[64];     // STOP root cause, or the first caution ("" when READY)
+    // Diagnostic only, never shown on screen. "input is not this wallet's" is a
+    // 4-byte memcmp (our_keypath) and it cannot say WHICH four bytes failed --
+    // so a coordinator that displays the right master fingerprint but writes a
+    // different one into the input derivation is indistinguishable from a coin
+    // that genuinely belongs to someone else. That happens for real: importing
+    // a bare zpub instead of the full descriptor leaves the coordinator without
+    // the true origin, so it invents one. These carry both sides of the compare
+    // out to the log in wallet_sign.c, which is the only place allowed to log.
+    uint8_t  our_fp[4];      // this device's master fingerprint
+    uint8_t  in0_fp[4];      // first keypath fingerprint on input 0 (zero if none)
+    uint32_t in0_keypaths;   // how many keypath entries input 0 carried at all
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
 
