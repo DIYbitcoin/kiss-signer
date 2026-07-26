@@ -8,16 +8,16 @@ Beta firmware for the Guition JC4880P443C ESP32-P4 board.
 
 Download these assets from this release into one folder:
 
-- `kiss-wallet-0.1.0-beta4.bin` - merged firmware image
+- `kiss-signer-0.1.0-beta4.bin` - merged firmware image
 - `SHA256SUMS` - firmware hashes
 - `SHA256SUMS.asc` - GPG signature for `SHA256SUMS`
-- `kiss_wallet_pgp.asc` - KISS release public key
+- `kiss_signer_pgp.asc` - KISS release public key
 - `release.json` - machine-readable release metadata
 
 ## Verify
 
 ```sh
-gpg --import kiss_wallet_pgp.asc
+gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 # expect fingerprint: 166ACBF37786FCEAA69496DE886F1BFEB84EF1C0
 

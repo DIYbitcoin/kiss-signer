@@ -59,21 +59,21 @@ touch panel, camera, SD card slot. No soldering.
 ## Install (beta)
 
 For this beta, use the signed artifacts attached to the
-[latest GitHub Release](https://github.com/kkdao/kiss-wallet/releases/latest).
+[latest GitHub Release](https://github.com/kkdao/kiss-signer/releases/latest).
 The browser installer comes later, once GitHub Pages is live (Chrome / Edge /
 Brave on desktop only — Safari and Firefox cannot flash over Web Serial).
 
 **1. Download** these release assets into one folder:
 
-- `kiss-wallet-0.1.0-beta4.bin`
+- `kiss-signer-0.1.0-beta4.bin`
 - `SHA256SUMS`
 - `SHA256SUMS.asc`
-- `kiss_wallet_pgp.asc`
+- `kiss_signer_pgp.asc`
 
 **2. Verify** before flashing:
 
 ```sh
-gpg --import kiss_wallet_pgp.asc
+gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS      # expect this fingerprint:
 # 166A CBF3 7786 FCEA A694  96DE 886F 1BFE B84E F1C0
 shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
@@ -93,7 +93,7 @@ pip install esptool   # or: pipx install esptool / uvx esptool
 esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 kiss-wallet-0.1.0-beta4.bin
+  0 kiss-signer-0.1.0-beta4.bin
 ```
 
 > [!IMPORTANT]

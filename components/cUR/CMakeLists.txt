@@ -25,7 +25,7 @@ idf_component_register(
         "src"
 )
 
-# kiss-wallet-os: bundled SHA256 (no UR_USE_MBEDTLS_SHA256) so the identical
+# kiss-signer-os: bundled SHA256 (no UR_USE_MBEDTLS_SHA256) so the identical
 # sources build on desktop (sim/build_test.sh) and device — same policy as
 # components/libwally-core. SHA here only seeds the fountain-code RNG; not
 # consensus-critical perf.
