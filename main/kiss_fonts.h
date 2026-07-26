@@ -14,6 +14,8 @@
 LV_FONT_DECLARE(font_kiss_lat14);
 LV_FONT_DECLARE(font_kiss_lat23);   // wallet-home tile titles; CJK subset = tile words only
 LV_FONT_DECLARE(font_kiss_lat28);
+// Latin/Cyrillic only -- no ja/ko/zh sibling exists at 34. See wt_font34().
+LV_FONT_DECLARE(font_kiss_lat34);
 LV_FONT_DECLARE(font_kiss_ja23);
 LV_FONT_DECLARE(font_kiss_ko23);
 LV_FONT_DECLARE(font_kiss_zh23);

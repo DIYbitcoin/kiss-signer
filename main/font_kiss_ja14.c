@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 14 px
  * Bpp: 4
- * Opts: --no-compress --no-prefilter --bpp 4 --format lvgl --force-fast-kern-format --size 14 --font vendor/SourceHanSansJP-Normal.otf --symbols 、。あいうえおかがきぎくけげこごさしじすずせぜそぞただちっつてでとどなにのはばびへべまみむめもやらりるれわをんァアィイウェエォオカガキクグコサザシジスズセソタダチッテデトドナニネバパビピフブプペホポマムメモャュョラリルレロワン・ー一上不中乱了事人今他付代件位体何作使供価保信個値停備元先入全共内再写出分切初判別利前割力加効動化単印厳去取受古可号各合同名向告問図在地型報場壁売変外多大失奨好字存守安完定宛対専導小少層左差常度式引弱強当形影待後復必忘応性情意成戻手払承択押持挿探控推換損携撮支放敗散数文料断新方日旧早明易時普書替最有未末本机枝棄植検極構標次止正残決注消混済渡準無照物率現理生用由画留番異発白的監目直相真知砂破確示禁空端符答算管簡紙索細終組結給続緑練繰置署習者聞能自致良落葉行表要見規視角解触言計記設証試詰詳認語説読誰識警譲資起超跡身込返追送通連遅運違選避部金釣録鍵長閉開間隠離静非面順題額高（） --lv-fallback font_kiss_ko14 -o ../../main/font_kiss_ja14.c
+ * Opts: --no-compress --no-prefilter --bpp 4 --format lvgl --force-fast-kern-format --size 14 --font vendor/SourceHanSansJP-Normal.otf --symbols 、。あいうえおかがきぎくけげこごさしじすずせぜそぞただちっつてでとどなにのはばびへべまみむめもやらりるれわをんァアィイウェエォオカガキクグコサザシジスズセソタダチッテデトドナニネバパビピフブプペホポマムメモャュョラリルレロワン・ー一上不中乱了事人今他付代件位体何作使供価保信個値停備元先入全共内再写出分切初判別利前割力加効動化単印厳去取受古可号各合同名向告問図在地型報場壁売変外多大失奨好字存守安完定宛対専導小少層左差常度式引弱強当形影待後復必忘応性情意成戻手払承択押持挿探控推換損携撮支放敗散数文料断新方日旧早明易時普書替最有未末本机枝棄植検極構標次止正残決注消混済渡準無照物率現理生用由画留番異発白的監目直相真知砂破確示禁空端符答算管簡紙索細終組結給続緑練繰置署習者聞能自致良落葉行表要見規視角解触言計記設証試詰詳認語説読誰識警譲資起超跡身込返追送通連遅運違選避部金釣録鍵長閉開間隠離非面順題額高（） --lv-fallback font_kiss_ko14 -o ../../main/font_kiss_ja14.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -5243,21 +5243,6 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xb4, 0x11, 0x10, 0x0, 0x0, 0x0, 0x0, 0x0,
     0x0, 0x0,
 
-    /* U+9759 "静" */
-    0x0, 0x9, 0x40, 0x0, 0x74, 0x0, 0x0, 0x9,
-    0x9d, 0xb9, 0x70, 0xea, 0x97, 0x0, 0x2, 0x2a,
-    0x62, 0x27, 0x94, 0xa9, 0x0, 0x8, 0xbe, 0xcb,
-    0x8e, 0x1, 0xd0, 0x0, 0x0, 0x9, 0x40, 0xb,
-    0xff, 0xff, 0xd0, 0x2b, 0xbb, 0xbb, 0xa0, 0xe,
-    0x0, 0xd0, 0x2, 0x77, 0x77, 0x37, 0x7f, 0x77,
-    0xe5, 0x6, 0x83, 0x3b, 0x44, 0x4e, 0x44, 0xe3,
-    0x6, 0xdb, 0xbe, 0x31, 0x2e, 0x22, 0xd0, 0x6,
-    0x60, 0x9, 0x36, 0xbf, 0xbb, 0xd0, 0x6, 0xda,
-    0xae, 0x30, 0xe, 0x0, 0x30, 0x6, 0x60, 0x9,
-    0x30, 0xe, 0x0, 0x0, 0x6, 0x60, 0xbd, 0x14,
-    0xdc, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    0x0, 0x0,
-
     /* U+975E "非" */
     0x0, 0x0, 0xe, 0x0, 0xd0, 0x0, 0x0, 0x0,
     0x0, 0xe, 0x0, 0xd0, 0x0, 0x0, 0x8, 0xcc,
@@ -5760,14 +5745,13 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 33525, .adv_w = 224, .box_w = 13, .box_h = 14, .ofs_x = 1, .ofs_y = -2},
     {.bitmap_index = 33616, .adv_w = 224, .box_w = 14, .box_h = 14, .ofs_x = 0, .ofs_y = -2},
     {.bitmap_index = 33714, .adv_w = 224, .box_w = 14, .box_h = 14, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 33812, .adv_w = 224, .box_w = 14, .box_h = 14, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 33910, .adv_w = 224, .box_w = 14, .box_h = 12, .ofs_x = 0, .ofs_y = -1},
-    {.bitmap_index = 33994, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 34085, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 34176, .adv_w = 224, .box_w = 14, .box_h = 14, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 34274, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -1},
-    {.bitmap_index = 34365, .adv_w = 224, .box_w = 5, .box_h = 14, .ofs_x = 9, .ofs_y = -2},
-    {.bitmap_index = 34400, .adv_w = 224, .box_w = 5, .box_h = 14, .ofs_x = 0, .ofs_y = -2}
+    {.bitmap_index = 33812, .adv_w = 224, .box_w = 14, .box_h = 12, .ofs_x = 0, .ofs_y = -1},
+    {.bitmap_index = 33896, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -2},
+    {.bitmap_index = 33987, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -2},
+    {.bitmap_index = 34078, .adv_w = 224, .box_w = 14, .box_h = 14, .ofs_x = 0, .ofs_y = -2},
+    {.bitmap_index = 34176, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -1},
+    {.bitmap_index = 34267, .adv_w = 224, .box_w = 5, .box_h = 14, .ofs_x = 9, .ofs_y = -2},
+    {.bitmap_index = 34302, .adv_w = 224, .box_w = 5, .box_h = 14, .ofs_x = 0, .ofs_y = -2}
 };
 
 /*---------------------
@@ -5835,8 +5819,8 @@ static const uint16_t unicode_list_2[] = {
     0x5bd8, 0x5c88, 0x5c96, 0x5cf2, 0x5dbc, 0x5ecd, 0x5ee5, 0x5f0e,
     0x5f12, 0x5f2b, 0x5f34, 0x5f56, 0x5f5c, 0x5f66, 0x5f89, 0x5f90,
     0x5ff9, 0x60e2, 0x60f4, 0x6243, 0x6286, 0x6488, 0x649a, 0x649c,
-    0x64a4, 0x65b1, 0x65f3, 0x666a, 0x666f, 0x6673, 0x6717, 0x675d,
-    0x675e, 0x69e9, 0xce19, 0xce1a
+    0x64a4, 0x65b1, 0x65f3, 0x666f, 0x6673, 0x6717, 0x675d, 0x675e,
+    0x69e9, 0xce19, 0xce1a
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
@@ -5852,7 +5836,7 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
     },
     {
         .range_start = 12527, .range_length = 52763, .glyph_id_start = 112,
-        .unicode_list = unicode_list_2, .glyph_id_ofs_list = NULL, .list_length = 292, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .unicode_list = unicode_list_2, .glyph_id_ofs_list = NULL, .list_length = 291, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 
@@ -5914,7 +5898,7 @@ static const uint8_t kern_left_class_mapping[] =
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0
+    0, 0, 0
 };
 
 /*Map glyph_ids to kern right classes*/
@@ -5970,7 +5954,7 @@ static const uint8_t kern_right_class_mapping[] =
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0
+    0, 0, 0
 };
 
 /*Kern values between classes*/

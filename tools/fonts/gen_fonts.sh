@@ -89,6 +89,29 @@ for L in ja ko zh; do
     $FB -o "$OUT/font_kiss_${L}23.c"
 done
 
+# 34px: page titles and primary buttons. LATIN/CYRILLIC ONLY, and the only size
+# in this project that does not exist for all four scripts.
+#
+# Why not all four: the CJK subsets at 34 would add roughly 4.5MB, and the app
+# is already 8.9MB of a 12MB partition. Latin alone is ~1.1MB and fits. CJK
+# glyphs also read considerably larger than Latin at the same pixel size, so
+# leaving ja/ko/zh titles at 28 costs far less legibility than the arithmetic
+# suggests.
+#
+# THE FALLBACK IS LOAD-BEARING. A glyph missing from an LVGL font is not a tofu
+# box, it is an infinite loop in the renderer -- on device as well as in the
+# sim. There is no font_kiss_ja34 to chain to, so this chains to the 28 CJK
+# faces: a stray CJK character in a Latin-locale title renders one size small
+# instead of hanging the device. wt_font34() must ALSO refuse to hand this face
+# to a CJK locale in the first place; this chain is the second line of defence,
+# not the first.
+echo "== font_kiss_lat34"
+conv --size 34 \
+  --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+  --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+  --lv-fallback font_kiss_ja28 \
+  -o "$OUT/font_kiss_lat34.c"
+
 # lv_font_conv emits an extra blank line; normalize generated sources so
 # regeneration stays clean under git diff --check.
 perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c
