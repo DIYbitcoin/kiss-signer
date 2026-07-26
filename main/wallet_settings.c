@@ -520,6 +520,12 @@ void wallet_settings_open(lv_obj_t *parent)
     // LANGUAGE caption below: that pill carries a flag and the language's own
     // name, which labels it better than the word ever did.
     mk_section(tr(STR_I_T), 430, 74);
+    // These two stay 52 tall. This column already carries a caption, two
+    // buttons, two notes AND the language row, so the rows a wrapped label
+    // would need can only come out of the notes -- and this is the screen where
+    // shrinking the prose was the complaint in the first place. The labels are
+    // kept short per locale instead; sim/fitcheck.c fails the build if one of
+    // them ever needs font14 to fit.
     s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 340, 52, replace_cb, NULL);
     wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 154, 340, 88);   // to WIPE at 246
 
@@ -543,17 +549,11 @@ void wallet_settings_open(lv_obj_t *parent)
         if (n >= sizeof shortname) n = sizeof shortname - 1;
         memcpy(shortname, nat, n);
         shortname[n] = 0;
-        s_lang_pill = mk_pillh(shortname, 430, 400, 160, 44, lang_open_cb, NULL);
-        lv_obj_t *lp = s_lang_pill;
-        if (img_lang_flags[li]) {
-            lv_obj_t *name = lv_obj_get_child(lp, 0);
-            lv_obj_set_style_text_letter_space(name, 0, 0);
-            lv_obj_align(name, LV_ALIGN_CENTER, 16, 0);
-            lv_obj_t *fl = lv_image_create(lp);
-            lv_image_set_src(fl, img_lang_flags[li]);
-            lv_obj_align(fl, LV_ALIGN_LEFT_MID, 16, 0);   // clear of the pill's corner radius
-            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
-        }
+        // 170, up from 160: this pill carries a flag AND a native name, and the
+        // flag's width used to come straight out of the name's. BACK keeps its
+        // 140 -- the extra comes from the gap between them.
+#define LANG_PILL_W 170
+        s_lang_pill = mk_pillh(shortname, 430, 400, LANG_PILL_W, 44, lang_open_cb, NULL);
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
@@ -563,6 +563,31 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_t *row[2] = { s_lang_pill,
                              mk_pillh(tr(STR_C_BACK), 610, 400, 140, 44, close_cb, NULL) };
         wt_pill_row(row, 2);
+    }
+
+    // The flag goes on AFTER the row has agreed a size, then the name is
+    // re-measured against the width the flag actually leaves behind. It used to
+    // be centred with a fixed +16 nudge and sized against the whole pill, so a
+    // long name ran back underneath the flag and lost its first letters
+    // ("TIENG VIET" rendered as "ENG VIET"). Only the name gives ground here:
+    // BACK keeps whatever the row settled on.
+    if (s_lang_pill && img_lang_flags[i18n_get_lang()]) {
+        lv_obj_t *name = lv_obj_get_child(s_lang_pill, 0);
+        lv_obj_t *fl = lv_image_create(s_lang_pill);
+        lv_image_set_src(fl, img_lang_flags[i18n_get_lang()]);
+        lv_obj_align(fl, LV_ALIGN_LEFT_MID, 12, 0);   // clear of the corner radius
+        lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_update_layout(s_lang_pill);
+
+        int used = 12 + lv_obj_get_width(fl) + 10;
+        int room = LANG_PILL_W - used - 12;
+        wt_pill_fit_t f = wt_pill_fit(lv_label_get_text(name), room + 28, 44, false);
+        lv_obj_set_style_text_font(name, f.font, 0);
+        lv_obj_set_style_text_letter_space(name, 0, 0);
+        lv_label_set_long_mode(name, LV_LABEL_LONG_CLIP);
+        lv_obj_set_width(name, room);
+        lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(name, LV_ALIGN_LEFT_MID, used, 0);
     }
     restyle();
 }

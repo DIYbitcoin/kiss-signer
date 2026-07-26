@@ -380,14 +380,22 @@ static void info_screen(void)
     // Gaps here are 6px, not 12: the column has room for exactly three lines of
     // font23 under each pill, and at 12px both notes came out one pixel short
     // and dropped to font14.
-    lv_obj_t *pp = wt_pill(s_scr, tr(STR_I_PAIR_T), 430, 100, 340, pair_open_cb, NULL);
+    // 66px tall so a long translation takes a SECOND LINE at font23 instead of
+    // collapsing to font14 (two 29px lines plus padding). "PAIR COORDINATOR"
+    // has no one-line size above 14 in twelve of the twenty-one languages.
+    // The notes give up the height: a note explaining a button must never be
+    // the bigger of the two, so its rows are the ones that can go.
+    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 90, 340, 66,
+                            pair_open_cb, NULL);
     wt_pill_primary(pp);
-    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 158, 340, 89);    // to WORDS at 250
+    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 160, 340, 88);    // to WORDS at 252
 
-    wt_pill(s_scr, tr(STR_I_WORDS_BTN), 430, 250, 340, words_warn_screen, NULL);
-    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 308, 340, 90);   // to BACK at 404
+    wt_pillh(s_scr, tr(STR_I_WORDS_BTN), 430, 252, 340, 66, words_warn_screen, NULL);
+    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 322, 340, 88);   // to BACK at 412
 
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
+    // 412, not 404: the two action pills above grew a row so their labels can
+    // wrap instead of shrink, and their notes kept all three of theirs
+    wt_pill(s_scr, tr(STR_C_BACK), 610, 412, 140, close_cb, NULL);
 }
 
 void wallet_info_open(lv_obj_t *parent)

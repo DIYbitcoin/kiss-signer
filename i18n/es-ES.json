@@ -125,9 +125,9 @@
   "G_TY_LEGACY_NOTE": "el estilo más viejo, comisiones altas.",
   "G_SEPARATE": "cada red + tipo es su propia cartera aparte",
   "G_CREATE_NEW": "CREAR CARTERA NUEVA",
-  "G_CREATE_NOTE": "crear o restaurar. SUSTITUYE lo que hay aqui.",
+  "G_CREATE_NOTE": "crear o restaurar. SUSTITUYE lo que hay aquí.",
   "G_WIPE": "BORRAR CARTERA",
-  "G_WIPE_NOTE": "borra la cartera de aqui. palabras + passphrase la restauran.",
+  "G_WIPE_NOTE": "borra la cartera de aquí. palabras + passphrase la restauran.",
   "G_NOERASE_T": "NO SE PUDO BORRAR",
   "G_NOERASE_B": "tus palabras pueden seguir AQUÍ.\n\nno lo vendas ni lo regales.\nintenta borrar otra vez.",
   "G_ERASED_T": "CARTERA BORRADA",
@@ -308,5 +308,5 @@
   "W_LOAD_TYPE_NOTE": "escribe las palabras de tu papel.",
   "G_WIPEC_T": "BORRAR ESTA CARTERA?",
   "G_WIPEC_B": "las palabras salen de este dispositivo ya.\n\nsolo tu papel + passphrase pueden\nrecuperar esta cartera.",
-  "G_HOLD_WIPE": "MANTEN PARA BORRAR"
+  "G_HOLD_WIPE": "MANTÉN PARA BORRAR"
 }

@@ -124,7 +124,7 @@
   "G_TY_NESTED_NOTE": "segwit più vecchio.",
   "G_TY_LEGACY_NOTE": "lo stile più vecchio, commissioni alte.",
   "G_SEPARATE": "ogni rete + tipo è un portafoglio a sé",
-  "G_CREATE_NEW": "CREA NUOVO PORTAFOGLIO",
+  "G_CREATE_NEW": "NUOVO PORTAFOGLIO",
   "G_CREATE_NOTE": "crea o ripristina. SOSTITUISCE quello che c'e qui.",
   "G_WIPE": "CANCELLA PORTAFOGLIO",
   "G_WIPE_NOTE": "cancella il portafoglio da qui. parole + passphrase lo riportano.",
