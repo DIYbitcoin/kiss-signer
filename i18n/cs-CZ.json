@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PRVNÍ ADRESA",
   "I_NET_TEST": "TESTNET, cvičné mince",
   "I_NET_MAIN": "MAINNET, skutečný bitcoin",
-  "I_H_FP_B": "identifikační kód této peněženky.\n\npropojená aplikace ukáže STEJNÝ kód.\nrychlá kontrola, ne důkaz.",
+  "I_H_FP_B": "identifikační kód této peněženky.\n\npropojená aplikace ukáže STEJNÝ kód.\npro jistotu, že má vaše adresy, použijte PŘIJMOUT > OVĚŘIT.",
   "I_H_TYPE_B": "jak vypadají tvoje adresy.\nbc1... je moderní, s nejnižším poplatkem.\n\nm/... říká, odkud se berou klíče.\naplikace je podle toho najde.",
   "I_H_PAIR_T": "KOORDINAČNÍ APLIKACE",
   "I_H_PAIR_B": "aplikace, která peněženku jen SLEDUJE.\nvidí zůstatek a sestavuje platby.\n\nutratit nikdy nemůže: podepisuje se TADY.",

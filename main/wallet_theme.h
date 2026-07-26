@@ -50,7 +50,22 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud);
 lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
                   lv_event_cb_t cb, void *ud);
-void      wt_pill_primary(lv_obj_t *pill);   // accent border = the suggested action
+// Accent border = the suggested action. ALSO promotes the label to the top
+// rung: pill labels auto-fit 23 -> 14 by default, and 28 -> 23 -> 14 once
+// marked primary, so the button is never smaller than the note beside it.
+void      wt_pill_primary(lv_obj_t *pill);
+// Just the label promotion, no colour change: the sign pill is deliberately
+// green rather than accent, but it is still the screen's main action.
+void      wt_pill_label_max(lv_obj_t *pill);
+// Add the second line to a pill ("DESKTOP" over "Sparrow") and re-fit the main
+// label to the room left above it. Replaces three hand-tuned copies.
+void      wt_pill_two_line(lv_obj_t *pill, const char *sub);
+// Pills sharing a row share a label size (smallest wins). Without it one long
+// word drops a single pill a rung and the row looks broken.
+void      wt_pill_row(lv_obj_t **pills, int n);
+// The rung a pill label would take in the ACTIVE locale. Exposed so the fit
+// report can measure every button the same way the kit draws it.
+const lv_font_t *wt_pill_font(const char *txt, int w, int h, bool primary);
 void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled when active
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,

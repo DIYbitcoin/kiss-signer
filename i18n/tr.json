@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "İLK ADRES",
   "I_NET_TEST": "TESTNET, deneme coinleri",
   "I_NET_MAIN": "MAINNET, gerçek bitcoin",
-  "I_H_FP_B": "bu cüzdanın kimlik kodu.\n\neşleşen uygulama AYNI kodu göstermeli.\nhızlı kontrol, kanıt değil.",
+  "I_H_FP_B": "bu cüzdanın kimlik kodu.\n\neşleşen uygulama AYNI kodu göstermeli.\nadreslerinizin doğru olduğundan emin olmak için AL > DOĞRULA.",
   "I_H_TYPE_B": "adreslerinin nasıl göründüğü.\nbc1... modern olanı, en düşük ücretli.\n\nm/... anahtarların nereden geldiği.\nuygulaman onları böyle bulur.",
   "I_H_PAIR_T": "KOORDİNATÖR UYGULAMA",
   "I_H_PAIR_B": "bu cüzdanı SADECE İZLEYEN uygulama.\nbakiyeyi görür, ödemeleri hazırlar.\n\nasla harcayamaz: imza BURADA atılır.",

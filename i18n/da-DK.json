@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "FØRSTE ADRESSE",
   "I_NET_TEST": "TESTNET, øvemønter",
   "I_NET_MAIN": "MAINNET, rigtige bitcoin",
-  "I_H_FP_B": "din tegnebogs ID-kode.\n\nen parret app skal vise SAMME kode.\nhurtigt tjek, ikke bevis.",
+  "I_H_FP_B": "din tegnebogs ID-kode.\n\nen parret app skal vise SAMME kode.\nfor at være sikker på dine adresser, brug MODTAG > KONTROLLÉR.",
   "I_H_TYPE_B": "hvordan dine adresser ser ud.\nbc1... er den moderne med lavest gebyr.\n\nm/... er hvor nøglerne kommer fra.\ndin app finder dem med den.",
   "I_H_PAIR_T": "KOORDINATOR-APPEN",
   "I_H_PAIR_B": "en app der KIGGER på denne tegnebog.\nden ser saldo og bygger betalinger.\n\nden kan aldrig bruge. der signeres HER.",

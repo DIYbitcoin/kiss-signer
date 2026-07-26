@@ -182,11 +182,8 @@ static void pair_screen(void)
     for (int i = 0; i < 2; i++) {
         lv_obj_t *p = wt_pillh(s_scr, CAT[i], 400 + i * 185, 120, 175, 60,
                                pair_fmt_cb, (void *)(intptr_t)i);
-        lv_obj_align(lv_obj_get_child(p, 0), LV_ALIGN_TOP_MID, 0, 9);
-        s_pair_app[i] = lv_label_create(p);
-        lv_label_set_text(s_pair_app[i], APP[i]);
-        lv_obj_set_style_text_font(s_pair_app[i], wt_font14(), 0);
-        lv_obj_align(s_pair_app[i], LV_ALIGN_BOTTOM_MID, 0, -8);
+        wt_pill_two_line(p, APP[i]);
+        s_pair_app[i] = lv_obj_get_child(p, 1);   // pair_refresh() recolors it
         s_pair_pill[i] = p;
     }
 
@@ -209,12 +206,7 @@ static void pair_screen(void)
     // full phrase won't fit one line in the longer languages.
     lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 400, 190, 60,
                              sp_key_warn_cb, NULL);
-    lv_obj_align(lv_obj_get_child(skp, 0), LV_ALIGN_TOP_MID, 0, 9);
-    lv_obj_t *sksub = lv_label_create(skp);
-    lv_label_set_text(sksub, tr(STR_S_SP_BADGE));
-    lv_obj_set_style_text_font(sksub, wt_font14(), 0);
-    lv_obj_set_style_text_color(sksub, WT_MUT, 0);
-    lv_obj_align(sksub, LV_ALIGN_BOTTOM_MID, 0, -8);
+    wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
     pair_refresh();
 }
 
@@ -388,11 +380,11 @@ static void info_screen(void)
     // Gaps here are 6px, not 12: the column has room for exactly three lines of
     // font23 under each pill, and at 12px both notes came out one pixel short
     // and dropped to font14.
-    lv_obj_t *pp = wt_pill(s_scr, tr(STR_I_PAIR_T), 430, 100, 320, pair_open_cb, NULL);
+    lv_obj_t *pp = wt_pill(s_scr, tr(STR_I_PAIR_T), 430, 100, 340, pair_open_cb, NULL);
     wt_pill_primary(pp);
     wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 158, 340, 89);    // to WORDS at 250
 
-    wt_pill(s_scr, tr(STR_I_WORDS_BTN), 430, 250, 320, words_warn_screen, NULL);
+    wt_pill(s_scr, tr(STR_I_WORDS_BTN), 430, 250, 340, words_warn_screen, NULL);
     wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 308, 340, 90);   // to BACK at 404
 
     wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);

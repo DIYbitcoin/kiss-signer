@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PRIMEIRO ENDEREÇO",
   "I_NET_TEST": "TESTNET, moedas de treino",
   "I_NET_MAIN": "MAINNET, bitcoin de verdade",
-  "I_H_FP_B": "o código de identidade desta carteira.\n\na app emparelhada deve mostrar o MESMO.\numa verificação rápida, não uma prova.",
+  "I_H_FP_B": "o código de identidade desta carteira.\n\na app emparelhada deve mostrar o MESMO.\npara ter a certeza de que tem os seus endereços, use RECEBER > VERIFICAR.",
   "I_H_TYPE_B": "como são os seus endereços.\nbc1... é o moderno, com a menor taxa.\n\nm/... diz de onde vêm as chaves.\na sua app usa isso para as encontrar.",
   "I_H_PAIR_T": "A APLICAÇÃO COORDENADORA",
   "I_H_PAIR_B": "uma app que só OLHA esta carteira.\nvê o saldo e monta os pagamentos.\n\nnunca pode gastar: a assinatura é AQUI.",

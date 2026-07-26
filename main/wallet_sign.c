@@ -455,13 +455,21 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
+        // sats big, BTC small under it. On one line at font23 the BTC figure
+        // ran to the edge of the 372px list and would clip outright once a
+        // locale used a longer unit word.
         fmt_sats(s_sum.outs[i].sats, a, sizeof a);
         wt_fmt_btc(s_sum.outs[i].sats, b, sizeof b);
-        snprintf(buf, sizeof buf, "%s sats   (%s BTC)", a, b);
+        snprintf(buf, sizeof buf, "%s sats", a);
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, wt_font14(), 0);
+        lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        snprintf(buf, sizeof buf, "%s BTC", b);
+        lv_obj_t *btc = lv_label_create(row);
+        lv_label_set_text(btc, buf);
+        lv_obj_set_style_text_color(btc, MUT_COL, 0);
+        lv_obj_set_style_text_font(btc, wt_font14(), 0);
 
         char ga[160];   // sp1/tsp1 is ~117 chars; +grouping spaces needs >120
         group4(s_sum.outs[i].addr, ga, sizeof ga);
@@ -648,9 +656,10 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
             lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
 
-            lv_obj_t *p = mk_pill(tr(STR_S_HOLD_TO_SIGN), 500, 404, 252, NULL);
+            lv_obj_t *p = mk_pill(tr(STR_S_HOLD_TO_SIGN), 480, 404, 272, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
             lv_obj_set_style_border_color(p, OK_COL, 0);
+            wt_pill_label_max(p);      // the most consequential button in the app
             s_sign_lbl = lv_obj_get_child(p, 0);
         }
     }

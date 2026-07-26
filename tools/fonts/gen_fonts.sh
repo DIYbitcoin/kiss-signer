@@ -61,10 +61,16 @@ done
 # titles. It used to be tile titles only, so the CJK subsets carried just
 # glyphs_tile_*.txt -- about a dozen characters. The moment 23 became a body
 # size that rendered every ja/ko/zh screen as tofu boxes, so these now take the
-# same full glyph set as 14 and 28. No FontAwesome plane: 23 never shows icons.
+# same full glyph set as 14 and 28.
+#
+# It also carries the FontAwesome plane. That used to be skipped here with the
+# note "23 never shows icons", which stopped being true the moment PILL LABELS
+# started auto-fitting to 23: RECEIVE's chevrons went straight to tofu boxes.
+# Any size a pill label can take needs the symbols.
 echo "== font_kiss_lat23"
 conv --size 23 \
   --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+  --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
   --lv-fallback font_kiss_ja23 \
   -o "$OUT/font_kiss_lat23.c"
 for L in ja ko zh; do

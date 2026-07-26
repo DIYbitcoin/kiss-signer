@@ -117,6 +117,37 @@ lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]
 // largest of {23, 14} that fits (defined with wt_note); used by the subtitle too
 static const lv_font_t *note_font(const char *txt, int w, int max_h);
 
+#define SUB_ROW_H 22        // font14 line + breathing room, for two-line pills
+
+// ---- pill labels ----
+// A control's label is never smaller than the prose that explains it. Notes cap
+// at 23, so pills start there: at font14 a button sat below its own caption and
+// read as an afterthought, which was worst exactly where it mattered most (HOLD
+// TO SIGN under a 40px amount). The screen's ONE primary action goes to 28.
+//
+// Letter spacing shrinks as the font grows: 2px of tracking is a third of a
+// word's width at 14 and just noise at 28, and it is width the label needs.
+const lv_font_t *wt_pill_font(const char *txt, int w, int h, bool primary)
+{
+    // rounded ends eat the corners, so the text box is inset horizontally
+    int bw = w - 28, bh = h - 8;
+    lv_point_t sz;
+    if (primary) {
+        lv_text_get_size(&sz, txt, wt_font28(), 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x <= bw && sz.y <= bh) return wt_font28();
+    }
+    lv_text_get_size(&sz, txt, wt_font23(), 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (sz.x <= bw && sz.y <= bh) return wt_font23();
+    return wt_font14();
+}
+
+static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool primary)
+{
+    const lv_font_t *f = wt_pill_font(txt, w, h, primary);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_letter_space(l, f == wt_font14() ? 2 : 1, 0);
+}
+
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
     lv_obj_t *scr = lv_obj_create(parent);
@@ -168,8 +199,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_t *l = lv_label_create(p);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_INK, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
+    pill_label_fit(l, txt, w, h, false);
     lv_obj_center(l);
     return p;
 }
@@ -279,6 +309,62 @@ void wt_pill_primary(lv_obj_t *pill)
     lv_obj_set_style_bg_color(pill, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(pill, wt_primary(), 0);
     lv_obj_set_style_border_width(pill, 2, 0);
+    // this marker is already "the one action this screen wants" everywhere it
+    // is used, so it is also where the label earns the top rung
+    wt_pill_label_max(pill);
+}
+
+// Pills that sit in one row share a label size. The fit is per pill, so one
+// long word drops only that pill a rung: BACK came out at 23 next to "silent
+// payment" at 14 and the row read as a rendering mistake rather than a choice.
+// Smallest wins, which is also the only size guaranteed to fit all of them.
+void wt_pill_row(lv_obj_t **pills, int n)
+{
+    const lv_font_t *lo = wt_font28();
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *l = pills[i] ? lv_obj_get_child(pills[i], 0) : NULL;
+        if (!l || !lv_obj_check_type(l, &lv_label_class)) continue;
+        const lv_font_t *f = lv_obj_get_style_text_font(l, LV_PART_MAIN);
+        if (f == wt_font14()) lo = f;
+        else if (f == wt_font23() && lo == wt_font28()) lo = f;
+    }
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *l = pills[i] ? lv_obj_get_child(pills[i], 0) : NULL;
+        if (!l || !lv_obj_check_type(l, &lv_label_class)) continue;
+        lv_obj_set_style_text_font(l, lo, 0);
+        lv_obj_set_style_text_letter_space(l, lo == wt_font14() ? 2 : 1, 0);
+    }
+}
+
+void wt_pill_label_max(lv_obj_t *pill)
+{
+    lv_obj_t *l = lv_obj_get_child(pill, 0);
+    if (!l || !lv_obj_check_type(l, &lv_label_class)) return;
+    lv_obj_update_layout(pill);
+    pill_label_fit(l, lv_label_get_text(l),
+                   lv_obj_get_width(pill), lv_obj_get_height(pill), true);
+}
+
+// A pill that carries a second line: a category over the app that fits it, a
+// type over its example prefix. The main label owns the top of the box and the
+// sub-label the bottom, so the fit has to exclude the sub's row. Centralised
+// because three screens had hand-tuned offsets that no longer agreed once the
+// main label could change size.
+void wt_pill_two_line(lv_obj_t *pill, const char *sub)
+{
+    lv_obj_t *main_l = lv_obj_get_child(pill, 0);
+    if (!main_l) return;
+    lv_obj_update_layout(pill);
+    int w = lv_obj_get_width(pill), h = lv_obj_get_height(pill);
+    pill_label_fit(main_l, lv_label_get_text(main_l), w, h - SUB_ROW_H, false);
+    lv_obj_align(main_l, LV_ALIGN_TOP_MID, 0, 6);
+
+    lv_obj_t *s = lv_label_create(pill);
+    lv_label_set_text(s, sub);
+    lv_obj_set_style_text_font(s, wt_font14(), 0);
+    lv_obj_set_style_text_color(s, WT_MUT, 0);
+    lv_obj_align(s, LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_remove_flag(s, LV_OBJ_FLAG_CLICKABLE);
 }
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
@@ -408,6 +494,11 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     for (int i = len - 1; i >= 0; i--) {
         if (grouped[i] != ' ' && ++raw == ADDR_TAIL_CHARS) { t = i; break; }
     }
+    // Snap to a GROUP boundary. An address is rarely a multiple of 4, so a
+    // fixed 8-character tail starts mid-group and the highlight breaks a block
+    // in half -- which then wraps, orphaning two characters on their own line.
+    // Whole groups only: still "the last few", but always readable as blocks.
+    while (t > 0 && grouped[t - 1] != ' ') t--;
     char head[256];           // fits a grouped silent-payment addr (~146 chars)
     snprintf(head, sizeof head, "%.*s", t, grouped);
 
@@ -421,6 +512,13 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
     lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
+    // The tail is the part you are actually asked to compare, so it renders one
+    // rung ABOVE the rest of the address. Blowing up the whole string instead
+    // would push the other outputs off a scrolling list -- this buys the same
+    // legibility where it counts for one extra line of height.
+    lv_style_set_text_font(lv_span_get_style(s2),
+                           f == wt_font14() ? wt_font23()
+                         : f == wt_font23() ? wt_font28() : f);
     lv_spangroup_refresh(sg);
     return sg;
 }
