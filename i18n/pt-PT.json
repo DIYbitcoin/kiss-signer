@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "crie uma carteira nova ou restaure uma com as palavras\nde recuperação. isto SUBSTITUI a carteira atual: guarde\nprimeiro as palavras antigas.",
   "G_WIPE": "APAGAR CARTEIRA",
   "G_WIPE_NOTE": "remove a carteira deste dispositivo.\npalavras + a mesma passphrase permitem restaurá-la.",
-  "G_TAP_WIPE": "TOQUE DE NOVO PARA APAGAR",
-  "G_TAP_ERASE": "TOQUE DE NOVO PARA SUBSTITUIR",
   "G_NOERASE_T": "NÃO FOI POSSÍVEL APAGAR",
   "G_NOERASE_B": "as suas palavras podem estar AINDA aqui.\n\nnão venda nem ofereça o aparelho.\ntente apagar outra vez.",
   "G_ERASED_T": "CARTEIRA APAGADA",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "leia isto primeiro",
   "L_SCAN_WARN_B": "quem conseguir ler esse QR abre\nesta carteira.\n\numa foto dele serve na mesma.\n\na leitura é usada exatamente assim.",
   "L_SCAN_GO": "LER O QR",
-  "W_LOAD_TYPE_NOTE": "escreva as palavras do seu papel."
+  "W_LOAD_TYPE_NOTE": "escreva as palavras do seu papel.",
+  "G_WIPEC_T": "APAGAR ESTA CARTEIRA?",
+  "G_WIPEC_B": "as palavras saem deste aparelho agora.\n\nsó o seu papel + passphrase trazem\nesta carteira de volta.",
+  "G_HOLD_WIPE": "MANTENHA PARA APAGAR"
 }

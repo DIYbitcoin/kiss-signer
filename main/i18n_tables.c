@@ -131,8 +131,6 @@ static const char *const tbl_en[STR_N] = {
     [STR_G_CREATE_NOTE] = "make a fresh wallet, or restore from words.\nthis REPLACES what is on here.",
     [STR_G_WIPE] = "WIPE WALLET",
     [STR_G_WIPE_NOTE] = "removes the wallet from this device.\nyour words + passphrase restore it.",
-    [STR_G_TAP_WIPE] = "TAP AGAIN TO WIPE",
-    [STR_G_TAP_ERASE] = "TAP AGAIN TO ERASE",
     [STR_G_NOERASE_T] = "COULD NOT ERASE",
     [STR_G_NOERASE_B] = "your words may STILL be on this device.\n\ndo not sell or give it away.\ntry the wipe again.",
     [STR_G_ERASED_T] = "WALLET ERASED",
@@ -311,6 +309,9 @@ static const char *const tbl_en[STR_N] = {
     [STR_L_SCAN_WARN_B] = "whoever can read that QR can open\nthis wallet.\n\na photo of it is the same as the QR.\n\nthe scan is used exactly as printed.",
     [STR_L_SCAN_GO] = "SCAN IT",
     [STR_W_LOAD_TYPE_NOTE] = "type the words from your paper.",
+    [STR_G_WIPEC_T] = "ERASE THIS WALLET?",
+    [STR_G_WIPEC_B] = "the words go from this device now.\n\nonly your paper + passphrase can\nbring this wallet back.",
+    [STR_G_HOLD_WIPE] = "HOLD TO ERASE",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -443,8 +444,6 @@ static const char *const tbl_de[STR_N] = {
     [STR_G_CREATE_NOTE] = "erstelle eine frische Wallet oder stelle eine aus\nWiederherstellungswörtern wieder her. das ERSETZT die\nWallet hier: sichere erst die alten Wörter.",
     [STR_G_WIPE] = "WALLET LÖSCHEN",
     [STR_G_WIPE_NOTE] = "entfernt die Wallet von diesem Gerät.\nWörter + dieselbe Passphrase stellen sie wieder her.",
-    [STR_G_TAP_WIPE] = "ZUM LÖSCHEN ERNEUT TIPPEN",
-    [STR_G_TAP_ERASE] = "ZUM ERSETZEN ERNEUT TIPPEN",
     [STR_G_NOERASE_T] = "LÖSCHEN FEHLGESCHLAGEN",
     [STR_G_NOERASE_B] = "deine Wörter sind vielleicht NOCH hier.\n\nnicht verkaufen, nicht weggeben.\nversuche das Löschen erneut.",
     [STR_G_ERASED_T] = "WALLET GELÖSCHT",
@@ -623,6 +622,9 @@ static const char *const tbl_de[STR_N] = {
     [STR_L_SCAN_WARN_B] = "wer dieses QR lesen kann, öffnet\ndiese Wallet.\n\nein Foto davon reicht genauso.\n\nder Scan wird exakt so übernommen.",
     [STR_L_SCAN_GO] = "QR SCANNEN",
     [STR_W_LOAD_TYPE_NOTE] = "tippe die Wörter von deinem Papier.",
+    [STR_G_WIPEC_T] = "DIESE WALLET LÖSCHEN?",
+    [STR_G_WIPEC_B] = "die Wörter gehen jetzt von diesem Gerät.\n\nnur dein Papier + Passphrase holen\ndiese Wallet zurück.",
+    [STR_G_HOLD_WIPE] = "HALTEN ZUM LÖSCHEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -755,8 +757,6 @@ static const char *const tbl_es[STR_N] = {
     [STR_G_CREATE_NOTE] = "crea una billetera nueva o restaura una con\npalabras de recuperación. esto REEMPLAZA la de\naquí: respalda antes las palabras viejas.",
     [STR_G_WIPE] = "BORRAR BILLETERA",
     [STR_G_WIPE_NOTE] = "quita la billetera de este dispositivo.\npalabras + la misma passphrase permiten restaurarla.",
-    [STR_G_TAP_WIPE] = "TOCA OTRA VEZ PARA BORRAR",
-    [STR_G_TAP_ERASE] = "TOCA OTRA VEZ PARA REEMPLAZAR",
     [STR_G_NOERASE_T] = "NO SE PUDO BORRAR",
     [STR_G_NOERASE_B] = "tus palabras pueden seguir AQUÍ.\n\nno lo vendas ni lo regales.\nintenta borrar otra vez.",
     [STR_G_ERASED_T] = "BILLETERA BORRADA",
@@ -935,6 +935,9 @@ static const char *const tbl_es[STR_N] = {
     [STR_L_SCAN_WARN_B] = "quien pueda leer ese QR puede abrir\nesta billetera.\n\nuna foto del QR vale igual.\n\nse usa exactamente como esté impreso.",
     [STR_L_SCAN_GO] = "ESCANEARLO",
     [STR_W_LOAD_TYPE_NOTE] = "escribe las palabras de tu papel.",
+    [STR_G_WIPEC_T] = "BORRAR ESTA BILLETERA?",
+    [STR_G_WIPEC_B] = "las palabras salen de este dispositivo ya.\n\nsolo tu papel + passphrase pueden\nrecuperar esta billetera.",
+    [STR_G_HOLD_WIPE] = "MANTEN PARA BORRAR",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1067,8 +1070,6 @@ static const char *const tbl_fr[STR_N] = {
     [STR_G_CREATE_NOTE] = "crée un portefeuille neuf, ou restaure depuis\ndes mots de récupération. cela REMPLACE celui d'ici :\nsauvegarde d'abord les anciens mots.",
     [STR_G_WIPE] = "EFFACER LE PORTEFEUILLE",
     [STR_G_WIPE_NOTE] = "retire le portefeuille de cet appareil.\nmots + même phrase secrète permettent de le restaurer.",
-    [STR_G_TAP_WIPE] = "RETOUCHE POUR EFFACER",
-    [STR_G_TAP_ERASE] = "RETOUCHE POUR REMPLACER",
     [STR_G_NOERASE_T] = "EFFACEMENT IMPOSSIBLE",
     [STR_G_NOERASE_B] = "vos mots sont peut-être ENCORE ici.\n\nne le vendez pas, ne le donnez pas.\nréessayez l'effacement.",
     [STR_G_ERASED_T] = "PORTEFEUILLE EFFACÉ",
@@ -1247,6 +1248,9 @@ static const char *const tbl_fr[STR_N] = {
     [STR_L_SCAN_WARN_B] = "qui peut lire ce QR peut ouvrir\nce portefeuille.\n\nune photo du QR suffit aussi.\n\nle scan est utilisé tel quel.",
     [STR_L_SCAN_GO] = "SCANNER",
     [STR_W_LOAD_TYPE_NOTE] = "tapez les mots depuis votre papier.",
+    [STR_G_WIPEC_T] = "EFFACER CE PORTEFEUILLE?",
+    [STR_G_WIPEC_B] = "les mots quittent cet appareil maintenant.\n\nseuls votre papier + phrase secrète\nramènent ce portefeuille.",
+    [STR_G_HOLD_WIPE] = "MAINTENIR POUR EFFACER",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -1379,8 +1383,6 @@ static const char *const tbl_it[STR_N] = {
     [STR_G_CREATE_NOTE] = "crea un portafoglio nuovo o ripristinane uno\ndalle parole di recupero. questo SOSTITUISCE quello\nqui presente: salva prima le vecchie parole.",
     [STR_G_WIPE] = "CANCELLA PORTAFOGLIO",
     [STR_G_WIPE_NOTE] = "rimuove il portafoglio da questo dispositivo.\nparole + la stessa passphrase lo ripristinano.",
-    [STR_G_TAP_WIPE] = "TOCCA ANCORA PER CANCELLARE",
-    [STR_G_TAP_ERASE] = "TOCCA ANCORA PER SOSTITUIRE",
     [STR_G_NOERASE_T] = "CANCELLAZIONE FALLITA",
     [STR_G_NOERASE_B] = "le tue parole potrebbero essere ANCORA qui.\n\nnon venderlo e non regalarlo.\nriprova la cancellazione.",
     [STR_G_ERASED_T] = "PORTAFOGLIO CANCELLATO",
@@ -1559,6 +1561,9 @@ static const char *const tbl_it[STR_N] = {
     [STR_L_SCAN_WARN_B] = "chi può leggere quel QR può aprire\nquesto portafoglio.\n\nuna foto del QR vale lo stesso.\n\nla scansione si usa esattamente così.",
     [STR_L_SCAN_GO] = "SCANSIONA",
     [STR_W_LOAD_TYPE_NOTE] = "digita le parole dalla tua carta.",
+    [STR_G_WIPEC_T] = "CANCELLARE QUESTO PORTAFOGLIO?",
+    [STR_G_WIPEC_B] = "le parole lasciano ora questo dispositivo.\n\nsolo la tua carta + passphrase possono\nriportare indietro il portafoglio.",
+    [STR_G_HOLD_WIPE] = "TIENI PREMUTO PER CANCELLARE",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -1691,8 +1696,6 @@ static const char *const tbl_ja[STR_N] = {
     [STR_G_CREATE_NOTE] = "新規に作るか、リカバリーフレーズから復元します。\nこれは今のウォレットを「置き換え」ます:先に\n古いリカバリーフレーズを控えてください。",
     [STR_G_WIPE] = "ウォレットを消去",
     [STR_G_WIPE_NOTE] = "この端末からウォレットを取り除きます。\n単語 + 同じパスフレーズで復元できます。",
-    [STR_G_TAP_WIPE] = "もう一度タップで消去",
-    [STR_G_TAP_ERASE] = "もう一度タップで置き換え",
     [STR_G_NOERASE_T] = "消去できませんでした",
     [STR_G_NOERASE_B] = "単語がまだ端末に残っているかもしれません。\n\n売ったり譲ったりしないでください。\nもう一度消去してください。",
     [STR_G_ERASED_T] = "ウォレットを消去しました",
@@ -1871,6 +1874,9 @@ static const char *const tbl_ja[STR_N] = {
     [STR_L_SCAN_WARN_B] = "そのQRを読める人は、この\nウォレットを開けます。\n\n写真でも同じです。\n\n読み取った通りに使われます。",
     [STR_L_SCAN_GO] = "QRをスキャン",
     [STR_W_LOAD_TYPE_NOTE] = "紙から単語を入力します。",
+    [STR_G_WIPEC_T] = "このウォレットを消しますか?",
+    [STR_G_WIPEC_B] = "単語は今この端末から消えます。\n\n戻せるのは紙 + パスフレーズだけです。",
+    [STR_G_HOLD_WIPE] = "長押しで消去",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2003,8 +2009,6 @@ static const char *const tbl_ko[STR_N] = {
     [STR_G_CREATE_NOTE] = "새 지갑을 만들거나 복구 문구로 복원합니다.\n지금 지갑을 '대체'하니, 먼저 기존 복구 문구를\n백업하세요.",
     [STR_G_WIPE] = "지갑 지우기",
     [STR_G_WIPE_NOTE] = "이 기기에서 지갑을 없앱니다.\n단어 + 같은 패스프레이즈로 복원할 수 있습니다.",
-    [STR_G_TAP_WIPE] = "지우려면 한 번 더 탭",
-    [STR_G_TAP_ERASE] = "대체하려면 한 번 더 탭",
     [STR_G_NOERASE_T] = "지우지 못했습니다",
     [STR_G_NOERASE_B] = "단어가 아직 기기에 남아 있을 수 있습니다.\n\n팔거나 넘기지 마세요.\n지우기를 다시 시도하세요.",
     [STR_G_ERASED_T] = "지갑 삭제됨",
@@ -2183,6 +2187,9 @@ static const char *const tbl_ko[STR_N] = {
     [STR_L_SCAN_WARN_B] = "그 QR을 읽을 수 있는 사람은\n이 지갑을 열 수 있습니다.\n\n사진도 마찬가지입니다.\n\n읽은 그대로 사용됩니다.",
     [STR_L_SCAN_GO] = "QR 스캔",
     [STR_W_LOAD_TYPE_NOTE] = "종이에서 단어를 입력하세요.",
+    [STR_G_WIPEC_T] = "이 지갑을 지울까요?",
+    [STR_G_WIPEC_B] = "단어가 지금 이 기기에서 사라집니다.\n\n종이 + 패스프레이즈만이 이 지갑을\n되돌릴 수 있습니다.",
+    [STR_G_HOLD_WIPE] = "길게 눌러 지우기",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -2315,8 +2322,6 @@ static const char *const tbl_nl[STR_N] = {
     [STR_G_CREATE_NOTE] = "maak een verse wallet, of herstel er een uit\nherstelwoorden. dit VERVANGT de wallet hier:\nback-up eerst de oude woorden.",
     [STR_G_WIPE] = "WALLET WISSEN",
     [STR_G_WIPE_NOTE] = "verwijdert de wallet van dit apparaat.\nwoorden + dezelfde passphrase herstellen hem.",
-    [STR_G_TAP_WIPE] = "TIK NOGMAALS OM TE WISSEN",
-    [STR_G_TAP_ERASE] = "TIK NOGMAALS OM TE VERVANGEN",
     [STR_G_NOERASE_T] = "WISSEN MISLUKT",
     [STR_G_NOERASE_B] = "je woorden staan misschien NOG hierop.\n\nniet verkopen of weggeven.\nprobeer het wissen opnieuw.",
     [STR_G_ERASED_T] = "WALLET GEWIST",
@@ -2495,6 +2500,9 @@ static const char *const tbl_nl[STR_N] = {
     [STR_L_SCAN_WARN_B] = "wie die QR kan lezen, opent\ndeze wallet.\n\neen foto ervan is net zo goed.\n\nde scan wordt exact zo gebruikt.",
     [STR_L_SCAN_GO] = "QR SCANNEN",
     [STR_W_LOAD_TYPE_NOTE] = "typ de woorden van je papier.",
+    [STR_G_WIPEC_T] = "DEZE WALLET WISSEN?",
+    [STR_G_WIPEC_B] = "de woorden gaan nu van dit apparaat af.\n\nalleen jouw papier + passphrase halen\ndeze wallet terug.",
+    [STR_G_HOLD_WIPE] = "HOUD VAST OM TE WISSEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -2627,8 +2635,6 @@ static const char *const tbl_pl[STR_N] = {
     [STR_G_CREATE_NOTE] = "utwórz świeży portfel lub przywróć go ze słów\nodzyskiwania. to ZASTĘPUJE portfel na tym\nurządzeniu: najpierw zabezpiecz stare słowa.",
     [STR_G_WIPE] = "WYMAŻ PORTFEL",
     [STR_G_WIPE_NOTE] = "usuwa portfel z tego urządzenia.\nsłowa + ta sama fraza dostępu go przywrócą.",
-    [STR_G_TAP_WIPE] = "DOTKNIJ PONOWNIE, BY WYMAZAĆ",
-    [STR_G_TAP_ERASE] = "DOTKNIJ PONOWNIE, BY ZASTĄPIĆ",
     [STR_G_NOERASE_T] = "NIE UDAŁO SIĘ WYMAZAĆ",
     [STR_G_NOERASE_B] = "twoje słowa mogą WCIĄŻ tu być.\n\nnie sprzedawaj ani nie oddawaj.\nspróbuj wymazać ponownie.",
     [STR_G_ERASED_T] = "PORTFEL WYMAZANY",
@@ -2807,6 +2813,9 @@ static const char *const tbl_pl[STR_N] = {
     [STR_L_SCAN_WARN_B] = "kto odczyta ten QR, otworzy\nten portfel.\n\nzdjęcie tego QR działa tak samo.\n\nskan jest użyty dokładnie tak jak jest.",
     [STR_L_SCAN_GO] = "SKANUJ QR",
     [STR_W_LOAD_TYPE_NOTE] = "przepisz słowa ze swojego papieru.",
+    [STR_G_WIPEC_T] = "WYMAZAĆ TEN PORTFEL?",
+    [STR_G_WIPEC_B] = "słowa znikają teraz z tego urządzenia.\n\ntylko twój papier + fraza dostępu\nprzywrócą ten portfel.",
+    [STR_G_HOLD_WIPE] = "PRZYTRZYMAJ, BY WYMAZAĆ",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -2939,8 +2948,6 @@ static const char *const tbl_pt[STR_N] = {
     [STR_G_CREATE_NOTE] = "crie uma carteira nova, ou restaure uma pelas\npalavras de recuperação. isso SUBSTITUI a carteira\ndaqui: faça backup das palavras antigas antes.",
     [STR_G_WIPE] = "APAGAR CARTEIRA",
     [STR_G_WIPE_NOTE] = "remove a carteira deste dispositivo.\npalavras + a mesma passphrase podem restaurá-la.",
-    [STR_G_TAP_WIPE] = "TOQUE DE NOVO PARA APAGAR",
-    [STR_G_TAP_ERASE] = "TOQUE DE NOVO PARA SUBSTITUIR",
     [STR_G_NOERASE_T] = "NÃO DEU PARA APAGAR",
     [STR_G_NOERASE_B] = "suas palavras podem estar AINDA aqui.\n\nnão venda nem dê o aparelho.\ntente apagar de novo.",
     [STR_G_ERASED_T] = "CARTEIRA APAGADA",
@@ -3119,6 +3126,9 @@ static const char *const tbl_pt[STR_N] = {
     [STR_L_SCAN_WARN_B] = "quem conseguir ler esse QR abre\nesta carteira.\n\numa foto dele serve igual.\n\na leitura é usada exatamente assim.",
     [STR_L_SCAN_GO] = "LER O QR",
     [STR_W_LOAD_TYPE_NOTE] = "digite as palavras do seu papel.",
+    [STR_G_WIPEC_T] = "APAGAR ESTA CARTEIRA?",
+    [STR_G_WIPEC_B] = "as palavras saem deste dispositivo agora.\n\nsó o seu papel + passphrase trazem\nesta carteira de volta.",
+    [STR_G_HOLD_WIPE] = "SEGURE PARA APAGAR",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -3251,8 +3261,6 @@ static const char *const tbl_ru[STR_N] = {
     [STR_G_CREATE_NOTE] = "создайте новый кошелек или восстановите из слов.\nэто ЗАМЕНИТ кошелек на устройстве: сначала\nсохраните старые слова.",
     [STR_G_WIPE] = "СТЕРЕТЬ КОШЕЛЕК",
     [STR_G_WIPE_NOTE] = "удаляет кошелек с этого устройства.\nслова + та же кодовая фраза восстановят его.",
-    [STR_G_TAP_WIPE] = "НАЖМИТЕ ЕЩЁ РАЗ, ЧТОБЫ СТЕРЕТЬ",
-    [STR_G_TAP_ERASE] = "НАЖМИТЕ ЕЩЁ РАЗ ДЛЯ ЗАМЕНЫ",
     [STR_G_NOERASE_T] = "НЕ УДАЛОСЬ СТЕРЕТЬ",
     [STR_G_NOERASE_B] = "ваши слова могут ВСЕ ЕЩЕ быть здесь.\n\nне продавайте и не отдавайте.\nповторите стирание.",
     [STR_G_ERASED_T] = "КОШЕЛЕК СТЕРТ",
@@ -3431,6 +3439,9 @@ static const char *const tbl_ru[STR_N] = {
     [STR_L_SCAN_WARN_B] = "кто прочтет этот QR, откроет\nэтот кошелек.\n\nфото этого QR работает так же.\n\nскан берется ровно как напечатан.",
     [STR_L_SCAN_GO] = "СКАНИРОВАТЬ",
     [STR_W_LOAD_TYPE_NOTE] = "наберите слова со своей бумаги.",
+    [STR_G_WIPEC_T] = "СТЕРЕТЬ ЭТОТ КОШЕЛЕК?",
+    [STR_G_WIPEC_B] = "слова уйдут с устройства прямо сейчас.\n\nвернуть кошелек смогут только\nбумага + кодовая фраза.",
+    [STR_G_HOLD_WIPE] = "ДЕРЖИТЕ, ЧТОБЫ СТЕРЕТЬ",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -3563,8 +3574,6 @@ static const char *const tbl_tr[STR_N] = {
     [STR_G_CREATE_NOTE] = "yeni bir cüzdan kurun ya da kurtarma\nkelimelerinden geri yükleyin. bu, buradaki cüzdanın\nYERİNE GEÇER: önce eski kelimeleri yedekleyin.",
     [STR_G_WIPE] = "CÜZDANI SİL",
     [STR_G_WIPE_NOTE] = "cüzdanı bu cihazdan kaldırır.\nkelimeler + aynı passphrase onu geri yükler.",
-    [STR_G_TAP_WIPE] = "SİLMEK İÇİN TEKRAR DOKUN",
-    [STR_G_TAP_ERASE] = "DEĞİŞTİRMEK İÇİN TEKRAR DOKUN",
     [STR_G_NOERASE_T] = "SİLİNEMEDİ",
     [STR_G_NOERASE_B] = "kelimelerin HALA burada olabilir.\n\nsatma, kimseye verme.\nsilmeyi tekrar dene.",
     [STR_G_ERASED_T] = "CÜZDAN SİLİNDİ",
@@ -3743,6 +3752,9 @@ static const char *const tbl_tr[STR_N] = {
     [STR_L_SCAN_WARN_B] = "o QR kodunu okuyabilen bu cüzdanı\naçabilir.\n\nfotoğrafı da aynı işi görür.\n\ntarama tam basıldığı gibi kullanılır.",
     [STR_L_SCAN_GO] = "QR TARA",
     [STR_W_LOAD_TYPE_NOTE] = "kelimeleri kağıdından yaz.",
+    [STR_G_WIPEC_T] = "BU CÜZDAN SİLİNSİN Mİ?",
+    [STR_G_WIPEC_B] = "kelimeler şimdi bu cihazdan gidiyor.\n\nbu cüzdanı sadece kağıdın + Passphrase\ngeri getirebilir.",
+    [STR_G_HOLD_WIPE] = "SİLMEK İÇİN BASILI TUT",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -3875,8 +3887,6 @@ static const char *const tbl_vi[STR_N] = {
     [STR_G_CREATE_NOTE] = "tạo ví mới, hoặc khôi phục từ cụm từ khôi phục.\nviệc này THAY THẾ ví đang có ở đây: sao lưu\ncác từ cũ trước đã.",
     [STR_G_WIPE] = "XÓA VÍ",
     [STR_G_WIPE_NOTE] = "gỡ ví khỏi thiết bị này.\ncác từ + đúng cụm mật khẩu sẽ khôi phục ví.",
-    [STR_G_TAP_WIPE] = "CHẠM LẦN NỮA ĐỂ XÓA",
-    [STR_G_TAP_ERASE] = "CHẠM LẦN NỮA ĐỂ THAY THẾ",
     [STR_G_NOERASE_T] = "XÓA KHÔNG THÀNH",
     [STR_G_NOERASE_B] = "các từ của bạn có thể VẪN còn đây.\n\nđừng bán hay cho thiết bị này.\nthử xóa lại lần nữa.",
     [STR_G_ERASED_T] = "ĐÃ XÓA VÍ",
@@ -4055,6 +4065,9 @@ static const char *const tbl_vi[STR_N] = {
     [STR_L_SCAN_WARN_B] = "ai đọc được mã QR đó đều mở được\nví này.\n\nmột tấm ảnh chụp cũng như vậy.\n\nbản quét dùng đúng như in ra.",
     [STR_L_SCAN_GO] = "QUÉT MÃ",
     [STR_W_LOAD_TYPE_NOTE] = "gõ các từ từ tờ giấy của bạn.",
+    [STR_G_WIPEC_T] = "XÓA VÍ NÀY?",
+    [STR_G_WIPEC_B] = "các từ rời khỏi thiết bị này ngay bây giờ.\n\nchỉ giấy + cụm mật khẩu của bạn mới\nlấy lại được ví này.",
+    [STR_G_HOLD_WIPE] = "GIỮ ĐỂ XÓA",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -4187,8 +4200,6 @@ static const char *const tbl_zh[STR_N] = {
     [STR_G_CREATE_NOTE] = "创建全新钱包, 或用备份助记词恢复。这会\n「替换」这里的钱包: 先备份好旧的助记词。",
     [STR_G_WIPE] = "抹掉钱包",
     [STR_G_WIPE_NOTE] = "从这台设备移除钱包。\n助记词 + 相同的密码短语可将它恢复。",
-    [STR_G_TAP_WIPE] = "再点一次以抹掉",
-    [STR_G_TAP_ERASE] = "再点一次以替换",
     [STR_G_NOERASE_T] = "无法抹掉",
     [STR_G_NOERASE_B] = "助记词可能还留在本机上。\n\n不要卖掉，也不要送人。\n再试一次擦除。",
     [STR_G_ERASED_T] = "钱包已抹掉",
@@ -4367,6 +4378,9 @@ static const char *const tbl_zh[STR_N] = {
     [STR_L_SCAN_WARN_B] = "能读到这个码的人就能打开\n这个钱包。\n\n拍成照片也是一样。\n\n扫到什么就用什么。",
     [STR_L_SCAN_GO] = "扫描",
     [STR_W_LOAD_TYPE_NOTE] = "照着纸把助记词打进去。",
+    [STR_G_WIPEC_T] = "要删除这个钱包吗?",
+    [STR_G_WIPEC_B] = "助记词现在就会从本机消失。\n\n只有你的纸 + 密码短语能把\n这个钱包找回来。",
+    [STR_G_HOLD_WIPE] = "长按删除",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -4499,8 +4513,6 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_G_CREATE_NOTE] = "crea una cartera nueva o restaura una con\npalabras de recuperación. esto REEMPLAZA la de\naquí: guarda antes las palabras viejas.",
     [STR_G_WIPE] = "BORRAR CARTERA",
     [STR_G_WIPE_NOTE] = "quita la cartera de este dispositivo.\npalabras + la misma passphrase permiten restaurarla.",
-    [STR_G_TAP_WIPE] = "TOCA OTRA VEZ PARA BORRAR",
-    [STR_G_TAP_ERASE] = "TOCA OTRA VEZ PARA REEMPLAZAR",
     [STR_G_NOERASE_T] = "NO SE PUDO BORRAR",
     [STR_G_NOERASE_B] = "tus palabras pueden seguir AQUÍ.\n\nno lo vendas ni lo regales.\nintenta borrar otra vez.",
     [STR_G_ERASED_T] = "CARTERA BORRADA",
@@ -4679,6 +4691,9 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_L_SCAN_WARN_B] = "quien pueda leer ese QR puede abrir\nesta cartera.\n\nuna foto del QR vale igual.\n\nse usa exactamente como esté impreso.",
     [STR_L_SCAN_GO] = "ESCANEARLO",
     [STR_W_LOAD_TYPE_NOTE] = "escribe las palabras de tu papel.",
+    [STR_G_WIPEC_T] = "BORRAR ESTA CARTERA?",
+    [STR_G_WIPEC_B] = "las palabras salen de este dispositivo ya.\n\nsolo tu papel + passphrase pueden\nrecuperar esta cartera.",
+    [STR_G_HOLD_WIPE] = "MANTEN PARA BORRAR",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -4811,8 +4826,6 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_G_CREATE_NOTE] = "crie uma carteira nova ou restaure uma com as palavras\nde recuperação. isto SUBSTITUI a carteira atual: guarde\nprimeiro as palavras antigas.",
     [STR_G_WIPE] = "APAGAR CARTEIRA",
     [STR_G_WIPE_NOTE] = "remove a carteira deste dispositivo.\npalavras + a mesma passphrase permitem restaurá-la.",
-    [STR_G_TAP_WIPE] = "TOQUE DE NOVO PARA APAGAR",
-    [STR_G_TAP_ERASE] = "TOQUE DE NOVO PARA SUBSTITUIR",
     [STR_G_NOERASE_T] = "NÃO FOI POSSÍVEL APAGAR",
     [STR_G_NOERASE_B] = "as suas palavras podem estar AINDA aqui.\n\nnão venda nem ofereça o aparelho.\ntente apagar outra vez.",
     [STR_G_ERASED_T] = "CARTEIRA APAGADA",
@@ -4991,6 +5004,9 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_L_SCAN_WARN_B] = "quem conseguir ler esse QR abre\nesta carteira.\n\numa foto dele serve na mesma.\n\na leitura é usada exatamente assim.",
     [STR_L_SCAN_GO] = "LER O QR",
     [STR_W_LOAD_TYPE_NOTE] = "escreva as palavras do seu papel.",
+    [STR_G_WIPEC_T] = "APAGAR ESTA CARTEIRA?",
+    [STR_G_WIPEC_B] = "as palavras saem deste aparelho agora.\n\nsó o seu papel + passphrase trazem\nesta carteira de volta.",
+    [STR_G_HOLD_WIPE] = "MANTENHA PARA APAGAR",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -5123,8 +5139,6 @@ static const char *const tbl_nb[STR_N] = {
     [STR_G_CREATE_NOTE] = "lag en ny lommebok, eller gjenopprett en fra\ngjenopprettingsord. dette ERSTATTER lommeboken\npå enheten. sikkerhetskopier de gamle ordene først.",
     [STR_G_WIPE] = "SLETT LOMMEBOK",
     [STR_G_WIPE_NOTE] = "fjerner lommeboken fra enheten.\ngjenopprettingsord + samme passordfrase gjenoppretter den.",
-    [STR_G_TAP_WIPE] = "TRYKK IGJEN FOR Å SLETTE",
-    [STR_G_TAP_ERASE] = "TRYKK IGJEN FOR Å SLETTE",
     [STR_G_NOERASE_T] = "KUNNE IKKE SLETTE",
     [STR_G_NOERASE_B] = "ordene dine kan STADIG være her.\n\nikke selg eller gi den bort.\nprøv slettingen igjen.",
     [STR_G_ERASED_T] = "LOMMEBOKEN ER SLETTET",
@@ -5303,6 +5317,9 @@ static const char *const tbl_nb[STR_N] = {
     [STR_L_SCAN_WARN_B] = "den som kan lese den QR-en, kan åpne\ndenne lommeboken.\n\net bilde av den er like bra.\n\nskanningen brukes nøyaktig som trykt.",
     [STR_L_SCAN_GO] = "SKANN DEN",
     [STR_W_LOAD_TYPE_NOTE] = "skriv inn ordene fra papiret.",
+    [STR_G_WIPEC_T] = "SLETTE DENNE LOMMEBOKEN?",
+    [STR_G_WIPEC_B] = "ordene forsvinner fra enheten nå.\n\nbare papiret + passordfrasen kan\nhente lommeboken tilbake.",
+    [STR_G_HOLD_WIPE] = "HOLD INNE FOR Å SLETTE",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -5435,8 +5452,6 @@ static const char *const tbl_sv[STR_N] = {
     [STR_G_CREATE_NOTE] = "skapa en ny plånbok eller återställ en från\nåterställningsord. detta ERSÄTTER plånboken\npå enheten. säkerhetskopiera de gamla orden först.",
     [STR_G_WIPE] = "RADERA PLÅNBOK",
     [STR_G_WIPE_NOTE] = "tar bort plånboken från enheten.\nåterställningsord + samma lösenfras återställer den.",
-    [STR_G_TAP_WIPE] = "TRYCK IGEN FÖR ATT RADERA",
-    [STR_G_TAP_ERASE] = "TRYCK IGEN FÖR ATT RADERA",
     [STR_G_NOERASE_T] = "KUNDE INTE RADERA",
     [STR_G_NOERASE_B] = "dina ord kan FORTFARANDE finnas här.\n\nsälj eller ge inte bort den.\nförsök radera igen.",
     [STR_G_ERASED_T] = "PLÅNBOKEN ÄR RADERAD",
@@ -5615,6 +5630,9 @@ static const char *const tbl_sv[STR_N] = {
     [STR_L_SCAN_WARN_B] = "den som kan läsa QR-koden kan öppna\nden här plånboken.\n\nett foto av den duger lika bra.\n\nskanningen används exakt som tryckt.",
     [STR_L_SCAN_GO] = "SKANNA DEN",
     [STR_W_LOAD_TYPE_NOTE] = "skriv in orden från ditt papper.",
+    [STR_G_WIPEC_T] = "RADERA DEN HÄR PLÅNBOKEN?",
+    [STR_G_WIPEC_B] = "orden försvinner från enheten nu.\n\nbara ditt papper + lösenfras kan\nhämta tillbaka plånboken.",
+    [STR_G_HOLD_WIPE] = "HÅLL FÖR ATT RADERA",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -5747,8 +5765,6 @@ static const char *const tbl_da[STR_N] = {
     [STR_G_CREATE_NOTE] = "opret en ny tegnebog, eller gendan en fra\ngendannelsesord. dette ERSTATTER tegnebogen\npå enheden. sikkerhedskopiér de gamle ord først.",
     [STR_G_WIPE] = "SLET TEGNEBOG",
     [STR_G_WIPE_NOTE] = "fjerner tegnebogen fra enheden.\ngendannelsesord + samme adgangsfrase gendanner den.",
-    [STR_G_TAP_WIPE] = "TRYK IGEN FOR AT SLETTE",
-    [STR_G_TAP_ERASE] = "TRYK IGEN FOR AT SLETTE",
     [STR_G_NOERASE_T] = "KUNNE IKKE SLETTE",
     [STR_G_NOERASE_B] = "dine ord kan STADIG være på enheden.\n\nsælg eller giv den ikke væk.\nprøv sletningen igen.",
     [STR_G_ERASED_T] = "TEGNEBOGEN ER SLETTET",
@@ -5927,6 +5943,9 @@ static const char *const tbl_da[STR_N] = {
     [STR_L_SCAN_WARN_B] = "den der kan læse den QR, kan åbne\ndenne tegnebog.\n\net foto af den er lige så godt.\n\nscanningen bruges præcis som trykt.",
     [STR_L_SCAN_GO] = "SCAN DEN",
     [STR_W_LOAD_TYPE_NOTE] = "tast ordene fra dit papir.",
+    [STR_G_WIPEC_T] = "SLET DENNE TEGNEBOG?",
+    [STR_G_WIPEC_B] = "ordene forsvinder fra enheden nu.\n\nkun dit papir + adgangsfrase kan\nhente tegnebogen tilbage.",
+    [STR_G_HOLD_WIPE] = "HOLD FOR AT SLETTE",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -6059,8 +6078,6 @@ static const char *const tbl_cs[STR_N] = {
     [STR_G_CREATE_NOTE] = "vytvořte novou peněženku nebo ji obnovte\nze slov seedu. tato volba NAHRADÍ\npeněženku v zařízení. nejprve zálohujte\nstará slova.",
     [STR_G_WIPE] = "VYMAZAT PENĚŽENKU",
     [STR_G_WIPE_NOTE] = "odstraní peněženku z tohoto zařízení.\nslova seedu + stejná přístupová fráze\nji obnoví.",
-    [STR_G_TAP_WIPE] = "DALŠÍM KLEPNUTÍM VYMAZAT",
-    [STR_G_TAP_ERASE] = "DALŠÍM KLEPNUTÍM VYMAZAT",
     [STR_G_NOERASE_T] = "VYMAZÁNÍ SE NEZDAŘILO",
     [STR_G_NOERASE_B] = "tvoje slova tu můžou POŘÁD být.\n\nneprodávej to ani nedávej pryč.\nzkus smazání znovu.",
     [STR_G_ERASED_T] = "PENĚŽENKA VYMAZÁNA",
@@ -6239,6 +6256,9 @@ static const char *const tbl_cs[STR_N] = {
     [STR_L_SCAN_WARN_B] = "kdo ten QR přečte, otevře\ntuto peněženku.\n\nfotka toho QR funguje stejně.\n\nsken se použije přesně jak je.",
     [STR_L_SCAN_GO] = "NAČÍST QR",
     [STR_W_LOAD_TYPE_NOTE] = "napiš slova ze svého papíru.",
+    [STR_G_WIPEC_T] = "SMAZAT TUTO PENĚŽENKU?",
+    [STR_G_WIPEC_B] = "slova teď z tohoto zařízení zmizí.\n\npeněženku vrátí zpátky jen\ntvůj papír + přístupová fráze.",
+    [STR_G_HOLD_WIPE] = "DRŽ PRO SMAZÁNÍ",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -6371,8 +6391,6 @@ static const char *const tbl_hr[STR_N] = {
     [STR_G_CREATE_NOTE] = "izradite novi novčanik ili ga obnovite\niz riječi za oporavak. ovo ZAMJENJUJE\nnovčanik na uređaju. prvo kopirajte\nstare riječi.",
     [STR_G_WIPE] = "IZBRIŠI NOVČANIK",
     [STR_G_WIPE_NOTE] = "uklanja novčanik s ovog uređaja.\nriječi za oporavak + ista kodna fraza\nobnavljaju ga.",
-    [STR_G_TAP_WIPE] = "DODIRNITE PONOVNO ZA BRISANJE",
-    [STR_G_TAP_ERASE] = "DODIRNITE PONOVNO ZA BRISANJE",
     [STR_G_NOERASE_T] = "BRISANJE NIJE USPJELO",
     [STR_G_NOERASE_B] = "tvoje riječi možda su JOŠ ovdje.\n\nnemoj ga prodati ni pokloniti.\npokušaj brisanje ponovno.",
     [STR_G_ERASED_T] = "NOVČANIK IZBRISAN",
@@ -6551,6 +6569,9 @@ static const char *const tbl_hr[STR_N] = {
     [STR_L_SCAN_WARN_B] = "tko pročita taj QR, otvara\novaj novčanik.\n\nfotografija tog QR-a jednako vrijedi.\n\nskeniranje se koristi točno kako piše.",
     [STR_L_SCAN_GO] = "SKENIRAJ QR",
     [STR_W_LOAD_TYPE_NOTE] = "utipkaj riječi sa svog papira.",
+    [STR_G_WIPEC_T] = "OBRISATI OVAJ NOVČANIK?",
+    [STR_G_WIPEC_B] = "riječi sada odlaze s ovog uređaja.\n\nsamo tvoj papir + kodna fraza mogu\nvratiti ovaj novčanik.",
+    [STR_G_HOLD_WIPE] = "DRŽI ZA BRISANJE",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

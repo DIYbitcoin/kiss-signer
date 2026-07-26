@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "lag en ny lommebok, eller gjenopprett en fra\ngjenopprettingsord. dette ERSTATTER lommeboken\npå enheten. sikkerhetskopier de gamle ordene først.",
   "G_WIPE": "SLETT LOMMEBOK",
   "G_WIPE_NOTE": "fjerner lommeboken fra enheten.\ngjenopprettingsord + samme passordfrase gjenoppretter den.",
-  "G_TAP_WIPE": "TRYKK IGJEN FOR Å SLETTE",
-  "G_TAP_ERASE": "TRYKK IGJEN FOR Å SLETTE",
   "G_NOERASE_T": "KUNNE IKKE SLETTE",
   "G_NOERASE_B": "ordene dine kan STADIG være her.\n\nikke selg eller gi den bort.\nprøv slettingen igjen.",
   "G_ERASED_T": "LOMMEBOKEN ER SLETTET",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "les dette først",
   "L_SCAN_WARN_B": "den som kan lese den QR-en, kan åpne\ndenne lommeboken.\n\net bilde av den er like bra.\n\nskanningen brukes nøyaktig som trykt.",
   "L_SCAN_GO": "SKANN DEN",
-  "W_LOAD_TYPE_NOTE": "skriv inn ordene fra papiret."
+  "W_LOAD_TYPE_NOTE": "skriv inn ordene fra papiret.",
+  "G_WIPEC_T": "SLETTE DENNE LOMMEBOKEN?",
+  "G_WIPEC_B": "ordene forsvinner fra enheten nå.\n\nbare papiret + passordfrasen kan\nhente lommeboken tilbake.",
+  "G_HOLD_WIPE": "HOLD INNE FOR Å SLETTE"
 }

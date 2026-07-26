@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "erstelle eine frische Wallet oder stelle eine aus\nWiederherstellungswörtern wieder her. das ERSETZT die\nWallet hier: sichere erst die alten Wörter.",
   "G_WIPE": "WALLET LÖSCHEN",
   "G_WIPE_NOTE": "entfernt die Wallet von diesem Gerät.\nWörter + dieselbe Passphrase stellen sie wieder her.",
-  "G_TAP_WIPE": "ZUM LÖSCHEN ERNEUT TIPPEN",
-  "G_TAP_ERASE": "ZUM ERSETZEN ERNEUT TIPPEN",
   "G_NOERASE_T": "LÖSCHEN FEHLGESCHLAGEN",
   "G_NOERASE_B": "deine Wörter sind vielleicht NOCH hier.\n\nnicht verkaufen, nicht weggeben.\nversuche das Löschen erneut.",
   "G_ERASED_T": "WALLET GELÖSCHT",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "erst lesen",
   "L_SCAN_WARN_B": "wer dieses QR lesen kann, öffnet\ndiese Wallet.\n\nein Foto davon reicht genauso.\n\nder Scan wird exakt so übernommen.",
   "L_SCAN_GO": "QR SCANNEN",
-  "W_LOAD_TYPE_NOTE": "tippe die Wörter von deinem Papier."
+  "W_LOAD_TYPE_NOTE": "tippe die Wörter von deinem Papier.",
+  "G_WIPEC_T": "DIESE WALLET LÖSCHEN?",
+  "G_WIPEC_B": "die Wörter gehen jetzt von diesem Gerät.\n\nnur dein Papier + Passphrase holen\ndiese Wallet zurück.",
+  "G_HOLD_WIPE": "HALTEN ZUM LÖSCHEN"
 }
