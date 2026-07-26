@@ -776,20 +776,19 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  touch(590, 346); pump(4); release(); pump(8);     // WIPE WALLET -> armed
+  // the WIPE pill is wallet_settings.c's mk_pillh(430, 268, 320, 52), so its
+  // centre is y=294; 346 lands on the caption below it and does nothing
+  touch(590, 294); pump(4); release(); pump(8);     // WIPE WALLET -> armed
   lv_refr_now(NULL); pump(2);                       // (sim: force the restyle flush)
   save("/tmp/sim_wipe_arm.ppm");                    // "TAP AGAIN TO WIPE" in red
-  touch(590, 346); pump(3); release(); pump(6);     // second tap -> seed erased
+  touch(590, 294); pump(3); release(); pump(6);     // second tap -> seed erased
   save("/tmp/sim_wiped.ppm");                       // WALLET ERASED confirmation
   touch(400, 366); pump(3); release(); pump(130);   // OK -> locked to game menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
   // LOAD YOUR WALLET instead of the wizard, and a seed QR is a valid way in.
-  // (the wipe block above leaves the walk on Settings, so get back to the game
-  // cover deliberately rather than assuming where we are)
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
-  touch(100, 60);  pump(3); release(); pump(20);    // KISS logo -> lock -> menu
+  // the wipe above already left us locked on the game cover with no seed
   wallet_seed_set_mode(WSEED_MODE_AMNESIC);
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
