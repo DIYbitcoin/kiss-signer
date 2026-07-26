@@ -131,8 +131,6 @@ enum {
     STR_G_CREATE_NOTE,
     STR_G_WIPE,
     STR_G_WIPE_NOTE,
-    STR_G_TAP_WIPE,
-    STR_G_TAP_ERASE,
     STR_G_NOERASE_T,
     STR_G_NOERASE_B,
     STR_G_ERASED_T,
@@ -311,6 +309,9 @@ enum {
     STR_L_SCAN_WARN_B,
     STR_L_SCAN_GO,
     STR_W_LOAD_TYPE_NOTE,
+    STR_G_WIPEC_T,
+    STR_G_WIPEC_B,
+    STR_G_HOLD_WIPE,
     STR_N
 };
 

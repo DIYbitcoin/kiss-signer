@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "yeni bir cüzdan kurun ya da kurtarma\nkelimelerinden geri yükleyin. bu, buradaki cüzdanın\nYERİNE GEÇER: önce eski kelimeleri yedekleyin.",
   "G_WIPE": "CÜZDANI SİL",
   "G_WIPE_NOTE": "cüzdanı bu cihazdan kaldırır.\nkelimeler + aynı passphrase onu geri yükler.",
-  "G_TAP_WIPE": "SİLMEK İÇİN TEKRAR DOKUN",
-  "G_TAP_ERASE": "DEĞİŞTİRMEK İÇİN TEKRAR DOKUN",
   "G_NOERASE_T": "SİLİNEMEDİ",
   "G_NOERASE_B": "kelimelerin HALA burada olabilir.\n\nsatma, kimseye verme.\nsilmeyi tekrar dene.",
   "G_ERASED_T": "CÜZDAN SİLİNDİ",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "önce bunu oku",
   "L_SCAN_WARN_B": "o QR kodunu okuyabilen bu cüzdanı\naçabilir.\n\nfotoğrafı da aynı işi görür.\n\ntarama tam basıldığı gibi kullanılır.",
   "L_SCAN_GO": "QR TARA",
-  "W_LOAD_TYPE_NOTE": "kelimeleri kağıdından yaz."
+  "W_LOAD_TYPE_NOTE": "kelimeleri kağıdından yaz.",
+  "G_WIPEC_T": "BU CÜZDAN SİLİNSİN Mİ?",
+  "G_WIPEC_B": "kelimeler şimdi bu cihazdan gidiyor.\n\nbu cüzdanı sadece kağıdın + Passphrase\ngeri getirebilir.",
+  "G_HOLD_WIPE": "SİLMEK İÇİN BASILI TUT"
 }

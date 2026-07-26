@@ -165,6 +165,88 @@ lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
     return wt_pillh(scr, txt, x, y, w, 52, cb, ud);
 }
 
+// ---- hold to confirm (see wallet_theme.h) ----
+// One press cannot fire it and neither can two: the finger has to stay down.
+// State hangs off the pill so several could coexist, and the timer is deleted
+// on release AND on delete, so a screen torn down mid-hold leaves nothing.
+typedef struct {
+    lv_obj_t *pill, *fill;
+    lv_timer_t *tmr;
+    uint32_t t0;
+    int ms, w;
+    void (*done)(void *);
+    void *ud;
+} wt_hold_t;
+
+static void hold_reset(wt_hold_t *h)
+{
+    if (h->tmr) { lv_timer_delete(h->tmr); h->tmr = NULL; }
+    if (h->fill) lv_obj_set_width(h->fill, 0);
+}
+
+static void hold_tick_cb(lv_timer_t *t)
+{
+    wt_hold_t *h = lv_timer_get_user_data(t);
+    uint32_t el = lv_tick_elaps(h->t0);
+    if (el >= (uint32_t)h->ms) {
+        void (*done)(void *) = h->done;
+        void *ud = h->ud;
+        hold_reset(h);
+        if (done) done(ud);            // may delete the pill: touch nothing after
+        return;
+    }
+    lv_obj_set_width(h->fill, (int32_t)(el * (uint32_t)h->w / (uint32_t)h->ms));
+}
+
+static void hold_press_cb(lv_event_t *e)
+{
+    wt_hold_t *h = lv_event_get_user_data(e);
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED) {
+        h->t0 = lv_tick_get();
+        if (!h->tmr) h->tmr = lv_timer_create(hold_tick_cb, 30, h);
+    } else {                           // RELEASED, PRESS_LOST, or DELETE
+        hold_reset(h);
+        if (c == LV_EVENT_DELETE) lv_free(h);
+    }
+}
+
+lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int h_,
+                       int ms, void (*done)(void *), void *ud)
+{
+    wt_hold_t *h = lv_malloc(sizeof *h);
+    if (!h) return NULL;
+    lv_memzero(h, sizeof *h);
+    h->ms = ms > 0 ? ms : 1200;
+    h->w = w;
+    h->done = done;
+    h->ud = ud;
+
+    lv_obj_t *p = wt_pillh(scr, txt, x, y, w, h_, NULL, NULL);
+    lv_obj_set_style_border_color(p, WT_STOP, 0);
+    lv_obj_clear_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    h->pill = p;
+
+    // the sweep sits UNDER the label (added first would be behind the text
+    // LVGL already made, so move it back explicitly)
+    lv_obj_t *f = lv_obj_create(p);
+    lv_obj_remove_style_all(f);
+    lv_obj_set_size(f, 0, h_);
+    lv_obj_set_pos(f, 0, 0);
+    lv_obj_set_style_radius(f, 26, 0);
+    lv_obj_set_style_bg_color(f, WT_STOP, 0);
+    lv_obj_set_style_bg_opa(f, 90, 0);
+    lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_move_background(f);
+    h->fill = f;
+
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
+    return p;
+}
+
 void wt_pill_select(lv_obj_t *pill, bool on)
 {
     // active chooser = filled glass + 2px accent ring + bright text; inactive

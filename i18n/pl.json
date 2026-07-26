@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "utwórz świeży portfel lub przywróć go ze słów\nodzyskiwania. to ZASTĘPUJE portfel na tym\nurządzeniu: najpierw zabezpiecz stare słowa.",
   "G_WIPE": "WYMAŻ PORTFEL",
   "G_WIPE_NOTE": "usuwa portfel z tego urządzenia.\nsłowa + ta sama fraza dostępu go przywrócą.",
-  "G_TAP_WIPE": "DOTKNIJ PONOWNIE, BY WYMAZAĆ",
-  "G_TAP_ERASE": "DOTKNIJ PONOWNIE, BY ZASTĄPIĆ",
   "G_NOERASE_T": "NIE UDAŁO SIĘ WYMAZAĆ",
   "G_NOERASE_B": "twoje słowa mogą WCIĄŻ tu być.\n\nnie sprzedawaj ani nie oddawaj.\nspróbuj wymazać ponownie.",
   "G_ERASED_T": "PORTFEL WYMAZANY",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "przeczytaj to najpierw",
   "L_SCAN_WARN_B": "kto odczyta ten QR, otworzy\nten portfel.\n\nzdjęcie tego QR działa tak samo.\n\nskan jest użyty dokładnie tak jak jest.",
   "L_SCAN_GO": "SKANUJ QR",
-  "W_LOAD_TYPE_NOTE": "przepisz słowa ze swojego papieru."
+  "W_LOAD_TYPE_NOTE": "przepisz słowa ze swojego papieru.",
+  "G_WIPEC_T": "WYMAZAĆ TEN PORTFEL?",
+  "G_WIPEC_B": "słowa znikają teraz z tego urządzenia.\n\ntylko twój papier + fraza dostępu\nprzywrócą ten portfel.",
+  "G_HOLD_WIPE": "PRZYTRZYMAJ, BY WYMAZAĆ"
 }

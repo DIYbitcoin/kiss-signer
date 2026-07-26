@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "tạo ví mới, hoặc khôi phục từ cụm từ khôi phục.\nviệc này THAY THẾ ví đang có ở đây: sao lưu\ncác từ cũ trước đã.",
   "G_WIPE": "XÓA VÍ",
   "G_WIPE_NOTE": "gỡ ví khỏi thiết bị này.\ncác từ + đúng cụm mật khẩu sẽ khôi phục ví.",
-  "G_TAP_WIPE": "CHẠM LẦN NỮA ĐỂ XÓA",
-  "G_TAP_ERASE": "CHẠM LẦN NỮA ĐỂ THAY THẾ",
   "G_NOERASE_T": "XÓA KHÔNG THÀNH",
   "G_NOERASE_B": "các từ của bạn có thể VẪN còn đây.\n\nđừng bán hay cho thiết bị này.\nthử xóa lại lần nữa.",
   "G_ERASED_T": "ĐÃ XÓA VÍ",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "đọc cái này trước",
   "L_SCAN_WARN_B": "ai đọc được mã QR đó đều mở được\nví này.\n\nmột tấm ảnh chụp cũng như vậy.\n\nbản quét dùng đúng như in ra.",
   "L_SCAN_GO": "QUÉT MÃ",
-  "W_LOAD_TYPE_NOTE": "gõ các từ từ tờ giấy của bạn."
+  "W_LOAD_TYPE_NOTE": "gõ các từ từ tờ giấy của bạn.",
+  "G_WIPEC_T": "XÓA VÍ NÀY?",
+  "G_WIPEC_B": "các từ rời khỏi thiết bị này ngay bây giờ.\n\nchỉ giấy + cụm mật khẩu của bạn mới\nlấy lại được ví này.",
+  "G_HOLD_WIPE": "GIỮ ĐỂ XÓA"
 }

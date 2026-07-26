@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "crea un portafoglio nuovo o ripristinane uno\ndalle parole di recupero. questo SOSTITUISCE quello\nqui presente: salva prima le vecchie parole.",
   "G_WIPE": "CANCELLA PORTAFOGLIO",
   "G_WIPE_NOTE": "rimuove il portafoglio da questo dispositivo.\nparole + la stessa passphrase lo ripristinano.",
-  "G_TAP_WIPE": "TOCCA ANCORA PER CANCELLARE",
-  "G_TAP_ERASE": "TOCCA ANCORA PER SOSTITUIRE",
   "G_NOERASE_T": "CANCELLAZIONE FALLITA",
   "G_NOERASE_B": "le tue parole potrebbero essere ANCORA qui.\n\nnon venderlo e non regalarlo.\nriprova la cancellazione.",
   "G_ERASED_T": "PORTAFOGLIO CANCELLATO",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "leggi prima questo",
   "L_SCAN_WARN_B": "chi può leggere quel QR può aprire\nquesto portafoglio.\n\nuna foto del QR vale lo stesso.\n\nla scansione si usa esattamente così.",
   "L_SCAN_GO": "SCANSIONA",
-  "W_LOAD_TYPE_NOTE": "digita le parole dalla tua carta."
+  "W_LOAD_TYPE_NOTE": "digita le parole dalla tua carta.",
+  "G_WIPEC_T": "CANCELLARE QUESTO PORTAFOGLIO?",
+  "G_WIPEC_B": "le parole lasciano ora questo dispositivo.\n\nsolo la tua carta + passphrase possono\nriportare indietro il portafoglio.",
+  "G_HOLD_WIPE": "TIENI PREMUTO PER CANCELLARE"
 }

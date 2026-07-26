@@ -776,14 +776,20 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  // the WIPE pill is wallet_settings.c's mk_pillh(430, 268, 320, 52), so its
-  // centre is y=294; 346 lands on the caption below it and does nothing
-  touch(590, 294); pump(4); release(); pump(8);     // WIPE WALLET -> armed
-  lv_refr_now(NULL); pump(2);                       // (sim: force the restyle flush)
-  save("/tmp/sim_wipe_arm.ppm");                    // "TAP AGAIN TO WIPE" in red
-  touch(590, 294); pump(3); release(); pump(6);     // second tap -> seed erased
+  // the WIPE pill is wallet_settings.c's mk_pillh(430, 268, 320, 52), centre 294
+  touch(590, 294); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
+  lv_refr_now(NULL); pump(2);
+  save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
+  // a tap is NOT enough: press, release early, nothing must happen
+  touch(208, 398); pump(2); release(); pump(4);
+  save("/tmp/sim_wipe_tap_noop.ppm");               // still the confirm screen
+  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin
+  touch(208, 398); pump(60);                        // ~half way: the fill sweeps
+  lv_refr_now(NULL);
+  save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
+  pump(100); release(); pump(6);                    // hold through -> erased
   save("/tmp/sim_wiped.ppm");                       // WALLET ERASED confirmation
-  touch(400, 366); pump(3); release(); pump(130);   // OK -> locked to game menu
+  touch(400, 412); pump(3); release(); pump(130);   // OK (200x52 at y=386) -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
