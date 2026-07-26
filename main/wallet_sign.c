@@ -473,7 +473,7 @@ static void verify_screen(lv_obj_t *parent)
     char buf[160], a[32], b[32];
     s_parent = parent;                    // details page rebuilds us from here
     mk_screen(parent, tr(STR_S_T), NULL);
-    lv_obj_t *src = mk_lbl(s_cur, 40, 64, wt_font14(), MUT_COL);
+    lv_obj_t *src = mk_lbl(s_cur, 40, 64, wt_font23(), MUT_COL);
     lv_obj_set_width(src, 360);
     lv_label_set_long_mode(src, LV_LABEL_LONG_CLIP);
 
@@ -495,13 +495,13 @@ static void verify_screen(lv_obj_t *parent)
     // First question: what do the recipients get? Change stays itemized below
     // and is never counted as money sent away.
     uint64_t total = s_sum.send_sats + s_sum.fee_sats;
-    mk_lbl(tr(STR_S_SENDING_CAP), 40, 96, wt_font14(), MUT_COL);
+    mk_lbl(tr(STR_S_SENDING_CAP), 40, 96, wt_font23(), MUT_COL);
     fmt_sats(s_sum.send_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
     mk_lbl(buf, 40, 116, wt_font28(), INK_COL);
     wt_fmt_btc(s_sum.send_sats, b, sizeof b);
     snprintf(buf, sizeof buf, "%s BTC", b);
-    mk_lbl(buf, 40, 152, wt_font14(), MUT_COL);
+    mk_lbl(buf, 40, 152, wt_font23(), MUT_COL);
 
     // Outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
     // user is asked to sign is ever hidden.  In the common one-recipient case,
@@ -520,8 +520,17 @@ static void verify_screen(lv_obj_t *parent)
     lv_obj_set_style_pad_row(ol, 4, 0);
     lv_obj_set_flex_flow(ol, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(ol, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(ol, LV_SCROLLBAR_MODE_AUTO);
+    // MODE_ON, not MODE_AUTO. AUTO only draws the bar WHILE a scroll is in
+    // progress, so a list with outputs below the fold looked identical to one
+    // that ended there -- the user found the extra outputs by guessing. On the
+    // screen that shows every destination of a transaction being signed,
+    // "there is more" must never be something you have to discover.
+    lv_obj_set_scrollbar_mode(ol, LV_SCROLLBAR_MODE_ON);
     lv_obj_set_style_bg_opa(ol, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_width(ol, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(ol, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(ol, MUT_COL, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(ol, LV_OPA_50, LV_PART_SCROLLBAR);
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
         lv_obj_t *row = lv_obj_create(ol);
         lv_obj_remove_style_all(row);
@@ -557,7 +566,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *btc = lv_label_create(row);
             lv_label_set_text(btc, buf);
             lv_obj_set_style_text_color(btc, MUT_COL, 0);
-            lv_obj_set_style_text_font(btc, wt_font14(), 0);
+            lv_obj_set_style_text_font(btc, wt_font23(), 0);
         }
 
         char ga[160];   // sp1/tsp1 is ~117 chars; +grouping spaces needs >120
@@ -566,18 +575,18 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *ad = lv_label_create(row);
             lv_label_set_text(ad, ga);
             lv_obj_set_style_text_color(ad, MUT_COL, 0);
-            lv_obj_set_style_text_font(ad, wt_font14(), 0);
+            lv_obj_set_style_text_font(ad, wt_font23(), 0);
             lv_obj_set_width(ad, 340);
             lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
         } else {                             // compare-me (incl. SP): bright ends
-            wt_addr_spans(row, ga, 340, wt_font14());
+            wt_addr_spans(row, ga, 340, wt_font23());
         }
 
         if (s_sum.outs[i].is_sp) {           // teach why a bc1p never appears here
             lv_obj_t *note = lv_label_create(row);
             lv_label_set_text(note, tr(STR_S_SP_NOTE));
             lv_obj_set_style_text_color(note, MUT_COL, 0);
-            lv_obj_set_style_text_font(note, wt_font14(), 0);
+            lv_obj_set_style_text_font(note, wt_font23(), 0);
             lv_obj_set_width(note, 340);
             lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
         }
@@ -586,50 +595,42 @@ static void verify_screen(lv_obj_t *parent)
     // Second and third questions: fee, then the total leaving this wallet.
     // The three amounts are named explicitly so the user never has to infer
     // whether a number includes the fee.
-    mk_lbl(tr(STR_S_FEE), 430, 100, wt_font14(), MUT_COL);
+    // The right column carries the money questions and nothing else.
+    //
+    // Every caption and secondary line here used to be font14, which made the
+    // numbers a user signs against the smallest type on the screen. They are
+    // 23 now, and 23 costs ~10px a line over 14: the two informational rows
+    // that used to sit at y=258 and y=278 ("N inputs, <type>" and "in / back")
+    // moved to DETAILS, which already itemises inputs via S_D_INPUTS_FMT and
+    // is where non-decision facts belong. What stays is what changes a mind:
+    // fee, total leaving, network, whether it can be bumped, and any caution.
+    mk_lbl(tr(STR_S_FEE), 430, 96, wt_font23(), MUT_COL);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 122, wt_font28(),
+    mk_lbl(buf, 430, 126, wt_font28(),
            s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
-    if (s_sum.send_sats > 0)
-        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10),
-                 (unsigned long long)(s_sum.fee_sats * 1000 / s_sum.send_sats / 10),
-                 (unsigned long long)(s_sum.fee_sats * 1000 / s_sum.send_sats % 10));
-    else
-        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
-    mk_lbl(buf, 430, 156, wt_font14(), MUT_COL);
+    snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
+             (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
+    mk_lbl(buf, 430, 166, wt_font23(), MUT_COL);
 
-    mk_lbl(tr(STR_S_TOTAL_LEAVING), 430, 184, wt_font14(), MUT_COL);
+    mk_lbl(tr(STR_S_TOTAL_LEAVING), 430, 198, wt_font23(), MUT_COL);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 204, wt_font23(), INK_COL);
+    mk_lbl(buf, 430, 228, wt_font28(), INK_COL);   // the headline number, not a footnote
     wt_fmt_btc(total, b, sizeof b);
     snprintf(buf, sizeof buf, "%s BTC", b);
-    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
+    mk_lbl(buf, 430, 268, wt_font23(), MUT_COL);
 
-    fmt_sats(s_sum.in_sats, a, sizeof a);
-    fmt_sats(s_sum.change_sats, b, sizeof b);
-    // spec: show the DETECTED script type (from the PSBT's own paths, not any
-    // setting) — "mixed-type" when a transaction spends more than one kind. A
-    // received silent-payment input (BIP376) has no BIP84 path, so label it as
-    // such rather than "mixed" (reuses the existing badge string, no new i18n).
-    const char *ity = s_sum.n_sp_in > 0 ? tr(STR_S_SP_BADGE)
-                    : s_sum.purpose == 44 ? tr(STR_S_TY_LEGACY)
-                    : s_sum.purpose == 49 ? tr(STR_S_TY_NESTED)
-                    : s_sum.purpose == 84 ? tr(STR_S_TY_NATIVE) : tr(STR_S_TY_MIXED);
-    snprintf(buf, sizeof buf, tr(STR_S_INPUTS_FMT),
-             (unsigned)s_sum.n_in, ity);
-    mk_lbl(buf, 430, 258, wt_font14(), MUT_COL);
-    snprintf(buf, sizeof buf, tr(STR_S_IN_BACK_FMT), a, b);
-    mk_lbl(buf, 430, 278, wt_font14(), MUT_COL);
+    // "N inputs, <type>" and "in / back" used to sit here at font14. They are
+    // facts about the transaction, not decisions about it, and DETAILS already
+    // itemises inputs (S_D_INPUTS_FMT). Their 40px pays for the fee and total
+    // above being readable, which is the trade this screen should make.
 
     // network: LOUD amber chip on testnet (spec: loud TESTNET banner); mainnet
     // stays a plain muted word. (No address-type setting shown: the signer is
     // type-agnostic — the PSBT's own paths declare the type, re-derive enforces.)
-    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 304,
-                           wt_font14(), s_sum.testnet ? WARN_COL : MUT_COL);
+    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 300,
+                           wt_font23(), s_sum.testnet ? WARN_COL : MUT_COL);
     if (s_sum.testnet) {
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
@@ -646,13 +647,21 @@ static void verify_screen(lv_obj_t *parent)
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
-    mk_lbl(buf, 430, 336, wt_font14(), MUT_COL);
-    {   // "?" -> plain-words RBF explainer (most people don't know the term)
-        int cx = s_sum.rbf ? 592 : 620;
+    lv_obj_t *rbfl = mk_lbl(buf, 430, 364, wt_font23(), MUT_COL);
+    lv_obj_set_width(rbfl, 296);            // stops short of the chip at x=740
+    lv_label_set_long_mode(rbfl, LV_LABEL_LONG_CLIP);
+    {   // This chip TRAILS its line at a fixed x while the caution chip above
+        // LEADS its own. Not a style slip -- the two rows are 34px apart and
+        // each chip is 26-30px with a 12px extended click area, so stacking
+        // them at the same x would put one inside the other's hit box. Fixed
+        // x, not "after the text", so a longer translation cannot walk it into
+        // a neighbour. All five pairs (both chips, DETAILS, I UNDERSTAND) were
+        // checked disjoint before these numbers were chosen.
+        int cx = 740;
         lv_obj_t *hc = lv_obj_create(s_scr);
         lv_obj_remove_style_all(hc);
         lv_obj_set_size(hc, 26, 26);
-        lv_obj_set_pos(hc, cx, 332);
+        lv_obj_set_pos(hc, cx, 358);
         lv_obj_set_style_radius(hc, 13, 0);
         lv_obj_set_style_bg_color(hc, KEY_COL, 0);
         lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
@@ -669,8 +678,8 @@ static void verify_screen(lv_obj_t *parent)
     }
 
     if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 366, wt_font14(), STOP_COL);
-        lv_obj_set_width(r, 320);
+        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 332, wt_font23(), STOP_COL);
+        lv_obj_set_width(r, 330);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
     } else if (s_sum.status == WPSBT_CAUTION) {
         // short summary + a "?" chip to the full "why" (keeps the screen simple)
@@ -678,13 +687,21 @@ static void verify_screen(lv_obj_t *parent)
         caution_summary(s_sum.caution_flags, sum, sizeof sum);
         char line[200];
         snprintf(line, sizeof line, tr(STR_S_CAUTION_FMT), sum);
-        lv_obj_t *r = mk_lbl(line, 430, 366, wt_font14(), WARN_COL);
-        lv_obj_set_width(r, 280);
+        // The "?" leads the line it explains instead of trailing it.
+        //
+        // It used to sit at x=720,y=362 with a 12px extended click area, so it
+        // occupied x 708-762, y 350-404 -- and I UNDERSTAND at (500,398) sized
+        // 252x66 occupies x 500-752, y 398-464. They overlapped by 44x6px, on
+        // the one screen where the two things a user can tap are "explain this
+        // warning" and "accept this warning". Putting it ahead of the text also
+        // means it no longer moves with the translated string's length.
+        lv_obj_t *r = mk_lbl(line, 468, 332, wt_font23(), WARN_COL);
+        lv_obj_set_width(r, 300);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
         lv_obj_t *hc = lv_obj_create(s_scr);   // "?" -> WHY FLAGGED card
         lv_obj_remove_style_all(hc);
         lv_obj_set_size(hc, 30, 30);
-        lv_obj_set_pos(hc, 720, 362);
+        lv_obj_set_pos(hc, 430, 330);
         lv_obj_set_style_radius(hc, 15, 0);
         lv_obj_set_style_bg_color(hc, KEY_COL, 0);
         lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
@@ -1215,9 +1232,20 @@ void wallet_sign_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
+    // Both ways in are the same size. SCAN QR is short and primary, so on its
+    // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
+    // -- two buttons offering the same choice, one visibly louder. Primary
+    // still means primary; it says so with fill and border, not by being the
+    // only readable label in the pair.
     lv_obj_t *q = mk_pill(tr(STR_S_SCAN_QR), 48, 150, 340, scan_pick_cb);
     wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
-    mk_pill(tr(STR_S_FROM_SD), 48, 230, 340, sd_pick_cb);
+    lv_obj_t *sd = mk_pill(tr(STR_S_FROM_SD), 48, 230, 340, sd_pick_cb);
+    {
+        const char *src_lbls[2] = { tr(STR_S_SCAN_QR), tr(STR_S_FROM_SD) };
+        wt_pill_fit_t f = wt_pill_group_fit(src_lbls, 2, 340, 60, true);
+        wt_pill_apply_fit(q, f, 340);
+        wt_pill_apply_fit(sd, f, 340);
+    }
     mk_lbl(tr(STR_S_POINT_CAM), 430, 152,
            wt_font14(), MUT_COL);
     // small "?" chip after the caption -> the coordinator explainer card

@@ -682,7 +682,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             s->n_sp_in++;
             ntap++;
             if (u->satoshi > 0 && u->satoshi < WPSBT_PRIVACY_SATS)
-                caution(s, WPSBT_C_DUST_INPUT, "spending a tiny coin (privacy)");
+                caution(s, WPSBT_C_DUST_INPUT, "possible dust attack (privacy)");
             continue;
         }
 
@@ -742,7 +742,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         // spending a tiny KISS-owned coin is the classic dust-attack tell: a
         // stranger sends dust hoping you consolidate it and link your coins
         if (utxo_val > 0 && utxo_val < WPSBT_PRIVACY_SATS)
-            caution(s, WPSBT_C_DUST_INPUT, "spending a tiny coin (privacy)");
+            caution(s, WPSBT_C_DUST_INPUT, "possible dust attack (privacy)");
         if (purpose == 44) n44++; else if (purpose == 49) n49++; else n84++;
         // re-derive our scriptPubKey for THIS input's own type and require an
         // exact match — the amount above is only trustworthy if this spk is ours
