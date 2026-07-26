@@ -191,6 +191,37 @@ int wallet_session_address(int change, uint32_t index, char *out, size_t out_len
     return rc;
 }
 
+int wallet_address_validate(const char *addr)
+{
+    if (!addr || !*addr) return WADDR_INVALID;
+
+    int spnet = sp_address_network(addr);
+    if (spnet)
+        return (spnet == (s_testnet ? 2 : 1)) ? WADDR_CURRENT_NETWORK
+                                               : WADDR_WRONG_NETWORK;
+
+    uint8_t script[WALLY_SEGWIT_ADDRESS_PUBKEY_MAX_LEN];
+    size_t written = 0;
+    const char *cur_hrp = s_testnet ? "tb" : "bc";
+    const char *other_hrp = s_testnet ? "bc" : "tb";
+    uint32_t cur_net = s_testnet ? WALLY_NETWORK_BITCOIN_TESTNET
+                                 : WALLY_NETWORK_BITCOIN_MAINNET;
+    uint32_t other_net = s_testnet ? WALLY_NETWORK_BITCOIN_MAINNET
+                                   : WALLY_NETWORK_BITCOIN_TESTNET;
+
+    if (wally_addr_segwit_to_bytes(addr, cur_hrp, 0, script, sizeof script,
+                                   &written) == WALLY_OK
+        || wally_address_to_scriptpubkey(addr, cur_net, script, sizeof script,
+                                         &written) == WALLY_OK)
+        return WADDR_CURRENT_NETWORK;
+    if (wally_addr_segwit_to_bytes(addr, other_hrp, 0, script, sizeof script,
+                                   &written) == WALLY_OK
+        || wally_address_to_scriptpubkey(addr, other_net, script, sizeof script,
+                                         &written) == WALLY_OK)
+        return WADDR_WRONG_NETWORK;
+    return WADDR_INVALID;
+}
+
 // BIP352 silent-payment receive address (sp1/tsp1) for this wallet + network.
 // Static and reusable by design - no index. Derived entirely on-device.
 int wallet_session_sp_address(char *out, size_t out_len)

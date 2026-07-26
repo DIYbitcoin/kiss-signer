@@ -7,63 +7,86 @@
 # A small glyph atlas ('0'-'9' + "of") renders live part counts in real type.
 # Preview: /tmp/scan_ui_mock.png (LOOK at it before flashing — hard rule).
 import math
+import json
 import os
 import random
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT = "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf"
+ROOT = Path(__file__).resolve().parents[2]
+FONT_LAT = "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf"
+FONT_CJK = {
+    "ja": "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
+    "ko": "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "zh-CN": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+}
 TITLE = 30
 SUB = 19
 MAXW = 640      # within the 800-px landscape width minus overscan insets
 
-# (name, title, subtitle) — plain words, no shouting (spec: plain-English first)
+# Firmware/NVS locale order. Keep in lockstep with tools/gen_i18n.py.
+LOCALES = [
+    "en", "de", "es-MX", "fr", "it", "ja", "ko", "nl", "pl", "pt-BR",
+    "ru", "tr", "vi", "zh-CN", "es-ES", "pt-PT", "nb-NO", "sv-SE",
+    "da-DK", "cs-CZ", "hr-HR",
+]
+
+# (name, title key, subtitle key). The live camera bypasses LVGL, so these
+# translated strings are baked as alpha strips for every runtime locale.
 STRIPS = [
-    ("OSD_SEARCH",  "Looking for the QR code",
-                    "point the camera at the screen showing it"),
-    ("OSD_SEEN",    "Found it — hold steady", ""),
-    ("OSD_CUTOFF",  "Move back a little",
-                    "part of the code is out of view"),
-    ("OSD_READ",    "Reading", ""),
-    ("OSD_ENT_LOW", "Point at something with detail",
-                    "books, a plant, your desk — not a blank wall"),
-    ("OSD_ENT_OK",  "Looking good — tap to capture",
-                    "the photo's randomness makes your words impossible to guess"),
-    ("OSD_CLOSE",   "", ""),   # placeholder; rendered specially below
+    ("OSD_SEARCH",  "C_OSD_SEARCH_T",  "C_OSD_SEARCH_S"),
+    ("OSD_SEEN",    "C_OSD_SEEN_T",    None),
+    ("OSD_CUTOFF",  "C_OSD_CUTOFF_T", "C_OSD_CUTOFF_S"),
+    ("OSD_READ",    "C_OSD_READ_T",    None),
+    ("OSD_ENT_LOW", "C_OSD_ENT_LOW_T", "C_OSD_ENT_LOW_S"),
+    ("OSD_ENT_OK",  "C_OSD_ENT_OK_T",  "C_OSD_ENT_OK_S"),
+    ("OSD_CLOSE",   "C_OSD_CLOSE",     None),
 ]
 
 GLYPHS = [str(d) for d in range(10)] + ["of"]
 
 
-def render_strip(title, sub):
+def locale_font(stem):
+    return FONT_CJK.get(stem, FONT_LAT)
+
+
+def fitted_font(path, text, start, floor):
+    for size in range(start, floor - 1, -1):
+        f = ImageFont.truetype(path, size)
+        if not text or f.getlength(text) <= MAXW - 8:
+            return f, size
+    return ImageFont.truetype(path, floor), floor
+
+
+def render_strip(title, sub, font_path=FONT_LAT):
     """Anti-aliased white-on-transparent two-line strip (L mode = alpha)."""
-    tf = ImageFont.truetype(FONT, TITLE)
-    sf = ImageFont.truetype(FONT, SUB)
+    tf, ts = fitted_font(font_path, title, TITLE, 18)
+    sf, ss = fitted_font(font_path, sub, SUB, 12)
     tw = int(tf.getlength(title)) if title else 0
     sw = int(sf.getlength(sub)) if sub else 0
     w = min(MAXW, max(tw, sw) + 8)
-    h = (TITLE + 8) + (SUB + 6 if sub else 0)
+    h = (ts + 8) + (ss + 8 if sub else 0)
     im = Image.new("L", (w, h), 0)
     d = ImageDraw.Draw(im)
     if title:
         d.text(((w - tw) // 2, 0), title, font=tf, fill=255)
     if sub:
-        d.text(((w - sw) // 2, TITLE + 10), sub, font=sf, fill=145)  # muted
+        d.text(((w - sw) // 2, ts + 8), sub, font=sf, fill=145)  # muted
     return im
 
 
-def render_close():
+def render_close(text, font_path=FONT_LAT):
     """The tap-here-to-close hint for the top-left corner."""
-    f = ImageFont.truetype(FONT, 20)
-    text = "× close"          # multiplication sign reads as an X
+    f, _ = fitted_font(font_path, text, 20, 12)
     tw = int(f.getlength(text))
     im = Image.new("L", (tw + 6, 28), 0)
     ImageDraw.Draw(im).text((3, 0), text, font=f, fill=190)
     return im
 
 
-def render_glyph(s):
-    f = ImageFont.truetype(FONT, TITLE)
+def render_glyph(s, font_path=FONT_LAT):
+    f = ImageFont.truetype(font_path, TITLE)
     tw = int(f.getlength(s))
     im = Image.new("L", (tw + 2, TITLE + 8), 0)
     ImageDraw.Draw(im).text((1, 0), s, font=f, fill=255)
@@ -103,22 +126,62 @@ def emit(images, names, ctype, cname):
 
 
 # ---- bake ----
-strip_imgs, strip_names = [], []
-for name, title, sub in STRIPS:
-    strip_imgs.append(render_close() if name == "OSD_CLOSE"
-                      else render_strip(title, sub))
-    strip_names.append(name.lower())
-glyph_imgs = [render_glyph(g) for g in GLYPHS]
-glyph_names = [f"glyph_{g if g != 'of' else 'of'}" for g in GLYPHS]
+locale_strips = {}
+locale_of = {}
+for stem in LOCALES:
+    with open(ROOT / "i18n" / f"{stem}.json", encoding="utf-8") as f:
+        strings = json.load(f)
+    font_path = locale_font(stem)
+    images = []
+    for name, title_key, sub_key in STRIPS:
+        title = strings[title_key]
+        sub = strings[sub_key] if sub_key else ""
+        images.append(render_close(title, font_path) if name == "OSD_CLOSE"
+                      else render_strip(title, sub, font_path))
+    locale_strips[stem] = images
+    locale_of[stem] = render_glyph(strings["C_OSD_OF"], font_path)
+
+# English aliases keep the visual preview below deterministic.
+strip_imgs = locale_strips["en"]
+strip_names = [name.lower() for name, _, _ in STRIPS]
+glyph_imgs = [render_glyph(g) for g in GLYPHS[:10]] + [locale_of["en"]]
 
 out_c = ["// GENERATED by assets/generators/scan_osd.py - do not hand-edit",
          '#include "scan_osd.h"', ""]
-out_c += emit(strip_imgs, strip_names, "scan_osd_strip_t", "scan_osd")
-out_c.append("")
-out_c += emit(glyph_imgs, glyph_names, "scan_osd_strip_t", "scan_osd_glyph")
+strip_meta = {}
+for li, stem in enumerate(LOCALES):
+    ident = stem.lower().replace("-", "_")
+    strip_meta[stem] = []
+    for (enum_name, _, _), im in zip(STRIPS, locale_strips[stem]):
+        name = f"osd_{ident}_{enum_name.lower()}"
+        w, h, bits = pack_a4(im)
+        out_c.append(f"static const uint8_t {name}_a4[] = {{{', '.join(str(b) for b in bits)}}};")
+        strip_meta[stem].append((name, w, h))
+out_c += ["", "const scan_osd_strip_t scan_osd[][SCAN_OSD_N] = {"]
+for stem in LOCALES:
+    out_c.append("    {")
+    for name, w, h in strip_meta[stem]:
+        out_c.append(f"        {{{w}, {h}, {name}_a4}},")
+    out_c.append("    },")
+out_c += ["};", ""]
 
-root = os.path.join(os.path.dirname(__file__), "..", "..")
-with open(os.path.join(root, "main", "scan_osd.c"), "w") as f:
+digit_imgs = [render_glyph(str(d)) for d in range(10)]
+out_c += emit(digit_imgs, [f"glyph_{d}" for d in range(10)],
+              "scan_osd_strip_t", "scan_osd_glyph")
+out_c.append("")
+of_meta = []
+for stem in LOCALES:
+    ident = stem.lower().replace("-", "_")
+    name = f"glyph_of_{ident}"
+    w, h, bits = pack_a4(locale_of[stem])
+    out_c.append(f"static const uint8_t {name}_a4[] = {{{', '.join(str(b) for b in bits)}}};")
+    of_meta.append((name, w, h))
+out_c += ["", "const scan_osd_strip_t scan_osd_of[] = {"]
+for name, w, h in of_meta:
+    out_c.append(f"    {{{w}, {h}, {name}_a4}},")
+out_c += ["};"]
+
+with open(ROOT / "main" / "scan_osd.c", "w") as f:
     f.write("\n".join(out_c) + "\n")
 
 enum_names = ", ".join(n for n, _, _ in STRIPS)
@@ -127,17 +190,16 @@ hdr = f"""// GENERATED by assets/generators/scan_osd.py - do not hand-edit
 #include <stdint.h>
 
 enum {{ {enum_names}, SCAN_OSD_N }};
-#define SCAN_OSD_GLYPH_OF 10   // scan_osd_glyph[10] = the word "of"
-
 typedef struct {{
     int w, h;               // landscape strip dims (w along landscape-x)
     const uint8_t *a4;      // 4-bit alpha, row-major, high nibble first
 }} scan_osd_strip_t;
 
-extern const scan_osd_strip_t scan_osd[SCAN_OSD_N];
-extern const scan_osd_strip_t scan_osd_glyph[11];   // '0'..'9', "of"
+extern const scan_osd_strip_t scan_osd[][SCAN_OSD_N];
+extern const scan_osd_strip_t scan_osd_glyph[10];   // '0'..'9'
+extern const scan_osd_strip_t scan_osd_of[];         // localized word "of"
 """
-with open(os.path.join(root, "main", "scan_osd.h"), "w") as f:
+with open(ROOT / "main" / "scan_osd.h", "w") as f:
     f.write(hdr)
 
 # ---- full-screen mock (landscape 800x480), mirroring the C drawing math ----

@@ -8,6 +8,9 @@
 // sp1/tsp1 bech32m re-encode of PSBT_OUT_SP_V0_INFO for display. cap >= 120.
 int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
                       bool testnet, char *out, size_t cap);
+// Validate a BIP352 address's exact length, version/padding and bech32m
+// checksum. Returns 1 for sp (mainnet), 2 for tsp (test networks), 0 invalid.
+int sp_address_network(const char *addr);
 
 // spscan/tspscan bech32m key expression (BIP-392), no origin, no sp() wrapper:
 // version 0 + convertbits(scan_priv32 || spend_pub33, 8->5). This exposes the

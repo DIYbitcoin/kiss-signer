@@ -79,7 +79,19 @@ int platform_sd_probe(void)
 
 #endif
 
-static int name_cmp(const void *a, const void *b) { return strcasecmp(a, b); }
+static int name_is_signed(const char *name)
+{
+    size_t n = strlen(name);
+    return n >= 12 && strcasecmp(name + n - 12, "-signed.psbt") == 0;
+}
+
+static int name_cmp(const void *a, const void *b)
+{
+    const char *na = a, *nb = b;
+    int sa = name_is_signed(na), sb = name_is_signed(nb);
+    if (sa != sb) return sa - sb;       // work still to sign first; signed files below
+    return strcasecmp(na, nb);          // stable, obvious A-Z order within each group
+}
 
 int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max)
 {
@@ -95,9 +107,6 @@ int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max)
             continue;
         if (l < 6 || l >= SD_NAME_LEN || strcasecmp(nm + l - 5, ".psbt") != 0)
             continue;
-        if (l >= 12 && strcasecmp(nm + l - 12, "-signed.psbt") == 0)
-            continue;                     // our own outputs are not inputs
-
         snprintf(names[n++], SD_NAME_LEN, "%s", nm);
     }
     closedir(d);

@@ -232,8 +232,9 @@ static bool s_gest_swallow;        // ignore the touch that just woke the screen
 
 // ---- idle attract-mode screensaver ----
 #define IDLE_MS 300000             // show the screensaver after 5min with no touch (menu/game-over).
-                                   // Cosmetic only: WALLET_AUTOLOCK_MS (2 min) is the security timeout
-                                   // and is deliberately much shorter.
+                                   // Cosmetic only. WALLET_AUTOLOCK_MS is the security timeout; the
+                                   // two are the same 5 min today, so change one deliberately, not
+                                   // by assuming this one is the longer of the pair.
 #define SAVER_N 6
 static lv_obj_t *s_saver;          // full-screen backdrop (img_saver)
 static lv_obj_t *s_saver_fruit[SAVER_N];

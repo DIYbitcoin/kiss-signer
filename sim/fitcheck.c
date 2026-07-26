@@ -45,7 +45,7 @@ static const slot_t SLOTS[] = {
     { "sign/rbf-off",     STR_S_RBF_B_OFF,  720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // wallet_ui.c:469,769 — login warning + passphrase intro
-    { "login/warn",       STR_L_WARN_B,     720, 200 },
+    { "login/warn",       STR_L_WARN_B,     720, 178 },
     { "login/pp-intro",   STR_L_PPINTRO_B,  704, 280 },
     // wallet_setup.c — wizard explainers
     { "setup/entropy",    STR_W_RAND_B,     704, 274 },
@@ -63,18 +63,25 @@ static const slot_t SLOTS[] = {
     // wallet_settings.c — the notes under each chooser. These sit in gaps
     // between controls, so 23 (not 28) is the realistic top rung; what matters
     // is that none of them falls to 14.
-    { "set/net-main",     STR_G_MAINNET_NOTE, 340, 58 },
-    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 58 },
-    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 360, 58 },
-    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 360, 58 },
-    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 360, 58 },
-    { "set/separate",     STR_G_SEPARATE,     360, 58 },
-    { "set/create-note",  STR_G_CREATE_NOTE,  340, 88 },
-    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 88 },
+    { "set/net-main",     STR_G_MAINNET_NOTE, 340, 50 },
+    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 50 },
+    // The three ADDRESS TYPE notes are font14 on purpose, so they match
+    // TYPE_NOTE_H in wallet_settings.c rather than the 54px of screen they
+    // occupy. Three side-by-side pills leave 82px of text each, which caps
+    // NATIVE/NESTED/LEGACY at font14; a font23 note under them made the
+    // sentence twice the size of the buttons it describes. Reporting them as
+    // "cut 1 row @23" implied a rung that this row cannot reach.
+    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 360, 24, 1 },
+    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 360, 24, 1 },
+    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 360, 24, 1 },
+    { "set/separate",     STR_G_SEPARATE,     360, 54 },
+    { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
+    { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
+    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 52, 1 },
     // wallet_recv.c / wallet_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
     { "sub/receive",      STR_R_S,            704, 30, 0 },
-    { "sub/wallet",       STR_I_S,            704, 30, 0 },
+    { "sub/wallet",       STR_I_S,            340, 58, 0 },
     { "sub/verify",       STR_R_VS,           704, 30, 0 },
     { "sub/words-warn",   STR_I_WARN_S,       704, 30, 0 },
     { "sub/sp-export",    STR_R_SP_EXPORT_S,  704, 30, 0 },
@@ -89,7 +96,6 @@ static const slot_t SLOTS[] = {
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
     // wallet_info.c — the note under each action pill
     { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340, 88 },
-    { "wallet/words-note",STR_I_WORDS_BTN_NOTE, 340, 88 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
@@ -110,9 +116,9 @@ static const pill_t PILLS[] = {
     { "sign/ack",         STR_C_I_UNDERSTAND, 252, 66, 1, 1 },
     { "sign/details",     STR_S_DETAILS,      170, 66, 0, 0 },
     { "sign/back",        STR_C_BACK,         140, 66, 0, 0 },
-    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 1, 1 },
-    { "wallet/words",     STR_I_WORDS_BTN,    340, 66, 0, 1 },
-    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0, 1 },
+    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 0, 1 },
+    { "set/create",       STR_G_CREATE_NEW,   340, 66, 0, 1 },
+    { "set/words",        STR_I_WORDS_BTN,    340, 66, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
@@ -124,6 +130,8 @@ static const pill_t PILLS[] = {
     { "common/done",      STR_C_DONE,         140, 52, 0, 0 },
     { "common/ok",        STR_C_OK,           200, 52, 0, 0 },
     { "common/cancel",    STR_C_CANCEL,       140, 52, 0, 0 },
+    { "setup/full-verify",STR_L_VERIFY_FULL_BACKUP, 300, 66, 0, 1 },
+    { "setup/understand", STR_C_I_UNDERSTAND, 320, 66, 0, 1 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
 
