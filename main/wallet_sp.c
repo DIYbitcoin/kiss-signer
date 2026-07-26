@@ -50,6 +50,41 @@ static int b32m_encode(const char *hrp, const uint8_t *data, size_t n_data,
     return 0;
 }
 
+int sp_address_network(const char *addr)
+{
+    if (!addr) return 0;
+    const char *sep = strrchr(addr, '1');
+    if (!sep) return 0;
+    size_t hrp_len = (size_t)(sep - addr);
+    int network = hrp_len == 2 && memcmp(addr, "sp", 2) == 0 ? 1
+                : hrp_len == 3 && memcmp(addr, "tsp", 3) == 0 ? 2 : 0;
+    if (!network) return 0;
+
+    // BIP352 v0 carries two compressed 33-byte pubkeys: one version group,
+    // 106 payload groups, then six checksum groups.
+    const char *data = sep + 1;
+    size_t n = strlen(data);
+    if (n != 113 || data[0] != 'q') return 0;       // version 0
+
+    uint32_t chk = 1;
+    for (size_t i = 0; i < hrp_len; i++) chk = b32_polymod_step(chk, addr[i] >> 5);
+    chk = b32_polymod_step(chk, 0);
+    for (size_t i = 0; i < hrp_len; i++) chk = b32_polymod_step(chk, addr[i] & 0x1f);
+    int last_payload = -1;
+    for (size_t i = 0; i < n; i++) {
+        const char *p = strchr(B32_CHARSET, data[i]);
+        if (!p) return 0;
+        int v = (int)(p - B32_CHARSET);
+        chk = b32_polymod_step(chk, (uint8_t)v);
+        if (i == n - 7) last_payload = v;
+    }
+    if (chk != BECH32M_CONST) return 0;
+    // 66 bytes leave three useful bits in the final 5-bit group; both padding
+    // bits must be zero or a different string could encode the same payload.
+    if (last_payload < 0 || (last_payload & 0x03) != 0) return 0;
+    return network;
+}
+
 // ---- BIP352 derivation (not in the sim build: no secp there) ---------------
 #ifndef SIMULATOR
 #include <secp256k1.h>

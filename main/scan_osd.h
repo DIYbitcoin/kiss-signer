@@ -3,12 +3,11 @@
 #include <stdint.h>
 
 enum { OSD_SEARCH, OSD_SEEN, OSD_CUTOFF, OSD_READ, OSD_ENT_LOW, OSD_ENT_OK, OSD_CLOSE, SCAN_OSD_N };
-#define SCAN_OSD_GLYPH_OF 10   // scan_osd_glyph[10] = the word "of"
-
 typedef struct {
     int w, h;               // landscape strip dims (w along landscape-x)
     const uint8_t *a4;      // 4-bit alpha, row-major, high nibble first
 } scan_osd_strip_t;
 
-extern const scan_osd_strip_t scan_osd[SCAN_OSD_N];
-extern const scan_osd_strip_t scan_osd_glyph[11];   // '0'..'9', "of"
+extern const scan_osd_strip_t scan_osd[][SCAN_OSD_N];
+extern const scan_osd_strip_t scan_osd_glyph[10];   // '0'..'9'
+extern const scan_osd_strip_t scan_osd_of[];         // localized word "of"

@@ -119,10 +119,12 @@ static void sp_probe_libwally(void) {
 }
 
 static void sp_test_address(void) {
-    char buf[120];
+    char buf[120], test_addr[120], main_addr[120];
     spchk("address encode ok",
           sp_address_encode(SPV_ADDR_SCAN, SPV_ADDR_SPEND, true, buf, sizeof buf) == 0);
     spchk("address matches embit encoding", strcmp(buf, SPV_ADDR_EXPECT) == 0);
+    snprintf(test_addr, sizeof test_addr, "%s", buf);
+    spchk("testnet address network recognized", sp_address_network(test_addr) == 2);
     // cap one byte too small must refuse, not truncate
     char tiny[117];
     spchk("address encode refuses short buffer",
@@ -131,6 +133,30 @@ static void sp_test_address(void) {
     spchk("mainnet flavor ok",
           sp_address_encode(SPV_ADDR_SCAN, SPV_ADDR_SPEND, false, buf, sizeof buf) == 0 &&
           strncmp(buf, "sp1", 3) == 0 && strlen(buf) == 116);
+    snprintf(main_addr, sizeof main_addr, "%s", buf);
+    spchk("mainnet address network recognized", sp_address_network(main_addr) == 1);
+
+    char corrupt[120];
+    snprintf(corrupt, sizeof corrupt, "%s", main_addr);
+    size_t n = strlen(corrupt);
+    corrupt[n - 1] = corrupt[n - 1] == 'q' ? 'p' : 'q';
+    spchk("silent-payment checksum corruption rejected",
+          sp_address_network(corrupt) == 0);
+    corrupt[n - 1] = 0;
+    spchk("silent-payment wrong length rejected",
+          sp_address_network(corrupt) == 0);
+
+    wallet_set_network(0);
+    spchk("address validator accepts current-network sp1",
+          wallet_address_validate(main_addr) == WADDR_CURRENT_NETWORK);
+    spchk("address validator marks tsp1 as wrong network",
+          wallet_address_validate(test_addr) == WADDR_WRONG_NETWORK);
+    wallet_set_network(1);
+    spchk("address validator accepts current-network tsp1",
+          wallet_address_validate(test_addr) == WADDR_CURRENT_NETWORK);
+    spchk("address validator marks sp1 as wrong network",
+          wallet_address_validate(main_addr) == WADDR_WRONG_NETWORK);
+    wallet_set_network(0);
 }
 
 // Replicates create_outputs' recipient handling: walk recipients in order,
