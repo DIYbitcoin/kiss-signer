@@ -63,9 +63,17 @@ void      wt_pill_two_line(lv_obj_t *pill, const char *sub);
 // Pills sharing a row share a label size (smallest wins). Without it one long
 // word drops a single pill a rung and the row looks broken.
 void      wt_pill_row(lv_obj_t **pills, int n);
-// The rung a pill label would take in the ACTIVE locale. Exposed so the fit
-// report can measure every button the same way the kit draws it.
-const lv_font_t *wt_pill_font(const char *txt, int w, int h, bool primary);
+// How a pill label renders in the ACTIVE locale: the font, its tracking, and
+// whether it takes a second line. Closing the tracking, then wrapping, both
+// come BEFORE dropping a font size, so a wide-enough or tall-enough pill keeps
+// its rung. Exposed so the fit report measures buttons the way the kit draws
+// them; sim/fitcheck.c fails the build when a key action lands on font14.
+typedef struct {
+    const lv_font_t *font;
+    int  space;     // letter tracking to apply with it
+    bool wrap;      // needs LV_LABEL_LONG_WRAP at (w - 28)
+} wt_pill_fit_t;
+wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary);
 void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled when active
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,

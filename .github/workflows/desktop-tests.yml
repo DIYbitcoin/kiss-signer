@@ -36,6 +36,15 @@ jobs:
           /tmp/kisstest | tee /tmp/kisstest.log
           grep -q "PASS: BIP39 test vector -> 73C5DA0A" /tmp/kisstest.log
 
+      # The harness had silently stopped building (a source file was added to
+      # the device component and never to the fuzz link line), so nobody
+      # noticed it was gone. It only stays honest if CI runs it.
+      - name: parser fuzz (ASAN + UBSAN)
+        run: |
+          bash sim/build_fuzz.sh
+          /tmp/kissfuzz | tee /tmp/kissfuzz.log
+          grep -q "ALL FUZZ PASS" /tmp/kissfuzz.log
+
       # managed_components/ is gitignored (the IDF component manager populates
       # it during device builds), so fetch LVGL ourselves at the exact version
       # dependencies.lock pins for the device.
@@ -54,6 +63,15 @@ jobs:
             timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log
             tail -1 /tmp/sim_$L.log
           done
+
+      # Type-size ratchet. Fails when a button the user must READ to act
+      # correctly (sign, wipe, replace, verify) renders at font14 in ANY of the
+      # 21 locales, which is how a translation quietly turns the most
+      # consequential control on a screen into its smallest text.
+      - name: button + explainer fit report
+        run: |
+          bash sim/build_fitcheck.sh
+          /tmp/kissfit
 
       - name: setup node for interop rig
         uses: actions/setup-node@v4

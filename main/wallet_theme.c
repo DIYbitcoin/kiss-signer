@@ -127,25 +127,70 @@ static const lv_font_t *note_font(const char *txt, int w, int max_h);
 //
 // Letter spacing shrinks as the font grows: 2px of tracking is a third of a
 // word's width at 14 and just noise at 28, and it is width the label needs.
-const lv_font_t *wt_pill_font(const char *txt, int w, int h, bool primary)
+// Does txt fit the box at font f with this tracking, on one line or wrapped?
+// max_w = LV_COORD_MAX measures the text unwrapped; passing bw measures it
+// wrapped, in which case sz.x comes back as the WIDEST LINE -- so a single word
+// too long for the box still reports a miss instead of silently overhanging.
+static bool pill_fits(const char *txt, const lv_font_t *f, int space,
+                      int bw, int bh, bool wrap)
 {
-    // rounded ends eat the corners, so the text box is inset horizontally
-    int bw = w - 28, bh = h - 8;
     lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, space, 0, wrap ? bw : LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return sz.x <= bw && sz.y <= bh;
+}
+
+// The rungs a pill label descends, cheapest concession first:
+//
+//   1. the size, with its normal tracking
+//   2. the same size with tracking closed to 0. "CREATE NEW WALLET" is 20
+//      characters, so 1px of tracking is 20px of width -- and nobody has ever
+//      noticed a missing pixel between letters, while everybody notices a
+//      button rendered in the smallest type on the screen.
+//   3. a SECOND LINE at the same size. "MAINTENIR POUR SIGNER" has no one-line
+//      size above 14 on any pill this layout can afford.
+//   4. only then, a smaller font.
+//
+// Wrapping is never tried before both single-line attempts, so a label that
+// already fits on one line will not start breaking in two.
+wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary)
+{
+    int bw = w - 28, bh = h - 8;   // rounded ends eat the corners
+    wt_pill_fit_t r = { wt_font14(), 2, false };
+
     if (primary) {
-        lv_text_get_size(&sz, txt, wt_font28(), 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        if (sz.x <= bw && sz.y <= bh) return wt_font28();
+        if (pill_fits(txt, wt_font28(), 1, bw, bh, false))
+            return (wt_pill_fit_t){ wt_font28(), 1, false };
+        if (pill_fits(txt, wt_font28(), 0, bw, bh, false))
+            return (wt_pill_fit_t){ wt_font28(), 0, false };
     }
-    lv_text_get_size(&sz, txt, wt_font23(), 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    if (sz.x <= bw && sz.y <= bh) return wt_font23();
-    return wt_font14();
+    if (pill_fits(txt, wt_font23(), 1, bw, bh, false))
+        return (wt_pill_fit_t){ wt_font23(), 1, false };
+    if (pill_fits(txt, wt_font23(), 0, bw, bh, false))
+        return (wt_pill_fit_t){ wt_font23(), 0, false };
+    if (pill_fits(txt, wt_font23(), 0, bw, bh, true))
+        return (wt_pill_fit_t){ wt_font23(), 0, true };
+    if (pill_fits(txt, wt_font14(), 2, bw, bh, false))
+        return r;
+    if (pill_fits(txt, wt_font14(), 1, bw, bh, false))
+        return (wt_pill_fit_t){ wt_font14(), 1, false };
+    return (wt_pill_fit_t){ wt_font14(), 1, true };   // out of rungs: wrap
 }
 
 static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool primary)
 {
-    const lv_font_t *f = wt_pill_font(txt, w, h, primary);
-    lv_obj_set_style_text_font(l, f, 0);
-    lv_obj_set_style_text_letter_space(l, f == wt_font14() ? 2 : 1, 0);
+    wt_pill_fit_t f = wt_pill_fit(txt, w, h, primary);
+    lv_obj_set_style_text_font(l, f.font, 0);
+    lv_obj_set_style_text_letter_space(l, f.space, 0);
+    if (f.wrap) {
+        lv_obj_set_width(l, w - 28);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    } else {
+        // a re-fit can turn wrapping back off (wt_pill_row drops a rung)
+        lv_obj_set_width(l, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
+    }
 }
 
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)

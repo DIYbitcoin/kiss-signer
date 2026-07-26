@@ -629,14 +629,23 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_center(hl);
     }
 
-    mk_pill(tr(STR_C_BACK), 48, 404, 140, close_cb);
+    // ACTION_H: tall enough for a label to take a SECOND LINE at font23 rather
+    // than drop to font14 (two 29px lines plus padding). "HOLD TO SIGN" has no
+    // one-line size above 14 in French, Italian or Swedish, and the button that
+    // moves money is the last one that should be the smallest type on screen.
+    // The whole row shares the height so the three pills still line up.
+#define ACTION_H 66
+#define ACTION_Y 398
+    wt_pillh(s_scr, tr(STR_C_BACK), 48, ACTION_Y, 140, ACTION_H, close_cb, NULL);
     if (s_sum.status != WPSBT_STOP) {
         // no DETAILS on STOP: the details page presents fields as verified,
         // and a refused transaction has nothing left to decide
-        mk_pill(tr(STR_S_DETAILS), 208, 404, 170, details_cb);
+        wt_pillh(s_scr, tr(STR_S_DETAILS), 208, ACTION_Y, 170, ACTION_H,
+                 details_cb, NULL);
         if (s_sum.status == WPSBT_CAUTION && !s_ack) {
             // gate the hold pill behind a deliberate acknowledgement
-            lv_obj_t *ok = mk_pill(tr(STR_C_I_UNDERSTAND), 500, 404, 252, ack_cb);
+            lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 500, ACTION_Y,
+                                    252, ACTION_H, ack_cb, NULL);
             wt_pill_primary(ok);
             lv_obj_set_style_border_color(ok, WARN_COL, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(ok, 0), WARN_COL, 0);
@@ -644,7 +653,7 @@ static void verify_screen(lv_obj_t *parent)
             // hold-to-sign: ring fills while pressed; let go = nothing happens
             s_arc = lv_arc_create(s_scr);
             lv_obj_set_size(s_arc, 64, 64);
-            lv_obj_set_pos(s_arc, 420, 398);
+            lv_obj_set_pos(s_arc, 420, ACTION_Y + 1);
             lv_arc_set_rotation(s_arc, 270);
             lv_arc_set_bg_angles(s_arc, 0, 360);
             lv_arc_set_range(s_arc, 0, 100);
@@ -656,7 +665,8 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
             lv_obj_set_style_arc_color(s_arc, OK_COL, LV_PART_INDICATOR);
 
-            lv_obj_t *p = mk_pill(tr(STR_S_HOLD_TO_SIGN), 480, 404, 272, NULL);
+            lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 480, ACTION_Y,
+                                   272, ACTION_H, NULL, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
             lv_obj_set_style_border_color(p, OK_COL, 0);
             wt_pill_label_max(p);      // the most consequential button in the app

@@ -127,7 +127,7 @@
   "G_CREATE_NEW": "IZRADI NOVI NOVČANIK",
   "G_CREATE_NOTE": "novi ili obnovi. ZAMJENJUJE ono sto je ovdje.",
   "G_WIPE": "IZBRIŠI NOVČANIK",
-  "G_WIPE_NOTE": "brise novcanik odavde. rijeci + kodna fraza ga vracaju.",
+  "G_WIPE_NOTE": "briše novčanik odavde. riječi + kodna fraza ga vraćaju.",
   "G_NOERASE_T": "BRISANJE NIJE USPJELO",
   "G_NOERASE_B": "tvoje riječi možda su JOŠ ovdje.\n\nnemoj ga prodati ni pokloniti.\npokušaj brisanje ponovno.",
   "G_ERASED_T": "NOVČANIK IZBRISAN",
