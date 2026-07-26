@@ -23,3 +23,12 @@ endif()
 if(KISS_RELEASE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_RELEASE=1)
 endif()
+
+# field-debug PSBT dump (idf.py -DKISS_PSBT_DUMP=1): logs the received PSBT as
+# hex on the serial console so it can be parsed with tools/psbt_fields.py.
+# Deliberately opt-in per build -- an unsigned PSBT is not a secret, but it is
+# amounts, addresses and counterparties, which must never reach a log by
+# default. See the guard comment in wallet_sign.c.
+if(KISS_PSBT_DUMP)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_PSBT_DUMP=1)
+endif()
