@@ -348,10 +348,24 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
   }
 }
 
-// Camera-app viewfinder: four corner brackets around the center of the frame.
-// Soft white while searching; solid the moment a QR is located.
+// Camera-app viewfinder: four corner brackets marking the region that is
+// actually DECODED, so "fill the brackets" is true advice.
+//
+// It used to be a 260x260 box tucked between the two OSD bands, chosen to look
+// tidy. That quietly instructed the one thing that cannot work on a dense code:
+// a QR filling 260 landscape px lands on ~2.2 pixels per module for a
+// version-25 PSBT, and quirc needs cleaner edges than that. The device said
+// "put it here", the user did, and it never read until they ignored the guide
+// and moved closer. See scan_decode for the other half of that bug.
+//
+// The bands are NOT an exclusion zone. They are drawn into the display
+// framebuffer only; scan_decode reads the raw sensor frame, so nothing under a
+// band is lost to the decoder. Letting the brackets run the full height of the
+// view costs a little visual tidiness under the bands and buys ~450 px across
+// a filled code, which is 3.8 px/module at version 25 -- the difference
+// between "never reads" and "reads instantly".
 static void draw_brackets(uint16_t *fb) {
-  const int cx = 400, cy = 245, half = 130, arm = 44, t = 4;   // clear of both bands
+  const int cx = 400, cy = 240, half = 225, arm = 44, t = 4;
   uint8_t a = s_scan_found > 0 ? 15 : 8;
   for (int sx = -1; sx <= 1; sx += 2)
     for (int sy = -1; sy <= 1; sy += 2) {
@@ -561,13 +575,55 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
   // hold lines from an OLDER frame. Invalidate before reading or the decoder
   // sees a mix of two frames.
   esp_cache_msync((void *)frame, s_cam.buf_len, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
-  const uint16_t *base = (const uint16_t *)frame
-                         + ((h - (uint32_t)(qh * 2)) / 2) * w
-                         + (w - (uint32_t)(qw * 2)) / 2;
+
+  // WHICH PART OF THE SENSOR TO READ. This used to be, unconditionally, the
+  // whole 1280x728 frame halved to 640x364 -- while the preview showed only a
+  // 480x728 crop of that same sensor. The decoder's field of view was 2.67x
+  // WIDER than what the user was aiming, so a code that looked well framed was
+  // a third of the size the decoder saw, and a dense one never resolved. That
+  // mismatch, not the optics, is why "bring it closer" was the only thing that
+  // worked.
+  //
+  // Now attempts alternate:
+  //   AIMED - exactly the rectangle orient_geometry gives the preview, at 1:1.
+  //           What you see is what gets decoded. At default zoom that is
+  //           480x728, so a filled code is ~4 px/module at version 25.
+  //   WIDE  - the whole sensor, as before, downsampled into the same buffer.
+  //           Keeps a code that is outside the brackets readable, and keeps the
+  //           half-res path that qr-scan-camera-recipe records as the workhorse
+  //           when sensor line artifacts spoil a full-res read.
+  //
+  // The decoder buffer is fixed at the default crop's size and never resized:
+  // re-allocating it on a zoom change is an allocation that can fail inside the
+  // scan loop, and a failed image alloc is the hang this project has already
+  // paid for once.
+  uint32_t sw, sh;
+  if (s_scan_att & 1) {
+    uint32_t cw, ch, ow, oh;
+    float sc;
+    if (orient_geometry(w, h, &cw, &ch, &sc, &ow, &oh)) {
+      sw = cw; sh = ch;
+    } else {
+      sw = w; sh = h;
+    }
+  } else {
+    sw = w > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : w;
+    sh = h > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : h;
+  }
+  if (sw > w) sw = w;
+  if (sh > h) sh = h;
+
+  // Centred, matching show_frame's block_offset_{x,y} = (dim - crop) / 2 --
+  // if these two ever disagree the guide starts lying again.
+  const uint32_t ox = (w - sw) / 2, oy = (h - sh) / 2;
+  const uint32_t stepx = (sw << 16) / (uint32_t)qw;   // 16.16, no float, no div in the loop
+  const uint32_t stepy = (sh << 16) / (uint32_t)qh;
+  const uint16_t *src = (const uint16_t *)frame;
   for (int y = 0; y < qh; y++, img += qw) {
-    const uint16_t *row = base + (size_t)y * 2 * w;
-    for (int x = 0; x < qw; x++)          // reversed x = un-mirror the sensor
-      img[x] = (uint8_t)((row[(qw - 1 - x) * 2] >> 3) & 0xFC);
+    const uint16_t *row = src + (size_t)(oy + ((uint32_t)y * stepy >> 16)) * w + ox;
+    uint32_t fx = 0;
+    for (int x = 0; x < qw; x++, fx += stepx)   // reversed write = un-mirror the sensor
+      img[qw - 1 - x] = (uint8_t)((row[fx >> 16] >> 3) & 0xFC);
   }
   k_quirc_end(s_quirc, false);
   int cnt = k_quirc_count(s_quirc);
@@ -600,10 +656,10 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
     } else {
       // Located, fully in frame, and still not decoding. Holding steadier is
       // not going to fix that: a whole PSBT in one static QR is version ~25-40,
-      // so at the 640-wide decode above each module lands on 3-4 pixels before
-      // any optical blur, and quirc wants cleaner edges than that. The finder
-      // squares are coarse enough to keep locating regardless, which is why
-      // this state can persist indefinitely while looking like progress.
+      // so unless it FILLS the brackets each module lands on only a pixel or
+      // two before any optical blur, and quirc wants cleaner edges than that.
+      // The finder squares are coarse enough to keep locating regardless, which
+      // is why this state can persist indefinitely while looking like progress.
       // Say so, and name the fix: animated QR fragments are ~60 bytes each,
       // a low-version code with fat modules, and they read first time.
       s_scan_osd = (++s_scan_stuck > SCAN_STUCK_FRAMES) ? OSD_STUCK : OSD_SEEN;
@@ -847,10 +903,23 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
   if (s_cam.streaming) cam_stop();               // spike preview was live: restart clean
   if (!s_cam.inited && !cam_init(bus)) return false;
   if (!s_quirc) {
-    int cw = s_cam.w > SCAN_MAX_DIM ? SCAN_MAX_DIM : (int)s_cam.w;
-    int ch = s_cam.h > SCAN_MAX_DIM ? SCAN_MAX_DIM : (int)s_cam.h;
-    s_scan_w = cw / 2;
-    s_scan_h = ch / 2;
+    // Size the decoder to the DEFAULT PREVIEW CROP, at 1:1, and never resize
+    // it. That is what makes the aimed attempt in scan_decode full-resolution:
+    // at zoom L0 the preview shows a 480x728 slice of the sensor, so a code
+    // filling the short axis arrives as ~480 px instead of the 240 it would get
+    // from the old half-of-the-whole-frame buffer.
+    //
+    // Fixed, because a zoom change must never trigger an allocation inside the
+    // scan loop. k_quirc puts images in PSRAM first (k_malloc_large), so 480x728
+    // is affordable; a failed image alloc is not something to risk mid-scan.
+    int cw = (int)s_zoom_tab[0][0].bw;
+    int ch = (int)s_zoom_tab[0][0].bh;
+    if (cw > SCAN_MAX_DIM) cw = SCAN_MAX_DIM;
+    if (ch > SCAN_MAX_DIM) ch = SCAN_MAX_DIM;
+    if (cw > (int)s_cam.w) cw = (int)s_cam.w;
+    if (ch > (int)s_cam.h) ch = (int)s_cam.h;
+    s_scan_w = cw;
+    s_scan_h = ch;
     s_quirc = k_quirc_new();
     if (!s_quirc || k_quirc_resize(s_quirc, s_scan_w, s_scan_h) != 0) {
       if (s_quirc) { k_quirc_destroy(s_quirc); s_quirc = NULL; }
