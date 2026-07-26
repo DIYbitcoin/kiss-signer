@@ -1,4 +1,4 @@
-// KISS wallet login UI (step 3): passphrase keyboard -> fingerprint -> home.
+// KISS Signer login UI (step 3): passphrase keyboard -> fingerprint -> home.
 // Platform-independent LVGL; compiled in both device and sim builds.
 #pragma once
 #include <stdbool.h>

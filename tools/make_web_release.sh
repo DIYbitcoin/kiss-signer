@@ -146,7 +146,7 @@ parts = [
 ]
 
 json.dump({
-    "name": "KISS Wallet",
+    "name": "KISS Signer",
     "version": f"{version}-{rev}",
     "new_install_prompt_erase": True,
     "new_install_improv_wait_time": 0,
@@ -186,7 +186,7 @@ if not signed:
 
 json.dump({
     "schema": 1,
-    "product": "KISS Wallet",
+    "product": "KISS Signer",
     "board": "Guition JC4880P443C",
     "chipFamily": "ESP32-P4",
     "version": version,

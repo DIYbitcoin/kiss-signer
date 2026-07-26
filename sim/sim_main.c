@@ -756,6 +756,13 @@ int main(void) {
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 address now
   save("/tmp/sim_recv_tn.ppm");
+  // The testnet silent-payment address is one character longer than mainnet
+  // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
+  // is where a truncation report landed. tools/check_qr_payloads.sh decodes
+  // this frame and diffs it against the text beside it.
+  touch(295, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
+  save("/tmp/sim_recv_sp_tn.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK out of the SP view
   touch(118, 430); pump(3); release(); pump(4);     // BACK
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 256); pump(3); release(); pump(6);     // FROM SD

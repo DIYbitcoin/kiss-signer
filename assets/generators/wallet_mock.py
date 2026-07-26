@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cyberpunk KISS-wallet main-menu THEME (visual shell only — no wallet logic).
+"""Cyberpunk KISS Signer main-menu THEME (visual shell only — no wallet logic).
 Landscape 800x480 to match the game. Emits the DEFAULT mono-white menu as a baked
 LVGL RGB565 image (main/wallet_img.{c,h}) shown after the KISS unlock gesture, plus
 a preview sheet demoing the switchable accent themes AND the safety status light.

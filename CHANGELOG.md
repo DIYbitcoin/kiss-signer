@@ -1,6 +1,6 @@
 # Changelog
 
-All notable, user-facing changes to KISS Wallet. Dates are ISO (YYYY-MM-DD).
+All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer — entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 

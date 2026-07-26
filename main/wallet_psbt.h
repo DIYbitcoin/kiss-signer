@@ -1,4 +1,4 @@
-// KISS Wallet — step 5: PSBT parse / safety-verify / sign (libwally only).
+// KISS Signer — step 5: PSBT parse / safety-verify / sign (libwally only).
 // Spec safety model: BLOCK (won't sign), CAUTION (user decides), READY.
 // Needs an open wallet session (change re-derivation uses the session key).
 #pragma once

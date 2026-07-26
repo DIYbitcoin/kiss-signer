@@ -191,8 +191,8 @@ static lv_obj_t *s_tile_glow;  // soft highlight under the finger (press feedbac
 
 static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficulty ramp
 
-// ---- hidden KISS wallet: revealed by drawing a "K" on the game menu (cover -> wallet) ----
-static lv_obj_t *s_wallet;         // baked KISS wallet menu (visual shell only, for now)
+// ---- hidden KISS Signer: revealed by drawing a "K" on the game menu (cover -> wallet) ----
+static lv_obj_t *s_wallet;         // baked KISS Signer menu (visual shell only, for now)
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
 static lv_obj_t *s_tile_ttl[4], *s_tile_sub[4];  // live tile labels (settle in on unlock)
@@ -1821,7 +1821,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_add_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
 
 
-  // ---- hidden KISS wallet menu (baked) — revealed only by the "K" unlock gesture ----
+  // ---- hidden KISS Signer menu (baked) — revealed only by the "K" unlock gesture ----
   s_wallet = lv_image_create(scr);
   lv_image_set_src(s_wallet, &img_wallet);
   lv_obj_set_pos(s_wallet, 0, 0);

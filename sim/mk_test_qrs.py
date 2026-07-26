@@ -58,7 +58,7 @@ def main(outdir):
 </section>""")
     html = f"""<!doctype html>
 <meta charset="utf-8">
-<title>KISS wallet - QR scan test fixtures (dev seed 73C5DA0A, TESTNET)</title>
+<title>KISS Signer - QR scan test fixtures (dev seed 73C5DA0A, TESTNET)</title>
 <style>
   body {{ background:#fff; color:#111; font:16px/1.5 -apple-system, sans-serif;
          max-width:560px; margin:2rem auto; text-align:center; }}

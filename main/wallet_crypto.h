@@ -1,4 +1,4 @@
-// KISS Wallet crypto layer (libwally). Step 1: prove the crypto stack.
+// KISS Signer crypto layer (libwally). Step 1: prove the crypto stack.
 #pragma once
 #include <stdint.h>
 
