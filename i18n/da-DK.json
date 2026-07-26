@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "opret en ny tegnebog, eller gendan en fra\ngendannelsesord. dette ERSTATTER tegnebogen\npå enheden. sikkerhedskopiér de gamle ord først.",
   "G_WIPE": "SLET TEGNEBOG",
   "G_WIPE_NOTE": "fjerner tegnebogen fra enheden.\ngendannelsesord + samme adgangsfrase gendanner den.",
-  "G_TAP_WIPE": "TRYK IGEN FOR AT SLETTE",
-  "G_TAP_ERASE": "TRYK IGEN FOR AT SLETTE",
   "G_NOERASE_T": "KUNNE IKKE SLETTE",
   "G_NOERASE_B": "dine ord kan STADIG være på enheden.\n\nsælg eller giv den ikke væk.\nprøv sletningen igen.",
   "G_ERASED_T": "TEGNEBOGEN ER SLETTET",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "læs dette først",
   "L_SCAN_WARN_B": "den der kan læse den QR, kan åbne\ndenne tegnebog.\n\net foto af den er lige så godt.\n\nscanningen bruges præcis som trykt.",
   "L_SCAN_GO": "SCAN DEN",
-  "W_LOAD_TYPE_NOTE": "tast ordene fra dit papir."
+  "W_LOAD_TYPE_NOTE": "tast ordene fra dit papir.",
+  "G_WIPEC_T": "SLET DENNE TEGNEBOG?",
+  "G_WIPEC_B": "ordene forsvinder fra enheden nu.\n\nkun dit papir + adgangsfrase kan\nhente tegnebogen tilbage.",
+  "G_HOLD_WIPE": "HOLD FOR AT SLETTE"
 }

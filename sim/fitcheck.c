@@ -53,6 +53,7 @@ static const slot_t SLOTS[] = {
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
     // wallet_settings.c: the two wipe overlays
+    { "wipe/confirm",     STR_G_WIPEC_B,    704, 190 },
     { "wipe/erased",      STR_G_ERASED_B,   704, 160 },
     { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
     // amnesic mode: seed-QR import + passphrase-from-QR

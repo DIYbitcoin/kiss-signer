@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "vytvořte novou peněženku nebo ji obnovte\nze slov seedu. tato volba NAHRADÍ\npeněženku v zařízení. nejprve zálohujte\nstará slova.",
   "G_WIPE": "VYMAZAT PENĚŽENKU",
   "G_WIPE_NOTE": "odstraní peněženku z tohoto zařízení.\nslova seedu + stejná přístupová fráze\nji obnoví.",
-  "G_TAP_WIPE": "DALŠÍM KLEPNUTÍM VYMAZAT",
-  "G_TAP_ERASE": "DALŠÍM KLEPNUTÍM VYMAZAT",
   "G_NOERASE_T": "VYMAZÁNÍ SE NEZDAŘILO",
   "G_NOERASE_B": "tvoje slova tu můžou POŘÁD být.\n\nneprodávej to ani nedávej pryč.\nzkus smazání znovu.",
   "G_ERASED_T": "PENĚŽENKA VYMAZÁNA",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "přečti si to nejdřív",
   "L_SCAN_WARN_B": "kdo ten QR přečte, otevře\ntuto peněženku.\n\nfotka toho QR funguje stejně.\n\nsken se použije přesně jak je.",
   "L_SCAN_GO": "NAČÍST QR",
-  "W_LOAD_TYPE_NOTE": "napiš slova ze svého papíru."
+  "W_LOAD_TYPE_NOTE": "napiš slova ze svého papíru.",
+  "G_WIPEC_T": "SMAZAT TUTO PENĚŽENKU?",
+  "G_WIPEC_B": "slova teď z tohoto zařízení zmizí.\n\npeněženku vrátí zpátky jen\ntvůj papír + přístupová fráze.",
+  "G_HOLD_WIPE": "DRŽ PRO SMAZÁNÍ"
 }

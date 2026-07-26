@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "skapa en ny plånbok eller återställ en från\nåterställningsord. detta ERSÄTTER plånboken\npå enheten. säkerhetskopiera de gamla orden först.",
   "G_WIPE": "RADERA PLÅNBOK",
   "G_WIPE_NOTE": "tar bort plånboken från enheten.\nåterställningsord + samma lösenfras återställer den.",
-  "G_TAP_WIPE": "TRYCK IGEN FÖR ATT RADERA",
-  "G_TAP_ERASE": "TRYCK IGEN FÖR ATT RADERA",
   "G_NOERASE_T": "KUNDE INTE RADERA",
   "G_NOERASE_B": "dina ord kan FORTFARANDE finnas här.\n\nsälj eller ge inte bort den.\nförsök radera igen.",
   "G_ERASED_T": "PLÅNBOKEN ÄR RADERAD",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "läs det här först",
   "L_SCAN_WARN_B": "den som kan läsa QR-koden kan öppna\nden här plånboken.\n\nett foto av den duger lika bra.\n\nskanningen används exakt som tryckt.",
   "L_SCAN_GO": "SKANNA DEN",
-  "W_LOAD_TYPE_NOTE": "skriv in orden från ditt papper."
+  "W_LOAD_TYPE_NOTE": "skriv in orden från ditt papper.",
+  "G_WIPEC_T": "RADERA DEN HÄR PLÅNBOKEN?",
+  "G_WIPEC_B": "orden försvinner från enheten nu.\n\nbara ditt papper + lösenfras kan\nhämta tillbaka plånboken.",
+  "G_HOLD_WIPE": "HÅLL FÖR ATT RADERA"
 }

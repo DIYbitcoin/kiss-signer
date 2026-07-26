@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "make a fresh wallet, or restore from words.\nthis REPLACES what is on here.",
   "G_WIPE": "WIPE WALLET",
   "G_WIPE_NOTE": "removes the wallet from this device.\nyour words + passphrase restore it.",
-  "G_TAP_WIPE": "TAP AGAIN TO WIPE",
-  "G_TAP_ERASE": "TAP AGAIN TO ERASE",
   "G_NOERASE_T": "COULD NOT ERASE",
   "G_NOERASE_B": "your words may STILL be on this device.\n\ndo not sell or give it away.\ntry the wipe again.",
   "G_ERASED_T": "WALLET ERASED",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "read this first",
   "L_SCAN_WARN_B": "whoever can read that QR can open\nthis wallet.\n\na photo of it is the same as the QR.\n\nthe scan is used exactly as printed.",
   "L_SCAN_GO": "SCAN IT",
-  "W_LOAD_TYPE_NOTE": "type the words from your paper."
+  "W_LOAD_TYPE_NOTE": "type the words from your paper.",
+  "G_WIPEC_T": "ERASE THIS WALLET?",
+  "G_WIPEC_B": "the words go from this device now.\n\nonly your paper + passphrase can\nbring this wallet back.",
+  "G_HOLD_WIPE": "HOLD TO ERASE"
 }

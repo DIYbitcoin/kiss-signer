@@ -45,7 +45,6 @@ static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
-static bool s_wipe_arm;         // "wipe wallet" needs a confirming 2nd tap too
 static lv_obj_t *s_type_seg[3], *s_type_pfx[3], *s_type_expl;   // NATIVE/NESTED/LEGACY chooser + example prefix
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
@@ -59,7 +58,6 @@ static const char *type_prefix(int sc, int tn)
     default:             return tn ? "tb1..." : "bc1...";
     }
 }
-static bool s_replace_arm;      // "replace wallet" needs a confirming 2nd tap
 
 bool wallet_settings_active(void) { return s_scr != NULL; }
 
@@ -187,29 +185,10 @@ static void close_cb(lv_event_t *e)
 
 void wallet_settings_close(void) { close_cb(NULL); }   // idle auto-lock path
 
-// two armed red pills at once would be ambiguous — arming one disarms the other
-static void disarm_replace(void)
-{
-    if (!s_replace_arm) return;
-    s_replace_arm = false;
-    lv_obj_t *l = lv_obj_get_child(s_replace_pill, 0);
-    lv_label_set_text(l, tr(STR_G_CREATE_NEW));
-    lv_obj_set_style_text_color(l, INK_COL, 0);
-    lv_obj_set_style_border_color(s_replace_pill, MUT_COL, 0);
-}
-static void disarm_wipe(void)
-{
-    if (!s_wipe_arm) return;
-    s_wipe_arm = false;
-    lv_obj_t *l = lv_obj_get_child(s_wipe_pill, 0);
-    lv_label_set_text(l, tr(STR_G_WIPE));
-    lv_obj_set_style_text_color(l, STOP_COL, 0);
-    lv_obj_set_style_border_color(s_wipe_pill, MUT_COL, 0);
-}
-
-// Wipe: erase the seed and go back to being just a game. Two-tap arm like
-// CREATE NEW, but the second tap erases IMMEDIATELY (a power pull right after
-// must still find the seed gone), then shows a full-screen confirmation.
+// Wipe: erase the seed and go back to being just a game. One tap on the pill
+// opens a confirm screen; the erase happens on a HOLD there and takes effect
+// immediately (a power pull right after must still find the seed gone), then a
+// full-screen confirmation says so.
 static void wiped_ok_cb(lv_event_t *e)
 {
     (void)e;
@@ -222,24 +201,22 @@ static void wipe_fail_ok_cb(lv_event_t *e)   // dismiss back to settings, retrya
     lv_obj_delete_async(ovl);
 }
 
-static void wipe_cb(lv_event_t *e)
-{
-    lv_obj_t *lbl = lv_obj_get_child(lv_event_get_current_target(e), 0);
-    if (!s_wipe_arm) {
-        s_wipe_arm = true;
-        disarm_replace();
-        lv_label_set_text(lbl, tr(STR_G_TAP_WIPE));
-        lv_obj_set_style_text_color(lbl, STOP_COL, 0);
-        lv_obj_set_style_border_color(s_wipe_pill, STOP_COL, 0);
-        return;
-    }
-    s_wipe_arm = false;
-    if (wallet_seed_wipe() != 0) {        // NVS erase/commit CAN fail: never claim
-        // "erased" unless it truly is — reset the pill, tell the truth
-        lv_label_set_text(lbl, tr(STR_G_WIPE));
-        lv_obj_set_style_text_color(lbl, STOP_COL, 0);
-        lv_obj_set_style_border_color(s_wipe_pill, MUT_COL, 0);
+// The erase itself. Reached only from the confirm screen's hold, never from a
+// tap on the Settings pill: two taps in one spot is a gesture a pocket or a
+// double tap can produce by accident, and this one is not undoable from here.
+#define WIPE_HOLD_MS 2000    // longer than hold-to-sign: this one has no undo
 
+static void wipe_cancel_cb(lv_event_t *e)
+{
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+static void do_wipe(void *ud)
+{
+    lv_obj_t *confirm = ud;
+    if (confirm) lv_obj_delete_async(confirm);
+    if (wallet_seed_wipe() != 0) {        // NVS erase/commit CAN fail: never claim
+        // "erased" unless it truly is — say so and change nothing
         lv_obj_t *ovl = lv_obj_create(s_scr);
         lv_obj_remove_style_all(ovl);
         lv_obj_set_size(ovl, 800, 480);
@@ -332,23 +309,55 @@ static void wipe_cb(lv_event_t *e)
 // Replacing the seed abandons EVERY passphrase-wallet on the old one, so make
 // it a deliberate two-tap: first tap arms + turns the pill red, second runs
 // the wizard. Completing the wizard overwrites the seed; cancelling keeps it.
+// CREATE NEW WALLET opens the wizard and nothing else: the mnemonic is staged
+// in RAM and only reaches flash after the whole passphrase ritual, so backing
+// out at any point leaves the existing wallet untouched. It used to arm like
+// WIPE, which bought no safety and put two identical "tap again" gestures on
+// one screen -- the dangerous one then looked routine.
 static void replace_cb(lv_event_t *e)
 {
-    lv_obj_t *lbl = lv_obj_get_child(lv_event_get_current_target(e), 0);
-    if (!s_replace_arm) {
-        s_replace_arm = true;
-        disarm_wipe();
-        lv_label_set_text(lbl, tr(STR_G_TAP_ERASE));
-        lv_obj_set_style_text_color(lbl, STOP_COL, 0);
-        lv_obj_set_style_border_color(s_replace_pill, STOP_COL, 0);
-        return;
-    }
+    (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_replace_arm = false;
     wallet_begin_setup();
 }
 
 // thin wrappers over the wallet_theme kit (call sites keep their signatures)
+// One tap on WIPE WALLET lands here. The destructive control is a HOLD, and it
+// sits centre-screen, nowhere near the pill that was just tapped, so no amount
+// of tapping in one place can reach it.
+static void wipe_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, 800, 480);
+    lv_obj_set_pos(ovl, 0, 0);
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);      // swallow stray taps
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, tr(STR_G_WIPEC_T));
+    lv_obj_set_style_text_color(t, STOP_COL, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
+    lv_obj_set_style_text_letter_space(t, 3, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
+
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, tr(STR_G_WIPEC_B));
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_G_WIPEC_B), 704, 190), 0);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
+
+    wt_hold_pill(ovl, tr(STR_G_HOLD_WIPE), 48, 372, 320, 52,
+                 WIPE_HOLD_MS, do_wipe, ovl);
+    wt_pill(ovl, tr(STR_C_CANCEL), 610, 372, 140, wipe_cancel_cb, ovl);
+}
+
 static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
 {
     return wt_pillh(s_scr, txt, x, y, w, h, cb, ud);
@@ -511,14 +520,12 @@ void wallet_settings_open(lv_obj_t *parent)
     // hand-broken well under the wrap width so LVGL never re-wraps them into
     // orphan words (the old copy stacked "separate" / "coins." on own lines).
     mk_section(tr(STR_I_T), 430, 78);
-    s_replace_arm = false;
     s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 104, 320, 52, replace_cb, NULL);
     lv_obj_t *wn = mk_wrap(430, 166, 340);
     lv_label_set_text(wn, tr(STR_G_CREATE_NOTE));
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; second tap confirms.
-    s_wipe_arm = false;
     s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 268, 320, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
     lv_obj_t *wipe_n = mk_wrap(430, 330, 340);

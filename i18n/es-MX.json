@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "crea una billetera nueva o restaura una con\npalabras de recuperación. esto REEMPLAZA la de\naquí: respalda antes las palabras viejas.",
   "G_WIPE": "BORRAR BILLETERA",
   "G_WIPE_NOTE": "quita la billetera de este dispositivo.\npalabras + la misma passphrase permiten restaurarla.",
-  "G_TAP_WIPE": "TOCA OTRA VEZ PARA BORRAR",
-  "G_TAP_ERASE": "TOCA OTRA VEZ PARA REEMPLAZAR",
   "G_NOERASE_T": "NO SE PUDO BORRAR",
   "G_NOERASE_B": "tus palabras pueden seguir AQUÍ.\n\nno lo vendas ni lo regales.\nintenta borrar otra vez.",
   "G_ERASED_T": "BILLETERA BORRADA",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "lee esto primero",
   "L_SCAN_WARN_B": "quien pueda leer ese QR puede abrir\nesta billetera.\n\nuna foto del QR vale igual.\n\nse usa exactamente como esté impreso.",
   "L_SCAN_GO": "ESCANEARLO",
-  "W_LOAD_TYPE_NOTE": "escribe las palabras de tu papel."
+  "W_LOAD_TYPE_NOTE": "escribe las palabras de tu papel.",
+  "G_WIPEC_T": "BORRAR ESTA BILLETERA?",
+  "G_WIPEC_B": "las palabras salen de este dispositivo ya.\n\nsolo tu papel + passphrase pueden\nrecuperar esta billetera.",
+  "G_HOLD_WIPE": "MANTEN PARA BORRAR"
 }

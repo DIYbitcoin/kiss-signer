@@ -128,8 +128,6 @@
   "G_CREATE_NOTE": "izradite novi novčanik ili ga obnovite\niz riječi za oporavak. ovo ZAMJENJUJE\nnovčanik na uređaju. prvo kopirajte\nstare riječi.",
   "G_WIPE": "IZBRIŠI NOVČANIK",
   "G_WIPE_NOTE": "uklanja novčanik s ovog uređaja.\nriječi za oporavak + ista kodna fraza\nobnavljaju ga.",
-  "G_TAP_WIPE": "DODIRNITE PONOVNO ZA BRISANJE",
-  "G_TAP_ERASE": "DODIRNITE PONOVNO ZA BRISANJE",
   "G_NOERASE_T": "BRISANJE NIJE USPJELO",
   "G_NOERASE_B": "tvoje riječi možda su JOŠ ovdje.\n\nnemoj ga prodati ni pokloniti.\npokušaj brisanje ponovno.",
   "G_ERASED_T": "NOVČANIK IZBRISAN",
@@ -307,5 +305,8 @@
   "L_SCAN_WARN_S": "prvo pročitaj ovo",
   "L_SCAN_WARN_B": "tko pročita taj QR, otvara\novaj novčanik.\n\nfotografija tog QR-a jednako vrijedi.\n\nskeniranje se koristi točno kako piše.",
   "L_SCAN_GO": "SKENIRAJ QR",
-  "W_LOAD_TYPE_NOTE": "utipkaj riječi sa svog papira."
+  "W_LOAD_TYPE_NOTE": "utipkaj riječi sa svog papira.",
+  "G_WIPEC_T": "OBRISATI OVAJ NOVČANIK?",
+  "G_WIPEC_B": "riječi sada odlaze s ovog uređaja.\n\nsamo tvoj papir + kodna fraza mogu\nvratiti ovaj novčanik.",
+  "G_HOLD_WIPE": "DRŽI ZA BRISANJE"
 }
