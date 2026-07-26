@@ -9,6 +9,7 @@
 
 #include "i18n.h"
 #include "wallet_crypto.h"
+#include "wallet_scan.h"    // wallet_scan_open_raw: passphrase-from-QR
 #include "wallet_seed.h"
 #include "wallet_theme.h"
 
@@ -742,6 +743,51 @@ static void kb_cb(lv_event_t *e) {
   }
 }
 
+// ---- passphrase from a QR ----
+// The scanned text becomes the passphrase exactly as decoded, including case
+// and spaces: a passphrase that cannot be reproduced byte for byte is a wallet
+// nobody can reopen. Refuse anything the keyboard could not have typed, for
+// the same reason (see the printable-ASCII rule above).
+// The scan screen closes itself before calling back, so the keyboard underneath
+// is already visible again: fill it in place rather than rebuilding it (which
+// wallet_login_open would refuse to do anyway while a login is open).
+static void pp_scan_text_cb(const char *txt, size_t len) {
+  if (!s_login || len == 0 || len > PASS_MAX)
+    return;                                 // unusable: leave what was typed
+  for (size_t i = 0; i < len; i++)
+    if (txt[i] < 0x20 || txt[i] > 0x7E)
+      return;
+  memcpy(s_pass, txt, len);
+  s_pass[len] = 0;
+  s_plen = (int)len;
+  entry_refresh();
+}
+
+static void pp_scan_cancel_cb(void) { }     // the keyboard was never torn down
+
+static void pp_scan_go_cb(lv_event_t *e) {
+  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+  wallet_scan_open_raw(lv_screen_active(), pp_scan_text_cb, pp_scan_cancel_cb);
+}
+
+static void pp_scan_back_cb(lv_event_t *e) {
+  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+static void pp_scan_warn_cb(lv_event_t *e) {
+  (void)e;
+  lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_SCAN_WARN_T),
+                            tr(STR_L_SCAN_WARN_S));
+  lv_obj_move_foreground(scr);
+  lv_obj_t *b = wt_lbl(scr, tr(STR_L_SCAN_WARN_B), 48, 122,
+                       wt_body_font(tr(STR_L_SCAN_WARN_B), 704, 274), WT_MUT);
+  lv_obj_set_width(b, 704);
+  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, 404, 300, pp_scan_go_cb, scr);
+  wt_pill_primary(go);
+  wt_pill(scr, tr(STR_C_BACK), 610, 404, 140, pp_scan_back_cb, scr);
+}
+
 static void show_cb(lv_event_t *e) {
   (void)e;
   s_show = !s_show;
@@ -810,6 +856,23 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_text_color(s_showbtn_lbl, MUT_COL, 0);
   lv_obj_set_style_text_font(s_showbtn_lbl, wt_font14(), 0);
   lv_obj_center(s_showbtn_lbl);
+
+  // SCAN: a passphrase kept as a QR (some owners do). Gated behind one warning
+  // screen, the same pattern as the scan-key export, because a passphrase in a
+  // QR is only as private as wherever that QR lives.
+  {
+    lv_obj_t *sb = lv_button_create(s_login);
+    lv_obj_set_style_bg_color(sb, KEY_COL, 0);
+    lv_obj_set_style_shadow_width(sb, 0, 0);
+    lv_obj_set_size(sb, 92, 40);
+    lv_obj_set_pos(sb, 550, 18);
+    lv_obj_add_event_cb(sb, pp_scan_warn_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *sl = lv_label_create(sb);
+    lv_label_set_text(sl, tr(STR_L_SCAN_BTN));
+    lv_obj_set_style_text_color(sl, MUT_COL, 0);
+    lv_obj_set_style_text_font(sl, wt_font14(), 0);
+    lv_obj_center(sl);
+  }
 
   s_entry = lv_label_create(s_login);
   lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
@@ -903,5 +966,6 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
   lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(w);
   lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+
   return v;
 }

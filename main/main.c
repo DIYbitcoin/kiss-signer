@@ -1189,11 +1189,23 @@ static void setup_done_login(void) {       // wizard stored the seed: first logi
   wallet_login_open_setup(wallet_start);   // passphrase typed twice (safety net)
 }
 
+// AMNESIC: the seed was just typed or scanned into RAM. No setup ritual here —
+// this is an ordinary unlock of a wallet the owner already has, so it goes to
+// the normal one-passphrase login.
+static void amnesic_loaded(void) {
+  wallet_login_open(wallet_start);
+}
+
 // Settings -> "REPLACE WALLET": run the wizard on demand (not just first boot).
 // Completing it overwrites the stored seed; cancelling leaves it untouched.
 void wallet_begin_setup(void) {
   wallet_setup_open(lv_screen_active(), setup_done_login);
 }
+
+// Settings -> switched to AMNESIC: the stored seed is gone, so the session that
+// is still open has nothing behind it. Lock straight back to the game.
+void wallet_wiped_lock(void);
+void wallet_amnesic_lock(void) { wallet_wiped_lock(); }
 
 // Sync the home TESTNET badge to the current network. Called on unlock and by
 // Settings when it closes, so flipping the network updates the home immediately.
@@ -1657,9 +1669,13 @@ static void game_tick(lv_timer_t *t) {
           } else if (tap) {
             start_game(); s_gn = 0; s_strokes = 0;            // menu: a tap -> play
           } else if (detect_KISS(s_gpt, s_gn, s_strokes)) {
-            // "KISS" -> passphrase login; a device with no seed yet gets the
-            // setup wizard first, then the type-twice login
+            // "KISS" -> passphrase login. No seed on here means one of two
+            // things: an AMNESIC device (nothing is ever stored, so every
+            // power-on loads the seed first, then the normal one-passphrase
+            // login), or a fresh device that needs the whole setup wizard.
             if (wallet_seed_exists()) wallet_login_open(wallet_start);
+            else if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
+              wallet_setup_open_load(lv_screen_active(), amnesic_loaded);
             else wallet_setup_open(lv_screen_active(), setup_done_login);
             s_gn = 0; s_strokes = 0;
           }                                                  // else: keep, await more strokes (3s clears)

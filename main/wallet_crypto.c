@@ -88,7 +88,10 @@ int wallet_session_open(const char *passphrase)
         passphrase = NULL;
     if (wally_init(0) != WALLY_OK)
         return 1;
-    wallet_session_close();                // never derive over a stale master
+    // Never derive over a stale master. NOT wallet_session_close(): that also
+    // forgets an amnesic seed, and we are about to read it.
+    wally_bzero(&s_master, sizeof(s_master));
+    s_session = false;
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0)
         return 2;                          // no seed stored: wizard first
@@ -108,10 +111,13 @@ int wallet_session_open(const char *passphrase)
     return rc;
 }
 
+// Locking is also what ends an AMNESIC session: there the mnemonic lives only
+// in wallet_seed's RAM copy, so it has to leave with the derived key.
 void wallet_session_close(void)
 {
     wally_bzero(&s_master, sizeof(s_master));
     s_session = false;
+    wallet_seed_forget();
 }
 
 const struct ext_key *wallet_session_master(void)
