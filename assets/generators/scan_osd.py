@@ -15,7 +15,17 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-FONT_LAT = "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf"
+# The SAME Montserrat the LVGL wallet fonts are subset from (tools/fonts/
+# gen_fonts.sh), for one non-negotiable reason: it covers Cyrillic and
+# Vietnamese. This used to be macOS "Arial Rounded Bold", which covers neither,
+# so every Russian camera overlay rendered as a row of tofu boxes and
+# Vietnamese lost Đ đ ư ề ể ị ố ộ ớ ứ. That shipped. Nothing warned, because
+# a baked strip has correct dimensions whether or not the glyphs inside it
+# exist -- the only way to catch it is to LOOK at /tmp/scan_ui_mock.png and at
+# the strips themselves. Any replacement font must be checked against
+# i18n/ru.json and i18n/vi.json before it goes in here.
+FONT_LAT = str(ROOT / "managed_components/lvgl__lvgl/scripts/built_in_font"
+                      "/Montserrat-Medium.ttf")
 FONT_CJK = {
     "ja": "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
     "ko": "/System/Library/Fonts/AppleSDGothicNeo.ttc",
@@ -37,6 +47,11 @@ LOCALES = [
 STRIPS = [
     ("OSD_SEARCH",  "C_OSD_SEARCH_T",  "C_OSD_SEARCH_S"),
     ("OSD_SEEN",    "C_OSD_SEEN_T",    None),
+    # OSD_SEEN that never resolves. A QR denser than the half-res decode can
+    # separate still LOCATES every frame (the finder squares are coarse) and
+    # simply never reads, so "hold steady" would sit there forever telling the
+    # user to keep doing the one thing that cannot work.
+    ("OSD_STUCK",   "C_OSD_STUCK_T",  "C_OSD_STUCK_S"),
     ("OSD_CUTOFF",  "C_OSD_CUTOFF_T", "C_OSD_CUTOFF_S"),
     ("OSD_READ",    "C_OSD_READ_T",    None),
     ("OSD_ENT_LOW", "C_OSD_ENT_LOW_T", "C_OSD_ENT_LOW_S"),
@@ -300,6 +315,9 @@ mocks = [
     compose("OSD_SEARCH", 0, lambda d: rounded_bar(d, 120, 402, 560, 0)),
     compose("OSD_SEEN", 0, lambda d: rounded_bar(d, 120, 402, 560, 0.08,
                                                  col=(255, 228, 64))),
+    # Same located-QR bar as OSD_SEEN: this state IS that state, still stuck.
+    compose("OSD_STUCK", 0, lambda d: rounded_bar(d, 120, 402, 560, 0.08,
+                                                  col=(255, 228, 64))),
     compose("OSD_READ", 0, lambda d: rounded_bar(d, 120, 402, 560, 0,
                                                  segs=12, seen=5)),
     compose("OSD_ENT_LOW", 0, lambda d: rounded_bar(d, 120, 402, 560, 0.45,

@@ -80,6 +80,17 @@ jobs:
       - name: docs screenshots manifest
         run: python3 tools/gen_docs_shots.py --check
 
+      # The camera bypasses LVGL, so every scanner caption is a bitmap baked
+      # from a desktop font. A glyph that font lacks becomes a tofu box inside
+      # a strip with perfectly normal dimensions: the generated C is
+      # indistinguishable, and nothing downstream can tell. That is how every
+      # Russian overlay, plus Vietnamese, Croatian and Czech diacritics, went
+      # out as boxes -- found by eye, not by any test. This is the test.
+      - name: camera overlay glyph coverage
+        run: |
+          pip install --quiet fonttools
+          python3 tools/check_osd_glyphs.py
+
       # Type-size ratchet. Fails when a button the user must READ to act
       # correctly (sign, wipe, replace, verify) renders at font14 in ANY of the
       # 21 locales, which is how a translation quietly turns the most
