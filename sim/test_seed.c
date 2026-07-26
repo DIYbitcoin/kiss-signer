@@ -128,6 +128,130 @@ int test_seed_layer(void) {
     schk("diff: extra words -> mismatch at the extra one",
          wallet_seed_diff_word(ALT_WORDS " extra", ALT_WORDS) == 12);
 
+    // ---- QR seed import (amnesic mode: load the seed, sign, power off) ----
+    // KISS never EXPORTS a seed as a QR. It reads one a user already made
+    // elsewhere (SeedSigner / Krux), which is the whole point of amnesic mode.
+    {
+        char got[WSEED_MAX_MNEMONIC];
+
+        // 1. plain text mnemonic in a QR
+        schk("qr: plain mnemonic rc",
+             wallet_seed_from_qr(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) == 0);
+        schk("qr: plain mnemonic roundtrips", strcmp(got, DEV_WORDS) == 0);
+        schk("qr: plain mnemonic with stray spaces",
+             wallet_seed_from_qr("  " DEV_WORDS "\n", strlen(DEV_WORDS) + 3,
+                                 got, sizeof got) == 0 && strcmp(got, DEV_WORDS) == 0);
+        schk("qr: plain mnemonic with a bad checksum refused",
+             wallet_seed_from_qr("abandon abandon abandon abandon abandon abandon "
+                                 "abandon abandon abandon abandon abandon abandon", 71,
+                                 got, sizeof got) != 0);
+
+        // 2. numeric SeedQR (SeedSigner): 4 digits per wordlist index.
+        // abandon = 0000 (x11), about = 0003.
+        static const char *SQR12 =
+            "000000000000000000000000000000000000000000000003";
+        schk("qr: numeric SeedQR 48 digits rc",
+             wallet_seed_from_qr(SQR12, 48, got, sizeof got) == 0);
+        schk("qr: numeric SeedQR = dev words", strcmp(got, DEV_WORDS) == 0);
+
+        // 24-word numeric: build the digits from a known mnemonic by searching
+        // the wordlist (word -> index), the opposite direction to the parser.
+        memset(ent, 0xFF, sizeof ent);
+        wallet_seed_from_entropy(ent, 32, words, sizeof words);
+        {
+            char digits[97];
+            size_t d = 0;
+            const char *p = words;
+            while (*p && d + 4 < sizeof digits) {
+                char w[12]; size_t n = 0;
+                while (*p && *p != ' ' && n + 1 < sizeof w) w[n++] = *p++;
+                w[n] = 0;
+                if (*p == ' ') p++;
+                int idx = -1;
+                for (int i = 0; i < 2048; i++) {
+                    const char *c = NULL;
+                    if (wallet_seed_word(i, &c) == 0 && strcmp(c, w) == 0) { idx = i; break; }
+                }
+                d += (size_t)snprintf(digits + d, sizeof digits - d, "%04d", idx);
+            }
+            schk("qr: built 96 digits for 24 words", d == 96);
+            schk("qr: numeric SeedQR 96 digits rc",
+                 wallet_seed_from_qr(digits, 96, got, sizeof got) == 0);
+            schk("qr: numeric SeedQR 96 roundtrips", strcmp(got, words) == 0);
+
+            digits[3] = '9';        // index 0009 in slot 0: checksum must fail
+            schk("qr: numeric SeedQR with a broken checksum refused",
+                 wallet_seed_from_qr(digits, 96, got, sizeof got) != 0);
+        }
+        schk("qr: 47 digits refused",
+             wallet_seed_from_qr(SQR12, 47, got, sizeof got) != 0);
+        schk("qr: index 2048 out of range refused",
+             wallet_seed_from_qr("204800000000000000000000"
+                                 "000000000000000000000000", 48, got, sizeof got) != 0);
+
+        // 3. CompactSeedQR: raw entropy bytes, 16 or 32
+        memset(ent, 0x00, sizeof ent);
+        schk("qr: compact 16 bytes rc",
+             wallet_seed_from_qr((const char *)ent, 16, got, sizeof got) == 0);
+        schk("qr: compact 16 = dev words", strcmp(got, DEV_WORDS) == 0);
+        memset(ent, 0xFF, sizeof ent);
+        wallet_seed_from_entropy(ent, 32, words, sizeof words);
+        schk("qr: compact 32 rc",
+             wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) == 0);
+        schk("qr: compact 32 matches entropy path", strcmp(got, words) == 0);
+        schk("qr: 20 raw bytes refused",
+             wallet_seed_from_qr((const char *)ent, 20, got, sizeof got) != 0);
+
+        schk("qr: empty refused", wallet_seed_from_qr("", 0, got, sizeof got) != 0);
+        schk("qr: garbage refused",
+             wallet_seed_from_qr("hello world", 11, got, sizeof got) != 0);
+        // a NUL-terminated buffer must not leak the old value on failure
+        got[0] = 'x';
+        wallet_seed_from_qr("hello world", 11, got, sizeof got);
+        schk("qr: output cleared on failure", got[0] == 0);
+    }
+
+    // ---- storage mode: amnesic never touches persistent storage ----
+    {
+        char got[WSEED_MAX_MNEMONIC];
+
+        schk("mode defaults to KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
+        schk("wipe before mode tests", wallet_seed_wipe() == 0);
+
+        wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+        schk("mode reads back AMNESIC", wallet_seed_mode() == WSEED_MODE_AMNESIC);
+        schk("amnesic: stage ok", wallet_seed_stage(ALT_WORDS) == 0);
+        schk("amnesic: commit ok", wallet_seed_commit() == 0);
+        // the session must work for as long as the device stays unlocked...
+        schk("amnesic: seed visible while unlocked", wallet_seed_exists() == 1);
+        schk("amnesic: load rc", wallet_seed_load(got, sizeof got) == 0);
+        schk("amnesic: load roundtrips", strcmp(got, ALT_WORDS) == 0);
+        schk("amnesic: session opens", wallet_session_open("") == 0);
+        wallet_session_close();
+        // ...and wallet_session_close is the lock: RAM is the ONLY copy, so
+        // the seed has to be gone with it
+        schk("amnesic: seed gone after lock", wallet_seed_exists() == 0);
+        schk("amnesic: load refused after lock",
+             wallet_seed_load(got, sizeof got) != 0);
+        // nothing must have reached persistent storage at any point
+        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("amnesic: nothing was persisted", wallet_seed_exists() == 0);
+
+        // KEEP still survives a lock, which is the whole difference
+        schk("keep: stage ok", wallet_seed_stage(ALT_WORDS) == 0);
+        schk("keep: commit ok", wallet_seed_commit() == 0);
+        schk("keep: session opens", wallet_session_open("") == 0);
+        wallet_session_close();
+        schk("keep: seed survives lock", wallet_seed_exists() == 1);
+        schk("keep: load roundtrips",
+             wallet_seed_load(got, sizeof got) == 0 && strcmp(got, ALT_WORDS) == 0);
+
+        // switching to amnesic must not leave the old seed behind
+        wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+        schk("switching to amnesic wipes stored seed", wallet_seed_exists() == 0);
+        wallet_seed_set_mode(WSEED_MODE_KEEP);
+    }
+
     // leave the dev seed stored: the rest of the suite depends on it
     schk("restore dev words for suite", wallet_seed_store(DEV_WORDS) == 0);
     return sfails;

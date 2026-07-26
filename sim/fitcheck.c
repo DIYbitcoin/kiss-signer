@@ -52,6 +52,9 @@ static const slot_t SLOTS[] = {
     { "setup/verify-in",  STR_W_VINTRO_B,   704, 274 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
+    // amnesic mode: seed-QR import + passphrase-from-QR
+    { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
+    { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 

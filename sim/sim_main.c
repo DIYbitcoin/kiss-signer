@@ -97,6 +97,41 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
 }
+// storage mode: the real logic + its edge cases live in wallet_seed.c and are
+// covered by kisstest. Here it only has to steer the screens.
+static int s_sim_mode;
+int wallet_seed_mode(void) { return s_sim_mode; }
+void wallet_seed_set_mode(int m) {
+  s_sim_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+  if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_seed = 0;
+}
+void wallet_seed_forget(void) {
+  if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
+}
+// Enough of the real parser to drive the walk: the numeric SeedQR shape and a
+// plain mnemonic are accepted, anything else is the "NOT A SEED" path.
+int wallet_seed_from_qr(const char *data, size_t len, char *out, size_t n) {
+  if (out && n) out[0] = 0;
+  if (!data || !out || len == 0) return -1;
+  if (len == 48 || len == 96) {
+    for (size_t i = 0; i < len; i++)
+      if (data[i] < '0' || data[i] > '9') goto text;
+    size_t o = 0;
+    for (size_t w = 0; w < len / 4 && o + 12 < n; w++)
+      o += (size_t)snprintf(out + o, n - o, "%s%s", w ? " " : "", SIM_WORDS[w % 24]);
+    return 0;
+  }
+text:
+  {   // a mnemonic is 12 or 24 words; anything else is the NOT A SEED path
+    int words = 1;
+    for (size_t i = 0; i < len; i++) if (data[i] == ' ') words++;
+    if ((words == 12 || words == 24) && len + 1 <= n) {
+      snprintf(out, n, "%.*s", (int)len, data);
+      return 0;
+    }
+  }
+  return -1;
+}
 int wallet_seed_word(int i, const char **out) {
   *out = SIM_WORDS[i % 24];
   return 0;
@@ -679,6 +714,8 @@ int main(void) {
 
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 256); pump(3); release(); pump(4);     // RESTORE FROM WORDS
+  save("/tmp/sim_setup_storage.ppm");               // KEEP ON THIS DEVICE / NOTHING SAVED
+  touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_restore.ppm");
   touch(44, 314); pump(3); release(); pump(3);      // 'a'
@@ -689,6 +726,7 @@ int main(void) {
 
   // the real path: CREATE NEW, 12 words, simulated entropy, quiz, login twice
   touch(218, 176); pump(3); release(); pump(4);     // CREATE NEW
+  touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_entropy.ppm");
   touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
@@ -745,6 +783,44 @@ int main(void) {
   save("/tmp/sim_wiped.ppm");                       // WALLET ERASED confirmation
   touch(400, 366); pump(3); release(); pump(130);   // OK -> locked to game menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
+
+  // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
+  // LOAD YOUR WALLET instead of the wizard, and a seed QR is a valid way in.
+  // (the wipe block above leaves the walk on Settings, so get back to the game
+  // cover deliberately rather than assuming where we are)
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(100, 60);  pump(3); release(); pump(20);    // KISS logo -> lock -> menu
+  wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+  for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); } release(); pump(2);
+  touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
+  touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
+  touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
+  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
+  save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WALLET
+
+  touch(218, 266); pump(3); release(); pump(6);     // SCAN A SEED QR -> camera
+  wallet_scan_inject("not a seed qr at all", 20); pump(6);
+  save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
+  touch(198, 430); pump(3); release(); pump(6);     // TRY AGAIN -> load screen
+  touch(218, 266); pump(3); release(); pump(6);     // SCAN A SEED QR again
+  {   // a numeric SeedQR: 12 indices, four digits each
+    const char *sq = "000000000000000000000000000000000000000000000003";
+    wallet_scan_inject(sq, 48);
+  }
+  pump(8);
+  save("/tmp/sim_amnesic_pass.ppm");                // straight to the passphrase
+
+  // a passphrase can come from a QR too, behind one warning screen
+  touch(596, 38); pump(3); release(); pump(6);      // SCAN
+  save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
+  touch(680, 430); pump(3); release(); pump(4);     // BACK -> keyboard
+  touch(46, 278);  pump(3); release(); pump(3);     // 'a'
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home
+  save("/tmp/sim_amnesic_home.ppm");                // an amnesic wallet, unlocked
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an

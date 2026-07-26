@@ -14,6 +14,7 @@
 
 #include "flag_imgs.h"
 #include "i18n.h"
+#include "wallet_scan.h"     // wallet_scan_open_raw: seed-QR import (amnesic load)
 #include "wallet_seed.h"
 #include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
 #include "wallet_theme.h"
@@ -42,6 +43,7 @@ static int s_nw;                // words collected so far
 static int s_count;             // 12 or 24
 static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
+static bool s_load;             // AMNESIC per-session load, not first-boot setup
 
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
@@ -60,7 +62,14 @@ static void restore_screen(void);
 static void verify_finish(void);
 static void verify_finish_exit(void);
 
-static void goto_choose_cb(lv_event_t *e)  { (void)e; choose_screen(); }
+static void load_screen_fwd(void);
+// BACK from the word-count screen: first-boot came from choose, an amnesic
+// session came from the load screen
+static void goto_choose_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_load) load_screen_fwd(); else choose_screen();
+}
 static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 bool wallet_setup_active(void) { return s_scr != NULL; }
@@ -496,9 +505,31 @@ static void count_screen(void)
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 }
 
+// ---- storage mode: the one question that decides what this device holds ----
+static void storage_pick_cb(lv_event_t *e)
+{
+    wallet_seed_set_mode((int)(intptr_t)lv_event_get_user_data(e));
+    count_screen();
+}
+
+static void storage_screen(void)
+{
+    mk_screen(tr(STR_W_STORE_T), tr(STR_W_STORE_S));
+    lv_obj_t *p = mk_pill(tr(STR_W_KEEP_BTN), 48, 150, 340,
+                          storage_pick_cb, (void *)(intptr_t)WSEED_MODE_KEEP);
+    wt_pill_primary(p);
+    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 240, 340,
+            storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
+    lv_obj_t *note = wt_wrap(s_scr, 430, 152, 340);
+    lv_label_set_text(note, tr(STR_W_KEEP_NOTE));
+    note = wt_wrap(s_scr, 430, 242, 340);
+    lv_label_set_text(note, tr(STR_W_AMNESIC_NOTE));
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
+}
+
 // ---- entry ----
-static void new_cb(lv_event_t *e)     { (void)e; s_restore = false; count_screen(); }
-static void restore_cb(lv_event_t *e) { (void)e; s_restore = true;  count_screen(); }
+static void new_cb(lv_event_t *e)     { (void)e; s_restore = false; storage_screen(); }
+static void restore_cb(lv_event_t *e) { (void)e; s_restore = true;  storage_screen(); }
 static void cancel_cb(lv_event_t *e)  { (void)e; close_all(); }
 
 static void setup_lang_picked(void)
@@ -546,6 +577,87 @@ static void choose_screen(void)
             lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
         }
     }
+}
+
+// ---- AMNESIC per-session load: type the words, or scan a seed QR ----
+// KISS never writes a seed QR. It reads one the owner already made on a
+// SeedSigner / Krux, which is what makes "power on, load, sign, power off"
+// bearable. Everything here stages into RAM; nothing can reach flash because
+// wallet_seed_commit is a no-op in this mode.
+static void load_screen(void);
+static void load_screen_fwd(void) { load_screen(); }
+
+static void load_type_cb(lv_event_t *e)
+{
+    (void)e;
+    s_restore = true;
+    count_screen();                 // word count -> the usual restore keypad
+}
+
+static void load_new_cb(lv_event_t *e)
+{
+    (void)e;
+    s_load = false;                 // a fresh wallet needs the whole ritual
+    choose_screen();
+}
+
+static void load_back_cb(lv_event_t *e) { (void)e; load_screen(); }
+
+static void qr_bad_screen(void)
+{
+    mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
+    mk_body(tr(STR_W_QRBAD_B), 48, 140, 704, 240, STOP_COL);
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 300, load_back_cb, NULL);
+    wt_pill_primary(p);
+}
+
+// The scan screen owns the camera; it hands us the first decoded payload.
+static void qr_text_cb(const char *txt, size_t len)
+{
+    char words[WSEED_MAX_MNEMONIC];
+    int rc = wallet_seed_from_qr(txt, len, words, sizeof words);
+    if (rc == 0)
+        rc = wallet_seed_stage(words);
+    memset(words, 0, sizeof words);          // a scanned mnemonic must not linger
+    if (rc != 0) { qr_bad_screen(); return; }
+    void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
+    s_load = false;
+    close_all();
+    if (cb) cb();
+}
+
+static void qr_cancel_cb(void) { load_screen(); }
+
+static void load_scan_cb(lv_event_t *e)
+{
+    (void)e;
+    wallet_scan_open_raw(s_parent, qr_text_cb, qr_cancel_cb);
+}
+
+static void load_screen(void)
+{
+    mk_screen(tr(STR_W_LOAD_T), tr(STR_W_LOAD_S));
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 150, 340, load_type_cb, NULL);
+    wt_pill_primary(p);
+    mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 240, 340, load_scan_cb, NULL);
+    lv_obj_t *note = wt_wrap(s_scr, 430, 152, 340);
+    lv_label_set_text(note, tr(STR_W_LOAD_TYPE_NOTE));
+    note = wt_wrap(s_scr, 430, 242, 340);
+    lv_label_set_text(note, tr(STR_W_LOAD_SCAN_NOTE));
+    mk_pill(tr(STR_W_CREATE_NEW), 560, 404, 190, load_new_cb, NULL);
+}
+
+void wallet_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))
+{
+    if (s_scr) return;
+    wallet_ui_ensure_indev();
+    s_parent = parent;
+    s_done = done_cb;
+    s_restore = true;
+    s_verify = false;
+    s_load = true;
+    wipe_state();
+    load_screen();
 }
 
 void wallet_setup_open(lv_obj_t *parent, void (*done_cb)(void))
