@@ -14,6 +14,13 @@ bool wallet_setup_active(void);
 // the wallet's BACKUP screen, not first-boot.)
 void wallet_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void));
 
+// AMNESIC mode's per-session load. Nothing is stored on this device, so every
+// power-on starts here: type the words, or scan a seed QR made elsewhere. The
+// mnemonic is staged in RAM only; done_cb then runs the NORMAL login (one
+// passphrase), not the setup ritual. Also offers a way into the full wizard,
+// otherwise an amnesic device could never make a fresh wallet.
+void wallet_setup_open_load(lv_obj_t *parent, void (*done_cb)(void));
+
 // Feed captured entropy (device: camera page; sim: scripted). len 16 or 32.
 // Advances the NEW flow to the word-reveal screen.
 void wallet_setup_entropy(const uint8_t *entropy, unsigned len);

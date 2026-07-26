@@ -14,6 +14,7 @@
 #include "nvs.h"
 #else
 #define SEED_FILE "/tmp/kiss_seed.txt"
+#define MODE_FILE "/tmp/kiss_seed_mode.txt"
 #endif
 
 // ---- storage backends ----
@@ -77,9 +78,65 @@ static int storage_erase(void)
 #endif
 }
 
+// ---- storage mode (see wallet_seed.h) ----
+static int storage_mode_read(void)
+{
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
+        return WSEED_MODE_KEEP;
+    uint8_t m = WSEED_MODE_KEEP;
+    nvs_get_u8(h, "smode", &m);
+    nvs_close(h);
+    return m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+#else
+    FILE *f = fopen(MODE_FILE, "r");
+    if (!f)
+        return WSEED_MODE_KEEP;
+    int m = WSEED_MODE_KEEP;
+    if (fscanf(f, "%d", &m) != 1) m = WSEED_MODE_KEEP;
+    fclose(f);
+    return m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+#endif
+}
+
+static void storage_mode_write(int mode)
+{
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    nvs_set_u8(h, "smode", (uint8_t)mode);
+    nvs_commit(h);
+    nvs_close(h);
+#else
+    FILE *f = fopen(MODE_FILE, "w");
+    if (!f)
+        return;
+    fprintf(f, "%d", mode);
+    fclose(f);
+#endif
+}
+
 // ---- staged (not-yet-committed) mnemonic ----
+// In KEEP mode this is the setup safety net: staged in RAM, written to flash
+// only once the whole ritual finishes. In AMNESIC mode it is the wallet — it
+// is never written anywhere, and wallet_seed_forget() (called from
+// wallet_session_close) is what ends the session.
 static char s_pending[WSEED_MAX_MNEMONIC];
 static bool s_has_pending;
+
+int wallet_seed_mode(void) { return storage_mode_read(); }
+
+void wallet_seed_set_mode(int mode)
+{
+    mode = mode == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+    // Turning amnesic ON has to take the stored seed with it, otherwise the
+    // screen would claim "nothing saved" while flash still held the words.
+    if (mode == WSEED_MODE_AMNESIC)
+        storage_erase();
+    storage_mode_write(mode);
+}
 
 int wallet_seed_stage(const char *mnemonic)
 {
@@ -94,6 +151,10 @@ int wallet_seed_commit(void)
 {
     if (!s_has_pending)
         return -1;
+    // Amnesic: "committing" means keeping it in RAM and nowhere else. The
+    // staged copy stays so the session can derive from it until the lock.
+    if (storage_mode_read() == WSEED_MODE_AMNESIC)
+        return 0;
     int rc = storage_write(s_pending);
     wally_bzero(s_pending, sizeof s_pending);
     s_has_pending = false;
@@ -144,7 +205,14 @@ int wallet_seed_load(char *out, size_t out_len)
 
 int wallet_seed_wipe(void)
 {
+    wallet_seed_discard();          // an amnesic seed only ever lives here
     return storage_erase();
+}
+
+void wallet_seed_forget(void)
+{
+    if (storage_mode_read() == WSEED_MODE_AMNESIC)
+        wallet_seed_discard();
 }
 
 int wallet_seed_from_entropy(const uint8_t *entropy, size_t len,
@@ -162,6 +230,78 @@ int wallet_seed_from_entropy(const uint8_t *entropy, size_t len,
     }
     wally_free_string(words);
     return rc;
+}
+
+// ---- QR seed import (see wallet_seed.h) ----
+static bool all_digits(const char *p, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        if (p[i] < '0' || p[i] > '9') return false;
+    return n > 0;
+}
+
+// 48 or 96 ASCII digits, four per wordlist index. Rebuilding the words from
+// indices means a damaged QR shows up as a checksum failure below, not as a
+// silently different wallet.
+static int from_numeric_seedqr(const char *p, size_t n, char *out, size_t out_len)
+{
+    size_t words_n = n / 4;
+    size_t o = 0;
+    for (size_t w = 0; w < words_n; w++) {
+        int idx = 0;
+        for (int d = 0; d < 4; d++) idx = idx * 10 + (p[w * 4 + d] - '0');
+        const char *word = NULL;
+        if (wallet_seed_word(idx, &word) != 0 || !word)   // 2048+ lands here
+            return -1;
+        int need = snprintf(out + o, out_len - o, "%s%s", w ? " " : "", word);
+        if (need < 0 || (size_t)need >= out_len - o)
+            return -1;
+        o += (size_t)need;
+    }
+    return 0;
+}
+
+int wallet_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
+{
+    if (out && out_len) out[0] = 0;      // never leave a stale value behind
+    if (!data || !out || out_len < 2 || len == 0)
+        return -1;
+
+    // Numeric SeedQR first: it is the only all-ASCII-digit form, and its
+    // lengths (48/96) cannot be mistaken for a CompactSeedQR (16/32).
+    if ((len == 48 || len == 96) && all_digits(data, len)) {
+        if (from_numeric_seedqr(data, len, out, out_len) != 0)
+            goto fail;
+        if (wallet_seed_validate(out) != 0)
+            goto fail;
+        return 0;
+    }
+
+    // CompactSeedQR: raw entropy, no encoding at all.
+    if (len == 16 || len == 32) {
+        if (wallet_seed_from_entropy((const uint8_t *)data, len, out, out_len) != 0)
+            goto fail;
+        return 0;                        // built from entropy: the checksum is ours
+    }
+
+    // Plain text mnemonic. Trimmed, so a trailing newline from a text QR does
+    // not turn into a failed wordlist lookup.
+    {
+        const char *b = data, *e = data + len;
+        while (b < e && (*b == ' ' || *b == '\n' || *b == '\r' || *b == '\t')) b++;
+        while (e > b && (e[-1] == ' ' || e[-1] == '\n' || e[-1] == '\r' ||
+                         e[-1] == '\t' || e[-1] == 0)) e--;
+        size_t n = (size_t)(e - b);
+        if (n == 0 || n + 1 > out_len)
+            goto fail;
+        memcpy(out, b, n);
+        out[n] = 0;
+        if (wallet_seed_validate(out) == 0)
+            return 0;
+    }
+fail:
+    wally_bzero(out, out_len);
+    return -1;
 }
 
 // ---- wordlist access ----
