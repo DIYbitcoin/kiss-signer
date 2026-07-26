@@ -57,9 +57,11 @@ for SZ in 14 28; do
   done
 done
 
-# 23px: wallet-home tile titles only (matches the baked 23px typography).
-# CJK subsets carry just the tile-title glyphs (glyphs_tile_*.txt); no
-# FontAwesome plane (titles never use symbols).
+# 23px: the MIDDLE body rung (wt_body_font) as well as the wallet-home tile
+# titles. It used to be tile titles only, so the CJK subsets carried just
+# glyphs_tile_*.txt -- about a dozen characters. The moment 23 became a body
+# size that rendered every ja/ko/zh screen as tofu boxes, so these now take the
+# same full glyph set as 14 and 28. No FontAwesome plane: 23 never shows icons.
 echo "== font_kiss_lat23"
 conv --size 23 \
   --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
@@ -77,7 +79,7 @@ for L in ja ko zh; do
     FONT="$JP"
   fi
   conv --size 23 \
-    --font "$FONT" --symbols "$(cat glyphs_tile_$L.txt)" \
+    --font "$FONT" --symbols "$(cat glyphs_$L.txt)" \
     $FB -o "$OUT/font_kiss_${L}23.c"
 done
 

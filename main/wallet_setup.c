@@ -498,8 +498,7 @@ static void count_screen(void)
     lv_obj_t *p = mk_pill(tr(STR_W_12), 48, 150, 340, count_pick_cb, (void *)(intptr_t)12);
     wt_pill_primary(p);
     mk_pill(tr(STR_W_24), 48, 230, 340, count_pick_cb, (void *)(intptr_t)24);
-    mk_lbl(tr(STR_W_12_NOTE), 430, 150,
-           wt_font14(), MUT_COL);
+    wt_wraph(s_scr, tr(STR_W_12_NOTE), 430, 150, 340, 76);
     mk_lbl(tr(STR_W_24_NOTE), 430, 230,
            wt_font14(), MUT_COL);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
@@ -518,12 +517,10 @@ static void storage_screen(void)
     lv_obj_t *p = mk_pill(tr(STR_W_KEEP_BTN), 48, 150, 340,
                           storage_pick_cb, (void *)(intptr_t)WSEED_MODE_KEEP);
     wt_pill_primary(p);
-    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 240, 340,
+    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 264, 340,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
-    lv_obj_t *note = wt_wrap(s_scr, 430, 152, 340);
-    lv_label_set_text(note, tr(STR_W_KEEP_NOTE));
-    note = wt_wrap(s_scr, 430, 242, 340);
-    lv_label_set_text(note, tr(STR_W_AMNESIC_NOTE));
+    wt_wraph(s_scr, tr(STR_W_KEEP_NOTE),    430, 150, 340, 110);
+    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 430, 266, 340, 130);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 }
 
@@ -548,11 +545,9 @@ static void choose_screen(void)
     mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
     lv_obj_t *p = mk_pill(tr(STR_W_CREATE_NEW), 48, 150, 340, new_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 230, 340, restore_cb, NULL);
-    lv_obj_t *note = wt_wrap(s_scr, 430, 158, 340);
-    lv_label_set_text(note, tr(STR_W_NEW_NOTE));
-    note = wt_wrap(s_scr, 430, 238, 340);
-    lv_label_set_text(note, tr(STR_W_RESTORE_NOTE));
+    mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 264, 340, restore_cb, NULL);
+    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     430, 152, 340, 110);
+    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 430, 266, 340, 130);
     mk_pill(tr(STR_C_CANCEL), 610, 404, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
@@ -639,11 +634,9 @@ static void load_screen(void)
     mk_screen(tr(STR_W_LOAD_T), tr(STR_W_LOAD_S));
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 150, 340, load_type_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 240, 340, load_scan_cb, NULL);
-    lv_obj_t *note = wt_wrap(s_scr, 430, 152, 340);
-    lv_label_set_text(note, tr(STR_W_LOAD_TYPE_NOTE));
-    note = wt_wrap(s_scr, 430, 242, 340);
-    lv_label_set_text(note, tr(STR_W_LOAD_SCAN_NOTE));
+    mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 264, 340, load_scan_cb, NULL);
+    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), 430, 150, 340, 110);
+    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 266, 340, 130);
     mk_pill(tr(STR_W_CREATE_NEW), 560, 404, 190, load_new_cb, NULL);
 }
 
