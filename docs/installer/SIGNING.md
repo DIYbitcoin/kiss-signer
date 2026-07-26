@@ -22,15 +22,15 @@ GPG (primary):
 
 ```sh
 gpg --quick-generate-key "KISS Signer releases <diybitcoin@protonmail.com>" ed25519 sign never
-gpg --armor --export <KEYID> > docs/installer/kiss_wallet_pgp.asc   # commit this
+gpg --armor --export <KEYID> > docs/installer/kiss_signer_pgp.asc   # commit this
 ```
 
 minisign (optional extra):
 
 ```sh
 brew install minisign
-mkdir -p ~/.kiss-wallet
-minisign -G -p docs/installer/kiss_wallet.pub -s ~/.kiss-wallet/minisign.key
+mkdir -p ~/.kiss-signer
+minisign -G -p docs/installer/kiss_signer.pub -s ~/.kiss-signer/minisign.key
 ```
 
 Secret keys never enter the repo. Back them up offline like a seed: a leaked
@@ -47,7 +47,7 @@ Builds, merges, writes SHA256SUMS, signs with whatever keys exist (and says so
 honestly in `release.json`'s `authenticity` block), regenerates
 `manifest.json`/`release.json`, and writes `release-notes.md`. Attach the
 firmware image, `SHA256SUMS`, `SHA256SUMS.asc`, `release.json`, and
-`kiss_wallet_pgp.asc` to the GitHub Release. Use `release-notes.md` as the
+`kiss_signer_pgp.asc` to the GitHub Release. Use `release-notes.md` as the
 GitHub Release body so every release keeps the same shape: download, verify,
 install, changelog. The installer page is a later GitHub Pages path, not the
 beta install path.
@@ -56,14 +56,14 @@ beta install path.
 
 ```sh
 # 1. the manifest is signed by the project key
-gpg --import kiss_wallet_pgp.asc
+gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 
 # 2. the firmware matches the signed manifest
 shasum -a 256 -c SHA256SUMS --ignore-missing
 
 # optional extra check (minisign)
-minisign -Vm kiss-wallet-<version>.bin -p kiss_wallet.pub
+minisign -Vm kiss-signer-<version>.bin -p kiss_signer.pub
 ```
 
 Cross-check the key fingerprint against a second channel (repo history,

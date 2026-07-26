@@ -1,8 +1,8 @@
 #!/bin/bash
 # Build signed release artifacts into docs/installer/ for staging:
-#   * firmware/kiss-wallet-<version>.bin                (merged, offset 0)
+#   * firmware/kiss-signer-<version>.bin                (merged, offset 0)
 #   * SHA256SUMS + SHA256SUMS.asc                       (GPG, if a key exists)
-#   * firmware/kiss-wallet-<version>.bin.minisig        (minisign, if key exists)
+#   * firmware/kiss-signer-<version>.bin.minisig        (minisign, if key exists)
 #   * manifest.json / release.json                      (rewritten in place)
 #
 # Signing, the typical bitcoin-project way (see docs/installer/SIGNING.md):
@@ -14,9 +14,9 @@
 set -e
 cd "$(dirname "$0")/.."
 
-MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-wallet/minisign.key}"
-PUBKEY_FILE="docs/installer/kiss_wallet.pub"
-GPG_PUB_FILE="docs/installer/kiss_wallet_pgp.asc"
+MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-signer/minisign.key}"
+PUBKEY_FILE="docs/installer/kiss_signer.pub"
+GPG_PUB_FILE="docs/installer/kiss_signer_pgp.asc"
 PY="${PY:-/tmp/spritevenv/bin/python}"
 [ -x "$PY" ] || PY=python3
 
@@ -40,7 +40,7 @@ VERSION=$(cat VERSION)
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
 # Clean, beginner-readable filename: just the version. The exact commit lives
 # inside release.json and on the device Settings screen for verifiers.
-NAME="kiss-wallet-${VERSION}.bin"
+NAME="kiss-signer-${VERSION}.bin"
 OUT="docs/installer"
 mkdir -p "$OUT/firmware"
 
@@ -52,7 +52,7 @@ mkdir -p "$OUT/firmware"
   0x10000 build-release/guition_kiss_bringup.bin
 
 # drop stale firmware images so the served folder only holds this release
-find "$OUT/firmware" -name 'kiss-wallet-*.bin*' ! -name "$NAME*" -delete
+find "$OUT/firmware" -name 'kiss-signer-*.bin*' ! -name "$NAME*" -delete
 
 # 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
 NAME="$NAME" "$PY" - <<'PY'
@@ -117,7 +117,7 @@ fi
 MINISIGNED=0
 if command -v minisign >/dev/null && [ -f "$MINISIGN_KEY" ]; then
     minisign -S -s "$MINISIGN_KEY" -m "$OUT/firmware/$NAME" \
-      -t "kiss-wallet $VERSION $GIT_REV" -x "$OUT/firmware/$NAME.minisig"
+      -t "kiss-signer $VERSION $GIT_REV" -x "$OUT/firmware/$NAME.minisig"
     MINISIGNED=1
     echo "minisign: $OUT/firmware/$NAME.minisig"
 fi

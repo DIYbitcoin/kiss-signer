@@ -14,7 +14,7 @@
     "finalReleaseRequiresSignature": true,
     "gpgSignaturePath": "SHA256SUMS.asc",
     "gpgFingerprint": "166ACBF37786FCEAA69496DE886F1BFEB84EF1C0",
-    "gpgPublicKeyPath": "kiss_wallet_pgp.asc"
+    "gpgPublicKeyPath": "kiss_signer_pgp.asc"
   },
   "flash": {
     "mode": "dio",
@@ -22,7 +22,7 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-wallet-0.1.0-beta4.bin",
+    "path": "firmware/kiss-signer-0.1.0-beta4.bin",
     "offset": 0,
     "size": 6924816,
     "sha256": "7d6289d6023b0cc289f10a4fce291e1d35b699e280e08ff496e5adf0661555d4"

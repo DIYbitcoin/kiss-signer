@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#050607">
     <meta
       name="description"
-      content="KISS Wallet documentation: verify releases, flash, build from source, flash encryption, first boot."
+      content="KISS Signer documentation: verify releases, flash, build from source, flash encryption, first boot."
     >
-    <title>KISS Wallet Docs</title>
+    <title>KISS Signer Docs</title>
     <link rel="stylesheet" href="styles.css">
     <style>
       .doc-card {
@@ -181,7 +181,7 @@
     <main class="shell">
       <section class="hero reveal">
         <a class="back-link motion-link" href="index.html">&larr; KISS docs</a>
-        <p class="eyebrow">KISS Wallet Documentation</p>
+        <p class="eyebrow">KISS Signer Documentation</p>
         <h1>Docs</h1>
         <p class="lede">
           Everything the README summarizes, in full: verifying releases, flashing,
@@ -205,14 +205,14 @@
         <p>
           For the beta, release artifacts live on the GitHub Releases tab: the
           merged firmware image
-          <code>kiss-wallet-&lt;version&gt;.bin</code> (flashed at offset 0),
+          <code>kiss-signer-&lt;version&gt;.bin</code> (flashed at offset 0),
           <code>SHA256SUMS</code> plus its detached GPG signature
           <code>SHA256SUMS.asc</code>, the release public key
-          <code>kiss_wallet_pgp.asc</code>, and <code>release.json</code>.
+          <code>kiss_signer_pgp.asc</code>, and <code>release.json</code>.
         </p>
-<pre><code>gpg --import kiss_wallet_pgp.asc
+<pre><code>gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
-# expect: "Good signature from KISS Wallet releases"
+# expect: "Good signature from KISS Signer releases"
 
 shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
 sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
@@ -224,7 +224,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
         <h3>Windows</h3>
         <p>
-          Hash with <code>Get-FileHash firmware\kiss-wallet-&lt;version&gt;.bin</code>
+          Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>
           in PowerShell and compare against <code>SHA256SUMS</code> by eye. Verify the
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
@@ -249,7 +249,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 kiss-wallet-&lt;version&gt;.bin</code></pre>
+  0 kiss-signer-&lt;version&gt;.bin</code></pre>
         <p class="power-note">
           Then unplug the board, wait about 3 seconds, and plug it back in. The board
           only starts new firmware from a real power-on; a black screen means you
@@ -419,7 +419,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               Continue only when KISS says it is yours.</figcaption>
           </figure>
           <figure>
-            <img src="media/wallet-home.png" alt="KISS wallet home">
+            <img src="media/wallet-home.png" alt="KISS Signer home">
             <figcaption><b>04</b>Practice receiving: send a tiny TESTNET amount
               to that verified address and wait for Sparrow to show it.</figcaption>
           </figure>

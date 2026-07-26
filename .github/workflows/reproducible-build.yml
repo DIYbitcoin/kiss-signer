@@ -42,7 +42,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kiss-wallet-release-${{ github.sha }}
+          name: kiss-signer-release-${{ github.sha }}
           path: |
             build-release/guition_kiss_bringup.bin
             build-release/bootloader/bootloader.bin
@@ -77,7 +77,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kiss-wallet-encrypted-release-${{ github.sha }}
+          name: kiss-signer-encrypted-release-${{ github.sha }}
           path: |
             build-encrypted-release/guition_kiss_bringup.bin
             build-encrypted-release/bootloader/bootloader.bin
