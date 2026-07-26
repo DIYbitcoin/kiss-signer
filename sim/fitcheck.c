@@ -93,6 +93,31 @@ static const slot_t SLOTS[] = {
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
+// Pill labels. A button must never be smaller than the note beside it, and
+// notes cap at 23, so font14 here is a FAILURE: it means the box is too narrow
+// for that translation and the pill needs widening (or the word shortening).
+typedef struct { const char *surface; int key; int w, h, primary; } pill_t;
+static const pill_t PILLS[] = {
+    { "sign/hold",        STR_S_HOLD_TO_SIGN, 272, 52, 1 },
+    { "sign/back",        STR_C_BACK,         140, 52, 0 },
+    { "wallet/pair",      STR_I_PAIR_T,       340, 52, 1 },
+    { "wallet/words",     STR_I_WORDS_BTN,    340, 52, 0 },
+    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0 },
+    { "set/wipe",         STR_G_WIPE,         340, 52, 0 },
+    { "recv/verify",      STR_R_VERIFY,       148, 52, 0 },
+    { "recv/next",        STR_R_NEXT,         130, 52, 0 },
+    { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0 },
+    { "recv/fresh",       STR_R_FRESH,        124, 44, 0 },
+    { "pair/scankey",     STR_R_SP_SCAN_BTN,  190, 60 - 22, 0 },
+    { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0 },
+    { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0 },
+    { "common/back",      STR_C_BACK,         140, 44, 0 },
+    { "common/done",      STR_C_DONE,         140, 52, 0 },
+    { "common/ok",        STR_C_OK,           200, 52, 0 },
+    { "common/cancel",    STR_C_CANCEL,       140, 52, 0 },
+};
+#define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
+
 // sign/why is built at runtime from up to three reasons plus the footer; the
 // worst case (all three flagged) is what has to fit.
 static void compose_why(char *out, size_t cap)
@@ -148,10 +173,29 @@ int main(int argc, char **argv)
                 strncat(lines[i], n, sizeof lines[i] - strlen(lines[i]) - 1);
             }
         }
-        printf("%-6s %-22s %2d/%d at font14\n", li->code, li->native, small, NSLOT);
+        int pbad = 0;
+        char plines[NPILL][160];
+        for (int i = 0; i < NPILL; i++) {
+            const char *txt = tr(PILLS[i].key);
+            const lv_font_t *f = wt_pill_font(txt, PILLS[i].w, PILLS[i].h,
+                                              PILLS[i].primary);
+            int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+            lv_point_t sz;
+            lv_text_get_size(&sz, txt, wt_font23(), 1, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (rung == 14) pbad++;
+            snprintf(plines[i], sizeof plines[i],
+                     "  pill %-15s font%-2d  %3dpx / %3dpx%s", PILLS[i].surface,
+                     rung, (int)sz.x, PILLS[i].w - 28,
+                     rung == 14 ? "  WIDEN" : "");
+        }
+        printf("%-6s %-22s %2d/%d at font14, %d/%d pills\n", li->code, li->native,
+               small, NSLOT, pbad, NPILL);
         for (int i = 0; i < NSLOT; i++)
             if (strstr(lines[i], "cut ")) puts(lines[i]);
-        total_small += small;
+        for (int i = 0; i < NPILL; i++)
+            if (strstr(plines[i], "WIDEN")) puts(plines[i]);
+        total_small += small + pbad;
     }
     printf("\ntotal at font14: %d\n", total_small);
     return 0;

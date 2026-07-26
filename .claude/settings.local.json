@@ -4,7 +4,12 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(python3 -)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(/tmp/fruitsim)",
+      "Read(//private/tmp/**)",
+      "Bash(sips -s format png /tmp/sim_sign_details.ppm --out e1.png)",
+      "Bash(sips -s format png /tmp/sim_sign_hold.ppm --out e2.png)",
+      "Bash(git log *)"
     ]
   }
 }

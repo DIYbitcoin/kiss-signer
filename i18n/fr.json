@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "PREMIÈRE ADRESSE",
   "I_NET_TEST": "TESTNET, coins d'entraînement",
   "I_NET_MAIN": "MAINNET, du vrai bitcoin",
-  "I_H_FP_B": "le code d'identité de ce portefeuille.\n\nl'app appairée doit afficher le MÊME code.\nune vérification rapide, pas une preuve.",
+  "I_H_FP_B": "le code d'identité de ce portefeuille.\n\nl'app appairée doit afficher le MÊME code.\npour être sûr qu'elle a tes adresses, utilise RECEVOIR > VÉRIFIER.",
   "I_H_TYPE_B": "à quoi ressemblent vos adresses.\nbc1... est la moderne, frais les plus bas.\n\nm/... indique d'où viennent les clés.\nvotre app s'en sert pour les retrouver.",
   "I_H_PAIR_T": "L'APP COORDINATRICE",
   "I_H_PAIR_B": "une app qui REGARDE ce portefeuille.\nelle voit le solde, prépare les paiements.\n\nelle ne dépense jamais: on signe ICI.",

@@ -94,7 +94,7 @@
   "I_SEC_FIRST": "FØRSTE ADRESSE",
   "I_NET_TEST": "TESTNET, øvingsmynter",
   "I_NET_MAIN": "MAINNET, ekte bitcoin",
-  "I_H_FP_B": "lommebokens ID-kode.\n\nen tilkoblet app skal vise SAMME kode.\nrask sjekk, ikke bevis.",
+  "I_H_FP_B": "lommebokens ID-kode.\n\nen tilkoblet app skal vise SAMME kode.\nfor å være sikker på adressene dine, bruk MOTTA > KONTROLLER.",
   "I_H_TYPE_B": "hvordan adressene dine ser ut.\nbc1... er den moderne med lavest gebyr.\n\nm/... er hvor nøklene kommer fra.\nappen din finner dem med den.",
   "I_H_PAIR_T": "KOORDINATORAPPEN",
   "I_H_PAIR_B": "en app som SER PÅ denne lommeboken.\nden ser saldo og bygger betalinger.\n\nden kan aldri bruke. det signeres HER.",

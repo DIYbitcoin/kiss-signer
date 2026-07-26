@@ -51,6 +51,7 @@ static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
+static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
 static lv_obj_t *s_type_seg[3], *s_type_pfx[3], *s_type_expl;   // NATIVE/NESTED/LEGACY chooser + example prefix
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
@@ -371,19 +372,9 @@ static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_
     return wt_pillh(s_scr, txt, x, y, w, h, cb, ud);
 }
 
-static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb, void *ud)
-{
-    return mk_pillh(txt, x, y, w, 52, cb, ud);
-}
-
 static lv_obj_t *mk_section(const char *txt, int x, int y)
 {
     return wt_section(s_scr, txt, x, y);
-}
-
-static lv_obj_t *mk_wrap(int x, int y, int w)
-{
-    return wt_wrap(s_scr, x, y, w);
 }
 
 // ---- language picker: full-screen overlay, every name in its own language
@@ -506,9 +497,9 @@ void wallet_settings_open(lv_obj_t *parent)
     mk_section(tr(STR_I_SEC_NET), 48, 74);
     s_main_pill = mk_pillh("MAINNET", 48, 94, 340, 44, pick_cb, (void *)(intptr_t)0);
     s_test_pill = mk_pillh("TESTNET", 48, 142, 340, 44, pick_cb, (void *)(intptr_t)1);
-    s_state_lbl = wt_note(s_scr, "", 48, 192, 340, NET_NOTE_H);   // filled by restyle()
+    s_state_lbl = wt_note(s_scr, "", 48, 190, 340, NET_NOTE_H);   // filled by restyle()
 
-    mk_section(tr(STR_I_SEC_TYPE), 48, 252);
+    mk_section(tr(STR_I_SEC_TYPE), 48, 250);
     // three visible choices (like the network chooser) so it's obvious you pick
     // one — no hidden cycling. Each shows an example address prefix underneath;
     // restyle() highlights the active type and updates the prefixes per network.
@@ -516,14 +507,12 @@ void wallet_settings_open(lv_obj_t *parent)
     static const int   tn_sc[3]   = {WSCRIPT_NATIVE, WSCRIPT_NESTED, WSCRIPT_LEGACY};
     for (int i = 0; i < 3; i++) {
         int x = 48 + i * 115;
-        s_type_seg[i] = mk_pillh(tn_name[i], x, 272, 110, 54, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
-        lv_obj_align(lv_obj_get_child(s_type_seg[i], 0), LV_ALIGN_TOP_MID, 0, 8);  // name up top
-        s_type_pfx[i] = lv_label_create(s_type_seg[i]);                           // example below
-        lv_obj_set_style_text_font(s_type_pfx[i], wt_font14(), 0);
-        lv_obj_align(s_type_pfx[i], LV_ALIGN_BOTTOM_MID, 0, -7);
+        s_type_seg[i] = mk_pillh(tn_name[i], x, 268, 110, 60, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
+        wt_pill_two_line(s_type_seg[i], "");        // prefix filled by restyle()
+        s_type_pfx[i] = lv_obj_get_child(s_type_seg[i], 1);
     }
-    s_type_expl = wt_note(s_scr, "", 48, 332, 360, TYPE_NOTE_H);  // filled by restyle()
-    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 394, 360, 58);         // clears the footer at 460
+    s_type_expl = wt_note(s_scr, "", 48, 334, 360, TYPE_NOTE_H);  // filled by restyle()
+    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 396, 360, 58);         // clears the footer at 460
 
     // RIGHT: wallet actions, each pill with the note that explains it. Both
     // notes need three lines of font23 in the longer translations, and the
@@ -531,13 +520,13 @@ void wallet_settings_open(lv_obj_t *parent)
     // LANGUAGE caption below: that pill carries a flag and the language's own
     // name, which labels it better than the word ever did.
     mk_section(tr(STR_I_T), 430, 74);
-    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 320, 52, replace_cb, NULL);
+    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 340, 52, replace_cb, NULL);
     wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 154, 340, 88);   // to WIPE at 246
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; a hold on the next screen
     // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 246, 320, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 246, 340, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
     wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 304, 340, 88);     // to the pill row at 400
 
@@ -554,7 +543,8 @@ void wallet_settings_open(lv_obj_t *parent)
         if (n >= sizeof shortname) n = sizeof shortname - 1;
         memcpy(shortname, nat, n);
         shortname[n] = 0;
-        lv_obj_t *lp = mk_pillh(shortname, 430, 400, 160, 44, lang_open_cb, NULL);
+        s_lang_pill = mk_pillh(shortname, 430, 400, 160, 44, lang_open_cb, NULL);
+        lv_obj_t *lp = s_lang_pill;
         if (img_lang_flags[li]) {
             lv_obj_t *name = lv_obj_get_child(lp, 0);
             lv_obj_set_style_text_letter_space(name, 0, 0);
@@ -569,6 +559,10 @@ void wallet_settings_open(lv_obj_t *parent)
     // build identity, bottom edge (below the pill row; bottom has no overscan)
     s_build_id = wallet_build_id_make(s_scr, 48, 460);
 
-    mk_pillh(tr(STR_C_BACK), 610, 400, 140, 44, close_cb, NULL);
+    {
+        lv_obj_t *row[2] = { s_lang_pill,
+                             mk_pillh(tr(STR_C_BACK), 610, 400, 140, 44, close_cb, NULL) };
+        wt_pill_row(row, 2);
+    }
     restyle();
 }
