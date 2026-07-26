@@ -115,6 +115,13 @@ static volatile int s_scan_seen, s_scan_total;
 static volatile int s_scan_found;    // frames left to show "QR located" (yellow)
 static volatile int s_scan_osd = OSD_SEARCH;   // which baked strip to draw
 static uint32_t s_scan_att;
+// Consecutive decode passes that located a QR, had it fully in frame, and
+// still could not read it. Passes, not frames: the decoder only runs every
+// SCAN_EVERY'th sensor frame, so 40 here is ~4s at 30fps. Long enough that a
+// normal code (which reads within a pass or two) never trips it, short enough
+// that nobody stands there re-aiming at a QR that will never resolve.
+#define SCAN_STUCK_FRAMES 40
+static int s_scan_stuck;
 
 void camera_scan_progress(int seen, int total) {
   s_scan_seen = seen;
@@ -584,11 +591,26 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         ESP_LOGI(TAG, "scan: located but %s", k_quirc_strerror(err));
       }
     }
-    s_scan_osd = decoded || s_scan_seen > 0 ? OSD_READ
-               : cut                        ? OSD_CUTOFF
-                                            : OSD_SEEN;
+    if (decoded || s_scan_seen > 0) {
+      s_scan_osd = OSD_READ;
+      s_scan_stuck = 0;
+    } else if (cut) {
+      s_scan_osd = OSD_CUTOFF;        // a real "move back", not a dense code
+      s_scan_stuck = 0;
+    } else {
+      // Located, fully in frame, and still not decoding. Holding steadier is
+      // not going to fix that: a whole PSBT in one static QR is version ~25-40,
+      // so at the 640-wide decode above each module lands on 3-4 pixels before
+      // any optical blur, and quirc wants cleaner edges than that. The finder
+      // squares are coarse enough to keep locating regardless, which is why
+      // this state can persist indefinitely while looking like progress.
+      // Say so, and name the fix: animated QR fragments are ~60 bytes each,
+      // a low-version code with fat modules, and they read first time.
+      s_scan_osd = (++s_scan_stuck > SCAN_STUCK_FRAMES) ? OSD_STUCK : OSD_SEEN;
+    }
   } else if (s_scan_seen == 0) {
     s_scan_osd = OSD_SEARCH;          // keep READING once parts have landed
+    s_scan_stuck = 0;
   }
 }
 
@@ -837,6 +859,7 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     }
   }
   s_scan_osd = OSD_SEARCH;
+  s_scan_stuck = 0;                                // fresh scan, fresh patience
   s_scan_seen = 0;
   s_scan_total = 0;
   s_scan_cb = on_decode;

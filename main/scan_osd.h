@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 
-enum { OSD_SEARCH, OSD_SEEN, OSD_CUTOFF, OSD_READ, OSD_ENT_LOW, OSD_ENT_OK, OSD_CLOSE, SCAN_OSD_N };
+enum { OSD_SEARCH, OSD_SEEN, OSD_STUCK, OSD_CUTOFF, OSD_READ, OSD_ENT_LOW, OSD_ENT_OK, OSD_CLOSE, SCAN_OSD_N };
 typedef struct {
     int w, h;               // landscape strip dims (w along landscape-x)
     const uint8_t *a4;      // 4-bit alpha, row-major, high nibble first
