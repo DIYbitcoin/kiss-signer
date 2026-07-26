@@ -14,6 +14,23 @@
 #include "i18n.h"
 #include "wallet_theme.h"
 
+// A QR that decodes cleanly but is not a transport format we know is dropped
+// on the floor below (rc != 0, "some other QR in view"). That rule is right --
+// a wifi QR or a URL in frame must not derail a scan -- but it makes an
+// unsupported coordinator format indistinguishable from never seeing the code
+// at all: the overlay just keeps saying it is looking. Logging the payload's
+// first bytes is what tells those two apart.
+//
+// The prefix is a format tag, not content: "UR:CRYPTO-PSBT/", "cHNidP8B",
+// "p1of4/". Bounded hard, and nothing here is derived from the seed.
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#define SCAN_LOG(...) ESP_LOGI("scan", __VA_ARGS__)
+#define SCAN_PREFIX 28
+#else
+#define SCAN_LOG(...) ((void)0)
+#endif
+
 #define BG_COL  WT_BG
 #define INK_COL WT_INK
 #define MUT_COL WT_MUT
@@ -124,7 +141,25 @@ static void feed(const char *data, size_t len)
     if (!s_parser) return;
     int rc = qrt_parser_feed(s_parser, data, len);
     int seen = qrt_parser_seen(s_parser), total = qrt_parser_total(s_parser);
-    if (rc != 0) return;                       // some other QR in view: ignore
+    if (rc != 0) {                             // some other QR in view: ignore
+#ifdef ESP_PLATFORM
+        // Rate-limited: an unrecognised code sits in frame at ~10 decodes a
+        // second and would otherwise bury every other line in the log.
+        static uint32_t drops;
+        if ((drops++ % 15) == 0) {
+            char p[SCAN_PREFIX + 1];
+            size_t n = len < SCAN_PREFIX ? len : SCAN_PREFIX;
+            memcpy(p, data, n);
+            p[n] = 0;
+            for (size_t i = 0; i < n; i++)
+                if (p[i] < 0x20 || p[i] > 0x7E) p[i] = '.';
+            SCAN_LOG("IGNORED: decoded %u bytes, not a known PSBT QR format "
+                     "(rc %d) starts \"%s\"", (unsigned)len, rc, p);
+        }
+#endif
+        return;
+    }
+    SCAN_LOG("part accepted: %u bytes, %d of %d", (unsigned)len, seen, total);
     if (s_prog) {
         char b[48];
         if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
@@ -138,10 +173,18 @@ static void feed(const char *data, size_t len)
         size_t n = 0;
         int fmt = qrt_parser_format(s_parser);
         int rrc = qrt_parser_result(s_parser, s_psbt, sizeof s_psbt, &n);
+        SCAN_LOG("complete: fmt %d, %u parts, %u bytes, rc %d",
+                 fmt, (unsigned)total, (unsigned)n, rrc);
         scan_teardown();
         if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
         if (rrc == 0) { if (s_on_psbt) s_on_psbt(s_psbt, n, fmt); }
-        else if (s_on_cancel) s_on_cancel();   // oversized/corrupt: back out
+        else {
+            // Backing out here looks to the user exactly like tapping cancel,
+            // which is why an oversized PSBT reads as "the scanner quit".
+            SCAN_LOG("REJECTED after assembly: rc %d (over %u-byte cap?)",
+                     rrc, (unsigned)sizeof s_psbt);
+            if (s_on_cancel) s_on_cancel();
+        }
     }
 }
 
