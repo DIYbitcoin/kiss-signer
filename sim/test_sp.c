@@ -604,6 +604,61 @@ static void sp_test_dleq(void) {
           sp_dleq_verify(a_pub, spv352_0_recipkeys, share, proof, NULL, NULL) != 0);
 }
 
+
+// ---------------------------------------------------------------------------
+// FIELD REGRESSION: a real BIP376 spend PSBT produced by Sparrow, captured off
+// the device on 2026-07-26 after it was refused with "input is not this
+// wallet's". Sparrow's PSBT is CORRECT -- input 0 carries both
+// PSBT_IN_SP_SPEND_BIP32_DERIVATION (0x1f) and PSBT_IN_SP_TWEAK (0x20), and
+// output 1 carries PSBT_OUT_SP_V0_INFO (0x09) + label (0x0a). libwally's LOOSE
+// parse exposes all four.
+//
+// The seed here is the dev mnemonic, NOT the wallet that owns this coin, so
+// ownership MUST fail. What is being pinned is WHICH failure: seeing 0x20 sends
+// the input down the BIP376 branch and the refusal names it ("silent-payment
+// input is not this wallet's"). The generic "input is not this wallet's" means
+// the tweak was never noticed at all, which is the bug this test exists for.
+static const char SPARROW_SPEND_B64[] =
+    "cHNidP8BAgQCAAAAAQMErzkCAAEEAQEBBQECAfsEAgAAAAABASvQBwAAAAAAACJRIDx5wy4r"
+    "sRNB/bfoSQtFeH5AHoscbB9XDAfsT87c7TBfAQMEAAAAAAEOIBj3xTT4d5K75ronC2h3FWo9"
+    "s1z2+R6xhhtsMdNhEcWyAQ8EAAAAAAEQBP3///8iHwMF6Au+pV0xZmB3F6+4+T5k8pWB76Sz"
+    "XWHE0kxAwfafwxicdShHYAEAgAEAAIAAAACAAAAAgAAAAAABICBxTJj0H2t7aJZQxvk2q7yy"
+    "Ql7rl0O+Cr+OncjggQbPQQABAwjcBQAAAAAAAAEEFgAU1roTeIWdd2qGmWOwxxtPJXRAF/wA"
+    "AQMITgEAAAAAAAABCUICfmBbgjKQjFO7sPPQMzOZm1fuXNM5kkKz089x3z6aqW0DadAY8O+J"
+    "DJjt0rn92PgzIPOrXdhwyubNL9WqtK4uGmgBCgQAAAAAAA==";
+
+static void sp_test_sparrow_spend(void) {
+    // libwally must expose the four SP fields at all (guards a wally bump).
+    struct wally_psbt *p = sp_parse_b64(SPARROW_SPEND_B64, WALLY_PSBT_PARSE_FLAG_LOOSE);
+    spchk("sparrow: loose parse", p != NULL);
+    if (p) {
+        int have_1f = 0, have_20 = 0;
+        for (size_t j = 0; j < p->inputs[0].unknowns.num_items; j++) {
+            const struct wally_map_item *it = &p->inputs[0].unknowns.items[j];
+            if (it->key_len == 34 && it->key[0] == 0x1f) have_1f = 1;
+            if (it->key_len == 1  && it->key[0] == 0x20 && it->value_len == 32) have_20 = 1;
+        }
+        spchk("sparrow: input carries 0x1f spend derivation", have_1f);
+        spchk("sparrow: input carries 0x20 tweak", have_20);
+        spchk("sparrow: output 1 carries SP info + label",
+              p->outputs[1].unknowns.num_items == 2);
+        wally_psbt_free(p);
+    }
+
+    wpsbt_summary_t sum;
+    wallet_set_network(1);
+    int rc = wallet_psbt_load((const uint8_t *)SPARROW_SPEND_B64,
+                              strlen(SPARROW_SPEND_B64), &sum);
+    spchk("sparrow: loads", rc == 0);
+    if (rc != 0) { printf("  load rc=%d\n", rc); return; }
+    printf("  status=%d n_sp=%u n_sp_in=%u reason=%s\n",
+           sum.status, (unsigned)sum.n_sp, (unsigned)sum.n_sp_in, sum.reason);
+    // The coin is not ours (dev seed), so it must be refused -- but as an SP
+    // input, which is what proves the tweak was read.
+    spchk("sparrow: refused as a SILENT-PAYMENT input, not a generic one",
+          strstr(sum.reason, "silent-payment") != NULL);
+}
+
 // Full loader-path tests: the coordinator fixture must verify READY with the
 // SP output derived + displayed as its tsp1 address; the negative fixtures
 // must STOP with their specific reasons. Session (abandon-mnemonic dev seed)
@@ -776,6 +831,7 @@ int test_sp(void) {
     sp_test_load();
     sp_test_sign();
     sp_test_spend();
+    sp_test_sparrow_spend();
     sp_test_spend_explicit_sighash();
     return sp_fails;
 }

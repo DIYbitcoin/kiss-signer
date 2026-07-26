@@ -60,8 +60,8 @@ OUT_TYPES = {
     0x05: "TAP_INTERNAL_KEY",
     0x06: "TAP_TREE",
     0x07: "TAP_BIP32_DERIVATION",
-    0x08: "SP_V0_INFO",                  # BIP375 recipient (scan||spend)
-    0x09: "SP_V0_LABEL",
+    0x09: "SP_V0_INFO",                  # BIP375 recipient, 66B scan||spend
+    0x0a: "SP_V0_LABEL",                 # 4B LE label
 }
 
 
@@ -198,14 +198,14 @@ def main():
     for i in range(n_out):
         print(f"OUTPUT {i}")
         seen = section(r, OUT_TYPES, deriv_key=0x02)
-        if 0x08 in seen:
+        if 0x09 in seen:
             sp_outs.append(i)
 
     print()
     if sp_inputs:
         print(f"silent-payment inputs (carry SP_TWEAK 0x20): {sp_inputs}")
     if sp_outs:
-        print(f"silent-payment recipients (carry SP_V0_INFO 0x08): {sp_outs}")
+        print(f"silent-payment recipients (carry SP_V0_INFO 0x09): {sp_outs}")
     if plain_inputs:
         print(f"inputs with NO derivation and NO SP_TWEAK: {plain_inputs}")
         print("  ^ KISS cannot prove these are yours and will refuse with")
