@@ -290,6 +290,7 @@ enum {
     STR_H_FINGERPRINT,
     STR_H_FP_CARD_FMT,
     STR_H_FP_CARD_B,
+    STR_H_EXIT_HINT,
     STR_W_STORE_T,
     STR_W_STORE_S,
     STR_W_KEEP_BTN,
