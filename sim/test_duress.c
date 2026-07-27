@@ -123,25 +123,27 @@ int test_duress(void) {
          wallet_duress_classify(g_xs, g_ys, g_n, 100, 100, 100, 100) == WDG_NONE);
 
     // ---- configuration ----
+    // One stroke, the owner's. Plain KISS opens the decoy and always will, so a
+    // second configurable stroke for it would only be another way to reach
+    // something already reachable with no stroke at all.
     wallet_duress_forget();
-    dchk("unset real", wallet_duress_real() == WDG_NONE);
-    dchk("unset decoy", wallet_duress_decoy() == WDG_NONE);
+    dchk("unset", wallet_duress_real() == WDG_NONE);
 
-    dchk("set real+decoy", wallet_duress_set(WDG_UNDERLINE, WDG_CIRCLE) == 0);
-    dchk("real reads back", wallet_duress_real() == WDG_UNDERLINE);
-    dchk("decoy reads back", wallet_duress_decoy() == WDG_CIRCLE);
+    dchk("set", wallet_duress_set(WDG_UNDERLINE) == 0);
+    dchk("reads back", wallet_duress_real() == WDG_UNDERLINE);
 
-    // Both gestures opening the same thing is a configuration with no real
-    // signer behind it; refuse rather than silently pick one.
-    dchk("same modifier for both refused",
-         wallet_duress_set(WDG_SLASH, WDG_SLASH) != 0);
-    dchk("half a configuration refused",
-         wallet_duress_set(WDG_SLASH, WDG_NONE) != 0);
-    dchk("out-of-range refused", wallet_duress_set(WDG_N, WDG_CIRCLE) != 0);
+    dchk("out-of-range refused", wallet_duress_set(WDG_N) != 0);
+    dchk("negative refused", wallet_duress_set(-1) != 0);
     dchk("refused writes changed nothing", wallet_duress_real() == WDG_UNDERLINE);
 
-    dchk("turning it off is allowed",
-         wallet_duress_set(WDG_NONE, WDG_NONE) == 0);
+    {
+        int ok = 1;
+        for (int g = WDG_UNDERLINE; g < WDG_N; g++)
+            if (wallet_duress_set(g) != 0 || wallet_duress_real() != g) ok = 0;
+        dchk("every modifier is settable", ok);
+    }
+
+    dchk("turning it off is allowed", wallet_duress_set(WDG_NONE) == 0);
     dchk("off means unset", wallet_duress_real() == WDG_NONE);
 
     // every modifier has a name the picker can show

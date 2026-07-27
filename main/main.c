@@ -1045,7 +1045,7 @@ static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
   // immune to fat-finger blur, so it can be strict where the x-clustering
   // below stays forgiving -- one wide stroke or a casual zigzag never fires.
   if (strokes < 4) return false;
-  if (n < 12) return false;
+  if (n < 10) return false;
   int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
   for (int i = 1; i < n; i++) {
     if (p[i].x < minx) minx = p[i].x;
@@ -1054,8 +1054,18 @@ static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
     if (p[i].y > maxy) maxy = p[i].y;
   }
   int w = maxx - minx, h = maxy - miny;
-  if (w < 170 || h < 45) return false;                // a wide-ish word
-  if (w * 5 < h * 6) return false;                     // width >= ~1.2 * height
+  // LOOSENED, and the reason is worth writing down: this used to be the gate in
+  // front of the passphrase keyboard, so a false positive was a tell and
+  // strictness was cheap. It now opens the DECOY, so a fumbled shape costs
+  // nothing at all -- someone lands in a spare wallet. Punishing ordinary
+  // handwriting bought safety that no longer needs buying, and the two S's
+  // merging under a fingertip was making the word genuinely hard to draw.
+  //
+  // What stays strict is what tells a WORD from a smudge: four pen lifts and
+  // three letter clusters, checked below. A tap or one flat swipe still cannot
+  // fire this.
+  if (w < 120 || h < 35) return false;                // still a word, just a smaller one
+  if (w < h) return false;                             // wider than tall; no aspect margin
   // Require FOUR letter clusters along x (K-I-S-S) so "KIS" (3) won't unlock — both S's must be
   // drawn. Letters are continuous in x; a >=2-bin empty gap marks a letter break. Only the K
   // (leftmost cluster) is shape-checked; I/S/S just need to be there and separated.
@@ -1448,7 +1458,7 @@ static void wallet_open_decoy(void) {
 // the very draw the owner meant. So the word is matched against everything
 // BEFORE the final stroke, and the final stroke goes to the classifier alone.
 static int unlock_kind(void) {
-  const int real = wallet_duress_real(), decoy = wallet_duress_decoy();
+  const int real = wallet_duress_real();
 
   if (real != WDG_NONE && s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
@@ -1463,12 +1473,11 @@ static int unlock_kind(void) {
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
-      int g = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
-      if (g != WDG_NONE && g == real)  return 1;
-      if (g != WDG_NONE && g == decoy) return 0;
-      // a stroke that is not either configured modifier falls through to the
-      // plain-word test below, which lands on the decoy: an unrecognized
-      // scribble must never be the thing that surfaces a passphrase prompt
+      if (wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1) == real)
+        return 1;
+      // any other stroke falls through to the plain-word test below, which
+      // lands on the decoy: an unrecognized scribble must never be the thing
+      // that surfaces a passphrase prompt
     }
   }
   if (detect_KISS(s_gpt, s_gn, s_strokes))

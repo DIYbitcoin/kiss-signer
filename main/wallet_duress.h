@@ -16,6 +16,12 @@
 // deliberate on two counts: a KISS-branded device where drawing KISS does
 // nothing is more suspicious than one that opens a modest wallet, and nobody
 // can be locked out by forgetting a stroke they chose months ago.
+//
+// There is exactly ONE configurable stroke, the owner's. An earlier version let
+// them choose a second one for the decoy as well, which was redundant the
+// moment plain KISS became a permanent way in: it offered six ways to reach
+// something already reachable with no stroke at all, and cost a second secret
+// to recall under stress.
 #pragma once
 
 // The extra stroke drawn AFTER the word. Geometry only -- no recorded
@@ -32,20 +38,19 @@ enum {
     WDG_N
 };
 
-// Configured modifiers, WDG_NONE when unset. Unset means this device has never
+// The configured stroke, WDG_NONE when unset. Unset means this device has never
 // been through the duress step, so the unlock behaves exactly as it did before
 // the feature existed (KISS -> passphrase login).
 int wallet_duress_real(void);
-int wallet_duress_decoy(void);
 
-// Persist both. Pass WDG_NONE for both to turn the feature off. Returns 0 only
-// once the write is committed. Rejects real == decoy, and rejects setting one
-// without the other -- half a configuration is a lockout waiting to happen.
-int wallet_duress_set(int real, int decoy);
+// Persist it. WDG_NONE turns the feature off. Returns 0 only once the write is
+// committed; rejects an out-of-range id rather than storing something the
+// classifier can never match.
+int wallet_duress_set(int gesture);
 
-// Forget the configuration (seed wipe). The keys are deliberately absent from
-// wallet_seed.c's KEEP_KEYS, so a whole-partition erase already takes them;
-// this exists for the host builds and for an explicit reset.
+// Forget the configuration (seed wipe). The key is deliberately absent from
+// wallet_seed.c's KEEP_KEYS, so a whole-partition erase already takes it; this
+// exists for the host builds and for an explicit reset.
 void wallet_duress_forget(void);
 
 // Classify one stroke against the bounding box of the KISS the user just drew.
