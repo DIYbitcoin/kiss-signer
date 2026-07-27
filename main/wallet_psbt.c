@@ -280,6 +280,8 @@ static int sp_scan(wpsbt_summary_t *s)
 
     for (size_t i = 0; i < s_psbt->num_outputs; i++) {
         const struct wally_map *m = &s_psbt->outputs[i].unknowns;
+        bool have_sp_info = false;
+        bool have_sp_label = false;
         for (size_t j = 0; j < m->num_items; j++) {
             const struct wally_map_item *it = &m->items[j];
             if (it->key_len == 1 && it->key[0] == 0x09) {
@@ -292,15 +294,24 @@ static int sp_scan(wpsbt_summary_t *s)
                 memcpy(s_sp.o[s_sp.n].scan, it->value, 33);
                 memcpy(s_sp.o[s_sp.n].spend, it->value + 33, 33);
                 s_sp.n++;
+                have_sp_info = true;
             } else if (it->key_len == 1 && it->key[0] == 0x0a) {
                 if (it->value_len != 4) {
                     stop(s, "malformed SP output label");
                     return -1;
                 }
                 // label: informational for the recipient; nothing to do here
+                have_sp_label = true;
             } else {
                 unknown++;
             }
+        }
+        // A BIP375 label only describes the Silent Payment recipient carried
+        // by 0x09 on this same output. Alone it is meaningless/malformed, and
+        // silently accepting it would let coordinator metadata evade review.
+        if (have_sp_label && !have_sp_info) {
+            stop(s, "SP label without output info");
+            return -1;
         }
     }
     s->n_unknown = unknown;

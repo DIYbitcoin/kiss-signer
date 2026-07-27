@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #define WSEED_MAX_MNEMONIC 256   // 24 words comfortably
+#define WSEED_MAX_WORDS     24   // BIP39 tops out here; callers clamp to it
 
 // ---- storage mode ----
 // KEEP:    the mnemonic lives in flash. Unlock is passphrase only.
@@ -22,7 +23,8 @@ int  wallet_seed_mode(void);
 // Persists the choice IMMEDIATELY. Switching TO amnesic wipes any stored seed,
 // so the mode shown on screen is always the truth about what is on the device.
 // Not for the setup wizard: see wallet_seed_stage_mode.
-void wallet_seed_set_mode(int mode);
+// Returns 0 only after the write/erase has been verified.
+int wallet_seed_set_mode(int mode);
 // The wizard's version: remember the answer, touch nothing. The wizard asks
 // KEEP vs NOTHING SAVED before the new wallet exists, so applying it there
 // would erase a wallet the user might still back out and keep.

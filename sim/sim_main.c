@@ -117,10 +117,11 @@ void wallet_seed_stage_mode(int m) {
   s_sim_pending_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC
                                                : WSEED_MODE_KEEP;
 }
-void wallet_seed_set_mode(int m) {
+int wallet_seed_set_mode(int m) {
   s_sim_pending_mode = -1;
   s_sim_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_seed = 0;
+  return 0;
 }
 void wallet_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
@@ -528,6 +529,9 @@ int main(void) {
   save("/tmp/sim_recv.ppm");
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");
+  touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
+  save("/tmp/sim_recv_sp_help.ppm");
+  touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
   touch(529, 430); pump(3); release(); pump(4);     // NEXT -> address #1
   save("/tmp/sim_recv1.ppm");
@@ -575,6 +579,11 @@ int main(void) {
   touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_pair_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
+  // Page two: the import steps plus the address proof. It is the page the
+  // owner actually follows, so it gets walked and rendered like any other.
+  touch(680, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
+  save("/tmp/sim_pair_steps.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the QR page
   // SCAN KEY is no longer buried in the pair screen: it is a top-level pill on
   // the WALLET screen at (430,236,340,60), so back out of pairing first. It was
   // moved because hiding a separate PRIVATE-key export one tap inside the
@@ -586,18 +595,19 @@ int main(void) {
   save("/tmp/sim_sp_key.ppm");
   touch(128, 430); pump(3); release(); pump(6);     // DONE -> WALLET screen
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
 
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
   save("/tmp/sim_sign_choose.ppm");
-  touch(718, 170); pump(3); release(); pump(30);    // "?" chip -> coordinator card
+  touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
   save("/tmp/sim_sign_help.ppm");
-  touch(400, 388); pump(3); release(); pump(6);     // OK closes the card
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD -> file list
+  touch(400, 430); pump(3); release(); pump(6);     // OK closes the card
+  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD (y=268) -> file list
   save("/tmp/sim_sign_files.ppm");
-  touch(328, 136); pump(3); release(); pump(8);     // first file -> verify (READY)
+  touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
   // the RBF "?" is wallet_sign.c's 26px chip, now pinned at (740,358) for BOTH
   // the replaceable and final wordings. It used to sit right after the text at
@@ -622,25 +632,29 @@ int main(void) {
   save("/tmp/sim_sign_done.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
-  touch(328, 202); pump(3); release(); pump(8);     // the STOP file -> blocked verify
+  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD
+  touch(328, 216); pump(3); release(); pump(8);     // the STOP file -> blocked verify
   save("/tmp/sim_sign_stop.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
-  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
-  touch(328, 268); pump(3); release(); pump(8);     // the FEE file -> amber caution
+  // BACK is ONE STEP now: from a transaction it returns to the list that
+  // transaction came from, not to the home screen. The three files below are
+  // opened one after another without ever leaving SIGN, which is the whole
+  // point -- picking the wrong file used to cost the entire trip back in.
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  save("/tmp/sim_sign_back_files.ppm");
+  touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
-  touch(626, 430); pump(3); release(); pump(6);     // I UNDERSTAND -> hold pill revealed
+  touch(524, 430); pump(3); release(); pump(6);     // I UNDERSTAND (398..650) -> hold pill
   save("/tmp/sim_sign_fee_ack.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
-  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD
-  touch(328, 334); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
   touch(735, 361); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
+  save("/tmp/sim_sign_back_choose.ppm");
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
   // the list shows only the first 4 files, so clear the others (all frames above
   // are already saved) to leave zsp-SPAY alone in row 0.
@@ -649,10 +663,12 @@ int main(void) {
   unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
   unlink("/tmp/simsd/warn-COMBO.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
-  touch(328, 136); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
+  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
+  touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -741,6 +757,27 @@ int main(void) {
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
 
+  // A 24-word seed is the only case that paginates, and 12-word wallets are
+  // what the rest of this walk uses -- so swap the stored mnemonic directly
+  // (same file, same statics) rather than typing 24 words through the keypad.
+  {
+    char save_seed[sizeof s_sim_seed];
+    snprintf(save_seed, sizeof save_seed, "%s", s_sim_seed);
+    size_t o = 0;
+    for (int i = 0; i < 24; i++)
+      o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
+                            "%s%s", i ? " " : "", SIM_WORDS[i]);
+    touch(600, 216); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
+    touch(168, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
+    save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
+    touch(278, 430); pump(3); release(); pump(6);   // NEXT
+    save("/tmp/sim_words24_p2.ppm");                // 13-24 / 24, BACK but no NEXT
+    touch(118, 430); pump(3); release(); pump(6);   // BACK -> page 1 again
+    save("/tmp/sim_words24_back.ppm");
+    touch(680, 430); pump(3); release(); pump(6);   // DONE -> Settings
+    snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
+  }
+
   touch(510, 424); pump(3); release(); pump(6);     // language pill (y=398) -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
@@ -748,9 +785,15 @@ int main(void) {
     touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
-  touch(333, 299); pump(3); release(); pump(4);     // pick LEGACY (pills at y=272, h54)
-  save("/tmp/sim_settings_legacy.ppm");
-  touch(103, 299); pump(3); release(); pump(4);     // back to NATIVE
+  // ADDRESS TYPE is a full-width subpage now: the settings row opens it, and
+  // the pick happens there. Walking both halves keeps a broken chooser from
+  // hiding behind a frame that only ever showed the list.
+  touch(218, 306); pump(3); release(); pump(6);     // ADDRESS TYPE row -> chooser
+  save("/tmp/sim_addr_type.ppm");                   // 3 names + notes, NATIVE selected
+  touch(400, 122); pump(3); release(); pump(6);     // pick LEGACY -> back to settings
+  save("/tmp/sim_settings_legacy.ppm");             // the row now reads Legacy / 1...
+  touch(218, 306); pump(3); release(); pump(6);     // reopen the chooser
+  touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
   touch(674, 48); pump(3); release(); pump(4);      // theme dot: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
   touch(680, 424); pump(3); release(); pump(6);     // BACK (y=398) -> home still pink
@@ -769,13 +812,21 @@ int main(void) {
   // this frame and diffs it against the text beside it.
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
   save("/tmp/sim_recv_sp_tn.ppm");
+  // The explainer names the prefixes, so testnet renders a different title
+  // ("WHY YOU SEE TB1P") and two more characters of body than mainnet does.
+  // Capture the longer one: it is the variant that would overflow first.
+  touch(730, 50); pump(3); release(); pump(30);     // ? -> tsp1/tb1p explanation
+  save("/tmp/sim_recv_sp_help_tn.ppm");
+  touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(118, 430); pump(3); release(); pump(6);     // BACK out of the SP view
   touch(118, 430); pump(3); release(); pump(4);     // BACK
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
-  touch(218, 256); pump(3); release(); pump(6);     // FROM SD
-  touch(328, 136); pump(3); release(); pump(8);     // file -> verify: TESTNET row
+  touch(218, 298); pump(3); release(); pump(6);     // FROM SD
+  touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(218, 116); pump(3); release(); pump(4);     // MAINNET restore (y=94, h44)
   touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
@@ -811,10 +862,15 @@ int main(void) {
   // the real path: CREATE NEW, 12 words, simulated entropy, quiz, login twice
   touch(218, 176); pump(3); release(); pump(4);     // CREATE NEW
   touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
-  touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
+  touch(218, 256); pump(3); release(); pump(4);     // 24 WORDS (TEMP probe)
   save("/tmp/sim_setup_entropy.ppm");
   touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
-  save("/tmp/sim_setup_words.ppm");                 // the write-these-down grid
+  save("/tmp/sim_setup_w24_p1.ppm");
+  touch(590, 430); pump(3); release(); pump(4);     // NEXT
+  save("/tmp/sim_setup_w24_p2.ppm");
+  touch(128, 430); pump(3); release(); pump(4);     // BACK
+  save("/tmp/sim_setup_w24_back.ppm");
+  touch(590, 430); pump(3); release(); pump(4);     // NEXT again
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
@@ -859,8 +915,13 @@ int main(void) {
   touch(264, 323); pump(3); release(); pump(4);     // KEEP GOING -> back to keyboard
   touch(46, 278); pump(3); release(); pump(3);      // 'a' (deliberately weak)
   touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning
-  save("/tmp/sim_setup_weak.ppm");                  // WEAK PASSWORD - OK AGAIN
-  touch(725, 430); pump(3); release(); pump(4);     // OK again -> confirm stage
+  save("/tmp/sim_setup_weak.ppm");                  // modal: BACK / USE ANYWAY
+  // BACK first: a weak passphrase must be escapable, and the entry has to
+  // survive it so the owner can lengthen what they typed instead of retyping.
+  touch(223, 372); pump(3); release(); pump(4);     // GO BACK -> keyboard, 'a' intact
+  save("/tmp/sim_setup_weak_back.ppm");
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> the card again
+  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> confirm stage
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint

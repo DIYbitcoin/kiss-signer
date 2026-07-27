@@ -14,8 +14,11 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #else
+#include <errno.h>
 #define SEED_FILE "/tmp/kiss_seed.txt"
 #define MODE_FILE "/tmp/kiss_seed_mode.txt"
+#define SEED_TMP  "/tmp/kiss_seed.txt.tmp"
+#define MODE_TMP  "/tmp/kiss_seed_mode.txt.tmp"
 #endif
 
 // ---- storage backends ----
@@ -42,24 +45,46 @@ static int storage_read(char *out, size_t out_len)
 #endif
 }
 
-static int storage_write(const char *words)
+static int storage_mode_read_checked(int *out_mode);
+static int storage_mode_write(int mode);
+
+// KEEP mode's words and mode flag are one NVS commit on-device. A power loss
+// must never leave a newly persisted seed paired with AMNESIC UI state.
+static int storage_write_keep(const char *words)
 {
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return -1;
     int rc = nvs_set_str(h, "words", words) == ESP_OK &&
+             nvs_set_u8(h, "smode", WSEED_MODE_KEEP) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
-    return rc;
 #else
-    FILE *f = fopen(SEED_FILE, "w");
+    // Set KEEP first: if writing the seed then fails, no new secret has been
+    // persisted under an AMNESIC label. Temp+rename avoids truncating an
+    // existing wallet on a short write.
+    if (storage_mode_write(WSEED_MODE_KEEP) != 0)
+        return -1;
+    FILE *f = fopen(SEED_TMP, "w");
     if (!f)
         return -1;
     int rc = fputs(words, f) >= 0 ? 0 : -1;
-    fclose(f);
-    return rc;
+    if (fclose(f) != 0) rc = -1;
+    if (rc == 0 && rename(SEED_TMP, SEED_FILE) != 0) rc = -1;
+    if (rc != 0) remove(SEED_TMP);
 #endif
+    if (rc != 0)
+        return -1;
+
+    char verify[WSEED_MAX_MNEMONIC];
+    int mode = -1;
+    rc = storage_read(verify, sizeof verify) == 0 &&
+         strcmp(verify, words) == 0 &&
+         storage_mode_read_checked(&mode) == 0 &&
+         mode == WSEED_MODE_KEEP ? 0 : -1;
+    wally_bzero(verify, sizeof verify);
+    return rc;
 }
 
 #ifdef ESP_PLATFORM
@@ -79,8 +104,10 @@ static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang" }
 // amnesic mode's whole promise is that a device which gets searched holds no
 // wallet bytes at all. A logical delete does not deliver that, so erase the
 // flash sectors themselves and put the preferences back afterwards.
-static int storage_erase(void)
+static int storage_erase(int mode_after)
 {
+    if (mode_after != WSEED_MODE_KEEP && mode_after != WSEED_MODE_AMNESIC)
+        return -1;
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     uint8_t keep[N_KEEP];
@@ -96,64 +123,124 @@ static int storage_erase(void)
 
     // deinit explicitly: every handle above is closed, and erasing a partition
     // that is still initialized is not portable across IDF versions
-    nvs_flash_deinit();                    // NOT_INITIALIZED here is fine
-    if (nvs_flash_erase() != ESP_OK)
+    esp_err_t err = nvs_flash_deinit();
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_INITIALIZED)
         return -1;
+    if (nvs_flash_erase() != ESP_OK) {
+        (void)nvs_flash_init();             // leave NVS usable if erase failed
+        return -1;
+    }
     if (nvs_flash_init() != ESP_OK)
         return -1;
 
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return -1;                         // blank partition, which is safe
+    int rc = 0;
     for (size_t i = 0; i < N_KEEP; i++)
-        if (have[i])
-            nvs_set_u8(h, KEEP_KEYS[i], keep[i]);
-    int rc = nvs_commit(h) == ESP_OK ? 0 : -1;
+        if (have[i] && nvs_set_u8(h, KEEP_KEYS[i], keep[i]) != ESP_OK)
+            rc = -1;
+    if (rc == 0 &&
+        nvs_set_u8(h, "smode", (uint8_t)mode_after) != ESP_OK)
+        rc = -1;
+    if (rc == 0 && nvs_commit(h) != ESP_OK)
+        rc = -1;
     nvs_close(h);
-    return rc;
 #else
-    remove(SEED_FILE);                 // absent is fine: wiping twice is a no-op
+    int rc = 0;
+    if (remove(SEED_FILE) != 0 && errno != ENOENT)
+        rc = -1;
+    if (remove(SEED_TMP) != 0 && errno != ENOENT)
+        rc = -1;
+    if (rc == 0)
+        rc = storage_mode_write(mode_after);
+#endif
+    if (rc != 0)
+        return -1;
+    int verify = -1;
+    return storage_mode_read_checked(&verify) == 0 && verify == mode_after
+         ? 0 : -1;
+}
+
+// ---- storage mode (see wallet_seed.h) ----
+static int storage_mode_read_checked(int *out_mode)
+{
+    if (!out_mode)
+        return -1;
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("kiss", NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        *out_mode = WSEED_MODE_KEEP;
+        return 0;
+    }
+    if (err != ESP_OK)
+        return -1;
+    uint8_t m = 0xff;
+    err = nvs_get_u8(h, "smode", &m);
+    nvs_close(h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        *out_mode = WSEED_MODE_KEEP;
+        return 0;
+    }
+    if (err != ESP_OK ||
+        (m != WSEED_MODE_KEEP && m != WSEED_MODE_AMNESIC))
+        return -1;
+    *out_mode = (int)m;
+    return 0;
+#else
+    errno = 0;
+    FILE *f = fopen(MODE_FILE, "r");
+    if (!f) {
+        if (errno == ENOENT) {
+            *out_mode = WSEED_MODE_KEEP;
+            return 0;
+        }
+        return -1;
+    }
+    int m = -1;
+    char extra = 0;
+    int fields = fscanf(f, "%d %c", &m, &extra);
+    int close_rc = fclose(f);
+    if (fields != 1 || close_rc != 0 ||
+        (m != WSEED_MODE_KEEP && m != WSEED_MODE_AMNESIC))
+        return -1;
+    *out_mode = m;
     return 0;
 #endif
 }
 
-// ---- storage mode (see wallet_seed.h) ----
 static int storage_mode_read(void)
 {
-#ifdef ESP_PLATFORM
-    nvs_handle_t h;
-    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
-        return WSEED_MODE_KEEP;
-    uint8_t m = WSEED_MODE_KEEP;
-    nvs_get_u8(h, "smode", &m);
-    nvs_close(h);
-    return m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
-#else
-    FILE *f = fopen(MODE_FILE, "r");
-    if (!f)
-        return WSEED_MODE_KEEP;
-    int m = WSEED_MODE_KEEP;
-    if (fscanf(f, "%d", &m) != 1) m = WSEED_MODE_KEEP;
-    fclose(f);
-    return m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
-#endif
+    int mode = WSEED_MODE_AMNESIC;
+    // Fail closed: a corrupt/unreadable mode must never make the UI claim a
+    // seed is safely persisted. A genuinely fresh store still returns KEEP.
+    return storage_mode_read_checked(&mode) == 0
+         ? mode : WSEED_MODE_AMNESIC;
 }
 
-static void storage_mode_write(int mode)
+static int storage_mode_write(int mode)
 {
+    if (mode != WSEED_MODE_KEEP && mode != WSEED_MODE_AMNESIC)
+        return -1;
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
-        return;
-    nvs_set_u8(h, "smode", (uint8_t)mode);
-    nvs_commit(h);
+        return -1;
+    int rc = nvs_set_u8(h, "smode", (uint8_t)mode) == ESP_OK &&
+             nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
 #else
-    FILE *f = fopen(MODE_FILE, "w");
+    FILE *f = fopen(MODE_TMP, "w");
     if (!f)
-        return;
-    fprintf(f, "%d", mode);
-    fclose(f);
+        return -1;
+    int rc = fprintf(f, "%d", mode) > 0 ? 0 : -1;
+    if (fclose(f) != 0) rc = -1;
+    if (rc == 0 && rename(MODE_TMP, MODE_FILE) != 0) rc = -1;
+    if (rc != 0) remove(MODE_TMP);
 #endif
+    int verify = -1;
+    return rc == 0 &&
+           storage_mode_read_checked(&verify) == 0 && verify == mode ? 0 : -1;
 }
 
 // ---- staged (not-yet-committed) mnemonic ----
@@ -184,15 +271,17 @@ void wallet_seed_stage_mode(int mode)
                                                 : WSEED_MODE_KEEP;
 }
 
-void wallet_seed_set_mode(int mode)
+int wallet_seed_set_mode(int mode)
 {
     mode = mode == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
-    s_pending_mode = -1;               // an explicit set overrules any staging
     // Turning amnesic ON has to take the stored seed with it, otherwise the
     // screen would claim "nothing saved" while flash still held the words.
-    if (mode == WSEED_MODE_AMNESIC)
-        storage_erase();
-    storage_mode_write(mode);
+    int rc = mode == WSEED_MODE_AMNESIC
+           ? storage_erase(WSEED_MODE_AMNESIC)
+           : storage_mode_write(WSEED_MODE_KEEP);
+    if (rc == 0)
+        s_pending_mode = -1;           // only publish a verified mode change
+    return rc;
 }
 
 int wallet_seed_stage(const char *mnemonic)
@@ -216,19 +305,19 @@ int wallet_seed_commit(void)
         // any previously stored wallet with it -- otherwise the screen would
         // claim "nothing saved" while flash still held the old words. The
         // staged copy stays so the session can derive from it until the lock.
-        if (storage_erase() != 0)
+        if (storage_erase(WSEED_MODE_AMNESIC) != 0)
             return -1;
-        storage_mode_write(WSEED_MODE_AMNESIC);
         s_pending_mode = -1;
         return 0;
     }
-    int rc = storage_write(s_pending);
-    if (rc == 0)
-        storage_mode_write(WSEED_MODE_KEEP);   // only once the words are safe
+    int rc = storage_write_keep(s_pending);
+    if (rc != 0)
+        return -1;   // still staged, but the caller decides: the setup login
+                     // discards it rather than hold an unsaved mnemonic in RAM
     wally_bzero(s_pending, sizeof s_pending);
     s_has_pending = false;
     s_pending_mode = -1;
-    return rc;
+    return 0;
 }
 
 // Backing out of setup, at any step, for any reason. Nothing was written yet,
@@ -263,7 +352,7 @@ int wallet_seed_store(const char *mnemonic)
 {
     if (wallet_seed_validate(mnemonic) != 0)
         return -1;
-    return storage_write(mnemonic);
+    return storage_write_keep(mnemonic);
 }
 
 int wallet_seed_load(char *out, size_t out_len)
@@ -280,7 +369,7 @@ int wallet_seed_load(char *out, size_t out_len)
 int wallet_seed_wipe(void)
 {
     wallet_seed_discard();          // an amnesic seed only ever lives here
-    return storage_erase();
+    return storage_erase(WSEED_MODE_KEEP);
 }
 
 void wallet_seed_forget(void)

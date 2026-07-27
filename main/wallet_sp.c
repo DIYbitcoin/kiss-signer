@@ -5,6 +5,14 @@
 
 #include <string.h>
 
+// Available in both the device and lightweight simulator builds. Volatile
+// stores keep the compiler from removing wipes of dead stack buffers.
+static void sp_bzero(void *ptr, size_t len)
+{
+    volatile uint8_t *p = (volatile uint8_t *)ptr;
+    while (len--) *p++ = 0;
+}
+
 // ---- bech32m (encode-only) -------------------------------------------------
 // libwally's bech32 is segwit-address shaped (90-char cap), while BIP352
 // addresses are ~117 chars under the bech32m 1023-char rule, so we carry our
@@ -116,6 +124,10 @@ int sp_receive_keys(const struct ext_key *master, bool testnet,
     ret = 0;
 out:
     wally_bzero(&k, sizeof k);
+    if (ret != 0) {
+        sp_bzero(scan_pub33, 33);
+        sp_bzero(spend_pub33, 33);
+    }
     return ret;
 }
 
@@ -140,6 +152,10 @@ int sp_scan_export_keys(const struct ext_key *master, bool testnet,
     ret = 0;
 out:
     wally_bzero(&k, sizeof k);
+    if (ret != 0) {
+        sp_bzero(scan_priv32, 32);
+        sp_bzero(spend_pub33, 33);
+    }
     return ret;
 }
 
@@ -159,6 +175,8 @@ int sp_spend_privkey(const struct ext_key *master, bool testnet,
     ret = 0;
 out:
     wally_bzero(&k, sizeof k);
+    if (ret != 0)
+        sp_bzero(spend_priv32, 32);
     return ret;
 }
 
@@ -176,33 +194,44 @@ static void sp_tagged_hash(const char *tag, const uint8_t *msg, size_t msg_len,
 {
     // largest caller: the DLEQ challenge at 6*33+32 = 230 bytes
     uint8_t th[32], buf[64 + 256];
-    if (msg_len > 256) { memset(out32, 0, 32); return; }
+    if (msg_len > 256) {
+        sp_bzero(out32, 32);
+        sp_bzero(th, sizeof th);
+        sp_bzero(buf, sizeof buf);
+        return;
+    }
     wally_sha256((const uint8_t *)tag, strlen(tag), th, 32);
     memcpy(buf, th, 32);
     memcpy(buf + 32, th, 32);
     memcpy(buf + 64, msg, msg_len);
     wally_sha256(buf, 64 + msg_len, out32, 32);
+    sp_bzero(th, sizeof th);
+    sp_bzero(buf, sizeof buf);
 }
 
 int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
                     uint8_t a_sum32[32], uint8_t a_sum_pub33[33])
 {
     secp256k1_context *ctx = sp_ctx();
-    if (!n) return -1;
     uint8_t sum[32] = { 0 };
+    uint8_t k[32] = { 0 };
+    uint8_t ser[33] = { 0 };
+    int ret = -1;
+    if (!n) goto out;
     bool sum_zero = false;   // running total legitimately at the point at infinity
     for (size_t i = 0; i < n; i++) {
-        uint8_t k[32];
         memcpy(k, privs32 + i * 32, 32);
-        if (!secp256k1_ec_seckey_verify(ctx, k)) return -2;
+        if (!secp256k1_ec_seckey_verify(ctx, k)) { ret = -2; goto out; }
         if (is_xonly[i]) {
             // BIP352: x-only inputs contribute the even-Y key
             secp256k1_pubkey pub;
-            uint8_t ser[33];
             size_t sl = sizeof ser;
-            if (!secp256k1_ec_pubkey_create(ctx, &pub, k)) return -2;
+            if (!secp256k1_ec_pubkey_create(ctx, &pub, k)) { ret = -2; goto out; }
             secp256k1_ec_pubkey_serialize(ctx, ser, &sl, &pub, SECP256K1_EC_COMPRESSED);
-            if (ser[0] == 0x03 && !secp256k1_ec_seckey_negate(ctx, k)) return -2;
+            if (ser[0] == 0x03 && !secp256k1_ec_seckey_negate(ctx, k)) {
+                ret = -2;
+                goto out;
+            }
         }
         if (i == 0 || sum_zero) {
             memcpy(sum, k, 32);   // start, or 0 + k = k after an intermediate zero
@@ -211,17 +240,32 @@ int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
             // k is a verified scalar in [1, n), so the only way this fails is
             // sum + k == 0 (mod n). BIP352 permits an intermediate zero and
             // rejects only a zero FINAL sum, so carry the zero and continue.
-            memset(sum, 0, 32);
+            sp_bzero(sum, sizeof sum);
             sum_zero = true;
         }
     }
-    if (sum_zero || !secp256k1_ec_seckey_verify(ctx, sum)) return -3;
+    if (sum_zero || !secp256k1_ec_seckey_verify(ctx, sum)) {
+        ret = -3;
+        goto out;
+    }
     secp256k1_pubkey apub;
     size_t sl = 33;
-    if (!secp256k1_ec_pubkey_create(ctx, &apub, sum)) return -3;
+    if (!secp256k1_ec_pubkey_create(ctx, &apub, sum)) {
+        ret = -3;
+        goto out;
+    }
     secp256k1_ec_pubkey_serialize(ctx, a_sum_pub33, &sl, &apub, SECP256K1_EC_COMPRESSED);
     memcpy(a_sum32, sum, 32);
-    return 0;
+    ret = 0;
+out:
+    sp_bzero(sum, sizeof sum);
+    sp_bzero(k, sizeof k);
+    sp_bzero(ser, sizeof ser);
+    if (ret != 0) {
+        sp_bzero(a_sum32, 32);
+        sp_bzero(a_sum_pub33, 33);
+    }
+    return ret;
 }
 
 int sp_input_hash(const uint8_t *outpoints36, size_t n,
@@ -290,10 +334,13 @@ int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
                     sp_recip_t *recips, size_t n)
 {
     secp256k1_context *ctx = sp_ctx();
-    uint8_t adjusted[33];
-    if (sp_point_mul(share33, input_hash32, adjusted) != 0) return -1;
+    uint8_t adjusted[33] = { 0 };
+    uint8_t msg[33 + 4] = { 0 };
+    uint8_t t_k[32] = { 0 };
+    uint8_t ser[33] = { 0 };
+    int ret = -1;
+    if (sp_point_mul(share33, input_hash32, adjusted) != 0) goto out;
     for (size_t k = 0; k < n; k++) {
-        uint8_t msg[33 + 4], t_k[32], ser[33];
         memcpy(msg, adjusted, 33);
         msg[33] = (uint8_t)(k >> 24);
         msg[34] = (uint8_t)(k >> 16);
@@ -302,12 +349,24 @@ int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
         sp_tagged_hash("BIP0352/SharedSecret", msg, sizeof msg, t_k);
         secp256k1_pubkey p;
         size_t sl = 33;
-        if (!secp256k1_ec_pubkey_parse(ctx, &p, recips[k].spend, 33)) return -2;
-        if (!secp256k1_ec_pubkey_tweak_add(ctx, &p, t_k)) return -3;
+        if (!secp256k1_ec_pubkey_parse(ctx, &p, recips[k].spend, 33)) {
+            ret = -2;
+            goto out;
+        }
+        if (!secp256k1_ec_pubkey_tweak_add(ctx, &p, t_k)) {
+            ret = -3;
+            goto out;
+        }
         secp256k1_ec_pubkey_serialize(ctx, ser, &sl, &p, SECP256K1_EC_COMPRESSED);
         memcpy(recips[k].xonly_out, ser + 1, 32);
     }
-    return 0;
+    ret = 0;
+out:
+    sp_bzero(adjusted, sizeof adjusted);
+    sp_bzero(msg, sizeof msg);
+    sp_bzero(t_k, sizeof t_k);
+    sp_bzero(ser, sizeof ser);
+    return ret;
 }
 // ---- BIP374 DLEQ ----------------------------------------------------------
 // Port of the BIP374 reference (via the embit fork's dleq.py, mirrored
@@ -410,19 +469,22 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
 {
     secp256k1_context *ctx = sp_ctx();
     const uint8_t *G = g33 ? g33 : SP_G33;
-    if (!secp256k1_ec_seckey_verify(ctx, a32)) return -1;
+    uint8_t A[33] = { 0 }, C[33] = { 0 };
+    uint8_t aux_h[32] = { 0 }, t[32] = { 0 };
+    uint8_t nmsg[32 + 33 + 33 + 32] = { 0 }, k[32] = { 0 };
+    uint8_t R1[33] = { 0 }, R2[33] = { 0 };
+    uint8_t e[32] = { 0 }, s[32] = { 0 }, ea[32] = { 0 };
+    int ret = -1;
+    if (!secp256k1_ec_seckey_verify(ctx, a32)) goto out;
 
-    uint8_t A[33], C[33];
-    if (sp_mul_base(g33, a32, A) != 0) return -2;   // A = a*G
-    if (sp_mul_base(b33, a32, C) != 0) return -3;   // C = a*B
+    if (sp_mul_base(g33, a32, A) != 0) { ret = -2; goto out; } // A = a*G
+    if (sp_mul_base(b33, a32, C) != 0) { ret = -3; goto out; } // C = a*B
 
     // t = a XOR H_aux(r)
-    uint8_t aux_h[32], t[32];
     sp_tagged_hash("BIP0374/aux", aux32, 32, aux_h);
     for (int i = 0; i < 32; i++) t[i] = a32[i] ^ aux_h[i];
 
     // k = H_nonce(t || A || C || m') mod n
-    uint8_t nmsg[32 + 33 + 33 + 32], k[32];
     size_t nl = 0;
     memcpy(nmsg + nl, t, 32); nl += 32;
     memcpy(nmsg + nl, A, 33); nl += 33;
@@ -430,21 +492,25 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
     if (m32) { memcpy(nmsg + nl, m32, 32); nl += 32; }
     sp_tagged_hash("BIP0374/nonce", nmsg, nl, k);
     sp_mod_n(k);
-    if (sp_is_zero32(k)) return -4;
+    if (sp_is_zero32(k)) { ret = -4; goto out; }
 
-    uint8_t R1[33], R2[33];
-    if (sp_mul_base(g33, k, R1) != 0) return -5;    // R1 = k*G
-    if (sp_mul_base(b33, k, R2) != 0) return -6;    // R2 = k*B
+    if (sp_mul_base(g33, k, R1) != 0) { ret = -5; goto out; } // R1 = k*G
+    if (sp_mul_base(b33, k, R2) != 0) { ret = -6; goto out; } // R2 = k*B
 
     // e = H_challenge(A||B||C||G||R1||R2||m'); s = k + e*a mod n
-    uint8_t e[32], s[32], ea[32];
     sp_dleq_challenge(A, b33, C, G, R1, R2, m32, e);
     memcpy(ea, e, 32);
     sp_mod_n(ea);
     if (!sp_is_zero32(ea)) {
         memcpy(s, a32, 32);
-        if (!secp256k1_ec_seckey_tweak_mul(ctx, s, ea)) return -7;  // e*a
-        if (!secp256k1_ec_seckey_tweak_add(ctx, s, k)) return -7;   // + k
+        if (!secp256k1_ec_seckey_tweak_mul(ctx, s, ea)) {
+            ret = -7;
+            goto out;
+        }
+        if (!secp256k1_ec_seckey_tweak_add(ctx, s, k)) {
+            ret = -7;
+            goto out;
+        }
     } else {
         memcpy(s, k, 32);
     }
@@ -452,8 +518,25 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
     memcpy(proof64 + 32, s, 32);
 
     // spec: self-verify before returning
-    if (sp_dleq_verify(A, b33, C, proof64, m32, g33) != 0) return -8;
-    return 0;
+    if (sp_dleq_verify(A, b33, C, proof64, m32, g33) != 0) {
+        ret = -8;
+        goto out;
+    }
+    ret = 0;
+out:
+    sp_bzero(A, sizeof A);
+    sp_bzero(C, sizeof C);
+    sp_bzero(aux_h, sizeof aux_h);
+    sp_bzero(t, sizeof t);
+    sp_bzero(nmsg, sizeof nmsg);
+    sp_bzero(k, sizeof k);
+    sp_bzero(R1, sizeof R1);
+    sp_bzero(R2, sizeof R2);
+    sp_bzero(e, sizeof e);
+    sp_bzero(s, sizeof s);
+    sp_bzero(ea, sizeof ea);
+    if (ret != 0) sp_bzero(proof64, 64);
+    return ret;
 }
 
 int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
@@ -522,7 +605,9 @@ int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[3
     memcpy(d_out32, d, 32);
     ret = 0;
 out:
-    memset(d, 0, sizeof d);
+    sp_bzero(d, sizeof d);
+    if (ret != 0)
+        sp_bzero(d_out32, 32);
     return ret;
 }
 
@@ -588,7 +673,10 @@ static int b32m_v0(const char *hrp, const uint8_t *payload, size_t plen,
                    char *out, size_t cap)
 {
     uint8_t data[1 + 128];                       // 65B payload -> 104 groups
-    if (1 + (plen * 8 + 4) / 5 > sizeof data) return -1;
+    if (1 + (plen * 8 + 4) / 5 > sizeof data) {
+        sp_bzero(data, sizeof data);
+        return -1;
+    }
     size_t n = 0;
     data[n++] = 0;
     uint32_t acc = 0;
@@ -602,7 +690,9 @@ static int b32m_v0(const char *hrp, const uint8_t *payload, size_t plen,
         }
     }
     if (bits) data[n++] = (acc << (5 - bits)) & 0x1f;
-    return b32m_encode(hrp, data, n, out, cap);
+    int rc = b32m_encode(hrp, data, n, out, cap);
+    sp_bzero(data, sizeof data);
+    return rc;
 }
 
 int sp_address_encode(const uint8_t scan33[33], const uint8_t spend33[33],
@@ -621,6 +711,6 @@ int sp_scan_encode(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
     memcpy(payload, scan_priv32, 32);
     memcpy(payload + 32, spend_pub33, 33);
     int rc = b32m_v0(testnet ? "tspscan" : "spscan", payload, sizeof payload, out, cap);
-    memset(payload, 0, sizeof payload);          // carries the scan private key
+    sp_bzero(payload, sizeof payload);           // carries the scan private key
     return rc;
 }

@@ -26,6 +26,8 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len);
 int test_seed_layer(void);
 // sim/test_sp.c — step 8 silent payments (BIP352/374/375)
 int test_sp(void);
+// sim/test_sdseed.c — the sealed blob SD-card storage writes
+int test_sdseed_layer(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -463,6 +465,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
 int main(int argc, char **argv) {
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
+    fails += test_sdseed_layer();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);

@@ -1,7 +1,26 @@
 #!/bin/bash
 # ENCRYPTED-release build -> build-encrypted-release/  (dev + release builds untouched).
 #
-# This is the step-8 hardening lane: the release profile (KISS_RELEASE=1, dev
+# REHEARSAL BUILD:  KISS_ENC_REHEARSAL=1 tools/build_encrypted_release.sh
+#   -> build-encrypted-rehearsal/, flash encryption in DEVELOPMENT mode.
+#
+#   Same encryption, same NVS keys, same partition table, but the eFuse that
+#   blocks plaintext serial flashing is NOT burned, so the board can be
+#   reflashed over USB as many times as you like while the wallet is exercised
+#   for real against encrypted flash. Spend a board on the release build only
+#   after this one has been through the whole app.
+#
+#   Verified against IDF 6.0.1 (components/bootloader_support/src/flash_encrypt.c):
+#   flashing a RELEASE-configured build onto a board already fused for
+#   DEVELOPMENT does NOT tighten it. The bootloader logs "app is configured for
+#   RELEASE but efuses are set for DEVELOPMENT / Device is not secure" and runs
+#   anyway. The only real upgrade is esp_flash_encryption_set_release_mode()
+#   called from the app, which burns CRYPT_CNT to full and write-protects it,
+#   burns DIS_DOWNLOAD_MANUAL_ENCRYPT (+ SPI_DOWNLOAD_MSPI_DIS and
+#   DIS_DOWNLOAD_ICACHE where the target has them), switches ROM download to
+#   secure mode, and aborts if the readback still says DEVELOPMENT.
+#
+# This is the step-8 hardening build: the release profile (KISS_RELEASE=1, dev
 # seed compiled OUT) PLUS:
 #   * flash encryption, RELEASE mode  - first boot burns the key into eFuse
 #     (ONE WAY) and encrypts the whole flash in place
@@ -23,6 +42,16 @@
 set -e
 cd "$(dirname "$0")/.."
 
+if [ -n "$KISS_ENC_REHEARSAL" ]; then
+    RECIPE=rehearsal; BUILD_DIR=build-encrypted-rehearsal
+    SDKCFG=sdkconfig.encrypted-rehearsal
+else
+    RECIPE=release;   BUILD_DIR=build-encrypted-release
+    SDKCFG=sdkconfig.encrypted
+fi
+export RECIPE BUILD_DIR SDKCFG
+echo "recipe: $RECIPE -> $BUILD_DIR"
+
 if [ -z "$ALLOW_DIRTY" ] && [ -n "$(git status --porcelain)" ]; then
     echo "You have uncommitted changes - an encrypted release must be built"
     echo "from a clean, committed tree. Commit first, then rerun."
@@ -34,17 +63,29 @@ fi
 # quiet logs + after no-reset (same as sdkconfig.release), then the
 # encryption settings forced on top. Regenerated every build - never drifts.
 python3 - <<'PY'
+import os
+rehearsal = os.environ["RECIPE"] == "rehearsal"
 force = {
     # hardening
     "CONFIG_SECURE_FLASH_ENC_ENABLED":              "y",
-    "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE":  "y",
-    "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT": None,   # explicitly OFF
+    # the ONE difference between the two: DEVELOPMENT leaves
+    # DIS_DOWNLOAD_MANUAL_ENCRYPT unburned, so the board still takes a
+    # plaintext serial flash and the bootloader re-encrypts it each boot
+    "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE":  None if rehearsal else "y",
+    "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT": "y" if rehearsal else None,
     "CONFIG_NVS_ENCRYPTION":                        "y",
     # P4 defaults the NVS key-protection choice to the HMAC scheme (needs a
     # pre-burned eFuse key block); we want the flash-encryption scheme: XTS
     # keys auto-generated on first use into the nvs_key partition
     "CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC":   "y",
     "CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC":        None,
+    # esptool talks to the ROM loader instead of uploading its stub. The
+    # verify block below has always asserted this, but nothing set it and
+    # SECURE_FLASH_ENC_ENABLED does not select it (esptool_py Kconfig:
+    # default y only under IDF_ENV_FPGA/BRINGUP). It was passing on a stale
+    # generated sdkconfig.encrypted. Force it, in both, so the flash
+    # command printed at the end matches the config that built.
+    "CONFIG_ESPTOOLPY_NO_STUB":                     "y",
     # reproducible binaries: no compile date/time embedded, so the same
     # commit always builds the same bytes (CI and verifiers can compare)
     "CONFIG_APP_REPRODUCIBLE_BUILD":                "y",
@@ -81,8 +122,9 @@ for l in open("sdkconfig").read().splitlines():
 for key, v in force.items():
     if key not in seen and v is not None:
         out.append(f"{key}={v}")
-open("sdkconfig.encrypted", "w").write("\n".join(out) + "\n")
-print("wrote sdkconfig.encrypted (flash enc RELEASE + NVS enc, logs WARN)")
+open(os.environ["SDKCFG"], "w").write("\n".join(out) + "\n")
+print("wrote %s (flash enc %s + NVS enc, logs WARN)"
+      % (os.environ["SDKCFG"], "DEVELOPMENT" if rehearsal else "RELEASE"))
 PY
 
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
@@ -93,15 +135,17 @@ docker run --rm \
   -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project \
   -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
-  idf.py -B build-encrypted-release -DSDKCONFIG=/project/sdkconfig.encrypted \
+  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
   -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
 
 # ---- verify: binary contents AND the security config that actually built ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
 import os, sys
 fails = 0
+bdir = os.environ["BUILD_DIR"]
+rehearsal = os.environ["RECIPE"] == "rehearsal"
 
-blob = open("build-encrypted-release/guition_kiss_bringup.bin", "rb").read()
+blob = open(f"{bdir}/guition_kiss_bringup.bin", "rb").read()
 rev = os.environ.get("GIT_REV", "").encode()
 checks = [
     (bool(rev) and rev in blob,          f"commit {rev.decode()} present"),
@@ -110,12 +154,16 @@ checks = [
     (open("VERSION").read().strip().encode() in blob, "version string present"),
 ]
 
-cfg = open("sdkconfig.encrypted").read().splitlines()
+cfg = open(os.environ["SDKCFG"]).read().splitlines()
 def on(k):  return f"{k}=y" in cfg
+# the two builds assert OPPOSITE things here on purpose: a rehearsal build that
+# quietly came out in RELEASE mode would burn the board it exists to protect
 checks += [
     (on("CONFIG_SECURE_FLASH_ENC_ENABLED"),             "flash encryption enabled"),
-    (on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE"), "flash encryption RELEASE mode"),
-    (not on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT"), "development mode off"),
+    (on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE") is not rehearsal,
+     "flash encryption DEVELOPMENT mode" if rehearsal else "flash encryption RELEASE mode"),
+    (on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT") is rehearsal,
+     "release mode off" if rehearsal else "development mode off"),
     (on("CONFIG_NVS_ENCRYPTION"),                       "NVS encryption enabled"),
     (on("CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC"),  "NVS keys via flash-enc scheme (nvs_key partition)"),
     (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
@@ -123,7 +171,7 @@ checks += [
     (on("CONFIG_APP_REPRODUCIBLE_BUILD"),               "reproducible build (no compile date embedded)"),
 ]
 
-pt = open("build-encrypted-release/partition_table/partition-table.bin", "rb").read()
+pt = open(f"{bdir}/partition_table/partition-table.bin", "rb").read()
 checks += [
     (b"nvs_key" in pt, "nvs_key (NVS XTS key) partition present"),
     (b"factory" in pt, "factory app partition present"),
@@ -133,7 +181,7 @@ checks += [
 # may talk to it, so the ELF must link ZERO objects from any radio/network
 # library (linker map = what the binary actually contains).
 import re
-mapf = open("build-encrypted-release/guition_kiss_bringup.map").read()
+mapf = open(f"{bdir}/guition_kiss_bringup.map").read()
 linked = []
 for lib in ("libesp_wifi", "libesp_wifi_remote", "libesp_hosted", "libbt.",
             "libwpa_supplicant", "liblwip", "libesp_netif", "libopenthread",
@@ -149,18 +197,59 @@ checks += [
 for ok, label in checks:
     print(("PASS: " if ok else "FAIL: ") + label)
     fails += 0 if ok else 1
-print(f"encrypted release app: {len(blob)} bytes")
+print(f"encrypted {os.environ['RECIPE']} app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY
 
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)
 python3 tools/check_flash_budget.py \
-  build-encrypted-release/guition_kiss_bringup.bin partitions_encrypted.csv
+  "$BUILD_DIR/guition_kiss_bringup.bin" partitions_encrypted.csv
 
+if [ "$RECIPE" = rehearsal ]; then
 cat <<EOF
 
-encrypted release build OK: build-encrypted-release/
+encrypted REHEARSAL build OK: $BUILD_DIR/
+
+################################################################################
+#  REHEARSAL BUILD - encrypts the board, does NOT lock it shut
+#
+#  * First boot still burns the flash-encryption key: PERMANENT. The board is
+#    encrypted from here on and can never go back to plain flash.
+#  * What it does NOT burn is DIS_DOWNLOAD_MANUAL_ENCRYPT, so you CAN keep
+#    reflashing this board over USB. That is the whole point of this build.
+#  * First boot encrypts ~6MB in place: minutes on a black screen.
+#    DO NOT UNPLUG until the game menu appears.
+#  * Settings will report encryption ENABLED. The build id stays amber,
+#    because DEVELOPMENT mode is not "secure" and must not look like it is.
+################################################################################
+
+1. erase the board:
+   uvx esptool --chip esp32p4 -p <port> erase-flash
+
+2. flash (same shifted offsets and --no-stub as the release build):
+   uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
+     --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
+     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
+     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
+     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+
+3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
+   create, lock, unlock, sign, wipe. Reflash and repeat as needed.
+
+4. ONLY when this build has been through everything, tighten the SAME board.
+   Reflashing the release build does NOT do it: verified in IDF 6.0.1, the
+   bootloader logs "app is configured for RELEASE but efuses are set for
+   DEVELOPMENT / Device is not secure" and boots anyway. The upgrade is
+   esp_flash_encryption_set_release_mode() called once from the app, which
+   maxes and write-protects CRYPT_CNT, burns DIS_DOWNLOAD_MANUAL_ENCRYPT,
+   SPI_DOWNLOAD_MSPI_DIS and DIS_DOWNLOAD_ICACHE, and switches ROM download
+   to secure mode. That call does not exist in KISS yet.
+EOF
+else
+cat <<EOF
+
+encrypted release build OK: $BUILD_DIR/
 
 ################################################################################
 #  READ BEFORE FLASHING - THIS IS A ONE-WAY OPERATION
@@ -179,15 +268,16 @@ encrypted release build OK: build-encrypted-release/
    uvx esptool --chip esp32p4 -p <port> erase-flash
 
 2. one full plaintext flash (first boot encrypts it in place; note the
-   encrypted lane's SHIFTED offsets - table 0x10000, app 0x20000 - and
+   encrypted build's SHIFTED offsets - table 0x10000, app 0x20000 - and
    --no-stub, which flash-encrypted builds require):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
-     0x2000  build-encrypted-release/bootloader/bootloader.bin \\
-     0x10000 build-encrypted-release/partition_table/partition-table.bin \\
-     0x20000 build-encrypted-release/guition_kiss_bringup.bin
+     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
+     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
+     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
    When Settings shows "flash encryption: ENABLED" (calm, not amber),
    the eFuse says encryption is live - only then create the wallet.
 EOF
+fi

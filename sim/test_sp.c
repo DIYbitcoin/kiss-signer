@@ -642,7 +642,52 @@ static void sp_test_sparrow_spend(void) {
         spchk("sparrow: input carries 0x20 tweak", have_20);
         spchk("sparrow: output 1 carries SP info + label",
               p->outputs[1].unknowns.num_items == 2);
+
+        // The label belongs to this output's 0x09 recipient metadata. Build a
+        // raw malformed fixture by removing exactly that serialized field.
+        // libwally itself refuses to serialize the orphan, so the byte edit is
+        // deliberate: it tests hostile input rather than its builder API.
+        static const uint8_t key_info[1] = { 0x09 };
+        uint8_t info[66];
+        size_t info_len = 0;
+        int have_info = sp_output_unknown(p, 1, key_info, sizeof key_info,
+                                          info, sizeof info, &info_len) == 0 &&
+                        info_len == sizeof info;
         wally_psbt_free(p);
+
+        uint8_t raw[4096];
+        size_t raw_len = 0;
+        int decoded = have_info &&
+            wally_base64_to_bytes(SPARROW_SPEND_B64, 0, raw, sizeof raw,
+                                  &raw_len) == WALLY_OK;
+        size_t off = raw_len;
+        for (size_t i = 0; decoded && i + 69 <= raw_len; i++)
+            if (raw[i] == 0x01 && raw[i + 1] == 0x09 &&
+                raw[i + 2] == 0x42 &&
+                memcmp(raw + i + 3, info, sizeof info) == 0) {
+                off = i;
+                break;
+            }
+        int removed = off < raw_len;
+        if (removed) {
+            memmove(raw + off, raw + off + 69, raw_len - off - 69);
+            raw_len -= 69;
+        }
+
+        wpsbt_summary_t orphan;
+        wallet_set_network(1);
+        int orphan_rc = removed
+            ? wallet_psbt_load(raw, raw_len, &orphan) : -1;
+        if (!(orphan_rc == 0 && orphan.status == WPSBT_STOP &&
+              strstr(orphan.reason, "label without output info") != NULL))
+            printf("  orphan probe: decoded=%d removed=%d len=%zu rc=%d "
+                   "status=%d reason=%s\n", decoded, removed, raw_len,
+                   orphan_rc, orphan_rc == 0 ? orphan.status : -1,
+                   orphan_rc == 0 ? orphan.reason : "(load failed)");
+        spchk("sparrow: orphan SP output label rejected",
+              orphan_rc == 0 && orphan.status == WPSBT_STOP &&
+              strstr(orphan.reason, "label without output info") != NULL);
+        wallet_psbt_free();
     }
 
     wpsbt_summary_t sum;

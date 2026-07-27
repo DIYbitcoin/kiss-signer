@@ -218,7 +218,8 @@ int test_seed_layer(void) {
         schk("mode defaults to KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
         schk("wipe before mode tests", wallet_seed_wipe() == 0);
 
-        wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+        schk("set AMNESIC succeeds",
+             wallet_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
         schk("mode reads back AMNESIC", wallet_seed_mode() == WSEED_MODE_AMNESIC);
         schk("amnesic: stage ok", wallet_seed_stage(ALT_WORDS) == 0);
         schk("amnesic: commit ok", wallet_seed_commit() == 0);
@@ -234,7 +235,7 @@ int test_seed_layer(void) {
         schk("amnesic: load refused after lock",
              wallet_seed_load(got, sizeof got) != 0);
         // nothing must have reached persistent storage at any point
-        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("set KEEP succeeds", wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
         schk("amnesic: nothing was persisted", wallet_seed_exists() == 0);
 
         // KEEP still survives a lock, which is the whole difference
@@ -247,9 +248,11 @@ int test_seed_layer(void) {
              wallet_seed_load(got, sizeof got) == 0 && strcmp(got, ALT_WORDS) == 0);
 
         // switching to amnesic must not leave the old seed behind
-        wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+        schk("switch to AMNESIC succeeds",
+             wallet_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
         schk("switching to amnesic wipes stored seed", wallet_seed_exists() == 0);
-        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("switch back to KEEP succeeds",
+             wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
     }
 
     // ---- setup wizard: nothing reaches flash before commit ----
@@ -261,7 +264,8 @@ int test_seed_layer(void) {
     {
         char got[WSEED_MAX_MNEMONIC];
 
-        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("wizard: set KEEP succeeds",
+             wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
         schk("wizard: a wallet is stored to begin with",
              wallet_seed_store(DEV_WORDS) == 0);
 
@@ -291,7 +295,8 @@ int test_seed_layer(void) {
 
         // the same guarantee in the other direction: a KEEP wizard that is
         // abandoned must not overwrite the wallet already on the device
-        wallet_seed_set_mode(WSEED_MODE_KEEP);
+        schk("wizard: restore KEEP mode succeeds",
+             wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
         schk("wizard: restore a stored wallet", wallet_seed_store(DEV_WORDS) == 0);
         schk("wizard: stage a replacement", wallet_seed_stage(ALT_WORDS) == 0);
         wallet_seed_discard();
