@@ -165,11 +165,7 @@ LEGACY = [
     ("docs/readme/menu.png",              "sim_menu"),
     ("docs/readme/wallet.png",            "sim_wallet"),
     ("docs/readme/setup-1-choose.png",    "sim_setup_choose"),
-    # sim_setup_words has not been saved by the walk for some time, which left
-    # this whole script unable to run (it refuses to write a partial set). The
-    # walk does still render that screen -- it is page 1 of the 24-word reveal,
-    # which is the same "WRITE THESE DOWN" frame this entry was written for.
-    ("docs/readme/setup-2-words.png",     "sim_setup_w24_p1"),
+    ("docs/readme/setup-2-words.png",     "sim_setup_words"),
     ("docs/readme/setup-3-quiz.png",      "sim_setup_quiz"),
     ("docs/readme/setup-4-passphrase.png", "sim_setup_pass"),
     ("docs/readme/verify-backup.png",     "sim_verify_ok"),

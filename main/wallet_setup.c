@@ -61,6 +61,7 @@ static void count_screen(void);
 // restoring a wallet during setup had to type words they were holding as a QR.
 // Same decoder, same staging; only the way back differs.
 static void restore_scan_cb(lv_event_t *e);
+static void cancel_cb(lv_event_t *e);
 static void goto_count_cb(lv_event_t *e);
 static bool s_qr_from_restore;
 static void entropy_screen(void);
@@ -362,6 +363,20 @@ static void words_screen(void)
                     (void *)(intptr_t)-1);
         mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
     }
+    // There was no way OUT of this screen: BACK only pages between halves of
+    // the word list, so someone who picked the wrong length, or who simply has
+    // no paper to hand, could only go forward or pull the power. CANCEL is the
+    // exit, and it sits on the first page only -- the pager owns that slot on
+    // later ones, and cancelling from page 1 is a step away rather than a
+    // neighbour of the button that claims the words are copied.
+    //
+    // Deliberately NOT a "back one step": that would regenerate the seed, and
+    // anyone who had already copied page 1 onto paper would be holding words
+    // for a wallet that no longer exists, with nothing on screen to say so.
+    // Nothing is staged yet at this point (wallet_seed_stage runs after the
+    // quiz), so leaving here stores nothing and destroys nothing.
+    if (s_wpage == 0)
+        mk_pill(tr(STR_C_CANCEL), 48, 404, 160, cancel_cb, NULL);
     if (s_wpage < pages - 1)
         mk_pill(tr(STR_R_NEXT), 430, 404, 320, words_page_cb,
                 (void *)(intptr_t)1);
@@ -565,6 +580,7 @@ static void count_pick_cb(lv_event_t *e)
 
 static void count_screen(void)
 {
+    // Reached only while RESTORING now; creating always makes 12.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     lv_obj_t *p = mk_pill(tr(STR_W_12), 48, 150, 340, count_pick_cb, (void *)(intptr_t)12);
     wt_pill_primary(p);
@@ -573,8 +589,8 @@ static void count_screen(void)
     // was a bare font14 label while its twin above auto-fit: same box, same
     // job, so it gets the same treatment
     wt_wraph(s_scr, tr(STR_W_24_NOTE), 430, 230, 340, 76);
-    // Restoring only: a SeedQR carries its own length, so it sits beside the
-    // count rather than after it. Creating a new wallet has nothing to scan.
+    // A SeedQR carries its own length, so it sits beside the count rather than
+    // after it.
     if (s_restore) {
         mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 310, 340, restore_scan_cb, NULL);
         wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 310, 340, 76);
@@ -590,7 +606,18 @@ static void count_screen(void)
 static void storage_pick_cb(lv_event_t *e)
 {
     wallet_seed_stage_mode((int)(intptr_t)lv_event_get_user_data(e));
-    count_screen();
+    if (s_restore) {
+        count_screen();          // restoring: the paper decides, 12 or 24
+        return;
+    }
+    // CREATING: always 12. 128 bits of entropy is not brute-forceable by
+    // anything, so the extra 128 buys margin against nothing that can happen,
+    // while 24 words doubles the length of the ONE step where a real mistake
+    // is likely -- copying them onto paper by hand and reading them back. The
+    // 24-word path stays fully supported for RESTORE, because seeds made on
+    // other signers arrive at whatever length they arrive.
+    s_count = 12;
+    entropy_screen();
 }
 
 static void storage_screen(void)

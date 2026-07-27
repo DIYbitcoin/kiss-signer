@@ -864,18 +864,15 @@ int main(void) {
   touch(163, 182); pump(3); release(); pump(3);     // accept "abandon" -> word 2
   touch(160, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
 
-  // the real path: CREATE NEW, 12 words, simulated entropy, quiz, login twice
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE NEW
+  // the real path: CREATE SEED, simulated entropy, quiz, login twice.
+  // Creating no longer asks how many words -- it is always 12 -- so KEEP ON
+  // THIS DEVICE lands straight on the entropy screen, and the reveal is a
+  // single page with no pager.
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
-  touch(218, 256); pump(3); release(); pump(4);     // 24 WORDS (TEMP probe)
   save("/tmp/sim_setup_entropy.ppm");
   touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
-  save("/tmp/sim_setup_w24_p1.ppm");
-  touch(590, 430); pump(3); release(); pump(4);     // NEXT
-  save("/tmp/sim_setup_w24_p2.ppm");
-  touch(128, 430); pump(3); release(); pump(4);     // BACK
-  save("/tmp/sim_setup_w24_back.ppm");
-  touch(590, 430); pump(3); release(); pump(4);     // NEXT again
+  save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
@@ -949,22 +946,27 @@ int main(void) {
   touch(198, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
   touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
-  // KNOWN GAP, predating the stroke chooser below: the rehearsal above never
-  // completes, because the wizard takes the 24-word path ("TEMP probe") while
-  // verify_prefixes lists 12. So this is still the UNVERIFIED warning, and
-  // (725,430) is its I UNDERSTAND rather than the login's OK. Every frame here
-  // still CHANGED, which is exactly why check_sim_taps.py never flagged it --
-  // that check catches dead taps, not taps that land on the wrong live screen.
-  touch(725, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
+  // The rehearsal above completes again now that creating makes 12 words: the
+  // prefixes were always written for a 12-word seed, and the wizard's "TEMP
+  // probe" switch to 24 had quietly left them one word list out of step. Every
+  // frame still CHANGED while it was broken, which is why check_sim_taps.py
+  // never flagged it -- it catches dead taps, not taps landing on a wrong but
+  // still-live screen.
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  touch(400, 414); pump(3); release(); pump(10);    // TAP TO OPEN -> verified warning
+  save("/tmp/sim_setup_verified.ppm");              // green full-backup state, at last
+  touch(590, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
 
-  // The LAST step of setup: which stroke opens which signer (wallet_duress_ui.c).
-  // Strokes are drawn against the printed reference word at (250,170)-(550,268),
-  // which is the same box wallet_duress_classify measures in the game.
+  // The LAST step of setup: the ONE stroke that reaches the real signer
+  // (wallet_duress_ui.c). Plain KISS opens the spare and always will, so there
+  // is nothing to configure for it. The stroke is drawn against the printed
+  // reference word at (250,170)-(550,268), which is the same box that
+  // wallet_duress_classify measures in the game.
   save("/tmp/sim_duress_intro.ppm");                // two ways in
   touch(148, 430); pump(3); release(); pump(40);    // OK -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
   touch(148, 430); pump(3); release(); pump(40);    // OK -> pick your stroke
-  save("/tmp/sim_duress_pick_real.ppm");            // six modifiers, two rows of three
+  save("/tmp/sim_duress_pick_real.ppm");            // six strokes, two rows of three
   touch(158, 176); pump(3); release(); pump(40);    // UNDERLINE (first pill)
   save("/tmp/sim_duress_draw_real.ppm");            // draw it, over the reference word
   for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 300); pump(1); }
@@ -972,14 +974,7 @@ int main(void) {
   save("/tmp/sim_duress_draw_real2.ppm");           // ...and once more to confirm
   for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 302); pump(1); }
   release(); pump(40);
-  save("/tmp/sim_duress_pick_decoy.ppm");           // five left: the real one is gone
-  touch(638, 176); pump(3); release(); pump(40);    // DIAGONAL (third pill of five)
-  save("/tmp/sim_duress_draw_decoy.ppm");
-  for (int i = 0; i <= 20; i++) { touch(272 + i * 13, 290 - i * 5); pump(1); }
-  release(); pump(40);                              // a slash: wide AND tall, straight
-  for (int i = 0; i <= 20; i++) { touch(272 + i * 13, 292 - i * 5); pump(1); }
-  release(); pump(40);
-  save("/tmp/sim_duress_done.ppm");                 // both ways in are set
+  save("/tmp/sim_duress_done.ppm");                 // the one way in is set
   touch(148, 430); pump(3); release(); pump(140);   // DONE -> saves, home settles
   save("/tmp/sim_setup_home.ppm");
 

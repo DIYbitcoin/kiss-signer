@@ -14,5 +14,11 @@
 // at any point leaves the previous configuration exactly as it was.
 void wallet_duress_ui_open(lv_obj_t *parent, void (*done_cb)(void));
 
+// The same screen set, opened on a signer whose wallet has NO passphrase: one
+// page explaining that this wallet is already the spare, so there is nothing to
+// put behind a stroke. Offers to clear any stroke left over from a build that
+// allowed it. done_cb fires on exit, as above.
+void wallet_duress_ui_open_nopass(lv_obj_t *parent, void (*done_cb)(void));
+
 // True while these screens own the touch input (the game must not also see it).
 bool wallet_duress_ui_active(void);

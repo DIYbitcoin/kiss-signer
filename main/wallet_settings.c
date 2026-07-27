@@ -243,7 +243,13 @@ static void duress_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    wallet_duress_ui_open(s_parent, settings_reopen);
+    // No passphrase on this session means this wallet IS the spare: both ways
+    // in reach it, so configuring a stroke would only let someone believe
+    // otherwise. Say that instead of opening the chooser.
+    if (wallet_session_decoy())
+        wallet_duress_ui_open_nopass(s_parent, settings_reopen);
+    else
+        wallet_duress_ui_open(s_parent, settings_reopen);
 }
 
 static void theme_pick_cb(lv_event_t *e)
@@ -410,11 +416,57 @@ static void do_wipe(void *ud)
 // out at any point leaves the existing wallet untouched. It used to arm like
 // WIPE, which bought no safety and put two identical "tap again" gestures on
 // one screen -- the dangerous one then looked routine.
-static void replace_cb(lv_event_t *e)
+static void replace_go_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wallet_begin_setup();
+}
+
+static void replace_cancel_cb(lv_event_t *e)
+{
+    lv_obj_t *ovl = lv_event_get_user_data(e);
+    if (ovl) lv_obj_delete_async(ovl);
+}
+
+// CREATE NEW SEED walked straight into the wizard with nothing said. Finishing
+// it replaces the seed on this device, and the owner was never told that before
+// starting -- while WIPE, the other control that ends a wallet, gates itself.
+//
+// A tap-confirm, not a hold: nothing is destroyed here. The staged seed only
+// reaches flash at wallet_seed_commit(), right at the end of the wizard, so
+// this is a warning about where the next few minutes lead rather than a last
+// chance before an erase.
+static void replace_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, 800, 480);
+    lv_obj_set_pos(ovl, 0, 0);
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);      // swallow stray taps
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, tr(STR_G_REPLACEC_T));
+    lv_obj_set_style_text_color(t, WARN_COL, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
+    lv_obj_set_style_text_letter_space(t, 3, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
+
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, tr(STR_G_REPLACEC_B));
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_G_REPLACEC_B), 704, 190), 0);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
+
+    wt_pill(ovl, tr(STR_G_REPLACEC_GO), 48, 372, 320, replace_go_cb, NULL);
+    wt_pill(ovl, tr(STR_C_CANCEL), 585, 372, 165, replace_cancel_cb, ovl);
 }
 
 // thin wrappers over the wallet_theme kit (call sites keep their signatures)
@@ -619,10 +671,18 @@ void wallet_settings_open(lv_obj_t *parent)
     // Only hidden once something IS configured. Before that there is nothing to
     // hide, and hiding it from an owner whose only wallet has no passphrase
     // would mean they could never find the setting at all.
-    if (wallet_session_decoy() && wallet_duress_real() != WDG_NONE) {
+    //
+    // Hidden ONLY when it would leak: a decoy session on a signer that really
+    // has a stroke configured. A wallet with no passphrase also reports as the
+    // decoy (both are the seed with an empty passphrase, and the device cannot
+    // tell them apart) -- but with nothing configured there is nothing to leak,
+    // and hiding the row there was a trap: every session on such a signer is
+    // the decoy, so the owner could never reach the setting again. That is
+    // exactly how a test board ended up stuck with a stroke it could not clear.
+    const int g = wallet_duress_real();
+    if (wallet_session_decoy() && g != WDG_NONE) {
         wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);
     } else {
-        int g = wallet_duress_real();
         lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 380, 340, 72, duress_cb, NULL);
         wt_pill_two_line_val(dp, g == WDG_NONE ? tr(STR_GD_OFF)
                                                : tr(wallet_duress_label_key(g)));
