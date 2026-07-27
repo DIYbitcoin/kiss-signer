@@ -537,25 +537,33 @@ void wallet_settings_open(lv_obj_t *parent)
         s_type_pfx[i] = lv_obj_get_child(s_type_seg[i], 1);
     }
     s_type_expl = wt_note(s_scr, "", 48, 342, 360, 54);  // filled by restyle()
-    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 400, 360, 54);         // clears the footer at 460
+    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 396, 360, 58);         // clears the footer at 460
 
     // RIGHT: wallet actions. RECOVERY WORDS lives here because it is a
     // maintenance/security action, not a fact about the wallet currently open.
     mk_section(tr(STR_I_T), 430, 74);
-    // Tall action pills let longer translations wrap at 23pt instead of
-    // collapsing the security-relevant actions to the smallest UI font.
-    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 96, 340, 66, replace_cb, NULL);
-    wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 164, 340, 32);
+    // All three action pills share ONE height (54) because they share a width
+    // (340) and a column. 66 / 66 / 52 read as three unrelated controls that
+    // happened to be stacked. Still tall enough that a long translation wraps
+    // at 23 rather than collapsing a security-relevant action to font14.
+    //
+    // The notes get 40px, not 32. One line at font23 needs 29 and 32 left no
+    // slack, so note_font could never choose 23 and every caption in this
+    // column was pinned to font14 by arithmetic rather than by choice. 40 fits
+    // one line at 23, and still contains two lines at 14 for the longest
+    // translations instead of letting them spill into the pill below.
+    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 94, 340, 54, replace_cb, NULL);
+    wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 150, 340, 40);
 
-    mk_pillh(tr(STR_I_WORDS_BTN), 430, 206, 340, 66, words_cb, NULL);
-    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 274, 340, 32);
+    mk_pillh(tr(STR_I_WORDS_BTN), 430, 194, 340, 54, words_cb, NULL);
+    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 250, 340, 40);
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; a hold on the next screen
     // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 310, 340, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 294, 340, 54, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 366, 340, 32);
+    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 350, 340, 40);
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is
     // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
@@ -586,29 +594,17 @@ void wallet_settings_open(lv_obj_t *parent)
         wt_pill_row(row, 2);
     }
 
-    // The flag goes on AFTER the row has agreed a size, then the name is
-    // re-measured against the width the flag actually leaves behind. It used to
-    // be centred with a fixed +16 nudge and sized against the whole pill, so a
-    // long name ran back underneath the flag and lost its first letters
-    // ("TIENG VIET" rendered as "ENG VIET"). Only the name gives ground here:
-    // BACK keeps whatever the row settled on.
-    if (s_lang_pill && img_lang_flags[i18n_get_lang()]) {
-        lv_obj_t *name = lv_obj_get_child(s_lang_pill, 0);
-        lv_obj_t *fl = lv_image_create(s_lang_pill);
-        lv_image_set_src(fl, img_lang_flags[i18n_get_lang()]);
-        lv_obj_align(fl, LV_ALIGN_LEFT_MID, 12, 0);   // clear of the corner radius
-        lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_update_layout(s_lang_pill);
-
-        int used = 12 + lv_obj_get_width(fl) + 10;
-        int room = LANG_PILL_W - used - 12;
-        wt_pill_fit_t f = wt_pill_fit(lv_label_get_text(name), room + 28, 44, false);
-        lv_obj_set_style_text_font(name, f.font, 0);
-        lv_obj_set_style_text_letter_space(name, 0, 0);
-        lv_label_set_long_mode(name, LV_LABEL_LONG_CLIP);
-        lv_obj_set_width(name, room);
-        lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(name, LV_ALIGN_LEFT_MID, used, 0);
-    }
+    // NO FLAG ON THIS PILL. It used to carry the active language's flag, which
+    // meant SETTINGS displayed a foreign country's flag permanently next to
+    // BACK for twenty of the twenty-one locales -- a national flag as fixed
+    // furniture on a Bitcoin signer, standing in for nothing the user needs.
+    // The native name already says which language is active, and it is the
+    // honest label: a language is not a country. Flags stay in the PICKER, one
+    // per row, where they genuinely help scan twenty-one options and there is
+    // width to spare.
+    //
+    // Bonus: the name now gets the pill's whole width, so the clipping this
+    // block existed to work around ("TIENG VIET" rendering as "ENG VIET")
+    // cannot happen at all.
     restyle();
 }
