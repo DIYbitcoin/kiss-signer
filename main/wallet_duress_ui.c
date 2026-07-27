@@ -1,5 +1,5 @@
-// See wallet_duress_ui.h. Five acts: teach it, pick your stroke, draw it twice,
-// pick the decoy's stroke, draw that twice.
+// See wallet_duress_ui.h. Four acts: teach it, say to fund the spare, pick your
+// stroke, draw it twice.
 //
 // The draw screens ask for the MODIFIER only, over a printed reference word,
 // rather than the whole "KISS + stroke". Two reasons. The word is not the part
@@ -28,12 +28,11 @@ static void (*s_done)(void);
 #define REF_X1 550
 #define REF_Y1 268
 
-// Stage machine. PICK_* choose a modifier, DRAW_* rehearse it; the second
-// DRAW_ of each pair is the confirmation.
-enum { ST_INTRO = 0, ST_FUND, ST_PICK_REAL, ST_DRAW_REAL1, ST_DRAW_REAL2,
-       ST_PICK_DECOY, ST_DRAW_DECOY1, ST_DRAW_DECOY2, ST_DONE };
+// Stage machine. ST_PICK chooses the stroke, the two ST_DRAW stages rehearse
+// it; the second is the confirmation.
+enum { ST_INTRO = 0, ST_FUND, ST_PICK, ST_DRAW1, ST_DRAW2, ST_DONE, ST_NOPASS };
 static int s_stage;
-static int s_real, s_decoy;
+static int s_pick;
 
 // ---- stroke capture ------------------------------------------------------
 // Same decimation rule as the game's unlock sampler in main.c: store a point
@@ -113,13 +112,11 @@ static void draw_press_cb(lv_event_t *e)
 static void draw_release_cb(lv_event_t *e)
 {
     (void)e;
-    const int want = (s_stage == ST_DRAW_REAL1 || s_stage == ST_DRAW_REAL2)
-                     ? s_real : s_decoy;
     const int got = wallet_duress_classify(s_dx, s_dy, s_dn,
                                            REF_X0, REF_Y0, REF_X1, REF_Y1);
     draw_reset();
 
-    if (got == want) {
+    if (got == s_pick) {
         stage_show(s_stage + 1);
         return;
     }
@@ -158,25 +155,22 @@ static void skip_cb(lv_event_t *e) { (void)e; finish(); }
 static void save_cb(lv_event_t *e)
 {
     (void)e;
-    // Only now, with both strokes confirmed twice, does anything persist. A
-    // failed write must not leave half a configuration behind: wallet_duress_set
-    // writes both keys or neither.
-    (void)wallet_duress_set(s_real, s_decoy);
+    // Only now, with the stroke drawn twice and matched twice, does anything
+    // persist.
+    (void)wallet_duress_set(s_pick);
     finish();
 }
 
 static void turn_off_cb(lv_event_t *e)
 {
     (void)e;
-    (void)wallet_duress_set(WDG_NONE, WDG_NONE);
+    (void)wallet_duress_set(WDG_NONE);
     finish();
 }
 
 static void pick_cb(lv_event_t *e)
 {
-    int g = (int)(intptr_t)lv_event_get_user_data(e);
-    if (s_stage == ST_PICK_REAL) s_real = g;
-    else                          s_decoy = g;
+    s_pick = (int)(intptr_t)lv_event_get_user_data(e);
     stage_show(s_stage + 1);
 }
 
@@ -184,16 +178,13 @@ static void next_cb(lv_event_t *e) { (void)e; stage_show(s_stage + 1); }
 
 // Six pills in two rows of three. Laid out on the 800x480 grid the rest of the
 // wallet uses, with the row heights the pill kit expects.
-static void pick_screen(const char *title, const char *sub, int exclude)
+static void pick_screen(void)
 {
-    s_scr = wt_screen(s_parent, title, sub);
-    int slot = 0;
+    s_scr = wt_screen(s_parent, tr(STR_GD_PICK_REAL_T), tr(STR_GD_PICK_REAL_S));
     for (int g = WDG_UNDERLINE; g < WDG_N; g++) {
-        if (g == exclude) continue;      // the decoy cannot reuse the real stroke
-        int col = slot % 3, row = slot / 3;
+        int slot = g - WDG_UNDERLINE, col = slot % 3, row = slot / 3;
         wt_pill(s_scr, tr(wallet_duress_label_key(g)),
                 48 + col * 240, 150 + row * 104, 220, pick_cb, (void *)(intptr_t)g);
-        slot++;
     }
     wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
 }
@@ -203,11 +194,9 @@ static void draw_screen(bool again)
     s_scr = wt_screen(s_parent, tr(again ? STR_GD_DRAW_AGAIN_T : STR_GD_DRAW_T),
                       tr(again ? STR_GD_DRAW_AGAIN_S : STR_GD_DRAW_S));
 
-    // the modifier being rehearsed, named, so a mis-tap on the picker is
-    // obvious here rather than two screens later
-    const int want = (s_stage == ST_DRAW_REAL1 || s_stage == ST_DRAW_REAL2)
-                     ? s_real : s_decoy;
-    wt_lbl(s_scr, tr(wallet_duress_label_key(want)), 48, 110, wt_font23(), wt_accent());
+    // the stroke being rehearsed, named, so a mis-tap on the picker is obvious
+    // here rather than two screens later
+    wt_lbl(s_scr, tr(wallet_duress_label_key(s_pick)), 48, 110, wt_font23(), wt_accent());
 
     // The reference word sits inside a faint box, and the box is not decoration:
     // it IS what wallet_duress_classify measures against, so "above" and "below"
@@ -288,16 +277,20 @@ static void stage_build(int stage)
         wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
         break;
     }
-    case ST_PICK_REAL:
-        pick_screen(tr(STR_GD_PICK_REAL_T), tr(STR_GD_PICK_REAL_S), WDG_NONE);
+    case ST_PICK:  pick_screen();        break;
+    case ST_DRAW1: draw_screen(false);   break;
+    case ST_DRAW2: draw_screen(true);    break;
+    case ST_NOPASS: {
+        s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
+        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_NOPASS_B), 48, 118, 704, 260);
+        lv_obj_set_style_text_color(b, WT_INK, 0);
+        // The only way back to plain behaviour for a signer that was allowed to
+        // configure a stroke before this case was handled.
+        if (wallet_duress_real() != WDG_NONE)
+            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 48, 404, 260, turn_off_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), 610, 404, 140, skip_cb, NULL);
         break;
-    case ST_DRAW_REAL1:  draw_screen(false); break;
-    case ST_DRAW_REAL2:  draw_screen(true);  break;
-    case ST_PICK_DECOY:
-        pick_screen(tr(STR_GD_PICK_DECOY_T), tr(STR_GD_PICK_DECOY_S), s_real);
-        break;
-    case ST_DRAW_DECOY1: draw_screen(false); break;
-    case ST_DRAW_DECOY2: draw_screen(true);  break;
+    }
     default: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DONE_T), NULL);
         lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_DONE_B), 48, 118, 704, 250);
@@ -312,10 +305,18 @@ void wallet_duress_ui_open(lv_obj_t *parent, void (*done_cb)(void))
 {
     s_parent = parent ? parent : lv_screen_active();
     s_done = done_cb;
-    s_real = WDG_NONE;
-    s_decoy = WDG_NONE;
+    s_pick = WDG_NONE;
     s_pending = -1;
     stage_show(ST_INTRO);
+}
+
+void wallet_duress_ui_open_nopass(lv_obj_t *parent, void (*done_cb)(void))
+{
+    s_parent = parent ? parent : lv_screen_active();
+    s_done = done_cb;
+    s_pick = WDG_NONE;
+    s_pending = -1;
+    stage_show(ST_NOPASS);
 }
 
 bool wallet_duress_ui_active(void) { return s_scr != NULL || s_pending >= 0; }

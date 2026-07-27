@@ -599,7 +599,17 @@ static void duress_done_cb(void) {
 static void setup_warn_ok_cb(lv_event_t *e) {
   (void)e;
   void (*cb)(void) = s_unlocked_cb;
+  const bool nopass_setup = wallet_session_decoy();   // see setup_warn_screen
   wipe_and_close();                        // also deletes s_warnscr
+  // A wallet with no passphrase IS the decoy: wallet_session_open(NULL) is what
+  // both ways in reach. Offering to configure a "real" stroke here would let
+  // someone believe their funds sit behind it and hand over the spare having
+  // hidden nothing -- the feature failing in exactly the situation it exists
+  // for. So do not offer it; the warning screen above says why.
+  if (nopass_setup) {
+    if (cb) cb();
+    return;
+  }
   s_after_duress = cb;
   wallet_duress_ui_open(lv_screen_active(), duress_done_cb);
 }
@@ -648,8 +658,21 @@ static void setup_warn_screen(void) {
   lv_obj_clear_flag(s_warnscr, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_move_foreground(s_warnscr);
 
+  // Same again: with no passphrase the old copy explained the wrong thing on
+  // the screen whose whole job is teaching the owner what they just made.
+  //
+  // NOT s_plen here. The optional full-backup rehearsal deliberately clears the
+  // passphrase and asks for it fresh (setup_warn_words_done), and the compare
+  // path zeroes s_plen again the moment it matches -- so by the time this runs
+  // after a rehearsal, s_plen is 0 on a wallet that definitely HAS a
+  // passphrase. Reading it here told those owners they had none and skipped
+  // their stroke setup. The open session knows the truth and cannot drift.
+  const bool warn_nopass = wallet_session_decoy();
+  const int warn_t = warn_nopass ? STR_L_WARN_T_NOPASS : STR_L_WARN_T;
+  const int warn_b = warn_nopass ? STR_L_WARN_B_NOPASS : STR_L_WARN_B;
+
   lv_obj_t *t = lv_label_create(s_warnscr);
-  lv_label_set_text(t, tr(STR_L_WARN_T));
+  lv_label_set_text(t, tr(warn_t));
   lv_obj_set_style_text_color(t, lv_color_hex(0xF2B84B), 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
@@ -657,9 +680,9 @@ static void setup_warn_screen(void) {
   // body runs from y=92 down to the fingerprint: auto-fit keeps the
   // short English copy big and a long translation off the fingerprint
   lv_obj_t *b = lv_label_create(s_warnscr);
-  lv_label_set_text(b, tr(STR_L_WARN_B));
+  lv_label_set_text(b, tr(warn_b));
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 740, 204), 0);
+  lv_obj_set_style_text_font(b, wt_body_font(tr(warn_b), 740, 204), 0);
   lv_obj_set_width(b, 740);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
@@ -766,11 +789,20 @@ static void show_fingerprint(void) {
   // apart, which is one 23pt line plus nothing -- so the room had to grow with
   // the type: the chip ends at 222 and the OPEN pill starts at 388, and two
   // 58px slots at 246 and 310 land inside that with clearance at both ends.
-  lv_obj_t *note = wt_note(s_fpscr, tr(STR_L_FP_NOTE), 50, 246, 700, 58);
+  //
+  // An EMPTY passphrase is a legitimate choice with its own confirmation card,
+  // and both of these lines used to describe a passphrase the owner does not
+  // have -- on the first screen the device ever shows them.
+  const bool nopass = (s_plen == 0);
+  lv_obj_t *note = wt_note(s_fpscr,
+                           tr(nopass ? STR_L_FP_NOTE_NOPASS : STR_L_FP_NOTE),
+                           50, 246, 700, 58);
   lv_obj_set_style_text_color(note, lv_color_hex(0xB9C2D4), 0);
   lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
 
-  lv_obj_t *note2 = wt_note(s_fpscr, tr(STR_L_FP_NOTE2), 50, 310, 700, 58);
+  lv_obj_t *note2 = wt_note(s_fpscr,
+                            tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2),
+                            50, 310, 700, 58);
   lv_obj_set_style_text_color(note2, MUT_COL, 0);
   lv_obj_set_style_text_align(note2, LV_TEXT_ALIGN_CENTER, 0);
 

@@ -3,7 +3,7 @@
 //   * the stroke classifier -- pure integer geometry, no LVGL, so the desktop
 //     test runner can hammer it with the shapes this panel actually sees
 //   * the configuration -- NVS namespace "kiss" on device (the same namespace
-//     as the other preferences), a RAM pair on host builds
+//     as the other preferences), one RAM int on host builds
 //
 // The picker screens live in wallet_duress_ui.c so that this file stays
 // linkable into /tmp/kisstest without dragging LVGL in behind it.
@@ -122,15 +122,9 @@ int wallet_duress_label_key(int gesture)
 
 // ---- configuration -------------------------------------------------------
 
-static int valid_pair(int real, int decoy)
+static int valid_gesture(int g)
 {
-    if (real == WDG_NONE && decoy == WDG_NONE)
-        return 1;                                  // "off" is a valid state
-    if (real <= WDG_NONE || real >= WDG_N)
-        return 0;
-    if (decoy <= WDG_NONE || decoy >= WDG_N)
-        return 0;                                  // half-configured = lockout
-    return real != decoy;
+    return g == WDG_NONE || (g > WDG_NONE && g < WDG_N);   // WDG_NONE = off
 }
 
 #ifdef ESP_PLATFORM
@@ -140,7 +134,6 @@ static int valid_pair(int real, int decoy)
 // the unlock configuration with it, or the next owner of a wiped device inherits
 // a gesture layout for a seed that no longer exists.
 #define K_REAL  "greal"
-#define K_DECOY "gdecoy"
 
 static int read_u8(const char *key)
 {
@@ -154,41 +147,37 @@ static int read_u8(const char *key)
     return v < WDG_N ? v : WDG_NONE;
 }
 
-int wallet_duress_real(void)  { return read_u8(K_REAL); }
-int wallet_duress_decoy(void) { return read_u8(K_DECOY); }
+int wallet_duress_real(void) { return read_u8(K_REAL); }
 
-int wallet_duress_set(int real, int decoy)
+int wallet_duress_set(int gesture)
 {
-    if (!valid_pair(real, decoy))
+    if (!valid_gesture(gesture))
         return -1;
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return -1;
-    int rc = nvs_set_u8(h, K_REAL, (uint8_t)real) == ESP_OK &&
-             nvs_set_u8(h, K_DECOY, (uint8_t)decoy) == ESP_OK &&
+    int rc = nvs_set_u8(h, K_REAL, (uint8_t)gesture) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
     return rc;
 }
 
-void wallet_duress_forget(void) { (void)wallet_duress_set(WDG_NONE, WDG_NONE); }
+void wallet_duress_forget(void) { (void)wallet_duress_set(WDG_NONE); }
 
 #else   // host (sim + desktop tests)
 
-static int s_real = WDG_NONE, s_decoy = WDG_NONE;
+static int s_real = WDG_NONE;
 
-int wallet_duress_real(void)  { return s_real; }
-int wallet_duress_decoy(void) { return s_decoy; }
+int wallet_duress_real(void) { return s_real; }
 
-int wallet_duress_set(int real, int decoy)
+int wallet_duress_set(int gesture)
 {
-    if (!valid_pair(real, decoy))
+    if (!valid_gesture(gesture))
         return -1;
-    s_real = real;
-    s_decoy = decoy;
+    s_real = gesture;
     return 0;
 }
 
-void wallet_duress_forget(void) { s_real = WDG_NONE; s_decoy = WDG_NONE; }
+void wallet_duress_forget(void) { s_real = WDG_NONE; }
 
 #endif
