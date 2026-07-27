@@ -16,11 +16,31 @@ This is everything an onlooker sees: a fruit game. No wallet button, no lock ico
 
 ![KISS screen: kiss login](shots/02-kiss-login.png)
 
-Draw K, I, S, S anywhere on the menu. The passphrase login is what the gesture reveals.
+Draw K, I, S, S anywhere on the menu. On a device with no duress strokes set, that opens the passphrase login.
 
 ![KISS screen: wallet home](shots/03-wallet-home.png)
 
 Your recovery words and your exact passphrase together make this wallet. A different passphrase silently opens a different wallet, so check the fingerprint is the one you expect.
+
+## Two ways in: the spare wallet
+
+A passphrase field on screen is itself a tell. It proves there is something to leave out of it, and you can never show that the passphrase you gave was the last one. So the obvious gesture opens a real, working wallet that asks for nothing, and the passphrase lives behind one extra stroke.
+
+![KISS screen: duress intro](shots/02a-duress-intro.png)
+
+Drawing KISS on its own opens a spare wallet: the same recovery words with no passphrase. It has its own fingerprint, pairs with a coordinator and signs, because a wallet that cannot do those things is not a story anyone would believe.
+
+![KISS screen: duress fund](shots/02b-duress-fund.png)
+
+Put a small amount in it. An empty wallet on a signer looks exactly like a wallet with something hidden behind it.
+
+![KISS screen: duress pick](shots/02c-duress-pick.png)
+
+One extra stroke after the word decides which wallet opens. You choose which stroke is yours, so reading this firmware does not tell anyone what to draw.
+
+![KISS screen: duress draw](shots/02d-duress-draw.png)
+
+Draw it over the printed word, twice, before anything is saved. Plain KISS keeps working forever and always opens the spare, so forgetting your stroke can never lock you out of the device.
 
 ## Pairing with Sparrow
 

@@ -622,6 +622,21 @@ static void setup_lang_cb(lv_event_t *e)
     wallet_lang_picker_open(s_scr, setup_lang_picked);
 }
 
+// Both buttons on the choice screen talk about the SEED, and nothing on the
+// device said what one is. This screen does: the ordered words are a BIP39
+// mnemonic, they plus the passphrase are the wallet, and any compatible BIP39
+// signer can rebuild it from them. It is reachable before either choice is
+// made, because that is when the question is actually being asked.
+static void whatseed_back_cb(lv_event_t *e) { (void)e; choose_screen(); }
+
+static void whatseed_cb(lv_event_t *e)
+{
+    (void)e;
+    mk_screen(tr(STR_W_WHATSEED_T), tr(STR_W_WHATSEED_S));
+    mk_body(tr(STR_W_WHATSEED_B), 48, 118, 704, 260, INK_COL);
+    mk_pill(tr(STR_C_BACK), 610, 404, 140, whatseed_back_cb, NULL);
+}
+
 static void choose_screen(void)
 {
     mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
@@ -630,6 +645,7 @@ static void choose_screen(void)
     mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 264, 340, restore_cb, NULL);
     wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     430, 152, 340, 110);
     wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 430, 266, 340, 130);
+    wt_pillh(s_scr, tr(STR_W_WHATSEED_BTN), 48, 380, 340, 44, whatseed_cb, NULL);
     mk_pill(tr(STR_C_CANCEL), 610, 404, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not

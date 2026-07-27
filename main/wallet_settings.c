@@ -12,6 +12,8 @@
 #include "wallet_info.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"
+#include "wallet_duress.h"
+#include "wallet_duress_ui.h"
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
 #include "wallet_usage.h"   // clear the receive-index history on wipe
@@ -236,6 +238,14 @@ static void type_open_cb(lv_event_t *e)
     wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, type_back_cb, NULL);
 }
 
+// The stroke chooser takes over the screen and hands control back here.
+static void duress_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_duress_ui_open(s_parent, settings_reopen);
+}
+
 static void theme_pick_cb(lv_event_t *e)
 {
     wt_accent_set((int)(intptr_t)lv_event_get_user_data(e));
@@ -340,6 +350,11 @@ static void do_wipe(void *ud)
     }
     wallet_session_close();               // truly gone: session key leaves RAM too
     wallet_usage_wipe();                   // drop the receive-index history too
+    // On device the whole-partition erase in wallet_seed.c has already taken
+    // these (they are deliberately absent from its KEEP_KEYS). Host builds keep
+    // them in RAM, so say it explicitly: an unlock layout that outlived its
+    // seed would point at a wallet that no longer exists.
+    wallet_duress_forget();
 
     // full-screen confirmation as an overlay child (never delete the event
     // target's ancestors mid-event)
@@ -596,7 +611,22 @@ void wallet_settings_open(lv_obj_t *parent)
     s_type_pfx = lv_obj_get_child(s_type_pill, 1);
     s_type_expl = wt_note(s_scr, type_note(wallet_script()),
                           48, 352, 340, TYPE_NOTE_H);
-    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);
+    // Duress unlock (wallet_duress.h). ABSENT in a decoy session, not greyed
+    // out: a disabled "ways in" row would tell whoever is holding the device
+    // that a second signer exists, which is the one thing this must never do.
+    // A decoy session sees exactly the page that shipped before this feature.
+    //
+    // Only hidden once something IS configured. Before that there is nothing to
+    // hide, and hiding it from an owner whose only wallet has no passphrase
+    // would mean they could never find the setting at all.
+    if (wallet_session_decoy() && wallet_duress_real() != WDG_NONE) {
+        wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);
+    } else {
+        int g = wallet_duress_real();
+        lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 380, 340, 72, duress_cb, NULL);
+        wt_pill_two_line_val(dp, g == WDG_NONE ? tr(STR_GD_OFF)
+                                               : tr(wallet_duress_label_key(g)));
+    }
 
     // RIGHT: wallet actions. RECOVERY WORDS lives here because it is a
     // maintenance/security action, not a fact about the wallet currently open.

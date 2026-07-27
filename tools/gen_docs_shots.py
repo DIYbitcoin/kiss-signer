@@ -51,12 +51,40 @@ SECTIONS = [
           "This is everything an onlooker sees: a fruit game. No wallet "
           "button, no lock icon, no hint that anything else is installed."),
          ("02-kiss-login", "sim_login",
-          "Draw K, I, S, S anywhere on the menu. The passphrase login is what "
-          "the gesture reveals."),
+          "Draw K, I, S, S anywhere on the menu. On a device with no duress "
+          "strokes set, that opens the passphrase login."),
          ("03-wallet-home", "sim_wallet",
           "Your recovery words and your exact passphrase together make this "
           "wallet. A different passphrase silently opens a different wallet, "
           "so check the fingerprint is the one you expect."),
+     ]),
+
+    # Placed second on purpose: it is a decision made at the end of setup, and
+    # everything after it (pairing, receiving, signing) is done from whichever
+    # signer the stroke opened.
+    ("Two ways in: the spare wallet",
+     "A passphrase field on screen is itself a tell. It proves there is "
+     "something to leave out of it, and you can never show that the "
+     "passphrase you gave was the last one. So the obvious gesture opens a "
+     "real, working wallet that asks for nothing, and the passphrase lives "
+     "behind one extra stroke.",
+     [
+         ("02a-duress-intro", "sim_duress_intro",
+          "Drawing KISS on its own opens a spare wallet: the same recovery "
+          "words with no passphrase. It has its own fingerprint, pairs with a "
+          "coordinator and signs, because a wallet that cannot do those "
+          "things is not a story anyone would believe."),
+         ("02b-duress-fund", "sim_duress_fund",
+          "Put a small amount in it. An empty wallet on a signer looks "
+          "exactly like a wallet with something hidden behind it."),
+         ("02c-duress-pick", "sim_duress_pick_real",
+          "One extra stroke after the word decides which wallet opens. You "
+          "choose which stroke is yours, so reading this firmware does not "
+          "tell anyone what to draw."),
+         ("02d-duress-draw", "sim_duress_draw_real",
+          "Draw it over the printed word, twice, before anything is saved. "
+          "Plain KISS keeps working forever and always opens the spare, so "
+          "forgetting your stroke can never lock you out of the device."),
      ]),
 
     ("Pairing with Sparrow",
@@ -137,7 +165,11 @@ LEGACY = [
     ("docs/readme/menu.png",              "sim_menu"),
     ("docs/readme/wallet.png",            "sim_wallet"),
     ("docs/readme/setup-1-choose.png",    "sim_setup_choose"),
-    ("docs/readme/setup-2-words.png",     "sim_setup_words"),
+    # sim_setup_words has not been saved by the walk for some time, which left
+    # this whole script unable to run (it refuses to write a partial set). The
+    # walk does still render that screen -- it is page 1 of the 24-word reveal,
+    # which is the same "WRITE THESE DOWN" frame this entry was written for.
+    ("docs/readme/setup-2-words.png",     "sim_setup_w24_p1"),
     ("docs/readme/setup-3-quiz.png",      "sim_setup_quiz"),
     ("docs/readme/setup-4-passphrase.png", "sim_setup_pass"),
     ("docs/readme/verify-backup.png",     "sim_verify_ok"),

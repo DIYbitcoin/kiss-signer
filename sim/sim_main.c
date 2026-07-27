@@ -185,8 +185,13 @@ void wallet_set_script(int s) { s_sim_script = s; }
 int wallet_script(void) { return s_sim_script; }
 
 // step-4 session seams: plausible-looking fakes so the Receive/Export screens render
-int wallet_session_open(const char *passphrase) { (void)passphrase; return 0; }
-void wallet_session_close(void) {}
+static int s_sim_decoy;
+int wallet_session_open(const char *passphrase) {
+  s_sim_decoy = !(passphrase && passphrase[0]);   // empty passphrase = the decoy signer
+  return 0;
+}
+void wallet_session_close(void) { s_sim_decoy = 0; }
+int wallet_session_decoy(void) { return s_sim_decoy; }
 int wallet_session_address(int change, unsigned int index, char *out, unsigned long len) {
   if (s_sim_script == 2)                 // legacy 1.../m...
     snprintf(out, len, "%c%s%02u", s_sim_testnet ? 'm' : '1',
@@ -944,9 +949,38 @@ int main(void) {
   touch(198, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
   touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
-  touch(725, 430); pump(3); release(); pump(8);     // OK -> verified warning
-  save("/tmp/sim_setup_verified.ppm");              // green full-backup state
-  touch(590, 430); pump(3); release(); pump(140);   // I UNDERSTAND -> home settles
+  // KNOWN GAP, predating the stroke chooser below: the rehearsal above never
+  // completes, because the wizard takes the 24-word path ("TEMP probe") while
+  // verify_prefixes lists 12. So this is still the UNVERIFIED warning, and
+  // (725,430) is its I UNDERSTAND rather than the login's OK. Every frame here
+  // still CHANGED, which is exactly why check_sim_taps.py never flagged it --
+  // that check catches dead taps, not taps that land on the wrong live screen.
+  touch(725, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
+
+  // The LAST step of setup: which stroke opens which signer (wallet_duress_ui.c).
+  // Strokes are drawn against the printed reference word at (250,170)-(550,268),
+  // which is the same box wallet_duress_classify measures in the game.
+  save("/tmp/sim_duress_intro.ppm");                // two ways in
+  touch(148, 430); pump(3); release(); pump(40);    // OK -> fund the spare
+  save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
+  touch(148, 430); pump(3); release(); pump(40);    // OK -> pick your stroke
+  save("/tmp/sim_duress_pick_real.ppm");            // six modifiers, two rows of three
+  touch(158, 176); pump(3); release(); pump(40);    // UNDERLINE (first pill)
+  save("/tmp/sim_duress_draw_real.ppm");            // draw it, over the reference word
+  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 300); pump(1); }
+  release(); pump(40);                              // an underline: wide, flat, low
+  save("/tmp/sim_duress_draw_real2.ppm");           // ...and once more to confirm
+  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 302); pump(1); }
+  release(); pump(40);
+  save("/tmp/sim_duress_pick_decoy.ppm");           // five left: the real one is gone
+  touch(638, 176); pump(3); release(); pump(40);    // DIAGONAL (third pill of five)
+  save("/tmp/sim_duress_draw_decoy.ppm");
+  for (int i = 0; i <= 20; i++) { touch(272 + i * 13, 290 - i * 5); pump(1); }
+  release(); pump(40);                              // a slash: wide AND tall, straight
+  for (int i = 0; i <= 20; i++) { touch(272 + i * 13, 292 - i * 5); pump(1); }
+  release(); pump(40);
+  save("/tmp/sim_duress_done.ppm");                 // both ways in are set
+  touch(148, 430); pump(3); release(); pump(140);   // DONE -> saves, home settles
   save("/tmp/sim_setup_home.ppm");
 
   // step 8: idle auto-lock — WALLET_AUTOLOCK_MS untouched on the home must
@@ -962,6 +996,28 @@ int main(void) {
   // stops it happening in the first place.
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
+
+  // THE point of the whole feature: with strokes configured, drawing KISS on
+  // its own opens the DECOY straight from the game. No keyboard, no passphrase
+  // field, nothing on screen that says a second signer exists. This frame must
+  // be a wallet home, not the login.
+  for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);
+  for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); } release(); pump(2);
+  touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
+  touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
+  touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
+  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(140);
+  save("/tmp/sim_decoy_home.ppm");                  // decoy home, reached with no login
+
+  // Settings in a DECOY session must not carry the WAYS IN row: a row that
+  // only appears for one of the two signers is exactly the tell this feature
+  // exists to avoid. The frame is what proves it.
+  touch(670, 240); pump(3); release(); pump(20);    // SETTINGS tile
+  save("/tmp/sim_decoy_settings.ppm");              // no WAYS IN row here
+  touch(680, 426); pump(3); release(); pump(20);    // BACK
+  touch(100, 60); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
 
   // unlock again (wizard wallet, password 'a') for the wipe preview
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
