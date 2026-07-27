@@ -36,7 +36,9 @@ enum {
     STR_L_COUNT_FMT,
     STR_L_COUNT_SP_FMT,
     STR_L_TYPE_PROMPT,
+    STR_L_WEAK_T,
     STR_L_WEAK_ACK,
+    STR_L_USE_ANYWAY,
     STR_L_NO_MATCH,
     STR_L_SHOW,
     STR_L_HIDE,
@@ -160,6 +162,8 @@ enum {
     STR_R_SP_SHOW,
     STR_R_SP_EXPORT_S,
     STR_R_SP_EXPORT_NOTE,
+    STR_R_SP_WHY_T,
+    STR_R_SP_WHY_B,
     STR_N_T,
     STR_N_S,
     STR_N_STARTING,
@@ -198,6 +202,7 @@ enum {
     STR_S_SENDING_OUT,
     STR_S_SP_BADGE,
     STR_S_SP_NOTE,
+    STR_S_SP_ONCHAIN_FMT,
     STR_S_FEE,
     STR_S_FEERATE_PCT_FMT,
     STR_S_FEERATE_FMT,
@@ -343,6 +348,10 @@ enum {
     STR_C_OSD_ENT_OK_S,
     STR_C_OSD_CLOSE,
     STR_C_OSD_OF,
+    STR_G_MODE_T,
+    STR_S_FLOW_1,
+    STR_S_FLOW_2,
+    STR_S_FLOW_3,
     STR_N
 };
 

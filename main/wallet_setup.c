@@ -41,6 +41,7 @@ static void (*s_done)(void);
 static char s_w[24][12];        // the mnemonic under construction, word by word
 static int s_nw;                // words collected so far
 static int s_count;             // 12 or 24
+static int s_wpage;             // which 12-word page the reveal is showing
 static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
 static bool s_verify_ok;        // result returned to the caller after this check
@@ -100,6 +101,20 @@ static void mk_screen(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, title, sub);
+}
+
+// wt_screen's subtitle is deliberately one line: it has to land clear of the
+// y=96 content line every screen builds against. Two setup screens were
+// written with a two-sentence subtitle, so that one line could never hold them
+// and both rendered the page's own explanation at font14. Both have their
+// first content well below 96 -- the quiz question at 128, the entropy body at
+// 140 -- so they draw the subtitle themselves with the second line they need.
+static void mk_screen2(const char *title, const char *sub)
+{
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, title, NULL);
+    lv_obj_t *l = wt_note(s_scr, sub, 48, 66, 704, 58);
+    lv_obj_set_style_text_color(l, MUT_COL, 0);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb, void *ud)
@@ -230,6 +245,7 @@ static void quiz_pick_cb(lv_event_t *e)
     int slot = (int)(intptr_t)lv_event_get_user_data(e);
     if (slot != s_quiz_correct) {           // wrong: look at the paper again
         s_quiz_round = 0;
+        s_wpage = 0;                        // re-read from word 1, not mid-seed
         words_screen();
         return;
     }
@@ -259,9 +275,11 @@ static void quiz_screen(void)
     s_quiz_correct = (int)(ui_rand() % 4);
 #endif
     s_quiz_asked[s_quiz_round] = s_quiz_pos;
-    mk_screen(tr(STR_W_PROVE_T), tr(STR_W_PROVE_S));
+    mk_screen2(tr(STR_W_PROVE_T), tr(STR_W_PROVE_S));
+    // 146, not 120: the subtitle is two readable lines now and bottomed at 124,
+    // so the question was overlapping it by 4px.
     snprintf(buf, sizeof buf, tr(STR_W_WHICH_FMT), s_quiz_pos + 1);
-    mk_lbl(buf, 48, 120, wt_font28(), INK_COL);
+    mk_lbl(buf, 48, 146, wt_font28(), INK_COL);
 
     for (int i = 0; i < 4; i++) {
         const char *w = s_w[s_quiz_pos];
@@ -272,11 +290,16 @@ static void quiz_screen(void)
             } while (d && strcmp(d, s_w[s_quiz_pos]) == 0);
             w = d ? d : "static";
         }
-        mk_pill(w, 48 + (i % 2) * 380, 200 + (i / 2) * 80, 340,
+        mk_pill(w, 48 + (i % 2) * 380, 208 + (i / 2) * 80, 340,
                 quiz_pick_cb, (void *)(intptr_t)i);
     }
+    // Right-aligned to the same 752 margin the rest of the page uses. Pinned at
+    // x=680 it ran off the right edge of the panel: "spot check 1 of 3" is
+    // 120px at font14 and the screen stops at 800.
     snprintf(buf, sizeof buf, tr(STR_W_QUIZ_N_FMT), s_quiz_round + 1, QUIZ_ROUNDS);
-    mk_lbl(buf, 680, 30, wt_font14(), MUT_COL);
+    lv_obj_t *rn = mk_lbl(buf, 500, 30, wt_font14(), MUT_COL);
+    lv_obj_set_width(rn, 252);
+    lv_obj_set_style_text_align(rn, LV_TEXT_ALIGN_RIGHT, 0);
 }
 
 // ---- words on screen (the backup moment) ----
@@ -287,17 +310,42 @@ static void words_go_cb(lv_event_t *e)
     quiz_screen();
 }
 
+// This is the screen where the words get copied onto paper, and it rendered
+// them at font14 -- the smallest type on the device, on the one screen where a
+// misread character loses the wallet. Now font28, which means 24 words no
+// longer fit beside the PAPER ONLY warning, so they page: 12 per page, 2
+// columns of 6 at a 40px pitch from y=104, last row bottoming at 341 with the
+// warning at 352.
+//
+// Paging changes one thing on purpose: I WROTE THEM DOWN appears only on the
+// LAST page. Previously all 24 were on screen at once, so the button meant
+// "I copied all of them"; with pages it would otherwise be reachable having
+// seen half. NEXT comes first, the claim comes after.
+#define WORDS_PER_PAGE 12
+
+static void words_page_cb(lv_event_t *e)
+{
+    s_wpage += (int)(intptr_t)lv_event_get_user_data(e);
+    words_screen();
+}
+
 static void words_screen(void)
 {
+    const int pages = (s_count + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE;
+    if (s_wpage < 0) s_wpage = 0;
+    if (s_wpage >= pages) s_wpage = pages - 1;
+
     mk_screen(tr(STR_W_WRITE_T), tr(STR_W_WRITE_S));
-    int cols = s_count == 24 ? 4 : 2;
-    int rows = s_count / cols;
-    for (int i = 0; i < s_count; i++) {
+
+    const int first = s_wpage * WORDS_PER_PAGE;
+    int on = s_count - first;
+    if (on > WORDS_PER_PAGE) on = WORDS_PER_PAGE;
+    const int rows = (on + 1) / 2;
+    for (int k = 0; k < on; k++) {
         char buf[32];
-        snprintf(buf, sizeof buf, "%2d. %.11s", i + 1, s_w[i]);
-        int c = i / rows, r = i % rows;
-        mk_lbl(buf, 48 + c * (cols == 4 ? 184 : 300), 108 + r * 42,
-               wt_font14(), INK_COL);
+        snprintf(buf, sizeof buf, "%2d. %.11s", first + k + 1, s_w[first + k]);
+        mk_lbl(buf, 48 + (k / rows) * 352, 104 + (k % rows) * 40,
+               wt_font28(), INK_COL);
     }
     // the one rule that matters while they are copying: loud, under the grid,
     // not buried at the end of the subtitle
@@ -305,7 +353,20 @@ static void words_screen(void)
                           wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40), WARN_COL);
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
-    mk_pill(tr(STR_W_WROTE), 430, 404, 320, words_go_cb, NULL);
+
+    if (pages > 1) {
+        char cnt[40];   // large enough for conservative compiler range analysis
+        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_count);
+        if (s_wpage > 0)
+            mk_pill(tr(STR_C_BACK), 48, 404, 160, words_page_cb,
+                    (void *)(intptr_t)-1);
+        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+    }
+    if (s_wpage < pages - 1)
+        mk_pill(tr(STR_R_NEXT), 430, 404, 320, words_page_cb,
+                (void *)(intptr_t)1);
+    else
+        mk_pill(tr(STR_W_WROTE), 430, 404, 320, words_go_cb, NULL);
 }
 
 // ---- entropy (NEW path) ----
@@ -332,6 +393,7 @@ void wallet_setup_entropy(const uint8_t *entropy, unsigned len)
         while (*p == ' ') p++;
     }
     memset(words, 0, sizeof words);
+    s_wpage = 0;
     words_screen();
 }
 
@@ -372,7 +434,7 @@ static void ent_back_cb(lv_event_t *e)
 
 static void entropy_screen(void)
 {
-    mk_screen(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
+    mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
 #ifdef SIMULATOR
     mk_lbl("(simulator: camera entropy is scripted)\n\n"
            "on the device, the camera shot is MIXED with\n"
@@ -382,7 +444,7 @@ static void entropy_screen(void)
     mk_pill("CAPTURE", 48, 404, 240, sim_entropy_cb, NULL);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 #else
-    mk_body(tr(STR_W_RAND_B), 48, 122, 704, 274, MUT_COL);
+    mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
@@ -508,8 +570,9 @@ static void count_screen(void)
     wt_pill_primary(p);
     mk_pill(tr(STR_W_24), 48, 230, 340, count_pick_cb, (void *)(intptr_t)24);
     wt_wraph(s_scr, tr(STR_W_12_NOTE), 430, 150, 340, 76);
-    mk_lbl(tr(STR_W_24_NOTE), 430, 230,
-           wt_font14(), MUT_COL);
+    // was a bare font14 label while its twin above auto-fit: same box, same
+    // job, so it gets the same treatment
+    wt_wraph(s_scr, tr(STR_W_24_NOTE), 430, 230, 340, 76);
     // Restoring only: a SeedQR carries its own length, so it sits beside the
     // count rather than after it. Creating a new wallet has nothing to scan.
     if (s_restore) {

@@ -45,7 +45,7 @@ static const slot_t SLOTS[] = {
     { "sign/rbf-off",     STR_S_RBF_B_OFF,  720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // wallet_ui.c:469,769 — login warning + passphrase intro
-    { "login/warn",       STR_L_WARN_B,     720, 178 },
+    { "login/warn",       STR_L_WARN_B,     740, 204 },
     { "login/pp-intro",   STR_L_PPINTRO_B,  704, 280 },
     // wallet_setup.c — wizard explainers
     { "setup/entropy",    STR_W_RAND_B,     704, 274 },
@@ -59,22 +59,41 @@ static const slot_t SLOTS[] = {
     { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
     // amnesic mode: seed-QR import + passphrase-from-QR
     { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
+    { "setup/rand-body",  STR_W_RAND_B,     704, 256 },
+    // wallet_sign.c: the screens BEFORE and AFTER the detail page. The detail
+    // page was swept first and these were missed, so the refusal to sign, the
+    // two SD prompts and every instruction on the signed-QR page were still at
+    // font14 -- on the flow that moves money.
+    { "sign/point-cam",   STR_S_POINT_CAM,      322, 116 },
+    { "sign/or-load",     STR_S_OR_LOAD,        322,  58 },
+    { "sign/read-fail",   STR_S_READ_FAIL,      704, 232 },
+    { "sign/not-psbt",    STR_S_NOT_PSBT,       704, 232 },
+    { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
+    { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
+    { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
+    { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
+    { "sign/no-network",  STR_S_NO_NETWORK,     322,  29 },
+    { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
+    { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
     // wallet_settings.c — the notes under each chooser. These sit in gaps
     // between controls, so 23 (not 28) is the realistic top rung; what matters
     // is that none of them falls to 14.
     { "set/net-main",     STR_G_MAINNET_NOTE, 340, 50 },
-    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 50 },
-    // The three ADDRESS TYPE notes are font14 on purpose, so they match
-    // TYPE_NOTE_H in wallet_settings.c rather than the 54px of screen they
-    // occupy. Three side-by-side pills leave 82px of text each, which caps
-    // NATIVE/NESTED/LEGACY at font14; a font23 note under them made the
-    // sentence twice the size of the buttons it describes. Reporting them as
-    // "cut 1 row @23" implied a rung that this row cannot reach.
-    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 360, 24, 1 },
-    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 360, 24, 1 },
-    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 360, 24, 1 },
-    { "set/separate",     STR_G_SEPARATE,     360, 54 },
+    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 58 },
+    // ADDRESS TYPE is a full-width subpage now, not three pills crammed into a
+    // 360px column, so these notes stopped being 82px-wide fragments that had
+    // no rung above 14 to reach. They get the 664x29 the subpage actually draws
+    // (wallet_settings.c type_open_cb) and no may_be_small: what the user is
+    // choosing between must be readable.
+    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 664, 29 },
+    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 664, 29 },
+    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 664, 29 },
+    // Two boxes, same string: the 340px note on the settings page and the
+    // 704px subtitle of the subpage it opens. The narrow one is the binding
+    // constraint, so it is the one measured here.
+    { "set/separate",     STR_G_SEPARATE,     340, 58 },
+    { "sub/addr-type",    STR_G_SEPARATE,     704, 30, 0 },
     { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
     { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
     { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 52, 1 },
@@ -87,6 +106,28 @@ static const slot_t SLOTS[] = {
     { "sub/sp-export",    STR_R_SP_EXPORT_S,  704, 30, 0 },
     { "sub/sp-warn",      STR_R_SP_WARN_S,    704, 30, 0 },
     { "sub/pair",         STR_I_PAIR_S,       704, 30, 0 },
+    // Every remaining wt_screen subtitle. One line at 23 or it drops to 14 --
+    // the header geometry in wt_screen() is fixed, so the only lever here is
+    // the length of the sentence.
+    { "sub/words",        STR_I_WORDS_S,      704, 30, 0 },
+    { "sub/setup",        STR_W_SETUP_S,      704, 30, 0 },
+    { "sub/write",        STR_W_WRITE_S,      704, 30, 0 },
+    // These two draw their own subtitle (mk_screen2 in wallet_setup.c) because
+    // their first content sits well below the y=96 line, so they get the two
+    // lines their copy was written for.
+    { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
+    { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
+    { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
+    { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
+    { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
+    { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
+    // and the signing flow's own subtitles
+    { "sub/get-tx",       STR_S_GET_TX,       704, 30, 0 },
+    { "sub/choose-file",  STR_S_CHOOSE_FILE,  704, 30, 0 },
+    { "sub/sd",           STR_S_SD_SUB,       704, 30, 0 },
+    { "sub/qr-out",       STR_S_QR_SUB,       704, 30, 0 },
+    { "sub/done-sd",      STR_S_DONE_SD_SUB,  704, 58, 0 },  // own 2-line subtitle
+    { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  704, 30, 0 },
     // Procedural, read once with the device in hand, and wedged into a 360px
     // column beside a QR. They auto-fit like everything else, so they grow if
     // the copy is ever shortened -- but font14 is the accepted answer today.
@@ -95,7 +136,43 @@ static const slot_t SLOTS[] = {
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
     // wallet_info.c — the note under each action pill
-    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340, 88 },
+    // Raised out of a hardcoded font14 in the readability sweep. Listed here
+    // so the boxes they were given are checked against every translation, not
+    // just the English they were measured with.
+    { "login/cancel",     STR_L_CANCEL_SETUP_B, 500, 124 },
+    { "login/fail-setup", STR_L_FAIL_SETUP_B,   720,  58 },
+    { "login/fail-open",  STR_L_FAIL_OPEN_B,    720,  58 },
+    { "login/weak",       STR_L_WEAK_ACK,       640, 124 },
+    // The keyboard caption when it is carrying state, not a field name: 486px
+    // is what is left of the row once SCAN and SHOW take the right side.
+    { "login/cap-again",  STR_L_TYPE_AGAIN,     486,  58 },
+    { "login/cap-nomatch",STR_L_NO_MATCH,       486,  58 },
+    { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,486,  58 },
+    { "login/cap-verify", STR_L_VERIFY_PASS,    486,  58 },
+    { "login/fp-note",    STR_L_FP_NOTE,        700,  58 },
+    { "login/fp-note2",   STR_L_FP_NOTE2,       700,  58 },
+    { "scan/sub",         STR_N_S,              530,  29 },
+    // wallet_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
+    // with the raw "%s" in place, which is ~2px narrower per prefix than the
+    // 3 to 4 characters that get substituted, so this reads slightly optimistic.
+    { "recv/sp-why",      STR_R_SP_WHY_B,       720, 238 },
+    { "wallet/sp-note",   STR_R_SP_EXPORT_NOTE, 360, 140 },
+    // Same string, second home: the note under SCAN KEY on the WALLET page.
+    // That box is the tighter of the two, so measuring only the 360x140 one
+    // let this render at 14 next to a PAIR COORDINATOR note at 23.
+    { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  94 },
+    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340,  62 },
+    // The two word-count notes sit in the 80px gaps of a three-pill stack (12
+    // WORDS at y=150, 24 WORDS at 230, SCAN SEED QR at 310) in a 340px column.
+    // Both run to three or four lines at 23 -- 87px and 116px -- so neither can
+    // reach it without restacking the page or cutting the copy. Same situation
+    // as the ADDRESS TYPE notes above, and recorded for the same reason.
+    { "setup/12-note",    STR_W_12_NOTE,        340,  76, 1 },
+    { "setup/24-note",    STR_W_24_NOTE,        340,  76, 1 },
+    // The reuse banner is boxed in by the address above it, the FRESH pill
+    // beside it and the derivation path below: 230x46, and this copy wants two
+    // 23pt lines (58px). It auto-fits, so shortening the wording lifts it.
+    { "recv/reused",      STR_R_REUSED,         230,  46, 1 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
@@ -121,17 +198,35 @@ static const pill_t PILLS[] = {
     { "set/words",        STR_I_WORDS_BTN,    340, 66, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
+    // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
+    // LONG_CLIP. There is no font fallback here, so an over-long translation
+    // is silently cut off mid-word rather than shrinking. Registered as
+    // 580+28 so the reported budget is the real 580.
+    { "sign/flow1",       STR_S_FLOW_1,       608, 44, 0, 0 },
+    { "sign/flow2",       STR_S_FLOW_2,       608, 44, 0, 0 },
+    { "sign/flow3",       STR_S_FLOW_3,       608, 44, 0, 0 },
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
-    { "recv/fresh",       STR_R_FRESH,        124, 44, 0, 0 },
+    { "recv/fresh",       STR_R_FRESH,        136, 44, 0, 0 },
+    // Settings ADDRESS TYPE: one pill carrying the type NAME over the example
+    // address. The example is a readable 23 now, so it reserves 35px of the
+    // 72px pill and the name is fitted against what is left -- the same 29px
+    // the name had when the pill was 60 tall with a 14px example under it.
+    { "set/tyname-native",STR_S_TY_NATIVE,    340, 72 - 35, 0, 0 },
+    { "set/tyname-nested",STR_S_TY_NESTED,    340, 72 - 35, 0, 0 },
+    { "set/tyname-legacy",STR_S_TY_LEGACY,    340, 72 - 35, 0, 0 },
     { "pair/scankey",     STR_R_SP_SCAN_BTN,  190, 60 - 22, 0, 0 },
     { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0, 0 },
     { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0, 0 },
     { "common/back",      STR_C_BACK,         140, 44, 0, 0 },
     { "common/done",      STR_C_DONE,         140, 52, 0, 0 },
     { "common/ok",        STR_C_OK,           200, 52, 0, 0 },
-    { "common/cancel",    STR_C_CANCEL,       140, 52, 0, 0 },
+    { "common/cancel",    STR_C_CANCEL,       165, 52, 0, 0 },
     { "setup/full-verify",STR_L_VERIFY_FULL_BACKUP, 300, 66, 0, 1 },
     { "setup/understand", STR_C_I_UNDERSTAND, 320, 66, 0, 1 },
+    // Naming the weak-passphrase outcome IS the safety of that card: a user who
+    // cannot read this button has no idea which of the two presses keeps the
+    // short passphrase. key_action, same tier as the one that spends.
+    { "login/use-anyway", STR_L_USE_ANYWAY,   314, 56, 1, 1 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
 
@@ -152,7 +247,7 @@ int main(int argc, char **argv)
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    int total_small = 0, key_small = 0, nfail = 0;
+    int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
 #define MAXFAIL 64
     static char fails[MAXFAIL][96];
     for (int l = 0; l < I18N_LANG_N; l++) {
@@ -164,6 +259,7 @@ int main(int argc, char **argv)
             if (!want) continue;
         }
         i18n_set_lang(l);
+        const int is_en = strncmp(li->code, "en", 2) == 0;
 
         int small = 0;
         char lines[NSLOT][160];
@@ -183,6 +279,18 @@ int main(int argc, char **argv)
             lv_point_t sz;
             lv_text_get_size(&sz, txt, wt_font23(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
             int over = sz.y - SLOTS[i].h;
+            // English is the reference layout: every box on this device was
+            // measured against it, so a 14 here is not a translation that ran
+            // long, it is a box that was built too small. That is a bug in the
+            // layout and CI stops for it. Other locales stay advisory until
+            // English is signed off.
+            if (bad && is_en) {
+                snprintf(fails[nfail < MAXFAIL ? nfail : MAXFAIL - 1],
+                         sizeof fails[0], "slot %s (%dpx of %dpx at 23)",
+                         SLOTS[i].surface, (int)sz.y, SLOTS[i].h);
+                if (nfail < MAXFAIL) nfail++;
+                en_small++;
+            }
             snprintf(lines[i], sizeof lines[i], "  %-18s font%-2d  %3dpx / %3dpx%s",
                      SLOTS[i].surface, rung, (int)sz.y, SLOTS[i].h,
                      bad && over > 0 ? "  cut " : "");
@@ -231,13 +339,18 @@ int main(int argc, char **argv)
     }
     printf("\ntotal at font14: %d\n", total_small);
 
-    if (key_small) {
-        printf("\nFAIL: %d key-action button(s) fell to font14:\n", key_small);
+    if (key_small || en_small) {
+        printf("\nFAIL: %d key-action button(s) and %d English slot(s) "
+               "fell to font14:\n", key_small, en_small);
         for (int i = 0; i < nfail; i++)
             printf("  %s\n", fails[i]);
         puts("\nA button that spends, erases or verifies must not be the\n"
              "smallest type on its screen. Fix by shortening that locale's\n"
-             "label, widening the pill, or making it tall enough to wrap.");
+             "label, widening the pill, or making it tall enough to wrap.\n"
+             "\nAn ENGLISH slot at font14 is a layout bug, not a long\n"
+             "translation: the box was measured against this very text. Give\n"
+             "it the height 23 needs, or mark it may_be_small WITH a comment\n"
+             "saying which neighbour stops it from growing.");
         return 1;
     }
     return 0;

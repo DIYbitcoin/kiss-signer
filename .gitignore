@@ -4,6 +4,7 @@
 main/build-disp/
 sdkconfig.release
 sdkconfig.encrypted
+sdkconfig.encrypted-rehearsal
 sdkconfig.old
 
 # IDF component manager downloads these from idf_component.yml +
