@@ -216,14 +216,10 @@ static void pair_screen(void)
     lv_obj_set_style_text_color(pv, WT_INK, 0);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
-    // The silent-payment SCAN KEY is a coordinator export too, but it is a
-    // PRIVATE key, unlike the xpub/zpub above: kept a separate, warned action so
-    // it never reads as just another thing you hand out. Two-line like the
-    // category pills above: "SCAN KEY" alone doesn't say WHICH key, and the
-    // full phrase won't fit one line in the longer languages.
-    lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 200, 400, 190, 60,
-                             sp_key_warn_cb, NULL);
-    wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
+    // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
+    // COORDINATOR. It is its own export with its own consent warning, and
+    // hiding it behind the descriptor flow implied the two were one action.
+    // It is a top-level pill on the WALLET screen now; see info_screen().
     pair_refresh();
 }
 
@@ -231,11 +227,16 @@ static void pair_screen(void)
 // Hands a coordinator the scan PRIVATE key so it can DETECT payments to this
 // wallet's silent-payment address. It can never spend. Deliberate two-step
 // behind an honest warning, not bundled silently into a wallet import.
+// Back to the WALLET screen, not the pair screen. SCAN KEY is launched from
+// info_screen() now; while it lived inside PAIR COORDINATOR this returned to
+// pair_screen(), and leaving it that way would drop the user somewhere they
+// never came from -- the kind of navigation bug that reads as the device
+// having done something unexpected with a key export.
 static void sp_key_back_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    pair_screen();
+    info_screen();
 }
 
 static void sp_key_show_cb(lv_event_t *e)
@@ -410,10 +411,30 @@ static void info_screen(void)
     // promoted its label to 28pt and made it shout over every fact on screen.
     // Selected styling keeps the visual priority while the text stays on the
     // same 23pt rung as BACK.
-    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 96, 340, 66,
+    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 96, 340, 60,
                             pair_open_cb, NULL);
     wt_pill_select(pp, true);
-    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 170, 340, 74);
+    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 162, 340, 62);
+
+    // The silent-payment SCAN KEY is a top-level export, not a footnote of the
+    // pairing flow it used to hide inside. It hands a coordinator the scan
+    // PRIVATE key -- the one export on this device that lets someone else watch
+    // every payment you receive -- so it deserves its own pill and keeps its own
+    // consent warning (sp_key_warn_cb), which is still the only way to reach the
+    // key itself.
+    lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 430, 236, 340, 60,
+                             sp_key_warn_cb, NULL);
+    wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 302, 340, 62);
+
+    // Both actions on this screen are the same size, chosen once for the pair
+    // rather than per label: PAIR COORDINATOR is short and would otherwise sit
+    // a rung above the export beside it.
+    {
+        const char *lbls[2] = { tr(STR_I_PAIR_T), tr(STR_R_SP_SCAN_BTN) };
+        wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 60, false);
+        wt_pill_apply_fit(pp, f, 340);
+    }
     wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
 }
 

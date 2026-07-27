@@ -1489,6 +1489,35 @@ static void fp_card_open(void) {
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 150);
 
   wt_diagram_fp(ovl, 318);                   // WORDS + PASSPHRASE -> FINGERPRINT
+  // HOW TO LEAVE. Tapping the KISS logo locks the wallet and drops back to the
+  // game (see the tx<200 && ty<110 branch in the touch handler), and until now
+  // that was documented NOWHERE -- not in a string, not in the README. The one
+  // gesture the whole deniability story rests on was something you had to
+  // already know, and the tap region sits under the page title, so people find
+  // it by accident and are startled instead of taught.
+  //
+  // This card is the right home for it: it is already the wallet home's
+  // teaching surface, and the rule there is that idle chrome should educate
+  // rather than duplicate an action.
+  lv_obj_t *x = lv_label_create(ovl);
+  lv_label_set_text(x, tr(STR_H_EXIT_HINT));
+  lv_obj_set_style_text_color(x, WT_MUT, 0);
+  lv_obj_set_width(x, 660);
+  lv_label_set_long_mode(x, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_align(x, LV_TEXT_ALIGN_CENTER, 0);
+  // This card has exactly one gap: between the diagram (y=318, ~34px tall) and
+  // the OK pill at 392. Two earlier placements were rendered and looked at, and
+  // both were wrong -- y=320 printed through the WORDS/PASSPHRASE/FINGERPRINT
+  // chips, and y=250 printed through the body, whose three lines reach y=300
+  // rather than the two I assumed. Measuring beats reasoning about a card whose
+  // body is auto-fitted and therefore changes height with the text.
+  //
+  // 30px budget: one line at 23 (29px) for English, dropping to 14 for any
+  // translation that needs two. Nothing here may grow into the pill.
+  lv_obj_set_style_text_font(x, wt_body_font(tr(STR_H_EXIT_HINT), 700, 30), 0);
+  lv_obj_set_width(x, 700);
+  lv_obj_align(x, LV_ALIGN_TOP_MID, 0, 356);
+
   wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, fp_card_close_cb, NULL);
   wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
 }
