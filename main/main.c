@@ -1633,6 +1633,17 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
+    // The scan screen gets one escape that does NOT go through LVGL. Its own
+    // CLOSE is an LVGL control, and while the camera streams it is painted over
+    // by a direct-to-panel video path; on a real board that button did nothing
+    // and the only way out was pulling the power. This handler reads the same
+    // touch the unlock gesture reads, so it is on a path known to work here.
+    // Same top-left corner as the pill, so nothing new has to be learned.
+    if (wallet_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
+      wallet_scan_cancel();
+      s_prev_press = pressed;
+      return;
+    }
     if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
         wallet_scan_active() || wallet_info_active() || wallet_settings_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)

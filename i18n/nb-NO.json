@@ -177,7 +177,7 @@
   "S_POINT_CAM": "skann transaksjonens QR fra koordinatorlommeboken",
   "S_OR_LOAD": "eller last en .psbt-fil fra et kort",
   "S_COORD_T": "SLIK VIRKER SIGNERING",
-  "S_COORD_B": "en PSBT er en betalingsfil som koordinatoren og KISS deler.\nKISS holder nøklene offline. koordinatoren kringkaster transaksjonen.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: en betaling som er bygget, men ennå ikke signert. coordinator bygger den og har ingen nøkler; KISS har nøklene og er alltid offline.",
   "S_SD_SUB": "flytt transaksjonen med SD-kort",
   "S_NO_SD": "fant ikke noe SD-kort",
   "S_INSERT_CARD": "sett inn et kort med PSBT-filen koordinatoren lagret",

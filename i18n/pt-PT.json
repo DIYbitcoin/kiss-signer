@@ -177,7 +177,7 @@
   "S_POINT_CAM": "digitalize o QR da transação da aplicação coordenadora",
   "S_OR_LOAD": "ou carregue um .psbt do cartão",
   "S_COORD_T": "COMO A ASSINATURA FUNCIONA",
-  "S_COORD_B": "um PSBT é um ficheiro de pagamento que o coordenador e o KISS partilham.\no KISS guarda as chaves offline. o coordenador transmite a transação.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: um pagamento montado mas ainda não assinado. o coordinator monta e não tem chaves; a KISS tem as chaves e fica offline.",
   "S_SD_SUB": "leve a transação num cartão SD",
   "S_NO_SD": "nenhum cartão SD encontrado",
   "S_INSERT_CARD": "insira um cartão com o ficheiro PSBT guardado pelo coordenador",

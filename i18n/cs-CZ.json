@@ -177,7 +177,7 @@
   "S_POINT_CAM": "naskenujte QR transakce z koordinační peněženky",
   "S_OR_LOAD": "nebo načtěte soubor .psbt z karty",
   "S_COORD_T": "JAK FUNGUJE PODPIS",
-  "S_COORD_B": "PSBT je soubor platby, který sdílí koordinátor a KISS.\nKISS drží klíče offline. koordinátor odešle hotovou transakci.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: platba, která je sestavená, ale zatím nepodepsaná. coordinator ji sestaví a nemá klíče; KISS má klíče a zůstává offline.",
   "S_SD_SUB": "přeneste transakci pomocí SD karty",
   "S_NO_SD": "SD karta nenalezena",
   "S_INSERT_CARD": "vložte kartu se souborem PSBT uloženým koordinátorem",
