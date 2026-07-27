@@ -10,6 +10,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_scan.h"    // wallet_scan_open_raw: passphrase-from-QR
+#include "wallet_duress_ui.h"  // last setup step: which stroke opens which signer
 #include "wallet_seed.h"
 #include "wallet_setup.h"   // optional full post-creation recovery rehearsal
 #include "wallet_theme.h"
@@ -575,14 +576,32 @@ static uint8_t s_last_fp[4];               // fingerprint of the wallet just unl
 
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 
+// The decoy signer opens straight from the game with no login screen at all,
+// so nothing here runs to record its fingerprint. main.c sets it directly
+// rather than duplicating the home-chip logic on that path.
+void wallet_ui_set_last_fp(const uint8_t fp[4]) { memcpy(s_last_fp, fp, 4); }
+
 // Post-setup, pre-home: recovery words + passphrase rederive this wallet.
 // Exposed words permit offline passphrase guessing, and nothing can recover a
 // lost passphrase. Session is open + seed committed; OK finishes the unlock.
+// The stroke chooser is the LAST thing in setup, and it has to be last: the
+// decoy signer IS this seed with no passphrase, so the choice only means
+// anything once a real passphrase exists to contrast it with. Whatever the
+// owner does there -- set both strokes, or skip -- the wallet then opens.
+static void (*s_after_duress)(void);
+
+static void duress_done_cb(void) {
+  void (*cb)(void) = s_after_duress;
+  s_after_duress = NULL;
+  if (cb) cb();
+}
+
 static void setup_warn_ok_cb(lv_event_t *e) {
   (void)e;
   void (*cb)(void) = s_unlocked_cb;
   wipe_and_close();                        // also deletes s_warnscr
-  if (cb) cb();
+  s_after_duress = cb;
+  wallet_duress_ui_open(lv_screen_active(), duress_done_cb);
 }
 
 static void setup_warn_words_done(void)

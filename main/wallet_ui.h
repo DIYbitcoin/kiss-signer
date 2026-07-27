@@ -17,6 +17,9 @@ bool wallet_ui_active(void);
 
 // Fingerprint of the most recently unlocked wallet (4 bytes).
 void wallet_ui_last_fp(uint8_t out[4]);
+// Record it without going through a login screen. Only the decoy unlock needs
+// this: it opens with an empty passphrase and never draws the keyboard.
+void wallet_ui_set_last_fp(const uint8_t fp[4]);
 
 // Register the LVGL pointer indev if not yet present (the setup wizard can run
 // before the first login and needs touch too).

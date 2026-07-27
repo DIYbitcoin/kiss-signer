@@ -41,6 +41,8 @@
 #include "wallet_seed.h"
 #include "wallet_crypto.h"
 #include "wallet_theme.h"
+#include "wallet_duress.h"
+#include "wallet_duress_ui.h"
 #ifndef SIMULATOR
 #include "wallet_crypto.h"
 #include "camera_spike.h"
@@ -218,15 +220,28 @@ static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unl
 #ifndef SIMULATOR
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
 #endif
-#define GEST_MAX 256               // accumulated points across the strokes of the unlock draw
+// Sized by INK, not by time (the sampler below decimates to 10px moves). KISS
+// itself is ~100 points; a circle drawn right around it is ~125 more. At 256
+// that pair overflowed, and an overflow drops the TRAILING points -- which is
+// exactly the modifier stroke the unlock now depends on, so it failed silently
+// for the people who draw big.
+#define GEST_MAX 384               // accumulated points across the strokes of the unlock draw
 static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
 static lv_point_t s_gsub[GEST_MAX]; // scratch: the left-letter subset, for the K check
+static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for wallet_duress
 static int s_gn;
 static int s_strokes;              // number of strokes in the current draw (KISS is many)
 static int s_stroke_n0;            // index where the current stroke began (tap vs draw test)
 static uint32_t s_gest_idle;       // ms since the last gesture activity (abandon timeout)
 static bool s_gest_swallow;        // ignore the touch that just woke the screensaver
+// The decoy opens with NO login screen in between, and detect_KISS fires as
+// soon as the word is recognizable -- which can be before the finger has
+// finished the last S. Without this the remaining ink lands on the freshly
+// revealed home and taps whatever tile is under it. The passphrase path never
+// had the problem because its keyboard owns the touch.
+static bool s_wallet_swallow;      // ignore the rest of the gesture that opened the wallet
+static uint32_t s_wallet_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
 #define IDLE_MS 300000             // show the screensaver after 5min with no touch (menu/game-over).
@@ -1393,6 +1408,7 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
   }
 #endif
   s_wallet_on = false;
+  s_wallet_swallow = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
   wallet_session_close();                  // locked: no key material stays in RAM
   motes_stop();
@@ -1405,6 +1421,60 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 
 // wallet_settings.c: seed already wiped + session closed; just drop to the game.
 void wallet_wiped_lock(void) { wallet_lock(); }
+
+// The decoy signer opens STRAIGHT from the game: empty BIP39 passphrase, no
+// keyboard, nothing on screen suggesting there is another way in. It is a real
+// signer -- own fingerprint, pairs, signs -- which is the point: the story an
+// attacker is shown has to survive them using it.
+static void wallet_open_decoy(void) {
+  if (wallet_session_open(NULL) != 0) {   // no seed, or derivation failed
+    wallet_login_open(wallet_start);      // fall back to the ordinary way in
+    return;
+  }
+  uint8_t fp[4] = {0};
+  if (wallet_fingerprint(NULL, fp) == 0)  // same empty passphrase = the decoy's own
+    wallet_ui_set_last_fp(fp);
+  s_wallet_swallow = true;                // the finger may still be mid-word
+  s_wallet_swallow_t = lv_tick_get();
+  wallet_start();
+}
+
+// Which signer the draw that just finished opens: 1 = the real one (ask for the
+// passphrase), 0 = the decoy (open it now), -1 = not a KISS at all.
+//
+// The modifier has to be classified SEPARATELY from the word, because it
+// changes the word's shape. An underline is wide and low, and it merges the
+// letters' x-clusters into one blob -- detect_KISS needs >=3 and would reject
+// the very draw the owner meant. So the word is matched against everything
+// BEFORE the final stroke, and the final stroke goes to the classifier alone.
+static int unlock_kind(void) {
+  const int real = wallet_duress_real(), decoy = wallet_duress_decoy();
+
+  if (real != WDG_NONE && s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
+    int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
+    for (int i = 1; i < s_stroke_n0; i++) {          // bbox of the WORD only
+      if (s_gpt[i].x < bx0) bx0 = s_gpt[i].x;
+      if (s_gpt[i].x > bx1) bx1 = s_gpt[i].x;
+      if (s_gpt[i].y < by0) by0 = s_gpt[i].y;
+      if (s_gpt[i].y > by1) by1 = s_gpt[i].y;
+    }
+    if (detect_KISS(s_gpt, s_stroke_n0, s_strokes - 1)) {
+      int n = 0;
+      for (int i = s_stroke_n0; i < s_gn; i++) {
+        s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
+      }
+      int g = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+      if (g != WDG_NONE && g == real)  return 1;
+      if (g != WDG_NONE && g == decoy) return 0;
+      // a stroke that is not either configured modifier falls through to the
+      // plain-word test below, which lands on the decoy: an unrecognized
+      // scribble must never be the thing that surfaces a passphrase prompt
+    }
+  }
+  if (detect_KISS(s_gpt, s_gn, s_strokes))
+    return real == WDG_NONE ? 1 : 0;   // never configured: word -> passphrase, as before
+  return -1;
+}
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
 // 5 min, matching the cosmetic screensaver (IDLE_MS) and Sparrow's default.
@@ -1522,7 +1592,8 @@ static void game_tick(lv_timer_t *t) {
   int tx = 0, ty = 0;
   bool pressed = read_touch(&tx, &ty);
 
-  if (wallet_ui_active() || wallet_setup_active()) {   // login/wizard own the touch
+  if (wallet_ui_active() || wallet_setup_active() ||
+      wallet_duress_ui_active()) {                     // login/wizard own the touch
     // VERIFY BACKUP runs the setup module DURING a session; keep the idle clock
     // fresh so finishing a long word-entry doesn't insta-lock on return.
     if (s_wallet_on && pressed) s_wallet_act_t = lv_tick_get();
@@ -1531,6 +1602,17 @@ static void game_tick(lv_timer_t *t) {
   }                                  //  backup words down takes minutes, untouched)
 
   if (s_wallet_on) {                              // in the wallet: tap the KISS logo to lock
+    // Waiting for a plain finger-lift is not enough: the decoy opens ON a lift
+    // (the end of one stroke), so the flag would clear before the NEXT stroke
+    // of the same word arrived -- and that stroke is the one that lands on a
+    // tile. Swallow until the panel has actually been quiet.
+    if (s_wallet_swallow) {
+      if (pressed) s_wallet_swallow_t = lv_tick_get();
+      else if (lv_tick_elaps(s_wallet_swallow_t) > 400) s_wallet_swallow = false;
+      s_wallet_act_t = lv_tick_get();
+      s_prev_press = pressed;
+      return;
+    }
     if (pressed) s_wallet_act_t = lv_tick_get();  // any touch anywhere resets the clock
     else if (lv_tick_elaps(s_wallet_act_t) > WALLET_AUTOLOCK_MS) {
       if (wallet_scan_active())     wallet_scan_close();      // camera off first
@@ -1698,16 +1780,22 @@ static void game_tick(lv_timer_t *t) {
             s_gn = 0; s_strokes = 0;
           } else if (tap) {
             start_game(); s_gn = 0; s_strokes = 0;            // menu: a tap -> play
-          } else if (detect_KISS(s_gpt, s_gn, s_strokes)) {
-            // "KISS" -> passphrase login. No seed on here means one of two
-            // things: an AMNESIC device (nothing is ever stored, so every
-            // power-on loads the seed first, then the normal one-passphrase
-            // login), or a fresh device that needs the whole setup wizard.
-            if (wallet_seed_exists()) wallet_login_open(wallet_start);
-            else if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
-              wallet_setup_open_load(lv_screen_active(), amnesic_loaded);
-            else wallet_setup_open(lv_screen_active(), setup_done_login);
-            s_gn = 0; s_strokes = 0;
+          } else {
+            // No seed on here means one of two things: an AMNESIC device
+            // (nothing is ever stored, so every power-on loads the seed first,
+            // then the normal one-passphrase login), or a fresh device that
+            // needs the whole setup wizard. Neither has a decoy to open.
+            int kind = unlock_kind();
+            if (kind >= 0) {
+              if (!wallet_seed_exists()) {
+                if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
+                  wallet_setup_open_load(lv_screen_active(), amnesic_loaded);
+                else wallet_setup_open(lv_screen_active(), setup_done_login);
+              }
+              else if (kind == 0) wallet_open_decoy();
+              else                wallet_login_open(wallet_start);
+              s_gn = 0; s_strokes = 0;
+            }
           }                                                  // else: keep, await more strokes (3s clears)
         }
         s_gest_idle = 0;

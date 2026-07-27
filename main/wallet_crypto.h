@@ -42,6 +42,10 @@ int wallet_script(void);
 #include <stddef.h>
 int wallet_session_open(const char *passphrase);
 void wallet_session_close(void);
+// 1 while the OPEN session is the one an empty passphrase derives -- the decoy
+// signer. Screens that would reveal a second signer exists (the unlock-stroke
+// settings) must be absent, not disabled, whenever this is true.
+int wallet_session_decoy(void);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int wallet_session_address(int change, uint32_t index, char *out, size_t out_len);
 

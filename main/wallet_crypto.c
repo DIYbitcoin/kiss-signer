@@ -81,6 +81,11 @@ int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 // ---- step 4: wallet session (master key in RAM between unlock and lock) ----
 static struct ext_key s_master;
 static bool s_session;
+// Was this session opened with NO passphrase? That is the decoy signer (see
+// wallet_duress.h), and the UI keys off it: the screen that configures the
+// unlock strokes must not exist inside a decoy session, or the decoy proves a
+// second signer is configurable.
+static bool s_session_decoy;
 
 int wallet_session_open(const char *passphrase)
 {
@@ -108,6 +113,7 @@ int wallet_session_open(const char *passphrase)
     if (rc != 0)
         wally_bzero(&s_master, sizeof(s_master));   // no partial key on failure
     s_session = (rc == 0);
+    s_session_decoy = (rc == 0) && (passphrase == NULL);
     return rc;
 }
 
@@ -117,7 +123,13 @@ void wallet_session_close(void)
 {
     wally_bzero(&s_master, sizeof(s_master));
     s_session = false;
+    s_session_decoy = false;
     wallet_seed_forget();
+}
+
+int wallet_session_decoy(void)
+{
+    return s_session && s_session_decoy;
 }
 
 const struct ext_key *wallet_session_master(void)
