@@ -177,7 +177,7 @@
   "S_POINT_CAM": "코디네이터 앱의 거래 QR을 스캔하세요",
   "S_OR_LOAD": "또는 카드에 저장된 .psbt 파일을 불러오세요",
   "S_COORD_T": "서명이 되는 방식",
-  "S_COORD_B": "PSBT는 코디네이터와 KISS가 주고받는 결제 파일입니다.\nKISS는 키를 오프라인에 두고, 코디네이터가 거래를 전파합니다.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction(부분적으로 서명된 비트코인 거래). 만들어졌지만 아직 서명되지 않은 결제입니다. 코디네이터는 만들지만 키가 없고, KISS는 키를 가지고 오프라인에 머뭅니다.",
   "S_SD_SUB": "SD 카드로 거래를 옮기세요",
   "S_NO_SD": "SD 카드가 없습니다",
   "S_INSERT_CARD": "코디네이터가 저장한 PSBT 파일이 든 카드를 꽂으세요",

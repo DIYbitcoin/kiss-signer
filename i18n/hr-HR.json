@@ -177,7 +177,7 @@
   "S_POINT_CAM": "skenirajte QR transakcije iz koordinacijskog novčanika",
   "S_OR_LOAD": "ili učitajte .psbt datoteku s kartice",
   "S_COORD_T": "KAKO RADI POTPISIVANJE",
-  "S_COORD_B": "PSBT je datoteka plaćanja koju dijele koordinator i KISS.\nKISS drži ključeve offline. koordinator emitira gotovu transakciju.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: plaćanje koje je složeno, ali još nije potpisano. coordinator ga slaže i nema ključeve; KISS ima ključeve i ostaje offline.",
   "S_SD_SUB": "prenesite transakciju SD karticom",
   "S_NO_SD": "SD kartica nije pronađena",
   "S_INSERT_CARD": "umetnite karticu s PSBT datotekom koju je spremio koordinator",
