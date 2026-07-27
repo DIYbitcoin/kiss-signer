@@ -575,12 +575,17 @@ int main(void) {
   touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_pair_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(295, 430); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
+  // SCAN KEY is no longer buried in the pair screen: it is a top-level pill on
+  // the WALLET screen at (430,236,340,60), so back out of pairing first. It was
+  // moved because hiding a separate PRIVATE-key export one tap inside the
+  // descriptor flow implied the two were the same action.
+  touch(118, 430); pump(3); release(); pump(6);     // BACK (x=48 pill) -> WALLET
+  touch(600, 266); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
   save("/tmp/sim_sp_warn.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // SHOW THE SCAN KEY -> export
   save("/tmp/sim_sp_key.ppm");
-  touch(128, 430); pump(3); release(); pump(6);     // DONE -> pair screen
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> section home
+  touch(128, 430); pump(3); release(); pump(6);     // DONE -> WALLET screen
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
 
