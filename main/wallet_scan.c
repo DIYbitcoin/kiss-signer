@@ -91,11 +91,20 @@ void wallet_scan_close(void)   // idle auto-lock: no on_cancel (caller locks nex
 
 static void cancel_now(void)
 {
+    if (!s_scr) return;                // idempotent: two paths can reach here
     scan_teardown();
     scan_bzero(s_psbt, sizeof s_psbt);
-    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    lv_obj_delete_async(s_scr); s_scr = NULL;
     if (s_on_cancel) s_on_cancel();
 }
+
+// Second way out, for main.c. The close below is LVGL-routed, and on hardware
+// the live camera bypasses LVGL entirely -- reported from a board where the
+// top-left CLOSE did nothing and the only escape was pulling the power. The
+// game's unlock gesture does NOT go through LVGL: game_tick reads the panel
+// itself. This lets that known-working path reach the same cancel, without
+// changing anything about the LVGL controls, which still work in the simulator.
+void wallet_scan_cancel(void) { cancel_now(); }
 
 // The visible control. Its own callback, so it does not repeat the corner
 // hit-test below: the pill IS the corner.

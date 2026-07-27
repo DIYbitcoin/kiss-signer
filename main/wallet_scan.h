@@ -22,6 +22,11 @@ void wallet_scan_open_raw(lv_obj_t *parent,
 
 bool wallet_scan_active(void);
 void wallet_scan_close(void);   // idle auto-lock: stop camera + drop the screen
+// Cancel as if the CLOSE control had been used: tears down AND runs the
+// on_cancel callback, so the caller lands back where it came from. Safe to call
+// when no scan is open. main.c uses this for a raw-touch escape that does not
+// depend on LVGL receiving input while the camera is streaming.
+void wallet_scan_cancel(void);
                                 // WITHOUT firing on_cancel (nothing reopens)
 
 // Device: the shared touch/camera I2C bus (i2c_master_bus_handle_t), set once
