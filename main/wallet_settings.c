@@ -43,15 +43,13 @@ void wallet_wiped_lock(void);
 // have to be re-fitted on every tap, so the gap lives here rather than being
 // written twice and drifting apart.
 //
-// NETWORK gets font23: its pills are 340 wide and carry their label at 23 too.
-// ADDRESS TYPE does not. Three side-by-side pills only leave 82px of text
-// width each, so NATIVE/NESTED/LEGACY can never be more than font14 -- and a
-// font23 note under them made the sentence explaining the buttons twice the
-// size of the buttons themselves. A budget below one 23pt line (29px) is what
-// pins the note to the same rung as the controls it describes; the reserved
-// space on screen is unchanged, so a long translation still gets three lines.
-#define NET_NOTE_H  50
-#define TYPE_NOTE_H 24
+// NETWORK and the selected ADDRESS TYPE both read at font23. The three type
+// choices moved to their own full-width screen; squeezing them into 110px
+// segments made the choice names and their explanations the smallest text on
+// Settings.
+#define NET_NOTE_H  58   // two lines at font23; "TESTNET: practice coins
+                         // with no value." needs both and used to lose them
+#define TYPE_NOTE_H 29
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
@@ -61,7 +59,7 @@ static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
-static lv_obj_t *s_type_seg[3], *s_type_pfx[3], *s_type_expl;   // NATIVE/NESTED/LEGACY chooser + example prefix
+static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl;  // selected type row
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
 // example address prefix per type, following the current network so it never
@@ -72,6 +70,24 @@ static const char *type_prefix(int sc, int tn)
     case WSCRIPT_LEGACY: return tn ? "m/n..." : "1...";
     case WSCRIPT_NESTED: return tn ? "2..."   : "3...";
     default:             return tn ? "tb1..." : "bc1...";
+    }
+}
+
+static const char *type_name(int sc)
+{
+    switch (sc) {
+    case WSCRIPT_LEGACY: return tr(STR_S_TY_LEGACY);
+    case WSCRIPT_NESTED: return tr(STR_S_TY_NESTED);
+    default:             return tr(STR_S_TY_NATIVE);
+    }
+}
+
+static const char *type_note(int sc)
+{
+    switch (sc) {
+    case WSCRIPT_LEGACY: return tr(STR_G_TY_LEGACY_NOTE);
+    case WSCRIPT_NESTED: return tr(STR_G_TY_NESTED_NOTE);
+    default:             return tr(STR_G_TY_NATIVE_NOTE);
     }
 }
 
@@ -149,24 +165,13 @@ static void restyle(void)
                 340, NET_NOTE_H);
     lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
 
-    if (s_type_seg[0]) {
+    if (s_type_pill) {
         int sc = wallet_script();
-        for (int i = 0; i < 3; i++) {              // highlight the active type, dim the rest
-            bool on = (i == sc);
-            lv_obj_set_style_bg_color(s_type_seg[i], on ? wt_accent_bg() : KEY_COL, 0);
-            lv_obj_set_style_border_color(s_type_seg[i], on ? wt_primary() : MUT_COL, 0);
-            lv_obj_set_style_border_width(s_type_seg[i], on ? 2 : 1, 0);
-            lv_obj_set_style_text_color(lv_obj_get_child(s_type_seg[i], 0),  // name label
-                                        on ? INK_COL : MUT_COL, 0);
-            lv_label_set_text(s_type_pfx[i], type_prefix(i, tn));            // example prefix
-            lv_obj_set_style_text_color(s_type_pfx[i],
-                                        on ? wt_accent() : lv_color_hex(0x525C6E), 0);
-        }
-        wt_note_fit(s_type_expl,
-            sc == WSCRIPT_LEGACY ? tr(STR_G_TY_LEGACY_NOTE)
-          : sc == WSCRIPT_NESTED ? tr(STR_G_TY_NESTED_NOTE)
-                                 : tr(STR_G_TY_NATIVE_NOTE),
-            360, TYPE_NOTE_H);
+        lv_label_set_text(lv_obj_get_child(s_type_pill, 0), type_name(sc));
+        lv_label_set_text(s_type_pfx, type_prefix(sc, tn));
+        lv_obj_set_style_text_color(s_type_pfx, wt_accent(), 0);
+        wt_pill_select(s_type_pill, true);
+        wt_note_fit(s_type_expl, type_note(sc), 340, TYPE_NOTE_H);
     }
 }
 
@@ -178,12 +183,57 @@ static void pick_cb(lv_event_t *e)
     restyle();
 }
 
+static void settings_reopen(void)
+{
+    lv_obj_t *parent = s_parent;
+    s_type_pill = s_type_pfx = s_type_expl = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_settings_open(parent);
+}
+
 static void type_pick_cb(lv_event_t *e)
 {
-    int sc = (int)(intptr_t)lv_event_get_user_data(e);   // tap the type you want directly
+    int sc = (int)(intptr_t)lv_event_get_user_data(e);
     wallet_set_script(sc);
     store_u8("script", (uint8_t)sc);
-    restyle();
+    settings_reopen();                     // return with the selected row updated
+}
+
+static void type_back_cb(lv_event_t *e)
+{
+    (void)e;
+    settings_reopen();
+}
+
+static void type_open_cb(lv_event_t *e)
+{
+    (void)e;
+    s_type_pill = s_type_pfx = s_type_expl = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_TYPE), tr(STR_G_SEPARATE));
+
+    // Oldest-to-newest makes the tradeoff legible as a progression, and puts
+    // the recommended Native SegWit choice last, closest to the action row.
+    // Each option gets the full 704px width: a 23px name in the pill and its
+    // plain-language explanation at 23px underneath.
+    static const int scripts[3] = {
+        WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE
+    };
+    static const int py[3] = {96, 190, 282};
+    static const int ny[3] = {154, 248, 340};
+    int tn = wallet_testnet();
+    for (int i = 0; i < 3; i++) {
+        int sc = scripts[i];
+        char label[96];
+        snprintf(label, sizeof label, "%s   %s", type_name(sc),
+                 type_prefix(sc, tn));
+        lv_obj_t *p = wt_pillh(s_scr, label, 48, py[i], 704, 52,
+                               type_pick_cb, (void *)(intptr_t)sc);
+        wt_pill_select(p, wallet_script() == sc);
+        wt_note(s_scr, type_note(sc), 68, ny[i], 664, 29);
+    }
+    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, type_back_cb, NULL);
 }
 
 static void theme_pick_cb(lv_event_t *e)
@@ -386,7 +436,11 @@ static void wipe_cb(lv_event_t *e)
 
     wt_hold_pill(ovl, tr(STR_G_HOLD_WIPE), 48, 372, 320, 52,
                  WIPE_HOLD_MS, do_wipe, ovl);
-    wt_pill(ovl, tr(STR_C_CANCEL), 610, 372, 140, wipe_cancel_cb, ovl);
+    // 165 wide, not 140: "ABBRUCH", "ANNULER" and "ANNULLA" are all already
+    // the shortest correct word and still overran a 140px pill, so the pill
+    // gives up the 25px instead of the copy giving up a letter. Left edge
+    // moves to keep the right edge at 750 with every other pill on the row.
+    wt_pill(ovl, tr(STR_C_CANCEL), 585, 372, 165, wipe_cancel_cb, ovl);
 }
 
 static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
@@ -485,6 +539,7 @@ void wallet_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
+    s_type_pill = s_type_pfx = s_type_expl = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
     // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
@@ -507,11 +562,17 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_add_event_cb(d, theme_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         s_acc_dot[i] = d;
     }
+    // The name goes BESIDE the dots, not under them. Under them it landed on
+    // y=74, the same baseline as the WALLET section header 130px to its left,
+    // and two dim letter-spaced words on one line read as two section headers:
+    // "MONO" looked like it was titling the wallet-actions column.
     s_acc_name = lv_label_create(s_scr);       // names the dressed color
     lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
     lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
-    lv_obj_set_pos(s_acc_name, 560, 74);
+    lv_obj_set_width(s_acc_name, 118);
+    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(s_acc_name, 430, 39);       // centred on the 36px dot row
 
     // LEFT: network + address type. The captions are small on purpose; the
     // vertical budget they give back is what lets every note under a chooser
@@ -519,25 +580,23 @@ void wallet_settings_open(lv_obj_t *parent)
     mk_section(tr(STR_I_SEC_NET), 48, 74);
     s_main_pill = mk_pillh("MAINNET", 48, 94, 340, 44, pick_cb, (void *)(intptr_t)0);
     s_test_pill = mk_pillh("TESTNET", 48, 142, 340, 44, pick_cb, (void *)(intptr_t)1);
-    s_state_lbl = wt_note(s_scr, "", 48, 190, 340, 50);   // filled by restyle()
+    s_state_lbl = wt_note(s_scr, "", 48, 188, 340, NET_NOTE_H);  // filled by restyle()
 
-    // Leave a full text-row gap between the network note and this heading, and
-    // another between the heading and the chooser. ADDRESS TYPE previously
-    // touched the rounded pills and looked accidentally trapped behind them.
-    mk_section(tr(STR_I_SEC_TYPE), 48, 246);
-    // three visible choices (like the network chooser) so it's obvious you pick
-    // one — no hidden cycling. Each shows an example address prefix underneath;
-    // restyle() highlights the active type and updates the prefixes per network.
-    static const char *tn_name[3] = {"NATIVE", "NESTED", "LEGACY"};
-    static const int   tn_sc[3]   = {WSCRIPT_NATIVE, WSCRIPT_NESTED, WSCRIPT_LEGACY};
-    for (int i = 0; i < 3; i++) {
-        int x = 48 + i * 115;
-        s_type_seg[i] = mk_pillh(tn_name[i], x, 276, 110, 60, type_pick_cb, (void *)(intptr_t)tn_sc[i]);
-        wt_pill_two_line(s_type_seg[i], "");        // prefix filled by restyle()
-        s_type_pfx[i] = lv_obj_get_child(s_type_seg[i], 1);
-    }
-    s_type_expl = wt_note(s_scr, "", 48, 342, 360, 54);  // filled by restyle()
-    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 396, 360, 58);         // clears the footer at 460
+    // The main page shows the selected type as one normal-size row. Tapping it
+    // opens a dedicated full-width chooser where all three names and their
+    // explanations fit at 23px.
+    mk_section(tr(STR_I_SEC_TYPE), 48, 250);   // 4px below the note at 188+58
+    // 72 tall, not 60: the example address is the second line and it is now a
+    // readable 23 rather than a 14px footnote on its own button. 72 is the
+    // smallest height that still leaves the type NAME at 23 above it.
+    s_type_pill = mk_pillh(type_name(wallet_script()), 48, 274, 340, 72,
+                           type_open_cb, NULL);
+    wt_pill_two_line_val(s_type_pill,
+                         type_prefix(wallet_script(), wallet_testnet()));
+    s_type_pfx = lv_obj_get_child(s_type_pill, 1);
+    s_type_expl = wt_note(s_scr, type_note(wallet_script()),
+                          48, 352, 340, TYPE_NOTE_H);
+    wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);
 
     // RIGHT: wallet actions. RECOVERY WORDS lives here because it is a
     // maintenance/security action, not a fact about the wallet currently open.

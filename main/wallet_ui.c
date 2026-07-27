@@ -254,22 +254,39 @@ static void flash_last(void) {
   entry_refresh();
 }
 
+// The caption above the entry carries two unrelated kinds of text. One is a
+// quiet eyebrow naming the field ("PASSPHRASE"); the other is the state that
+// decides what the owner types next -- "TYPE IT AGAIN TO CONFIRM", "THOSE
+// DIDN'T MATCH", "THAT OPENS A DIFFERENT WALLET". Only the eyebrow belongs at
+// 14. The rest auto-fit into the 486px left of the SCAN button, wrapping
+// rather than running underneath it when a translation is long.
+#define CAP_W 486
+static void cap_set(const char *txt, lv_color_t col, bool alert) {
+  if (!s_cap) return;
+  lv_label_set_text(s_cap, txt);
+  lv_obj_set_style_text_color(s_cap, col, 0);
+  lv_obj_set_style_text_font(s_cap, alert ? wt_body_font(txt, CAP_W, 58)
+                                          : wt_font14(), 0);
+  lv_obj_set_pos(s_cap, 48, alert ? 22 : 28);
+}
+
 // after a weak-ack warning, any edit returns the caption to the stage prompt
 static void setup_cap_reset(void) {
   if (!s_setup_mode || !s_weak_ack || !s_cap) return;
   s_weak_ack = false;
-  lv_label_set_text(s_cap, s_first_done ? tr(STR_L_TYPE_AGAIN)
-                                        : tr(STR_L_CREATE_YOUR_PASS));
-  lv_obj_set_style_text_color(s_cap, s_first_done ? lv_color_hex(0xF2B84B) : MUT_COL, 0);
+  if (s_first_done) cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  else              cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
 }
 
 static lv_obj_t *s_cancel_ovl;             // "cancel setup?" confirm (setup mode only)
+static lv_obj_t *s_weak_ovl;               // weak-passphrase deliberate-use card
 static lv_obj_t *s_warnscr;                // post-setup passphrase warning (one screen)
 static bool s_backup_verified;             // every word + exact passphrase rehearsed
 static bool s_backup_verify_pass;          // keyboard is checking that passphrase now
 
 static void wipe_and_close(void) {
   if (s_cancel_ovl) { lv_obj_delete_async(s_cancel_ovl); s_cancel_ovl = NULL; }
+  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
   if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
   // cancelling setup before the fingerprint confirm drops the staged seed, so
   // an abandoned setup never leaves a half-made wallet in flash (P0 safety net)
@@ -318,7 +335,10 @@ static void show_cancel_confirm(void) {
 
   lv_obj_t *card = lv_obj_create(s_cancel_ovl);
   lv_obj_remove_style_all(card);
-  lv_obj_set_size(card, 540, 268);
+  // 540x268 only ever fit this body at 14pt: at 23 it needs four lines and the
+  // card had 106px between the title and the buttons. Grown so the readable
+  // size is the one that fits, not the one that survives.
+  lv_obj_set_size(card, 560, 300);
   lv_obj_center(card);
   lv_obj_set_style_bg_color(card, BG_COL, 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -333,12 +353,11 @@ static void show_cancel_confirm(void) {
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 30);
 
-  lv_obj_t *s = lv_label_create(card);
-  lv_label_set_text(s, tr(STR_L_CANCEL_SETUP_B));
+  // y=82 down to the button row (300 - 22 - 58 = 220) leaves 138px, so 23 fits
+  // on four lines. wt_note takes it and drops to 14 only if it cannot.
+  lv_obj_t *s = wt_note(card, tr(STR_L_CANCEL_SETUP_B), 30, 82, 500, 124);
   lv_obj_set_style_text_color(s, MUT_COL, 0);
-  lv_obj_set_style_text_font(s, wt_font14(), 0);
   lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 82);
 
   lv_obj_t *keep = lv_button_create(card);           // safe choice, green outline
   lv_obj_set_size(keep, 232, 58);
@@ -351,6 +370,8 @@ static void show_cancel_confirm(void) {
   lv_obj_t *kl = lv_label_create(keep);
   lv_label_set_text(kl, tr(STR_L_KEEP_GOING));
   lv_obj_set_style_text_color(kl, INK_COL, 0);
+  lv_obj_set_style_text_font(kl,
+      wt_body_font(tr(STR_L_KEEP_GOING), 204, 42), 0);
   lv_obj_set_style_text_letter_space(kl, 2, 0);
   lv_obj_center(kl);
 
@@ -365,8 +386,92 @@ static void show_cancel_confirm(void) {
   lv_obj_t *dl = lv_label_create(disc);
   lv_label_set_text(dl, tr(STR_L_DISCARD));
   lv_obj_set_style_text_color(dl, lv_color_hex(0xFF4D5E), 0);
+  lv_obj_set_style_text_font(dl,
+      wt_body_font(tr(STR_L_DISCARD), 204, 42), 0);
   lv_obj_set_style_text_letter_space(dl, 2, 0);
   lv_obj_center(dl);
+}
+
+// Capture the first setup entry and move to the exact-repeat stage. Both the
+// normal-strength OK path and the weak-passphrase card's explicit USE ANYWAY
+// action land here, so the safety-critical transition has one implementation.
+static void setup_accept_first(void) {
+  memcpy(s_first, s_pass, sizeof s_first);
+  s_first_done = true;
+  s_weak_ack = false;
+  memset(s_pass, 0, sizeof s_pass);
+  s_plen = 0;
+  s_show = false;
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  entry_refresh();
+}
+
+static void weak_back_cb(lv_event_t *e) {
+  (void)e;
+  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
+  // Keep the entry intact so the owner can lengthen it instead of retyping.
+  setup_cap_reset();
+}
+
+static void weak_use_cb(lv_event_t *e) {
+  (void)e;
+  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
+  setup_accept_first();
+}
+
+// A weak passphrase is a consequential choice, not a status tag. The old
+// warning replaced the keyboard caption with a long sentence, which rendered
+// at the smallest face and asked for an unexplained second press of OK.
+// Keep the keyboard and entered secret behind a modal card, make the warning
+// readable at 23px, and name both outcomes.
+static void show_weak_confirm(void) {
+  if (s_weak_ovl) return;
+  s_weak_ack = true;
+
+  s_weak_ovl = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(s_weak_ovl);
+  lv_obj_set_size(s_weak_ovl, 800, 480);
+  lv_obj_set_pos(s_weak_ovl, 0, 0);
+  lv_obj_set_style_bg_color(s_weak_ovl, lv_color_hex(0x000000), 0);
+  lv_obj_set_style_bg_opa(s_weak_ovl, 200, 0);
+  lv_obj_add_flag(s_weak_ovl, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(s_weak_ovl, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_move_foreground(s_weak_ovl);
+
+  lv_obj_t *card = lv_obj_create(s_weak_ovl);
+  lv_obj_remove_style_all(card);
+  // 360, not 440: the body is two lines in English and at most four in the
+  // longest translation, and a card sized for text that is not there reads as
+  // a missing paragraph. Height here is set by what the copy needs.
+  lv_obj_set_size(card, 704, 360);
+  lv_obj_center(card);
+  lv_obj_set_style_bg_color(card, BG_COL, 0);
+  lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(card, 18, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(0xFF4D5E), 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *icon = wt_lbl(card, LV_SYMBOL_WARNING, 0, 0,
+                          &lv_font_montserrat_48, lv_color_hex(0xFF4D5E));
+  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 30);
+
+  lv_obj_t *t = wt_lbl(card, tr(STR_L_WEAK_T), 0, 0, wt_font28(), INK_COL);
+  lv_obj_set_style_text_letter_space(t, 2, 0);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 88);
+
+  lv_obj_t *b = wt_note(card, tr(STR_L_WEAK_ACK), 32, 144, 640, 124);
+  lv_obj_set_style_text_color(b, MUT_COL, 0);
+  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+
+  // 314 wide, not 280: "USE ANYWAY" is one word in English and three in most
+  // other languages, and this is the button that decides whether a guessable
+  // passphrase guards real funds. It gets the width it needs to stay readable.
+  wt_pillh(card, tr(STR_C_BACK), 18, 284, 314, 56, weak_back_cb, NULL);
+  lv_obj_t *use = wt_pillh(card, tr(STR_L_USE_ANYWAY), 372, 284, 314, 56,
+                           weak_use_cb, NULL);
+  wt_pill_select(use, true);
 }
 
 // ---- fingerprint reveal ----
@@ -413,12 +518,11 @@ static void setup_fail_screen(void) {
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 190);
 
-  lv_obj_t *s = lv_label_create(s_errscr);
-  lv_label_set_text(s, s_setup_mode ? tr(STR_L_FAIL_SETUP_B)
-                                    : tr(STR_L_FAIL_OPEN_B));
+  lv_obj_t *s = wt_note(s_errscr, s_setup_mode ? tr(STR_L_FAIL_SETUP_B)
+                                               : tr(STR_L_FAIL_OPEN_B),
+                        40, 232, 720, 58);
   lv_obj_set_style_text_color(s, MUT_COL, 0);
-  lv_obj_set_style_text_font(s, wt_font14(), 0);
-  lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 236);
+  lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
 
   lv_obj_t *btn = lv_button_create(s_errscr);
   lv_obj_set_size(btn, 200, 56);
@@ -429,7 +533,7 @@ static void setup_fail_screen(void) {
   lv_obj_t *bl = lv_label_create(btn);
   lv_label_set_text(bl, tr(STR_C_BACK));
   lv_obj_set_style_text_color(bl, INK_COL, 0);
-  lv_obj_set_style_text_font(bl, wt_font14(), 0);
+  lv_obj_set_style_text_font(bl, wt_body_font(tr(STR_C_BACK), 180, 44), 0);
   lv_obj_center(bl);
 }
 
@@ -503,10 +607,7 @@ static void setup_warn_words_done(void)
     lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_login);
   }
-  if (s_cap) {
-    lv_label_set_text(s_cap, tr(STR_L_VERIFY_PASS));
-    lv_obj_set_style_text_color(s_cap, lv_color_hex(0xF2B84B), 0);
-  }
+  cap_set(tr(STR_L_VERIFY_PASS), lv_color_hex(0xF2B84B), true);
   entry_refresh();
 }
 
@@ -539,8 +640,8 @@ static void setup_warn_screen(void) {
   lv_obj_t *b = lv_label_create(s_warnscr);
   lv_label_set_text(b, tr(STR_L_WARN_B));
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 720, 178), 0);
-  lv_obj_set_width(b, 720);
+  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_L_WARN_B), 740, 204), 0);
+  lv_obj_set_width(b, 740);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 92);
@@ -551,13 +652,18 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_text_color(f, INK_COL, 0);
   lv_obj_set_style_text_font(f, wt_font28(), 0);
   lv_obj_set_style_text_letter_space(f, 4, 0);
-  lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 294);
+  lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 300);   // body below now runs to 295
 
   lv_obj_t *state = lv_label_create(s_warnscr);
   lv_label_set_text(state, s_backup_verified ? tr_sym(LV_SYMBOL_OK, STR_L_BACKUP_VERIFIED)
                                               : tr(STR_L_BACKUP_UNVERIFIED));
   lv_obj_set_style_text_color(state, s_backup_verified ? WT_OK : WT_STOP, 0);
-  lv_obj_set_style_text_font(state, wt_font14(), 0);
+  // whether the backup is verified decides whether the red ring stays: that is
+  // a status the owner reads, not a tag, so it belongs on the ladder.
+  lv_obj_set_style_text_font(state, wt_body_font(s_backup_verified
+                                                   ? tr(STR_L_BACKUP_VERIFIED)
+                                                   : tr(STR_L_BACKUP_UNVERIFIED),
+                                                 720, 29), 0);
   lv_obj_set_style_text_letter_space(state, 2, 0);
   lv_obj_align(state, LV_ALIGN_TOP_MID, 0, 348);
 
@@ -636,17 +742,18 @@ static void show_fingerprint(void) {
   lv_anim_set_values(&pa, 40, 255);
   lv_anim_start(&pa);
 
-  lv_obj_t *note = lv_label_create(s_fpscr);
-  lv_label_set_text(note, tr(STR_L_FP_NOTE));
+  // These two lines are how an owner learns what the fingerprint above is FOR,
+  // on the first screen the device ever shows them. They were 14pt sitting 28px
+  // apart, which is one 23pt line plus nothing -- so the room had to grow with
+  // the type: the chip ends at 222 and the OPEN pill starts at 388, and two
+  // 58px slots at 246 and 310 land inside that with clearance at both ends.
+  lv_obj_t *note = wt_note(s_fpscr, tr(STR_L_FP_NOTE), 50, 246, 700, 58);
   lv_obj_set_style_text_color(note, lv_color_hex(0xB9C2D4), 0);
-  lv_obj_set_style_text_font(note, wt_font14(), 0);
-  lv_obj_align(note, LV_ALIGN_TOP_MID, 0, 258);
+  lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
 
-  lv_obj_t *note2 = lv_label_create(s_fpscr);
-  lv_label_set_text(note2, tr(STR_L_FP_NOTE2));
+  lv_obj_t *note2 = wt_note(s_fpscr, tr(STR_L_FP_NOTE2), 50, 310, 700, 58);
   lv_obj_set_style_text_color(note2, MUT_COL, 0);
-  lv_obj_set_style_text_font(note2, wt_font14(), 0);
-  lv_obj_align(note2, LV_ALIGN_TOP_MID, 0, 286);
+  lv_obj_set_style_text_align(note2, LV_TEXT_ALIGN_CENTER, 0);
 
   // bottom action pill
   lv_obj_t *go = lv_obj_create(s_fpscr);
@@ -664,7 +771,7 @@ static void show_fingerprint(void) {
   lv_obj_t *gol = lv_label_create(go);
   lv_label_set_text(gol, tr(STR_L_TAP_TO_OPEN));
   lv_obj_set_style_text_color(gol, INK_COL, 0);
-  lv_obj_set_style_text_font(gol, wt_font14(), 0);
+  lv_obj_set_style_text_font(gol, wt_body_font(tr(STR_L_TAP_TO_OPEN), 236, 40), 0);
   lv_obj_set_style_text_letter_space(gol, 2, 0);
   lv_obj_center(gol);
 
@@ -680,7 +787,7 @@ static void show_fingerprint(void) {
   lv_obj_t *backl = lv_label_create(back);
   lv_label_set_text(backl, tr(STR_C_BACK));
   lv_obj_set_style_text_color(backl, MUT_COL, 0);
-  lv_obj_set_style_text_font(backl, wt_font14(), 0);
+  lv_obj_set_style_text_font(backl, wt_body_font(tr(STR_C_BACK), 116, 40), 0);
   lv_obj_set_style_text_letter_space(backl, 2, 0);
   lv_obj_center(backl);
 
@@ -865,8 +972,7 @@ static void kb_cb(lv_event_t *e) {
       s_flash = false;
       if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
       if (!match) {
-        lv_label_set_text(s_cap, tr(STR_L_BACKUP_PASS_BAD));
-        lv_obj_set_style_text_color(s_cap, WT_STOP, 0);
+        cap_set(tr(STR_L_BACKUP_PASS_BAD), WT_STOP, true);
         entry_refresh();
       } else {
         s_backup_verify_pass = false;
@@ -875,31 +981,18 @@ static void kb_cb(lv_event_t *e) {
         setup_warn_screen();
       }
     }
-    else if (s_setup_mode && !s_first_done && pass_bits() < 40 && !s_weak_ack) {
-      // weak passphrase: make "yes, really" a separate deliberate press
-      s_weak_ack = true;
-      lv_label_set_text(s_cap, tr(STR_L_WEAK_ACK));
-      lv_obj_set_style_text_color(s_cap, lv_color_hex(0xFF4D5E), 0);
+    else if (s_setup_mode && !s_first_done && pass_bits() < 40) {
+      show_weak_confirm();
     } else if (s_setup_mode && !s_first_done) {
       // setup: capture the first entry, demand it again — a typo here is an
       // unreproducible passphrase (= lost coins) later
-      memcpy(s_first, s_pass, sizeof s_first);
-      s_first_done = true;
-      s_weak_ack = false;
-      memset(s_pass, 0, sizeof s_pass);
-      s_plen = 0;
-      s_show = false;
-      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
-      lv_label_set_text(s_cap, tr(STR_L_TYPE_AGAIN));
-      lv_obj_set_style_text_color(s_cap, lv_color_hex(0xF2B84B), 0);
-      entry_refresh();
+      setup_accept_first();
     } else if (s_setup_mode && strcmp(s_first, s_pass) != 0) {
       memset(s_first, 0, sizeof s_first);
       s_first_done = false;
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
-      lv_label_set_text(s_cap, tr(STR_L_NO_MATCH));
-      lv_obj_set_style_text_color(s_cap, lv_color_hex(0xFF4D5E), 0);
+      cap_set(tr(STR_L_NO_MATCH), lv_color_hex(0xFF4D5E), true);
       entry_refresh();
     } else {
       memset(s_first, 0, sizeof s_first);
@@ -1046,6 +1139,19 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   wt_pill_primary(go);
 }
 
+// A label whose text swaps at runtime (SHOW <-> HIDE) has to be sized for BOTH
+// strings: fitting only the one present at build time clips the other in every
+// language where they differ in length, and an unwidthed LVGL label clips
+// silently. Pick the smaller of the two rungs and set it once.
+static const lv_font_t *font_for_both(const char *a, const char *b,
+                                      int w, int max_h) {
+  const lv_font_t *fa = wt_body_font(a, w, max_h);
+  const lv_font_t *fb = wt_body_font(b, w, max_h);
+  if (fa == wt_font14() || fb == wt_font14()) return wt_font14();
+  if (fa == wt_font23() || fb == wt_font23()) return wt_font23();
+  return fa;
+}
+
 void wallet_login_open(void (*unlocked_cb)(void)) {
   if (wallet_ui_active()) return;
   ensure_indev();
@@ -1061,10 +1167,10 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_bg_opa(s_login, LV_OPA_COVER, 0);
 
   s_cap = lv_label_create(s_login);
-  lv_label_set_text(s_cap, s_setup_mode ? tr(STR_L_CREATE_YOUR_PASS) : tr(STR_L_PASSPHRASE_CAP));
-  lv_obj_set_style_text_color(s_cap, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_cap, wt_font14(), 0);
-  lv_obj_set_pos(s_cap, 48, 26);
+  lv_obj_set_width(s_cap, CAP_W);          // stop long alerts under SCAN/SHOW
+  lv_label_set_long_mode(s_cap, LV_LABEL_LONG_WRAP);
+  cap_set(s_setup_mode ? tr(STR_L_CREATE_YOUR_PASS) : tr(STR_L_PASSPHRASE_CAP),
+          MUT_COL, false);
 
   // show/hide toggle (top-right, inset from the panel's right overscan)
   lv_obj_t *showbtn = lv_button_create(s_login);
@@ -1076,7 +1182,8 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   s_showbtn_lbl = lv_label_create(showbtn);
   lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
   lv_obj_set_style_text_color(s_showbtn_lbl, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_showbtn_lbl, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_showbtn_lbl,
+      font_for_both(tr(STR_L_SHOW), tr(STR_L_HIDE), 84, 32), 0);
   lv_obj_center(s_showbtn_lbl);
 
   // SCAN: a passphrase kept as a QR (some owners do). Gated behind one warning
@@ -1092,7 +1199,7 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
     lv_obj_t *sl = lv_label_create(sb);
     lv_label_set_text(sl, tr(STR_L_SCAN_BTN));
     lv_obj_set_style_text_color(sl, MUT_COL, 0);
-    lv_obj_set_style_text_font(sl, wt_font14(), 0);
+    lv_obj_set_style_text_font(sl, wt_body_font(tr(STR_L_SCAN_BTN), 84, 32), 0);
     lv_obj_center(sl);
   }
 

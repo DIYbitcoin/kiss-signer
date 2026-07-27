@@ -195,12 +195,10 @@ static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficu
 static lv_obj_t *s_wallet;         // baked KISS Signer menu (visual shell only, for now)
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
-static lv_obj_t *s_tile_ttl[4], *s_tile_sub[4];  // live tile labels (settle in on unlock)
-// tile title/subtitle string ids, in tile order (sign, receive, wallet, settings)
+static lv_obj_t *s_tile_ttl[4];            // live tile labels (settle in on unlock)
+// tile title string ids, in tile order (sign, receive, wallet, settings)
 static const int TILE_TTL_STR[4] = {STR_H_TILE_SIGN, STR_H_TILE_RECV,
                                     STR_H_TILE_WALLET, STR_H_TILE_SETTINGS};
-static const int TILE_SUB_STR[4] = {STR_H_SUB_SIGN, STR_H_SUB_RECV,
-                                    STR_H_SUB_WALLET, STR_H_SUB_SETTINGS};
 static bool s_wallet_on;
 // dev-seed fingerprint for the top-right chip; filled from the boot selftest on
 // device (sim build has no libwally, keeps the placeholder)
@@ -1228,9 +1226,7 @@ static void wallet_home_restyle(void) {
       // These objects survive a Settings language change. Refresh the font as
       // well as the text so regional CJK glyph forms switch immediately.
       lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
-      lv_obj_set_style_text_font(s_tile_sub[i], wt_font14(), 0);
       lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
-      lv_label_set_text(s_tile_sub[i], tr(TILE_SUB_STR[i]));
     }
   if (s_theme_cap) {
     lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
@@ -1301,28 +1297,27 @@ void sim_home_status(const char *msg) {
 // then they hold still (translate/opa only). Runs on every unlock.
 static void tiles_settle(void) {
   for (int i = 0; i < 4; i++) {
-    // per-label opa (never on a shared parent: subtree opa forces an LVGL
-    // layer alloc per tile, and 4 at once would strain the 128K pool)
-    lv_obj_t *pair[2] = {s_tile_ttl[i], s_tile_sub[i]};
-    const int base[2] = {TILE_LBL_Y + 6, TILE_LBL_Y + 38};   // baked y: 268 / 300
-    for (int j = 0; j < 2; j++) {
-      if (!pair[j]) return;
-      lv_anim_delete(pair[j], NULL);        // re-unlock mid-settle: start clean
-      lv_obj_set_style_opa(pair[j], 0, 0);
-      lv_obj_set_y(pair[j], base[j] - 12);
-      lv_anim_t a;
-      lv_anim_init(&a);
-      lv_anim_set_var(&a, pair[j]);
-      lv_anim_set_delay(&a, 120 + i * 70);
-      lv_anim_set_duration(&a, 260);
-      lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-      lv_anim_set_exec_cb(&a, fly_y_cb);
-      lv_anim_set_values(&a, base[j] - 12, base[j]);
-      lv_anim_start(&a);
-      lv_anim_set_exec_cb(&a, anim_opa_cb);
-      lv_anim_set_values(&a, 0, 255);
-      lv_anim_start(&a);
-    }
+    // One readable title per card. The old 14px subtitles repeated what the
+    // icon/title already said, so removing them also lets the title sit at the
+    // visual centre of the label area.
+    lv_obj_t *label = s_tile_ttl[i];
+    const int base = TILE_LBL_Y + 22;
+    if (!label) return;
+    lv_anim_delete(label, NULL);        // re-unlock mid-settle: start clean
+    lv_obj_set_style_opa(label, 0, 0);
+    lv_obj_set_y(label, base - 12);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, label);
+    lv_anim_set_delay(&a, 120 + i * 70);
+    lv_anim_set_duration(&a, 260);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&a, fly_y_cb);
+    lv_anim_set_values(&a, base - 12, base);
+    lv_anim_start(&a);
+    lv_anim_set_exec_cb(&a, anim_opa_cb);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_start(&a);
   }
 }
 
@@ -1968,9 +1963,8 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // this corner tells the truth instead, same line as the Settings footer.
   s_home_build_id = wallet_build_id_make(s_wallet, 48, 424);
 
-  // Tile labels, live + translated: same coords/typography the baked strips
-  // used (title y=268 @23px INK, subtitle y=300 @13px SUB; wallet_mock.py).
-  // Live labels instead of re-baked art x19 languages: text costs nothing.
+  // Tile labels, live + translated. The 23px title carries the whole action;
+  // the former 14px subtitle duplicated it and was unreadable at arm's length.
   for (int i = 0; i < 4; i++) {
     s_tile_ttl[i] = lv_label_create(s_wallet);
     lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
@@ -1978,14 +1972,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_set_style_text_color(s_tile_ttl[i], lv_color_hex(0xE8EEF7), 0);
     lv_obj_set_style_text_align(s_tile_ttl[i], LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(s_tile_ttl[i], 160);
-    lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 6);
-    s_tile_sub[i] = lv_label_create(s_wallet);
-    lv_label_set_text(s_tile_sub[i], tr(TILE_SUB_STR[i]));
-    lv_obj_set_style_text_font(s_tile_sub[i], wt_font14(), 0);
-    lv_obj_set_style_text_color(s_tile_sub[i], lv_color_hex(0xB0BCCD), 0);
-    lv_obj_set_style_text_align(s_tile_sub[i], LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(s_tile_sub[i], 160);
-    lv_obj_set_pos(s_tile_sub[i], 50 + i * 180, TILE_LBL_Y + 38);
+    lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 22);
   }
 
   wallet_home_restyle();

@@ -9,6 +9,7 @@
 // Compiled in BOTH device and sim builds; sim stubs the crypto seams.
 #include "wallet_info.h"
 
+#include <stdint.h>   // intptr_t: page step smuggled through the callback's user data
 #include <stdio.h>
 #include <string.h>
 
@@ -23,7 +24,7 @@ static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static void (*s_words_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
-static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_txt, *s_pair_note, *s_pair_qr;
+static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
 static void info_screen(void);
 
@@ -146,13 +147,12 @@ static void pair_refresh(void)
         snprintf(txt, sizeof txt, "%s", tr(STR_C_SESSION_LOCKED));
     if (s_pair_qr)
         lv_qrcode_update(s_pair_qr, txt, (uint32_t)strlen(txt));
-    lv_label_set_text(s_pair_txt, txt);
     wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-                360, 86);
+                360, 190);
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         wt_pill_select(s_pair_pill[i], on);
-        lv_obj_set_style_text_color(s_pair_app[i],   // app name under the category
+        lv_obj_set_style_text_color(s_pair_app[i],   // app name above the category
                                     on ? wt_accent() : lv_color_hex(0x525C6E), 0);
     }
 }
@@ -170,11 +170,46 @@ static void pair_back_cb(lv_event_t *e)
     info_screen();
 }
 
+static void pair_screen(void);
+
+static void pair_qr_back_cb(lv_event_t *e)
+{
+    (void)e;
+    pair_screen();
+}
+
+static void pair_instructions_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_pair_qr = s_pair_note = NULL;
+    s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
+                      s_pair_fmt ? tr(STR_I_APP_MOBILE)
+                                 : tr(STR_I_APP_DESKTOP));
+
+    // Page two is intentionally static: first the exact import steps, then
+    // the independent address proof. The raw descriptor is already encoded in
+    // the QR and no longer crowds out the instructions people must read.
+    wt_section(s_scr, tr(STR_I_SHOW_TO), 48, 104);
+    lv_obj_t *steps = wt_note(s_scr,
+        s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
+        48, 128, 704, 116);
+    lv_obj_set_style_text_color(steps, WT_INK, 0);
+
+    wt_section(s_scr, tr(STR_R_VERIFY), 48, 260);
+    lv_obj_t *prove = wt_note(s_scr, tr(STR_I_PROVE), 48, 284, 704, 112);
+    lv_obj_set_style_text_color(prove, WT_INK, 0);
+
+    wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_qr_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, pair_back_cb, NULL);
+}
+
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
 
 static void pair_screen(void)
 {
     swap_screen();
+    s_pair_qr = s_pair_note = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
     if (wallet_testnet()) {
@@ -197,25 +232,22 @@ static void pair_screen(void)
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {
-        lv_obj_t *p = wt_pillh(s_scr, CAT[i], 400 + i * 185, 120, 175, 60,
+        // The app is the decision, so it owns the readable 23px line; the
+        // desktop/mobile category is the small eyebrow underneath.
+        lv_obj_t *p = wt_pillh(s_scr, APP[i], 400 + i * 185, 120, 175, 60,
                                pair_fmt_cb, (void *)(intptr_t)i);
-        wt_pill_two_line(p, APP[i]);
-        s_pair_app[i] = lv_obj_get_child(p, 1);   // pair_refresh() recolors it
+        wt_pill_two_line(p, CAT[i]);
+        s_pair_app[i] = lv_obj_get_child(p, 0);   // pair_refresh() recolors it
         s_pair_pill[i] = p;
     }
 
-    s_pair_txt = wt_lbl(s_scr, "", 400, 200, wt_font14(), WT_INK);
-    lv_obj_set_width(s_pair_txt, 360);
-    lv_label_set_long_mode(s_pair_txt, LV_LABEL_LONG_WRAP);
-
-    s_pair_note = wt_note(s_scr, "", 400, 312, 360, 86);   // to the note at 404
-
-    // pairing ends with proof, not hope: point at the address check, then at a
-    // tiny dress rehearsal before real money rides on it
-    lv_obj_t *pv = wt_note(s_scr, tr(STR_I_PROVE), 400, 404, 360, 72);
-    lv_obj_set_style_text_color(pv, WT_INK, 0);
+    // The QR is primary on page one; the selected app's import directions are
+    // readable here and repeated with the proof step on the static NEXT page.
+    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_R_NEXT), 610, 404, 140,
+            pair_instructions_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -258,9 +290,8 @@ static void sp_key_show_cb(lv_event_t *e)
     lv_obj_set_width(k, 360);
     lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
 
-    lv_obj_t *note = wt_lbl(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, wt_font14(), WT_MUT);
-    lv_obj_set_width(note, 360);
-    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    // 250 down to the DONE pill at 404 is 154px, so this reads at 23.
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, 360, 140);
 
     wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 160, sp_key_back_cb, NULL);
 }
@@ -295,20 +326,55 @@ static void words_back_cb(lv_event_t *e)
     words_finish();
 }
 
-static void words_show_cb(lv_event_t *e)
+// These twelve words ARE the wallet. They were rendered at font14 in a grid
+// that stopped at y=248 with 150px of empty screen below it -- the smallest
+// type on the device on the one screen where a misread character costs the
+// coins. They are now font28, and a 24-word seed pages rather than shrinking:
+// 12 per page, 2 columns of 6 at a 46px pitch from y=108, so the last row
+// bottoms at 375 and clears the action row at 404.
+//
+// The page counter is deliberately digits-only ("13-24 / 24"). A translated
+// "WORDS 13 TO 24 OF 24" would have to reach 21 locale tables to ship, and the
+// numerals carry the whole meaning on their own.
+#define WORDS_PER_PAGE 12
+
+static int s_words_page;
+
+static void words_render_page(int page);
+
+static void words_page_cb(lv_event_t *e)
 {
-    (void)e;
+    words_render_page(s_words_page + (int)(intptr_t)lv_event_get_user_data(e));
+}
+
+static void words_render_page(int page)
+{
+    // Re-read per page and wipe on the way out: paging must not leave a
+    // decrypted mnemonic parked in a static between screens.
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0)
         return;
-    swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN),
-                      tr(STR_I_WORDS_S));
-    // count + split, grid like the setup reveal (2 cols for 12, 4 for 24)
     int n = 1;
     for (const char *p = words; *p; p++) if (*p == ' ') n++;
-    int cols = n > 12 ? 4 : 2;
-    int rows = (n + cols - 1) / cols;
+    // A BIP39 mnemonic is 24 words at most. Clamping says so out loud: it keeps
+    // a malformed store from inventing pages, and it is what lets the counter
+    // below fit a fixed buffer (gcc's format-truncation check assumes INT_MAX
+    // otherwise, and -Werror stops the device build).
+    if (n > WSEED_MAX_WORDS) n = WSEED_MAX_WORDS;
+
+    const int pages = (n + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE;
+    if (page < 0) page = 0;
+    if (page >= pages) page = pages - 1;
+    s_words_page = page;
+
+    const int first = page * WORDS_PER_PAGE;
+    int on = n - first;
+    if (on > WORDS_PER_PAGE) on = WORDS_PER_PAGE;
+    const int rows = (on + 1) / 2;          // fill column one, then column two
+
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WORDS_S));
+
     const char *p = words;
     for (int i = 0; i < n && *p; i++) {
         char w[12], buf[32];   // BIP39 words are <= 8 chars; sized like the wizard
@@ -316,13 +382,34 @@ static void words_show_cb(lv_event_t *e)
         while (p[wl] && p[wl] != ' ' && wl < 11) wl++;
         memcpy(w, p, (size_t)wl); w[wl] = 0;
         p += wl; while (*p == ' ') p++;
+        if (i < first || i >= first + on) continue;
         snprintf(buf, sizeof buf, "%2d. %s", i + 1, w);
-        int c = i / rows, r = i % rows;
-        wt_lbl(s_scr, buf, 48 + c * (cols == 4 ? 184 : 300), 108 + r * (cols == 4 ? 42 : 28),
-               wt_font14(), WT_INK);
+        const int k = i - first, c = k / rows, r = k % rows;
+        wt_lbl(s_scr, buf, 48 + c * 352, 108 + r * 46, wt_font28(), WT_INK);
     }
     memset(words, 0, sizeof words);
+
+    if (pages > 1) {
+        char cnt[40];
+        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, n);
+        if (page > 0)
+            wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, words_page_cb,
+                    (void *)(intptr_t)-1);
+        // STR_R_NEXT ("NEXT") is the receive flow's page-forward label. Same
+        // word, already translated in all 21 locales; borrowing it beats
+        // adding a string that would have to reach every table to ship.
+        if (page < pages - 1)
+            wt_pill(s_scr, tr(STR_R_NEXT), 208, 404, 140, words_page_cb,
+                    (void *)(intptr_t)1);
+        wt_lbl(s_scr, cnt, 380, 416, wt_font23(), WT_MUT);
+    }
     wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, words_back_cb, NULL);
+}
+
+static void words_show_cb(lv_event_t *e)
+{
+    (void)e;
+    words_render_page(0);
 }
 
 // VERIFY MY COPY: hand off to the setup module's paper-check flow, then return
@@ -425,7 +512,11 @@ static void info_screen(void)
     lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 430, 236, 340, 60,
                              sp_key_warn_cb, NULL);
     wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
-    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 302, 340, 62);
+    // 94, not 62: this sentence needs three lines at 23 and was silently
+    // dropping to font14 beside a PAIR COORDINATOR note at 23 -- the smaller
+    // type on the export that gives away the scan key. Nothing sits between
+    // here and BACK at y=404, so the rows were free the whole time.
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 302, 340, 94);
 
     // Both actions on this screen are the same size, chosen once for the pair
     // rather than per label: PAIR COORDINATOR is short and would otherwise sit

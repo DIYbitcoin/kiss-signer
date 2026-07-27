@@ -201,7 +201,9 @@ static void vfy_result(const char *txt, size_t len) {
       snprintf(buf, sizeof buf, tr(STR_R_CHANGE_FMT), (unsigned)idx);
     else
       snprintf(buf, sizeof buf, tr(STR_R_RECV_FMT), (unsigned)idx);
-    wt_lbl(s_scr, buf, 48, note_y, wt_font14(), WT_MUT);
+    // which address this is (receive #N / change #N / silent payment): the
+    // fact the owner checks against their coordinator, not a unit tag
+    wt_lbl(s_scr, buf, 48, note_y, wt_body_font(buf, 700, 29), WT_MUT);
   } else if (validity == WADDR_CURRENT_NETWORK) {
     snprintf(buf, sizeof buf, tr(STR_R_NOT_FOUND_FMT), VFY_SCAN_DEPTH);
     lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
@@ -248,10 +250,58 @@ static void sp_back_cb(lv_event_t *e) {
   wallet_recv_open(s_parent);
 }
 
+static void sp_help_close_cb(lv_event_t *e) {
+  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+// A reusable Silent Payment address is intentionally NOT the address that
+// appears in the transaction. This surprises people who compare Sparrow's
+// output list after a first test payment, so explain the two prefixes beside
+// the address instead of making them discover it in documentation.
+static void sp_help_cb(lv_event_t *e) {
+  (void)e;
+  lv_obj_t *ovl = lv_obj_create(s_scr);
+  lv_obj_remove_style_all(ovl);
+  lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_style_bg_color(ovl, WT_BG, 0);
+  lv_obj_set_style_bg_opa(ovl, 245, 0);
+  lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(ovl, sp_help_close_cb, LV_EVENT_CLICKED, ovl);
+
+  // The two prefixes are the whole subject, so they are arguments rather than
+  // baked text: %s appears five times and a translation may place them in any
+  // order it needs. body is sized for the longest locale plus five 4-char
+  // prefixes, not for English.
+  const bool tn = wallet_testnet();
+  const char *share = tn ? "tsp1" : "sp1";     // what you hand out
+  const char *seen  = tn ? "tb1p" : "bc1p";    // what lands in the transaction
+  char title[96], body[640];
+  snprintf(title, sizeof title, tr(STR_R_SP_WHY_T), tn ? "TB1P" : "BC1P");
+  snprintf(body, sizeof body, tr(STR_R_SP_WHY_B),
+           share, seen, share, seen, seen);
+
+  lv_obj_t *t = wt_lbl(ovl, title, 0, 0, wt_font28(), wt_accent());
+  lv_obj_set_style_text_letter_space(t, 2, 0);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 82);
+
+  lv_obj_t *b = wt_lbl(ovl, body, 0, 0,
+                       wt_body_font(body, 720, 238), WT_MUT);
+  lv_obj_set_width(b, 720);
+  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 142);
+
+  wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, sp_help_close_cb, ovl);
+  wt_card_intro(ovl);
+}
+
 static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
+  lv_obj_t *help = wt_pillh(s_scr, "?", 708, 28, 44, 44, sp_help_cb, NULL);
+  lv_obj_set_style_border_color(help, WT_MUT, 0);
   wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
 
   char addr[128];
@@ -314,11 +364,17 @@ void wallet_recv_open(lv_obj_t *parent) {
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
-  // reuse banner + FRESH jump (hidden unless the shown index was used/shown before)
-  s_reuse_lbl = wt_lbl(s_scr, tr_sym(LV_SYMBOL_WARNING, STR_R_REUSED),
-                       400, 246, wt_font14(), WT_WARN);
+  // reuse banner + FRESH jump (hidden unless the shown index was used/shown
+  // before). Deliberately short in every locale now: the adjacent FRESH pill
+  // already supplies the action, so the second line of privacy lecture this
+  // used to carry only forced the warning itself down to font14.
+  const char *reuse = tr_sym(LV_SYMBOL_WARNING, STR_R_REUSED);
+  s_reuse_lbl = wt_lbl(s_scr, reuse, 400, 246,
+                       wt_body_font(reuse, 230, 40), WT_WARN);
   lv_obj_add_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
-  s_fresh_pill = wt_pillh(s_scr, tr(STR_R_FRESH), 636, 244, 124, 44, fresh_cb, NULL);
+  // 136 wide: Russian "НОВЫЙ" missed a 124px pill by 6px, and there is no
+  // shorter word for it that is not an abbreviation. Right edge stays at 760.
+  s_fresh_pill = wt_pillh(s_scr, tr(STR_R_FRESH), 624, 244, 136, 44, fresh_cb, NULL);
   wt_pill_primary(s_fresh_pill);
   lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
 

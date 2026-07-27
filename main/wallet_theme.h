@@ -65,6 +65,7 @@ void      wt_pill_label_max(lv_obj_t *pill);
 // Add the second line to a pill ("DESKTOP" over "Sparrow") and re-fit the main
 // label to the room left above it. Replaces three hand-tuned copies.
 void      wt_pill_two_line(lv_obj_t *pill, const char *sub);
+void      wt_pill_two_line_val(lv_obj_t *pill, const char *sub);
 // Pills sharing a row share a label size (smallest wins). Without it one long
 // word drops a single pill a rung and the row looks broken.
 void      wt_pill_row(lv_obj_t **pills, int n);

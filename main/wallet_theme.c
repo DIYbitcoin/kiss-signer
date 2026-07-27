@@ -145,6 +145,7 @@ lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]
 static const lv_font_t *note_font(const char *txt, int w, int max_h);
 
 #define SUB_ROW_H 22        // font14 line + breathing room, for two-line pills
+#define SUB_ROW_H23 35      // the same row when the second line is a readable 23
 
 // ---- pill labels ----
 // A control's label is never smaller than the prose that explains it. Notes cap
@@ -477,21 +478,37 @@ void wt_pill_label_max(lv_obj_t *pill)
 // sub-label the bottom, so the fit has to exclude the sub's row. Centralised
 // because three screens had hand-tuned offsets that no longer agreed once the
 // main label could change size.
-void wt_pill_two_line(lv_obj_t *pill, const char *sub)
+static void pill_sub_line(lv_obj_t *pill, const char *sub,
+                          const lv_font_t *f, int row_h)
 {
     lv_obj_t *main_l = lv_obj_get_child(pill, 0);
     if (!main_l) return;
     lv_obj_update_layout(pill);
     int w = lv_obj_get_width(pill), h = lv_obj_get_height(pill);
-    pill_label_fit(main_l, lv_label_get_text(main_l), w, h - SUB_ROW_H, false);
+    pill_label_fit(main_l, lv_label_get_text(main_l), w, h - row_h, false);
     lv_obj_align(main_l, LV_ALIGN_TOP_MID, 0, 6);
 
     lv_obj_t *s = lv_label_create(pill);
     lv_label_set_text(s, sub);
-    lv_obj_set_style_text_font(s, wt_font14(), 0);
+    lv_obj_set_style_text_font(s, f, 0);
     lv_obj_set_style_text_color(s, WT_MUT, 0);
     lv_obj_align(s, LV_ALIGN_BOTTOM_MID, 0, -6);
     lv_obj_remove_flag(s, LV_OBJ_FLAG_CLICKABLE);
+}
+
+void wt_pill_two_line(lv_obj_t *pill, const char *sub)
+{
+    pill_sub_line(pill, sub, wt_font14(), SUB_ROW_H);
+}
+
+// Same pill, but the second line is a VALUE and not an eyebrow: the example
+// address under ADDRESS TYPE is what actually tells you what your addresses
+// look like ("bc1..." vs "1..."), and at 14 under a 23px name it read as a
+// footnote on its own button. Needs 43px of pill above the main label's line,
+// so the caller has to give the pill ~72px of height for the name to stay 23.
+void wt_pill_two_line_val(lv_obj_t *pill, const char *sub)
+{
+    pill_sub_line(pill, sub, wt_font23(), SUB_ROW_H23);
 }
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
