@@ -28,6 +28,8 @@ int test_seed_layer(void);
 int test_sp(void);
 // sim/test_sdseed.c — the sealed blob SD-card storage writes
 int test_sdseed_layer(void);
+// sim/test_duress.c — the duress unlock stroke classifier
+int test_duress(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -466,6 +468,7 @@ int main(int argc, char **argv) {
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
     fails += test_sdseed_layer();
+    fails += test_duress();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);

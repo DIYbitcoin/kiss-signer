@@ -15,6 +15,24 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   phrase**, **wallet backup**, or the established native equivalent. It is
   useful to introduce **seed phrase** once as a common alias, but do not use
   `seed` as an exact replacement for the words.
+- **One deliberate exception**, decided by the project owner: the screens that
+  create, replace or destroy the stored words name the **seed**. That is
+  `CREATE SEED` / `RESTORE SEED` on the setup choice (`W_CREATE_NEW`,
+  `W_RESTORE_FROM_WORDS`), and `CREATE NEW SEED` / `ERASE SEED` /
+  `ERASE THE SEED?` / `SEED ERASED` in Settings (`G_CREATE_NEW`,
+  `G_CREATE_NOTE`, `G_WIPE`, `G_WIPEC_T`, `G_ERASED_T`). Those screens ask
+  which of two paths the owner is taking, and `seed` is the word people arrive
+  already knowing. The precision is carried by `WHAT IS A SEED?` next to it
+  (`W_WHATSEED_*`), which names the BIP39 mnemonic, says the words plus the
+  passphrase are what make the wallet, and says a compatible BIP39 signer can
+  rebuild it. Everywhere the words are shown, checked or backed up, **recovery
+  words** stays.
+- The destroy family in particular must NOT say wallet. Erasing this device
+  does not erase the wallet: the coins stay on chain, a paired coordinator
+  still shows them, and the owner's paper plus passphrase still restore them.
+  Telling someone their wallet is being erased, while they decide whether to
+  press the button, is the opposite of what happens. It must not say signer
+  either — the signer is the device, and it is still there afterward.
 - After the phrase has been introduced, a short native form of **the words**
   is fine in space-constrained copy.
 - Never say that the words alone "are the wallet." If a BIP39 passphrase is
