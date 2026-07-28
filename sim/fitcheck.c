@@ -61,7 +61,6 @@ static const slot_t SLOTS[] = {
     { "storage/flash",    STR_W_KEEP_NOTE,        420, 87 },
     { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   420, 87 },
     { "storage/sd",       STR_W_SD_NOTE,          420, 87 },
-    { "storage/sd-off",   STR_W_SD_DISABLED_NOTE, 420, 87 },
     { "storage/amnesic",  STR_W_AMNESIC_NOTE,     420, 87 },
     { "storage/current",  STR_G_STORAGE_CURRENT_FMT, 704, 30 },
     { "storage/confirm-flash", STR_G_STORAGE_CONFIRM_FLASH_B,   704, 238 },
@@ -76,7 +75,6 @@ static const slot_t SLOTS[] = {
     { "storage/sd-missing",STR_W_SD_MISSING_B,         704, 226 },
     { "storage/sd-corrupt",STR_W_SD_CORRUPT_B,         704, 226 },
     { "storage/sd-io",    STR_W_SD_IO_B,              704, 226 },
-    { "storage/sd-no-fw", STR_W_SD_UNSUPPORTED_B,     704, 226 },
     // wallet_settings.c: the two wipe overlays
     { "wipe/confirm",     STR_G_WIPEC_B,    704, 190 },
     { "wipe/erased",      STR_G_ERASED_B,   704, 160 },

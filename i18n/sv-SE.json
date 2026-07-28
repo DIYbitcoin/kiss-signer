@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD-KORT",
   "W_FLASH_ENC_NOTE": "sparad i krypterad intern flash. lås upp med din lösenfras.",
   "W_SD_NOTE": "krypterad fil som bara den här enheten kan öppna. sätt in kortet före upplåsning.",
-  "W_SD_DISABLED_NOTE": "kräver firmware med flashkryptering. inte tillgängligt i den här versionen.",
   "G_STORAGE_CONFIRM_T": "ÄNDRA PLÅNBOKENS LAGRING?",
   "G_STORAGE_CONFIRM_FLASH_B": "flytta den här plånboken till intern flash.\n\nden nuvarande kopian tas bort först när flashkopian har verifierats.",
   "G_STORAGE_CONFIRM_SD_B": "flytta till en krypterad SD-fil som bara den här enheten kan öppna.\n\nkortet är ingen säkerhetskopia. spara orden på papper om kortet eller enheten förloras.\n\ngammal lagring tas bort först efter verifiering.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "den här plånboken ligger på flyttbar lagring",
   "W_SD_MISSING_B": "sätt in SD-kortet med den här plånboken och försök igen.",
   "W_SD_CORRUPT_B": "plånboksfilen på kortet är skadad, ändrad eller tillhör en annan enhet.\n\nanvänd rätt kort eller återställ från dina ord.",
-  "W_SD_IO_B": "SD-kortet kunde inte läsas.\n\nsätt in det igen och försök, eller återställ från dina ord.",
-  "W_SD_UNSUPPORTED_B": "den här firmwareversionen kan inte öppna plånbokslagring på SD-kort.\n\nfirmware med flashkryptering krävs."
+  "W_SD_IO_B": "SD-kortet kunde inte läsas.\n\nsätt in det igen och försök, eller återställ från dina ord."
 }

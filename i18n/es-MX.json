@@ -397,7 +397,6 @@
   "W_SD_BTN": "TARJETA SD",
   "W_FLASH_ENC_NOTE": "guardada en la flash interna cifrada. abre con tu passphrase.",
   "W_SD_NOTE": "archivo cifrado que solo este dispositivo puede abrir. inserta la tarjeta antes de desbloquear.",
-  "W_SD_DISABLED_NOTE": "requiere firmware con flash cifrada. no disponible en esta versión.",
   "G_STORAGE_CONFIRM_T": "¿CAMBIAR ALMACENAMIENTO?",
   "G_STORAGE_CONFIRM_FLASH_B": "mover esta billetera a la memoria flash interna.\n\nla copia actual solo se elimina tras verificar la copia en flash.",
   "G_STORAGE_CONFIRM_SD_B": "mover a un archivo SD cifrado que solo este dispositivo puede abrir.\n\nla tarjeta no es una copia de seguridad. guarda las palabras en papel por si pierdes la tarjeta o el dispositivo.\n\nel almacenamiento anterior solo se elimina tras verificar.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "esta billetera está en almacenamiento extraíble",
   "W_SD_MISSING_B": "inserta la tarjeta SD que contiene esta billetera y vuelve a intentarlo.",
   "W_SD_CORRUPT_B": "el archivo de billetera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
-  "W_SD_IO_B": "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
-  "W_SD_UNSUPPORTED_B": "este firmware no puede abrir almacenamiento de billetera en SD.\n\nse requiere firmware con flash cifrada."
+  "W_SD_IO_B": "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras."
 }

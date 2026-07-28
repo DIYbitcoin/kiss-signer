@@ -397,7 +397,6 @@
   "W_SD_BTN": "CARTE SD",
   "W_FLASH_ENC_NOTE": "enregistré dans la flash interne chiffrée. déverrouillez avec votre phrase secrète.",
   "W_SD_NOTE": "fichier chiffré que seul cet appareil peut ouvrir. insérez la carte avant le déverrouillage.",
-  "W_SD_DISABLED_NOTE": "nécessite un firmware avec chiffrement flash. indisponible dans cette version.",
   "G_STORAGE_CONFIRM_T": "CHANGER LE STOCKAGE?",
   "G_STORAGE_CONFIRM_FLASH_B": "déplacer ce portefeuille vers la mémoire flash interne.\n\nla copie actuelle n'est supprimée qu'après vérification de la copie flash.",
   "G_STORAGE_CONFIRM_SD_B": "déplacer vers un fichier SD chiffré que seul cet appareil peut ouvrir.\n\nla carte n'est pas une sauvegarde. gardez les mots sur papier en cas de perte de la carte ou de l'appareil.\n\nl'ancien stockage n'est supprimé qu'après vérification.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "ce portefeuille est sur un stockage amovible",
   "W_SD_MISSING_B": "insérez la carte SD qui contient ce portefeuille, puis réessayez.",
   "W_SD_CORRUPT_B": "le fichier de portefeuille sur cette carte est endommagé, modifié ou appartient à un autre appareil.\n\nutilisez la bonne carte ou restaurez avec vos mots.",
-  "W_SD_IO_B": "la carte SD n'a pas pu être lue.\n\nréinsérez-la et réessayez, ou restaurez avec vos mots.",
-  "W_SD_UNSUPPORTED_B": "ce firmware ne peut pas ouvrir le stockage de portefeuille sur SD.\n\nun firmware avec chiffrement flash est requis."
+  "W_SD_IO_B": "la carte SD n'a pas pu être lue.\n\nréinsérez-la et réessayez, ou restaurez avec vos mots."
 }

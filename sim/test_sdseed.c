@@ -188,7 +188,6 @@ int test_sdseed_layer(void) {
     platform_sd_test_set_present(1);
     platform_sd_test_fail_next(0);
     wallet_seed_test_fail_next(0);
-    dchk("storage: host enables SD mode", wallet_seed_sd_supported() == 1);
     dchk("storage: clean slate", wallet_seed_wipe() == WSEED_OK);
     dchk("storage: start in KEEP", wallet_seed_store(SD_WORDS) == WSEED_OK);
 

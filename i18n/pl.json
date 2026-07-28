@@ -397,7 +397,6 @@
   "W_SD_BTN": "KARTA SD",
   "W_FLASH_ENC_NOTE": "zapisane w szyfrowanej wewnętrznej pamięci flash. odblokuj frazą dostępu.",
   "W_SD_NOTE": "zaszyfrowany plik, który może otworzyć tylko to urządzenie. włóż kartę przed odblokowaniem.",
-  "W_SD_DISABLED_NOTE": "wymaga firmware z szyfrowaniem pamięci flash. niedostępne w tej wersji.",
   "G_STORAGE_CONFIRM_T": "ZMIENIĆ MIEJSCE ZAPISU?",
   "G_STORAGE_CONFIRM_FLASH_B": "przenieś ten portfel do wewnętrznej pamięci flash.\n\nobecna kopia zostanie usunięta dopiero po sprawdzeniu kopii w pamięci flash.",
   "G_STORAGE_CONFIRM_SD_B": "przenieś do zaszyfrowanego pliku SD, który może otworzyć tylko to urządzenie.\n\nkarta nie jest kopią zapasową. zachowaj słowa na papierze na wypadek utraty karty lub urządzenia.\n\nstare miejsce zapisu zostanie usunięte dopiero po sprawdzeniu.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "ten portfel jest na pamięci wymiennej",
   "W_SD_MISSING_B": "włóż kartę SD zawierającą ten portfel i spróbuj ponownie.",
   "W_SD_CORRUPT_B": "plik portfela na tej karcie jest uszkodzony, zmieniony lub należy do innego urządzenia.\n\nużyj właściwej karty lub przywróć portfel ze swoich słów.",
-  "W_SD_IO_B": "nie można odczytać karty SD.\n\nwłóż ją ponownie i spróbuj jeszcze raz albo przywróć portfel ze swoich słów.",
-  "W_SD_UNSUPPORTED_B": "ten firmware nie może otworzyć portfela zapisanego na karcie SD.\n\nwymagany jest firmware z szyfrowaniem pamięci flash."
+  "W_SD_IO_B": "nie można odczytać karty SD.\n\nwłóż ją ponownie i spróbuj jeszcze raz albo przywróć portfel ze swoich słów."
 }
