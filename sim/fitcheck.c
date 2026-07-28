@@ -202,9 +202,9 @@ static const pill_t PILLS[] = {
     // LONG_CLIP. There is no font fallback here, so an over-long translation
     // is silently cut off mid-word rather than shrinking. Registered as
     // 580+28 so the reported budget is the real 580.
-    { "sign/flow1",       STR_S_FLOW_1,       608, 44, 0, 0 },
-    { "sign/flow2",       STR_S_FLOW_2,       608, 44, 0, 0 },
-    { "sign/flow3",       STR_S_FLOW_3,       608, 44, 0, 0 },
+    { "sign/flow1",       STR_S_FLOW_1,       672, 44, 0, 0 },
+    { "sign/flow2",       STR_S_FLOW_2,       672, 44, 0, 0 },
+    { "sign/flow3",       STR_S_FLOW_3,       672, 44, 0, 0 },
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
     { "recv/fresh",       STR_R_FRESH,        136, 44, 0, 0 },
     // Settings ADDRESS TYPE: one pill carrying the type NAME over the example

@@ -177,7 +177,7 @@
   "S_POINT_CAM": "scan de transactie-QR van je coördinator-app",
   "S_OR_LOAD": "of laad een .psbt-bestand van een kaart",
   "S_COORD_T": "ZO WERKT ONDERTEKENEN",
-  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: een betaling die is opgebouwd maar nog niet ondertekend. de coordinator bouwt hem en heeft geen sleutels; KISS heeft de sleutels en blijft offline.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: een transactie die is opgebouwd maar nog niet ondertekend. de coordinator bouwt hem en heeft geen sleutels; KISS heeft de sleutels en blijft offline.",
   "S_SD_SUB": "verplaats de transactie per SD-kaart",
   "S_NO_SD": "geen SD-kaart gevonden",
   "S_INSERT_CARD": "steek een kaart in met het PSBT-bestand dat je coördinator opsloeg",

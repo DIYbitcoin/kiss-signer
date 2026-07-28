@@ -63,9 +63,18 @@ int wallet_duress_classify(const int *xs, const int *ys, int n,
     const int ends = dist_i(xs[0], ys[0], xs[n - 1], ys[n - 1]);
 
     // A loop AROUND the word: covers most of the box in both axes and finishes
-    // where it began. Checked first because a circle is wide and tall enough to
-    // look like several other things if you only measure its bounding box.
-    if (sw * 10 >= W * 6 && sh * 10 >= H * 6 && ends * 4 <= span)
+    // near where it began. Checked first because a circle is wide and tall
+    // enough to look like several other things if you only measure its box.
+    //
+    // The closing test is deliberately generous. It was ends*4 <= span, which
+    // meant the bigger the loop the more precisely it had to close -- a board
+    // reported having to draw the circle SMALL to get it to register, which is
+    // the opposite of what a person does when circling a word. Hand-drawn loops
+    // close worst when they are big and quick. Half the span, and a floor of
+    // 60px so a small circle is not held to a few pixels either.
+    int close = span / 2;
+    if (close < 60) close = 60;
+    if (sw * 10 >= W * 6 && sh * 10 >= H * 6 && ends <= close)
         return WDG_CIRCLE;
 
     // Everything below is a single deliberate line, so the ink drawn must stay

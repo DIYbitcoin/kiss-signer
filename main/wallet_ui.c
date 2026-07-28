@@ -166,13 +166,36 @@ static void indev_read(lv_indev_t *indev, lv_indev_data_t *data) {
   }
 }
 
+// File scope, not function scope, so the simulator can drop it again -- see
+// wallet_ui_drop_indev_for_test below.
+static lv_indev_t *s_indev;
+
 static void ensure_indev(void) {
-  static lv_indev_t *indev;
-  if (indev) return;
-  indev = lv_indev_create();
-  lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
-  lv_indev_set_read_cb(indev, indev_read);
+  if (s_indev) return;
+  s_indev = lv_indev_create();
+  lv_indev_set_type(s_indev, LV_INDEV_TYPE_POINTER);
+  lv_indev_set_read_cb(s_indev, indev_read);
 }
+
+#ifdef SIMULATOR
+// Test seam, simulator only. This indev is created lazily, and for a long time
+// the only creators were the login screen and the setup wizard -- every way
+// into the wallet went through one of them, so nobody noticed the dependency.
+// Then the decoy started opening the session directly and arrived with no
+// indev: the wallet home drew, the game still worked (it reads the touch
+// controller itself), and every LVGL sub-screen was deaf. Settings looked
+// frozen. It shipped, because the scripted walk always ran a full setup first
+// and so was never cold when it opened the decoy.
+//
+// The walk cannot get cold on its own -- creating a seed requires the wizard,
+// which creates the indev -- so it needs a way to put the process back into the
+// state a real board is in at power-on. That is all this does.
+void wallet_ui_drop_indev_for_test(void) {
+  if (!s_indev) return;
+  lv_indev_delete(s_indev);
+  s_indev = NULL;
+}
+#endif
 
 // long-passphrase fitting: 28pt holds ~40 glyphs in the 704px slot; past that
 // drop to 14pt, and past ~78 show "..." + the tail (the newest chars are what
@@ -1339,14 +1362,18 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
 #endif
   lv_obj_t *w = lv_label_create(parent);
   lv_obj_set_style_text_font(w, wt_font14(), 0);
-  lv_label_set_text_fmt(w, "-  flash encryption: %s", enc ? "ENABLED" : "OFF");
+  // Both diagnostics stay -- on a signer, "is the flash encrypted" and "is the
+  // radio held down" are worth a permanent line. Only the wording shrinks, and
+  // it stays ASCII on purpose: a glyph missing from the generated font hangs
+  // LVGL outright, so this line is the wrong place to spend a "." or a dash.
+  lv_label_set_text_fmt(w, "-  enc: %s", enc ? "ON" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(v);
   lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
 
   lv_obj_t *r = lv_label_create(parent);
   lv_obj_set_style_text_font(r, wt_font14(), 0);
-  lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "held in reset" : "NOT HELD");
+  lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "HELD" : "NOT HELD");
   lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(w);
   lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
