@@ -142,7 +142,7 @@ for nm, pos, sz in [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
 
 # ---- PLAY button ----
 btn = Image.new("RGBA", (W, H), (0, 0, 0, 0)); bd = ImageDraw.Draw(btn)
-bx0, by0, bx1, by1 = CX - 150, 376, CX + 150, 448
+bx0, by0, bx1, by1 = CX - 150, 356, CX + 150, 428  # lifted so the tagline below clears the 480px bottom edge
 sha = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 ImageDraw.Draw(sha).rounded_rectangle([bx0, by0 + 8, bx1, by1 + 8], 36, fill=(0, 0, 0, 130))
 btn = Image.alpha_composite(btn, sha.filter(ImageFilter.GaussianBlur(6))); bd = ImageDraw.Draw(btn)
@@ -161,10 +161,10 @@ lw = dd.textbbox((0, 0), left, font=ft)[2]
 rw = dd.textbbox((0, 0), right, font=ft)[2]
 gap = 32
 x0 = (W - (lw + gap + rw)) / 2
-dd.text((x0, 456), left, font=ft, fill=(245, 232, 205), stroke_width=2, stroke_fill=(0, 0, 0))
+dd.text((x0, 436), left, font=ft, fill=(245, 232, 205), stroke_width=2, stroke_fill=(0, 0, 0))
 cxd = x0 + lw + gap / 2
-dd.ellipse([cxd - 4, 468, cxd + 4, 476], fill=(252, 210, 90))
-dd.text((x0 + lw + gap, 456), right, font=ft, fill=(245, 232, 205), stroke_width=2, stroke_fill=(0, 0, 0))
+dd.ellipse([cxd - 4, 448, cxd + 4, 456], fill=(252, 210, 90))
+dd.text((x0 + lw + gap, 436), right, font=ft, fill=(245, 232, 205), stroke_width=2, stroke_fill=(0, 0, 0))
 
 # ---- vignette ----
 vg = (np.clip((np.sqrt((xx - CX) ** 2 + (yy - 240) ** 2) / 480 - 0.58) / 0.42, 0, 1) * 130).astype(np.uint8)
