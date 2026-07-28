@@ -498,8 +498,8 @@ static void info_screen(void)
     // promoted its label to 28pt and made it shout over every fact on screen.
     // Selected styling keeps the visual priority while the text stays on the
     // same 23pt rung as BACK.
-    lv_obj_t *pp = wt_pillh(s_scr, tr(STR_I_PAIR_T), 430, 96, 340, 60,
-                            pair_open_cb, NULL);
+    lv_obj_t *pp = wt_pill_icon(s_scr, WT_ICON_KEY, tr(STR_I_PAIR_T), 430, 96,
+                                340, 60, pair_open_cb, NULL);
     wt_pill_select(pp, true);
     wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 162, 340, 62);
 
@@ -509,8 +509,8 @@ static void info_screen(void)
     // every payment you receive -- so it deserves its own pill and keeps its own
     // consent warning (sp_key_warn_cb), which is still the only way to reach the
     // key itself.
-    lv_obj_t *skp = wt_pillh(s_scr, tr(STR_R_SP_SCAN_BTN), 430, 236, 340, 60,
-                             sp_key_warn_cb, NULL);
+    lv_obj_t *skp = wt_pill_icon(s_scr, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN),
+                                 430, 236, 340, 60, sp_key_warn_cb, NULL);
     wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
     // 94, not 62: this sentence needs three lines at 23 and was silently
     // dropping to font14 beside a PAIR COORDINATOR note at 23 -- the smaller
@@ -521,8 +521,12 @@ static void info_screen(void)
     // Both actions on this screen are the same size, chosen once for the pair
     // rather than per label: PAIR COORDINATOR is short and would otherwise sit
     // a rung above the export beside it.
+    // Measured WITH the icons, because that is what actually gets drawn.
     {
-        const char *lbls[2] = { tr(STR_I_PAIR_T), tr(STR_R_SP_SCAN_BTN) };
+        char pt[WT_ICON_TEXT_MAX], st[WT_ICON_TEXT_MAX];
+        wt_icon_text(pt, sizeof pt, WT_ICON_KEY, tr(STR_I_PAIR_T));
+        wt_icon_text(st, sizeof st, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN));
+        const char *lbls[2] = { pt, st };
         wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 60, false);
         wt_pill_apply_fit(pp, f, 340);
     }

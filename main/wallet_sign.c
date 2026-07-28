@@ -1389,11 +1389,16 @@ void wallet_sign_open(lv_obj_t *parent)
     // and at 80px apart the top one had 78px of column for a sentence that
     // wants three readable lines. It was rendering at font14 next to a 28px
     // button. Widening the gap is free, the bottom 120px of this page is empty.
-    lv_obj_t *q = mk_pill(tr(STR_S_SCAN_QR), 48, 140, 340, scan_pick_cb);
+    // Icons ride inside the labels, so every measurement below still sees the
+    // exact string that gets drawn.
+    char qtxt[WT_ICON_TEXT_MAX], sdtxt[WT_ICON_TEXT_MAX];
+    wt_icon_text(qtxt, sizeof qtxt, WT_ICON_QR, tr(STR_S_SCAN_QR));
+    wt_icon_text(sdtxt, sizeof sdtxt, WT_ICON_SD, tr(STR_S_FROM_SD));
+    lv_obj_t *q = mk_pill(qtxt, 48, 140, 340, scan_pick_cb);
     wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
-    lv_obj_t *sd = mk_pill(tr(STR_S_FROM_SD), 48, 268, 340, sd_pick_cb);
+    lv_obj_t *sd = mk_pill(sdtxt, 48, 268, 340, sd_pick_cb);
     {
-        const char *src_lbls[2] = { tr(STR_S_SCAN_QR), tr(STR_S_FROM_SD) };
+        const char *src_lbls[2] = { qtxt, sdtxt };
         wt_pill_fit_t f = wt_pill_group_fit(src_lbls, 2, 340, 60, true);
         wt_pill_apply_fit(q, f, 340);
         wt_pill_apply_fit(sd, f, 340);
