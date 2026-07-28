@@ -375,6 +375,8 @@ int main(int argc, char **argv)
         { "WT_ICON_KEY",    WT_ICON_KEY    },
         { "WT_ICON_SECRET", WT_ICON_SECRET },
         { "WT_ICON_SD",     WT_ICON_SD     },
+        { "WT_ICON_LOCK",   WT_ICON_LOCK   },
+        { "WT_ICON_REPLACE", WT_ICON_REPLACE },
     };
     const struct { const char *name; const lv_font_t *f; } FACES[] = {
         { "font14", wt_font14() }, { "font23", wt_font23() },

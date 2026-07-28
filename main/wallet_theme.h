@@ -59,6 +59,10 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
 #define WT_ICON_KEY    "\xEF\x82\x84"   // U+F084 key
 #define WT_ICON_SECRET "\xEF\x88\x9B"   // U+F21B user-secret (the incognito hat)
 #define WT_ICON_SD     LV_SYMBOL_SD_CARD
+// The RBF explainer's two states. LOCK has no LV_SYMBOL macro; REFRESH does,
+// and LVGL already ships its codepoint, so it is spelled with LVGL's name.
+#define WT_ICON_LOCK    "\xEF\x80\xA3"   // U+F023 lock
+#define WT_ICON_REPLACE LV_SYMBOL_REFRESH
 
 // Compose "<icon>  <label>" into out. The icon rides INSIDE the pill's label
 // rather than sitting beside it as a second object, so wt_pill_fit keeps
