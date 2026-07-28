@@ -1514,37 +1514,69 @@ static int unlock_kind(void) {
 // This is the SECURITY timeout, not the screensaver -- it drops the session key.
 #define WALLET_AUTOLOCK_MS 300000
 
-// subtle press feedback on the home tiles: a translucent glass pane while the
-// finger is down (opa only — transform_scale hard-hangs LVGL). Stays inside
-// s_wallet bounds so it can never trigger the out-of-bounds invalidation bug.
+// Press feedback on the four home tiles: ONE brief flash, then nothing.
+//
+// It used to be a glass pane that sat under the finger for as long as the
+// finger was down, which on a tile you hold for half a second reads as the
+// screen having got stuck rather than as an acknowledgement. The pills got a
+// press animation of their own in this release and these four deliberately did
+// NOT take it: they are the largest targets on the device and the only ones
+// that leave the screen, so they answer once and get out of the way.
+//
+// Opacity only — transform_scale hard-hangs LVGL, and plain LV_STYLE_OPA is
+// not opa_layered, so it forces no draw layer either. Stays inside s_wallet
+// bounds so it can never trigger the out-of-bounds invalidation bug.
+#define TILE_FLASH_MS 190
+
+static void tile_flash_anim(void *obj, int32_t v) {
+  lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
+}
+
+static void tile_flash_done(lv_anim_t *a) {
+  lv_obj_add_flag((lv_obj_t *)a->var, LV_OBJ_FLAG_HIDDEN);
+}
+
 static void tile_glow_sync(void) {
   static const int gx[4] = {40, 230, 410, 590};
   static const int gw[4] = {180, 160, 160, 160};
+  // Which tile the current flash belongs to, so a press that is HELD does not
+  // restart it every frame -- that would be the old lingering glow again,
+  // rebuilt out of animation frames.
+  static int flashed_for;
+
   if (!s_tile_pend) {
-    if (s_tile_glow) lv_obj_add_flag(s_tile_glow, LV_OBJ_FLAG_HIDDEN);
+    flashed_for = 0;
     return;
   }
+  if (s_tile_pend == flashed_for) return;
+  flashed_for = s_tile_pend;
+
   if (!s_tile_glow) {
     s_tile_glow = lv_obj_create(s_wallet);
     lv_obj_remove_style_all(s_tile_glow);
     lv_obj_set_style_radius(s_tile_glow, 18, 0);
-    lv_obj_set_style_bg_color(s_tile_glow, wt_accent(), 0);
-    lv_obj_set_style_bg_opa(s_tile_glow, 38, 0);
+    lv_obj_set_style_bg_opa(s_tile_glow, 52, 0);
     lv_obj_set_style_border_width(s_tile_glow, 1, 0);
-    lv_obj_set_style_border_color(s_tile_glow, wt_accent(), 0);
-    lv_obj_set_style_shadow_width(s_tile_glow, 20, 0);
-    lv_obj_set_style_shadow_color(s_tile_glow, wt_accent(), 0);
-    lv_obj_set_style_shadow_opa(s_tile_glow, 60, 0);
     lv_obj_remove_flag(s_tile_glow, LV_OBJ_FLAG_CLICKABLE);
   }
   lv_obj_set_style_bg_color(s_tile_glow, wt_accent(), 0);
   lv_obj_set_style_border_color(s_tile_glow, wt_accent(), 0);
-  lv_obj_set_style_shadow_color(s_tile_glow, wt_accent(), 0);
   int i = s_tile_pend - 1;
   lv_obj_set_pos(s_tile_glow, gx[i], 140);
   lv_obj_set_size(s_tile_glow, gw[i], 200);
+  lv_obj_set_style_opa(s_tile_glow, LV_OPA_COVER, 0);
   lv_obj_clear_flag(s_tile_glow, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_tile_glow);
+
+  lv_anim_t a;
+  lv_anim_init(&a);
+  lv_anim_set_var(&a, s_tile_glow);
+  lv_anim_set_exec_cb(&a, tile_flash_anim);
+  lv_anim_set_completed_cb(&a, tile_flash_done);
+  lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+  lv_anim_set_duration(&a, TILE_FLASH_MS);
+  lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+  lv_anim_start(&a);
 }
 
 // ---- fingerprint card: tapping the home chip teaches what the number means
@@ -2113,7 +2145,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // Build identity, bottom-left — the baked art used to carry a permanent
   // CAUTION pill here (a status light that never changed = dead chrome); now
   // this corner tells the truth instead, same line as the Settings footer.
-  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424);
+  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false);
 
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
