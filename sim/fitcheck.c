@@ -27,17 +27,19 @@ typedef struct {
 } slot_t;
 
 static const slot_t SLOTS[] = {
-    // main.c:1467 — home fingerprint card
-    { "home/fp-card",     STR_H_FP_CARD_B,  720, 152 },
     // wallet_setup.c:279 — amber line under the word grid
     { "setup/paper-only", STR_W_PAPER_ONLY, 700,  40 },
-    // wallet_info.c:73 — "?" cards (155 with a chip diagram, 225 without)
+    // wallet_info.c — "?" cards (155 with a diagram, 225 without; the
+    // scan-key warning below pairs a short body with three visual facts)
     { "wallet/?fp",       STR_I_H_FP_B,     720, 155 },
     { "wallet/?type",     STR_I_H_TYPE_B,   720, 225 },
     { "wallet/?pair",     STR_I_H_PAIR_B,   720, 155 },
     { "wallet/?addr",     STR_I_H_ADDR_B,   720, 225 },
     // wallet_info.c:263,326 — full-screen warnings
-    { "wallet/sp-warn",   STR_R_SP_WARN_B,  700, 280 },
+    { "wallet/sp-warn",   STR_R_SP_WARN_B,  700, 145 },
+    { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
+    { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, 482, 29 },
+    { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  482, 29 },
     { "wallet/words-warn",STR_I_WARN_B,     700, 270 },
     // wallet_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
@@ -53,6 +55,28 @@ static const slot_t SLOTS[] = {
     { "setup/verify-in",  STR_W_VINTRO_B,   704, 274 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
+    // Three-mode storage appears in both setup and Settings with the same
+    // side-by-side geometry. The disabled SD explanation is intentionally
+    // measured too: normal beta firmware is the build most owners will see.
+    { "storage/flash",    STR_W_KEEP_NOTE,        420, 87 },
+    { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   420, 87 },
+    { "storage/sd",       STR_W_SD_NOTE,          420, 87 },
+    { "storage/sd-off",   STR_W_SD_DISABLED_NOTE, 420, 87 },
+    { "storage/amnesic",  STR_W_AMNESIC_NOTE,     420, 87 },
+    { "storage/current",  STR_G_STORAGE_CURRENT_FMT, 704, 30 },
+    { "storage/confirm-flash", STR_G_STORAGE_CONFIRM_FLASH_B,   704, 238 },
+    { "storage/confirm-sd",    STR_G_STORAGE_CONFIRM_SD_B,      704, 238 },
+    { "storage/confirm-amn",   STR_G_STORAGE_CONFIRM_AMNESIC_B, 704, 238 },
+    { "storage/ok",       STR_G_STORAGE_OK_FMT,       704, 230 },
+    { "storage/ok-amn",   STR_G_STORAGE_OK_AMNESIC_B, 704, 230 },
+    { "storage/fail-card",STR_G_STORAGE_FAIL_CARD_B,  704, 230 },
+    { "storage/fail-vfy", STR_G_STORAGE_FAIL_VERIFY_B,704, 230 },
+    { "storage/fail",     STR_G_STORAGE_FAIL_GENERIC_B,704,230 },
+    { "storage/cleanup",  STR_G_STORAGE_CLEANUP_B,    704, 230 },
+    { "storage/sd-missing",STR_W_SD_MISSING_B,         704, 226 },
+    { "storage/sd-corrupt",STR_W_SD_CORRUPT_B,         704, 226 },
+    { "storage/sd-io",    STR_W_SD_IO_B,              704, 226 },
+    { "storage/sd-no-fw", STR_W_SD_UNSUPPORTED_B,     704, 226 },
     // wallet_settings.c: the two wipe overlays
     { "wipe/confirm",     STR_G_WIPEC_B,    704, 190 },
     { "wipe/erased",      STR_G_ERASED_B,   704, 160 },
@@ -96,7 +120,7 @@ static const slot_t SLOTS[] = {
     { "sub/addr-type",    STR_G_SEPARATE,     704, 30, 0 },
     { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
     { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
-    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 52, 1 },
+    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 30, 1 },
     // wallet_recv.c / wallet_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
     { "sub/receive",      STR_R_S,            704, 30, 0 },
@@ -132,10 +156,10 @@ static const slot_t SLOTS[] = {
     // column beside a QR. They auto-fit like everything else, so they grow if
     // the copy is ever shortened -- but font14 is the accepted answer today.
     { "recv/verify",      STR_R_VERIFY_NOTE,  360, 90, 1 },
-    // Under the QR on the address detail screen, in the strip the smaller
-    // card freed up. font14 is the accepted answer: it is standing advice
-    // beside the address, not a warning about this one.
-    { "recv/one-each",    STR_R_ONE_EACH,     300, 36, 1 },
+    // Under the QR on the address detail screen. This is the whole standing
+    // privacy reminder now, so the zoomable smaller card gives it three lines
+    // at font23.
+    { "recv/one-each",    STR_R_ONE_EACH,     308, 87, 0 },
     { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
@@ -173,10 +197,6 @@ static const slot_t SLOTS[] = {
     // as the ADDRESS TYPE notes above, and recorded for the same reason.
     { "setup/12-note",    STR_W_12_NOTE,        340,  76, 1 },
     { "setup/24-note",    STR_W_24_NOTE,        340,  76, 1 },
-    // The reuse banner is boxed in by the address above it, the FRESH pill
-    // beside it and the derivation path below: 230x46, and this copy wants two
-    // 23pt lines (58px). It auto-fits, so shortening the wording lifts it.
-    { "recv/reused",      STR_R_REUSED,         230,  46, 1 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
@@ -209,8 +229,14 @@ static const pill_t PILLS[] = {
     // of the whole signing flow.
     { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
     { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
-    { "set/create",       STR_G_CREATE_NEW,   340, 66, 0, 1 },
-    { "set/words",        STR_I_WORDS_BTN,    340, 66, 0, 1 },
+    { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
+    { "storage/sd",       STR_W_SD_BTN,        252, 52, 0, 1 },
+    { "storage/amnesic",  STR_W_AMNESIC_BTN,   252, 52, 0, 1 },
+    { "storage/main",     STR_G_STORAGE_SEC,   340, 72 - 35, 0, 1 },
+    { "storage/hold-move",STR_G_STORAGE_HOLD_MOVE,330, 66, 0, 1 },
+    { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
+    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0, 1 },
+    { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
     // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
@@ -221,7 +247,9 @@ static const pill_t PILLS[] = {
     { "sign/flow2",       STR_S_FLOW_2,       672, 44, 0, 0 },
     { "sign/flow3",       STR_S_FLOW_3,       672, 44, 0, 0 },
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
-    { "recv/fresh",       STR_R_FRESH,        136, 44, 0, 0 },
+    { "recv/sp-show-full",STR_R_SP_SHOW_FULL,  280, 52, 0, 0 },
+    { "recv/sp-show-short",STR_R_SP_SHOW_SHORT,280, 52, 0, 0 },
+    { "wallet/sp-hold",   STR_R_SP_SHOW,       330, 66, 0, 1 },
     // Settings ADDRESS TYPE: one pill carrying the type NAME over the example
     // address. The example is a readable 23 now, so it reserves 35px of the
     // 72px pill and the name is fitted against what is left -- the same 29px

@@ -61,6 +61,8 @@ static char s_sim_pending[256];
 static int s_sim_has_pending;
 static int s_sim_mode;
 static int s_sim_pending_mode = -1;   // staged wizard answer, -1 = none
+static int s_sim_sd_present = 1;      // hot-plug state for the unlock gate
+static int s_sim_sd_supported;        // default 0: normal unencrypted beta
 int wallet_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
 int wallet_seed_store(const char *m) {
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", m);
@@ -69,11 +71,17 @@ int wallet_seed_store(const char *m) {
 }
 int wallet_seed_load(char *out, size_t n) {
   if (s_sim_has_pending) { snprintf(out, n, "%s", s_sim_pending); return 0; }
+  if (s_sim_mode == WSEED_MODE_SD && !s_sim_sd_present)
+    return WSEED_ERR_SD_MISSING;
   if (!s_sim_has_seed) return -1;
   snprintf(out, n, "%s", s_sim_seed);
   return 0;
 }
-int wallet_seed_wipe(void) { s_sim_has_seed = 0; return 0; }
+int wallet_seed_wipe(void) {
+  s_sim_has_seed = 0;
+  s_sim_has_pending = 0;
+  return 0;
+}
 int wallet_seed_validate(const char *m) { (void)m; return 0; }
 int wallet_seed_stage(const char *m) {
   snprintf(s_sim_pending, sizeof s_sim_pending, "%s", m);
@@ -88,6 +96,8 @@ int wallet_seed_commit(void) {
     s_sim_has_seed = 0;          // the old stored wallet goes WITH the commit
     return 0;                    // the new words stay in RAM until the lock
   }
+  if (s_sim_mode == WSEED_MODE_SD && !s_sim_sd_present)
+    return WSEED_ERR_SD_MISSING;
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", s_sim_pending);
   s_sim_has_seed = 1;
   s_sim_has_pending = 0;
@@ -115,14 +125,44 @@ int wallet_seed_mode(void) {
   return s_sim_pending_mode >= 0 ? s_sim_pending_mode : s_sim_mode;
 }
 void wallet_seed_stage_mode(int m) {
-  s_sim_pending_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC
-                                               : WSEED_MODE_KEEP;
+  s_sim_pending_mode = (m == WSEED_MODE_AMNESIC || m == WSEED_MODE_SD)
+                     ? m : WSEED_MODE_KEEP;
 }
 int wallet_seed_set_mode(int m) {
   s_sim_pending_mode = -1;
-  s_sim_mode = m == WSEED_MODE_AMNESIC ? WSEED_MODE_AMNESIC : WSEED_MODE_KEEP;
+  s_sim_mode = (m == WSEED_MODE_AMNESIC || m == WSEED_MODE_SD)
+             ? m : WSEED_MODE_KEEP;
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_seed = 0;
   return 0;
+}
+int wallet_seed_sd_supported(void) { return s_sim_sd_supported; }
+int wallet_seed_move_to(int m) {
+  if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
+      m != WSEED_MODE_AMNESIC)
+    return WSEED_ERR_INVALID;
+  if (m == WSEED_MODE_SD && !s_sim_sd_supported)
+    return WSEED_ERR_SD_UNSUPPORTED;
+  if (m == s_sim_mode) return WSEED_OK;
+  if ((m == WSEED_MODE_SD || s_sim_mode == WSEED_MODE_SD) &&
+      !s_sim_sd_present)
+    return WSEED_ERR_SD_MISSING;
+  if (!s_sim_has_seed && !s_sim_has_pending) return WSEED_ERR_NO_SEED;
+
+  if (m == WSEED_MODE_AMNESIC) {
+    if (!s_sim_has_pending) {
+      snprintf(s_sim_pending, sizeof s_sim_pending, "%s", s_sim_seed);
+      s_sim_has_pending = 1;
+    }
+    s_sim_has_seed = 0;
+  } else {
+    if (s_sim_has_pending)
+      snprintf(s_sim_seed, sizeof s_sim_seed, "%s", s_sim_pending);
+    s_sim_has_seed = 1;
+    s_sim_has_pending = 0;
+  }
+  s_sim_pending_mode = -1;
+  s_sim_mode = m;
+  return WSEED_OK;
 }
 void wallet_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
@@ -187,11 +227,24 @@ int wallet_script(void) { return s_sim_script; }
 
 // step-4 session seams: plausible-looking fakes so the Receive/Export screens render
 static int s_sim_decoy;
-int wallet_session_open(const char *passphrase) {
-  s_sim_decoy = !(passphrase && passphrase[0]);   // empty passphrase = the decoy signer
+static int s_sim_prepared_decoy;
+int wallet_session_prepare(const char *passphrase) {
+  s_sim_prepared_decoy = !(passphrase && passphrase[0]);
   return 0;
 }
-void wallet_session_close(void) { s_sim_decoy = 0; }
+int wallet_session_activate_prepared(void) {
+  s_sim_decoy = s_sim_prepared_decoy;
+  return 0;
+}
+void wallet_session_discard_prepared(void) { s_sim_prepared_decoy = 0; }
+int wallet_session_open(const char *passphrase) {
+  int rc = wallet_session_prepare(passphrase);
+  return rc == 0 ? wallet_session_activate_prepared() : rc;
+}
+void wallet_session_close(void) {
+  s_sim_decoy = 0;
+  wallet_seed_forget();          // real wallet_crypto.c does the same on lock
+}
 int wallet_session_decoy(void) { return s_sim_decoy; }
 int wallet_session_address(int change, unsigned int index, char *out, unsigned long len) {
   if (s_sim_script == 2)                 // legacy 1.../m...
@@ -369,6 +422,29 @@ void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center st
 static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 static void release(void) { g_pressed = false; }
 
+// The unlock word as used throughout the scripted walk. Kept as a helper for
+// storage hot-plug coverage added at the end, so that test does not invent a
+// second approximation of the gesture recognizer's real input.
+static void draw_kiss(void)
+{
+  for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
+  release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); }
+  release(); pump(2);
+  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); }
+  release(); pump(2);
+  for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); }
+  release(); pump(2);
+  touch(420, 140); pump(1); touch(360, 152); pump(1);
+  touch(345, 188); pump(1); touch(400, 212); pump(1);
+  touch(422, 250); pump(1); touch(362, 286); pump(1);
+  touch(342, 272); pump(1); release(); pump(2);
+  touch(540, 140); pump(1); touch(480, 152); pump(1);
+  touch(465, 188); pump(1); touch(520, 212); pump(1);
+  touch(542, 250); pump(1); touch(482, 286); pump(1);
+  touch(462, 272); pump(1); release(); pump(4);
+}
+
 // Type a short prefix on wallet_setup.c's recovery-word keyboard, then choose
 // its first suggestion.  Keeping this as a real touch walk means the optional
 // recovery rehearsal is tested through the exact UI a person uses.
@@ -534,7 +610,13 @@ int main(void) {
   release(); pump(6);                               // Receive tile
   save("/tmp/sim_recv.ppm");                        // the scrollable address list
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
-  save("/tmp/sim_recv_sp.ppm");
+  save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
+  touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
+  save("/tmp/sim_recv_sp_zoom.ppm");
+  touch(763, 35); pump(3); release(); pump(6);      // close zoom, exact state preserved
+  touch(520, 166); pump(3); release(); pump(6);     // folded address itself -> full
+  save("/tmp/sim_recv_sp_full.ppm");
+  touch(268, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
@@ -549,6 +631,9 @@ int main(void) {
   save("/tmp/sim_recv_scrolled.ppm");
   touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
   save("/tmp/sim_recv_detail.ppm");                 // QR + address + VERIFY
+  touch(168, 216); pump(3); release(); pump(6);     // ordinary receive QR -> zoom
+  save("/tmp/sim_recv_zoom.ppm");
+  touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(492, 430); pump(3); release(); pump(4);     // next chevron -> the address after
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
@@ -577,12 +662,12 @@ int main(void) {
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
   touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
-  touch(680, 60); pump(3); release(); pump(30);     // fingerprint chip -> education card
+  touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
-  wallet_info_sim_open_fp_help(); pump(30);         // deterministic: see the type chip below
+  wallet_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
   save("/tmp/sim_winfo_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   wallet_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
@@ -590,6 +675,9 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
   touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
+  touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
+  save("/tmp/sim_pair_zoom.ppm");
+  touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
   save("/tmp/sim_pair_bw.ppm");
   touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
@@ -605,10 +693,18 @@ int main(void) {
   // moved because hiding a separate PRIVATE-key export one tap inside the
   // descriptor flow implied the two were the same action.
   touch(118, 430); pump(3); release(); pump(6);     // BACK (x=48 pill) -> WALLET
+  touch(743, 264); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
+  save("/tmp/sim_sp_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(600, 266); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
   save("/tmp/sim_sp_warn.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // SHOW THE SCAN KEY -> export
+  touch(198, 430); pump(25); release(); pump(6);    // early release: key stays hidden
+  save("/tmp/sim_sp_warn_early.ppm");
+  touch(198, 430); pump(65); release(); pump(8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
+  touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
+  save("/tmp/sim_sp_key_zoom.ppm");
+  touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(128, 430); pump(3); release(); pump(6);     // DONE -> WALLET screen
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
@@ -729,21 +825,23 @@ int main(void) {
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part
+  touch(206, 258); pump(3); release(); pump(20);    // animated signed QR -> zoom
+  save("/tmp/sim_qr_out_zoom.ppm");                 // animation keeps moving enlarged
+  touch(763, 35); pump(3); release(); pump(6);      // close on latest frame
   touch(530, 270); pump(3); release(); pump(6);     // EASY SCAN: sparser, slower QR
   save("/tmp/sim_qr_out_ez.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
 
-  // reuse guard: those signs spent from receive #0, so Receive now lands past
-  // it; paging back to a used index warns and offers FRESH.
+  // Receive lands past the highest address used or shown. Every detail keeps
+  // the same privacy reminder visible; it does not claim an offline signer
+  // knows whether this particular address received a payment.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> the list
-  // The list lands three above the fresh address, so the top rows are indices
-  // already used or shown: amber index, amber border, no banner room needed.
-  save("/tmp/sim_recv_fresh.ppm");
-  touch(400, 120); pump(3); release(); pump(6);     // tap the top row: a used index
-  save("/tmp/sim_recv_reuse.ppm");                  // amber warning + FRESH pill
-  touch(698, 266); pump(3); release(); pump(4);     // FRESH -> jump back to a new one
-  save("/tmp/sim_recv_fresh2.ppm");                 // warning gone again
+  save("/tmp/sim_recv_fresh.ppm");                  // page containing the fresh landing
+  touch(400, 120); pump(3); release(); pump(6);     // tap any row
+  save("/tmp/sim_recv_reminder.ppm");               // accent reminder, no banner or pill
+  touch(492, 430); pump(3); release(); pump(4);     // next address, same standing advice
+  save("/tmp/sim_recv_next.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> the list
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
@@ -752,9 +850,38 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
 
+  // STORAGE is a first-class Settings row, not a setup-only choice. Exercise a
+  // normal unencrypted beta first: SD is visible, explicitly unavailable and
+  // inert. Then enable host support and exercise a real FLASH -> SD migration,
+  // including the fact that a short press cannot fire it.
+  touch(600, 120); pump(3); release(); pump(6);     // current FLASH -> chooser
+  save("/tmp/sim_storage_disabled.ppm");             // normal beta: SD disabled
+  touch(174, 244); pump(3); release(); pump(4);     // disabled SD must be inert
+  if (s_sim_mode != WSEED_MODE_KEEP || s_sim_pending_mode != -1) {
+    fprintf(stderr, "disabled SD changed storage mode\n");
+    return 1;
+  }
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> Settings
+  s_sim_sd_supported = 1;                           // encrypted-host coverage
+  touch(600, 120); pump(3); release(); pump(6);
+  save("/tmp/sim_storage_choose.ppm");               // all three selectable
+  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  save("/tmp/sim_storage_confirm_sd.ppm");
+  touch(213, 425); pump(30); release(); pump(6);    // <1500ms: no migration
+  save("/tmp/sim_storage_hold_noop.ppm");
+  touch(213, 425); pump(105); release(); pump(8);   // deliberate hold -> success
+  save("/tmp/sim_storage_sd_ok.ppm");
+  touch(400, 430); pump(3); release(); pump(8);     // OK -> Settings
+  save("/tmp/sim_settings_sd.ppm");                 // current mode reads SD CARD
+  touch(600, 120); pump(3); release(); pump(6);
+  touch(174, 136); pump(3); release(); pump(6);     // FLASH
+  touch(213, 425); pump(105); release(); pump(8);
+  touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
+  s_sim_sd_supported = 0;                           // normal beta for setup shots
+
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  touch(600, 216); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
+  touch(600, 280); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
@@ -782,7 +909,7 @@ int main(void) {
   save("/tmp/sim_verify_ok.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
 
-  touch(600, 216); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
+  touch(600, 280); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
   touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
@@ -797,7 +924,7 @@ int main(void) {
     for (int i = 0; i < 24; i++)
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
-    touch(600, 216); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
+    touch(600, 280); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
     touch(168, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     touch(278, 430); pump(3); release(); pump(6);   // NEXT
@@ -838,10 +965,16 @@ int main(void) {
   save("/tmp/sim_recv_tn.ppm");                     // the list, on testnet
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
-  // is where a truncation report landed. tools/check_qr_payloads.sh decodes
-  // this frame and diffs it against the text beside it.
+  // is where a truncation report landed. Capture both sizes so their decoded
+  // payloads can be compared byte-for-byte.
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
-  save("/tmp/sim_recv_sp_tn.ppm");
+  save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
+  touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
+  save("/tmp/sim_recv_sp_zoom_tn.ppm");
+  touch(763, 35); pump(3); release(); pump(6);
+  touch(268, 430); pump(3); release(); pump(6);     // SHOW FULL: longest full form
+  save("/tmp/sim_recv_sp_full_tn.ppm");
+  touch(268, 430); pump(3); release(); pump(6);     // SHOW SHORT before opening help
   // The explainer names the prefixes, so testnet renders a different title
   // ("WHY YOU SEE TB1P") and two more characters of body than mainnet does.
   // Capture the longer one: it is the variant that would overflow first.
@@ -876,8 +1009,8 @@ int main(void) {
 
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 290); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 264)
-  save("/tmp/sim_setup_storage.ppm");               // KEEP ON THIS DEVICE / NOTHING SAVED
-  touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
+  save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
+  touch(174, 136); pump(3); release(); pump(4);     // FLASH
   // restoring shows a third option here: a SeedQR carries its own length, so
   // it sits beside 12/24 rather than after them
   save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN SEED QR
@@ -888,13 +1021,16 @@ int main(void) {
   save("/tmp/sim_setup_sug.ppm");                   // suggestions visible
   touch(163, 182); pump(3); release(); pump(3);     // accept "abandon" -> word 2
   touch(160, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "setup cancel left storage mode staged\n");
+    return 1;
+  }
 
   // the real path: CREATE SEED, simulated entropy, quiz, login twice.
-  // Creating no longer asks how many words -- it is always 12 -- so KEEP ON
-  // THIS DEVICE lands straight on the entropy screen, and the reveal is a
-  // single page with no pager.
+  // Creating no longer asks how many words -- it is always 12 -- so FLASH
+  // lands straight on the entropy screen, and the reveal is one page.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(218, 176); pump(3); release(); pump(4);     // KEEP ON THIS DEVICE
+  touch(174, 136); pump(3); release(); pump(4);     // FLASH
   save("/tmp/sim_setup_entropy.ppm");
   touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
@@ -909,7 +1045,7 @@ int main(void) {
 
   // shift semantics. Row 3 is [ABC z x c v b n m BKSP] at y=355; ABC x=46,
   // z x=135, backspace x=752.
-  touch(135, 277); pump(2); release(); pump(2);      // 's': catch the feedback live
+  touch(135, 277); pump(3); release(); pump(3);      // 's': catch the feedback live
   lv_refr_now(NULL);
   save("/tmp/sim_kb_feedback.ppm");                 // key flash + risen callout
   pump(30); touch(752, 355); pump(3); release(); pump(3);
@@ -1133,6 +1269,21 @@ int main(void) {
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home
   save("/tmp/sim_amnesic_home.ppm");                // an amnesic wallet, unlocked
+
+  // Move the live RAM wallet to SD, lock, then remove the card. KISS must land
+  // on INSERT WALLET SD CARD -- never on first-boot setup. A failed retry stays
+  // there; reinserting the card advances to the ordinary passphrase screen.
+  s_sim_sd_supported = 1;
+  wallet_seed_move_to(WSEED_MODE_SD);
+  s_sim_sd_present = 0;
+  touch(100, 60); pump(3); release(); pump(20);      // explicit lock -> game
+  draw_kiss();
+  save("/tmp/sim_sd_missing.ppm");
+  touch(168, 430); pump(3); release(); pump(8);      // TRY AGAIN, still absent
+  save("/tmp/sim_sd_missing_retry.ppm");            // still the missing-card gate
+  s_sim_sd_present = 1;
+  touch(168, 430); pump(3); release(); pump(12);     // hot-plug retry -> login
+  save("/tmp/sim_sd_reinserted_login.ppm");
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
