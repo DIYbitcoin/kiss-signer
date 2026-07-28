@@ -1,19 +1,101 @@
+/* Ioskeley Mono: an Iosevka configuration tuned to match Berkeley Mono TX-02.
+   SIL OFL 1.1, so it is free to publish and free to self-host, unlike TX-02
+   itself.
+
+   Every face here is self-hosted and nothing is fetched from a CDN, so the
+   site renders with no third party request at all. That is the same claim the
+   firmware makes about the network, and a page that phones out to a font host
+   while advertising an airgapped signer would undercut it.
+
+   IBM Plex Mono is the fallback face, also SIL OFL 1.1, also local. Both are
+   listed in THIRD_PARTY_NOTICES.md. */
+@font-face {
+  font-family: "Ioskeley Mono";
+  src: url("fonts/IoskeleyMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ioskeley Mono";
+  src: url("fonts/IoskeleyMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ioskeley Mono";
+  src: url("fonts/IoskeleyMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The fallback face, local rather than from Google Fonts. It covers the three
+   weights the page asks for, so a slow or blocked Ioskeley never lands the
+   layout on a system monospace of a different width. */
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("fonts/IBMPlexMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("fonts/IBMPlexMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("fonts/IBMPlexMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  --bg: #050607;
-  --panel: #0b0f10;
-  --ink: #f5f7f0;
-  --muted: #a7b2aa;
-  --dim: #6e7a72;
-  --green: #6cff9b;
-  --cyan: #48e3ff;
-  --amber: #ffcb57;
-  --red: #ff5d6c;
-  --max: 820px;
+
+  /* Reconciled with main/wallet_theme.h, every value here is a WT_* token.
+     Do not add colours that the firmware does not have. */
+  --bg: #070a10;        /* WT_BG   */
+  --ink: #e8eef7;       /* WT_INK  */
+  --muted: #a7b2c4;
+  --dim: #7a869c;       /* WT_MUT  */
+  --green: #35d07f;     /* WT_OK   */
+  --amber: #f2b84b;     /* WT_WARN */
+  --red: #ff4d5e;       /* WT_STOP */
+
+  /* surfaces */
+  --panel: #0b0e14;
+  --panel-2: #0a0e15;
+  --line: #1e2531;
+  --line-soft: #1a2130;
+  --control: #2a3346;
+  --disabled: #4c5666;
+
+  --max: 900px;
+  /* One typeface for the whole site, no sans anywhere. Ioskeley Mono is the
+     Berkeley Mono match; IBM Plex Mono covers the gap before the files land. */
+  --mono: "Ioskeley Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Never let the browser fake a weight or a slant. If a cut is missing the page
+   should show that honestly rather than smearing the stems of a squared mono. */
+* {
+  font-synthesis-weight: none;
+  font-synthesis: none;
 }
 
 html {
@@ -24,17 +106,18 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  /* The signer's own backdrop, not a neon tech grid: two near-invisible ink
+     rules on a 40px pitch, the same restrained field the wallet screens use. */
   background:
-    linear-gradient(rgba(72, 227, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(108, 255, 155, 0.04) 1px, transparent 1px),
-    #050607;
-  background-size: 42px 42px;
+    linear-gradient(rgba(232, 238, 247, 0.021) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 238, 247, 0.021) 1px, transparent 1px),
+    var(--bg);
+  background-size: 40px 40px;
   color: var(--ink);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  line-height: 1.55;
-  letter-spacing: 0;
+  font-family: var(--mono);
+  font-size: 15.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -42,223 +125,656 @@ input {
   font: inherit;
 }
 
-.shell {
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 72px 20px 56px;
+a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--control);
+  padding-bottom: 2px;
+  transition: border-color 170ms ease, color 170ms ease;
 }
 
-.hero {
-  margin-bottom: 22px;
+a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
-.eyebrow,
-.receipt span,
-.know span {
-  display: inline-block;
-  margin: 0 0 10px;
-  color: var(--green);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.82rem;
+/* guide.html: these are pills and a back arrow, not inline links */
+.toc a,
+.back-link {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 24px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 10, 16, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+
+.topnav {
+  display: flex;
+  gap: 22px;
+}
+
+.topnav a {
+  border-bottom: 0;
+  padding-bottom: 0;
+  color: var(--dim);
+  font-size: 0.78rem;
+}
+
+.topnav a:hover {
+  color: var(--ink);
+}
+
+.slab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.spec {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.spec div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 18px;
+  background: var(--panel);
+}
+
+.spec span {
+  color: var(--dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
-h1,
-h2,
-h3,
-p {
-  overflow-wrap: anywhere;
+.spec strong {
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step, decimal-leading-zero);
+  color: var(--dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+}
+
+.steps h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.steps p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.feats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.feats article {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.feats span {
+  color: var(--dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+}
+
+.feats h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.feats p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.feats code {
+  color: var(--ink);
+  font-size: 0.95em;
+}
+
+.doclinks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.doclinks a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.doclinks a:hover {
+  border-color: var(--control);
+  background: #0d1119;
+}
+
+.doclinks strong {
+  font-weight: 500;
+  font-size: 0.98rem;
+}
+
+.doclinks span {
+  color: var(--dim);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.foot {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 26px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.foot-links a {
+  border-bottom: 0;
+  padding-bottom: 0;
+  color: var(--dim);
+  font-size: 0.82rem;
+}
+
+.foot-links a:hover {
+  color: var(--ink);
+}
+
+.motto {
+  margin: 0;
+  color: var(--disabled);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+}
+
+.shell {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 72px 24px 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 38px;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  align-items: center;
+  gap: 46px;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---------- the reveal ----------
+   A signer hidden inside an arcade game is the whole product. The page shows
+   that once, in the hero, instead of describing it in a paragraph. Everything
+   else on this site holds still. */
+
+.reveal-frame {
+  position: relative;
+  aspect-ratio: 800 / 480;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.reveal-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.reveal-frame .decoy {
+  animation: reveal-out 11s ease-in-out infinite;
+}
+
+.reveal-frame .signer {
+  animation: reveal-in 11s ease-in-out infinite;
+}
+
+/* corner brackets, lifted from the wallet home screen's own frame */
+.reveal-frame i {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 0 solid rgba(232, 238, 247, 0.5);
+  z-index: 2;
+}
+
+.reveal-frame i:nth-of-type(1) { top: 9px; left: 9px; border-top-width: 1px; border-left-width: 1px; }
+.reveal-frame i:nth-of-type(2) { top: 9px; right: 9px; border-top-width: 1px; border-right-width: 1px; }
+.reveal-frame i:nth-of-type(3) { bottom: 9px; left: 9px; border-bottom-width: 1px; border-left-width: 1px; }
+.reveal-frame i:nth-of-type(4) { bottom: 9px; right: 9px; border-bottom-width: 1px; border-right-width: 1px; }
+
+.hero-device {
+  margin: 0;
+}
+
+.reveal-caption {
+  display: grid;
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.reveal-caption span {
+  grid-area: 1 / 1;
+}
+
+.reveal-caption .decoy {
+  animation: reveal-out 11s ease-in-out infinite;
+}
+
+.reveal-caption .signer {
+  color: var(--ink);
+  animation: reveal-in 11s ease-in-out infinite;
+}
+
+@keyframes reveal-out {
+  0%, 38% { opacity: 1; }
+  48%, 88% { opacity: 0; }
+  98%, 100% { opacity: 1; }
+}
+
+@keyframes reveal-in {
+  0%, 38% { opacity: 0; }
+  48%, 88% { opacity: 1; }
+  98%, 100% { opacity: 0; }
+}
+
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 10px;
+  max-width: 42ch;
+  line-height: 1.35;
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+/* The separator hangs off the PRECEDING segment, so if the line ever does
+   break, the slash trails line one instead of leading line two. */
+.eyebrow span:not(:last-child)::after {
+  content: "/";
+  margin-left: 10px;
+  color: var(--disabled);
 }
 
 h1 {
   margin: 0;
-  font-size: 4.5rem;
-  line-height: 0.95;
-  letter-spacing: 0;
+  max-width: 20ch;
+  font-size: clamp(2.3rem, 4.4vw, 3.1rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.32rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .lede {
-  max-width: 620px;
-  margin: 18px 0 0;
+  max-width: 64ch;
+  margin: 0;
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  text-wrap: pretty;
 }
 
 .docs-link {
-  display: inline-block;
-  margin-top: 4px;
-  color: var(--cyan);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.82rem;
-  text-decoration: none;
-}
-
-.docs-link:hover {
-  color: var(--green);
+  align-self: flex-start;
+  font-size: 1rem;
 }
 
 .status-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 22px;
+  margin: 0;
 }
 
 .status-pill {
   border: 1px solid currentColor;
   border-radius: 999px;
-  padding: 6px 10px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.78rem;
-  background: rgba(0, 0, 0, 0.38);
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
 }
 
 .status-pill.ready {
   color: var(--green);
+  background: rgba(53, 208, 127, 0.07);
 }
 
 .status-pill.caution {
   color: var(--amber);
+  background: rgba(242, 184, 75, 0.07);
 }
 
 .status-pill.stop {
   color: var(--red);
+  background: rgba(255, 77, 94, 0.07);
 }
 
-.install-card,
-.receipt,
-.know article {
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
-  background: rgba(9, 13, 13, 0.9);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-}
+/* ---------- install card ---------- */
 
 .install-card {
-  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
 }
 
 .verify-line {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
-  padding: 14px;
-  border: 1px solid rgba(72, 227, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(72, 227, 255, 0.055);
+  padding: 14px 16px;
+  border: 1px solid rgba(242, 184, 75, 0.28);
+  border-radius: 9px;
+  background: rgba(242, 184, 75, 0.05);
+  transition: border-color 220ms ease, background 220ms ease;
+}
+
+.verify-line:has(.verify-light.ready) {
+  border-color: rgba(53, 208, 127, 0.28);
+  background: rgba(53, 208, 127, 0.05);
+}
+
+.verify-line:has(.verify-light.stop) {
+  border-color: rgba(255, 77, 94, 0.28);
+  background: rgba(255, 77, 94, 0.05);
+}
+
+.verify-line strong {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink);
 }
 
 .verify-line span {
   display: block;
-  color: var(--muted);
+  margin-top: 2px;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 0.82rem;
 }
 
 .verify-light {
-  width: 12px;
-  height: 12px;
-  margin-top: 6px;
+  width: 9px;
+  height: 9px;
+  margin-top: 9px;
   border-radius: 999px;
   background: var(--amber);
-  box-shadow: 0 0 16px rgba(255, 203, 87, 0.5);
 }
 
 .verify-light.ready {
   background: var(--green);
-  box-shadow: 0 0 18px rgba(108, 255, 155, 0.62);
-  animation: pulse 1.8s ease-in-out infinite;
 }
 
 .verify-light.stop {
   background: var(--red);
-  box-shadow: 0 0 16px rgba(255, 93, 108, 0.5);
 }
 
 .ack-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  margin: 18px 0;
-  color: var(--ink);
+  gap: 12px;
+  margin: 0;
+  max-width: 70ch;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 .ack-row input {
-  width: 19px;
-  height: 19px;
-  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  margin: 3px 0 0;
   accent-color: var(--green);
+  flex: none;
 }
 
 .install-actions {
-  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 56px;
 }
 
 .flash-button {
-  width: 100%;
-  min-height: 56px;
-  border: 1px solid rgba(108, 255, 155, 0.82);
-  border-radius: 8px;
-  padding: 12px 18px;
-  background: var(--green);
-  color: #031006;
-  font-weight: 900;
+  min-height: 54px;
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  padding: 14px 34px;
+  background: rgba(53, 208, 127, 0.12);
+  color: #8ce8b8;
+  font-size: 0.98rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 0 30px rgba(108, 255, 155, 0.18);
-  transition: transform 170ms ease, box-shadow 170ms ease, border-color 170ms ease;
+  transition: background 170ms ease, color 170ms ease, border-color 170ms ease;
 }
 
 .flash-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 40px rgba(108, 255, 155, 0.32);
+  background: rgba(53, 208, 127, 0.2);
+  color: #b6f2d3;
 }
 
 .flash-button:disabled {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--dim);
+  border-color: var(--control);
+  background: transparent;
+  color: var(--disabled);
   cursor: not-allowed;
-  box-shadow: none;
 }
 
-.flash-button:disabled:hover {
-  transform: none;
+.hint {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.92rem;
 }
 
 .is-hidden {
   display: none;
 }
 
-.power-note {
-  margin: 16px 0 0;
-  color: var(--amber);
+.card-rule {
+  height: 1px;
+  background: var(--line-soft);
 }
 
+.power-note {
+  margin: 0;
+  max-width: 66ch;
+  color: var(--muted);
+}
+
+.power-note strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.power-note code {
+  color: var(--ink);
+  font-size: 0.95em;
+}
+
+.power-note + .power-note {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ---------- receipt (details) ---------- */
+
 .receipt {
-  display: grid;
-  gap: 1px;
-  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
   overflow: hidden;
+}
+
+.receipt > summary {
+  padding: 14px 20px;
+  color: var(--dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.receipt > summary::-webkit-details-marker {
+  display: none;
+}
+
+.receipt > summary::after {
+  content: " \25B8";
+}
+
+.receipt[open] > summary::after {
+  content: " \25BE";
 }
 
 .receipt-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.035);
+  gap: 16px;
+  align-items: baseline;
+  padding: 13px 20px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .receipt-row span {
   margin: 0;
-  color: var(--muted);
+  color: var(--dim);
 }
 
 .receipt strong {
   color: var(--amber);
-  font-weight: 900;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 400;
   text-align: right;
-  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .receipt strong.ok {
@@ -269,22 +785,46 @@ h1 {
   color: var(--red);
 }
 
+/* ---------- three notes ---------- */
+
 .know {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 16px;
 }
 
 .know article {
-  padding: 16px;
-  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.know span {
+  color: var(--dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+}
+
+.know article.ok span {
+  color: var(--green);
+}
+
+.know article.stop span {
+  color: var(--red);
 }
 
 .know p {
   margin: 0;
   color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
 }
+
+/* ---------- motion ---------- */
 
 .motion-link,
 button {
@@ -297,7 +837,7 @@ button {
 
 .reveal {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translateY(14px);
   transition: opacity 520ms ease, transform 520ms ease;
 }
 
@@ -307,25 +847,9 @@ button {
 }
 
 @keyframes tap {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(0.975);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.35);
-  }
+  0% { transform: scale(1); }
+  45% { transform: scale(0.985); }
+  100% { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -342,20 +866,76 @@ button {
     opacity: 1;
     transform: none;
   }
+
+  /* hold on the signer, the state that matters */
+  .reveal-frame .decoy,
+  .reveal-caption .decoy {
+    opacity: 0;
+  }
+
+  .reveal-frame .signer,
+  .reveal-caption .signer {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+  }
+
+  .feats,
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .shell {
-    padding-top: 44px;
+    padding: 48px 20px 56px;
+    gap: 30px;
   }
 
-  h1 {
-    font-size: 3.1rem;
-  }
-
+  /* .facts and .part-row belong to guide.html; their phone collapse has
+     always lived in this shared sheet, so it stays here. */
   .know,
   .facts,
   .part-row {
     grid-template-columns: 1fr;
+  }
+
+  .install-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .flash-button {
+    width: 100%;
+  }
+
+  /* The top bar was the one thing with no phone rule, so seven nav links sat in
+     a single non-wrapping row and pushed the document to 651px inside a 375px
+     viewport. The whole page scrolled sideways, which is most of how anyone
+     arriving from a chat link would have seen it. Let both the bar and the nav
+     wrap, and tighten the gaps to match the smaller type. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 11px 20px;
+  }
+
+  .topnav {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+
+  /* Two columns of body copy at 375px is a column of about 20 characters. */
+  .feats,
+  .steps,
+  .spec,
+  .doclinks {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

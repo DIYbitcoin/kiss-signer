@@ -58,20 +58,32 @@ extraction.
    same fingerprint unlocks from FLASH. In a second run, lock the amnesic
    session before moving it: KISS must ask to load the wallet again rather than
    claim it migrated words that are no longer in RAM.
-10. **Prove the SD gate.** Visit the chooser with no card, then with a blank card
-    inserted. SD CARD must remain visible but disabled with **requires encrypted
-    firmware** in both cases. Taps must not select it, change the current mode,
-    or create `kiss-seed.enc` on the card.
+10. **Take a wallet to the card, and prove the card alone is inert.** Visit the
+    chooser with no card inserted: choosing SD CARD must fail with a readable
+    reason and must not change the current mode. Insert a blank card, move the
+    disposable wallet to SD, then lock and power-cycle. Pass when the same
+    fingerprint unlocks with the card in, and when unlocking with the card
+    removed asks for the card rather than silently falling back to another mode.
+    Then read `kiss-seed.enc` on a computer: pass only when nothing in it
+    resembles the recovery words.
+11. **Read the last line.** On every screen the participant reaches, ask them to
+    read the last line of content aloud. Pass only when every glyph is fully
+    visible. Fail on any half rendered row, any text overlapping other text, and
+    any list whose final row is sliced by the screen edge. Repeat on the sign
+    screen with a PSBT that fires two cautions at once.
 
 ## Deferred encrypted-SD acceptance
 
-Do not count encrypted SD storage as part of normal beta7 acceptance and do not
-flash irreversible RELEASE-mode encryption for this checklist. Its
-FLASH↔SD↔AMNESIC migrations, missing-card boot, interrupted writes, wipe with
-the card absent, corrupt files, and flash-dump checks require a dedicated
-no-funds board running the DEVELOPMENT encryption rehearsal. Follow
+SD storage itself is part of beta7 acceptance, in task 10. What is deferred is
+the flash-encrypted lane on top of it, which is what protects the device key at
+rest and so closes the case where someone holds both the device and the card.
+Do not flash irreversible RELEASE-mode encryption for this checklist. Its
+interrupted writes, wipe with the card absent, corrupt files, and flash-dump
+checks require a dedicated no-funds device running the DEVELOPMENT encryption
+rehearsal. Follow
 [`specs/sd-seed-storage.md`](specs/sd-seed-storage.md) only when that separate
 hardware test is authorized.
 
 Repeat failed tasks after glare, off-axis viewing, and a different phone camera.
-Do not call the normal beta7 UI accepted until tasks 1–10 pass without coaching.
+Do not call the normal beta7 UI accepted until tasks 1 to 11 pass without
+coaching.
