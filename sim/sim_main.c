@@ -62,7 +62,7 @@ static int s_sim_has_pending;
 static int s_sim_mode;
 static int s_sim_pending_mode = -1;   // staged wizard answer, -1 = none
 static int s_sim_sd_present = 1;      // hot-plug state for the unlock gate
-static int s_sim_sd_supported;        // default 0: normal unencrypted beta
+static int s_sim_sd_supported = 1;    // SD is offered on every build now
 int wallet_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
 int wallet_seed_store(const char *m) {
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", m);
@@ -136,6 +136,10 @@ int wallet_seed_set_mode(int m) {
   return 0;
 }
 int wallet_seed_sd_supported(void) { return s_sim_sd_supported; }
+// The desktop store is a plain file, so at-rest encryption is off: the FLASH
+// note reads as the unencrypted (steering) copy in the sim, matching a normal
+// beta board.
+int wallet_seed_flash_encrypted(void) { return 0; }
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
@@ -850,20 +854,10 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
 
-  // STORAGE is a first-class Settings row, not a setup-only choice. Exercise a
-  // normal unencrypted beta first: SD is visible, explicitly unavailable and
-  // inert. Then enable host support and exercise a real FLASH -> SD migration,
+  // STORAGE is a first-class Settings row, not a setup-only choice. SD is
+  // offered on every build now, so exercise a real FLASH -> SD migration,
   // including the fact that a short press cannot fire it.
   touch(600, 120); pump(3); release(); pump(6);     // current FLASH -> chooser
-  save("/tmp/sim_storage_disabled.ppm");             // normal beta: SD disabled
-  touch(174, 244); pump(3); release(); pump(4);     // disabled SD must be inert
-  if (s_sim_mode != WSEED_MODE_KEEP || s_sim_pending_mode != -1) {
-    fprintf(stderr, "disabled SD changed storage mode\n");
-    return 1;
-  }
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> Settings
-  s_sim_sd_supported = 1;                           // encrypted-host coverage
-  touch(600, 120); pump(3); release(); pump(6);
   save("/tmp/sim_storage_choose.ppm");               // all three selectable
   touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
@@ -877,7 +871,6 @@ int main(void) {
   touch(174, 136); pump(3); release(); pump(6);     // FLASH
   touch(213, 425); pump(105); release(); pump(8);
   touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
-  s_sim_sd_supported = 0;                           // normal beta for setup shots
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.

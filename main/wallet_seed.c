@@ -319,14 +319,29 @@ static int storage_mode_write(int mode)
 
 int wallet_seed_sd_supported(void)
 {
+    // SD is available whenever the card hardware is. The seed is written to the
+    // card as an authenticated, device-key-sealed blob, and that key lives in
+    // this device's flash -- so a stolen card alone is inert, and the device
+    // alone holds no card ciphertext. That split does NOT need flash
+    // encryption to hold.
+    //
+    // What flash encryption adds is protecting the device key AT REST, so that
+    // someone who has BOTH the device and the card cannot dump the key out of
+    // plaintext flash and decrypt. That is a stronger threat (device+card
+    // together), not the card-loss case SD mainly guards -- and FLASH mode,
+    // which stores the seed in the CLEAR in NVS, is already offered on this
+    // same firmware. Gating the safer option (a split secret) while shipping
+    // the weaker one (a plaintext seed) was backwards, so SD stands on its own.
+    // The encrypted-release lane still closes the device+card gap on top.
+    return 1;
+}
+
+int wallet_seed_flash_encrypted(void)
+{
 #ifdef ESP_PLATFORM
-#if defined(CONFIG_NVS_ENCRYPTION) && CONFIG_NVS_ENCRYPTION
     return esp_efuse_is_flash_encryption_enabled() ? 1 : 0;
 #else
     return 0;
-#endif
-#else
-    return 1;
 #endif
 }
 
