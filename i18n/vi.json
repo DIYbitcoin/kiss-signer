@@ -397,7 +397,6 @@
   "W_SD_BTN": "THẺ SD",
   "W_FLASH_ENC_NOTE": "lưu trong flash nội bộ được mã hóa. mở khóa bằng cụm mật khẩu.",
   "W_SD_NOTE": "tệp mã hóa chỉ thiết bị này mở được. lắp thẻ trước khi mở khóa.",
-  "W_SD_DISABLED_NOTE": "cần firmware mã hóa flash. không khả dụng trong bản dựng này.",
   "G_STORAGE_CONFIRM_T": "ĐỔI NƠI LƯU VÍ?",
   "G_STORAGE_CONFIRM_FLASH_B": "chuyển ví này vào flash nội bộ.\n\nchỉ xóa bản sao hiện tại sau khi bản sao trong flash được xác minh.",
   "G_STORAGE_CONFIRM_SD_B": "chuyển sang tệp SD mã hóa mà chỉ thiết bị này mở được.\n\nthẻ không phải bản sao lưu. giữ cụm từ trên giấy phòng khi mất thẻ hoặc thiết bị.\n\nchỉ xóa nơi lưu cũ sau khi xác minh.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "ví này nằm trên bộ nhớ tháo rời",
   "W_SD_MISSING_B": "lắp thẻ SD chứa ví này rồi thử lại.",
   "W_SD_CORRUPT_B": "tệp ví trên thẻ này bị hỏng, bị thay đổi hoặc thuộc về thiết bị khác.\n\nhãy dùng đúng thẻ hoặc khôi phục bằng cụm từ của bạn.",
-  "W_SD_IO_B": "không thể đọc thẻ SD.\n\nhãy lắp lại rồi thử, hoặc khôi phục bằng cụm từ của bạn.",
-  "W_SD_UNSUPPORTED_B": "firmware này không thể mở nơi lưu ví trên SD.\n\ncần firmware mã hóa flash."
+  "W_SD_IO_B": "không thể đọc thẻ SD.\n\nhãy lắp lại rồi thử, hoặc khôi phục bằng cụm từ của bạn."
 }

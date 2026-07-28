@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD-KAART",
   "W_FLASH_ENC_NOTE": "op versleutelde interne flash opgeslagen. ontgrendel met je passphrase.",
   "W_SD_NOTE": "versleuteld bestand dat alleen dit apparaat kan openen. plaats de kaart vóór ontgrendeling.",
-  "W_SD_DISABLED_NOTE": "vereist firmware met flashversleuteling. niet beschikbaar in deze build.",
   "G_STORAGE_CONFIRM_T": "WALLETOPSLAG WIJZIGEN?",
   "G_STORAGE_CONFIRM_FLASH_B": "verplaats deze wallet naar de interne flash.\n\nde huidige kopie wordt pas verwijderd nadat de flashkopie is gecontroleerd.",
   "G_STORAGE_CONFIRM_SD_B": "verplaats naar een versleuteld SD-bestand dat alleen dit apparaat kan openen.\n\nde kaart is geen back-up. bewaar je woorden op papier voor verlies van de kaart of het apparaat.\n\nde oude opslag wordt pas na controle verwijderd.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "deze wallet staat op verwijderbare opslag",
   "W_SD_MISSING_B": "plaats de SD-kaart met deze wallet en probeer het opnieuw.",
   "W_SD_CORRUPT_B": "het walletbestand op deze kaart is beschadigd, gewijzigd of hoort bij een ander apparaat.\n\ngebruik de juiste kaart of herstel met je woorden.",
-  "W_SD_IO_B": "de SD-kaart kon niet worden gelezen.\n\nplaats hem opnieuw en probeer het nogmaals, of herstel met je woorden.",
-  "W_SD_UNSUPPORTED_B": "deze firmware kan walletopslag op SD niet openen.\n\nfirmware met flashversleuteling is vereist."
+  "W_SD_IO_B": "de SD-kaart kon niet worden gelezen.\n\nplaats hem opnieuw en probeer het nogmaals, of herstel met je woorden."
 }

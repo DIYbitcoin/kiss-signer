@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD KARTA",
   "W_FLASH_ENC_NOTE": "uloženo v šifrované interní flash. odemkněte přístupovou frází.",
   "W_SD_NOTE": "šifrovaný soubor, který otevře jen toto zařízení. před odemknutím vložte kartu.",
-  "W_SD_DISABLED_NOTE": "vyžaduje firmware se šifrovanou flash. v tomto sestavení není dostupné.",
   "G_STORAGE_CONFIRM_T": "ZMĚNIT ÚLOŽIŠTĚ PENĚŽENKY?",
   "G_STORAGE_CONFIRM_FLASH_B": "přesunout tuto peněženku do interní flash.\n\nsoučasná kopie se odstraní až po ověření kopie ve flash.",
   "G_STORAGE_CONFIRM_SD_B": "přesunout do šifrovaného souboru na SD, který otevře jen toto zařízení.\n\nkarta není záloha. pro případ ztráty karty nebo zařízení uchovejte slova na papíře.\n\nstaré úložiště se odstraní až po ověření.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "tato peněženka je na vyměnitelném úložišti",
   "W_SD_MISSING_B": "vložte SD kartu s touto peněženkou a zkuste to znovu.",
   "W_SD_CORRUPT_B": "soubor peněženky na této kartě je poškozený, změněný nebo patří jinému zařízení.\n\npoužijte správnou kartu nebo obnovte peněženku ze svých slov.",
-  "W_SD_IO_B": "SD kartu nešlo přečíst.\n\nvložte ji znovu a opakujte pokus, nebo obnovte peněženku ze svých slov.",
-  "W_SD_UNSUPPORTED_B": "tento firmware neumí otevřít úložiště peněženky na SD kartě.\n\nje vyžadován firmware se šifrovanou flash."
+  "W_SD_IO_B": "SD kartu nešlo přečíst.\n\nvložte ji znovu a opakujte pokus, nebo obnovte peněženku ze svých slov."
 }

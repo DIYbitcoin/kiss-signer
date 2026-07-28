@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD-KARTE",
   "W_FLASH_ENC_NOTE": "im verschlüsselten internen Flash gespeichert. mit deiner Passphrase entsperren.",
   "W_SD_NOTE": "verschlüsselte Datei, die nur dieses Gerät öffnen kann. Karte vor dem Entsperren einlegen.",
-  "W_SD_DISABLED_NOTE": "Firmware mit Flash-Verschlüsselung nötig. in diesem Build nicht verfügbar.",
   "G_STORAGE_CONFIRM_T": "WALLET-SPEICHER ÄNDERN?",
   "G_STORAGE_CONFIRM_FLASH_B": "diese Wallet in den internen Flash verschieben.\n\ndie aktuelle Kopie wird erst nach Prüfung der Flash-Kopie entfernt.",
   "G_STORAGE_CONFIRM_SD_B": "auf eine verschlüsselte SD-Datei verschieben, die nur dieses Gerät öffnen kann.\n\ndie Karte ist kein Backup. bewahre die Wörter auf Papier auf, falls Karte oder Gerät verloren gehen.\n\nder alte Speicher wird erst nach Prüfung entfernt.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "diese Wallet liegt auf einem Wechselspeicher",
   "W_SD_MISSING_B": "lege die SD-Karte mit dieser Wallet ein und versuche es erneut.",
   "W_SD_CORRUPT_B": "die Wallet-Datei auf dieser Karte ist beschädigt, verändert oder gehört zu einem anderen Gerät.\n\nnutze die richtige Karte oder stelle sie aus deinen Wörtern wieder her.",
-  "W_SD_IO_B": "die SD-Karte konnte nicht gelesen werden.\n\nlege sie erneut ein und versuche es noch einmal, oder stelle sie aus deinen Wörtern wieder her.",
-  "W_SD_UNSUPPORTED_B": "diese Firmware kann Wallet-Speicher auf SD nicht öffnen.\n\nFirmware mit Flash-Verschlüsselung ist erforderlich."
+  "W_SD_IO_B": "die SD-Karte konnte nicht gelesen werden.\n\nlege sie erneut ein und versuche es noch einmal, oder stelle sie aus deinen Wörtern wieder her."
 }

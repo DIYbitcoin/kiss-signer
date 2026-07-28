@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD KARTICA",
   "W_FLASH_ENC_NOTE": "spremljeno u šifriranoj internoj flash memoriji. otključaj kodnom frazom.",
   "W_SD_NOTE": "šifrirana datoteka koju može otvoriti samo ovaj uređaj. umetni karticu prije otključavanja.",
-  "W_SD_DISABLED_NOTE": "zahtijeva firmware sa šifriranom flash memorijom. nije dostupno u ovoj verziji.",
   "G_STORAGE_CONFIRM_T": "PROMIJENITI POHRANU NOVČANIKA?",
   "G_STORAGE_CONFIRM_FLASH_B": "premjesti ovaj novčanik u internu flash memoriju.\n\ntrenutna kopija uklanja se tek nakon provjere kopije u flash memoriji.",
   "G_STORAGE_CONFIRM_SD_B": "premjesti u šifriranu SD datoteku koju može otvoriti samo ovaj uređaj.\n\nkartica nije sigurnosna kopija. čuvaj riječi na papiru za slučaj gubitka kartice ili uređaja.\n\nstara pohrana uklanja se tek nakon provjere.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "ovaj novčanik je na uklonjivoj pohrani",
   "W_SD_MISSING_B": "umetni SD karticu s ovim novčanikom pa pokušaj ponovno.",
   "W_SD_CORRUPT_B": "datoteka novčanika na ovoj kartici je oštećena, promijenjena ili pripada drugom uređaju.\n\nupotrijebi ispravnu karticu ili obnovi pomoću svojih riječi.",
-  "W_SD_IO_B": "SD kartica se ne može pročitati.\n\nponovno je umetni i pokušaj ili obnovi pomoću svojih riječi.",
-  "W_SD_UNSUPPORTED_B": "ovaj firmware ne može otvoriti pohranu novčanika na SD kartici.\n\npotreban je firmware sa šifriranom flash memorijom."
+  "W_SD_IO_B": "SD kartica se ne može pročitati.\n\nponovno je umetni i pokušaj ili obnovi pomoću svojih riječi."
 }
