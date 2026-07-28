@@ -339,7 +339,7 @@ static void storage_result_screen(int rc, int target)
     lv_obj_set_width(b, 704);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 300, 404, 200,
+    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 300, WT_ACTION_Y, 200,
                            storage_result_ack_cb, NULL);
     if (rc == WSEED_OK) wt_pill_primary(ok);
 }
@@ -379,7 +379,7 @@ static void storage_confirm_screen(int target)
                     : STR_G_STORAGE_HOLD_MOVE),
                  48, 392, 330, 66, 1500, storage_apply,
                  (void *)(intptr_t)target);
-    lv_obj_t *cancel = wt_pill(s_scr, tr(STR_C_CANCEL), 585, 404, 165,
+    lv_obj_t *cancel = wt_pill(s_scr, tr(STR_C_CANCEL), 585, WT_ACTION_Y, 165,
                                storage_confirm_cancel_cb, NULL);
     lv_obj_set_ext_click_area(cancel, 10);
 }
@@ -420,7 +420,7 @@ static void storage_chooser_screen(void)
         wt_pill_select(p, current == mode);
         wt_wraph(s_scr, storage_mode_note(mode), 330, py[i] - 10, 420, 87);
     }
-    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140,
+    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140,
                              storage_chooser_back_cb, NULL);
     lv_obj_set_ext_click_area(back, 10);
 }
@@ -474,7 +474,7 @@ static void type_open_cb(lv_event_t *e)
         wt_note(s_scr, type_note(sc), 68, ny[i], 664, 29);
     }
     lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, type_back_cb, NULL), 10);
+        wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, type_back_cb, NULL), 10);
 }
 
 // The stroke chooser takes over the screen and hands control back here.
@@ -978,7 +978,7 @@ void wallet_settings_open(lv_obj_t *parent)
         // flag's width used to come straight out of the name's. BACK keeps its
         // 140 -- the extra comes from the gap between them.
 #define LANG_PILL_W 170
-        s_lang_pill = mk_pillh(shortname, 430, 404, LANG_PILL_W, 44, lang_open_cb, NULL);
+        s_lang_pill = mk_pillh(shortname, 430, WT_ACTION_Y, LANG_PILL_W, 44, lang_open_cb, NULL);
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
@@ -990,7 +990,7 @@ void wallet_settings_open(lv_obj_t *parent)
         // into a 160x64 target without moving a pixel of what is drawn. Not
         // more than 10: the language pill's right edge is at x=600, and a
         // wider reach would start eating taps meant for it.
-        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 610, 404, 140, 44, close_cb, NULL);
+        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, 44, close_cb, NULL);
         lv_obj_set_ext_click_area(back, 10);
         lv_obj_t *row[2] = { s_lang_pill, back };
         wt_pill_row(row, 2);
