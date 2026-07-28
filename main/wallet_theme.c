@@ -245,6 +245,9 @@ void wt_pill_apply_fit(lv_obj_t *pill, wt_pill_fit_t f, int w)
         lv_obj_set_width(l, w - 28);
         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    } else {
+        lv_obj_set_width(l, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     }
     lv_obj_center(l);
 }
@@ -362,6 +365,39 @@ void wt_tap_feedback(lv_obj_t *p)
     lv_obj_set_style_outline_width(p, 0, LV_STATE_PRESSED);
     lv_obj_set_style_outline_opa(p, LV_OPA_70, LV_STATE_PRESSED);
     lv_obj_set_style_translate_y(p, 2, LV_STATE_PRESSED);
+}
+
+static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
+                            int x, int y, lv_color_t color,
+                            lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *chip = lv_obj_create(parent);
+    lv_obj_remove_style_all(chip);
+    lv_obj_set_size(chip, 30, 30);
+    lv_obj_set_pos(chip, x, y);
+    lv_obj_set_style_radius(chip, 15, 0);
+    lv_obj_set_style_bg_color(chip, WT_KEY, 0);
+    lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(chip, 1, 0);
+    lv_obj_set_style_border_color(chip, color, 0);
+    lv_obj_add_flag(chip, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_ext_click_area(chip, 12);       // 54px effective target
+    wt_tap_feedback(chip);
+    if (cb) lv_obj_add_event_cb(chip, cb, LV_EVENT_CLICKED, ud);
+
+    lv_obj_t *label = lv_label_create(chip);
+    lv_label_set_text(label, symbol);
+    lv_obj_set_style_text_color(label, color, 0);
+    lv_obj_set_style_text_font(label, wt_font14(), 0);
+    lv_obj_center(label);
+    return chip;
+}
+
+lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
+                       lv_event_cb_t cb, void *ud)
+{
+    return round_chip(parent, "?", x, y, color, cb, ud);
 }
 
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
@@ -679,7 +715,8 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     return l;
 }
 
-lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px)
+static lv_obj_t *qr_card_raw(lv_obj_t *scr, lv_obj_t **qr,
+                             int x, int y, int card_px, int qr_px)
 {
     lv_obj_t *card = lv_obj_create(scr);
     lv_obj_remove_style_all(card);
@@ -688,15 +725,155 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
     lv_obj_set_style_radius(card, 12, 0);
     lv_obj_set_style_bg_color(card, WT_CARD, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *q = lv_qrcode_create(card);
     if (q) {
         lv_qrcode_set_size(q, qr_px);
         lv_qrcode_set_dark_color(q, lv_color_hex(0x0B0E14));
         lv_qrcode_set_light_color(q, WT_CARD);
+        lv_obj_remove_flag(q, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_center(q);
     }
     if (qr) *qr = q;
     return card;
+}
+
+typedef struct {
+    lv_obj_t *card;
+    lv_obj_t *qr;
+    lv_obj_t *zoom;
+    lv_obj_t *zoom_qr;
+    uint8_t *data;
+    uint32_t data_len;
+    uint32_t data_cap;
+} wt_qr_state_t;
+
+// QR payloads are usually public, but the same component also renders the
+// private Silent Payments scan key. Keep the cache generic without weakening
+// key hygiene: volatile writes prevent the compiler from eliding the wipe.
+static void qr_payload_zero(void *data, uint32_t len)
+{
+    volatile uint8_t *p = data;
+    while (p && len--) *p++ = 0;
+}
+
+static void qr_payload_free(wt_qr_state_t *s)
+{
+    if (!s || !s->data) return;
+    qr_payload_zero(s->data, s->data_cap);
+    lv_free(s->data);
+    s->data = NULL;
+    s->data_len = 0;
+    s->data_cap = 0;
+}
+
+static void qr_zoom_close_cb(lv_event_t *e)
+{
+    wt_qr_state_t *s = lv_event_get_user_data(e);
+    if (!s || !s->zoom) return;
+    lv_obj_t *zoom = s->zoom;
+    s->zoom = NULL;
+    s->zoom_qr = NULL;
+    // Animated output updates only the enlarged QR while it is visible. Put
+    // the latest cached frame back on the underlying card before returning.
+    if (s->qr && s->data && s->data_len)
+        lv_qrcode_update(s->qr, s->data, s->data_len);
+    lv_obj_delete_async(zoom);
+}
+
+static void qr_zoom_open_cb(lv_event_t *e)
+{
+    wt_qr_state_t *s = lv_event_get_user_data(e);
+    if (!s || s->zoom || !s->data || !s->data_len) return;
+
+    lv_obj_t *parent = lv_obj_get_parent(s->card);
+    lv_obj_t *ovl = lv_obj_create(parent);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(ovl, WT_BG, 0);
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(ovl, qr_zoom_close_cb, LV_EVENT_CLICKED, s);
+    lv_obj_move_foreground(ovl);
+    s->zoom = ovl;
+
+    // 392px gives even a 117-character Silent Payment code materially larger
+    // modules while leaving a full white quiet zone and a visible close target.
+    lv_obj_t *zoom_card = qr_card_raw(ovl, &s->zoom_qr, 188, 28, 424, 392);
+    lv_obj_add_flag(zoom_card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(zoom_card, qr_zoom_close_cb, LV_EVENT_CLICKED, s);
+    if (s->zoom_qr)
+        lv_qrcode_update(s->zoom_qr, s->data, s->data_len);
+    round_chip(ovl, LV_SYMBOL_CLOSE, 748, 20, WT_MUT,
+               qr_zoom_close_cb, s);
+}
+
+static void qr_state_delete_cb(lv_event_t *e)
+{
+    wt_qr_state_t *s = lv_event_get_user_data(e);
+    if (!s) return;
+    qr_payload_free(s);
+    lv_free(s);
+}
+
+lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
+                     int x, int y, int card_px, int qr_px)
+{
+    lv_obj_t *q = NULL;
+    lv_obj_t *card = qr_card_raw(scr, &q, x, y, card_px, qr_px);
+    if (!q) {
+        if (qr) *qr = NULL;
+        return card;
+    }
+
+    wt_qr_state_t *s = lv_malloc_zeroed(sizeof *s);
+    if (!s) {
+        if (qr) *qr = q;
+        return card;                         // QR still works; only zoom is absent
+    }
+    s->card = card;
+    s->qr = q;
+    lv_obj_set_user_data(q, s);
+
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    wt_tap_feedback(card);
+    lv_obj_add_event_cb(card, qr_zoom_open_cb, LV_EVENT_CLICKED, s);
+    lv_obj_add_event_cb(card, qr_state_delete_cb, LV_EVENT_DELETE, s);
+    // Outside the white card, so the cue never damages the QR quiet zone.
+    round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
+               qr_zoom_open_cb, s);
+
+    if (qr) *qr = q;
+    return card;
+}
+
+lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len)
+{
+    if (!qr) return LV_RESULT_INVALID;
+    wt_qr_state_t *s = lv_obj_get_user_data(qr);
+    if (!s) return lv_qrcode_update(qr, data, data_len);
+
+    uint32_t old_len = s->data_len;
+    if (data_len > s->data_cap) {
+        uint32_t cap = (data_len + 127u) & ~127u;
+        // Do not use realloc here: if it moves the block, the allocator frees
+        // the old secret-bearing buffer before we have a chance to wipe it.
+        uint8_t *next = lv_malloc(cap);
+        if (!next) return lv_qrcode_update(qr, data, data_len);
+        qr_payload_free(s);
+        s->data = next;
+        s->data_cap = cap;
+        old_len = 0;
+    }
+    lv_memcpy(s->data, data, data_len);
+    if (old_len > data_len)
+        qr_payload_zero(s->data + data_len, old_len - data_len);
+    s->data_len = data_len;
+
+    // The underlying card is completely covered while zoomed. Updating just
+    // the visible QR avoids encoding every animated fragment twice.
+    return lv_qrcode_update(s->zoom_qr ? s->zoom_qr : qr, data, data_len);
 }
 
 // Only the TAIL is lit. The first characters of a bech32 address are the human
@@ -722,6 +899,8 @@ static lv_span_t *addr_span(lv_obj_t *sg, const char *txt, bool lit)
     lv_span_t *s = lv_spangroup_new_span(sg);
     lv_span_set_text(s, txt);
     lv_style_set_text_color(lv_span_get_style(s), lit ? wt_accent() : WT_MUT);
+    lv_style_set_text_decor(lv_span_get_style(s),
+                            lit ? LV_TEXT_DECOR_UNDERLINE : LV_TEXT_DECOR_NONE);
     return s;
 }
 
@@ -733,11 +912,13 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     if (n < 20)
         return wt_lbl(par, addr, 0, 0, f, WT_MUT);
 
-    // bech32 opens with a 4-character hrp + separator (bc1q / tb1q) that every
-    // address of that type shares, so it is skipped and the four AFTER it are
-    // lit. Base58 (legacy, nested) has no such constant, so nothing is skipped
-    // and its first four are the lit ones.
-    int pre = (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3)) ? 4 : 0;
+    // bech32 opens with a constant prefix through the first data character:
+    // bc1q/tb1q for SegWit and sp1q/tsp1q for silent payments. Skip it and
+    // light the four AFTER it. Base58 has no such constant, so its first four
+    // are the lit ones.
+    int pre = !strncmp(addr, "tsp1", 4) ? 5
+            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
+               !strncmp(addr, "sp1", 3)) ? 4 : 0;
     char head[8] = {0}, key[8] = {0}, mid[32] = {0}, last[8] = {0};
     lv_memcpy(head, addr, (size_t)pre);
     lv_memcpy(key, addr + pre, 4);
@@ -790,6 +971,7 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
     lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
+    lv_style_set_text_decor(lv_span_get_style(s2), LV_TEXT_DECOR_UNDERLINE);
     // The tail is the part you are actually asked to compare, so when the body
     // is too small to compare comfortably the tail renders one rung ABOVE it.
     // Blowing up the whole string instead would push the other outputs off a

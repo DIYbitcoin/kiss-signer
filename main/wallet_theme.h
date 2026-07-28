@@ -1,7 +1,8 @@
 // Shared wallet UI kit: the one house style every wallet screen builds from
 // (screen frame, pills, labels, QR card, text grouping) plus the switchable
 // accent the home art's theme dots promised. Compiled in both device and sim
-// builds; holds no LVGL state beyond the accent id.
+// builds; global state is limited to the accent id, while QR zoom state is
+// owned and freed by each card.
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
@@ -81,6 +82,11 @@ void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
 // the rows of the address list. Never scales anything — see the comment on the
 // implementation for why that matters.
 void wt_tap_feedback(lv_obj_t *obj);
+// One visual language for anonymous "?" affordances: a 30px circle with a
+// 54px effective hit target. `color` carries warning semantics when needed;
+// size, border and press feedback remain identical everywhere.
+lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
+                       lv_event_cb_t cb, void *ud);
 
 // pills (buttons). wt_pill = the standard 52px height.
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
@@ -138,8 +144,13 @@ lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);
 void      wt_note_fit(lv_obj_t *l, const char *txt, int w, int h);
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
-// white QR card; *qr receives the lv_qrcode (NULL if creation failed)
+// White QR card; *qr receives the lv_qrcode (NULL if creation failed). Every
+// card is tappable and has an external "+" cue; tapping opens a crisp,
+// re-encoded full-screen view rather than scaling the original bitmap.
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
+// Update a QR created by wt_qr_card. This caches the exact payload for zoom and
+// keeps animated QRs moving while enlarged. Use instead of lv_qrcode_update().
+lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len);
 
 // Explainer-card entrance: fade the dim backdrop in, then stagger the card's
 // direct children (title, body, OK) rising up and fading in with an ease-out

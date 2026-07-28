@@ -726,33 +726,17 @@ static void verify_screen(lv_obj_t *parent)
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
-    wt_note(s_scr, buf, 430, 364, 296, 29);   // 296: stops short of the chip at x=740
+    wt_note(s_scr, buf, 430, 364, 296, 29);   // stops short of the chip at x=738
     {   // This chip TRAILS its line at a fixed x while the caution chip above
         // LEADS its own. Not a style slip -- the two rows are 34px apart and
-        // each chip is 26-30px with a 12px extended click area, so stacking
+        // each chip is 30px with a 12px extended click area, so stacking
         // them at the same x would put one inside the other's hit box. Fixed
         // x, not "after the text", so a longer translation cannot walk it into
         // a neighbour. All five pairs (both chips, DETAILS, I UNDERSTAND) were
         // checked disjoint before these numbers were chosen.
-        int cx = 740;
-        lv_obj_t *hc = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(hc);
-        lv_obj_set_size(hc, 26, 26);
-        lv_obj_set_pos(hc, cx, 358);
-        lv_obj_set_style_radius(hc, 13, 0);
-        lv_obj_set_style_bg_color(hc, KEY_COL, 0);
-        lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(hc, 1, 0);
-        lv_obj_set_style_border_color(hc, MUT_COL, 0);
-        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(hc, 12);
-        wt_tap_feedback(hc);
-        lv_obj_add_event_cb(hc, rbf_help_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *hl = lv_label_create(hc);
-        lv_label_set_text(hl, "?");
-        lv_obj_set_style_text_color(hl, MUT_COL, 0);
-        lv_obj_set_style_text_font(hl, wt_font14(), 0);
-        lv_obj_center(hl);
+        // Centre stays (753,371), but the visible control now matches every
+        // other anonymous help chip and its effective target remains 54px.
+        wt_help_chip(s_scr, 738, 356, MUT_COL, rbf_help_cb, NULL);
     }
 
     if (s_sum.status == WPSBT_STOP) {
@@ -776,24 +760,8 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *r = mk_lbl(line, 468, 332, wt_font23(), WARN_COL);
         lv_obj_set_width(r, 300);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        lv_obj_t *hc = lv_obj_create(s_scr);   // "?" -> WHY FLAGGED card
-        lv_obj_remove_style_all(hc);
-        lv_obj_set_size(hc, 30, 30);
-        lv_obj_set_pos(hc, 430, 330);
-        lv_obj_set_style_radius(hc, 15, 0);
-        lv_obj_set_style_bg_color(hc, KEY_COL, 0);
-        lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(hc, 1, 0);
-        lv_obj_set_style_border_color(hc, WARN_COL, 0);
-        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(hc, 12);
-        wt_tap_feedback(hc);
-        lv_obj_add_event_cb(hc, caution_help_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *hl = lv_label_create(hc);
-        lv_label_set_text(hl, "?");
-        lv_obj_set_style_text_color(hl, WARN_COL, 0);
-        lv_obj_set_style_text_font(hl, wt_font14(), 0);
-        lv_obj_center(hl);
+        wt_help_chip(s_scr, 430, 330, WARN_COL,
+                     caution_help_cb, NULL);   // "?" -> WHY FLAGGED card
     }
 
     // ACTION_H: tall enough for a label to take a SECOND LINE at font23 rather
@@ -815,13 +783,13 @@ static void verify_screen(lv_obj_t *parent)
         if (s_sum.status == WPSBT_CAUTION && !s_ack) {
             // gate the hold pill behind a deliberate acknowledgement
             //
-            // x=398, not 500. The RBF "?" one line above ends its click box at
-            // y=396 and this row starts at 398: two pixels, which dispatches
-            // unambiguously but is nothing to a fingertip, and the miss fires
-            // an acknowledgement of a warning. The right column has no slack to
+            // x=398, not 500. The RBF "?" one line above now reaches the row's
+            // y=398 edge, so x separation carries the safety boundary instead
+            // of pretending two vertical pixels help a fingertip. The right
+            // column has no slack to
             // raise the chip into (297px of content between y=96 and y=393), so
             // the BUTTON moves out from under it instead -- 398..650 against
-            // the chip's 728..778 is disjoint in x, and the 2px stops mattering.
+            // the chip's 726..780 is disjoint in x.
             // HOLD TO SIGN stays at 480: it needs a sustained press, so a graze
             // costs nothing.
             lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 398, ACTION_Y,
@@ -1008,7 +976,7 @@ static void qr_tick(lv_timer_t *t)
     (void)t;
     char part[600];
     if (!s_qenc || qrt_encoder_next(s_qenc, part, sizeof part) != 0) return;
-    if (s_qr_img) lv_qrcode_update(s_qr_img, part, (uint32_t)strlen(part));
+    if (s_qr_img) wt_qr_update(s_qr_img, part, (uint32_t)strlen(part));
     int n = qrt_encoder_parts(s_qenc);
     if (s_part_lbl && n > 1) {
         s_part_i = s_part_i % n + 1;

@@ -50,11 +50,46 @@ static void help_ok_cb(lv_event_t *e)
     lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
-enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR };   // optional chip diagram under the body
+enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
 
-static void help_open_d(const char *title, const char *body, int diagram)
+static void sp_permission_fact(lv_obj_t *parent, int y, const char *icon,
+                               int key, lv_color_t icon_color)
 {
-    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_t *row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, 560, 38);
+    lv_obj_set_pos(row, 120, y);
+    lv_obj_set_style_radius(row, 12, 0);
+    lv_obj_set_style_bg_color(row, WT_KEY, 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(row, 1, 0);
+    lv_obj_set_style_border_color(row, WT_MUT, 0);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *ic = wt_lbl(row, icon, 16, 4, wt_font23(), icon_color);
+    lv_obj_set_width(ic, 30);
+    lv_obj_t *fact = wt_note(row, tr(key), 58, 4, 482, 29);
+    lv_obj_set_style_text_color(fact, WT_INK, 0);
+}
+
+// A private scan key is unusual enough that prose alone makes users hunt for
+// the actual permission boundary. These three rows are reused on the explainer
+// and the consent screen, and remain meaningful in MONO through shape + words.
+static void sp_permission_model(lv_obj_t *parent, int y)
+{
+    sp_permission_fact(parent, y,      LV_SYMBOL_EYE_OPEN,
+                       STR_R_SP_FACT_FIND, wt_accent());
+    sp_permission_fact(parent, y + 44, WT_ICON_LOCK,
+                       STR_R_SP_FACT_NO_SPEND, WT_OK);
+    sp_permission_fact(parent, y + 88, LV_SYMBOL_LOOP,
+                       STR_R_SP_FACT_FOREVER, WT_WARN);
+}
+
+static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
+                              const char *body, int diagram, bool fp_exit_hint)
+{
+    lv_obj_t *ovl = lv_obj_create(parent);
     lv_obj_remove_style_all(ovl);
     lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(ovl, WT_BG, 0);
@@ -63,26 +98,47 @@ static void help_open_d(const char *title, const char *body, int diagram)
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(ovl, help_ok_cb, LV_EVENT_CLICKED, ovl);  // tap anywhere = ok
 
+    bool scan_card = diagram == DIAG_SCAN;
     lv_obj_t *t = wt_lbl(ovl, title, 0, 0, wt_font28(), wt_accent());
     lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, scan_card ? 34 : 96);
 
     // body sizes itself: short copy reads big, a long translation stays inside
     // the card. Width-capped + wrapping, so the hard newlines written for the
     // small font can never run off the edge at the big one.
-    // body runs from y=160 to the diagram (y=320) or to the OK pill (y=392)
-    int bw = 720, bh = diagram == DIAG_NONE ? 225 : 155;
+    // Normal bodies run from y=160 to the diagram or OK pill. The scan-key
+    // body is deliberately short: the capability boundary is shown below it.
+    int bw = scan_card ? 700 : 720;
+    int bh = scan_card ? 145 : diagram == DIAG_NONE ? 225 : 155;
     lv_obj_t *b = wt_lbl(ovl, body, 0, 0, wt_body_font(body, bw, bh), WT_MUT);
     lv_obj_set_width(b, bw);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 160);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, scan_card ? 78 : 160);
 
     if (diagram == DIAG_FP)   wt_diagram_fp(ovl, 330);
     if (diagram == DIAG_PAIR) wt_diagram_pair(ovl, 330);
+    if (diagram == DIAG_SCAN) sp_permission_model(ovl, 230);
+
+    // The home card used to be the only place that taught the escape gesture.
+    // Keep that lesson when the two fingerprint cards become one.
+    if (diagram == DIAG_FP && fp_exit_hint) {
+        lv_obj_t *x = wt_lbl(ovl, tr(STR_H_EXIT_HINT), 0, 0,
+                             wt_body_font(tr(STR_H_EXIT_HINT), 700, 30), WT_MUT);
+        lv_obj_set_width(x, 700);
+        lv_label_set_long_mode(x, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(x, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(x, LV_ALIGN_TOP_MID, 0, 356);
+    }
 
     wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, help_ok_cb, ovl);
     wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
+    return ovl;
+}
+
+static lv_obj_t *help_open_d(const char *title, const char *body, int diagram)
+{
+    return help_open_on(s_scr, title, body, diagram, false);
 }
 
 static void help_open(const char *title, const char *body)
@@ -90,15 +146,28 @@ static void help_open(const char *title, const char *body)
     help_open_d(title, body, DIAG_NONE);
 }
 
+lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
+{
+    char title[64];
+    if (fingerprint && fingerprint[0])
+        snprintf(title, sizeof title, tr(STR_H_FP_CARD_FMT), fingerprint);
+    else
+        snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
+    return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
+                        fingerprint != NULL);
+}
+
 static void help_cb(lv_event_t *e)
 {
     const char *key = (const char *)lv_event_get_user_data(e);
     if (!strcmp(key, "fp"))
-        help_open_d(tr(STR_D_FINGERPRINT), tr(STR_I_H_FP_B), DIAG_FP);
+        wallet_info_fp_card_open(s_scr, NULL);
     else if (!strcmp(key, "type"))
         help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B));
     else if (!strcmp(key, "pair"))
         help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR);
+    else if (!strcmp(key, "scan"))
+        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN);
     else
         help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B));
 }
@@ -111,31 +180,13 @@ void wallet_info_sim_open_type_help(void)
 
 void wallet_info_sim_open_fp_help(void)
 {
-    if (s_scr) help_open_d(tr(STR_D_FINGERPRINT), tr(STR_I_H_FP_B), DIAG_FP);
+    if (s_scr) wallet_info_fp_card_open(s_scr, NULL);
 }
 #endif
 
 static lv_obj_t *mk_help_chip(int x, int y, const char *key)
 {
-    lv_obj_t *hc = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(hc);
-    lv_obj_set_size(hc, 30, 30);
-    lv_obj_set_pos(hc, x, y);
-    lv_obj_set_style_radius(hc, 15, 0);
-    lv_obj_set_style_bg_color(hc, WT_KEY, 0);
-    lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(hc, 1, 0);
-    lv_obj_set_style_border_color(hc, WT_MUT, 0);
-    lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(hc, 12);
-    wt_tap_feedback(hc);
-    lv_obj_add_event_cb(hc, help_cb, LV_EVENT_CLICKED, (void *)key);
-    lv_obj_t *hl = lv_label_create(hc);
-    lv_label_set_text(hl, "?");
-    lv_obj_set_style_text_color(hl, WT_MUT, 0);
-    lv_obj_set_style_text_font(hl, wt_font14(), 0);
-    lv_obj_center(hl);
-    return hc;
+    return wt_help_chip(s_scr, x, y, WT_MUT, help_cb, (void *)key);
 }
 
 // ---- PAIR COORDINATOR ----
@@ -147,7 +198,7 @@ static void pair_refresh(void)
     if (rc != 0)
         snprintf(txt, sizeof txt, "%s", tr(STR_C_SESSION_LOCKED));
     if (s_pair_qr)
-        lv_qrcode_update(s_pair_qr, txt, (uint32_t)strlen(txt));
+        wt_qr_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
                 360, 190);
     for (int i = 0; i < 2; i++) {
@@ -272,9 +323,9 @@ static void sp_key_back_cb(lv_event_t *e)
     info_screen();
 }
 
-static void sp_key_show_cb(lv_event_t *e)
+static void sp_key_show(void *ud)
 {
-    (void)e;
+    (void)ud;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
     lv_obj_t *qr = NULL;
@@ -284,7 +335,7 @@ static void sp_key_show_cb(lv_event_t *e)
     if (wallet_session_sp_scan_export(key, sizeof key) != 0)
         snprintf(key, sizeof key, "%s", tr(STR_C_SESSION_LOCKED));
     if (qr)
-        lv_qrcode_update(qr, key, (uint32_t)strlen(key));
+        wt_qr_update(qr, key, (uint32_t)strlen(key));
 
     // machine-import string: wrapped whole, not grouped like an address
     lv_obj_t *k = wt_lbl(s_scr, key, 400, 100, wt_font14(), WT_INK);
@@ -301,14 +352,19 @@ static void sp_key_warn_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_S));
-    lv_obj_t *wb = wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 108,
-                          wt_body_font(tr(STR_R_SP_WARN_B), 700, 280), WT_MUT);
+    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN),
+                      tr_sym(LV_SYMBOL_WARNING, STR_R_SP_WARN_S));
+    lv_obj_t *wb = wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 104,
+                          wt_body_font(tr(STR_R_SP_WARN_B), 700, 145), WT_MUT);
     lv_obj_set_width(wb, 700);
     lv_label_set_long_mode(wb, LV_LABEL_LONG_WRAP);
-    lv_obj_t *sp = wt_pill(s_scr, tr(STR_R_SP_SHOW), 48, 404, 300, sp_key_show_cb, NULL);
-    wt_pill_primary(sp);
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, sp_key_back_cb, NULL);
+    sp_permission_model(s_scr, 256);
+    // Revealing a reusable private scan key should not be one stray tap away.
+    // A short hold is deliberate without adding the friction of signing.
+    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, 398, 330, 66,
+                 900, sp_key_show, NULL);
+    wt_pillh(s_scr, tr(STR_C_BACK), 610, 398, 140, 66,
+             sp_key_back_cb, NULL);
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----
@@ -520,6 +576,9 @@ static void info_screen(void)
     lv_obj_t *skp = wt_pill_icon(s_scr, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN),
                                  430, 228, 340, 72, sp_key_warn_cb, NULL);
     wt_pill_two_line_val(skp, tr(STR_S_SP_BADGE));
+    // "Scan" elsewhere means the camera. Here it means searching the chain.
+    // Explain that distinction without putting the private key one tap closer.
+    mk_help_chip(728, 249, "scan");
     // 94, not 62: this sentence needs three lines at 23 and was silently
     // dropping to font14 beside a PAIR COORDINATOR note at 23 -- the smaller
     // type on the export that gives away the scan key. Nothing sits between
