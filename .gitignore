@@ -16,3 +16,8 @@ tools/fonts/node_modules/
 .DS_Store
 __pycache__/
 *.pyc
+
+# design handoff bundle: reference material unzipped into the repo root while
+# the review is being worked through. Never committed, the repo carries the
+# results rather than the brief.
+design_handoff_kiss_signer/
