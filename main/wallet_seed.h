@@ -10,13 +10,34 @@
 #define WSEED_MAX_WORDS     24   // BIP39 tops out here; callers clamp to it
 
 // ---- storage mode ----
-// KEEP:    the mnemonic lives in flash. Unlock is passphrase only.
+// KEEP:    the mnemonic lives in flash/NVS. Unlock is passphrase only.
 // AMNESIC: nothing is ever written. Every session is: load the seed (type the
 //          words or scan a QR you made elsewhere), passphrase, sign, power off.
 //          RAM is the only copy, so wallet_session_close() takes it with it and
 //          a device that crosses a border holds no wallet bytes at all.
+// SD:      the mnemonic is a sealed file on the card. Its device key lives in
+//          encrypted NVS, so the card and this signer are both required.
 #define WSEED_MODE_KEEP    0
 #define WSEED_MODE_AMNESIC 1
+#define WSEED_MODE_SD      2
+#define WSEED_MODE_INVALID (-1)  // corrupt/unreadable metadata; never factory-fresh
+
+// Public storage results. Existing callers may continue treating any nonzero
+// value as failure; Settings uses the distinct values to say what is actionable.
+#define WSEED_OK                  0
+#define WSEED_ERR_INVALID        -1
+#define WSEED_ERR_NO_SEED        -2
+#define WSEED_ERR_SD_UNSUPPORTED -3
+#define WSEED_ERR_SD_MISSING     -4
+#define WSEED_ERR_SD_IO          -5
+#define WSEED_ERR_SD_CORRUPT     -6
+#define WSEED_ERR_VERIFY         -7
+#define WSEED_ERR_CLEANUP        -8
+#define WSEED_ERR_ROLLBACK       -9
+
+// Host/simulator: always true. Device: true only when flash encryption is
+// active in eFuse AND this firmware was compiled with NVS encryption.
+int wallet_seed_sd_supported(void);
 
 // The staged choice if setup is mid-flight, otherwise what flash holds.
 int  wallet_seed_mode(void);
@@ -25,13 +46,21 @@ int  wallet_seed_mode(void);
 // Not for the setup wizard: see wallet_seed_stage_mode.
 // Returns 0 only after the write/erase has been verified.
 int wallet_seed_set_mode(int mode);
+// Migrate an existing wallet. The destination is written, read back, validated
+// and byte-compared before the source is removed. AMNESIC remains in RAM until
+// wallet_session_close(). WSEED_ERR_CLEANUP means the verified destination is
+// active but an old-source artifact could not be removed. WSEED_ERR_ROLLBACK
+// means the original source is still active but an uncommitted destination
+// artifact could not be removed.
+int wallet_seed_move_to(int mode);
 // The wizard's version: remember the answer, touch nothing. The wizard asks
 // KEEP vs NOTHING SAVED before the new wallet exists, so applying it there
 // would erase a wallet the user might still back out and keep.
 // wallet_seed_commit applies it; wallet_seed_discard forgets it.
 void wallet_seed_stage_mode(int mode);
 
-// 1 if a seed is stored on this device.
+// 1 if a wallet is configured. In SD mode this intentionally stays 1 while the
+// card is absent/corrupt, so boot cannot mistake it for a factory-fresh device.
 int wallet_seed_exists(void);
 
 // Validate (BIP39 checksum, wordlist) and persist. 0 on success.
@@ -93,3 +122,10 @@ int wallet_seed_word(int index, const char **out);
 // A different word count counts as a mismatch at the first missing/extra word.
 // Reveals only the position, never the correct word.
 int wallet_seed_diff_word(const char *typed, const char *stored);
+
+#ifndef ESP_PLATFORM
+// Host-only persistence fault seam used by transition tests.
+#define WSEED_TEST_FAIL_MODE_WRITE  (1u << 0)
+#define WSEED_TEST_FAIL_SEED_REMOVE (1u << 1)
+void wallet_seed_test_fail_next(unsigned flags);
+#endif

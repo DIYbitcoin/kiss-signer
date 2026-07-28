@@ -9,8 +9,8 @@
 //
 // State is keyed per wallet (master fingerprint) + network + script type, so a
 // different passphrase-wallet, network, or address type keeps its own count.
-// Device persists in a dedicated NVS namespace ("kissu"); host builds keep it
-// in RAM (enough for the sim walk and the desktop tests).
+// Device persists in a dedicated NVS namespace ("kissu") except in AMNESIC
+// mode, where identifying fingerprint/index metadata stays in session RAM.
 #pragma once
 #include <stdint.h>
 
@@ -23,3 +23,8 @@ void wallet_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t id
 
 // Forget everything (seed wipe, or test reset).
 void wallet_usage_wipe(void);
+
+// Session lifecycle hooks. Moving an AMNESIC wallet to persistent storage may
+// promote its RAM high-water marks; locking always clears the RAM table.
+void wallet_usage_persist_session(void);
+void wallet_usage_forget_session(void);

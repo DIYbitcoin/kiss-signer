@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "platform_sd.h"
 #include "wallet_seed.h"
 #include "wallet_seed_sd.h"
 
@@ -17,6 +18,8 @@
 #define SD_WORDS24 "legal winner thank year wave sausage worth useful legal " \
                    "winner thank yellow legal winner thank year wave sausage " \
                    "worth useful legal winner thank yellow"
+#define SD_WORDS_ALT "legal winner thank year wave sausage worth useful legal " \
+                     "winner thank yellow"
 
 static int dfails;
 
@@ -29,6 +32,14 @@ static int all_zero(const void *p, size_t n) {
     const uint8_t *b = p;
     for (size_t i = 0; i < n; i++) if (b[i]) return 0;
     return 1;
+}
+
+static int seed_loads_as(const char *want) {
+    char got[WSEED_MAX_MNEMONIC];
+    int ok = wallet_seed_load(got, sizeof got) == WSEED_OK &&
+             strcmp(got, want) == 0;
+    memset(got, 0, sizeof got);
+    return ok;
 }
 
 int test_sdseed_layer(void) {
@@ -170,6 +181,233 @@ int test_sdseed_layer(void) {
              sd_seed_seal(key, SD_WORDS, small, sizeof small, &n) != 0);
         dchk("a refused seal reports no length", n == 0);
     }
+
+    // ---- integrated storage modes ---------------------------------------
+    // All six directed transitions. The host SD seam is fault-injectable so
+    // destination-first behavior is tested rather than inferred from comments.
+    platform_sd_test_set_present(1);
+    platform_sd_test_fail_next(0);
+    wallet_seed_test_fail_next(0);
+    dchk("storage: host enables SD mode", wallet_seed_sd_supported() == 1);
+    dchk("storage: clean slate", wallet_seed_wipe() == WSEED_OK);
+    dchk("storage: start in KEEP", wallet_seed_store(SD_WORDS) == WSEED_OK);
+
+    uint8_t move_key[32], same_key[32];
+    dchk("storage: pre-create device key", sd_seed_device_key(move_key) == 0);
+
+    // Failure before destination commit: source/mode stay KEEP.
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
+    dchk("storage: injected SD write fails",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_ERR_SD_IO);
+    dchk("storage: failed write leaves KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
+    dchk("storage: failed write preserves words", seed_loads_as(SD_WORDS));
+
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_RENAME);
+    dchk("storage: injected atomic rename fails",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_ERR_SD_IO);
+    dchk("storage: failed rename leaves KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
+    dchk("storage: failed rename preserves words", seed_loads_as(SD_WORDS));
+
+    platform_sd_test_set_present(0);
+    dchk("storage: absent card is distinct",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_ERR_SD_MISSING);
+    dchk("storage: absent card leaves KEEP words", seed_loads_as(SD_WORDS));
+    platform_sd_test_set_present(1);
+
+    // A metadata failure before publish rolls the verified card back. If mode
+    // SD did publish but old-flash cleanup failed, CLEANUP means card is active.
+    wallet_seed_test_fail_next(WSEED_TEST_FAIL_MODE_WRITE);
+    dchk("storage: SD publish-mode failure is reported",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_ERR_SD_IO);
+    dchk("storage: publish-mode failure leaves KEEP source",
+         wallet_seed_mode() == WSEED_MODE_KEEP && seed_loads_as(SD_WORDS));
+    dchk("storage: uncommitted card rolled back",
+         platform_sd_read(SDSEED_FILENAME, blob2, sizeof blob2, &len2) != 0);
+
+    wallet_seed_test_fail_next(WSEED_TEST_FAIL_SEED_REMOVE);
+    dchk("storage: post-publish cleanup failure is explicit",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_ERR_CLEANUP);
+    dchk("storage: cleanup failure keeps authoritative SD",
+         wallet_seed_mode() == WSEED_MODE_SD && seed_loads_as(SD_WORDS));
+    dchk("storage: cleanup state can move safely back to KEEP",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_OK);
+
+    // Setup commit uses the same publish contract. CLEANUP after mode SD is
+    // active must retain the card, and replacing SD -> SD needs no mode publish.
+    wallet_seed_stage_mode(WSEED_MODE_SD);
+    dchk("storage: stage SD setup replacement",
+         wallet_seed_stage(SD_WORDS_ALT) == WSEED_OK);
+    wallet_seed_test_fail_next(WSEED_TEST_FAIL_SEED_REMOVE);
+    dchk("storage: SD setup post-publish cleanup is explicit",
+         wallet_seed_commit() == WSEED_ERR_CLEANUP);
+    dchk("storage: cleanup setup committed SD words",
+         wallet_seed_mode() == WSEED_MODE_SD && seed_loads_as(SD_WORDS_ALT));
+    wallet_seed_stage_mode(WSEED_MODE_SD);
+    dchk("storage: stage SD -> SD replacement",
+         wallet_seed_stage(SD_WORDS) == WSEED_OK);
+    dchk("storage: SD -> SD replacement commits",
+         wallet_seed_commit() == WSEED_OK);
+    dchk("storage: SD -> SD replacement words", seed_loads_as(SD_WORDS));
+    dchk("storage: return replacement fixture to KEEP",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_OK);
+
+    // KEEP -> SD: encrypted destination verifies before one metadata publish.
+    dchk("storage: capture key before KEEP -> SD",
+         sd_seed_device_key(move_key) == 0);
+    dchk("storage: KEEP -> SD", wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    dchk("storage: mode reads SD", wallet_seed_mode() == WSEED_MODE_SD);
+    dchk("storage: SD words round-trip", seed_loads_as(SD_WORDS));
+    dchk("storage: dkey survives KEEP -> SD",
+         sd_seed_device_key(same_key) == 0 &&
+         memcmp(move_key, same_key, sizeof move_key) == 0);
+
+    // Missing/corrupt second factor is not factory-fresh and never falls back
+    // to stale NVS words.
+    platform_sd_test_set_present(0);
+    memset(got, 'x', sizeof got);
+    dchk("storage: configured SD still exists without card",
+         wallet_seed_exists() == 1);
+    dchk("storage: SD load reports missing card",
+         wallet_seed_load(got, sizeof got) == WSEED_ERR_SD_MISSING);
+    dchk("storage: missing-card load clears output", all_zero(got, sizeof got));
+    dchk("storage: missing card cannot move to KEEP",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_ERR_SD_MISSING);
+    dchk("storage: missing card leaves mode SD", wallet_seed_mode() == WSEED_MODE_SD);
+    platform_sd_test_set_present(1);
+
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_READ);
+    dchk("storage: injected SD read is distinct",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_ERR_SD_IO);
+    dchk("storage: failed read leaves SD", wallet_seed_mode() == WSEED_MODE_SD);
+
+    wallet_seed_test_fail_next(WSEED_TEST_FAIL_MODE_WRITE);
+    dchk("storage: SD -> KEEP mode-write failure rolls back",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_ERR_SD_IO);
+    dchk("storage: rolled-back KEEP move leaves SD usable",
+         wallet_seed_mode() == WSEED_MODE_SD && seed_loads_as(SD_WORDS));
+
+    wallet_seed_test_fail_next(WSEED_TEST_FAIL_MODE_WRITE |
+                               WSEED_TEST_FAIL_SEED_REMOVE);
+    dchk("storage: failed KEEP rollback is explicit cleanup",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_ERR_CLEANUP);
+    dchk("storage: cleanup result has KEEP destination active",
+         wallet_seed_mode() == WSEED_MODE_KEEP && seed_loads_as(SD_WORDS));
+
+    // A no-op retry is safe after the destination committed with cleanup.
+    dchk("storage: KEEP retry after cleanup", wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_OK);
+    dchk("storage: KEEP words after SD move", seed_loads_as(SD_WORDS));
+    dchk("storage: SD file removed after KEEP",
+         platform_sd_read(SDSEED_FILENAME, blob2, sizeof blob2, &len2) != 0);
+
+    // A cleanup failure is explicit, but the verified destination is active.
+    dchk("storage: KEEP -> SD again", wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_DELETE);
+    dchk("storage: SD -> KEEP reports cleanup failure",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_ERR_CLEANUP);
+    dchk("storage: cleanup failure still commits KEEP",
+         wallet_seed_mode() == WSEED_MODE_KEEP && seed_loads_as(SD_WORDS));
+    platform_sd_test_fail_next(0);
+    dchk("storage: remove injected leftover",
+         platform_sd_delete(SDSEED_FILENAME) == 0);
+
+    // KEEP -> AMNESIC -> KEEP. The destination is RAM until lock.
+    dchk("storage: KEEP -> AMNESIC",
+         wallet_seed_move_to(WSEED_MODE_AMNESIC) == WSEED_OK);
+    dchk("storage: AMNESIC mode active",
+         wallet_seed_mode() == WSEED_MODE_AMNESIC && seed_loads_as(SD_WORDS));
+    wallet_seed_forget();
+    dchk("storage: AMNESIC forget clears RAM",
+         wallet_seed_exists() == 0 &&
+         wallet_seed_load(got, sizeof got) == WSEED_ERR_NO_SEED);
+    dchk("storage: stage AMNESIC words", wallet_seed_stage(SD_WORDS_ALT) == WSEED_OK);
+    dchk("storage: AMNESIC -> KEEP",
+         wallet_seed_move_to(WSEED_MODE_KEEP) == WSEED_OK);
+    dchk("storage: AMNESIC -> KEEP words", seed_loads_as(SD_WORDS_ALT));
+
+    // SD -> AMNESIC -> SD completes the other two directed transitions.
+    dchk("storage: KEEP -> SD for amnesic path",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    dchk("storage: SD -> AMNESIC",
+         wallet_seed_move_to(WSEED_MODE_AMNESIC) == WSEED_OK);
+    dchk("storage: SD -> AMNESIC words remain in RAM", seed_loads_as(SD_WORDS_ALT));
+    wallet_seed_forget();
+    dchk("storage: stage for AMNESIC -> SD", wallet_seed_stage(SD_WORDS) == WSEED_OK);
+    dchk("storage: AMNESIC -> SD",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    dchk("storage: AMNESIC -> SD words", seed_loads_as(SD_WORDS));
+
+    // WIPE is complete once the only device key is destroyed, even if deleting
+    // the now-useless ciphertext fails. Prove that first with a present card.
+    size_t old_blob_len = 0;
+    uint8_t old_blob[SDSEED_MAX_BLOB], old_key[32], new_key[32];
+    dchk("storage: capture card before delete-failure wipe",
+         platform_sd_read(SDSEED_FILENAME, old_blob, sizeof old_blob,
+                          &old_blob_len) == 0 &&
+         sd_seed_device_key(old_key) == 0);
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_DELETE);
+    dchk("storage: wipe succeeds when card delete fails",
+         wallet_seed_wipe() == WSEED_OK);
+    dchk("storage: delete-failure wipe resets to empty KEEP",
+         wallet_seed_mode() == WSEED_MODE_KEEP && wallet_seed_exists() == 0);
+    dchk("storage: delete-failure wipe rotates device key",
+         sd_seed_device_key(new_key) == 0 &&
+         memcmp(old_key, new_key, sizeof old_key) != 0);
+    memset(got, 'x', sizeof got);
+    dchk("storage: leftover card cannot decrypt after wipe",
+         sd_seed_open(new_key, old_blob, old_blob_len, got, sizeof got) != 0);
+    dchk("storage: delete leftover after wipe test",
+         platform_sd_delete(SDSEED_FILENAME) == 0);
+
+    // A card elsewhere cannot be deleted either. Reinsert its captured blob
+    // under the newly generated key: authentication must still fail.
+    dchk("storage: restore KEEP for absent-card wipe",
+         wallet_seed_store(SD_WORDS) == WSEED_OK);
+    dchk("storage: restore SD for absent-card wipe",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    dchk("storage: capture card before absent-card wipe",
+         platform_sd_read(SDSEED_FILENAME, old_blob, sizeof old_blob,
+                          &old_blob_len) == 0 &&
+         sd_seed_device_key(old_key) == 0);
+    platform_sd_test_set_present(0);
+    dchk("storage: wipe succeeds with card absent", wallet_seed_wipe() == WSEED_OK);
+    dchk("storage: wipe resets to empty KEEP",
+         wallet_seed_mode() == WSEED_MODE_KEEP && wallet_seed_exists() == 0);
+    platform_sd_test_set_present(1);
+    dchk("storage: wipe generated key is different",
+         sd_seed_device_key(new_key) == 0 &&
+         memcmp(old_key, new_key, sizeof old_key) != 0);
+    memset(got, 'x', sizeof got);
+    dchk("storage: absent card copy no longer decrypts",
+         sd_seed_open(new_key, old_blob, old_blob_len, got, sizeof got) != 0);
+    dchk("storage: unreadable old card leaks no words", all_zero(got, sizeof got));
+    dchk("storage: delete reinserted invalidated card",
+         platform_sd_delete(SDSEED_FILENAME) == 0);
+
+    // Authenticated corruption is distinct from absence and still cannot make
+    // an SD-configured signer look factory fresh.
+    dchk("storage: restore KEEP for corruption test",
+         wallet_seed_store(SD_WORDS) == WSEED_OK);
+    dchk("storage: move corruption fixture to SD",
+         wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
+    static const uint8_t junk[] = { 'n', 'o', 't', '-', 'a', '-', 's', 'e', 'e', 'd' };
+    dchk("storage: overwrite card with authenticated-invalid bytes",
+         platform_sd_write_atomic(SDSEED_FILENAME, junk, sizeof junk) == 0);
+    memset(got, 'x', sizeof got);
+    dchk("storage: corrupt card is distinct",
+         wallet_seed_load(got, sizeof got) == WSEED_ERR_SD_CORRUPT);
+    dchk("storage: corrupt card still counts configured",
+         wallet_seed_exists() == 1);
+    dchk("storage: corrupt-card load clears output", all_zero(got, sizeof got));
+
+    // Leave the suite's canonical development mnemonic in KEEP.
+    dchk("storage: final wipe", wallet_seed_wipe() == WSEED_OK);
+    dchk("storage: restore dev words for suite",
+         wallet_seed_store(SD_WORDS) == WSEED_OK);
+    memset(move_key, 0, sizeof move_key);
+    memset(same_key, 0, sizeof same_key);
+    memset(old_blob, 0, sizeof old_blob);
+    memset(old_key, 0, sizeof old_key);
+    memset(new_key, 0, sizeof new_key);
 
     return dfails;
 }
