@@ -63,7 +63,7 @@
 :root {
   color-scheme: dark;
 
-  /* Reconciled with main/wallet_theme.h — every value here is a WT_* token.
+  /* Reconciled with main/wallet_theme.h, every value here is a WT_* token.
      Do not add colours that the firmware does not have. */
   --bg: #070a10;        /* WT_BG   */
   --ink: #e8eef7;       /* WT_INK  */
@@ -72,11 +72,6 @@
   --green: #35d07f;     /* WT_OK   */
   --amber: #f2b84b;     /* WT_WARN */
   --red: #ff4d5e;       /* WT_STOP */
-
-  /* Legacy alias: guide.html's inline <style> block still references --cyan.
-     Repointed to ink rather than deleted, so links there stay in-palette
-     until that block is updated (see APPLY.md). */
-  --cyan: #e8eef7;
 
   /* surfaces */
   --panel: #0b0e14;

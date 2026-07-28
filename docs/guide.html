@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#050607">
+    <meta name="theme-color" content="#070a10">
     <meta
       name="description"
       content="KISS Signer documentation: verify releases, flash, build from source, flash encryption, first boot."
@@ -12,9 +12,9 @@
     <link rel="stylesheet" href="styles.css">
     <style>
       .doc-card {
-        border: 1px solid rgba(255, 255, 255, 0.13);
-        border-radius: 8px;
-        background: rgba(9, 13, 13, 0.9);
+        border: 1px solid #1e2531;
+        border-radius: 12px;
+        background: #0b0e14;
         padding: 22px;
         margin-top: 16px;
       }
@@ -35,23 +35,23 @@
         color: var(--ink);
       }
       .doc-card a {
-        color: var(--cyan);
+        color: var(--ink);
       }
       code {
-        font-family: "SFMono-Regular", Consolas, monospace;
+        font-family: var(--mono);
         font-size: 0.88em;
-        background: rgba(255, 255, 255, 0.07);
+        background: #10141d;
         border-radius: 4px;
         padding: 1px 5px;
         overflow-wrap: anywhere;
       }
       pre {
-        border: 1px solid rgba(255, 255, 255, 0.13);
-        border-radius: 8px;
-        background: rgba(0, 0, 0, 0.45);
+        border: 1px solid #1e2531;
+        border-radius: 12px;
+        background: #070a10;
         padding: 14px 16px;
         overflow-x: auto;
-        font-family: "SFMono-Regular", Consolas, monospace;
+        font-family: var(--mono);
         font-size: 0.84rem;
         line-height: 1.55;
         color: var(--ink);
@@ -63,13 +63,13 @@
       }
       .fp {
         color: var(--green);
-        font-family: "SFMono-Regular", Consolas, monospace;
+        font-family: var(--mono);
         overflow-wrap: anywhere;
       }
       .danger {
-        border: 1px solid rgba(255, 93, 108, 0.45);
-        border-radius: 8px;
-        background: rgba(255, 93, 108, 0.06);
+        border: 1px solid rgba(255, 77, 94, 0.45);
+        border-radius: 12px;
+        background: rgba(255, 77, 94, 0.06);
         padding: 14px 16px;
         margin: 14px 0;
       }
@@ -78,9 +78,9 @@
         color: var(--red);
       }
       .note {
-        border: 1px solid rgba(255, 203, 87, 0.4);
-        border-radius: 8px;
-        background: rgba(255, 203, 87, 0.06);
+        border: 1px solid rgba(242, 184, 75, 0.4);
+        border-radius: 12px;
+        background: rgba(242, 184, 75, 0.06);
         padding: 14px 16px;
         margin: 14px 0;
         color: var(--amber);
@@ -98,8 +98,8 @@
       .shot-wide img {
         width: 100%;
         display: block;
-        border: 1px solid rgba(255, 255, 255, 0.13);
-        border-radius: 8px;
+        border: 1px solid #1e2531;
+        border-radius: 12px;
       }
       .shots figcaption {
         margin-top: 6px;
@@ -115,9 +115,9 @@
       .first-run figure {
         margin: 0;
         padding: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.13);
-        border-radius: 8px;
-        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid #1e2531;
+        border-radius: 12px;
+        background: #0a0e15;
       }
       .first-run figure:last-child {
         grid-column: 1 / -1;
@@ -134,7 +134,7 @@
       }
       .first-run b {
         color: var(--green);
-        font-family: "SFMono-Regular", Consolas, monospace;
+        font-family: var(--mono);
         margin-right: 6px;
       }
       .toc {
@@ -144,14 +144,14 @@
         margin-top: 22px;
       }
       .toc a {
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid #1e2531;
         border-radius: 999px;
         padding: 6px 12px;
         color: var(--ink);
-        font-family: "SFMono-Regular", Consolas, monospace;
+        font-family: var(--mono);
         font-size: 0.78rem;
         text-decoration: none;
-        background: rgba(0, 0, 0, 0.38);
+        background: #0a0e15;
       }
       .toc a:hover {
         border-color: var(--green);
@@ -161,8 +161,8 @@
         display: block;
         width: fit-content;
         margin-bottom: 18px;
-        color: var(--cyan);
-        font-family: "SFMono-Regular", Consolas, monospace;
+        color: var(--ink);
+        font-family: var(--mono);
         font-size: 0.82rem;
         text-decoration: none;
       }
@@ -193,6 +193,7 @@
           <a href="#source">build from source</a>
           <a href="#encryption">flash encryption</a>
           <a href="#firstboot">first boot</a>
+          <a href="#storage">where the words live</a>
           <a href="#simulator">simulator</a>
           <a href="#release">cutting a release</a>
           <a href="#hardware">hardware</a>
@@ -201,7 +202,7 @@
 
       <section class="doc-card reveal" id="verify">
         <p class="eyebrow">01 / trust, then flash</p>
-        <h2>Verify the release</h2>
+        <h2>Check the download before you trust it</h2>
         <p>
           For the beta, release artifacts live on the GitHub Releases tab: the
           merged firmware image
@@ -237,9 +238,9 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 
       <section class="doc-card reveal" id="esptool">
         <p class="eyebrow">02 / command-line flash</p>
-        <h2>Flash the signed binary with esptool</h2>
+        <h2>Flash it from the command line</h2>
         <p>
-          macOS / Linux / WSL / Git Bash &mdash; on plain Windows, put the
+          macOS / Linux / WSL / Git Bash. On plain Windows, put the
           <code>esptool</code> command on one line without the <code>\</code>
           continuations:
         </p>
@@ -251,7 +252,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
   0 kiss-signer-&lt;version&gt;.bin</code></pre>
         <p class="power-note">
-          Then unplug the board, wait about 3 seconds, and plug it back in. The board
+          Then unplug the device, wait about 3 seconds, and plug it back in. The device
           only starts new firmware from a real power-on; a black screen means you
           skipped this.
         </p>
@@ -263,7 +264,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
       <section class="doc-card reveal" id="source">
         <p class="eyebrow">03 / strongest verification</p>
-        <h2>Build from source</h2>
+        <h2>Build it yourself and compare hashes</h2>
         <p>
           Only requirement is <a href="https://docs.docker.com/get-docker/">Docker</a>;
           the ESP-IDF v6.0.1 toolchain runs inside the container. Builds are
@@ -290,7 +291,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
       <section class="doc-card reveal" id="encryption">
         <p class="eyebrow">04 / read twice, flash once</p>
-        <h2>Flash encryption (final-board build)</h2>
+        <h2>Flash encryption, the final signer build</h2>
         <p>
           <code>tools/build_encrypted_release.sh</code> builds the hardened profile:
           flash encryption in <strong>release mode</strong> plus
@@ -309,17 +310,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <ul>
             <li>The first boot <strong>burns eFuses. No undo.</strong></li>
             <li>
-              After that boot the board can <strong>never be reflashed</strong>: no
+              After that boot the device can <strong>never be reflashed</strong>: no
               serial, no web installer, no OTA. The firmware is frozen forever,
               which also locks out evil-maid reflashing. That is the point.
             </li>
             <li>
               First boot encrypts ~6 MB in place and can sit on a black screen for
               minutes. <strong>Do not unplug</strong> until the game menu appears;
-              losing power mid-encryption can brick the board.
+              losing power mid-encryption can brick the device.
             </li>
             <li>
-              Fresh board you intend as your final signer only. Test the normal
+              Fresh device you intend as your final signer only. Test the normal
               release on it first.
             </li>
           </ul>
@@ -344,7 +345,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
       <section class="doc-card reveal" id="firstboot">
         <p class="eyebrow">05 / hand it to anyone</p>
-        <h2>First boot</h2>
+        <h2>Getting in the first time</h2>
         <ol>
           <li>You get a fruit game. It really plays. Hand it to anyone.</li>
           <li>
@@ -384,14 +385,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li>
             Pair a coordinator: <strong>Wallet &rarr; PAIR COORDINATOR</strong>,
             pick DESKTOP (Sparrow, descriptor) or MOBILE (BlueWallet, zpub).
-            The app watches and broadcasts — it cannot sign by itself; the
+            The app watches and broadcasts. It cannot sign by itself, and the
             device verifies and signs PSBTs via camera QR or <code>.psbt</code>
-            on SD card. BlueWallet calls the import &ldquo;watch-only&rdquo; —
+            on SD card. BlueWallet calls the import &ldquo;watch-only&rdquo;,
             that is expected and correct.
           </li>
           <li>
-            First time? Do a practice run — send a tiny amount in and back
-            out — before trusting the setup with real coins.
+            First time? Do a practice run before trusting the setup with real
+            coins: send a tiny amount in, then back out again.
           </li>
         </ol>
         <h3>Your first TESTNET round trip</h3>
@@ -452,20 +453,24 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
         <p>
           KISS re-derives the whole transaction on its own screen and speaks up,
-          in plain words, before you sign &mdash; always a soft <strong>CAUTION</strong>
+          in plain words, before you sign, always a soft <strong>CAUTION</strong>
           you acknowledge, never a silent surprise:
         </p>
         <ul>
-          <li><strong>High fee</strong> &mdash; the fee turns amber if it is a big
+          <li><strong>High fee.</strong> The fee turns amber if it is a big
             share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
-          <li><strong>Dust / privacy</strong> &mdash; spending a tiny coin or
+          <li><strong>Dust and privacy.</strong> Spending a tiny coin or
             leaving tiny change is flagged, because both can be used to link and
             track your addresses; change below the network dust limit is flagged
             louder.</li>
-          <li><strong>Reused address</strong> &mdash; Receive lands on a fresh
-            address and warns if you page back to one already used, with a
-            <strong>FRESH</strong> shortcut.</li>
         </ul>
+        <p>
+          Address reuse works differently, because it has to. KISS never sees
+          the chain, so it cannot know which of your addresses were actually
+          paid. Rather than guess, <strong>RECEIVE</strong> hands out a fresh
+          address each time and keeps a standing reminder to use a new one per
+          payment.
+        </p>
         <p>
           Several cautions stack into one summary; a <strong>?</strong> opens a
           <em>WHY FLAGGED</em> card explaining each and the fix (freeze or label
@@ -476,7 +481,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
         <p>
           Learn as you go: tap the <strong>?</strong> beside any unfamiliar term
-          (RBF, fingerprint, coordinator, dust) for a short card &mdash; some carry
+          (RBF, fingerprint, coordinator, dust) for a short card. Some carry
           a small diagram, like <code>WORDS + PASSPHRASE &rarr; FINGERPRINT</code>.
           Tapping the home fingerprint explains what that code is. On the signed-QR
           screen, <strong>EASY SCAN</strong> slows the loop and enlarges the dots
@@ -484,15 +489,74 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           straight back to the game.)
         </p>
         <p>
-          Settings shows exactly what is on the board, bottom-left:
+          Settings shows exactly what is on the device, bottom-left:
           <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus an honest note
           while flash encryption is off.
         </p>
       </section>
 
+      <section class="doc-card reveal" id="storage">
+        <p class="eyebrow">06 / where the words live</p>
+        <h2>Where your recovery words live</h2>
+        <p>
+          Setup asks this once, and Settings can change it later. All three
+          modes are offered on every build. What differs between them is what an
+          attacker gets from the thing they physically took.
+        </p>
+        <p>
+          In every mode your <strong>passphrase is never stored</strong>. It is
+          typed fresh each unlock, and it is what guards the wallet that holds
+          your coins. Recovery words on their own derive the base wallet, not
+          your passphrase wallet.
+        </p>
+
+        <h3>FLASH</h3>
+        <p>
+          The words stay on the device and it unlocks on its own. On the normal
+          beta they are written <strong>in the clear</strong>, so someone with
+          the device and the right equipment can read them out of the chip. On a
+          flash-encrypted build the same mode stores them encrypted. The device
+          tells you which of the two you are on: the note under FLASH is chosen
+          from the real eFuse state, not from the build's intentions.
+        </p>
+
+        <h3>SD CARD</h3>
+        <p>
+          The words live on the card as a sealed file that only this device can
+          open, so the card on its own is inert. Insert it before unlocking. The
+          split is the point: a lost card gives up nothing, and the device on
+          its own holds no copy of the card's contents.
+        </p>
+        <p>
+          The gap this leaves is someone holding <em>both</em> the device and
+          the card. Closing it is what flash encryption adds, by protecting the
+          device key at rest. Until then, SD is still the stronger of the two
+          persistent modes, because FLASH on an unencrypted build stores the
+          words in the clear.
+        </p>
+
+        <h3>AMNESIC</h3>
+        <p>
+          Nothing is written anywhere. The words live in RAM for the session and
+          are gone on lock or power off, so you load them again every time, by
+          typing or by SeedQR. A device taken while locked holds nothing to
+          find. This is the mode to use for anything that matters on beta
+          firmware.
+        </p>
+
+        <div class="note">
+          Changing mode is deliberate and destructive at the old location. KISS
+          writes the new copy, verifies it, and only then removes the old one.
+          Moving a loaded amnesic session to a persistent mode works while it is
+          still unlocked; lock it first and there is nothing left in RAM to
+          migrate, so KISS asks you to load the wallet again rather than claim
+          it moved words it no longer has.
+        </div>
+      </section>
+
       <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">06 / no hardware required</p>
-        <h2>Desktop simulator &amp; tests</h2>
+        <p class="eyebrow">07 / no hardware required</p>
+        <h2>Try it without hardware</h2>
 <pre><code>sim/build_sim.sh      # headless LVGL sim -> /tmp/fruitsim (renders .ppm frames)
 sim/build_test.sh     # crypto/PSBT test suite -> /tmp/kisstest
 sim/build_fuzz.sh     # parser fuzz harness (ASAN/UBSAN) -> /tmp/kissfuzz
@@ -505,7 +569,7 @@ sim/mk_test_qrs.sh d  # scan-test QR page (static/pMofN/BC-UR + STOP case)</code
       </section>
 
       <section class="doc-card reveal" id="release">
-        <p class="eyebrow">07 / maintainer</p>
+        <p class="eyebrow">08 / maintainer</p>
         <h2>Cutting a release</h2>
 <pre><code>tools/build_release.sh        # verified release build -> build-release/
 tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
@@ -518,8 +582,8 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
       </section>
 
       <section class="doc-card reveal" id="hardware">
-        <p class="eyebrow">08 / the board</p>
-        <h2>Hardware</h2>
+        <p class="eyebrow">09 / the device</p>
+        <h2>The device, and the one mod it needs</h2>
         <p>
           Guition <strong>JC4880P443C</strong> dev board: ESP32-P4 (RISC-V), 480x800
           MIPI-DSI touch panel (ST7701 + GT911), OV02C10 MIPI-CSI camera, SDMMC card
@@ -528,11 +592,11 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
         </p>
         <p>
           The air gap, honestly stated: the ESP32-P4 that runs KISS has no WiFi
-          or Bluetooth radio at all. The board does carry a second chip, an
+          or Bluetooth radio at all. The device does carry a second chip, an
           ESP32-C6 radio module, for products that want wireless. KISS holds
-          that chip in reset — the first code that runs on every boot pulls the
+          that chip in reset. The first code that runs on every boot pulls the
           C6's reset line low, so whatever firmware it shipped with never
-          executes — and no wireless stack is compiled into KISS: the release
+          executes, and no wireless stack is compiled into KISS. The release
           checks fail the build if any radio or networking code gets linked.
           The wallet home and Settings show <code>radio: held in reset</code>,
           read back live from the pin, not assumed.
@@ -546,7 +610,7 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
         </p>
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
-          The board ships with the camera facing the user, selfie style. Scanning a
+          The device ships with the camera facing the user, selfie style. Scanning a
           coordinator's QR needs it facing away from the screen. The flip is simple
           but fiddly; step-by-step photos are coming. Until then:
         </p>
