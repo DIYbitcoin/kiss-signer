@@ -54,7 +54,12 @@ PY
 
 # short commit from the HOST's git (the container can't read the bind-mounted
 # repo's ownership); baked into the Settings/home build-identity line
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+# A bare short hash, NOT `git describe`: describe appends the last tag and the
+# distance from it ("v0.1.0-beta5-5-g042befb-dirty", 29 chars) and the version
+# it prints is already on this line from VERSION -- so describe spent most of
+# its length disagreeing with the field next to it.
+GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
 echo "commit: $GIT_REV"
 
 docker run --rm \

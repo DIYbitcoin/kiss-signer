@@ -74,6 +74,20 @@ int test_duress(void) {
     stroke_to(130, 300); stroke_to(133, 118);
     dchk("circle around the word", classify() == WDG_CIRCLE);
 
+    // A BIG loop that closes loosely -- what a hand actually draws when it
+    // circles a word quickly. The old closing test scaled with the loop, so the
+    // bigger the circle the tighter it had to close, and a board reported
+    // having to draw it small on purpose.
+    stroke_start();
+    stroke_to(120, 96); stroke_to(600, 92); stroke_to(596, 320);
+    stroke_to(116, 316); stroke_to(124, 150);
+    dchk("big loosely-closed circle still reads", classify() == WDG_CIRCLE);
+
+    // ...but a loop left properly open is still not a circle
+    stroke_start();
+    stroke_to(132, 112); stroke_to(570, 108); stroke_to(566, 302); stroke_to(300, 300);
+    dchk("three-quarter loop is still refused", classify() == WDG_NONE);
+
     stroke_start(); stroke_to(210, 196); stroke_to(258, 272); stroke_to(372, 146);
     dchk("check mark", classify() == WDG_CHECK);
 

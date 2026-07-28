@@ -241,6 +241,13 @@ static bool s_gest_swallow;        // ignore the touch that just woke the screen
 // revealed home and taps whatever tile is under it. The passphrase path never
 // had the problem because its keyboard owns the touch.
 static bool s_wallet_swallow;      // ignore the rest of the gesture that opened the wallet
+// KISS matched, but a stroke is configured, so the word alone is not yet an
+// answer: hold briefly in case a modifier is on its way. Without this the word
+// fires on the LIFT OF THE LAST S and the decoy opens before the owner can draw
+// anything after it -- which made the configured stroke literally unreachable.
+// The cost is that opening the decoy waits this long; a cover wallet can.
+#define KISS_GRACE_MS 900
+static bool s_kiss_pending;
 static uint32_t s_wallet_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
@@ -1384,6 +1391,20 @@ static void motes_stop(void) {
 
 static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
+  // The LVGL pointer indev is created lazily, and until this release the ONLY
+  // things that created it were the login screen and the setup wizard -- every
+  // way into the wallet went through one of them. The decoy does not: it opens
+  // the session and lands here directly, so it arrived with no indev at all.
+  //
+  // The game never noticed, because game_tick reads the touch controller itself
+  // (read_touch) and does not go through LVGL. But every wallet SUB-screen is
+  // ordinary LVGL buttons, so Settings, Receive, Sign and the scan screen's
+  // CLOSE all drew perfectly and ignored every touch -- a screen that looks
+  // alive and is deaf, with the UI task still running and nothing in the log.
+  //
+  // It belongs here rather than in wallet_open_decoy: this is the one point
+  // every way in passes through, so no future entry path can miss it again.
+  wallet_ui_ensure_indev();
   s_wallet_on = true;
   {  // the home chip shows the fingerprint of the wallet that was just unlocked
     uint8_t fp[4];
@@ -1755,10 +1776,15 @@ static void game_tick(lv_timer_t *t) {
 
   if (s_state != ST_PLAY) {
     if (pressed) {
-      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; }  // wake saver
+      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; s_kiss_pending = false; }  // wake saver
       else if (!s_gest_swallow) {
         if (!s_prev_press) {                            // a new stroke begins
-          if (s_gn > 0) {                               // drop a stale prior attempt if this stroke
+          // ...but NOT while the word is already matched and waiting for a
+          // modifier. An underline, a strike, a circle -- every one of them
+          // begins at the LEFT edge of the word it modifies, which is exactly
+          // what this heuristic reads as "starting a fresh K". It threw the
+          // whole draw away and the configured stroke could never land.
+          if (s_gn > 0 && !s_kiss_pending) {            // drop a stale prior attempt if this stroke
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
               if (s_gpt[i].x > mx) mx = s_gpt[i].x;     // RESTART (a fresh K) begins far to the left.
@@ -1782,7 +1808,7 @@ static void game_tick(lv_timer_t *t) {
       s_gest_idle = 0; s_idle_ms = 0;
     } else {
       if (s_prev_press) {                                    // a touch just lifted
-        if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0; }
+        if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0; s_kiss_pending = false; }
         else {
           int x0 = 9999, x1 = -9999, y0 = 9999, y1 = -9999;  // bbox of THIS stroke
           for (int i = s_stroke_n0; i < s_gn; i++) {
@@ -1811,17 +1837,35 @@ static void game_tick(lv_timer_t *t) {
                 if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
                   wallet_setup_open_load(lv_screen_active(), amnesic_loaded);
                 else wallet_setup_open(lv_screen_active(), setup_done_login);
+                s_kiss_pending = false;
+                s_gn = 0; s_strokes = 0;
               }
-              else if (kind == 0) wallet_open_decoy();
-              else                wallet_login_open(wallet_start);
-              s_gn = 0; s_strokes = 0;
+              else if (kind == 1) {          // the owner's stroke, or no stroke set
+                s_kiss_pending = false;
+                wallet_login_open(wallet_start);
+                s_gn = 0; s_strokes = 0;
+              }
+              else {
+                // Bare KISS on a signer that HAS a stroke configured. Do not
+                // open anything yet -- the modifier may still be coming. The
+                // idle branch below opens the decoy once the panel has been
+                // quiet for KISS_GRACE_MS, and the points are kept meanwhile so
+                // the next stroke can still be classified against the word.
+                s_kiss_pending = true;
+              }
             }
           }                                                  // else: keep, await more strokes (3s clears)
         }
         s_gest_idle = 0;
       } else if (s_gn > 0) {                                 // mid-draw, finger up
         s_gest_idle += TICK_MS;
-        if (s_gest_idle >= 3000) { s_gn = 0; s_strokes = 0; } // gave up -> clear (never starts game)
+        if (s_kiss_pending && s_gest_idle >= KISS_GRACE_MS) {
+          s_kiss_pending = false;                            // no modifier came: the spare
+          wallet_open_decoy();
+          s_gn = 0; s_strokes = 0; s_gest_idle = 0;
+        } else if (s_gest_idle >= 3000) {
+          s_gn = 0; s_strokes = 0; s_kiss_pending = false;   // gave up -> clear (never starts game)
+        }
       } else {
         s_idle_ms += TICK_MS;
         if (s_idle_ms >= IDLE_MS) saver_show();              // idle -> attract mode

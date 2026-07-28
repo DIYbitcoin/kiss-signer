@@ -13,6 +13,7 @@
 #include "wallet_crypto.h"
 #include "wallet_info.h"
 #include "wallet_settings.h"
+#include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
 // (the device reaches it via a one-time panel rotation at boot).
@@ -992,6 +993,19 @@ int main(void) {
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
+  // Drop the LVGL indev first, so what follows is a COLD open of the decoy --
+  // the state a real board is in at power-on, and the one that shipped broken.
+  // The indev is created lazily and the decoy is the only way in that does not
+  // pass through the login screen or the wizard, so it arrived without one: the
+  // home drew, the game still worked (it reads the touch controller directly),
+  // and every LVGL sub-screen below was deaf. Settings looked frozen.
+  //
+  // This walk missed it because it always ran a full setup first and so was
+  // never cold by the time it got here. The taps after this line are the test:
+  // check_sim_taps.py fails on an interaction that does not change the screen,
+  // which is precisely what a wallet with no indev produces.
+  wallet_ui_drop_indev_for_test();
+
   // THE point of the whole feature: with strokes configured, drawing KISS on
   // its own opens the DECOY straight from the game. No keyboard, no passphrase
   // field, nothing on screen that says a second signer exists. This frame must
@@ -1014,7 +1028,12 @@ int main(void) {
   touch(680, 426); pump(3); release(); pump(20);    // BACK
   touch(100, 60); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
 
-  // unlock again (wizard wallet, password 'a') for the wipe preview
+  // KISS **plus the configured stroke** must reach the PASSPHRASE login, not the
+  // spare. This is the case that shipped broken and that nothing here covered:
+  // detect_KISS fired on the LIFT OF THE LAST S, so the decoy opened before the
+  // modifier could be drawn and the owner's stroke was unreachable. The chooser
+  // screens never caught it because they capture strokes themselves rather than
+  // going through the game's recognizer.
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);
@@ -1023,6 +1042,11 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);
+  // the UNDERLINE the wizard configured, under the word, well inside the 900ms
+  // grace the word now waits out before settling for the spare
+  for (int i = 0; i <= 30; i++) { touch(152 + i * 13, 336); pump(1); }
+  release(); pump(20);
+  save("/tmp/sim_real_login.ppm");                  // passphrase keyboard, NOT a wallet home
   touch(46, 278); pump(3); release(); pump(3);      // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home

@@ -177,7 +177,7 @@
   "S_POINT_CAM": "scanne le QR de la transaction de ton app coordinatrice",
   "S_OR_LOAD": "ou charge un fichier .psbt depuis une carte",
   "S_COORD_T": "COMMENT MARCHE LA SIGNATURE",
-  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction : un paiement construit mais pas encore signé. le coordinateur le construit sans clés ; KISS a les clés et reste hors ligne.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction : une transaction construite mais pas encore signée. le coordinateur la construit sans clés ; KISS a les clés et reste hors ligne.",
   "S_SD_SUB": "transporte la transaction par carte SD",
   "S_NO_SD": "aucune carte SD trouvée",
   "S_INSERT_CARD": "insère une carte contenant le fichier PSBT enregistré par ton coordinateur",
