@@ -169,7 +169,7 @@ Automated tests validate mechanics, not the eFuse/NVS security claim.
 ## Encrypted real-device acceptance gate
 
 This entire section is deferred from the normal beta7 acceptance run. A real SD
-card and a dedicated no-funds board flashed with the DEVELOPMENT encryption
+card and a dedicated no-funds device flashed with the DEVELOPMENT encryption
 rehearsal are required:
 
 ```sh
@@ -177,7 +177,7 @@ KISS_ENC_REHEARSAL=1 tools/build_encrypted_release.sh
 ```
 
 That profile remains serial-reflashable, but its first boot still burns a
-flash-encryption key permanently. The board can never return to plaintext
+flash-encryption key permanently. The device can never return to plaintext
 flash. Do not use the final RELEASE profile for this test.
 
 1. Confirm Settings reports flash encryption active and the build includes NVS
@@ -193,7 +193,7 @@ flash. Do not use the final RELEASE profile for this test.
    accepted.
 8. WIPE with the card out, then reinsert it: destroying the device key must make
    the surviving file permanently undecryptable.
-9. Dump flash/NVS from the rehearsal board and confirm neither the mnemonic nor
+9. Dump flash/NVS from the rehearsal device and confirm neither the mnemonic nor
    the SD device key appears in plaintext.
 
 Only after every item passes may the encrypted firmware enable SD CARD on a

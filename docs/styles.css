@@ -914,4 +914,28 @@ button {
   .flash-button {
     width: 100%;
   }
+
+  /* The top bar was the one thing with no phone rule, so seven nav links sat in
+     a single non-wrapping row and pushed the document to 651px inside a 375px
+     viewport. The whole page scrolled sideways, which is most of how anyone
+     arriving from a chat link would have seen it. Let both the bar and the nav
+     wrap, and tighten the gaps to match the smaller type. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 11px 20px;
+  }
+
+  .topnav {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+
+  /* Two columns of body copy at 375px is a column of about 20 characters. */
+  .feats,
+  .steps,
+  .spec,
+  .doclinks {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
