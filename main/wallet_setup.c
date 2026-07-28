@@ -201,7 +201,7 @@ static void store_and_finish(void)
     if (rc != 0) {                          // restore path: checksum failed
         mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
         mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
-        mk_pill(tr(STR_W_START_OVER), 48, 404, 240, goto_restore_cb, NULL);
+        mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
         return;
     }
     void (*cb)(void) = s_done;
@@ -239,7 +239,7 @@ static void verify_finish(void)
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
         mk_body(tr(STR_W_VOK_B), 48, 206, 704, 190, MUT_COL);
-        lv_obj_t *p = mk_pill(tr(STR_C_DONE), 48, 404, 300, verify_exit_cb, NULL);
+        lv_obj_t *p = mk_pill(tr(STR_C_DONE), 48, WT_ACTION_Y, 300, verify_exit_cb, NULL);
         wt_pill_primary(p);
     } else {
         char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
@@ -247,9 +247,9 @@ static void verify_finish(void)
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
         mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
         mk_body(tr(STR_W_VBAD_B), 48, 206, 704, 190, MUT_COL);
-        lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 48, 404, 300, verify_retry_cb, NULL);
+        lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 48, WT_ACTION_Y, 300, verify_retry_cb, NULL);
         wt_pill_primary(p);
-        mk_pill(tr(STR_C_DONE), 610, 404, 140, verify_exit_cb, NULL);
+        mk_pill(tr(STR_C_DONE), 610, WT_ACTION_Y, 140, verify_exit_cb, NULL);
     }
 }
 
@@ -260,9 +260,9 @@ static void verify_intro_screen(void)
     mk_screen(tr(STR_W_VINTRO_T),
               tr(STR_W_VINTRO_S));
     mk_body(tr(STR_W_VINTRO_B), 48, 122, 704, 274, MUT_COL);
-    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 404, 300, verify_start_cb, NULL);
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, WT_ACTION_Y, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, verify_exit_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, verify_exit_cb, NULL);
 }
 
 // ---- quiz (prove the backup) ----
@@ -384,7 +384,7 @@ static void words_screen(void)
         char cnt[40];   // large enough for conservative compiler range analysis
         snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_count);
         if (s_wpage > 0)
-            mk_pill(tr(STR_C_BACK), 48, 404, 160, words_page_cb,
+            mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, words_page_cb,
                     (void *)(intptr_t)-1);
         mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
     }
@@ -401,12 +401,12 @@ static void words_screen(void)
     // Nothing is staged yet at this point (wallet_seed_stage runs after the
     // quiz), so leaving here stores nothing and destroys nothing.
     if (s_wpage == 0)
-        mk_pill(tr(STR_C_CANCEL), 48, 404, 160, cancel_cb, NULL);
+        mk_pill(tr(STR_C_CANCEL), 48, WT_ACTION_Y, 160, cancel_cb, NULL);
     if (s_wpage < pages - 1)
-        mk_pill(tr(STR_R_NEXT), 430, 404, 320, words_page_cb,
+        mk_pill(tr(STR_R_NEXT), 430, WT_ACTION_Y, 320, words_page_cb,
                 (void *)(intptr_t)1);
     else
-        mk_pill(tr(STR_W_WROTE), 430, 404, 320, words_go_cb, NULL);
+        mk_pill(tr(STR_W_WROTE), 430, WT_ACTION_Y, 320, words_go_cb, NULL);
 }
 
 // ---- entropy (NEW path) ----
@@ -481,8 +481,8 @@ static void entropy_screen(void)
            "the chip's own hardware randomness - neither\n"
            "source alone decides your words.", 48, 140,
            wt_font14(), MUT_COL);
-    mk_pill("CAPTURE", 48, 404, 240, sim_entropy_cb, NULL);
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
+    mk_pill("CAPTURE", 48, WT_ACTION_Y, 240, sim_entropy_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 #else
     mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
     if (camera_entropy_start()) {
@@ -493,7 +493,7 @@ static void entropy_screen(void)
         mk_lbl(tr(STR_C_CAM_UNAVAIL), 48, 240, wt_font28(), STOP_COL);
         mk_lbl(camera_spike_status(), 48, 284, wt_font14(), MUT_COL);
     }
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, ent_back_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, ent_back_cb, NULL);
 #endif
 }
 
@@ -627,7 +627,7 @@ static void count_screen(void)
         mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 310, 340, restore_scan_cb, NULL);
         wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 310, 340, 76);
     }
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
@@ -677,7 +677,7 @@ static void storage_screen(void)
     mk_pill(tr(STR_W_AMNESIC_BTN), 48, 326, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
     wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 316, 420, 87);
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
 // ---- entry ----
@@ -716,7 +716,7 @@ static void whatseed_cb(lv_event_t *e)
     (void)e;
     mk_screen(tr(STR_W_WHATSEED_T), tr(STR_W_WHATSEED_S));
     mk_body(tr(STR_W_WHATSEED_B), 48, 118, 704, 260, INK_COL);
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, whatseed_back_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, whatseed_back_cb, NULL);
 }
 
 static void choose_screen(void)
@@ -728,7 +728,7 @@ static void choose_screen(void)
     wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     430, 152, 340, 110);
     wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 430, 266, 340, 130);
     wt_pillh(s_scr, tr(STR_W_WHATSEED_BTN), 48, 380, 340, 44, whatseed_cb, NULL);
-    mk_pill(tr(STR_C_CANCEL), 610, 404, 140, cancel_cb, NULL);
+    mk_pill(tr(STR_C_CANCEL), 610, WT_ACTION_Y, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -782,7 +782,7 @@ static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
     mk_body(tr(STR_W_QRBAD_B), 48, 140, 704, 240, STOP_COL);
-    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 300,
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, WT_ACTION_Y, 300,
                           s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
     wt_pill_primary(p);
 }
@@ -831,7 +831,7 @@ static void load_screen(void)
     mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 264, 340, load_scan_cb, NULL);
     wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), 430, 150, 340, 110);
     wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 266, 340, 130);
-    mk_pill(tr(STR_W_CREATE_NEW), 560, 404, 190, load_new_cb, NULL);
+    mk_pill(tr(STR_W_CREATE_NEW), 560, WT_ACTION_Y, 190, load_new_cb, NULL);
 }
 
 // ---- configured SD wallet: card/file gate before passphrase entry ----
@@ -882,12 +882,12 @@ static void sd_problem_screen(int rc)
     mk_body(sd_problem_body(s_sd_problem), 48, 132, 704, 226,
             s_sd_problem == WSEED_ERR_SD_MISSING ? MUT_COL : WARN_COL);
 
-    lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 240,
+    lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), 48, WT_ACTION_Y, 240,
                               sd_retry_cb, NULL);
     wt_pill_primary(retry);
-    lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 304, 404, 280,
+    lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 304, WT_ACTION_Y, 280,
                                 sd_recover_cb, NULL);
-    lv_obj_t *back = mk_pill(tr(STR_C_BACK), 610, 404, 140,
+    lv_obj_t *back = mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140,
                              sd_problem_back_cb, NULL);
     lv_obj_t *row[3] = { retry, recover, back };
     wt_pill_row(row, 3);

@@ -51,6 +51,27 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
 
+// The action row: where a screen's buttons live, and the line content may not
+// cross. These name the geometry the screens already used as bare numbers; the
+// values are unchanged, so nothing moves. They exist so sim/overlapcheck.c has
+// one number to test against instead of grepping for 404, and so the row can be
+// moved once rather than in ninety places.
+//
+// Two heights, and the tall one is not an accident. A pill label auto-fits
+// 23 -> 14, and at 66 it can take a SECOND LINE at 23 instead of dropping a
+// rung: "HOLD TO SIGN" has no one-line size above 14 in French, Italian or
+// Swedish, and the button that moves money should not be the smallest type on
+// screen. Use TALL for any row whose label may wrap, standard everywhere else.
+// A row shares one height across all its pills or they stop lining up.
+#define WT_ACTION_Y       404   // standard row: 404..456, 24px above the edge
+#define WT_ACTION_H        52   // == wt_pill's height
+#define WT_ACTION_Y_TALL  398   // wrapping row: 398..464
+#define WT_ACTION_H_TALL   66
+// Nothing above the row may extend past this. It is WT_ACTION_Y_TALL exactly,
+// not a rounder number with a gutter invented on top: the tall row is the
+// highest anything in the action band reaches, so crossing it is the failure.
+#define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
+
 // Pill icons. FontAwesome PUA codepoints baked into every generated Latin size
 // by the SYMS list in tools/fonts/gen_fonts.sh — keep the two in lockstep, an
 // icon that is not in the font hard-hangs the renderer rather than drawing a

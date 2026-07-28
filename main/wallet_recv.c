@@ -224,9 +224,9 @@ static void vfy_result(const char *txt, size_t len) {
     lv_label_set_text(n, tr(STR_R_INVALID_B));
   }
 
-  lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, 404, 220, vfy_scan, NULL);
+  lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, WT_ACTION_Y, 220, vfy_scan, NULL);
   wt_pill_primary(again);
-  wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, vfy_done_cb, NULL);
+  wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, vfy_done_cb, NULL);
 }
 
 static void vfy_cancel(void) {
@@ -374,9 +374,9 @@ static void sp_addr_open(lv_obj_t *parent) {
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
+  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, sp_back_cb, NULL);
   s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
-                             198, 404, 280, sp_toggle_cb, NULL);
+                             198, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
@@ -515,11 +515,11 @@ static void recv_list_open(void) {
   lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
   lv_obj_t *row[5];
-  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
-  row[1] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_LEFT, 400, 404, 56, page_cb, (void *)(intptr_t)-1);
-  row[3] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 466, 404, 56, page_cb, (void *)(intptr_t)1);
-  row[4] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 110, close_cb, NULL);
+  row[1] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, WT_ACTION_Y, 220, sp_open_cb, NULL);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_LEFT, 400, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[3] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 466, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  row[4] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, WT_ACTION_Y, 222, vfy_scan, NULL);
   wt_pill_row(row, 5);
 }
 
@@ -565,11 +565,11 @@ static void recv_detail_open(void) {
   // They stay even though the list can now reach any address directly: this is
   // the one screen where stepping to the neighbouring address needs no scroll
   // at all, and scrolling is brand new on this hardware.
-  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, 404, 56, prev_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, 404, 56, next_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
+  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, WT_ACTION_Y, 56, prev_cb, NULL);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, WT_ACTION_Y, 56, next_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, WT_ACTION_Y, 222, vfy_scan, NULL);
   // BACK returns to the list this address was chosen from, not out of RECEIVE.
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, detail_back_cb, NULL);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 110, detail_back_cb, NULL);
   wt_pill_row(row, 4);
   recv_refresh();
 }

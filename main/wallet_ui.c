@@ -738,7 +738,7 @@ static void setup_warn_screen(void) {
   lv_obj_align(state, LV_ALIGN_TOP_MID, 0, 348);
 
   lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
-                              48, 398, 300, 66, setup_warn_verify_cb, NULL);
+                              48, WT_ACTION_Y_TALL, 300, WT_ACTION_H_TALL, setup_warn_verify_cb, NULL);
   if (!s_backup_verified)
     lv_obj_set_style_border_color(verify, WT_WARN, 0);
 
@@ -746,7 +746,7 @@ static void setup_warn_screen(void) {
   // ring disappears only after every word and the exact passphrase have both
   // recreated the fingerprint above.
   lv_obj_t *ok = wt_pillh(s_warnscr, tr(STR_C_I_UNDERSTAND),
-                          430, 398, 320, 66, setup_warn_ok_cb, NULL);
+                          430, WT_ACTION_Y_TALL, 320, WT_ACTION_H_TALL, setup_warn_ok_cb, NULL);
   lv_obj_set_style_border_width(ok, 2, 0);
   lv_obj_set_style_border_color(ok, s_backup_verified ? WT_OK : WT_STOP, 0);
 }
@@ -1176,9 +1176,9 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                        wt_body_font(tr(STR_L_SCAN_WARN_B), 704, 274), WT_MUT);
   lv_obj_set_width(b, 704);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, 404, 300, pp_scan_go_cb, scr);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
   wt_pill_primary(go);
-  wt_pill(scr, tr(STR_C_BACK), 610, 404, 140, pp_scan_back_cb, scr);
+  wt_pill(scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {
@@ -1215,7 +1215,7 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
       48, 116, wt_body_font(tr(STR_L_PPINTRO_B), 704, 280), WT_MUT);
   lv_obj_set_width(ib, 704);
   lv_label_set_long_mode(ib, LV_LABEL_LONG_WRAP);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, 404, 280, pp_intro_go_cb, NULL);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 280, pp_intro_go_cb, NULL);
   wt_pill_primary(go);
 }
 

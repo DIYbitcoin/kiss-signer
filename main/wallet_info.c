@@ -252,8 +252,8 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_t *prove = wt_note(s_scr, tr(STR_I_PROVE), 48, 284, 704, 112);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
-    wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_qr_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_qr_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, pair_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
@@ -297,8 +297,8 @@ static void pair_screen(void)
     // readable here and repeated with the proof step on the static NEXT page.
     s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
 
-    wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, pair_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_R_NEXT), 610, 404, 140,
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_R_NEXT), 610, WT_ACTION_Y, 140,
             pair_instructions_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
@@ -345,7 +345,7 @@ static void sp_key_show(void *ud)
     // 250 down to the DONE pill at 404 is 154px, so this reads at 23.
     wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, 360, 140);
 
-    wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 160, sp_key_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e)
@@ -361,9 +361,9 @@ static void sp_key_warn_cb(lv_event_t *e)
     sp_permission_model(s_scr, 256);
     // Revealing a reusable private scan key should not be one stray tap away.
     // A short hold is deliberate without adding the friction of signing.
-    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, 398, 330, 66,
+    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
                  900, sp_key_show, NULL);
-    wt_pillh(s_scr, tr(STR_C_BACK), 610, 398, 140, 66,
+    wt_pillh(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              sp_key_back_cb, NULL);
 }
 
@@ -450,17 +450,17 @@ static void words_render_page(int page)
         char cnt[40];
         snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, n);
         if (page > 0)
-            wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, words_page_cb,
+            wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, words_page_cb,
                     (void *)(intptr_t)-1);
         // STR_R_NEXT ("NEXT") is the receive flow's page-forward label. Same
         // word, already translated in all 21 locales; borrowing it beats
         // adding a string that would have to reach every table to ship.
         if (page < pages - 1)
-            wt_pill(s_scr, tr(STR_R_NEXT), 208, 404, 140, words_page_cb,
+            wt_pill(s_scr, tr(STR_R_NEXT), 208, WT_ACTION_Y, 140, words_page_cb,
                     (void *)(intptr_t)1);
         wt_lbl(s_scr, cnt, 380, 416, wt_font23(), WT_MUT);
     }
-    wt_pill(s_scr, tr(STR_C_DONE), 610, 404, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 static void words_show_cb(lv_event_t *e)
@@ -489,10 +489,10 @@ static void words_warn_screen(lv_event_t *e)
                          wt_body_font(tr(STR_I_WARN_B), 700, 270), WT_MUT);
     lv_obj_set_width(b, 700);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, 404, 240, words_show_cb, NULL);
+    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
-    wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, 404, 240, verify_copy_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240, verify_copy_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----
@@ -597,7 +597,7 @@ static void info_screen(void)
         wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 60, false);
         wt_pill_apply_fit(pp, f, 340);
     }
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, close_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, close_cb, NULL);
 }
 
 void wallet_info_open(lv_obj_t *parent)
