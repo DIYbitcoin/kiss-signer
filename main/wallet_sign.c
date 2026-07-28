@@ -1265,8 +1265,14 @@ static void coord_step(lv_obj_t *parent, int y, const char *number,
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
-    lv_obj_set_pos(row, 80, y);
-    lv_obj_set_size(row, 640, 44);
+    // 48/704 is this device's standard content width (the same one the body
+    // above uses), not the 80/640 these rows started at. Widened because step 3
+    // finally says "transaction" instead of "payment" in English, and the
+    // honest word is 4 characters longer than the vague one -- the fix for that
+    // is room, not a shorter word. Still centred on 400, so the connectors
+    // between the steps are unchanged.
+    lv_obj_set_pos(row, 48, y);
+    lv_obj_set_size(row, 704, 44);
     lv_obj_set_style_radius(row, 12, 0);
     lv_obj_set_style_bg_color(row, signer ? wt_accent_bg() : KEY_COL, 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
@@ -1281,7 +1287,7 @@ static void coord_step(lv_obj_t *parent, int y, const char *number,
 
     lv_obj_t *l = lv_label_create(row);
     lv_label_set_text(l, text);
-    lv_obj_set_width(l, 580);
+    lv_obj_set_width(l, 640);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_text_color(l, INK_COL, 0);

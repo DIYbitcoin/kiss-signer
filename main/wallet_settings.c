@@ -679,6 +679,13 @@ void wallet_settings_open(lv_obj_t *parent)
     // and hiding the row there was a trap: every session on such a signer is
     // the decoy, so the owner could never reach the setting again. That is
     // exactly how a test board ended up stuck with a stroke it could not clear.
+    //
+    // This row was pulled out for one build while a board reported Settings
+    // freezing on arrival, on the theory that a second 72px two-line pill was
+    // the culprit. It was not: the screen never failed to RENDER, it failed to
+    // hear a touch, because the decoy skipped the login screen and the login
+    // screen was the only thing that created the LVGL indev (main.c,
+    // wallet_start). Removing this changed nothing, which is what proved it.
     const int g = wallet_duress_real();
     if (wallet_session_decoy() && g != WDG_NONE) {
         wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);

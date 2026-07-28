@@ -177,7 +177,7 @@
   "S_POINT_CAM": "quét QR giao dịch từ app điều phối",
   "S_OR_LOAD": "hoặc nạp file .psbt lưu trên thẻ",
   "S_COORD_T": "KÝ HOẠT ĐỘNG THẾ NÀO",
-  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: một khoản thanh toán đã dựng nhưng chưa ký. coordinator dựng nó và không giữ khóa; KISS giữ khóa và luôn ngoại tuyến.",
+  "S_COORD_B": "PSBT = Partially Signed Bitcoin Transaction: một giao dịch đã dựng nhưng chưa ký. coordinator dựng nó và không giữ khóa; KISS giữ khóa và luôn ngoại tuyến.",
   "S_SD_SUB": "chuyển giao dịch bằng thẻ SD",
   "S_NO_SD": "không thấy thẻ SD",
   "S_INSERT_CARD": "cắm thẻ chứa file PSBT mà app điều phối đã lưu",
