@@ -61,18 +61,18 @@ SECTIONS = [
 
     ("Choosing where the recovery words live",
      "Storage is chosen while a wallet is created or restored, and it can be "
-     "changed later from an unlocked wallet. These normal-beta screens name "
-     "all three modes without pretending unencrypted firmware can safely use "
-     "device-bound SD storage.",
+     "changed later from an unlocked wallet. All three modes are offered on "
+     "every build; the passphrase, never stored here, is what guards the real "
+     "wallet whichever mode holds the words.",
      [
          ("03a-setup-storage", "sim_setup_storage",
-          "Setup asks what remains after power-off before the recovery words "
-          "are committed. FLASH persists on this device; AMNESIC lasts only "
-          "for the session. SD CARD stays visible but unavailable here because "
-          "this normal beta does not encrypt flash."),
-         ("03b-settings-storage", "sim_storage_disabled",
+          "Setup asks what remains after you power off, before the recovery "
+          "words are committed. FLASH keeps the words on this device (they open "
+          "the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the "
+          "words to a card only this signer can open."),
+         ("03b-settings-storage", "sim_storage_choose",
           "SETTINGS → STORAGE shows the current mode and the same three "
-          "choices. Moving between available modes requires a deliberate hold "
+          "choices. Moving between modes requires a deliberate hold "
           "and verifies the destination before removing the source."),
      ]),
 

@@ -35,9 +35,15 @@
 #define WSEED_ERR_CLEANUP        -8
 #define WSEED_ERR_ROLLBACK       -9
 
-// Host/simulator: always true. Device: true only when flash encryption is
-// active in eFuse AND this firmware was compiled with NVS encryption.
+// SD is offered whenever the card hardware is present. The seed is sealed to
+// the card with a device key, so a lost card alone is inert; flash encryption
+// is a separate, stronger layer, not a requirement. Always true now.
 int wallet_seed_sd_supported(void);
+
+// Is the seed at rest actually encrypted (flash encryption burned in eFuse)?
+// Only the storage NOTES need this, to tell the truth about what a chip dump
+// would reveal. Host/simulator: false, since the desktop store is a plain file.
+int wallet_seed_flash_encrypted(void);
 
 // The staged choice if setup is mid-flight, otherwise what flash holds.
 int  wallet_seed_mode(void);
