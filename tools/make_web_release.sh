@@ -34,6 +34,49 @@ if ! "$PY" -m esptool version >/dev/null 2>&1; then
     exit 1
 fi
 
+# 0. the documentation screenshots, BEFORE the clean-tree check below.
+#
+# Every frame bakes the version in: sim/build_sim.sh compiles VERSION into
+# KISS_VERSION_STR and the home screen footer prints it. Nothing reran the
+# generator between beta4 and beta7, so docs/media/wallet-home.png advertised
+# 0.1.0-beta4 for three releases, on the page that tells people what they are
+# installing. gen_docs_shots.py --check could not catch it: it verifies that
+# sim_main.c still saves the frames the manifest names, deliberately not what
+# is inside them, because a pixel diff across zlib versions is a flaky job and
+# a flaky docs job teaches people to ignore the docs job.
+#
+# Cutting a release is exactly when those frames go stale, so regenerate here.
+# It runs first on purpose: it can dirty the tree, and a release must describe
+# a commit, so anything it changes has to be committed before the build starts
+# rather than shipped as an untracked difference.
+if [ -z "$SKIP_SHOTS" ]; then
+    if [ ! -d managed_components/lvgl__lvgl ]; then
+        echo "Cannot regenerate the documentation screenshots: the simulator"
+        echo "needs LVGL at managed_components/lvgl__lvgl and it is not there."
+        echo "Run a device build once to populate it, or clone the version"
+        echo "dependencies.lock pins. (SKIP_SHOTS=1 to bypass, only when you"
+        echo "have already regenerated them by hand.)"
+        exit 1
+    fi
+    SHOT_PATHS="docs/shots docs/media docs/readme docs/walkthrough.md"
+    echo "== regenerating the documentation screenshots =="
+    bash tools/gen_docs_shots.sh
+    if [ -n "$(git status --porcelain -- $SHOT_PATHS)" ]; then
+        echo
+        echo "The documentation screenshots were stale and have been regenerated."
+        echo "They bake in the version string, so shipping without them would"
+        echo "put the wrong release number in the pictures on the install page."
+        echo
+        git status --short -- $SHOT_PATHS
+        echo
+        echo "Commit them, then rerun:"
+        echo "  git add -A $SHOT_PATHS"
+        echo "  git commit -m \"docs: regenerate screenshots for \$(cat VERSION)\""
+        exit 1
+    fi
+    echo "screenshots already current"
+fi
+
 # A release must come from a fully committed tree, so the version/commit it
 # reports match code that actually exists in git (no "-dirty"). If you have
 # uncommitted work, commit it first, then rerun. (ALLOW_DIRTY=1 overrides for
@@ -220,8 +263,8 @@ json.dump({
     ],
     "warnings": [
         "This is a beta build, not a final funds build.",
-        "Do not erase flash on a board that holds a wallet unless you intentionally want to wipe it.",
-        "After flashing, unplug the board, wait about 3 seconds, then plug it back in.",
+        "Do not erase flash on a device that holds a wallet unless you intentionally want to wipe it.",
+        "After flashing, unplug the device, wait about 3 seconds, then plug it back in.",
     ],
 }, open(f"{out}/release.json", "w"), indent=2)
 print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")

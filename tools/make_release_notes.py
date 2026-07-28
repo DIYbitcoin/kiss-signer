@@ -59,7 +59,7 @@ shasum -a 256 --ignore-missing -c SHA256SUMS
 
     return f"""# KISS Signer {version}
 
-Beta firmware for the Guition JC4880P443C ESP32-P4 board.
+Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
 > **Beta warning:** do not trust this release with meaningful funds yet.
 
@@ -89,9 +89,9 @@ Release commit:
 
 For beta releases, flash this exact verified `.bin` using the README install steps.
 
-The browser installer comes later with GitHub Pages. It will require Chrome, Brave, or Edge on desktop; Safari and Firefox cannot flash ESP32 boards over Web Serial.
+The browser installer needs GitHub Pages, and it stays off whenever a release is staged. It requires Chrome, Brave, or Edge on desktop. Safari and Firefox cannot flash ESP32 devices over Web Serial.
 
-After flashing, unplug the board, wait about 3 seconds, then plug it back in.
+After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 
 ## Changelog
 
