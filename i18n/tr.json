@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD KART",
   "W_FLASH_ENC_NOTE": "şifreli dahili flash'ta saklanır. Passphrase ile açılır.",
   "W_SD_NOTE": "yalnızca bu cihazın açabileceği şifreli dosya. kilidi açmadan önce kartı tak.",
-  "W_SD_DISABLED_NOTE": "flash şifrelemeli firmware gerektirir. bu derlemede kullanılamaz.",
   "G_STORAGE_CONFIRM_T": "CÜZDAN DEPOLAMASI DEĞİŞTİRİLSİN Mİ?",
   "G_STORAGE_CONFIRM_FLASH_B": "bu cüzdanı dahili flash'a taşı.\n\nmevcut kopya yalnızca flash kopyası doğrulandıktan sonra kaldırılır.",
   "G_STORAGE_CONFIRM_SD_B": "yalnızca bu cihazın açabileceği şifreli bir SD dosyasına taşı.\n\nkart yedek değildir. kart veya cihaz kaybına karşı kelimeleri kağıtta sakla.\n\neski depolama yalnızca doğrulamadan sonra kaldırılır.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "bu cüzdan çıkarılabilir depolamada",
   "W_SD_MISSING_B": "bu cüzdanı içeren SD kartı takıp tekrar dene.",
   "W_SD_CORRUPT_B": "bu karttaki cüzdan dosyası hasarlı, değiştirilmiş veya başka bir cihaza ait.\n\ndoğru kartı kullan veya kelimelerinden geri yükle.",
-  "W_SD_IO_B": "SD kart okunamadı.\n\nkartı yeniden takıp dene veya kelimelerinden geri yükle.",
-  "W_SD_UNSUPPORTED_B": "bu firmware SD cüzdan depolamasını açamaz.\n\nflash şifrelemeli firmware gereklidir."
+  "W_SD_IO_B": "SD kart okunamadı.\n\nkartı yeniden takıp dene veya kelimelerinden geri yükle."
 }

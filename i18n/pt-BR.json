@@ -397,7 +397,6 @@
   "W_SD_BTN": "CARTÃO SD",
   "W_FLASH_ENC_NOTE": "salva na flash interna criptografada. abra com sua passphrase.",
   "W_SD_NOTE": "arquivo criptografado que só este dispositivo pode abrir. insira o cartão antes de desbloquear.",
-  "W_SD_DISABLED_NOTE": "exige firmware com flash criptografada. indisponível nesta versão.",
   "G_STORAGE_CONFIRM_T": "ALTERAR ARMAZENAMENTO?",
   "G_STORAGE_CONFIRM_FLASH_B": "mover esta carteira para a flash interna.\n\na cópia atual só será removida depois que a cópia na flash for verificada.",
   "G_STORAGE_CONFIRM_SD_B": "mover para um arquivo SD criptografado que só este dispositivo pode abrir.\n\no cartão não é um backup. guarde as palavras no papel caso perca o cartão ou o dispositivo.\n\no armazenamento antigo só é removido após a verificação.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "esta carteira fica em armazenamento removível",
   "W_SD_MISSING_B": "insira o cartão SD que contém esta carteira e tente novamente.",
   "W_SD_CORRUPT_B": "o arquivo da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com suas palavras.",
-  "W_SD_IO_B": "o cartão SD não pôde ser lido.\n\nreinsira-o e tente novamente, ou restaure com suas palavras.",
-  "W_SD_UNSUPPORTED_B": "este firmware não pode abrir o armazenamento da carteira no SD.\n\né necessário firmware com flash criptografada."
+  "W_SD_IO_B": "o cartão SD não pôde ser lido.\n\nreinsira-o e tente novamente, ou restaure com suas palavras."
 }

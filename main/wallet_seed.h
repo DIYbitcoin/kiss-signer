@@ -27,18 +27,12 @@
 #define WSEED_OK                  0
 #define WSEED_ERR_INVALID        -1
 #define WSEED_ERR_NO_SEED        -2
-#define WSEED_ERR_SD_UNSUPPORTED -3
-#define WSEED_ERR_SD_MISSING     -4
-#define WSEED_ERR_SD_IO          -5
-#define WSEED_ERR_SD_CORRUPT     -6
-#define WSEED_ERR_VERIFY         -7
-#define WSEED_ERR_CLEANUP        -8
-#define WSEED_ERR_ROLLBACK       -9
-
-// SD is offered whenever the card hardware is present. The seed is sealed to
-// the card with a device key, so a lost card alone is inert; flash encryption
-// is a separate, stronger layer, not a requirement. Always true now.
-int wallet_seed_sd_supported(void);
+#define WSEED_ERR_SD_MISSING     -3
+#define WSEED_ERR_SD_IO          -4
+#define WSEED_ERR_SD_CORRUPT     -5
+#define WSEED_ERR_VERIFY         -6
+#define WSEED_ERR_CLEANUP        -7
+#define WSEED_ERR_ROLLBACK       -8
 
 // Is the seed at rest actually encrypted (flash encryption burned in eFuse)?
 // Only the storage NOTES need this, to tell the truth about what a chip dump

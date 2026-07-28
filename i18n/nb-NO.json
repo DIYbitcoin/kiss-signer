@@ -397,7 +397,6 @@
   "W_SD_BTN": "SD-KORT",
   "W_FLASH_ENC_NOTE": "lagret i kryptert intern flash. lås opp med passordfrasen.",
   "W_SD_NOTE": "kryptert fil som bare denne enheten kan åpne. sett inn kortet før opplåsing.",
-  "W_SD_DISABLED_NOTE": "krever fastvare med flashkryptering. utilgjengelig i denne versjonen.",
   "G_STORAGE_CONFIRM_T": "ENDRE LOMMEBOKLAGRING?",
   "G_STORAGE_CONFIRM_FLASH_B": "flytt denne lommeboken til intern flash.\n\nden nåværende kopien fjernes først når flashkopien er bekreftet.",
   "G_STORAGE_CONFIRM_SD_B": "flytt til en kryptert SD-fil som bare denne enheten kan åpne.\n\nkortet er ikke en sikkerhetskopi. oppbevar ordene på papir i tilfelle kortet eller enheten mistes.\n\ngammel lagring fjernes først etter bekreftelse.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "denne lommeboken ligger på flyttbar lagring",
   "W_SD_MISSING_B": "sett inn SD-kortet med denne lommeboken, og prøv igjen.",
   "W_SD_CORRUPT_B": "lommebokfilen på kortet er skadet, endret eller tilhører en annen enhet.\n\nbruk riktig kort, eller gjenopprett fra ordene dine.",
-  "W_SD_IO_B": "SD-kortet kunne ikke leses.\n\nsett det inn på nytt og prøv igjen, eller gjenopprett fra ordene dine.",
-  "W_SD_UNSUPPORTED_B": "denne fastvaren kan ikke åpne lommeboklagring på SD-kort.\n\nfastvare med flashkryptering kreves."
+  "W_SD_IO_B": "SD-kortet kunne ikke leses.\n\nsett det inn på nytt og prøv igjen, eller gjenopprett fra ordene dine."
 }

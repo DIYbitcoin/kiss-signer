@@ -400,7 +400,6 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_SD_BTN] = "SD CARD",
     [STR_W_FLASH_ENC_NOTE] = "saved here encrypted. your passphrase guards your real wallet, and is never saved here.",
     [STR_W_SD_NOTE] = "encrypted file only this device can open. insert the card before unlock.",
-    [STR_W_SD_DISABLED_NOTE] = "requires flash encrypted firmware. unavailable in this build.",
     [STR_G_STORAGE_CONFIRM_T] = "CHANGE WALLET STORAGE?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "move this wallet into internal flash.\n\nthe current copy is removed only after the flash copy is verified.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "move to an encrypted SD file only this device can open.\n\nthe card is not a backup. keep paper words for loss of either one.\n\nold storage is removed only after verification.",
@@ -421,7 +420,6 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_SD_MISSING_B] = "insert the SD card that holds this wallet, then try again.",
     [STR_W_SD_CORRUPT_B] = "the wallet file on this card is damaged, changed, or belongs to another device.\n\nuse the correct card or restore from your recovery words.",
     [STR_W_SD_IO_B] = "the SD card could not be read.\n\nreinsert it and try again, or restore from your recovery words.",
-    [STR_W_SD_UNSUPPORTED_B] = "this firmware cannot open SD wallet storage.\n\nflash encrypted firmware is required.",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -823,7 +821,6 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_SD_BTN] = "SD-KARTE",
     [STR_W_FLASH_ENC_NOTE] = "im verschlüsselten internen Flash gespeichert. mit deiner Passphrase entsperren.",
     [STR_W_SD_NOTE] = "verschlüsselte Datei, die nur dieses Gerät öffnen kann. Karte vor dem Entsperren einlegen.",
-    [STR_W_SD_DISABLED_NOTE] = "Firmware mit Flash-Verschlüsselung nötig. in diesem Build nicht verfügbar.",
     [STR_G_STORAGE_CONFIRM_T] = "WALLET-SPEICHER ÄNDERN?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "diese Wallet in den internen Flash verschieben.\n\ndie aktuelle Kopie wird erst nach Prüfung der Flash-Kopie entfernt.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "auf eine verschlüsselte SD-Datei verschieben, die nur dieses Gerät öffnen kann.\n\ndie Karte ist kein Backup. bewahre die Wörter auf Papier auf, falls Karte oder Gerät verloren gehen.\n\nder alte Speicher wird erst nach Prüfung entfernt.",
@@ -844,7 +841,6 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_SD_MISSING_B] = "lege die SD-Karte mit dieser Wallet ein und versuche es erneut.",
     [STR_W_SD_CORRUPT_B] = "die Wallet-Datei auf dieser Karte ist beschädigt, verändert oder gehört zu einem anderen Gerät.\n\nnutze die richtige Karte oder stelle sie aus deinen Wörtern wieder her.",
     [STR_W_SD_IO_B] = "die SD-Karte konnte nicht gelesen werden.\n\nlege sie erneut ein und versuche es noch einmal, oder stelle sie aus deinen Wörtern wieder her.",
-    [STR_W_SD_UNSUPPORTED_B] = "diese Firmware kann Wallet-Speicher auf SD nicht öffnen.\n\nFirmware mit Flash-Verschlüsselung ist erforderlich.",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1246,7 +1242,6 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_SD_BTN] = "TARJETA SD",
     [STR_W_FLASH_ENC_NOTE] = "guardada en la flash interna cifrada. abre con tu passphrase.",
     [STR_W_SD_NOTE] = "archivo cifrado que solo este dispositivo puede abrir. inserta la tarjeta antes de desbloquear.",
-    [STR_W_SD_DISABLED_NOTE] = "requiere firmware con flash cifrada. no disponible en esta versión.",
     [STR_G_STORAGE_CONFIRM_T] = "¿CAMBIAR ALMACENAMIENTO?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "mover esta billetera a la memoria flash interna.\n\nla copia actual solo se elimina tras verificar la copia en flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "mover a un archivo SD cifrado que solo este dispositivo puede abrir.\n\nla tarjeta no es una copia de seguridad. guarda las palabras en papel por si pierdes la tarjeta o el dispositivo.\n\nel almacenamiento anterior solo se elimina tras verificar.",
@@ -1267,7 +1262,6 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserta la tarjeta SD que contiene esta billetera y vuelve a intentarlo.",
     [STR_W_SD_CORRUPT_B] = "el archivo de billetera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
-    [STR_W_SD_UNSUPPORTED_B] = "este firmware no puede abrir almacenamiento de billetera en SD.\n\nse requiere firmware con flash cifrada.",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1669,7 +1663,6 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_SD_BTN] = "CARTE SD",
     [STR_W_FLASH_ENC_NOTE] = "enregistré dans la flash interne chiffrée. déverrouillez avec votre phrase secrète.",
     [STR_W_SD_NOTE] = "fichier chiffré que seul cet appareil peut ouvrir. insérez la carte avant le déverrouillage.",
-    [STR_W_SD_DISABLED_NOTE] = "nécessite un firmware avec chiffrement flash. indisponible dans cette version.",
     [STR_G_STORAGE_CONFIRM_T] = "CHANGER LE STOCKAGE?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "déplacer ce portefeuille vers la mémoire flash interne.\n\nla copie actuelle n'est supprimée qu'après vérification de la copie flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "déplacer vers un fichier SD chiffré que seul cet appareil peut ouvrir.\n\nla carte n'est pas une sauvegarde. gardez les mots sur papier en cas de perte de la carte ou de l'appareil.\n\nl'ancien stockage n'est supprimé qu'après vérification.",
@@ -1690,7 +1683,6 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_SD_MISSING_B] = "insérez la carte SD qui contient ce portefeuille, puis réessayez.",
     [STR_W_SD_CORRUPT_B] = "le fichier de portefeuille sur cette carte est endommagé, modifié ou appartient à un autre appareil.\n\nutilisez la bonne carte ou restaurez avec vos mots.",
     [STR_W_SD_IO_B] = "la carte SD n'a pas pu être lue.\n\nréinsérez-la et réessayez, ou restaurez avec vos mots.",
-    [STR_W_SD_UNSUPPORTED_B] = "ce firmware ne peut pas ouvrir le stockage de portefeuille sur SD.\n\nun firmware avec chiffrement flash est requis.",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2092,7 +2084,6 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_SD_BTN] = "SCHEDA SD",
     [STR_W_FLASH_ENC_NOTE] = "salvato nella flash interna cifrata. sblocca con la passphrase.",
     [STR_W_SD_NOTE] = "file cifrato che solo questo dispositivo può aprire. inserisci la scheda prima di sbloccare.",
-    [STR_W_SD_DISABLED_NOTE] = "richiede firmware con flash cifrata. non disponibile in questa versione.",
     [STR_G_STORAGE_CONFIRM_T] = "CAMBIARE ARCHIVIAZIONE?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "sposta questo portafoglio nella flash interna.\n\nla copia attuale viene rimossa solo dopo la verifica della copia nella flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "sposta in un file SD cifrato che solo questo dispositivo può aprire.\n\nla scheda non è un backup. conserva le parole su carta in caso di perdita della scheda o del dispositivo.\n\nla vecchia archiviazione viene rimossa solo dopo la verifica.",
@@ -2113,7 +2104,6 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserisci la scheda SD che contiene questo portafoglio e riprova.",
     [STR_W_SD_CORRUPT_B] = "il file del portafoglio su questa scheda è danneggiato, modificato o appartiene a un altro dispositivo.\n\nusa la scheda corretta o ripristina dalle tue parole.",
     [STR_W_SD_IO_B] = "non è stato possibile leggere la scheda SD.\n\nreinseriscila e riprova, oppure ripristina dalle tue parole.",
-    [STR_W_SD_UNSUPPORTED_B] = "questo firmware non può aprire l'archiviazione del portafoglio su SD.\n\nè richiesto un firmware con flash cifrata.",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2515,7 +2505,6 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_SD_BTN] = "SDカード",
     [STR_W_FLASH_ENC_NOTE] = "暗号化された内部フラッシュに保存。パスフレーズで解除します。",
     [STR_W_SD_NOTE] = "この端末だけが開ける暗号化ファイル。解除前にカードを挿入してください。",
-    [STR_W_SD_DISABLED_NOTE] = "フラッシュ暗号化ファームウェアが必要。このビルドでは使用できません。",
     [STR_G_STORAGE_CONFIRM_T] = "ウォレットの保存先を変更しますか?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "このウォレットを内部フラッシュへ移動します。\n\nフラッシュ側のコピーを検証してから現在のコピーを削除します。",
     [STR_G_STORAGE_CONFIRM_SD_B] = "この端末だけが開ける暗号化SDファイルへ移動します。\n\nカードはバックアップではありません。カードや端末の紛失に備え、リカバリーフレーズを紙で保管してください。\n\n検証後にのみ古い保存先を削除します。",
@@ -2536,7 +2525,6 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_SD_MISSING_B] = "このウォレットが入ったSDカードを挿入し、もう一度お試しください。",
     [STR_W_SD_CORRUPT_B] = "このカードのウォレットファイルは破損、変更されているか、別の端末のものです。\n\n正しいカードを使うか、リカバリーフレーズから復元してください。",
     [STR_W_SD_IO_B] = "SDカードを読み取れませんでした。\n\n挿し直して再試行するか、リカバリーフレーズから復元してください。",
-    [STR_W_SD_UNSUPPORTED_B] = "このファームウェアではSDウォレットストレージを開けません。\n\nフラッシュ暗号化ファームウェアが必要です。",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2938,7 +2926,6 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_SD_BTN] = "SD 카드",
     [STR_W_FLASH_ENC_NOTE] = "암호화된 내부 플래시에 저장됩니다. 패스프레이즈로 잠금을 해제합니다.",
     [STR_W_SD_NOTE] = "이 기기만 열 수 있는 암호화 파일입니다. 잠금 해제 전에 카드를 삽입하세요.",
-    [STR_W_SD_DISABLED_NOTE] = "플래시 암호화 펌웨어가 필요합니다. 이 빌드에서는 사용할 수 없습니다.",
     [STR_G_STORAGE_CONFIRM_T] = "지갑 저장소를 변경할까요?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "이 지갑을 내부 플래시로 옮깁니다.\n\n플래시 사본을 검증한 후에만 현재 사본을 삭제합니다.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "이 기기만 열 수 있는 암호화된 SD 파일로 옮깁니다.\n\n카드는 백업이 아닙니다. 카드나 기기 분실에 대비해 복구 문구를 종이에 보관하세요.\n\n검증 후에만 기존 저장소를 삭제합니다.",
@@ -2959,7 +2946,6 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_SD_MISSING_B] = "이 지갑이 담긴 SD 카드를 삽입하고 다시 시도하세요.",
     [STR_W_SD_CORRUPT_B] = "이 카드의 지갑 파일이 손상 또는 변경되었거나 다른 기기의 파일입니다.\n\n올바른 카드를 사용하거나 복구 문구로 복원하세요.",
     [STR_W_SD_IO_B] = "SD 카드를 읽지 못했습니다.\n\n다시 삽입해 시도하거나 복구 문구로 복원하세요.",
-    [STR_W_SD_UNSUPPORTED_B] = "이 펌웨어는 SD 지갑 저장소를 열 수 없습니다.\n\n플래시 암호화 펌웨어가 필요합니다.",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3361,7 +3347,6 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_SD_BTN] = "SD-KAART",
     [STR_W_FLASH_ENC_NOTE] = "op versleutelde interne flash opgeslagen. ontgrendel met je passphrase.",
     [STR_W_SD_NOTE] = "versleuteld bestand dat alleen dit apparaat kan openen. plaats de kaart vóór ontgrendeling.",
-    [STR_W_SD_DISABLED_NOTE] = "vereist firmware met flashversleuteling. niet beschikbaar in deze build.",
     [STR_G_STORAGE_CONFIRM_T] = "WALLETOPSLAG WIJZIGEN?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "verplaats deze wallet naar de interne flash.\n\nde huidige kopie wordt pas verwijderd nadat de flashkopie is gecontroleerd.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "verplaats naar een versleuteld SD-bestand dat alleen dit apparaat kan openen.\n\nde kaart is geen back-up. bewaar je woorden op papier voor verlies van de kaart of het apparaat.\n\nde oude opslag wordt pas na controle verwijderd.",
@@ -3382,7 +3367,6 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_SD_MISSING_B] = "plaats de SD-kaart met deze wallet en probeer het opnieuw.",
     [STR_W_SD_CORRUPT_B] = "het walletbestand op deze kaart is beschadigd, gewijzigd of hoort bij een ander apparaat.\n\ngebruik de juiste kaart of herstel met je woorden.",
     [STR_W_SD_IO_B] = "de SD-kaart kon niet worden gelezen.\n\nplaats hem opnieuw en probeer het nogmaals, of herstel met je woorden.",
-    [STR_W_SD_UNSUPPORTED_B] = "deze firmware kan walletopslag op SD niet openen.\n\nfirmware met flashversleuteling is vereist.",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3784,7 +3768,6 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_SD_BTN] = "KARTA SD",
     [STR_W_FLASH_ENC_NOTE] = "zapisane w szyfrowanej wewnętrznej pamięci flash. odblokuj frazą dostępu.",
     [STR_W_SD_NOTE] = "zaszyfrowany plik, który może otworzyć tylko to urządzenie. włóż kartę przed odblokowaniem.",
-    [STR_W_SD_DISABLED_NOTE] = "wymaga firmware z szyfrowaniem pamięci flash. niedostępne w tej wersji.",
     [STR_G_STORAGE_CONFIRM_T] = "ZMIENIĆ MIEJSCE ZAPISU?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "przenieś ten portfel do wewnętrznej pamięci flash.\n\nobecna kopia zostanie usunięta dopiero po sprawdzeniu kopii w pamięci flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "przenieś do zaszyfrowanego pliku SD, który może otworzyć tylko to urządzenie.\n\nkarta nie jest kopią zapasową. zachowaj słowa na papierze na wypadek utraty karty lub urządzenia.\n\nstare miejsce zapisu zostanie usunięte dopiero po sprawdzeniu.",
@@ -3805,7 +3788,6 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_SD_MISSING_B] = "włóż kartę SD zawierającą ten portfel i spróbuj ponownie.",
     [STR_W_SD_CORRUPT_B] = "plik portfela na tej karcie jest uszkodzony, zmieniony lub należy do innego urządzenia.\n\nużyj właściwej karty lub przywróć portfel ze swoich słów.",
     [STR_W_SD_IO_B] = "nie można odczytać karty SD.\n\nwłóż ją ponownie i spróbuj jeszcze raz albo przywróć portfel ze swoich słów.",
-    [STR_W_SD_UNSUPPORTED_B] = "ten firmware nie może otworzyć portfela zapisanego na karcie SD.\n\nwymagany jest firmware z szyfrowaniem pamięci flash.",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4207,7 +4189,6 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_SD_BTN] = "CARTÃO SD",
     [STR_W_FLASH_ENC_NOTE] = "salva na flash interna criptografada. abra com sua passphrase.",
     [STR_W_SD_NOTE] = "arquivo criptografado que só este dispositivo pode abrir. insira o cartão antes de desbloquear.",
-    [STR_W_SD_DISABLED_NOTE] = "exige firmware com flash criptografada. indisponível nesta versão.",
     [STR_G_STORAGE_CONFIRM_T] = "ALTERAR ARMAZENAMENTO?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "mover esta carteira para a flash interna.\n\na cópia atual só será removida depois que a cópia na flash for verificada.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "mover para um arquivo SD criptografado que só este dispositivo pode abrir.\n\no cartão não é um backup. guarde as palavras no papel caso perca o cartão ou o dispositivo.\n\no armazenamento antigo só é removido após a verificação.",
@@ -4228,7 +4209,6 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_SD_MISSING_B] = "insira o cartão SD que contém esta carteira e tente novamente.",
     [STR_W_SD_CORRUPT_B] = "o arquivo da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com suas palavras.",
     [STR_W_SD_IO_B] = "o cartão SD não pôde ser lido.\n\nreinsira-o e tente novamente, ou restaure com suas palavras.",
-    [STR_W_SD_UNSUPPORTED_B] = "este firmware não pode abrir o armazenamento da carteira no SD.\n\né necessário firmware com flash criptografada.",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4630,7 +4610,6 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_SD_BTN] = "SD-КАРТА",
     [STR_W_FLASH_ENC_NOTE] = "сохранено в зашифрованной внутренней флеш-памяти. откройте кодовой фразой.",
     [STR_W_SD_NOTE] = "зашифровано для этого устройства. вставьте карту перед разблокировкой.",
-    [STR_W_SD_DISABLED_NOTE] = "требуется прошивка с шифрованием флеш-памяти. недоступно в этой сборке.",
     [STR_G_STORAGE_CONFIRM_T] = "ИЗМЕНИТЬ ХРАНЕНИЕ КОШЕЛЬКА?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "переместить этот кошелек во внутреннюю флеш-память.\n\nтекущая копия удаляется только после проверки копии во флеш-памяти.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "переместить в зашифрованный файл на SD-карте, который может открыть только это устройство.\n\nкарта не является резервной копией. храните слова на бумаге на случай потери карты или устройства.\n\nстарое хранилище удаляется только после проверки.",
@@ -4651,7 +4630,6 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_SD_MISSING_B] = "вставьте SD-карту с этим кошельком и повторите попытку.",
     [STR_W_SD_CORRUPT_B] = "файл кошелька на этой карте поврежден, изменен или принадлежит другому устройству.\n\nиспользуйте правильную карту или восстановите кошелек по своим словам.",
     [STR_W_SD_IO_B] = "SD-карту не удалось прочитать.\n\nвставьте ее заново и повторите попытку или восстановите кошелек по своим словам.",
-    [STR_W_SD_UNSUPPORTED_B] = "эта прошивка не может открыть хранилище кошелька на SD-карте.\n\nтребуется прошивка с шифрованием флеш-памяти.",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5053,7 +5031,6 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_SD_BTN] = "SD KART",
     [STR_W_FLASH_ENC_NOTE] = "şifreli dahili flash'ta saklanır. Passphrase ile açılır.",
     [STR_W_SD_NOTE] = "yalnızca bu cihazın açabileceği şifreli dosya. kilidi açmadan önce kartı tak.",
-    [STR_W_SD_DISABLED_NOTE] = "flash şifrelemeli firmware gerektirir. bu derlemede kullanılamaz.",
     [STR_G_STORAGE_CONFIRM_T] = "CÜZDAN DEPOLAMASI DEĞİŞTİRİLSİN Mİ?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "bu cüzdanı dahili flash'a taşı.\n\nmevcut kopya yalnızca flash kopyası doğrulandıktan sonra kaldırılır.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "yalnızca bu cihazın açabileceği şifreli bir SD dosyasına taşı.\n\nkart yedek değildir. kart veya cihaz kaybına karşı kelimeleri kağıtta sakla.\n\neski depolama yalnızca doğrulamadan sonra kaldırılır.",
@@ -5074,7 +5051,6 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_SD_MISSING_B] = "bu cüzdanı içeren SD kartı takıp tekrar dene.",
     [STR_W_SD_CORRUPT_B] = "bu karttaki cüzdan dosyası hasarlı, değiştirilmiş veya başka bir cihaza ait.\n\ndoğru kartı kullan veya kelimelerinden geri yükle.",
     [STR_W_SD_IO_B] = "SD kart okunamadı.\n\nkartı yeniden takıp dene veya kelimelerinden geri yükle.",
-    [STR_W_SD_UNSUPPORTED_B] = "bu firmware SD cüzdan depolamasını açamaz.\n\nflash şifrelemeli firmware gereklidir.",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5476,7 +5452,6 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_SD_BTN] = "THẺ SD",
     [STR_W_FLASH_ENC_NOTE] = "lưu trong flash nội bộ được mã hóa. mở khóa bằng cụm mật khẩu.",
     [STR_W_SD_NOTE] = "tệp mã hóa chỉ thiết bị này mở được. lắp thẻ trước khi mở khóa.",
-    [STR_W_SD_DISABLED_NOTE] = "cần firmware mã hóa flash. không khả dụng trong bản dựng này.",
     [STR_G_STORAGE_CONFIRM_T] = "ĐỔI NƠI LƯU VÍ?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "chuyển ví này vào flash nội bộ.\n\nchỉ xóa bản sao hiện tại sau khi bản sao trong flash được xác minh.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "chuyển sang tệp SD mã hóa mà chỉ thiết bị này mở được.\n\nthẻ không phải bản sao lưu. giữ cụm từ trên giấy phòng khi mất thẻ hoặc thiết bị.\n\nchỉ xóa nơi lưu cũ sau khi xác minh.",
@@ -5497,7 +5472,6 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_SD_MISSING_B] = "lắp thẻ SD chứa ví này rồi thử lại.",
     [STR_W_SD_CORRUPT_B] = "tệp ví trên thẻ này bị hỏng, bị thay đổi hoặc thuộc về thiết bị khác.\n\nhãy dùng đúng thẻ hoặc khôi phục bằng cụm từ của bạn.",
     [STR_W_SD_IO_B] = "không thể đọc thẻ SD.\n\nhãy lắp lại rồi thử, hoặc khôi phục bằng cụm từ của bạn.",
-    [STR_W_SD_UNSUPPORTED_B] = "firmware này không thể mở nơi lưu ví trên SD.\n\ncần firmware mã hóa flash.",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5899,7 +5873,6 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_SD_BTN] = "SD 卡",
     [STR_W_FLASH_ENC_NOTE] = "保存在已加密的内部闪存中。用密码短语解锁。",
     [STR_W_SD_NOTE] = "只有本设备能打开的加密文件。解锁前请插卡。",
-    [STR_W_SD_DISABLED_NOTE] = "需要启用闪存加密的固件。此版本不可用。",
     [STR_G_STORAGE_CONFIRM_T] = "更改钱包存储位置？",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "将此钱包移至内部闪存。\n\n仅在验证闪存副本后删除当前副本。",
     [STR_G_STORAGE_CONFIRM_SD_B] = "移至只有本设备能打开的加密 SD 文件。\n\n此卡不是备份。请将助记词记在纸上，以防卡或设备丢失。\n\n仅在验证后删除旧存储。",
@@ -5920,7 +5893,6 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_SD_MISSING_B] = "请插入存有此钱包的 SD 卡，然后重试。",
     [STR_W_SD_CORRUPT_B] = "卡上的钱包文件已损坏、被更改或属于其他设备。\n\n请使用正确的卡或通过助记词恢复。",
     [STR_W_SD_IO_B] = "无法读取 SD 卡。\n\n请重新插入并重试，或通过助记词恢复。",
-    [STR_W_SD_UNSUPPORTED_B] = "此固件无法打开 SD 钱包存储。\n\n需要启用闪存加密的固件。",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6322,7 +6294,6 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_SD_BTN] = "TARJETA SD",
     [STR_W_FLASH_ENC_NOTE] = "guardada en la flash interna cifrada. abre con tu passphrase.",
     [STR_W_SD_NOTE] = "archivo cifrado que solo este dispositivo puede abrir. inserta la tarjeta antes de desbloquear.",
-    [STR_W_SD_DISABLED_NOTE] = "requiere firmware con flash cifrada. no disponible en esta versión.",
     [STR_G_STORAGE_CONFIRM_T] = "¿CAMBIAR ALMACENAMIENTO?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "mover esta cartera a la memoria flash interna.\n\nla copia actual solo se elimina tras verificar la copia en flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "mover a un archivo SD cifrado que solo este dispositivo puede abrir.\n\nla tarjeta no es una copia de seguridad. guarda las palabras en papel por si pierdes la tarjeta o el dispositivo.\n\nel almacenamiento anterior solo se elimina tras verificar.",
@@ -6343,7 +6314,6 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserta la tarjeta SD que contiene esta cartera y vuelve a intentarlo.",
     [STR_W_SD_CORRUPT_B] = "el archivo de cartera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
-    [STR_W_SD_UNSUPPORTED_B] = "este firmware no puede abrir almacenamiento de cartera en SD.\n\nse requiere firmware con flash cifrada.",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6745,7 +6715,6 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_SD_BTN] = "CARTÃO SD",
     [STR_W_FLASH_ENC_NOTE] = "guardada na flash interna encriptada. abra com a sua passphrase.",
     [STR_W_SD_NOTE] = "ficheiro encriptado que só este dispositivo pode abrir. introduza o cartão antes de desbloquear.",
-    [STR_W_SD_DISABLED_NOTE] = "requer firmware com flash encriptada. indisponível nesta versão.",
     [STR_G_STORAGE_CONFIRM_T] = "ALTERAR ARMAZENAMENTO?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "mover esta carteira para a flash interna.\n\na cópia atual só é removida depois de a cópia na flash ser verificada.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "mover para um ficheiro SD encriptado que só este dispositivo pode abrir.\n\no cartão não é uma cópia de segurança. guarde as palavras em papel em caso de perda do cartão ou do dispositivo.\n\no armazenamento antigo só é removido após a verificação.",
@@ -6766,7 +6735,6 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_SD_MISSING_B] = "introduza o cartão SD que contém esta carteira e tente novamente.",
     [STR_W_SD_CORRUPT_B] = "o ficheiro da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com as suas palavras.",
     [STR_W_SD_IO_B] = "não foi possível ler o cartão SD.\n\nvolte a introduzi-lo e tente novamente, ou restaure com as suas palavras.",
-    [STR_W_SD_UNSUPPORTED_B] = "este firmware não pode abrir o armazenamento da carteira no SD.\n\né necessário firmware com flash encriptada.",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7168,7 +7136,6 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_SD_BTN] = "SD-KORT",
     [STR_W_FLASH_ENC_NOTE] = "lagret i kryptert intern flash. lås opp med passordfrasen.",
     [STR_W_SD_NOTE] = "kryptert fil som bare denne enheten kan åpne. sett inn kortet før opplåsing.",
-    [STR_W_SD_DISABLED_NOTE] = "krever fastvare med flashkryptering. utilgjengelig i denne versjonen.",
     [STR_G_STORAGE_CONFIRM_T] = "ENDRE LOMMEBOKLAGRING?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "flytt denne lommeboken til intern flash.\n\nden nåværende kopien fjernes først når flashkopien er bekreftet.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "flytt til en kryptert SD-fil som bare denne enheten kan åpne.\n\nkortet er ikke en sikkerhetskopi. oppbevar ordene på papir i tilfelle kortet eller enheten mistes.\n\ngammel lagring fjernes først etter bekreftelse.",
@@ -7189,7 +7156,6 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_SD_MISSING_B] = "sett inn SD-kortet med denne lommeboken, og prøv igjen.",
     [STR_W_SD_CORRUPT_B] = "lommebokfilen på kortet er skadet, endret eller tilhører en annen enhet.\n\nbruk riktig kort, eller gjenopprett fra ordene dine.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke leses.\n\nsett det inn på nytt og prøv igjen, eller gjenopprett fra ordene dine.",
-    [STR_W_SD_UNSUPPORTED_B] = "denne fastvaren kan ikke åpne lommeboklagring på SD-kort.\n\nfastvare med flashkryptering kreves.",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7591,7 +7557,6 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_SD_BTN] = "SD-KORT",
     [STR_W_FLASH_ENC_NOTE] = "sparad i krypterad intern flash. lås upp med din lösenfras.",
     [STR_W_SD_NOTE] = "krypterad fil som bara den här enheten kan öppna. sätt in kortet före upplåsning.",
-    [STR_W_SD_DISABLED_NOTE] = "kräver firmware med flashkryptering. inte tillgängligt i den här versionen.",
     [STR_G_STORAGE_CONFIRM_T] = "ÄNDRA PLÅNBOKENS LAGRING?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "flytta den här plånboken till intern flash.\n\nden nuvarande kopian tas bort först när flashkopian har verifierats.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "flytta till en krypterad SD-fil som bara den här enheten kan öppna.\n\nkortet är ingen säkerhetskopia. spara orden på papper om kortet eller enheten förloras.\n\ngammal lagring tas bort först efter verifiering.",
@@ -7612,7 +7577,6 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_SD_MISSING_B] = "sätt in SD-kortet med den här plånboken och försök igen.",
     [STR_W_SD_CORRUPT_B] = "plånboksfilen på kortet är skadad, ändrad eller tillhör en annan enhet.\n\nanvänd rätt kort eller återställ från dina ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunde inte läsas.\n\nsätt in det igen och försök, eller återställ från dina ord.",
-    [STR_W_SD_UNSUPPORTED_B] = "den här firmwareversionen kan inte öppna plånbokslagring på SD-kort.\n\nfirmware med flashkryptering krävs.",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8014,7 +7978,6 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_SD_BTN] = "SD-KORT",
     [STR_W_FLASH_ENC_NOTE] = "gemt i krypteret intern flash. lås op med din adgangsfrase.",
     [STR_W_SD_NOTE] = "krypteret fil, som kun denne enhed kan åbne. indsæt kortet før oplåsning.",
-    [STR_W_SD_DISABLED_NOTE] = "kræver firmware med flashkryptering. ikke tilgængelig i denne version.",
     [STR_G_STORAGE_CONFIRM_T] = "SKIFT TEGNEBOGENS LAGRING?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "flyt denne tegnebog til intern flash.\n\nden nuværende kopi fjernes først, når flashkopien er bekræftet.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "flyt til en krypteret SD-fil, som kun denne enhed kan åbne.\n\nkortet er ikke en sikkerhedskopi. gem ordene på papir, hvis kort eller enhed mistes.\n\ngammel lagring fjernes først efter bekræftelse.",
@@ -8035,7 +7998,6 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_SD_MISSING_B] = "indsæt SD-kortet med denne tegnebog, og prøv igen.",
     [STR_W_SD_CORRUPT_B] = "tegnebogsfilen på kortet er beskadiget, ændret eller hører til en anden enhed.\n\nbrug det rigtige kort, eller gendan fra dine ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke læses.\n\nindsæt det igen og prøv, eller gendan fra dine ord.",
-    [STR_W_SD_UNSUPPORTED_B] = "denne firmware kan ikke åbne tegnebogslager på SD-kort.\n\nfirmware med flashkryptering er påkrævet.",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8437,7 +8399,6 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_SD_BTN] = "SD KARTA",
     [STR_W_FLASH_ENC_NOTE] = "uloženo v šifrované interní flash. odemkněte přístupovou frází.",
     [STR_W_SD_NOTE] = "šifrovaný soubor, který otevře jen toto zařízení. před odemknutím vložte kartu.",
-    [STR_W_SD_DISABLED_NOTE] = "vyžaduje firmware se šifrovanou flash. v tomto sestavení není dostupné.",
     [STR_G_STORAGE_CONFIRM_T] = "ZMĚNIT ÚLOŽIŠTĚ PENĚŽENKY?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "přesunout tuto peněženku do interní flash.\n\nsoučasná kopie se odstraní až po ověření kopie ve flash.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "přesunout do šifrovaného souboru na SD, který otevře jen toto zařízení.\n\nkarta není záloha. pro případ ztráty karty nebo zařízení uchovejte slova na papíře.\n\nstaré úložiště se odstraní až po ověření.",
@@ -8458,7 +8419,6 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_SD_MISSING_B] = "vložte SD kartu s touto peněženkou a zkuste to znovu.",
     [STR_W_SD_CORRUPT_B] = "soubor peněženky na této kartě je poškozený, změněný nebo patří jinému zařízení.\n\npoužijte správnou kartu nebo obnovte peněženku ze svých slov.",
     [STR_W_SD_IO_B] = "SD kartu nešlo přečíst.\n\nvložte ji znovu a opakujte pokus, nebo obnovte peněženku ze svých slov.",
-    [STR_W_SD_UNSUPPORTED_B] = "tento firmware neumí otevřít úložiště peněženky na SD kartě.\n\nje vyžadován firmware se šifrovanou flash.",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8860,7 +8820,6 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_SD_BTN] = "SD KARTICA",
     [STR_W_FLASH_ENC_NOTE] = "spremljeno u šifriranoj internoj flash memoriji. otključaj kodnom frazom.",
     [STR_W_SD_NOTE] = "šifrirana datoteka koju može otvoriti samo ovaj uređaj. umetni karticu prije otključavanja.",
-    [STR_W_SD_DISABLED_NOTE] = "zahtijeva firmware sa šifriranom flash memorijom. nije dostupno u ovoj verziji.",
     [STR_G_STORAGE_CONFIRM_T] = "PROMIJENITI POHRANU NOVČANIKA?",
     [STR_G_STORAGE_CONFIRM_FLASH_B] = "premjesti ovaj novčanik u internu flash memoriju.\n\ntrenutna kopija uklanja se tek nakon provjere kopije u flash memoriji.",
     [STR_G_STORAGE_CONFIRM_SD_B] = "premjesti u šifriranu SD datoteku koju može otvoriti samo ovaj uređaj.\n\nkartica nije sigurnosna kopija. čuvaj riječi na papiru za slučaj gubitka kartice ili uređaja.\n\nstara pohrana uklanja se tek nakon provjere.",
@@ -8881,7 +8840,6 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_SD_MISSING_B] = "umetni SD karticu s ovim novčanikom pa pokušaj ponovno.",
     [STR_W_SD_CORRUPT_B] = "datoteka novčanika na ovoj kartici je oštećena, promijenjena ili pripada drugom uređaju.\n\nupotrijebi ispravnu karticu ili obnovi pomoću svojih riječi.",
     [STR_W_SD_IO_B] = "SD kartica se ne može pročitati.\n\nponovno je umetni i pokušaj ili obnovi pomoću svojih riječi.",
-    [STR_W_SD_UNSUPPORTED_B] = "ovaj firmware ne može otvoriti pohranu novčanika na SD kartici.\n\npotreban je firmware sa šifriranom flash memorijom.",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

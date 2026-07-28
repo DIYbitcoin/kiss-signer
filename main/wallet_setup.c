@@ -665,29 +665,14 @@ static void storage_screen(void)
                               (void *)(intptr_t)WSEED_MODE_KEEP);
     wt_pill_primary(flash);
 
-    const bool sd_ok = wallet_seed_sd_supported() != 0;
     // The FLASH note tells the truth about what a chip dump would find, which
-    // is the encryption state -- NOT whether SD happens to be available. Those
-    // used to be the same flag; they are not any more.
+    // is the encryption state.
     wt_wraph(s_scr, tr(wallet_seed_flash_encrypted() ? STR_W_FLASH_ENC_NOTE
                                                       : STR_W_KEEP_NOTE),
              330, 100, 420, 87);
-    lv_obj_t *sd = mk_pill(tr(STR_W_SD_BTN), 48, 218, 252,
-                           sd_ok ? storage_pick_cb : NULL,
-                           (void *)(intptr_t)WSEED_MODE_SD);
-    lv_obj_t *sd_note = wt_wraph(
-        s_scr, tr(sd_ok ? STR_W_SD_NOTE : STR_W_SD_DISABLED_NOTE),
-        330, 208, 420, 87);
-    if (!sd_ok) {
-        // Visible but inert on normal unencrypted firmware. Hiding it made the
-        // three-mode design undiscoverable; allowing the tap would promise a
-        // security property this build cannot provide.
-        lv_obj_remove_flag(sd, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_text_color(lv_obj_get_child(sd, 0), MUT_COL, 0);
-        lv_obj_set_style_border_color(sd, MUT_COL, 0);
-        lv_obj_set_style_opa(sd, LV_OPA_50, 0);
-        lv_obj_set_style_text_color(sd_note, WARN_COL, 0);
-    }
+    mk_pill(tr(STR_W_SD_BTN), 48, 218, 252, storage_pick_cb,
+            (void *)(intptr_t)WSEED_MODE_SD);
+    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 330, 208, 420, 87);
 
     mk_pill(tr(STR_W_AMNESIC_BTN), 48, 326, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
@@ -858,7 +843,6 @@ static const char *sd_problem_body(int rc)
     switch (rc) {
     case WSEED_ERR_SD_CORRUPT:     return tr(STR_W_SD_CORRUPT_B);
     case WSEED_ERR_SD_IO:          return tr(STR_W_SD_IO_B);
-    case WSEED_ERR_SD_UNSUPPORTED: return tr(STR_W_SD_UNSUPPORTED_B);
     default:                       return tr(STR_W_SD_MISSING_B);
     }
 }

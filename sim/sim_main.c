@@ -62,7 +62,6 @@ static int s_sim_has_pending;
 static int s_sim_mode;
 static int s_sim_pending_mode = -1;   // staged wizard answer, -1 = none
 static int s_sim_sd_present = 1;      // hot-plug state for the unlock gate
-static int s_sim_sd_supported = 1;    // SD is offered on every build now
 int wallet_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
 int wallet_seed_store(const char *m) {
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", m);
@@ -135,7 +134,6 @@ int wallet_seed_set_mode(int m) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_seed = 0;
   return 0;
 }
-int wallet_seed_sd_supported(void) { return s_sim_sd_supported; }
 // The desktop store is a plain file, so at-rest encryption is off: the FLASH
 // note reads as the unencrypted (steering) copy in the sim, matching a normal
 // beta board.
@@ -144,8 +142,6 @@ int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
     return WSEED_ERR_INVALID;
-  if (m == WSEED_MODE_SD && !s_sim_sd_supported)
-    return WSEED_ERR_SD_UNSUPPORTED;
   if (m == s_sim_mode) return WSEED_OK;
   if ((m == WSEED_MODE_SD || s_sim_mode == WSEED_MODE_SD) &&
       !s_sim_sd_present)
@@ -1272,7 +1268,6 @@ int main(void) {
   // Move the live RAM wallet to SD, lock, then remove the card. KISS must land
   // on INSERT WALLET SD CARD -- never on first-boot setup. A failed retry stays
   // there; reinserting the card advances to the ordinary passphrase screen.
-  s_sim_sd_supported = 1;
   wallet_seed_move_to(WSEED_MODE_SD);
   s_sim_sd_present = 0;
   touch(100, 60); pump(3); release(); pump(20);      // explicit lock -> game

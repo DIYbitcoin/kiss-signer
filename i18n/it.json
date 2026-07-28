@@ -397,7 +397,6 @@
   "W_SD_BTN": "SCHEDA SD",
   "W_FLASH_ENC_NOTE": "salvato nella flash interna cifrata. sblocca con la passphrase.",
   "W_SD_NOTE": "file cifrato che solo questo dispositivo può aprire. inserisci la scheda prima di sbloccare.",
-  "W_SD_DISABLED_NOTE": "richiede firmware con flash cifrata. non disponibile in questa versione.",
   "G_STORAGE_CONFIRM_T": "CAMBIARE ARCHIVIAZIONE?",
   "G_STORAGE_CONFIRM_FLASH_B": "sposta questo portafoglio nella flash interna.\n\nla copia attuale viene rimossa solo dopo la verifica della copia nella flash.",
   "G_STORAGE_CONFIRM_SD_B": "sposta in un file SD cifrato che solo questo dispositivo può aprire.\n\nla scheda non è un backup. conserva le parole su carta in caso di perdita della scheda o del dispositivo.\n\nla vecchia archiviazione viene rimossa solo dopo la verifica.",
@@ -417,6 +416,5 @@
   "W_SD_MISSING_S": "questo portafoglio si trova su memoria rimovibile",
   "W_SD_MISSING_B": "inserisci la scheda SD che contiene questo portafoglio e riprova.",
   "W_SD_CORRUPT_B": "il file del portafoglio su questa scheda è danneggiato, modificato o appartiene a un altro dispositivo.\n\nusa la scheda corretta o ripristina dalle tue parole.",
-  "W_SD_IO_B": "non è stato possibile leggere la scheda SD.\n\nreinseriscila e riprova, oppure ripristina dalle tue parole.",
-  "W_SD_UNSUPPORTED_B": "questo firmware non può aprire l'archiviazione del portafoglio su SD.\n\nè richiesto un firmware con flash cifrata."
+  "W_SD_IO_B": "non è stato possibile leggere la scheda SD.\n\nreinseriscila e riprova, oppure ripristina dalle tue parole."
 }

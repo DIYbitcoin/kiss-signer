@@ -317,24 +317,15 @@ static int storage_mode_write(int mode)
            storage_mode_read_checked(&verify) == 0 && verify == mode ? 0 : -1;
 }
 
-int wallet_seed_sd_supported(void)
-{
-    // SD is available whenever the card hardware is. The seed is written to the
-    // card as an authenticated, device-key-sealed blob, and that key lives in
-    // this device's flash -- so a stolen card alone is inert, and the device
-    // alone holds no card ciphertext. That split does NOT need flash
-    // encryption to hold.
-    //
-    // What flash encryption adds is protecting the device key AT REST, so that
-    // someone who has BOTH the device and the card cannot dump the key out of
-    // plaintext flash and decrypt. That is a stronger threat (device+card
-    // together), not the card-loss case SD mainly guards -- and FLASH mode,
-    // which stores the seed in the CLEAR in NVS, is already offered on this
-    // same firmware. Gating the safer option (a split secret) while shipping
-    // the weaker one (a plaintext seed) was backwards, so SD stands on its own.
-    // The encrypted-release lane still closes the device+card gap on top.
-    return 1;
-}
+// SD is available whenever the card hardware is, which on this board is always.
+// The seed is written to the card as an authenticated, device-key-sealed blob:
+// a stolen card alone is inert (its key lives in this device's flash) and the
+// device alone holds no card ciphertext. That split does not need flash
+// encryption. Encryption is a separate, stronger layer that also protects the
+// device key at rest, closing the device+card-together gap -- and FLASH mode,
+// which stores the seed in the clear, is offered on the same firmware anyway.
+// So there is no "SD unsupported" state to gate on; the predicate that used to
+// express one is gone.
 
 int wallet_seed_flash_encrypted(void)
 {
@@ -352,7 +343,6 @@ static int storage_read_sd(char *out, size_t out_len)
 {
     if (!out || out_len < 2) return WSEED_ERR_INVALID;
     wally_bzero(out, out_len);
-    if (!wallet_seed_sd_supported()) return WSEED_ERR_SD_UNSUPPORTED;
     if (platform_sd_mount() != 0) return WSEED_ERR_SD_MISSING;
 
     uint8_t blob[SDSEED_MAX_BLOB], key[32];
@@ -379,7 +369,6 @@ static int storage_write_sd(const char *words, bool *sidecar_cleanup)
 {
     if (!words || wallet_seed_validate(words) != 0) return WSEED_ERR_INVALID;
     if (sidecar_cleanup) *sidecar_cleanup = false;
-    if (!wallet_seed_sd_supported()) return WSEED_ERR_SD_UNSUPPORTED;
     if (platform_sd_mount() != 0) return WSEED_ERR_SD_MISSING;
 
     uint8_t blob[SDSEED_MAX_BLOB], key[32];
@@ -418,7 +407,6 @@ static int storage_delete_sd(void)
 static int storage_publish_sd(void)
 {
 #ifdef ESP_PLATFORM
-    if (!wallet_seed_sd_supported()) return WSEED_ERR_SD_UNSUPPORTED;
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return WSEED_ERR_SD_IO;
@@ -731,8 +719,6 @@ int wallet_seed_move_to(int mode)
     if (mode != WSEED_MODE_KEEP && mode != WSEED_MODE_AMNESIC &&
         mode != WSEED_MODE_SD)
         return WSEED_ERR_INVALID;
-    if (mode == WSEED_MODE_SD && !wallet_seed_sd_supported())
-        return WSEED_ERR_SD_UNSUPPORTED;
 
     if (s_has_pending)
         return WSEED_ERR_INVALID;       // setup owns the staged candidate

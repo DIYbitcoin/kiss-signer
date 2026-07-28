@@ -275,8 +275,7 @@ static const char *storage_mode_note(int mode)
 {
     switch (mode) {
     case WSEED_MODE_SD:
-        return tr(wallet_seed_sd_supported() ? STR_W_SD_NOTE
-                                             : STR_W_SD_DISABLED_NOTE);
+        return tr(STR_W_SD_NOTE);
     case WSEED_MODE_AMNESIC: return tr(STR_W_AMNESIC_NOTE);
     default:
         // Encryption state, not SD availability -- see storage_screen.
@@ -389,7 +388,6 @@ static void storage_pick_cb(lv_event_t *e)
 {
     int target = (int)(intptr_t)lv_event_get_user_data(e);
     if (target == wallet_seed_mode()) return;     // already selected and named
-    if (target == WSEED_MODE_SD && !wallet_seed_sd_supported()) return;
     storage_confirm_screen(target);
 }
 
@@ -416,21 +414,11 @@ static void storage_chooser_screen(void)
     static const int py[3] = {110, 218, 326};
     for (int i = 0; i < 3; i++) {
         int mode = modes[i];
-        bool enabled = mode != WSEED_MODE_SD || wallet_seed_sd_supported();
         lv_obj_t *p = wt_pillh(s_scr, storage_mode_name(mode),
-                               48, py[i], 252, 52,
-                               enabled ? storage_pick_cb : NULL,
+                               48, py[i], 252, 52, storage_pick_cb,
                                (void *)(intptr_t)mode);
         wt_pill_select(p, current == mode);
-        lv_obj_t *note = wt_wraph(s_scr, storage_mode_note(mode),
-                                  330, py[i] - 10, 420, 87);
-        if (!enabled) {
-            lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_text_color(lv_obj_get_child(p, 0), MUT_COL, 0);
-            lv_obj_set_style_border_color(p, MUT_COL, 0);
-            lv_obj_set_style_opa(p, LV_OPA_50, 0);
-            lv_obj_set_style_text_color(note, WARN_COL, 0);
-        }
+        wt_wraph(s_scr, storage_mode_note(mode), 330, py[i] - 10, 420, 87);
     }
     lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140,
                              storage_chooser_back_cb, NULL);
