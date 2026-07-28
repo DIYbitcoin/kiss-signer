@@ -9,12 +9,17 @@ for the unlocked session; SD CARD uses the sealed file described below. The
 Settings chooser marks the current mode and migrates only while a valid source
 is available.
 
-The normal beta firmware deliberately shows SD CARD disabled with
-`requires encrypted firmware`. Its flash and NVS are not encrypted, so enabling
-the device-bound card mode there would present a security claim the build
-cannot keep. The simulator exposes SD mode for deterministic migration and
-failure tests. A real device may enable it only on the encrypted firmware lane,
-after both flash encryption and NVS encryption are active.
+SD CARD is offered on every build. It was previously gated behind flash
+encryption, which was backwards: the card already holds the words as a blob
+sealed to a device key, so a lost card is inert without any help from flash
+encryption, while FLASH mode stored the words in the CLEAR on the same firmware.
+Gating the safer option while shipping the weaker one made no sense, so
+`wallet_seed_sd_supported()` became unconditionally true in `a9303d0`.
+
+What the encrypted lane adds on top is protection of the device key at rest,
+which closes the remaining case: someone holding BOTH the device and the card.
+That is a stronger threat than the card loss SD mainly guards against, and it is
+still pending hardware acceptance.
 
 Implementation now includes the authenticated sealed-blob layer, SD storage
 backend, mode-aware read/write/erase paths, setup and Settings UI, missing-card
@@ -153,7 +158,9 @@ missing key and the fit checker covers the three-choice screens.
   asserting the words are never lost and never silently in two places
 - WIPE erases the card file and the key, and an old card no longer decrypts
 - power cut simulation: abort between every pair of steps and assert recovery
-- normal firmware exposes SD as disabled and cannot create `kiss-seed.enc`
+- SD is selectable on normal firmware and creates `kiss-seed.enc` sealed to the
+  device key, with the device key itself unprotected at rest until the
+  encrypted lane ships
 - missing-card SD boot prompts for insertion and retry, never setup
 - simulator exercises all three modes without weakening the device gate
 

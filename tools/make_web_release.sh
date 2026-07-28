@@ -220,8 +220,8 @@ json.dump({
     ],
     "warnings": [
         "This is a beta build, not a final funds build.",
-        "Do not erase flash on a board that holds a wallet unless you intentionally want to wipe it.",
-        "After flashing, unplug the board, wait about 3 seconds, then plug it back in.",
+        "Do not erase flash on a device that holds a wallet unless you intentionally want to wipe it.",
+        "After flashing, unplug the device, wait about 3 seconds, then plug it back in.",
     ],
 }, open(f"{out}/release.json", "w"), indent=2)
 print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")

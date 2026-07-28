@@ -32,7 +32,7 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   still shows them, and the owner's paper plus passphrase still restore them.
   Telling someone their wallet is being erased, while they decide whether to
   press the button, is the opposite of what happens. It must not say signer
-  either — the signer is the device, and it is still there afterward.
+  either: the signer is the device, and it is still there afterward.
 - After the phrase has been introduced, a short native form of **the words**
   is fine in space-constrained copy.
 - Never say that the words alone "are the wallet." If a BIP39 passphrase is
@@ -53,7 +53,7 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   where coins live, and it is not a backup method. Every explanation must still
   point to paper recovery words plus the exact passphrase as the independent
   recovery path.
-- **FLASH** means the board's internal non-volatile storage. Do not translate it
+- **FLASH** means the device's internal non-volatile storage. Do not translate it
   as memory in the RAM sense, cloud storage, or “the wallet.” In the normal beta
   firmware this storage is not encrypted, so its note must not imply protection
   from a physical flash dump.
@@ -65,10 +65,15 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   session. Locking or powering off forgets them. Avoid softer translations such
   as private, temporary backup, incognito, or do not remember: the essential
   fact is **nothing persists**.
-- The normal firmware must render the SD choice as disabled with the equivalent
-  of **requires encrypted firmware**. Translate the reason, but never weaken it
-  to recommended, card missing, unavailable now, or advanced. Inserting a card
-  does not satisfy this security requirement.
+- **All three modes are offered on every build.** SD was previously gated behind
+  flash encryption and its copy said the equivalent of "requires encrypted
+  firmware". That is no longer true and must not be translated anywhere: the
+  card already holds the words as a blob sealed to a device key, which does not
+  need flash encryption to be worth having.
+- What flash encryption adds is protection of the **device key at rest**, so
+  the FLASH note is the one that changes between builds. Its wording is chosen
+  from the real eFuse state, so both variants must be translated and both must
+  be honest about what a chip dump would find.
 - Migration copy must preserve the order of operations: write and verify the
   destination, then remove the source. Do not say moved or saved until that
   verification succeeds.
@@ -104,6 +109,18 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
 - Never say `same fingerprint = same wallet, same coins`. A paired coordinator
   should show the expected fingerprint, but users must still verify addresses
   and transaction details on the signer.
+
+## Hardware vocabulary
+
+- It is a **device**, never a **board**. "Board" describes bare hardware on a
+  bench. By the time someone is holding a signer that guards their coins, it is
+  a device, and calling it a board makes it sound like an unfinished project
+  rather than the thing they are trusting.
+- The one exception is naming the bare product itself, where "Guition
+  JC4880P443C dev board" is what it is called and what a reader will search
+  for. Everywhere else, device.
+- The native equivalent should be the ordinary word for a small electronic
+  device, not the word for a circuit board.
 
 ## Mechanical rules
 

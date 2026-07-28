@@ -17,7 +17,7 @@ name: desktop tests
 # Runs on both branches, because passing this lane is exactly the bar for
 # landing on develop: develop is the trunk and must always be green here,
 # but green here proves nothing about hardware. main is the release line -
-# it only moves on a tagged release that has been run on a real board, and
+# it only moves on a tagged release that has been run on a real device, and
 # that is what reproducible-build.yml publishes hashes for.
 on:
   push:

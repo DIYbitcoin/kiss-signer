@@ -22,6 +22,8 @@ Draw K, I, S, S anywhere on the menu. On a device with no duress strokes set, th
 
 Your recovery words and your exact passphrase together make this wallet. A different passphrase silently opens a different wallet, so check the fingerprint is the one you expect.
 
+This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty wallet. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
+
 ## Two ways in: the spare wallet
 
 A passphrase field on screen is itself a tell. It proves there is something to leave out of it, and you can never show that the passphrase you gave was the last one. So the obvious gesture opens a real, working wallet that asks for nothing, and the passphrase lives behind one extra stroke.

@@ -3,19 +3,19 @@
 ## Branches
 
 Two long-lived branches. The split exists because this repo publishes
-reproducible firmware hashes and invites you to rebuild and compare them —
-so `main` has to mean something stable.
+reproducible firmware hashes and invites you to rebuild and compare them, so
+`main` has to mean something stable.
 
 | | `develop` | `main` |
 |---|---|---|
 | Desktop CI green | required | required |
-| Run on real hardware | not required | **required** |
+| Run on a real device | not required | **required** |
 | Tagged | no | yes |
 | Reproducible hashes published | no | yes, automatically |
 
 - **`develop`** is the trunk. Everything lands here first. It must always
-  pass `desktop-tests.yml` — generator drift, crypto vectors, sim smoke
-  walks, BlueWallet interop. It may still be unproven on a board.
+  pass `desktop-tests.yml`: generator drift, crypto vectors, sim smoke
+  walks, BlueWallet interop. It may still be unproven on a device.
 - **`main`** is the release line. It only moves when a release is cut,
   merged `--no-ff` from `develop` and tagged. Never commit to it directly.
 
@@ -32,8 +32,8 @@ gh pr create -B develop
 
 Desktop CI runs everything that proves correctness *without* hardware. That
 is deliberately not enough for `main`. Anything touching display, QR or
-animation, camera, SD card, buttons, or touch must be run on a real board
-before it crosses — a missing glyph hard-hangs LVGL, and CI cannot see that.
+animation, camera, SD card, buttons, or touch must be run on a real device
+before it crosses. A missing glyph hard-hangs LVGL, and CI cannot see that.
 
 ## Cutting a release
 
