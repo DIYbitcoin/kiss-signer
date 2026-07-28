@@ -152,6 +152,13 @@ if ("IntersectionObserver" in window) {
   revealEls.forEach((el) => el.classList.add("is-visible"));
 }
 
-ack.addEventListener("change", updateFlashGate);
-updateFlashGate();
-verifyFirmware();
+// The install card is pulled whenever the staged installer artifacts do not
+// match VERSION, so every element below this point is optional. The reveal and
+// click behaviour above is not, which is why the bail comes here rather than at
+// the top of the file. Restoring the button is then a pure HTML change: put the
+// card back and this block starts running again on its own.
+if (ack && installButton && lockedButton && verifyLight && verifyTitle) {
+  ack.addEventListener("change", updateFlashGate);
+  updateFlashGate();
+  verifyFirmware();
+}
