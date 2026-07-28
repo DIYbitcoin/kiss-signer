@@ -29,11 +29,11 @@ function updateFlashGate() {
   lockedButton.classList.toggle("is-hidden", ready);
 
   if (!supported) {
-    lockedButton.textContent = "Connect/install needs Chrome, Brave, or Edge";
+    lockedButton.textContent = "This browser can't talk to the device";
   } else if (!verified) {
-    lockedButton.textContent = "Connect and install firmware (checking...)";
+    lockedButton.textContent = "Connect and install (verifying...)";
   } else if (!ack.checked) {
-    lockedButton.textContent = "Connect and install firmware (check box first)";
+    lockedButton.textContent = "Connect and install (tick the box first)";
   }
 }
 
@@ -111,7 +111,7 @@ async function verifyFirmware() {
     }
 
     verified = true;
-    setVerifyState("ready", "Firmware verified");
+    setVerifyState("ready", "This file matches the published release");
     // show the actual hash, not just a verdict; tap to copy the full digest
     setReceipt(hashCheck, shortHex(digest), "ok");
     hashCheck.title = digest;
@@ -119,7 +119,7 @@ async function verifyFirmware() {
     hashCheck.onclick = () => navigator.clipboard?.writeText(digest);
   } catch (error) {
     verified = false;
-    setVerifyState("stop", "Verification failed");
+    setVerifyState("stop", "This file does not match the release, do not flash it");
     setReceipt(hashCheck, "failed", "stop");
   }
   updateFlashGate();
@@ -152,6 +152,13 @@ if ("IntersectionObserver" in window) {
   revealEls.forEach((el) => el.classList.add("is-visible"));
 }
 
-ack.addEventListener("change", updateFlashGate);
-updateFlashGate();
-verifyFirmware();
+// The install card is pulled whenever the staged installer artifacts do not
+// match VERSION, so every element below this point is optional. The reveal and
+// click behaviour above is not, which is why the bail comes here rather than at
+// the top of the file. Restoring the button is then a pure HTML change: put the
+// card back and this block starts running again on its own.
+if (ack && installButton && lockedButton && verifyLight && verifyTitle) {
+  ack.addEventListener("change", updateFlashGate);
+  updateFlashGate();
+  verifyFirmware();
+}

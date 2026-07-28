@@ -9,12 +9,17 @@ for the unlocked session; SD CARD uses the sealed file described below. The
 Settings chooser marks the current mode and migrates only while a valid source
 is available.
 
-The normal beta firmware deliberately shows SD CARD disabled with
-`requires encrypted firmware`. Its flash and NVS are not encrypted, so enabling
-the device-bound card mode there would present a security claim the build
-cannot keep. The simulator exposes SD mode for deterministic migration and
-failure tests. A real device may enable it only on the encrypted firmware lane,
-after both flash encryption and NVS encryption are active.
+SD CARD is offered on every build. It was previously gated behind flash
+encryption, which was backwards: the card already holds the words as a blob
+sealed to a device key, so a lost card is inert without any help from flash
+encryption, while FLASH mode stored the words in the CLEAR on the same firmware.
+Gating the safer option while shipping the weaker one made no sense, so
+`wallet_seed_sd_supported()` became unconditionally true in `a9303d0`.
+
+What the encrypted lane adds on top is protection of the device key at rest,
+which closes the remaining case: someone holding BOTH the device and the card.
+That is a stronger threat than the card loss SD mainly guards against, and it is
+still pending hardware acceptance.
 
 Implementation now includes the authenticated sealed-blob layer, SD storage
 backend, mode-aware read/write/erase paths, setup and Settings UI, missing-card
@@ -153,7 +158,9 @@ missing key and the fit checker covers the three-choice screens.
   asserting the words are never lost and never silently in two places
 - WIPE erases the card file and the key, and an old card no longer decrypts
 - power cut simulation: abort between every pair of steps and assert recovery
-- normal firmware exposes SD as disabled and cannot create `kiss-seed.enc`
+- SD is selectable on normal firmware and creates `kiss-seed.enc` sealed to the
+  device key, with the device key itself unprotected at rest until the
+  encrypted lane ships
 - missing-card SD boot prompts for insertion and retry, never setup
 - simulator exercises all three modes without weakening the device gate
 
@@ -162,7 +169,7 @@ Automated tests validate mechanics, not the eFuse/NVS security claim.
 ## Encrypted real-device acceptance gate
 
 This entire section is deferred from the normal beta7 acceptance run. A real SD
-card and a dedicated no-funds board flashed with the DEVELOPMENT encryption
+card and a dedicated no-funds device flashed with the DEVELOPMENT encryption
 rehearsal are required:
 
 ```sh
@@ -170,7 +177,7 @@ KISS_ENC_REHEARSAL=1 tools/build_encrypted_release.sh
 ```
 
 That profile remains serial-reflashable, but its first boot still burns a
-flash-encryption key permanently. The board can never return to plaintext
+flash-encryption key permanently. The device can never return to plaintext
 flash. Do not use the final RELEASE profile for this test.
 
 1. Confirm Settings reports flash encryption active and the build includes NVS
@@ -186,7 +193,7 @@ flash. Do not use the final RELEASE profile for this test.
    accepted.
 8. WIPE with the card out, then reinsert it: destroying the device key must make
    the surviving file permanently undecryptable.
-9. Dump flash/NVS from the rehearsal board and confirm neither the mnemonic nor
+9. Dump flash/NVS from the rehearsal device and confirm neither the mnemonic nor
    the SD device key appears in plaintext.
 
 Only after every item passes may the encrypted firmware enable SD CARD on a
