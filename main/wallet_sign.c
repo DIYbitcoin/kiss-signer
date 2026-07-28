@@ -501,12 +501,22 @@ static void rbf_help_cb(lv_event_t *e)
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(ovl, rbf_ok_cb, LV_EVENT_CLICKED, ovl);   // tap anywhere = close
 
+    // The card was a wall of text about a yes/no property of the transaction,
+    // and the two answers looked identical until you read to the end. One big
+    // glyph says which one this is before a word is read: a replace arrow when
+    // the fee can still be raised, a padlock when it cannot.
+    lv_obj_t *ic = lv_label_create(ovl);
+    lv_label_set_text(ic, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK);
+    lv_obj_set_style_text_font(ic, wt_font34(), 0);
+    lv_obj_set_style_text_color(ic, s_sum.rbf ? wt_accent() : WARN_COL, 0);
+    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 46);
+
     lv_obj_t *t = lv_label_create(ovl);
     lv_label_set_text(t, s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF));
     lv_obj_set_style_text_color(t, INK_COL, 0);
     lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 100);
 
     const char *rbf_body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
     lv_obj_t *b = lv_label_create(ovl);
