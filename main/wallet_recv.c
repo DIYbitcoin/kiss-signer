@@ -334,10 +334,29 @@ static void sp_addr_open(lv_obj_t *parent) {
   // compare the smallest text on the device. 23 is the largest rung that still
   // fits the 200px between this column's top and the derivation path: ~30
   // characters a line, five lines. 28 needs six lines of 37 and collides.
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font23());
-  lv_obj_set_pos(s_addr_sg, 400, 110);
+  // font28, up from 23. The old note here said 23 was the largest rung that
+  // fits, and it was -- for a 360px column starting at y=110 with the path
+  // pinned at 320. Both were movable. The column starts at x=366 instead of
+  // 400 and the address starts 10px higher, which is 26 more px of width and
+  // 10 of height: six lines of 28 now land at 100..322, clear of the path.
+  //
+  // The QR is deliberately NOT shrunk to buy this. A 117-character silent
+  // payment address is a ~53-module code; at the 264px it has now that is
+  // 5px per module, and anything that moved it near 150px would be under 3 --
+  // which phones stop reading. This is the one address on the device meant to
+  // be scanned by someone else's camera.
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font28());
+  lv_obj_set_pos(s_addr_sg, 366, 100);
 
-  lv_obj_t *path = wt_lbl(s_scr, "", 400, 320, wt_font23(), WT_MUT);
+  // The path sits under however many lines the address actually took, not at a
+  // fixed y. Mainnet sp1 is 117 characters and wraps to six lines; testnet
+  // tsp1 is one character longer and takes SEVEN, which a fixed position had
+  // the path printing straight through. Measuring costs nothing and cannot be
+  // wrong for a locale or an address length nobody tried.
+  lv_obj_update_layout(s_addr_sg);
+  int path_y = 100 + lv_obj_get_height(s_addr_sg) + 10;
+  if (path_y > 370) path_y = 370;          // never behind the pill row at 404
+  lv_obj_t *path = wt_lbl(s_scr, "", 366, path_y, wt_font23(), WT_MUT);
   lv_label_set_text_fmt(path, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
