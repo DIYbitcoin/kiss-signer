@@ -44,10 +44,14 @@
 #include "wallet_theme.h"
 #include "wallet_duress.h"
 #include "wallet_duress_ui.h"
+// platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
+// SD-storage badge probes it outside any device-only block, so its header is
+// platform-agnostic here. wallet_crypto/camera_spike stay device-only: they
+// pull in ESP headers the sim cannot compile.
+#include "platform_sd.h"
 #ifndef SIMULATOR
 #include "wallet_crypto.h"
 #include "camera_spike.h"
-#include "platform_sd.h"
 #endif
 
 // touch read is the platform seam: device reads GT911, simulator feeds scripted input
@@ -215,6 +219,8 @@ static lv_obj_t *s_fp_cap;               // "fingerprint" caption under the chip
 static lv_obj_t *s_fp_card;              // tap the chip -> what-this-number-means card
 static lv_obj_t *s_fp_fly;               // transient: the code flying from the reveal card
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
+static lv_obj_t *s_sd_badge;             // home: SD-storage indicator (SD mode only)
+static bool s_sd_badge_live;             // SD mode + card in: game_tick breathes it
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
@@ -1297,8 +1303,28 @@ static void wallet_home_restyle(void) {
   }
 }
 
+// The SD-storage badge: shown only when this wallet lives on the card, accent
+// while the card is in (game_tick breathes it), amber "no card" while it is
+// out. Driven both here (immediate, on unlock and return from Settings) and by
+// the game_tick hot-plug poll (catches a card pulled or pushed while idle).
+static void sd_badge_sync(bool present) {
+  if (!s_sd_badge) return;
+  s_sd_badge_live = false;
+  if (wallet_seed_mode() == WSEED_MODE_SD) {
+    lv_obj_clear_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(s_sd_badge,
+                      present ? LV_SYMBOL_SD_CARD "  SD" : LV_SYMBOL_SD_CARD "  no card");
+    lv_obj_set_style_text_color(s_sd_badge, present ? wt_accent() : WT_WARN, 0);
+    if (present) s_sd_badge_live = true;             // breathe in game_tick
+    else         lv_obj_set_style_opa(s_sd_badge, LV_OPA_COVER, 0);  // warning stays solid
+  } else {
+    lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
 void wallet_home_refresh(void) {
   wallet_home_restyle();
+  sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
   if (wallet_testnet()) lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
   else                  lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
@@ -1660,6 +1686,7 @@ static void game_tick(lv_timer_t *t) {
     // attempt (only when none is present) can briefly block, but the home art is
     // static so a hitch never shows.
     static int s_sd_tick; static bool s_sd_present; static int s_sd_toast;
+    static bool s_sd_badge_live;                     // SD mode + card in: breathe it
     if (!cam_on && ++s_sd_tick >= 90) {              // poll ~1.5s at TICK_MS
       s_sd_tick = 0;
       bool present = platform_sd_probe() != 0;
@@ -1672,6 +1699,16 @@ static void game_tick(lv_timer_t *t) {
         lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // reset: no green leak
       }
       s_sd_present = present;
+      sd_badge_sync(present);                        // persistent SD-storage badge
+    }
+    // Gentle opacity breathe on the SD badge while the card is present, so it
+    // reads as a live link to the card rather than a static label. Opacity only
+    // (never transform_scale), so it forces no draw layer.
+    if (s_sd_badge_live) {
+      static uint32_t sd_anim;
+      uint32_t ph = ++sd_anim % 120;                 // ~2s loop at TICK_MS
+      uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
+      lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
     if (!cam_on && pressed && !s_prev_press && tx < 200 && ty < 110) {
       wallet_lock();
@@ -2124,6 +2161,17 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // baked art leaves this
   lv_obj_set_style_text_font(s_cam_lbl, &lv_font_montserrat_14, 0);   // bottom gap free
   lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -14);
+
+  // Persistent storage badge, above the build-identity line. It appears ONLY
+  // when this wallet lives on the SD card, so the home says at a glance that a
+  // card is required: accent while the card is in (and breathing, so it reads
+  // as live), amber "no card" while it is out. game_tick drives its state and
+  // the breathe; hidden for FLASH/AMNESIC, where there is nothing to insert.
+  s_sd_badge = lv_label_create(s_wallet);
+  lv_label_set_text(s_sd_badge, "");
+  lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
+  lv_obj_set_pos(s_sd_badge, 48, 398);
+  lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
 
   // TESTNET badge — top-center, between the baked "KISS" logo (left) and the
   // fingerprint chip (right). Amber pill, shown ONLY on testnet so mainnet stays

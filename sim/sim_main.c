@@ -867,6 +867,12 @@ int main(void) {
   save("/tmp/sim_storage_sd_ok.ppm");
   touch(400, 430); pump(3); release(); pump(8);     // OK -> Settings
   save("/tmp/sim_settings_sd.ppm");                 // current mode reads SD CARD
+  // The home now carries the SD-storage badge (accent, breathing while the
+  // card is in). Pop out to capture it, then return to Settings to migrate
+  // back to FLASH.
+  touch(680, 430); pump(3); release(); pump(8);     // Settings BACK -> home
+  save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
+  touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   touch(600, 120); pump(3); release(); pump(6);
   touch(174, 136); pump(3); release(); pump(6);     // FLASH
   touch(213, 425); pump(105); release(); pump(8);
