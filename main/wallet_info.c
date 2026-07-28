@@ -509,14 +509,21 @@ static void info_screen(void)
     // every payment you receive -- so it deserves its own pill and keeps its own
     // consent warning (sp_key_warn_cb), which is still the only way to reach the
     // key itself.
+    // 72 tall at y=228, not 60 at 236, because the badge under the label moved
+    // up to a readable 23. "silent payment" is the one thing on this screen
+    // that says WHICH kind of address this key belongs to, and it was rendering
+    // in the smallest type the device owns. The taller row needs 12px and the
+    // main label needs its own 29px line, so the pill grows and starts 8px
+    // higher; the note below gives back the difference and still clears the
+    // three lines at 23 it was widened for.
     lv_obj_t *skp = wt_pill_icon(s_scr, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN),
-                                 430, 236, 340, 60, sp_key_warn_cb, NULL);
-    wt_pill_two_line(skp, tr(STR_S_SP_BADGE));
+                                 430, 228, 340, 72, sp_key_warn_cb, NULL);
+    wt_pill_two_line_val(skp, tr(STR_S_SP_BADGE));
     // 94, not 62: this sentence needs three lines at 23 and was silently
     // dropping to font14 beside a PAIR COORDINATOR note at 23 -- the smaller
     // type on the export that gives away the scan key. Nothing sits between
     // here and BACK at y=404, so the rows were free the whole time.
-    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 302, 340, 94);
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 306, 340, 90);
 
     // Both actions on this screen are the same size, chosen once for the pair
     // rather than per label: PAIR COORDINATOR is short and would otherwise sit

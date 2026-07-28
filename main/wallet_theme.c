@@ -561,6 +561,12 @@ static void pill_sub_line(lv_obj_t *pill, const char *sub,
 
     lv_obj_t *s = lv_label_create(pill);
     lv_label_set_text(s, sub);
+    // The sub-line is centred and never wraps, so a font too wide for the pill
+    // does not clip -- it hangs out past both edges, over whatever is beside
+    // the button. Drop it a rung instead. Only the locale that cannot make the
+    // requested size pays, rather than every locale being held to the longest.
+    if (f != wt_font14() && !pill_fits(sub, f, 0, w - 28, row_h, false))
+        f = wt_font14();
     lv_obj_set_style_text_font(s, f, 0);
     lv_obj_set_style_text_color(s, WT_MUT, 0);
     lv_obj_align(s, LV_ALIGN_BOTTOM_MID, 0, -6);
