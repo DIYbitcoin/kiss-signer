@@ -394,6 +394,21 @@ lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
     return wt_pillh(scr, txt, x, y, w, 52, cb, ud);
 }
 
+// Two spaces, not one: at a pill's tracking a single space let the icon crowd
+// the first letter and the pair read as one damaged glyph.
+void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
+{
+    snprintf(out, out_len, "%s  %s", icon, txt);
+}
+
+lv_obj_t *wt_pill_icon(lv_obj_t *scr, const char *icon, const char *txt,
+                       int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
+{
+    char buf[WT_ICON_TEXT_MAX];
+    wt_icon_text(buf, sizeof buf, icon, txt);
+    return wt_pillh(scr, buf, x, y, w, h, cb, ud);
+}
+
 // ---- hold to confirm (see wallet_theme.h) ----
 // One press cannot fire it and neither can two: the finger has to stay down.
 // State hangs off the pill so several could coexist, and the timer is deleted
