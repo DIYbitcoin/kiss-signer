@@ -329,9 +329,15 @@ static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy) {
   }
 }
 
-// Blend a solid landscape-space rectangle toward white (a = 0..15) — the
-// viewfinder brackets and shimmer are drawn with this.
-static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a) {
+// Blend a solid landscape-space rectangle toward an arbitrary RGB565 colour
+// (a = 0..15). Components are in 565 scale: r,b are 0..31 and g is 0..63.
+//
+// Division, not >>8, on the delta: it is signed here. Blending DOWN toward a
+// darker target makes (t - c) negative, and an arithmetic shift of a negative
+// value rounds away from zero, so the colour would creep past its target and
+// keep going a little every frame.
+static void lrect_blend_rgb(uint16_t *fb, int lx, int ly, int lw, int lh,
+                            uint8_t a, int tr, int tg, int tb) {
   int aa = a * 17;
   for (int yy = ly; yy < ly + lh; yy++) {
     int px = (PANEL_W - 1) - yy;
@@ -340,12 +346,17 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
       if (xx < 0 || xx >= PANEL_H) continue;
       uint16_t d = fb[xx * PANEL_W + px];
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
-      r += ((31 - r) * aa) >> 8;
-      g += ((63 - g) * aa) >> 8;
-      b += ((31 - b) * aa) >> 8;
+      r += ((tr - r) * aa) / 256;
+      g += ((tg - g) * aa) / 256;
+      b += ((tb - b) * aa) / 256;
       fb[xx * PANEL_W + px] = (uint16_t)((r << 11) | (g << 5) | b);
     }
   }
+}
+
+// Blend toward white — the shimmer and the searching brackets.
+static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a) {
+  lrect_blend_rgb(fb, lx, ly, lw, lh, a, 31, 63, 31);
 }
 
 // Camera-app viewfinder: four corner brackets marking the region that is
@@ -364,15 +375,55 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 // view costs a little visual tidiness under the bands and buys ~450 px across
 // a filled code, which is 3.8 px/module at version 25 -- the difference
 // between "never reads" and "reads instantly".
+// The frame is 30fps (see the 60-frame OSD hold, commented as ~2s), so these
+// periods are in thirtieths of a second. Kept as named frame counts rather
+// than milliseconds because s_frames is the only clock this path has.
+#define BRK_BREATH_F 60     // 2s: brackets breathe while searching
+#define BRK_SWEEP_F  45     // 1.5s: one pass of the scan line
+
 static void draw_brackets(uint16_t *fb) {
   const int cx = 400, cy = 240, half = 225, arm = 44, t = 4;
-  uint8_t a = s_scan_found > 0 ? 15 : 8;
+  bool found = s_scan_found > 0;
+  // Located: solid, and green rather than white. Green is the wallet's
+  // status-OK colour everywhere else on the device, and this is the only
+  // moment on this screen where something definite has happened.
+  // Searching: a slow breath between 5 and 11, so the guide reads as live
+  // rather than as a static overlay somebody forgot to remove.
+  int ph = (int)(s_frames % BRK_BREATH_F);
+  int tri = ph < BRK_BREATH_F / 2 ? ph : BRK_BREATH_F - ph;   // 0..30..0
+  uint8_t a = found ? 15 : (uint8_t)(5 + tri * 6 / (BRK_BREATH_F / 2));
   for (int sx = -1; sx <= 1; sx += 2)
     for (int sy = -1; sy <= 1; sy += 2) {
       int x = cx + sx * half, y = cy + sy * half;
-      lrect_blend(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a);
-      lrect_blend(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a);
+      if (found) {
+        lrect_blend_rgb(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a, 6, 52, 15);
+        lrect_blend_rgb(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a, 6, 52, 15);
+      } else {
+        lrect_blend(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a);
+        lrect_blend(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a);
+      }
     }
+
+  // A line sweeping down the guide while nothing is located. It exists to say
+  // "still looking" during the state that otherwise has no motion at all: a
+  // dense QR can sit in frame for many seconds while quirc keeps failing, and
+  // a completely still screen reads as a hung device.
+  //
+  // It stops the moment a code is found, so motion means searching and
+  // stillness means located -- the opposite of the two being decoration.
+  //
+  // Drawn INTO the display framebuffer only, like the brackets and the bands:
+  // scan_decode reads the raw sensor frame, so nothing the sweep crosses is
+  // hidden from the decoder.
+  if (!found) {
+    int sp = (int)(s_frames % BRK_SWEEP_F);
+    int sy = cy - half + sp * (2 * half) / BRK_SWEEP_F;
+    // Dim at the ends of the travel and brightest through the middle, so it
+    // reads as a pass across the guide rather than a bar that teleports back.
+    int st = sp < BRK_SWEEP_F / 2 ? sp : BRK_SWEEP_F - sp;
+    uint8_t sa = (uint8_t)(2 + st * 6 / (BRK_SWEEP_F / 2));
+    lrect_blend(fb, cx - half, sy, 2 * half, 3, sa);
+  }
 }
 
 // Draw the zoom indicator into a framebuffer (panel coords). The landscape-right
