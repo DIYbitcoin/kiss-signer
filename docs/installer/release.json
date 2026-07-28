@@ -3,10 +3,10 @@
   "product": "KISS Signer",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
-  "version": "0.1.0-beta4",
-  "commit": "f891617",
+  "version": "0.1.0-beta6",
+  "commit": "v0.1.0-beta6-1-gd50dc60",
   "status": "beta",
-  "generated": "2026-07-19",
+  "generated": "2026-07-27",
   "authenticity": {
     "signed": true,
     "signatureStatus": "pgp",
@@ -22,10 +22,10 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-signer-0.1.0-beta4.bin",
+    "path": "firmware/kiss-signer-0.1.0-beta6.bin",
     "offset": 0,
-    "size": 6924816,
-    "sha256": "7d6289d6023b0cc289f10a4fce291e1d35b699e280e08ff496e5adf0661555d4"
+    "size": 9234592,
+    "sha256": "7acd8df2aec1488b0950f1ed7b4d770c41a824e71332a999744b658e7f969d4a"
   },
   "sourceParts": [
     {
@@ -46,8 +46,8 @@
       "name": "application",
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 65536,
-      "size": 6859280,
-      "sha256": "f51fc284b1e2f79dae73491830bdbdc165a18c90d6af62a44dfa6e9d16a3a6d1"
+      "size": 9169056,
+      "sha256": "5b5ea691b63e2e284907ed785c9639946f7f25e15055e5bac71ff6a5a84ab270"
     }
   ],
   "warnings": [
