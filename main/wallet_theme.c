@@ -898,9 +898,10 @@ static lv_span_t *addr_span(lv_obj_t *sg, const char *txt, bool lit)
 {
     lv_span_t *s = lv_spangroup_new_span(sg);
     lv_span_set_text(s, txt);
+    // Lit groups stand out by brightness alone (accent/ink vs muted grey). No
+    // underline: it read as a link or a spelling error on the address, and the
+    // contrast already carries the distinction.
     lv_style_set_text_color(lv_span_get_style(s), lit ? wt_accent() : WT_MUT);
-    lv_style_set_text_decor(lv_span_get_style(s),
-                            lit ? LV_TEXT_DECOR_UNDERLINE : LV_TEXT_DECOR_NONE);
     return s;
 }
 
@@ -970,8 +971,7 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
-    lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
-    lv_style_set_text_decor(lv_span_get_style(s2), LV_TEXT_DECOR_UNDERLINE);
+    lv_style_set_text_color(lv_span_get_style(s2), wt_accent());   // brightness, no underline
     // The tail is the part you are actually asked to compare, so when the body
     // is too small to compare comfortably the tail renders one rung ABOVE it.
     // Blowing up the whole string instead would push the other outputs off a
