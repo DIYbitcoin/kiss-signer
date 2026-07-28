@@ -113,6 +113,10 @@ static int s_scan_w, s_scan_h;       // decoder dims (half of the cropped sensor
 static volatile bool s_scan_mode;
 static volatile int s_scan_seen, s_scan_total;
 static volatile int s_scan_found;    // frames left to show "QR located" (yellow)
+// How much of the decoded frame the located code fills, in 1/256ths, or 0 if
+// the last locate came from the whole-sensor pass (see scan_decode) and so
+// cannot be compared with what the panel is showing. Drives the reticle.
+static volatile int s_qr_fill;
 static volatile int s_scan_osd = OSD_SEARCH;   // which baked strip to draw
 static uint32_t s_scan_att;
 // Consecutive decode passes that located a QR, had it fully in frame, and
@@ -380,10 +384,33 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 // than milliseconds because s_frames is the only clock this path has.
 #define BRK_BREATH_F 60     // 2s: brackets breathe while searching
 #define BRK_SWEEP_F  45     // 1.5s: one pass of the scan line
+#define BRK_HALF     225    // half the guide box, when nothing is located
+#define BRK_HALF_MIN 95     // never close tighter than this, however small the code
+
+// Where the brackets are now, eased toward where the located code says they
+// should be. Eased rather than snapped because the fill estimate jitters by a
+// few percent between frames as the finder squares are re-located, and a box
+// that twitched would look like a fault rather than a lock.
+static int s_brk_half = BRK_HALF;
 
 static void draw_brackets(uint16_t *fb) {
-  const int cx = 400, cy = 240, half = 225, arm = 44, t = 4;
+  const int cx = 400, cy = 240, arm = 44, t = 4;
   bool found = s_scan_found > 0;
+
+  // Closing in on the code is the whole "it found it" gesture. s_qr_fill is
+  // how much of the frame the code occupies; the guide follows it down, with a
+  // floor so a distant code does not shrink the guide into a dot the user then
+  // cannot aim with.
+  int want = BRK_HALF;
+  if (found && s_qr_fill > 0) {
+    want = BRK_HALF * s_qr_fill / 256 + arm / 2;
+    if (want < BRK_HALF_MIN) want = BRK_HALF_MIN;
+    if (want > BRK_HALF) want = BRK_HALF;
+  }
+  s_brk_half += (want - s_brk_half) / 4;          // ~4 frames to settle
+  if (s_brk_half > BRK_HALF) s_brk_half = BRK_HALF;
+  if (s_brk_half < BRK_HALF_MIN) s_brk_half = BRK_HALF_MIN;
+  const int half = s_brk_half;
   // Located: solid, and green rather than white. Green is the wallet's
   // status-OK colour everywhere else on the device, and this is the only
   // moment on this screen where something definite has happened.
@@ -403,6 +430,27 @@ static void draw_brackets(uint16_t *fb) {
         lrect_blend(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a);
       }
     }
+
+  // A second, thinner bracket set inset from the first, and short ticks at the
+  // midpoint of each edge. Together they read as a sighting reticle rather
+  // than a photo app's crop marks, which is the whole ask -- and both are the
+  // same two-rectangle primitive as the corners, so they cost the same
+  // nothing per frame.
+  {
+    const int in = 22, arm2 = 26, t2 = 2;
+    uint8_t a2 = (uint8_t)(a > 6 ? a - 4 : 2);
+    for (int sx = -1; sx <= 1; sx += 2)
+      for (int sy = -1; sy <= 1; sy += 2) {
+        int x = cx + sx * (half - in), y = cy + sy * (half - in);
+        lrect_blend(fb, sx < 0 ? x : x - arm2, y - t2 / 2, arm2, t2, a2);
+        lrect_blend(fb, x - t2 / 2, sy < 0 ? y : y - arm2, t2, arm2, a2);
+      }
+    const int tick = 26;
+    lrect_blend(fb, cx - t2 / 2, cy - half, t2, tick, a2);          // top
+    lrect_blend(fb, cx - t2 / 2, cy + half - tick, t2, tick, a2);   // bottom
+    lrect_blend(fb, cx - half, cy - t2 / 2, tick, t2, a2);          // left
+    lrect_blend(fb, cx + half - tick, cy - t2 / 2, tick, t2, a2);   // right
+  }
 
   // A line sweeping down the guide while nothing is located. It exists to say
   // "still looking" during the state that otherwise has no motion at all: a
@@ -691,6 +739,32 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         if (res.corners[c].x < M || res.corners[c].x >= qw - M ||
             res.corners[c].y < M || res.corners[c].y >= qh - M)
           cut = true;
+      // How much of the frame the located code fills, in 1/256ths, for the
+      // reticle to close in on. Size only, not position: a centred box needs
+      // no knowledge of which way the PPA rotates, while tracking an off-centre
+      // code would, and that is not checkable anywhere in this tree.
+      //
+      // ONLY from an odd attempt. Even attempts decode the whole sensor
+      // downsampled while the panel is showing a tighter crop, so a fraction
+      // measured there describes a different picture than the one on screen
+      // and would close the brackets onto nothing.
+      if (i == 0) {
+        if (s_scan_att & 1) {
+          int minx = res.corners[0].x, maxx = minx;
+          int miny = res.corners[0].y, maxy = miny;
+          for (int c = 1; c < 4; c++) {
+            if (res.corners[c].x < minx) minx = res.corners[c].x;
+            if (res.corners[c].x > maxx) maxx = res.corners[c].x;
+            if (res.corners[c].y < miny) miny = res.corners[c].y;
+            if (res.corners[c].y > maxy) maxy = res.corners[c].y;
+          }
+          int fw = (maxx - minx) * 256 / qw, fh = (maxy - miny) * 256 / qh;
+          bool quarter = (s_orient % 2) == 1;   // 90/270 swap width and height
+          s_qr_fill = quarter ? (fh > fw ? fh : fw) : (fw > fh ? fw : fh);
+        } else {
+          s_qr_fill = 0;
+        }
+      }
       if (err == K_QUIRC_SUCCESS && res.data.payload_len > 0) {
         decoded = true;
         s_scan_cb((const char *)res.data.payload, (size_t)res.data.payload_len);
