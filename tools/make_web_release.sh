@@ -17,8 +17,22 @@ cd "$(dirname "$0")/.."
 MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-signer/minisign.key}"
 PUBKEY_FILE="docs/installer/kiss_signer.pub"
 GPG_PUB_FILE="docs/installer/kiss_signer_pgp.asc"
+# The interpreter must have esptool, because step 2 below merges the image with
+# it. Testing -x only asked "does this file run", which a venv that exists but
+# never had esptool installed passes -- so the release got all the way through a
+# full Docker rebuild before dying on "No module named esptool". Test the thing
+# actually needed instead, and fall through to anything that has it.
 PY="${PY:-/tmp/spritevenv/bin/python}"
-[ -x "$PY" ] || PY=python3
+for cand in "$PY" /tmp/kissvenv/bin/python python3; do
+    if [ -x "$cand" ] || command -v "$cand" >/dev/null 2>&1; then
+        if "$cand" -m esptool version >/dev/null 2>&1; then PY="$cand"; break; fi
+    fi
+done
+if ! "$PY" -m esptool version >/dev/null 2>&1; then
+    echo "No Python with esptool found (tried $PY, /tmp/kissvenv/bin/python, python3)."
+    echo "Install it:  python3 -m pip install esptool"
+    exit 1
+fi
 
 # A release must come from a fully committed tree, so the version/commit it
 # reports match code that actually exists in git (no "-dirty"). If you have
