@@ -4,7 +4,7 @@
 
 # Walkthrough
 
-Five things to do before this wallet holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
+The checks to make before this wallet holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
 
 ## Returning from Fruit Island
 
@@ -23,6 +23,18 @@ Draw K, I, S, S anywhere on the menu. On a device with no duress strokes set, th
 Your recovery words and your exact passphrase together make this wallet. A different passphrase silently opens a different wallet, so check the fingerprint is the one you expect.
 
 This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty wallet. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
+
+## Choosing where the recovery words live
+
+Storage is chosen while a wallet is created or restored, and it can be changed later from an unlocked wallet. All three modes are offered on every build; the passphrase, never stored here, is what guards the real wallet whichever mode holds the words.
+
+![KISS screen: setup storage](shots/03a-setup-storage.png)
+
+Setup asks what remains after you power off, before the recovery words are committed. FLASH keeps the words on this device (they open the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the words to a card only this signer can open.
+
+![KISS screen: settings storage](shots/03b-settings-storage.png)
+
+SETTINGS → STORAGE shows the current mode and the same three choices. Moving between modes requires a deliberate hold and verifies the destination before removing the source.
 
 ## Two ways in: the spare wallet
 
@@ -54,7 +66,7 @@ WALLET carries the facts you check against the coordinator: fingerprint, network
 
 ![KISS screen: pair sparrow](shots/05-pair-sparrow.png)
 
-PAIR COORDINATOR with DESKTOP selected shows the descriptor Sparrow reads. Scan it with Sparrow's webcam, or export to SD.
+PAIR COORDINATOR with DESKTOP selected shows the descriptor Sparrow reads. Scan it with Sparrow's webcam, or export to SD. Tap the + beside any QR to enlarge it.
 
 ![KISS screen: pair explained](shots/06-pair-explained.png)
 
@@ -66,7 +78,7 @@ Do this once, before any money moves. It is the step that catches a computer sho
 
 ![KISS screen: receive](shots/07-receive.png)
 
-RECEIVE shows an address KISS derived on the device. Read it here, on the device, never off the computer.
+RECEIVE lists addresses KISS derived on the device. Tap any of them for its QR. Read them here, on the device, never off the computer.
 
 ![KISS screen: verify match](shots/08-verify-match.png)
 
@@ -82,11 +94,11 @@ Send yourself an amount you would not mind losing, and confirm it arrives, befor
 
 ![KISS screen: receive first](shots/10-receive-first.png)
 
-Page to the address you want paying. The counter says which address you are looking at.
+Page to the address you want paying. The counter says which address you are looking at. Tap its QR for a full-screen scan view.
 
 ![KISS screen: receive reuse](shots/11-receive-reuse.png)
 
-An address you already used gets an amber warning and a FRESH pill, because reusing one links your payments together in public.
+Every address keeps the standing privacy reminder in view: use a new one for each payment, because reuse links payments in public.
 
 ## Signing and broadcasting a tiny transaction
 
@@ -110,7 +122,7 @@ Signed. The signed file or QR has to go back to Sparrow, and Sparrow broadcasts 
 
 ![KISS screen: sign qr out](shots/16-sign-qr-out.png)
 
-Handing the signature back by animated QR when there is no SD card. Point Sparrow's webcam at it and let it run.
+Handing the signature back by animated QR when there is no SD card. Point Sparrow's webcam at it and let it run; tap the QR if the camera needs larger modules.
 
 ---
 
