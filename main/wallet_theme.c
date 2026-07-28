@@ -309,6 +309,61 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     return scr;
 }
 
+// ---- tap feedback ----
+// The board has no haptics, so a press can only be answered optically, and
+// until now the whole answer was the background changing colour instantly.
+//
+// Two more style properties carry the rest. The pill translates 2px down while
+// held, so it reads as pushed in; and an outline ring travels between the pill
+// edge and 10px outside it, opaque at the pressed end and invisible at the
+// resting end. Pressing pulls the ring in as it appears, releasing pushes it
+// back out as it fades -- an optical tick at each end of the tap.
+//
+// The ring needs no press/release handlers because BOTH ends are ordinary
+// states: the resting state simply owns the wide invisible outline and the
+// pressed state owns the narrow opaque one, and the transition below animates
+// whichever direction the finger goes.
+//
+// Deliberately NOT transform_scale. A scaled object forces LVGL to allocate a
+// draw layer, the pool on this panel cannot hold one that size, and
+// lv_draw_dispatch then retries the allocation forever -- a hard hang, not a
+// dropped frame. calculate_layer_type() in lv_obj_style.c triggers only on
+// rotation, scale, skew, layered opacity, bitmap masks and blend modes; every
+// property used here is a plain paint value with no layer behind it.
+//
+// One descriptor on the DEFAULT state rather than a fast-in/slow-out pair,
+// because a transition is looked up on the state being entered: a descriptor
+// living only on the pressed style would animate the press and then sit out
+// the release, which is the half that matters most.
+#define WT_TAP_RING 10          // how far outside the edge the ring travels
+#define WT_TAP_MS   160
+
+static lv_style_transition_dsc_t s_tap_tr;
+static bool s_tap_tr_ready;
+
+static void pill_tap_feedback(lv_obj_t *p)
+{
+    static const lv_style_prop_t props[] = {
+        LV_STYLE_BG_COLOR, LV_STYLE_TRANSLATE_Y,
+        LV_STYLE_OUTLINE_WIDTH, LV_STYLE_OUTLINE_OPA,
+        LV_STYLE_PROP_INV                       // terminator
+    };
+    if (!s_tap_tr_ready) {
+        lv_style_transition_dsc_init(&s_tap_tr, props, lv_anim_path_ease_out,
+                                     WT_TAP_MS, 0, NULL);
+        s_tap_tr_ready = true;
+    }
+    lv_obj_set_style_outline_color(p, wt_primary(), 0);
+    lv_obj_set_style_outline_width(p, WT_TAP_RING, 0);
+    lv_obj_set_style_outline_opa(p, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_translate_y(p, 0, 0);
+    lv_obj_set_style_transition(p, &s_tap_tr, 0);
+
+    lv_obj_set_style_outline_width(p, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_outline_opa(p, LV_OPA_70, LV_STATE_PRESSED);
+    lv_obj_set_style_translate_y(p, 2, LV_STATE_PRESSED);
+}
+
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud)
 {
@@ -320,6 +375,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_set_style_bg_color(p, WT_KEY, 0);
     lv_obj_set_style_bg_color(p, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
+    pill_tap_feedback(p);
     lv_obj_set_style_border_width(p, 1, 0);
     lv_obj_set_style_border_color(p, WT_MUT, 0);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
