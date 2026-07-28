@@ -24,6 +24,11 @@
 #include "camera_spike.h"
 #endif
 
+// main.c owns the full replacement/setup hand-off (including the type-twice
+// passphrase ritual). The missing-SD recovery action must use that path rather
+// than treating restored words like an ordinary one-passphrase unlock.
+void wallet_begin_setup(void);
+
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK
 #define MUT_COL  WT_MUT
@@ -46,6 +51,7 @@ static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
 static bool s_verify_ok;        // result returned to the caller after this check
 static bool s_load;             // AMNESIC per-session load, not first-boot setup
+static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
@@ -95,6 +101,25 @@ static void close_all(void)
 {
     wipe_state();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+}
+
+// A storage readiness check necessarily opens the sealed file, because a
+// mounted card may still contain the wrong, corrupt, or incomplete wallet
+// file. Keep the plaintext lifetime to this stack frame and defeat dead-store
+// elimination explicitly; the normal login will load it again only after this
+// gate succeeds.
+static void setup_wipe(void *ptr, size_t n)
+{
+    volatile uint8_t *p = ptr;
+    while (n--) *p++ = 0;
+}
+
+int wallet_setup_sd_status(void)
+{
+    char words[WSEED_MAX_MNEMONIC];
+    int rc = wallet_seed_load(words, sizeof words);
+    setup_wipe(words, sizeof words);
+    return rc;
 }
 
 // ---- shared widgets: thin wrappers over the wallet_theme kit ----
@@ -522,6 +547,13 @@ static void restore_kb_cb(lv_event_t *e)
     if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
         if (s_verify) { verify_finish_exit(); return; }   // verify: back to the wallet
         wipe_state();
+        // Cancelling word entry drops the staged storage mode too, not only the
+        // words. wipe_state() clears the word buffer; the mode answer lives in
+        // wallet_seed.c and needs its own discard, exactly as cancel_cb does.
+        // Without this, RESTORE -> pick a non-default mode -> type -> CANCEL
+        // leaves that mode staged for the next setup or login to inherit -- the
+        // uncommitted-mode leak the storage layer is built to prevent.
+        wallet_seed_discard();
         choose_screen();
         return;
     }
@@ -600,7 +632,7 @@ static void count_screen(void)
 
 // ---- storage mode: the one question that decides what this device holds ----
 // STAGE the answer, never apply it. This screen is step one of the wizard, so
-// "NOTHING SAVED" here used to erase the wallet the user already had before a
+// "AMNESIC" here used to erase the wallet the user already had before a
 // single new word existed -- and BACK, or a power cut, then left them with
 // neither. wallet_seed_commit applies it once the whole ritual is done.
 static void storage_pick_cb(lv_event_t *e)
@@ -623,20 +655,54 @@ static void storage_pick_cb(lv_event_t *e)
 static void storage_screen(void)
 {
     mk_screen(tr(STR_W_STORE_T), tr(STR_W_STORE_S));
-    lv_obj_t *p = mk_pill(tr(STR_W_KEEP_BTN), 48, 150, 340,
-                          storage_pick_cb, (void *)(intptr_t)WSEED_MODE_KEEP);
-    wt_pill_primary(p);
-    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 264, 340,
+
+    // Three explicit storage names, always in the same order used by
+    // Settings. The note is beside its control instead of hidden behind a
+    // help card: this choice decides what an attacker or a border search can
+    // recover after power-off.
+    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, 110, 252,
+                              storage_pick_cb,
+                              (void *)(intptr_t)WSEED_MODE_KEEP);
+    wt_pill_primary(flash);
+
+    const bool sd_ok = wallet_seed_sd_supported() != 0;
+    wt_wraph(s_scr, tr(sd_ok ? STR_W_FLASH_ENC_NOTE : STR_W_KEEP_NOTE),
+             330, 100, 420, 87);
+    lv_obj_t *sd = mk_pill(tr(STR_W_SD_BTN), 48, 218, 252,
+                           sd_ok ? storage_pick_cb : NULL,
+                           (void *)(intptr_t)WSEED_MODE_SD);
+    lv_obj_t *sd_note = wt_wraph(
+        s_scr, tr(sd_ok ? STR_W_SD_NOTE : STR_W_SD_DISABLED_NOTE),
+        330, 208, 420, 87);
+    if (!sd_ok) {
+        // Visible but inert on normal unencrypted firmware. Hiding it made the
+        // three-mode design undiscoverable; allowing the tap would promise a
+        // security property this build cannot provide.
+        lv_obj_remove_flag(sd, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_text_color(lv_obj_get_child(sd, 0), MUT_COL, 0);
+        lv_obj_set_style_border_color(sd, MUT_COL, 0);
+        lv_obj_set_style_opa(sd, LV_OPA_50, 0);
+        lv_obj_set_style_text_color(sd_note, WARN_COL, 0);
+    }
+
+    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 326, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
-    wt_wraph(s_scr, tr(STR_W_KEEP_NOTE),    430, 150, 340, 110);
-    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 430, 266, 340, 130);
+    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 316, 420, 87);
     mk_pill(tr(STR_C_BACK), 610, 404, 140, goto_choose_cb, NULL);
 }
 
 // ---- entry ----
 static void new_cb(lv_event_t *e)     { (void)e; s_restore = false; storage_screen(); }
 static void restore_cb(lv_event_t *e) { (void)e; s_restore = true;  storage_screen(); }
-static void cancel_cb(lv_event_t *e)  { (void)e; close_all(); }
+static void cancel_cb(lv_event_t *e)
+{
+    (void)e;
+    // The storage answer is staged before the mnemonic exists. Cancelling the
+    // wizard must drop that answer as well as any staged words, otherwise the
+    // next setup/login can inherit a mode the owner never committed.
+    wallet_seed_discard();
+    close_all();
+}
 
 static void setup_lang_picked(void)
 {
@@ -779,6 +845,66 @@ static void load_screen(void)
     mk_pill(tr(STR_W_CREATE_NEW), 560, 404, 190, load_new_cb, NULL);
 }
 
+// ---- configured SD wallet: card/file gate before passphrase entry ----
+// A missing card is not "no wallet". This screen is intentionally separate
+// from the first-boot chooser so the user can retry hot-plugging the card or
+// explicitly start recovery, but can never create over the wallet by accident.
+static const char *sd_problem_body(int rc)
+{
+    switch (rc) {
+    case WSEED_ERR_SD_CORRUPT:     return tr(STR_W_SD_CORRUPT_B);
+    case WSEED_ERR_SD_IO:          return tr(STR_W_SD_IO_B);
+    case WSEED_ERR_SD_UNSUPPORTED: return tr(STR_W_SD_UNSUPPORTED_B);
+    default:                       return tr(STR_W_SD_MISSING_B);
+    }
+}
+
+static void sd_problem_screen(int rc);
+
+static void sd_retry_cb(lv_event_t *e)
+{
+    (void)e;
+    int rc = wallet_setup_sd_status();
+    if (rc != WSEED_OK) {
+        sd_problem_screen(rc);       // redraws with the exact current failure
+        return;
+    }
+    void (*cb)(void) = s_done;
+    close_all();
+    if (cb) cb();                    // ordinary one-passphrase login
+}
+
+static void sd_recover_cb(lv_event_t *e)
+{
+    (void)e;
+    close_all();
+    wallet_begin_setup();            // full restore + type-twice setup ritual
+}
+
+static void sd_problem_back_cb(lv_event_t *e)
+{
+    (void)e;
+    close_all();                     // underlying game remains available
+}
+
+static void sd_problem_screen(int rc)
+{
+    s_sd_problem = rc;
+    mk_screen(tr(STR_W_SD_MISSING_T), tr(STR_W_SD_MISSING_S));
+    mk_body(sd_problem_body(s_sd_problem), 48, 132, 704, 226,
+            s_sd_problem == WSEED_ERR_SD_MISSING ? MUT_COL : WARN_COL);
+
+    lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), 48, 404, 240,
+                              sd_retry_cb, NULL);
+    wt_pill_primary(retry);
+    lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 304, 404, 280,
+                                sd_recover_cb, NULL);
+    lv_obj_t *back = mk_pill(tr(STR_C_BACK), 610, 404, 140,
+                             sd_problem_back_cb, NULL);
+    lv_obj_t *row[3] = { retry, recover, back };
+    wt_pill_row(row, 3);
+}
+
 void wallet_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))
 {
     if (s_scr) return;
@@ -790,6 +916,20 @@ void wallet_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))
     s_load = true;
     wipe_state();
     load_screen();
+}
+
+void wallet_setup_open_sd_missing(lv_obj_t *parent, int reason,
+                                  void (*done_cb)(void))
+{
+    if (s_scr) return;
+    wallet_ui_ensure_indev();
+    s_parent = parent;
+    s_done = done_cb;
+    s_restore = false;
+    s_verify = false;
+    s_load = false;
+    wipe_state();
+    sd_problem_screen(reason);
 }
 
 void wallet_setup_open(lv_obj_t *parent, void (*done_cb)(void))

@@ -24,6 +24,15 @@ bool wallet_setup_verify_succeeded(void);
 // otherwise an amnesic device could never make a fresh wallet.
 void wallet_setup_open_load(lv_obj_t *parent, void (*done_cb)(void));
 
+// SD storage is deliberately checked before the normal login. A configured
+// SD wallet with its card removed is not a fresh device and must never fall
+// through to setup. `wallet_setup_sd_status` verifies that the configured
+// wallet file can be opened, wiping its temporary plaintext immediately.
+// A nonzero result can be handed to the retry/recovery screen below.
+int  wallet_setup_sd_status(void);
+void wallet_setup_open_sd_missing(lv_obj_t *parent, int reason,
+                                  void (*done_cb)(void));
+
 // Feed captured entropy (device: camera page; sim: scripted). len 16 or 32.
 // Advances the NEW flow to the word-reveal screen.
 void wallet_setup_entropy(const uint8_t *entropy, unsigned len);

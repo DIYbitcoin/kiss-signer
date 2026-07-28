@@ -62,7 +62,21 @@ static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
 static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl;  // selected type row
+static lv_obj_t *s_storage_pill;  // STORAGE over the explicit current mode
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
+
+static int s_load_error_code;
+#ifdef SIMULATOR
+static wallet_settings_load_status_t s_sim_load_status = WSETTINGS_LOAD_OK;
+static int s_sim_load_error_code;
+
+void wallet_settings_sim_set_load_result(wallet_settings_load_status_t status,
+                                         int error_code)
+{
+    s_sim_load_status = status;
+    s_sim_load_error_code = error_code;
+}
+#endif
 
 // example address prefix per type, following the current network so it never
 // lies (bc1 on mainnet, tb1 on testnet).
@@ -110,29 +124,83 @@ static void store_u8(const char *key, uint8_t v)
 #endif
 }
 
-void wallet_settings_load(void)
+const char *wallet_settings_load_status_name(wallet_settings_load_status_t status)
 {
-#ifndef SIMULATOR
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        nvs_flash_erase();
-        err = nvs_flash_init();
+    switch (status) {
+    case WSETTINGS_LOAD_OK:                return "OK";
+    case WSETTINGS_LOAD_NVS_NO_FREE_PAGES: return "NVS_NO_FREE_PAGES";
+    case WSETTINGS_LOAD_NVS_NEW_VERSION:   return "NVS_NEW_VERSION_FOUND";
+    case WSETTINGS_LOAD_NVS_INIT_FAILED:   return "NVS_INIT_FAILED";
+    case WSETTINGS_LOAD_NVS_OPEN_FAILED:   return "NVS_OPEN_FAILED";
+    case WSETTINGS_LOAD_NVS_READ_FAILED:   return "NVS_READ_FAILED";
+    default:                               return "NVS_UNKNOWN_FAILURE";
     }
+}
+
+int wallet_settings_load_error_code(void)
+{
+    return s_load_error_code;
+}
+
+#ifndef SIMULATOR
+static wallet_settings_load_status_t init_failure(esp_err_t err)
+{
+    s_load_error_code = (int)err;
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES)
+        return WSETTINGS_LOAD_NVS_NO_FREE_PAGES;
+    if (err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+        return WSETTINGS_LOAD_NVS_NEW_VERSION;
+    return WSETTINGS_LOAD_NVS_INIT_FAILED;
+}
+
+static bool get_optional_u8(nvs_handle_t h, const char *key, uint8_t *value)
+{
+    esp_err_t err = nvs_get_u8(h, key, value);
+    if (err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND)
+        return true;
+    s_load_error_code = (int)err;
+    return false;
+}
+#endif
+
+wallet_settings_load_status_t wallet_settings_load(void)
+{
+#ifdef SIMULATOR
+    s_load_error_code = s_sim_load_error_code;
+    return s_sim_load_status;
+#else
+    s_load_error_code = 0;
+    esp_err_t err = nvs_flash_init();
     if (err != ESP_OK)
-        return;
+        return init_failure(err);
+
     nvs_handle_t h;
     uint8_t tn = 0, sc = 0, ac = 0, lg = 0;
-    if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_u8(h, "testnet", &tn);
-        nvs_get_u8(h, "script", &sc);
-        nvs_get_u8(h, "accent", &ac);
-        nvs_get_u8(h, "lang", &lg);
+    err = nvs_open("kiss", NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // A genuinely blank partition has no namespace yet. That is the one
+        // open failure that means "fresh", not "storage became unreadable".
+    } else if (err != ESP_OK) {
+        s_load_error_code = (int)err;
+        return WSETTINGS_LOAD_NVS_OPEN_FAILED;
+    } else {
+        bool ok = get_optional_u8(h, "testnet", &tn) &&
+                  get_optional_u8(h, "script", &sc) &&
+                  get_optional_u8(h, "accent", &ac) &&
+                  get_optional_u8(h, "lang", &lg);
         nvs_close(h);
+        if (!ok)
+            return WSETTINGS_LOAD_NVS_READ_FAILED;
     }
+
+    // Apply nothing until the complete settings read is known-good. Defaults
+    // are deliberate only for an absent namespace/key, never for an I/O/type
+    // failure that could otherwise make a configured wallet look factory-new.
     wallet_set_network(tn);
     wallet_set_script(sc);
     wt_accent_set(ac);
     i18n_set_lang(lg);
+    return WSETTINGS_LOAD_OK;
 #endif
 }
 
@@ -188,9 +256,190 @@ static void pick_cb(lv_event_t *e)
 static void settings_reopen(void)
 {
     lv_obj_t *parent = s_parent;
-    s_type_pill = s_type_pfx = s_type_expl = NULL;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wallet_settings_open(parent);
+}
+
+// ---- wallet storage: explicit current mode + transactional migration ----
+static const char *storage_mode_name(int mode)
+{
+    switch (mode) {
+    case WSEED_MODE_SD:      return tr(STR_W_SD_BTN);
+    case WSEED_MODE_AMNESIC: return tr(STR_W_AMNESIC_BTN);
+    default:                 return tr(STR_W_KEEP_BTN);
+    }
+}
+
+static const char *storage_mode_note(int mode)
+{
+    switch (mode) {
+    case WSEED_MODE_SD:
+        return tr(wallet_seed_sd_supported() ? STR_W_SD_NOTE
+                                             : STR_W_SD_DISABLED_NOTE);
+    case WSEED_MODE_AMNESIC: return tr(STR_W_AMNESIC_NOTE);
+    default:
+        return tr(wallet_seed_sd_supported() ? STR_W_FLASH_ENC_NOTE
+                                             : STR_W_KEEP_NOTE);
+    }
+}
+
+static void storage_chooser_screen(void);
+
+static void storage_result_ack_cb(lv_event_t *e)
+{
+    (void)e;
+    // AMNESIC keeps the current unlocked mnemonic in RAM by contract. Return
+    // to Settings so it can even be moved back to persistent storage before
+    // the owner explicitly locks; the next lock/power-off is what forgets it.
+    settings_reopen();
+}
+
+static void storage_result_screen(int rc, int target)
+{
+    const char *title;
+    const char *body;
+    lv_color_t title_col;
+    char formatted[512];
+
+    if (rc == WSEED_OK) {
+        title = tr(STR_G_STORAGE_OK_T);
+        title_col = OK_COL;
+        if (target == WSEED_MODE_AMNESIC) {
+            body = tr(STR_G_STORAGE_OK_AMNESIC_B);
+        } else {
+            snprintf(formatted, sizeof formatted, tr(STR_G_STORAGE_OK_FMT),
+                     storage_mode_name(target));
+            body = formatted;
+        }
+    } else if (rc == WSEED_ERR_CLEANUP) {
+        // The backend contract is precise here: destination committed and
+        // verified, old-source cleanup failed. Do not say "not changed" and do
+        // not claim one-copy storage.
+        title = tr(STR_G_STORAGE_CLEANUP_T);
+        title_col = WARN_COL;
+        body = tr(STR_G_STORAGE_CLEANUP_B);
+    } else {
+        title = tr(STR_G_STORAGE_FAIL_T);
+        title_col = STOP_COL;
+        if (rc == WSEED_ERR_SD_MISSING || rc == WSEED_ERR_SD_IO ||
+            rc == WSEED_ERR_SD_CORRUPT)
+            body = tr(STR_G_STORAGE_FAIL_CARD_B);
+        else if (rc == WSEED_ERR_VERIFY)
+            body = tr(STR_G_STORAGE_FAIL_VERIFY_B);
+        else
+            body = tr(STR_G_STORAGE_FAIL_GENERIC_B);
+    }
+
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, title, NULL);
+    lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), title_col, 0);
+    lv_obj_t *b = wt_lbl(s_scr, body, 48, 136,
+                         wt_body_font(body, 704, 230), MUT_COL);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 300, 404, 200,
+                           storage_result_ack_cb, NULL);
+    if (rc == WSEED_OK) wt_pill_primary(ok);
+}
+
+static void storage_apply(void *ud)
+{
+    int target = (int)(intptr_t)ud;
+    int rc = wallet_seed_move_to(target);
+    storage_result_screen(rc, target);
+}
+
+static void storage_confirm_cancel_cb(lv_event_t *e)
+{
+    (void)e;
+    storage_chooser_screen();
+}
+
+static void storage_confirm_screen(int target)
+{
+    const char *body = target == WSEED_MODE_SD
+                     ? tr(STR_G_STORAGE_CONFIRM_SD_B)
+                     : target == WSEED_MODE_AMNESIC
+                     ? tr(STR_G_STORAGE_CONFIRM_AMNESIC_B)
+                     : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_CONFIRM_T), NULL);
+    lv_obj_t *b = wt_lbl(s_scr, body, 48, 126,
+                         wt_body_font(body, 704, 238),
+                         target == WSEED_MODE_AMNESIC ? WARN_COL : MUT_COL);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+
+    wt_hold_pill(s_scr,
+                 tr(target == WSEED_MODE_AMNESIC
+                    ? STR_G_STORAGE_HOLD_AMNESIC
+                    : STR_G_STORAGE_HOLD_MOVE),
+                 48, 392, 330, 66, 1500, storage_apply,
+                 (void *)(intptr_t)target);
+    lv_obj_t *cancel = wt_pill(s_scr, tr(STR_C_CANCEL), 585, 404, 165,
+                               storage_confirm_cancel_cb, NULL);
+    lv_obj_set_ext_click_area(cancel, 10);
+}
+
+static void storage_pick_cb(lv_event_t *e)
+{
+    int target = (int)(intptr_t)lv_event_get_user_data(e);
+    if (target == wallet_seed_mode()) return;     // already selected and named
+    if (target == WSEED_MODE_SD && !wallet_seed_sd_supported()) return;
+    storage_confirm_screen(target);
+}
+
+static void storage_chooser_back_cb(lv_event_t *e)
+{
+    (void)e;
+    settings_reopen();
+}
+
+static void storage_chooser_screen(void)
+{
+    int current = wallet_seed_mode();
+    char current_line[128];
+    snprintf(current_line, sizeof current_line, tr(STR_G_STORAGE_CURRENT_FMT),
+             storage_mode_name(current));
+
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current_line);
+
+    static const int modes[3] = {
+        WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
+    };
+    static const int py[3] = {110, 218, 326};
+    for (int i = 0; i < 3; i++) {
+        int mode = modes[i];
+        bool enabled = mode != WSEED_MODE_SD || wallet_seed_sd_supported();
+        lv_obj_t *p = wt_pillh(s_scr, storage_mode_name(mode),
+                               48, py[i], 252, 52,
+                               enabled ? storage_pick_cb : NULL,
+                               (void *)(intptr_t)mode);
+        wt_pill_select(p, current == mode);
+        lv_obj_t *note = wt_wraph(s_scr, storage_mode_note(mode),
+                                  330, py[i] - 10, 420, 87);
+        if (!enabled) {
+            lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_text_color(lv_obj_get_child(p, 0), MUT_COL, 0);
+            lv_obj_set_style_border_color(p, MUT_COL, 0);
+            lv_obj_set_style_opa(p, LV_OPA_50, 0);
+            lv_obj_set_style_text_color(note, WARN_COL, 0);
+        }
+    }
+    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140,
+                             storage_chooser_back_cb, NULL);
+    lv_obj_set_ext_click_area(back, 10);
+}
+
+static void storage_open_cb(lv_event_t *e)
+{
+    (void)e;
+    storage_chooser_screen();
 }
 
 static void type_pick_cb(lv_event_t *e)
@@ -607,7 +856,7 @@ void wallet_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
-    s_type_pill = s_type_pfx = s_type_expl = NULL;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
     // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
@@ -696,31 +945,32 @@ void wallet_settings_open(lv_obj_t *parent)
                                                : tr(wallet_duress_label_key(g)));
     }
 
-    // RIGHT: wallet actions. RECOVERY WORDS lives here because it is a
-    // maintenance/security action, not a fact about the wallet currently open.
+    // RIGHT: the current storage mode is first and explicit. This is the only
+    // setting that decides whether wallet material remains after power-off, so
+    // it must not be hidden in setup or inferred from a note. Tapping opens the
+    // three-mode chooser; the second line is the current mode.
     mk_section(tr(STR_I_T), 430, 74);
-    // All three action pills share ONE height (54) because they share a width
-    // (340) and a column. 66 / 66 / 52 read as three unrelated controls that
-    // happened to be stacked. Still tall enough that a long translation wraps
-    // at 23 rather than collapsing a security-relevant action to font14.
-    //
-    // The notes get 40px, not 32. One line at font23 needs 29 and 32 left no
-    // slack, so note_font could never choose 23 and every caption in this
-    // column was pinned to font14 by arithmetic rather than by choice. 40 fits
-    // one line at 23, and still contains two lines at 14 for the longest
-    // translations instead of letting them spill into the pill below.
-    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 94, 340, 54, replace_cb, NULL);
-    wt_note(s_scr, tr(STR_G_CREATE_NOTE), 430, 150, 340, 40);
+    s_storage_pill = mk_pillh(tr(STR_G_STORAGE_SEC), 430, 94, 340, 72,
+                              storage_open_cb, NULL);
+    wt_pill_two_line_val(s_storage_pill,
+                         storage_mode_name(wallet_seed_mode()));
+    wt_pill_select(s_storage_pill, true);
 
-    mk_pillh(tr(STR_I_WORDS_BTN), 430, 194, 340, 54, words_cb, NULL);
-    wt_note(s_scr, tr(STR_I_WORDS_BTN_NOTE), 430, 250, 340, 40);
+    // The remaining names are complete actions and keep normal 52px
+    // targets. Their previous explanatory captions were useful but hid the
+    // storage control the owner actually needs; confirmations still explain
+    // the two actions that can replace or erase a wallet before either runs.
+    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 200, 340, 52,
+                              replace_cb, NULL);
+
+    mk_pillh(tr(STR_I_WORDS_BTN), 430, 256, 340, 52, words_cb, NULL);
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; a hold on the next screen
     // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 294, 340, 54, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 312, 340, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 350, 340, 40);
+    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 366, 340, 30);
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is
     // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
