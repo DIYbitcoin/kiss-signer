@@ -59,8 +59,24 @@ SECTIONS = [
           "so check the fingerprint is the one you expect."),
      ]),
 
-    # Placed second on purpose: it is a decision made at the end of setup, and
-    # everything after it (pairing, receiving, signing) is done from whichever
+    ("Choosing where the recovery words live",
+     "Storage is chosen while a wallet is created or restored, and it can be "
+     "changed later from an unlocked wallet. These normal-beta screens name "
+     "all three modes without pretending unencrypted firmware can safely use "
+     "device-bound SD storage.",
+     [
+         ("03a-setup-storage", "sim_setup_storage",
+          "Setup asks what remains after power-off before the recovery words "
+          "are committed. FLASH persists on this device; AMNESIC lasts only "
+          "for the session. SD CARD stays visible but unavailable here because "
+          "this normal beta does not encrypt flash."),
+         ("03b-settings-storage", "sim_storage_disabled",
+          "SETTINGS → STORAGE shows the current mode and the same three "
+          "choices. Moving between available modes requires a deliberate hold "
+          "and verifies the destination before removing the source."),
+     ]),
+
+    # Kept before pairing/receiving/signing: those are done from whichever
     # signer the stroke opened.
     ("Two ways in: the spare wallet",
      "A passphrase field on screen is itself a tell. It proves there is "
@@ -97,7 +113,8 @@ SECTIONS = [
           "fingerprint, network, address type and the first address."),
          ("05-pair-sparrow", "sim_pair",
           "PAIR COORDINATOR with DESKTOP selected shows the descriptor "
-          "Sparrow reads. Scan it with Sparrow's webcam, or export to SD."),
+          "Sparrow reads. Scan it with Sparrow's webcam, or export to SD. "
+          "Tap the + beside any QR to enlarge it."),
          ("06-pair-explained", "sim_pair_help",
           "The \"?\" spells out what the coordinator can and cannot do with "
           "what you just handed it."),
@@ -108,9 +125,9 @@ SECTIONS = [
      "computer showing you an address that is not yours.",
      [
          ("07-receive", "sim_recv",
-          "RECEIVE lists addresses KISS derived on the device. Amber ones are "
-          "already used. Tap any of them for its QR. Read them here, on the "
-          "device, never off the computer."),
+          "RECEIVE lists addresses KISS derived on the device. Tap any of "
+          "them for its QR. Read them here, on the device, never off the "
+          "computer."),
          ("08-verify-match", "sim_vfy_yes",
           "VERIFY re-derives whatever address you type in. Green means KISS "
           "found it in this wallet, independently of whatever displayed it."),
@@ -125,10 +142,10 @@ SECTIONS = [
      [
          ("10-receive-first", "sim_recv1",
           "Page to the address you want paying. The counter says which "
-          "address you are looking at."),
-         ("11-receive-reuse", "sim_recv_reuse",
-          "An address you already used gets an amber warning and a FRESH "
-          "pill, because reusing one links your payments together in public."),
+          "address you are looking at. Tap its QR for a full-screen scan view."),
+         ("11-receive-reuse", "sim_recv_reminder",
+          "Every address keeps the standing privacy reminder in view: use a "
+          "new one for each payment, because reuse links payments in public."),
      ]),
 
     # The order of these five is the safety argument: see what you are
@@ -152,7 +169,8 @@ SECTIONS = [
           "Sparrow broadcasts it. Nothing has been sent yet at this point."),
          ("16-sign-qr-out", "sim_qr_out1",
           "Handing the signature back by animated QR when there is no SD "
-          "card. Point Sparrow's webcam at it and let it run."),
+          "card. Point Sparrow's webcam at it and let it run; tap the QR if "
+          "the camera needs larger modules."),
      ]),
 ]
 
@@ -264,7 +282,7 @@ def write_md():
            "",
            "# Walkthrough",
            "",
-           "Five things to do before this wallet holds anything you care "
+           "The checks to make before this wallet holds anything you care "
            "about. Every screenshot here is a frame the simulator rendered "
            "from the current firmware, so what you see is what the device "
            "draws.",
