@@ -11,12 +11,16 @@ signed; it changes what the device looks like while you use it.
 
 ### Added
 
-- **RECEIVE opens on a list of your addresses**, twenty at a time, scrollable,
-  with the last characters lit so they are quick to compare. Tap any one for its
-  QR, its derivation path and VERIFY. Addresses you have already used are amber,
-  so you can see at a glance which ones are behind you. The previous
-  one-at-a-time view is still there — it is what a tap opens — and it keeps its
-  arrows, so you never have to scroll to reach the next address.
+- **RECEIVE opens on a list of your addresses**, one per line, twenty to a page
+  and a hundred in total. The four characters after the `bc1q` and the last four
+  are lit — those are the ones worth comparing, since every address starts the
+  same way. Tap any one for its QR, its derivation path and VERIFY. That
+  one-at-a-time view is still there and keeps its arrows, so you never have to
+  scroll to reach the next address.
+- **A reminder to use a fresh address per payment**, on the screen showing the
+  address you are about to hand over. KISS has no view of the chain and cannot
+  know which addresses were paid to, so it gives the advice rather than marking
+  individual addresses as spent.
 - **Buttons answer a press.** This device has no vibration, so every pill now
   sinks slightly while held and releases a ring from its edge. It is the only
   kind of "I felt that" a screen can give you.
@@ -24,10 +28,13 @@ signed; it changes what the device looks like while you use it.
   COORDINATOR, an incognito face on SCAN KEY, a QR on SCAN QR, a card on FROM SD
   CARD. Settings deliberately has none — those are standard Bitcoin terms and
   read better as words.
-- **The scanner shows it is still looking.** The viewfinder corners breathe and a
-  line sweeps down them while searching, and both stop dead the moment a code is
-  located, when the corners turn green. A dense QR can take several seconds, and
-  a frozen screen during that looked like a crashed device.
+- **The scanner shows it is still looking.** The viewfinder is a reticle now —
+  double corners, edge ticks — that breathes and sweeps while searching, then
+  stops dead and closes in green around the code it found. A dense QR can take
+  several seconds, and a frozen screen during that looked like a crashed device.
+- **The RBF card says which answer it is** before you read it: a replace arrow
+  when the fee can still be raised, a padlock when it cannot.
+- **Settings BACK is easier to hit.** Same button, bigger touch target.
 
 ### Changed
 
@@ -37,6 +44,10 @@ signed; it changes what the device looks like while you use it.
 - **Opening RECEIVE no longer counts as showing an address.** Only opening a
   specific one does. Before, merely visiting the screen advanced the
   already-used marker.
+- **Wording follows one rule now**: bitcoin arriving is a *payment*, bitcoin you
+  build and sign is a *transaction*. Three strings disagreed.
+- **The home screen says "encryption", not "enc"**, and the C6 radio readback
+  moved to Settings, where the people who want it will look.
 
 ### Fixed
 
