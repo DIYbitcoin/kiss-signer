@@ -143,6 +143,7 @@
   "R_REUSED": "ALLEREDE BRUKT",
   "R_FRESH": "NY",
   "R_VERIFY_NOTE": "KONTROLLER: skann en adresse datamaskinen viser, så sier enheten om den virkelig er din",
+  "R_ONE_EACH": "bruk en ny adresse for hver betaling",
   "R_NEXT": "NESTE",
   "R_VERIFY": "KONTROLLER",
   "R_VT": "KONTROLLER ADRESSE",

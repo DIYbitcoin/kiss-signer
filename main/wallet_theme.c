@@ -708,6 +708,62 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, in
 // bech32 checksum, so any altered address differs in them.
 #define ADDR_TAIL_CHARS 8
 
+// A spangroup is clickable out of the box, and an address is text, not a
+// button. Left alone it silently eats every press that lands on it: put one
+// inside a tappable row and the row goes dead exactly where the address is
+// printed -- which is the middle, and the first place a finger goes.
+static void addr_spans_no_click(lv_obj_t *sg)
+{
+    lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+}
+
+static lv_span_t *addr_span(lv_obj_t *sg, const char *txt, bool lit)
+{
+    lv_span_t *s = lv_spangroup_new_span(sg);
+    lv_span_set_text(s, txt);
+    lv_style_set_text_color(lv_span_get_style(s), lit ? wt_accent() : WT_MUT);
+    return s;
+}
+
+lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
+{
+    size_t n = strlen(addr);
+    // Not an address at all -- a locked-session message, an error string. Show
+    // it as plain words rather than slicing arbitrary text into fake blocks.
+    if (n < 20)
+        return wt_lbl(par, addr, 0, 0, f, WT_MUT);
+
+    // bech32 opens with a 4-character hrp + separator (bc1q / tb1q) that every
+    // address of that type shares, so it is skipped and the four AFTER it are
+    // lit. Base58 (legacy, nested) has no such constant, so nothing is skipped
+    // and its first four are the lit ones.
+    int pre = (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3)) ? 4 : 0;
+    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, last[8] = {0};
+    lv_memcpy(head, addr, (size_t)pre);
+    lv_memcpy(key, addr + pre, 4);
+    // Twelve from the end, in three blocks of four. Chunking from the RIGHT is
+    // the point: 42 characters do not divide by four, so grouping from the left
+    // would leave the final block short and the lit four would straddle a gap.
+    const char *t = addr + n - 12;
+    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s %.4s ", t, t + 4);
+    lv_memcpy(last, t + 8, 4);
+
+    lv_obj_t *sg = lv_spangroup_create(par);
+    addr_spans_no_click(sg);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);   // one line, sized to fit
+    lv_obj_set_style_text_font(sg, f, 0);
+    if (pre) {
+        char pfx[8];
+        snprintf(pfx, sizeof pfx, "%s ", head);
+        addr_span(sg, pfx, false);
+    }
+    addr_span(sg, key, true);
+    addr_span(sg, mid, false);
+    addr_span(sg, last, true);
+    lv_spangroup_refresh(sg);
+    return sg;
+}
+
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
 {
     int len = (int)strlen(grouped);
@@ -724,11 +780,7 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     snprintf(head, sizeof head, "%.*s", t, grouped);
 
     lv_obj_t *sg = lv_spangroup_create(par);
-    // A spangroup is clickable out of the box, and an address is text, not a
-    // button. Left alone it silently eats every press that lands on it: put one
-    // inside a tappable row and the row goes dead exactly where the address is
-    // printed -- which is the middle, and the first place a finger goes.
-    lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+    addr_spans_no_click(sg);
     lv_obj_set_width(sg, w);
     lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
     lv_obj_set_style_text_font(sg, f, 0);

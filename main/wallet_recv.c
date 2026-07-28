@@ -25,6 +25,13 @@
 // It is only affordable at all because the account key is cached now; without
 // that, each row would pay for three hardened derivations of its own.
 #define RECV_LIST_N 20
+// Hard ceiling on how far the list will go. A signer with no chain view cannot
+// know which addresses were ever used, so an endless list is an endless
+// invitation to derive addresses nothing will ever pay to. A hundred is more
+// than a personal wallet gets through, and the counter states it out loud
+// rather than letting the list just stop.
+#define RECV_LIST_CAP 100
+#define ROW_H 48
 
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
@@ -352,6 +359,7 @@ static void sp_open_cb(lv_event_t *e) {
 // chevrons, which means there is still a way through the addresses that needs
 // no flick at all if the panel's touch turns out to be unkind to one.
 static void recv_detail_open(void);
+static void recv_list_open(void);
 
 static void row_tap_cb(lv_event_t *e) {
   s_idx = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
@@ -360,27 +368,36 @@ static void row_tap_cb(lv_event_t *e) {
   recv_detail_open();
 }
 
-// One row: index, then the address with its last 8 characters lit. `used` means
-// this index is at or below what the wallet already spent or showed, which the
-// single-address view says with a banner. The list has no room for a banner per
-// row, so it says the same thing in amber -- without it, the list would be a
-// way to pick a reused address with no warning at all, which the screen it
-// replaces would never have allowed.
-static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx, bool used) {
-  char addr[91], grouped[120];
+// One row: index, then the address on a single line.
+//
+// No pill. A row is not a button you press for an action, it is a line in a
+// list you pick from, and twenty stacked lozenges read as twenty competing
+// controls. A hairline under each row and a fill only while pressed says the
+// same thing quietly.
+//
+// Nothing here marks an address as used. The signer only knows what it has
+// shown you and what it has signed a spend FROM; it has no chain view, so
+// colouring rows on that basis states more than it knows and, unexplained,
+// just raises a question the screen cannot answer. The advice that actually
+// helps -- use a fresh one each time -- is on the detail screen, where you are
+// about to hand the address to somebody.
+static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
+  char addr[91];
   if (wallet_session_address(0, idx, addr, sizeof addr) != 0)
     snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
-  wt_group4(addr, grouped, sizeof grouped);
 
   lv_obj_t *row = lv_obj_create(list);
   lv_obj_remove_style_all(row);
-  lv_obj_set_size(row, 688, 56);
-  lv_obj_set_style_radius(row, 26, 0);
-  lv_obj_set_style_bg_color(row, WT_KEY, 0);
+  lv_obj_set_size(row, 690, ROW_H);
+  lv_obj_set_style_radius(row, 8, 0);
   lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+  // Hairline separator, not a border box: the row is a line in a list.
   lv_obj_set_style_border_width(row, 1, 0);
-  lv_obj_set_style_border_color(row, used ? WT_WARN : WT_MUT, 0);
+  lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
+  lv_obj_set_style_border_color(row, lv_color_hex(0x1B212C), 0);
+  lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, LV_STATE_PRESSED);
   lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);   // the LIST scrolls, not the row
   wt_tap_feedback(row);
@@ -391,35 +408,43 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx, bool used) {
   lv_obj_t *n = lv_label_create(row);
   lv_label_set_text_fmt(n, "#%u", (unsigned)idx);
   lv_obj_set_style_text_font(n, wt_font14(), 0);
-  lv_obj_set_style_text_color(n, used ? WT_WARN : WT_MUT, 0);
+  lv_obj_set_style_text_color(n, WT_MUT, 0);
   lv_obj_align(n, LV_ALIGN_LEFT_MID, 10, 0);
 
-  // 636, measured: a grouped 42-character bech32 address is 624px at font23,
-  // the widest wallet_session_address can produce (legacy and nested are 34
-  // characters). Anything narrower wraps it to a second line and overflows the
-  // row, so this number is not a round guess and should not be rounded down.
-  lv_obj_t *sg = wt_addr_spans(row, grouped, 636, wt_font23());
-  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 46, 0);
+  lv_obj_t *sg = wt_addr_short(row, addr, wt_font28());
+  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 62, 0);
   return row;
+}
+
+static void page_cb(lv_event_t *e) {
+  int step = (int)(intptr_t)lv_event_get_user_data(e);
+  int base = (int)s_list_base + step * RECV_LIST_N;
+  if (base < 0 || base >= RECV_LIST_CAP) return;     // ends of the range: no wrap
+  s_list_base = (uint32_t)base;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  recv_list_open();
 }
 
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
   s_reuse_lbl = s_fresh_pill = NULL;
 
-  s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
+  // No subtitle. "trust what you see here, not your computer screen" is
+  // anti-phishing advice about ONE address you are about to hand over, so it
+  // belongs on the screen that shows one -- here it only cost the list a row
+  // and said nothing about the list.
+  s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
 
   lv_obj_t *list = lv_obj_create(s_scr);
   lv_obj_remove_style_all(list);
-  lv_obj_set_pos(list, 48, 96);
-  lv_obj_set_size(list, 704, 300);
+  lv_obj_set_pos(list, 48, 72);
+  lv_obj_set_size(list, 704, 324);
   lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(list, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_style_pad_row(list, 8, 0);
   lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(list, LV_DIR_VER);
-  lv_obj_set_scroll_snap_y(list, LV_SCROLL_SNAP_START);
   lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
   // remove_style_all took the default scrollbar with it, and on this background
   // an unstyled one is invisible -- which on the device reads as "the list does
@@ -429,30 +454,29 @@ static void recv_list_open(void) {
   lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
   lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
 
-  uint32_t fresh = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
-  // Begin two above the fresh address rather than exactly on it, so the list
-  // opens with the fresh one third from the top and the amber already-used
-  // rows visible above it. That is context, not decoration: it is how you can
-  // see at a glance that the list goes back and that those are behind you.
-  //
-  // The list therefore opens at scroll zero and is NEVER scrolled
-  // programmatically. lv_obj_scroll_to_view() during construction leaves the
-  // rows DRAWN at their scrolled positions while touch still finds them at the
-  // unscrolled ones -- tapping the top row did nothing, and tapping empty
-  // space 200px lower opened it. Choosing the first index instead of scrolling
-  // to it gets the same view with no such split.
-  s_list_base = fresh > 2 ? fresh - 2 : 0;
+  // The list is NEVER scrolled programmatically. lv_obj_scroll_to_view()
+  // during construction leaves the rows DRAWN at their scrolled positions
+  // while touch still finds them at the unscrolled ones -- tapping the top row
+  // did nothing, and tapping empty space 200px lower opened it. Paging picks a
+  // first index instead, which needs no scroll to land where it means to.
+  for (uint32_t i = 0; i < RECV_LIST_N; i++)
+    recv_list_row(list, s_list_base + i);
 
-  for (uint32_t i = 0; i < RECV_LIST_N; i++) {
-    uint32_t idx = s_list_base + i;
-    recv_list_row(list, idx, (int)idx <= s_floor);
-  }
+  // Which slice of the range is on screen. Says OF 100 so the cap is a stated
+  // fact rather than the list mysteriously refusing to go further.
+  lv_obj_t *pg = wt_lbl(s_scr, "", 0, 0, wt_font14(), lv_color_hex(0x4B5464));
+  lv_label_set_text_fmt(pg, "%u - %u  OF  %d", (unsigned)s_list_base + 1,
+                        (unsigned)s_list_base + RECV_LIST_N, RECV_LIST_CAP);
+  lv_obj_update_layout(pg);
+  lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
-  lv_obj_t *row[3];
+  lv_obj_t *row[5];
   row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
   row[1] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
-  wt_pill_row(row, 3);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_LEFT, 400, 404, 56, page_cb, (void *)(intptr_t)-1);
+  row[3] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 466, 404, 56, page_cb, (void *)(intptr_t)1);
+  row[4] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
+  wt_pill_row(row, 5);
 }
 
 // Back out of one address to the list it was chosen from.
@@ -466,7 +490,11 @@ static void detail_back_cb(lv_event_t *e) {
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
-  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
+  // 264, down from 300: wt_qr_card takes the CARD size, so the old one ran to
+  // y=396 and left nothing between it and the pill row. 228px of QR is still
+  // ~8px per module for a 42-character address, which no scanner struggles
+  // with, and it buys a readable line underneath.
+  wt_qr_card(s_scr, &s_qr, 48, 96, 264, 228);
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
@@ -488,6 +516,11 @@ static void recv_detail_open(void) {
   // Both sit under the FRESH pill at 288, above the pill row at 404.
   s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
   wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
+  // Under the QR, in the dead space above the pill row. This is the screen
+  // where an address is about to be handed to somebody, so it is where the
+  // advice lands -- rather than colouring a whole list on a guess about which
+  // addresses have been paid to, which an offline signer cannot know.
+  wt_note(s_scr, tr(STR_R_ONE_EACH), 48, 366, 300, 36);
 
   // These pills share a row and share one label size, so a single pill a few
   // pixels too narrow shrinks all of them. Widths are proportioned to the
@@ -533,6 +566,11 @@ void wallet_recv_open(lv_obj_t *parent) {
   }
   s_floor = s_seen_high;                        // frozen: warnings compare to prior use
   s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+
+  // Open on the page that holds the fresh address, aligned to a page boundary
+  // so the counter always reads a round slice ("21 - 40 OF 100").
+  uint32_t fresh = s_idx < RECV_LIST_CAP ? s_idx : RECV_LIST_CAP - 1;
+  s_list_base = (fresh / RECV_LIST_N) * RECV_LIST_N;
 
   recv_list_open();
 }

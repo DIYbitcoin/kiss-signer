@@ -143,6 +143,7 @@
   "R_REUSED": "USED BEFORE",
   "R_FRESH": "FRESH",
   "R_VERIFY_NOTE": "VERIFY: scan an address your computer shows and this device says if it is really yours",
+  "R_ONE_EACH": "use a new address for each payment",
   "R_NEXT": "NEXT",
   "R_VERIFY": "VERIFY",
   "R_VT": "VERIFY ADDRESS",

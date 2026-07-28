@@ -143,6 +143,7 @@
   "R_REUSED": "ALLEREDE BRUGT",
   "R_FRESH": "NY",
   "R_VERIFY_NOTE": "KONTROLLÉR: scan en adresse, som computeren viser, så fortæller enheden, om den virkelig er din",
+  "R_ONE_EACH": "brug en ny adresse til hver betaling",
   "R_NEXT": "NÆSTE",
   "R_VERIFY": "KONTROLLÉR",
   "R_VT": "KONTROLLÉR ADRESSE",
