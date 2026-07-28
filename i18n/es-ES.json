@@ -143,6 +143,7 @@
   "R_REUSED": "YA USADA",
   "R_FRESH": "NUEVA",
   "R_VERIFY_NOTE": "VERIFICAR: escanea una dirección de tu ordenador y este dispositivo dice si de verdad es tuya",
+  "R_ONE_EACH": "usa una dirección nueva para cada pago",
   "R_NEXT": "SIG.",
   "R_VERIFY": "VERIFICAR",
   "R_VT": "VERIFICAR DIRECCIÓN",

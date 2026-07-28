@@ -143,6 +143,7 @@
   "R_REUSED": "DÉJÀ UTILISÉE",
   "R_FRESH": "NEUVE",
   "R_VERIFY_NOTE": "VÉRIFIER : scanne une adresse affichée par ton ordinateur, l'appareil dit si elle est bien à toi",
+  "R_ONE_EACH": "utilisez une nouvelle adresse pour chaque paiement",
   "R_NEXT": "SUIV.",
   "R_VERIFY": "VÉRIFIER",
   "R_VT": "VÉRIFIER L'ADRESSE",
