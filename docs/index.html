@@ -24,7 +24,11 @@
     <!-- Both faces are self-hosted under fonts/, so this page makes no request
          to any third party. See the @font-face block at the top of styles.css. -->
     <link rel="stylesheet" href="styles.css">
-    <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script>
+    <!-- The esp-web-tools module goes back here when the install card returns.
+         It only registers <esp-web-install-button>, so with the card pulled it
+         is a fetch for an element the page no longer contains. The vendored
+         copy stays in installer/vendor/ either way. -->
+    <!-- <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script> -->
   </head>
   <body>
     <header class="topbar">
@@ -49,12 +53,12 @@
         <p class="eyebrow"><span>DIY airgapped bitcoin signer</span><span>ESP32-P4</span><span>decoy signer</span></p>
         <h1>Install KISS Signer on your device.</h1>
         <p class="lede">
-          Writes the firmware to a Guition JC4880P443C over Web Serial, in about
-          a minute. Needs Chrome, Brave or Edge on a desktop. Safari and Firefox
-          have no Web Serial implementation, so they cannot reach the device.
+          Puts the firmware on a Guition JC4880P443C in about a minute. The
+          browser installer is off while a release is staged, so this one goes
+          through esptool. Verify the download first, the docs walk through it.
         </p>
         <div class="status-row" aria-label="Release status">
-          <span class="status-pill ready">hash checked in your browser</span>
+          <span class="status-pill caution">install from the command line</span>
           <span class="status-pill caution">beta firmware</span>
           <span class="status-pill stop">test wallets only</span>
         </div>
@@ -76,41 +80,28 @@
         </figure>
       </section>
 
+      <!-- The browser installer is pulled while the staged artifacts under
+           docs/installer/ are a release behind VERSION. Flashing a build the
+           rest of this site does not describe is worse than sending people to
+           the command line for one release. CI fails until they match again;
+           putting the card back is a revert of this block. -->
       <section class="install-card reveal" id="install" aria-label="Firmware install">
         <div class="verify-line">
-          <div class="verify-light pending" id="verify-light"></div>
+          <div class="verify-light pending"></div>
           <div>
-            <strong id="verify-title">Verifying the binary before install</strong>
-            <span id="release-title">loading build</span>
+            <strong>The browser installer is off while a release is staged</strong>
+            <span>install from the command line for now</span>
           </div>
         </div>
 
-        <label class="ack-row">
-          <input id="ack" type="checkbox">
-          <span>
-            I understand this replaces whatever firmware is on the device, and
-            I&rsquo;m starting with a wallet that holds nothing.
-          </span>
-        </label>
-
-        <div class="install-actions">
-          <button class="flash-button" id="locked-button" type="button" disabled>
-            Connect and install (checking&hellip;)
-          </button>
-
-          <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
-            <button slot="activate" class="flash-button" type="button">
-              Connect and install
-            </button>
-            <span slot="unsupported">
-              This browser can&rsquo;t talk to the device. Open the page in Chrome,
-              Brave or Edge. They all work on macOS too.
-            </span>
-            <span slot="not-allowed">
-              This needs to be served over HTTPS, or from localhost.
-            </span>
-          </esp-web-install-button>
-        </div>
+        <p class="power-note">
+          This page will only offer a button once it can hash the exact firmware
+          the rest of the documentation describes. It cannot right now, so
+          nothing here writes to a device. Take the signed binary from the
+          <a class="motion-link" href="https://github.com/kkdao/kiss-signer/releases/latest">latest release</a>,
+          check it against <code>SHA256SUMS</code>, and flash it with esptool.
+          <a class="motion-link" href="guide.html#verify">Verifying the download, step by step &rarr;</a>
+        </p>
 
         <div class="card-rule"></div>
 
@@ -121,30 +112,14 @@
         </p>
 
         <p class="power-note">
-          Setup then asks where the recovery words live. On this build that is
-          <strong>FLASH</strong> (persists on the device, not encrypted) or
-          <strong>AMNESIC</strong> (RAM only, reload every session).
-          <strong>SD CARD</strong> is shown but stays disabled until the
-          flash-encrypted firmware passes its hardware tests.
+          Setup then asks where the recovery words live: <strong>FLASH</strong>
+          (stays on the device), <strong>SD CARD</strong> (sealed to this device,
+          so a lost card on its own is inert) or <strong>AMNESIC</strong> (RAM
+          only, reload every session). Which of them encrypts what depends on the
+          build you are running.
           <a class="motion-link" href="guide.html#storage">Read the three modes first &rarr;</a>
         </p>
       </section>
-
-      <details class="receipt reveal" aria-label="Security checks">
-        <summary>What was checked</summary>
-        <div class="receipt-row">
-          <span>The file matches the release</span>
-          <strong id="hash-check">checking</strong>
-        </div>
-        <div class="receipt-row">
-          <span>Signed by the KISS key</span>
-          <strong id="signature-check">checking</strong>
-        </div>
-        <div class="receipt-row">
-          <span>Key fingerprint. Check it elsewhere too</span>
-          <strong id="key-check">checking</strong>
-        </div>
-      </details>
 
       <section class="know reveal" aria-label="What this does">
         <article class="ok">

@@ -86,6 +86,15 @@ jobs:
       - name: docs screenshots manifest
         run: python3 tools/gen_docs_shots.py --check
 
+      # Same discipline as the screenshot manifest above, applied to the thing
+      # that writes firmware to people's devices. docs/installer/ is generated
+      # by tools/make_web_release.sh and nothing regenerates it automatically,
+      # so it goes stale the moment VERSION moves. Between beta6 and beta7 the
+      # site served beta6 while every document described beta7. Fails only when
+      # the page still offers the button, since a pulled button flashes nothing.
+      - name: installer artifacts match VERSION
+        run: python3 tools/check_installer_version.py
+
       # The camera bypasses LVGL, so every scanner caption is a bitmap baked
       # from a desktop font. A glyph that font lacks becomes a tofu box inside
       # a strip with perfectly normal dimensions: the generated C is
