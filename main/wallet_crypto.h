@@ -41,6 +41,11 @@ int wallet_script(void);
 // All of these return 0 on success; the sim build stubs them (no libwally).
 #include <stddef.h>
 int wallet_session_open(const char *passphrase);
+// Transactional replacement: derive beside the current session, then publish
+// only after wallet_seed_commit succeeds.
+int wallet_session_prepare(const char *passphrase);
+int wallet_session_activate_prepared(void);
+void wallet_session_discard_prepared(void);
 void wallet_session_close(void);
 // 1 while the OPEN session is the one an empty passphrase derives -- the decoy
 // signer. Screens that would reveal a second signer exists (the unlock-stroke

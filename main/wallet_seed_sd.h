@@ -34,6 +34,7 @@
 #define SDSEED_IV_LEN    16
 #define SDSEED_HDR_LEN   28          // magic + iv + length
 #define SDSEED_TAG_LEN   32
+#define SDSEED_FILENAME  "kiss-seed.enc"
 // 24 words is 215 bytes at most; one AES block of padding on top, and the
 // header and tag around it.
 #define SDSEED_MAX_BLOB  (SDSEED_HDR_LEN + 272 + SDSEED_TAG_LEN)
