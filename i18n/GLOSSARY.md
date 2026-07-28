@@ -47,6 +47,35 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
 - BIP39 mnemonic words are never translated. KISS currently uses the English
   BIP39 word list in every UI language.
 
+## Storage vocabulary
+
+- **Storage mode says where the recovery words persist.** It does not describe
+  where coins live, and it is not a backup method. Every explanation must still
+  point to paper recovery words plus the exact passphrase as the independent
+  recovery path.
+- **FLASH** means the board's internal non-volatile storage. Do not translate it
+  as memory in the RAM sense, cloud storage, or “the wallet.” In the normal beta
+  firmware this storage is not encrypted, so its note must not imply protection
+  from a physical flash dump.
+- **SD CARD** means the encrypted, device-bound `kiss-seed.enc` mode, not the
+  ordinary SD transport used for PSBT files. The card alone is ciphertext; it
+  works only with the KISS device whose internal key sealed it. It is not a
+  portable backup.
+- **AMNESIC** means the recovery words live only in RAM for the current unlocked
+  session. Locking or powering off forgets them. Avoid softer translations such
+  as private, temporary backup, incognito, or do not remember: the essential
+  fact is **nothing persists**.
+- The normal firmware must render the SD choice as disabled with the equivalent
+  of **requires encrypted firmware**. Translate the reason, but never weaken it
+  to recommended, card missing, unavailable now, or advanced. Inserting a card
+  does not satisfy this security requirement.
+- Migration copy must preserve the order of operations: write and verify the
+  destination, then remove the source. Do not say moved or saved until that
+  verification succeeds.
+- `SD` remains untranslated under the mechanical rules below. FLASH and AMNESIC
+  may use a concise established native equivalent where leaving the English
+  word would obscure the persistence model.
+
 ## Passphrase vocabulary
 
 - **Passphrase is never device password or PIN.** Use the established BIP39
