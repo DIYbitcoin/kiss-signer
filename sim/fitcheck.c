@@ -132,6 +132,10 @@ static const slot_t SLOTS[] = {
     // column beside a QR. They auto-fit like everything else, so they grow if
     // the copy is ever shortened -- but font14 is the accepted answer today.
     { "recv/verify",      STR_R_VERIFY_NOTE,  360, 90, 1 },
+    // Under the QR on the address detail screen, in the strip the smaller
+    // card freed up. font14 is the accepted answer: it is standing advice
+    // beside the address, not a warning about this one.
+    { "recv/one-each",    STR_R_ONE_EACH,     300, 36, 1 },
     { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },

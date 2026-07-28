@@ -161,6 +161,15 @@ void wt_diagram_pair(lv_obj_t *parent, int y);
 // always differs there.
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);
 
+// One-line address for a list row: prefix and middle muted, with the four
+// characters AFTER the prefix and the final four lit. Those eight are the ones
+// worth comparing — every native segwit address begins bc1q, so lighting the
+// front alone invites comparing a constant, and lighting only the tail makes
+// people read backwards. Takes the RAW address (not grouped); it does its own
+// spacing, because the tail is chunked from the right so the lit four always
+// lands on its own block.
+lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
+
 // Hold-to-confirm pill: the action fires only after the finger has been held
 // down for ms, and a fill sweeps across the pill while it does. Letting go
 // early cancels and resets. Use this for anything a stray double tap must not

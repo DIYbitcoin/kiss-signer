@@ -143,6 +143,7 @@
   "R_REUSED": "REDAN ANVÄND",
   "R_FRESH": "NY",
   "R_VERIFY_NOTE": "KONTROLLERA: skanna en adress som datorn visar, så säger enheten om den verkligen är din",
+  "R_ONE_EACH": "använd en ny adress för varje betalning",
   "R_NEXT": "NÄSTA",
   "R_VERIFY": "KONTROLLERA",
   "R_VT": "KONTROLLERA ADRESS",

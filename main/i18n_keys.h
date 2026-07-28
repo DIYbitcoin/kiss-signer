@@ -146,6 +146,7 @@ enum {
     STR_R_REUSED,
     STR_R_FRESH,
     STR_R_VERIFY_NOTE,
+    STR_R_ONE_EACH,
     STR_R_NEXT,
     STR_R_VERIFY,
     STR_R_VT,

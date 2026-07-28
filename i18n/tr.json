@@ -143,6 +143,7 @@
   "R_REUSED": "ZATEN KULLANILDI",
   "R_FRESH": "TAZE",
   "R_VERIFY_NOTE": "DOĞRULA: bilgisayarınızın gösterdiği bir adresi tarayın; cihaz gerçekten sizin mi söylesin",
+  "R_ONE_EACH": "her ödeme için yeni bir adres kullanın",
   "R_NEXT": "SONRAKİ",
   "R_VERIFY": "DOĞRULA",
   "R_VT": "ADRESİ DOĞRULA",

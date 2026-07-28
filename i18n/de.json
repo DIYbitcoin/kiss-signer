@@ -143,6 +143,7 @@
   "R_REUSED": "SCHON BENUTZT",
   "R_FRESH": "NEU",
   "R_VERIFY_NOTE": "PRÜFEN: scanne eine Adresse von deinem Computer, und dieses Gerät sagt, ob sie wirklich dir gehört",
+  "R_ONE_EACH": "für jede Zahlung eine neue Adresse verwenden",
   "R_NEXT": "WEITER",
   "R_VERIFY": "PRÜFEN",
   "R_VT": "ADRESSE PRÜFEN",
