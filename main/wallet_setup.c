@@ -666,7 +666,11 @@ static void storage_screen(void)
     wt_pill_primary(flash);
 
     const bool sd_ok = wallet_seed_sd_supported() != 0;
-    wt_wraph(s_scr, tr(sd_ok ? STR_W_FLASH_ENC_NOTE : STR_W_KEEP_NOTE),
+    // The FLASH note tells the truth about what a chip dump would find, which
+    // is the encryption state -- NOT whether SD happens to be available. Those
+    // used to be the same flag; they are not any more.
+    wt_wraph(s_scr, tr(wallet_seed_flash_encrypted() ? STR_W_FLASH_ENC_NOTE
+                                                      : STR_W_KEEP_NOTE),
              330, 100, 420, 87);
     lv_obj_t *sd = mk_pill(tr(STR_W_SD_BTN), 48, 218, 252,
                            sd_ok ? storage_pick_cb : NULL,

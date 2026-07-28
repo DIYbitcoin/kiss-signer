@@ -279,8 +279,9 @@ static const char *storage_mode_note(int mode)
                                              : STR_W_SD_DISABLED_NOTE);
     case WSEED_MODE_AMNESIC: return tr(STR_W_AMNESIC_NOTE);
     default:
-        return tr(wallet_seed_sd_supported() ? STR_W_FLASH_ENC_NOTE
-                                             : STR_W_KEEP_NOTE);
+        // Encryption state, not SD availability -- see storage_screen.
+        return tr(wallet_seed_flash_encrypted() ? STR_W_FLASH_ENC_NOTE
+                                                : STR_W_KEEP_NOTE);
     }
 }
 
