@@ -6,6 +6,9 @@
 
 bool wallet_info_active(void);            // true while any of its screens is up
 void wallet_info_open(lv_obj_t *parent);
+// Shared fingerprint explainer. Pass the home fingerprint to include it in the
+// title, or NULL for the generic WALLET-page card.
+lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint);
 // Settings owns the RECOVERY WORDS entry. The sensitive reveal/verify screens
 // stay here so there is only one implementation of that flow; done_cb returns
 // to Settings when the user leaves it.

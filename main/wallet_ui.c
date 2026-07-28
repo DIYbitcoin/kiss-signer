@@ -58,6 +58,9 @@ static bool s_first_done;                  // first of the two entries captured
 static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
 static char s_first[PASS_MAX + 1];
+static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
+static uint8_t s_shown_fp[4];              // candidate shown, unpublished until OPEN
+static bool s_shown_fp_valid;
 static bool s_caps_lock;                   // CAPS plane: stays until tapped off
 static bool s_one_shot;                    // UPPER plane: one character, then back
 static uint32_t s_shift_t0;                // last shift-key tap, for double tap
@@ -564,21 +567,25 @@ static void setup_fail_screen(void) {
 static void fp_tap_cb(lv_event_t *e) {
   (void)e;
   void (*cb)(void) = s_unlocked_cb;
-  // Open the session on the (staged, during setup) seed FIRST — if it doesn't
-  // derive, never persist it and never enter the home with a broken session.
-  if (wallet_session_open(s_plen ? s_pass : NULL) != 0) {
-    if (s_setup_mode) wallet_seed_discard();
-    setup_fail_screen();
-    return;
-  }
-  // Setup only reaches here after passphrase-twice + this fingerprint confirm
-  // AND a session that derives: NOW the seed is safe to persist (P0 safety net).
+  // Fingerprint derivation already proved the staged words + passphrase. Keep
+  // the old unlocked session completely untouched until the replacement is
+  // durable; otherwise BACK or a failed commit can leave the old home showing
+  // while Receive/Sign secretly use the candidate wallet.
   if (s_setup_mode && wallet_seed_commit() != 0) {
-    wallet_session_close();            // couldn't save it: don't pretend we have a wallet
     wallet_seed_discard();
     setup_fail_screen();
     return;
   }
+  if (wallet_session_open(s_plen ? s_pass : NULL) != 0) {
+    // A successful setup commit was verified before this second derivation.
+    // If the swap still fails, never publish the candidate fingerprint or
+    // pretend that an unlocked session exists.
+    if (s_setup_mode) wallet_session_close();
+    setup_fail_screen();
+    return;
+  }
+  if (s_shown_fp_valid)
+    memcpy(s_last_fp, s_shown_fp, sizeof s_last_fp);
   // the passphrase dies here (deniability); the derived session key lives in RAM
   // until wallet lock so Receive/Sign can derive without re-typing
   if (s_setup_mode) {          // one last screen: what the passphrase really is
@@ -594,8 +601,6 @@ static void fp_back_cb(lv_event_t *e) {
   if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
   if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
 }
-
-static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
 
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 
@@ -759,7 +764,8 @@ static void show_fingerprint(void) {
     setup_fail_screen();
     return;
   }
-  memcpy(s_last_fp, fp, 4);
+  memcpy(s_shown_fp, fp, sizeof s_shown_fp);
+  s_shown_fp_valid = true;
 
   s_fpscr = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_fpscr);

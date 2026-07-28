@@ -36,23 +36,23 @@
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl;
-static lv_obj_t *s_reuse_lbl, *s_fresh_pill;   // reuse-guard banner + jump button
+static lv_obj_t *s_sp_path_lbl, *s_sp_back_pill, *s_sp_toggle_pill;
+static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
 static uint32_t s_list_base;               // first index the list shows
-// reuse guard: warn when viewing an index at/below what this wallet already
-// used or showed. s_floor is frozen at open (prior-session usage) so browsing
-// fresh addresses never warns; s_seen_high grows as you view, seeding the next
-// open's fresh landing. s_seen_key detects a wallet/network/type switch.
-static int  s_floor, s_seen_high = -1;
+// The highest address used or shown seeds the next fresh landing.
+// s_seen_key detects a wallet/network/type switch.
+static int s_seen_high = -1;
 static char s_seen_key[16];
+static bool s_sp_full;                     // silent-payment text is folded by default
+static char s_sp_addr[128];
 
 bool wallet_recv_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_reuse_lbl = NULL;
-  s_fresh_pill = NULL;
+  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -65,7 +65,7 @@ static void recv_refresh(void) {
   if (rc != 0)
     snprintf(addr, sizeof(addr), "%s", tr(STR_C_SESSION_LOCKED));
   if (s_qr)
-    lv_qrcode_update(s_qr, addr, (uint32_t)strlen(addr));
+    wt_qr_update(s_qr, addr, (uint32_t)strlen(addr));
   char grouped[120];
   wt_group4(addr, grouped, sizeof(grouped));
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
@@ -78,23 +78,7 @@ static void recv_refresh(void) {
                         purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  // reuse guard: warn on an already-used/shown index; a fresh one stays quiet
-  bool reused = (int)s_idx <= s_floor;
-  if (s_reuse_lbl) {
-    if (reused) lv_obj_clear_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
-    else        lv_obj_add_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (s_fresh_pill) {
-    if (reused) lv_obj_clear_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
-    else        lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
-  }
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
-}
-
-static void fresh_cb(lv_event_t *e) {
-  (void)e;
-  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
-  recv_refresh();
 }
 
 static void prev_cb(lv_event_t *e) {
@@ -259,9 +243,11 @@ static void vfy_scan(lv_event_t *e) {
 // ---- silent payment (BIP352) static receive address ----
 // One reusable sp1/tsp1, derived on-device (m/352'). No index, no reuse guard:
 // a silent-payment address is meant to be shared and reused; that's the point.
+
 static void sp_back_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
+  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   wallet_recv_open(s_parent);
 }
@@ -312,60 +298,100 @@ static void sp_help_cb(lv_event_t *e) {
   wt_card_intro(ovl);
 }
 
+static void sp_addr_render(void) {
+  if (s_addr_sg) lv_obj_delete(s_addr_sg);
+  if (s_sp_full) {
+    // The full string remains one tap away. It is the source of truth for
+    // reading or comparing the address; the folded default is only a view.
+    char grouped[200];
+    wt_group4(s_sp_addr, grouped, sizeof(grouped));
+    s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font28());
+    lv_obj_set_pos(s_addr_sg, 366, 100);
+  } else {
+    // Match the readable list form: constant prefix muted, four meaningful
+    // characters near each end lit. The QR still receives all of `s_sp_addr`.
+    s_addr_sg = wt_addr_short(s_scr, s_sp_addr, wt_font28());
+    lv_obj_set_pos(s_addr_sg, 366, 150);
+  }
+
+  // Full mainnet and testnet addresses wrap to different heights; keep the
+  // path below either form and above the bottom controls.
+  lv_obj_update_layout(s_addr_sg);
+  int path_y = lv_obj_get_y(s_addr_sg) + lv_obj_get_height(s_addr_sg) + 14;
+  if (path_y > 370) path_y = 370;          // never behind the pill row at 404
+  lv_obj_set_y(s_sp_path_lbl, path_y);
+
+  // The folded text is useful enough to be a direct affordance, but address
+  // span groups deliberately do not accept taps globally: doing that would
+  // swallow taps on every address-list row. A persistent transparent hit box
+  // gives only this standalone address the shortcut and survives its own
+  // callback while the spans beneath it are rebuilt.
+  if (s_sp_addr_hit) {
+    lv_obj_set_pos(s_sp_addr_hit, lv_obj_get_x(s_addr_sg) - 8,
+                   lv_obj_get_y(s_addr_sg) - 8);
+    lv_obj_set_size(s_sp_addr_hit, lv_obj_get_width(s_addr_sg) + 16,
+                    lv_obj_get_height(s_addr_sg) + 16);
+    lv_obj_move_foreground(s_sp_addr_hit);
+  }
+
+  lv_obj_t *toggle_lbl = lv_obj_get_child(s_sp_toggle_pill, 0);
+  const char *toggle_txt = tr(s_sp_full ? STR_R_SP_SHOW_SHORT
+                                        : STR_R_SP_SHOW_FULL);
+  lv_label_set_text(toggle_lbl, toggle_txt);
+  wt_pill_apply_fit(s_sp_toggle_pill,
+                    wt_pill_fit(toggle_txt, 280, 52, false), 280);
+  lv_obj_t *row[2] = {s_sp_back_pill, s_sp_toggle_pill};
+  wt_pill_row(row, 2);
+}
+
+static void sp_toggle_cb(lv_event_t *e) {
+  (void)e;
+  s_sp_full = !s_sp_full;
+  sp_addr_render();
+}
+
 static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
-  lv_obj_t *help = wt_pillh(s_scr, "?", 708, 28, 44, 44, sp_help_cb, NULL);
-  lv_obj_set_style_border_color(help, WT_MUT, 0);
-  wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
+  // The longer tsp1 full view can make LVGL auto-scroll a default container
+  // to its newest child, shifting the fixed 800x480 composition off-screen.
+  lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
+  // Same 30px visual / 54px touch target as every anonymous help affordance.
+  wt_help_chip(s_scr, 715, 35, WT_MUT, sp_help_cb, NULL);
+  // This is the one receive code meant to be scanned by somebody else's
+  // phone. Folding the default text view buys enough room to raise the QR one
+  // module scale while preserving a real white quiet zone around it.
+  wt_qr_card(s_scr, &s_qr, 44, 96, 304, 280);
 
-  char addr[128];
-  if (wallet_session_sp_address(addr, sizeof(addr)) != 0)
-    snprintf(addr, sizeof(addr), "%s", tr(STR_C_SESSION_LOCKED));
+  if (wallet_session_sp_address(s_sp_addr, sizeof(s_sp_addr)) != 0)
+    snprintf(s_sp_addr, sizeof(s_sp_addr), "%s", tr(STR_C_SESSION_LOCKED));
   if (s_qr)
-    lv_qrcode_update(s_qr, addr, (uint32_t)strlen(addr));
+    wt_qr_update(s_qr, s_sp_addr, (uint32_t)strlen(s_sp_addr));
 
-  char grouped[200];
-  wt_group4(addr, grouped, sizeof(grouped));
-  // A silent-payment address is 116 (sp1) or 117 (tsp1) characters, nearly
-  // three times a bech32 one, and it used to render at font14 purely because it
-  // is long -- which made the one address a user is meant to read aloud and
-  // compare the smallest text on the device. 23 is the largest rung that still
-  // fits the 200px between this column's top and the derivation path: ~30
-  // characters a line, five lines. 28 needs six lines of 37 and collides.
-  // font28, up from 23. The old note here said 23 was the largest rung that
-  // fits, and it was -- for a 360px column starting at y=110 with the path
-  // pinned at 320. Both were movable. The column starts at x=366 instead of
-  // 400 and the address starts 10px higher, which is 26 more px of width and
-  // 10 of height: six lines of 28 now land at 100..322, clear of the path.
-  //
-  // The QR is deliberately NOT shrunk to buy this. A 117-character silent
-  // payment address is a ~53-module code; at the 264px it has now that is
-  // 5px per module, and anything that moved it near 150px would be under 3 --
-  // which phones stop reading. This is the one address on the device meant to
-  // be scanned by someone else's camera.
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font28());
-  lv_obj_set_pos(s_addr_sg, 366, 100);
-
-  // The path sits under however many lines the address actually took, not at a
-  // fixed y. Mainnet sp1 is 117 characters and wraps to six lines; testnet
-  // tsp1 is one character longer and takes SEVEN, which a fixed position had
-  // the path printing straight through. Measuring costs nothing and cannot be
-  // wrong for a locale or an address length nobody tried.
-  lv_obj_update_layout(s_addr_sg);
-  int path_y = 100 + lv_obj_get_height(s_addr_sg) + 10;
-  if (path_y > 370) path_y = 370;          // never behind the pill row at 404
-  lv_obj_t *path = wt_lbl(s_scr, "", 366, path_y, wt_font23(), WT_MUT);
-  lv_label_set_text_fmt(path, "m/352h/%dh/0h   %s",
+  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 200, wt_font23(), WT_MUT);
+  lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
+  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 140, sp_back_cb, NULL);
+  s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
+                             198, 404, 280, sp_toggle_cb, NULL);
+  s_sp_addr_hit = lv_obj_create(s_scr);
+  lv_obj_remove_style_all(s_sp_addr_hit);
+  lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
+  lv_obj_add_flag(s_sp_addr_hit, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(s_sp_addr_hit, LV_OBJ_FLAG_SCROLLABLE);
+  wt_tap_feedback(s_sp_addr_hit);
+  lv_obj_add_event_cb(s_sp_addr_hit, sp_toggle_cb, LV_EVENT_CLICKED, NULL);
+  lv_obj_t *row[2] = {s_sp_back_pill, s_sp_toggle_pill};
+  wt_pill_row(row, 2);
+  sp_addr_render();
 }
 
 static void sp_open_cb(lv_event_t *e) {
   (void)e;
+  s_sp_full = false;
   s_addr_sg = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   sp_addr_open(s_parent);
@@ -447,7 +473,6 @@ static void page_cb(lv_event_t *e) {
 
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
-  s_reuse_lbl = s_fresh_pill = NULL;
 
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address you are about to hand over, so it
@@ -509,37 +534,23 @@ static void detail_back_cb(lv_event_t *e) {
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
-  // 264, down from 300: wt_qr_card takes the CARD size, so the old one ran to
-  // y=396 and left nothing between it and the pill row. 228px of QR is still
-  // ~8px per module for a 42-character address, which no scanner struggles
-  // with, and it buys a readable line underneath.
-  wt_qr_card(s_scr, &s_qr, 48, 96, 264, 228);
+  // Zoom makes a large scan view one tap away, so the default card can give
+  // the complete action + consequence three readable lines without making the
+  // QR fragile: 184px still gives an ordinary address several pixels/module.
+  wt_qr_card(s_scr, &s_qr, 48, 96, 216, 184);
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
-  // reuse banner + FRESH jump (hidden unless the shown index was used/shown
-  // before). Deliberately short in every locale now: the adjacent FRESH pill
-  // already supplies the action, so the second line of privacy lecture this
-  // used to carry only forced the warning itself down to font14.
-  const char *reuse = tr_sym(LV_SYMBOL_WARNING, STR_R_REUSED);
-  s_reuse_lbl = wt_lbl(s_scr, reuse, 400, 246,
-                       wt_body_font(reuse, 230, 40), WT_WARN);
-  lv_obj_add_flag(s_reuse_lbl, LV_OBJ_FLAG_HIDDEN);
-  // 136 wide: Russian "НОВЫЙ" missed a 124px pill by 6px, and there is no
-  // shorter word for it that is not an abbreviation. Right edge stays at 760.
-  s_fresh_pill = wt_pillh(s_scr, tr(STR_R_FRESH), 624, 244, 136, 44, fresh_cb, NULL);
-  wt_pill_primary(s_fresh_pill);
-  lv_obj_add_flag(s_fresh_pill, LV_OBJ_FLAG_HIDDEN);
-
   // derivation path stays small (reference), the VERIFY instruction does not.
-  // Both sit under the FRESH pill at 288, above the pill row at 404.
+  // Both sit above the pill row at 404.
   s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
   wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
-  // Under the QR, in the dead space above the pill row. This is the screen
-  // where an address is about to be handed to somebody, so it is where the
-  // advice lands -- rather than colouring a whole list on a guess about which
-  // addresses have been paid to, which an offline signer cannot know.
-  wt_note(s_scr, tr(STR_R_ONE_EACH), 48, 366, 300, 36);
+  // Standing advice beats a warning the offline signer cannot substantiate.
+  // The smaller default QR gives it three lines at font23. The refresh glyph
+  // carries the "use another" meaning even when MONO makes accent and ink equal.
+  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 344, wt_font23(), wt_accent());
+  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 315, 308, 87);
+  lv_obj_set_style_text_color(one_each, wt_accent(), 0);
 
   // These pills share a row and share one label size, so a single pill a few
   // pixels too narrow shrinks all of them. Widths are proportioned to the
@@ -568,9 +579,9 @@ void wallet_recv_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
 
-  // reuse guard: figure out the freshest address to land on. Key by wallet +
-  // network + type; a switch resets the session view-history to the persisted
-  // used-high, otherwise keep growing it (a sign this session may have bumped it).
+  // Figure out the freshest address to land on. Key by wallet + network + type;
+  // a switch resets the session view-history to the persisted used-high,
+  // otherwise keep growing it (a sign this session may have bumped it).
   uint8_t fp[4];
   wallet_ui_last_fp(fp);
   char key[16];
@@ -583,7 +594,6 @@ void wallet_recv_open(lv_obj_t *parent) {
   } else if (used > s_seen_high) {
     s_seen_high = used;
   }
-  s_floor = s_seen_high;                        // frozen: warnings compare to prior use
   s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
 
   // Open on the page that holds the fresh address, aligned to a page boundary

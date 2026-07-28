@@ -28,6 +28,7 @@
 #include "menu_img.h"
 #include "menu_logo.h"
 #include "gameover_img.h"
+#include "game_bg.h"
 #include "wallet_img.h"
 #include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
 #include "i18n.h"
@@ -1220,10 +1221,10 @@ static void setup_done_login(void) {       // wizard stored the seed: first logi
   wallet_login_open_setup(wallet_start);   // passphrase typed twice (safety net)
 }
 
-// AMNESIC: the seed was just typed or scanned into RAM. No setup ritual here —
-// this is an ordinary unlock of a wallet the owner already has, so it goes to
-// the normal one-passphrase login.
-static void amnesic_loaded(void) {
+// A seed already owned by the user is ready, either loaded into an AMNESIC
+// session or verified on the configured SD card. This is an ordinary unlock,
+// not the type-twice ritual used for a newly created/restored wallet.
+static void stored_seed_ready(void) {
   wallet_login_open(wallet_start);
 }
 
@@ -1232,11 +1233,6 @@ static void amnesic_loaded(void) {
 void wallet_begin_setup(void) {
   wallet_setup_open(lv_screen_active(), setup_done_login);
 }
-
-// Settings -> switched to AMNESIC: the stored seed is gone, so the session that
-// is still open has nothing behind it. Lock straight back to the game.
-void wallet_wiped_lock(void);
-void wallet_amnesic_lock(void) { wallet_wiped_lock(); }
 
 // Sync the home TESTNET badge to the current network. Called on unlock and by
 // Settings when it closes, so flipping the network updates the home immediately.
@@ -1579,74 +1575,18 @@ static void tile_glow_sync(void) {
   lv_anim_start(&a);
 }
 
-// ---- fingerprint card: tapping the home chip teaches what the number means
-// (locking already has a home: the KISS logo). Same overlay style as the
-// wallet section's "?" cards; opa/translate anims only. ----
-static void fp_card_close_cb(lv_event_t *e) {
+// Home and WALLET use the same fingerprint explainer. The delete event clears
+// this input gate whether the card closes by its OK pill or by tapping outside.
+static void fp_card_deleted_cb(lv_event_t *e) {
   (void)e;
-  if (s_fp_card) { lv_obj_delete_async(s_fp_card); s_fp_card = NULL; }
+  s_fp_card = NULL;
 }
 
 static void fp_card_open(void) {
   if (s_fp_card) return;
-  lv_obj_t *ovl = lv_obj_create(s_wallet);
-  lv_obj_remove_style_all(ovl);
-  lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-  lv_obj_set_style_bg_color(ovl, lv_color_hex(0x070A10), 0);
-  lv_obj_set_style_bg_opa(ovl, 245, 0);
-  lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);            // swallow stray taps
-  lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(ovl, fp_card_close_cb, LV_EVENT_CLICKED, NULL);
-  s_fp_card = ovl;
-
-  lv_obj_t *t = lv_label_create(ovl);
-  lv_label_set_text_fmt(t, tr(STR_H_FP_CARD_FMT), s_fp_hex);
-  lv_obj_set_style_text_color(t, wt_accent(), 0);
-  lv_obj_set_style_text_font(t, wt_font28(), 0);
-  lv_obj_set_style_text_letter_space(t, 2, 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 92);
-
-  lv_obj_t *b = lv_label_create(ovl);
-  lv_label_set_text(b, tr(STR_H_FP_CARD_B));
-  lv_obj_set_style_text_color(b, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_font(b, wt_body_font(tr(STR_H_FP_CARD_B), 720, 152), 0);
-  lv_obj_set_width(b, 720);
-  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 150);
-
-  wt_diagram_fp(ovl, 318);                   // WORDS + PASSPHRASE -> FINGERPRINT
-  // HOW TO LEAVE. Tapping the KISS logo locks the wallet and drops back to the
-  // game (see the tx<200 && ty<110 branch in the touch handler), and until now
-  // that was documented NOWHERE -- not in a string, not in the README. The one
-  // gesture the whole deniability story rests on was something you had to
-  // already know, and the tap region sits under the page title, so people find
-  // it by accident and are startled instead of taught.
-  //
-  // This card is the right home for it: it is already the wallet home's
-  // teaching surface, and the rule there is that idle chrome should educate
-  // rather than duplicate an action.
-  lv_obj_t *x = lv_label_create(ovl);
-  lv_label_set_text(x, tr(STR_H_EXIT_HINT));
-  lv_obj_set_style_text_color(x, WT_MUT, 0);
-  lv_obj_set_width(x, 660);
-  lv_label_set_long_mode(x, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_align(x, LV_TEXT_ALIGN_CENTER, 0);
-  // This card has exactly one gap: between the diagram (y=318, ~34px tall) and
-  // the OK pill at 392. Two earlier placements were rendered and looked at, and
-  // both were wrong -- y=320 printed through the WORDS/PASSPHRASE/FINGERPRINT
-  // chips, and y=250 printed through the body, whose three lines reach y=300
-  // rather than the two I assumed. Measuring beats reasoning about a card whose
-  // body is auto-fitted and therefore changes height with the text.
-  //
-  // 30px budget: one line at 23 (29px) for English, dropping to 14 for any
-  // translation that needs two. Nothing here may grow into the pill.
-  lv_obj_set_style_text_font(x, wt_body_font(tr(STR_H_EXIT_HINT), 700, 30), 0);
-  lv_obj_set_width(x, 700);
-  lv_obj_align(x, LV_ALIGN_TOP_MID, 0, 356);
-
-  wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, fp_card_close_cb, NULL);
-  wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
+  s_fp_card = wallet_info_fp_card_open(s_wallet, s_fp_hex);
+  if (s_fp_card)
+    lv_obj_add_event_cb(s_fp_card, fp_card_deleted_cb, LV_EVENT_DELETE, NULL);
 }
 
 static void game_tick(lv_timer_t *t) {
@@ -1865,9 +1805,28 @@ static void game_tick(lv_timer_t *t) {
             // needs the whole setup wizard. Neither has a decoy to open.
             int kind = unlock_kind();
             if (kind >= 0) {
-              if (!wallet_seed_exists()) {
-                if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
-                  wallet_setup_open_load(lv_screen_active(), amnesic_loaded);
+              int seed_mode = wallet_seed_mode();
+              bool sd_blocked = false;
+              if (seed_mode == WSEED_MODE_SD) {
+                // An SD wallet with its card removed/corrupt is still a
+                // configured wallet. Check it BEFORE generic seed existence;
+                // never mistake removable storage for a factory-fresh device
+                // and silently offer to create over it.
+                int sd_rc = wallet_setup_sd_status();
+                if (sd_rc != WSEED_OK) {
+                  wallet_setup_open_sd_missing(lv_screen_active(), sd_rc,
+                                               stored_seed_ready);
+                  s_kiss_pending = false;
+                  s_gn = 0; s_strokes = 0;
+                  sd_blocked = true;
+                }
+              }
+              if (sd_blocked) {
+                // The retry/recovery screen owns the hand-off from here.
+              }
+              else if (!wallet_seed_exists()) {
+                if (seed_mode == WSEED_MODE_AMNESIC)
+                  wallet_setup_open_load(lv_screen_active(), stored_seed_ready);
                 else wallet_setup_open(lv_screen_active(), setup_done_login);
                 s_kiss_pending = false;
                 s_gn = 0; s_strokes = 0;
@@ -1950,12 +1909,54 @@ static void spawn_tick(lv_timer_t *t) {
     spawn_fruit_idx(BOMB_IDX);
 }
 
+static void storage_locked_screen(lv_obj_t *root,
+                                  wallet_settings_load_status_t status) {
+  static const char *BODY =
+      "Wallet storage could not be opened. Existing wallet data and any "
+      "SD-card device key may still be intact.\n\n"
+      "Do not erase storage or create a wallet. Power off, then reinstall the "
+      "same or a newer compatible firmware. Restore from your paper backup "
+      "only if recovery is required.";
+  char cause[112];
+  snprintf(cause, sizeof cause, "CAUSE: %s  (code 0x%X)",
+           wallet_settings_load_status_name(status),
+           (unsigned)wallet_settings_load_error_code());
+
+  // Nothing behind this page is built: no game touch timer, setup wizard,
+  // wallet home, or erase action exists on a failed-storage boot.
+  lv_obj_clean(root);
+  lv_obj_clear_flag(root, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_t *page = wt_screen(root, "STORAGE LOCKED",
+                             "NON-DESTRUCTIVE SAFE MODE");
+  lv_obj_set_style_text_color(lv_obj_get_child(page, 0), WT_STOP, 0);
+  lv_obj_t *body = wt_wraph(page, BODY, 48, 116, 704, 236);
+  lv_obj_set_style_text_color(body, WT_INK, 0);
+  lv_obj_t *code = wt_lbl(page, cause, 48, 398, wt_font14(), WT_WARN);
+  lv_obj_set_width(code, 704);
+  lv_label_set_long_mode(code, LV_LABEL_LONG_WRAP);
+}
+
 void build_game(void) {  // non-static: the simulator harness calls this too
-  wallet_settings_load();              // persisted network choice (NVS on device)
+  wallet_settings_load_status_t settings_status = wallet_settings_load();
   lv_obj_t *scr = lv_screen_active();
-  // solid black: fruit pops hardest on it, and no gradient to re-render each frame
-  lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+  if (settings_status != WSETTINGS_LOAD_OK) {
+#ifndef SIMULATOR
+    ESP_LOGE(TAG, "wallet storage blocked: %s (0x%x)",
+             wallet_settings_load_status_name(settings_status),
+             (unsigned)wallet_settings_load_error_code());
+#endif
+    storage_locked_screen(scr, settings_status);
+    return;
+  }
+
+  // Match the wallet's near-black blue and faint 46px grid. The tiny RGB565 tile
+  // keeps flash use low; full-screen menu/saver/wallet artwork covers it outside PLAY.
+  lv_obj_set_style_bg_color(scr, lv_color_hex(0x00080F), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_bg_image_src(scr, &img_game_bg, LV_PART_MAIN);
+  lv_obj_set_style_bg_image_tiled(scr, true, LV_PART_MAIN);
   // fruit/popups animate past the edges; stop LVGL auto-scrolling the screen to chase them
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
