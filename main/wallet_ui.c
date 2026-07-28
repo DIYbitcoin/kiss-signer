@@ -1343,7 +1343,7 @@ void wallet_build_id_restyle(lv_obj_t *version_label)
 #endif
 }
 
-lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
 {
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
@@ -1362,21 +1362,31 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y)
 #endif
   lv_obj_t *w = lv_label_create(parent);
   lv_obj_set_style_text_font(w, wt_font14(), 0);
-  // Both diagnostics stay -- on a signer, "is the flash encrypted" and "is the
-  // radio held down" are worth a permanent line. Only the wording shrinks, and
-  // it stays ASCII on purpose: a glyph missing from the generated font hangs
-  // LVGL outright, so this line is the wrong place to spend a "." or a dash.
-  lv_label_set_text_fmt(w, "-  enc: %s", enc ? "ON" : "OFF");
+  // The word in full. It was abbreviated to "enc" back when the commit came
+  // from `git describe` and this line ran the width of the panel -- but that
+  // was the commit's fault, and shortening the one word a reader actually
+  // needs was the wrong half to cut. A bare short hash left the room.
+  //
+  // Stays ASCII on purpose: a glyph missing from the generated font hangs LVGL
+  // outright, so this line is the wrong place to spend a "." or an em dash.
+  lv_label_set_text_fmt(w, "-  encryption: %s", enc ? "ON" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
   lv_obj_update_layout(v);
   lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
 
-  lv_obj_t *r = lv_label_create(parent);
-  lv_obj_set_style_text_font(r, wt_font14(), 0);
-  lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "HELD" : "NOT HELD");
-  lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
-  lv_obj_update_layout(w);
-  lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+  // The C6 radio readback is a diagnostic for people who already know what a
+  // C6 is. It earns its place in Settings, not in the corner of the home
+  // screen where it was permanent chrome nobody could act on.
+  if (with_radio) {
+    lv_obj_t *r = lv_label_create(parent);
+    lv_obj_set_style_text_font(r, wt_font14(), 0);
+    lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "HELD" : "NOT HELD");
+    lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    lv_obj_update_layout(w);
+    lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+  } else {
+    (void)radio_held;
+  }
 
   return v;
 }

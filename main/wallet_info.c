@@ -128,6 +128,7 @@ static lv_obj_t *mk_help_chip(int x, int y, const char *key)
     lv_obj_set_style_border_color(hc, WT_MUT, 0);
     lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(hc, 12);
+    wt_tap_feedback(hc);
     lv_obj_add_event_cb(hc, help_cb, LV_EVENT_CLICKED, (void *)key);
     lv_obj_t *hl = lv_label_create(hc);
     lv_label_set_text(hl, "?");
