@@ -611,7 +611,20 @@ int main(void) {
   touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
   save("/tmp/sim_sign_help.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // OK closes the card
-  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD (y=268) -> file list
+  // Pill tap feedback (pill_tap_feedback in wallet_theme.c). The board has no
+  // haptics, so a press is answered optically or not at all -- and "not at
+  // all" is the kind of thing a refactor takes away in silence. This is the
+  // walk's ordinary FROM SD CARD tap, just photographed twice on the way
+  // through, so it costs the walk nothing and still pins both halves: the
+  // ring exists ONLY in the first frame (it is outside the pill edge there and
+  // gone by the second), so if the animation ever stops rendering the two
+  // frames become identical and check_sim_taps.py fails.
+  // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
+  touch(218, 298); pump(5);                        // FROM SD CARD (y=268)
+  save("/tmp/sim_pill_ring.ppm");                  // ring still outside the edge
+  pump(14);
+  save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
+  release(); pump(6);                              // -> file list
   save("/tmp/sim_sign_files.ppm");
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
