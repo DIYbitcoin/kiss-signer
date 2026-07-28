@@ -530,7 +530,7 @@ int main(void) {
 
   // step 4: Receive (address #0 QR, next -> #1) and watch-only Export
   touch(310, 240); pump(3);
-  save("/tmp/sim_tile_press.ppm");                  // glow under the held tile
+  save("/tmp/sim_tile_press.ppm");                  // the tile flash, mid-fade
   release(); pump(6);                               // Receive tile
   save("/tmp/sim_recv.ppm");                        // the scrollable address list
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view

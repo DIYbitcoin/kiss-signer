@@ -31,5 +31,9 @@ void wallet_ui_drop_indev_for_test(void);   // put the process back to power-on
 // Create the build-identity line at (x,y): version + commit in calm ink, plus
 // an amber warning while the chip reports flash encryption off (dev builds get
 // the amber dev banner). Shared by the Settings footer and wallet home corner.
-lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y);
+//
+// with_radio adds the C6 radio-reset readback. Only Settings passes true: it
+// is a diagnostic for people who already know what the C6 is, and the home
+// corner is not where you go looking for one.
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio);
 void wallet_build_id_restyle(lv_obj_t *version_label);

@@ -736,6 +736,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_border_color(hc, MUT_COL, 0);
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(hc, 12);
+        wt_tap_feedback(hc);
         lv_obj_add_event_cb(hc, rbf_help_cb, LV_EVENT_CLICKED, NULL);
         lv_obj_t *hl = lv_label_create(hc);
         lv_label_set_text(hl, "?");
@@ -776,6 +777,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_border_color(hc, WARN_COL, 0);
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(hc, 12);
+        wt_tap_feedback(hc);
         lv_obj_add_event_cb(hc, caution_help_cb, LV_EVENT_CLICKED, NULL);
         lv_obj_t *hl = lv_label_create(hc);
         lv_label_set_text(hl, "?");
@@ -1364,8 +1366,13 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_set_style_text_font(ol, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(ol, 2, 0);
     lv_obj_center(ol);
-    // This card already has a three-step visual sequence. Keep every step and
-    // the close control visible immediately instead of staggering its pieces.
+    // Same entrance as every other "?" card. This one used to open with a hard
+    // cut, on the reasoning that its three-step sequence was busy enough
+    // already -- but the steps were deliberately built inside ONE container so
+    // they would enter together, which only buys anything if something is
+    // animating them. Four direct children stagger in (title, body, the flow
+    // as a unit, OK), so the sequence still arrives whole.
+    wt_card_intro(ovl);
 }
 
 static void sd_pick_cb(lv_event_t *e)
@@ -1417,6 +1424,7 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_style_border_color(hc, MUT_COL, 0);
     lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(hc, 14);                // small chip, honest target
+    wt_tap_feedback(hc);
     lv_obj_add_event_cb(hc, coord_help_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *hl = lv_label_create(hc);
     lv_label_set_text(hl, "PSBT  ?");

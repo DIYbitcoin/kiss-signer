@@ -235,7 +235,8 @@ static void type_open_cb(lv_event_t *e)
         wt_pill_select(p, wallet_script() == sc);
         wt_note(s_scr, type_note(sc), 68, ny[i], 664, 29);
     }
-    wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, type_back_cb, NULL);
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), 610, 404, 140, type_back_cb, NULL), 10);
 }
 
 // The stroke chooser takes over the screen and hands control back here.
@@ -742,11 +743,17 @@ void wallet_settings_open(lv_obj_t *parent)
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
-    s_build_id = wallet_build_id_make(s_scr, 48, 460);
+    s_build_id = wallet_build_id_make(s_scr, 48, 460, true);   // radio readback lives here
 
     {
-        lv_obj_t *row[2] = { s_lang_pill,
-                             mk_pillh(tr(STR_C_BACK), 610, 404, 140, 44, close_cb, NULL) };
+        // BACK sits in the bottom-right corner, where a thumb arrives at an
+        // angle and lands short. 10px of ext click area turns a 140x44 pill
+        // into a 160x64 target without moving a pixel of what is drawn. Not
+        // more than 10: the language pill's right edge is at x=600, and a
+        // wider reach would start eating taps meant for it.
+        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 610, 404, 140, 44, close_cb, NULL);
+        lv_obj_set_ext_click_area(back, 10);
+        lv_obj_t *row[2] = { s_lang_pill, back };
         wt_pill_row(row, 2);
     }
 
