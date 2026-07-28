@@ -1,18 +1,40 @@
-// SD card platform seam — see platform_sd.h. v1 policy: the SD card carries
-// PUBLIC data only (PSBTs, descriptors); never secrets.
+// SD card platform seam — see platform_sd.h. PSBTs use the simple operations;
+// the sealed seed uses atomic replace/delete so a pulled card cannot truncate
+// the only durable destination during a storage-mode migration.
 #include "platform_sd.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
-
-#ifdef SIMULATOR
-
 #include <sys/stat.h>
+#include <unistd.h>
+
+#ifndef ESP_PLATFORM
+
 #define SD_BASE "/tmp/simsd"
-int platform_sd_mount(void) { mkdir(SD_BASE, 0777); return 0; }
+static int s_test_present = 1;
+static unsigned s_test_fail;
+
+void platform_sd_test_set_present(int present) { s_test_present = present != 0; }
+void platform_sd_test_fail_next(unsigned flags) { s_test_fail = flags; }
+
+static int test_fail(unsigned flag)
+{
+    if (!(s_test_fail & flag)) return 0;
+    s_test_fail &= ~flag;
+    return 1;
+}
+
+int platform_sd_mount(void)
+{
+    if (!s_test_present) return -2;
+    if (mkdir(SD_BASE, 0777) != 0 && errno != EEXIST) return -1;
+    struct stat st;
+    return stat(SD_BASE, &st) == 0 && S_ISDIR(st.st_mode) ? 0 : -1;
+}
 void platform_sd_unmount(void) {}
 int platform_sd_probe(void) { return platform_sd_mount() == 0 ? 1 : 0; }
 
@@ -29,8 +51,15 @@ static sd_pwr_ctrl_handle_t s_pwr;   // LDO stays claimed across mounts
 
 int platform_sd_mount(void)
 {
-    if (s_card)
-        return 0;
+    if (s_card) {
+        if (sdmmc_get_status(s_card) == ESP_OK)
+            return 0;
+        // A card can be pulled between the home-screen probe and a secret
+        // operation. Drop that stale VFS/card object here too, so RETRY after
+        // reinsertion performs a real mount instead of trusting s_card.
+        esp_vfs_fat_sdcard_unmount(SD_BASE, s_card);
+        s_card = NULL;
+    }
     if (!s_pwr) {
         sd_pwr_ctrl_ldo_config_t lc = { .ldo_chan_id = 4 };   // card VDD on this board
         if (sd_pwr_ctrl_new_on_chip_ldo(&lc, &s_pwr) != ESP_OK)
@@ -68,16 +97,18 @@ void platform_sd_unmount(void)
 
 int platform_sd_probe(void)
 {
-    if (s_card) {                              // already mounted: is it still there?
-        if (sdmmc_get_status(s_card) == ESP_OK)
-            return 1;
-        platform_sd_unmount();                 // card was pulled — drop the stale mount
-        return 0;
-    }
-    return platform_sd_mount() == 0 ? 1 : 0;   // no card known: try to catch an insert
+    // mount() validates an existing mount and remounts after a pull/reinsert.
+    return platform_sd_mount() == 0 ? 1 : 0;
 }
 
 #endif
+
+static int name_ok(const char *name)
+{
+    if (!name || !name[0] || strlen(name) >= SD_NAME_LEN) return 0;
+    if (name[0] == '.' || strstr(name, "..")) return 0;
+    return strchr(name, '/') == NULL && strchr(name, '\\') == NULL;
+}
 
 static int name_is_signed(const char *name)
 {
@@ -119,21 +150,63 @@ static void full_path(char *dst, size_t dstsz, const char *name)
     snprintf(dst, dstsz, "%s/%s", SD_BASE, name);
 }
 
+static void side_path(char *dst, size_t dstsz, const char *name, const char *suffix)
+{
+    snprintf(dst, dstsz, "%s/%s%s", SD_BASE, name, suffix);
+}
+
+// Finish or roll back an interrupted atomic replace. A target that exists is
+// authoritative. If it does not, .tmp can only coexist with .bak after the
+// fully-written temp was verified and the old target was moved aside, so the
+// temp is the committed candidate. A lone .bak is the previous good file.
+static int recover_atomic(const char *name)
+{
+    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
+    full_path(target, sizeof target, name);
+    side_path(tmp, sizeof tmp, name, ".tmp");
+    side_path(bak, sizeof bak, name, ".bak");
+    if (access(target, F_OK) == 0) {
+        int rc = 0;
+        if (remove(tmp) != 0 && errno != ENOENT) rc = PLATFORM_SD_ATOMIC_CLEANUP;
+        if (remove(bak) != 0 && errno != ENOENT) rc = PLATFORM_SD_ATOMIC_CLEANUP;
+        return rc;
+    }
+    int have_tmp = access(tmp, F_OK) == 0;
+    int have_bak = access(bak, F_OK) == 0;
+    if (have_tmp && have_bak) {
+        if (rename(tmp, target) != 0) return -2;
+        return remove(bak) == 0 || errno == ENOENT
+             ? 0 : PLATFORM_SD_ATOMIC_CLEANUP;
+    }
+    if (have_bak) return rename(bak, target) == 0 ? 0 : -2;
+    // A lone temp may be a power-cut partial first write; never promote it.
+    if (have_tmp && remove(tmp) != 0 && errno != ENOENT)
+        return PLATFORM_SD_ATOMIC_CLEANUP;
+    return 0;
+}
+
 int platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len)
 {
+    if (!name_ok(name) || !buf || !len || max == 0) return -3;
+#ifndef ESP_PLATFORM
+    if (test_fail(PLATFORM_SD_TEST_FAIL_READ)) return -3;
+#endif
+    (void)recover_atomic(name);
     char p[SD_NAME_LEN + 16];
     full_path(p, sizeof p, name);
     FILE *f = fopen(p, "rb");
     if (!f)
         return -1;
     *len = fread(buf, 1, max, f);
+    int io = ferror(f);
     int full = !feof(f);                      // file bigger than our buffer = reject
-    fclose(f);
-    return (*len == 0 || full) ? -2 : 0;
+    if (fclose(f) != 0) io = 1;
+    return io ? -3 : (*len == 0 || full) ? -2 : 0;
 }
 
 int platform_sd_write(const char *name, const uint8_t *buf, size_t len)
 {
+    if (!name_ok(name) || (!buf && len)) return -3;
     char p[SD_NAME_LEN + 16];
     full_path(p, sizeof p, name);
     FILE *f = fopen(p, "wb");
@@ -141,5 +214,97 @@ int platform_sd_write(const char *name, const uint8_t *buf, size_t len)
         return -1;
     size_t wr = fwrite(buf, 1, len, f);
     int rc = (fclose(f) == 0 && wr == len) ? 0 : -2;
+    return rc;
+}
+
+static int file_matches(const char *path, const uint8_t *buf, size_t len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    uint8_t chunk[128];
+    size_t off = 0;
+    int ok = 1;
+    while (off < len) {
+        size_t want = len - off < sizeof chunk ? len - off : sizeof chunk;
+        size_t n = fread(chunk, 1, want, f);
+        if (n != want || memcmp(chunk, buf + off, want) != 0) {
+            ok = 0;
+            break;
+        }
+        off += want;
+    }
+    if (ok && fgetc(f) != EOF) ok = 0;
+    if (ferror(f) || fclose(f) != 0) ok = 0;
+    memset(chunk, 0, sizeof chunk);
+    return ok;
+}
+
+int platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len)
+{
+    if (!name_ok(name) || !buf || len == 0) return -3;
+#ifndef ESP_PLATFORM
+    if (test_fail(PLATFORM_SD_TEST_FAIL_WRITE)) return -2;
+#endif
+    if (recover_atomic(name) < 0) return -2;
+
+    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
+    full_path(target, sizeof target, name);
+    side_path(tmp, sizeof tmp, name, ".tmp");
+    side_path(bak, sizeof bak, name, ".bak");
+    (void)remove(tmp);
+
+    FILE *f = fopen(tmp, "wb");
+    if (!f) return -1;
+    size_t wr = fwrite(buf, 1, len, f);
+    int rc = wr == len && fflush(f) == 0 ? 0 : -2;
+    if (rc == 0 && fsync(fileno(f)) != 0) rc = -2;
+    if (fclose(f) != 0) rc = -2;
+    if (rc != 0 || !file_matches(tmp, buf, len)) {
+        (void)remove(tmp);
+        return -2;
+    }
+
+#ifndef ESP_PLATFORM
+    if (test_fail(PLATFORM_SD_TEST_FAIL_RENAME)) {
+        (void)remove(tmp);
+        return -2;
+    }
+#endif
+    (void)remove(bak);
+    int had_target = access(target, F_OK) == 0;
+    if (had_target && rename(target, bak) != 0) {
+        (void)remove(tmp);
+        return -2;
+    }
+    if (rename(tmp, target) != 0) {
+        if (had_target) (void)rename(bak, target);
+        (void)remove(tmp);
+        return -2;
+    }
+    if (had_target) {
+#ifndef ESP_PLATFORM
+        if (test_fail(PLATFORM_SD_TEST_FAIL_BAK_DELETE))
+            return PLATFORM_SD_ATOMIC_CLEANUP;
+#endif
+        if (remove(bak) != 0 && errno != ENOENT)
+            return PLATFORM_SD_ATOMIC_CLEANUP;
+    }
+    return 0;
+}
+
+int platform_sd_delete(const char *name)
+{
+    if (!name_ok(name)) return -3;
+#ifndef ESP_PLATFORM
+    if (test_fail(PLATFORM_SD_TEST_FAIL_DELETE)) return -2;
+#endif
+    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
+    full_path(target, sizeof target, name);
+    side_path(tmp, sizeof tmp, name, ".tmp");
+    side_path(bak, sizeof bak, name, ".bak");
+    int rc = 0;
+    if (remove(target) != 0 && errno != ENOENT) rc = -2;
+    if (remove(tmp) != 0 && errno != ENOENT) rc = -2;
+    if (remove(bak) != 0 && errno != ENOENT) rc = -2;
     return rc;
 }

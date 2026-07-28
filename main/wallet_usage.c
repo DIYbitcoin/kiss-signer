@@ -3,7 +3,9 @@
 // the seed). Host backend = a small RAM table (the desktop tests and the sim
 // run in one process, so persistence-across-boot is a device-only concern).
 #include "wallet_usage.h"
+#include "wallet_seed.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -14,13 +16,38 @@ static void usage_key(const uint8_t fp[4], int testnet, int script, char out[16]
              fp[0], fp[1], fp[2], fp[3], testnet ? 1 : 0, script);
 }
 
+#define UMAX 32
+struct usage_row { char key[16]; uint32_t v; };
+static struct usage_row s_session[UMAX];
+static int s_session_n;
+
+static int tab_high(const struct usage_row *tab, int n, const char *key)
+{
+    for (int i = 0; i < n; i++)
+        if (strcmp(tab[i].key, key) == 0)
+            return (int)tab[i].v;
+    return -1;
+}
+
+static void tab_mark(struct usage_row *tab, int *n, const char *key, uint32_t idx)
+{
+    for (int i = 0; i < *n; i++)
+        if (strcmp(tab[i].key, key) == 0) {
+            if (idx > tab[i].v) tab[i].v = idx;
+            return;
+        }
+    if (*n < UMAX) {
+        snprintf(tab[*n].key, sizeof tab[*n].key, "%s", key);
+        tab[*n].v = idx;
+        (*n)++;
+    }
+}
+
 #ifdef ESP_PLATFORM
 #include "nvs.h"
 
-int wallet_usage_high(const uint8_t fp[4], int testnet, int script)
+static int persistent_high(const char *key)
 {
-    char key[16];
-    usage_key(fp, testnet, script, key);
     nvs_handle_t h;
     if (nvs_open("kissu", NVS_READONLY, &h) != ESP_OK)
         return -1;
@@ -30,10 +57,8 @@ int wallet_usage_high(const uint8_t fp[4], int testnet, int script)
     return rc;
 }
 
-void wallet_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t idx)
+static void persistent_mark(const char *key, uint32_t idx)
 {
-    char key[16];
-    usage_key(fp, testnet, script, key);
     nvs_handle_t h;
     if (nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
         return;
@@ -46,7 +71,7 @@ void wallet_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t id
     nvs_close(h);
 }
 
-void wallet_usage_wipe(void)
+static void persistent_wipe(void)
 {
     nvs_handle_t h;
     if (nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
@@ -58,36 +83,61 @@ void wallet_usage_wipe(void)
 
 #else   // host (sim + desktop tests): RAM table
 
-#define UMAX 32
-static struct { char key[16]; uint32_t v; } s_tab[UMAX];
-static int s_n;
+static struct usage_row s_persistent[UMAX];
+static int s_persistent_n;
+
+static int persistent_high(const char *key)
+{
+    return tab_high(s_persistent, s_persistent_n, key);
+}
+
+static void persistent_mark(const char *key, uint32_t idx)
+{
+    tab_mark(s_persistent, &s_persistent_n, key, idx);
+}
+
+static void persistent_wipe(void)
+{
+    memset(s_persistent, 0, sizeof s_persistent);
+    s_persistent_n = 0;
+}
+
+#endif
 
 int wallet_usage_high(const uint8_t fp[4], int testnet, int script)
 {
     char key[16];
     usage_key(fp, testnet, script, key);
-    for (int i = 0; i < s_n; i++)
-        if (strcmp(s_tab[i].key, key) == 0)
-            return (int)s_tab[i].v;
-    return -1;
+    if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
+        return tab_high(s_session, s_session_n, key);
+    int v = persistent_high(key);
+    if (v >= 0) tab_mark(s_session, &s_session_n, key, (uint32_t)v);
+    return v;
 }
 
 void wallet_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t idx)
 {
     char key[16];
     usage_key(fp, testnet, script, key);
-    for (int i = 0; i < s_n; i++)
-        if (strcmp(s_tab[i].key, key) == 0) {
-            if (idx > s_tab[i].v) s_tab[i].v = idx;
-            return;
-        }
-    if (s_n < UMAX) {
-        snprintf(s_tab[s_n].key, sizeof s_tab[s_n].key, "%s", key);
-        s_tab[s_n].v = idx;
-        s_n++;
-    }
+    tab_mark(s_session, &s_session_n, key, idx);
+    if (wallet_seed_mode() != WSEED_MODE_AMNESIC)
+        persistent_mark(key, idx);
 }
 
-void wallet_usage_wipe(void) { s_n = 0; }
+void wallet_usage_persist_session(void)
+{
+    for (int i = 0; i < s_session_n; i++)
+        persistent_mark(s_session[i].key, s_session[i].v);
+}
 
-#endif
+void wallet_usage_forget_session(void)
+{
+    memset(s_session, 0, sizeof s_session);
+    s_session_n = 0;
+}
+
+void wallet_usage_wipe(void)
+{
+    persistent_wipe();
+    wallet_usage_forget_session();
+}

@@ -81,6 +81,9 @@ int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 // ---- step 4: wallet session (master key in RAM between unlock and lock) ----
 static struct ext_key s_master;
 static bool s_session;
+static struct ext_key s_prepared_master;
+static bool s_prepared_session;
+static bool s_prepared_decoy;
 // Was this session opened with NO passphrase? That is the decoy signer (see
 // wallet_duress.h), and the UI keys off it: the screen that configures the
 // unlock strokes must not exist inside a decoy session, or the decoy proves a
@@ -89,17 +92,20 @@ static bool s_session_decoy;
 
 static void account_forget(void);   // defined with the account-key cache below
 
-int wallet_session_open(const char *passphrase)
+void wallet_session_discard_prepared(void)
+{
+    wally_bzero(&s_prepared_master, sizeof s_prepared_master);
+    s_prepared_session = false;
+    s_prepared_decoy = false;
+}
+
+int wallet_session_prepare(const char *passphrase)
 {
     if (passphrase && !passphrase[0])
         passphrase = NULL;
     if (wally_init(0) != WALLY_OK)
         return 1;
-    // Never derive over a stale master. NOT wallet_session_close(): that also
-    // forgets an amnesic seed, and we are about to read it.
-    wally_bzero(&s_master, sizeof(s_master));
-    account_forget();                  // never serve the last wallet's account
-    s_session = false;
+    wallet_session_discard_prepared();
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0)
         return 2;                          // no seed stored: wizard first
@@ -110,13 +116,37 @@ int wallet_session_open(const char *passphrase)
     int rc = 0;
     if (mrc != WALLY_OK || seed_len != sizeof(seed))
         rc = 3;
-    else if (bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0, &s_master) != WALLY_OK)
+    else if (bip32_key_from_seed(seed, sizeof(seed), BIP32_VER_MAIN_PRIVATE, 0,
+                                &s_prepared_master) != WALLY_OK)
         rc = 4;
     wally_bzero(seed, sizeof(seed));       // wiped on every path, incl. BIP39 failure
-    if (rc != 0)
-        wally_bzero(&s_master, sizeof(s_master));   // no partial key on failure
-    s_session = (rc == 0);
-    s_session_decoy = (rc == 0) && (passphrase == NULL);
+    if (rc != 0) {
+        wallet_session_discard_prepared();
+        return rc;
+    }
+    s_prepared_session = true;
+    s_prepared_decoy = (passphrase == NULL);
+    return 0;
+}
+
+int wallet_session_activate_prepared(void)
+{
+    if (!s_prepared_session)
+        return 1;
+    wally_bzero(&s_master, sizeof s_master);
+    account_forget();                     // never serve the last wallet's account
+    memcpy(&s_master, &s_prepared_master, sizeof s_master);
+    s_session = true;
+    s_session_decoy = s_prepared_decoy;
+    wallet_session_discard_prepared();
+    return 0;
+}
+
+int wallet_session_open(const char *passphrase)
+{
+    int rc = wallet_session_prepare(passphrase);
+    if (rc == 0)
+        rc = wallet_session_activate_prepared();
     return rc;
 }
 
@@ -124,6 +154,7 @@ int wallet_session_open(const char *passphrase)
 // in wallet_seed's RAM copy, so it has to leave with the derived key.
 void wallet_session_close(void)
 {
+    wallet_session_discard_prepared();
     wally_bzero(&s_master, sizeof(s_master));
     account_forget();
     s_session = false;

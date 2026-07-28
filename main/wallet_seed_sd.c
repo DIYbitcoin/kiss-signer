@@ -13,6 +13,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #else
+#include <errno.h>
 #include <stdlib.h>
 #define DKEY_FILE "/tmp/kiss_device_key.bin"
 #endif
@@ -127,8 +128,7 @@ int sd_seed_forget_device_key(void)
     nvs_close(h);
     return rc;
 #else
-    remove(DKEY_FILE);          // absent is fine: forgetting twice is a no-op
-    return 0;
+    return remove(DKEY_FILE) == 0 || errno == ENOENT ? 0 : -1;
 #endif
 }
 

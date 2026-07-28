@@ -21,3 +21,23 @@ int  platform_sd_probe(void);
 int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max);
 int  platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len);
 int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);
+
+// Secret-bearing callers use the atomic form. It writes and verifies a sibling
+// temporary file before switching names, keeping the previous file recoverable
+// until the replacement is durable. delete also removes interrupted-write
+// sidecars. Both require an already mounted/present card.
+#define PLATFORM_SD_ATOMIC_CLEANUP 1   // target committed; stale sidecar remains
+int  platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len);
+int  platform_sd_delete(const char *name);       // absent file is success
+
+#ifndef ESP_PLATFORM
+// Native-test fault seam. The simulator never calls these, so its default is a
+// present, working card. Flags are consumed by the next matching operation.
+#define PLATFORM_SD_TEST_FAIL_READ    (1u << 0)
+#define PLATFORM_SD_TEST_FAIL_WRITE   (1u << 1)
+#define PLATFORM_SD_TEST_FAIL_RENAME  (1u << 2)
+#define PLATFORM_SD_TEST_FAIL_DELETE  (1u << 3)
+#define PLATFORM_SD_TEST_FAIL_BAK_DELETE (1u << 4)
+void platform_sd_test_set_present(int present);
+void platform_sd_test_fail_next(unsigned flags);
+#endif
