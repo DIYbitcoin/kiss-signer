@@ -56,7 +56,13 @@ SECTIONS = [
          ("03-wallet-home", "sim_wallet",
           "Your recovery words and your exact passphrase together make this "
           "wallet. A different passphrase silently opens a different wallet, "
-          "so check the fingerprint is the one you expect."),
+          "so check the fingerprint is the one you expect.\n\n"
+          "This only works if you wrote the fingerprint down. Do it once, on "
+          "the same piece of paper as your recovery words: the eight character "
+          "code on this screen. Every passphrase is valid, so a typo never "
+          "shows an error, it just opens a different and empty wallet. If the "
+          "code here ever differs from your paper, you typed the passphrase "
+          "wrong. Lock and try again."),
      ]),
 
     ("Choosing where the recovery words live",
