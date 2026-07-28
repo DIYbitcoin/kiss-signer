@@ -1008,6 +1008,38 @@ int main(int argc, char **argv) {
     chki("native addr after type sweep rc", wallet_session_address(0, 0, addr, sizeof addr), 0);
     chk("m/84h/0h/0h/0/0 after sweep", addr, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
 
+    // ---- the account key is cached between derivations, so prove the cache
+    // cannot outlive the session it came from. A stale one would serve the
+    // PREVIOUS wallet's addresses to the next one, and since the difference
+    // between the decoy and the real wallet is exactly a passphrase, that is
+    // the deniability property silently inverted. The script and network
+    // sweeps above already cover the other two things it keys on.
+    {
+        wallet_set_network(0);
+        wallet_set_script(WSCRIPT_NATIVE);
+        char a_plain[92], a_pass[92], a_again[92];
+        chki("cache: decoy session opens", wallet_session_open(NULL), 0);
+        chki("cache: decoy addr rc",
+             wallet_session_address(0, 0, a_plain, sizeof a_plain), 0);
+        chki("cache: passphrase session opens", wallet_session_open("kiss"), 0);
+        chki("cache: passphrase addr rc",
+             wallet_session_address(0, 0, a_pass, sizeof a_pass), 0);
+        chkb("cache: passphrase gives a DIFFERENT address",
+             strcmp(a_plain, a_pass) != 0);
+        chki("cache: decoy session reopens", wallet_session_open(NULL), 0);
+        chki("cache: decoy addr rc again",
+             wallet_session_address(0, 0, a_again, sizeof a_again), 0);
+        chk("cache: same passphrase, same address", a_again, a_plain);
+        wallet_session_close();
+        chkb("cache: closed session derives nothing",
+             wallet_session_address(0, 0, addr, sizeof addr) != 0);
+        chki("cache: reopen after close", wallet_session_open(NULL), 0);
+        chki("cache: addr rc after close+reopen",
+             wallet_session_address(0, 0, addr, sizeof addr), 0);
+        chk("m/84h/0h/0h/0/0 after close+reopen", addr,
+            "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+    }
+
     // optional: also emit device-test PSBT files (argv[1] = target dir, e.g. the
     // SD card). kiss-pay.psbt verifies READY + signs; kiss-stop.psbt must STOP.
     if (argc > 1) {

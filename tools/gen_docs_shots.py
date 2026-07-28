@@ -108,8 +108,9 @@ SECTIONS = [
      "computer showing you an address that is not yours.",
      [
          ("07-receive", "sim_recv",
-          "RECEIVE shows an address KISS derived on the device. Read it here, "
-          "on the device, never off the computer."),
+          "RECEIVE lists addresses KISS derived on the device. Amber ones are "
+          "already used. Tap any of them for its QR. Read them here, on the "
+          "device, never off the computer."),
          ("08-verify-match", "sim_vfy_yes",
           "VERIFY re-derives whatever address you type in. Green means KISS "
           "found it in this wallet, independently of whatever displayed it."),

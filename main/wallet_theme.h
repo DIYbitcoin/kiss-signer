@@ -71,6 +71,13 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
 #define WT_ICON_TEXT_MAX 128
 void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
 
+// Give any clickable object the pill's press answer: it sinks 2px while held
+// and a ring travels out of its edge as it fades on release. wt_pillh already
+// does this; call it directly for tappable things that are not pills, such as
+// the rows of the address list. Never scales anything — see the comment on the
+// implementation for why that matters.
+void wt_tap_feedback(lv_obj_t *obj);
+
 // pills (buttons). wt_pill = the standard 52px height.
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud);

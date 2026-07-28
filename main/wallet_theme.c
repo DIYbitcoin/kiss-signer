@@ -341,7 +341,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 static lv_style_transition_dsc_t s_tap_tr;
 static bool s_tap_tr_ready;
 
-static void pill_tap_feedback(lv_obj_t *p)
+void wt_tap_feedback(lv_obj_t *p)
 {
     static const lv_style_prop_t props[] = {
         LV_STYLE_BG_COLOR, LV_STYLE_TRANSLATE_Y,
@@ -375,7 +375,7 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_set_style_bg_color(p, WT_KEY, 0);
     lv_obj_set_style_bg_color(p, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    pill_tap_feedback(p);
+    wt_tap_feedback(p);
     lv_obj_set_style_border_width(p, 1, 0);
     lv_obj_set_style_border_color(p, WT_MUT, 0);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
@@ -724,6 +724,11 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     snprintf(head, sizeof head, "%.*s", t, grouped);
 
     lv_obj_t *sg = lv_spangroup_create(par);
+    // A spangroup is clickable out of the box, and an address is text, not a
+    // button. Left alone it silently eats every press that lands on it: put one
+    // inside a tappable row and the row goes dead exactly where the address is
+    // printed -- which is the middle, and the first place a finger goes.
+    lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_width(sg, w);
     lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
     lv_obj_set_style_text_font(sg, f, 0);
