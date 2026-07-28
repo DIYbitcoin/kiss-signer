@@ -50,9 +50,33 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
 
+// Pill icons. FontAwesome PUA codepoints baked into every generated Latin size
+// by the SYMS list in tools/fonts/gen_fonts.sh — keep the two in lockstep, an
+// icon that is not in the font hard-hangs the renderer rather than drawing a
+// tofu box. These three have no LV_SYMBOL_* macro; the sd card does, so it is
+// spelled with LVGL's own name.
+#define WT_ICON_QR     "\xEF\x80\xA9"   // U+F029 qrcode
+#define WT_ICON_KEY    "\xEF\x82\x84"   // U+F084 key
+#define WT_ICON_SECRET "\xEF\x88\x9B"   // U+F21B user-secret (the incognito hat)
+#define WT_ICON_SD     LV_SYMBOL_SD_CARD
+
+// Compose "<icon>  <label>" into out. The icon rides INSIDE the pill's label
+// rather than sitting beside it as a second object, so wt_pill_fit keeps
+// measuring the whole thing and a long translation still degrades honestly.
+// Use this everywhere, including when measuring: the fit report and the screen
+// must size the identical string or the ratchet is checking the wrong text.
+// Buffers are WT_ICON_TEXT_MAX: the longest label today is Russian "СВЯЗАТЬ
+// КООРДИНАТОР" at 78 bytes composed, and Cyrillic costs two bytes a letter, so
+// the margin is smaller than the character count suggests.
+#define WT_ICON_TEXT_MAX 128
+void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
+
 // pills (buttons). wt_pill = the standard 52px height.
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud);
+// wt_pillh with an icon before the label (see wt_icon_text).
+lv_obj_t *wt_pill_icon(lv_obj_t *scr, const char *icon, const char *txt,
+                       int x, int y, int w, int h, lv_event_cb_t cb, void *ud);
 lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
                   lv_event_cb_t cb, void *ud);
 // Accent border = the suggested action. ALSO promotes the label to the top

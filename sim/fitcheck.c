@@ -184,16 +184,27 @@ static const slot_t SLOTS[] = {
 // address. Those may never render at font14 in any locale -- if one does, this
 // program exits nonzero and CI stops. The rest are navigation ("BACK", "NEXT"):
 // shorter words, and the user already knows what they do, so 14 is survivable.
+// `icon` is the WT_ICON_* a pill prefixes to its label, or NULL. It has to be
+// here rather than assumed away: the icon is part of the string the screen
+// draws, so a table that measured the bare translation would be checking text
+// no one ever sees, and would keep reporting a comfortable fit while the real
+// label overflowed.
 typedef struct {
     const char *surface;
     int key, w, h, primary, key_action;
+    const char *icon;
 } pill_t;
 static const pill_t PILLS[] = {
     { "sign/hold",        STR_S_HOLD_TO_SIGN, 272, 66, 1, 1 },
     { "sign/ack",         STR_C_I_UNDERSTAND, 252, 66, 1, 1 },
     { "sign/details",     STR_S_DETAILS,      170, 66, 0, 0 },
     { "sign/back",        STR_C_BACK,         140, 66, 0, 0 },
-    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 0, 1 },
+    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 0, 1, WT_ICON_KEY },
+    // The two ways a transaction gets in. Never measured before, and now they
+    // carry icons, so they are worth a row each: SCAN QR is the primary action
+    // of the whole signing flow.
+    { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
+    { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
     { "set/create",       STR_G_CREATE_NEW,   340, 66, 0, 1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 66, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
@@ -214,7 +225,11 @@ static const pill_t PILLS[] = {
     { "set/tyname-native",STR_S_TY_NATIVE,    340, 72 - 35, 0, 0 },
     { "set/tyname-nested",STR_S_TY_NESTED,    340, 72 - 35, 0, 0 },
     { "set/tyname-legacy",STR_S_TY_LEGACY,    340, 72 - 35, 0, 0 },
-    { "pair/scankey",     STR_R_SP_SCAN_BTN,  190, 60 - 22, 0, 0 },
+    // 340, not the 190 this row carried for a while: that width was written
+    // when SCAN KEY was a small button on the pairing screen, and it stayed
+    // behind when the export was promoted to its own 340px pill on the wallet
+    // page. The table was quietly measuring a button that no longer existed.
+    { "pair/scankey",     STR_R_SP_SCAN_BTN,  340, 60 - 22, 0, 0, WT_ICON_SECRET },
     { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0, 0 },
     { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0, 0 },
     { "common/back",      STR_C_BACK,         140, 44, 0, 0 },
@@ -304,6 +319,11 @@ int main(int argc, char **argv)
         char plines[NPILL][160];
         for (int i = 0; i < NPILL; i++) {
             const char *txt = tr(PILLS[i].key);
+            char ibuf[WT_ICON_TEXT_MAX];
+            if (PILLS[i].icon) {          // measure the string the screen draws
+                wt_icon_text(ibuf, sizeof ibuf, PILLS[i].icon, txt);
+                txt = ibuf;
+            }
             wt_pill_fit_t fit = wt_pill_fit(txt, PILLS[i].w, PILLS[i].h,
                                             PILLS[i].primary);
             const lv_font_t *f = fit.font;
@@ -338,6 +358,48 @@ int main(int argc, char **argv)
         total_small += small + pbad;
     }
     printf("\ntotal at font14: %d\n", total_small);
+
+    // Every icon a pill draws must exist, at every size, with real ink in it.
+    // This is the one font mistake that does not degrade: LVGL does not draw a
+    // tofu box for a codepoint it cannot find, it spins in the renderer, and on
+    // the device that is a hang with no message. So ask directly rather than
+    // trusting that gen_fonts.sh and WT_ICON_* were edited on the same day --
+    // a run that survived is not evidence, it only means the walk never
+    // rendered the missing one.
+    static const struct { const char *name; const char *utf8; } ICONS[] = {
+        { "WT_ICON_QR",     WT_ICON_QR     },
+        { "WT_ICON_KEY",    WT_ICON_KEY    },
+        { "WT_ICON_SECRET", WT_ICON_SECRET },
+        { "WT_ICON_SD",     WT_ICON_SD     },
+    };
+    const struct { const char *name; const lv_font_t *f; } FACES[] = {
+        { "font14", wt_font14() }, { "font23", wt_font23() },
+        { "font28", wt_font28() }, { "font34", wt_font34() },
+    };
+    int icon_bad = 0;
+    for (size_t i = 0; i < sizeof ICONS / sizeof *ICONS; i++) {
+        const unsigned char *u = (const unsigned char *)ICONS[i].utf8;
+        uint32_t cp = ((u[0] & 0x0Fu) << 12) |     // every WT_ICON_* is 3-byte
+                      ((u[1] & 0x3Fu) << 6) | (u[2] & 0x3Fu);
+        for (size_t j = 0; j < sizeof FACES / sizeof *FACES; j++) {
+            lv_font_glyph_dsc_t g;
+            bool ok = lv_font_get_glyph_dsc(FACES[j].f, &g, cp, 0);
+            if (!ok || g.box_w == 0 || g.adv_w == 0) {
+                printf("FAIL: %s (U+%04X) %s in %s\n", ICONS[i].name,
+                       (unsigned)cp, ok ? "is blank" : "is MISSING",
+                       FACES[j].name);
+                icon_bad++;
+            }
+        }
+    }
+    if (icon_bad) {
+        puts("\nAdd the codepoint to SYMS in tools/fonts/gen_fonts.sh and\n"
+             "re-run it. A label may never reference a glyph the font lacks:\n"
+             "LVGL hangs the renderer instead of drawing a placeholder.");
+        return 1;
+    }
+    printf("pill icons: %d present and inked at 14/23/28/34\n",
+           (int)(sizeof ICONS / sizeof *ICONS));
 
     if (key_small || en_small) {
         printf("\nFAIL: %d key-action button(s) and %d English slot(s) "
