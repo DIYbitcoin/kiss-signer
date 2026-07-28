@@ -4,6 +4,46 @@ All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer — entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
+## [Unreleased]
+
+Look and feel. Nothing here changes how a key is derived or a transaction is
+signed; it changes what the device looks like while you use it.
+
+### Added
+
+- **RECEIVE opens on a list of your addresses**, twenty at a time, scrollable,
+  with the last characters lit so they are quick to compare. Tap any one for its
+  QR, its derivation path and VERIFY. Addresses you have already used are amber,
+  so you can see at a glance which ones are behind you. The previous
+  one-at-a-time view is still there — it is what a tap opens — and it keeps its
+  arrows, so you never have to scroll to reach the next address.
+- **Buttons answer a press.** This device has no vibration, so every pill now
+  sinks slightly while held and releases a ring from its edge. It is the only
+  kind of "I felt that" a screen can give you.
+- **Icons on the buttons that do one specific thing**: a key on PAIR
+  COORDINATOR, an incognito face on SCAN KEY, a QR on SCAN QR, a card on FROM SD
+  CARD. Settings deliberately has none — those are standard Bitcoin terms and
+  read better as words.
+- **The scanner shows it is still looking.** The viewfinder corners breathe and a
+  line sweeps down them while searching, and both stop dead the moment a code is
+  located, when the corners turn green. A dense QR can take several seconds, and
+  a frozen screen during that looked like a crashed device.
+
+### Changed
+
+- **"silent payment" under SCAN KEY is readable.** It was rendering in the
+  smallest type on the device, and it is the only thing on that screen saying
+  which kind of address the key belongs to.
+- **Opening RECEIVE no longer counts as showing an address.** Only opening a
+  specific one does. Before, merely visiting the screen advanced the
+  already-used marker.
+
+### Fixed
+
+- **Address text no longer swallowed taps.** Anywhere an address was printed
+  inside something tappable, the middle of it — the obvious place to press — did
+  nothing.
+
 ## [0.1.0-beta6] — 2026-07-27
 
 The plausible-deniability release. Drawing KISS now opens a real signer that is
