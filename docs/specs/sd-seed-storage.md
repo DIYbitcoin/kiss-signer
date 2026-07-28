@@ -1,26 +1,38 @@
 # SD seed storage: the third place a wallet can live
 
-Status: specified, not built. Decided 2026-07-27.
+Status: beta7 integration implemented behind a real-device security gate;
+encrypted-hardware acceptance still pending. Updated 2026-07-28.
 
-Today KISS has two of the three storage choices, and they are only offered
-once, on the first screen of the setup wizard: KEEP (words in NVS) and NOTHING
-SAVED (amnesic, words in RAM for the session). `WSEED_MODE_*` has exactly those
-two constants. `wallet_seed_set_mode()` exists and is verified, but nothing in
-`main/` calls it, so the choice cannot be changed after setup without a wipe.
+Beta7 names all three choices in setup and in a dedicated Settings chooser:
+FLASH, SD CARD and AMNESIC. FLASH keeps words in NVS; AMNESIC keeps them in RAM
+for the unlocked session; SD CARD uses the sealed file described below. The
+Settings chooser marks the current mode and migrates only while a valid source
+is available.
 
-This adds the third: the words live on the SD card, encrypted to a key that
-only this device holds.
+The normal beta firmware deliberately shows SD CARD disabled with
+`requires encrypted firmware`. Its flash and NVS are not encrypted, so enabling
+the device-bound card mode there would present a security claim the build
+cannot keep. The simulator exposes SD mode for deterministic migration and
+failure tests. A real device may enable it only on the encrypted firmware lane,
+after both flash encryption and NVS encryption are active.
+
+Implementation now includes the authenticated sealed-blob layer, SD storage
+backend, mode-aware read/write/erase paths, setup and Settings UI, missing-card
+unlock prompt, and migration entry point. This is not the same as hardware
+acceptance: the encrypted rehearsal matrix at the end of this document must
+pass before SD storage is described as ready for funded use.
 
 ## What it guarantees, and what it does not
 
 **The card alone is useless.** Lose it, leave it in a drawer, have it taken at
 a border: it is ciphertext with no key on it.
 
-**Card plus device depends on the build.** A release built with
+**Card plus device depends on the build.** A build made with
 `tools/build_encrypted_release.sh` has flash encryption RELEASE and NVS
 encryption, so the device key is protected there. A dev build keeps it in
-plaintext NVS, recoverable from a flash dump. The three options must not look
-equally safe on a dev build: say so on screen.
+plaintext NVS, recoverable from a flash dump. Therefore the normal firmware
+does not merely warn about SD mode: it refuses to select it. Card presence must
+never bypass that gate.
 
 No code to remember, ever. The card is a second factor, the way Specter-DIY
 does it, not a Krux style user chosen key. The price is portability: if the
@@ -58,21 +70,25 @@ from `esp_fill_random` on device and `/dev/urandom` in the simulator.
 `device_key()` reads a 32 byte NVS blob, generating and committing it on first
 use. In the simulator it is a file beside the other sim state.
 
-## API
+## Integrated API
 
 - `#define WSEED_MODE_SD 2`
 - `storage_read` / `storage_write_keep` / `storage_erase` gain an SD backend and
   dispatch on the current mode. The NVS and simulator file backends are
   unchanged.
-- New `wallet_seed_move_to(int mode)` for the Settings toggle. This is the only
-  entry point that migrates an existing wallet.
+- `wallet_seed_move_to(int mode)` is the Settings entry point that migrates an
+  existing wallet.
+- The setup wizard stages the selected mode and commits it only after the
+  complete setup ritual succeeds.
+- SD unlock with no card opens INSERT SD CARD / RETRY. It never falls back into
+  first-boot setup and never silently changes the selected mode.
 
 ## Moving a wallet between modes
 
 One rule governs all of it: **write and verify the destination before erasing
 the source.** A failure must leave the words in exactly one place, never zero.
 
-KEEP to SD:
+FLASH to SD CARD (`WSEED_MODE_KEEP` to `WSEED_MODE_SD`):
 
 1. read the words from NVS and validate them
 2. encrypt, write `kiss-seed.enc`
@@ -82,15 +98,15 @@ KEEP to SD:
 Any failure before step 4: delete the partial card file, leave NVS untouched,
 report the failure, mode unchanged.
 
-SD to KEEP: decrypt the card, write words plus mode KEEP in one commit, verify
-the readback, then delete the card file. If that last delete fails, say so
-loudly: the wallet is now in two places and the user needs to know.
+SD CARD to FLASH: decrypt the card, write words plus mode KEEP in one commit,
+verify the readback, then delete the card file. If that last delete fails, say
+so loudly: the wallet is now in two places and the user needs to know.
 
 Anything to AMNESIC: erase NVS and the card file, verify both are gone, then set
 the mode.
 
-AMNESIC to KEEP or SD: only possible while a session is unlocked, because that
-is the only time the words exist at all. Offer it there and nowhere else.
+AMNESIC to FLASH or SD CARD: only possible while a session is unlocked, because
+that is the only time the words exist at all. Offer it there and nowhere else.
 
 ## Unlock
 
@@ -108,29 +124,27 @@ from this device now", which stays true only because of this.
 
 ## UI
 
-The wizard's storage screen goes from two pills to three and needs a relayout:
-the current 150 / 264 spacing plus a BACK at 404 has no room for a third. Three
-340 wide pills at roughly y=120 / 226 / 332 with their notes to the right.
+Setup and Settings use the same names and explanations:
 
-New English copy:
+- **FLASH**: words persist in internal storage
+- **SD CARD**: encrypted, device-bound card storage
+- **AMNESIC**: words live only for the current session
 
-- button: `ON THE SD CARD`
-- note: `your words live on the card. it only works in this KISS.`
+Settings shows the current selection. On normal unencrypted firmware the SD
+row stays visible, disabled and explicitly says that encrypted firmware is
+required. Hiding it made the storage model undiscoverable; enabling it would be
+unsafe. The other two modes remain usable.
 
-Picking SD gates on confirming a paper backup, and points at the restore
-rehearsal (`wallet_setup_open_verify`) to actually test it. Losing either the
-card or the device means restoring from paper, so that has to be true before
-the user can choose this.
+Changing mode is a security action, not a preference toggle. The destination
+must be written and verified before the source is removed, failures stay on the
+old mode, and destructive moves require deliberate confirmation. Moving an
+unlocked amnesic session to persistent storage is possible while its words are
+still in RAM. After lock or power-off, the wallet must be loaded again first.
 
-Settings gains the same three way choice, wired to `wallet_seed_move_to()`,
-which is the part that does not exist at all today.
+All storage strings ship in all 21 locale files. `gen_i18n.py` hard-errors on a
+missing key and the fit checker covers the three-choice screens.
 
-Three new i18n keys. `gen_i18n.py` hard errors on a key missing from any of the
-21 locales, so this either ships with 21 translations or behind the
-`i18n_get_lang() == I18N_EN` pattern already used in `wallet_recv.c`, to be
-unwound during the locale pass.
-
-## Tests, native first
+## Automated contract
 
 - encrypt and decrypt roundtrip
 - a wrong device key fails the MAC and leaks no plaintext
@@ -139,13 +153,41 @@ unwound during the locale pass.
   asserting the words are never lost and never silently in two places
 - WIPE erases the card file and the key, and an old card no longer decrypts
 - power cut simulation: abort between every pair of steps and assert recovery
+- normal firmware exposes SD as disabled and cannot create `kiss-seed.enc`
+- missing-card SD boot prompts for insertion and retry, never setup
+- simulator exercises all three modes without weakening the device gate
 
-## Device test
+Automated tests validate mechanics, not the eFuse/NVS security claim.
 
-Real card required.
+## Encrypted real-device acceptance gate
 
-1. Move a wallet KEEP to SD to KEEP, and confirm the words match at the end.
-2. Boot in SD mode with no card: prompt, not a crash.
-3. Pull the card during a write.
-4. WIPE with the card out, then reinsert it: the file must no longer decrypt.
-5. Fill the card, then try to move a wallet onto it.
+This entire section is deferred from the normal beta7 acceptance run. A real SD
+card and a dedicated no-funds board flashed with the DEVELOPMENT encryption
+rehearsal are required:
+
+```sh
+KISS_ENC_REHEARSAL=1 tools/build_encrypted_release.sh
+```
+
+That profile remains serial-reflashable, but its first boot still burns a
+flash-encryption key permanently. The board can never return to plaintext
+flash. Do not use the final RELEASE profile for this test.
+
+1. Confirm Settings reports flash encryption active and the build includes NVS
+   encryption before the SD control becomes selectable.
+2. Move a wallet FLASH to SD CARD to FLASH, and confirm the words and
+   fingerprint match at the end.
+3. Exercise FLASH to AMNESIC, loaded AMNESIC to FLASH, SD CARD to AMNESIC and
+   loaded AMNESIC to SD CARD.
+4. Boot in SD mode with no card: prompt, not a crash or setup wizard.
+5. Pull the card during a write; the verified source must remain authoritative.
+6. Fill the card, then try to move a wallet onto it.
+7. Corrupt and truncate `kiss-seed.enc`; no plaintext or partial wallet may be
+   accepted.
+8. WIPE with the card out, then reinsert it: destroying the device key must make
+   the surviving file permanently undecryptable.
+9. Dump flash/NVS from the rehearsal board and confirm neither the mnemonic nor
+   the SD device key appears in plaintext.
+
+Only after every item passes may the encrypted firmware enable SD CARD on a
+real device. The normal unencrypted beta must continue to show it disabled.
