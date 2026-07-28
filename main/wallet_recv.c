@@ -18,11 +18,20 @@
 
 #define VFY_SCAN_DEPTH 100   // bounded, honest ownership search per chain
 
+// How many addresses the list offers at once. Twenty is two chains' worth of
+// ordinary use and costs 40 child derivations at open — well inside what this
+// screen already does elsewhere, since VERIFY's ownership search runs up to
+// VFY_SCAN_DEPTH on BOTH chains (200) in one go and has always been fine.
+// It is only affordable at all because the account key is cached now; without
+// that, each row would pay for three hardened derivations of its own.
+#define RECV_LIST_N 20
+
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl;
 static lv_obj_t *s_reuse_lbl, *s_fresh_pill;   // reuse-guard banner + jump button
 static uint32_t s_idx;
+static uint32_t s_list_base;               // first index the list shows
 // reuse guard: warn when viewing an index at/below what this wallet already
 // used or showed. s_floor is frozen at open (prior-session usage) so browsing
 // fresh addresses never warns; s_seen_high grows as you view, seeding the next
@@ -336,30 +345,127 @@ static void sp_open_cb(lv_event_t *e) {
   sp_addr_open(s_parent);
 }
 
-void wallet_recv_open(lv_obj_t *parent) {
-  if (s_scr) return;
-  s_parent = parent;
+// ---- the address list: what RECEIVE opens on ----
+// This is the first surface on the device a finger can drag. Every other
+// container in the wallet turns scrolling off on purpose, so nothing here can
+// lean on scrolling already working: the detail screen keeps its own PREV/NEXT
+// chevrons, which means there is still a way through the addresses that needs
+// no flick at all if the panel's touch turns out to be unkind to one.
+static void recv_detail_open(void);
+
+static void row_tap_cb(lv_event_t *e) {
+  s_idx = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
   s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  recv_detail_open();
+}
 
-  // reuse guard: figure out the freshest address to land on. Key by wallet +
-  // network + type; a switch resets the session view-history to the persisted
-  // used-high, otherwise keep growing it (a sign this session may have bumped it).
-  uint8_t fp[4];
-  wallet_ui_last_fp(fp);
-  char key[16];
-  snprintf(key, sizeof key, "%02x%02x%02x%02x%d%d", fp[0], fp[1], fp[2], fp[3],
-           wallet_testnet() ? 1 : 0, wallet_script());
-  int used = wallet_usage_high(fp, wallet_testnet() ? 1 : 0, wallet_script());
-  if (strcmp(key, s_seen_key) != 0) {          // different wallet/net/type
-    snprintf(s_seen_key, sizeof s_seen_key, "%s", key);
-    s_seen_high = used;
-  } else if (used > s_seen_high) {
-    s_seen_high = used;
+// One row: index, then the address with its last 8 characters lit. `used` means
+// this index is at or below what the wallet already spent or showed, which the
+// single-address view says with a banner. The list has no room for a banner per
+// row, so it says the same thing in amber -- without it, the list would be a
+// way to pick a reused address with no warning at all, which the screen it
+// replaces would never have allowed.
+static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx, bool used) {
+  char addr[91], grouped[120];
+  if (wallet_session_address(0, idx, addr, sizeof addr) != 0)
+    snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
+  wt_group4(addr, grouped, sizeof grouped);
+
+  lv_obj_t *row = lv_obj_create(list);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, 688, 56);
+  lv_obj_set_style_radius(row, 26, 0);
+  lv_obj_set_style_bg_color(row, WT_KEY, 0);
+  lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(row, 1, 0);
+  lv_obj_set_style_border_color(row, used ? WT_WARN : WT_MUT, 0);
+  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);   // the LIST scrolls, not the row
+  wt_tap_feedback(row);
+  lv_obj_add_event_cb(row, row_tap_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)idx);
+
+  // The index is a label FOR the address, not a rival to it, so it stays in the
+  // small face while the address gets the readable one.
+  lv_obj_t *n = lv_label_create(row);
+  lv_label_set_text_fmt(n, "#%u", (unsigned)idx);
+  lv_obj_set_style_text_font(n, wt_font14(), 0);
+  lv_obj_set_style_text_color(n, used ? WT_WARN : WT_MUT, 0);
+  lv_obj_align(n, LV_ALIGN_LEFT_MID, 10, 0);
+
+  // 636, measured: a grouped 42-character bech32 address is 624px at font23,
+  // the widest wallet_session_address can produce (legacy and nested are 34
+  // characters). Anything narrower wraps it to a second line and overflows the
+  // row, so this number is not a round guess and should not be rounded down.
+  lv_obj_t *sg = wt_addr_spans(row, grouped, 636, wt_font23());
+  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 46, 0);
+  return row;
+}
+
+static void recv_list_open(void) {
+  s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
+  s_reuse_lbl = s_fresh_pill = NULL;
+
+  s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
+
+  lv_obj_t *list = lv_obj_create(s_scr);
+  lv_obj_remove_style_all(list);
+  lv_obj_set_pos(list, 48, 96);
+  lv_obj_set_size(list, 704, 300);
+  lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+  lv_obj_set_layout(list, LV_LAYOUT_FLEX);
+  lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(list, 8, 0);
+  lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(list, LV_DIR_VER);
+  lv_obj_set_scroll_snap_y(list, LV_SCROLL_SNAP_START);
+  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
+  // remove_style_all took the default scrollbar with it, and on this background
+  // an unstyled one is invisible -- which on the device reads as "the list does
+  // not scroll" rather than "you have not scrolled yet".
+  lv_obj_set_style_bg_color(list, WT_MUT, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
+  lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
+  lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+
+  uint32_t fresh = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+  // Begin two above the fresh address rather than exactly on it, so the list
+  // opens with the fresh one third from the top and the amber already-used
+  // rows visible above it. That is context, not decoration: it is how you can
+  // see at a glance that the list goes back and that those are behind you.
+  //
+  // The list therefore opens at scroll zero and is NEVER scrolled
+  // programmatically. lv_obj_scroll_to_view() during construction leaves the
+  // rows DRAWN at their scrolled positions while touch still finds them at the
+  // unscrolled ones -- tapping the top row did nothing, and tapping empty
+  // space 200px lower opened it. Choosing the first index instead of scrolling
+  // to it gets the same view with no such split.
+  s_list_base = fresh > 2 ? fresh - 2 : 0;
+
+  for (uint32_t i = 0; i < RECV_LIST_N; i++) {
+    uint32_t idx = s_list_base + i;
+    recv_list_row(list, idx, (int)idx <= s_floor);
   }
-  s_floor = s_seen_high;                        // frozen: warnings compare to prior use
-  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
 
-  s_scr = wt_screen(parent, tr(STR_R_T), tr(STR_R_S));
+  lv_obj_t *row[3];
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
+  row[1] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
+  wt_pill_row(row, 3);
+}
+
+// Back out of one address to the list it was chosen from.
+static void detail_back_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  recv_list_open();
+}
+
+static void recv_detail_open(void) {
+  s_addr_sg = NULL;
+  s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
   wt_qr_card(s_scr, &s_qr, 48, 96, 300, 264);
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
@@ -383,20 +489,50 @@ void wallet_recv_open(lv_obj_t *parent) {
   s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
   wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
 
-  // Five pills share this row and share one label size, so a single pill a few
-  // pixels too narrow shrinks all five. Widths are proportioned to the longest
-  // label each one carries rather than to a round number.
-  lv_obj_t *row[5];
+  // These pills share a row and share one label size, so a single pill a few
+  // pixels too narrow shrinks all of them. Widths are proportioned to the
+  // longest label each one carries rather than to a round number.
+  lv_obj_t *row[4];
   // A symmetric pair of chevrons under the ADDRESS #N counter they page, not
   // "<" beside "> NEXT". The word cost 74px, and this row had none to spare:
   // VERIFY is the button that proves an address is yours, and at 148px wide it
   // was rendering at font14 in thirteen languages. The counter above says what
   // the arrows step through, so the label was carrying no weight.
+  //
+  // They stay even though the list can now reach any address directly: this is
+  // the one screen where stepping to the neighbouring address needs no scroll
+  // at all, and scrolling is brand new on this hardware.
   row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, 404, 56, prev_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, 404, 56, next_cb, NULL);
   row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, 404, 222, vfy_scan, NULL);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, close_cb, NULL);
-  row[4] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, 404, 220, sp_open_cb, NULL);
-  wt_pill_row(row, 5);
+  // BACK returns to the list this address was chosen from, not out of RECEIVE.
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, 404, 110, detail_back_cb, NULL);
+  wt_pill_row(row, 4);
   recv_refresh();
+}
+
+void wallet_recv_open(lv_obj_t *parent) {
+  if (s_scr) return;
+  s_parent = parent;
+  s_addr_sg = NULL;
+
+  // reuse guard: figure out the freshest address to land on. Key by wallet +
+  // network + type; a switch resets the session view-history to the persisted
+  // used-high, otherwise keep growing it (a sign this session may have bumped it).
+  uint8_t fp[4];
+  wallet_ui_last_fp(fp);
+  char key[16];
+  snprintf(key, sizeof key, "%02x%02x%02x%02x%d%d", fp[0], fp[1], fp[2], fp[3],
+           wallet_testnet() ? 1 : 0, wallet_script());
+  int used = wallet_usage_high(fp, wallet_testnet() ? 1 : 0, wallet_script());
+  if (strcmp(key, s_seen_key) != 0) {          // different wallet/net/type
+    snprintf(s_seen_key, sizeof s_seen_key, "%s", key);
+    s_seen_high = used;
+  } else if (used > s_seen_high) {
+    s_seen_high = used;
+  }
+  s_floor = s_seen_high;                        // frozen: warnings compare to prior use
+  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+
+  recv_list_open();
 }

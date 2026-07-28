@@ -87,6 +87,8 @@ static bool s_session;
 // second signer is configurable.
 static bool s_session_decoy;
 
+static void account_forget(void);   // defined with the account-key cache below
+
 int wallet_session_open(const char *passphrase)
 {
     if (passphrase && !passphrase[0])
@@ -96,6 +98,7 @@ int wallet_session_open(const char *passphrase)
     // Never derive over a stale master. NOT wallet_session_close(): that also
     // forgets an amnesic seed, and we are about to read it.
     wally_bzero(&s_master, sizeof(s_master));
+    account_forget();                  // never serve the last wallet's account
     s_session = false;
     char words[WSEED_MAX_MNEMONIC];
     if (wallet_seed_load(words, sizeof words) != 0)
@@ -122,6 +125,7 @@ int wallet_session_open(const char *passphrase)
 void wallet_session_close(void)
 {
     wally_bzero(&s_master, sizeof(s_master));
+    account_forget();
     s_session = false;
     s_session_decoy = false;
     wallet_seed_forget();
@@ -157,14 +161,50 @@ static uint32_t script_purpose(void)
     return s_script == WSCRIPT_LEGACY ? 44 : s_script == WSCRIPT_NESTED ? 49 : 84;
 }
 
+// The account key is three HARDENED derivations below the master, and every
+// address, descriptor and export begins by deriving it again from scratch. One
+// address is five derivations; a screen listing twenty is a hundred, sixty of
+// them hardened, all on the LVGL task with nothing else able to run. So it is
+// cached.
+//
+// The cache carries the inputs it was derived from and re-derives when they
+// change, rather than trusting every setter to remember to invalidate it.
+// Network and script type can both change without the session ending, and a
+// cache someone has to remember about is a cache that is eventually wrong.
+// Session identity is NOT one of those inputs, because it cannot be compared
+// -- so open and close clear this explicitly. That is the dangerous case: a
+// key surviving into the next session would quietly show the previous wallet's
+// addresses, and between the decoy and the real wallet that is the whole
+// deniability property gone.
+static struct ext_key s_acct;
+static bool s_acct_valid;
+static bool s_acct_testnet;
+static int  s_acct_script;
+
+static void account_forget(void)
+{
+    wally_bzero(&s_acct, sizeof s_acct);   // a derived PRIVATE key, wiped like the master
+    s_acct_valid = false;
+}
+
 static int account_key(struct ext_key *out)    // m/<purpose>h/<coin>h/0h
 {
+    if (s_acct_valid && s_acct_testnet == s_testnet && s_acct_script == s_script) {
+        memcpy(out, &s_acct, sizeof *out);
+        return 0;
+    }
     const uint32_t path[3] = {
         BIP32_INITIAL_HARDENED_CHILD + script_purpose(),
         BIP32_INITIAL_HARDENED_CHILD + (s_testnet ? 1 : 0),
         BIP32_INITIAL_HARDENED_CHILD + 0,
     };
-    return bip32_key_from_parent_path(&s_master, path, 3, BIP32_FLAG_KEY_PRIVATE, out) == WALLY_OK ? 0 : 1;
+    if (bip32_key_from_parent_path(&s_master, path, 3, BIP32_FLAG_KEY_PRIVATE, out) != WALLY_OK)
+        return 1;
+    memcpy(&s_acct, out, sizeof s_acct);
+    s_acct_valid = true;
+    s_acct_testnet = s_testnet;
+    s_acct_script = s_script;
+    return 0;
 }
 
 int wallet_session_address(int change, uint32_t index, char *out, size_t out_len)
