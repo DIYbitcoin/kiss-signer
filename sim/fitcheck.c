@@ -160,7 +160,7 @@ static const slot_t SLOTS[] = {
     // Same string, second home: the note under SCAN KEY on the WALLET page.
     // That box is the tighter of the two, so measuring only the 360x140 one
     // let this render at 14 next to a PAIR COORDINATOR note at 23.
-    { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  94 },
+    { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  90 },
     { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340,  62 },
     // The two word-count notes sit in the 80px gaps of a three-pill stack (12
     // WORDS at y=150, 24 WORDS at 230, SCAN SEED QR at 310) in a 340px column.
@@ -229,7 +229,7 @@ static const pill_t PILLS[] = {
     // when SCAN KEY was a small button on the pairing screen, and it stayed
     // behind when the export was promoted to its own 340px pill on the wallet
     // page. The table was quietly measuring a button that no longer existed.
-    { "pair/scankey",     STR_R_SP_SCAN_BTN,  340, 60 - 22, 0, 0, WT_ICON_SECRET },
+    { "pair/scankey",     STR_R_SP_SCAN_BTN,  340, 72 - 35, 0, 0, WT_ICON_SECRET },
     { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0, 0 },
     { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0, 0 },
     { "common/back",      STR_C_BACK,         140, 44, 0, 0 },
@@ -400,6 +400,35 @@ int main(int argc, char **argv)
     }
     printf("pill icons: %d present and inked at 14/23/28/34\n",
            (int)(sizeof ICONS / sizeof *ICONS));
+
+    // Two-line pills: the second line is a fixed size and never wraps, so
+    // pill_sub_line() drops it to 14 when the asked-for size will not fit.
+    // That is the right thing to do on the device and the wrong thing to find
+    // out there, so name the locales it happens in. Same measurement
+    // pill_sub_line makes, against the same box.
+    static const struct { const char *surface; int key, w, row_h; } SUBS[] = {
+        // wallet_info.c: the badge under SCAN KEY, the only thing on that
+        // screen naming which kind of address the key belongs to.
+        { "wallet/sp-badge", STR_S_SP_BADGE, 340, 35 },
+    };
+    for (size_t i = 0; i < sizeof SUBS / sizeof *SUBS; i++) {
+        int at14 = 0;
+        char who[256] = "";
+        for (int l = 0; l < I18N_LANG_N; l++) {
+            i18n_set_lang(l);
+            lv_point_t sz;
+            lv_text_get_size(&sz, tr(SUBS[i].key), wt_font23(), 0, 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (sz.x > SUBS[i].w - 28 || sz.y > SUBS[i].row_h) {
+                at14++;
+                strncat(who, i18n_lang_info(l)->code,
+                        sizeof who - strlen(who) - 2);
+                strncat(who, " ", sizeof who - strlen(who) - 1);
+            }
+        }
+        printf("pill sub %-16s %s\n", SUBS[i].surface,
+               at14 ? who : "23 in every locale");
+    }
 
     if (key_small || en_small) {
         printf("\nFAIL: %d key-action button(s) and %d English slot(s) "
