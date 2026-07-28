@@ -532,14 +532,24 @@ int main(void) {
   touch(310, 240); pump(3);
   save("/tmp/sim_tile_press.ppm");                  // glow under the held tile
   release(); pump(6);                               // Receive tile
-  save("/tmp/sim_recv.ppm");
+  save("/tmp/sim_recv.ppm");                        // the scrollable address list
   touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> Receive
-  touch(529, 430); pump(3); release(); pump(4);     // NEXT -> address #1
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the list
+  // Actually DRAG it. This is the first scrolling surface in the whole wallet
+  // -- every other container turns scrolling off -- so the walk flicks it for
+  // real rather than trusting that a scrollable flag implies a list that moves.
+  touch(400, 300); pump(2);
+  touch(400, 200); pump(2);
+  touch(400, 120); pump(2);                         // finger travels up: later indices
+  release(); pump(20);                              // let the throw and snap settle
+  save("/tmp/sim_recv_scrolled.ppm");
+  touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
+  save("/tmp/sim_recv_detail.ppm");                 // QR + address + VERIFY
+  touch(492, 430); pump(3); release(); pump(4);     // next chevron -> the address after
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     touch(678, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
@@ -726,14 +736,15 @@ int main(void) {
 
   // reuse guard: those signs spent from receive #0, so Receive now lands past
   // it; paging back to a used index warns and offers FRESH.
-  touch(310, 240); pump(3); release(); pump(6);     // Receive tile
-  save("/tmp/sim_recv_fresh.ppm");                  // advanced past used, no warning
-  touch(426, 430); pump(3); release(); pump(4);     // PREV
-  touch(426, 430); pump(3); release(); pump(4);     // PREV
-  touch(426, 430); pump(3); release(); pump(4);     // PREV (row y=404) -> a used index
+  touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> the list
+  // The list lands three above the fresh address, so the top rows are indices
+  // already used or shown: amber index, amber border, no banner room needed.
+  save("/tmp/sim_recv_fresh.ppm");
+  touch(400, 120); pump(3); release(); pump(6);     // tap the top row: a used index
   save("/tmp/sim_recv_reuse.ppm");                  // amber warning + FRESH pill
   touch(698, 266); pump(3); release(); pump(4);     // FRESH -> jump back to a new one
   save("/tmp/sim_recv_fresh2.ppm");                 // warning gone again
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the list
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
@@ -823,8 +834,8 @@ int main(void) {
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
-  touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 address now
-  save("/tmp/sim_recv_tn.ppm");
+  touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 addresses now
+  save("/tmp/sim_recv_tn.ppm");                     // the list, on testnet
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. tools/check_qr_payloads.sh decodes
