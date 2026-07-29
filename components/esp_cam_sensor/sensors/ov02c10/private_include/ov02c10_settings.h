@@ -214,7 +214,17 @@
      {0x4000, 0xc3},
      {0x4001, 0xe0},
      {0x4002, 0x00},
-     {0x4003, 0x40},
+     // kiss-signer local edit, see VENDOR.kiss.md. Was 0x40: the sensor's own
+     // black level target, a pedestal added to every pixel before it leaves
+     // the sensor. Nothing downstream removes it. The P4 ISP has a black level
+     // block, but ov02c10_default.json carries no blc section at all, so the
+     // pipeline controller never programs one, and the offset survives into
+     // RGB565 as lifted blacks and flat contrast.
+     //
+     // Zeroed at source rather than cancelled later, because the offset is per
+     // channel and a single global subtraction downstream cannot undo a per
+     // channel lift: it would leave a colour cast where it removed a grey one.
+     {0x4003, 0x00},
      {0x4008, 0x04},
      {0x4009, 0x23},
      {0x400a, 0x04},
@@ -443,7 +453,17 @@
      {0x4000, 0xc3},
      {0x4001, 0xe0},
      {0x4002, 0x00},
-     {0x4003, 0x40},
+     // kiss-signer local edit, see VENDOR.kiss.md. Was 0x40: the sensor's own
+     // black level target, a pedestal added to every pixel before it leaves
+     // the sensor. Nothing downstream removes it. The P4 ISP has a black level
+     // block, but ov02c10_default.json carries no blc section at all, so the
+     // pipeline controller never programs one, and the offset survives into
+     // RGB565 as lifted blacks and flat contrast.
+     //
+     // Zeroed at source rather than cancelled later, because the offset is per
+     // channel and a single global subtraction downstream cannot undo a per
+     // channel lift: it would leave a colour cast where it removed a grey one.
+     {0x4003, 0x00},
      {0x4008, 0x04},
      {0x4009, 0x23},
      {0x400a, 0x04},

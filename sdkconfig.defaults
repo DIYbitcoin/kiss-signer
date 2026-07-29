@@ -23,5 +23,15 @@ CONFIG_CAMERA_OV02C10=y
 CONFIG_CAMERA_OV02C10_MIPI_RAW10_1288x728_30FPS=y
 CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y
 CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n
+
+# The ISP pipeline controller: the task that reads the ISP's own statistics
+# every frame and drives sensor exposure, gain and white balance from them.
+# Without it the tuning file is inert, the sensor holds its power on exposure
+# for the whole session, and the white balance never moves off its default.
+#
+# Its stack stays in internal DRAM. PSRAM is offered and we do not take it:
+# upstream recommends DRAM unless internal memory is severely constrained, and
+# ours is not. Revisit only with a measurement, not a hunch.
+CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y
 CONFIG_LV_USE_QRCODE=y
 CONFIG_FATFS_LFN_HEAP=y
