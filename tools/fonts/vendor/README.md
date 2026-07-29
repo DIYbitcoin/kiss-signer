@@ -25,12 +25,18 @@ It is the source for the four fixed pitch wallet faces: `font_kiss_mono14`,
 
 - Upstream: <https://github.com/ahatem/IoskeleyMono>
 - License: SIL Open Font License 1.1, in `LICENSE-IoskeleyMono.txt`
-- SHA-256 of this file: `0cada20cd56f070aa2b1623d4b7db474ed79d66d66db153fa470ae2d24e5a5b4`
+- SHA-256 of this file: `0512878a6c381240d59f4fb29043b0b205e2eccaafd34351c9dc55b50d153b2a`
 
 **This is a subset, not the upstream file.** Upstream ships a Nerd Font build
 carrying several thousand icon glyphs nothing here uses, at 4.6 MB. Everything
 this repo generates lives in printable ASCII, so the vendored copy is cut to
-`U+0020-007E`: 92 KB, about fifty times smaller.
+`U+0020-007E` plus three characters beyond it: 92 KB, about fifty
+times smaller.
+
+The three are `U+00B7` middle dot, `U+2022` bullet and `U+2026` ellipsis.
+The ellipsis is not decoration: `wt_addr_short` elides the middle of an address
+with it, so without the glyph that line draws a placeholder box in the middle of
+the address the owner is comparing.
 
 The cut is provably free. All four generated `main/font_kiss_*.c` are byte
 identical before and after, apart from the `Opts:` line that records the source
@@ -42,7 +48,7 @@ passes `--force-fast-kern-format`, so dropping GPOS would change the output.
 
     pyftsubset IoskeleyMonoNerdFont-Medium.ttf \
       --output-file=IoskeleyMono-Medium-ascii.ttf \
-      --unicodes="U+0020-007E" \
+      --unicodes="U+0020-007E,U+00B7,U+2022,U+2026" \
       --layout-features='*' --glyph-names --notdef-outline \
       --name-IDs='*' --recommended-glyphs
 
@@ -51,8 +57,10 @@ SHA-256 `7ddc23a37c793078b6f084cef5f9c2d246c9d18e9656c7d3bde74ff21a610026`.
 The plain, non Nerd Font build of the same release has identical outlines in
 this range and would subset to the same result.
 
-**If you ever need a glyph outside printable ASCII, you must re-subset from
-upstream.** This file cannot give you one.
+**If you ever need a glyph outside the ranges above, you must re-subset from
+upstream.** This file cannot give you one, and the failure is a placeholder box
+rather than an error. That has already happened once: the first cut was ASCII
+only and the ellipsis in `wt_addr_short` came out as a box.
 
 ### Why fixed pitch, and only for these four
 
