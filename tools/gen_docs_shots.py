@@ -30,7 +30,9 @@ then need no image library at all.
 
 import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
 import zlib
 
@@ -287,6 +289,195 @@ def write_png(path, w, h, rgb):
     return len(png)
 
 
+# ---------------------------------------------------------------- the reveal
+
+# The one thing in this repo a screenshot cannot show: the game becoming a
+# signer. README.md described it in prose between a picture of the start and a
+# picture of the end, with the whole pitch missing from the middle.
+#
+# Recording it turned up why nobody had done it. The device draws NOTHING while
+# the gesture is made: the menu idles, its stars twinkle, and 56 frames later
+# the signer is simply there. That is the security property doing its job, and
+# it is also a jump cut that teaches nobody where to draw.
+#
+# So the frames are real and the finger is drawn on: sim/sim_main.c writes the
+# touch coordinate beside every frame it captures, and the stroke is traced from
+# that file. Tracing from the data rather than from a copy of the stroke table
+# means the annotation cannot drift the first time a coordinate moves. The
+# README caption says the trace is added, because a reader who expected the
+# device to draw it would be looking for a trail that is not there.
+REVEAL_FRAMES = "/tmp/sim_reveal_%03d.ppm"
+REVEAL_PATH = "/tmp/sim_reveal_path.txt"
+REVEAL_GIF = os.path.join(ROOT, "docs", "media", "kiss-reveal.gif")
+
+# Two frames per GIF frame: the walk runs at LVGL's 16ms tick, so 32ms is real
+# time, and 6 centiseconds is the closest a GIF can express it. Under 20ms some
+# browsers silently clamp to 100, which would play the gesture five times slower
+# than a hand makes it.
+REVEAL_STEP = 2
+REVEAL_DELAY = 6
+REVEAL_HOLD = 200                                # ~2s parked on the signer
+
+
+def theme_colour(name):
+    """A hex colour from main/wallet_theme.h. Never invent one, never copy one."""
+    with open(os.path.join(ROOT, "main", "wallet_theme.h")) as fh:
+        m = re.search(r"#define\s+%s\s+lv_color_hex\(0x([0-9A-Fa-f]{6})\)" % name,
+                      fh.read())
+    if not m:
+        raise ValueError("no %s in main/wallet_theme.h" % name)
+    v = int(m.group(1), 16)
+    return (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF
+
+
+def disc(px, w, h, cx, cy, r, rgb):
+    """Filled circle, clipped to the frame. The pen this traces strokes with."""
+    for y in range(max(0, cy - r), min(h, cy + r + 1)):
+        dy = y - cy
+        for x in range(max(0, cx - r), min(w, cx + r + 1)):
+            dx = x - cx
+            if dx * dx + dy * dy <= r * r:
+                i = (y * w + x) * 3
+                px[i], px[i + 1], px[i + 2] = rgb
+
+
+def segment(px, w, h, a, b, r, rgb):
+    """A round-capped line, drawn as discs along it. Short strokes, so the
+    cost of not being clever is a few thousand pixels."""
+    (x0, y0), (x1, y1) = a, b
+    steps = max(abs(x1 - x0), abs(y1 - y0), 1)
+    for s in range(steps + 1):
+        disc(px, w, h, x0 + (x1 - x0) * s // steps,
+             y0 + (y1 - y0) * s // steps, r, rgb)
+
+
+def halve(w, h, px):
+    """2x2 box average. Drawing at full size and shrinking afterwards is what
+    gives the trace smooth edges without any antialiasing code."""
+    ow, oh = w // 2, h // 2
+    out = bytearray(ow * oh * 3)
+    for y in range(oh):
+        r0, r1 = (2 * y) * w * 3, (2 * y + 1) * w * 3
+        for x in range(ow):
+            a, b = r0 + 6 * x, r1 + 6 * x
+            o = (y * ow + x) * 3
+            for c in range(3):
+                out[o + c] = (px[a + c] + px[a + 3 + c] +
+                              px[b + c] + px[b + 3 + c]) // 4
+    return ow, oh, out
+
+
+def build_reveal_gif():
+    if not os.path.exists(REVEAL_PATH):
+        print("note: no %s, skipping the reveal GIF (rerun /tmp/fruitsim)"
+              % REVEAL_PATH)
+        return 0
+    if not shutil.which("magick") and not shutil.which("convert"):
+        print("note: ImageMagick not found, keeping the reveal GIF as committed."
+              "\n      Install it (brew install imagemagick) to regenerate.")
+        return 0
+
+    pts = []
+    with open(REVEAL_PATH) as fh:
+        for line in fh:
+            n, x, y, down = (int(v) for v in line.split())
+            pts.append((n, x, y, bool(down)))
+
+    # Where the signer appears, found by looking rather than by counting
+    # strokes. detect_KISS in main/main.c wants four pen lifts and a wide
+    # enough shape, and it is deliberately lenient because it opens the decoy
+    # rather than the real wallet, so it fires partway through the last letter.
+    # The walk keeps drawing after that, onto a passphrase keyboard, and a trace
+    # over those taps would show a gesture being made at a screen that is no
+    # longer listening for one. So the GIF ends where the screen changes.
+    first = read_ppm(REVEAL_FRAMES % pts[0][0])[2]
+    reveal = None
+    for n, _, _, _ in pts:
+        src = REVEAL_FRAMES % n
+        if not os.path.exists(src):
+            continue
+        cur = read_ppm(src)[2]
+        moved = sum(1 for a, b in zip(cur[::997], first[::997]) if a != b)
+        if moved > len(cur[::997]) // 5:
+            reveal = n
+            break
+    if reveal is None:
+        print("note: the reveal never happened in the captured frames, "
+              "skipping the GIF")
+        return 0
+    pts = [p for p in pts if p[0] <= reveal]
+
+    live = theme_colour("WT_INK")                # the stroke being drawn
+    done = theme_colour("WT_MUT")                # strokes already finished
+    halo = theme_colour("WT_BG")                 # see below
+    tmp = []
+    strokes, cur = [], []
+
+    for n, x, y, down in pts:
+        if down:
+            cur.append((x, y))
+        elif cur:
+            strokes.append(cur)
+            cur = []
+        if n == reveal:                          # the signer, drawn on by nothing
+            strokes, cur = [], []
+
+        if n % REVEAL_STEP and n != pts[-1][0]:
+            continue
+
+        src = REVEAL_FRAMES % n
+        if not os.path.exists(src):
+            continue
+        w, h, frame = read_ppm(src)
+        px = bytearray(frame)
+
+        # Halos first, all of them, then the strokes. The menu art is a sunset
+        # over a neon grid, so a bare line disappears into whichever band it
+        # crosses. Laying every halo down before any stroke stops a later
+        # stroke's halo from biting a chunk out of an earlier one where the
+        # letters cross.
+        for st in strokes + ([cur] if cur else []):
+            for i in range(1, len(st)):
+                segment(px, w, h, st[i - 1], st[i], 6, halo)
+        if cur:
+            disc(px, w, h, cur[-1][0], cur[-1][1], 10, halo)
+
+        for st in strokes:
+            for i in range(1, len(st)):
+                segment(px, w, h, st[i - 1], st[i], 4, done)
+        for i in range(1, len(cur)):
+            segment(px, w, h, cur[i - 1], cur[i], 4, live)
+        if cur:
+            disc(px, w, h, cur[-1][0], cur[-1][1], 8, live)
+
+        ow, oh, small = halve(w, h, px)
+        out = os.path.join("/tmp", "sim_gif_%03d.ppm" % n)
+        with open(out, "wb") as fh:
+            fh.write(b"P6\n%d %d\n255\n" % (ow, oh))
+            fh.write(bytes(small))
+        tmp.append(out)
+
+    if len(tmp) < 2:
+        print("note: only %d reveal frames, skipping the GIF" % len(tmp))
+        return 0
+
+    im = shutil.which("magick") or shutil.which("convert")
+    cmd = ([im, "-loop", "0", "-delay", str(REVEAL_DELAY)] + tmp[:-1] +
+           ["-delay", str(REVEAL_HOLD), tmp[-1],
+            "-layers", "OptimizePlus", REVEAL_GIF])
+    os.makedirs(os.path.dirname(REVEAL_GIF), exist_ok=True)
+    if subprocess.call(cmd) != 0:
+        sys.stderr.write("ImageMagick failed building %s\n" % REVEAL_GIF)
+        return 1
+    for f in tmp:
+        os.unlink(f)
+
+    print("%-34s <- %d frames, %.1f KB"
+          % (os.path.relpath(REVEAL_GIF, ROOT), len(tmp),
+             os.path.getsize(REVEAL_GIF) / 1024.0))
+    return 0
+
+
 def write_md():
     out = ["<!-- Generated by tools/gen_docs_shots.py. Do not edit by hand:",
            "     the captions live in that file so they cannot drift from the",
@@ -334,6 +525,19 @@ def check():
           % (len(want), len(set(want)), os.path.relpath(SIM, ROOT),
              " (reused: %s)" % ", ".join(sorted(dupes)) if dupes else ""))
 
+    # The reveal GIF has no save() to look for, so check its own machinery:
+    # the capture switch in the walk, and the file it produced. Losing either
+    # would leave the README pointing at a picture nothing regenerates.
+    if "g_seq_on = 1" not in src:
+        sys.stderr.write(
+            "sim_main.c no longer records the reveal (g_seq_on is never set),\n"
+            "so docs/media/kiss-reveal.gif cannot be regenerated.\n")
+        return 1
+    if not os.path.exists(REVEAL_GIF):
+        sys.stderr.write("%s is missing, rerun tools/gen_docs_shots.sh\n"
+                         % os.path.relpath(REVEAL_GIF, ROOT))
+        return 1
+
     # A picture nobody links to is a picture nobody notices going wrong.
     linked = ""
     for doc in ("README.md", "docs/guide.html", "docs/walkthrough.md"):
@@ -343,6 +547,8 @@ def check():
                 linked += fh.read()
     orphans = [rel for rel, _ in LEGACY
                if os.path.basename(rel) not in linked]
+    if os.path.basename(REVEAL_GIF) not in linked:
+        orphans.append(os.path.relpath(REVEAL_GIF, ROOT))
     if orphans:
         print("note: generated but not referenced by any doc: %s"
               % ", ".join(orphans))
@@ -376,6 +582,9 @@ def main():
         total += n
         print("%-34s <- %-20s %6.1f KB"
               % (os.path.relpath(path, ROOT), frame, n / 1024.0))
+
+    if build_reveal_gif():
+        return 1
 
     lines = write_md()
     print("%d screenshots from %d frames, %.0f KB"
