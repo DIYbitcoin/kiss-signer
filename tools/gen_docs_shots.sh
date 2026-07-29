@@ -16,6 +16,22 @@ cd "$(dirname "$0")/.."
 echo "== building the simulator =="
 bash sim/build_sim.sh
 
+# Axis passes run BEFORE the canonical pass so /tmp ends holding canonical
+# frames and the reveal GIF is built from them. save() prefixes by SIM_LANG
+# only, never by SIM_ACCENT, so a green run silently overwrites the MONO .ppm
+# files in /tmp under the same names; the ordering here is the fix for that.
+echo "== rendering review axes =="
+for axis in $(python3 tools/gen_docs_shots.py --axis-list); do
+    env $(python3 tools/gen_docs_shots.py --axis-env "$axis") \
+        /tmp/fruitsim > "/tmp/sim_axis_$axis.log" 2>&1 || {
+        echo "simulator failed on axis $axis, tail of /tmp/sim_axis_$axis.log:" >&2
+        tail -20 "/tmp/sim_axis_$axis.log" >&2
+        exit 1
+    }
+    python3 tools/gen_docs_shots.py --review "$axis"
+done
+python3 tools/gen_docs_shots.py --review-index
+
 echo "== rendering frames =="
 /tmp/fruitsim > /tmp/sim_docs.log 2>&1 || {
     echo "simulator failed, tail of /tmp/sim_docs.log:" >&2
