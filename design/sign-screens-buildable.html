@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign Screens, Buildable</title>
+<style>
+  /* ------------------------------------------------------------------------
+     Three faces, all subset from the repo's own originals and inlined, so this
+     file renders identically offline, forever, with no network and no runtime.
+
+       Montserrat  managed_components/lvgl__lvgl/scripts/built_in_font/
+                   Montserrat-Medium.ttf, the exact file gen_fonts.sh feeds to
+                   lv_font_conv for wt_font14/23/28/34.
+       KissIcons   FontAwesome5-Solid+Brands+Regular.woff from the same folder,
+                   two glyphs only: F071 warning and F00C ok. Both are already
+                   in the SYMS list gen_fonts.sh merges into the Latin faces,
+                   so on the device they come from here too, not from Montserrat.
+       KissMono    IoskeleyMonoNerdFont-Medium.ttf, the proposed new face.
+
+     Subset with pyftsubset to printable ASCII. Licences: Montserrat and
+     FontAwesome are already recorded in THIRD_PARTY_NOTICES.md; Ioskeley Mono
+     is SIL OFL 1.1 and is listed there for the website.
+     ---------------------------------------------------------------------- */
+  @font-face {
+    font-family: 'Montserrat';
+    font-weight: 500;
+    font-style: normal;
+    src: url(data:font/woff2;base64,d09GMgABAAAAABH4AA4AAAAAIiAAABGhAAczMwAAAAAAAAAAAAAAAAAAAAAAAAAAGkwbIBwwBmAAgT4RCAq1RKhGATYCJAODFAuBTAAEIAWDLgcgG+MZUZST2jwQ/FiIt6PsB1YWw1U00qBG/TFCktkfaJv/DrDuMFduMofRgFGICoiAICnccaSggPYw0P6bLvJvP2qdrkIX7Y+atarvfrc8T3/0O/f+vWXnRAJtorRwtybhXTMIJLGdE3hVbX01NenJ/tbEDL9UAjMP0AMcQvZWbudzkb/3S5VSZaVKqQV9ASQweYBkpcmp/iCbpTQAS6MNJQAGMB6VkY0y1r9KrhehoPsxmcs2UbExFue6AAKALoFMgep9IfyFFDnMTDlcuDwHQ47ElKPFyvHi5URZco5cgQBA7ZAfhxxLlTj4owGAqakwQVgzCwdVA9Nvu1oajjZ0X+GdD5E7CR5N6zLkVz6A8kIxAoCC3QO5gIzwV/W+rqZ6eCXEaRETLmM6Qx2e8gGgnSFBAIAAAMoeZQgAmJaEorBseubIUqY58OZnCkHlK1UeITOHWnW6LXBmagoAmNLwFLGoUKdej1r4g6krKAbH0LigG9dAzOwCGQAKJPALvw9ECQUZko2dEo4gYiRlIKcmoWJhYlaqnE4xvQoaLloOZawQyJiCYAAAbgAAHwBYCPweANAPAFAHxRWnlLoeBfJUQjmxOsJgWHy2t+8GsRMlqApEieCGd7Yra7oJn/RDq3z9qcEB/gwMo6ORdFoo3TcQDQnBAhgXjwCWf6hfID0AjUCnhURmQ7jfzHlB02nBZjVmemXTYCYocdb0Hp12CPuacEZwxNygZKDTGUFhNHrwSBjRiBMYNFFR/v5BQdtpPz8Kl+icBFYNvSAokh4QoD6bh46j9VgtajAbf6FvFKX7BK7eZeNWAvY6gfSPow+VFkUB+xsfF3ViYtowVoRrV42OQt/YGB0micvHzB5xGRhF6U7cQtKiNA/QZ4HoE7Pv00X5zVrXKR+NoqtQt9DOdtBQKtwdowRS7RgNHRvnk2MJuVFRJJDSN4pW4wAS1ZjLjTZTINC3zUbUbNrorsZsHek6mgzW+qQdTjAxsQuH5H+UPYwCWvjdjLehFKxrKMHrGMZdpPELMqL/mToeazT4fBdKiLZJnLjnDGNHS8pXXByXYo7m4ecRVOh7G5CMRbeHHUWCAc13O0LFKH37GLbM1lGD1mE2e48VLR8poYIZu1ebMZMFM7qdgKaKl9sDQamnI8FQ8w8oa8ihf4KBVQx74G040XCJBe5OpCIQxj7GvokAoZxDJzuyZFeh1FjiK9PxgR5NT6QSR6W/gxYqor0Wm/rA0egP4XS7Pn0Zqccdos8iC1zP+hgAgxaloghmgWi6EYefRzsofVZjfPJcDc9FMMYKkTuhaFQ2Ss5xqjhByQenpnH0Zjy5X1xCfDBaLnNW4aar0X/MrTgEsCBQ9gEkuISxiTqe2ko+pTvA8bYWRth2urvvT2Dwrn+onEcIBN35mzk33+7KKNFIPupy7kb2DZ/Pos59w31XKOUYvWrfhY1USreUsQq+SbGOgRImS48VjSig7SGBBhy1mDGCxIymjppSTMnkBWz1pdRU4LIT6Kke1wwEFxXHt8WE1dNQHxR5Jzw28RH5CG641nEzgeMvqxT+OFBzFEVIdB3uQQFF9kcxV2ARJzYRlkCg4yvhbeSj4p9sYjNID0U1cxn6rjyPhhq0ng4o8ospbq9RnM+kj3uvgMiPLlJS8hvbMR758TyWHUJ/0WspdbX4fIk0A4GSeAZpyCQMGE6mV3RjXRMXn9FLUXcB+obQCbXnunAcJfcMSG+0Y0Z0TE+04higUXmuRrBqDB8GFE0Wmw3cP3Ep5dI1im95dChx6DK4Rl8zPVgn6l3p9w/F7j4M0IdhQB6kYRRFEtV8QjEGUM0M9o2qF48k7BnQj405YPbEfLGRQDA/dMR3bPytj8TmdoxAiVHoM2C0xvBuRX+4zgGKjHeRSbRiNotgcGN+RwwwdsAmF+aufwZfuBiBVvQsNMHoiAE6tYIDcVYirY4KKG7Olx/wDpxHV11moC2cfj9v/37RX5uHjY6i978lNGvTaDVWw49v5tlfQM6+puZ/pAy317kd+SPbgWCUvsNDYfntrchPP6vPH+YdRhxsNACuIi96FThxgiSUx9cfQd+xwokRpP8T9CG5o5j+sB3zRZ1mI2rBTHUYgX7dPs/4Aa9yoLpg0Fk4WOv5/10DFAi9JolRbFlRsVg9xOtcZCdyMzS7WqaefKzScXNzcVjVOPs9r4K2g5NfTQLXb5/VvqOqSvLZb63VLc/5TchX69rVr0ik3UqlAz2tbtPoZ+pvK86doGYwwXOQLN9SXY2gDZ4EpoHoK5JsRdUIugjiQhC4DOS/Q9+TqybshP0ZfOT61W6wR7gmzwVUFY5Q3kq2om6/1bGjqsqx84ClHl+R8+tDvbZDu0Bc0q1SotcCiaZcwoKrg0Mu7ptcV9Gx32RDzWArEhb71WcF5xXn6Yz5BSXSlf+Rjvve+d4GUOYs7D+1aF7es6wlmVfY12b3zO4e8jH8DP/9u4/z7+5/HEO6mG/mfaODwQAB3c4AFBkj8Pz2Wx073e4MWq2rlUg9JpTG7jqAnlCpekWkVwvI4Mb+lhZ0WHF41DUUanndqTWA/DH7Ad4ByNwmnGVKyhK18OWKStoWu3FLRYCHGcSv9VZow2KFzOhSS3u42wFlzxl0XOkvKxS+O34s5PCYayh0RbtTmaZZPnv31yNJzrIdyX/OX/i9mfZurKq1lyUiCV567LfiWd+rwxxxYnUxl2fqyDbxO+YdZmoGnYw0Ai+0Bf6Vhn9M7O9ZJcrNN3dlmeAX149kMfmj2wn/+23c+u5a16qnNxzu+S2rKta+t3HLqzA8mDHozBxs+If/Hx/ElUNfDdZe5EC0Xhuqh7jXudbL+fJhQdTnzE+Yrb5Vv+Mt1+hX6I2/l/nXgvenn52/zrhV/7jpSZMTWg2kXHyGeYzMFp9iwsqZ3vp6oUXqNcYXmuoIqdSNe9ZN45cUSVNNkV8llPQ1RwuZtzVpjNK3u3WJD3Ph8syuYnGXVivulmJV+RXsf3DrpCP2L3tyXvKwlsPBc3M5uJadmVHGZjNAxzJOBvzos0BS0q1Wu5wLxGWyprxJGWepPI6dpWOfES5oNYvNC1gqY0828WSg/mLSiv9Twc5XdRWLu7VacZfcRZVnT/4rdsF7ZRz0neyMTC076IfFyYS8v0MH/CU1uNq+VZVXlyLC+8XSHrVK3NMpVirbxaIebeklq96vGPcTWXEJ3Nxk42zQrLvmuGbWmFM1FoueuZDPkPknARH6weqVS1Yqlie+w5ZrGmJ5NiNpTg6vTOQpu4USr0KBeXULlAVVKahuyV5dCkedoXKXa8ucqspgwAvLhnsz273N6Y54lVwlUZvMRKhj0jFvzJFUAOZeTJgDsFuXBJHyO2nxazksR7KOtJVB4u+N7jfWsz5g+nkf3fs1px3MX9zvCdmVs7ytLZhNUpVITljWvyvMqhm2JRfw7elbH9ZlFkcARpN2uDJFAN/7/D4q1eodYo2mVyzar1eiydBrae2pZWdau71nXnlKQJhjtDnXYeUvKUvqlxp16KgjLODkrLz+4aQQVv+ia0sI4G1Wn9WnkxWpUltTkNpoNfg7wqwmOObTET0nQZHonJu5QBYewXr5l3b2Zq6sw+DOrp09I1EhTDIW/hE1p1D159/q8J4cWTdeB0sii25HaUlCG2PWmL0O7zrNunkphxNZX4IsNMyiHS5nceu6vIR6yNUSJWnBwyA19GVo5fiBuE7tO7cPcm+H3Qi1rntjwxvW66GW9bu37i7btHfzXji87oMNH9R/FnSTUv/Gxdcv1t6i3A6C1FCQRmnNRcIEWXhHYsmynJgXLNpXIa6ze0/vhedqzRCfuyRTMyDgLoa//fpw+XaPB0FfpdeJtDq90bVy8WLsxwn2wyPAf3DI6d5CQoSB/EPMCEuPkcXlKgtkXr6imNe/JFc3v7/GzE11igRjH8OO1fV1+oJ8RzvXoFjJOsNWp3sSBWpDEY9HCEiu9MhEGfmJ+PRTeP3g0kMVh5ZK3e83GM4FritftxTW7Hq1qZLPq/yICrLUf+tD4msMIp7ALvRujW1cTeaGXVLDjn0NmYUOgUjobMqRrll3am+bbtfbuDPTNJ0apwrBG3uW9Yf4P6jhiLh2Qs7nG2TyVFnMmvi4htLYLGAPiud01E13CV9xjMIsUkAUCIqtr6QTeG+6OAgK+MTp39MVWTzXqZmtULawvXmZGcrfn1LLCrKytPkyuS7f/W14QYkuyS7O59lFer1NxMu3ifWw9VpChEm6h2c/qI1zkobMgsiJZyLXLo8qr2wJLufzCZkcfFLaRZOdUlheMMJVN9kh6ih6eU+WkWUZLyHGOX3nAIkOUPNxVWSkey6DKM/HwIC1i6Rzg+s3cVYJYt+Od8yMJOaCarA57JESfYZHROAMRpZzFkdAyMVZV1bL355xomTkF5aHrJK/FX7lVfk73MSQTL03lMwXgPBpj5zbzgj0oqoi4DntUO2/LbrYdAWvuK1QLct8Z1GeoXFhuT5pwPTvkuok18xn4hIO6MYfxH0DSyDseSmZ+AsH+JX/K3wpXj88vD7pvrp0toalUJTKJzPYMdoYdsakXFGqYGlml6rvQ2yeNpo18SkrwpVq8ortihXJlcpwn/IRLKj54nNNM9qs+RzCrnDy2Qeb3IXfr1xZ+CPXZMmvyf1i6VIEPW2BeVcy41IfV5NnKvxh1Ur8aPLMwM0P1AdCsae9scm/Wdgsoy7iOGNVaY3JJ76UhFgT+CqBpqVxvn+LsLm/bl4dU6PNMNK+koXa4oVK4d4ZRamP7/zxdzLlgIibwhJzhKETQMk+fQI/cVpz+iR+8jSI/rmsubzFGYGywnDpqN65InfSA2WyckVUz2krAFz+VnQJdRpTGy5AtFJdfqwSe/vnaVHC2V0q08KCYlMtQWAnudxYYzA4y3d3qB4Oqty9mVKBwHXisLNK+PwJdvMiWEJulxjWSHAM/sNg7dWR+e23+vpsb+BpT9Y8dKQJpJ4ivrdUzvd6hFKeLfmrMrIm7ufZrLSqco9z30lbW/vJCueR5pbKI8cr29LdM96xn26dlbty1Nv26eLF7R+Pt65K7FamsLQ5OSytMjldaXOUlZVXKKAGtVqtpjVSD5uvyxaqK82ZD+PkiSVVhEFrU4mzxXoN+9DBO3SJMjzUklxss62RquMjrmwQx5dExQSwNJmiops3ShK44pQMQ6EUar4w7TPBwJpV2tVa1dGt2iNb4dmT7uX9ZijpKJ4zR8xgiOZEiBkkAUSLA0DlzBkAiJYgJEM06+UAeQOKRohf2VPpFJcq5yprhIcKVBfaAYC/ilLGj/rb2DW4Pg85ccbfTlJmgSADiIwyxP0Nr6KtdqSD8hQQAH5Hmb22+un24ILf/P2oXwIAjK//f7J0OxT6/Pv+/1++KtpcizugAABAwJ9W1ffOVDElQoX1YbPuKiAxgQCUz6kpym9qOwJpE55mW5D0pCc0TliVyRHI1B/9VDPdnA2ixNopg7TeZsnEC20jJFUBtMkscHZ4aopWBcxuh8Aun/q3b0BKDZDRA2BpPiQ7EOLSpQKCe5zp94Mls6BUmi1hTO3qa42qwTKNQlhfe+yZBUHYBstmfxOeLRDc3WBo6tT/k8Xg20QIYrm+bgAkdiOkpQX8y5/pC8CnmyFesoe2FtJqgMguAZbLzcjrMC2OqXvBQOQ5DprTQgdJL0GE2KGFEJDlIHBbcElPMl/kV4BcQh42TosKaqm+XRnYowNmFkIeJWtJofj5X8ebKCBuikJaB4CdFKhtCSjA/3PB/29RjNAGAeCm5EfPp3ecJgZDgxm1chpAjoZEbYhoR9sogtxuo+J6cjYN2uZjTsJfjK/oZEAxjyZdWtSqVsOLKUOadOmY8InkFioe8y2slbIW4BVwpiV7e9Rxc4pFkTbeQ+HRolV4Ii4U1kRHeFJhrFotEOyiEoezsMYpK+WswcDcZaQCwdavkBr6wklKwqQ006VWm0Y6xqozom1vkYtTVmaafASlonzh/OW57DUxKMXwWouzmXiniNFH9bC1qVMyAAAAAA==) format('woff2');
+  }
+  @font-face {
+    font-family: 'KissIcons';
+    font-weight: 500;
+    font-style: normal;
+    src: url(data:font/woff2;base64,d09GMgABAAAAAAJIAA4AAAAABLwAAAH1AUn75wAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbEBwaBmAAPBEICoE4gS0BNgIkAwwLCAAEIAWCfgcgG7QDQB6FceNTQsTJSc+8Rea1eJ7+3jz3bS8crFRq4YwvBVCWIPx9YH/5boYbpIOblCanG5F3bey35kr/qjifvKUb0IBfpgmNNst+zQL5rN+ziF6wbhTwi49q2q5MiY/2GLu7ZCdBHxBRFEXQ1TcE+j5LDkh/zYwBGACo505bhAb5IHUAnpXhnyMRFI0aIBp7j59Vbht4jyaPVJKaUAvLGcpAIGckFdjgBgpqmNMWzOnYBE11UWqEBAGeNXozH0QApCIUUANN1HEMHgDUAVFbmBiYVVaM8e3Tx5W25ZXz1tRRnk3biII8uWZkothwrp1WOp4rlnjLylV+RTnP2FhJquSPGRkpRtYNFlQddh3ZnbZsMvnhga0z+2Krn2+nHRJbh5suly6bhw/zmgSNXaHfyo5XH+hLjU0iTIzFN/Q6dDN0OwAIef2pHihpNE95MzDWAqxdBH4A662bReK22jefIF0A2goIH6nhSB889SAY1QpYwQ3xBVqrlcC/I2Bq+aUtdUNwACcee2J40bXiNVco7XoUb3iz8d+adn3KRkbBRdOtUxcGDwFaBfKQh2wAg4dMbO3oyPq1O4GH2DxM0659qBRZn25tuu7stVCxwiQKEyFaVFs2UYIYHgIqZlna0dB1x8AkVckWmJk3rNg3oFABbRRVhRwBAAA=) format('woff2');
+  }
+  @font-face {
+    font-family: 'KissMono';
+    font-weight: 500;
+    font-style: normal;
+    src: url(data:font/woff2;base64,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) format('woff2');
+  }
+  body { margin:0; background:#06080C; }
+
+  /* ---- device frame primitives -------------------------------------------
+     Everything inside .dev is bound by the same three laws as the firmware:
+     one typeface family pair, weight 500 only, five permitted sizes.        */
+  .dev {
+    position:relative; width:800px; height:480px; overflow:hidden;
+    background:#070A10; color:#E8EEF7;
+    font-family:'Montserrat', sans-serif; font-weight:500;
+    -webkit-font-smoothing:antialiased;
+  }
+  .dev * { font-weight:500 !important; box-sizing:border-box; }
+  .dev .m  { font-family:'KissMono', monospace; }
+  .dev .fa { font-family:'KissIcons'; }
+  .f14 { font-size:14px; line-height:1; }
+  .f23 { font-size:23px; line-height:1; }
+  .f28 { font-size:28px; line-height:1; }
+  .f34 { font-size:34px; line-height:1; }
+  .f48 { font-size:48px; line-height:1; }
+  .a { position:absolute; }
+
+  /* ---- document chrome, outside the frames ------------------------------- */
+  .eyebrow {
+    font-family:'KissMono',monospace; font-size:11px; letter-spacing:.18em;
+    color:#7A869C; text-transform:uppercase; font-weight:600;
+  }
+  .tag {
+    font-family:'KissMono',monospace; font-size:11px; letter-spacing:.18em;
+    color:#070A10; background:#E8EEF7; padding:5px 10px; border-radius:4px; font-weight:600;
+  }
+  .tag.spec { background:#35D07F; }
+  .tag.alt  { background:#4C5666; color:#E8EEF7; }
+  .plate {
+    display:flex; flex-direction:column; gap:18px;
+    padding:34px; border:1px solid #1E2531; border-radius:16px; background:#080B11;
+    width:max-content;
+  }
+  .gut {
+    position:relative; width:74px; height:480px;
+    font-family:'KissMono',monospace; font-size:10px; color:#4C5666;
+  }
+  .gut i {
+    position:absolute; left:0; width:74px; border-top:1px solid #1E2531;
+    font-style:normal; padding-left:4px; line-height:1; padding-top:2px;
+  }
+  code {
+    font-family:'KissMono',monospace; font-size:.92em; color:#E8EEF7;
+    background:#0A0E15; padding:1px 5px; border-radius:4px;
+  }
+  th { text-align:left; font-family:'KissMono',monospace; font-size:11px;
+       letter-spacing:.14em; text-transform:uppercase; color:#7A869C; font-weight:600;
+       padding:10px 16px; border-bottom:1px solid #1E2531; }
+  td { padding:11px 16px; border-bottom:1px solid #131924; font-size:14px; color:#A7B2C4; vertical-align:top; }
+  td b { color:#E8EEF7; font-weight:600; }
+  table { border-collapse:collapse; width:100%; }
+</style>
+</head>
+<body>
+
+<section style="display:flex; flex-direction:column; gap:0; align-items:flex-start; padding:64px 64px 96px; font-family:'Montserrat', sans-serif; background:#06080C; color:#E8EEF7;">
+<div id="1b" style="width:1180px; display:flex; flex-direction:column; gap:56px;">
+
+<!-- ============================ MASTHEAD ============================ -->
+<div style="display:flex; flex-direction:column; gap:20px; border-bottom:1px solid #1E2531; padding-bottom:40px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span class="tag">01</span>
+    <span class="eyebrow">main/wallet_sign.c &nbsp;·&nbsp; companion drawing to Handoff 01</span>
+  </div>
+  <h1 style="margin:0; font-size:54px; line-height:1.05; font-weight:600; letter-spacing:-.02em; max-width:22ch; text-wrap:balance;">Every pixel here is one the device can actually draw.</h1>
+  <p style="margin:0; max-width:76ch; font-size:19px; line-height:1.55; color:#A7B2C4; text-wrap:pretty;">The six redraws in <span style="color:#E8EEF7;">KISS Signer Review.dc.html</span> were drawn in a browser with a type scale the signer does not have: nine sizes where there are four, and a 600 weight that does not exist, because <code>gen_fonts.sh</code> builds every face from Montserrat Medium alone. This file redraws the two Sign screens under the real constraints, at true 800x480, using only faces the firmware can be given. Nothing here is scaled, and nothing is aspirational.</p>
+  <p style="margin:0; max-width:76ch; font-size:19px; line-height:1.55; color:#A7B2C4; text-wrap:pretty;"><span style="color:#35D07F;">1b</span> is the specification. <span style="color:#F2B84B;">1c</span> is the caution state. <span style="color:#7A869C;">1a</span> is the zero cost fallback and is <span style="color:#E8EEF7;">not</span> the spec.</p>
+</div>
+
+<!-- ============================ THE FOUR RUNGS ============================ -->
+<div style="display:flex; flex-direction:column; gap:22px;">
+  <h2 class="eyebrow" style="margin:0;">The whole type system, at true size</h2>
+  <div style="border:1px solid #1E2531; border-radius:12px; background:#080B11; overflow:hidden;">
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #131924;">
+      <code style="background:none; padding:0; color:#7A869C;">wt_font34</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="f34">Page titles, 34</span></div>
+      <span style="font-size:13px; color:#7A869C;">Falls back to <code style="font-size:11px;">wt_font28</code> under ja/ko/zh.</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #131924;">
+      <code style="background:none; padding:0; color:#7A869C;">wt_font28</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="f28">Values, 28</span></div>
+      <span style="font-size:13px; color:#7A869C;">Unused on both Sign screens.</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #131924;">
+      <code style="background:none; padding:0; color:#7A869C;">wt_font23</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="f23">Body and pill labels, 23</span></div>
+      <span style="font-size:13px; color:#7A869C;">The floor for anything an amount or a primary action lands on.</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #1E2531;">
+      <code style="background:none; padding:0; color:#7A869C;">wt_font14</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="f14">Captions and qualifiers, 14</span></div>
+      <span style="font-size:13px; color:#7A869C;">Captions only. Never a value, never a button.</span>
+    </div>
+
+    <div style="padding:16px 26px; background:#0A0E15; border-bottom:1px solid #1E2531;">
+      <span class="eyebrow" style="color:#35D07F;">proposed, Latin only, measured below</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #131924;">
+      <code style="background:none; padding:0; color:#7A869C;">font_kiss_mono14</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="m f14">bc1qzyg3 · EC5A4595 · 2.4 sat/vB</span></div>
+      <span style="font-size:13px; color:#7A869C;">Addresses, fingerprints, derivation paths. Never translated.</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:22px 26px; border-bottom:1px solid #131924;">
+      <code style="background:none; padding:0; color:#7A869C;">font_kiss_mono23</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="m f23">zyg3 ···· x8gf</span></div>
+      <span style="font-size:13px; color:#7A869C;">The compared spans, and every figure in the footer strip.</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:210px 1fr 260px; align-items:baseline; gap:24px; padding:26px 26px;">
+      <code style="background:none; padding:0; color:#7A869C;">font_kiss_num48</code>
+      <div class="dev" style="width:auto; height:auto; overflow:visible; background:none;"><span class="m f48">61 000</span></div>
+      <span style="font-size:13px; color:#7A869C;">Thirteen glyphs: digits, space, full stop. It can never meet a translated string.</span>
+    </div>
+  </div>
+
+  <p style="margin:0; max-width:82ch; font-size:16px; line-height:1.6; color:#A7B2C4;">Sizes the review used that do not exist and are not proposed: <span style="color:#4C5666; text-decoration:line-through;">11&nbsp; 12&nbsp; 13&nbsp; 15&nbsp; 16&nbsp; 17&nbsp; 19&nbsp; 20&nbsp; 22&nbsp; 24&nbsp; 40&nbsp; 52</span>. Weights it used that do not exist: <span style="color:#4C5666; text-decoration:line-through;">400&nbsp; 600&nbsp; 700</span>. Hierarchy on this device comes from size, colour and letter spacing. Never from weight.</p>
+</div>
+
+<!-- ============================ 1b ============================ -->
+<div style="display:flex; flex-direction:column; gap:24px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span class="tag spec">1b</span>
+    <span class="eyebrow">Sign, normal &nbsp;·&nbsp; this is the specification</span>
+  </div>
+
+  <div class="plate">
+    <div style="display:flex; align-items:flex-start; gap:0;">
+      <div class="dev">
+
+        <!-- header -->
+        <div class="a f34" style="left:24px; top:12px;">SIGN</div>
+        <div class="a f14 m" style="left:132px; top:28px; color:#7A869C;">multisig-payout-04.psbt</div>
+        <div class="a" style="left:540px; top:14px; width:236px; height:36px; border:1px solid #2A3346; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:10px;">
+          <span class="f14" style="color:#7A869C; letter-spacing:.1em;">SIGNING AS</span>
+          <span class="f14 m" style="color:#E8EEF7;">EC5A4595</span>
+        </div>
+        <div class="a" style="left:0; top:60px; width:800px; height:1px; background:#1A2130;"></div>
+
+        <!-- hero -->
+        <div class="a f14" style="left:24px; top:74px; color:#7A869C; letter-spacing:.14em;">LEAVING YOUR WALLET</div>
+        <div class="a" style="left:24px; top:88px; display:flex; align-items:baseline; gap:14px;">
+          <span class="m f48">61 000</span>
+          <span class="f23">sats</span>
+          <span class="m f14" style="color:#7A869C;">0.00061000 BTC</span>
+        </div>
+
+        <!-- recipient panel -->
+        <div class="a" style="left:24px; top:150px; width:468px; height:120px; background:#0A0E15; border:1px solid #1E2531; border-radius:12px;">
+          <div class="a f14" style="left:15px; top:12px; color:#7A869C; letter-spacing:.14em;">TO A STRANGER</div>
+          <div class="a m f23" style="right:15px; top:8px;">60 000</div>
+          <div class="a m f14" style="left:15px; top:44px; color:#4C5666; white-space:nowrap;" data-measure="addr-ungrouped">bc1q<span style="color:#E8EEF7;">zyg3</span>h8ffkz7mvd3sjn54khce6mua7lqpz9<span style="color:#E8EEF7;">x8gf</span></div>
+          <div class="a" data-measure="compare" style="left:15px; top:66px; display:flex; align-items:baseline; gap:11px;">
+            <span class="m f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">zyg3</span>
+            <span class="m f23" style="color:#4C5666;">····</span>
+            <span class="m f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">x8gf</span>
+            <span class="f14" style="color:#7A869C;">compare these 8</span>
+          </div>
+        </div>
+
+        <!-- change panel -->
+        <div class="a" style="left:506px; top:150px; width:270px; height:120px; background:#0A0E15; border:1px solid #35D07F; border-radius:12px;">
+          <div class="a f14" style="left:15px; top:12px; color:#35D07F; letter-spacing:.14em;">BACK TO YOU</div>
+          <div class="a m f23" style="left:15px; top:36px;">200</div>
+          <div class="a f14" style="left:15px; top:72px; width:238px; color:#7A869C; line-height:1.35;">this device derived it too</div>
+        </div>
+
+        <!-- footer strip -->
+        <div class="a" style="left:0; top:288px; width:800px; height:1px; background:#1A2130;"></div>
+
+        <div class="a" style="left:24px; top:300px; width:230px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK FEE</div>
+          <div class="m f23" style="margin-top:6px;">800 sats</div>
+          <div class="m f14" style="margin-top:4px; color:#7A869C;">2.4 sat/vB</div>
+        </div>
+        <div class="a" style="left:270px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+
+        <div class="a" style="left:294px; top:300px; width:210px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK</div>
+          <div class="f23" style="margin-top:6px;">MAINNET</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">real bitcoin</div>
+        </div>
+        <div class="a" style="left:520px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+
+        <div class="a" style="left:544px; top:300px; width:232px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">IF IT GETS STUCK</div>
+          <div class="f23" style="margin-top:6px;">REPLACEABLE</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">you can raise the fee</div>
+        </div>
+
+        <!-- action bar, floor at WT_CONTENT_BOTTOM -->
+        <div class="a" style="left:0; top:398px; width:800px; height:82px; background:#0B0E14; border-top:1px solid #1E2531;"></div>
+        <div class="a f23" style="left:24px; top:404px; width:150px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">DETAILS</div>
+        <div class="a f23" style="left:280px; top:404px; width:310px; height:52px; border:1px solid #35D07F; background:rgba(53,208,127,.12); border-radius:26px; display:flex; align-items:center; justify-content:center; color:#E8EEF7;">HOLD TO SIGN</div>
+        <div class="a f23" style="left:610px; top:404px; width:140px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">BACK</div>
+      </div>
+
+      <!-- dimension gutter -->
+      <div class="gut">
+        <i style="top:60px;">60 &nbsp;rule</i>
+        <i style="top:88px;">88 &nbsp;hero</i>
+        <i style="top:150px;">150 panels</i>
+        <i style="top:270px;">270 panel floor</i>
+        <i style="top:288px;">288 rule</i>
+        <i style="top:398px; border-top:1px solid #35D07F; color:#35D07F;">398 content stops<br>404 pills, 456 base</i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ THE 8 ============================ -->
+<div style="display:flex; flex-direction:column; gap:24px;">
+  <h2 class="eyebrow" style="margin:0;">Why the address panel is the reason for the mono face</h2>
+  <div class="plate" style="width:100%;">
+    <span class="eyebrow">recipient panel, 2.5x</span>
+    <div style="width:1170px; height:300px; overflow:hidden; border-radius:8px;">
+      <div style="transform:scale(2.5); transform-origin:top left; width:468px; height:120px;">
+        <div class="dev" style="width:468px; height:120px; background:#0A0E15; border:1px solid #1E2531; border-radius:12px;">
+          <div class="a f14" style="left:15px; top:12px; color:#7A869C; letter-spacing:.14em;">TO A STRANGER</div>
+          <div class="a m f23" style="right:15px; top:8px;">60 000</div>
+          <div class="a m f14" style="left:15px; top:44px; color:#4C5666; white-space:nowrap;">bc1q<span style="color:#E8EEF7;">zyg3</span>h8ffkz7mvd3sjn54khce6mua7lqpz9<span style="color:#E8EEF7;">x8gf</span></div>
+          <div class="a" style="left:15px; top:66px; display:flex; align-items:baseline; gap:11px;">
+            <span class="m f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">zyg3</span>
+            <span class="m f23" style="color:#4C5666;">····</span>
+            <span class="m f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">x8gf</span>
+            <span class="f14" style="color:#7A869C;">compare these 8</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start;">
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">The beta7 changelog defines the compared characters as the four immediately after <code>bc1q</code> and the final four. Four plus four is the 8 the caption promises, so both runs are lit, and the caption cannot be attached to a single 10 character run the way it is today.</p>
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">Handoff 01 says the mono face puts the lit runs "directly above" the comparison line. Drawn, it cannot: the two lines are at different sizes, so nothing columnar survives between them. What the fixed advance actually buys is better than that, and it is visible above.</p>
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">What it buys, in order of how much it matters. <span style="color:#E8EEF7;">One,</span> a fixed advance is a tabular figure, so an amount occupies the same width on every screen it appears on. That is the request in PHASE 4 of the review, and it is about the hero and the footer figures more than the address. <span style="color:#E8EEF7;">Two,</span> fixed pitch makes the body scannable one character at a time, which is literally the task the caption sets. <span style="color:#E8EEF7;">Three,</span> both lit runs are four characters, so in mono they come out identical and their underlines match without hand tuning.</p>
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">Be honest about the size of the third one. Measured below, the fallback misses by <span style="color:#E8EEF7;" data-slot="prop-delta">—</span> on a 53px run. Visible when two underlines sit side by side, not damning on its own. The face earns its 16.7 KB on the first two reasons; the third is a bonus, and Handoff 01 should not lead with it.</p>
+      <div style="border:1px solid #1E2531; border-radius:12px; overflow:hidden; background:#080B11;">
+        <table>
+          <tr><th>four character run</th><th style="text-align:right;">zyg3</th><th style="text-align:right;">x8gf</th><th style="text-align:right;">match</th></tr>
+          <tr><td>Ioskeley Mono 23</td><td style="text-align:right;" data-slot="mono-a">—</td><td style="text-align:right;" data-slot="mono-b">—</td><td style="text-align:right;" data-slot="mono-d">—</td></tr>
+          <tr><td>Montserrat 23, the fallback</td><td style="text-align:right;" data-slot="prop-a">—</td><td style="text-align:right;" data-slot="prop-b">—</td><td style="text-align:right;" data-slot="prop-d">—</td></tr>
+        </table>
+      </div>
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">The body is deliberately <span style="color:#E8EEF7;">ungrouped</span>, but not for the reason Handoff 01 gives. It claims grouping overflows the panel at about 465px. Measured here it is 437px against a 438px box, so it fits, by one pixel. One pixel is not a margin, and the arithmetic behind the 465 does not hold: 42 characters measure 353px, so 52 characters measure 437px, not 465px.</p>
+      <p style="margin:0; font-size:16px; line-height:1.6; color:#A7B2C4;">The decisive argument survives the correction and is the better one anyway. The address is 38 characters after <code>bc1q</code>, and 38 does not divide by four, so grouping splits the final four across a group boundary and breaks the very run the caption is pointing at.</p>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div style="border:1px solid #1E2531; border-radius:12px; overflow:hidden; background:#080B11;">
+        <table>
+          <tr><th>measured on load</th><th style="text-align:right;">width</th><th style="text-align:right;">slack in 438</th></tr>
+          <tr><td>address, ungrouped, <code style="font-size:11px;">mono14</code></td><td style="text-align:right;" data-slot="ungrouped">—</td><td style="text-align:right;" data-slot="ungrouped-fit">—</td></tr>
+          <tr><td>address, grouped in fours</td><td style="text-align:right;" data-slot="grouped">—</td><td style="text-align:right;" data-slot="grouped-fit">—</td></tr>
+          <tr><td>comparison line, whole row</td><td style="text-align:right;" data-slot="compare">—</td><td style="text-align:right;" data-slot="compare-fit">—</td></tr>
+        </table>
+      </div>
+      <p style="margin:0; font-size:13px; line-height:1.55; color:#7A869C;">Measured with <code style="font-size:11px;">getBoundingClientRect</code> against the panel's 438px content box, not asserted. Test vector <code style="font-size:11px;">bc1qzyg3h8ffkz7mvd3sjn54khce6mua7lqpz9x8gf</code>. These are browser metrics from the same outlines <code style="font-size:11px;">lv_font_conv</code> rasterises, so treat them as close, not identical. <code style="font-size:11px;">fitcheck</code> is the gate.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 1c ============================ -->
+<div id="1c" style="display:flex; flex-direction:column; gap:24px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span class="tag spec" style="background:#F2B84B;">1c</span>
+    <span class="eyebrow">Sign, cautions &nbsp;·&nbsp; only y=150 to 270 differs from 1b</span>
+  </div>
+
+  <p style="margin:0; max-width:80ch; font-size:17px; line-height:1.6; color:#A7B2C4;">The hero does <span style="color:#E8EEF7;">not</span> drop to 40px here. The review asked for that, and 40 is not a rung. Header, hero, footer strip and action bar are byte for byte the normal screen, which is the point: the two states must not look like two different screens, because the user has already read one of them.</p>
+
+  <div class="plate">
+    <div style="display:flex; align-items:flex-start; gap:0;">
+      <div class="dev">
+        <div class="a f34" style="left:24px; top:12px;">SIGN</div>
+        <div class="a f14 m" style="left:132px; top:28px; color:#7A869C;">multisig-payout-04.psbt</div>
+        <div class="a" style="left:540px; top:14px; width:236px; height:36px; border:1px solid #F2B84B; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:10px;">
+          <span class="fa f23" style="color:#F2B84B;">&#xF071;</span>
+          <span class="f14" style="color:#F2B84B; letter-spacing:.14em;">2 CAUTIONS</span>
+        </div>
+        <div class="a" style="left:0; top:60px; width:800px; height:1px; background:#1A2130;"></div>
+
+        <div class="a f14" style="left:24px; top:74px; color:#7A869C; letter-spacing:.14em;">LEAVING YOUR WALLET</div>
+        <div class="a" style="left:24px; top:88px; display:flex; align-items:baseline; gap:14px;">
+          <span class="m f48">3 800</span>
+          <span class="f23">sats</span>
+          <span class="m f14" style="color:#7A869C;">0.00003800 BTC</span>
+        </div>
+
+        <!-- caution rows, both outstanding -->
+        <div class="a" style="left:24px; top:150px; width:752px; height:56px; background:#0A0E15; border:1px solid #F2B84B; border-radius:12px;">
+          <div class="a fa f23" style="left:15px; top:16px; color:#F2B84B;">&#xF071;</div>
+          <div class="a f14" style="left:52px; top:19px; color:#E8EEF7; white-space:nowrap;" data-measure="caution">The fee is 21% of what you send. 800 sats to move 3 000 sats.</div>
+          <div class="a f14" data-measure="caution-pill" style="left:543px; top:8px; width:170px; height:40px; border:1px solid #2A3346; border-radius:20px; display:flex; align-items:center; justify-content:center; letter-spacing:.08em;">ACKNOWLEDGE</div>
+        </div>
+
+        <div class="a" style="left:24px; top:214px; width:752px; height:56px; background:#0A0E15; border:1px solid #F2B84B; border-radius:12px;">
+          <div class="a fa f23" style="left:15px; top:16px; color:#F2B84B;">&#xF071;</div>
+          <div class="a f14" style="left:52px; top:19px; color:#E8EEF7; white-space:nowrap;">200 sats of change is dust. Tiny coins can link your addresses later.</div>
+          <div class="a f14" style="left:543px; top:8px; width:170px; height:40px; border:1px solid #2A3346; border-radius:20px; display:flex; align-items:center; justify-content:center; letter-spacing:.08em;">ACKNOWLEDGE</div>
+        </div>
+
+        <div class="a" style="left:0; top:288px; width:800px; height:1px; background:#1A2130;"></div>
+        <div class="a" style="left:24px; top:300px; width:230px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK FEE</div>
+          <div class="m f23" style="margin-top:6px; color:#F2B84B;">800 sats</div>
+          <div class="m f14" style="margin-top:4px; color:#7A869C;">2.4 sat/vB</div>
+        </div>
+        <div class="a" style="left:270px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+        <div class="a" style="left:294px; top:300px; width:210px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK</div>
+          <div class="f23" style="margin-top:6px;">MAINNET</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">real bitcoin</div>
+        </div>
+        <div class="a" style="left:520px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+        <div class="a" style="left:544px; top:300px; width:232px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">IF IT GETS STUCK</div>
+          <div class="f23" style="margin-top:6px;">REPLACEABLE</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">you can raise the fee</div>
+        </div>
+
+        <div class="a" style="left:0; top:398px; width:800px; height:82px; background:#0B0E14; border-top:1px solid #1E2531;"></div>
+        <div class="a f23" style="left:24px; top:404px; width:150px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">DETAILS</div>
+        <div class="a f23" style="left:280px; top:404px; width:310px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center; color:#4C5666;">HOLD TO SIGN</div>
+        <div class="a f23" style="left:610px; top:404px; width:140px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">BACK</div>
+      </div>
+
+      <div class="gut">
+        <i style="top:60px;">60 &nbsp;rule</i>
+        <i style="top:88px;">88 &nbsp;hero, 48</i>
+        <i style="top:150px;">150 row 1, h56</i>
+        <i style="top:214px;">214 row 2, h56</i>
+        <i style="top:270px;">270 row floor</i>
+        <i style="top:288px;">288 rule</i>
+        <i style="top:398px; border-top:1px solid #35D07F; color:#35D07F;">398 content stops<br>404 pills, 456 base</i>
+      </div>
+    </div>
+  </div>
+
+  <!-- row state pair -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <span class="eyebrow">the same row, both states, 1:1</span>
+    <div class="plate" style="gap:14px;">
+      <div class="dev" style="width:752px; height:56px; background:#0A0E15; border:1px solid #F2B84B; border-radius:12px;">
+        <div class="a fa f23" style="left:15px; top:16px; color:#F2B84B;">&#xF071;</div>
+        <div class="a f14" style="left:52px; top:19px; color:#E8EEF7; white-space:nowrap;">The fee is 21% of what you send. 800 sats to move 3 000 sats.</div>
+        <div class="a f14" style="left:543px; top:8px; width:170px; height:40px; border:1px solid #2A3346; border-radius:20px; display:flex; align-items:center; justify-content:center; letter-spacing:.08em;">ACKNOWLEDGE</div>
+      </div>
+      <div class="dev" style="width:752px; height:56px; background:#0A0E15; border:1px solid #F2B84B; border-radius:12px;">
+        <div class="a fa f23" style="left:15px; top:16px; color:#35D07F;">&#xF00C;</div>
+        <div class="a f14" style="left:52px; top:19px; color:#7A869C; white-space:nowrap;">The fee is 21% of what you send. 800 sats to move 3 000 sats.</div>
+        <div class="a f14" style="left:543px; top:8px; width:170px; height:40px; border:1px solid #35D07F; border-radius:20px; display:flex; align-items:center; justify-content:center; letter-spacing:.08em; color:#35D07F;">UNDERSTOOD</div>
+      </div>
+      <p style="margin:6px 0 0; font-size:14px; line-height:1.6; color:#7A869C; max-width:70ch;">Glyph, ink and pill change. Geometry does not. The text column runs from the text's left edge at x=76 to the pill's at x=567, so <b style="color:#E8EEF7;" data-slot="col">—</b> at <code style="font-size:11px;">wt_font14</code>, measured off the row rather than quoted, and the longest English string in this drawing comes to <span data-slot="caution" style="color:#E8EEF7;">—</span>. German and Russian are the risk, not CJK. <code style="font-size:11px;">fitcheck</code> is the gate, not this number.</p>
+    </div>
+  </div>
+
+  <div style="border-left:2px solid #FF4D5E; padding:4px 0 4px 20px;">
+    <p style="margin:0; max-width:76ch; font-size:16px; line-height:1.6; color:#A7B2C4;"><b style="color:#E8EEF7;">HOLD TO SIGN never moves, never changes label, and never changes width.</b> Today <code>STR_C_I_UNDERSTAND</code> occupies the sign button's position, so two taps in the same spot produce a signature nobody read. Here it keeps its coordinates and stays disabled ink <code>WT_DIM</code> until every row is acknowledged, then becomes <code>wt_pill_primary</code>. Rows are never taller than 56px: a taller row pushes the footer into the action bar, so if a locale cannot fit the column, shorten the string rather than wrap the row.</p>
+  </div>
+</div>
+
+<!-- ============================ 1a ============================ -->
+<div id="1a" style="display:flex; flex-direction:column; gap:24px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span class="tag alt">1a</span>
+    <span class="eyebrow">fallback only &nbsp;·&nbsp; not the specification</span>
+  </div>
+
+  <p style="margin:0; max-width:80ch; font-size:17px; line-height:1.6; color:#A7B2C4;">The same layout using only what exists today. It builds without touching <code>gen_fonts.sh</code>. It is here so the cost of saying no is visible, not because it is the recommendation.</p>
+
+  <div class="plate">
+    <div style="display:flex; align-items:flex-start; gap:0;">
+      <div class="dev">
+        <div class="a f34" style="left:24px; top:12px;">SIGN</div>
+        <div class="a f14" style="left:132px; top:28px; color:#7A869C;">multisig-payout-04.psbt</div>
+        <div class="a" style="left:540px; top:14px; width:236px; height:36px; border:1px solid #2A3346; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:10px;">
+          <span class="f14" style="color:#7A869C; letter-spacing:.1em;">SIGNING AS</span>
+          <span class="f14" style="color:#E8EEF7;">EC5A4595</span>
+        </div>
+        <div class="a" style="left:0; top:60px; width:800px; height:1px; background:#1A2130;"></div>
+
+        <div class="a f14" style="left:24px; top:74px; color:#7A869C; letter-spacing:.14em;">LEAVING YOUR WALLET</div>
+        <div class="a" style="left:24px; top:96px; display:flex; align-items:baseline; gap:14px;">
+          <span class="f34">61 000</span>
+          <span class="f23">sats</span>
+          <span class="f14" style="color:#7A869C;">0.00061000 BTC</span>
+        </div>
+
+        <div class="a" style="left:24px; top:150px; width:468px; height:120px; background:#0A0E15; border:1px solid #1E2531; border-radius:12px;">
+          <div class="a f14" style="left:15px; top:12px; color:#7A869C; letter-spacing:.14em;">TO A STRANGER</div>
+          <div class="a f23" style="right:15px; top:8px;">60 000</div>
+          <div class="a f14" style="left:15px; top:44px; color:#4C5666; white-space:nowrap;">bc1q<span style="color:#E8EEF7;">zyg3</span>h8ffkz7mvd3sjn54khce6mua7lqpz9<span style="color:#E8EEF7;">x8gf</span></div>
+          <div class="a" style="left:15px; top:66px; display:flex; align-items:baseline; gap:11px;">
+            <span class="f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">zyg3</span>
+            <span class="f23" style="color:#4C5666;">····</span>
+            <span class="f23" style="border-bottom:2px solid #E8EEF7; padding-bottom:2px;">x8gf</span>
+            <span class="f14" style="color:#7A869C;">compare these 8</span>
+          </div>
+        </div>
+
+        <div class="a" style="left:506px; top:150px; width:270px; height:120px; background:#0A0E15; border:1px solid #35D07F; border-radius:12px;">
+          <div class="a f14" style="left:15px; top:12px; color:#35D07F; letter-spacing:.14em;">BACK TO YOU</div>
+          <div class="a f23" style="left:15px; top:36px;">200</div>
+          <div class="a f14" style="left:15px; top:72px; width:238px; color:#7A869C; line-height:1.35;">this device derived it too</div>
+        </div>
+
+        <div class="a" style="left:0; top:288px; width:800px; height:1px; background:#1A2130;"></div>
+        <div class="a" style="left:24px; top:300px; width:230px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK FEE</div>
+          <div class="f23" style="margin-top:6px;">800 sats</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">2.4 sat/vB</div>
+        </div>
+        <div class="a" style="left:270px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+        <div class="a" style="left:294px; top:300px; width:210px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">NETWORK</div>
+          <div class="f23" style="margin-top:6px;">MAINNET</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">real bitcoin</div>
+        </div>
+        <div class="a" style="left:520px; top:302px; width:1px; height:70px; background:#1A2130;"></div>
+        <div class="a" style="left:544px; top:300px; width:232px;">
+          <div class="f14" style="color:#7A869C; letter-spacing:.14em;">IF IT GETS STUCK</div>
+          <div class="f23" style="margin-top:6px;">REPLACEABLE</div>
+          <div class="f14" style="margin-top:4px; color:#7A869C;">you can raise the fee</div>
+        </div>
+
+        <div class="a" style="left:0; top:398px; width:800px; height:82px; background:#0B0E14; border-top:1px solid #1E2531;"></div>
+        <div class="a f23" style="left:24px; top:404px; width:150px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">DETAILS</div>
+        <div class="a f23" style="left:280px; top:404px; width:310px; height:52px; border:1px solid #35D07F; background:rgba(53,208,127,.12); border-radius:26px; display:flex; align-items:center; justify-content:center;">HOLD TO SIGN</div>
+        <div class="a f23" style="left:610px; top:404px; width:140px; height:52px; border:1px solid #2A3346; border-radius:26px; display:flex; align-items:center; justify-content:center;">BACK</div>
+      </div>
+
+      <div class="gut">
+        <i style="top:96px;">96 &nbsp;hero</i>
+        <i style="top:150px;">150 panels</i>
+        <i style="top:288px;">288 rule</i>
+        <i style="top:398px; border-top:1px solid #35D07F; color:#35D07F;">398 content stops</i>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin:0; max-width:80ch; font-size:16px; line-height:1.6; color:#A7B2C4;">What it costs, visible above. The hero no longer dominates: at <code>wt_font34</code> it is the same rung as the word SIGN, so the amount and the screen name carry equal weight, which is the wrong answer on a screen whose whole job is the amount. The address body loses fixed pitch, so "compare these 8" asks for a character by character read in a face that does not support one. The two compared runs come out <span data-slot="prop-delta">—</span> apart, so their underlines no longer match. And every figure on the screen goes proportional, which is the digits shifting column between screens that PHASE 4 of the review asked to fix.</p>
+</div>
+
+<!-- ============================ COST ============================ -->
+<div style="display:flex; flex-direction:column; gap:22px;">
+  <h2 class="eyebrow" style="margin:0;">What the three faces actually cost</h2>
+  <p style="margin:0; max-width:80ch; font-size:17px; line-height:1.6; color:#A7B2C4;">Built with the repo's own converter, same flags as <code>gen_fonts.sh</code>: <code>--bpp 4 --no-compress --no-prefilter --format lvgl</code>, source <code>IoskeleyMonoNerdFont-Medium.ttf</code>, Latin only, no CJK variant.</p>
+  <div style="border:1px solid #1E2531; border-radius:12px; overflow:hidden; background:#080B11;">
+    <table>
+      <tr><th>face</th><th>glyphs</th><th>bitmap</th><th>descriptors</th><th style="text-align:right;">flash</th></tr>
+      <tr><td><b>font_kiss_mono14</b><br><span style="color:#7A869C;">printable ASCII</span></td><td>96</td><td>3 124 B</td><td>960 B</td><td style="text-align:right;"><b>4.2 KB</b></td></tr>
+      <tr><td><b>font_kiss_mono23</b><br><span style="color:#7A869C;">printable ASCII</span></td><td>96</td><td>7 551 B</td><td>960 B</td><td style="text-align:right;"><b>8.6 KB</b></td></tr>
+      <tr><td><b>font_kiss_num48</b><br><span style="color:#7A869C;">digits, space, full stop</span></td><td>13</td><td>3 614 B</td><td>130 B</td><td style="text-align:right;"><b>3.9 KB</b></td></tr>
+      <tr><td colspan="4"><b>total</b>, against roughly 3.1 MB of spare factory partition</td><td style="text-align:right;"><b style="color:#35D07F;">16.7 KB</b></td></tr>
+    </table>
+  </div>
+  <p style="margin:0; max-width:80ch; font-size:16px; line-height:1.6; color:#A7B2C4;">The handoff estimated about 40 KB. Measured, it is <b style="color:#E8EEF7;">16.7 KB</b>, roughly five thousandths of the headroom, and that is with the full printable ASCII set rather than the bech32 subset the handoff proposed. Subsetting further saves under 2 KB and buys a class of missing glyph bug, so take the ASCII set. Run <code>tools/check_flash_budget.py</code> after the real build and paste the PASS line regardless.</p>
+</div>
+
+<!-- ============================ CORRECTIONS ============================ -->
+<div style="display:flex; flex-direction:column; gap:22px;">
+  <h2 class="eyebrow" style="margin:0;">Corrections this drawing forced</h2>
+  <div style="border:1px solid #1E2531; border-radius:12px; overflow:hidden; background:#080B11;">
+    <table>
+      <tr><th style="width:200px;">where</th><th>what</th></tr>
+      <tr><td><b>content bottom</b></td><td>Four values are in circulation: <code style="font-size:11px;">wallet_theme.h</code> says <b>398</b>, Handoff 01 draws the bar floor at 390, and the review README says 412 in two places. The work order makes the header authority, and the header's <code style="font-size:11px;">WT_ACTION_Y 404</code> and <code style="font-size:11px;">WT_ACTION_H 52</code> already match Handoff 01 exactly. Every frame here uses <b>398</b>, bar 398 to 480, pills 404 to 456. Fix the two documents.</td></tr>
+      <tr><td><b>caution hero</b></td><td>The review drops the caution hero to 40px. There is no 40 rung. Handoff 01 is right that the hero is unchanged, and this drawing keeps it at 48, which also stops the two Sign states looking like two screens.</td></tr>
+      <tr><td><b>fingerprint case</b></td><td>Handoff 01 subsets the mono faces to "digits, lowercase ASCII and the bech32 charset", but the fingerprint is uppercase hex (<code style="font-size:11px;">EC5A4595</code>) and derivation paths need <code style="font-size:11px;">m / '</code>. Full printable ASCII costs under 2 KB more. Take it.</td></tr>
+      <tr><td><b>"directly above"</b></td><td>Handoff 01 justifies the mono face by saying it puts the two lit spans at a fixed character width directly above the comparison line. The two lines are at different sizes, so no column can survive between them, and the drawing shows it does not. The real justification, in order, is tabular figures for the amounts, then a body the user can scan one character at a time, then matched run widths. Measured, that last one is worth <span data-slot="prop-delta">—</span>, so it should not be the headline. Rewrite the paragraph; the conclusion is unchanged.</td></tr>
+      <tr><td><b>grouped width</b></td><td>Handoff 01 says the grouped address needs about 465px and therefore wraps. Measured, it is <b>437px</b> against a 438px box, so it fits by one pixel. The 465 came from bad arithmetic, not from a drawing. Keep the address ungrouped, but say so for the right reason: 38 does not divide by four, so grouping splits the lit tail across a group boundary. Also amend the sentence claiming this "was drawn both ways and measured", because it now has been.</td></tr>
+      <tr><td><b>caution column</b></td><td>Handoff 01 says the column runs to "the pill's left edge at x=593" and is therefore 515px. Its own row spec puts the pill at relative x=543 inside a row at x=24, which is absolute <b>567</b>, so the column is <b>491px</b>. Both numbers cannot be right and the drawing uses the one the coordinates produce. Fix the 593 and the 515.</td></tr>
+      <tr><td><b>caution width</b></td><td>Handoff 01 estimates the longest English caution at about 357px. Measured at <code style="font-size:11px;">wt_font14</code> it is <b data-slot="caution-w">—</b>, so headroom against the corrected 491px column is about <b>1.15x</b>, not the 1.44x claimed. It still passes, but German and Russian have far less room than the handoff implies, and this is now the tightest thing on either screen.</td></tr>
+      <tr><td><b>flash estimate</b></td><td>About 40 KB, measured at 16.7 KB. Corrected above.</td></tr>
+      <tr><td><b>network chip</b></td><td>Unchanged and confirmed: network state lives in the footer cell at x=294, which exists in both mainnet and testnet at the same coordinates, so testnet adds no new element. Defect 01 closes by deletion, not relocation.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================ TOKENS ============================ -->
+<div style="display:flex; flex-direction:column; gap:22px;">
+  <h2 class="eyebrow" style="margin:0;">Every colour in this file, and its macro</h2>
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px;">
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#070A10; border-bottom:1px solid #1E2531;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_BG</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#070A10 · screen</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#E8EEF7;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_INK</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#E8EEF7 · primary</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#7A869C;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_MUT</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#7A869C · captions</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#4C5666;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_DIM</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#4C5666 · inert ink</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#35D07F;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_OK</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#35D07F · safe</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#F2B84B;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_WARN</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#F2B84B · caution</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#0A0E15; border-bottom:1px solid #1E2531;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_PANEL</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#0A0E15 · raised</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#0B0E14; border-bottom:1px solid #1E2531;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_BAR</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#0B0E14 · bar floor</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#1E2531;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_HAIR</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#1E2531 · surface rule</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#1A2130;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_DIV</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#1A2130 · in panel rule</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#2A3346;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_EDGE</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#2A3346 · control border</div></div></div>
+    <div style="border:1px solid #1E2531; border-radius:10px; overflow:hidden;"><div style="height:52px; background:#FF4D5E;"></div><div style="padding:12px 14px;"><div style="font-family:'KissMono',monospace; font-size:12px; color:#E8EEF7;">WT_STOP</div><div style="font-family:'KissMono',monospace; font-size:11px; color:#7A869C; margin-top:3px;">#FF4D5E · unused here</div></div></div>
+  </div>
+  <p style="margin:0; font-size:14px; line-height:1.6; color:#7A869C;">No colour appears anywhere inside a device frame in this file that is not one of these macros. The chrome around the frames uses the review's own greys, and the same two faces as the frames, because this file carries no webfont it did not subset from the repo itself. It renders offline with no network, no CDN and no runtime.</p>
+</div>
+
+<!-- ============================ SELF CHECK ============================ -->
+<div style="display:flex; flex-direction:column; gap:18px;">
+  <h2 class="eyebrow" style="margin:0;">Self check</h2>
+  <div id="selfcheck" style="border:1px solid #1E2531; border-radius:12px; background:#080B11; padding:22px 26px; font-family:'KissMono',monospace; font-size:13px; line-height:1.9; color:#7A869C;">running…</div>
+  <p style="margin:0; max-width:80ch; font-size:14px; line-height:1.6; color:#7A869C;">This runs on load and walks every element inside every <code style="font-size:11px;">.dev</code> frame. It is here because the exact failure the review shipped with, a size and a weight that do not exist, is invisible to a human reading a mockup and trivial for a script to catch.</p>
+</div>
+
+</div>
+</section>
+
+
+<!-- Self check. Walks every element in every device frame and fails on any
+     size, family or weight the firmware cannot produce. -->
+<script>
+(function waitForCanvas() {
+  if (!document.getElementById('selfcheck')) return setTimeout(waitForCanvas, 60);
+  document.fonts.ready.then(() => {
+  // A pure read followed by a write, so it is safe to run more than once.
+  const audit = () => {
+  const SIZES = [14, 23, 28, 34, 48];
+  const FAMS  = ['Montserrat', 'KissMono', 'KissIcons'];
+  const bad = [];
+  let n = 0;
+
+  document.querySelectorAll('.dev').forEach(dev => {
+    dev.querySelectorAll('*').forEach(el => {
+      if (!el.textContent.trim()) return;
+      if (el.children.length && !Array.from(el.childNodes).some(c => c.nodeType === 3 && c.textContent.trim())) return;
+      n++;
+      const cs = getComputedStyle(el);
+      const size = Math.round(parseFloat(cs.fontSize));
+      const fam  = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
+      const w    = cs.fontWeight;
+      if (!SIZES.includes(size))  bad.push(`size ${size} on "${el.textContent.trim().slice(0, 28)}"`);
+      if (!FAMS.includes(fam))    bad.push(`family ${fam} on "${el.textContent.trim().slice(0, 28)}"`);
+      if (String(w) !== '500')    bad.push(`weight ${w} on "${el.textContent.trim().slice(0, 28)}"`);
+    });
+  });
+
+  const frames = Array.from(document.querySelectorAll('.dev')).filter(d => d.offsetWidth === 800);
+  const wrong  = frames.filter(d => d.offsetHeight !== 480);
+
+  // measurements
+  const px = v => Math.round(v) + ' px';
+  const probe = (html, cls) => {
+    const s = document.createElement('span');
+    s.className = 'dev ' + cls;
+    s.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap; display:inline-block; width:auto; height:auto;';
+    s.innerHTML = html;
+    document.body.appendChild(s);
+    const w = s.getBoundingClientRect().width;
+    s.remove();
+    return w;
+  };
+  const ADDR = 'bc1qzyg3h8ffkz7mvd3sjn54khce6mua7lqpz9x8gf';
+  const grouped = ADDR.match(/.{1,4}/g).join(' ');
+  const ungroupedW = probe(`<span class="m f14">${ADDR}</span>`, '');
+  const groupedW   = probe(`<span class="m f14">${grouped}</span>`, '');
+  const compareEl  = document.querySelector('[data-measure="compare"]');
+  const compareW   = compareEl ? compareEl.getBoundingClientRect().width : 0;
+  const cautionEl  = document.querySelector('[data-measure="caution"]');
+  const cautionW   = cautionEl ? cautionEl.getBoundingClientRect().width : 0;
+  // The caution column is not a constant to be quoted, it is the distance from
+  // the text's left edge to the pill's. Derive it so it cannot drift from the row.
+  const pillEl     = document.querySelector('[data-measure="caution-pill"]');
+  const COL        = (cautionEl && pillEl)
+    ? Math.round(pillEl.getBoundingClientRect().left - cautionEl.getBoundingClientRect().left)
+    : 0;
+  document.querySelectorAll('[data-slot="col"]').forEach(e => e.textContent = COL + 'px');
+
+  const set = (k, v, ok) => document.querySelectorAll(`[data-slot="${k}"]`).forEach(e => {
+    e.textContent = v;
+    if (ok !== undefined) e.style.color = ok ? '#35D07F' : '#FF4D5E';
+  });
+  const slack = w => {
+    const s = Math.round(438 - w);
+    return s < 0 ? `over by ${-s} px` : `${s} px`;
+  };
+  set('ungrouped', px(ungroupedW));
+  set('ungrouped-fit', slack(ungroupedW), 438 - ungroupedW >= 40);
+  set('grouped', px(groupedW));
+  set('grouped-fit', slack(groupedW), 438 - groupedW >= 40);
+  set('compare', px(compareW));
+  set('compare-fit', slack(compareW), 438 - compareW >= 40);
+  set('caution', px(cautionW) + (cautionW <= COL ? ` of ${COL}` : ` of ${COL}, OVER`));
+
+  // The two compared runs, in the proposed face and in the fallback.
+  const run = (txt, mono) => probe(`<span class="${mono ? 'm ' : ''}f23">${txt}</span>`, '');
+  const mA = run('zyg3', true),  mB = run('x8gf', true);
+  const pA = run('zyg3', false), pB = run('x8gf', false);
+  const d = (a, b) => Math.abs(a - b) < 0.5 ? 'identical' : `off by ${(Math.abs(a - b)).toFixed(1)} px`;
+  set('mono-a', px(mA)); set('mono-b', px(mB)); set('mono-d', d(mA, mB), Math.abs(mA - mB) < 0.5);
+  set('prop-a', px(pA)); set('prop-b', px(pB)); set('prop-d', d(pA, pB), Math.abs(pA - pB) < 0.5);
+  set('prop-delta', Math.abs(pA - pB).toFixed(1) + ' px');
+  set('caution-w', px(cautionW));
+
+  const ok = s => `<div style="color:#35D07F;">PASS &nbsp;${s}</div>`;
+  const no = s => `<div style="color:#FF4D5E;">FAIL &nbsp;${s}</div>`;
+  const out = [];
+  out.push(bad.length ? no(`${bad.length} type violations`) + bad.slice(0, 8).map(b => `<div style="color:#FF4D5E; padding-left:60px;">${b}</div>`).join('') : ok(`${n} text elements, every size in {14 23 28 34 48}, every family Montserrat, KissMono or KissIcons, every weight 500`));
+  out.push(wrong.length ? no(`${wrong.length} frames are not 800x480`) : ok(`${frames.length} device frames measure exactly 800 x 480`));
+  // 40 px is the slack a line needs before it is safe to call it fitting: it is
+  // roughly five mono14 characters, which is what a locale swap can move.
+  out.push(438 - ungroupedW >= 40
+    ? ok(`address ungrouped ${px(ungroupedW)} in a 438 px box, ${px(438 - ungroupedW)} of slack`)
+    : no(`address ungrouped ${px(ungroupedW)} leaves only ${px(438 - ungroupedW)} in a 438 px box`));
+  out.push(438 - groupedW < 40
+    ? ok(`address grouped ${px(groupedW)} leaves ${px(438 - groupedW)}, too little to ship, so ungrouped it is`)
+    : no(`address grouped ${px(groupedW)} has ${px(438 - groupedW)} of slack, so width is not the reason to ungroup`));
+  out.push(Math.abs(mA - mB) < 0.5 && Math.abs(pA - pB) >= 0.5
+    ? ok(`compared runs identical in mono (${px(mA)}), off by ${(Math.abs(pA - pB)).toFixed(1)} px in Montserrat, a real but minor gain`)
+    : no(`run widths: mono ${px(mA)}/${px(mB)}, Montserrat ${px(pA)}/${px(pB)}, the face argument does not hold`));
+  out.push(cautionW <= COL ? ok(`longest caution ${px(cautionW)} fits the ${COL} px column, ${px(COL - cautionW)} of slack`) : no(`longest caution ${px(cautionW)} overflows the ${COL} px column`));
+  document.getElementById('selfcheck').innerHTML = out.join('');
+  };
+  audit();
+  setTimeout(audit, 400);
+  setTimeout(audit, 1500);
+  });
+})();
+</script>
+</body>
+</html>
