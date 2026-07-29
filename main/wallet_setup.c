@@ -242,7 +242,48 @@ static void verify_finish(void)
         mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
-        mk_body(tr(STR_W_VOK_B), 48, 206, 704, 190, MUT_COL);
+
+        // THIS is where the fingerprint gets written down, and it is the only
+        // screen in the product where that instruction can land.
+        //
+        // The fingerprint is shown three times during setup: the reveal after
+        // the passphrase, the warning screen after that, and the home chip
+        // forever after. All three come after the words are written and the
+        // paper is away. So STR_L_FP_NOTE2 has always asked "not the code you
+        // wrote down?" about a code nothing ever told anyone to write down.
+        //
+        // Here the owner has just read every word off the paper into the
+        // keypad. The paper is in their hand and a pen is next to it. Both ways
+        // in reach this: the setup rehearsal, and WALLET > VERIFY BACKUP later.
+        uint8_t fp[4];
+        wallet_ui_last_fp(fp);
+        const bool fp_known = (fp[0] | fp[1] | fp[2] | fp[3]) != 0;
+
+        // Body height follows: 58 is two lines of font23 and leaves the block
+        // below its room; with no fingerprint to show, the old 190 is free
+        // again. (A real fingerprint of 00000000 exists with probability 2^-32
+        // and costs that owner this one block, which is the safe way to be
+        // wrong: never print a fingerprint that might be a zeroed buffer.)
+        mk_body(tr(STR_W_VOK_B), 48, 196, 704, fp_known ? 58 : 190, MUT_COL);
+
+        if (fp_known) {
+            char fpbuf[16];
+            snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
+                     fp[0], fp[1], fp[2], fp[3]);
+            mk_lbl(tr(STR_L_FP_CAP), 48, 268, wt_font14(), MUT_COL);
+            lv_obj_t *f = mk_lbl(fpbuf, 48, 290, wt_font28(), INK_COL);
+            lv_obj_set_style_text_letter_space(f, 4, 0);
+            // 58, not 48. At 48 this fitted two lines only at font14, which
+            // made the one instruction the screen exists to give the smallest
+            // text on it. 334 + 58 = 392 clears the 398 floor, and a long
+            // translation still falls back to font14 inside the same slot.
+            //
+            // INK, matching setup_warn_screen. Not the accent and not WT_OK:
+            // in GREEN theme those are the same colour, and the green tick
+            // above is already carrying the status.
+            mk_body(tr(STR_W_VOK_FP), 48, 334, 704, 58, INK_COL);
+        }
+
         lv_obj_t *p = mk_pill(tr(STR_C_DONE), 48, WT_ACTION_Y, 300, verify_exit_cb, NULL);
         wt_pill_primary(p);
     } else {
