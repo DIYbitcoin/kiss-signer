@@ -137,7 +137,7 @@ int wallet_seed_set_mode(int m) {
 }
 // The desktop store is a plain file, so at-rest encryption is off: the FLASH
 // note reads as the unencrypted (steering) copy in the sim, matching a normal
-// beta board.
+// beta device.
 int wallet_seed_flash_encrypted(void) { return 0; }
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
@@ -738,8 +738,8 @@ int main(void) {
   touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
   save("/tmp/sim_sign_help.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // OK closes the card
-  // Pill tap feedback (pill_tap_feedback in wallet_theme.c). The board has no
-  // haptics, so a press is answered optically or not at all -- and "not at
+  // Pill tap feedback (pill_tap_feedback in wallet_theme.c). The device has
+  // no haptics, so a press is answered optically or not at all, and "not at
   // all" is the kind of thing a refactor takes away in silence. This is the
   // walk's ordinary FROM SD CARD tap, just photographed twice on the way
   // through, so it costs the walk nothing and still pins both halves: the
@@ -1180,8 +1180,8 @@ int main(void) {
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
-  // Drop the LVGL indev first, so what follows is a COLD open of the decoy --
-  // the state a real board is in at power-on, and the one that shipped broken.
+  // Drop the LVGL indev first, so what follows is a COLD open of the decoy:
+  // the state a real device is in at power-on, and the one that shipped broken.
   // The indev is created lazily and the decoy is the only way in that does not
   // pass through the login screen or the wizard, so it arrived without one: the
   // home drew, the game still worked (it reads the touch controller directly),
