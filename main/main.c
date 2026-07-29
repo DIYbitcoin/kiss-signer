@@ -251,9 +251,28 @@ static bool s_wallet_swallow;      // ignore the rest of the gesture that opened
 // answer: hold briefly in case a modifier is on its way. Without this the word
 // fires on the LIFT OF THE LAST S and the decoy opens before the owner can draw
 // anything after it -- which made the configured stroke literally unreachable.
-// The cost is that opening the decoy waits this long; a cover wallet can.
-#define KISS_GRACE_MS 900
+//
+// BOTH doors wait this long, and that is the point. When only the decoy waited,
+// the delay was a tell: the real wallet appeared the instant the modifier
+// stroke ended, the decoy appeared a beat later, so anyone who had once watched
+// the owner unlock properly could read which door was taken without seeing the
+// hand that drew it. On the one screen whose entire job is to be unreadable
+// under duress, that is the wrong thing to leak. Equal waits leak nothing.
+//
+// 500, not 900. The window only has to cover finger-lift to finger-DOWN, since
+// a touch restarts the count and the stroke is then classified normally. It
+// never had to cover drawing the modifier itself, which is what made 900 too
+// generous. Do not cut it much further: too short and the configured stroke
+// starts being missed, which is the bug this whole mechanism exists to fix.
+#define KISS_OPEN_DELAY_MS 500
 static bool s_kiss_pending;
+
+// The owner's stroke landed. Points are already cleared, so this is not
+// awaiting anything: it is holding the real wallet back to the same beat the
+// decoy opens on. Absolute deadline rather than the idle counter, because a
+// stray touch must not be able to postpone a door the owner already opened.
+static bool s_real_pending;
+static uint32_t s_real_at;
 static uint32_t s_wallet_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
@@ -1456,6 +1475,7 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
 #endif
   s_wallet_on = false;
   s_wallet_swallow = false;
+  s_real_pending = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
   wallet_session_close();                  // locked: no key material stays in RAM
   motes_stop();
@@ -1571,6 +1591,19 @@ static void game_tick(lv_timer_t *t) {
     s_prev_press = pressed;          // (LVGL indev); the game must not also see it
     return;                          // (and are exempt from auto-lock: writing the
   }                                  //  backup words down takes minutes, untouched)
+
+  // The owner's door, held to the decoy's timing. Everything is swallowed until
+  // it opens: the points are gone, so a tap landing in here would otherwise
+  // reach the menu's "tap to play" branch and start a game under the login.
+  if (s_real_pending) {
+    if (lv_tick_elaps(s_real_at) >= KISS_OPEN_DELAY_MS) {
+      s_real_pending = false;
+      s_gest_idle = 0;
+      wallet_login_open(wallet_start);
+    }
+    s_prev_press = pressed;
+    return;
+  }
 
   if (s_wallet_on) {                              // in the wallet: tap the KISS logo to lock
     // Waiting for a plain finger-lift is not enough: the decoy opens ON a lift
@@ -1759,7 +1792,8 @@ static void game_tick(lv_timer_t *t) {
       s_gest_idle = 0; s_idle_ms = 0;
     } else {
       if (s_prev_press) {                                    // a touch just lifted
-        if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0; s_kiss_pending = false; }
+        if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0;
+                                s_kiss_pending = false; s_real_pending = false; }
         else {
           int x0 = 9999, x1 = -9999, y0 = 9999, y1 = -9999;  // bbox of THIS stroke
           for (int i = s_stroke_n0; i < s_gn; i++) {
@@ -1812,14 +1846,15 @@ static void game_tick(lv_timer_t *t) {
               }
               else if (kind == 1) {          // the owner's stroke, or no stroke set
                 s_kiss_pending = false;
-                wallet_login_open(wallet_start);
+                s_real_pending = true;       // same beat as the decoy: see KISS_OPEN_DELAY_MS
+                s_real_at = lv_tick_get();
                 s_gn = 0; s_strokes = 0;
               }
               else {
                 // Bare KISS on a signer that HAS a stroke configured. Do not
                 // open anything yet -- the modifier may still be coming. The
                 // idle branch below opens the decoy once the panel has been
-                // quiet for KISS_GRACE_MS, and the points are kept meanwhile so
+                // quiet for KISS_OPEN_DELAY_MS, and the points are kept meanwhile so
                 // the next stroke can still be classified against the word.
                 s_kiss_pending = true;
               }
@@ -1829,7 +1864,7 @@ static void game_tick(lv_timer_t *t) {
         s_gest_idle = 0;
       } else if (s_gn > 0) {                                 // mid-draw, finger up
         s_gest_idle += TICK_MS;
-        if (s_kiss_pending && s_gest_idle >= KISS_GRACE_MS) {
+        if (s_kiss_pending && s_gest_idle >= KISS_OPEN_DELAY_MS) {
           s_kiss_pending = false;                            // no modifier came: the spare
           wallet_open_decoy();
           s_gn = 0; s_strokes = 0; s_gest_idle = 0;
