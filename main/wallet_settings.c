@@ -243,6 +243,14 @@ static void restyle(void)
         wt_pill_select(s_type_pill, true);
         wt_note_fit(s_type_expl, type_note(sc), 340, TYPE_NOTE_H);
     }
+
+    // The storage pill is selected, so wt_pill_select paints it in the accent,
+    // and it was painted once at build time and never again. Picking a new
+    // theme on this very screen left it wearing the old one until something
+    // else rebuilt the screen, which made the theme look like it had only half
+    // applied. Every other selected control on this screen is re-asserted
+    // above; this one was simply missed.
+    if (s_storage_pill) wt_pill_select(s_storage_pill, true);
 }
 
 static void pick_cb(lv_event_t *e)
