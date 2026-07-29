@@ -224,17 +224,49 @@ static void draw_ent_bar(uint16_t *fb) {
             s_ent_meter >= ENT_THRESH_X10 ? 0x368F : 0xF5C9);
 }
 
-// Exposure is the ISP pipeline controller's job now. It used to be ours: this
-// file carried a scan_exposure() that read the sensor's exposure on scan
-// start, halved it to cut motion smear, and put it back on stop. That existed
-// because no controller was running and the sensor sat on its power-on default
-// for the whole session, so there was nothing else to fight the blur.
+// No ISP pipeline controller is configured, so the sensor just runs its
+// power-on default exposure — a full frame time, which turns hand tremor into
+// module-killing motion blur. While scanning, halve it; restored on stop.
 //
-// With the controller on, halving by hand is not a workaround any more, it is
-// a second controller. The AGC drives exposure and gain from the ISP's own
-// statistics every frame; a value written underneath it is metered on the next
-// frame and corrected away, so the pair oscillate. Deleted rather than kept
-// behind a flag, because the two cannot both be right.
+// This was deleted for a while, on the reasoning that a running AGC meters any
+// value written underneath it and corrects it away on the next frame, so the
+// two would oscillate. That reasoning is still right, and it will apply again
+// the day the controller comes back. It is not right today: the controller is
+// off, on evidence, and the note in components/esp_cam_sensor/VENDOR.kiss.md
+// section 4 says why. With nothing else driving the sensor there is nothing
+// for this to fight, and without it scanning is blurrier than it was before
+// any of the camera work started.
+static int32_t s_exp_saved = -1;
+
+static void scan_exposure(bool on) {
+  struct v4l2_query_ext_ctrl qc = {.id = V4L2_CID_EXPOSURE};
+  if (ioctl(s_cam.fd, VIDIOC_QUERY_EXT_CTRL, &qc) != 0) {
+    ESP_LOGW(TAG, "scan: sensor has no exposure control");
+    return;
+  }
+  struct v4l2_ext_control c = {.id = V4L2_CID_EXPOSURE};
+  struct v4l2_ext_controls cs = {.ctrl_class = V4L2_CID_CAMERA_CLASS,
+                                 .count = 1, .controls = &c};
+  if (on) {
+    if (ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0)
+      s_exp_saved = c.value;
+    else
+      s_exp_saved = (int32_t)qc.default_value;
+    int32_t want = s_exp_saved / 2;   // mild: halves motion smear, preview stays usable
+    if (want < (int32_t)qc.minimum) want = (int32_t)qc.minimum;
+    c.value = want;
+    if (ioctl(s_cam.fd, VIDIOC_S_EXT_CTRLS, &cs) == 0)
+      ESP_LOGI(TAG, "scan: exposure %d -> %d (min %lld max %lld)",
+               (int)s_exp_saved, (int)want, (long long)qc.minimum,
+               (long long)qc.maximum);
+    else
+      ESP_LOGW(TAG, "scan: set exposure failed");
+  } else if (s_exp_saved >= 0) {
+    c.value = s_exp_saved;
+    ioctl(s_cam.fd, VIDIOC_S_EXT_CTRLS, &cs);
+    s_exp_saved = -1;
+  }
+}
 
 static void set_status(const char *fmt, ...) {
   va_list ap;
@@ -633,13 +665,23 @@ static void dbg_read_ae(void)
                      ? (uint32_t)c.value : 9999;
 }
 
-// Exposure then gain, top band, left of the centred strip.
+static int num_w(uint32_t v)
+{
+    int w = 0, n = 0;
+    do { w += scan_osd_glyph[v % 10].w + 3; v /= 10; n++; } while (v && n < 8);
+    return w - 3;
+}
+
+// Exposure then gain, top band, far end. They started at the near end and sat
+// straight on top of the CLOSE glyph, which is the one control on this screen.
 static void draw_ae_digits(uint16_t *fb)
 {
     static int tick;
     if (++tick >= 15) { tick = 0; dbg_read_ae(); }
-    int w = draw_num(fb, STRIP_TOP_PX, 12, s_dbg_exp);
-    draw_num(fb, STRIP_TOP_PX, 12 + w + 22, s_dbg_gain);
+    int we = num_w(s_dbg_exp), wg = num_w(s_dbg_gain);
+    int cy = PANEL_H - 14 - (we + 22 + wg);
+    draw_num(fb, STRIP_TOP_PX, cy, s_dbg_exp);
+    draw_num(fb, STRIP_TOP_PX, cy + we + 22, s_dbg_gain);
 }
 #endif
 
@@ -1198,6 +1240,7 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     s_scan_cb = NULL;
     return false;
   }
+  scan_exposure(true);                           // freeze hand shake
   set_status("CAM: scanning %ux%u", (unsigned)s_cam.w, (unsigned)s_cam.h);
   return true;
 }
@@ -1206,6 +1249,7 @@ void camera_scan_stop(void) {
   if (!s_scan_mode && !s_cam.streaming) return;
   s_scan_mode = false;
   s_scan_cb = NULL;
+  scan_exposure(false);                          // back to the default look
   cam_stop();                                    // waits for the stream task to exit
   if (s_quirc) { k_quirc_destroy(s_quirc); s_quirc = NULL; }
   lv_obj_invalidate(lv_screen_active());         // repaint LVGL over the video
