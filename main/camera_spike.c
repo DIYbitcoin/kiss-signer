@@ -246,6 +246,42 @@ static void set_status(const char *fmt, ...) {
 
 const char *camera_spike_status(void) { return s_status; }
 
+// TEMPORARY diagnostic. esp_video reports exactly which ioctl a sensor refused
+// through ESP_LOGE, then collapses every one of them into a single flat return
+// code, so the failure screen can only say NOT_SUPPORTED. There is no serial
+// console to read the real line from either: CONFIG_ESP_CONSOLE_UART_DEFAULT
+// puts the log on UART0 and the only cable on this device is USB.
+//
+// So tap the log for the length of esp_video_init and keep the last line that
+// says something failed. Every gate in esp_video_isp_pipeline.c phrases its
+// error as "failed to <thing>", which is precisely the thing we cannot
+// otherwise see. Remove once the pipeline starts cleanly.
+static char s_cam_log[64];
+static vprintf_like_t s_cam_log_prev;
+
+static int cam_log_tap(const char *fmt, va_list ap)
+{
+    va_list copy;
+    va_copy(copy, ap);
+    char line[192];
+    int n = vsnprintf(line, sizeof line, fmt, copy);
+    va_end(copy);
+
+    if (n > 0) {
+        const char *hit = strstr(line, "failed");
+        if (hit) {
+            size_t k = 0;
+            while (hit[k] && hit[k] != '\r' && hit[k] != '\n' &&
+                   hit[k] != '\033' && k < sizeof s_cam_log - 1) {
+                s_cam_log[k] = hit[k];
+                k++;
+            }
+            s_cam_log[k] = '\0';
+        }
+    }
+    return s_cam_log_prev ? s_cam_log_prev(fmt, ap) : n;
+}
+
 bool camera_spike_is_on(void) { return s_cam.streaming; }
 
 // Poll from the UI loop: true ONCE if the stream died on its own (error, not a
@@ -519,6 +555,42 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
   const scan_osd_strip_t *s = &scan_osd[lang][idx];
   blit_a4(fb, s, STRIP_TOP_PX, (PANEL_H - s->w) / 2);
 }
+
+// TEMPORARY, for threshold calibration. The live Shannon estimate as digits,
+// in the free end of the bottom band past the bar. ENT_THRESH_X10 was chosen
+// against the uncorrected image, and moving it honestly needs numbers read off
+// real scenes: a bar and a tick mark can only tell you "over" or "under", which
+// is the one thing already in doubt.
+//
+// Reuses the baked 0-9 glyphs. The decimal point is a plain square because
+// scan_osd bakes digits and no period. Delete this, and its call, once the
+// constant is settled against measurements.
+#define ENT_DEBUG_DIGITS 1
+#if ENT_DEBUG_DIGITS
+static void draw_ent_digits(uint16_t *fb)
+{
+    static int disp;                    // eased like the bar, or it is a blur
+    disp += (s_ent_meter - disp) / 4;
+    int v = disp < 0 ? 0 : disp > 999 ? 999 : disp;
+    int hi = v / 100, mid = (v / 10) % 10, lo = v % 10;
+
+    const int cx = 98;                  // glyph top row, inside the bottom band
+    const int gap = 3, dot = 7;
+    int w = scan_osd_glyph[mid].w + gap + dot + gap + scan_osd_glyph[lo].w;
+    if (hi) w += scan_osd_glyph[hi].w + gap;
+    int cy = PANEL_H - 14 - w;          // right aligned to the band's far end
+
+    if (hi) {
+        blit_a4(fb, &scan_osd_glyph[hi], cx, cy);
+        cy += scan_osd_glyph[hi].w + gap;
+    }
+    blit_a4(fb, &scan_osd_glyph[mid], cx, cy);
+    cy += scan_osd_glyph[mid].w + gap;
+    lrect_blend(fb, cy, (PANEL_W - 1) - (cx - 37 + dot), dot, dot, 15);
+    cy += dot + gap;
+    blit_a4(fb, &scan_osd_glyph[lo], cx, cy);
+}
+#endif
 
 // "Reading  12 of 34" as one line of real type: the baked strip, then live
 // counts from the glyph atlas (total may be unknown early — show seen alone).
@@ -857,6 +929,9 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   }
   if (s_ent_mode) {
     draw_ent_bar(fb);
+#if ENT_DEBUG_DIGITS
+    draw_ent_digits(fb);                // temporary, see the note at its definition
+#endif
     draw_osd_strip(fb, s_ent_meter >= ENT_THRESH_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
   }
   if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
@@ -929,8 +1004,15 @@ static bool cam_init(i2c_master_bus_handle_t bus) {
       .pwdn_pin = -1,
   };
   esp_video_init_config_t cfg = {.csi = &csi};
+  s_cam_log[0] = '\0';                  // temporary, see cam_log_tap
+  s_cam_log_prev = esp_log_set_vprintf(cam_log_tap);
   esp_err_t err = esp_video_init(&cfg);
-  if (err != ESP_OK) { set_status("CAM: esp_video_init %s", esp_err_to_name(err)); return false; }
+  esp_log_set_vprintf(s_cam_log_prev);
+  if (err != ESP_OK) {
+    set_status("CAM: init %s%s%s", esp_err_to_name(err),
+               s_cam_log[0] ? " / " : "", s_cam_log);
+    return false;
+  }
 
   s_cam.fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR);
   if (s_cam.fd < 0) { set_status("CAM: open %s", strerror(errno)); return false; }
