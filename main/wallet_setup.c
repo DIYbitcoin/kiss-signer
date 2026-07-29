@@ -139,6 +139,10 @@ static void mk_screen2(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, title, NULL);
+    // The quiz puts its round counter at x=500 on the title's own row, so the
+    // title gets 436 rather than the full 704. Without this the Italian and
+    // Scandinavian titles ran straight through "spot check 1 of 3".
+    wt_title_fit(s_scr, 436);
     lv_obj_t *l = wt_note(s_scr, sub, 48, 66, 704, 58);
     lv_obj_set_style_text_color(l, MUT_COL, 0);
 }
@@ -660,7 +664,13 @@ static void storage_screen(void)
     // Settings. The note is beside its control instead of hidden behind a
     // help card: this choice decides what an attacker or a border search can
     // recover after power-off.
-    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, 110, 252,
+    // 106/213/320, matching storage_chooser_screen() in wallet_settings.c row
+    // for row: three notes of three lines at font23 with the first landing on
+    // the y=96 content line and the last ending at 396. At the old 110/218/326
+    // the AMNESIC note ran to 402, so Turkish, Portuguese and Russian lost the
+    // last line of the one mode that keeps nothing on the device. The two
+    // screens present the identical choice and must not drift apart again.
+    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, 106, 252,
                               storage_pick_cb,
                               (void *)(intptr_t)WSEED_MODE_KEEP);
     wt_pill_primary(flash);
@@ -669,14 +679,14 @@ static void storage_screen(void)
     // is the encryption state.
     wt_wraph(s_scr, tr(wallet_seed_flash_encrypted() ? STR_W_FLASH_ENC_NOTE
                                                       : STR_W_KEEP_NOTE),
-             330, 100, 420, 87);
-    mk_pill(tr(STR_W_SD_BTN), 48, 218, 252, storage_pick_cb,
+             330, 96, 420, 87);
+    mk_pill(tr(STR_W_SD_BTN), 48, 213, 252, storage_pick_cb,
             (void *)(intptr_t)WSEED_MODE_SD);
-    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 330, 208, 420, 87);
+    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 330, 203, 420, 87);
 
-    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 326, 252,
+    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 320, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
-    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 316, 420, 87);
+    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 310, 420, 87);
     mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
@@ -722,12 +732,18 @@ static void whatseed_cb(lv_event_t *e)
 static void choose_screen(void)
 {
     mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
+    // The language pill starts at x=560 on the title's row, so the title gets
+    // 496. French, Italian and Portuguese titles reached into it at font34.
+    wt_title_fit(s_scr, 496);
     lv_obj_t *p = mk_pill(tr(STR_W_CREATE_NEW), 48, 150, 340, new_cb, NULL);
     wt_pill_primary(p);
     mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 264, 340, restore_cb, NULL);
     wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     430, 152, 340, 110);
     wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 430, 266, 340, 130);
-    wt_pillh(s_scr, tr(STR_W_WHATSEED_BTN), 48, 380, 340, 44, whatseed_cb, NULL);
+    // 352, not 380: at 380 the caption's bottom sat in the action band. The
+    // 64px gap under RESTORE was the only slack in this column and this is
+    // what it was for.
+    wt_pillh(s_scr, tr(STR_W_WHATSEED_BTN), 48, 352, 340, 44, whatseed_cb, NULL);
     mk_pill(tr(STR_C_CANCEL), 610, WT_ACTION_Y, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not

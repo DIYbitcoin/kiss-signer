@@ -9,6 +9,30 @@
 #include "i18n.h"
 #include "kiss_fonts.h"
 
+// Object identity, stamped into user_data. The addresses are what matter, not
+// the strings: they let action_bar_ensure tell a screen built by wt_screen from
+// an explainer card that happens to be the same size, and find the one bar it
+// already made without keeping a static pointer that a screen teardown would
+// leave dangling.
+static const char WT_SCREEN_TAG[] = "wt_screen";
+static const char WT_BAR_TAG[]    = "wt_action_bar";
+static const char WT_TITLE_TAG[]  = "wt_title";
+static const char WT_SUB_TAG[]    = "wt_subtitle";
+
+// Find one of wt_screen's own children by its tag. By tag and not by index:
+// the subtitle is only child 1 on the screens that HAVE a subtitle, and on the
+// ones that do not, child 1 is whatever the screen built first.
+static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
+{
+    if (!scr) return NULL;
+    uint32_t n = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        if (lv_obj_get_user_data(c) == (void *)tag) return c;
+    }
+    return NULL;
+}
+
 // Each composite starts with Montserrat for ASCII, symbols, and Latin text,
 // then falls back directly to the active locale's regional CJK font. A single
 // ja -> ko -> zh chain would render shared Han codepoints with whichever font
@@ -295,6 +319,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_style_text_font(cap, wt_font34(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
     lv_obj_set_pos(cap, 48, 18);
+    lv_obj_set_user_data(cap, (void *)WT_TITLE_TAG);
 
     if (sub) {
         // The subtitle gets ONE line, between the title and content at y=96.
@@ -308,8 +333,88 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_set_width(s, 704);
         lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
         lv_obj_set_pos(s, 48, 66);
+        lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
     }
+    lv_obj_set_user_data(scr, (void *)WT_SCREEN_TAG);
+    wt_title_fit(scr, 704);   // 48..752, the page margins
     return scr;
+}
+
+void wt_title_fit(lv_obj_t *scr, int w)
+{
+    lv_obj_t *cap = wt_tagged(scr, WT_TITLE_TAG);
+    if (!cap) return;
+    const char *txt = lv_label_get_text(cap);
+    if (!txt || !*txt) return;
+
+    // 34 -> 28 -> 23, one line the whole way. A title is the one label that
+    // must not wrap: wt_screen puts the subtitle 3px under its 45px box, so a
+    // second line lands on top of the subtitle rather than pushing it down.
+    // Measured unwrapped (LV_COORD_MAX) so the answer is the real width the
+    // words need, not the widest line of a wrap that already went wrong.
+    //
+    // The tracking shrinks with the size for the same reason pill labels do:
+    // 3px between letters is presence at 34 and just lost width at 23.
+    static const int space[3] = { 3, 2, 2 };
+    const lv_font_t *f[3] = { wt_font34(), wt_font28(), wt_font23() };
+    int pick = 2;
+    for (int i = 0; i < 3; i++) {
+        lv_point_t sz;
+        lv_text_get_size(&sz, txt, f[i], space[i], 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (sz.x <= w) { pick = i; break; }
+    }
+    lv_obj_set_style_text_font(cap, f[pick], 0);
+    lv_obj_set_style_text_letter_space(cap, space[pick], 0);
+}
+
+void wt_sub_fit(lv_obj_t *scr, int w)
+{
+    lv_obj_t *s = wt_tagged(scr, WT_SUB_TAG);
+    if (!s) return;
+    const char *txt = lv_label_get_text(s);
+    if (!txt) return;
+    // Re-fit as well as re-width: the subtitle gets ONE line inside a 29px
+    // budget, and narrowing the lane without re-measuring would simply wrap it
+    // onto the y=96 content line.
+    lv_obj_set_style_text_font(s, note_font(txt, w, 29), 0);
+    lv_obj_set_width(s, w);
+}
+
+// ---- the action bar (see wallet_theme.h) ----
+// Built on demand by wt_pillh, so it exists exactly on the screens that have an
+// action row and never has to be remembered.
+//
+// Created ONCE and never re-raised. LVGL paints in tree order, so the bar lands
+// above everything built before the first action pill and below every pill
+// built after it, which is the stacking this wants. Raising it again on the
+// second pill would put it over the first one. It also means anything a screen
+// deliberately draws INSIDE the band after its buttons, such as the build
+// identity line along the bottom edge of Settings, still draws on top of the
+// bar rather than being swallowed by it.
+static void action_bar_ensure(lv_obj_t *scr)
+{
+    if (!scr || lv_obj_get_user_data(scr) != (void *)WT_SCREEN_TAG) return;
+
+    uint32_t n = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0; i < n; i++)
+        if (lv_obj_get_user_data(lv_obj_get_child(scr, i)) == (void *)WT_BAR_TAG)
+            return;
+
+    lv_obj_t *bar = lv_obj_create(scr);
+    lv_obj_remove_style_all(bar);
+    lv_obj_set_user_data(bar, (void *)WT_BAR_TAG);
+    lv_obj_set_pos(bar, 0, WT_CONTENT_BOTTOM);
+    lv_obj_set_size(bar, 800, 480 - WT_CONTENT_BOTTOM);
+    lv_obj_set_style_bg_color(bar, WT_BAR, 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(bar, WT_HAIR, 0);
+    lv_obj_set_style_border_width(bar, 1, 0);
+    lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_TOP, 0);
+    // Not clickable and not scrollable: it is a surface, and a tap that misses a
+    // button must fall through to whatever is behind rather than being eaten.
+    lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 // ---- tap feedback ----
@@ -403,6 +508,12 @@ lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
 lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud)
 {
+    // A pill at the action line means this screen has an action row, so it
+    // gets the floor to stand on. No-op for a pill that is content (a chooser
+    // row, a keyboard key) and for one built inside a card rather than on a
+    // screen, which is why the test is the y AND the tag, not either alone.
+    if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
+
     lv_obj_t *p = lv_obj_create(scr);
     lv_obj_remove_style_all(p);
     lv_obj_set_size(p, w, h);
@@ -1038,7 +1149,7 @@ void wt_card_intro(lv_obj_t *card)
 }
 
 // ---- chip diagrams (shared by the "?" cards) ----
-lv_obj_t *wt_diagram_row(lv_obj_t *parent, int y)
+lv_obj_t *wt_diagram_row(lv_obj_t *parent)
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
@@ -1047,7 +1158,7 @@ lv_obj_t *wt_diagram_row(lv_obj_t *parent, int y)
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row, 8, 0);
-    lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     return row;
 }
 
@@ -1080,9 +1191,9 @@ lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
     return l;
 }
 
-void wt_diagram_fp(lv_obj_t *parent, int y)
+void wt_diagram_fp(lv_obj_t *parent)
 {
-    lv_obj_t *row = wt_diagram_row(parent, y);
+    lv_obj_t *row = wt_diagram_row(parent);
     wt_chip(row, tr(STR_D_WORDS), false);
     wt_diagram_op(row, "+");
     wt_chip(row, tr(STR_D_PASSPHRASE), false);
@@ -1090,10 +1201,10 @@ void wt_diagram_fp(lv_obj_t *parent, int y)
     wt_chip(row, tr(STR_D_FINGERPRINT), true);
 }
 
-void wt_diagram_pair(lv_obj_t *parent, int y)
+void wt_diagram_pair(lv_obj_t *parent)
 {
     // the airgap: an online app and the offline signer, bridged only by QR
-    lv_obj_t *row = wt_diagram_row(parent, y);
+    lv_obj_t *row = wt_diagram_row(parent);
     wt_chip(row, tr(STR_D_ONLINE_APP), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT " QR " LV_SYMBOL_LEFT);
     wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
