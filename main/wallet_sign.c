@@ -1121,13 +1121,21 @@ actions:
     if (np && !s_ack) {
         // Present, in place, and visibly inert. Disabled ink rather than a
         // hidden or moved button, so the owner can see what acknowledging the
-        // rows above is going to unlock.
+        // rows above is going to unlock. No accent here on purpose: the accent
+        // is this app's "press this one" marker, so wearing it while inert
+        // would be a lie.
         lv_obj_set_style_border_color(p, WT_EDGE, 0);
         lv_obj_set_style_text_color(s_sign_lbl, WT_DIM, 0);
         lv_obj_add_state(s_arc, LV_STATE_DISABLED);
     } else {
         lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
-        lv_obj_set_style_border_color(p, wt_primary(), 0);
+        // The same primary marker every other screen's suggested action wears,
+        // rather than a bare 1px accent border invented here: 2px, an accent
+        // tinted fill, a pressed fill the hold can be felt against, and the top
+        // label rung. ADDENDUM-02 asks for this, and the reason is that a
+        // hand rolled variant of the app's loudest affordance is exactly the
+        // kind of near miss the redraw is meant to remove.
+        wt_pill_primary(p);
     }
 }
 
