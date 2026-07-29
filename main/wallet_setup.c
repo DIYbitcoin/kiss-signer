@@ -311,6 +311,19 @@ static void verify_intro_screen(void)
 }
 
 // ---- quiz (prove the backup) ----
+// Same reset as a wrong answer, but reached deliberately: an offered escape
+// hatch back to the words when the person doing the check is not sure. The
+// quiz round counter goes to zero so they start over, since answering any
+// previous rounds correctly before doubting the paper does not prove them
+// against the paper they now want to re-read.
+static void words_go_again_cb(lv_event_t *e)
+{
+    (void)e;
+    s_quiz_round = 0;
+    s_wpage = 0;
+    words_screen();
+}
+
 static void quiz_pick_cb(lv_event_t *e)
 {
     int slot = (int)(intptr_t)lv_event_get_user_data(e);
@@ -364,13 +377,27 @@ static void quiz_screen(void)
         mk_pill(w, 48 + (i % 2) * 380, 208 + (i / 2) * 80, 340,
                 quiz_pick_cb, (void *)(intptr_t)i);
     }
-    // Right-aligned to the same 752 margin the rest of the page uses. Pinned at
-    // x=680 it ran off the right edge of the panel: "spot check 1 of 3" is
-    // 120px at font14 and the screen stops at 800.
-    snprintf(buf, sizeof buf, tr(STR_W_QUIZ_N_FMT), s_quiz_round + 1, QUIZ_ROUNDS);
-    lv_obj_t *rn = mk_lbl(buf, 500, 30, wt_font14(), MUT_COL);
-    lv_obj_set_width(rn, 252);
-    lv_obj_set_style_text_align(rn, LV_TEXT_ALIGN_RIGHT, 0);
+
+    // Progress as dots, not as text. Per SWEEP-01 edit 3: three 10px dots
+    // under the title, WT_OK when the round has been passed and WT_EDGE when
+    // not. "spot check X of Y" is not gone from the code; it stays available
+    // to OSDs and screen readers via STR_W_QUIZ_N_FMT, it is just no longer
+    // the only progress cue.
+    for (int i = 0; i < QUIZ_ROUNDS; i++) {
+        lv_obj_t *dot = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(dot);
+        lv_obj_set_size(dot, 10, 10);
+        lv_obj_set_pos(dot, 48 + i * 18, 176);
+        lv_obj_set_style_radius(dot, 5, 0);
+        lv_obj_set_style_bg_color(dot, i < s_quiz_round ? WT_OK : WT_EDGE, 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    }
+    // The bottom 180px was empty, per SWEEP-01. A wrong answer already means
+    // the paper is wrong, but there was no way back to the words without
+    // leaving setup. This pill takes s_wpage back to 0 and reopens the words
+    // screen, same as the wrong-answer path but reached deliberately.
+    mk_pill(tr(STR_W_QUIZ_SHOW_AGAIN), 48, WT_ACTION_Y, 300,
+            words_go_again_cb, NULL);
 }
 
 // ---- words on screen (the backup moment) ----
