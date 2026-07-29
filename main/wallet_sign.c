@@ -877,6 +877,10 @@ static void details_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
+    // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
+    // starts at x=560 with a label that takes two lines in the longer locales.
+    // The lane stops at 548 so the two cannot meet.
+    wt_sub_fit(s_scr, 500);
 
     lv_obj_t *learn = wt_pillh(s_scr, tr(STR_S_GLOSSARY_T),
                                560, 28, 192, 44, glossary_cb, NULL);
@@ -1030,7 +1034,12 @@ static void qr_out_screen(size_t sw)
     }
 
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
-    wt_qr_card(s_scr, &s_qr_img, 48, 100, 316, 288);
+    // 302/274, down from 316/288 at y=100. The old card ran to y=415 and the
+    // QR bitmap itself to 401, so its bottom 4px sat in the action band and is
+    // now painted over by the bar: a signed transaction that will not scan.
+    // The card shrinks rather than the quiet zone, so the 14px of white around
+    // the code is exactly what it was and only the modules are 5% smaller.
+    wt_qr_card(s_scr, &s_qr_img, 48, 96, 302, 274);
 
     int n = qrt_encoder_parts(s_qenc);
     mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SIGNED_T), 430, 100, wt_font14(), OK_COL);
@@ -1137,6 +1146,20 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
+        // A flex row, so the name takes whatever the tag leaves and not a pixel
+        // more. The name used to be a fixed 410 wide aligned left and the tag
+        // aligned right, which is two independent guesses about one 560px row:
+        // "UNSIGNED" is 113px in Italian and 130 in Polish, so the tag walked
+        // left into the filename in six languages and the two overprinted.
+        // flex_grow makes the arithmetic the layout's problem, which means a
+        // longer translation shortens the ellipsis instead of colliding.
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_left(row, 20, 0);
+        lv_obj_set_style_pad_right(row, 18, 0);
+        lv_obj_set_style_pad_column(row, 16, 0);
+
         lv_obj_t *name = lv_label_create(row);
         lv_label_set_text(name, s_files[i]);
         lv_obj_set_style_text_color(name, signed_file ? MUT_COL : INK_COL, 0);
@@ -1144,10 +1167,12 @@ static void sd_open(lv_obj_t *parent)
         // on the screen. One line at 23 fits the 56px row easily; the ladder
         // only drops a name to 14 when it is long enough that 23 would run into
         // LONG_DOT, because a truncated filename is worse than a small one.
-        lv_obj_set_style_text_font(name, wt_body_font(s_files[i], 410, 29), 0);
-        lv_obj_set_width(name, 410);
+        // Measured at 370, the width left once the longest tag and both gutters
+        // are taken, so the font is chosen against the room the name will
+        // actually get rather than the room it used to assume.
+        lv_obj_set_style_text_font(name, wt_body_font(s_files[i], 370, 29), 0);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-        lv_obj_align(name, LV_ALIGN_LEFT_MID, 20, 0);
+        lv_obj_set_flex_grow(name, 1);
 
         lv_obj_t *tag = lv_label_create(row);
         lv_label_set_text(tag, signed_file ? tr(STR_S_SIGNED_T)
@@ -1155,7 +1180,6 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_set_style_text_color(tag, signed_file ? WARN_COL : MUT_COL, 0);
         lv_obj_set_style_text_font(tag, wt_font14(), 0);
         lv_obj_set_style_text_letter_space(tag, 1, 0);
-        lv_obj_align(tag, LV_ALIGN_RIGHT_MID, -18, 0);
     }
     mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, choose_back_cb);
 }
@@ -1365,6 +1389,11 @@ void wallet_sign_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
+    // The PSBT help chip below sits at x=652, inside the subtitle's own lane.
+    // The subtitle's box is the full 704 whatever the translation does, so the
+    // two overlapped in every locale, English included. 580 stops the lane at
+    // x=628, 24px clear of the chip.
+    wt_sub_fit(s_scr, 580);
     // Both ways in are the same size. SCAN QR is short and primary, so on its
     // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
     // -- two buttons offering the same choice, one visibly louder. Primary

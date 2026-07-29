@@ -52,13 +52,12 @@ static void help_ok_cb(lv_event_t *e)
 
 enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
 
-static void sp_permission_fact(lv_obj_t *parent, int y, const char *icon,
+static void sp_permission_fact(lv_obj_t *parent, const char *icon,
                                int key, lv_color_t icon_color)
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, 560, 38);
-    lv_obj_set_pos(row, 120, y);
     lv_obj_set_style_radius(row, 12, 0);
     lv_obj_set_style_bg_color(row, WT_KEY, 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
@@ -76,13 +75,26 @@ static void sp_permission_fact(lv_obj_t *parent, int y, const char *icon,
 // A private scan key is unusual enough that prose alone makes users hunt for
 // the actual permission boundary. These three rows are reused on the explainer
 // and the consent screen, and remain meaningful in MONO through shape + words.
-static void sp_permission_model(lv_obj_t *parent, int y)
+static void sp_permission_model(lv_obj_t *parent)
 {
-    sp_permission_fact(parent, y,      LV_SYMBOL_EYE_OPEN,
+    // A flex column, so the three rows keep their 6px gap wherever the parent
+    // decides to put the block. They used to be placed at y, y+44 and y+88 from
+    // a number the caller had to keep in step with how tall the body above them
+    // rendered, which is the same fault as the diagram row below.
+    lv_obj_t *col = lv_obj_create(parent);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 6, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+    sp_permission_fact(col, LV_SYMBOL_EYE_OPEN,
                        STR_R_SP_FACT_FIND, wt_accent());
-    sp_permission_fact(parent, y + 44, WT_ICON_LOCK,
+    sp_permission_fact(col, WT_ICON_LOCK,
                        STR_R_SP_FACT_NO_SPEND, WT_OK);
-    sp_permission_fact(parent, y + 88, LV_SYMBOL_LOOP,
+    sp_permission_fact(col, LV_SYMBOL_LOOP,
                        STR_R_SP_FACT_FOREVER, WT_WARN);
 }
 
@@ -98,27 +110,47 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(ovl, help_ok_cb, LV_EVENT_CLICKED, ovl);  // tap anywhere = ok
 
+    // The card is a flex COLUMN, so each block starts where the one above it
+    // actually ended. Every piece here used to be aligned to an absolute y
+    // chosen for the English copy: the body is wt_body_font-sized, so a longer
+    // translation grew it downward while the diagram stayed at 330 and the
+    // escape-gesture hint stayed at 356. On the home fingerprint card that put
+    // "tap the KISS logo any time to go back to the game" straight through the
+    // WORDS + PASSPHRASE > FINGERPRINT chips, in every locale including English.
+    //
+    // wt_card_intro staggers the card's DIRECT children, so they stay direct
+    // children of the overlay and the overlay itself does the laying out. The
+    // entrance animation is unchanged.
     bool scan_card = diagram == DIAG_SCAN;
+    lv_obj_set_flex_flow(ovl, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ovl, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(ovl, 20, 0);
+
     lv_obj_t *t = wt_lbl(ovl, title, 0, 0, wt_font28(), wt_accent());
     lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, scan_card ? 34 : 96);
+    // The top offset is the title's MARGIN, not the overlay's padding. Padding
+    // moves a parent's content origin, and the OK pill below is placed at an
+    // absolute WT_ACTION_Y that is measured from that origin: with pad_top the
+    // button landed 90px lower, which on a 480px panel means off the bottom.
+    lv_obj_set_style_margin_top(t, scan_card ? 34 : 90, 0);
 
     // body sizes itself: short copy reads big, a long translation stays inside
     // the card. Width-capped + wrapping, so the hard newlines written for the
     // small font can never run off the edge at the big one.
-    // Normal bodies run from y=160 to the diagram or OK pill. The scan-key
-    // body is deliberately short: the capability boundary is shown below it.
+    // The height budgets are what stops the column overflowing: title + body +
+    // diagram + hint + the gaps have to land above WT_CONTENT_BOTTOM, and the
+    // body is the only one of them that can be asked to give.
     int bw = scan_card ? 700 : 720;
-    int bh = scan_card ? 145 : diagram == DIAG_NONE ? 225 : 155;
+    int bh = scan_card ? 145 : diagram == DIAG_NONE ? 225 : 145;
     lv_obj_t *b = wt_lbl(ovl, body, 0, 0, wt_body_font(body, bw, bh), WT_MUT);
     lv_obj_set_width(b, bw);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, scan_card ? 78 : 160);
 
-    if (diagram == DIAG_FP)   wt_diagram_fp(ovl, 330);
-    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl, 330);
-    if (diagram == DIAG_SCAN) sp_permission_model(ovl, 230);
+    if (diagram == DIAG_FP)   wt_diagram_fp(ovl);
+    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl);
+    if (diagram == DIAG_SCAN) sp_permission_model(ovl);
 
     // The home card used to be the only place that taught the escape gesture.
     // Keep that lesson when the two fingerprint cards become one.
@@ -128,10 +160,16 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
         lv_obj_set_width(x, 700);
         lv_label_set_long_mode(x, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_align(x, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(x, LV_ALIGN_TOP_MID, 0, 356);
     }
 
-    wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, help_ok_cb, ovl);
+    // OK is an action, so it sits on the action line every other screen uses,
+    // and it steps OUT of the column to get there: without IGNORE_LAYOUT the
+    // flex flow would stack it under the last paragraph and its y would depend
+    // on how long the translation ran.
+    lv_obj_t *ok = wt_pill(ovl, tr(STR_C_OK), 300, WT_ACTION_Y, 200,
+                           help_ok_cb, ovl);
+    lv_obj_add_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_set_pos(ok, 300, WT_ACTION_Y);
     wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
     return ovl;
 }
@@ -279,8 +317,12 @@ static void pair_screen(void)
 
     // where does the coordinator live? two parallel choices, side by side like
     // the Settings ADDRESS TYPE picker (a dropdown would hide one of only two)
-    wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
-    mk_help_chip(526, 90, "pair");
+    // The chip goes after the caption's MEASURED width, the way every other
+    // one on this screen does. Pinned at 526 it assumed the caption was 126px,
+    // which "GÖSTERİLECEK YER" is not.
+    lv_obj_t *show_sec = wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
+    lv_obj_update_layout(show_sec);
+    mk_help_chip(400 + lv_obj_get_width(show_sec) + 12, 90, "pair");
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {
@@ -354,11 +396,26 @@ static void sp_key_warn_cb(lv_event_t *e)
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN),
                       tr_sym(LV_SYMBOL_WARNING, STR_R_SP_WARN_S));
-    lv_obj_t *wb = wt_lbl(s_scr, tr(STR_R_SP_WARN_B), 48, 104,
+    // Warning paragraph then the three permission rows, in a flex column: the
+    // paragraph is wt_body_font-sized, so the block under it cannot be placed
+    // at a y decided in advance. wt_body_font floors at font14 rather than
+    // guaranteeing the budget, so "it fits in 145" was an assumption and not a
+    // fact even before a translation was involved.
+    lv_obj_t *col = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 48, 104);
+    lv_obj_set_size(col, 704, WT_CONTENT_BOTTOM - 104);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 16, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *wb = wt_lbl(col, tr(STR_R_SP_WARN_B), 0, 0,
                           wt_body_font(tr(STR_R_SP_WARN_B), 700, 145), WT_MUT);
     lv_obj_set_width(wb, 700);
     lv_label_set_long_mode(wb, LV_LABEL_LONG_WRAP);
-    sp_permission_model(s_scr, 256);
+    sp_permission_model(col);
     // Revealing a reusable private scan key should not be one stray tap away.
     // A short hold is deliberate without adding the friction of signing.
     wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
@@ -518,36 +575,47 @@ static void info_screen(void)
     // Caption small, VALUE big. These four values are the whole point of the
     // screen -- the fingerprint you check, the network you are on, the address
     // you read out loud -- so they get the size, and their labels stay eyebrows.
-    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 128);
+    //
+    // The rhythm is 7px of air above a section eyebrow and 2px between a
+    // caption and the value it names, all the way down, because the last item
+    // is a grouped address that takes TWO lines at font23 and the column has to
+    // end by WT_CONTENT_BOTTOM. It used to start that address at y=360, which
+    // put its second line under the action row where the bar now covers it: the
+    // owner was reading half an address and had no way to know it.
+    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 126);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 122, "fp");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 120, "fp");
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 150, wt_font28(), WT_INK);
+    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 145, wt_font28(), WT_INK);
     lv_obj_set_style_text_letter_space(f, 2, 0);
 
-    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 196);
+    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 188);
     wt_lbl(s_scr, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-           48, 216, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
+           48, 207, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 254);
+    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 242);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 248, "type");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 236, "type");
     int sc = wallet_script();
     int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
     wt_lbl(s_scr, sc == WSCRIPT_LEGACY ? "Legacy (1...)"
                : sc == WSCRIPT_NESTED ? "Nested SegWit (3...)"
                                       : "Native SegWit (bc1...)",
-           48, 274, wt_font23(), WT_INK);
+           48, 261, wt_font23(), WT_INK);
+    // font14, matching the same path on the receive detail screen. It is a
+    // reference you quote to a coordinator, not a thing you read at arm's
+    // length, and it is the one line here whose 10px buys the address its
+    // second line back.
     snprintf(buf, sizeof buf, "m/%d'/%d'/0'", purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 304, wt_font23(), WT_MUT);
+    wt_lbl(s_scr, buf, 48, 291, wt_font14(), WT_MUT);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 338);
+    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 316);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 332, "addr");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 310, "addr");
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
     wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 360, wt_font23(), WT_INK);
+    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 338, wt_font23(), WT_INK);
     lv_obj_set_width(a, 360);
     lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
 
