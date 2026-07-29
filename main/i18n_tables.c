@@ -423,6 +423,8 @@ static const char *const tbl_en[STR_N] = {
     [STR_S_CMP_8] = "compare these 8",
     [STR_W_CHOOSE_NEW] = "CREATE A NEW WALLET",
     [STR_W_CHOOSE_RESTORE] = "RESTORE FROM A SEED PHRASE",
+    [STR_R_NEVER_HANDED] = "NEVER HANDED OUT",
+    [STR_R_HANDED_ALREADY] = "HANDED OUT ALREADY",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -847,6 +849,8 @@ static const char *const tbl_de[STR_N] = {
     [STR_S_CMP_8] = "diese 8 vergleichen",
     [STR_W_CHOOSE_NEW] = "NEUE WALLET ERSTELLEN",
     [STR_W_CHOOSE_RESTORE] = "AUS SEED-PHRASE WIEDERHERSTELLEN",
+    [STR_R_NEVER_HANDED] = "NIE HERAUSGEGEBEN",
+    [STR_R_HANDED_ALREADY] = "BEREITS HERAUSGEGEBEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1271,6 +1275,8 @@ static const char *const tbl_es[STR_N] = {
     [STR_S_CMP_8] = "compara estos 8",
     [STR_W_CHOOSE_NEW] = "CREAR UNA CARTERA NUEVA",
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
+    [STR_R_NEVER_HANDED] = "NUNCA ENTREGADA",
+    [STR_R_HANDED_ALREADY] = "YA ENTREGADA",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1695,6 +1701,8 @@ static const char *const tbl_fr[STR_N] = {
     [STR_S_CMP_8] = "comparer ces 8",
     [STR_W_CHOOSE_NEW] = "CRÉER UN NOUVEAU PORTEFEUILLE",
     [STR_W_CHOOSE_RESTORE] = "RESTAURER DEPUIS UNE PHRASE DE RÉCUPÉRATION",
+    [STR_R_NEVER_HANDED] = "JAMAIS DONNÉE",
+    [STR_R_HANDED_ALREADY] = "DÉJÀ DONNÉE",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2119,6 +2127,8 @@ static const char *const tbl_it[STR_N] = {
     [STR_S_CMP_8] = "confronta questi 8",
     [STR_W_CHOOSE_NEW] = "CREA UN NUOVO PORTAFOGLIO",
     [STR_W_CHOOSE_RESTORE] = "RIPRISTINA DA UNA FRASE DI RECUPERO",
+    [STR_R_NEVER_HANDED] = "MAI CONSEGNATO",
+    [STR_R_HANDED_ALREADY] = "GIÀ CONSEGNATO",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2543,6 +2553,8 @@ static const char *const tbl_ja[STR_N] = {
     [STR_S_CMP_8] = "この 8 文字を照合",
     [STR_W_CHOOSE_NEW] = "新しいウォレットを作成",
     [STR_W_CHOOSE_RESTORE] = "リカバリーフレーズから復元",
+    [STR_R_NEVER_HANDED] = "未配布",
+    [STR_R_HANDED_ALREADY] = "配布済み",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2967,6 +2979,8 @@ static const char *const tbl_ko[STR_N] = {
     [STR_S_CMP_8] = "이 8자 대조",
     [STR_W_CHOOSE_NEW] = "새 지갑 만들기",
     [STR_W_CHOOSE_RESTORE] = "복구 문구로 복원",
+    [STR_R_NEVER_HANDED] = "미배포",
+    [STR_R_HANDED_ALREADY] = "이미 배포됨",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3391,6 +3405,8 @@ static const char *const tbl_nl[STR_N] = {
     [STR_S_CMP_8] = "vergelijk deze 8",
     [STR_W_CHOOSE_NEW] = "NIEUWE PORTEMONNEE MAKEN",
     [STR_W_CHOOSE_RESTORE] = "HERSTELLEN VAN EEN HERSTELZIN",
+    [STR_R_NEVER_HANDED] = "NOOIT UITGEGEVEN",
+    [STR_R_HANDED_ALREADY] = "AL UITGEGEVEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3815,6 +3831,8 @@ static const char *const tbl_pl[STR_N] = {
     [STR_S_CMP_8] = "porównaj te 8",
     [STR_W_CHOOSE_NEW] = "UTWÓRZ NOWY PORTFEL",
     [STR_W_CHOOSE_RESTORE] = "PRZYWRÓĆ Z FRAZY ODZYSKIWANIA",
+    [STR_R_NEVER_HANDED] = "NIGDY NIE PODANY",
+    [STR_R_HANDED_ALREADY] = "JUŻ PODANY",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4239,6 +4257,8 @@ static const char *const tbl_pt[STR_N] = {
     [STR_S_CMP_8] = "compare estes 8",
     [STR_W_CHOOSE_NEW] = "CRIAR UMA NOVA CARTEIRA",
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
+    [STR_R_NEVER_HANDED] = "NUNCA ENTREGUE",
+    [STR_R_HANDED_ALREADY] = "JÁ ENTREGUE",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4663,6 +4683,8 @@ static const char *const tbl_ru[STR_N] = {
     [STR_S_CMP_8] = "сверьте эти 8",
     [STR_W_CHOOSE_NEW] = "СОЗДАТЬ НОВЫЙ КОШЕЛЁК",
     [STR_W_CHOOSE_RESTORE] = "ВОССТАНОВИТЬ ИЗ ФРАЗЫ ВОССТАНОВЛЕНИЯ",
+    [STR_R_NEVER_HANDED] = "ЕЩЕ НЕ ПЕРЕДАН",
+    [STR_R_HANDED_ALREADY] = "УЖЕ ПЕРЕДАН",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5087,6 +5109,8 @@ static const char *const tbl_tr[STR_N] = {
     [STR_S_CMP_8] = "bu 8'i karşılaştır",
     [STR_W_CHOOSE_NEW] = "YENİ CÜZDAN OLUŞTUR",
     [STR_W_CHOOSE_RESTORE] = "KURTARMA CÜMLESİNDEN GERİ YÜKLE",
+    [STR_R_NEVER_HANDED] = "HİÇ VERİLMEDİ",
+    [STR_R_HANDED_ALREADY] = "ZATEN VERİLDİ",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5511,6 +5535,8 @@ static const char *const tbl_vi[STR_N] = {
     [STR_S_CMP_8] = "so sánh 8 ký tự này",
     [STR_W_CHOOSE_NEW] = "TẠO VÍ MỚI",
     [STR_W_CHOOSE_RESTORE] = "KHÔI PHỤC TỪ CỤM TỪ KHÔI PHỤC",
+    [STR_R_NEVER_HANDED] = "CHƯA TỪNG ĐƯA RA",
+    [STR_R_HANDED_ALREADY] = "ĐÃ ĐƯA RA",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5935,6 +5961,8 @@ static const char *const tbl_zh[STR_N] = {
     [STR_S_CMP_8] = "对比这 8 个字",
     [STR_W_CHOOSE_NEW] = "创建新钱包",
     [STR_W_CHOOSE_RESTORE] = "从助记词恢复",
+    [STR_R_NEVER_HANDED] = "从未给出",
+    [STR_R_HANDED_ALREADY] = "已经给出",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6359,6 +6387,8 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_S_CMP_8] = "compara estos 8",
     [STR_W_CHOOSE_NEW] = "CREAR UNA CARTERA NUEVA",
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
+    [STR_R_NEVER_HANDED] = "NUNCA ENTREGADA",
+    [STR_R_HANDED_ALREADY] = "YA ENTREGADA",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6783,6 +6813,8 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_S_CMP_8] = "compare estes 8",
     [STR_W_CHOOSE_NEW] = "CRIAR UMA NOVA CARTEIRA",
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
+    [STR_R_NEVER_HANDED] = "NUNCA ENTREGUE",
+    [STR_R_HANDED_ALREADY] = "JÁ ENTREGUE",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7207,6 +7239,8 @@ static const char *const tbl_nb[STR_N] = {
     [STR_S_CMP_8] = "sammenlign disse 8",
     [STR_W_CHOOSE_NEW] = "OPPRETT NY LOMMEBOK",
     [STR_W_CHOOSE_RESTORE] = "GJENOPPRETT FRA GJENOPPRETTINGSFRASE",
+    [STR_R_NEVER_HANDED] = "ALDRI GITT UT",
+    [STR_R_HANDED_ALREADY] = "ALLEREDE GITT UT",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7631,6 +7665,8 @@ static const char *const tbl_sv[STR_N] = {
     [STR_S_CMP_8] = "jämför dessa 8",
     [STR_W_CHOOSE_NEW] = "SKAPA NY PLÅNBOK",
     [STR_W_CHOOSE_RESTORE] = "ÅTERSTÄLL FRÅN ÅTERSTÄLLNINGSFRAS",
+    [STR_R_NEVER_HANDED] = "ALDRIG UTLÄMNAD",
+    [STR_R_HANDED_ALREADY] = "REDAN UTLÄMNAD",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8055,6 +8091,8 @@ static const char *const tbl_da[STR_N] = {
     [STR_S_CMP_8] = "sammenlign disse 8",
     [STR_W_CHOOSE_NEW] = "OPRET NY WALLET",
     [STR_W_CHOOSE_RESTORE] = "GENDAN FRA GENDANNELSESSÆTNING",
+    [STR_R_NEVER_HANDED] = "ALDRIG UDLEVERET",
+    [STR_R_HANDED_ALREADY] = "ALLEREDE UDLEVERET",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8479,6 +8517,8 @@ static const char *const tbl_cs[STR_N] = {
     [STR_S_CMP_8] = "porovnejte těchto 8",
     [STR_W_CHOOSE_NEW] = "VYTVOŘIT NOVOU PENĚŽENKU",
     [STR_W_CHOOSE_RESTORE] = "OBNOVIT Z OBNOVOVACÍ FRÁZE",
+    [STR_R_NEVER_HANDED] = "NIKDY NEVYDÁNA",
+    [STR_R_HANDED_ALREADY] = "JIŽ VYDÁNA",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8903,6 +8943,8 @@ static const char *const tbl_hr[STR_N] = {
     [STR_S_CMP_8] = "usporedi ovih 8",
     [STR_W_CHOOSE_NEW] = "IZRADI NOVI NOVČANIK",
     [STR_W_CHOOSE_RESTORE] = "OBNOVI IZ FRAZE ZA OPORAVAK",
+    [STR_R_NEVER_HANDED] = "NIKAD IZDANA",
+    [STR_R_HANDED_ALREADY] = "VEĆ IZDANA",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

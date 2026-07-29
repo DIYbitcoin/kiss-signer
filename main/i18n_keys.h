@@ -423,6 +423,8 @@ enum {
     STR_S_CMP_8,
     STR_W_CHOOSE_NEW,
     STR_W_CHOOSE_RESTORE,
+    STR_R_NEVER_HANDED,
+    STR_R_HANDED_ALREADY,
     STR_N
 };
 
