@@ -41,7 +41,7 @@
 
 #include "k_quirc.h"
 #include "i18n.h"
-#include "scan_osd.h"
+#include "osd_strips.h"
 
 static const char *TAG = "camspike";
 
@@ -132,16 +132,78 @@ void camera_scan_progress(int seen, int total) {
   s_scan_total = total;
 }
 
-// ---- step 7 entropy mode: live Shannon estimate over the raw RGB565 frame
-// (full 65536-bin histogram, Kern's method + threshold); the SEED entropy is
-// SHA256(SHA256(frame) || hardware TRNG) — Shannon is only the quality gate.
-#define ENT_THRESH_X10 60               // 6.0 bits minimum, same as Kern
+// ---- step 7 entropy mode: gather across frames, do not gate on one.
+//
+// The seed is SHA256(chain || hardware TRNG), where the chain is folded from
+// EVERY sampled frame the holder shows the camera. The live Shannon estimate
+// over one frame's 65536-bin histogram is still computed and still shown, but
+// it is now a rate, not a verdict: it says how fast the bar is filling.
+//
+// This used to gate a single frame at 6.0 bits and refuse anything under it.
+// Three things were wrong with that.
+//
+// It threw away every frame but one. A sampled frame arrives ten times a
+// second, and sensor read noise is independent between them while a vignette
+// or a hot pixel is not. Chaining twenty frames therefore gathers real
+// unpredictability that one frame cannot, and dilutes the fixed pattern
+// described below rather than counting it once per attempt.
+//
+// The refusal bought nothing. wallet_entropy_mix folds the chain together with
+// esp_fill_random, so a wholly predictable scene still leaves the seed no
+// worse than the hardware TRNG alone. The gate is a quality prompt, not a
+// security control, and creating a new seed is the ONLY path to this screen:
+// a prompt that can permanently refuse is a device that cannot make a wallet.
+//
+// And 6.0 was picked against an image with the sensor's black pedestal intact
+// and no auto exposure, both of which inflated it. There is no honest way to
+// re-derive that number off the device. Accumulating dissolves the question:
+// a messy scene fills the bar in about two seconds, a blank wall takes longer,
+// neither is ever refused, and no constant has to be calibrated against a lens.
+//
+// What the Shannon number still is not. A histogram is order blind: shuffle
+// every pixel in the frame and the estimate does not move. So any FIXED
+// pattern the optics and sensor impose on every frame of every device widens
+// the histogram and raises the reading without adding one bit anybody could
+// not predict. The sensor's black pedestal is now zeroed at source. Lens
+// vignetting is not corrected at all: ov02c10_default.json carries no lsc
+// section, so the ISP's shading block is never programmed, and correcting it
+// needs per lens coefficients measured on a flat field that we do not have.
+//
+// Which is exactly why a frame is credited with its EXCESS over a floor and
+// not with its raw reading. The floor is the part of the histogram width that
+// a featureless view produces anyway — vignetting, fixed pattern, the sensor's
+// own noise shape. Counting it would pay the holder for pointing at a wall.
+// Credit the excess and the bar reads as what it is: a blank wall crawls, a
+// bookshelf races, and the difference is visible while it happens rather than
+// only afterwards. Nothing is refused; a covered lens still finishes on the
+// trickle below, it just takes most of a minute to get there.
+//
+// At 10 sampled frames a second, target 1200:
+//   covered lens ~1.0 bits -> trickle 3  -> ~40s
+//   dark wall     3.5 bits -> 6          -> ~20s
+//   lit wall      4.5 bits -> 30         -> ~4s
+//   a lit desk    6.5 bits -> 70         -> ~1.8s
+//   gravel        8.0 bits -> 100        -> ~1.2s
+#define ENT_TARGET_X10  1200            // 20 frames at the knee, ~2s when good
+#define ENT_FLOOR_X10   30              // what an empty view reads on its own
+#define ENT_FRAME_GAIN  2               // excess over the floor, doubled
+#define ENT_FRAME_MIN   3               // the trickle: never stalls, never fast
+#define ENT_FRAME_CAP   120             // so no one frame carries a session
+// About 4130 of the 937,664 pixels, and 20 frames of those against a 256 bit
+// output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
+// walks instead of landing on the same columns every frame.
+#define ENT_SUB_STRIDE  227
+#define ENT_SUB_MAX     4200
+
 static void *s_bus_saved;
 static volatile bool s_ent_mode;
-static volatile int s_ent_meter;        // Shannon estimate, bits x10
-static volatile bool s_ent_req;         // UI tapped: capture next good frame
+static volatile int s_ent_meter;        // Shannon estimate of ONE frame, x10
+static volatile int s_ent_accum;        // summed across frames, x10
+static volatile bool s_ent_req;         // UI tapped: finish if the bar is full
 static volatile bool s_ent_done;        // s_ent_hash is ready
 static uint8_t s_ent_hash[32];
+static uint8_t s_ent_chain[32];         // running fold over sampled frames
+static uint16_t s_ent_sub[ENT_SUB_MAX]; // strided subsample, hashed per frame
 static uint32_t *s_ent_hist;            // 256KB histogram, PSRAM
 
 void camera_spike_set_bus(void *i2c_bus) { s_bus_saved = i2c_bus; }
@@ -161,21 +223,41 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     }
   }
   s_ent_meter = (int)(ent * 10.0);
+
+  // Fold this frame into the chain. A subsample rather than the whole frame
+  // because wally_sha256 over 1.9MB is software SHA at tens of milliseconds,
+  // ten times a second, on the same task that drives the preview. 8KB is free,
+  // and 4130 pixels a frame across twenty frames is not a close margin against
+  // 256 bits of output.
+  if (!s_ent_done) {
+    size_t k = 0;
+    for (size_t i = 0; i < n && k < ENT_SUB_MAX; i += ENT_SUB_STRIDE)
+      s_ent_sub[k++] = px[i];
+    uint8_t d[32];
+    if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
+                     d, sizeof d) == WALLY_OK &&
+        wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
+      int add = (s_ent_meter - ENT_FLOOR_X10) * ENT_FRAME_GAIN;
+      if (add < ENT_FRAME_MIN) add = ENT_FRAME_MIN;
+      if (add > ENT_FRAME_CAP) add = ENT_FRAME_CAP;
+      if (s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
+    }
+    wally_bzero(d, sizeof d);
+  }
+
   if (s_ent_req) {
     s_ent_req = false;
-    if (s_ent_meter >= ENT_THRESH_X10 && !s_ent_done &&
-        wally_sha256((const unsigned char *)frame, n * 2,
-                     s_ent_hash, sizeof s_ent_hash) == WALLY_OK) {
-      // mix in the chip's hardware TRNG: seed = SHA256(frame_hash || trng), so
-      // a predictable scene can't weaken the seed below the TRNG and a weak
-      // TRNG is still covered by the photo (belt and braces, invisible to UX)
+    if (s_ent_accum >= ENT_TARGET_X10 && !s_ent_done) {
+      // mix in the chip's hardware TRNG: seed = SHA256(chain || trng), so a
+      // predictable scene can't weaken the seed below the TRNG and a weak
+      // TRNG is still covered by the photos (belt and braces, invisible to UX)
       uint8_t trng[32];
       esp_fill_random(trng, sizeof trng);
-      if (wallet_entropy_mix(s_ent_hash, trng, s_ent_hash) == 0)
+      if (wallet_entropy_mix(s_ent_chain, trng, s_ent_hash) == 0)
         s_ent_done = true;
       wally_bzero(trng, sizeof trng);
-    }                                   // sub-threshold taps just do nothing —
-  }                                     // the amber bar already says why
+    }                                   // an early tap just does nothing —
+  }                                     // the part-filled bar already says why
 }
 
 // in-video chrome geometry (bands + bar), shared by scan and entropy modes;
@@ -188,24 +270,39 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 #define BAR_THICK   22
 #define BAR_LEN     560
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
-static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base);
+static void draw_hbar(uint16_t *fb, int fill, uint16_t base);
 
-// Entropy meter: amber while below the gate (tick mark = 6.0 bits), green
-// when a tap would be accepted. Full bar = 8.0 bits. The displayed fill EASES
-// toward the live estimate so the bar glides instead of twitching.
+// How much has been gathered, not how good the current frame is. It fills as
+// the holder holds, faster on a messy scene than on a wall, and turns green
+// when it is full and a tap would be accepted.
+//
+// There is no tick mark any more. It used to sit at 6.0 bits to mark the pass
+// point on a bar that showed one frame's estimate. A progress bar does not
+// have a pass mark: being full IS the pass mark, and a line partway along one
+// only invites the question of what happens past it.
+//
+// The displayed fill still EASES toward the real figure, so the bar glides.
 static void draw_ent_bar(uint16_t *fb) {
   static int disp;
-  int target = BAR_LEN * s_ent_meter / 80;
+  int target = BAR_LEN * s_ent_accum / ENT_TARGET_X10;
   if (target > BAR_LEN) target = BAR_LEN;
   disp += (target - disp) / 4;
   if (disp < 0) disp = 0;
-  draw_hbar(fb, disp, BAR_LEN * ENT_THRESH_X10 / 80,
-            s_ent_meter >= ENT_THRESH_X10 ? 0x368F : 0xF5C9);
+  draw_hbar(fb, disp, s_ent_accum >= ENT_TARGET_X10 ? 0x368F : 0xF5C9);
 }
 
 // No ISP pipeline controller is configured, so the sensor just runs its
 // power-on default exposure — a full frame time, which turns hand tremor into
 // module-killing motion blur. While scanning, halve it; restored on stop.
+//
+// This was deleted for a while, on the reasoning that a running AGC meters any
+// value written underneath it and corrects it away on the next frame, so the
+// two would oscillate. That reasoning is still right, and it will apply again
+// the day the controller comes back. It is not right today: the controller is
+// off, on evidence, and the note in components/esp_cam_sensor/VENDOR.kiss.md
+// section 4 says why. With nothing else driving the sensor there is nothing
+// for this to fight, and without it scanning is blurrier than it was before
+// any of the camera work started.
 static int32_t s_exp_saved = -1;
 
 static void scan_exposure(bool on) {
@@ -247,6 +344,44 @@ static void set_status(const char *fmt, ...) {
 }
 
 const char *camera_spike_status(void) { return s_status; }
+
+// TEMPORARY diagnostic. esp_video reports exactly which ioctl a sensor refused
+// through ESP_LOGE, then collapses every one of them into a single flat return
+// code, so the failure screen can only say NOT_SUPPORTED. There is no serial
+// console to read the real line from either: CONFIG_ESP_CONSOLE_UART_DEFAULT
+// puts the log on UART0 and the only cable on this device is USB.
+//
+// So tap the log for the length of esp_video_init and keep the last line that
+// says something failed. Every gate in esp_video_isp_pipeline.c phrases its
+// error as "failed to <thing>", which is precisely the thing we cannot
+// otherwise see. Written as a diagnostic and kept as a feature: it is what
+// turns "camera unavailable" into a line a holder can read off the glass and
+// send us, on a device that will never have a console attached.
+static char s_cam_log[64];
+static vprintf_like_t s_cam_log_prev;
+
+static int cam_log_tap(const char *fmt, va_list ap)
+{
+    va_list copy;
+    va_copy(copy, ap);
+    char line[192];
+    int n = vsnprintf(line, sizeof line, fmt, copy);
+    va_end(copy);
+
+    if (n > 0) {
+        const char *hit = strstr(line, "failed");
+        if (hit) {
+            size_t k = 0;
+            while (hit[k] && hit[k] != '\r' && hit[k] != '\n' &&
+                   hit[k] != '\033' && k < sizeof s_cam_log - 1) {
+                s_cam_log[k] = hit[k];
+                k++;
+            }
+            s_cam_log[k] = '\0';
+        }
+    }
+    return s_cam_log_prev ? s_cam_log_prev(fmt, ap) : n;
+}
 
 bool camera_spike_is_on(void) { return s_cam.streaming; }
 
@@ -309,10 +444,18 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
   return false;
 }
 
-// Alpha-blit a baked 4-bit-alpha strip (anti-aliased text from scan_osd.py),
+// Alpha-blit a composed 4-bit-alpha strip (anti-aliased text from osd_text.c),
 // upright in landscape: (ux,uy) -> panel px = cx - uy, py = cy + ux. cx is the
 // panel x of the strip's FIRST text row; the strip grows toward screen-bottom.
-static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy) {
+//
+// dim scales the coverage, 0..255. The baked art used to carry its muting in
+// its own alpha, drawing subtitles at 145 and the close hint at 190. A composed
+// strip is always full coverage and has to be, because full coverage is what
+// sim/osdcheck.c compares against LVGL's own label draw. So the muting moved
+// here, at the same numbers, and nothing on screen changed brightness.
+static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy,
+                    int dim) {
+  if (!s || !s->a4) return;                   // a strip that failed to compose
   for (int uy = 0; uy < s->h; uy++) {
     int px = cx - uy;
     if (px < 0 || px >= PANEL_W) continue;
@@ -323,7 +466,7 @@ static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy) {
       int py = cy + ux;
       if (py < 0 || py >= PANEL_H) continue;
       uint16_t d = fb[py * PANEL_W + px];
-      int aa = a * 17;                        // 0..255
+      int aa = a * 17 * dim / 255;             // 0..255
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
       r += ((31 - r) * aa) >> 8;
       g += ((63 - g) * aa) >> 8;
@@ -514,20 +657,77 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 }
 
 // Text strip on the top band, centered along landscape-x.
+// A caption: a title, and under it the second line the state may or may not
+// have. Two strips now rather than one two-line bitmap, so each centres on its
+// own width — which is what the baked art did inside itself anyway, so the
+// result on screen is the same arrangement.
+//
+// A font's line height already carries its leading, so the gap between the two
+// is small on purpose. 2px, not the generator's 8, because the generator was
+// spacing bare TrueType pixel sizes with no descent in them.
 static void draw_osd_strip(uint16_t *fb, int idx) {
-  if (idx < 0 || idx >= SCAN_OSD_N) return;
-  int lang = i18n_get_lang();
-  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-  const scan_osd_strip_t *s = &scan_osd[lang][idx];
-  blit_a4(fb, s, STRIP_TOP_PX, (PANEL_H - s->w) / 2);
+  const scan_osd_strip_t *t = osd_title(idx);
+  if (!t) return;
+  blit_a4(fb, t, STRIP_TOP_PX, (PANEL_H - t->w) / 2, OSD_DIM_FULL);
+  const scan_osd_strip_t *s = osd_sub(idx);
+  if (s)
+    blit_a4(fb, s, STRIP_TOP_PX - t->h - 2, (PANEL_H - s->w) / 2, OSD_DIM_SUB);
 }
 
-// "Reading  12 of 34" as one line of real type: the baked strip, then live
+// The live Shannon estimate as digits, in the free end of the bottom band past
+// the bar. The bar says how much has been gathered; the number says how good
+// the view is right now, which is the half a filling bar cannot show. A holder
+// standing at a blank wall watches the number climb as they turn toward
+// something with detail, and the bar speed up with it, which teaches what the
+// screen is asking for far faster than any wording would. Anyone tuning
+// ENT_FLOOR_X10 gets a figure they can write down without a special build.
+//
+// The decimal point is a real '.' now. It used to be a 7px square drawn as a
+// rectangle, because the baked atlas held digits and no period and adding one
+// meant regenerating 1.7MB of art on a Mac.
+//
+// Spacing is wider than it looks. A composed glyph strip is exactly its advance
+// width, where a baked one carried a pixel of padding on each side, so the
+// tracking that used to come free from the art has to be asked for here.
+#define ENT_TRACK 5
+static void draw_ent_digits(uint16_t *fb)
+{
+    static int disp;                    // eased like the bar, or it is a blur
+    disp += (s_ent_meter - disp) / 4;
+    int v = disp < 0 ? 0 : disp > 999 ? 999 : disp;
+    int hi = v / 100, mid = (v / 10) % 10, lo = v % 10;
+
+    const scan_osd_strip_t *g_hi = osd_digit(hi), *g_mid = osd_digit(mid);
+    const scan_osd_strip_t *g_lo = osd_digit(lo), *g_dot = osd_dot();
+    if (!g_mid || !g_lo || !g_dot) return;
+
+    const int cx = 98;                  // glyph top row, inside the bottom band
+    int w = g_mid->w + ENT_TRACK + g_dot->w + ENT_TRACK + g_lo->w;
+    if (hi && g_hi) w += g_hi->w + ENT_TRACK;
+    int cy = PANEL_H - 14 - w;          // right aligned to the band's far end
+
+    if (hi && g_hi) {
+        blit_a4(fb, g_hi, cx, cy, OSD_DIM_FULL);
+        cy += g_hi->w + ENT_TRACK;
+    }
+    blit_a4(fb, g_mid, cx, cy, OSD_DIM_FULL);
+    cy += g_mid->w + ENT_TRACK;
+    blit_a4(fb, g_dot, cx, cy, OSD_DIM_FULL);
+    cy += g_dot->w + ENT_TRACK;
+    blit_a4(fb, g_lo, cx, cy, OSD_DIM_FULL);
+}
+
+
+// "Reading  12 of 34" as one line of real type: the title strip, then live
 // counts from the glyph atlas (total may be unknown early — show seen alone).
+//
+// The atlas rather than one composed string, because these counts change while
+// frames are flowing and recomposing would put an allocation on the stream task
+// once per part arrival, for a line that is already laid out correctly here.
 static void draw_read_line(uint16_t *fb, int seen, int total) {
-  int lang = i18n_get_lang();
-  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-  const scan_osd_strip_t *strip = &scan_osd[lang][OSD_READ];
+  const scan_osd_strip_t *strip = osd_title(OSD_READ);
+  const scan_osd_strip_t *of = osd_of();
+  if (!strip || !of) return;
   if (seen > 99) seen = 99;
   if (total > 99) total = 99;
   int gi[8], n = 0;
@@ -541,26 +741,30 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
     gi[n++] = total % 10;
   }
   int tw = strip->w + 14;
-  for (int i = 0; i < n; i++)
-    tw += gi[i] == -1 ? 10
-         : gi[i] == -2 ? scan_osd_of[lang].w + 2
-                       : scan_osd_glyph[gi[i]].w + 2;
+  for (int i = 0; i < n; i++) {
+    const scan_osd_strip_t *g = gi[i] == -2 ? of
+                              : gi[i] >= 0  ? osd_digit(gi[i]) : NULL;
+    tw += gi[i] == -1 ? 10 : g ? g->w + ENT_TRACK : 0;
+  }
   int cy = (PANEL_H - tw) / 2;
-  blit_a4(fb, strip, STRIP_TOP_PX, cy);
+  blit_a4(fb, strip, STRIP_TOP_PX, cy, OSD_DIM_FULL);
   cy += strip->w + 14;
   for (int i = 0; i < n; i++) {
     if (gi[i] == -1) { cy += 10; continue; }
-    const scan_osd_strip_t *g = gi[i] == -2 ? &scan_osd_of[lang]
-                                             : &scan_osd_glyph[gi[i]];
-    blit_a4(fb, g, STRIP_TOP_PX, cy);
-    cy += g->w + 2;
+    const scan_osd_strip_t *g = gi[i] == -2 ? of : osd_digit(gi[i]);
+    if (!g) continue;
+    blit_a4(fb, g, STRIP_TOP_PX, cy, OSD_DIM_FULL);
+    cy += g->w + ENT_TRACK;
   }
 }
 
 // Rounded track + inset rounded fill (landscape-horizontal, drawn in panel
 // coords: length runs along panel y, thickness along panel x).
 #define BAR_INS 4
-static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base) {
+// The gate tick mark that used to be drawn here went with the entropy meter's
+// pass threshold. Both bars this draws are progress now, and progress bars do
+// not mark a point partway along themselves.
+static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
   const int cy0 = (PANEL_H - BAR_LEN) / 2;
   const int R = BAR_THICK / 2;
   // track: rounded dark pill
@@ -595,16 +799,6 @@ static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base) {
       }
     }
   }
-  if (gate >= 0) {                      // slim white tick, slightly proud
-    for (int i = gate - 1; i <= gate; i++) {
-      if (i < 0 || i >= BAR_LEN) continue;
-      for (int t = -4; t < BAR_THICK + 4; t++) {
-        int px = BAR_PX0 + t, py = cy0 + i;
-        if (px >= 0 && px < PANEL_W && py >= 0 && py < PANEL_H)
-          fb[py * PANEL_W + px] = 0xE73C;
-      }
-    }
-  }
 }
 
 // Scan progress: one rounded segment per QR part as they assemble; a soft
@@ -619,7 +813,7 @@ static void draw_scan_bar(uint16_t *fb) {
   const int L = BAR_LEN - 2 * BAR_INS, gap = 5;
   int segw = tot > 1 ? (L - gap * (tot - 1)) / tot : 0;
   if (tot > 1 && segw >= 8) {           // segmented: one pill per part
-    draw_hbar(fb, 0, -1, 0);            // track only
+    draw_hbar(fb, 0, 0);                // track only
     const int R2 = (BAR_THICK - 2 * BAR_INS) / 2;
     for (int s = 0; s < tot; s++) {
       uint16_t c = s < seen ? 0x368F : 0x2166;
@@ -637,11 +831,11 @@ static void draw_scan_bar(uint16_t *fb) {
   } else if (tot > 0 || seen > 0) {     // many-part or unknown-total fallback
     int fill = tot > 0 ? BAR_LEN * seen / tot : BAR_LEN / 8;
     if (fill > BAR_LEN) fill = BAR_LEN;
-    draw_hbar(fb, fill, -1, 0x368F);
+    draw_hbar(fb, fill, 0x368F);
   } else if (found) {                   // located, nothing read yet
-    draw_hbar(fb, BAR_LEN / 10, -1, 0xFF20);
+    draw_hbar(fb, BAR_LEN / 10, 0xFF20);
   } else {                              // searching: soft traveling shimmer
-    draw_hbar(fb, 0, -1, 0);
+    draw_hbar(fb, 0, 0);
     int pos = (int)((s_frames * 5) % (uint32_t)(BAR_LEN + 160)) - 80;
     for (int i = pos - 40; i < pos + 40; i++) {
       if (i < BAR_INS + 4 || i >= BAR_LEN - BAR_INS - 4) continue;
@@ -844,9 +1038,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
     darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
     darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
-    int lang = i18n_get_lang();
-    if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-    blit_a4(fb, &scan_osd[lang][OSD_CLOSE], 449, 22); // localized close, top-left
+    blit_a4(fb, osd_title(OSD_CLOSE), 449, 22, OSD_DIM_CLOSE);  // top-left
   }
   if (s_scan_mode) {
     draw_brackets(fb);                // viewfinder corners (solid once located)
@@ -859,14 +1051,17 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   }
   if (s_ent_mode) {
     draw_ent_bar(fb);
-    draw_osd_strip(fb, s_ent_meter >= ENT_THRESH_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
+    draw_ent_digits(fb);                // the same estimate as a figure
+    draw_osd_strip(fb, s_ent_accum >= ENT_TARGET_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
   }
   if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
     draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
   if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
     s_osd_frames--;                   // digits, real type, inset from overscan
-    if (s_orient + 1 <= 9) blit_a4(fb, &scan_osd_glyph[s_orient + 1], 430, 66);
-    if (s_zoom + 1 <= 9)   blit_a4(fb, &scan_osd_glyph[s_zoom + 1], 430, 660);
+    if (s_orient + 1 <= 9)
+      blit_a4(fb, osd_digit(s_orient + 1), 430, 66, OSD_DIM_FULL);
+    if (s_zoom + 1 <= 9)
+      blit_a4(fb, osd_digit(s_zoom + 1), 430, 660, OSD_DIM_FULL);
   }
   // CPU overlays (bar/digits) sit in cache; push them to PSRAM before scanout
   esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
@@ -931,8 +1126,15 @@ static bool cam_init(i2c_master_bus_handle_t bus) {
       .pwdn_pin = -1,
   };
   esp_video_init_config_t cfg = {.csi = &csi};
+  s_cam_log[0] = '\0';                  // see cam_log_tap
+  s_cam_log_prev = esp_log_set_vprintf(cam_log_tap);
   esp_err_t err = esp_video_init(&cfg);
-  if (err != ESP_OK) { set_status("CAM: esp_video_init %s", esp_err_to_name(err)); return false; }
+  esp_log_set_vprintf(s_cam_log_prev);
+  if (err != ESP_OK) {
+    set_status("CAM: init %s%s%s", esp_err_to_name(err),
+               s_cam_log[0] ? " / " : "", s_cam_log);
+    return false;
+  }
 
   s_cam.fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR);
   if (s_cam.fd < 0) { set_status("CAM: open %s", strerror(errno)); return false; }
@@ -991,13 +1193,24 @@ static bool prime_buffers(void) {
 
 static bool cam_start(void) {
   int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  // Compose the overlay's captions here, on the caller's task, before the
+  // stream task exists. Every draw below reads these and none of them
+  // allocates, so a frame never waits on a heap the display path is competing
+  // for. It is also the only moment the language is known to be settled: the
+  // camera cannot be up while the settings screen is.
+  if (!osd_strips_open()) ESP_LOGW(TAG, "overlay text: nothing composed");
   if (!prime_buffers()) {
     // a stale queued buffer from a previous run: force a clean stop and retry once
     ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
-    if (!prime_buffers()) { set_status("CAM: QBUF failed"); return false; }
+    if (!prime_buffers()) {
+      set_status("CAM: QBUF failed");
+      osd_strips_close();
+      return false;
+    }
   }
   if (ioctl(s_cam.fd, VIDIOC_STREAMON, &type)) {
     set_status("CAM: STREAMON %s", strerror(errno));
+    osd_strips_close();
     return false;
   }
   s_cam.stop = false;
@@ -1009,6 +1222,7 @@ static bool cam_start(void) {
                               &s_cam.task, 1) != pdPASS) {
     set_status("CAM: task create failed");
     ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
+    osd_strips_close();
     return false;
   }
   s_cam.streaming = true;
@@ -1021,6 +1235,8 @@ static void cam_stop(void) {
   ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
   for (int i = 0; i < 50 && s_cam.task; i++) vTaskDelay(pdMS_TO_TICKS(20));
   s_cam.streaming = false;
+  // After the join, never before: the strips are what the stream task draws.
+  osd_strips_close();
 }
 
 bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
@@ -1090,8 +1306,13 @@ bool camera_entropy_start(void) {
     if (!s_ent_hist) { set_status("CAM: entropy histogram alloc failed"); return false; }
   }
   s_ent_meter = 0;
+  s_ent_accum = 0;
   s_ent_req = false;
   s_ent_done = false;
+  // A fresh chain per session. Carrying one over would mean a holder who
+  // backed out and came in again started part filled, on frames they saw
+  // during a visit they abandoned.
+  wally_bzero(s_ent_chain, sizeof s_ent_chain);
   s_zoom = 0;
   s_ent_mode = true;
   if (!cam_start()) { s_ent_mode = false; return false; }
@@ -1112,7 +1333,10 @@ bool camera_entropy_result(uint8_t out[32]) {
 void camera_entropy_stop(void) {
   if (!s_ent_mode && !s_cam.streaming) return;
   s_ent_mode = false;
-  cam_stop();
+  cam_stop();                                 // waits for the stream task, so
+  wally_bzero(s_ent_chain, sizeof s_ent_chain);   // nothing is folding into
+  wally_bzero(s_ent_sub, sizeof s_ent_sub);       // these while they are wiped
+  s_ent_accum = 0;
   if (s_ent_hist) { free(s_ent_hist); s_ent_hist = NULL; }
   lv_obj_invalidate(lv_screen_active());
   set_status("CAM: entropy stopped");

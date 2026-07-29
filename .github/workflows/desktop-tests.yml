@@ -95,16 +95,14 @@ jobs:
       - name: installer artifacts match VERSION
         run: python3 tools/check_installer_version.py
 
-      # The camera bypasses LVGL, so every scanner caption is a bitmap baked
-      # from a desktop font. A glyph that font lacks becomes a tofu box inside
-      # a strip with perfectly normal dimensions: the generated C is
-      # indistinguishable, and nothing downstream can tell. That is how every
-      # Russian overlay, plus Vietnamese, Croatian and Czech diacritics, went
-      # out as boxes -- found by eye, not by any test. This is the test.
-      - name: camera overlay glyph coverage
-        run: |
-          pip install --quiet fonttools
-          python3 tools/check_osd_glyphs.py
+      # The camera overlay glyph-coverage check used to live here. It read the
+      # desktop TTFs the strips were baked from and named any character they
+      # lacked, which is how every Russian overlay, plus Vietnamese, Croatian
+      # and Czech diacritics, had shipped as tofu boxes. There is nothing left
+      # for it to read: the overlay now composes from the same font_kiss faces
+      # every other screen uses, so its coverage is the coverage the font
+      # generator and sim/fitcheck.c already gate. The overlay text gate below
+      # replaces it, and does more.
 
       # Type-size ratchet. Fails when a button the user must READ to act
       # correctly (sign, wipe, replace, verify) renders at font14 in ANY of the
@@ -130,6 +128,16 @@ jobs:
         run: bash sim/run_overlapcheck.sh
         env:
           OVERLAPCHECK_STRICT: "1"
+
+      # The camera overlay is the one place text is composed by hand rather
+      # than drawn by LVGL, because the scan and entropy screens write straight
+      # into the camera framebuffer. Nobody can look at that on a desktop, so
+      # this renders every overlay string both ways and compares them pixel for
+      # pixel. It found two real defects the day it was written.
+      - name: overlay text gate
+        run: |
+          bash sim/build_osdcheck.sh
+          /tmp/kissosd
 
       - name: setup node for interop rig
         uses: actions/setup-node@v4
