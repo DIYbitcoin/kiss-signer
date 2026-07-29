@@ -80,6 +80,12 @@ SECTIONS = [
           "SETTINGS → STORAGE shows the current mode and the same three "
           "choices. Moving between modes requires a deliberate hold "
           "and verifies the destination before removing the source."),
+         # SETTINGS itself, which the walkthrough sent people to twice without
+         # ever showing. The simulator has captured this frame all along.
+         ("03c-settings", "sim_settings",
+          "SETTINGS itself, the page both of those are reached from. Storage "
+          "and address type read their current value on the row that opens "
+          "them, so nothing here has to be opened to be checked."),
      ]),
 
     # Kept before pairing/receiving/signing: those are done from whichever

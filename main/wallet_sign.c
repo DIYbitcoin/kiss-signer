@@ -81,6 +81,13 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 #endif
 
 #define HOLD_MS   1200
+// HOLD TO SIGN ignores presses for this long after I UNDERSTAND was tapped.
+// See the note where the two buttons are built: they overlap in x and no
+// arrangement of them inside a 704px row separates them, so the fix is to make
+// the overlap unreachable in time rather than in space. Long enough to outlast
+// a double tap, short enough that nobody deliberately reaching for the button
+// ever meets it: the finger has to travel and the screen has to repaint first.
+#define SIGN_ARM_MS 500
 #define MAX_FILES 8
 #define SHOW_OUTS 3
 
@@ -94,6 +101,7 @@ static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
 static bool s_ack;                      // CAUTION acknowledged? (gates hold-to-sign)
+static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
 static uint8_t s_in[4096], s_out[4680];
 static lv_obj_t *s_parent;             // where this flow's screens are built
 static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came from
@@ -390,6 +398,9 @@ static void sign_press_cb(lv_event_t *e)
 {
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
+        // Not yet armed: this press is the tail of the one that acknowledged
+        // the caution, landing on the button that replaced it. Swallow it.
+        if (s_ack_t0 && lv_tick_elaps(s_ack_t0) < SIGN_ARM_MS) return;
         s_hold_t0 = lv_tick_get();
         if (!s_hold_tmr) s_hold_tmr = lv_timer_create(hold_tick, 30, NULL);
     } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
@@ -552,6 +563,7 @@ static void ack_cb(lv_event_t *e)
 {
     (void)e;
     s_ack = true;
+    s_ack_t0 = lv_tick_get();
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     verify_screen(s_parent);
@@ -829,12 +841,23 @@ static void verify_screen(lv_obj_t *parent)
             // hang above it: x separation carries the safety boundary instead
             // of pretending two vertical pixels help a fingertip.
             //
-            // Still to fix, and NOT fixed here: this button and HOLD TO SIGN
-            // overlap in x across the two states (238..490 against 310..582),
-            // so a second tap in the same place can land on the sign button.
-            // The row is 704px and DETAILS + BACK spend 310 of it, so there is
-            // no arrangement of a 252 and a 272 in what is left that separates
-            // them. It needs the phase 3 restructure, which rebuilds this bar.
+            // This button and HOLD TO SIGN overlap in x across the two states,
+            // 238..490 against 310..582, so a second press in the same place
+            // can land on the sign button. That is not fixable here and the
+            // arithmetic is why: the row is 704px, DETAILS and BACK spend 310
+            // of it, and 252 + 272 does not fit in the 376 left over. No
+            // arrangement separates them, so moving either one is theatre.
+            //
+            // Fixed in time instead of in space. HOLD TO SIGN ignores presses
+            // for SIGN_ARM_MS after this button is tapped, which makes the
+            // overlap unreachable. It also costs nothing to a deliberate user:
+            // a finger that has to travel and a screen that has to repaint
+            // take longer than the arming window on their own.
+            //
+            // Worth being clear about the size of the hazard, because the
+            // earlier note here overstated it. Signing needs a HOLD, so a
+            // stray tap never signed anything; the exposure was a double tap
+            // that happened to become a hold. Real, but narrow.
             lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 238, WT_ACTION_Y_TALL,
                                     252, WT_ACTION_H_TALL, ack_cb, NULL);
             wt_pill_primary(ok);
@@ -1159,6 +1182,7 @@ static void file_tap_cb(lv_event_t *e)
     SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
+    s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
@@ -1310,6 +1334,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     log_psbt_hex(s_in, len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
+    s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
