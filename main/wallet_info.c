@@ -567,7 +567,10 @@ static void info_screen(void)
     // This is a two-column screen. Its subtitle belongs to the facts column,
     // so it is measured and wrapped inside that column instead of being given
     // the generic 704px subtitle lane that crosses into the actions column.
-    wt_note(s_scr, tr(STR_I_S), 48, 64, 340, 58);
+    // 366 wide, not 340: this lane is bounded by PAIR COORDINATOR at x=430,
+    // not by the left column's 340, and the extra 26px is the difference
+    // between this setting on one line and breaking after "network,".
+    wt_note(s_scr, tr(STR_I_S), 48, 64, 366, 58);
 
     // facts, left column
     uint8_t fp[4];

@@ -90,7 +90,7 @@
   "W_VINTRO_B": "tapez vos mots depuis le papier.\n\nl'appareil dit seulement: ça correspond ou non.\nil n'affiche jamais vos mots stockés.\n\nun seul mot faux et votre papier ne\nramène PAS le portefeuille.",
   "W_TYPE_MY_WORDS": "TAPER MES MOTS",
   "I_T": "PORTEFEUILLE",
-  "I_S": "le portefeuille auquel tu es connecté en ce moment",
+  "I_S": "empreinte, réseau, adresses",
   "I_SEC_NET": "RÉSEAU",
   "I_SEC_TYPE": "TYPE D'ADRESSE",
   "I_SEC_FIRST": "PREMIÈRE ADRESSE",

@@ -90,7 +90,7 @@
   "W_VINTRO_B": "tast dine ord fra papiret.\n\nenheden siger kun: passer eller ej.\nden viser aldrig dine gemte ord.\n\net forkert ord betyder at papiret\nIKKE henter tegnebogen tilbage.",
   "W_TYPE_MY_WORDS": "SKRIV MINE ORD",
   "I_T": "TEGNEBOG",
-  "I_S": "den tegnebog, du er logget ind på lige nu",
+  "I_S": "fingeraftryk, netværk, adresser",
   "I_SEC_NET": "NETVÆRK",
   "I_SEC_TYPE": "ADRESSETYPE",
   "I_SEC_FIRST": "FØRSTE ADRESSE",
