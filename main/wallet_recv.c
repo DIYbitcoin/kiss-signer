@@ -92,7 +92,7 @@ static void recv_refresh(void) {
   // always shown FIRST ADDRESS at, in a lane of the same width. The two
   // screens now render an address identically, so they can be checked against
   // each other as well as against a coordinator.
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font23());
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font_mono23());
   lv_obj_set_pos(s_addr_sg, 400, 140);
   lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
   int purpose = wallet_script() == WSCRIPT_LEGACY ? 44
@@ -214,7 +214,7 @@ static void vfy_result(const char *txt, size_t len) {
   // layout on the error screen.
   lv_obj_t *shown;
   if (validity == WADDR_INVALID) {
-    shown = wt_lbl(s_scr, addr, 48, 186, wt_font28(), WT_MUT);
+    shown = wt_lbl(s_scr, addr, 48, 186, wt_font_mono28(), WT_MUT);
     lv_obj_set_width(shown, 700);
     lv_label_set_long_mode(shown, LV_LABEL_LONG_WRAP);
   } else {
@@ -224,7 +224,7 @@ static void vfy_result(const char *txt, size_t len) {
     // three lines and there is no reason to go smaller.
     bool longaddr = strlen(addr) > 64;
     shown = wt_addr_spans(s_scr, grouped, 700,
-                          longaddr ? wt_font23() : wt_font28());
+                          longaddr ? wt_font_mono23() : wt_font_mono28());
     lv_obj_set_pos(shown, 48, 186);
   }
   lv_obj_update_layout(shown);
@@ -344,12 +344,12 @@ static void sp_addr_render(void) {
     // reading or comparing the address; the folded default is only a view.
     char grouped[200];
     wt_group4(s_sp_addr, grouped, sizeof(grouped));
-    s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font28());
+    s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font_mono28());
     lv_obj_set_pos(s_addr_sg, 366, 100);
   } else {
     // Match the readable list form: constant prefix muted, four meaningful
     // characters near each end lit. The QR still receives all of `s_sp_addr`.
-    s_addr_sg = wt_addr_short(s_scr, s_sp_addr, wt_font28());
+    s_addr_sg = wt_addr_short(s_scr, s_sp_addr, wt_font_mono28());
     lv_obj_set_pos(s_addr_sg, 366, 150);
   }
 
@@ -444,7 +444,7 @@ static void sp_addr_open(lv_obj_t *parent) {
   // Both are placed by sp_addr_render, because the address above them wraps to
   // different heights in the folded and full views.
   s_sp_path_sec = wt_section(s_scr, tr(STR_I_SEC_PATH), 366, 200);
-  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 222, wt_font23(), WT_INK);
+  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 222, wt_font_mono23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
@@ -532,7 +532,7 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   lv_obj_set_style_text_color(n, WT_MUT, 0);
   lv_obj_align(n, LV_ALIGN_LEFT_MID, 10, 0);
 
-  lv_obj_t *sg = wt_addr_short(row, addr, wt_font28());
+  lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono28());
   lv_obj_align(sg, LV_ALIGN_LEFT_MID, 62, 0);
   return row;
 }
@@ -710,7 +710,7 @@ static void recv_detail_open(void) {
   // characters longer than the English.
   wt_help_chip(s_scr, 400 + lv_obj_get_width(psec) + 12, RECV_PATH_Y - 6,
                WT_MUT, path_help_cb, NULL);
-  s_path_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 22, wt_font23(), WT_INK);
+  s_path_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 22, wt_font_mono23(), WT_INK);
   s_path_tn_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 28, wt_font14(), WT_WARN);
 
   // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY

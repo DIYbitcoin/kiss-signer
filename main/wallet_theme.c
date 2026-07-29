@@ -113,6 +113,30 @@ const lv_font_t *wt_font34(void)
              : &s_font28[font_class_for_lang(i18n_get_lang())];
 }
 
+// The fixed pitch faces. No array, no fallback, no per locale variant, and
+// none of that is an oversight.
+//
+// They exist for strings that are never translated: addresses, fingerprints,
+// derivation paths, and amounts. A locale cannot change any of those, so there
+// is nothing for a font class to select between, and a CJK subset at these
+// sizes would cost more than the whole Latin set does.
+//
+// Deliberately NO fallback chain. Everywhere else a chain is load bearing,
+// because a missing glyph should degrade to a smaller face rather than vanish.
+// Here the opposite is wanted: if a localised string is ever pointed at one of
+// these by mistake, it must be obvious. With CONFIG_LV_USE_FONT_PLACEHOLDER=y
+// the lookup ends in a blank box half a line wide, which someone will file a
+// bug about. A chain would render it one size small and nobody would notice
+// the wiring is wrong. (The renderer does not hang on a missing glyph; the
+// comment above about s_font34 predates LV_USE_FONT_PLACEHOLDER being on.)
+const lv_font_t *wt_font_mono14(void) { return &font_kiss_mono14; }
+const lv_font_t *wt_font_mono23(void) { return &font_kiss_mono23; }
+const lv_font_t *wt_font_mono28(void) { return &font_kiss_mono28; }
+
+// The Sign hero, and nothing else. Thirteen glyphs, digits and space and full
+// stop, so it cannot represent a letter even if handed one.
+const lv_font_t *wt_font_num48(void) { return &font_kiss_num48; }
+
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
 {
     if (!txt || !*txt)
