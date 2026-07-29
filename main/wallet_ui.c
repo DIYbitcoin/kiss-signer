@@ -13,6 +13,7 @@
 #include "wallet_duress_ui.h"  // last setup step: which stroke opens which signer
 #include "wallet_seed.h"
 #include "wallet_setup.h"   // optional full post-creation recovery rehearsal
+#include "pass_edit.h"      // insert/delete at the caret, tested in sim/test_passedit.c
 #include "wallet_theme.h"
 
 #ifndef SIMULATOR
@@ -49,6 +50,8 @@ static lv_obj_t *s_pop_lbl;
 static lv_timer_t *s_pop_tmr;
 static char s_pass[PASS_MAX + 1];
 static int s_plen;
+static int s_caret;                        // insertion point, 0..s_plen (s_plen = at the end)
+static lv_obj_t *s_caret_obj;              // the visible bar, child of s_entry
 static bool s_show;                        // show-all toggle
 static bool s_flash;                       // last char currently unmasked
 static void (*s_unlocked_cb)(void);
@@ -233,15 +236,34 @@ static void entry_apply(const char *txt, int chars) {
   }
 }
 
+// ---- the caret: tap a character while SHOW is on, edit there ----
+// Shown only with SHOW on. Behind the dots there is nothing to aim at, and a
+// passphrase edited in the wrong place is one nobody can reproduce.
+static void caret_refresh(void) {
+  if (!s_caret_obj || !s_entry) return;
+  if (!s_show || s_plen == 0) {
+    lv_obj_add_flag(s_caret_obj, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  lv_obj_update_layout(s_entry);      // letter_pos reads the settled line breaks
+  const lv_font_t *f = lv_obj_get_style_text_font(s_entry, LV_PART_MAIN);
+  lv_point_t p;
+  lv_label_get_letter_pos(s_entry, (uint32_t)s_caret, &p);
+  lv_obj_set_size(s_caret_obj, 2, lv_font_get_line_height(f));
+  lv_obj_set_style_bg_color(s_caret_obj, wt_accent(), 0);
+  lv_obj_set_pos(s_caret_obj, p.x, p.y);
+  lv_obj_clear_flag(s_caret_obj, LV_OBJ_FLAG_HIDDEN);
+}
+
 // ---- entry display: dots, optional flash of the newest char, show-all ----
-static void entry_refresh(void) {
+static void entry_refresh_text(void) {
   static char buf[PASS_MAX * 3 + 8];
   meter_refresh();
   if (s_count) {
     int sp = 0;
     for (int i = 0; i < s_plen; i++) if (s_pass[i] == ' ') sp++;
     if (s_plen == 0) lv_label_set_text(s_count, "");
-    else if (sp)     // spaces are the classic invisible typo — call them out
+    else if (sp)     // spaces are the classic invisible typo, so call them out
       lv_label_set_text_fmt(s_count, tr(STR_L_COUNT_SP_FMT), s_plen, sp);
     else lv_label_set_text_fmt(s_count, tr(STR_L_COUNT_FMT), s_plen);
   }
@@ -256,14 +278,26 @@ static void entry_refresh(void) {
     entry_apply(s_pass, s_plen);
     return;
   }
+  // Dots, with the character just entered left bare for FLASH_MS. That
+  // character is the one BEFORE the caret, which is the end of the passphrase
+  // in the ordinary case and the middle of it after a tap.
   int n = 0;
-  int shown = s_flash ? s_plen - 1 : s_plen;   // chars rendered as dots
-  for (int i = 0; i < shown && n < (int)sizeof(buf) - 4; i++) {
+  int flash_at = s_flash ? s_caret - 1 : -1;
+  for (int i = 0; i < s_plen && n < (int)sizeof(buf) - 4; i++) {
+    if (i == flash_at) { buf[n++] = s_pass[i]; continue; }
     buf[n++] = '\xE2'; buf[n++] = '\x80'; buf[n++] = '\xA2';  // U+2022 bullet
   }
-  if (s_flash && n < (int)sizeof(buf) - 2) buf[n++] = s_pass[s_plen - 1];
   buf[n] = 0;
   entry_apply(buf, s_plen);
+}
+
+// Text first, then the caret. The caret is placed by asking the label where a
+// character sits, so it can only be positioned once the text it indexes into
+// is the text actually on screen.
+static void entry_refresh(void) {
+  if (s_caret > s_plen || s_caret < 0) s_caret = s_plen;   // never index off the end
+  entry_refresh_text();
+  caret_refresh();
 }
 
 static void mask_cb(lv_timer_t *t) {
@@ -326,11 +360,13 @@ static void wipe_and_close(void) {
   s_backup_verified = false;
   s_backup_verify_pass = false;
   s_plen = 0;
+  s_caret = 0;
   s_show = false;
   s_flash = false;
   if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
   if (s_pop_tmr) { lv_timer_delete(s_pop_tmr); s_pop_tmr = NULL; }
   s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL;   // children of s_login: die with it
+  s_caret_obj = NULL;                                // child of s_entry, same fate
   // async: this runs from event callbacks of children of these screens — deleting
   // an ancestor of the event target mid-event corrupts the rest of the event pass
   if (s_login) { lv_obj_delete_async(s_login); s_login = NULL; }
@@ -428,6 +464,7 @@ static void setup_accept_first(void) {
   s_weak_ack = false;
   memset(s_pass, 0, sizeof s_pass);
   s_plen = 0;
+  s_caret = 0;
   s_show = false;
   if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
   cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
@@ -510,7 +547,7 @@ static void setup_fail_dismiss_cb(lv_event_t *e) {
   (void)e;
   s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
   s_setup_mode = false; s_first_done = false; s_weak_ack = false;
-  s_plen = 0; s_show = false; s_flash = false;
+  s_plen = 0; s_caret = 0; s_show = false; s_flash = false;
   memset(s_pass, 0, sizeof s_pass);
   memset(s_first, 0, sizeof s_first);
   if (s_errscr) { lv_obj_delete_async(s_errscr); s_errscr = NULL; }
@@ -656,6 +693,7 @@ static void setup_warn_words_done(void)
   memset(s_pass, 0, sizeof s_pass);
   memset(s_first, 0, sizeof s_first);
   s_plen = 0;
+  s_caret = 0;
   s_show = false;
   s_flash = false;
   if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
@@ -1034,6 +1072,7 @@ static void kb_cb(lv_event_t *e) {
       s_backup_verify_pass = false;
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
+      s_caret = 0;
       entry_refresh();
       setup_warn_screen();
     }
@@ -1048,6 +1087,7 @@ static void kb_cb(lv_event_t *e) {
       memset(fp, 0, sizeof fp);
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
+      s_caret = 0;
       s_show = false;
       s_flash = false;
       if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
@@ -1072,6 +1112,7 @@ static void kb_cb(lv_event_t *e) {
       s_first_done = false;
       memset(s_pass, 0, sizeof s_pass);
       s_plen = 0;
+      s_caret = 0;
       cap_set(tr(STR_L_NO_MATCH), lv_color_hex(0xFF4D5E), true);
       entry_refresh();
     } else {
@@ -1080,14 +1121,13 @@ static void kb_cb(lv_event_t *e) {
     }
   }
   else if (strcmp(txt, LV_SYMBOL_BACKSPACE) == 0) {
-    if (s_plen > 0) s_pass[--s_plen] = 0;
+    pass_edit_delete(s_pass, &s_plen, &s_caret);
     s_flash = false;
     setup_cap_reset();                       // editing cancels a weak-ack prompt
     entry_refresh();
   } else if (strlen(txt) == 1 && txt[0] >= 0x20 && txt[0] < 0x7F) {
-    if (s_plen < PASS_MAX) {                 // printable ASCII only (spec, v1)
-      s_pass[s_plen++] = txt[0];
-      s_pass[s_plen] = 0;
+    // printable ASCII only (spec, v1)
+    if (pass_edit_insert(s_pass, PASS_MAX, &s_plen, &s_caret, txt[0])) {
       setup_cap_reset();
       flash_last();
       pop_show(txt[0] == ' ' ? "_" : txt, id);
@@ -1128,11 +1168,14 @@ static void kb_long_cb(lv_event_t *e) {
   if (strlen(txt) != 1) return;
   char c = txt[0];
   if (c < 'a' || c > 'z') return;            // only letters have another case
-  if (s_plen == 0 || s_pass[s_plen - 1] != c) return;   // not the char just typed
-  s_pass[s_plen - 1] = (char)(c - 'a' + 'A');
+  // The character the press just entered sits before the caret, wherever the
+  // caret is. Testing the end of the buffer instead would silently do nothing
+  // after a tap, leaving the plane flipped and the letter lowercase.
+  if (s_caret == 0 || s_pass[s_caret - 1] != c) return;   // not the char just typed
+  s_pass[s_caret - 1] = (char)(c - 'a' + 'A');
   setup_cap_reset();
   flash_last();
-  char up[2] = { s_pass[s_plen - 1], 0 };
+  char up[2] = { s_pass[s_caret - 1], 0 };
   pop_show(up, id);
 }
 
@@ -1153,6 +1196,7 @@ static void pp_scan_text_cb(const char *txt, size_t len) {
   memcpy(s_pass, txt, len);
   s_pass[len] = 0;
   s_plen = (int)len;
+  s_caret = s_plen;             // a scan fills the field; typing continues at the end
   entry_refresh();
 }
 
@@ -1184,8 +1228,51 @@ static void pp_scan_warn_cb(lv_event_t *e) {
 static void show_cb(lv_event_t *e) {
   (void)e;
   s_show = !s_show;
+  // Hiding returns the caret to the end. Editing mid-string behind the dots is
+  // blind, and the masked view truncates past 78 characters anyway, so the
+  // caret could sit somewhere the owner cannot see.
+  if (!s_show) s_caret = s_plen;
   lv_label_set_text(s_showbtn_lbl, s_show ? tr(STR_L_HIDE) : tr(STR_L_SHOW));
   entry_refresh();
+}
+
+// Tap a character to put the caret there. SHOW only, for the reason above.
+//
+// lv_label_get_letter_on wants a point relative to the object's own top-left
+// and subtracts the padding itself, so hand it the raw offset from coords.x1.
+// It answers with the index of the glyph whose cell the tap landed in, which
+// on its own always puts the caret BEFORE that glyph: tapping a character and
+// pressing backspace would then delete its neighbour. Comparing against the
+// glyph's midpoint is what makes "tap the character you want gone" work.
+static void entry_tap_cb(lv_event_t *e) {
+  if (!s_show || s_plen == 0 || !s_entry) return;
+  lv_indev_t *indev = lv_event_get_indev(e);
+  if (!indev) return;
+
+  lv_point_t pt;
+  lv_indev_get_point(indev, &pt);
+  lv_area_t a;
+  lv_obj_get_coords(s_entry, &a);
+  lv_point_t rel = { pt.x - a.x1, pt.y - a.y1 };
+
+  lv_obj_update_layout(s_entry);
+  int c = (int)lv_label_get_letter_on(s_entry, &rel, false);
+  if (c < 0) c = 0;
+  if (c > s_plen) c = s_plen;
+
+  if (c < s_plen) {
+    int32_t pad_l = lv_obj_get_style_pad_left(s_entry, LV_PART_MAIN);
+    lv_point_t p0, p1;
+    lv_label_get_letter_pos(s_entry, (uint32_t)c, &p0);
+    lv_label_get_letter_pos(s_entry, (uint32_t)(c + 1), &p1);
+    // Only when both sit on the same line. A glyph at a wrap point has its
+    // successor on the next line, where a midpoint in x means nothing.
+    if (p1.y == p0.y && rel.x - pad_l > (p0.x + p1.x) / 2) c++;
+  }
+
+  s_caret = c;
+  s_flash = false;                  // the flashed character is no longer the newest
+  caret_refresh();
 }
 
 void wallet_ui_ensure_indev(void) { ensure_indev(); }
@@ -1289,6 +1376,19 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_label_set_long_mode(s_entry, LV_LABEL_LONG_SCROLL);   // long passphrases scroll
   lv_obj_set_style_text_align(s_entry, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_pos(s_entry, 48, 92);
+  // Tap-to-edit. One line of font28 is a 34px target, which is mean for a
+  // fingertip, so the touch area is widened without moving the layout.
+  lv_obj_add_flag(s_entry, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_ext_click_area(s_entry, 20);
+  lv_obj_add_event_cb(s_entry, entry_tap_cb, LV_EVENT_CLICKED, NULL);
+
+  s_caret_obj = lv_obj_create(s_entry);
+  lv_obj_remove_style_all(s_caret_obj);
+  lv_obj_set_style_bg_opa(s_caret_obj, LV_OPA_COVER, 0);
+  lv_obj_set_size(s_caret_obj, 2, 2);
+  // The caret must never swallow a tap aimed at the character behind it
+  lv_obj_clear_flag(s_caret_obj, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(s_caret_obj, LV_OBJ_FLAG_HIDDEN);
 
   s_count = lv_label_create(s_login);      // live length readout under the entry
   lv_label_set_text(s_count, "");
