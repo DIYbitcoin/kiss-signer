@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, bitcoin real",
   "I_H_FP_B": "el código de identidad de esta cartera.\n\nla app emparejada debe mostrar el MISMO.\npara asegurarte de que tiene tus direcciones, usa RECIBIR > VERIFICAR.",
   "I_H_TYPE_B": "cómo son tus direcciones.\nbc1... es la moderna, con menos comisión.\n\nm/... indica de dónde salen las claves.\ntu app las encuentra con eso.",
+  "I_SEC_PATH": "RUTA DE DERIVACIÓN",
+  "I_H_PATH_B": "m/... indica de dónde salen las claves.\ntu app las encuentra con eso.",
   "I_H_PAIR_T": "LA CARTERA COORDINADORA",
   "I_H_PAIR_B": "un descriptor es un mapa de solo lectura de esta cartera.\npermite que Sparrow vea el saldo, encuentre direcciones y prepare transacciones.\n\nno puede gastar. se firma AQUÍ.",
   "I_H_ADDR_B": "tu primera dirección identifica esta cartera.\nla cartera coordinadora también debe mostrarla.\n\ncompártela para recibir.\nusa otra nueva para el próximo pago.\nreutilizarla vincula tus pagos públicamente.",

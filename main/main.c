@@ -194,7 +194,6 @@ static int s_tile_pend;   // 0 none, 1 Sign, 2 Receive, 3 Wallet/export
 static bool s_fp_pend;    // fingerprint chip pressed; opens the card on release (so
                           // the live LVGL indev binds this press to home, not the
                           // full-screen overlay we are about to create)
-static lv_obj_t *s_tile_glow;  // soft highlight under the finger (press feedback)
 
 static lv_timer_t *s_spawn_timer;  // handle so start_game can reset the difficulty ramp
 
@@ -1296,11 +1295,6 @@ static void wallet_home_restyle(void) {
   }
   for (int i = 0; i < N_MOTES; i++)
     if (s_mote[i]) lv_obj_set_style_bg_color(s_mote[i], ac, 0);
-  if (s_tile_glow) {
-    lv_obj_set_style_bg_color(s_tile_glow, ac, 0);
-    lv_obj_set_style_border_color(s_tile_glow, ac, 0);
-    lv_obj_set_style_shadow_color(s_tile_glow, ac, 0);
-  }
 }
 
 // The SD-storage badge: shown only when this wallet lives on the card, accent
@@ -1536,71 +1530,20 @@ static int unlock_kind(void) {
 // This is the SECURITY timeout, not the screensaver -- it drops the session key.
 #define WALLET_AUTOLOCK_MS 300000
 
-// Press feedback on the four home tiles: ONE brief flash, then nothing.
+// The four home tiles answer a press with NOTHING drawn.
 //
-// It used to be a glass pane that sat under the finger for as long as the
-// finger was down, which on a tile you hold for half a second reads as the
-// screen having got stuck rather than as an acknowledgement. The pills got a
-// press animation of their own in this release and these four deliberately did
-// NOT take it: they are the largest targets on the device and the only ones
-// that leave the screen, so they answer once and get out of the way.
+// This is the third and last version of that decision, so the reasoning is
+// worth keeping. It began as a glass pane that sat under the finger for as
+// long as the finger was down, which on a tile you hold for half a second
+// reads as the screen having got stuck. That was replaced by one 190ms accent
+// flash, on the theory that a press has to be acknowledged somehow. It does
+// not. The acknowledgement IS the screen changing, and on a target this large
+// there is no ambiguity about what you hit: a flash between the touch and the
+// new screen is one more thing happening in a place the eye is already leaving.
 //
-// Opacity only — transform_scale hard-hangs LVGL, and plain LV_STYLE_OPA is
-// not opa_layered, so it forces no draw layer either. Stays inside s_wallet
-// bounds so it can never trigger the out-of-bounds invalidation bug.
-#define TILE_FLASH_MS 190
-
-static void tile_flash_anim(void *obj, int32_t v) {
-  lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
-}
-
-static void tile_flash_done(lv_anim_t *a) {
-  lv_obj_add_flag((lv_obj_t *)a->var, LV_OBJ_FLAG_HIDDEN);
-}
-
-static void tile_glow_sync(void) {
-  static const int gx[4] = {40, 230, 410, 590};
-  static const int gw[4] = {180, 160, 160, 160};
-  // Which tile the current flash belongs to, so a press that is HELD does not
-  // restart it every frame -- that would be the old lingering glow again,
-  // rebuilt out of animation frames.
-  static int flashed_for;
-
-  if (!s_tile_pend) {
-    flashed_for = 0;
-    return;
-  }
-  if (s_tile_pend == flashed_for) return;
-  flashed_for = s_tile_pend;
-
-  if (!s_tile_glow) {
-    s_tile_glow = lv_obj_create(s_wallet);
-    lv_obj_remove_style_all(s_tile_glow);
-    lv_obj_set_style_radius(s_tile_glow, 18, 0);
-    lv_obj_set_style_bg_opa(s_tile_glow, 52, 0);
-    lv_obj_set_style_border_width(s_tile_glow, 1, 0);
-    lv_obj_remove_flag(s_tile_glow, LV_OBJ_FLAG_CLICKABLE);
-  }
-  lv_obj_set_style_bg_color(s_tile_glow, wt_accent(), 0);
-  lv_obj_set_style_border_color(s_tile_glow, wt_accent(), 0);
-  int i = s_tile_pend - 1;
-  lv_obj_set_pos(s_tile_glow, gx[i], 140);
-  lv_obj_set_size(s_tile_glow, gw[i], 200);
-  lv_obj_set_style_opa(s_tile_glow, LV_OPA_COVER, 0);
-  lv_obj_clear_flag(s_tile_glow, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_move_foreground(s_tile_glow);
-
-  lv_anim_t a;
-  lv_anim_init(&a);
-  lv_anim_set_var(&a, s_tile_glow);
-  lv_anim_set_exec_cb(&a, tile_flash_anim);
-  lv_anim_set_completed_cb(&a, tile_flash_done);
-  lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
-  lv_anim_set_duration(&a, TILE_FLASH_MS);
-  lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-  lv_anim_start(&a);
-}
-
+// s_tile_pend stays and has nothing to do with any of this. It is the latch
+// that makes a tile open on RELEASE rather than on touch, so a finger that
+// lands on the wrong tile can slide off it and let go without opening it.
 // Home and WALLET use the same fingerprint explainer. The delete event clears
 // this input gate whether the card closes by its OK pill or by tapping outside.
 static void fp_card_deleted_cb(lv_event_t *e) {
@@ -1778,7 +1721,6 @@ static void game_tick(lv_timer_t *t) {
       else wallet_settings_open(lv_screen_active());
     }
 #endif
-    tile_glow_sync();                       // press feedback follows s_tile_pend
     s_prev_press = pressed;
     return;
   }
@@ -2194,7 +2136,10 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // Build identity, bottom-left — the baked art used to carry a permanent
   // CAUTION pill here (a status light that never changed = dead chrome); now
   // this corner tells the truth instead, same line as the Settings footer.
-  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false);
+  // ONE line here. Settings stacks because it has to share its bottom edge with
+  // a row of buttons; this edge is empty, so the signature runs along it and
+  // stays the quiet thing it is meant to be.
+  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
 
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
