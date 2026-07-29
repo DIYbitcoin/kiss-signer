@@ -137,19 +137,29 @@ static int s_accent = WT_ACC_MONO;
 static const uint32_t ACC_HEX[WT_ACC_N] = {
     0xE8EEF7,   // MONO: same as WT_INK, the shipped look
     0x35D07F,   // GREEN (matches the home art dot)
-    0xFF3EA5,   // CYPHERPINK
+    // CYPHERPINK was 0xFF3EA5, and it was two things at once: too hot to read
+    // as the purple it is named for, and close enough to WT_STOP (0xFF4D5E)
+    // that in this theme a red warning and ordinary accent chrome shared a hue
+    // family. Status colours never move, so the accent did. 0xC45CE8 is the
+    // same brightness against the background (relative luminance 0.253 against
+    // the old 0.275, so nothing about contrast or legibility changes) and it is
+    // unmistakably not WT_STOP.
+    0xC45CE8,   // CYPHERPINK
     0xFF8A3D,   // ORANGE
 };
 static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
     0x232E42,   // MONO: cool ink glass, bright enough that "selected" is obvious
     0x102417,   // GREEN
-    0x2A1020,   // CYPHERPINK
+    0x20182D,   // CYPHERPINK
     0x2B190D,   // ORANGE
 };
+// Each row is its accent scaled by the same per-channel ratios the pink pair
+// has always used, so a new accent gets a fill and a pressed fill that sit at
+// the same depth below it rather than being picked by eye.
 static const uint32_t ACC_PRESS_HEX[WT_ACC_N] = {
     0x33405A,
     0x173823,
-    0x3A1730,
+    0x2C2243,
     0x3A2513,
 };
 
