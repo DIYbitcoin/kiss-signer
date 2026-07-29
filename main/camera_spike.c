@@ -41,7 +41,7 @@
 
 #include "k_quirc.h"
 #include "i18n.h"
-#include "scan_osd.h"
+#include "osd_strips.h"
 
 static const char *TAG = "camspike";
 
@@ -444,10 +444,18 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
   return false;
 }
 
-// Alpha-blit a baked 4-bit-alpha strip (anti-aliased text from scan_osd.py),
+// Alpha-blit a composed 4-bit-alpha strip (anti-aliased text from osd_text.c),
 // upright in landscape: (ux,uy) -> panel px = cx - uy, py = cy + ux. cx is the
 // panel x of the strip's FIRST text row; the strip grows toward screen-bottom.
-static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy) {
+//
+// dim scales the coverage, 0..255. The baked art used to carry its muting in
+// its own alpha, drawing subtitles at 145 and the close hint at 190. A composed
+// strip is always full coverage and has to be, because full coverage is what
+// sim/osdcheck.c compares against LVGL's own label draw. So the muting moved
+// here, at the same numbers, and nothing on screen changed brightness.
+static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy,
+                    int dim) {
+  if (!s || !s->a4) return;                   // a strip that failed to compose
   for (int uy = 0; uy < s->h; uy++) {
     int px = cx - uy;
     if (px < 0 || px >= PANEL_W) continue;
@@ -458,7 +466,7 @@ static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy) {
       int py = cy + ux;
       if (py < 0 || py >= PANEL_H) continue;
       uint16_t d = fb[py * PANEL_W + px];
-      int aa = a * 17;                        // 0..255
+      int aa = a * 17 * dim / 255;             // 0..255
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
       r += ((31 - r) * aa) >> 8;
       g += ((63 - g) * aa) >> 8;
@@ -649,12 +657,21 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 }
 
 // Text strip on the top band, centered along landscape-x.
+// A caption: a title, and under it the second line the state may or may not
+// have. Two strips now rather than one two-line bitmap, so each centres on its
+// own width — which is what the baked art did inside itself anyway, so the
+// result on screen is the same arrangement.
+//
+// A font's line height already carries its leading, so the gap between the two
+// is small on purpose. 2px, not the generator's 8, because the generator was
+// spacing bare TrueType pixel sizes with no descent in them.
 static void draw_osd_strip(uint16_t *fb, int idx) {
-  if (idx < 0 || idx >= SCAN_OSD_N) return;
-  int lang = i18n_get_lang();
-  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-  const scan_osd_strip_t *s = &scan_osd[lang][idx];
-  blit_a4(fb, s, STRIP_TOP_PX, (PANEL_H - s->w) / 2);
+  const scan_osd_strip_t *t = osd_title(idx);
+  if (!t) return;
+  blit_a4(fb, t, STRIP_TOP_PX, (PANEL_H - t->w) / 2, OSD_DIM_FULL);
+  const scan_osd_strip_t *s = osd_sub(idx);
+  if (s)
+    blit_a4(fb, s, STRIP_TOP_PX - t->h - 2, (PANEL_H - s->w) / 2, OSD_DIM_SUB);
 }
 
 // The live Shannon estimate as digits, in the free end of the bottom band past
@@ -665,8 +682,14 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
 // screen is asking for far faster than any wording would. Anyone tuning
 // ENT_FLOOR_X10 gets a figure they can write down without a special build.
 //
-// Reuses the baked 0-9 glyphs. The decimal point is a plain square because
-// scan_osd bakes digits and no period.
+// The decimal point is a real '.' now. It used to be a 7px square drawn as a
+// rectangle, because the baked atlas held digits and no period and adding one
+// meant regenerating 1.7MB of art on a Mac.
+//
+// Spacing is wider than it looks. A composed glyph strip is exactly its advance
+// width, where a baked one carried a pixel of padding on each side, so the
+// tracking that used to come free from the art has to be asked for here.
+#define ENT_TRACK 5
 static void draw_ent_digits(uint16_t *fb)
 {
     static int disp;                    // eased like the bar, or it is a blur
@@ -674,30 +697,37 @@ static void draw_ent_digits(uint16_t *fb)
     int v = disp < 0 ? 0 : disp > 999 ? 999 : disp;
     int hi = v / 100, mid = (v / 10) % 10, lo = v % 10;
 
+    const scan_osd_strip_t *g_hi = osd_digit(hi), *g_mid = osd_digit(mid);
+    const scan_osd_strip_t *g_lo = osd_digit(lo), *g_dot = osd_dot();
+    if (!g_mid || !g_lo || !g_dot) return;
+
     const int cx = 98;                  // glyph top row, inside the bottom band
-    const int gap = 3, dot = 7;
-    int w = scan_osd_glyph[mid].w + gap + dot + gap + scan_osd_glyph[lo].w;
-    if (hi) w += scan_osd_glyph[hi].w + gap;
+    int w = g_mid->w + ENT_TRACK + g_dot->w + ENT_TRACK + g_lo->w;
+    if (hi && g_hi) w += g_hi->w + ENT_TRACK;
     int cy = PANEL_H - 14 - w;          // right aligned to the band's far end
 
-    if (hi) {
-        blit_a4(fb, &scan_osd_glyph[hi], cx, cy);
-        cy += scan_osd_glyph[hi].w + gap;
+    if (hi && g_hi) {
+        blit_a4(fb, g_hi, cx, cy, OSD_DIM_FULL);
+        cy += g_hi->w + ENT_TRACK;
     }
-    blit_a4(fb, &scan_osd_glyph[mid], cx, cy);
-    cy += scan_osd_glyph[mid].w + gap;
-    lrect_blend(fb, cy, (PANEL_W - 1) - (cx - 37 + dot), dot, dot, 15);
-    cy += dot + gap;
-    blit_a4(fb, &scan_osd_glyph[lo], cx, cy);
+    blit_a4(fb, g_mid, cx, cy, OSD_DIM_FULL);
+    cy += g_mid->w + ENT_TRACK;
+    blit_a4(fb, g_dot, cx, cy, OSD_DIM_FULL);
+    cy += g_dot->w + ENT_TRACK;
+    blit_a4(fb, g_lo, cx, cy, OSD_DIM_FULL);
 }
 
 
-// "Reading  12 of 34" as one line of real type: the baked strip, then live
+// "Reading  12 of 34" as one line of real type: the title strip, then live
 // counts from the glyph atlas (total may be unknown early — show seen alone).
+//
+// The atlas rather than one composed string, because these counts change while
+// frames are flowing and recomposing would put an allocation on the stream task
+// once per part arrival, for a line that is already laid out correctly here.
 static void draw_read_line(uint16_t *fb, int seen, int total) {
-  int lang = i18n_get_lang();
-  if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-  const scan_osd_strip_t *strip = &scan_osd[lang][OSD_READ];
+  const scan_osd_strip_t *strip = osd_title(OSD_READ);
+  const scan_osd_strip_t *of = osd_of();
+  if (!strip || !of) return;
   if (seen > 99) seen = 99;
   if (total > 99) total = 99;
   int gi[8], n = 0;
@@ -711,19 +741,20 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
     gi[n++] = total % 10;
   }
   int tw = strip->w + 14;
-  for (int i = 0; i < n; i++)
-    tw += gi[i] == -1 ? 10
-         : gi[i] == -2 ? scan_osd_of[lang].w + 2
-                       : scan_osd_glyph[gi[i]].w + 2;
+  for (int i = 0; i < n; i++) {
+    const scan_osd_strip_t *g = gi[i] == -2 ? of
+                              : gi[i] >= 0  ? osd_digit(gi[i]) : NULL;
+    tw += gi[i] == -1 ? 10 : g ? g->w + ENT_TRACK : 0;
+  }
   int cy = (PANEL_H - tw) / 2;
-  blit_a4(fb, strip, STRIP_TOP_PX, cy);
+  blit_a4(fb, strip, STRIP_TOP_PX, cy, OSD_DIM_FULL);
   cy += strip->w + 14;
   for (int i = 0; i < n; i++) {
     if (gi[i] == -1) { cy += 10; continue; }
-    const scan_osd_strip_t *g = gi[i] == -2 ? &scan_osd_of[lang]
-                                             : &scan_osd_glyph[gi[i]];
-    blit_a4(fb, g, STRIP_TOP_PX, cy);
-    cy += g->w + 2;
+    const scan_osd_strip_t *g = gi[i] == -2 ? of : osd_digit(gi[i]);
+    if (!g) continue;
+    blit_a4(fb, g, STRIP_TOP_PX, cy, OSD_DIM_FULL);
+    cy += g->w + ENT_TRACK;
   }
 }
 
@@ -1007,9 +1038,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
     darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
     darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
-    int lang = i18n_get_lang();
-    if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
-    blit_a4(fb, &scan_osd[lang][OSD_CLOSE], 449, 22); // localized close, top-left
+    blit_a4(fb, osd_title(OSD_CLOSE), 449, 22, OSD_DIM_CLOSE);  // top-left
   }
   if (s_scan_mode) {
     draw_brackets(fb);                // viewfinder corners (solid once located)
@@ -1029,8 +1058,10 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
   if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
     s_osd_frames--;                   // digits, real type, inset from overscan
-    if (s_orient + 1 <= 9) blit_a4(fb, &scan_osd_glyph[s_orient + 1], 430, 66);
-    if (s_zoom + 1 <= 9)   blit_a4(fb, &scan_osd_glyph[s_zoom + 1], 430, 660);
+    if (s_orient + 1 <= 9)
+      blit_a4(fb, osd_digit(s_orient + 1), 430, 66, OSD_DIM_FULL);
+    if (s_zoom + 1 <= 9)
+      blit_a4(fb, osd_digit(s_zoom + 1), 430, 660, OSD_DIM_FULL);
   }
   // CPU overlays (bar/digits) sit in cache; push them to PSRAM before scanout
   esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
@@ -1162,13 +1193,24 @@ static bool prime_buffers(void) {
 
 static bool cam_start(void) {
   int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  // Compose the overlay's captions here, on the caller's task, before the
+  // stream task exists. Every draw below reads these and none of them
+  // allocates, so a frame never waits on a heap the display path is competing
+  // for. It is also the only moment the language is known to be settled: the
+  // camera cannot be up while the settings screen is.
+  if (!osd_strips_open()) ESP_LOGW(TAG, "overlay text: nothing composed");
   if (!prime_buffers()) {
     // a stale queued buffer from a previous run: force a clean stop and retry once
     ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
-    if (!prime_buffers()) { set_status("CAM: QBUF failed"); return false; }
+    if (!prime_buffers()) {
+      set_status("CAM: QBUF failed");
+      osd_strips_close();
+      return false;
+    }
   }
   if (ioctl(s_cam.fd, VIDIOC_STREAMON, &type)) {
     set_status("CAM: STREAMON %s", strerror(errno));
+    osd_strips_close();
     return false;
   }
   s_cam.stop = false;
@@ -1180,6 +1222,7 @@ static bool cam_start(void) {
                               &s_cam.task, 1) != pdPASS) {
     set_status("CAM: task create failed");
     ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
+    osd_strips_close();
     return false;
   }
   s_cam.streaming = true;
@@ -1192,6 +1235,8 @@ static void cam_stop(void) {
   ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);
   for (int i = 0; i < 50 && s_cam.task; i++) vTaskDelay(pdMS_TO_TICKS(20));
   s_cam.streaming = false;
+  // After the join, never before: the strips are what the stream task draws.
+  osd_strips_close();
 }
 
 bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
