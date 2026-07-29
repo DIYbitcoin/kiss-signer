@@ -253,7 +253,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_S_NO_NETWORK] = "never touched the network",
     [STR_S_EASY_SCAN] = "EASY SCAN",
     [STR_S_EZ_NOTE] = "phone won't catch it? bigger dots, slower loop, same transaction",
-    [STR_S_D_MANYIN_FMT] = "THIS TRANSACTION HAS %u INPUTS\nshowing %u here - all are verified as yours",
+    [STR_S_D_MANYIN_FMT] = "THIS TRANSACTION HAS %u INPUTS\nshowing %u here, all are verified as yours",
     [STR_S_D_INPUTS_FMT] = "INPUTS (%u) - ALL VERIFIED YOURS",
     [STR_S_D_TXID] = "TRANSACTION ID",
     [STR_S_D_TXID_SAME] = "your coordinator shows this same id",
@@ -421,6 +421,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_SD_MISSING_B] = "insert the SD card that holds this wallet, then try again.",
     [STR_W_SD_CORRUPT_B] = "the wallet file on this card is damaged, changed, or belongs to another device.\n\nuse the correct card or restore from your recovery words.",
     [STR_W_SD_IO_B] = "the SD card could not be read.\n\nreinsert it and try again, or restore from your recovery words.",
+    [STR_S_CMP_8] = "compare these 8",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -843,6 +844,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_SD_MISSING_B] = "lege die SD-Karte mit dieser Wallet ein und versuche es erneut.",
     [STR_W_SD_CORRUPT_B] = "die Wallet-Datei auf dieser Karte ist beschädigt, verändert oder gehört zu einem anderen Gerät.\n\nnutze die richtige Karte oder stelle sie aus deinen Wörtern wieder her.",
     [STR_W_SD_IO_B] = "die SD-Karte konnte nicht gelesen werden.\n\nlege sie erneut ein und versuche es noch einmal, oder stelle sie aus deinen Wörtern wieder her.",
+    [STR_S_CMP_8] = "diese 8 vergleichen",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1265,6 +1267,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserta la tarjeta SD que contiene esta billetera y vuelve a intentarlo.",
     [STR_W_SD_CORRUPT_B] = "el archivo de billetera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
+    [STR_S_CMP_8] = "compara estos 8",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1687,6 +1690,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_SD_MISSING_B] = "insérez la carte SD qui contient ce portefeuille, puis réessayez.",
     [STR_W_SD_CORRUPT_B] = "le fichier de portefeuille sur cette carte est endommagé, modifié ou appartient à un autre appareil.\n\nutilisez la bonne carte ou restaurez avec vos mots.",
     [STR_W_SD_IO_B] = "la carte SD n'a pas pu être lue.\n\nréinsérez-la et réessayez, ou restaurez avec vos mots.",
+    [STR_S_CMP_8] = "comparer ces 8",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2109,6 +2113,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserisci la scheda SD che contiene questo portafoglio e riprova.",
     [STR_W_SD_CORRUPT_B] = "il file del portafoglio su questa scheda è danneggiato, modificato o appartiene a un altro dispositivo.\n\nusa la scheda corretta o ripristina dalle tue parole.",
     [STR_W_SD_IO_B] = "non è stato possibile leggere la scheda SD.\n\nreinseriscila e riprova, oppure ripristina dalle tue parole.",
+    [STR_S_CMP_8] = "confronta questi 8",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2531,6 +2536,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_SD_MISSING_B] = "このウォレットが入ったSDカードを挿入し、もう一度お試しください。",
     [STR_W_SD_CORRUPT_B] = "このカードのウォレットファイルは破損、変更されているか、別の端末のものです。\n\n正しいカードを使うか、リカバリーフレーズから復元してください。",
     [STR_W_SD_IO_B] = "SDカードを読み取れませんでした。\n\n挿し直して再試行するか、リカバリーフレーズから復元してください。",
+    [STR_S_CMP_8] = "この 8 文字を照合",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2953,6 +2959,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_SD_MISSING_B] = "이 지갑이 담긴 SD 카드를 삽입하고 다시 시도하세요.",
     [STR_W_SD_CORRUPT_B] = "이 카드의 지갑 파일이 손상 또는 변경되었거나 다른 기기의 파일입니다.\n\n올바른 카드를 사용하거나 복구 문구로 복원하세요.",
     [STR_W_SD_IO_B] = "SD 카드를 읽지 못했습니다.\n\n다시 삽입해 시도하거나 복구 문구로 복원하세요.",
+    [STR_S_CMP_8] = "이 8자 대조",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3375,6 +3382,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_SD_MISSING_B] = "plaats de SD-kaart met deze wallet en probeer het opnieuw.",
     [STR_W_SD_CORRUPT_B] = "het walletbestand op deze kaart is beschadigd, gewijzigd of hoort bij een ander apparaat.\n\ngebruik de juiste kaart of herstel met je woorden.",
     [STR_W_SD_IO_B] = "de SD-kaart kon niet worden gelezen.\n\nplaats hem opnieuw en probeer het nogmaals, of herstel met je woorden.",
+    [STR_S_CMP_8] = "vergelijk deze 8",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3797,6 +3805,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_SD_MISSING_B] = "włóż kartę SD zawierającą ten portfel i spróbuj ponownie.",
     [STR_W_SD_CORRUPT_B] = "plik portfela na tej karcie jest uszkodzony, zmieniony lub należy do innego urządzenia.\n\nużyj właściwej karty lub przywróć portfel ze swoich słów.",
     [STR_W_SD_IO_B] = "nie można odczytać karty SD.\n\nwłóż ją ponownie i spróbuj jeszcze raz albo przywróć portfel ze swoich słów.",
+    [STR_S_CMP_8] = "porównaj te 8",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4219,6 +4228,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_SD_MISSING_B] = "insira o cartão SD que contém esta carteira e tente novamente.",
     [STR_W_SD_CORRUPT_B] = "o arquivo da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com suas palavras.",
     [STR_W_SD_IO_B] = "o cartão SD não pôde ser lido.\n\nreinsira-o e tente novamente, ou restaure com suas palavras.",
+    [STR_S_CMP_8] = "compare estes 8",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4641,6 +4651,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_SD_MISSING_B] = "вставьте SD-карту с этим кошельком и повторите попытку.",
     [STR_W_SD_CORRUPT_B] = "файл кошелька на этой карте поврежден, изменен или принадлежит другому устройству.\n\nиспользуйте правильную карту или восстановите кошелек по своим словам.",
     [STR_W_SD_IO_B] = "SD-карту не удалось прочитать.\n\nвставьте ее заново и повторите попытку или восстановите кошелек по своим словам.",
+    [STR_S_CMP_8] = "сверьте эти 8",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5063,6 +5074,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_SD_MISSING_B] = "bu cüzdanı içeren SD kartı takıp tekrar dene.",
     [STR_W_SD_CORRUPT_B] = "bu karttaki cüzdan dosyası hasarlı, değiştirilmiş veya başka bir cihaza ait.\n\ndoğru kartı kullan veya kelimelerinden geri yükle.",
     [STR_W_SD_IO_B] = "SD kart okunamadı.\n\nkartı yeniden takıp dene veya kelimelerinden geri yükle.",
+    [STR_S_CMP_8] = "bu 8'i karşılaştır",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5485,6 +5497,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_SD_MISSING_B] = "lắp thẻ SD chứa ví này rồi thử lại.",
     [STR_W_SD_CORRUPT_B] = "tệp ví trên thẻ này bị hỏng, bị thay đổi hoặc thuộc về thiết bị khác.\n\nhãy dùng đúng thẻ hoặc khôi phục bằng cụm từ của bạn.",
     [STR_W_SD_IO_B] = "không thể đọc thẻ SD.\n\nhãy lắp lại rồi thử, hoặc khôi phục bằng cụm từ của bạn.",
+    [STR_S_CMP_8] = "so sánh 8 ký tự này",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5907,6 +5920,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_SD_MISSING_B] = "请插入存有此钱包的 SD 卡，然后重试。",
     [STR_W_SD_CORRUPT_B] = "卡上的钱包文件已损坏、被更改或属于其他设备。\n\n请使用正确的卡或通过助记词恢复。",
     [STR_W_SD_IO_B] = "无法读取 SD 卡。\n\n请重新插入并重试，或通过助记词恢复。",
+    [STR_S_CMP_8] = "对比这 8 个字",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6329,6 +6343,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_SD_MISSING_B] = "inserta la tarjeta SD que contiene esta cartera y vuelve a intentarlo.",
     [STR_W_SD_CORRUPT_B] = "el archivo de cartera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
+    [STR_S_CMP_8] = "compara estos 8",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6751,6 +6766,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_SD_MISSING_B] = "introduza o cartão SD que contém esta carteira e tente novamente.",
     [STR_W_SD_CORRUPT_B] = "o ficheiro da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com as suas palavras.",
     [STR_W_SD_IO_B] = "não foi possível ler o cartão SD.\n\nvolte a introduzi-lo e tente novamente, ou restaure com as suas palavras.",
+    [STR_S_CMP_8] = "compare estes 8",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7173,6 +7189,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_SD_MISSING_B] = "sett inn SD-kortet med denne lommeboken, og prøv igjen.",
     [STR_W_SD_CORRUPT_B] = "lommebokfilen på kortet er skadet, endret eller tilhører en annen enhet.\n\nbruk riktig kort, eller gjenopprett fra ordene dine.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke leses.\n\nsett det inn på nytt og prøv igjen, eller gjenopprett fra ordene dine.",
+    [STR_S_CMP_8] = "sammenlign disse 8",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7595,6 +7612,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_SD_MISSING_B] = "sätt in SD-kortet med den här plånboken och försök igen.",
     [STR_W_SD_CORRUPT_B] = "plånboksfilen på kortet är skadad, ändrad eller tillhör en annan enhet.\n\nanvänd rätt kort eller återställ från dina ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunde inte läsas.\n\nsätt in det igen och försök, eller återställ från dina ord.",
+    [STR_S_CMP_8] = "jämför dessa 8",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8017,6 +8035,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_SD_MISSING_B] = "indsæt SD-kortet med denne tegnebog, og prøv igen.",
     [STR_W_SD_CORRUPT_B] = "tegnebogsfilen på kortet er beskadiget, ændret eller hører til en anden enhed.\n\nbrug det rigtige kort, eller gendan fra dine ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke læses.\n\nindsæt det igen og prøv, eller gendan fra dine ord.",
+    [STR_S_CMP_8] = "sammenlign disse 8",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8439,6 +8458,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_SD_MISSING_B] = "vložte SD kartu s touto peněženkou a zkuste to znovu.",
     [STR_W_SD_CORRUPT_B] = "soubor peněženky na této kartě je poškozený, změněný nebo patří jinému zařízení.\n\npoužijte správnou kartu nebo obnovte peněženku ze svých slov.",
     [STR_W_SD_IO_B] = "SD kartu nešlo přečíst.\n\nvložte ji znovu a opakujte pokus, nebo obnovte peněženku ze svých slov.",
+    [STR_S_CMP_8] = "porovnejte těchto 8",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8861,6 +8881,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_SD_MISSING_B] = "umetni SD karticu s ovim novčanikom pa pokušaj ponovno.",
     [STR_W_SD_CORRUPT_B] = "datoteka novčanika na ovoj kartici je oštećena, promijenjena ili pripada drugom uređaju.\n\nupotrijebi ispravnu karticu ili obnovi pomoću svojih riječi.",
     [STR_W_SD_IO_B] = "SD kartica se ne može pročitati.\n\nponovno je umetni i pokušaj ili obnovi pomoću svojih riječi.",
+    [STR_S_CMP_8] = "usporedi ovih 8",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

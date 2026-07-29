@@ -1027,8 +1027,21 @@ static void verify_screen(lv_obj_t *parent)
             // against your coordinator. Fixed pitch matters here specifically,
             // because both runs are four characters and so come out the same
             // width, which a proportional face cannot do.
-            if (recipient_n == 1)
+            if (recipient_n == 1) {
                 wt_addr_short(list, s_sum.outs[i].addr, wt_font_mono23());
+                // The caption HANDOFF-01 asks for, next line down. Without it
+                // the two lit runs are still there and still landing at the
+                // same character width above the address body, but the reason
+                // to keep looking at them is not spelled out. "compare these 8"
+                // makes the four plus four total the label claims explicit, in
+                // one glance: two runs of four is what the elided line above
+                // shows, one four is what the label used to point at.
+                lv_obj_t *ccap = lv_label_create(list);
+                lv_label_set_text(ccap, tr(STR_S_CMP_8));
+                lv_obj_set_style_text_font(ccap, wt_font14(), 0);
+                lv_obj_set_style_text_color(ccap, MUT_COL, 0);
+                lv_obj_set_style_text_letter_space(ccap, 1, 0);
+            }
             if (s_sum.outs[i].is_sp) {
                 lv_obj_t *n = lv_label_create(list);
                 lv_label_set_text(n, sp_onchain_note());
@@ -1315,11 +1328,20 @@ static void details_cb(lv_event_t *e)
            430, 210, wt_font14(), MUT_COL);
     // The same total in BTC, directly under the line about comparing against
     // the coordinator, because comparing is the only reason to want it: a
-    // coordinator that displays BTC needs this row to check the sats above.
+    // coordinator that displays BTC needs this row to check the sats form.
+    //
+    // Just the BTC form now, not "N sats   =   N BTC". The sats form used to
+    // repeat here and pushed the composite line to about x=791 at font23, past
+    // the 750 lane every other line on this page respects, and past the 776
+    // Sign lane too. Bounding it to 330 with wrap collided with the version
+    // and locktime line beneath at y=258 in every locale the overlap gate ran,
+    // because at font23 the composite is ~360px wide and every 330 wrap took
+    // its second line into that row. Copy: cut the value that is beside it, at
+    // arm's length the sats total is a scan away on the verify screen the tap
+    // to DETAILS came from.
     uint64_t leaving = s_sum.send_sats + s_sum.fee_sats;   // as the verify screen counts it
-    fmt_sats(leaving, a, sizeof a);
     wt_fmt_btc(leaving, gt, sizeof gt);
-    snprintf(buf, sizeof buf, "%s sats   =   %s BTC", a, gt);
+    snprintf(buf, sizeof buf, "= %s BTC", gt);
     // 23, and INK. This is the number a holder reads off the glass and compares
     // against the coordinator, which is the entire reason the BTC form is here
     // at all. It was the same size and the same grey as the locktime note.
