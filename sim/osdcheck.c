@@ -30,6 +30,7 @@
 
 #include "i18n.h"
 #include "i18n_keys.h"
+#include "osd_strips.h"
 #include "osd_text.h"
 #include "wallet_theme.h"
 
@@ -180,6 +181,36 @@ static void compare_one(const char *txt, const lv_font_t *f, const char *what,
     lv_obj_delete(scr);
 }
 
+// Second question, and a different one: not "is the composer right" but "does
+// the caption fit the lane". Every real overlay string, at the font the
+// production ladder picks for it, against the 640px the band actually offers.
+//
+// It has to ask osd_strips.c rather than repeat its choices, or the gate ends
+// up proving that a copy of the ladder agrees with itself. A clipped overlay
+// line is a caption that lies, and 640px is exactly the kind of budget that is
+// comfortable in English and tight in German.
+static void width_one(const char *txt, const lv_font_t *f, const char *what,
+                      const char *lang)
+{
+    scan_osd_strip_t s = {0};
+    // No max_w here on purpose: clipping is what is being measured, so asking
+    // the composer to clip would hide the answer.
+    if (!osd_text_strip(txt, f, 0, &s)) {
+        printf("FAIL [%s] %s: composer produced nothing for \"%s\"\n",
+               lang, what, txt);
+        g_fail++;
+        return;
+    }
+    if (s.w > OSD_MAX_W) {
+        printf("FAIL [%s] %s: %d px wide, %d over the %d px band \"%s\"\n"
+               "        shorten the string, or add a rung to the ladder\n",
+               lang, what, s.w, s.w - OSD_MAX_W, OSD_MAX_W, txt);
+        g_fail++;
+    }
+    g_checked++;
+    osd_text_free(&s);
+}
+
 static int osdcheck_run(void)
 {
     // The strings the overlay draws, at every size the overlay uses them at.
@@ -201,8 +232,32 @@ static int osdcheck_run(void)
         }
     }
 
-    printf("\noverlay text gate: %d strings, %ld px, %d failures\n",
-           g_checked, g_px, g_fail);
+    int fit_checked = 0;
+    for (int lang = 0; lang < I18N_LANG_N; lang++) {
+        i18n_set_lang(lang);
+        const i18n_lang_t *info = i18n_lang_info(lang);
+        const char *code = info ? info->code : "??";
+        for (int st = 0; st < SCAN_OSD_N; st++) {
+            const char *t = tr(osd_title_key(st));
+            // OSD_CLOSE is a corner hint and takes the subtitle ladder, the
+            // same exception osd_strips_open makes.
+            width_one(t, st == OSD_CLOSE ? osd_sub_font(t) : osd_title_font(t),
+                      "title", code);
+            fit_checked++;
+            int sk = osd_sub_key(st);
+            if (sk < 0) continue;
+            const char *s = tr(sk);
+            width_one(s, osd_sub_font(s), "subtitle", code);
+            fit_checked++;
+        }
+        const char *of = tr(STR_C_OSD_OF);
+        width_one(of, wt_font34(), "of", code);
+        fit_checked++;
+    }
+
+    printf("\noverlay text gate: %d strings, %ld px, %d fitted into %d px, "
+           "%d failures\n",
+           g_checked - fit_checked, g_px, fit_checked, OSD_MAX_W, g_fail);
     return g_fail ? 1 : 0;
 }
 
