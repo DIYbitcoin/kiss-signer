@@ -43,7 +43,7 @@ static lv_obj_t *s_parent;
 #define RECV_PATH_Y 236
 
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
-static lv_obj_t *s_sp_path_lbl, *s_sp_back_pill, *s_sp_toggle_pill;
+static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
 static uint32_t s_list_base;               // first index the list shows
@@ -59,7 +59,8 @@ bool wallet_recv_active(void) { return s_scr != NULL; }
 static void close_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_path_lbl = s_sp_path_sec = NULL;
+  s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -284,7 +285,8 @@ static void vfy_scan(lv_event_t *e) {
 static void sp_back_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_path_lbl = s_sp_path_sec = NULL;
+  s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   wallet_recv_open(s_parent);
 }
@@ -364,12 +366,18 @@ static void sp_addr_render(void) {
   // Nobody saw it because nobody could get here. The walk's TESTNET tap had
   // been missing its pill since the action bar landed, so every frame named
   // _tn was a picture of mainnet.
+  //
+  // The block is the caption AND the path now, so the ceiling has to be
+  // measured against both. 22 is the caption-to-value step the receive screen
+  // uses, kept identical so the two blocks read as the same component.
   lv_obj_update_layout(s_addr_sg);
   lv_obj_update_layout(s_sp_path_lbl);
+  const int cap_step = 22;
   int path_y = lv_obj_get_y(s_addr_sg) + lv_obj_get_height(s_addr_sg) + 14;
-  int path_max = WT_CONTENT_BOTTOM - lv_obj_get_height(s_sp_path_lbl);
+  int path_max = WT_CONTENT_BOTTOM - cap_step - lv_obj_get_height(s_sp_path_lbl);
   if (path_y > path_max) path_y = path_max;
-  lv_obj_set_y(s_sp_path_lbl, path_y);
+  if (s_sp_path_sec) lv_obj_set_y(s_sp_path_sec, path_y);
+  lv_obj_set_y(s_sp_path_lbl, path_y + cap_step);
 
   // The folded text is useful enough to be a direct affordance, but address
   // span groups deliberately do not accept taps globally: doing that would
@@ -426,7 +434,17 @@ static void sp_addr_open(lv_obj_t *parent) {
   // (sp_addr_render) so the folded and full views can share the screen. A
   // three object block cannot ride that clamp without landing under the action
   // bar in the full view. It belongs with the phase 3 receive restructure.
-  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 200, wt_font23(), WT_INK);
+  // Captioned, like the path on the receive screen beside it. It was a bare
+  // m/352h/0h/0h under a silent payment address: correct, at a readable size,
+  // and with nothing on screen saying what it was. The two screens print the
+  // same KIND of value and a reader who learned what it meant on one of them
+  // had to learn it again here. STR_I_SEC_PATH is the caption the other screen
+  // already uses, so this needed no new string in any of the 21 locales.
+  //
+  // Both are placed by sp_addr_render, because the address above them wraps to
+  // different heights in the folded and full views.
+  s_sp_path_sec = wt_section(s_scr, tr(STR_I_SEC_PATH), 366, 200);
+  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 222, wt_font23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");

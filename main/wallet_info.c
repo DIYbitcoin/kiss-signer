@@ -649,12 +649,16 @@ static void info_screen(void)
     sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 242);
     lv_obj_update_layout(sec);
     mk_help_chip(48 + lv_obj_get_width(sec) + 12, 236, "type");
-    int sc = wallet_script();
-    int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
-    wt_lbl(s_scr, sc == WSCRIPT_LEGACY ? "Legacy (1...)"
-               : sc == WSCRIPT_NESTED ? "Nested SegWit (3...)"
-                                      : "Native SegWit (bc1...)",
-           48, 261, wt_font23(), WT_INK);
+    // Type and path on ONE line, which is what let the path reach font23.
+    //
+    // The path was the only value on this column at font14, and there was no
+    // room to grow it: 126..396 against a 398 floor, and the 11px it needed
+    // were 11px the two line address below did not have. The line above it was
+    // "Native SegWit (bc1...)", and the address immediately below it starts
+    // bc1. So the parenthesis was spending a whole 29px line restating the
+    // value four rows down. Dropping it merges two lines into one and pays for
+    // the bigger path with 18px to spare.
+    //
     // h, not an apostrophe, and this is a correctness fix rather than a style
     // one. At font14 the apostrophes in m/84'/0'/0' render as tick marks a few
     // pixels tall, and on the device panel the line reads as m/84/0/0. Those
@@ -668,21 +672,25 @@ static void info_screen(void)
     // reference you read out character by character cannot be the faintest
     // thing on the screen.
     //
-    // Still font14, and that part is NOT fixed. This column runs 126..396
-    // against a 398 floor, so the 10px a bigger path costs is 10px the address
-    // below does not have. The receive screen got the full treatment (caption,
-    // font23, its own "?") because there was room there. Here it needs the
-    // phase 3 restructure that rebuilds this column.
-    snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 291, wt_font14(), WT_INK);
+    // A path you read out to a coordinator is not a footnote. The receive
+    // screen already prints it at 23 with its own caption; the two screens
+    // print the SAME string, and one of them rendering it in the smallest type
+    // the device owns invited exactly the doubt the h fix above was about.
+    int sc = wallet_script();
+    int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
+    snprintf(buf, sizeof buf, "%s   m/%dh/%dh/0h",
+             sc == WSCRIPT_LEGACY ? "Legacy"
+                 : sc == WSCRIPT_NESTED ? "Nested SegWit" : "Native SegWit",
+             purpose, wallet_testnet() ? 1 : 0);
+    wt_lbl(s_scr, buf, 48, 261, wt_font23(), WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 316);
+    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 300);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 310, "addr");
+    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 294, "addr");
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
     wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 338, wt_font23(), WT_INK);
+    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 322, wt_font23(), WT_INK);
     lv_obj_set_width(a, 360);
     lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
 
