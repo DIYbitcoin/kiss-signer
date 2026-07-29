@@ -1392,8 +1392,9 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // was the commit's fault, and shortening the one word a reader actually
   // needs was the wrong half to cut. A bare short hash left the room.
   //
-  // Stays ASCII on purpose: a glyph missing from the generated font hangs LVGL
-  // outright, so this line is the wrong place to spend a "." or an em dash.
+  // Stays ASCII on purpose: a glyph missing from the generated font draws an
+  // empty placeholder box, and this line is the wrong place to spend a "." or
+  // an em dash on the chance one is missing.
   // Stacked, this used to run version, encryption and radio end to end, which
   // made it as wide as the panel and pushed it into the strip UNDER the action
   // row, the only place a 450px line still fitted. In two rows it is ~215px and

@@ -141,7 +141,6 @@
   "R_S": "trust what you see here, not your computer screen.",
   "R_ADDR_N_FMT": "ADDRESS  #%u",
   "R_ON_TESTNET": "on TESTNET",
-  "R_VERIFY_NOTE": "VERIFY: scan an address your computer shows and this device says if it is really yours",
   "R_ONE_EACH": "use a new address each time\nreuse links payments",
   "R_NEXT": "NEXT",
   "R_VERIFY": "VERIFY",

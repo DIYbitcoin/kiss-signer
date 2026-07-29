@@ -33,7 +33,8 @@ gh pr create -B develop
 Desktop CI runs everything that proves correctness *without* hardware. That
 is deliberately not enough for `main`. Anything touching display, QR or
 animation, camera, SD card, buttons, or touch must be run on a real device
-before it crosses. A missing glyph hard-hangs LVGL, and CI cannot see that.
+before it crosses. A missing glyph draws a blank placeholder box, and CI cannot
+see that.
 
 ## Cutting a release
 

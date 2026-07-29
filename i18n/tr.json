@@ -141,7 +141,6 @@
   "R_S": "bilgisayar ekranına değil, burada gördüğünüze güvenin.",
   "R_ADDR_N_FMT": "ADRES  #%u",
   "R_ON_TESTNET": "TESTNET üzerinde",
-  "R_VERIFY_NOTE": "DOĞRULA: bilgisayarınızın gösterdiği bir adresi tarayın; cihaz gerçekten sizin mi söylesin",
   "R_ONE_EACH": "her seferinde yeni adres\ntekrar kullanım ödemeleri bağlar",
   "R_NEXT": "SONRAKİ",
   "R_VERIFY": "DOĞRULA",

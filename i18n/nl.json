@@ -141,7 +141,6 @@
   "R_S": "vertrouw wat je hier ziet, niet je computerscherm.",
   "R_ADDR_N_FMT": "ADRES  #%u",
   "R_ON_TESTNET": "op TESTNET",
-  "R_VERIFY_NOTE": "CONTROLEER: scan een adres dat je computer toont en dit apparaat zegt of het echt van jou is",
   "R_ONE_EACH": "nieuw adres per betaling\nhergebruik koppelt\nbetalingen",
   "R_NEXT": "VOLGENDE",
   "R_VERIFY": "CONTROLEER",
