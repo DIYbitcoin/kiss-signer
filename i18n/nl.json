@@ -58,7 +58,7 @@
   "W_12_NOTE": "aanbevolen. 128 bits entropie,\nmakkelijker foutloos te bewaren.",
   "W_24_NOTE": "256 bits entropie, maar langer.\nkies dit voor een oude wallet.",
   "W_RAND_T": "VOEG TOEVAL TOE",
-  "W_RAND_S": "een wallet is zo veilig als het toeval waarmee\nhij ontstond. de camera levert dat toeval.",
+  "W_RAND_S": "een wallet is zo veilig als het toeval waarmee\nhij ontstond. de camera levert daarvan de helft.",
   "W_RAND_B": "richt de camera op iets rommeligs:\nbladeren, grind, geschud kaartspel.\ntik als de balk groen wordt.\n\ngemengd met de toevalsbron van de chip,\nzodat geen van beide alleen beslist.",
   "W_WRITE_T": "SCHRIJF ZE OP",
   "W_WRITE_S": "woorden + dezelfde passphrase herstellen deze wallet",
