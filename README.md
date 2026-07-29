@@ -77,10 +77,10 @@ touch panel, camera, SD card slot. No soldering.
 
 For this beta, use the signed artifacts attached to the
 [latest GitHub Release](https://github.com/kkdao/kiss-signer/releases/latest).
-A browser installer lives at
-[kkdao.github.io/kiss-signer](https://kkdao.github.io/kiss-signer/) and hashes
-the firmware before it offers you the button. It is switched off whenever a
-release is staged, which is the case today, so this is the route for now.
+A browser installer lives under `docs/` and hashes the firmware against this
+release before it offers you the button. It goes live at
+[kkdao.github.io/kiss-signer](https://kkdao.github.io/kiss-signer/) when this
+repo goes public, so until then the assets above are the route.
 
 **1. Download** these release assets into one folder, replacing `VERSION` with
 the release number:
