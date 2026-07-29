@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "modern, lägst avgifter.",
   "G_TY_NESTED_NOTE": "äldre segwit.",
   "G_TY_LEGACY_NOTE": "äldsta typen, högst avgifter.",
-  "G_SEPARATE": "varje nätverk + typ är en separat plånbok",
   "G_CREATE_NEW": "SKAPA NY SEED",
   "G_CREATE_NOTE": "ersatter seeden har.",
   "G_WIPE": "RADERA SEED",

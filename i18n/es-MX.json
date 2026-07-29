@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderno, comisiones más bajas.",
   "G_TY_NESTED_NOTE": "segwit antiguo.",
   "G_TY_LEGACY_NOTE": "el estilo más viejo, comisiones altas.",
-  "G_SEPARATE": "cada red + tipo es su propia billetera aparte",
   "G_CREATE_NEW": "CREAR SEED NUEVA",
   "G_CREATE_NOTE": "reemplaza la seed aqui.",
   "G_WIPE": "BORRAR SEED",

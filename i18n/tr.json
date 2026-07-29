@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "modern, en düşük ücretler.",
   "G_TY_NESTED_NOTE": "eski segwit.",
   "G_TY_LEGACY_NOTE": "en eski tarz, en yüksek ücretler.",
-  "G_SEPARATE": "her ağ + tür kendi başına ayrı bir cüzdandır",
   "G_CREATE_NEW": "YENİ SEED OLUŞTUR",
   "G_CREATE_NOTE": "buradaki seed'i degistirir.",
   "G_WIPE": "SEED'I SİL",

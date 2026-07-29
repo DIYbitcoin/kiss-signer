@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "现代类型, 手续费最低。",
   "G_TY_NESTED_NOTE": "较老的 segwit。",
   "G_TY_LEGACY_NOTE": "最老的样式, 手续费最高。",
-  "G_SEPARATE": "每个网络 + 类型组合都是各自独立的钱包",
   "G_CREATE_NEW": "创建新种子",
   "G_CREATE_NOTE": "替换这里的种子。",
   "G_WIPE": "抹掉种子",

@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "modern, lowest fees.",
   "G_TY_NESTED_NOTE": "older segwit.",
   "G_TY_LEGACY_NOTE": "oldest style, highest fees.",
-  "G_SEPARATE": "each network + type is its own separate wallet",
   "G_CREATE_NEW": "CREATE NEW SEED",
   "G_CREATE_NOTE": "replaces the seed here.",
   "G_WIPE": "ERASE SEED",

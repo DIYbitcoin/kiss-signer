@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "nowoczesny, najniższe opłaty.",
   "G_TY_NESTED_NOTE": "starszy segwit.",
   "G_TY_LEGACY_NOTE": "najstarszy styl, najwyższe opłaty.",
-  "G_SEPARATE": "każda sieć + typ to osobny, własny portfel",
   "G_CREATE_NEW": "UTWÓRZ NOWY SEED",
   "G_CREATE_NOTE": "zastepuje seed tutaj.",
   "G_WIPE": "WYMAŻ SEED",
