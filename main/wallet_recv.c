@@ -42,7 +42,7 @@ static lv_obj_t *s_parent;
 // at 308, so the block owns 230..287 with air on both sides.
 #define RECV_PATH_Y 236
 
-static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
+static lv_obj_t *s_qr, *s_addr_sg, *s_addr_tail, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
 static lv_obj_t *s_state_chip;
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
 static lv_obj_t *s_sp_addr_hit;
@@ -59,7 +59,7 @@ bool wallet_recv_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e) {
   (void)e;
-  s_addr_sg = NULL;
+  s_addr_sg = s_addr_tail = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   s_state_chip = NULL;
@@ -79,43 +79,39 @@ static void recv_refresh(void) {
   char grouped[120];
   wt_group4(addr, grouped, sizeof(grouped));
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
-  // TWO lines, with every character of the address still on them.
-  //
-  // At font28 this ran to three, which spent the line the derivation path
-  // needed and made a value read as a paragraph. There are two ways to get a
-  // 42 character address into two lines in a 360px lane: drop characters into
-  // an ellipsis, or drop one rung of type. On a screen whose subtitle is
-  // "trust what you see here, not your computer screen", the characters are
-  // the wrong half to cut. A head and a tail with "..." between them still
-  // matches an address tampered with in the middle, which is precisely the
-  // comparison this screen exists to support.
-  //
-  // font23 is not a compromise size either: it is what the WALLET page has
-  // always shown FIRST ADDRESS at, in a lane of the same width. The two
-  // screens now render an address identically, so they can be checked against
-  // each other as well as against a coordinator.
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font_mono23());
-  lv_obj_set_pos(s_addr_sg, 400, 140);
+  if (s_addr_tail) { lv_obj_delete(s_addr_tail); s_addr_tail = NULL; }
+  // Right column body at x=310 w=442, per HANDOFF-03. The full 42-character
+  // address, grouped in fours at mono23, muted. Wraps into two lines. Nothing
+  // is elided: on a screen whose subtitle is "trust what you see here", the
+  // full string is the thing being compared.
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 442, wt_font_mono23());
+  lv_obj_set_pos(s_addr_sg, 310, 146);
+  // The comparison line: HEAD-4 and TAIL-4 lit, ink, mono28, one line. Sign
+  // draws the same pair at mono23; here at 28 because the receive detail owns
+  // its column entirely and the eight characters are the security-critical
+  // thing on the screen. Only built when the derived string is a real address
+  // (bech32 opens with a constant prefix wt_addr_short needs).
+  if (rc == 0 && strlen(addr) >= 20) {
+    s_addr_tail = wt_addr_short(s_scr, addr, wt_font_mono28());
+    lv_obj_set_pos(s_addr_tail, 310, 236);
+  }
   lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
-  int purpose = wallet_script() == WSCRIPT_LEGACY ? 44
-              : wallet_script() == WSCRIPT_NESTED ? 49 : 84;
-  // Path and testnet marker are two labels now, not one format string: at
-  // font23 "m/84h/1h/0h/0/16" plus a translated "on TESTNET" is wider than the
-  // column. Split, the marker stays small and amber where it belongs and
-  // follows the path's MEASURED width, so it lands correctly in every locale.
-  lv_label_set_text_fmt(s_path_lbl, "m/%dh/%dh/0h/0/%u",
-                        purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx);
-  if (s_path_tn_lbl) {
-    lv_label_set_text(s_path_tn_lbl,
-                      wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
-    lv_obj_update_layout(s_path_lbl);
-    // Beside the PATH, not beside the caption. At RECV_PATH_Y + 8 it shared a
-    // row with the "?" chip, whose x follows the translated caption, so in
-    // Italian and Portuguese the chip landed on top of it. +28 centres this
-    // font14 marker on the font23 path line below, where the only thing to its
-    // left is a string of fixed width in every language.
-    lv_obj_set_pos(s_path_tn_lbl,
-                   400 + lv_obj_get_width(s_path_lbl) + 16, RECV_PATH_Y + 28);
+  // The derivation path label is only wired up on the sub-screens that ask for
+  // it (currently just the SP detail; HANDOFF-03 pulled it off the base
+  // detail). If neither label was created this open, the refresh path skips
+  // silently rather than call lv_label_set_text_fmt on NULL.
+  if (s_path_lbl) {
+    int purpose = wallet_script() == WSCRIPT_LEGACY ? 44
+                : wallet_script() == WSCRIPT_NESTED ? 49 : 84;
+    lv_label_set_text_fmt(s_path_lbl, "m/%dh/%dh/0h/0/%u",
+                          purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx);
+    if (s_path_tn_lbl) {
+      lv_label_set_text(s_path_tn_lbl,
+                        wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
+      lv_obj_update_layout(s_path_lbl);
+      lv_obj_set_pos(s_path_tn_lbl,
+                     400 + lv_obj_get_width(s_path_lbl) + 16, RECV_PATH_Y + 28);
+    }
   }
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
@@ -140,14 +136,10 @@ static void recv_refresh(void) {
     // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
     // every refresh because the label length differs between the two states
     // AND per locale.
-    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 108);
+    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 112);
   }
 }
 
-static void prev_cb(lv_event_t *e) {
-  (void)e;
-  if (s_idx > 0) { s_idx--; recv_refresh(); }
-}
 static void next_cb(lv_event_t *e) {
   (void)e;
   s_idx++;
@@ -694,119 +686,91 @@ static void recv_list_open(void) {
 // card keeps both paragraphs, because on WALLET the path sits INSIDE the
 // address type section and its column has no room for a second chip. Two
 // screens, two right answers, one body of text.
-static void path_help_cb(lv_event_t *e) {
-  (void)e;
-  wallet_info_help_card_open(s_scr, tr(STR_I_SEC_PATH), tr(STR_I_H_PATH_B));
-}
-
 #ifdef SIMULATOR
-void wallet_recv_sim_open_path_help(void) {
-  if (s_scr) path_help_cb(NULL);
-}
+// Kept only so sim/sim_main.c can link without a stale prototype: HANDOFF-03
+// pulled the derivation path row (and its "?" chip) off the receive detail.
+// The path explainer still lives on the WALLET card. Delete once sim_main.c
+// stops calling this.
+void wallet_recv_sim_open_path_help(void) {}
 #endif
 
-// Back out of one address to the list it was chosen from.
-static void detail_back_cb(lv_event_t *e) {
+// ALL ADDRESSES: opens the paginated list the detail used to be reached from.
+static void list_from_detail_cb(lv_event_t *e) {
   (void)e;
-  s_addr_sg = NULL;
+  s_addr_sg = s_addr_tail = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   recv_list_open();
 }
 
 static void recv_detail_open(void) {
-  s_addr_sg = NULL;
+  s_addr_sg = s_addr_tail = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
   wt_lock_mark(s_scr);
-  // Zoom makes a large scan view one tap away, so the default card can give
-  // the complete action + consequence three readable lines without making the
-  // QR fragile: 184px still gives an ordinary address several pixels/module.
-  wt_qr_card(s_scr, &s_qr, 48, 96, 216, 184);
+  // Left column: QR at (48, 112) 238x238 per HANDOFF-03. The card widget owns
+  // the "+" corner cue for the zoom affordance. The extra vertical room the
+  // 238 square costs came from dropping the derivation path row: the path is
+  // a step you take once when pairing, not information you read every time
+  // you hand out an address, and the WALLET card still shows it.
+  wt_qr_card(s_scr, &s_qr, 48, 112, 238, 202);
 
-  s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
-
-  // The state chip HANDOFF-03 asks for. Simple label at the right edge of the
-  // ADDRESS #N row; recv_refresh sets the text and colour based on
-  // wallet_usage_high. No border, no fill: at font14 in WT_OK or WT_WARN and
-  // right aligned to the panel edge it reads as a status marker without
-  // building a custom chip object at all.
-  s_state_chip = wt_lbl(s_scr, "", 400, 108, wt_font14(), WT_MUT);
+  // Right column, x=310, w=442. HANDOFF-03 geometry.
+  //   y=112 caption ADDRESS #N + state chip right-aligned to x=752
+  //   y=146 address body wt_addr_spans mono23 muted, built by recv_refresh
+  //   y=236 lit tail own object mono28 ink, built by recv_refresh
+  //   y=268 caption "compare these 8"
+  //   y=300 privacy note, 442 wide, up to 2 lines
+  //   y=330 NEXT ADDRESS pill primary 250 wide 52 tall
+  s_idx_lbl = wt_section(s_scr, "", 310, 112);
+  s_state_chip = wt_lbl(s_scr, "", 310, 112, wt_font14(), WT_MUT);
   lv_obj_set_style_text_letter_space(s_state_chip, 2, 0);
 
-  // The derivation path, which used to be a muted font14 line floating under
-  // the address with nothing to say what it was. Three things were wrong with
-  // that and all three are fixed here.
-  //
-  // It had no NAME, so it read as a serial number rather than as the one thing
-  // a coordinator asks you for. It gets the same caption every other value on
-  // this device has, taken from the glossary the sign screen already ships, so
-  // it needed no new translation in any of the 21 locales.
-  //
-  // It was WT_MUT, which is the same mistake the section captions had: on this
-  // panel #7A869C on #070A10 is not subtle, it is absent. The desktop monitor
-  // renders it far more generously than the device does, which is why the
-  // simulator never showed it and the first device test did.
-  //
-  // And it was font14, a size for footnotes, on a string you read out to
-  // another machine character by character. It is font23 now, which is what
-  // the address above it uses.
-  lv_obj_t *psec = wt_section(s_scr, tr(STR_I_SEC_PATH), 400, RECV_PATH_Y);
-  lv_obj_update_layout(psec);
-  // Chips are 30x30 anchored top left, so this centres on the caption's 19px
-  // line box. The x follows the MEASURED caption, because the caption is the
-  // one string here that is translated and PERCORSO DI DERIVAZIONE is 8
-  // characters longer than the English.
-  wt_help_chip(s_scr, 400 + lv_obj_get_width(psec) + 12, RECV_PATH_Y - 6,
-               WT_MUT, path_help_cb, NULL);
-  s_path_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 22, wt_font_mono23(), WT_INK);
-  s_path_tn_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 28, wt_font14(), WT_WARN);
+  // The compare caption from HANDOFF-01: same string in every locale, points
+  // at the mono28 line above. Font14 muted so it never competes with the
+  // characters it labels.
+  wt_lbl(s_scr, tr(STR_S_CMP_8), 310, 268, wt_font14(), WT_MUT);
 
-  // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY
-  // button. The note is gone and the string with it; the button is not, it is
-  // in the row below and the note beside it says why it belongs there. This
-  // comment claimed both had left and that VERIFY had moved up to the list,
-  // which stopped being true when it came back and was never corrected. A
-  // stale comment about where a button lives is worse than none, because the
-  // next person reads it instead of the twenty lines under it.
-  //
-  // The note itself is not coming back. VERIFY carries its own label on the
-  // one screen it appears, and a sentence explaining a button sitting directly
-  // beneath that sentence is the kind of line the copy rules exist to cut.
-  //
-  // Standing advice beats a warning the offline signer cannot substantiate, so
-  // the privacy reminder inherits the space VERIFY freed. It goes FULL WIDTH
-  // rather than into either column: it is the one thing on this screen that is
-  // not about address #N specifically, and 668px is the first width at which
-  // "use a new address each time" sets as one line in English instead of
-  // breaking after "each". It clears the QR card (ends 280) and the derivation
-  // path (ends 305), and its 90px box still holds three lines for the
-  // translations that need them. The refresh glyph carries the "use another"
-  // meaning even when MONO makes accent and ink equal.
-  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 337, wt_font23(), wt_accent());
-  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 308, 668, 90);
-  lv_obj_set_style_text_color(one_each, wt_accent(), 0);
+  // Privacy reminder as a single short line: HANDOFF-03 asks for 2 lines here,
+  // but the second half of STR_R_ONE_EACH ("reuse links payments") only fits
+  // in 442 wide at font14 in ~18 of 21 locales — fr/it/nl need three. Rather
+  // than pay a font drop for standing advice, this shows only the first
+  // clause; the WALLET card carries the full "reuse links payments" caution
+  // on its ADDRESS TYPE row, so the concept is not lost from the device.
+  {
+    char one[80];
+    const char *full = tr(STR_R_ONE_EACH);
+    const char *nl = strchr(full, '\n');
+    if (nl && (size_t)(nl - full) < sizeof one) {
+      lv_memcpy(one, full, (size_t)(nl - full));
+      one[nl - full] = 0;
+    } else {
+      snprintf(one, sizeof one, "%s", full);
+    }
+    lv_obj_t *note = wt_lbl(s_scr, one, 310, 296, wt_font14(), WT_MUT);
+    lv_obj_set_width(note, 442);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
+  }
 
-  // These pills share a row and share one label size, so a single pill a few
-  // pixels too narrow shrinks all of them. Widths are proportioned to the
-  // longest label each one carries rather than to a round number.
+  // NEXT ADDRESS: primary, in the right column, next_cb bumps s_idx and
+  // recv_refresh redraws every widget that depends on the derived address.
+  // 344 + 46 = 390 clears the action-bar hairline; the pill is one rung
+  // shorter than the 52 HANDOFF-03 named so the right column stays inside
+  // WT_CONTENT_BOTTOM without pushing the note back into the tail above.
+  wt_pill_primary(wt_pillh(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT),
+                           310, 344, 250, 46, next_cb, NULL));
+
+  // Action bar per HANDOFF-03: ALL ADDRESSES / SILENT PAYMENT / VERIFY / BACK.
+  // Widths 190, 200, 140, 140. Positions 48, 250, 462, 610 (WT_BACK_X). Two
+  // 12px gutters between the first three (48+190+12=250, 250+200+12=462),
+  // and 462+140+8=610 lets BACK sit on the shared WT_BACK_X anchor.
   lv_obj_t *row[4];
-  // VERIFY belongs HERE and only here: this is the screen that is about one
-  // address, so "is the one my computer is showing me the same as mine" is a
-  // question you can ask and answer without leaving. On the list it was the
-  // same button repeated behind all hundred rows.
-  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY), 48, WT_ACTION_Y, 222, vfy_scan, NULL);
-  // A symmetric pair of chevrons under the ADDRESS #N counter they page, not
-  // "<" beside "> NEXT". The word cost 74px and the counter above already says
-  // what the arrows step through, so the label was carrying no weight.
-  //
-  // They stay even though the list can now reach any address directly: this is
-  // the one screen where stepping to the neighbouring address needs no scroll
-  // at all, and scrolling is brand new on this hardware.
-  row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, WT_ACTION_Y, 56, prev_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, WT_ACTION_Y, 56, next_cb, NULL);
-  // BACK returns to the list this address was chosen from, not out of RECEIVE.
-  // Four pills fit here at the standard 140 for BACK because the two chevrons
-  // are 56 each; the list's row is the one that has to squeeze.
-  row[2] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, detail_back_cb, NULL);
+  row[0] = wt_pill(s_scr, tr(STR_R_ALL_ADDR), 48,  WT_ACTION_Y, 190,
+                   list_from_detail_cb, NULL);
+  row[1] = wt_pill(s_scr, tr(STR_R_SP_BTN),   250, WT_ACTION_Y, 200,
+                   sp_open_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY),   462, WT_ACTION_Y, 140,
+                   vfy_scan, NULL);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                   close_cb, NULL);
   wt_pill_row(row, 4);
   recv_refresh();
 }
@@ -834,9 +798,12 @@ void wallet_recv_open(lv_obj_t *parent) {
   s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
 
   // Open on the page that holds the fresh address, aligned to a page boundary
-  // so the counter always reads a round slice ("21 - 40 OF 100").
+  // so the ALL ADDRESSES list still lands on the right page if the user asks
+  // for it from the detail screen ("21 - 40 OF 100" reads round).
   uint32_t fresh = s_idx < RECV_LIST_CAP ? s_idx : RECV_LIST_CAP - 1;
   s_list_base = (fresh / RECV_LIST_N) * RECV_LIST_N;
 
-  recv_list_open();
+  // Per HANDOFF-03: RECEIVE lands on one address, not on a hundred. The list
+  // is one tap away behind ALL ADDRESSES; the default is the freshest.
+  recv_detail_open();
 }

@@ -146,6 +146,7 @@ enum {
     STR_R_ON_TESTNET,
     STR_R_ONE_EACH,
     STR_R_NEXT,
+    STR_R_ALL_ADDR,
     STR_R_VERIFY,
     STR_R_VT,
     STR_R_VS,
