@@ -335,7 +335,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NOT FOUND IN FIRST %u ADDRESSES",
     [STR_R_NOT_FOUND_B] = "valid for this network, but outside the first 100 receiving/change addresses searched. this is not definitive.",
     [STR_R_WRONG_NET] = "WRONG NETWORK",
-    [STR_R_WRONG_NET_B] = "this address is valid, but for the other Bitcoin network. switch networks or scan again.",
+    [STR_R_WRONG_NET_B] = "this address is %s. your wallet is on %s. switch networks or scan again.",
     [STR_R_INVALID] = "INVALID ADDRESS",
     [STR_R_INVALID_B] = "the address format or checksum is invalid. do not use it.",
     [STR_C_OSD_SEARCH_T] = "Looking for the QR code",
@@ -428,6 +428,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "NO UNDO",
     [STR_I_WORDS_VERIFIED_FMT] = "checked \xc2\xb7 ID %s is on your card",
     [STR_I_WORDS_UNVERIFIED] = "paper never checked",
+    [STR_GD_SET_UP_SPARE] = "SET UP A SPARE",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -764,7 +765,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NICHT IN DEN ERSTEN %u ADRESSEN",
     [STR_R_NOT_FOUND_B] = "für dieses Netzwerk gültig, aber nicht unter den ersten 100 geprüften Empfangs- oder Wechseladressen. das ist nicht endgültig.",
     [STR_R_WRONG_NET] = "FALSCHES NETZWERK",
-    [STR_R_WRONG_NET_B] = "diese Adresse ist gültig, aber für das andere Bitcoin-Netzwerk. Netzwerk wechseln oder erneut scannen.",
+    [STR_R_WRONG_NET_B] = "diese Adresse ist %s. deine Wallet ist auf %s. Netzwerk wechseln oder erneut scannen.",
     [STR_R_INVALID] = "UNGÜLTIGE ADRESSE",
     [STR_R_INVALID_B] = "Format oder Prüfsumme der Adresse ist ungültig. nicht verwenden.",
     [STR_C_OSD_SEARCH_T] = "QR-Code wird gesucht",
@@ -857,6 +858,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "NICHT UMKEHRBAR",
     [STR_I_WORDS_VERIFIED_FMT] = "geprüft \xc2\xb7 ID %s ist auf deiner Karte",
     [STR_I_WORDS_UNVERIFIED] = "Papier nie geprüft",
+    [STR_GD_SET_UP_SPARE] = "ZWEITE EINRICHTEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1193,7 +1195,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NO ESTÁ EN LAS PRIMERAS %u DIRECCIONES",
     [STR_R_NOT_FOUND_B] = "es válida para esta red, pero no está entre las primeras 100 direcciones de recepción o cambio revisadas. no es definitivo.",
     [STR_R_WRONG_NET] = "RED EQUIVOCADA",
-    [STR_R_WRONG_NET_B] = "esta dirección es válida, pero para la otra red de Bitcoin. cambia de red o escanea de nuevo.",
+    [STR_R_WRONG_NET_B] = "esta dirección es %s. tu billetera está en %s. cambia de red o escanea de nuevo.",
     [STR_R_INVALID] = "DIRECCIÓN INVÁLIDA",
     [STR_R_INVALID_B] = "el formato o la suma de verificación no es válido. no la uses.",
     [STR_C_OSD_SEARCH_T] = "Buscando el código QR",
@@ -1286,6 +1288,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "SIN DESHACER",
     [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
+    [STR_GD_SET_UP_SPARE] = "CONFIGURAR UNA DE REPUESTO",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1622,7 +1625,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "ABSENTE DES %u PREMIÈRES ADRESSES",
     [STR_R_NOT_FOUND_B] = "valide sur ce réseau, mais absente des 100 premières adresses de réception ou de monnaie vérifiées. ce n'est pas définitif.",
     [STR_R_WRONG_NET] = "MAUVAIS RÉSEAU",
-    [STR_R_WRONG_NET_B] = "cette adresse est valide, mais pour l'autre réseau Bitcoin. changez de réseau ou rescannnez.",
+    [STR_R_WRONG_NET_B] = "cette adresse est %s. ton portefeuille est sur %s. changez de réseau ou rescannnez.",
     [STR_R_INVALID] = "ADRESSE INVALIDE",
     [STR_R_INVALID_B] = "le format ou la somme de contrôle est invalide. ne l'utilisez pas.",
     [STR_C_OSD_SEARCH_T] = "Recherche du code QR",
@@ -1715,6 +1718,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "IRRÉVERSIBLE",
     [STR_I_WORDS_VERIFIED_FMT] = "vérifié \xc2\xb7 ID %s est sur ton papier",
     [STR_I_WORDS_UNVERIFIED] = "papier jamais vérifié",
+    [STR_GD_SET_UP_SPARE] = "CRÉER UN LEURRE",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2051,7 +2055,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NON TROVATO NEI PRIMI %u INDIRIZZI",
     [STR_R_NOT_FOUND_B] = "valido per questa rete, ma non tra i primi 100 indirizzi di ricezione o resto controllati. non è definitivo.",
     [STR_R_WRONG_NET] = "RETE SBAGLIATA",
-    [STR_R_WRONG_NET_B] = "questo indirizzo è valido, ma per l'altra rete Bitcoin. cambia rete o scansiona di nuovo.",
+    [STR_R_WRONG_NET_B] = "questo indirizzo è %s. il tuo portafoglio è su %s. cambia rete o scansiona di nuovo.",
     [STR_R_INVALID] = "INDIRIZZO NON VALIDO",
     [STR_R_INVALID_B] = "il formato o il checksum dell'indirizzo non è valido. non usarlo.",
     [STR_C_OSD_SEARCH_T] = "Cerco il codice QR",
@@ -2144,6 +2148,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "IRREVERSIBILE",
     [STR_I_WORDS_VERIFIED_FMT] = "verificato \xc2\xb7 ID %s è sul tuo foglio",
     [STR_I_WORDS_UNVERIFIED] = "foglio mai controllato",
+    [STR_GD_SET_UP_SPARE] = "IMPOSTA DI RISERVA",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2480,7 +2485,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "最初の%uアドレスにありません",
     [STR_R_NOT_FOUND_B] = "このネットワークでは有効ですが、確認した最初の100個の受取またはおつりアドレスにはありません。最終判断ではありません。",
     [STR_R_WRONG_NET] = "ネットワークが違います",
-    [STR_R_WRONG_NET_B] = "有効なアドレスですが、もう一方のBitcoinネットワーク用です。ネットワークを切り替えるか再スキャンしてください。",
+    [STR_R_WRONG_NET_B] = "このアドレスは %s です。ウォレットは %s にあります。ネットワークを切り替えるか再スキャンしてください。",
     [STR_R_INVALID] = "無効なアドレス",
     [STR_R_INVALID_B] = "アドレスの形式またはチェックサムが無効です。使用しないでください。",
     [STR_C_OSD_SEARCH_T] = "QRコードを探しています",
@@ -2573,6 +2578,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "取り消し不可",
     [STR_I_WORDS_VERIFIED_FMT] = "確認済 \xc2\xb7 ID %s は紙にあります",
     [STR_I_WORDS_UNVERIFIED] = "紙は未確認",
+    [STR_GD_SET_UP_SPARE] = "予備を設定",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2909,7 +2915,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "처음 %u개 주소에 없음",
     [STR_R_NOT_FOUND_B] = "이 네트워크에서는 유효하지만 확인한 처음 100개 수신 또는 거스름돈 주소에는 없습니다. 최종 판단은 아닙니다.",
     [STR_R_WRONG_NET] = "네트워크가 다름",
-    [STR_R_WRONG_NET_B] = "유효한 주소지만 다른 Bitcoin 네트워크용입니다. 네트워크를 바꾸거나 다시 스캔하세요.",
+    [STR_R_WRONG_NET_B] = "이 주소는 %s입니다. 지갑은 %s에 있습니다. 네트워크를 바꾸거나 다시 스캔하세요.",
     [STR_R_INVALID] = "잘못된 주소",
     [STR_R_INVALID_B] = "주소 형식이나 체크섬이 잘못되었습니다. 사용하지 마세요.",
     [STR_C_OSD_SEARCH_T] = "QR 코드 찾는 중",
@@ -3002,6 +3008,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "취소 불가",
     [STR_I_WORDS_VERIFIED_FMT] = "확인됨 \xc2\xb7 ID %s 은(는) 종이에 있음",
     [STR_I_WORDS_UNVERIFIED] = "종이 미확인",
+    [STR_GD_SET_UP_SPARE] = "예비 설정",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3338,7 +3345,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NIET IN DE EERSTE %u ADRESSEN",
     [STR_R_NOT_FOUND_B] = "geldig voor dit netwerk, maar niet in de eerste 100 gecontroleerde ontvangst- of wisselgeldadressen. dit is niet definitief.",
     [STR_R_WRONG_NET] = "VERKEERD NETWERK",
-    [STR_R_WRONG_NET_B] = "dit adres is geldig, maar voor het andere Bitcoin-netwerk. wissel van netwerk of scan opnieuw.",
+    [STR_R_WRONG_NET_B] = "dit adres is %s. je wallet is op %s. wissel van netwerk of scan opnieuw.",
     [STR_R_INVALID] = "ONGELDIG ADRES",
     [STR_R_INVALID_B] = "de indeling of controlesom van het adres is ongeldig. niet gebruiken.",
     [STR_C_OSD_SEARCH_T] = "QR-code zoeken",
@@ -3431,6 +3438,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "NIET TERUG TE DRAAIEN",
     [STR_I_WORDS_VERIFIED_FMT] = "gecontroleerd \xc2\xb7 ID %s staat op je kaart",
     [STR_I_WORDS_UNVERIFIED] = "papier nooit gecontroleerd",
+    [STR_GD_SET_UP_SPARE] = "RESERVE INSTELLEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3767,7 +3775,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "BRAK W PIERWSZYCH %u ADRESACH",
     [STR_R_NOT_FOUND_B] = "poprawny dla tej sieci, ale nie ma go w pierwszych 100 sprawdzonych adresach odbioru lub reszty. to nie jest rozstrzygające.",
     [STR_R_WRONG_NET] = "ZŁA SIEĆ",
-    [STR_R_WRONG_NET_B] = "ten adres jest poprawny, ale dla drugiej sieci Bitcoin. zmień sieć lub zeskanuj ponownie.",
+    [STR_R_WRONG_NET_B] = "ten adres jest %s. twój portfel jest w %s. zmień sieć lub zeskanuj ponownie.",
     [STR_R_INVALID] = "NIEPRAWIDŁOWY ADRES",
     [STR_R_INVALID_B] = "format lub suma kontrolna adresu jest nieprawidłowa. nie używaj go.",
     [STR_C_OSD_SEARCH_T] = "Szukanie kodu QR",
@@ -3860,6 +3868,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "NIEODWRACALNE",
     [STR_I_WORDS_VERIFIED_FMT] = "sprawdzone \xc2\xb7 ID %s jest na twoim papierze",
     [STR_I_WORDS_UNVERIFIED] = "papier nigdy nie sprawdzony",
+    [STR_GD_SET_UP_SPARE] = "USTAW ZAPASOWY",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4196,7 +4205,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NÃO ESTÁ NOS PRIMEIROS %u ENDEREÇOS",
     [STR_R_NOT_FOUND_B] = "válido nesta rede, mas não está entre os primeiros 100 endereços de recebimento ou troco verificados. isso não é definitivo.",
     [STR_R_WRONG_NET] = "REDE ERRADA",
-    [STR_R_WRONG_NET_B] = "este endereço é válido, mas para a outra rede Bitcoin. troque de rede ou escaneie novamente.",
+    [STR_R_WRONG_NET_B] = "este endereço é %s. sua carteira está em %s. troque de rede ou escaneie novamente.",
     [STR_R_INVALID] = "ENDEREÇO INVÁLIDO",
     [STR_R_INVALID_B] = "o formato ou checksum do endereço é inválido. não use.",
     [STR_C_OSD_SEARCH_T] = "Procurando o código QR",
@@ -4289,6 +4298,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "SEM DESFAZER",
     [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
+    [STR_GD_SET_UP_SPARE] = "CONFIGURAR RESERVA",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4625,7 +4635,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "НЕТ СРЕДИ ПЕРВЫХ %u АДРЕСОВ",
     [STR_R_NOT_FOUND_B] = "действителен в этой сети, но его нет среди первых 100 проверенных адресов получения или сдачи. это не окончательный вывод.",
     [STR_R_WRONG_NET] = "ДРУГАЯ СЕТЬ",
-    [STR_R_WRONG_NET_B] = "адрес действителен, но для другой сети Bitcoin. смените сеть или отсканируйте снова.",
+    [STR_R_WRONG_NET_B] = "этот адрес — %s. ваш кошелек в %s. смените сеть или отсканируйте снова.",
     [STR_R_INVALID] = "НЕВЕРНЫЙ АДРЕС",
     [STR_R_INVALID_B] = "формат или контрольная сумма адреса неверны. не используйте его.",
     [STR_C_OSD_SEARCH_T] = "Поиск QR-кода",
@@ -4718,6 +4728,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "БЕЗ ОТМЕНЫ",
     [STR_I_WORDS_VERIFIED_FMT] = "проверено \xc2\xb7 ID %s есть на вашей бумаге",
     [STR_I_WORDS_UNVERIFIED] = "бумага не проверена",
+    [STR_GD_SET_UP_SPARE] = "НАСТРОИТЬ ЗАПАСНОЙ",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5054,7 +5065,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "İLK %u ADRESTE BULUNAMADI",
     [STR_R_NOT_FOUND_B] = "bu ağ için geçerli, ancak kontrol edilen ilk 100 alma veya para üstü adresinde yok. bu kesin bir sonuç değildir.",
     [STR_R_WRONG_NET] = "YANLIŞ AĞ",
-    [STR_R_WRONG_NET_B] = "bu adres geçerli, ancak diğer Bitcoin ağı için. ağı değiştirin veya tekrar tarayın.",
+    [STR_R_WRONG_NET_B] = "bu adres %s. cüzdanınız %s ağında. ağı değiştirin veya tekrar tarayın.",
     [STR_R_INVALID] = "GEÇERSİZ ADRES",
     [STR_R_INVALID_B] = "adres biçimi veya sağlama toplamı geçersiz. kullanmayın.",
     [STR_C_OSD_SEARCH_T] = "QR kodu aranıyor",
@@ -5147,6 +5158,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "GERİ ALINAMAZ",
     [STR_I_WORDS_VERIFIED_FMT] = "kontrol edildi \xc2\xb7 ID %s kartınızda",
     [STR_I_WORDS_UNVERIFIED] = "kağıt hiç kontrol edilmedi",
+    [STR_GD_SET_UP_SPARE] = "YEDEK KUR",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5483,7 +5495,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "KHÔNG CÓ TRONG %u ĐỊA CHỈ ĐẦU",
     [STR_R_NOT_FOUND_B] = "hợp lệ trên mạng này, nhưng không nằm trong 100 địa chỉ nhận hoặc tiền thừa đầu tiên đã kiểm tra. đây chưa phải kết luận cuối.",
     [STR_R_WRONG_NET] = "SAI MẠNG",
-    [STR_R_WRONG_NET_B] = "địa chỉ này hợp lệ nhưng dành cho mạng Bitcoin kia. hãy đổi mạng hoặc quét lại.",
+    [STR_R_WRONG_NET_B] = "địa chỉ này là %s. ví của bạn đang trên %s. hãy đổi mạng hoặc quét lại.",
     [STR_R_INVALID] = "ĐỊA CHỈ KHÔNG HỢP LỆ",
     [STR_R_INVALID_B] = "định dạng hoặc checksum của địa chỉ không hợp lệ. đừng dùng.",
     [STR_C_OSD_SEARCH_T] = "Đang tìm mã QR",
@@ -5576,6 +5588,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "KHÔNG HOÀN TÁC",
     [STR_I_WORDS_VERIFIED_FMT] = "đã kiểm \xc2\xb7 ID %s có trên giấy của bạn",
     [STR_I_WORDS_UNVERIFIED] = "giấy chưa kiểm",
+    [STR_GD_SET_UP_SPARE] = "TẠO VÍ DỰ PHÒNG",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5912,7 +5925,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "前%u个地址中未找到",
     [STR_R_NOT_FOUND_B] = "此地址在当前网络有效，但不在已检查的前100个收款或找零地址中。这不是最终结论。",
     [STR_R_WRONG_NET] = "网络不匹配",
-    [STR_R_WRONG_NET_B] = "此地址有效，但属于另一个Bitcoin网络。请切换网络或重新扫描。",
+    [STR_R_WRONG_NET_B] = "此地址是 %s。你的钱包在 %s。请切换网络或重新扫描。",
     [STR_R_INVALID] = "地址无效",
     [STR_R_INVALID_B] = "地址格式或校验和无效，请勿使用。",
     [STR_C_OSD_SEARCH_T] = "正在寻找QR码",
@@ -6005,6 +6018,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "无法撤销",
     [STR_I_WORDS_VERIFIED_FMT] = "已核对 \xc2\xb7 ID %s 在你的纸上",
     [STR_I_WORDS_UNVERIFIED] = "纸未核对",
+    [STR_GD_SET_UP_SPARE] = "设置备用",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6341,7 +6355,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NO ESTÁ EN LAS PRIMERAS %u DIRECCIONES",
     [STR_R_NOT_FOUND_B] = "es válida para esta red, pero no está entre las primeras 100 direcciones de recepción o cambio revisadas. no es definitivo.",
     [STR_R_WRONG_NET] = "RED EQUIVOCADA",
-    [STR_R_WRONG_NET_B] = "esta dirección es válida, pero para la otra red de Bitcoin. cambia de red o escanea de nuevo.",
+    [STR_R_WRONG_NET_B] = "esta dirección es %s. tu billetera está en %s. cambia de red o escanea de nuevo.",
     [STR_R_INVALID] = "DIRECCIÓN INVÁLIDA",
     [STR_R_INVALID_B] = "el formato o la suma de verificación no es válido. no la uses.",
     [STR_C_OSD_SEARCH_T] = "Buscando el código QR",
@@ -6434,6 +6448,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "SIN DESHACER",
     [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
+    [STR_GD_SET_UP_SPARE] = "CONFIGURAR UNA DE REPUESTO",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6770,7 +6785,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NÃO ESTÁ NOS PRIMEIROS %u ENDEREÇOS",
     [STR_R_NOT_FOUND_B] = "válido nesta rede, mas não está entre os primeiros 100 endereços de receção ou troco verificados. isto não é definitivo.",
     [STR_R_WRONG_NET] = "REDE ERRADA",
-    [STR_R_WRONG_NET_B] = "este endereço é válido, mas para a outra rede Bitcoin. mude de rede ou leia novamente.",
+    [STR_R_WRONG_NET_B] = "este endereço é %s. a sua carteira está em %s. mude de rede ou leia novamente.",
     [STR_R_INVALID] = "ENDEREÇO INVÁLIDO",
     [STR_R_INVALID_B] = "o formato ou checksum do endereço é inválido. não use.",
     [STR_C_OSD_SEARCH_T] = "À procura do código QR",
@@ -6863,6 +6878,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "SEM DESFAZER",
     [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
+    [STR_GD_SET_UP_SPARE] = "CONFIGURAR RESERVA",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7199,7 +7215,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "IKKE BLANT DE FØRSTE %u ADRESSENE",
     [STR_R_NOT_FOUND_B] = "gyldig for dette nettverket, men ikke blant de første 100 sjekkede mottaks- eller vekseladressene. dette er ikke endelig.",
     [STR_R_WRONG_NET] = "FEIL NETTVERK",
-    [STR_R_WRONG_NET_B] = "adressen er gyldig, men for det andre Bitcoin-nettverket. bytt nettverk eller skann igjen.",
+    [STR_R_WRONG_NET_B] = "denne adressen er %s. lommeboken din er på %s. bytt nettverk eller skann igjen.",
     [STR_R_INVALID] = "UGYLDIG ADRESSE",
     [STR_R_INVALID_B] = "adresseformatet eller kontrollsummen er ugyldig. ikke bruk den.",
     [STR_C_OSD_SEARCH_T] = "Ser etter QR-koden",
@@ -7292,6 +7308,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "INGEN ANGRING",
     [STR_I_WORDS_VERIFIED_FMT] = "sjekket \xc2\xb7 ID %s står på papiret ditt",
     [STR_I_WORDS_UNVERIFIED] = "papir aldri sjekket",
+    [STR_GD_SET_UP_SPARE] = "SETT OPP RESERVE",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7628,7 +7645,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "INTE BLAND DE FÖRSTA %u ADRESSERNA",
     [STR_R_NOT_FOUND_B] = "giltig för nätverket, men inte bland de första 100 kontrollerade mottagnings- eller växeladresserna. detta är inte slutgiltigt.",
     [STR_R_WRONG_NET] = "FEL NÄTVERK",
-    [STR_R_WRONG_NET_B] = "adressen är giltig, men för det andra Bitcoin-nätverket. byt nätverk eller skanna igen.",
+    [STR_R_WRONG_NET_B] = "denna adress är %s. din plånbok är på %s. byt nätverk eller skanna igen.",
     [STR_R_INVALID] = "OGILTIG ADRESS",
     [STR_R_INVALID_B] = "adressformatet eller kontrollsumman är ogiltig. använd den inte.",
     [STR_C_OSD_SEARCH_T] = "Letar efter QR-koden",
@@ -7721,6 +7738,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "INGEN ÅNGRING",
     [STR_I_WORDS_VERIFIED_FMT] = "kollad \xc2\xb7 ID %s finns på ditt papper",
     [STR_I_WORDS_UNVERIFIED] = "papper aldrig kollat",
+    [STR_GD_SET_UP_SPARE] = "STÄLL IN RESERV",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8057,7 +8075,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "IKKE BLANDT DE FØRSTE %u ADRESSER",
     [STR_R_NOT_FOUND_B] = "gyldig for netværket, men ikke blandt de første 100 kontrollerede modtage- eller bytteadresser. dette er ikke endeligt.",
     [STR_R_WRONG_NET] = "FORKERT NETVÆRK",
-    [STR_R_WRONG_NET_B] = "adressen er gyldig, men til det andet Bitcoin-netværk. skift netværk eller scan igen.",
+    [STR_R_WRONG_NET_B] = "denne adresse er %s. din wallet er på %s. skift netværk eller scan igen.",
     [STR_R_INVALID] = "UGYLDIG ADRESSE",
     [STR_R_INVALID_B] = "adresseformatet eller kontrolsummen er ugyldig. brug den ikke.",
     [STR_C_OSD_SEARCH_T] = "Leder efter QR-koden",
@@ -8150,6 +8168,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "INGEN FORTRYD",
     [STR_I_WORDS_VERIFIED_FMT] = "tjekket \xc2\xb7 ID %s står på dit papir",
     [STR_I_WORDS_UNVERIFIED] = "papir aldrig tjekket",
+    [STR_GD_SET_UP_SPARE] = "OPRET RESERVE",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8486,7 +8505,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NENÍ MEZI PRVNÍMI %u ADRESAMI",
     [STR_R_NOT_FOUND_B] = "platná pro tuto síť, ale není mezi prvními 100 kontrolovanými adresami příjmu nebo drobných. výsledek není konečný.",
     [STR_R_WRONG_NET] = "JINÁ SÍŤ",
-    [STR_R_WRONG_NET_B] = "adresa je platná, ale pro druhou síť Bitcoin. změňte síť nebo skenujte znovu.",
+    [STR_R_WRONG_NET_B] = "tato adresa je %s. vaše peněženka je na %s. změňte síť nebo skenujte znovu.",
     [STR_R_INVALID] = "NEPLATNÁ ADRESA",
     [STR_R_INVALID_B] = "formát nebo kontrolní součet adresy je neplatný. nepoužívejte ji.",
     [STR_C_OSD_SEARCH_T] = "Hledám QR kód",
@@ -8579,6 +8598,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "NELZE VRÁTIT",
     [STR_I_WORDS_VERIFIED_FMT] = "ověřeno \xc2\xb7 ID %s je na vašem papíře",
     [STR_I_WORDS_UNVERIFIED] = "papír nikdy neověřen",
+    [STR_GD_SET_UP_SPARE] = "NASTAVIT ZÁLOŽNÍ",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8915,7 +8935,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_R_NOT_FOUND_FMT] = "NIJE U PRVIH %u ADRESA",
     [STR_R_NOT_FOUND_B] = "vrijedi za ovu mrežu, ali nije u prvih 100 provjerenih adresa primitka ili ostatka. ovo nije konačan zaključak.",
     [STR_R_WRONG_NET] = "POGREŠNA MREŽA",
-    [STR_R_WRONG_NET_B] = "adresa je valjana, ali za drugu Bitcoin mrežu. promijeni mrežu ili skeniraj ponovno.",
+    [STR_R_WRONG_NET_B] = "ova adresa je %s. tvoj novčanik je na %s. promijeni mrežu ili skeniraj ponovno.",
     [STR_R_INVALID] = "NEVALJANA ADRESA",
     [STR_R_INVALID_B] = "format ili kontrolni zbroj adrese nije valjan. nemoj je koristiti.",
     [STR_C_OSD_SEARCH_T] = "Tražim QR kod",
@@ -9008,6 +9028,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_I_SEC_NO_UNDO] = "BEZ VRAĆANJA",
     [STR_I_WORDS_VERIFIED_FMT] = "provjereno \xc2\xb7 ID %s je na tvom papiru",
     [STR_I_WORDS_UNVERIFIED] = "papir nikad provjeren",
+    [STR_GD_SET_UP_SPARE] = "POSTAVI REZERVNI",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {
