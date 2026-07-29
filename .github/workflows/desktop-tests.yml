@@ -121,12 +121,15 @@ jobs:
       # text, content reaching into the action row, a wrapped label grown into
       # the line below it, or text clipped away where nobody can read it.
       #
-      # Reports without failing for now. The screens it is red on are the three
-      # rendering blockers phase 1 exists to fix, and a gate that blocks before
-      # the fix would only block the fix. Phase 1 sets OVERLAPCHECK_STRICT here
-      # and from then on a new overlap turns this job red.
+      # It landed reporting-only in phase 0, on 385 findings: those were the
+      # rendering blockers phase 1 existed to fix, and a gate that blocks before
+      # the fix would only block the fix. Phase 1 took it to zero in all 21
+      # locales, so OVERLAPCHECK_STRICT is set and a new overlap turns this job
+      # red rather than adding a line to a log nobody reads.
       - name: text overlap gate
         run: bash sim/run_overlapcheck.sh
+        env:
+          OVERLAPCHECK_STRICT: "1"
 
       - name: setup node for interop rig
         uses: actions/setup-node@v4

@@ -418,7 +418,7 @@ static void action_bar_ensure(lv_obj_t *scr)
 }
 
 // ---- tap feedback ----
-// The board has no haptics, so a press can only be answered optically, and
+// The device has no haptics, so a press can only be answered optically, and
 // until now the whole answer was the background changing colour instantly.
 //
 // Two more style properties carry the rest. The pill translates 2px down while
