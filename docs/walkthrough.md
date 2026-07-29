@@ -36,6 +36,10 @@ Setup asks what remains after you power off, before the recovery words are commi
 
 SETTINGS → STORAGE shows the current mode and the same three choices. Moving between modes requires a deliberate hold and verifies the destination before removing the source.
 
+![KISS screen: settings](shots/03c-settings.png)
+
+SETTINGS itself, the page both of those are reached from. Storage and address type read their current value on the row that opens them, so nothing here has to be opened to be checked.
+
 ## Two ways in: the spare wallet
 
 A passphrase field on screen is itself a tell. It proves there is something to leave out of it, and you can never show that the passphrase you gave was the last one. So the obvious gesture opens a real, working wallet that asks for nothing, and the passphrase lives behind one extra stroke.
