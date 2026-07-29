@@ -6,10 +6,10 @@
 # absolute y while the body font degrades 28 to 23 to 14 on how long the
 # translation is, so English is the one locale guaranteed to look fine.
 #
-# Exit code is 0 while OVERLAPCHECK_STRICT is unset, which is how this lands in
-# phase 0: it reports honestly against layout that has not been fixed yet. Phase
-# 1 fixes the three rendering blockers and sets the variable, and from then on a
-# new overlap fails the build.
+# Exit code is 0 while OVERLAPCHECK_STRICT is unset. That is how this landed in
+# phase 0, reporting honestly against layout nobody had fixed yet. Phase 1 fixed
+# it, desktop-tests.yml sets the variable, and a new overlap now fails the build.
+# Running this by hand still only reports, which is what you want while working.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -59,6 +59,6 @@ if [ "$worst" -ne 0 ]; then
 fi
 if [ "$total" -gt 0 ]; then
     echo
-    echo "Reported without failing: OVERLAPCHECK_STRICT is unset. Phase 1 sets it."
+    echo "Reported without failing: OVERLAPCHECK_STRICT is unset (CI sets it)."
 fi
 exit 0
