@@ -126,6 +126,52 @@ conv --size 34 \
   --lv-fallback font_kiss_ja28 \
   -o "$OUT/font_kiss_lat34.c"
 
+# ---------------------------------------------------------------------------
+# The three fixed pitch faces. Latin only, and deliberately so.
+#
+# Addresses, fingerprints, derivation paths and amounts are never translated,
+# so these have no CJK variant and no per locale build. That is the whole
+# reason they are affordable: three Latin only faces together are about 17KB,
+# against roughly 1.3MB for one more LOCALISED rung once the three CJK subsets
+# are built. Measured, not estimated: see design/sign-screens-buildable.html.
+#
+# They must never be handed a localised string. There is no fallback chain out
+# of them on purpose, because a chain would hide the mistake rather than show
+# it: a stray CJK character here draws LVGL's placeholder box, which is loud
+# and findable, instead of silently resolving one size small.
+#
+# What they buy, in order:
+#   1. A tabular figure. An amount is the same width on every screen it appears
+#      on, so digits stop shifting column between Sign, Receive and Verify.
+#   2. A body the user can scan one character at a time, which is literally the
+#      task "compare these 8" sets on the Sign screen.
+#   3. Both compared runs come out the same width, so their underlines match.
+#
+# 0x20-0x7E is the full printable ASCII set rather than the bech32 charset
+# alone. The extra glyphs cost under 2KB across both sizes and buy uppercase
+# for the fingerprint (EC5A4595) and the punctuation in a derivation path
+# (m/84'/0'/0'), neither of which the bech32 charset contains.
+MONO=vendor/IoskeleyMono-Medium-ascii.ttf
+[ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
+
+for SZ in 14 23 28; do
+  echo "== font_kiss_mono$SZ"
+  conv --size $SZ --font "$MONO" -r 0x20-0x7E -o "$OUT/font_kiss_mono$SZ.c"
+done
+
+# The two values big enough to be read across a room: the Sign hero amount and
+# the wallet fingerprint on the write-it-down screen. Nineteen glyphs, digits
+# and A to F and space and full stop, which is exactly a decimal amount or an
+# uppercase hex fingerprint and nothing else.
+#
+# It carries no lowercase and no letter outside A to F, so it still cannot
+# render a word in any language. A translated string pointed here would come
+# out as a row of placeholder boxes, which is the loud failure these faces are
+# built to produce rather than a quiet one.
+echo "== font_kiss_num48"
+conv --size 48 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+  -o "$OUT/font_kiss_num48.c"
+
 # lv_font_conv emits an extra blank line; normalize generated sources so
 # regeneration stays clean under git diff --check.
 perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c

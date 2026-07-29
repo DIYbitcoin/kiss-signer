@@ -37,6 +37,7 @@ Pulled by the ESP-IDF component manager into `managed_components/` from
 | Montserrat | Latin UI + game text (via LVGL built-in) | SIL OFL 1.1 |
 | Font Awesome | UI glyph symbols (via LVGL built-in) | Icons CC-BY 4.0, font SIL OFL 1.1 |
 | Source Han Sans (JP/KR/SC) | CJK UI text | SIL OFL 1.1 ([`tools/fonts/vendor/LICENSE-SourceHanSans.txt`](tools/fonts/vendor/LICENSE-SourceHanSans.txt)) |
+| Ioskeley Mono | fixed pitch firmware faces: amounts, addresses, fingerprints | SIL OFL 1.1, an Iosevka configuration by ahatem ([`tools/fonts/vendor/LICENSE-IoskeleyMono.txt`](tools/fonts/vendor/LICENSE-IoskeleyMono.txt)) |
 
 ## Image assets (`assets/`)
 
