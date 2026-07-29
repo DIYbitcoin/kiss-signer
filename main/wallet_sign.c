@@ -558,7 +558,17 @@ static void rbf_help_cb(lv_event_t *e)
     lv_obj_t *ic = lv_label_create(ovl);
     lv_label_set_text(ic, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK);
     lv_obj_set_style_text_font(ic, wt_font34(), 0);
-    lv_obj_set_style_text_color(ic, s_sum.rbf ? wt_accent() : WARN_COL, 0);
+    // INK for the replace arrow, not the accent. One element rendering an
+    // accent in one state and a status colour in the other is the thing
+    // ADDENDUM-02 leads with, and GREEN theme is where it bites: the accent
+    // there is 0x35D07F, which IS WT_OK, so "the fee can still be raised"
+    // arrived in the exact green this device uses to say verified. That is a
+    // neutral property of the transaction wearing the colour of a safety
+    // check. The glyphs differ either way, so meaning never rested on the
+    // colour, but the colour was arguing for something the screen does not
+    // mean. Ink says it plainly and leaves amber to mean caution alone.
+    // MONO is unchanged to the byte: its accent IS WT_INK.
+    lv_obj_set_style_text_color(ic, s_sum.rbf ? INK_COL : WARN_COL, 0);
     lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 46);
 
     lv_obj_t *t = lv_label_create(ovl);
