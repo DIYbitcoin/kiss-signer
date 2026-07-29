@@ -50,6 +50,40 @@ pedestal is identical on every frame of every device and contributes no
 unpredictability, but it widens the histogram and raises the reading. It was
 inflating a number the firmware uses to tell the holder their seed is ready.
 
+## 3. `sensors/ov02c10/ov02c10.c`: fill in `tline_ns`
+
+**Added** `.tline_ns` to all three entries of `ov02c10_isp_info[]`: 27918 for
+the two 1-lane formats and 13959 for the 2-lane one.
+
+Upstream never sets the field, so it is zero. Zero is not a cosmetic default
+here: it is what stops the ISP pipeline from starting at all. The controller
+converts the sensor's exposure limits from register units into microseconds by
+multiplying through `tline_ns`
+([esp_video_isp_pipeline.c](../../managed_components/espressif__esp_video/src/esp_video_isp_pipeline.c),
+`REG_TO_US`), so min, max and current exposure all collapse to 0 and the AGC
+refuses to initialise. `esp_video_init` then fails with a flat
+`ESP_ERR_NOT_SUPPORTED`, taking the whole camera down, scanning included.
+
+This is the same upstream gap as the missing registration in section 1, seen
+from the other end. OV5647 also has no `tline_ns`, and its tuning file
+correspondingly has no `agc` and no `awb` section. OV02C10's tuning file *does*
+carry both. So the JSON was written for a driver that never supplied the line
+time it needs.
+
+The value is `hts / pclk`. SC2336 is what settles the convention: its first
+three entries share `hts` and `pclk` and one `tline_ns` of 22222 across three
+different `vts` values, so the field tracks line readout and not frame rate.
+
+- 1-lane: 2280 / 81666700 = 27.918 us
+- 2-lane: 1140 / 81666700 = 13.959 us
+
+Cross-check: 1164 lines x 27.918 us and 2328 lines x 13.959 us both come to
+32.5 ms per frame, which is the same sensor running at the same real rate
+through a different lane count. Note that 32.5 ms is 30.8 fps, not the 30 the
+format table declares; the declared figure is nominal.
+
+Worth reporting upstream, with section 1.
+
 ## Not changed, and why
 
 - **No gamma LUT written from firmware.** An earlier plan had us programming a

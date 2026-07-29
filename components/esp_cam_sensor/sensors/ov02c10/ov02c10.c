@@ -959,6 +959,12 @@ static const ov02c10_gain_t ov02c10_gain_map[] = {
              .pclk = 81666700,
              .vts = 1164,
              .hts = 2280,
+             // kiss-signer local addition, see VENDOR.kiss.md. Line readout
+             // time, hts / pclk: 2280 / 81666700 = 27.918 us. Upstream leaves
+             // it 0 here, and 0 is what stops the IPA pipeline from starting
+             // at all, because the controller converts the sensor's exposure
+             // limits into microseconds by multiplying through it.
+             .tline_ns = 27918,
              .gain_def = 0x01,
              .exp_def = 0x46c,
              .bayer_type = ESP_CAM_SENSOR_BAYER_GBRG,
@@ -971,6 +977,7 @@ static const ov02c10_gain_t ov02c10_gain_map[] = {
             // .pclk = 88333333,
              .vts = 1164,
              .hts = 2280,
+             .tline_ns = 27918,          // as above: 2280 / 81666700
              .gain_def = 0x01,
              .exp_def = 0x46c,
              .bayer_type = ESP_CAM_SENSOR_BAYER_GBRG,
@@ -983,6 +990,10 @@ static const ov02c10_gain_t ov02c10_gain_map[] = {
              .pclk = 81666700,
              .vts = 2328,
              .hts = 1140,
+             // 1140 / 81666700 = 13.959 us. Half the line time of the 1-lane
+             // entries and twice the lines, so the frame time matches them at
+             // 32.5 ms, which is the cross-check that these numbers are right.
+             .tline_ns = 13959,
              .gain_def = 0x01,
              .exp_def = 0x46c,
              .bayer_type = ESP_CAM_SENSOR_BAYER_GBRG,
