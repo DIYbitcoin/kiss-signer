@@ -109,37 +109,62 @@ bool wallet_ui_active(void) {
 }
 
 // ---- keyboard maps (three planes) ----
+//
+// The shift and symbol keys read the way a phone's do: one chevron for shift,
+// "123" into the numbers and symbols, "#+=" for the second symbol plane, "abc"
+// back to letters.
+//
+// NOT the literal "⇧" the design asks for. U+21E7 is outside every range in
+// gen_fonts.sh's LAT list, and a codepoint a label references but the font
+// lacks does not draw a box, it hard-hangs the LVGL renderer on the device.
+// LV_SYMBOL_UP is FontAwesome F077, which is already subset in, so this is the
+// same idea drawn with a glyph that exists.
+//
+// The one place this deliberately does NOT copy a phone: caps LOCK gets the
+// padlock rather than a fourth shading of the same chevron. Behind the dots a
+// wrong-case passphrase is invisible, and at login there is no error, just a
+// different wallet, so the state that STICKS is the one that has to be
+// unmistakable. One-shot shift is transient and self correcting; caps lock is
+// not.
+#define KEY_SHIFT LV_SYMBOL_UP
+#define KEY_CAPS  WT_ICON_LOCK
+#define KEY_SYM   "123"
+#define KEY_SYM2  "#+="
+#define KEY_ABC   "abc"
+
 static const char *MAP_LOWER[] = {
     "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
-    "ABC", "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
-    "#1!", "CANCEL", " ", "OK", ""};
-// Two upper planes, identical keys, different shift label. One-shot drops back
-// to lowercase after a single character; CAPS stays until tapped again. They
-// MUST look different: behind the dots a wrong-case passphrase is invisible,
-// and at login there is no error, just a different wallet.
+    KEY_SHIFT, "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
+    KEY_SYM, "CANCEL", " ", "OK", ""};
+// Two upper planes, identical keys. One-shot drops back to lowercase after a
+// single character; CAPS stays until tapped again. The lower and upper planes
+// now share a shift GLYPH, so the difference between them is carried by the
+// highlight kb_plane asserts on that key, and by the letters themselves.
 static const char *MAP_UPPER[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
-    "abc", "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    "#1!", "CANCEL", " ", "OK", ""};
+    KEY_SHIFT, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
+    KEY_SYM, "CANCEL", " ", "OK", ""};
 static const char *MAP_CAPS[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
-    "CAPS", "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    "#1!", "CANCEL", " ", "OK", ""};
+    KEY_CAPS, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
+    KEY_SYM, "CANCEL", " ", "OK", ""};
 // two symbol planes so ALL 32 ASCII punctuation chars are reachable (spec:
-// passphrase = printable ASCII; an untypeable char = an unrecoverable wallet)
+// passphrase = printable ASCII; an untypeable char = an unrecoverable wallet).
+// This is why the letter planes say "123" and not "123" alone would do: the
+// second plane needs its own name, and "#+=" is the name phones give it.
 static const char *MAP_SYM[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "!", "@", "#", "$", "%", "&", "(", ")", "?", "\n",
-    "#2~", "-", "_", "=", "+", ".", ",", "/", LV_SYMBOL_BACKSPACE, "\n",
-    "abc", "CANCEL", " ", "OK", ""};
+    KEY_SYM2, "-", "_", "=", "+", ".", ",", "/", LV_SYMBOL_BACKSPACE, "\n",
+    KEY_ABC, "CANCEL", " ", "OK", ""};
 static const char *MAP_SYM2[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "\"", "'", ":", ";", "[", "]", "{", "}", "*", "\n",
-    "#1!", "<", ">", "\\", "|", "`", "~", "^", LV_SYMBOL_BACKSPACE, "\n",
-    "abc", "CANCEL", " ", "OK", ""};
+    KEY_SYM, "<", ">", "\\", "|", "`", "~", "^", LV_SYMBOL_BACKSPACE, "\n",
+    KEY_ABC, "CANCEL", " ", "OK", ""};
 
 // every plane keeps the same 10/9/9/4 button layout, so key_rect() and the
 // id-based ctrls (space #30 width, OK #31 accent) hold on all of them; ctrls
@@ -152,6 +177,14 @@ static void kb_plane(lv_obj_t *kb, const char **map) {
   lv_buttonmatrix_clear_button_ctrl(kb, 27, LV_BUTTONMATRIX_CTRL_NO_REPEAT);
   lv_buttonmatrix_set_button_width(kb, 30, 3);
   lv_buttonmatrix_set_button_ctrl(kb, 31, LV_BUTTONMATRIX_CTRL_CHECKED);
+  // Shift is id 19 (10 + 9 keys before it). Lower and upper share a glyph, so
+  // the lit key is the whole difference between "the next letter is a capital"
+  // and "it is not". Assert it on every plane swap rather than trusting LVGL to
+  // carry per-button ctrl across a set_map.
+  if (map == MAP_UPPER || map == MAP_CAPS)
+    lv_buttonmatrix_set_button_ctrl(kb, 19, LV_BUTTONMATRIX_CTRL_CHECKED);
+  else
+    lv_buttonmatrix_clear_button_ctrl(kb, 19, LV_BUTTONMATRIX_CTRL_CHECKED);
 }
 
 // ---- LVGL pointer indev over the same touch seam the game uses ----
@@ -1010,23 +1043,36 @@ static void kb_cb(lv_event_t *e) {
   // shift: tap once for a single capital, HOLD it to lock (kb_long_cb), or tap
   // twice quickly for the same lock. Tapping the locked key unlocks. All three
   // are what a phone keyboard does.
-  if (strcmp(txt, "ABC") == 0 || strcmp(txt, "abc") == 0) {
-    uint32_t now = lv_tick_get();
-    bool dbl = s_shift_t0 && lv_tick_elaps(s_shift_t0) < SHIFT_DBL_MS;
-    s_shift_t0 = now;
-    s_hold_lock_ok = true;
-    if (dbl) { s_caps_lock = true;  s_one_shot = false; kb_plane(kb, MAP_CAPS); }
-    else if (txt[0] == 'A') { s_one_shot = true;  kb_plane(kb, MAP_UPPER); }
-    else                    { s_one_shot = false; kb_plane(kb, MAP_LOWER); }
+  // Where shift goes is decided by the state we are IN, not by the label. The
+  // old code read txt[0] == 'A' to tell "ABC" (go upper) from "abc" (go lower),
+  // and those two labels are now one glyph, so the label can no longer answer
+  // it. The state always could.
+  if (strcmp(txt, KEY_SHIFT) == 0 || strcmp(txt, KEY_CAPS) == 0) {
+    if (s_caps_lock) {                 // locked: this tap unlocks, back to lower
+      s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
+      // a slow tap to UNLOCK must not be read as a hold and re-lock instantly
+      s_hold_lock_ok = false;
+      kb_plane(kb, MAP_LOWER);
+    } else {
+      bool dbl = s_shift_t0 && lv_tick_elaps(s_shift_t0) < SHIFT_DBL_MS;
+      s_shift_t0 = lv_tick_get();
+      s_hold_lock_ok = true;
+      if (dbl)             { s_caps_lock = true; s_one_shot = false; kb_plane(kb, MAP_CAPS); }
+      else if (s_one_shot) { s_one_shot = false; kb_plane(kb, MAP_LOWER); }
+      else                 { s_one_shot = true;  kb_plane(kb, MAP_UPPER); }
+    }
   }
-  else if (strcmp(txt, "CAPS") == 0) {
-    s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0;
-    // a slow tap to UNLOCK must not be read as a hold and re-lock instantly
-    s_hold_lock_ok = false;
-    kb_plane(kb, MAP_LOWER);
+  // "abc" only ever appears on the two symbol planes now, so it needs its own
+  // arm. It used to fall through the shift branch above and land in the "go to
+  // lowercase" leg by accident, which also silently dropped you out of caps
+  // lock: s_caps_lock stayed true while the lowercase plane was showing. Coming
+  // back to the plane you left is both more obvious and more honest.
+  else if (strcmp(txt, KEY_ABC) == 0) {
+    s_one_shot = false;
+    kb_plane(kb, s_caps_lock ? MAP_CAPS : MAP_LOWER);
   }
-  else if (strcmp(txt, "#1!") == 0) kb_plane(kb, MAP_SYM);
-  else if (strcmp(txt, "#2~") == 0) kb_plane(kb, MAP_SYM2);
+  else if (strcmp(txt, KEY_SYM) == 0)  kb_plane(kb, MAP_SYM);
+  else if (strcmp(txt, KEY_SYM2) == 0) kb_plane(kb, MAP_SYM2);
   else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
     if (s_backup_verify_pass) {
       // This rehearsal is optional. Cancel returns to the warning with the
@@ -1115,9 +1161,10 @@ static void kb_long_cb(lv_event_t *e) {
   if (!txt) return;
 
   // Read whichever shift label is showing NOW, not the one that was tapped:
-  // the press already swapped the plane under the finger.
-  if (strcmp(txt, "ABC") == 0 || strcmp(txt, "abc") == 0 ||
-      strcmp(txt, "CAPS") == 0) {
+  // the press already swapped the plane under the finger. KEY_ABC is no longer
+  // in this set: it belongs to the symbol planes, and holding it should not
+  // lock capitals.
+  if (strcmp(txt, KEY_SHIFT) == 0 || strcmp(txt, KEY_CAPS) == 0) {
     if (!s_hold_lock_ok) return;            // this press was the unlock tap
     s_hold_lock_ok = false;
     s_caps_lock = true; s_one_shot = false; s_shift_t0 = 0;
