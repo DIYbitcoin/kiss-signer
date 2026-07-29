@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 Bit Entropie, aber länger.\nfür eine alte Wallet wählen.",
   "W_RAND_T": "ZUFALL HINZUFÜGEN",
   "W_RAND_S": "eine Wallet ist nur so sicher wie der Zufall,\nmit dem sie entstand. dazu trägt die Kamera bei.",
-  "W_RAND_B": "Kamera auf etwas Unruhiges richten:\nLaub, Kies, gemischte Spielkarten.\ntippe, wenn der Balken grün wird.\n\ngemischt mit dem Zufall des Chips,\nkeiner entscheidet allein.",
   "W_WRITE_T": "SCHREIB SIE AUF",
   "W_WRITE_S": "Wörter + dieselbe Passphrase stellen das Wallet wieder her",
   "W_PAPER_ONLY": "nur Papier, nie Foto oder Datei.",

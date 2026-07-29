@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bits entropi, men mer å kopiere.\nvelg dette for å samsvare med en gammel lommebok.",
   "W_RAND_T": "LEGG TIL TILFELDIGHET",
   "W_RAND_S": "en lommebok er bare så sikker som tilfeldighetene\nden ble laget med. kameraet bidrar med dette.",
-  "W_RAND_B": "rett kameraet mot noe rotete:\nløv, grus, en stokket kortstokk.\ntrykk når stolpen blir grønn.\n\nblandes med brikkens egen tilfeldighet,\nså ingen av dem bestemmer alene.",
   "W_WRITE_T": "SKRIV DISSE NED",
   "W_WRITE_S": "ordene + samme passordfrase gjenoppretter lommeboken",
   "W_PAPER_ONLY": "bare papir, ingen bilder eller filer.",

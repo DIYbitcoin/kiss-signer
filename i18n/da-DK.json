@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bit entropi, men mere at kopiere.\nvælg dette for at matche en ældre tegnebog.",
   "W_RAND_T": "TILFØJ TILFÆLDIGHED",
   "W_RAND_S": "en tegnebog er kun så sikker som den tilfældighed,\nden blev oprettet med. kameraet bidrager med den.",
-  "W_RAND_B": "ret kameraet mod noget rodet:\nblade, grus, et blandet kortspil.\ntryk når bjælken bliver grøn.\n\nblandes med chippens egen tilfældighed,\nså ingen af dem bestemmer alene.",
   "W_WRITE_T": "SKRIV DISSE NED",
   "W_WRITE_S": "ordene + samme adgangsfrase gendanner tegnebogen",
   "W_PAPER_ONLY": "kun papir, aldrig foto eller fil.",
