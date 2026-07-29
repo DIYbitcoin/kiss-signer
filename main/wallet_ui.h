@@ -17,6 +17,10 @@ bool wallet_ui_active(void);
 
 // Fingerprint of the most recently unlocked wallet (4 bytes).
 void wallet_ui_last_fp(uint8_t out[4]);
+// True after the words + exact passphrase were rehearsed on this device
+// (BACKUP VERIFY flow), false until then. Settings' RECOVERY WORDS row uses
+// this to show "paper never checked" instead of pretending everything is fine.
+bool wallet_ui_backup_verified(void);
 // Record it without going through a login screen. Only the decoy unlock needs
 // this: it opens with an empty passphrase and never draws the keyboard.
 void wallet_ui_set_last_fp(const uint8_t fp[4]);

@@ -673,6 +673,7 @@ static void fp_back_cb(lv_event_t *e) {
 }
 
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
+bool wallet_ui_backup_verified(void) { return s_backup_verified; }
 
 // The decoy signer opens straight from the game with no login screen at all,
 // so nothing here runs to record its fingerprint. main.c sets it directly

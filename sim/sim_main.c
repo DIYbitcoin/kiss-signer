@@ -1031,7 +1031,7 @@ int main(void) {
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  touch(600, 280); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
+  touch(600, 348); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
@@ -1059,7 +1059,7 @@ int main(void) {
   save("/tmp/sim_verify_ok.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
 
-  touch(600, 280); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
+  touch(600, 348); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
   touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
@@ -1074,7 +1074,7 @@ int main(void) {
     for (int i = 0; i < 24; i++)
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
-    touch(600, 280); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
+    touch(600, 348); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
     touch(168, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     touch(278, 430); pump(3); release(); pump(6);   // NEXT
@@ -1399,7 +1399,7 @@ int main(void) {
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   // the WIPE pill is wallet_settings.c's mk_pillh(430, 310, 340, 52)
-  touch(590, 336); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
+  touch(590, 282); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen
