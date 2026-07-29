@@ -3,10 +3,10 @@
   "product": "KISS Signer",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
-  "version": "0.1.0-beta6",
-  "commit": "v0.1.0-beta6-1-gd50dc60",
+  "version": "0.1.0-beta7",
+  "commit": "v0.1.0-beta6-82-g58ed74c",
   "status": "beta",
-  "generated": "2026-07-27",
+  "generated": "2026-07-29",
   "authenticity": {
     "signed": true,
     "signatureStatus": "pgp",
@@ -22,10 +22,10 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-signer-0.1.0-beta6.bin",
+    "path": "firmware/kiss-signer-0.1.0-beta7.bin",
     "offset": 0,
-    "size": 9234592,
-    "sha256": "7acd8df2aec1488b0950f1ed7b4d770c41a824e71332a999744b658e7f969d4a"
+    "size": 7586944,
+    "sha256": "4573cf973ef5eb78a6fca9e9c5cc1702df882cb1eb699c366d0a56ce2baae11f"
   },
   "sourceParts": [
     {
@@ -46,13 +46,13 @@
       "name": "application",
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 65536,
-      "size": 9169056,
-      "sha256": "5b5ea691b63e2e284907ed785c9639946f7f25e15055e5bac71ff6a5a84ab270"
+      "size": 7521408,
+      "sha256": "b08d44e6d3703289f22c8217f7f0352d8ba0b17aa75e7a2ae88a69235d267d0c"
     }
   ],
   "warnings": [
     "This is a beta build, not a final funds build.",
-    "Do not erase flash on a board that holds a wallet unless you intentionally want to wipe it.",
-    "After flashing, unplug the board, wait about 3 seconds, then plug it back in."
+    "Do not erase flash on a device that holds a wallet unless you intentionally want to wipe it.",
+    "After flashing, unplug the device, wait about 3 seconds, then plug it back in."
   ]
 }
