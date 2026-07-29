@@ -84,15 +84,65 @@ format table declares; the declared figure is nominal.
 
 Worth reporting upstream, with section 1.
 
+## 4. The pipeline controller is off, and what it did when it was on
+
+Nothing in this component changes for this. It is recorded here because the
+three sections above exist to make the ISP pipeline controller work, and after
+all three landed it still had to be switched back off in
+[sdkconfig.defaults](../../sdkconfig.defaults). Anyone reading sections 1 to 3
+would otherwise reasonably assume the controller is running.
+
+With `CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y` the pipeline started
+cleanly, so sections 1 and 3 did their job. The AGC then drove sensor exposure
+to the floor, 8 lines, `s_ov02c10_exp_min` in `ov02c10.c`, which is 223 us, and
+left it there with gain near the top of the map. Measured on device by reading
+`V4L2_CID_EXPOSURE` and `V4L2_CID_GAIN` back every fifteen frames.
+
+Three things say this is the controller and not the sensor:
+
+- The pipeline itself writes `qctrl.default_value` at init, which for every
+  format in this driver is `exp_def`, 0x46c, 1132 lines, 31.6 ms. So exposure
+  starts one line short of a full frame and the AGC takes it down by a factor
+  of 140.
+- Both numbers held still when the room light was switched on. A working AGC
+  moves. Gain was not at its cap either, index 191 of 197, so it had headroom
+  it did not use.
+- Off, the sensor holds `exp_def` and the same device scans QR codes and reads
+  over 6.0 bits of camera entropy, which is what it did before any of this.
+
+The consequence was not cosmetic. `ENT_THRESH_X10` in
+[main/camera_spike.c](../../main/camera_spike.c) gates seed creation at 6.0
+bits and a 223 us frame measured 3.5, so the holder could not finish creating a
+wallet at all.
+
+Two suspects, neither confirmed, both cheap to test when someone picks this up:
+
+- `agc.mode` is `high_light_priority`, which meters to protect highlights. In a
+  dim room holding one bright thing, that is the mode that drives everything
+  else black. SC2336, which is known good on this SoC, uses
+  `light_threshold_priority`, and `ov02c10_default.json` already carries a
+  fully populated `light_threshold_priority` array, so trying it is one word.
+- `agc.anti_flicker.mode` is `part`, which per the esp_ipa README forces
+  anti-flicker exposure quantisation whenever gain can still carry the
+  brightness. At `ac_freq` 50 the quantum is 10 ms, and this format's whole
+  frame is 32.5 ms. `none` is the comparison. Note that esp_ipa 2.2.0~1, the
+  version here, already contains the 1.1.0 fix for gain saturation in this
+  mode, so this is the weaker of the two.
+
+The AWB half was never separately assessed, because the exposure fault made
+every frame too dark to judge white balance on.
+
 ## Not changed, and why
 
 - **No gamma LUT written from firmware.** An earlier plan had us programming a
   2.2 tone curve through `V4L2_CID_USER_ESP_ISP_GAMMA`. The tuning file already
   carries `aen.gamma` with `use_gamma_param: true` and drives it from
-  `ae.luma.avg`, so once the pipeline controller is enabled the IPA owns gamma.
+  `ae.luma.avg`, so whenever the pipeline controller runs the IPA owns gamma.
   Writing our own would fight it every frame, and gamma and the AE setpoint are
   coupled: AE meters luma AFTER gamma, so moving one without the other regresses
-  exposure. Left to the tuning file.
+  exposure. Left to the tuning file. With the controller off, per section 4, no
+  gamma is programmed at all and the output is the sensor's own curve, which is
+  what shipped before this work and what ships now.
 - **Lens shading correction is still off.** `ov02c10_default.json` has no `lsc`
   section, so the ISP shading block is never programmed and vignetting is
   uncorrected. Fixing it needs per lens gain coefficients measured on a flat
