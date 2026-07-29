@@ -277,21 +277,46 @@ static void mk_status_light(void)
                      : tr_sym(LV_SYMBOL_CLOSE, STR_S_STOP);
     lv_color_t col = s_sum.status == WPSBT_READY ? MUT_COL
                    : s_sum.status == WPSBT_CAUTION ? WARN_COL : STOP_COL;
+    // A BADGE, not a pill. This used to be a 160x44 rounded rectangle with a
+    // filled background and a 2px coloured border, which is the exact shape of
+    // every button on this device, sitting in the top right corner where a
+    // button would sit. It says CHECK DETAILS. People tapped it. It is a
+    // status word and there is nothing to tap.
+    //
+    // So it loses the fill, the border and the radius, and keeps the colour
+    // and the icon, which were carrying the meaning all along. Text alone in a
+    // status colour is what every other read only value on this device looks
+    // like. It also gets font23 off the metadata rung: the verdict on a
+    // transaction is not metadata, and at 14 it was the smallest type on the
+    // screen it is supposed to summarise.
+    //
+    // wt_note_fit rather than a flat font23, because STOP and CAUTION carry a
+    // symbol and a translated word, and PRZYTRZYMAJ-length locales exist. It
+    // drops a rung rather than running into the title to its left.
+    // 592, not 532. Widening it left ran it into SIGNING AS and the wallet
+    // fingerprint, which own 430..580 of this header. 160px is what is free.
+    // The consequence is that STOP and CAUTION take 23 and CHECK DETAILS drops
+    // to 14, which reads as inconsistent and is not: the two words that mean
+    // "stop and look" get the size, and the one that means "nothing is wrong"
+    // does not need it.
     lv_obj_t *p = lv_obj_create(s_scr);
     lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, 160, 44);
-    lv_obj_set_pos(p, 592, 30);
-    lv_obj_set_style_radius(p, 22, 0);
-    lv_obj_set_style_bg_color(p, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(p, 2, 0);
-    lv_obj_set_style_border_color(p, col, 0);
+    // 56 tall, not 44. At font23 with a leading symbol the line box is 57px,
+    // so a 44px box clipped the top 7px off CAUTION and CAUTELA. The box only
+    // ever held a border that is now gone, so it costs nothing to fit the type
+    // rather than making the type fit it.
+    lv_obj_set_size(p, 160, 60);
+    lv_obj_set_pos(p, 592, 22);
+    lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(p, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *l = lv_label_create(p);
-    lv_label_set_text(l, word);
+    wt_note_fit(l, word, 160, 30);
     lv_obj_set_style_text_color(l, col, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_center(l);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_width(l, 160);
+    lv_obj_align(l, LV_ALIGN_RIGHT_MID, 0, 0);
 }
 
 // ---- signing ----
@@ -803,7 +828,23 @@ static void verify_screen(lv_obj_t *parent)
             // row above it. One row is one line, always.
             wt_note_fit(r, row, 300, 29);
         }
+        // Anchored to the bottom of the column, then lifted clear of it.
+        // anchor_bottom lands the last row ON WT_CONTENT_BOTTOM, and the action
+        // row starts at exactly that y, so the warning ended up welded to the
+        // top edge of the button that answers it with no air between them. The
+        // reasoning for anchoring is still right, the warning must sit above
+        // the button it belongs to rather than float at a fixed y, but "above"
+        // and "touching" are not the same thing.
+        // Lifted by up to 26px, but only as far as the RBF line above allows.
+        // With one flag there is room and the warning gets air under it. With
+        // three there is none: the rows are 29px each and the RBF note ends at
+        // 303, so the stack already starts at 311 and any lift walks into it.
+        // Clamped rather than conditional, so the common case improves and the
+        // crowded case stays exactly where the gate proved it fits.
         int top = anchor_bottom(col, 468);
+        int lift = top - 311;
+        if (lift > 26) lift = 26;
+        if (lift > 0) { top -= lift; lv_obj_set_y(col, top); }
         // The "?" LEADS the stack it explains rather than trailing it: trailing,
         // it moved with the translated string's length and at x=720,y=362 its
         // 54px effective target reached into I UNDERSTAND, on the one screen
@@ -959,7 +1000,19 @@ static void details_cb(lv_event_t *e)
                  (unsigned)det.n_total, (unsigned)det.n_in);
     else
         snprintf(buf, sizeof buf, tr(STR_S_D_INPUTS_FMT), (unsigned)det.n_in);
-    mk_lbl(buf, 40, 96, wt_font14(), MUT_COL);
+    // wt_section, not a muted font14 line. Every single label on this screen
+    // used to be font14, which is not "dense", it is no hierarchy at all: the
+    // count of inputs, the amount of each one, and the sighash flag all
+    // shouted at the same volume, so nothing led and the eye had to read all
+    // of it to find any of it. The eyebrow style is what WALLET and RECEIVE
+    // put above a value, and this is the same relationship.
+    lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 96);
+    // Bounded to the left column. STR_S_D_MANYIN_FMT is a sentence, not a
+    // word, and in Spanish it ran straight across into the TXID caption in the
+    // right column. It was font14 and unbounded before, which only hid the
+    // fault behind a smaller face.
+    lv_obj_set_width(ihdr, 372);
+    lv_label_set_long_mode(ihdr, LV_LABEL_LONG_WRAP);
 
     lv_obj_t *il = lv_obj_create(s_scr);
     lv_obj_remove_style_all(il);
@@ -987,7 +1040,10 @@ static void details_cb(lv_event_t *e)
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, wt_font14(), 0);
+        // The amount leads the row at 23 and the txid trails it at 14. That is
+        // the whole fix for this list: what is being spent is the fact, and the
+        // coin it came from is the reference you check it against.
+        lv_obj_set_style_text_font(amt, wt_font23(), 0);
 
         // coin being spent: first 8 + last 8 of its txid, and the output index
         snprintf(buf, sizeof buf, "%.8s...%s : %u",
@@ -1013,7 +1069,7 @@ static void details_cb(lv_event_t *e)
     }
 
     // the id to find it by, once broadcast — final only for segwit-only spends
-    mk_lbl(tr(STR_S_D_TXID), 430, 96, wt_font14(), MUT_COL);
+    wt_section(s_scr, tr(STR_S_D_TXID), 430, 96);
     char gt[80];
     group4(det.txid, gt, sizeof gt);
     lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
@@ -1057,7 +1113,10 @@ static void details_cb(lv_event_t *e)
     fmt_sats(leaving, a, sizeof a);
     wt_fmt_btc(leaving, gt, sizeof gt);
     snprintf(buf, sizeof buf, "%s sats   =   %s BTC", a, gt);
-    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
+    // 23, and INK. This is the number a holder reads off the glass and compares
+    // against the coordinator, which is the entire reason the BTC form is here
+    // at all. It was the same size and the same grey as the locktime note.
+    mk_lbl(buf, 430, 228, wt_font23(), INK_COL);
 
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);
