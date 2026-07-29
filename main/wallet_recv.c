@@ -233,6 +233,7 @@ static void vfy_result(const char *txt, size_t len) {
                                    : wallet_address_validate(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
+  wt_lock_mark(s_scr);
   // Only format and tail-highlight something that really is an address.
   // Arbitrary QR text is not grouped address data; feeding a short malformed
   // string through the span formatter also left LVGL with a broken short-span
@@ -446,6 +447,7 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
+  wt_lock_mark(s_scr);
   // The longer tsp1 full view can make LVGL auto-scroll a default container
   // to its newest child, shifting the fixed 800x480 composition off-screen.
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -599,6 +601,7 @@ static void recv_list_open(void) {
   // belongs on the screen that shows one -- here it only cost the list a row
   // and said nothing about the list.
   s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
+  wt_lock_mark(s_scr);
 
   lv_obj_t *list = lv_obj_create(s_scr);
   lv_obj_remove_style_all(list);
@@ -713,6 +716,7 @@ static void detail_back_cb(lv_event_t *e) {
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
+  wt_lock_mark(s_scr);
   // Zoom makes a large scan view one tap away, so the default card can give
   // the complete action + consequence three readable lines without making the
   // QR fragile: 184px still gives an ordinary address several pixels/module.

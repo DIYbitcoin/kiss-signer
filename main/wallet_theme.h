@@ -68,6 +68,13 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
+// Draw the corner-lock affordance: a small × in WT_MUT at (16, 22), font23.
+// The 88x88 tap region this hints at is enforced in main.c's touch handler,
+// which routes through the same auto-lock teardown as the idle timer. This is
+// discoverability only; do NOT wire a click handler here, because the corner
+// gesture is a global router that lives beside the wallet sub-screens rather
+// than inside them. Call from any wallet sub-screen that owns its own touches.
+void wt_lock_mark(lv_obj_t *scr);
 // Re-fit the title into `w` px on ONE line, stepping 34 -> 28 -> 23. wt_screen
 // already does this at 704, the full width between the page margins. Call it
 // again, narrower, on any screen that puts something else on the title's row:
