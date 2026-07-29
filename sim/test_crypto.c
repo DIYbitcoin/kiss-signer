@@ -30,6 +30,8 @@ int test_sp(void);
 int test_sdseed_layer(void);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
+// sim/test_passedit.c: insert/delete at the passphrase caret
+int test_passedit(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -469,6 +471,7 @@ int main(int argc, char **argv) {
     fails += test_seed_layer();
     fails += test_sdseed_layer();
     fails += test_duress();
+    fails += test_passedit();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);
