@@ -132,37 +132,60 @@ void camera_scan_progress(int seen, int total) {
   s_scan_total = total;
 }
 
-// ---- step 7 entropy mode: live Shannon estimate over the raw RGB565 frame
-// (full 65536-bin histogram, Kern's method + threshold); the SEED entropy is
-// SHA256(SHA256(frame) || hardware TRNG) — Shannon is only the quality gate.
+// ---- step 7 entropy mode: gather across frames, do not gate on one.
 //
-// What this number is not. A histogram is order blind: shuffle every pixel in
-// the frame and the estimate does not move. So any FIXED pattern the optics
-// and sensor impose on every frame of every device widens the histogram and
-// raises the reading without adding one bit anybody could not predict. Two of
-// those were real here. The sensor's black pedestal is now zeroed at source.
-// Lens vignetting is not corrected at all: ov02c10_default.json carries no lsc
+// The seed is SHA256(chain || hardware TRNG), where the chain is folded from
+// EVERY sampled frame the holder shows the camera. The live Shannon estimate
+// over one frame's 65536-bin histogram is still computed and still shown, but
+// it is now a rate, not a verdict: it says how fast the bar is filling.
+//
+// This used to gate a single frame at 6.0 bits and refuse anything under it.
+// Three things were wrong with that.
+//
+// It threw away every frame but one. A sampled frame arrives ten times a
+// second, and sensor read noise is independent between them while a vignette
+// or a hot pixel is not. Chaining twenty frames therefore gathers real
+// unpredictability that one frame cannot, and dilutes the fixed pattern
+// described below rather than counting it once per attempt.
+//
+// The refusal bought nothing. wallet_entropy_mix folds the chain together with
+// esp_fill_random, so a wholly predictable scene still leaves the seed no
+// worse than the hardware TRNG alone. The gate is a quality prompt, not a
+// security control, and creating a new seed is the ONLY path to this screen:
+// a prompt that can permanently refuse is a device that cannot make a wallet.
+//
+// And 6.0 was picked against an image with the sensor's black pedestal intact
+// and no auto exposure, both of which inflated it. There is no honest way to
+// re-derive that number off the device. Accumulating dissolves the question:
+// a messy scene fills the bar in about two seconds, a blank wall takes longer,
+// neither is ever refused, and no constant has to be calibrated against a lens.
+//
+// What the Shannon number still is not. A histogram is order blind: shuffle
+// every pixel in the frame and the estimate does not move. So any FIXED
+// pattern the optics and sensor impose on every frame of every device widens
+// the histogram and raises the reading without adding one bit anybody could
+// not predict. The sensor's black pedestal is now zeroed at source. Lens
+// vignetting is not corrected at all: ov02c10_default.json carries no lsc
 // section, so the ISP's shading block is never programmed, and correcting it
 // needs per lens coefficients measured on a flat field that we do not have.
-//
-// The seed is not weakened by any of this. wallet_entropy_mix folds the frame
-// hash together with esp_fill_random below, so a wholly predictable scene
-// still leaves the seed no worse than the hardware TRNG alone. What is
-// overstated is the GATE: it can read 6.0 bits off a scene carrying less, and
-// tell the holder they are ready when they are standing at a blank wall.
-#define ENT_THRESH_X10 60               // 6.0 bits minimum, same as Kern
-// Chosen against the old image: fixed exposure, no white balance, pedestal
-// intact. Every one of those inflated the reading, so the honest expectation
-// is that corrected frames measure LOWER and this constant has to come down
-// to keep the same scenes passing. Measure on device against a blank wall and
-// against gravel before moving it. A threshold left calibrated against a bug
-// is a threshold that means nothing.
+#define ENT_TARGET_X10  1200            // 20 frames at 6.0 bits, ~2s when good
+#define ENT_FRAME_CAP   120             // 12.0 bits, so no one frame carries a
+                                        // session on its own
+// About 4130 of the 937,664 pixels, and 20 frames of those against a 256 bit
+// output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
+// walks instead of landing on the same columns every frame.
+#define ENT_SUB_STRIDE  227
+#define ENT_SUB_MAX     4200
+
 static void *s_bus_saved;
 static volatile bool s_ent_mode;
-static volatile int s_ent_meter;        // Shannon estimate, bits x10
-static volatile bool s_ent_req;         // UI tapped: capture next good frame
+static volatile int s_ent_meter;        // Shannon estimate of ONE frame, x10
+static volatile int s_ent_accum;        // summed across frames, x10
+static volatile bool s_ent_req;         // UI tapped: finish if the bar is full
 static volatile bool s_ent_done;        // s_ent_hash is ready
 static uint8_t s_ent_hash[32];
+static uint8_t s_ent_chain[32];         // running fold over sampled frames
+static uint16_t s_ent_sub[ENT_SUB_MAX]; // strided subsample, hashed per frame
 static uint32_t *s_ent_hist;            // 256KB histogram, PSRAM
 
 void camera_spike_set_bus(void *i2c_bus) { s_bus_saved = i2c_bus; }
@@ -182,21 +205,40 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     }
   }
   s_ent_meter = (int)(ent * 10.0);
+
+  // Fold this frame into the chain. A subsample rather than the whole frame
+  // because wally_sha256 over 1.9MB is software SHA at tens of milliseconds,
+  // ten times a second, on the same task that drives the preview. 8KB is free,
+  // and 4130 pixels a frame across twenty frames is not a close margin against
+  // 256 bits of output.
+  if (!s_ent_done) {
+    size_t k = 0;
+    for (size_t i = 0; i < n && k < ENT_SUB_MAX; i += ENT_SUB_STRIDE)
+      s_ent_sub[k++] = px[i];
+    uint8_t d[32];
+    if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
+                     d, sizeof d) == WALLY_OK &&
+        wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
+      int add = s_ent_meter;
+      if (add > ENT_FRAME_CAP) add = ENT_FRAME_CAP;
+      if (add > 0 && s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
+    }
+    wally_bzero(d, sizeof d);
+  }
+
   if (s_ent_req) {
     s_ent_req = false;
-    if (s_ent_meter >= ENT_THRESH_X10 && !s_ent_done &&
-        wally_sha256((const unsigned char *)frame, n * 2,
-                     s_ent_hash, sizeof s_ent_hash) == WALLY_OK) {
-      // mix in the chip's hardware TRNG: seed = SHA256(frame_hash || trng), so
-      // a predictable scene can't weaken the seed below the TRNG and a weak
-      // TRNG is still covered by the photo (belt and braces, invisible to UX)
+    if (s_ent_accum >= ENT_TARGET_X10 && !s_ent_done) {
+      // mix in the chip's hardware TRNG: seed = SHA256(chain || trng), so a
+      // predictable scene can't weaken the seed below the TRNG and a weak
+      // TRNG is still covered by the photos (belt and braces, invisible to UX)
       uint8_t trng[32];
       esp_fill_random(trng, sizeof trng);
-      if (wallet_entropy_mix(s_ent_hash, trng, s_ent_hash) == 0)
+      if (wallet_entropy_mix(s_ent_chain, trng, s_ent_hash) == 0)
         s_ent_done = true;
       wally_bzero(trng, sizeof trng);
-    }                                   // sub-threshold taps just do nothing —
-  }                                     // the amber bar already says why
+    }                                   // an early tap just does nothing —
+  }                                     // the part-filled bar already says why
 }
 
 // in-video chrome geometry (bands + bar), shared by scan and entropy modes;
@@ -209,19 +251,25 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 #define BAR_THICK   22
 #define BAR_LEN     560
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
-static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base);
+static void draw_hbar(uint16_t *fb, int fill, uint16_t base);
 
-// Entropy meter: amber while below the gate (tick mark = 6.0 bits), green
-// when a tap would be accepted. Full bar = 8.0 bits. The displayed fill EASES
-// toward the live estimate so the bar glides instead of twitching.
+// How much has been gathered, not how good the current frame is. It fills as
+// the holder holds, faster on a messy scene than on a wall, and turns green
+// when it is full and a tap would be accepted.
+//
+// There is no tick mark any more. It used to sit at 6.0 bits to mark the pass
+// point on a bar that showed one frame's estimate. A progress bar does not
+// have a pass mark: being full IS the pass mark, and a line partway along one
+// only invites the question of what happens past it.
+//
+// The displayed fill still EASES toward the real figure, so the bar glides.
 static void draw_ent_bar(uint16_t *fb) {
   static int disp;
-  int target = BAR_LEN * s_ent_meter / 80;
+  int target = BAR_LEN * s_ent_accum / ENT_TARGET_X10;
   if (target > BAR_LEN) target = BAR_LEN;
   disp += (target - disp) / 4;
   if (disp < 0) disp = 0;
-  draw_hbar(fb, disp, BAR_LEN * ENT_THRESH_X10 / 80,
-            s_ent_meter >= ENT_THRESH_X10 ? 0x368F : 0xF5C9);
+  draw_hbar(fb, disp, s_ent_accum >= ENT_TARGET_X10 ? 0x368F : 0xF5C9);
 }
 
 // No ISP pipeline controller is configured, so the sensor just runs its
@@ -595,7 +643,7 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
 // of the people this screen serves want more than that. A holder standing at a
 // blank wall gets to watch the number climb as they turn toward something with
 // detail, which teaches what the gate is actually asking for far faster than
-// any wording would. Anyone recalibrating ENT_THRESH_X10 gets a figure they can
+// any wording would. Anyone tuning ENT_TARGET_X10 gets a figure they can
 // write down without a special build.
 //
 // Reuses the baked 0-9 glyphs. The decimal point is a plain square because
@@ -663,7 +711,10 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
 // Rounded track + inset rounded fill (landscape-horizontal, drawn in panel
 // coords: length runs along panel y, thickness along panel x).
 #define BAR_INS 4
-static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base) {
+// The gate tick mark that used to be drawn here went with the entropy meter's
+// pass threshold. Both bars this draws are progress now, and progress bars do
+// not mark a point partway along themselves.
+static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
   const int cy0 = (PANEL_H - BAR_LEN) / 2;
   const int R = BAR_THICK / 2;
   // track: rounded dark pill
@@ -698,16 +749,6 @@ static void draw_hbar(uint16_t *fb, int fill, int gate, uint16_t base) {
       }
     }
   }
-  if (gate >= 0) {                      // slim white tick, slightly proud
-    for (int i = gate - 1; i <= gate; i++) {
-      if (i < 0 || i >= BAR_LEN) continue;
-      for (int t = -4; t < BAR_THICK + 4; t++) {
-        int px = BAR_PX0 + t, py = cy0 + i;
-        if (px >= 0 && px < PANEL_W && py >= 0 && py < PANEL_H)
-          fb[py * PANEL_W + px] = 0xE73C;
-      }
-    }
-  }
 }
 
 // Scan progress: one rounded segment per QR part as they assemble; a soft
@@ -722,7 +763,7 @@ static void draw_scan_bar(uint16_t *fb) {
   const int L = BAR_LEN - 2 * BAR_INS, gap = 5;
   int segw = tot > 1 ? (L - gap * (tot - 1)) / tot : 0;
   if (tot > 1 && segw >= 8) {           // segmented: one pill per part
-    draw_hbar(fb, 0, -1, 0);            // track only
+    draw_hbar(fb, 0, 0);                // track only
     const int R2 = (BAR_THICK - 2 * BAR_INS) / 2;
     for (int s = 0; s < tot; s++) {
       uint16_t c = s < seen ? 0x368F : 0x2166;
@@ -740,11 +781,11 @@ static void draw_scan_bar(uint16_t *fb) {
   } else if (tot > 0 || seen > 0) {     // many-part or unknown-total fallback
     int fill = tot > 0 ? BAR_LEN * seen / tot : BAR_LEN / 8;
     if (fill > BAR_LEN) fill = BAR_LEN;
-    draw_hbar(fb, fill, -1, 0x368F);
+    draw_hbar(fb, fill, 0x368F);
   } else if (found) {                   // located, nothing read yet
-    draw_hbar(fb, BAR_LEN / 10, -1, 0xFF20);
+    draw_hbar(fb, BAR_LEN / 10, 0xFF20);
   } else {                              // searching: soft traveling shimmer
-    draw_hbar(fb, 0, -1, 0);
+    draw_hbar(fb, 0, 0);
     int pos = (int)((s_frames * 5) % (uint32_t)(BAR_LEN + 160)) - 80;
     for (int i = pos - 40; i < pos + 40; i++) {
       if (i < BAR_INS + 4 || i >= BAR_LEN - BAR_INS - 4) continue;
@@ -963,7 +1004,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   if (s_ent_mode) {
     draw_ent_bar(fb);
     draw_ent_digits(fb);                // the same estimate as a figure
-    draw_osd_strip(fb, s_ent_meter >= ENT_THRESH_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
+    draw_osd_strip(fb, s_ent_accum >= ENT_TARGET_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
   }
   if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
     draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
@@ -1201,8 +1242,13 @@ bool camera_entropy_start(void) {
     if (!s_ent_hist) { set_status("CAM: entropy histogram alloc failed"); return false; }
   }
   s_ent_meter = 0;
+  s_ent_accum = 0;
   s_ent_req = false;
   s_ent_done = false;
+  // A fresh chain per session. Carrying one over would mean a holder who
+  // backed out and came in again started part filled, on frames they saw
+  // during a visit they abandoned.
+  wally_bzero(s_ent_chain, sizeof s_ent_chain);
   s_zoom = 0;
   s_ent_mode = true;
   if (!cam_start()) { s_ent_mode = false; return false; }
@@ -1223,7 +1269,10 @@ bool camera_entropy_result(uint8_t out[32]) {
 void camera_entropy_stop(void) {
   if (!s_ent_mode && !s_cam.streaming) return;
   s_ent_mode = false;
-  cam_stop();
+  cam_stop();                                 // waits for the stream task, so
+  wally_bzero(s_ent_chain, sizeof s_ent_chain);   // nothing is folding into
+  wally_bzero(s_ent_sub, sizeof s_ent_sub);       // these while they are wiped
+  s_ent_accum = 0;
   if (s_ent_hist) { free(s_ent_hist); s_ent_hist = NULL; }
   lv_obj_invalidate(lv_screen_active());
   set_status("CAM: entropy stopped");
