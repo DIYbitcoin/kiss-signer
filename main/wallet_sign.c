@@ -82,11 +82,11 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 
 #define HOLD_MS   1200
 // HOLD TO SIGN ignores presses for this long after I UNDERSTAND was tapped.
-// See the note where the two buttons are built: they overlap in x and no
-// arrangement of them inside a 704px row separates them, so the fix is to make
-// the overlap unreachable in time rather than in space. Long enough to outlast
-// a double tap, short enough that nobody deliberately reaching for the button
-// ever meets it: the finger has to travel and the screen has to repaint first.
+// The redraw moved I UNDERSTAND into the caution row, so the two no longer
+// overlap in x and this is no longer the only thing standing between a double
+// tap and a signature nobody read. It stays because the repaint still swaps
+// what is under the finger, and 500ms is the cost of nothing: the finger has to
+// travel from the row to the action bar and the screen has to repaint first.
 #define SIGN_ARM_MS 500
 #define MAX_FILES 8
 #define SHOW_OUTS 3
@@ -182,8 +182,39 @@ static void choose_back_cb(lv_event_t *e)     // -> SCAN QR / FROM SD CARD
 
 // ---- shared bits: thin wrappers over the wallet_theme kit (module keeps
 // its s_scr; call sites keep their historical signatures) ----
+// This module owns exactly ONE screen at a time. Overwriting s_scr without
+// deleting what it pointed at does not close that screen, it orphans it: the
+// old one stays parented to s_parent, underneath the new one, and the only way
+// to find out is to press BACK enough times to peel the top one off and see a
+// transaction you already left.
+//
+// Every call site clears s_scr itself rather than leaning on the recovery
+// below, because clearing it is never just the delete: the hold timer ticks
+// against s_arc, and s_arc and s_sign_lbl both point into the outgoing screen.
+// mk_screen() cannot see any of that, so a call site that let it do the tidying
+// would leave a timer running against a freed arc. The branch below is a net,
+// not a mechanism.
+#ifdef SIMULATOR
+int g_sign_orphaned_screens;          // sim_main.c fails the walk on this
+#endif
+
 static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
+    if (s_scr) {
+        // Every real call site deletes and nulls s_scr before it gets here, so
+        // reaching this branch is always a bug, never housekeeping. On device
+        // it recovers silently; in the sim it fails the walk, which is the
+        // regression test -- the frames cannot catch this on their own, because
+        // an orphan is perfectly hidden under the screen that replaced it right
+        // up until the moment a BACK uncovers it.
+#ifdef SIMULATOR
+        g_sign_orphaned_screens++;
+        fprintf(stderr, "ORPHANED SIGN SCREEN: mk_screen(\"%s\") ran with a live "
+                        "s_scr; the outgoing screen stays parented underneath\n",
+                title ? title : "");
+#endif
+        lv_obj_delete_async(s_scr);
+    }
     s_scr = wt_screen(parent, title, sub);
 }
 
@@ -593,13 +624,13 @@ static void rbf_help_cb(lv_event_t *e)
     wt_card_intro(ovl);
 }
 
-// "I UNDERSTAND" on a CAUTION: a deliberate second confirm before the hold pill
-// even appears (user: "warn, second OK").
-static void ack_cb(lv_event_t *e)
+// The verify screen has no partial redraw: every state change rebuilds it. The
+// rebuild has to drop the screen-scoped state first, because the hold timer
+// ticks against s_arc and both s_arc and s_sign_lbl are about to point at
+// objects on the outgoing screen. Both call sites need this and each one used to
+// spell it out; the one that forgot a line is what shipped the orphan.
+static void repaint_verify(void)
 {
-    (void)e;
-    s_ack = true;
-    s_ack_t0 = lv_tick_get();
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     verify_screen(s_parent);
@@ -657,7 +688,7 @@ static void row_ack_cb(lv_event_t *e)
     if ((s_ack_flags & caution_all_bits(s_sum.caution_flags))
         == caution_all_bits(s_sum.caution_flags))
         s_ack = true;
-    verify_screen(s_parent);                // repaint: this row goes green, and
+    repaint_verify();                       // this row goes green, and
 }                                           // HOLD TO SIGN lights when all are in
 
 // A raised block: WT_PANEL on a 1px border, radius 12. Used for both output
@@ -1073,9 +1104,7 @@ actions:
 static void details_back_cb(lv_event_t *e)
 {
     (void)e;
-    hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    verify_screen(s_parent);
+    repaint_verify();
 }
 
 static void glossary_ok_cb(lv_event_t *e)
