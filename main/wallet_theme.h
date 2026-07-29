@@ -19,6 +19,17 @@
 #define WT_STOP lv_color_hex(0xFF4D5E)
 #define WT_CARD lv_color_hex(0xF2F5FA)   // QR cards: scanners want dark-on-light
 
+// Surfaces. Everything above is ink or status; these are the things ink sits
+// ON. They are near enough to WT_BG to read as the same darkness and far
+// enough to separate a panel from the page behind it, which is the only job
+// they have. Never use one as a text colour except WT_DIM, which is ink.
+#define WT_BAR   lv_color_hex(0x0B0E14)  // the action bar's floor
+#define WT_HAIR  lv_color_hex(0x1E2531)  // 1px rule where a surface meets the page
+#define WT_PANEL lv_color_hex(0x0A0E15)  // explainer cards, any raised block
+#define WT_DIV   lv_color_hex(0x1A2130)  // divider between rows inside one panel
+#define WT_DIM   lv_color_hex(0x4C5666)  // ink for something present but inert
+#define WT_EDGE  lv_color_hex(0x2A3346)  // border of a control that is not a pill
+
 // accent themes = the dots on the baked home art. MONO keeps the shipped look.
 enum { WT_ACC_MONO = 0, WT_ACC_GREEN, WT_ACC_PINK, WT_ACC_ORANGE, WT_ACC_N };
 void       wt_accent_set(int id);        // clamps to a valid id; caller persists
@@ -50,6 +61,78 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
+// Re-fit the title into `w` px on ONE line, stepping 34 -> 28 -> 23. wt_screen
+// already does this at 704, the full width between the page margins. Call it
+// again, narrower, on any screen that puts something else on the title's row:
+// a title has no width of its own, so a long translation simply keeps going
+// and runs straight through whatever is up there.
+void wt_title_fit(lv_obj_t *scr, int w);
+// The same for the subtitle, which wt_screen gives the full 704px lane and one
+// line of height. Narrow it on any screen that parks something inside that
+// lane: the subtitle's BOX is 704 wide whatever the translation does, so it
+// overlaps a chip sitting at x=652 even when the words stop at 400.
+void wt_sub_fit(lv_obj_t *scr, int w);
+
+// The action row: where a screen's buttons live, and the line content may not
+// cross. These name the geometry the screens already used as bare numbers; the
+// values are unchanged, so nothing moves. They exist so sim/overlapcheck.c has
+// one number to test against instead of grepping for 404, and so the row can be
+// moved once rather than in ninety places.
+//
+// Two heights, and the tall one is not an accident. A pill label auto-fits
+// 23 -> 14, and at 66 it can take a SECOND LINE at 23 instead of dropping a
+// rung: "HOLD TO SIGN" has no one-line size above 14 in French, Italian or
+// Swedish, and the button that moves money should not be the smallest type on
+// screen. Use TALL for any row whose label may wrap, standard everywhere else.
+// A row shares one height across all its pills or they stop lining up.
+#define WT_ACTION_Y       404   // standard row: 404..456, 24px above the edge
+#define WT_ACTION_H        52   // == wt_pill's height
+#define WT_ACTION_Y_TALL  398   // wrapping row: 398..464
+#define WT_ACTION_H_TALL   66
+// Nothing above the row may extend past this. It is WT_ACTION_Y_TALL exactly,
+// not a rounder number with a gutter invented on top: the tall row is the
+// highest anything in the action band reaches, so crossing it is the failure.
+#define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
+
+// BACK is always the bottom RIGHT pill, on every screen that has one. A thumb
+// arrives at that corner at an angle and lands short, which is why Settings put
+// it there first and gave it 10px of ext click area; the rest of the app then
+// hand typed 48 on fourteen screens and 330 on two more, so the escape hatch
+// moved depending on which screen you were escaping from. One number, one
+// corner, no exceptions.
+//
+// The corollary is worth stating because it is a safety property and not a
+// tidiness one: the right corner is where the least consequential button on
+// each screen now lives. Anything that spends money sits further left, away
+// from the reflex tap and out from under the help chips that hang above the
+// row's right end.
+//
+// THE RULE IS ABOUT ESCAPING A SCREEN, NOT ABOUT THE WORD "BACK". STR_C_BACK
+// does two unrelated jobs in this app and only one of them belongs here:
+//
+//   escape  - leaves for the level above (close_cb, files_back_cb, sp_back_cb,
+//             the sign details page returning to verify). Right corner. If a
+//             screen's escape is called DONE instead, DONE takes the corner:
+//             the corner belongs to the exit, whatever it is labelled.
+//   paging  - steps within the screen you are already on, and always has a
+//             NEXT beside it (the recovery words pages, the pairing QR page).
+//             That pair stays adjacent on the LEFT, because splitting BACK and
+//             NEXT across the full width to satisfy a corner rule would break
+//             the one thing a paged sequence needs, which is that its two
+//             halves look like one control.
+#define WT_BACK_X          610   // BACK's left edge, for the standard 140px pill
+
+// The action bar is the floor the row stands on: full width, WT_BAR fill, one
+// WT_HAIR line along its top. It is not a call you make. wt_pillh builds it the
+// first time a pill lands at or below WT_CONTENT_BOTTOM on a wt_screen, so a
+// screen cannot acquire an action row and forget the bar, and a screen with no
+// action row never grows one.
+//
+// It exists because a button floating over text is read as a rendering fault,
+// while text meeting a bar is read as text continuing underneath. That is a
+// last line of defence and not a fix: sim/overlapcheck.c still fails anything
+// that crosses WT_CONTENT_BOTTOM, because content hidden behind the bar is
+// content the owner cannot read.
 
 // Pill icons. FontAwesome PUA codepoints baked into every generated Latin size
 // by the SYMS list in tools/fonts/gen_fonts.sh — keep the two in lockstep, an
@@ -161,13 +244,17 @@ void wt_card_intro(lv_obj_t *card);
 // Mini "equation" diagrams for the "?" cards, built from the app's own chip
 // vocabulary (so they read on-brand, never like cheap clip-art). A row is a
 // centered flex strip; add chips and operator glyphs to it left to right.
-lv_obj_t *wt_diagram_row(lv_obj_t *parent, int y);            // centered strip at y
+// A centered flex strip. No y: it takes its place from the parent's own layout,
+// because the block above it is wt_body_font-sized and a caller cannot know how
+// tall that came out in the locale being rendered. Parents of a diagram are
+// flex columns.
+lv_obj_t *wt_diagram_row(lv_obj_t *parent);
 lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
 lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
 // the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
-void wt_diagram_fp(lv_obj_t *parent, int y);
+void wt_diagram_fp(lv_obj_t *parent);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
-void wt_diagram_pair(lv_obj_t *parent, int y);
+void wt_diagram_pair(lv_obj_t *parent);
 
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so

@@ -313,7 +313,7 @@ static void done_screen(const char *outname)
     // page under it; it does not need to be the small type.
     lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 284, 704, 90);
     lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
-    mk_pill(tr(STR_C_DONE), 330, 404, 140, close_cb);
+    mk_pill(tr(STR_C_DONE), 330, WT_ACTION_Y, 140, close_cb);
     // nothing needs to stay on screen (the file is saved), so drift back to home
     s_done_tmr = lv_timer_create(auto_home_cb, 6000, NULL);
     lv_timer_set_repeat_count(s_done_tmr, 1);
@@ -324,7 +324,7 @@ static void fail_screen(const char *why)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(parent, tr(STR_S_FAIL_T), why);
-    mk_pill(tr(STR_C_BACK), 330, 404, 140, close_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive
@@ -401,25 +401,39 @@ static void details_cb(lv_event_t *e);
 static void verify_screen(lv_obj_t *parent);
 
 // ---- cautions: a short summary on the verify screen, the "why" one tap away ----
-// Terse one-liner naming the categories that fired (user: "main warning short").
-static void caution_summary(uint16_t f, char *out, size_t cap)
+// The categories that fired, one per element. This used to join them with " + "
+// into a single string and render it as a wrapping label at a fixed y, which is
+// exactly the fault the whole layout phase is about: with three flags it grew
+// over the RBF line beneath it and then ran 21px into the action row, in all 21
+// locales. A caller that gets the parts can give each one its own row and know
+// the height before it draws.
+static int caution_parts(uint16_t f, const char **parts, int cap)
 {
-    size_t o = 0;
-    out[0] = 0;
-    const char *parts[4];
     int n = 0;
-    if (f & WPSBT_C_HIGHFEE)      parts[n++] = tr(STR_S_C_HIGHFEE);
-    if (f & WPSBT_C_DUST_INPUT)   parts[n++] = tr(STR_S_C_DUSTIN);
-    if (f & WPSBT_C_DUST_CHANGE)  parts[n++] = tr(STR_S_C_DUSTCH);
-    else if (f & WPSBT_C_SMALL_CHANGE) parts[n++] = tr(STR_S_C_SMALLCH);
-    for (int i = 0; i < n && o + 1 < cap; i++) {
-        // snprintf returns the WOULD-BE length: clamp o inside the buffer or
-        // `cap - o` underflows on long (e.g. Cyrillic) translations
-        int w = snprintf(out + o, cap - o, "%s%s", i ? " + " : "", parts[i]);
-        if (w < 0) break;
-        o += (size_t)w;
-        if (o >= cap) o = cap - 1;
-    }
+    if (n < cap && (f & WPSBT_C_HIGHFEE))     parts[n++] = tr(STR_S_C_HIGHFEE);
+    if (n < cap && (f & WPSBT_C_DUST_INPUT))  parts[n++] = tr(STR_S_C_DUSTIN);
+    if (n < cap && (f & WPSBT_C_DUST_CHANGE)) parts[n++] = tr(STR_S_C_DUSTCH);
+    else if (n < cap && (f & WPSBT_C_SMALL_CHANGE)) parts[n++] = tr(STR_S_C_SMALLCH);
+    return n;
+}
+
+// Put an object's BOTTOM edge on the content line, wherever its top ends up.
+//
+// The caution stack grows UPWARD from the action row: one flag or three, the
+// last row always sits directly above the button that acknowledges it, and the
+// facts above simply have more or less air under them. Anchoring the top
+// instead is what made three flags overflow, because the top is the one end
+// whose distance to the bottom is not known until the rows exist.
+// Returns that top edge. Reading it back with lv_obj_get_y() does NOT work:
+// coords are only refreshed on the next layout pass, so a caller that asks
+// immediately gets the position the object had before it was moved, which is
+// how the caution "?" chip first landed at the top of the screen.
+static int anchor_bottom(lv_obj_t *o, int x)
+{
+    lv_obj_update_layout(o);
+    int y = WT_CONTENT_BOTTOM - lv_obj_get_height(o);
+    lv_obj_set_pos(o, x, y);
+    return y;
 }
 
 static void caution_ok_cb(lv_event_t *e)
@@ -688,27 +702,26 @@ static void verify_screen(lv_obj_t *parent)
     snprintf(buf, sizeof buf, "%s sats", a);
     mk_lbl(buf, 430, 126, wt_font28(),
            s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
-    snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-             (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
-    wt_note(s_scr, buf, 430, 166, 340, 29);
 
-    wt_note(s_scr, tr(STR_S_TOTAL_LEAVING), 430, 198, 340, 29);
+    wt_note(s_scr, tr(STR_S_TOTAL_LEAVING), 430, 166, 340, 29);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 228, wt_font28(), INK_COL);   // the headline number, not a footnote
-    wt_fmt_btc(total, b, sizeof b);
-    snprintf(buf, sizeof buf, "%s BTC", b);
-    mk_lbl(buf, 430, 268, wt_font23(), MUT_COL);
+    mk_lbl(buf, 430, 196, wt_font28(), INK_COL);   // the headline number, not a footnote
 
-    // "N inputs, <type>" and "in / back" used to sit here at font14. They are
-    // facts about the transaction, not decisions about it, and DETAILS already
-    // itemises inputs (S_D_INPUTS_FMT). Their 40px pays for the fee and total
-    // above being readable, which is the trade this screen should make.
+    // The fee RATE and the BTC restatement of the total are on DETAILS now.
+    //
+    // Both said a number already on this screen over again in another unit, and
+    // together they were 66px of a 302px column. Three cautions at one row each
+    // need 87 and there were 40 left, so a transaction that fired three flags
+    // ran its warning through the RBF line and into the action row. Neither
+    // restatement changes a decision; the fee in sats and the total in sats do,
+    // and those stay here at font28. The same trade was made once before on
+    // this column, when "N inputs, <type>" and "in / back" went to DETAILS.
 
     // network: LOUD amber chip on testnet (spec: loud TESTNET banner); mainnet
     // stays a plain muted word. (No address-type setting shown: the signer is
     // type-agnostic — the PSBT's own paths declare the type, re-derive enforces.)
-    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 300,
+    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 240,
                            wt_font23(), s_sum.testnet ? WARN_COL : MUT_COL);
     if (s_sum.testnet) {
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -726,74 +739,104 @@ static void verify_screen(lv_obj_t *parent)
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
-    wt_note(s_scr, buf, 430, 364, 296, 29);   // stops short of the chip at x=738
-    {   // This chip TRAILS its line at a fixed x while the caution chip above
-        // LEADS its own. Not a style slip -- the two rows are 34px apart and
-        // each chip is 30px with a 12px extended click area, so stacking
-        // them at the same x would put one inside the other's hit box. Fixed
-        // x, not "after the text", so a longer translation cannot walk it into
-        // a neighbour. All five pairs (both chips, DETAILS, I UNDERSTAND) were
-        // checked disjoint before these numbers were chosen.
-        // Centre stays (753,371), but the visible control now matches every
-        // other anonymous help chip and its effective target remains 54px.
-        wt_help_chip(s_scr, 738, 356, MUT_COL, rbf_help_cb, NULL);
+    wt_note(s_scr, buf, 430, 274, 296, 29);   // stops short of the chip at x=738
+    {   // This chip TRAILS its line at a fixed x while the caution chip below
+        // LEADS its own. Not a style slip -- each chip is 30px with a 12px
+        // extended click area, so putting both at the same x would risk one
+        // sitting inside the other's hit box. Fixed x, not "after the text", so
+        // a longer translation cannot walk it into a neighbour. All five pairs
+        // (both chips, DETAILS, I UNDERSTAND) were checked disjoint before
+        // these numbers were chosen; the visible control matches every other
+        // anonymous help chip and its effective target remains 54px.
+        wt_help_chip(s_scr, 738, 266, MUT_COL, rbf_help_cb, NULL);
     }
 
+    // The verdict, anchored to the BOTTOM of the column so it always sits
+    // directly above the button that answers it, and so its height is allowed
+    // to be whatever the flags and the locale make it.
     if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 332, wt_font23(), STOP_COL);
+        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 96, wt_font23(), STOP_COL);
         lv_obj_set_width(r, 330);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
+        anchor_bottom(r, 430);
     } else if (s_sum.status == WPSBT_CAUTION) {
-        // short summary + a "?" chip to the full "why" (keeps the screen simple)
-        char sum[160];   // three parts in a 2-3 byte/char script must fit
-        caution_summary(s_sum.caution_flags, sum, sizeof sum);
-        char line[200];
-        snprintf(line, sizeof line, tr(STR_S_CAUTION_FMT), sum);
-        // The "?" leads the line it explains instead of trailing it.
+        // ONE ROW PER FLAG, not one string joined with " + ". The joined string
+        // was a wrapping label whose height nobody could predict: "high fee +
+        // dust attack + dust change" is three lines in Italian, two in Chinese
+        // and four in Russian, all from the same y. A row per flag is one line
+        // each by construction, so three flags is always 87px and the column
+        // above knows exactly how much room it has left.
         //
-        // It used to sit at x=720,y=362 with a 12px extended click area, so it
-        // occupied x 708-762, y 350-404 -- and I UNDERSTAND at (500,398) sized
-        // 252x66 occupies x 500-752, y 398-464. They overlapped by 44x6px, on
-        // the one screen where the two things a user can tap are "explain this
-        // warning" and "accept this warning". Putting it ahead of the text also
-        // means it no longer moves with the translated string's length.
-        lv_obj_t *r = mk_lbl(line, 468, 332, wt_font23(), WARN_COL);
-        lv_obj_set_width(r, 300);
-        lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        wt_help_chip(s_scr, 430, 330, WARN_COL,
+        // The status pill at the top right already reads "WARNING CAUTION", so
+        // each row carries the glyph and the amber and names its own category
+        // rather than repeating the word. STR_S_CAUTION_FMT is left in the
+        // locale files for the phase 3 rewrite, which replaces these category
+        // names with the evidence behind them.
+        lv_obj_t *col = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_size(col, 300, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+        const char *parts[4];
+        int np = caution_parts(s_sum.caution_flags, parts, 4);
+        for (int i = 0; i < np; i++) {
+            char row[160];   // a category name in a 2-3 byte/char script
+            snprintf(row, sizeof row, "%s  %s", LV_SYMBOL_WARNING, parts[i]);
+            lv_obj_t *r = lv_label_create(col);
+            lv_obj_set_style_text_color(r, WARN_COL, 0);
+            lv_obj_set_width(r, 300);
+            // wt_note_fit, so a category name too long for 300px at font23
+            // drops a rung instead of taking a second line and moving every
+            // row above it. One row is one line, always.
+            wt_note_fit(r, row, 300, 29);
+        }
+        int top = anchor_bottom(col, 468);
+        // The "?" LEADS the stack it explains rather than trailing it: trailing,
+        // it moved with the translated string's length and at x=720,y=362 its
+        // 54px effective target reached into I UNDERSTAND, on the one screen
+        // where the two tappable things are "explain this warning" and "accept
+        // this warning".
+        wt_help_chip(s_scr, 430, top, WARN_COL,
                      caution_help_cb, NULL);   // "?" -> WHY FLAGGED card
     }
 
-    // ACTION_H: tall enough for a label to take a SECOND LINE at font23 rather
-    // than drop to font14 (two 29px lines plus padding). "HOLD TO SIGN" has no
-    // one-line size above 14 in French, Italian or Swedish, and the button that
-    // moves money is the last one that should be the smallest type on screen.
+    // The tall action row, because "HOLD TO SIGN" has no one-line size above
+    // font14 in French, Italian or Swedish and the button that moves money is
+    // the last one that should be the smallest type on screen. The height and
+    // the reason now live in wallet_theme.h, where the two other screens that
+    // need the same thing can reach them; this used to be a private pair of
+    // defines here, which is how the second and third copies got hand typed.
     // The whole row shares the height so the three pills still line up.
-#define ACTION_H 66
-#define ACTION_Y 398
     // one step back: to the file list it came from, or to the SCAN/SD chooser
-    // if it arrived by camera (which is where cancelling the scan lands too)
-    wt_pillh(s_scr, tr(STR_C_BACK), 48, ACTION_Y, 140, ACTION_H,
+    // if it arrived by camera (which is where cancelling the scan lands too).
+    // Bottom right, per WT_BACK_X, which on THIS screen is also the safety
+    // answer: the RBF "?" chip hangs at x 726..780 down to this row's edge, and
+    // the button that inherits the graze from a missed tap on it is now the one
+    // that abandons the transaction rather than one that advances it.
+    wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
     if (s_sum.status != WPSBT_STOP) {
         // no DETAILS on STOP: the details page presents fields as verified,
         // and a refused transaction has nothing left to decide
-        wt_pillh(s_scr, tr(STR_S_DETAILS), 208, ACTION_Y, 170, ACTION_H,
+        wt_pillh(s_scr, tr(STR_S_DETAILS), 48, WT_ACTION_Y_TALL, 170, WT_ACTION_H_TALL,
                  details_cb, NULL);
         if (s_sum.status == WPSBT_CAUTION && !s_ack) {
             // gate the hold pill behind a deliberate acknowledgement
             //
-            // x=398, not 500. The RBF "?" one line above now reaches the row's
-            // y=398 edge, so x separation carries the safety boundary instead
-            // of pretending two vertical pixels help a fingertip. The right
-            // column has no slack to
-            // raise the chip into (297px of content between y=96 and y=393), so
-            // the BUTTON moves out from under it instead -- 398..650 against
-            // the chip's 726..780 is disjoint in x.
-            // HOLD TO SIGN stays at 480: it needs a sustained press, so a graze
-            // costs nothing.
-            lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 398, ACTION_Y,
-                                    252, ACTION_H, ack_cb, NULL);
+            // 238..490. Both consequential buttons now live in the middle of
+            // the row, because BACK took the right corner and the help chips
+            // hang above it: x separation carries the safety boundary instead
+            // of pretending two vertical pixels help a fingertip.
+            //
+            // Still to fix, and NOT fixed here: this button and HOLD TO SIGN
+            // overlap in x across the two states (238..490 against 310..582),
+            // so a second tap in the same place can land on the sign button.
+            // The row is 704px and DETAILS + BACK spend 310 of it, so there is
+            // no arrangement of a 252 and a 272 in what is left that separates
+            // them. It needs the phase 3 restructure, which rebuilds this bar.
+            lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 238, WT_ACTION_Y_TALL,
+                                    252, WT_ACTION_H_TALL, ack_cb, NULL);
             wt_pill_primary(ok);
             lv_obj_set_style_border_color(ok, WARN_COL, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(ok, 0), WARN_COL, 0);
@@ -801,7 +844,7 @@ static void verify_screen(lv_obj_t *parent)
             // hold-to-sign: ring fills while pressed; let go = nothing happens
             s_arc = lv_arc_create(s_scr);
             lv_obj_set_size(s_arc, 64, 64);
-            lv_obj_set_pos(s_arc, 420, ACTION_Y + 1);
+            lv_obj_set_pos(s_arc, 250, WT_ACTION_Y_TALL + 1);
             lv_arc_set_rotation(s_arc, 270);
             lv_arc_set_bg_angles(s_arc, 0, 360);
             lv_arc_set_range(s_arc, 0, 100);
@@ -813,8 +856,8 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
             lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
 
-            lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 480, ACTION_Y,
-                                   272, ACTION_H, NULL, NULL);
+            lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 310, WT_ACTION_Y_TALL,
+                                   272, WT_ACTION_H_TALL, NULL, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
             lv_obj_set_style_border_color(p, wt_primary(), 0);
             wt_pill_label_max(p);      // the most consequential button in the app
@@ -864,7 +907,7 @@ static void glossary_cb(lv_event_t *e)
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(b, 48, 98);
 
-    wt_pill(ovl, tr(STR_C_OK), 300, 404, 200, glossary_ok_cb, ovl);
+    wt_pill(ovl, tr(STR_C_OK), 300, WT_ACTION_Y, 200, glossary_ok_cb, ovl);
     wt_card_intro(ovl);
 }
 
@@ -877,6 +920,10 @@ static void details_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
+    // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
+    // starts at x=560 with a label that takes two lines in the longer locales.
+    // The lane stops at 548 so the two cannot meet.
+    wt_sub_fit(s_scr, 500);
 
     lv_obj_t *learn = wt_pillh(s_scr, tr(STR_S_GLOSSARY_T),
                                560, 28, 192, 44, glossary_cb, NULL);
@@ -949,9 +996,45 @@ static void details_cb(lv_event_t *e)
     lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
     lv_obj_set_width(tx, 330);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
+    // The fee rate, arrived from the verify screen's right column, which had to
+    // give up 66px so three simultaneous cautions could each have a row. A txid
+    // is always 64 hex characters, so the block above is always two lines and
+    // the gap under it was always 55px of nothing.
+    //
+    // S_FEERATE_PCT_FMT rather than S_FEERATE_FMT: it was already written and
+    // already translated into all 21 locales and used nowhere, and it says the
+    // useful thing. "57.0 sat/vB" alone is a number for people who already know
+    // what a good one looks like; "57.0 sat/vB, 21.0% of what you send" is the
+    // sentence that makes somebody stop.
+    // Percent of the SEND amount, one decimal, integers only: there are no
+    // floats on this device. A sweep with nothing left over would divide by
+    // zero, so that case prints the rate on its own.
+    uint64_t pct10 = s_sum.send_sats
+                   ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
+    if (s_sum.send_sats)
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10),
+                 (unsigned long long)(pct10 / 10), (unsigned long long)(pct10 % 10));
+    else
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10));
+    lv_obj_t *fr = mk_lbl(buf, 430, 163, wt_font14(), MUT_COL);
+    lv_obj_set_width(fr, 330);
+    lv_label_set_long_mode(fr, LV_LABEL_LONG_WRAP);
+
     mk_lbl(det.txid_final ? tr(STR_S_D_TXID_SAME)
                           : tr(STR_S_D_TXID_CHANGES),
            430, 210, wt_font14(), MUT_COL);
+    // The same total in BTC, directly under the line about comparing against
+    // the coordinator, because comparing is the only reason to want it: a
+    // coordinator that displays BTC needs this row to check the sats above.
+    uint64_t leaving = s_sum.send_sats + s_sum.fee_sats;   // as the verify screen counts it
+    fmt_sats(leaving, a, sizeof a);
+    wt_fmt_btc(leaving, gt, sizeof gt);
+    snprintf(buf, sizeof buf, "%s sats   =   %s BTC", a, gt);
+    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
 
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);
@@ -965,7 +1048,7 @@ static void details_cb(lv_event_t *e)
                      : tr(STR_S_D_RBF_OFF),
            430, 352, wt_font14(), MUT_COL);
 
-    mk_pill(tr(STR_C_BACK), 48, 404, 140, details_back_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, details_back_cb);
 }
 
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came
@@ -1025,12 +1108,17 @@ static void qr_out_screen(size_t sw)
     s_out_len = sw;
     if (qr_enc_start() != 0) {
         mk_screen(parent, tr(STR_S_FAIL_T), tr(STR_S_QR_FAIL_ENC));
-        mk_pill(tr(STR_C_BACK), 330, 404, 140, close_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
         return;
     }
 
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
-    wt_qr_card(s_scr, &s_qr_img, 48, 100, 316, 288);
+    // 302/274, down from 316/288 at y=100. The old card ran to y=415 and the
+    // QR bitmap itself to 401, so its bottom 4px sat in the action band and is
+    // now painted over by the bar: a signed transaction that will not scan.
+    // The card shrinks rather than the quiet zone, so the 14px of white around
+    // the code is exactly what it was and only the modules are 5% smaller.
+    wt_qr_card(s_scr, &s_qr_img, 48, 96, 302, 274);
 
     int n = qrt_encoder_parts(s_qenc);
     mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SIGNED_T), 430, 100, wt_font14(), OK_COL);
@@ -1046,7 +1134,7 @@ static void qr_out_screen(size_t sw)
     wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
     s_ez_pill = wt_pill(s_scr, tr(STR_S_EASY_SCAN), 430, 244, 200, qr_ez_cb, NULL);
     wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
-    mk_pill(tr(STR_C_DONE), 610, 404, 140, close_cb);
+    mk_pill(tr(STR_C_DONE), 610, WT_ACTION_Y, 140, close_cb);
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
 }
@@ -1065,7 +1153,7 @@ static void file_tap_cb(lv_event_t *e)
         // A refusal to sign, alone on an otherwise empty screen with 230px
         // of room under it. There is no reason for it to be the small type.
         wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, 404, 140, files_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
         return;
     }
     SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
@@ -1075,7 +1163,7 @@ static void file_tap_cb(lv_event_t *e)
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
         wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, 404, 140, files_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
         return;
     }
     log_summary("SD");
@@ -1089,7 +1177,7 @@ static void sd_open(lv_obj_t *parent)
         mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
         mk_lbl(tr(STR_S_NO_SD), 48, 140, wt_font28(), INK_COL);
         wt_note_col(s_scr, tr(STR_S_INSERT_CARD), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), 48, 404, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     int n = platform_sd_list_psbt(s_files, MAX_FILES);
@@ -1097,7 +1185,7 @@ static void sd_open(lv_obj_t *parent)
         mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
         mk_lbl(tr(STR_S_NO_PSBT_FILES), 48, 140, wt_font28(), INK_COL);
         wt_note_col(s_scr, tr(STR_S_SPARROW_SAVE), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), 48, 404, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
@@ -1137,6 +1225,20 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
+        // A flex row, so the name takes whatever the tag leaves and not a pixel
+        // more. The name used to be a fixed 410 wide aligned left and the tag
+        // aligned right, which is two independent guesses about one 560px row:
+        // "UNSIGNED" is 113px in Italian and 130 in Polish, so the tag walked
+        // left into the filename in six languages and the two overprinted.
+        // flex_grow makes the arithmetic the layout's problem, which means a
+        // longer translation shortens the ellipsis instead of colliding.
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_left(row, 20, 0);
+        lv_obj_set_style_pad_right(row, 18, 0);
+        lv_obj_set_style_pad_column(row, 16, 0);
+
         lv_obj_t *name = lv_label_create(row);
         lv_label_set_text(name, s_files[i]);
         lv_obj_set_style_text_color(name, signed_file ? MUT_COL : INK_COL, 0);
@@ -1144,10 +1246,12 @@ static void sd_open(lv_obj_t *parent)
         // on the screen. One line at 23 fits the 56px row easily; the ladder
         // only drops a name to 14 when it is long enough that 23 would run into
         // LONG_DOT, because a truncated filename is worse than a small one.
-        lv_obj_set_style_text_font(name, wt_body_font(s_files[i], 410, 29), 0);
-        lv_obj_set_width(name, 410);
+        // Measured at 370, the width left once the longest tag and both gutters
+        // are taken, so the font is chosen against the room the name will
+        // actually get rather than the room it used to assume.
+        lv_obj_set_style_text_font(name, wt_body_font(s_files[i], 370, 29), 0);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-        lv_obj_align(name, LV_ALIGN_LEFT_MID, 20, 0);
+        lv_obj_set_flex_grow(name, 1);
 
         lv_obj_t *tag = lv_label_create(row);
         lv_label_set_text(tag, signed_file ? tr(STR_S_SIGNED_T)
@@ -1155,9 +1259,8 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_set_style_text_color(tag, signed_file ? WARN_COL : MUT_COL, 0);
         lv_obj_set_style_text_font(tag, wt_font14(), 0);
         lv_obj_set_style_text_letter_space(tag, 1, 0);
-        lv_obj_align(tag, LV_ALIGN_RIGHT_MID, -18, 0);
     }
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, choose_back_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
 
 // What the device concluded about a PSBT, in one serial line.
@@ -1211,7 +1314,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
         wt_note_col(s_scr, tr(STR_S_SCAN_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, 404, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     log_summary("QR");
@@ -1330,7 +1433,7 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_t *ok = lv_obj_create(ovl);
     lv_obj_remove_style_all(ok);
     lv_obj_set_size(ok, 200, 52);
-    lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 404);
+    lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, WT_ACTION_Y);
     lv_obj_set_style_radius(ok, 26, 0);
     lv_obj_set_style_bg_color(ok, KEY_COL, 0);
     lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
@@ -1365,6 +1468,11 @@ void wallet_sign_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
+    // The PSBT help chip below sits at x=652, inside the subtitle's own lane.
+    // The subtitle's box is the full 704 whatever the translation does, so the
+    // two overlapped in every locale, English included. 580 stops the lane at
+    // x=628, 24px clear of the chip.
+    wt_sub_fit(s_scr, 580);
     // Both ways in are the same size. SCAN QR is short and primary, so on its
     // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
     // -- two buttons offering the same choice, one visibly louder. Primary
@@ -1410,5 +1518,5 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_style_text_font(hl, wt_font14(), 0);
     lv_obj_center(hl);
     wt_note(s_scr, tr(STR_S_OR_LOAD), 430, 270, 322, 58);
-    mk_pill(tr(STR_C_BACK), 610, 404, 140, close_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
