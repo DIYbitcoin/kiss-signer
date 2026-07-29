@@ -583,7 +583,13 @@ static void recv_list_open(void) {
   // everywhere else, so the one screen that had to squeeze to 110 no longer
   // does.
   lv_obj_t *row[4];
-  row[0] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
+  // STR_R_SP_BTN, not STR_S_SP_BADGE. The badge is a descriptor: it names a
+  // kind of address, and it is right in lower case as a screen title and as an
+  // inline label in the list above. In this row it is a button standing next to
+  // two arrows and BACK, and the only lower case button on the device reads as
+  // a bug rather than as a distinction. One string cannot be both, so there are
+  // two, and each locale's button is its own badge cased for a button.
+  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
   row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
   row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
