@@ -396,13 +396,29 @@ static void pump(int frames) {
 // sim, so the env var is the only language input.
 static const char *g_lang_code;
 
+#ifdef OVERLAPCHECK
+void oc_check(const char *tag);   // sim/overlapcheck.c
+int  oc_report(void);
+#endif
+
 static void save(const char *path) {
   char lp[160];
+  lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
+#ifdef OVERLAPCHECK
+  // The overlap gate reuses this walk rather than keeping a second copy that
+  // would drift from it. Every stop the walk saves is a settled screen, which
+  // is where a layout question belongs, so any frame added here is checked
+  // without anyone having to remember. No image is written in gate builds.
+  //
+  // Called before the language prefix goes on, so the gate sees the same frame
+  // name in all 21 locales and its per-frame rules stay comparable.
+  oc_check(path);
+  return;
+#endif
   if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0) {
     snprintf(lp, sizeof lp, "/tmp/sim_%s_%s", g_lang_code, path + 9);
     path = lp;
   }
-  lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
   FILE *f = fopen(path, "wb");
   if (!f) return;
   fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
@@ -1291,5 +1307,9 @@ int main(void) {
            (unsigned)mon.max_used, (unsigned)mon.frag_pct);
   }
   printf("sim done\n");
+#ifdef OVERLAPCHECK
+  return oc_report();
+#else
   return 0;
+#endif
 }

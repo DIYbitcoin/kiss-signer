@@ -115,6 +115,19 @@ jobs:
           bash sim/build_fitcheck.sh
           /tmp/kissfit
 
+      # The fit report above measures strings; this measures SCREENS. It builds
+      # every wallet screen the scripted walk reaches, in all 21 locales, and
+      # asks whether the pixels actually landed where the layout said: text over
+      # text, content reaching into the action row, a wrapped label grown into
+      # the line below it, or text clipped away where nobody can read it.
+      #
+      # Reports without failing for now. The screens it is red on are the three
+      # rendering blockers phase 1 exists to fix, and a gate that blocks before
+      # the fix would only block the fix. Phase 1 sets OVERLAPCHECK_STRICT here
+      # and from then on a new overlap turns this job red.
+      - name: text overlap gate
+        run: bash sim/run_overlapcheck.sh
+
       - name: setup node for interop rig
         uses: actions/setup-node@v4
         with:
