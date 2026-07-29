@@ -439,7 +439,15 @@ static void storage_chooser_screen(void)
                                48, py[i], 252, 52, storage_pick_cb,
                                (void *)(intptr_t)mode);
         wt_pill_select(p, current == mode);
-        wt_wraph(s_scr, storage_mode_note(mode), 330, py[i] - 10, 420, 87);
+        lv_obj_t *note = wt_wraph(s_scr, storage_mode_note(mode),
+                                  330, py[i] - 10, 420, 87);
+        // Per ADDENDUM-02 style rule and HANDOFF-04's storage residual: the
+        // FLASH note is a caution when the chip reports encryption OFF, not a
+        // footnote. WT_WARN, not the default WT_MUT.  "your recovery words are
+        // saved here unencrypted" needs to READ as a warning; drawing it in
+        // muted grey was the review's original complaint on this row.
+        if (mode == WSEED_MODE_KEEP && !wallet_seed_flash_encrypted())
+            lv_obj_set_style_text_color(note, WT_WARN, 0);
     }
     lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                              storage_chooser_back_cb, NULL);
@@ -996,21 +1004,74 @@ void wallet_settings_open(lv_obj_t *parent)
                          storage_mode_name(wallet_seed_mode()));
     wt_pill_select(s_storage_pill, true);
 
-    // The remaining names are complete actions and keep normal 52px
-    // targets. Their previous explanatory captions were useful but hid the
-    // storage control the owner actually needs; confirmations still explain
-    // the two actions that can replace or erase a wallet before either runs.
+    // NO UNDO rule: one 1px WT_STOP hair with the label sitting on it, at
+    // y=176, before the two destructive actions. Groups CREATE NEW and WIPE
+    // together as the same class of thing. The rule is why the wipe note is
+    // gone from y=366: the two-word label under a red hairline says the same
+    // caution in the space a caption used, and confirmations still explain
+    // both actions in full before either runs.
+    {
+        lv_obj_t *rule = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(rule);
+        lv_obj_set_pos(rule, 430, 186);
+        lv_obj_set_size(rule, 340, 1);
+        lv_obj_set_style_bg_color(rule, WT_STOP, 0);
+        lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
+        lv_obj_t *lbl = lv_label_create(s_scr);
+        lv_label_set_text(lbl, tr(STR_I_SEC_NO_UNDO));
+        lv_obj_set_style_text_font(lbl, wt_font14(), 0);
+        lv_obj_set_style_text_color(lbl, WT_STOP, 0);
+        lv_obj_set_style_text_letter_space(lbl, 2, 0);
+        lv_obj_set_style_bg_color(lbl, WT_BG, 0);       // knock out the rule
+        lv_obj_set_style_bg_opa(lbl, LV_OPA_COVER, 0);
+        lv_obj_set_style_pad_hor(lbl, 6, 0);
+        lv_obj_set_pos(lbl, 436, 176);                  // slight inset from rule end
+    }
+
+    // Under the rule: CREATE NEW at 200, WIPE joins it at 256. Both are the
+    // destructive actions; the rule above says why they belong together.
     s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 200, 340, 52,
                               replace_cb, NULL);
-
-    mk_pillh(tr(STR_I_WORDS_BTN), 430, 256, 340, 52, words_cb, NULL);
 
     // wipe: seed off the device entirely (back to just a game). Red text so it
     // reads as destructive before it's ever tapped; a hold on the next screen
     // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 312, 340, 52, wipe_cb, NULL);
+    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 256, 340, 52, wipe_cb, NULL);
     lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-    wt_note(s_scr, tr(STR_G_WIPE_NOTE), 430, 366, 340, 30);
+
+    // RECOVERY WORDS: the row moves DOWN and grows to 72 tall + two lines, so
+    // the second line can carry whether the paper backup was ever rehearsed
+    // on this device. The redraw that spawned this asked for a separate
+    // "YOUR BACKUP" column; the columns are full to the pixel and the state
+    // belongs on the row about the words anyway. 312 + 72 = 384, 14px above
+    // the 398 floor.
+    {
+        lv_obj_t *pill = mk_pillh(tr(STR_I_WORDS_BTN), 430, 312, 340, 72,
+                                  words_cb, NULL);
+        bool ok = wallet_ui_backup_verified();
+        char buf[160];
+        if (ok) {
+            uint8_t fp[4]; wallet_ui_last_fp(fp);
+            char idstr[16];
+            snprintf(idstr, sizeof idstr, "%02X%02X%02X%02X",
+                     fp[0], fp[1], fp[2], fp[3]);
+            int p = snprintf(buf, sizeof buf, "%s  ", LV_SYMBOL_OK);
+            snprintf(buf + p, sizeof buf - p,
+                     tr(STR_I_WORDS_VERIFIED_FMT), idstr);
+        } else {
+            snprintf(buf, sizeof buf, "%s  %s",
+                     LV_SYMBOL_WARNING, tr(STR_I_WORDS_UNVERIFIED));
+        }
+        wt_pill_two_line_val(pill, buf);
+        // A colour cue AND a glyph, per ADDENDUM-02: in GREEN theme the
+        // accent is byte identical to WT_OK, so colour alone stops carrying
+        // meaning. The prefix stays regardless: ✓ for verified, ▲ for the
+        // never-checked warning.
+        lv_obj_t *sub = lv_obj_get_child(pill, 1);
+        if (sub) {
+            lv_obj_set_style_text_color(sub, ok ? WT_OK : WT_WARN, 0);
+        }
+    }
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is
     // narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)" -> "ESPAÑOL")
