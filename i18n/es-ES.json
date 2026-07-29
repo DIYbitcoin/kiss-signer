@@ -141,7 +141,6 @@
   "R_S": "confía en lo que ves aquí, no en tu ordenador.",
   "R_ADDR_N_FMT": "DIRECCIÓN  #%u",
   "R_ON_TESTNET": "en TESTNET",
-  "R_VERIFY_NOTE": "VERIFICAR: escanea una dirección de tu ordenador y este dispositivo dice si de verdad es tuya",
   "R_ONE_EACH": "usa una dirección nueva\nreutilizarla vincula pagos",
   "R_NEXT": "SIG.",
   "R_VERIFY": "VERIFICAR",

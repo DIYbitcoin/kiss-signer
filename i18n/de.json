@@ -141,7 +141,6 @@
   "R_S": "vertraue dem, was du hier siehst, nicht deinem Computer.",
   "R_ADDR_N_FMT": "ADRESSE  #%u",
   "R_ON_TESTNET": "im TESTNET",
-  "R_VERIFY_NOTE": "PRÜFEN: scanne eine Adresse von deinem Computer, und dieses Gerät sagt, ob sie wirklich dir gehört",
   "R_ONE_EACH": "immer neue Adresse\nWiederverwenden verbindet Zahlungen",
   "R_NEXT": "WEITER",
   "R_VERIFY": "PRÜFEN",

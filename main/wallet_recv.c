@@ -708,12 +708,16 @@ static void recv_detail_open(void) {
   s_path_tn_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 28, wt_font14(), WT_WARN);
 
   // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY
-  // button that used to sit in the row below. Both are gone. VERIFY answers
-  // "is this address on my computer screen really mine", which is a question
-  // about an address that is NOT the one being displayed here, so it never
-  // belonged on a page devoted to a single address of ours, let alone on all
-  // one hundred of them. It keeps its home on the address list, one level up,
-  // where it reads as an entry point rather than as an action on this address.
+  // button. The note is gone and the string with it; the button is not, it is
+  // in the row below and the note beside it says why it belongs there. This
+  // comment claimed both had left and that VERIFY had moved up to the list,
+  // which stopped being true when it came back and was never corrected. A
+  // stale comment about where a button lives is worse than none, because the
+  // next person reads it instead of the twenty lines under it.
+  //
+  // The note itself is not coming back. VERIFY carries its own label on the
+  // one screen it appears, and a sentence explaining a button sitting directly
+  // beneath that sentence is the kind of line the copy rules exist to cut.
   //
   // Standing advice beats a warning the offline signer cannot substantiate, so
   // the privacy reminder inherits the space VERIFY freed. It goes FULL WIDTH
@@ -747,8 +751,8 @@ static void recv_detail_open(void) {
   row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, WT_ACTION_Y, 56, prev_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, WT_ACTION_Y, 56, next_cb, NULL);
   // BACK returns to the list this address was chosen from, not out of RECEIVE.
-  // VERIFY leaving this row is what lets it take the standard corner and the
-  // standard 140, instead of the squeezed 110 the list one still needs.
+  // Four pills fit here at the standard 140 for BACK because the two chevrons
+  // are 56 each; the list's row is the one that has to squeeze.
   row[2] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, detail_back_cb, NULL);
   wt_pill_row(row, 4);
   recv_refresh();

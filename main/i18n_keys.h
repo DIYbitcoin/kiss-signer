@@ -144,7 +144,6 @@ enum {
     STR_R_S,
     STR_R_ADDR_N_FMT,
     STR_R_ON_TESTNET,
-    STR_R_VERIFY_NOTE,
     STR_R_ONE_EACH,
     STR_R_NEXT,
     STR_R_VERIFY,
