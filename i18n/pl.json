@@ -90,7 +90,7 @@
   "W_VINTRO_B": "przepisz słowa z papieru.\n\nurządzenie mówi tylko: zgadza się lub nie.\nnigdy nie pokazuje zapisanych słów.\n\njedno złe słowo znaczy, że papier NIE\nprzywróci portfela.",
   "W_TYPE_MY_WORDS": "WPISZĘ SWOJE SŁOWA",
   "I_T": "PORTFEL",
-  "I_S": "portfel, do którego jesteś teraz zalogowany",
+  "I_S": "odcisk, sieć, adresy",
   "I_SEC_NET": "SIEĆ",
   "I_SEC_TYPE": "TYP ADRESU",
   "I_SEC_FIRST": "PIERWSZY ADRES",

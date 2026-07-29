@@ -90,7 +90,7 @@
   "W_VINTRO_B": "tippe deine Wörter vom Papier ab.\n\ndas Gerät sagt nur: passt oder nicht.\nes zeigt deine Wörter nie an.\n\nein falsches Wort heißt: dein Papier\nholt die Wallet NICHT zurück.",
   "W_TYPE_MY_WORDS": "WÖRTER EINTIPPEN",
   "I_T": "WALLET",
-  "I_S": "die Wallet, in der du gerade angemeldet bist",
+  "I_S": "Fingerabdruck, Netzwerk, Adressen",
   "I_SEC_NET": "NETZWERK",
   "I_SEC_TYPE": "ADRESSTYP",
   "I_SEC_FIRST": "ERSTE ADRESSE",

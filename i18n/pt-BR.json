@@ -90,7 +90,7 @@
   "W_VINTRO_B": "digite as suas palavras a partir do papel.\n\no aparelho só diz: bate ou não bate.\nnunca mostra as palavras guardadas.\n\numa palavra errada significa que o papel\nNÃO traz a carteira de volta.",
   "W_TYPE_MY_WORDS": "DIGITAR MINHAS PALAVRAS",
   "I_T": "CARTEIRA",
-  "I_S": "a carteira em que você está logado agora",
+  "I_S": "impressão digital, rede, endereços",
   "I_SEC_NET": "REDE",
   "I_SEC_TYPE": "TIPO DE ENDEREÇO",
   "I_SEC_FIRST": "PRIMEIRO ENDEREÇO",

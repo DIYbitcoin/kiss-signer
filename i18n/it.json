@@ -90,7 +90,7 @@
   "W_VINTRO_B": "digita le tue parole dalla carta.\n\nil dispositivo dice solo: coincide o no.\nnon mostra mai le parole salvate.\n\nuna parola sbagliata e la carta NON\nriporta indietro il portafoglio.",
   "W_TYPE_MY_WORDS": "SCRIVO LE PAROLE",
   "I_T": "PORTAFOGLIO",
-  "I_S": "le chiavi con cui questo dispositivo firma ora",
+  "I_S": "impronta, rete, indirizzi",
   "I_SEC_NET": "RETE",
   "I_SEC_TYPE": "TIPO DI INDIRIZZO",
   "I_SEC_FIRST": "PRIMO INDIRIZZO",

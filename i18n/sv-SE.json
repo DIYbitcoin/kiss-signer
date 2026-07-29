@@ -90,7 +90,7 @@
   "W_VINTRO_B": "skriv in dina ord från pappret.\n\nenheten säger bara: stämmer eller inte.\nden visar aldrig dina sparade ord.\n\nett fel ord betyder att pappret INTE\nhämtar tillbaka plånboken.",
   "W_TYPE_MY_WORDS": "SKRIV MINA ORD",
   "I_T": "PLÅNBOK",
-  "I_S": "plånboken som du är inloggad på just nu",
+  "I_S": "fingeravtryck, nätverk, adresser",
   "I_SEC_NET": "NÄTVERK",
   "I_SEC_TYPE": "ADRESSTYP",
   "I_SEC_FIRST": "FÖRSTA ADRESS",

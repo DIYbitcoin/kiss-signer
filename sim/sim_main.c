@@ -653,8 +653,7 @@ int main(void) {
   touch(492, 430); pump(3); release(); pump(4);     // next chevron -> the address after
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    touch(680, 430); pump(3); release(); pump(6);   // BACK -> the list
-    touch(521, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    touch(159, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -678,7 +677,7 @@ int main(void) {
     save("/tmp/sim_vfy_sp.ppm");
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
-  touch(697, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(680, 430); pump(3); release(); pump(4);     // BACK -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
@@ -864,7 +863,7 @@ int main(void) {
   touch(492, 430); pump(3); release(); pump(4);     // next address, same standing advice
   save("/tmp/sim_recv_next.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
-  touch(697, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
@@ -998,7 +997,7 @@ int main(void) {
   save("/tmp/sim_recv_sp_help_tn.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(680, 430); pump(3); release(); pump(6);     // BACK out of the SP view
-  touch(697, 430); pump(3); release(); pump(4);     // BACK
+  touch(680, 430); pump(3); release(); pump(4);     // BACK
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row

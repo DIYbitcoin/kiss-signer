@@ -90,7 +90,7 @@
   "W_VINTRO_B": "typ je woorden van het papier.\n\nhet apparaat zegt alleen: klopt of niet.\nhet toont je bewaarde woorden nooit.\n\neen fout woord betekent dat je papier\nde wallet NIET terugbrengt.",
   "W_TYPE_MY_WORDS": "TYP MIJN WOORDEN",
   "I_T": "WALLET",
-  "I_S": "de wallet waarin je nu bent ingelogd",
+  "I_S": "vingerafdruk, netwerk, adressen",
   "I_SEC_NET": "NETWERK",
   "I_SEC_TYPE": "ADRESTYPE",
   "I_SEC_FIRST": "EERSTE ADRES",
