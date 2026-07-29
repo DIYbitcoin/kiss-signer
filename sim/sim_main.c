@@ -1070,33 +1070,55 @@ int main(void) {
   touch(188, 430); pump(3); release(); pump(6);     // CREATE PASSPHRASE -> keyboard
   save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
 
-  // shift semantics. Row 3 is [ABC z x c v b n m BKSP] at y=355; ABC x=46,
-  // z x=135, backspace x=752.
+  // shift semantics. Row 3 is [shift z x c v b n m BKSP] at y=355; shift
+  // x=46, z x=135, backspace x=752. The shift key is a chevron in the lower
+  // and upper planes and a padlock once caps is locked, so these frames are
+  // checked by looking at them, not by reading a label out of the source.
   touch(135, 277); pump(3); release(); pump(3);      // 's': catch the feedback live
   lv_refr_now(NULL);
   save("/tmp/sim_kb_feedback.ppm");                 // key flash + risen callout
   pump(30); touch(752, 355); pump(3); release(); pump(3);
-  touch(46, 355); pump(3); release(); pump(4);      // ABC once -> one-shot upper
-  save("/tmp/sim_kb_shift_on.ppm");                 // upper plane, key reads "abc"
+  touch(46, 355); pump(3); release(); pump(4);      // shift once -> one-shot upper
+  save("/tmp/sim_kb_shift_on.ppm");                 // upper plane, shift key LIT
   touch(135, 355); pump(3); release(); pump(4);     // Z
   save("/tmp/sim_kb_shift_off.ppm");                // dropped BACK to lowercase
   touch(46, 355); pump(2); release(); pump(2);      // two taps inside 400ms
   touch(46, 355); pump(2); release(); pump(4);
-  save("/tmp/sim_kb_caps.ppm");                     // locked: key reads "CAPS"
+  save("/tmp/sim_kb_caps.ppm");                     // locked: key is the padlock
   touch(135, 355); pump(3); release(); pump(4);     // Z, and the plane MUST stay
   save("/tmp/sim_kb_caps_stays.ppm");
-  touch(46, 355); pump(3); release(); pump(4);      // CAPS off
+  touch(46, 355); pump(3); release(); pump(4);      // caps off
   // HOLD the shift key = caps lock. This is the gesture people actually reach
   // for; the double tap above is the alternative, not the only way in.
   touch(46, 355); pump(40); release(); pump(4);
-  save("/tmp/sim_kb_hold_caps.ppm");                // key must read "CAPS"
+  save("/tmp/sim_kb_hold_caps.ppm");                // key must be the padlock
   touch(135, 355); pump(3); release(); pump(4);     // Z, and the plane MUST stay
   save("/tmp/sim_kb_hold_caps_stays.ppm");
-  // a SLOW tap on CAPS unlocks; it must NOT also register as a hold and relock
+  // a SLOW tap on the padlock unlocks; it must NOT also register as a hold and
+  // relock
   touch(46, 355); pump(40); release(); pump(4);
-  save("/tmp/sim_kb_caps_slow_off.ppm");            // key must read "ABC"
+  save("/tmp/sim_kb_caps_slow_off.ppm");            // back to the unlit chevron
   touch(135, 355); pump(40); release(); pump(4);    // HOLD z -> Z, still lowercase
   save("/tmp/sim_kb_hold.ppm");
+
+  // The two symbol planes: "123" in from the letters, "#+=" across to the
+  // second plane, "123" back to the first, "abc" home. Four transitions, and
+  // nothing exercised any of them until now, so the plane keys could have been
+  // renamed into nothing and every other frame here would still have passed.
+  // A passphrase can contain any printable ASCII, and a character the keyboard
+  // cannot reach is a wallet that cannot be reopened.
+  touch(70, 430); pump(3); release(); pump(4);      // 123 -> symbols
+  save("/tmp/sim_kb_sym.ppm");
+  touch(46, 277); pump(3); release(); pump(3);      // '!'
+  touch(46, 355); pump(3); release(); pump(4);      // #+= -> second plane
+  save("/tmp/sim_kb_sym2.ppm");
+  touch(580, 277); pump(3); release(); pump(3);     // '{'
+  touch(46, 355); pump(3); release(); pump(4);      // 123 -> back to the first
+  save("/tmp/sim_kb_sym_back.ppm");
+  touch(70, 430); pump(3); release(); pump(4);      // abc -> letters
+  save("/tmp/sim_kb_sym_abc.ppm");
+  touch(752, 355); pump(3); release(); pump(3);     // drop the two symbols again so
+  touch(752, 355); pump(3); release(); pump(3);     // the clear below still empties
   for (int i = 0; i < 8; i++) { touch(752, 355); pump(3); release(); pump(3); }
   save("/tmp/sim_kb_cleared.ppm");                  // back to an empty field
   // CANCEL during setup must confirm (don't throw away a fresh seed on one tap)
