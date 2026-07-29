@@ -429,6 +429,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "checked \xc2\xb7 ID %s is on your card",
     [STR_I_WORDS_UNVERIFIED] = "paper never checked",
     [STR_GD_SET_UP_SPARE] = "SET UP A SPARE",
+    [STR_W_QUIZ_SHOW_AGAIN] = "SHOW WORDS AGAIN",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -859,6 +860,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "geprüft \xc2\xb7 ID %s ist auf deiner Karte",
     [STR_I_WORDS_UNVERIFIED] = "Papier nie geprüft",
     [STR_GD_SET_UP_SPARE] = "ZWEITE EINRICHTEN",
+    [STR_W_QUIZ_SHOW_AGAIN] = "WÖRTER NOCHMAL ZEIGEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1289,6 +1291,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
     [STR_GD_SET_UP_SPARE] = "CONFIGURAR UNA DE REPUESTO",
+    [STR_W_QUIZ_SHOW_AGAIN] = "VER PALABRAS DE NUEVO",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1719,6 +1722,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "vérifié \xc2\xb7 ID %s est sur ton papier",
     [STR_I_WORDS_UNVERIFIED] = "papier jamais vérifié",
     [STR_GD_SET_UP_SPARE] = "CRÉER UN LEURRE",
+    [STR_W_QUIZ_SHOW_AGAIN] = "REVOIR LES MOTS",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2149,6 +2153,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "verificato \xc2\xb7 ID %s è sul tuo foglio",
     [STR_I_WORDS_UNVERIFIED] = "foglio mai controllato",
     [STR_GD_SET_UP_SPARE] = "IMPOSTA DI RISERVA",
+    [STR_W_QUIZ_SHOW_AGAIN] = "MOSTRA PAROLE",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2579,6 +2584,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "確認済 \xc2\xb7 ID %s は紙にあります",
     [STR_I_WORDS_UNVERIFIED] = "紙は未確認",
     [STR_GD_SET_UP_SPARE] = "予備を設定",
+    [STR_W_QUIZ_SHOW_AGAIN] = "単語をもう一度",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -3009,6 +3015,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "확인됨 \xc2\xb7 ID %s 은(는) 종이에 있음",
     [STR_I_WORDS_UNVERIFIED] = "종이 미확인",
     [STR_GD_SET_UP_SPARE] = "예비 설정",
+    [STR_W_QUIZ_SHOW_AGAIN] = "단어 다시 보기",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3439,6 +3446,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "gecontroleerd \xc2\xb7 ID %s staat op je kaart",
     [STR_I_WORDS_UNVERIFIED] = "papier nooit gecontroleerd",
     [STR_GD_SET_UP_SPARE] = "RESERVE INSTELLEN",
+    [STR_W_QUIZ_SHOW_AGAIN] = "WOORDEN OPNIEUW TONEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3869,6 +3877,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "sprawdzone \xc2\xb7 ID %s jest na twoim papierze",
     [STR_I_WORDS_UNVERIFIED] = "papier nigdy nie sprawdzony",
     [STR_GD_SET_UP_SPARE] = "USTAW ZAPASOWY",
+    [STR_W_QUIZ_SHOW_AGAIN] = "POKAŻ SŁOWA PONOWNIE",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4299,6 +4308,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
     [STR_GD_SET_UP_SPARE] = "CONFIGURAR RESERVA",
+    [STR_W_QUIZ_SHOW_AGAIN] = "MOSTRAR PALAVRAS",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4729,6 +4739,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "проверено \xc2\xb7 ID %s есть на вашей бумаге",
     [STR_I_WORDS_UNVERIFIED] = "бумага не проверена",
     [STR_GD_SET_UP_SPARE] = "НАСТРОИТЬ ЗАПАСНОЙ",
+    [STR_W_QUIZ_SHOW_AGAIN] = "ПОКАЗАТЬ СЛОВА",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5159,6 +5170,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "kontrol edildi \xc2\xb7 ID %s kartınızda",
     [STR_I_WORDS_UNVERIFIED] = "kağıt hiç kontrol edilmedi",
     [STR_GD_SET_UP_SPARE] = "YEDEK KUR",
+    [STR_W_QUIZ_SHOW_AGAIN] = "KELİMELERİ TEKRAR GÖSTER",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5589,6 +5601,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "đã kiểm \xc2\xb7 ID %s có trên giấy của bạn",
     [STR_I_WORDS_UNVERIFIED] = "giấy chưa kiểm",
     [STR_GD_SET_UP_SPARE] = "TẠO VÍ DỰ PHÒNG",
+    [STR_W_QUIZ_SHOW_AGAIN] = "HIỆN LẠI CÁC TỪ",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -6019,6 +6032,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "已核对 \xc2\xb7 ID %s 在你的纸上",
     [STR_I_WORDS_UNVERIFIED] = "纸未核对",
     [STR_GD_SET_UP_SPARE] = "设置备用",
+    [STR_W_QUIZ_SHOW_AGAIN] = "再次显示单词",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6449,6 +6463,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
     [STR_GD_SET_UP_SPARE] = "CONFIGURAR UNA DE REPUESTO",
+    [STR_W_QUIZ_SHOW_AGAIN] = "VER PALABRAS DE NUEVO",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6879,6 +6894,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
     [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
     [STR_GD_SET_UP_SPARE] = "CONFIGURAR RESERVA",
+    [STR_W_QUIZ_SHOW_AGAIN] = "MOSTRAR PALAVRAS",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7309,6 +7325,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "sjekket \xc2\xb7 ID %s står på papiret ditt",
     [STR_I_WORDS_UNVERIFIED] = "papir aldri sjekket",
     [STR_GD_SET_UP_SPARE] = "SETT OPP RESERVE",
+    [STR_W_QUIZ_SHOW_AGAIN] = "VIS ORDENE IGJEN",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7739,6 +7756,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "kollad \xc2\xb7 ID %s finns på ditt papper",
     [STR_I_WORDS_UNVERIFIED] = "papper aldrig kollat",
     [STR_GD_SET_UP_SPARE] = "STÄLL IN RESERV",
+    [STR_W_QUIZ_SHOW_AGAIN] = "VISA ORDEN IGEN",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8169,6 +8187,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "tjekket \xc2\xb7 ID %s står på dit papir",
     [STR_I_WORDS_UNVERIFIED] = "papir aldrig tjekket",
     [STR_GD_SET_UP_SPARE] = "OPRET RESERVE",
+    [STR_W_QUIZ_SHOW_AGAIN] = "VIS ORDENE IGEN",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8599,6 +8618,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "ověřeno \xc2\xb7 ID %s je na vašem papíře",
     [STR_I_WORDS_UNVERIFIED] = "papír nikdy neověřen",
     [STR_GD_SET_UP_SPARE] = "NASTAVIT ZÁLOŽNÍ",
+    [STR_W_QUIZ_SHOW_AGAIN] = "ZOBRAZIT SLOVA ZNOVU",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -9029,6 +9049,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_I_WORDS_VERIFIED_FMT] = "provjereno \xc2\xb7 ID %s je na tvom papiru",
     [STR_I_WORDS_UNVERIFIED] = "papir nikad provjeren",
     [STR_GD_SET_UP_SPARE] = "POSTAVI REZERVNI",
+    [STR_W_QUIZ_SHOW_AGAIN] = "PRIKAŽI RIJEČI PONOVNO",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {
