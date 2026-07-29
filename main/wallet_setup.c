@@ -787,15 +787,29 @@ static void choose_screen(void)
     // The language pill starts at x=560 on the title's row, so the title gets
     // 496. French, Italian and Portuguese titles reached into it at font34.
     wt_title_fit(s_scr, 496);
-    lv_obj_t *p = mk_pill(tr(STR_W_CREATE_NEW), 48, 150, 340, new_cb, NULL);
+    // A whole sentence on each pill, not the bare word "seed": nobody arrives
+    // knowing what a seed is, and this is the first screen a new owner ever
+    // reaches. STR_W_CREATE_NEW and STR_W_RESTORE_FROM_WORDS keep their short
+    // labels for the Settings-side pills at 190 and 280 wide that also reuse
+    // them; they never lead a new owner in cold, so the shorthand still reads.
+    lv_obj_t *p = mk_pill(tr(STR_W_CHOOSE_NEW), 48, 150, 340, new_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 48, 264, 340, restore_cb, NULL);
-    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     430, 152, 340, 110);
-    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 430, 266, 340, 130);
-    // 352, not 380: at 380 the caption's bottom sat in the action band. The
-    // 64px gap under RESTORE was the only slack in this column and this is
-    // what it was for.
-    wt_pillh(s_scr, tr(STR_W_WHATSEED_BTN), 48, 352, 340, 44, whatseed_cb, NULL);
+    // RESTORE FROM A SEED PHRASE is longer than the primary and the plan's own
+    // escape hatch is to widen the pill rather than drop a rung. 400 wide takes
+    // the pill to x=448, so the note beside it moves to x=460 (w=310) to clear
+    // it. Neither label is the primary action, so the secondary sitting a rung
+    // BELOW the primary at 23 stays legitimate for locales whose translation
+    // still overflows 400.
+    mk_pill(tr(STR_W_CHOOSE_RESTORE), 48, 264, 400, restore_cb, NULL);
+    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     460, 152, 310, 110);
+    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 460, 266, 310, 130);
+    // The third pill "WHAT IS A SEED?" is now a "?" chip beside the subtitle.
+    // A question does not rank equal to the two decisions, and the pill's
+    // bottom edge landed at 396 anyway, two pixels off the content floor.
+    // The chip is 30x30 with a 12px hit slop -> 54px effective target, so it
+    // is still tappable at arm's length. Placed at (752, 66) it sits on the
+    // subtitle's baseline, at the right end of the header lane.
+    wt_help_chip(s_scr, 752, 66, MUT_COL, whatseed_cb, NULL);
     mk_pill(tr(STR_C_CANCEL), 610, WT_ACTION_Y, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
