@@ -515,21 +515,21 @@ static void recv_list_open(void) {
   lv_obj_update_layout(pg);
   lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
-  // Five controls in 704px, which is 664 of pill and 40 of air. The gaps are a
-  // flat 10 rather than a comfortable rhythm because that is genuinely all
-  // there is: this row is over full, and it is over full because RECEIVE is
-  // still a list of a hundred addresses first and a task second. Spec 3.3
-  // rebuilds it to lead with ONE address, which is what actually fixes this;
-  // until then, an even 10 everywhere at least stops any one pair reading as a
-  // group. BACK keeps its 110 here, the one screen where the standard 140 will
-  // not fit, and its corner is what matters, not its width.
-  lv_obj_t *row[5];
+  // No VERIFY here. It lives on the address page, one tap in, and this list is
+  // a hundred addresses: putting it on both meant the same button appeared on
+  // 101 screens. The list's job is choosing WHICH address, and VERIFY is not a
+  // choice of address, so it does not belong in the row where that happens.
+  //
+  // Dropping it is also what un-crams this row. Four controls in 704px instead
+  // of five gives every gap 22px and hands BACK the standard 140 it has
+  // everywhere else, so the one screen that had to squeeze to 110 no longer
+  // does.
+  lv_obj_t *row[4];
   row[0] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 278, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 344, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY), 410, WT_ACTION_Y, 222, vfy_scan, NULL);
-  row[4] = wt_pill(s_scr, tr(STR_C_BACK), 642, WT_ACTION_Y, 110, close_cb, NULL);
-  wt_pill_row(row, 5);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
+  wt_pill_row(row, 4);
 }
 
 // Back out of one address to the list it was chosen from.
@@ -578,10 +578,15 @@ static void recv_detail_open(void) {
   // These pills share a row and share one label size, so a single pill a few
   // pixels too narrow shrinks all of them. Widths are proportioned to the
   // longest label each one carries rather than to a round number.
-  lv_obj_t *row[3];
+  lv_obj_t *row[4];
+  // VERIFY belongs HERE and only here: this is the screen that is about one
+  // address, so "is the one my computer is showing me the same as mine" is a
+  // question you can ask and answer without leaving. On the list it was the
+  // same button repeated behind all hundred rows.
+  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY), 48, WT_ACTION_Y, 222, vfy_scan, NULL);
   // A symmetric pair of chevrons under the ADDRESS #N counter they page, not
-  // "<" beside "> NEXT". The word cost 74px and this row used to have none to
-  // spare, back when VERIFY sat beside them.
+  // "<" beside "> NEXT". The word cost 74px and the counter above already says
+  // what the arrows step through, so the label was carrying no weight.
   //
   // They stay even though the list can now reach any address directly: this is
   // the one screen where stepping to the neighbouring address needs no scroll
@@ -592,7 +597,7 @@ static void recv_detail_open(void) {
   // VERIFY leaving this row is what lets it take the standard corner and the
   // standard 140, instead of the squeezed 110 the list one still needs.
   row[2] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, detail_back_cb, NULL);
-  wt_pill_row(row, 3);
+  wt_pill_row(row, 4);
   recv_refresh();
 }
 

@@ -1016,7 +1016,10 @@ void wallet_settings_open(lv_obj_t *parent)
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
-    s_build_id = wallet_build_id_make(s_scr, 48, 460, true);   // radio readback lives here
+    // 418, not 460. Two rows now, centred in the action bar's empty left
+    // half (x 48..263 against ENGLISH starting at 430), instead of a single
+    // panel-wide line squeezed into the 24px strip below the buttons.
+    s_build_id = wallet_build_id_make(s_scr, 48, 418, true);   // radio readback lives here
 
     {
         // BACK sits in the bottom-right corner, where a thumb arrives at an

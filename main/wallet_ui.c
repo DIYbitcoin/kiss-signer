@@ -1349,6 +1349,12 @@ void wallet_build_id_restyle(lv_obj_t *version_label)
 #endif
 }
 
+// Row pitch for the stacked build identity: font14's line box is 19px, and 3
+// of air is what keeps two rows reading as a block rather than as one
+// squashed paragraph. Both rows together are 41px, which fits inside the
+// action bar (398..480) with room above and below.
+#define BUILD_ID_ROW 22
+
 lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
 {
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
@@ -1375,10 +1381,18 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
   //
   // Stays ASCII on purpose: a glyph missing from the generated font hangs LVGL
   // outright, so this line is the wrong place to spend a "." or an em dash.
-  lv_label_set_text_fmt(w, "-  encryption: %s", enc ? "ON" : "OFF");
+  // Two rows, not one long line. This used to run version, encryption and radio
+  // end to end, which made it as wide as the panel and pushed it into the strip
+  // UNDER the action row, the only place a 450px line still fitted. Stacked, it
+  // is ~215px and sits in the action bar's own empty left half instead, beside
+  // the buttons rather than beneath them.
+  //
+  // The version gets the top row to ITSELF, because it is the field that grows:
+  // a longer version string or a dirty commit suffix extends row one and leaves
+  // the two status facts below exactly where they were.
+  lv_label_set_text_fmt(w, "encryption: %s", enc ? "ON" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
-  lv_obj_update_layout(v);
-  lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
+  lv_obj_set_pos(w, x, y + BUILD_ID_ROW);
 
   // The C6 radio readback is a diagnostic for people who already know what a
   // C6 is. It earns its place in Settings, not in the corner of the home
@@ -1386,10 +1400,13 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
   if (with_radio) {
     lv_obj_t *r = lv_label_create(parent);
     lv_obj_set_style_text_font(r, wt_font14(), 0);
-    lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "HELD" : "NOT HELD");
+    lv_label_set_text_fmt(r, "radio: %s", radio_held ? "HELD" : "NOT HELD");
     lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    // Shares row two with encryption, and follows its MEASURED width: the word
+    // is ON or OFF and the translation of neither is fixed, so the gap is added
+    // to what encryption actually rendered rather than to a guess about it.
     lv_obj_update_layout(w);
-    lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+    lv_obj_set_pos(r, x + lv_obj_get_width(w) + 24, y + BUILD_ID_ROW);
   } else {
     (void)radio_held;
   }

@@ -90,7 +90,7 @@
   "W_VINTRO_B": "napiš slova z papíru.\n\nzařízení řekne jen: sedí, nebo nesedí.\nuložená slova nikdy neukáže.\n\njedno špatné slovo znamená, že papír\npeněženku NEVRÁTÍ.",
   "W_TYPE_MY_WORDS": "ZADAT SLOVA",
   "I_T": "PENĚŽENKA",
-  "I_S": "peněženka, ke které jste právě přihlášeni",
+  "I_S": "otisk, síť, adresy",
   "I_SEC_NET": "SÍŤ",
   "I_SEC_TYPE": "TYP ADRESY",
   "I_SEC_FIRST": "PRVNÍ ADRESA",

@@ -90,7 +90,7 @@
   "W_VINTRO_B": "escribe tus palabras desde el papel.\n\nel dispositivo solo dice: coincide o no.\nnunca muestra las palabras guardadas.\n\nuna palabra mal significa que el papel\nNO recupera la billetera.",
   "W_TYPE_MY_WORDS": "ESCRIBIR MIS PALABRAS",
   "I_T": "BILLETERA",
-  "I_S": "la billetera en la que tienes sesión ahora mismo",
+  "I_S": "huella, red, direcciones",
   "I_SEC_NET": "RED",
   "I_SEC_TYPE": "TIPO DE DIRECCIÓN",
   "I_SEC_FIRST": "PRIMERA DIRECCIÓN",

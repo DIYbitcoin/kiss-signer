@@ -90,7 +90,7 @@
   "W_VINTRO_B": "skriv inn ordene fra papiret.\n\nenheten sier bare: stemmer eller ikke.\nden viser aldri de lagrede ordene.\n\nett feil ord betyr at papiret IKKE\nhenter lommeboken tilbake.",
   "W_TYPE_MY_WORDS": "SKRIV INN ORDENE",
   "I_T": "LOMMEBOK",
-  "I_S": "lommeboken du er logget inn på akkurat nå",
+  "I_S": "fingeravtrykk, nettverk, adresser",
   "I_SEC_NET": "NETTVERK",
   "I_SEC_TYPE": "ADRESSETYPE",
   "I_SEC_FIRST": "FØRSTE ADRESSE",

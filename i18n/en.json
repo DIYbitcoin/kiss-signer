@@ -90,7 +90,7 @@
   "W_VINTRO_B": "type your words from the paper.\n\nthe device only says match or not.\nit never shows your stored words.\n\none wrong word means your paper would\nNOT bring the wallet back.",
   "W_TYPE_MY_WORDS": "TYPE MY WORDS",
   "I_T": "WALLET",
-  "I_S": "the wallet you are logged into right now",
+  "I_S": "fingerprint, network, addresses",
   "I_SEC_NET": "NETWORK",
   "I_SEC_TYPE": "ADDRESS TYPE",
   "I_SEC_FIRST": "FIRST ADDRESS",
