@@ -590,6 +590,57 @@ static void draw_ent_digits(uint16_t *fb)
     cy += dot + gap;
     blit_a4(fb, &scan_osd_glyph[lo], cx, cy);
 }
+
+// Right aligned unsigned decimal in the same landscape space blit_a4 uses.
+static int draw_num(uint16_t *fb, int cx, int cy, uint32_t v)
+{
+    int d[8], n = 0;
+    do { d[n++] = (int)(v % 10); v /= 10; } while (v && n < 8);
+    int x = cy;
+    for (int i = n - 1; i >= 0; i--) {
+        blit_a4(fb, &scan_osd_glyph[d[i]], cx, x);
+        x += scan_osd_glyph[d[i]].w + 3;
+    }
+    return x - cy;
+}
+
+// TEMPORARY. What the AE actually settled on, read back from the sensor.
+// A black preview cannot on its own distinguish "the controller drove exposure
+// to the floor" from "no frames are reaching the ISP at all", and those two
+// have opposite fixes. Exposure is in sensor lines, so one frame of the
+// 1288x728 format is 1164 of them and the power on default is 1132.
+static uint32_t s_dbg_exp, s_dbg_gain;
+
+static void dbg_read_ae(void)
+{
+    struct v4l2_ext_control c = {0};
+    struct v4l2_ext_controls cs = {0};
+    cs.count = 1;
+    cs.controls = &c;
+
+    // 9999 rather than leaving the old value, so "the read itself failed"
+    // stays distinguishable from "the AE really did settle on zero". The
+    // pipeline claims the device with VIDIOC_SET_OWNER, so a refusal here is a
+    // plausible outcome and it would otherwise look like a dark exposure.
+    cs.ctrl_class = V4L2_CID_CAMERA_CLASS;
+    c.id = V4L2_CID_EXPOSURE;
+    s_dbg_exp = ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0
+                    ? (uint32_t)c.value : 9999;
+
+    cs.ctrl_class = V4L2_CID_USER_CLASS;
+    c.id = V4L2_CID_GAIN;
+    s_dbg_gain = ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0
+                     ? (uint32_t)c.value : 9999;
+}
+
+// Exposure then gain, top band, left of the centred strip.
+static void draw_ae_digits(uint16_t *fb)
+{
+    static int tick;
+    if (++tick >= 15) { tick = 0; dbg_read_ae(); }
+    int w = draw_num(fb, STRIP_TOP_PX, 12, s_dbg_exp);
+    draw_num(fb, STRIP_TOP_PX, 12 + w + 22, s_dbg_gain);
+}
 #endif
 
 // "Reading  12 of 34" as one line of real type: the baked strip, then live
@@ -917,6 +968,9 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     int lang = i18n_get_lang();
     if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
     blit_a4(fb, &scan_osd[lang][OSD_CLOSE], 449, 22); // localized close, top-left
+#if ENT_DEBUG_DIGITS
+    draw_ae_digits(fb);                 // temporary: exposure lines, then gain
+#endif
   }
   if (s_scan_mode) {
     draw_brackets(fb);                // viewfinder corners (solid once located)
