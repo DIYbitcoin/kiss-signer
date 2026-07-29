@@ -38,9 +38,9 @@
 // wolf. The tuning pass took the English run from about 200 findings to the
 // handful that survive, and each class removed is justified at its constant.
 //
-// Exit code is 0 unless OVERLAPCHECK_STRICT is set, so this can land and report
-// honestly before the layout work that makes it green. Phase 1 sets the
-// variable in CI and the gate starts blocking.
+// Exit code is 0 unless OVERLAPCHECK_STRICT is set. That escape hatch existed
+// so the gate could land in phase 0 and report honestly against layout nobody
+// had fixed yet. Phase 1 fixed it and CI sets the variable, so the gate blocks.
 
 #include <stdbool.h>
 #include <stdio.h>

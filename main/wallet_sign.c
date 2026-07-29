@@ -401,25 +401,39 @@ static void details_cb(lv_event_t *e);
 static void verify_screen(lv_obj_t *parent);
 
 // ---- cautions: a short summary on the verify screen, the "why" one tap away ----
-// Terse one-liner naming the categories that fired (user: "main warning short").
-static void caution_summary(uint16_t f, char *out, size_t cap)
+// The categories that fired, one per element. This used to join them with " + "
+// into a single string and render it as a wrapping label at a fixed y, which is
+// exactly the fault the whole layout phase is about: with three flags it grew
+// over the RBF line beneath it and then ran 21px into the action row, in all 21
+// locales. A caller that gets the parts can give each one its own row and know
+// the height before it draws.
+static int caution_parts(uint16_t f, const char **parts, int cap)
 {
-    size_t o = 0;
-    out[0] = 0;
-    const char *parts[4];
     int n = 0;
-    if (f & WPSBT_C_HIGHFEE)      parts[n++] = tr(STR_S_C_HIGHFEE);
-    if (f & WPSBT_C_DUST_INPUT)   parts[n++] = tr(STR_S_C_DUSTIN);
-    if (f & WPSBT_C_DUST_CHANGE)  parts[n++] = tr(STR_S_C_DUSTCH);
-    else if (f & WPSBT_C_SMALL_CHANGE) parts[n++] = tr(STR_S_C_SMALLCH);
-    for (int i = 0; i < n && o + 1 < cap; i++) {
-        // snprintf returns the WOULD-BE length: clamp o inside the buffer or
-        // `cap - o` underflows on long (e.g. Cyrillic) translations
-        int w = snprintf(out + o, cap - o, "%s%s", i ? " + " : "", parts[i]);
-        if (w < 0) break;
-        o += (size_t)w;
-        if (o >= cap) o = cap - 1;
-    }
+    if (n < cap && (f & WPSBT_C_HIGHFEE))     parts[n++] = tr(STR_S_C_HIGHFEE);
+    if (n < cap && (f & WPSBT_C_DUST_INPUT))  parts[n++] = tr(STR_S_C_DUSTIN);
+    if (n < cap && (f & WPSBT_C_DUST_CHANGE)) parts[n++] = tr(STR_S_C_DUSTCH);
+    else if (n < cap && (f & WPSBT_C_SMALL_CHANGE)) parts[n++] = tr(STR_S_C_SMALLCH);
+    return n;
+}
+
+// Put an object's BOTTOM edge on the content line, wherever its top ends up.
+//
+// The caution stack grows UPWARD from the action row: one flag or three, the
+// last row always sits directly above the button that acknowledges it, and the
+// facts above simply have more or less air under them. Anchoring the top
+// instead is what made three flags overflow, because the top is the one end
+// whose distance to the bottom is not known until the rows exist.
+// Returns that top edge. Reading it back with lv_obj_get_y() does NOT work:
+// coords are only refreshed on the next layout pass, so a caller that asks
+// immediately gets the position the object had before it was moved, which is
+// how the caution "?" chip first landed at the top of the screen.
+static int anchor_bottom(lv_obj_t *o, int x)
+{
+    lv_obj_update_layout(o);
+    int y = WT_CONTENT_BOTTOM - lv_obj_get_height(o);
+    lv_obj_set_pos(o, x, y);
+    return y;
 }
 
 static void caution_ok_cb(lv_event_t *e)
@@ -688,27 +702,26 @@ static void verify_screen(lv_obj_t *parent)
     snprintf(buf, sizeof buf, "%s sats", a);
     mk_lbl(buf, 430, 126, wt_font28(),
            s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
-    snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-             (unsigned)(s_sum.fee_rate_x10 / 10), (unsigned)(s_sum.fee_rate_x10 % 10));
-    wt_note(s_scr, buf, 430, 166, 340, 29);
 
-    wt_note(s_scr, tr(STR_S_TOTAL_LEAVING), 430, 198, 340, 29);
+    wt_note(s_scr, tr(STR_S_TOTAL_LEAVING), 430, 166, 340, 29);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 228, wt_font28(), INK_COL);   // the headline number, not a footnote
-    wt_fmt_btc(total, b, sizeof b);
-    snprintf(buf, sizeof buf, "%s BTC", b);
-    mk_lbl(buf, 430, 268, wt_font23(), MUT_COL);
+    mk_lbl(buf, 430, 196, wt_font28(), INK_COL);   // the headline number, not a footnote
 
-    // "N inputs, <type>" and "in / back" used to sit here at font14. They are
-    // facts about the transaction, not decisions about it, and DETAILS already
-    // itemises inputs (S_D_INPUTS_FMT). Their 40px pays for the fee and total
-    // above being readable, which is the trade this screen should make.
+    // The fee RATE and the BTC restatement of the total are on DETAILS now.
+    //
+    // Both said a number already on this screen over again in another unit, and
+    // together they were 66px of a 302px column. Three cautions at one row each
+    // need 87 and there were 40 left, so a transaction that fired three flags
+    // ran its warning through the RBF line and into the action row. Neither
+    // restatement changes a decision; the fee in sats and the total in sats do,
+    // and those stay here at font28. The same trade was made once before on
+    // this column, when "N inputs, <type>" and "in / back" went to DETAILS.
 
     // network: LOUD amber chip on testnet (spec: loud TESTNET banner); mainnet
     // stays a plain muted word. (No address-type setting shown: the signer is
     // type-agnostic — the PSBT's own paths declare the type, re-derive enforces.)
-    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 300,
+    lv_obj_t *net = mk_lbl(s_sum.testnet ? "TESTNET" : "MAINNET", 430, 240,
                            wt_font23(), s_sum.testnet ? WARN_COL : MUT_COL);
     if (s_sum.testnet) {
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -726,41 +739,65 @@ static void verify_screen(lv_obj_t *parent)
     // locktime value + a plain-words note live in DETAILS.
     snprintf(buf, sizeof buf, "%s",
              s_sum.rbf ? tr(STR_S_RBF_LINE_ON) : tr(STR_S_RBF_LINE_OFF));
-    wt_note(s_scr, buf, 430, 364, 296, 29);   // stops short of the chip at x=738
-    {   // This chip TRAILS its line at a fixed x while the caution chip above
-        // LEADS its own. Not a style slip -- the two rows are 34px apart and
-        // each chip is 30px with a 12px extended click area, so stacking
-        // them at the same x would put one inside the other's hit box. Fixed
-        // x, not "after the text", so a longer translation cannot walk it into
-        // a neighbour. All five pairs (both chips, DETAILS, I UNDERSTAND) were
-        // checked disjoint before these numbers were chosen.
-        // Centre stays (753,371), but the visible control now matches every
-        // other anonymous help chip and its effective target remains 54px.
-        wt_help_chip(s_scr, 738, 356, MUT_COL, rbf_help_cb, NULL);
+    wt_note(s_scr, buf, 430, 274, 296, 29);   // stops short of the chip at x=738
+    {   // This chip TRAILS its line at a fixed x while the caution chip below
+        // LEADS its own. Not a style slip -- each chip is 30px with a 12px
+        // extended click area, so putting both at the same x would risk one
+        // sitting inside the other's hit box. Fixed x, not "after the text", so
+        // a longer translation cannot walk it into a neighbour. All five pairs
+        // (both chips, DETAILS, I UNDERSTAND) were checked disjoint before
+        // these numbers were chosen; the visible control matches every other
+        // anonymous help chip and its effective target remains 54px.
+        wt_help_chip(s_scr, 738, 266, MUT_COL, rbf_help_cb, NULL);
     }
 
+    // The verdict, anchored to the BOTTOM of the column so it always sits
+    // directly above the button that answers it, and so its height is allowed
+    // to be whatever the flags and the locale make it.
     if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 332, wt_font23(), STOP_COL);
+        lv_obj_t *r = mk_lbl(tr_reason(s_sum.reason), 430, 96, wt_font23(), STOP_COL);
         lv_obj_set_width(r, 330);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
+        anchor_bottom(r, 430);
     } else if (s_sum.status == WPSBT_CAUTION) {
-        // short summary + a "?" chip to the full "why" (keeps the screen simple)
-        char sum[160];   // three parts in a 2-3 byte/char script must fit
-        caution_summary(s_sum.caution_flags, sum, sizeof sum);
-        char line[200];
-        snprintf(line, sizeof line, tr(STR_S_CAUTION_FMT), sum);
-        // The "?" leads the line it explains instead of trailing it.
+        // ONE ROW PER FLAG, not one string joined with " + ". The joined string
+        // was a wrapping label whose height nobody could predict: "high fee +
+        // dust attack + dust change" is three lines in Italian, two in Chinese
+        // and four in Russian, all from the same y. A row per flag is one line
+        // each by construction, so three flags is always 87px and the column
+        // above knows exactly how much room it has left.
         //
-        // It used to sit at x=720,y=362 with a 12px extended click area, so it
-        // occupied x 708-762, y 350-404 -- and I UNDERSTAND at (500,398) sized
-        // 252x66 occupies x 500-752, y 398-464. They overlapped by 44x6px, on
-        // the one screen where the two things a user can tap are "explain this
-        // warning" and "accept this warning". Putting it ahead of the text also
-        // means it no longer moves with the translated string's length.
-        lv_obj_t *r = mk_lbl(line, 468, 332, wt_font23(), WARN_COL);
-        lv_obj_set_width(r, 300);
-        lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        wt_help_chip(s_scr, 430, 330, WARN_COL,
+        // The status pill at the top right already reads "WARNING CAUTION", so
+        // each row carries the glyph and the amber and names its own category
+        // rather than repeating the word. STR_S_CAUTION_FMT is left in the
+        // locale files for the phase 3 rewrite, which replaces these category
+        // names with the evidence behind them.
+        lv_obj_t *col = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_size(col, 300, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+        const char *parts[4];
+        int np = caution_parts(s_sum.caution_flags, parts, 4);
+        for (int i = 0; i < np; i++) {
+            char row[160];   // a category name in a 2-3 byte/char script
+            snprintf(row, sizeof row, "%s  %s", LV_SYMBOL_WARNING, parts[i]);
+            lv_obj_t *r = lv_label_create(col);
+            lv_obj_set_style_text_color(r, WARN_COL, 0);
+            lv_obj_set_width(r, 300);
+            // wt_note_fit, so a category name too long for 300px at font23
+            // drops a rung instead of taking a second line and moving every
+            // row above it. One row is one line, always.
+            wt_note_fit(r, row, 300, 29);
+        }
+        int top = anchor_bottom(col, 468);
+        // The "?" LEADS the stack it explains rather than trailing it: trailing,
+        // it moved with the translated string's length and at x=720,y=362 its
+        // 54px effective target reached into I UNDERSTAND, on the one screen
+        // where the two tappable things are "explain this warning" and "accept
+        // this warning".
+        wt_help_chip(s_scr, 430, top, WARN_COL,
                      caution_help_cb, NULL);   // "?" -> WHY FLAGGED card
     }
 
@@ -953,9 +990,45 @@ static void details_cb(lv_event_t *e)
     lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
     lv_obj_set_width(tx, 330);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
+    // The fee rate, arrived from the verify screen's right column, which had to
+    // give up 66px so three simultaneous cautions could each have a row. A txid
+    // is always 64 hex characters, so the block above is always two lines and
+    // the gap under it was always 55px of nothing.
+    //
+    // S_FEERATE_PCT_FMT rather than S_FEERATE_FMT: it was already written and
+    // already translated into all 21 locales and used nowhere, and it says the
+    // useful thing. "57.0 sat/vB" alone is a number for people who already know
+    // what a good one looks like; "57.0 sat/vB, 21.0% of what you send" is the
+    // sentence that makes somebody stop.
+    // Percent of the SEND amount, one decimal, integers only: there are no
+    // floats on this device. A sweep with nothing left over would divide by
+    // zero, so that case prints the rate on its own.
+    uint64_t pct10 = s_sum.send_sats
+                   ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
+    if (s_sum.send_sats)
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10),
+                 (unsigned long long)(pct10 / 10), (unsigned long long)(pct10 % 10));
+    else
+        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10));
+    lv_obj_t *fr = mk_lbl(buf, 430, 163, wt_font14(), MUT_COL);
+    lv_obj_set_width(fr, 330);
+    lv_label_set_long_mode(fr, LV_LABEL_LONG_WRAP);
+
     mk_lbl(det.txid_final ? tr(STR_S_D_TXID_SAME)
                           : tr(STR_S_D_TXID_CHANGES),
            430, 210, wt_font14(), MUT_COL);
+    // The same total in BTC, directly under the line about comparing against
+    // the coordinator, because comparing is the only reason to want it: a
+    // coordinator that displays BTC needs this row to check the sats above.
+    uint64_t leaving = s_sum.send_sats + s_sum.fee_sats;   // as the verify screen counts it
+    fmt_sats(leaving, a, sizeof a);
+    wt_fmt_btc(leaving, gt, sizeof gt);
+    snprintf(buf, sizeof buf, "%s sats   =   %s BTC", a, gt);
+    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
 
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);

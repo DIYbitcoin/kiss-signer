@@ -946,9 +946,9 @@ void wallet_settings_open(lv_obj_t *parent)
     // tell them apart) -- but with nothing configured there is nothing to leak,
     // and hiding the row there was a trap: every session on such a signer is
     // the decoy, so the owner could never reach the setting again. That is
-    // exactly how a test board ended up stuck with a stroke it could not clear.
+    // exactly how a test device ended up stuck with a stroke it could not clear.
     //
-    // This row was pulled out for one build while a board reported Settings
+    // This row was pulled out for one build while a device reported Settings
     // freezing on arrival, on the theory that a second 72px two-line pill was
     // the culprit. It was not: the screen never failed to RENDER, it failed to
     // hear a touch, because the decoy skipped the login screen and the login
