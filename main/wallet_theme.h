@@ -94,6 +94,34 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
 
+// BACK is always the bottom RIGHT pill, on every screen that has one. A thumb
+// arrives at that corner at an angle and lands short, which is why Settings put
+// it there first and gave it 10px of ext click area; the rest of the app then
+// hand typed 48 on fourteen screens and 330 on two more, so the escape hatch
+// moved depending on which screen you were escaping from. One number, one
+// corner, no exceptions.
+//
+// The corollary is worth stating because it is a safety property and not a
+// tidiness one: the right corner is where the least consequential button on
+// each screen now lives. Anything that spends money sits further left, away
+// from the reflex tap and out from under the help chips that hang above the
+// row's right end.
+//
+// THE RULE IS ABOUT ESCAPING A SCREEN, NOT ABOUT THE WORD "BACK". STR_C_BACK
+// does two unrelated jobs in this app and only one of them belongs here:
+//
+//   escape  - leaves for the level above (close_cb, files_back_cb, sp_back_cb,
+//             the sign details page returning to verify). Right corner. If a
+//             screen's escape is called DONE instead, DONE takes the corner:
+//             the corner belongs to the exit, whatever it is labelled.
+//   paging  - steps within the screen you are already on, and always has a
+//             NEXT beside it (the recovery words pages, the pairing QR page).
+//             That pair stays adjacent on the LEFT, because splitting BACK and
+//             NEXT across the full width to satisfy a corner rule would break
+//             the one thing a paged sequence needs, which is that its two
+//             halves look like one control.
+#define WT_BACK_X          610   // BACK's left edge, for the standard 140px pill
+
 // The action bar is the floor the row stands on: full width, WT_BAR fill, one
 // WT_HAIR line along its top. It is not a call you make. wt_pillh builds it the
 // first time a pill lands at or below WT_CONTENT_BOTTOM on a wt_screen, so a

@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "VÉRIFIER LES MOTS",
   "L_VERIFY_FULL_BACKUP": "VÉRIFIER LA SAUVEGARDE",
   "G_T": "RÉGLAGES",
-  "G_TESTNET_NOTE": "TESTNET : coins d'entraînement sans valeur.",
+  "G_TESTNET_NOTE": "TESTNET : bitcoin de test",
   "G_MAINNET_NOTE": "MAINNET : du vrai bitcoin",
   "G_TY_NATIVE_NOTE": "moderne, frais les plus bas.",
   "G_TY_NESTED_NOTE": "segwit ancien.",

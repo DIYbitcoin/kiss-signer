@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "KIỂM TRA CÁC TỪ",
   "L_VERIFY_FULL_BACKUP": "KIỂM TRA BẢN SAO ĐẦY ĐỦ",
   "G_T": "CÀI ĐẶT",
-  "G_TESTNET_NOTE": "TESTNET: coin tập dượt, không có giá trị.",
+  "G_TESTNET_NOTE": "TESTNET: bitcoin thử nghiệm",
   "G_MAINNET_NOTE": "MAINNET: bitcoin thật",
   "G_TY_NATIVE_NOTE": "hiện đại, phí thấp nhất.",
   "G_TY_NESTED_NOTE": "segwit đời cũ.",

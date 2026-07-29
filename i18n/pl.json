@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "SPRAWDŹ SŁOWA",
   "L_VERIFY_FULL_BACKUP": "SPRAWDŹ PEŁNĄ KOPIĘ",
   "G_T": "USTAWIENIA",
-  "G_TESTNET_NOTE": "TESTNET: monety ćwiczebne bez wartości.",
+  "G_TESTNET_NOTE": "TESTNET: testowe BTC",
   "G_MAINNET_NOTE": "MAINNET: prawdziwe BTC",
   "G_TY_NATIVE_NOTE": "nowoczesny, najniższe opłaty.",
   "G_TY_NESTED_NOTE": "starszy segwit.",

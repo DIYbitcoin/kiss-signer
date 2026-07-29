@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "KONTROLLÉR ORDENE",
   "L_VERIFY_FULL_BACKUP": "KONTROLLÉR HELE BACKUPEN",
   "G_T": "INDSTILLINGER",
-  "G_TESTNET_NOTE": "TESTNET: øvemønter uden værdi.",
+  "G_TESTNET_NOTE": "TESTNET: testbitcoin",
   "G_MAINNET_NOTE": "MAINNET: rigtige bitcoin",
   "G_TY_NATIVE_NOTE": "moderne, laveste gebyrer.",
   "G_TY_NESTED_NOTE": "ældre segwit.",

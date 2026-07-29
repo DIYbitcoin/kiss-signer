@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "WOORDEN CONTROLEREN",
   "L_VERIFY_FULL_BACKUP": "VOLLEDIGE BACK-UP CONTROLEREN",
   "G_T": "INSTELLINGEN",
-  "G_TESTNET_NOTE": "TESTNET: oefencoins zonder waarde.",
+  "G_TESTNET_NOTE": "TESTNET: testbitcoin",
   "G_MAINNET_NOTE": "MAINNET: echte bitcoin",
   "G_TY_NATIVE_NOTE": "modern, laagste kosten.",
   "G_TY_NESTED_NOTE": "ouder segwit.",

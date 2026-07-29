@@ -374,9 +374,10 @@ static void sp_addr_open(lv_obj_t *parent) {
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, sp_back_cb, NULL);
+  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                           sp_back_cb, NULL);
   s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
-                             198, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
+                             48, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
@@ -514,12 +515,20 @@ static void recv_list_open(void) {
   lv_obj_update_layout(pg);
   lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
+  // Five controls in 704px, which is 664 of pill and 40 of air. The gaps are a
+  // flat 10 rather than a comfortable rhythm because that is genuinely all
+  // there is: this row is over full, and it is over full because RECEIVE is
+  // still a list of a hundred addresses first and a task second. Spec 3.3
+  // rebuilds it to lead with ONE address, which is what actually fixes this;
+  // until then, an even 10 everywhere at least stops any one pair reading as a
+  // group. BACK keeps its 110 here, the one screen where the standard 140 will
+  // not fit, and its corner is what matters, not its width.
   lv_obj_t *row[5];
-  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 110, close_cb, NULL);
-  row[1] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 168, WT_ACTION_Y, 220, sp_open_cb, NULL);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_LEFT, 400, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
-  row[3] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 466, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[4] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, WT_ACTION_Y, 222, vfy_scan, NULL);
+  row[0] = wt_pill(s_scr, tr(STR_S_SP_BADGE), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 278, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 344, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY), 410, WT_ACTION_Y, 222, vfy_scan, NULL);
+  row[4] = wt_pill(s_scr, tr(STR_C_BACK), 642, WT_ACTION_Y, 110, close_cb, NULL);
   wt_pill_row(row, 5);
 }
 
@@ -541,39 +550,49 @@ static void recv_detail_open(void) {
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
-  // derivation path stays small (reference), the VERIFY instruction does not.
-  // Both end ON WT_CONTENT_BOTTOM, not merely above the pills: each note is
-  // given the tallest box that still lands its last line clear of the action
-  // row, so a three line translation stays readable instead of losing its
-  // bottom to the bar.
+  // derivation path stays small: it is a reference, not an instruction. It ends
+  // ON WT_CONTENT_BOTTOM's side of the line, not merely above the pills.
   s_path_lbl = wt_lbl(s_scr, "", 400, 286, wt_font14(), WT_MUT);
-  wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 308, 360, 90);
-  // Standing advice beats a warning the offline signer cannot substantiate.
-  // The smaller default QR gives it three lines at font23. The refresh glyph
-  // carries the "use another" meaning even when MONO makes accent and ink equal.
-  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 340, wt_font23(), wt_accent());
-  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 311, 308, 87);
+
+  // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY
+  // button that used to sit in the row below. Both are gone. VERIFY answers
+  // "is this address on my computer screen really mine", which is a question
+  // about an address that is NOT the one being displayed here, so it never
+  // belonged on a page devoted to a single address of ours, let alone on all
+  // one hundred of them. It keeps its home on the address list, one level up,
+  // where it reads as an entry point rather than as an action on this address.
+  //
+  // Standing advice beats a warning the offline signer cannot substantiate, so
+  // the privacy reminder inherits the space VERIFY freed. It goes FULL WIDTH
+  // rather than into either column: it is the one thing on this screen that is
+  // not about address #N specifically, and 668px is the first width at which
+  // "use a new address each time" sets as one line in English instead of
+  // breaking after "each". It clears the QR card (ends 280) and the derivation
+  // path (ends 305), and its 90px box still holds three lines for the
+  // translations that need them. The refresh glyph carries the "use another"
+  // meaning even when MONO makes accent and ink equal.
+  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 337, wt_font23(), wt_accent());
+  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 308, 668, 90);
   lv_obj_set_style_text_color(one_each, wt_accent(), 0);
 
   // These pills share a row and share one label size, so a single pill a few
   // pixels too narrow shrinks all of them. Widths are proportioned to the
   // longest label each one carries rather than to a round number.
-  lv_obj_t *row[4];
+  lv_obj_t *row[3];
   // A symmetric pair of chevrons under the ADDRESS #N counter they page, not
-  // "<" beside "> NEXT". The word cost 74px, and this row had none to spare:
-  // VERIFY is the button that proves an address is yours, and at 148px wide it
-  // was rendering at font14 in thirteen languages. The counter above says what
-  // the arrows step through, so the label was carrying no weight.
+  // "<" beside "> NEXT". The word cost 74px and this row used to have none to
+  // spare, back when VERIFY sat beside them.
   //
   // They stay even though the list can now reach any address directly: this is
   // the one screen where stepping to the neighbouring address needs no scroll
   // at all, and scrolling is brand new on this hardware.
   row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, WT_ACTION_Y, 56, prev_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, WT_ACTION_Y, 56, next_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 530, WT_ACTION_Y, 222, vfy_scan, NULL);
   // BACK returns to the list this address was chosen from, not out of RECEIVE.
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 110, detail_back_cb, NULL);
-  wt_pill_row(row, 4);
+  // VERIFY leaving this row is what lets it take the standard corner and the
+  // standard 140, instead of the squeezed 110 the list one still needs.
+  row[2] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, detail_back_cb, NULL);
+  wt_pill_row(row, 3);
   recv_refresh();
 }
 
