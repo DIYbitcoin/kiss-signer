@@ -738,7 +738,7 @@ static void setup_warn_screen(void) {
   lv_obj_align(state, LV_ALIGN_TOP_MID, 0, 348);
 
   lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
-                              48, 398, 300, 66, setup_warn_verify_cb, NULL);
+                              48, WT_ACTION_Y_TALL, 300, WT_ACTION_H_TALL, setup_warn_verify_cb, NULL);
   if (!s_backup_verified)
     lv_obj_set_style_border_color(verify, WT_WARN, 0);
 
@@ -746,7 +746,7 @@ static void setup_warn_screen(void) {
   // ring disappears only after every word and the exact passphrase have both
   // recreated the fingerprint above.
   lv_obj_t *ok = wt_pillh(s_warnscr, tr(STR_C_I_UNDERSTAND),
-                          430, 398, 320, 66, setup_warn_ok_cb, NULL);
+                          430, WT_ACTION_Y_TALL, 320, WT_ACTION_H_TALL, setup_warn_ok_cb, NULL);
   lv_obj_set_style_border_width(ok, 2, 0);
   lv_obj_set_style_border_color(ok, s_backup_verified ? WT_OK : WT_STOP, 0);
 }
@@ -1176,9 +1176,9 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                        wt_body_font(tr(STR_L_SCAN_WARN_B), 704, 274), WT_MUT);
   lv_obj_set_width(b, 704);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, 404, 300, pp_scan_go_cb, scr);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
   wt_pill_primary(go);
-  wt_pill(scr, tr(STR_C_BACK), 610, 404, 140, pp_scan_back_cb, scr);
+  wt_pill(scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {
@@ -1215,7 +1215,7 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
       48, 116, wt_body_font(tr(STR_L_PPINTRO_B), 704, 280), WT_MUT);
   lv_obj_set_width(ib, 704);
   lv_label_set_long_mode(ib, LV_LABEL_LONG_WRAP);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, 404, 280, pp_intro_go_cb, NULL);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 280, pp_intro_go_cb, NULL);
   wt_pill_primary(go);
 }
 
@@ -1349,7 +1349,26 @@ void wallet_build_id_restyle(lv_obj_t *version_label)
 #endif
 }
 
-lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
+// Row pitch for the STACKED build identity: font14's line box is 19px, and 3
+// of air is what keeps two rows reading as a block rather than as one
+// squashed paragraph. Both rows together are 41px, which fits inside the
+// action bar (398..480) with room above and below.
+#define BUILD_ID_ROW 22
+
+// Gap between version and encryption when they share ONE row. Wider than a
+// word space on purpose: these are two unrelated facts, not a sentence, and
+// nothing may be drawn between them (a separator here would be a dash used as
+// punctuation, which this codebase does not do).
+#define BUILD_ID_GAP 28
+
+// Two callers, two shapes, and the shape belongs to the CALLER, not to this
+// function's other argument. Settings stacks, because it has three facts to
+// place beside a row of buttons. The home corner does not: it has two, an
+// empty bottom edge to put them on, and stacking them there turned a quiet
+// one line signature into a two line block wedged into the corner, which is
+// what the device showed and what got this parameter written.
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
+                               bool stacked)
 {
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
@@ -1375,10 +1394,24 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
   //
   // Stays ASCII on purpose: a glyph missing from the generated font hangs LVGL
   // outright, so this line is the wrong place to spend a "." or an em dash.
-  lv_label_set_text_fmt(w, "-  encryption: %s", enc ? "ON" : "OFF");
+  // Stacked, this used to run version, encryption and radio end to end, which
+  // made it as wide as the panel and pushed it into the strip UNDER the action
+  // row, the only place a 450px line still fitted. In two rows it is ~215px and
+  // sits in the action bar's own empty left half instead, beside the buttons
+  // rather than beneath them.
+  //
+  // The version gets the top row to ITSELF, because it is the field that grows:
+  // a longer version string or a dirty commit suffix extends row one and leaves
+  // the status facts below exactly where they were. On one row that argument
+  // does not apply, since there is nothing under them to push.
+  lv_label_set_text_fmt(w, "encryption: %s", enc ? "ON" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
-  lv_obj_update_layout(v);
-  lv_obj_set_pos(w, x + lv_obj_get_width(v) + 10, y);
+  if (stacked) {
+    lv_obj_set_pos(w, x, y + BUILD_ID_ROW);
+  } else {
+    lv_obj_update_layout(v);
+    lv_obj_set_pos(w, x + lv_obj_get_width(v) + BUILD_ID_GAP, y);
+  }
 
   // The C6 radio readback is a diagnostic for people who already know what a
   // C6 is. It earns its place in Settings, not in the corner of the home
@@ -1386,10 +1419,14 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
   if (with_radio) {
     lv_obj_t *r = lv_label_create(parent);
     lv_obj_set_style_text_font(r, wt_font14(), 0);
-    lv_label_set_text_fmt(r, "-  radio: %s", radio_held ? "HELD" : "NOT HELD");
+    lv_label_set_text_fmt(r, "radio: %s", radio_held ? "HELD" : "NOT HELD");
     lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    // Shares row two with encryption, and follows its MEASURED width: the word
+    // is ON or OFF and the translation of neither is fixed, so the gap is added
+    // to what encryption actually rendered rather than to a guess about it.
     lv_obj_update_layout(w);
-    lv_obj_set_pos(r, x + lv_obj_get_width(v) + 10 + lv_obj_get_width(w) + 10, y);
+    lv_obj_set_pos(r, lv_obj_get_x(w) + lv_obj_get_width(w) + 24,
+                   lv_obj_get_y(w));
   } else {
     (void)radio_held;
   }

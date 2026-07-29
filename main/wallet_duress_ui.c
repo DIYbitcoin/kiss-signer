@@ -186,7 +186,7 @@ static void pick_screen(void)
         wt_pill(s_scr, tr(wallet_duress_label_key(g)),
                 48 + col * 240, 150 + row * 104, 220, pick_cb, (void *)(intptr_t)g);
     }
-    wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
 }
 
 static void draw_screen(bool again)
@@ -239,7 +239,7 @@ static void draw_screen(bool again)
     lv_obj_add_event_cb(s_canvas, draw_press_cb, LV_EVENT_PRESSING, NULL);
     lv_obj_add_event_cb(s_canvas, draw_release_cb, LV_EVENT_RELEASED, NULL);
 
-    wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
     draw_reset();
 }
 
@@ -260,21 +260,21 @@ static void stage_build(int stage)
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
         lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_INTRO_B), 48, 118, 704, 260);
         lv_obj_set_style_text_color(b, WT_INK, 0);
-        wt_pill(s_scr, tr(STR_C_OK), 48, 404, 200, next_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), 48, WT_ACTION_Y, 200, next_cb, NULL);
         // Reached from Settings with a configuration already in place, this is
         // the only way back to plain behaviour. Absent during setup, where
         // there is nothing yet to turn off.
         if (wallet_duress_real() != WDG_NONE)
-            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 280, 404, 260, turn_off_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
+            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 280, WT_ACTION_Y, 260, turn_off_cb, NULL);
+        wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }
     case ST_FUND: {
         s_scr = wt_screen(s_parent, tr(STR_GD_FUND_T), NULL);
         lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_FUND_B), 48, 118, 704, 260);
         lv_obj_set_style_text_color(b, WT_INK, 0);
-        wt_pill(s_scr, tr(STR_C_OK), 48, 404, 200, next_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_SKIP), 610, 404, 140, skip_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), 48, WT_ACTION_Y, 200, next_cb, NULL);
+        wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }
     case ST_PICK:  pick_screen();        break;
@@ -287,15 +287,15 @@ static void stage_build(int stage)
         // The only way back to plain behaviour for a signer that was allowed to
         // configure a stroke before this case was handled.
         if (wallet_duress_real() != WDG_NONE)
-            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 48, 404, 260, turn_off_cb, NULL);
-        wt_pill(s_scr, tr(STR_C_OK), 610, 404, 140, skip_cb, NULL);
+            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 48, WT_ACTION_Y, 260, turn_off_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), 610, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }
     default: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DONE_T), NULL);
         lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_DONE_B), 48, 118, 704, 250);
         lv_obj_set_style_text_color(b, WT_INK, 0);
-        wt_pill(s_scr, tr(STR_C_DONE), 48, 404, 200, save_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 200, save_cb, NULL);
         break;
     }
     }

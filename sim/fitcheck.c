@@ -56,8 +56,11 @@ static const slot_t SLOTS[] = {
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
     // Three-mode storage appears in both setup and Settings with the same
-    // side-by-side geometry. The disabled SD explanation is intentionally
-    // measured too: normal beta firmware is the build most owners will see.
+    // side-by-side geometry, so all four notes are measured at the same box.
+    // The SD note used to carry a line about the mode being unavailable in
+    // normal builds. It is not: wallet_seed_sd_supported() returns true on
+    // every build, and the unreachable disabled path was deleted, so the note
+    // is now ordinary copy with nothing special about it.
     { "storage/flash",    STR_W_KEEP_NOTE,        420, 87 },
     { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   420, 87 },
     { "storage/sd",       STR_W_SD_NOTE,          420, 87 },

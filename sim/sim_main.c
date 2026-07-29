@@ -12,6 +12,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_info.h"
+#include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
 #include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
@@ -396,13 +397,29 @@ static void pump(int frames) {
 // sim, so the env var is the only language input.
 static const char *g_lang_code;
 
+#ifdef OVERLAPCHECK
+void oc_check(const char *tag);   // sim/overlapcheck.c
+int  oc_report(void);
+#endif
+
 static void save(const char *path) {
   char lp[160];
+  lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
+#ifdef OVERLAPCHECK
+  // The overlap gate reuses this walk rather than keeping a second copy that
+  // would drift from it. Every stop the walk saves is a settled screen, which
+  // is where a layout question belongs, so any frame added here is checked
+  // without anyone having to remember. No image is written in gate builds.
+  //
+  // Called before the language prefix goes on, so the gate sees the same frame
+  // name in all 21 locales and its per-frame rules stay comparable.
+  oc_check(path);
+  return;
+#endif
   if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0) {
     snprintf(lp, sizeof lp, "/tmp/sim_%s_%s", g_lang_code, path + 9);
     path = lp;
   }
-  lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
   FILE *f = fopen(path, "wb");
   if (!f) return;
   fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
@@ -605,22 +622,23 @@ int main(void) {
   sim_home_status(""); lv_refr_now(NULL); pump(2);   // clear so later frames are unaffected
 
   // step 4: Receive (address #0 QR, next -> #1) and watch-only Export
-  touch(310, 240); pump(3);
-  save("/tmp/sim_tile_press.ppm");                  // the tile flash, mid-fade
-  release(); pump(6);                               // Receive tile
+  // No sim_tile_press.ppm any more: the home tiles draw nothing on press, so a
+  // frame taken between touch and release is a picture of the home screen and
+  // check_sim_taps would rightly call it a dead interaction.
+  touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv.ppm");                        // the scrollable address list
-  touch(295, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
+  touch(158, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
   save("/tmp/sim_recv_sp_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom, exact state preserved
   touch(520, 166); pump(3); release(); pump(6);     // folded address itself -> full
   save("/tmp/sim_recv_sp_full.ppm");
-  touch(268, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
+  touch(188, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
   // -- every other container turns scrolling off -- so the walk flicks it for
   // real rather than trusting that a scrollable flag implies a list that moves.
@@ -631,13 +649,16 @@ int main(void) {
   save("/tmp/sim_recv_scrolled.ppm");
   touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
   save("/tmp/sim_recv_detail.ppm");                 // QR + address + VERIFY
+  wallet_recv_sim_open_path_help(); pump(30);       // "?" x varies by locale: call it
+  save("/tmp/sim_recv_path_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(168, 216); pump(3); release(); pump(6);     // ordinary receive QR -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(492, 430); pump(3); release(); pump(4);     // next chevron -> the address after
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    touch(678, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    touch(159, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -661,7 +682,7 @@ int main(void) {
     save("/tmp/sim_vfy_sp.ppm");
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
-  touch(118, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(680, 430); pump(3); release(); pump(4);     // BACK -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
@@ -685,14 +706,14 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   // Page two: the import steps plus the address proof. It is the page the
   // owner actually follows, so it gets walked and rendered like any other.
-  touch(680, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
+  touch(118, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> the QR page
   // SCAN KEY is no longer buried in the pair screen: it is a top-level pill on
   // the WALLET screen at (430,236,340,60), so back out of pairing first. It was
   // moved because hiding a separate PRIVATE-key export one tap inside the
   // descriptor flow implied the two were the same action.
-  touch(118, 430); pump(3); release(); pump(6);     // BACK (x=48 pill) -> WALLET
+  touch(680, 430); pump(3); release(); pump(6);     // BACK (WT_BACK_X pill) -> WALLET
   touch(743, 264); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
   save("/tmp/sim_sp_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
@@ -739,18 +760,18 @@ int main(void) {
   // 592 or 620 depending on which string rendered, so its x moved with the
   // translation; it is fixed now, and far enough from the caution chip at
   // (430,330) that neither lands in the other's hit box. This is its centre.
-  touch(753, 371); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
+  touch(753, 281); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
   save("/tmp/sim_sign_rbf_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
   touch(400, 426); pump(3); release(); pump(6);     // OK closes the card
-  touch(293, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
+  touch(133, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
   touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
   save("/tmp/sim_sign_glossary.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // OK closes glossary
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> verify again
-  touch(626, 430); pump(40);                        // hold the sign pill: ring ~half full
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> verify again
+  touch(446, 430); pump(40);                        // hold the sign pill: ring ~half full
   save("/tmp/sim_sign_hold.ppm");
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
@@ -764,19 +785,23 @@ int main(void) {
   // transaction came from, not to the home screen. The three files below are
   // opened one after another without ever leaving SIGN, which is the whole
   // point -- picking the wrong file used to cost the entire trip back in.
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   save("/tmp/sim_sign_back_files.ppm");
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
-  touch(524, 430); pump(3); release(); pump(6);     // I UNDERSTAND (398..650) -> hold pill
+  touch(364, 430); pump(3); release(); pump(6);     // I UNDERSTAND (238..490) -> hold pill
   save("/tmp/sim_sign_fee_ack.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
-  touch(735, 361); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
+  // The caution "?" is anchored to the TOP of the caution stack, which is
+  // itself anchored to the bottom of the content area, so its y is a
+  // function of how many cautions fired: three rows at 29 puts the chip at
+  // (430,311) and its centre here. It is not a fixed corner any more.
+  touch(445, 326); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
   save("/tmp/sim_sign_back_choose.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
@@ -791,7 +816,7 @@ int main(void) {
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
@@ -820,7 +845,7 @@ int main(void) {
   }
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
-  touch(626, 430); pump(40);                        // hold to sign
+  touch(446, 430); pump(40);                        // hold to sign
   pump(45); release(); pump(8);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
@@ -842,8 +867,8 @@ int main(void) {
   save("/tmp/sim_recv_reminder.ppm");               // accent reminder, no banner or pill
   touch(492, 430); pump(3); release(); pump(4);     // next address, same standing advice
   save("/tmp/sim_recv_next.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the list
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
@@ -940,11 +965,11 @@ int main(void) {
   // ADDRESS TYPE is a full-width subpage now: the settings row opens it, and
   // the pick happens there. Walking both halves keeps a broken chooser from
   // hiding behind a frame that only ever showed the list.
-  touch(218, 306); pump(3); release(); pump(6);     // ADDRESS TYPE row -> chooser
+  touch(218, 254); pump(3); release(); pump(6);     // ADDRESS TYPE row -> chooser
   save("/tmp/sim_addr_type.ppm");                   // 3 names + notes, NATIVE selected
   touch(400, 122); pump(3); release(); pump(6);     // pick LEGACY -> back to settings
   save("/tmp/sim_settings_legacy.ppm");             // the row now reads Legacy / 1...
-  touch(218, 306); pump(3); release(); pump(6);     // reopen the chooser
+  touch(218, 254); pump(3); release(); pump(6);     // reopen the chooser
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
   touch(674, 48); pump(3); release(); pump(4);      // theme dot: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
@@ -952,41 +977,48 @@ int main(void) {
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
-  touch(218, 164); pump(3); release(); pump(4);     // TESTNET pill (y=142, h44)
+  touch(305, 110); pump(3); release(); pump(4);     // TESTNET pill (223..388, 88..132)
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 addresses now
   save("/tmp/sim_recv_tn.ppm");                     // the list, on testnet
+  // The ONE screen where the derivation path is followed by an amber "on
+  // TESTNET" marker, placed after the path's measured width. Mainnet renders
+  // the marker empty, so without this stop neither the gate nor a reviewer
+  // ever sees the case that can collide with the right edge.
+  touch(400, 96); pump(3); release(); pump(6);      // first row -> that address
+  save("/tmp/sim_recv_detail_tn.ppm");
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(295, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
+  touch(158, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
   save("/tmp/sim_recv_sp_zoom_tn.ppm");
   touch(763, 35); pump(3); release(); pump(6);
-  touch(268, 430); pump(3); release(); pump(6);     // SHOW FULL: longest full form
+  touch(188, 430); pump(3); release(); pump(6);     // SHOW FULL: longest full form
   save("/tmp/sim_recv_sp_full_tn.ppm");
-  touch(268, 430); pump(3); release(); pump(6);     // SHOW SHORT before opening help
+  touch(188, 430); pump(3); release(); pump(6);     // SHOW SHORT before opening help
   // The explainer names the prefixes, so testnet renders a different title
   // ("WHY YOU SEE TB1P") and two more characters of body than mainnet does.
   // Capture the longer one: it is the variant that would overflow first.
   touch(730, 50); pump(3); release(); pump(30);     // ? -> tsp1/tb1p explanation
   save("/tmp/sim_recv_sp_help_tn.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(118, 430); pump(3); release(); pump(6);     // BACK out of the SP view
-  touch(118, 430); pump(3); release(); pump(4);     // BACK
+  touch(680, 430); pump(3); release(); pump(6);     // BACK out of the SP view
+  touch(680, 430); pump(3); release(); pump(4);     // BACK
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(218, 116); pump(3); release(); pump(4);     // MAINNET restore (y=94, h44)
+  touch(130, 110); pump(3); release(); pump(4);     // MAINNET restore (48..213, 88..132)
   touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
@@ -1291,5 +1323,9 @@ int main(void) {
            (unsigned)mon.max_used, (unsigned)mon.frag_pct);
   }
   printf("sim done\n");
+#ifdef OVERLAPCHECK
+  return oc_report();
+#else
   return 0;
+#endif
 }
