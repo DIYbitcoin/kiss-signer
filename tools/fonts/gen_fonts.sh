@@ -151,12 +151,19 @@ conv --size 34 \
 # alone. The extra glyphs cost under 2KB across both sizes and buy uppercase
 # for the fingerprint (EC5A4595) and the punctuation in a derivation path
 # (m/84'/0'/0'), neither of which the bech32 charset contains.
+#
+# Plus three beyond it: B7 middle dot, 2022 bullet and 2026 ellipsis. The
+# ellipsis is load bearing rather than decorative, because wt_addr_short elides
+# the middle of an address with it. Without the glyph that elision draws LVGL's
+# placeholder box in the middle of the one line on the Sign screen the owner is
+# asked to compare against their coordinator.
 MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 [ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 
 for SZ in 14 23 28; do
   echo "== font_kiss_mono$SZ"
-  conv --size $SZ --font "$MONO" -r 0x20-0x7E -o "$OUT/font_kiss_mono$SZ.c"
+  conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+    -o "$OUT/font_kiss_mono$SZ.c"
 done
 
 # The two values big enough to be read across a room: the Sign hero amount and
