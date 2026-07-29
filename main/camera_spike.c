@@ -135,7 +135,28 @@ void camera_scan_progress(int seen, int total) {
 // ---- step 7 entropy mode: live Shannon estimate over the raw RGB565 frame
 // (full 65536-bin histogram, Kern's method + threshold); the SEED entropy is
 // SHA256(SHA256(frame) || hardware TRNG) — Shannon is only the quality gate.
+//
+// What this number is not. A histogram is order blind: shuffle every pixel in
+// the frame and the estimate does not move. So any FIXED pattern the optics
+// and sensor impose on every frame of every device widens the histogram and
+// raises the reading without adding one bit anybody could not predict. Two of
+// those were real here. The sensor's black pedestal is now zeroed at source.
+// Lens vignetting is not corrected at all: ov02c10_default.json carries no lsc
+// section, so the ISP's shading block is never programmed, and correcting it
+// needs per lens coefficients measured on a flat field that we do not have.
+//
+// The seed is not weakened by any of this. wallet_entropy_mix folds the frame
+// hash together with esp_fill_random below, so a wholly predictable scene
+// still leaves the seed no worse than the hardware TRNG alone. What is
+// overstated is the GATE: it can read 6.0 bits off a scene carrying less, and
+// tell the holder they are ready when they are standing at a blank wall.
 #define ENT_THRESH_X10 60               // 6.0 bits minimum, same as Kern
+// Chosen against the old image: fixed exposure, no white balance, pedestal
+// intact. Every one of those inflated the reading, so the honest expectation
+// is that corrected frames measure LOWER and this constant has to come down
+// to keep the same scenes passing. Measure on device against a blank wall and
+// against gravel before moving it. A threshold left calibrated against a bug
+// is a threshold that means nothing.
 static void *s_bus_saved;
 static volatile bool s_ent_mode;
 static volatile int s_ent_meter;        // Shannon estimate, bits x10
@@ -203,40 +224,17 @@ static void draw_ent_bar(uint16_t *fb) {
             s_ent_meter >= ENT_THRESH_X10 ? 0x368F : 0xF5C9);
 }
 
-// No ISP pipeline controller is configured, so the sensor just runs its
-// power-on default exposure — a full frame time, which turns hand tremor into
-// module-killing motion blur. While scanning, halve it; restored on stop.
-static int32_t s_exp_saved = -1;
-
-static void scan_exposure(bool on) {
-  struct v4l2_query_ext_ctrl qc = {.id = V4L2_CID_EXPOSURE};
-  if (ioctl(s_cam.fd, VIDIOC_QUERY_EXT_CTRL, &qc) != 0) {
-    ESP_LOGW(TAG, "scan: sensor has no exposure control");
-    return;
-  }
-  struct v4l2_ext_control c = {.id = V4L2_CID_EXPOSURE};
-  struct v4l2_ext_controls cs = {.ctrl_class = V4L2_CID_CAMERA_CLASS,
-                                 .count = 1, .controls = &c};
-  if (on) {
-    if (ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0)
-      s_exp_saved = c.value;
-    else
-      s_exp_saved = (int32_t)qc.default_value;
-    int32_t want = s_exp_saved / 2;   // mild: halves motion smear, preview stays usable
-    if (want < (int32_t)qc.minimum) want = (int32_t)qc.minimum;
-    c.value = want;
-    if (ioctl(s_cam.fd, VIDIOC_S_EXT_CTRLS, &cs) == 0)
-      ESP_LOGI(TAG, "scan: exposure %d -> %d (min %lld max %lld)",
-               (int)s_exp_saved, (int)want, (long long)qc.minimum,
-               (long long)qc.maximum);
-    else
-      ESP_LOGW(TAG, "scan: set exposure failed");
-  } else if (s_exp_saved >= 0) {
-    c.value = s_exp_saved;
-    ioctl(s_cam.fd, VIDIOC_S_EXT_CTRLS, &cs);
-    s_exp_saved = -1;
-  }
-}
+// Exposure is the ISP pipeline controller's job now. It used to be ours: this
+// file carried a scan_exposure() that read the sensor's exposure on scan
+// start, halved it to cut motion smear, and put it back on stop. That existed
+// because no controller was running and the sensor sat on its power-on default
+// for the whole session, so there was nothing else to fight the blur.
+//
+// With the controller on, halving by hand is not a workaround any more, it is
+// a second controller. The AGC drives exposure and gain from the ISP's own
+// statistics every frame; a value written underneath it is metered on the next
+// frame and corrected away, so the pair oscillate. Deleted rather than kept
+// behind a flag, because the two cannot both be right.
 
 static void set_status(const char *fmt, ...) {
   va_list ap;
@@ -1064,7 +1062,6 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     s_scan_cb = NULL;
     return false;
   }
-  scan_exposure(true);                           // freeze hand shake
   set_status("CAM: scanning %ux%u", (unsigned)s_cam.w, (unsigned)s_cam.h);
   return true;
 }
@@ -1073,7 +1070,6 @@ void camera_scan_stop(void) {
   if (!s_scan_mode && !s_cam.streaming) return;
   s_scan_mode = false;
   s_scan_cb = NULL;
-  scan_exposure(false);                          // back to the default look
   cam_stop();                                    // waits for the stream task to exit
   if (s_quirc) { k_quirc_destroy(s_quirc); s_quirc = NULL; }
   lv_obj_invalidate(lv_screen_active());         // repaint LVGL over the video
