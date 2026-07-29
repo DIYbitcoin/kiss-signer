@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, bitcoin veri",
   "I_H_FP_B": "il codice identificativo del portafoglio.\n\nl'app abbinata deve mostrare lo STESSO.\nper essere certo che abbia i tuoi indirizzi, usa RICEVI > VERIFICA.",
   "I_H_TYPE_B": "come sono fatti i tuoi indirizzi.\nbc1... è il moderno, con meno commissioni.\n\nm/... dice da dove arrivano le chiavi.\nla tua app le trova con quello.",
+  "I_SEC_PATH": "PERCORSO DI DERIVAZIONE",
+  "I_H_PATH_B": "m/... dice da dove arrivano le chiavi.\nla tua app le trova con quello.",
   "I_H_PAIR_T": "IL PORTAFOGLIO COORDINATORE",
   "I_H_PAIR_B": "un descrittore è una mappa in sola lettura del portafoglio.\npermette a Sparrow di vedere il saldo, trovare indirizzi e preparare pagamenti.\n\nnon può spendere. si firma QUI.",
   "I_H_ADDR_B": "il primo indirizzo identifica questo portafoglio.\nil portafoglio coordinatore deve mostrarlo anch'esso.\n\ncondividilo per ricevere.\nusane uno nuovo per il prossimo pagamento.\nriutilizzarlo collega pubblicamente i pagamenti.",

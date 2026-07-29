@@ -9,6 +9,13 @@ void wallet_info_open(lv_obj_t *parent);
 // Shared fingerprint explainer. Pass the home fingerprint to include it in the
 // title, or NULL for the generic WALLET-page card.
 lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint);
+// The plain "?" card, title over body over OK, for screens outside this file.
+// There is one implementation of that card and it lives here, so Receive
+// borrows it rather than growing a second one that drifts: the receive screen
+// already had a hand rolled overlay for the silent payment chip and two is one
+// too many.
+lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
+                                     const char *body);
 // Settings owns the RECOVERY WORDS entry. The sensitive reveal/verify screens
 // stay here so there is only one implementation of that flow; done_cb returns
 // to Settings when the user leaves it.

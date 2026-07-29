@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, pravi bitcoin",
   "I_H_FP_B": "identifikacijski kod ovog novčanika.\n\npovezana aplikacija pokazuje ISTI kod.\nda budete sigurni da ima vaše adrese, koristite PRIMI > PROVJERI.",
   "I_H_TYPE_B": "kako izgledaju tvoje adrese.\nbc1... je moderna, s najnižom naknadom.\n\nm/... govori odakle dolaze ključevi.\naplikacija ih po tome pronalazi.",
+  "I_SEC_PATH": "PUT IZVOĐENJA",
+  "I_H_PATH_B": "m/... govori odakle dolaze ključevi.\naplikacija ih po tome pronalazi.",
   "I_H_PAIR_T": "KOORDINACIJSKI NOVČANIK",
   "I_H_PAIR_B": "deskriptor je karta novčanika samo za čitanje.\nSparrow može vidjeti stanje, pronaći adrese i složiti plaćanja.\n\nne može trošiti. potpis je OVDJE.",
   "I_H_ADDR_B": "po prvoj adresi prepoznaješ ovaj novčanik.\nkoordinacijski novčanik mora pokazati istu.\n\npodijeli ovu adresu za primanje.\nza sljedeću uplatu upotrijebi novu.\nponovna uporaba javno povezuje uplate.",

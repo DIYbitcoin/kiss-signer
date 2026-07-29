@@ -195,6 +195,12 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
                         fingerprint != NULL);
 }
 
+lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
+                                     const char *body)
+{
+    return help_open_on(parent, title, body, DIAG_NONE, false);
+}
+
 static void help_cb(lv_event_t *e)
 {
     const char *key = (const char *)lv_event_get_user_data(e);
@@ -609,12 +615,26 @@ static void info_screen(void)
                : sc == WSCRIPT_NESTED ? "Nested SegWit (3...)"
                                       : "Native SegWit (bc1...)",
            48, 261, wt_font23(), WT_INK);
-    // font14, matching the same path on the receive detail screen. It is a
-    // reference you quote to a coordinator, not a thing you read at arm's
-    // length, and it is the one line here whose 10px buys the address its
-    // second line back.
-    snprintf(buf, sizeof buf, "m/%d'/%d'/0'", purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 291, wt_font14(), WT_MUT);
+    // h, not an apostrophe, and this is a correctness fix rather than a style
+    // one. At font14 the apostrophes in m/84'/0'/0' render as tick marks a few
+    // pixels tall, and on the device panel the line reads as m/84/0/0. Those
+    // are DIFFERENT PATHS: a coordinator handed the unhardened one derives
+    // different keys and finds none of this wallet's addresses. h is
+    // unambiguous at any size, and it is what the receive and silent payment
+    // screens already print.
+    //
+    // WT_INK, not WT_MUT, for the reason wt_section learned the hard way:
+    // #7A869C on #070A10 survives a monitor and disappears on this panel. A
+    // reference you read out character by character cannot be the faintest
+    // thing on the screen.
+    //
+    // Still font14, and that part is NOT fixed. This column runs 126..396
+    // against a 398 floor, so the 10px a bigger path costs is 10px the address
+    // below does not have. The receive screen got the full treatment (caption,
+    // font23, its own "?") because there was room there. Here it needs the
+    // phase 3 restructure that rebuilds this column.
+    snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose, wallet_testnet() ? 1 : 0);
+    wt_lbl(s_scr, buf, 48, 291, wt_font14(), WT_INK);
 
     sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 316);
     lv_obj_update_layout(sec);

@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, echtes Bitcoin",
   "I_H_FP_B": "der Ausweis-Code deiner Wallet.\n\ndeine App muss DENSELBEN Code zeigen.\num sicher zu sein, dass sie deine Adressen hat: EMPFANGEN > PRÜFEN.",
   "I_H_TYPE_B": "wie deine Adressen aussehen.\nbc1... ist die moderne, günstigste.\n\nm/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",
+  "I_SEC_PATH": "ABLEITUNGSPFAD",
+  "I_H_PATH_B": "m/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",
   "I_H_PAIR_T": "DIE KOORDINATOR-WALLET",
   "I_H_PAIR_B": "ein Deskriptor ist eine schreibgeschützte Karte dieser Wallet.\ndamit kann Sparrow Guthaben und Adressen finden und Transaktionen bauen.\n\nausgeben kann er nicht. signiert wird HIER.",
   "I_H_ADDR_B": "deine erste Adresse kennzeichnet diese Wallet.\ndeine Koordinator-Wallet sollte sie auch zeigen.\n\nteile diese Adresse zum Empfangen.\nfür die nächste Zahlung eine neue verwenden.\nWiederverwendung verknüpft Zahlungen öffentlich.",
