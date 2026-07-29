@@ -1,3 +1,21 @@
+# --- kiss-signer local addition, see VENDOR.kiss.md ---
+# Upstream ships sensors/ov02c10/cfg/ov02c10_default.json and a Kconfig choice
+# that selects it by default, and then never registers it here: every other
+# sensor in this file has a block and OV02C10 had none. So on our device the
+# tuning file was on disk, selected, and not compiled in, which leaves the IPA
+# with no AWB or AGC parameters for the one sensor we actually ship.
+#
+# That is the whole reason the camera ran on a fixed exposure and a fixed
+# green white balance. Put back in the same shape as every block below it.
+if(CONFIG_CAMERA_OV02C10)
+    if(CONFIG_CAMERA_OV02C10_DEFAULT_IPA_JSON_CONFIGURATION_FILE)
+        idf_build_set_property(ESP_IPA_JSON_CONFIG_FILE_PATH "${COMPONENT_PATH}/sensors/ov02c10/cfg/ov02c10_default.json" APPEND)
+    elseif(CONFIG_CAMERA_OV02C10_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE)
+        idf_build_set_property(ESP_IPA_JSON_CONFIG_FILE_PATH ${CONFIG_CAMERA_OV02C10_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH} APPEND)
+    endif()
+endif()
+# --- end kiss-signer local addition ---
+
 if(CONFIG_CAMERA_OV5647)
     if(CONFIG_CAMERA_OV5647_DEFAULT_IPA_JSON_CONFIGURATION_FILE)
         idf_build_set_property(ESP_IPA_JSON_CONFIG_FILE_PATH "${COMPONENT_PATH}/sensors/ov5647/cfg/ov5647_default.json" APPEND)
