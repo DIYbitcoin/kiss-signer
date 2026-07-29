@@ -43,7 +43,7 @@ static lv_obj_t *s_parent;
 #define RECV_PATH_Y 236
 
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
-static lv_obj_t *s_sp_path_lbl, *s_sp_back_pill, *s_sp_toggle_pill;
+static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
 static uint32_t s_list_base;               // first index the list shows
@@ -59,7 +59,8 @@ bool wallet_recv_active(void) { return s_scr != NULL; }
 static void close_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_path_lbl = s_sp_path_sec = NULL;
+  s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -284,7 +285,8 @@ static void vfy_scan(lv_event_t *e) {
 static void sp_back_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_sp_path_lbl = s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_path_lbl = s_sp_path_sec = NULL;
+  s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   wallet_recv_open(s_parent);
 }
@@ -364,12 +366,18 @@ static void sp_addr_render(void) {
   // Nobody saw it because nobody could get here. The walk's TESTNET tap had
   // been missing its pill since the action bar landed, so every frame named
   // _tn was a picture of mainnet.
+  //
+  // The block is the caption AND the path now, so the ceiling has to be
+  // measured against both. 22 is the caption-to-value step the receive screen
+  // uses, kept identical so the two blocks read as the same component.
   lv_obj_update_layout(s_addr_sg);
   lv_obj_update_layout(s_sp_path_lbl);
+  const int cap_step = 22;
   int path_y = lv_obj_get_y(s_addr_sg) + lv_obj_get_height(s_addr_sg) + 14;
-  int path_max = WT_CONTENT_BOTTOM - lv_obj_get_height(s_sp_path_lbl);
+  int path_max = WT_CONTENT_BOTTOM - cap_step - lv_obj_get_height(s_sp_path_lbl);
   if (path_y > path_max) path_y = path_max;
-  lv_obj_set_y(s_sp_path_lbl, path_y);
+  if (s_sp_path_sec) lv_obj_set_y(s_sp_path_sec, path_y);
+  lv_obj_set_y(s_sp_path_lbl, path_y + cap_step);
 
   // The folded text is useful enough to be a direct affordance, but address
   // span groups deliberately do not accept taps globally: doing that would
@@ -426,7 +434,17 @@ static void sp_addr_open(lv_obj_t *parent) {
   // (sp_addr_render) so the folded and full views can share the screen. A
   // three object block cannot ride that clamp without landing under the action
   // bar in the full view. It belongs with the phase 3 receive restructure.
-  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 200, wt_font23(), WT_INK);
+  // Captioned, like the path on the receive screen beside it. It was a bare
+  // m/352h/0h/0h under a silent payment address: correct, at a readable size,
+  // and with nothing on screen saying what it was. The two screens print the
+  // same KIND of value and a reader who learned what it meant on one of them
+  // had to learn it again here. STR_I_SEC_PATH is the caption the other screen
+  // already uses, so this needed no new string in any of the 21 locales.
+  //
+  // Both are placed by sp_addr_render, because the address above them wraps to
+  // different heights in the folded and full views.
+  s_sp_path_sec = wt_section(s_scr, tr(STR_I_SEC_PATH), 366, 200);
+  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 222, wt_font23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
@@ -519,6 +537,14 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   return row;
 }
 
+// Spent, not missing. Half opacity on the pill and its glyph, and the tap
+// feedback and the click flag both off, so it neither lights up nor answers.
+static void page_arrow_dim(lv_obj_t *p) {
+  if (!p) return;
+  lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_opa(p, LV_OPA_40, 0);
+}
+
 static void page_cb(lv_event_t *e) {
   int step = (int)(intptr_t)lv_event_get_user_data(e);
   int base = (int)s_list_base + step * RECV_LIST_N;
@@ -548,7 +574,6 @@ static void recv_list_open(void) {
   lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
   lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(list, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
   // remove_style_all took the default scrollbar with it, and on this background
   // an unstyled one is invisible -- which on the device reads as "the list does
   // not scroll" rather than "you have not scrolled yet".
@@ -556,6 +581,16 @@ static void recv_list_open(void) {
   lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
   lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
   lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+  // ON, not AUTO, and this is the one thing about this screen that had to
+  // change. There are TWO ways to move through a hundred addresses here, the
+  // list scrolls and the arrows page by twenty, and the viewport is 324px
+  // against 48px rows: six and three quarters. AUTO hides the bar until you
+  // have already scrolled, so the only hint that row seven exists is a clipped
+  // row at the bottom edge, and the obvious control on the screen is an arrow
+  // that jumps straight past it. A reader could reasonably conclude the page
+  // holds six and that > skips fourteen they never saw. A bar that is there
+  // before the first touch says how much list there is, which is the question.
+  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
 
   // The list is NEVER scrolled programmatically. lv_obj_scroll_to_view()
   // during construction leaves the rows DRAWN at their scrolled positions
@@ -567,9 +602,16 @@ static void recv_list_open(void) {
 
   // Which slice of the range is on screen. Says OF 100 so the cap is a stated
   // fact rather than the list mysteriously refusing to go further.
+  // "OF" was hardcoded English on a device that ships 21 languages, and the
+  // range was joined with a hyphen, which is not punctuation this project
+  // uses. STR_C_OSD_OF is the localized "of" the scan overlay already counts
+  // parts with, so this needed no new string: ja renders it "/", which reads
+  // correctly here too. The range now uses an ellipsis, which is a span in
+  // every locale rather than a minus sign in some of them.
   lv_obj_t *pg = wt_lbl(s_scr, "", 0, 0, wt_font14(), lv_color_hex(0x4B5464));
-  lv_label_set_text_fmt(pg, "%u - %u  OF  %d", (unsigned)s_list_base + 1,
-                        (unsigned)s_list_base + RECV_LIST_N, RECV_LIST_CAP);
+  lv_label_set_text_fmt(pg, "%u…%u  %s  %d", (unsigned)s_list_base + 1,
+                        (unsigned)s_list_base + RECV_LIST_N,
+                        tr(STR_C_OSD_OF), RECV_LIST_CAP);
   lv_obj_update_layout(pg);
   lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
@@ -594,6 +636,16 @@ static void recv_list_open(void) {
   row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
   row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
   wt_pill_row(row, 4);
+
+  // An arrow at the end of the range says so. page_cb has always refused to
+  // step past 0 or the cap, correctly, but it refused SILENTLY: on the first
+  // page < looked exactly like > and did nothing, which reads as a device that
+  // missed the touch rather than a list that has no page before this one. The
+  // control is left in place and dimmed rather than hidden, because a button
+  // that vanishes takes its neighbour's position with it and the row would
+  // reflow under the finger.
+  if (s_list_base == 0) page_arrow_dim(row[1]);
+  if (s_list_base + RECV_LIST_N >= RECV_LIST_CAP) page_arrow_dim(row[2]);
 }
 
 // The path's "?", and it answers about the PATH alone.
@@ -662,12 +714,16 @@ static void recv_detail_open(void) {
   s_path_tn_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 28, wt_font14(), WT_WARN);
 
   // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY
-  // button that used to sit in the row below. Both are gone. VERIFY answers
-  // "is this address on my computer screen really mine", which is a question
-  // about an address that is NOT the one being displayed here, so it never
-  // belonged on a page devoted to a single address of ours, let alone on all
-  // one hundred of them. It keeps its home on the address list, one level up,
-  // where it reads as an entry point rather than as an action on this address.
+  // button. The note is gone and the string with it; the button is not, it is
+  // in the row below and the note beside it says why it belongs there. This
+  // comment claimed both had left and that VERIFY had moved up to the list,
+  // which stopped being true when it came back and was never corrected. A
+  // stale comment about where a button lives is worse than none, because the
+  // next person reads it instead of the twenty lines under it.
+  //
+  // The note itself is not coming back. VERIFY carries its own label on the
+  // one screen it appears, and a sentence explaining a button sitting directly
+  // beneath that sentence is the kind of line the copy rules exist to cut.
   //
   // Standing advice beats a warning the offline signer cannot substantiate, so
   // the privacy reminder inherits the space VERIFY freed. It goes FULL WIDTH
@@ -701,8 +757,8 @@ static void recv_detail_open(void) {
   row[0] = wt_pill(s_scr, LV_SYMBOL_LEFT,  398, WT_ACTION_Y, 56, prev_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 464, WT_ACTION_Y, 56, next_cb, NULL);
   // BACK returns to the list this address was chosen from, not out of RECEIVE.
-  // VERIFY leaving this row is what lets it take the standard corner and the
-  // standard 140, instead of the squeezed 110 the list one still needs.
+  // Four pills fit here at the standard 140 for BACK because the two chevrons
+  // are 56 each; the list's row is the one that has to squeeze.
   row[2] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, detail_back_cb, NULL);
   wt_pill_row(row, 4);
   recv_refresh();

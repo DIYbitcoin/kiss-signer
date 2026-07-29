@@ -56,8 +56,12 @@ static void build_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *l
     }
 }
 
-// 1-in / 2-out PSBT for the given script type at the given coin type.
-static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin, uint8_t *out, size_t cap) {
+// 1-in / 2-out PSBT for the given script type at the given coin type. The
+// input is always 100000 sats, so send + change decides the fee, which is
+// how the caution fixture is built without a second code path.
+static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin,
+                            uint64_t send, uint64_t change,
+                            uint8_t *out, size_t cap) {
     struct ext_key kin, kchg;
     derive5(purpose, coin, 0, 0, &kin);
     derive5(purpose, coin, 1, 0, &kchg);
@@ -83,8 +87,8 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin, uint8_t
     struct wally_tx *tx = NULL;
     wally_tx_init_alloc(2, 0, 1, 2, &tx);
     wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
-    wally_tx_add_raw_output(tx, 60000, ext_spk, 22, 0);
-    wally_tx_add_raw_output(tx, 39000, chg_spk, chg_len, 0);
+    wally_tx_add_raw_output(tx, send, ext_spk, 22, 0);
+    wally_tx_add_raw_output(tx, change, chg_spk, chg_len, 0);
 
     struct wally_psbt *p = NULL;
     wally_psbt_init_alloc(0, 1, 2, 1, 0, &p);
@@ -127,9 +131,10 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin, uint8_t
     return wr;
 }
 
-static int emit(const char *dir, const char *name, int script, uint32_t purpose, uint32_t coin) {
+static int emit(const char *dir, const char *name, int script, uint32_t purpose,
+                uint32_t coin, uint64_t send, uint64_t change) {
     uint8_t buf[4096];
-    size_t n = mk_typed_psbt(script, purpose, coin, buf, sizeof buf);
+    size_t n = mk_typed_psbt(script, purpose, coin, send, change, buf, sizeof buf);
     if (n == 0) { fprintf(stderr, "FAIL build %s\n", name); return 1; }
     char path[1024];
     snprintf(path, sizeof path, "%s/%s", dir, name);
@@ -152,10 +157,18 @@ int main(int argc, char **argv) {
     }
     const char *d = argv[1];
     int rc = 0;
-    rc |= emit(d, "1-native.psbt",       WSCRIPT_NATIVE, 84, 1);  // sign with type = NATIVE
-    rc |= emit(d, "2-nested.psbt",       WSCRIPT_NESTED, 49, 1);  // sign with type = NESTED
-    rc |= emit(d, "3-legacy.psbt",       WSCRIPT_LEGACY, 44, 1);  // sign with type = LEGACY
-    rc |= emit(d, "4-stop-wrongnet.psbt", WSCRIPT_NATIVE, 84, 0); // mainnet coin -> STOP on testnet
+    rc |= emit(d, "1-native.psbt",       WSCRIPT_NATIVE, 84, 1, 60000, 39000);  // type = NATIVE
+    rc |= emit(d, "2-nested.psbt",       WSCRIPT_NESTED, 49, 1, 60000, 39000);  // type = NESTED
+    rc |= emit(d, "3-legacy.psbt",       WSCRIPT_LEGACY, 44, 1, 60000, 39000);  // type = LEGACY
+    rc |= emit(d, "4-stop-wrongnet.psbt", WSCRIPT_NATIVE, 84, 0, 60000, 39000); // mainnet coin -> STOP
+    // The CAUTION case, which had no fixture at all: three READY and one STOP
+    // meant the acknowledgement gate, the one screen on this device with a
+    // second confirm in front of it, could not be reached on hardware without
+    // hand building a PSBT. wallet_psbt.c raises WPSBT_C_HIGHFEE when the fee
+    // is a tenth of the send or more; 8000 out of a 100000 input leaves 10000
+    // of fee against an 8000 send, which is over that line and nowhere near
+    // the dust rules, so exactly one flag fires and the screen is predictable.
+    rc |= emit(d, "5-caution-highfee.psbt", WSCRIPT_NATIVE, 84, 1, 8000, 82000);
     wally_cleanup(0);
     return rc;
 }

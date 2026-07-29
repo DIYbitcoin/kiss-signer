@@ -21,6 +21,11 @@ BLOCKS = [
      "expect: segmented bar fills part by part, then READY - Legacy - TESTNET"),
     ("static-wrongnet", "4 · Wrong-network PSBT (mainnet coin type)",
      "expect: STOP - wrong network (this one must NOT be signable on testnet)"),
+    # The CAUTION case. The page had three READY and one STOP, so the one
+    # screen with a second confirm in front of it could not be reached by scan.
+    ("static-caution", "5 · High-fee PSBT (10,000 sats fee on an 8,000 send)",
+     "expect: CAUTION - high fee - I UNDERSTAND appears where HOLD TO SIGN "
+     "normally is, and HOLD TO SIGN only arrives after you tap it"),
 ]
 FRAME_MS = 500          # sender cadence; scanner reads at ~30fps, plenty
 
