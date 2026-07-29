@@ -131,6 +131,16 @@ jobs:
         env:
           OVERLAPCHECK_STRICT: "1"
 
+      # The camera overlay is the one place text is composed by hand rather
+      # than drawn by LVGL, because the scan and entropy screens write straight
+      # into the camera framebuffer. Nobody can look at that on a desktop, so
+      # this renders every overlay string both ways and compares them pixel for
+      # pixel. It found two real defects the day it was written.
+      - name: overlay text gate
+        run: |
+          bash sim/build_osdcheck.sh
+          /tmp/kissosd
+
       - name: setup node for interop rig
         uses: actions/setup-node@v4
         with:
