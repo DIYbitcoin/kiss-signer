@@ -10,7 +10,8 @@
 # CJK fonts are subset to EXACTLY the glyphs used by that locale's i18n JSON
 # (tools/fonts/glyphs_*.txt, emitted by tools/gen_i18n.py). Run gen_i18n.py
 # first, and re-run THIS script whenever a glyphs_*.txt changes: a glyph
-# missing from the font hard-hangs LVGL's renderer (device included).
+# missing from the font draws an empty placeholder box, so a word in a CJK
+# locale loses a character silently (device included).
 #
 # Fallback chain baked into the structs: lat -> ja -> ko -> zh, so every
 # wallet label can use font_kiss_lat<N> and any script just resolves.
@@ -29,7 +30,8 @@ LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490
 # The LV_SYMBOL_* codepoints from LVGL's built_in_font_gen.py, PLUS three icons
 # LVGL has no symbol macro for. They are named in wallet_theme.h as WT_ICON_*
 # and must stay in lockstep with it: a codepoint referenced by a label but
-# missing from the font does not draw a tofu box, it hard-hangs the renderer.
+# missing from the font draws a blank box the width of half a line, which on
+# an icon pill means a button with nothing on it.
 #   61481 F029 qrcode    61572 F084 key    61979 F21B user-secret
 #   61475 F023 lock  (the RBF explainer's "final" state; its "replaceable"
 #                     state uses F021 sync, which LVGL already ships)
@@ -107,11 +109,14 @@ done
 # leaving ja/ko/zh titles at 28 costs far less legibility than the arithmetic
 # suggests.
 #
-# THE FALLBACK IS LOAD-BEARING. A glyph missing from an LVGL font is not a tofu
-# box, it is an infinite loop in the renderer -- on device as well as in the
-# sim. There is no font_kiss_ja34 to chain to, so this chains to the 28 CJK
+# THE FALLBACK IS LOAD-BEARING, though not for the reason this note used to
+# give. A glyph missing from an LVGL font is not an infinite loop: with
+# LV_USE_FONT_PLACEHOLDER on, which it is in both builds, the lookup walks the
+# fallback chain and then returns a blank box half a line wide. What it costs
+# is the character, silently, on a screen the holder cannot file a bug from.
+# There is no font_kiss_ja34 to chain to, so this chains to the 28 CJK
 # faces: a stray CJK character in a Latin-locale title renders one size small
-# instead of hanging the device. wt_font34() must ALSO refuse to hand this face
+# instead of vanishing. wt_font34() must ALSO refuse to hand this face
 # to a CJK locale in the first place; this chain is the second line of defence,
 # not the first.
 echo "== font_kiss_lat34"

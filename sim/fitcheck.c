@@ -114,11 +114,11 @@ static const slot_t SLOTS[] = {
     { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 664, 29 },
     { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 664, 29 },
     { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 664, 29 },
-    // Two boxes, same string: the 340px note on the settings page and the
-    // 704px subtitle of the subpage it opens. The narrow one is the binding
-    // constraint, so it is the one measured here.
-    { "set/separate",     STR_G_SEPARATE,     340, 58 },
-    { "sub/addr-type",    STR_G_SEPARATE,     704, 30, 0 },
+    // set/separate and sub/addr-type used to sit here, both measuring
+    // STR_G_SEPARATE, "each network + type is its own separate wallet". The
+    // string is gone: it was the ADDRESS TYPE subtitle and, doing second duty,
+    // the filler in a decoy session's duress slot. It told nobody anything the
+    // three rows above already say. Neither box has a string to measure now.
     { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
     { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
     { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 30, 1 },
@@ -156,7 +156,10 @@ static const slot_t SLOTS[] = {
     // Procedural, read once with the device in hand, and wedged into a 360px
     // column beside a QR. They auto-fit like everything else, so they grow if
     // the copy is ever shortened -- but font14 is the accepted answer today.
-    { "recv/verify",      STR_R_VERIFY_NOTE,  360, 90, 1 },
+    // recv/verify measured STR_R_VERIFY_NOTE, a sentence explaining the VERIFY
+    // button. The note was cut long ago and the string is now gone too, so
+    // this slot was measuring text no screen drew. The button remains, with
+    // its own label, on the receive detail screen.
     // Under the QR on the address detail screen. This is the whole standing
     // privacy reminder now, so the zoomable smaller card gives it three lines
     // at font23.
@@ -393,9 +396,18 @@ int main(int argc, char **argv)
     printf("\ntotal at font14: %d\n", total_small);
 
     // Every icon a pill draws must exist, at every size, with real ink in it.
-    // This is the one font mistake that does not degrade: LVGL does not draw a
-    // tofu box for a codepoint it cannot find, it spins in the renderer, and on
-    // the device that is a hang with no message. So ask directly rather than
+    //
+    // This check used to justify itself by saying a missing codepoint spins
+    // LVGL's renderer. It does not. CONFIG_LV_USE_FONT_PLACEHOLDER is y in
+    // sdkconfig and LV_USE_FONT_PLACEHOLDER is 1 in sim/lv_conf.h, and
+    // lv_font_get_glyph_dsc walks the fallback chain and then returns cleanly
+    // with resolved_font NULL, format A1 and a box half the line height wide.
+    // Nothing hangs; you get an empty rectangle.
+    //
+    // The check is worth just as much for the true reason. An empty rectangle
+    // where a key or a lock should be is a defect on a device that has no way
+    // to report it, and the icons here sit on the buttons that pair a
+    // coordinator and export a scan key. So ask directly rather than
     // trusting that gen_fonts.sh and WT_ICON_* were edited on the same day --
     // a run that survived is not evidence, it only means the walk never
     // rendered the missing one.
@@ -430,7 +442,8 @@ int main(int argc, char **argv)
     if (icon_bad) {
         puts("\nAdd the codepoint to SYMS in tools/fonts/gen_fonts.sh and\n"
              "re-run it. A label may never reference a glyph the font lacks:\n"
-             "LVGL hangs the renderer instead of drawing a placeholder.");
+             "LVGL draws an empty placeholder box, on a screen nobody can\n"
+             "file a bug from.");
         return 1;
     }
     printf("pill icons: %d present and inked at 14/23/28/34\n",
@@ -477,6 +490,27 @@ int main(int argc, char **argv)
              "translation: the box was measured against this very text. Give\n"
              "it the height 23 needs, or mark it may_be_small WITH a comment\n"
              "saying which neighbour stops it from growing.");
+        return 1;
+    }
+
+    // Every locale, not just English. This number was printed and never acted
+    // on for as long as it was nonzero, which is the wrong way round: a figure
+    // nobody can fail is a figure that only ever grows. It is 0 across all 21
+    // locales now, so the sweep that got it there is worth keeping, and the
+    // cheapest way to keep it is to refuse to build with it above zero.
+    //
+    // Deliberately counts what the English gate above does not: a slot that is
+    // only too small in Polish, and a pill that drops to 14 without being a
+    // key action. Neither is a translation problem. Both mean a box measured
+    // against English that the device will render in something else.
+    if (total_small) {
+        printf("\nFAIL: %d slot(s) fall to font14 in at least one locale.\n",
+               total_small);
+        puts("The lines above marked \"cut\" or \"widen\" name them. Give the\n"
+             "box the height or width 23 needs, shorten the string, or mark\n"
+             "the slot may_be_small WITH a comment saying which neighbour\n"
+             "stops it growing. font14 is for metadata: units, tags, raw\n"
+             "values. Never for something the holder has to read and act on.");
         return 1;
     }
     return 0;
