@@ -341,6 +341,7 @@ static void storage_result_screen(int rc, int target)
 
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, title, NULL);
+    wt_lock_mark(s_scr);
     lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), title_col, 0);
     lv_obj_t *b = wt_lbl(s_scr, body, 48, 136,
                          wt_body_font(body, 704, 230), MUT_COL);
@@ -374,6 +375,7 @@ static void storage_confirm_screen(int target)
                      : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_CONFIRM_T), NULL);
+    wt_lock_mark(s_scr);
     lv_obj_t *b = wt_lbl(s_scr, body, 48, 126,
                          wt_body_font(body, 704, 238),
                          target == WSEED_MODE_AMNESIC ? WARN_COL : MUT_COL);
@@ -421,6 +423,7 @@ static void storage_chooser_screen(void)
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current_line);
+    wt_lock_mark(s_scr);
 
     static const int modes[3] = {
         WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
@@ -485,6 +488,7 @@ static void type_open_cb(lv_event_t *e)
     // rows below already name the tradeoff each type makes, and anyone who has
     // met testnet knows its coins live somewhere else.
     s_scr = wt_screen(s_parent, tr(STR_I_SEC_TYPE), NULL);
+    wt_lock_mark(s_scr);
 
     // Oldest-to-newest makes the tradeoff legible as a progression, and puts
     // the recommended Native SegWit choice last, closest to the action row.
@@ -880,6 +884,7 @@ void wallet_settings_open(lv_obj_t *parent)
     s_parent = parent;
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
+    wt_lock_mark(s_scr);
 
     // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
     for (int i = 0; i < WT_ACC_N; i++) {

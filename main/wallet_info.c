@@ -322,6 +322,7 @@ static void pair_instructions_cb(lv_event_t *e)
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       s_pair_fmt ? tr(STR_I_APP_MOBILE)
                                  : tr(STR_I_APP_DESKTOP));
+    wt_lock_mark(s_scr);
 
     // Page two is intentionally static: first the exact import steps, then
     // the independent address proof. The raw descriptor is already encoded in
@@ -348,6 +349,7 @@ static void pair_screen(void)
     s_pair_qr = s_pair_note = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
+    wt_lock_mark(s_scr);
     if (wallet_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, "TESTNET", 672, 30, wt_font14(), WT_WARN);
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -420,6 +422,7 @@ static void sp_key_show(void *ud)
     (void)ud;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+    wt_lock_mark(s_scr);
     lv_obj_t *qr = NULL;
     wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
 
@@ -446,6 +449,7 @@ static void sp_key_warn_cb(lv_event_t *e)
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN),
                       tr_sym(LV_SYMBOL_WARNING, STR_R_SP_WARN_S));
+    wt_lock_mark(s_scr);
     // Warning paragraph then the three permission rows, in a flex column: the
     // paragraph is wt_body_font-sized, so the block under it cannot be placed
     // at a y decided in advance. wt_body_font floors at font14 rather than
@@ -538,6 +542,7 @@ static void words_render_page(int page)
 
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WORDS_S));
+    wt_lock_mark(s_scr);
 
     const char *p = words;
     for (int i = 0; i < n && *p; i++) {
@@ -592,6 +597,7 @@ static void words_warn_screen(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
+    wt_lock_mark(s_scr);
     lv_obj_t *b = wt_lbl(s_scr, tr(STR_I_WARN_B), 48, 116,
                          wt_body_font(tr(STR_I_WARN_B), 700, 270), WT_MUT);
     lv_obj_set_width(b, 700);
@@ -609,6 +615,7 @@ static void info_screen(void)
 {
     s_pair_qr = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
+    wt_lock_mark(s_scr);
 
     // This is a two-column screen. Its subtitle belongs to the facts column,
     // so it is measured and wrapped inside that column instead of being given

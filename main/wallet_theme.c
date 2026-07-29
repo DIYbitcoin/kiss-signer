@@ -374,6 +374,27 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     return scr;
 }
 
+void wt_lock_mark(lv_obj_t *scr)
+{
+    // A × in the top-left corner: hints that a tap here closes the wallet
+    // surface and hands the device back to the game. The tap region itself is
+    // 88x88 and lives in main.c so the router can gate on which sub-screen is
+    // active; here we only draw the affordance. WT_MUT, not accent, per
+    // SWEEP-01 edit 4: this is an exit, not an action, and in GREEN theme an
+    // accent mark would compete with WT_OK on the same screen.
+    //
+    // font23 X sits under y=42, so the mark's box ends about 20px above the
+    // title's baseline at y=52 and about 8px right of x=32. The title starts at
+    // x=48, so nothing that draws below overlaps. wt_screen already made the
+    // screen non-clickable, so the label consumes no touches: main.c owns the
+    // corner router and the 88x88 hit region extends past this glyph.
+    lv_obj_t *m = lv_label_create(scr);
+    lv_label_set_text(m, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_font(m, wt_font23(), 0);
+    lv_obj_set_style_text_color(m, WT_MUT, 0);
+    lv_obj_set_pos(m, 16, 22);
+}
+
 void wt_title_fit(lv_obj_t *scr, int w)
 {
     lv_obj_t *cap = wt_tagged(scr, WT_TITLE_TAG);

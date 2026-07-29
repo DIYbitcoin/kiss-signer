@@ -216,6 +216,7 @@ static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_delete_async(s_scr);
     }
     s_scr = wt_screen(parent, title, sub);
+    wt_lock_mark(s_scr);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
