@@ -1,6 +1,6 @@
-# KISS Signer 0.1.0-beta6
+# KISS Signer 0.1.0-beta7
 
-Beta firmware for the Guition JC4880P443C ESP32-P4 board.
+Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
 > **Beta warning:** do not trust this release with meaningful funds yet.
 
@@ -8,7 +8,7 @@ Beta firmware for the Guition JC4880P443C ESP32-P4 board.
 
 Download these assets from this release into one folder:
 
-- `kiss-signer-0.1.0-beta6.bin` - merged firmware image
+- `kiss-signer-0.1.0-beta7.bin` - merged firmware image
 - `SHA256SUMS` - firmware hashes
 - `SHA256SUMS.asc` - GPG signature for `SHA256SUMS`
 - `kiss_signer_pgp.asc` - KISS release public key
@@ -27,77 +27,67 @@ shasum -a 256 --ignore-missing -c SHA256SUMS
 
 Main firmware SHA256:
 
-`7acd8df2aec1488b0950f1ed7b4d770c41a824e71332a999744b658e7f969d4a`
+`4573cf973ef5eb78a6fca9e9c5cc1702df882cb1eb699c366d0a56ce2baae11f`
 
 Release commit:
 
-`v0.1.0-beta6-1-gd50dc60`
+`v0.1.0-beta6-82-g58ed74c`
 
 ## Install
 
 For beta releases, flash this exact verified `.bin` using the README install steps.
 
-The browser installer comes later with GitHub Pages. It will require Chrome, Brave, or Edge on desktop; Safari and Firefox cannot flash ESP32 boards over Web Serial.
+The browser installer needs GitHub Pages, and it stays off whenever a release is staged. It requires Chrome, Brave, or Edge on desktop. Safari and Firefox cannot flash ESP32 devices over Web Serial.
 
-After flashing, unplug the board, wait about 3 seconds, then plug it back in.
+After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 
 ## Changelog
 
-The plausible-deniability release. Drawing KISS now opens a real signer that is
-not your main one, and your main one hides behind a stroke only you know.
+Look and feel. Nothing here changes how a key is derived or a transaction is
+signed; it changes what the device looks like while you use it.
 
-### Added — a signer you can hand over
+### Added
 
-- **A decoy signer, behind the gesture everyone already knows.** Drawing KISS
-  opens a working signer with no passphrase: its own fingerprint, pairs with a
-  coordinator, signs real transactions. It is not a fake — it is your seed with
-  an empty passphrase, which is a genuinely different wallet. Put a small amount
-  in it so it is not suspiciously empty.
-- **Your real wallet hides behind one extra stroke.** Draw KISS, then add an
-  underline, overline, strike, slash, circle or check. Only that opens the
-  passphrase prompt. Plain KISS always keeps working and always opens the decoy,
-  so nobody can lock themselves out of their own device by forgetting a stroke.
-- **Set during setup, changed only from the real wallet.** SETTINGS → WAYS IN
-  does not exist in a decoy session, so the decoy never reveals that a second
-  signer is configurable.
-- **What a seed actually is.** The setup wizard now explains it: 12 words in the
-  BIP39 list, that the words plus your passphrase *are* the wallet, and that the
-  same words restore into Sparrow, BlueWallet or any BIP39 wallet.
-- **A way out of WRITE THESE DOWN.** That screen had no exit at all — if you had
-  no paper to hand, the only way out was pulling the power.
-- **A warning before CREATE NEW SEED.** It walked straight into the wizard with
-  nothing said. WIPE has always gated itself; now so does this.
-
-### Fixed
-
-- **Settings and SCAN QR appeared to freeze, and only a power cycle got out.**
-  They were never frozen. Opening the decoy skipped the login screen, and the
-  login screen was the only thing that switched on touch input for wallet
-  screens — so the screen drew perfectly and ignored every tap. The game kept
-  working because it reads the touch panel directly. This affected anyone
-  unlocking with plain KISS. **This is the reason to update.**
-- **The extra stroke was unreachable.** KISS was recognised the instant you
-  lifted the last S, so the decoy opened before you could draw anything after
-  it. The device now waits briefly for a stroke.
-- **Circles had to be drawn small.** The bigger you drew the loop, the more
-  precisely it had to close. Now a big, loosely-closed circle reads correctly.
+- **RECEIVE opens on a list of your addresses**, one per line, twenty to a page
+  and a hundred in total. The four characters after the `bc1q` and the last four
+  are lit, and those are the ones worth comparing, since every address starts the
+  same way. Tap any one for its QR, its derivation path and VERIFY. That
+  one-at-a-time view is still there and keeps its arrows, so you never have to
+  scroll to reach the next address.
+- **A reminder to use a fresh address per payment**, on the screen showing the
+  address you are about to hand over. KISS has no view of the chain and cannot
+  know which addresses were paid to, so it gives the advice rather than marking
+  individual addresses as spent.
+- **Buttons answer a press.** This device has no vibration, so every pill now
+  sinks slightly while held and releases a ring from its edge. It is the only
+  kind of "I felt that" a screen can give you.
+- **Icons on the buttons that do one specific thing**: a key on PAIR
+  COORDINATOR, an incognito face on SCAN KEY, a QR on SCAN QR, a card on FROM SD
+  CARD. Settings deliberately has none, because those are standard Bitcoin terms and
+  read better as words.
+- **The scanner shows it is still looking.** The viewfinder is a reticle now,
+  double corners and edge ticks, that breathes and sweeps while searching, then
+  stops dead and closes in green around the code it found. A dense QR can take
+  several seconds, and a frozen screen during that looked like a crashed device.
+- **The RBF card says which answer it is** before you read it: a replace arrow
+  when the fee can still be raised, a padlock when it cannot.
+- **Settings BACK is easier to hit.** Same button, bigger touch target.
 
 ### Changed
 
-- **KISS is easier to draw.** The shape check was tuned when it guarded the
-  passphrase prompt, where a false match was a giveaway. It now opens the decoy,
-  where a fumbled shape costs nothing. Two S's are still required.
-- **Creating a seed is always 12 words.** 128 bits is not brute-forceable, and
-  24 words doubles the length of the one step where mistakes actually happen:
-  copying them to paper. RESTORE still accepts 12 or 24.
-- **ERASE SEED, not WIPE WALLET.** Erasing this device does not erase your
-  wallet — your paper and passphrase still restore it. Calling it "wipe wallet"
-  told you your coins were gone, which is the opposite of true and a bad thing
-  to believe while deciding whether to press it.
-- **The PSBT explainer says what the letters mean.** Partially Signed Bitcoin
-  Transaction: a transaction built but not yet signed. The coordinator builds it
-  and holds no keys; KISS holds the keys and stays offline. It no longer calls a
-  PSBT a "file" — over QR there is no file anywhere.
-- **A wallet with no passphrase stops describing one.** The fingerprint and
-  warning screens used to talk about a passphrase you did not have, and the
-  stroke setup was offered even though both ways in reached the same wallet.
+- **"silent payment" under SCAN KEY is readable.** It was rendering in the
+  smallest type on the device, and it is the only thing on that screen saying
+  which kind of address the key belongs to.
+- **Opening RECEIVE no longer counts as showing an address.** Only opening a
+  specific one does. Before, merely visiting the screen advanced the
+  already-used marker.
+- **Wording follows one rule now**: bitcoin arriving is a *payment*, bitcoin you
+  build and sign is a *transaction*. Three strings disagreed.
+- **The home screen says "encryption", not "enc"**, and the C6 radio readback
+  moved to Settings, where the people who want it will look.
+
+### Fixed
+
+- **Address text no longer swallowed taps.** Anywhere an address was printed
+  inside something tappable, the middle of it, the obvious place to press, did
+  nothing.

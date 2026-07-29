@@ -14,6 +14,7 @@
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
+#include "wallet_theme.h"   // SIM_ACCENT picks the theme the walk renders in
 #include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
@@ -388,8 +389,30 @@ static void meas_report(const char *tag, int frames) {
          g_flush_max, 100.0 * g_flush_max / (HRES * VRES));
 }
 
+// Frame sequence capture, for the one thing in this repo that a screenshot
+// cannot show: the game turning into a signer.
+//
+// README.md has always described the gesture in prose beside two static frames,
+// the menu and the wallet home, which is a picture of the start and a picture
+// of the end with the entire pitch missing from between them. So the walk that
+// already draws KISS on the menu records what it draws, every LVGL tick,
+// straight from the same framebuffer the screenshots come from.
+//
+// Deliberately not save(): these are not walk checkpoints. Routing them through
+// save() would add ~90 stops to sim/overlapcheck.c and ~90 pairs to
+// tools/check_sim_taps.py, which compares consecutive frames and would object
+// that a stroke in progress looks like the stroke before it. Both are right to
+// object; a mid animation frame is not a settled screen and has no business
+// being measured as one.
+static int g_seq_on, g_seq_n;
+static void save_seq(void);
+
 static void pump(int frames) {
-  for (int i = 0; i < frames; i++) { lv_tick_inc(16); lv_timer_handler(); }
+  for (int i = 0; i < frames; i++) {
+    lv_tick_inc(16);
+    lv_timer_handler();
+    if (g_seq_on) save_seq();
+  }
 }
 
 // SIM_LANG=<code> (en, de, es-MX, ...) renders the whole walk in that language
@@ -397,10 +420,46 @@ static void pump(int frames) {
 // sim, so the env var is the only language input.
 static const char *g_lang_code;
 
+// SIM_ACCENT=<name> (MONO, GREEN, CYPHERPINK, ORANGE) starts the walk in that
+// theme. The walk itself still visits the theme dots near the end and leaves on
+// MONO, which is deliberate: this only decides what the other ~160 stops are
+// wearing. Added for the ROLE check in sim/overlapcheck.c, which asks whether
+// an element carries an accent and a status colour at once and therefore has
+// nothing to look at until an accent is actually selected.
+static void sim_pick_accent(void) {
+  const char *a = getenv("SIM_ACCENT");
+  if (!a || !*a) return;
+  for (int i = 0; i < WT_ACC_N; i++) {
+    wt_accent_set(i);
+    if (strcmp(wt_accent_name(), a) == 0) return;
+  }
+  wt_accent_set(WT_ACC_MONO);
+  fprintf(stderr, "unknown SIM_ACCENT %s\n", a);
+  exit(1);
+}
+
 #ifdef OVERLAPCHECK
 void oc_check(const char *tag);   // sim/overlapcheck.c
 int  oc_report(void);
+int  oc_selftest(void);
 #endif
+
+// RGB565 framebuffer to a binary P6 PPM. Shared by the walk's checkpoints and
+// by the animation capture, so both are literally the same pixels.
+static bool write_ppm(const char *path) {
+  FILE *f = fopen(path, "wb");
+  if (!f) return false;
+  fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
+  for (int i = 0; i < HRES * VRES; i++) {
+    uint16_t c = g_fb[i];
+    unsigned char r = ((c >> 11) & 0x1F) * 255 / 31;
+    unsigned char g = ((c >> 5) & 0x3F) * 255 / 63;
+    unsigned char b = (c & 0x1F) * 255 / 31;
+    fputc(r, f); fputc(g, f); fputc(b, f);
+  }
+  fclose(f);
+  return true;
+}
 
 static void save(const char *path) {
   char lp[160];
@@ -420,18 +479,45 @@ static void save(const char *path) {
     snprintf(lp, sizeof lp, "/tmp/sim_%s_%s", g_lang_code, path + 9);
     path = lp;
   }
-  FILE *f = fopen(path, "wb");
-  if (!f) return;
-  fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
-  for (int i = 0; i < HRES * VRES; i++) {
-    uint16_t c = g_fb[i];
-    unsigned char r = ((c >> 11) & 0x1F) * 255 / 31;
-    unsigned char g = ((c >> 5) & 0x3F) * 255 / 63;
-    unsigned char b = (c & 0x1F) * 255 / 31;
-    fputc(r, f); fputc(g, f); fputc(b, f);
+  if (write_ppm(path)) printf("wrote %s\n", path);
+}
+
+// One numbered frame of an animation, straight out of the same framebuffer,
+// plus where the finger was when it was taken.
+//
+// The finger is the whole reason the path file exists. Recording the gesture
+// proved that the device draws NOTHING while it is being made: the menu idles,
+// its stars twinkle, and 56 frames later the signer is simply there. That is
+// the security property working as designed, and it also means a recording of
+// the screen alone shows a jump cut and teaches nobody where to draw. So the
+// touch coordinates are written beside the frames and tools/gen_docs_shots.py
+// traces them onto the picture as an annotation, from this data rather than
+// from a second copy of the stroke table that would drift the first time a
+// coordinate moved.
+//
+// English only: the frames become a single GIF in the README, and 21 sets of
+// them would be 21 copies of a wordless gesture. Silent, because ~90 "wrote"
+// lines would bury the walk's own output.
+static void save_seq(void) {
+  char path[64];
+#ifdef OVERLAPCHECK
+  // The gate builds run this same walk, one of them per accent. Without this
+  // they would overwrite the captured frames with whatever theme they were
+  // sweeping, and the next gen_docs_shots.py would quietly build the README's
+  // GIF in ORANGE.
+  return;
+#endif
+  if (g_lang_code) return;
+  lv_refr_now(NULL);
+  snprintf(path, sizeof path, "/tmp/sim_reveal_%03d.ppm", g_seq_n);
+  if (!write_ppm(path)) return;
+
+  FILE *p = fopen("/tmp/sim_reveal_path.txt", g_seq_n ? "a" : "w");
+  if (p) {
+    fprintf(p, "%d %d %d %d\n", g_seq_n, g_tx, g_ty, (int)g_pressed);
+    fclose(p);
   }
-  fclose(f);
-  printf("wrote %s\n", path);
+  g_seq_n++;
 }
 
 void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center status slot
@@ -521,6 +607,13 @@ int main(void) {
   lv_display_set_buffers(d, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(d, flush_cb);
 
+#ifdef OVERLAPCHECK
+  // Before the walk, because it needs a display and nothing else.
+  if (getenv("OVERLAPCHECK_SELFTEST")) return oc_selftest();
+#endif
+
+  sim_pick_accent();
+
   build_game();
   pump(20);                                      // ~320ms: logo letters mid-drop
   save("/tmp/sim_menu_intro.ppm");
@@ -559,6 +652,10 @@ int main(void) {
   save("/tmp/sim_menu_back.ppm");
 
   // draw the word "KISS" -> the hidden wallet appears (K spine+arms, I, S, S)
+  //
+  // Recorded as well as captured: see save_seq(). A beat on the untouched menu
+  // first, so the GIF opens on the thing everyone else sees.
+  g_seq_on = 1; pump(8);
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);      // K spine
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);  // K upper arm
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);  // K lower arm
@@ -567,6 +664,7 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);  // S
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);  // S
+  pump(16); g_seq_on = 0;                           // hold on the reveal, then stop recording
   save("/tmp/sim_login.ppm");                       // KISS now lands on the passphrase login
 
   // type "abc" on the QWERTY (kb y0=158, 4 rows ~76px: centers 202/278/354/430)
