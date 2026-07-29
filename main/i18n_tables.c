@@ -425,6 +425,9 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTORE FROM A SEED PHRASE",
     [STR_R_NEVER_HANDED] = "NEVER HANDED OUT",
     [STR_R_HANDED_ALREADY] = "HANDED OUT ALREADY",
+    [STR_I_SEC_NO_UNDO] = "NO UNDO",
+    [STR_I_WORDS_VERIFIED_FMT] = "checked \xc2\xb7 ID %s is on your card",
+    [STR_I_WORDS_UNVERIFIED] = "paper never checked",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -851,6 +854,9 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "AUS SEED-PHRASE WIEDERHERSTELLEN",
     [STR_R_NEVER_HANDED] = "NIE HERAUSGEGEBEN",
     [STR_R_HANDED_ALREADY] = "BEREITS HERAUSGEGEBEN",
+    [STR_I_SEC_NO_UNDO] = "NICHT UMKEHRBAR",
+    [STR_I_WORDS_VERIFIED_FMT] = "geprüft \xc2\xb7 ID %s ist auf deiner Karte",
+    [STR_I_WORDS_UNVERIFIED] = "Papier nie geprüft",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1277,6 +1283,9 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
     [STR_R_NEVER_HANDED] = "NUNCA ENTREGADA",
     [STR_R_HANDED_ALREADY] = "YA ENTREGADA",
+    [STR_I_SEC_NO_UNDO] = "SIN DESHACER",
+    [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
+    [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1703,6 +1712,9 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTAURER DEPUIS UNE PHRASE DE RÉCUPÉRATION",
     [STR_R_NEVER_HANDED] = "JAMAIS DONNÉE",
     [STR_R_HANDED_ALREADY] = "DÉJÀ DONNÉE",
+    [STR_I_SEC_NO_UNDO] = "IRRÉVERSIBLE",
+    [STR_I_WORDS_VERIFIED_FMT] = "vérifié \xc2\xb7 ID %s est sur ton papier",
+    [STR_I_WORDS_UNVERIFIED] = "papier jamais vérifié",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2129,6 +2141,9 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RIPRISTINA DA UNA FRASE DI RECUPERO",
     [STR_R_NEVER_HANDED] = "MAI CONSEGNATO",
     [STR_R_HANDED_ALREADY] = "GIÀ CONSEGNATO",
+    [STR_I_SEC_NO_UNDO] = "IRREVERSIBILE",
+    [STR_I_WORDS_VERIFIED_FMT] = "verificato \xc2\xb7 ID %s è sul tuo foglio",
+    [STR_I_WORDS_UNVERIFIED] = "foglio mai controllato",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2555,6 +2570,9 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "リカバリーフレーズから復元",
     [STR_R_NEVER_HANDED] = "未配布",
     [STR_R_HANDED_ALREADY] = "配布済み",
+    [STR_I_SEC_NO_UNDO] = "取り消し不可",
+    [STR_I_WORDS_VERIFIED_FMT] = "確認済 \xc2\xb7 ID %s は紙にあります",
+    [STR_I_WORDS_UNVERIFIED] = "紙は未確認",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2981,6 +2999,9 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "복구 문구로 복원",
     [STR_R_NEVER_HANDED] = "미배포",
     [STR_R_HANDED_ALREADY] = "이미 배포됨",
+    [STR_I_SEC_NO_UNDO] = "취소 불가",
+    [STR_I_WORDS_VERIFIED_FMT] = "확인됨 \xc2\xb7 ID %s 은(는) 종이에 있음",
+    [STR_I_WORDS_UNVERIFIED] = "종이 미확인",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3407,6 +3428,9 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "HERSTELLEN VAN EEN HERSTELZIN",
     [STR_R_NEVER_HANDED] = "NOOIT UITGEGEVEN",
     [STR_R_HANDED_ALREADY] = "AL UITGEGEVEN",
+    [STR_I_SEC_NO_UNDO] = "NIET TERUG TE DRAAIEN",
+    [STR_I_WORDS_VERIFIED_FMT] = "gecontroleerd \xc2\xb7 ID %s staat op je kaart",
+    [STR_I_WORDS_UNVERIFIED] = "papier nooit gecontroleerd",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3833,6 +3857,9 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "PRZYWRÓĆ Z FRAZY ODZYSKIWANIA",
     [STR_R_NEVER_HANDED] = "NIGDY NIE PODANY",
     [STR_R_HANDED_ALREADY] = "JUŻ PODANY",
+    [STR_I_SEC_NO_UNDO] = "NIEODWRACALNE",
+    [STR_I_WORDS_VERIFIED_FMT] = "sprawdzone \xc2\xb7 ID %s jest na twoim papierze",
+    [STR_I_WORDS_UNVERIFIED] = "papier nigdy nie sprawdzony",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4259,6 +4286,9 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
     [STR_R_NEVER_HANDED] = "NUNCA ENTREGUE",
     [STR_R_HANDED_ALREADY] = "JÁ ENTREGUE",
+    [STR_I_SEC_NO_UNDO] = "SEM DESFAZER",
+    [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
+    [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4685,6 +4715,9 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "ВОССТАНОВИТЬ ИЗ ФРАЗЫ ВОССТАНОВЛЕНИЯ",
     [STR_R_NEVER_HANDED] = "ЕЩЕ НЕ ПЕРЕДАН",
     [STR_R_HANDED_ALREADY] = "УЖЕ ПЕРЕДАН",
+    [STR_I_SEC_NO_UNDO] = "БЕЗ ОТМЕНЫ",
+    [STR_I_WORDS_VERIFIED_FMT] = "проверено \xc2\xb7 ID %s есть на вашей бумаге",
+    [STR_I_WORDS_UNVERIFIED] = "бумага не проверена",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5111,6 +5144,9 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "KURTARMA CÜMLESİNDEN GERİ YÜKLE",
     [STR_R_NEVER_HANDED] = "HİÇ VERİLMEDİ",
     [STR_R_HANDED_ALREADY] = "ZATEN VERİLDİ",
+    [STR_I_SEC_NO_UNDO] = "GERİ ALINAMAZ",
+    [STR_I_WORDS_VERIFIED_FMT] = "kontrol edildi \xc2\xb7 ID %s kartınızda",
+    [STR_I_WORDS_UNVERIFIED] = "kağıt hiç kontrol edilmedi",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5537,6 +5573,9 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "KHÔI PHỤC TỪ CỤM TỪ KHÔI PHỤC",
     [STR_R_NEVER_HANDED] = "CHƯA TỪNG ĐƯA RA",
     [STR_R_HANDED_ALREADY] = "ĐÃ ĐƯA RA",
+    [STR_I_SEC_NO_UNDO] = "KHÔNG HOÀN TÁC",
+    [STR_I_WORDS_VERIFIED_FMT] = "đã kiểm \xc2\xb7 ID %s có trên giấy của bạn",
+    [STR_I_WORDS_UNVERIFIED] = "giấy chưa kiểm",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5963,6 +6002,9 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "从助记词恢复",
     [STR_R_NEVER_HANDED] = "从未给出",
     [STR_R_HANDED_ALREADY] = "已经给出",
+    [STR_I_SEC_NO_UNDO] = "无法撤销",
+    [STR_I_WORDS_VERIFIED_FMT] = "已核对 \xc2\xb7 ID %s 在你的纸上",
+    [STR_I_WORDS_UNVERIFIED] = "纸未核对",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6389,6 +6431,9 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
     [STR_R_NEVER_HANDED] = "NUNCA ENTREGADA",
     [STR_R_HANDED_ALREADY] = "YA ENTREGADA",
+    [STR_I_SEC_NO_UNDO] = "SIN DESHACER",
+    [STR_I_WORDS_VERIFIED_FMT] = "revisado \xc2\xb7 ID %s está en tu papel",
+    [STR_I_WORDS_UNVERIFIED] = "papel sin revisar",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6815,6 +6860,9 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
     [STR_R_NEVER_HANDED] = "NUNCA ENTREGUE",
     [STR_R_HANDED_ALREADY] = "JÁ ENTREGUE",
+    [STR_I_SEC_NO_UNDO] = "SEM DESFAZER",
+    [STR_I_WORDS_VERIFIED_FMT] = "verificado \xc2\xb7 ID %s está no seu papel",
+    [STR_I_WORDS_UNVERIFIED] = "papel nunca verificado",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7241,6 +7289,9 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "GJENOPPRETT FRA GJENOPPRETTINGSFRASE",
     [STR_R_NEVER_HANDED] = "ALDRI GITT UT",
     [STR_R_HANDED_ALREADY] = "ALLEREDE GITT UT",
+    [STR_I_SEC_NO_UNDO] = "INGEN ANGRING",
+    [STR_I_WORDS_VERIFIED_FMT] = "sjekket \xc2\xb7 ID %s står på papiret ditt",
+    [STR_I_WORDS_UNVERIFIED] = "papir aldri sjekket",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7667,6 +7718,9 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "ÅTERSTÄLL FRÅN ÅTERSTÄLLNINGSFRAS",
     [STR_R_NEVER_HANDED] = "ALDRIG UTLÄMNAD",
     [STR_R_HANDED_ALREADY] = "REDAN UTLÄMNAD",
+    [STR_I_SEC_NO_UNDO] = "INGEN ÅNGRING",
+    [STR_I_WORDS_VERIFIED_FMT] = "kollad \xc2\xb7 ID %s finns på ditt papper",
+    [STR_I_WORDS_UNVERIFIED] = "papper aldrig kollat",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -8093,6 +8147,9 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "GENDAN FRA GENDANNELSESSÆTNING",
     [STR_R_NEVER_HANDED] = "ALDRIG UDLEVERET",
     [STR_R_HANDED_ALREADY] = "ALLEREDE UDLEVERET",
+    [STR_I_SEC_NO_UNDO] = "INGEN FORTRYD",
+    [STR_I_WORDS_VERIFIED_FMT] = "tjekket \xc2\xb7 ID %s står på dit papir",
+    [STR_I_WORDS_UNVERIFIED] = "papir aldrig tjekket",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8519,6 +8576,9 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "OBNOVIT Z OBNOVOVACÍ FRÁZE",
     [STR_R_NEVER_HANDED] = "NIKDY NEVYDÁNA",
     [STR_R_HANDED_ALREADY] = "JIŽ VYDÁNA",
+    [STR_I_SEC_NO_UNDO] = "NELZE VRÁTIT",
+    [STR_I_WORDS_VERIFIED_FMT] = "ověřeno \xc2\xb7 ID %s je na vašem papíře",
+    [STR_I_WORDS_UNVERIFIED] = "papír nikdy neověřen",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8945,6 +9005,9 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_CHOOSE_RESTORE] = "OBNOVI IZ FRAZE ZA OPORAVAK",
     [STR_R_NEVER_HANDED] = "NIKAD IZDANA",
     [STR_R_HANDED_ALREADY] = "VEĆ IZDANA",
+    [STR_I_SEC_NO_UNDO] = "BEZ VRAĆANJA",
+    [STR_I_WORDS_VERIFIED_FMT] = "provjereno \xc2\xb7 ID %s je na tvom papiru",
+    [STR_I_WORDS_UNVERIFIED] = "papir nikad provjeren",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

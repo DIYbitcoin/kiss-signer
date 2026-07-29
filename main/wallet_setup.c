@@ -728,10 +728,16 @@ static void storage_screen(void)
     wt_pill_primary(flash);
 
     // The FLASH note tells the truth about what a chip dump would find, which
-    // is the encryption state.
-    wt_wraph(s_scr, tr(wallet_seed_flash_encrypted() ? STR_W_FLASH_ENC_NOTE
-                                                      : STR_W_KEEP_NOTE),
-             330, 96, 420, 87);
+    // is the encryption state. Per HANDOFF-04's storage residual: when the
+    // chip reports encryption OFF, this note is a caution not a footnote, so
+    // it renders in WT_WARN not the default WT_MUT.
+    {
+        bool enc = wallet_seed_flash_encrypted();
+        lv_obj_t *n = wt_wraph(s_scr, tr(enc ? STR_W_FLASH_ENC_NOTE
+                                             : STR_W_KEEP_NOTE),
+                               330, 96, 420, 87);
+        if (!enc) lv_obj_set_style_text_color(n, WT_WARN, 0);
+    }
     mk_pill(tr(STR_W_SD_BTN), 48, 213, 252, storage_pick_cb,
             (void *)(intptr_t)WSEED_MODE_SD);
     wt_wraph(s_scr, tr(STR_W_SD_NOTE), 330, 203, 420, 87);
