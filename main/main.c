@@ -1640,6 +1640,27 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
+    // Per SWEEP-01 edit 4: the top-left corner locks from a wallet SUB screen
+    // too, not only the home. H_EXIT_HINT promises "any time" and until now
+    // four screens ignored it; the safer half of the fix (extend the gesture)
+    // is here, the visible mark that makes it discoverable is out of scope
+    // for this pass. 88x88 target because the mark HANDOFF-05 keeps a place
+    // open for lands in that box. Route through the same teardown auto-lock
+    // uses, so a loaded PSBT is dropped the same way whichever route locks:
+    // scan first (camera off before anything else), sign next (drops the
+    // PSBT), then the passive screens, then wallet_lock.
+    if (pressed && !s_prev_press && tx < 88 && ty < 88 &&
+        (wallet_recv_active() || wallet_sign_active() ||
+         wallet_info_active() || wallet_settings_active())) {
+      if (wallet_scan_active())     wallet_scan_close();
+      if (wallet_sign_active())     wallet_sign_close();
+      if (wallet_recv_active())     wallet_recv_close();
+      if (wallet_info_active())     wallet_info_close();
+      if (wallet_settings_active()) wallet_settings_close();
+      wallet_lock();
+      s_prev_press = pressed;
+      return;
+    }
     if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
         wallet_scan_active() || wallet_info_active() || wallet_settings_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
