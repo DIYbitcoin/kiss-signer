@@ -74,7 +74,13 @@ extraction.
     removed asks for the card rather than silently falling back to another mode.
     Then read `kiss-seed.enc` on a computer: pass only when nothing in it
     resembles the recovery words.
-12. **Read the last line.** On every screen the participant reaches, ask them to
+12. **Explain the randomness.** During setup, at the randomness screen, ask
+    where the randomness comes from. Pass only when the answer names two
+    sources and says neither one decides alone. Then cover the lens and ask
+    whether the wallet is now less safe. Pass when they say no. The camera
+    draws that caption over its own live video, so it is the one claim on the
+    device that no gate can render and only a person can confirm.
+13. **Read the last line.** On every screen the participant reaches, ask them to
     read the last line of content aloud. Pass only when every glyph is fully
     visible. Fail on any half rendered row, any text overlapping other text, and
     any list whose final row is sliced by the screen edge. Repeat on the sign
@@ -93,5 +99,5 @@ rehearsal. Follow
 hardware test is authorized.
 
 Repeat failed tasks after glare, off-axis viewing, and a different phone camera.
-Do not call the normal beta7 UI accepted until tasks 1 to 12 pass without
+Do not call the normal beta7 UI accepted until tasks 1 to 13 pass without
 coaching.
