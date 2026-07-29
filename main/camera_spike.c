@@ -665,6 +665,18 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 // A font's line height already carries its leading, so the gap between the two
 // is small on purpose. 2px, not the generator's 8, because the generator was
 // spacing bare TrueType pixel sizes with no descent in them.
+//
+// A title and at most one line under it is the whole budget here, and that is
+// a decision, not a limit of this function. A block of five rows explaining
+// what a scan can and cannot do was built on this and then taken back out: a
+// code that is aimed at decodes in about a second, so the screen a person
+// actually gets is a flash of text they cannot finish, over the one view where
+// aiming is the job. The SEARCH state looks like dead time on a desktop and is
+// not dead time in a hand.
+//
+// So anything a reader needs SENTENCES for belongs on a screen they are not
+// mid task on. What earns a place here is what they need while pointing:
+// what the device is looking for, and whether it has found it.
 static void draw_osd_strip(uint16_t *fb, int idx) {
   const scan_osd_strip_t *t = osd_title(idx);
   if (!t) return;
