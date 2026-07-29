@@ -745,8 +745,8 @@ int main(void) {
   // frame taken between touch and release is a picture of the home screen and
   // check_sim_taps would rightly call it a dead interaction.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
-  save("/tmp/sim_recv.ppm");                        // the scrollable address list
-  touch(158, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
+  save("/tmp/sim_recv.ppm");                        // HANDOFF-03 landing: single-address detail
+  touch(350, 430); pump(3); release(); pump(6);     // SILENT PAYMENT pill -> SP address view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
   save("/tmp/sim_recv_sp_zoom.ppm");
@@ -757,7 +757,9 @@ int main(void) {
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
+  touch(143, 430); pump(3); release(); pump(6);     // ALL ADDRESSES pill -> the list
+  save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
   // -- every other container turns scrolling off -- so the walk flicks it for
   // real rather than trusting that a scrollable flag implies a list that moves.
@@ -767,17 +769,14 @@ int main(void) {
   release(); pump(20);                              // let the throw and snap settle
   save("/tmp/sim_recv_scrolled.ppm");
   touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
-  save("/tmp/sim_recv_detail.ppm");                 // QR + address + VERIFY
-  wallet_recv_sim_open_path_help(); pump(30);       // "?" x varies by locale: call it
-  save("/tmp/sim_recv_path_help.ppm");
-  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(168, 216); pump(3); release(); pump(6);     // ordinary receive QR -> zoom
+  save("/tmp/sim_recv_detail.ppm");                 // QR + body + lit tail + compare-8
+  touch(167, 231); pump(3); release(); pump(6);     // QR card -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(492, 430); pump(3); release(); pump(4);     // next chevron -> the address after
+  touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS pill -> next index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    touch(159, 430); pump(3); release(); pump(6);   // VERIFY -> raw scan screen
+    touch(532, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -991,13 +990,12 @@ int main(void) {
   // Receive lands past the highest address used or shown. Every detail keeps
   // the same privacy reminder visible; it does not claim an offline signer
   // knows whether this particular address received a payment.
-  touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> the list
-  save("/tmp/sim_recv_fresh.ppm");                  // page containing the fresh landing
-  touch(400, 120); pump(3); release(); pump(6);     // tap any row
-  save("/tmp/sim_recv_reminder.ppm");               // accent reminder, no banner or pill
-  touch(492, 430); pump(3); release(); pump(4);     // next address, same standing advice
+  touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> detail landing
+  save("/tmp/sim_recv_fresh.ppm");                  // freshest address, one screen
+  touch(435, 356); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
+  save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
+  touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
@@ -1111,20 +1109,19 @@ int main(void) {
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
-  touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 addresses now
-  save("/tmp/sim_recv_tn.ppm");                     // the list, on testnet
-  // The ONE screen where the derivation path is followed by an amber "on
-  // TESTNET" marker, placed after the path's measured width. Mainnet renders
-  // the marker empty, so without this stop neither the gate nor a reviewer
-  // ever sees the case that can collide with the right edge.
-  touch(400, 96); pump(3); release(); pump(6);      // first row -> that address
-  save("/tmp/sim_recv_detail_tn.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
+  touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
+  save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
+  // The list is one pill away now. Capture it on testnet so the tb1 rows and
+  // page counter render at least once outside the fresh-landing default.
+  touch(143, 430); pump(3); release(); pump(6);     // ALL ADDRESSES -> list
+  save("/tmp/sim_recv_detail_tn.ppm");              // reused filename: now the list
+  touch(680, 430); pump(3); release(); pump(6);     // BACK from list -> home
+  touch(310, 240); pump(3); release(); pump(6);     // Receive again -> detail
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(158, 426); pump(3); release(); pump(6);     // Silent payment (testnet)
+  touch(350, 430); pump(3); release(); pump(6);     // SILENT PAYMENT (testnet)
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
   save("/tmp/sim_recv_sp_zoom_tn.ppm");
@@ -1138,8 +1135,8 @@ int main(void) {
   touch(730, 50); pump(3); release(); pump(30);     // ? -> tsp1/tb1p explanation
   save("/tmp/sim_recv_sp_help_tn.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(680, 430); pump(3); release(); pump(6);     // BACK out of the SP view
-  touch(680, 430); pump(3); release(); pump(4);     // BACK
+  touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail
+  touch(680, 430); pump(3); release(); pump(4);     // BACK from detail -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
