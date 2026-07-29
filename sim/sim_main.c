@@ -545,7 +545,14 @@ static void draw_kiss(void)
   touch(540, 140); pump(1); touch(480, 152); pump(1);
   touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1);
-  touch(462, 272); pump(1); release(); pump(4);
+  touch(462, 272); pump(1); release();
+  // 40 frames, not 4. Whichever door this call ends up taking, main.c may hold
+  // it for KISS_OPEN_DELAY_MS so the real wallet and the decoy cannot be told
+  // apart by how fast the screen arrives. At 16ms a frame this is 640ms of
+  // slack over a 500ms wait. Callers that land on the setup wizard or the
+  // amnesic loader open immediately and do not need it; the slack costs them
+  // nothing and stops this helper breaking if a caller changes door.
+  pump(40);
 }
 
 // Type a short prefix on wallet_setup.c's recovery-word keyboard, then choose
@@ -664,7 +671,9 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);  // S
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);  // S
-  pump(16); g_seq_on = 0;                           // hold on the reveal, then stop recording
+  // 45, not 16. The door is held for KISS_OPEN_DELAY_MS now, so 19 frames of
+  // total slack (304ms) stopped short of the reveal this is here to record.
+  pump(45); g_seq_on = 0;                           // hold on the reveal, then stop recording
   save("/tmp/sim_login.ppm");                       // KISS now lands on the passphrase login
 
   // type "abc" on the QWERTY (kb y0=158, 4 rows ~76px: centers 202/278/354/430)
@@ -1361,10 +1370,16 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);
-  // the UNDERLINE the wizard configured, under the word, well inside the 900ms
-  // grace the word now waits out before settling for the spare
+  // the UNDERLINE the wizard configured, under the word, well inside the
+  // KISS_OPEN_DELAY_MS the word waits out before settling for the spare
   for (int i = 0; i <= 30; i++) { touch(152 + i * 13, 336); pump(1); }
-  release(); pump(20);
+  // 45 frames, not 20. The owner's door no longer opens on the lift of the
+  // modifier stroke: main.c holds it for KISS_OPEN_DELAY_MS so it cannot be
+  // told apart from the decoy by how fast the screen arrives. 20 frames is
+  // 320ms, which is inside that wait, so this shot used to catch the menu and
+  // every step after it shifted by one. That surfaces as dozens of overlap
+  // findings on later screens rather than as a failure here, so keep the slack.
+  release(); pump(45);
   save("/tmp/sim_real_login.ppm");                  // passphrase keyboard, NOT a wallet home
   touch(46, 278); pump(3); release(); pump(3);      // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
