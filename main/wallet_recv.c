@@ -279,7 +279,16 @@ static void vfy_result(const char *txt, size_t len) {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_WRONG_NET),
            48, 130, wt_font28(), WT_STOP);
     lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
-    lv_label_set_text(n, tr(STR_R_WRONG_NET_B));
+    // Name both networks. The %s placeholders in STR_R_WRONG_NET_B are
+    // (address_network, wallet_network) so the reader learns what was scanned
+    // and what the device is set to in one sentence. "mainnet" and "testnet"
+    // are Bitcoin proper nouns and stay untranslated; every locale already
+    // uses those two words as English in this file.
+    char buf[256];
+    const char *addr_net = wallet_testnet() ? "mainnet" : "testnet";
+    const char *wall_net = wallet_testnet() ? "testnet" : "mainnet";
+    snprintf(buf, sizeof buf, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
+    lv_label_set_text(n, buf);
   } else {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_INVALID),
            48, 130, wt_font28(), WT_STOP);
