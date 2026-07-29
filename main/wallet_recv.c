@@ -542,14 +542,17 @@ static void recv_detail_open(void) {
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
   // derivation path stays small (reference), the VERIFY instruction does not.
-  // Both sit above the pill row at 404.
-  s_path_lbl = wt_lbl(s_scr, "", 400, 292, wt_font14(), WT_MUT);
-  wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 314, 360, 90);
+  // Both end ON WT_CONTENT_BOTTOM, not merely above the pills: each note is
+  // given the tallest box that still lands its last line clear of the action
+  // row, so a three line translation stays readable instead of losing its
+  // bottom to the bar.
+  s_path_lbl = wt_lbl(s_scr, "", 400, 286, wt_font14(), WT_MUT);
+  wt_note(s_scr, tr(STR_R_VERIFY_NOTE), 400, 308, 360, 90);
   // Standing advice beats a warning the offline signer cannot substantiate.
   // The smaller default QR gives it three lines at font23. The refresh glyph
   // carries the "use another" meaning even when MONO makes accent and ink equal.
-  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 344, wt_font23(), wt_accent());
-  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 315, 308, 87);
+  wt_lbl(s_scr, LV_SYMBOL_REFRESH, 48, 340, wt_font23(), wt_accent());
+  lv_obj_t *one_each = wt_note(s_scr, tr(STR_R_ONE_EACH), 84, 311, 308, 87);
   lv_obj_set_style_text_color(one_each, wt_accent(), 0);
 
   // These pills share a row and share one label size, so a single pill a few

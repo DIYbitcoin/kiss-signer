@@ -373,14 +373,20 @@ static void storage_confirm_screen(int target)
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
 
+    // The tall row: this hold label wraps to two lines in most locales. It used
+    // to be a hand typed 392/66, a third convention beside the 404 everywhere
+    // else and the 398 on the sign screen, and 392 put its top 6px above the
+    // content line where it read as content rather than as a button. CANCEL
+    // takes the tall geometry too, because a row whose pills have different
+    // heights stops looking like a row.
     wt_hold_pill(s_scr,
                  tr(target == WSEED_MODE_AMNESIC
                     ? STR_G_STORAGE_HOLD_AMNESIC
                     : STR_G_STORAGE_HOLD_MOVE),
-                 48, 392, 330, 66, 1500, storage_apply,
+                 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL, 1500, storage_apply,
                  (void *)(intptr_t)target);
-    lv_obj_t *cancel = wt_pill(s_scr, tr(STR_C_CANCEL), 585, WT_ACTION_Y, 165,
-                               storage_confirm_cancel_cb, NULL);
+    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), 585, WT_ACTION_Y_TALL, 165,
+                                WT_ACTION_H_TALL, storage_confirm_cancel_cb, NULL);
     lv_obj_set_ext_click_area(cancel, 10);
 }
 
@@ -411,7 +417,14 @@ static void storage_chooser_screen(void)
     static const int modes[3] = {
         WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
     };
-    static const int py[3] = {110, 218, 326};
+    // 107px apart, not 108, and starting at 106 rather than 110. Each note is
+    // given three lines at font23 (87px) and each sits 10px above its pill, so
+    // the first note lands exactly on the y=96 content line and the third ends
+    // at 396. At 110 the third ran to 402 and the languages that actually need
+    // the third line, Turkish, Portuguese and Russian, were the ones that lost
+    // it: the mode that keeps nothing on the device explaining itself in two
+    // lines instead of three.
+    static const int py[3] = {106, 213, 320};
     for (int i = 0; i < 3; i++) {
         int mode = modes[i];
         lv_obj_t *p = wt_pillh(s_scr, storage_mode_name(mode),
@@ -880,28 +893,44 @@ void wallet_settings_open(lv_obj_t *parent)
     lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_pos(s_acc_name, 430, 39);       // centred on the 36px dot row
 
-    // LEFT: network + address type. The captions are small on purpose; the
-    // vertical budget they give back is what lets every note under a chooser
-    // render at a readable size instead of falling to font14.
-    mk_section(tr(STR_I_SEC_NET), 48, 74);
-    s_main_pill = mk_pillh("MAINNET", 48, 94, 340, 44, pick_cb, (void *)(intptr_t)0);
-    s_test_pill = mk_pillh("TESTNET", 48, 142, 340, 44, pick_cb, (void *)(intptr_t)1);
-    s_state_lbl = wt_note(s_scr, "", 48, 188, 340, NET_NOTE_H);  // filled by restyle()
+    // LEFT: network + address type + ways in. The captions are small on
+    // purpose; the vertical budget they give back is what lets every note under
+    // a chooser render at a readable size instead of falling to font14.
+    //
+    // Five controls in the 74..WT_CONTENT_BOTTOM band, which is 324px. Stacked
+    // the way they were, the last one ran to y=452 and WAYS IN was sliced in
+    // half by the action row -- reported by sim/overlapcheck.c in all 21
+    // locales, and visible on the device as a caption with its bottom missing.
+    // Two things pay for the 54px that buys back:
+    //
+    // MAINNET and TESTNET share ONE row instead of stacking. They are two
+    // values of one setting, and side by side is what that looks like; stacked
+    // they read as two separate buttons, which is also why the selected one
+    // needed a 2px border to say which was live. Both words are untranslated,
+    // so 165px is generous for either at font23 in every locale.
+    //
+    // And the column starts at 68 rather than 74. This screen passes NULL for
+    // the subtitle, so the y=96 content line the others build against does not
+    // apply: the title's own box ends at 63.
+    mk_section(tr(STR_I_SEC_NET), 48, 68);
+    s_main_pill = mk_pillh("MAINNET", 48, 88, 165, 44, pick_cb, (void *)(intptr_t)0);
+    s_test_pill = mk_pillh("TESTNET", 223, 88, 165, 44, pick_cb, (void *)(intptr_t)1);
+    s_state_lbl = wt_note(s_scr, "", 48, 136, 340, NET_NOTE_H);  // filled by restyle()
 
     // The main page shows the selected type as one normal-size row. Tapping it
     // opens a dedicated full-width chooser where all three names and their
     // explanations fit at 23px.
-    mk_section(tr(STR_I_SEC_TYPE), 48, 250);   // 4px below the note at 188+58
+    mk_section(tr(STR_I_SEC_TYPE), 48, 198);   // 4px below the note at 136+58
     // 72 tall, not 60: the example address is the second line and it is now a
     // readable 23 rather than a 14px footnote on its own button. 72 is the
     // smallest height that still leaves the type NAME at 23 above it.
-    s_type_pill = mk_pillh(type_name(wallet_script()), 48, 274, 340, 72,
+    s_type_pill = mk_pillh(type_name(wallet_script()), 48, 218, 340, 72,
                            type_open_cb, NULL);
     wt_pill_two_line_val(s_type_pill,
                          type_prefix(wallet_script(), wallet_testnet()));
     s_type_pfx = lv_obj_get_child(s_type_pill, 1);
     s_type_expl = wt_note(s_scr, type_note(wallet_script()),
-                          48, 352, 340, TYPE_NOTE_H);
+                          48, 293, 340, TYPE_NOTE_H);
     // Duress unlock (wallet_duress.h). ABSENT in a decoy session, not greyed
     // out: a disabled "ways in" row would tell whoever is holding the device
     // that a second signer exists, which is the one thing this must never do.
@@ -925,11 +954,16 @@ void wallet_settings_open(lv_obj_t *parent)
     // hear a touch, because the decoy skipped the login screen and the login
     // screen was the only thing that created the LVGL indev (main.c,
     // wallet_start). Removing this changed nothing, which is what proved it.
+    //
+    // 326 + 72 lands the bottom edge on 397, one pixel clear of the action row.
+    // That is the whole reason the four rows above it moved: this is the last
+    // thing in the column and it is a 72px two-line pill, so everything else
+    // had to fit in what was left rather than the other way round.
     const int g = wallet_duress_real();
     if (wallet_session_decoy() && g != WDG_NONE) {
-        wt_note(s_scr, tr(STR_G_SEPARATE), 48, 386, 340, 58);
+        wt_note(s_scr, tr(STR_G_SEPARATE), 48, 326, 340, 58);
     } else {
-        lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 380, 340, 72, duress_cb, NULL);
+        lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 326, 340, 72, duress_cb, NULL);
         wt_pill_two_line_val(dp, g == WDG_NONE ? tr(STR_GD_OFF)
                                                : tr(wallet_duress_label_key(g)));
     }
