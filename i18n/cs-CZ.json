@@ -329,7 +329,7 @@
   "S_FILES_HINT": "nejprve nepodepsané, pak A-Z. podepsané jsou označeny.",
   "S_FILE_UNSIGNED": "NEPODEPSÁNO",
   "S_GLOSSARY_T": "JEDNODUCHÁ VYSVĚTLENÍ",
-  "S_GLOSSARY_B": "VSTUPY: mince utracené touto transakcí.\nVÝSTUPY: všechna místa, kam transakce posílá bitcoin.\nDROBNÉ: část vrácená na adresu, kterou KISS ověřil jako vaši.\nTXID: identifikátor pro sledování po odeslání.\nSAZBA POPLATKU: poplatek za jednotku velikosti transakce.\nLOCKTIME: nejdřívější blok, kdy může být potvrzena.\nODVOZOVACÍ CESTA: standardní větev k nalezení klíče.\nDESKRIPTOR: mapa jen pro čtení, sleduje a hledá adresy, ale nemůže utrácet.",
+  "S_GLOSSARY_B": "VSTUPY: mince utracené touto transakcí.\nVÝSTUPY: všechna místa, kam transakce posílá bitcoin.\nDROBNÉ: část vrácená na vaši ověřenou adresu.\nTXID: identifikátor pro sledování po odeslání.\nSAZBA POPLATKU: poplatek za jednotku velikosti.\nLOCKTIME: nejdřívější blok, kdy může být potvrzena.\nODVOZOVACÍ CESTA: standardní větev ke klíči.\nDESKRIPTOR: mapa adres jen pro čtení, neutrácí.",
   "R_NOT_FOUND_FMT": "NENÍ MEZI PRVNÍMI %u ADRESAMI",
   "R_NOT_FOUND_B": "platná pro tuto síť, ale není mezi prvními 100 kontrolovanými adresami příjmu nebo drobných. výsledek není konečný.",
   "R_WRONG_NET": "JINÁ SÍŤ",

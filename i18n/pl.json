@@ -329,7 +329,7 @@
   "S_FILES_HINT": "najpierw niepodpisane, potem A-Z. podpisane są oznaczone.",
   "S_FILE_UNSIGNED": "NIEPODPISANY",
   "S_GLOSSARY_T": "PROSTE WYJAŚNIENIA",
-  "S_GLOSSARY_B": "WEJŚCIA: monety wydawane przez tę transakcję.\nWYJŚCIA: wszystkie miejsca, do których trafia bitcoin.\nRESZTA: część wracająca na adres zweryfikowany przez KISS jako twój.\nTXID: identyfikator do śledzenia po rozgłoszeniu.\nSTAWKA OPŁATY: opłata za jednostkę rozmiaru transakcji.\nLOCKTIME: najwcześniejszy blok, w którym może się potwierdzić.\nŚCIEŻKA POCHODZENIA: standardowa gałąź do znalezienia klucza.\nDESKRYPTOR: mapa tylko do odczytu, pozwala obserwować i znajdować adresy, ale nie wydawać.",
+  "S_GLOSSARY_B": "WEJŚCIA: monety wydawane przez tę transakcję.\nWYJŚCIA: wszystkie miejsca, do których trafia bitcoin.\nRESZTA: część wracająca na twój zweryfikowany adres.\nTXID: identyfikator do śledzenia po rozgłoszeniu.\nSTAWKA OPŁATY: opłata za jednostkę rozmiaru.\nLOCKTIME: najwcześniejszy blok potwierdzenia.\nŚCIEŻKA POCHODZENIA: standardowa gałąź do klucza.\nDESKRYPTOR: mapa adresów tylko do odczytu, nie wydaje.",
   "R_NOT_FOUND_FMT": "BRAK W PIERWSZYCH %u ADRESACH",
   "R_NOT_FOUND_B": "poprawny dla tej sieci, ale nie ma go w pierwszych 100 sprawdzonych adresach odbioru lub reszty. to nie jest rozstrzygające.",
   "R_WRONG_NET": "ZŁA SIEĆ",
