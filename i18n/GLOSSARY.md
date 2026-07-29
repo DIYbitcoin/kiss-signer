@@ -11,22 +11,22 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   sentence**. The mnemonic sentence and optional passphrase are processed to
   produce a 64-byte binary **seed**. They are related, but they are not the
   same object.
-- User-facing screens should call the words **recovery words**, **recovery
-  phrase**, **wallet backup**, or the established native equivalent. It is
-  useful to introduce **seed phrase** once as a common alias, but do not use
-  `seed` as an exact replacement for the words.
-- **One deliberate exception**, decided by the project owner: the screens that
-  create, replace or destroy the stored words name the **seed**. That is
-  `CREATE SEED` / `RESTORE SEED` on the setup choice (`W_CREATE_NEW`,
-  `W_RESTORE_FROM_WORDS`), and `CREATE NEW SEED` / `ERASE SEED` /
-  `ERASE THE SEED?` / `SEED ERASED` in Settings (`G_CREATE_NEW`,
-  `G_CREATE_NOTE`, `G_WIPE`, `G_WIPEC_T`, `G_ERASED_T`). Those screens ask
-  which of two paths the owner is taking, and `seed` is the word people arrive
-  already knowing. The precision is carried by `WHAT IS A SEED?` next to it
-  (`W_WHATSEED_*`), which names the BIP39 mnemonic, says the words plus the
-  passphrase are what make the wallet, and says a compatible BIP39 signer can
-  rebuild it. Everywhere the words are shown, checked or backed up, **recovery
-  words** stays.
+- Two terms, each with a job. **seed phrase** is the technical term. Use it on
+  the setup chooser and in the `W_WHATSEED_*` explainer where BIP39 is
+  introduced: it is the word other software calls the same object, so an owner
+  who ends up recovering elsewhere meets a word they have already seen here.
+  **recovery words** is the plain-language term. Use it everywhere else on the
+  device, in `docs/`, in the walkthrough, and on the site.
+- **Never the bare word "seed"** on its own in a user-facing string. It is
+  fine in code, comments and filenames, where `kiss-seed.enc` and
+  `wallet_seed.c` already use it.
+- One interim exception, tracked and not permanent: the Settings destroy
+  family still says bare `SEED` in `G_CREATE_NEW`, `G_CREATE_NOTE`, `G_WIPE`,
+  `G_WIPEC_T`, `G_ERASED_T`. Those strings are safety copy that has already
+  been through review in 21 locales, and the SWEEP-02 pass that introduced this
+  rule was scoped to the setup chooser. Those five strings inherit the rule
+  as they get their next careful pass; do not touch them alongside unrelated
+  work.
 - The destroy family in particular must NOT say wallet. Erasing this device
   does not erase the wallet: the coins stay on chain, a paired coordinator
   still shows them, and the owner's paper plus passphrase still restore them.

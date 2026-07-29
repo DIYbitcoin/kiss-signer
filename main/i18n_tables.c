@@ -356,7 +356,6 @@ static const char *const tbl_en[STR_N] = {
     [STR_S_FLOW_1] = "COORDINATOR WATCHES + CREATES THE PSBT",
     [STR_S_FLOW_2] = "KISS CHECKS + SIGNS THE PSBT",
     [STR_S_FLOW_3] = "COORDINATOR BROADCASTS THE TRANSACTION",
-    [STR_W_WHATSEED_BTN] = "WHAT IS A SEED?",
     [STR_W_WHATSEED_T] = "YOUR SEED PHRASE",
     [STR_W_WHATSEED_S] = "12 or 24 ordered words, called a BIP39 mnemonic",
     [STR_W_WHATSEED_B] = "those words plus your passphrase are what make your wallet. not this device.\n\nwrite both down and any compatible BIP39 signer or wallet app can rebuild it, even if this device is lost.\n\nthe words alone rebuild a different wallet: the one with no passphrase.",
@@ -422,6 +421,8 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "the wallet file on this card is damaged, changed, or belongs to another device.\n\nuse the correct card or restore from your recovery words.",
     [STR_W_SD_IO_B] = "the SD card could not be read.\n\nreinsert it and try again, or restore from your recovery words.",
     [STR_S_CMP_8] = "compare these 8",
+    [STR_W_CHOOSE_NEW] = "CREATE A NEW WALLET",
+    [STR_W_CHOOSE_RESTORE] = "RESTORE FROM A SEED PHRASE",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -779,7 +780,6 @@ static const char *const tbl_de[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINATOR BAUT DIE PSBT",
     [STR_S_FLOW_2] = "KISS PRÜFT UND SIGNIERT DIE PSBT",
     [STR_S_FLOW_3] = "KOORDINATOR SENDET DIE TRANSAKTION",
-    [STR_W_WHATSEED_BTN] = "WAS IST EIN SEED?",
     [STR_W_WHATSEED_T] = "DEINE SEED-PHRASE",
     [STR_W_WHATSEED_S] = "12 oder 24 Wörter in fester Reihenfolge, ein BIP39-Mnemonic",
     [STR_W_WHATSEED_B] = "diese Wörter und deine Passphrase ergeben deine Wallet. nicht dieses Gerät.\n\nschreib beides auf, dann kann jeder kompatible BIP39-Signer sie neu aufbauen, auch wenn dieses Gerät verloren geht.\n\ndie Wörter allein bauen eine andere Wallet auf: die ohne Passphrase.",
@@ -845,6 +845,8 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "die Wallet-Datei auf dieser Karte ist beschädigt, verändert oder gehört zu einem anderen Gerät.\n\nnutze die richtige Karte oder stelle sie aus deinen Wörtern wieder her.",
     [STR_W_SD_IO_B] = "die SD-Karte konnte nicht gelesen werden.\n\nlege sie erneut ein und versuche es noch einmal, oder stelle sie aus deinen Wörtern wieder her.",
     [STR_S_CMP_8] = "diese 8 vergleichen",
+    [STR_W_CHOOSE_NEW] = "NEUE WALLET ERSTELLEN",
+    [STR_W_CHOOSE_RESTORE] = "AUS SEED-PHRASE WIEDERHERSTELLEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1202,7 +1204,6 @@ static const char *const tbl_es[STR_N] = {
     [STR_S_FLOW_1] = "EL COORDINADOR OBSERVA Y CREA EL PSBT",
     [STR_S_FLOW_2] = "KISS REVISA Y FIRMA EL PSBT",
     [STR_S_FLOW_3] = "EL COORDINADOR DIFUNDE LA TRANSACCIÓN",
-    [STR_W_WHATSEED_BTN] = "¿QUÉ ES UNA SEED?",
     [STR_W_WHATSEED_T] = "TU FRASE DE RECUPERACIÓN",
     [STR_W_WHATSEED_S] = "12 o 24 palabras en orden, un mnemónico BIP39",
     [STR_W_WHATSEED_B] = "esas palabras y tu passphrase son lo que forma tu billetera. no este aparato.\n\nanota las dos cosas y cualquier signer BIP39 compatible puede reconstruirla, aunque este aparato se pierda.\n\nlas palabras solas reconstruyen otra billetera: la que no lleva passphrase.",
@@ -1268,6 +1269,8 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "el archivo de billetera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
     [STR_S_CMP_8] = "compara estos 8",
+    [STR_W_CHOOSE_NEW] = "CREAR UNA CARTERA NUEVA",
+    [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -1625,7 +1628,6 @@ static const char *const tbl_fr[STR_N] = {
     [STR_S_FLOW_1] = "LE COORDINATEUR OBSERVE ET CRÉE LE PSBT",
     [STR_S_FLOW_2] = "KISS VÉRIFIE ET SIGNE LE PSBT",
     [STR_S_FLOW_3] = "LE COORDINATEUR DIFFUSE LA TRANSACTION",
-    [STR_W_WHATSEED_BTN] = "QU'EST-CE QU'UNE SEED ?",
     [STR_W_WHATSEED_T] = "VOTRE PHRASE DE RÉCUPÉRATION",
     [STR_W_WHATSEED_S] = "12 ou 24 mots ordonnés, appelés mnémonique BIP39",
     [STR_W_WHATSEED_B] = "ces mots et votre phrase secrète sont ce qui fait votre portefeuille. pas cet appareil.\n\nnotez les deux et tout signataire BIP39 compatible pourra le reconstruire, même si cet appareil est perdu.\n\nles mots seuls reconstruisent un autre portefeuille : celui sans phrase secrète.",
@@ -1691,6 +1693,8 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "le fichier de portefeuille sur cette carte est endommagé, modifié ou appartient à un autre appareil.\n\nutilisez la bonne carte ou restaurez avec vos mots.",
     [STR_W_SD_IO_B] = "la carte SD n'a pas pu être lue.\n\nréinsérez-la et réessayez, ou restaurez avec vos mots.",
     [STR_S_CMP_8] = "comparer ces 8",
+    [STR_W_CHOOSE_NEW] = "CRÉER UN NOUVEAU PORTEFEUILLE",
+    [STR_W_CHOOSE_RESTORE] = "RESTAURER DEPUIS UNE PHRASE DE RÉCUPÉRATION",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2048,7 +2052,6 @@ static const char *const tbl_it[STR_N] = {
     [STR_S_FLOW_1] = "IL COORDINATORE OSSERVA E CREA IL PSBT",
     [STR_S_FLOW_2] = "KISS CONTROLLA E FIRMA IL PSBT",
     [STR_S_FLOW_3] = "IL COORDINATORE TRASMETTE",
-    [STR_W_WHATSEED_BTN] = "COS'È UN SEED?",
     [STR_W_WHATSEED_T] = "LA TUA FRASE DI RECUPERO",
     [STR_W_WHATSEED_S] = "12 o 24 parole in ordine, dette mnemonic BIP39",
     [STR_W_WHATSEED_B] = "quelle parole e la tua passphrase sono ciò che fa il tuo wallet. non questo dispositivo.\n\nannota entrambe e qualsiasi signer BIP39 compatibile potrà ricostruirlo, anche se questo dispositivo va perso.\n\nle parole da sole ricostruiscono un altro wallet: quello senza passphrase.",
@@ -2114,6 +2117,8 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "il file del portafoglio su questa scheda è danneggiato, modificato o appartiene a un altro dispositivo.\n\nusa la scheda corretta o ripristina dalle tue parole.",
     [STR_W_SD_IO_B] = "non è stato possibile leggere la scheda SD.\n\nreinseriscila e riprova, oppure ripristina dalle tue parole.",
     [STR_S_CMP_8] = "confronta questi 8",
+    [STR_W_CHOOSE_NEW] = "CREA UN NUOVO PORTAFOGLIO",
+    [STR_W_CHOOSE_RESTORE] = "RIPRISTINA DA UNA FRASE DI RECUPERO",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -2471,7 +2476,6 @@ static const char *const tbl_ja[STR_N] = {
     [STR_S_FLOW_1] = "コーディネーターが監視しPSBTを作る",
     [STR_S_FLOW_2] = "KISSが確認してPSBTに署名する",
     [STR_S_FLOW_3] = "コーディネーターが取引を送信する",
-    [STR_W_WHATSEED_BTN] = "シードとは？",
     [STR_W_WHATSEED_T] = "あなたのリカバリーフレーズ",
     [STR_W_WHATSEED_S] = "順番の決まった12または24の単語、BIP39ニーモニックです",
     [STR_W_WHATSEED_B] = "その単語とパスフレーズが、あなたのウォレットそのものです。この端末ではありません。\n\n両方を書き残せば、対応するBIP39サイナーで作り直せます。この端末をなくしても大丈夫です。\n\n単語だけでは別のウォレット、つまりパスフレーズなしのものになります。",
@@ -2537,6 +2541,8 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "このカードのウォレットファイルは破損、変更されているか、別の端末のものです。\n\n正しいカードを使うか、リカバリーフレーズから復元してください。",
     [STR_W_SD_IO_B] = "SDカードを読み取れませんでした。\n\n挿し直して再試行するか、リカバリーフレーズから復元してください。",
     [STR_S_CMP_8] = "この 8 文字を照合",
+    [STR_W_CHOOSE_NEW] = "新しいウォレットを作成",
+    [STR_W_CHOOSE_RESTORE] = "リカバリーフレーズから復元",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -2894,7 +2900,6 @@ static const char *const tbl_ko[STR_N] = {
     [STR_S_FLOW_1] = "코디네이터가 보고 PSBT를 만든다",
     [STR_S_FLOW_2] = "KISS가 확인하고 PSBT에 서명한다",
     [STR_S_FLOW_3] = "코디네이터가 거래를 전파한다",
-    [STR_W_WHATSEED_BTN] = "시드란?",
     [STR_W_WHATSEED_T] = "복구 문구",
     [STR_W_WHATSEED_S] = "순서가 있는 12개 또는 24개 단어, BIP39 니모닉입니다",
     [STR_W_WHATSEED_B] = "그 단어와 패스프레이즈가 바로 당신의 지갑입니다. 이 기기가 아닙니다.\n\n둘 다 적어 두면 호환되는 BIP39 사이너로 다시 만들 수 있습니다. 이 기기를 잃어버려도 됩니다.\n\n단어만으로는 다른 지갑, 즉 패스프레이즈가 없는 지갑이 됩니다.",
@@ -2960,6 +2965,8 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "이 카드의 지갑 파일이 손상 또는 변경되었거나 다른 기기의 파일입니다.\n\n올바른 카드를 사용하거나 복구 문구로 복원하세요.",
     [STR_W_SD_IO_B] = "SD 카드를 읽지 못했습니다.\n\n다시 삽입해 시도하거나 복구 문구로 복원하세요.",
     [STR_S_CMP_8] = "이 8자 대조",
+    [STR_W_CHOOSE_NEW] = "새 지갑 만들기",
+    [STR_W_CHOOSE_RESTORE] = "복구 문구로 복원",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -3317,7 +3324,6 @@ static const char *const tbl_nl[STR_N] = {
     [STR_S_FLOW_1] = "COÖRDINATOR KIJKT MEE EN MAAKT DE PSBT",
     [STR_S_FLOW_2] = "KISS CONTROLEERT EN TEKENT DE PSBT",
     [STR_S_FLOW_3] = "COÖRDINATOR ZENDT DE TRANSACTIE UIT",
-    [STR_W_WHATSEED_BTN] = "WAT IS EEN SEED?",
     [STR_W_WHATSEED_T] = "JE HERSTELZIN",
     [STR_W_WHATSEED_S] = "12 of 24 woorden op volgorde, een BIP39-mnemonic",
     [STR_W_WHATSEED_B] = "die woorden en je passphrase vormen samen je wallet. niet dit apparaat.\n\nschrijf beide op, dan kan elke compatibele BIP39-signer hem terugbouwen, ook als dit apparaat verloren gaat.\n\nde woorden alleen bouwen een andere wallet: die zonder passphrase.",
@@ -3383,6 +3389,8 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "het walletbestand op deze kaart is beschadigd, gewijzigd of hoort bij een ander apparaat.\n\ngebruik de juiste kaart of herstel met je woorden.",
     [STR_W_SD_IO_B] = "de SD-kaart kon niet worden gelezen.\n\nplaats hem opnieuw en probeer het nogmaals, of herstel met je woorden.",
     [STR_S_CMP_8] = "vergelijk deze 8",
+    [STR_W_CHOOSE_NEW] = "NIEUWE PORTEMONNEE MAKEN",
+    [STR_W_CHOOSE_RESTORE] = "HERSTELLEN VAN EEN HERSTELZIN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -3740,7 +3748,6 @@ static const char *const tbl_pl[STR_N] = {
     [STR_S_FLOW_1] = "KOORDYNATOR OBSERWUJE I TWORZY PSBT",
     [STR_S_FLOW_2] = "KISS SPRAWDZA I PODPISUJE PSBT",
     [STR_S_FLOW_3] = "KOORDYNATOR ROZGŁASZA TRANSAKCJĘ",
-    [STR_W_WHATSEED_BTN] = "CZYM JEST SEED?",
     [STR_W_WHATSEED_T] = "TWOJA FRAZA ODZYSKIWANIA",
     [STR_W_WHATSEED_S] = "12 lub 24 słowa w kolejności, czyli mnemonik BIP39",
     [STR_W_WHATSEED_B] = "te słowa i twoja fraza dostępu tworzą twój portfel. nie to urządzenie.\n\nzapisz jedno i drugie, a każdy zgodny signer BIP39 odtworzy portfel, nawet gdy to urządzenie przepadnie.\n\nsame słowa odtworzą inny portfel: ten bez frazy dostępu.",
@@ -3806,6 +3813,8 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "plik portfela na tej karcie jest uszkodzony, zmieniony lub należy do innego urządzenia.\n\nużyj właściwej karty lub przywróć portfel ze swoich słów.",
     [STR_W_SD_IO_B] = "nie można odczytać karty SD.\n\nwłóż ją ponownie i spróbuj jeszcze raz albo przywróć portfel ze swoich słów.",
     [STR_S_CMP_8] = "porównaj te 8",
+    [STR_W_CHOOSE_NEW] = "UTWÓRZ NOWY PORTFEL",
+    [STR_W_CHOOSE_RESTORE] = "PRZYWRÓĆ Z FRAZY ODZYSKIWANIA",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -4163,7 +4172,6 @@ static const char *const tbl_pt[STR_N] = {
     [STR_S_FLOW_1] = "O COORDENADOR OBSERVA E CRIA O PSBT",
     [STR_S_FLOW_2] = "O KISS CONFERE E ASSINA O PSBT",
     [STR_S_FLOW_3] = "O COORDENADOR TRANSMITE A TRANSAÇÃO",
-    [STR_W_WHATSEED_BTN] = "O QUE É UMA SEED?",
     [STR_W_WHATSEED_T] = "SUA FRASE DE RECUPERAÇÃO",
     [STR_W_WHATSEED_S] = "12 ou 24 palavras em ordem, um mnemônico BIP39",
     [STR_W_WHATSEED_B] = "essas palavras e sua passphrase são o que formam sua carteira. não este aparelho.\n\nanote as duas coisas e qualquer signer BIP39 compatível consegue reconstruí-la, mesmo se este aparelho se perder.\n\nas palavras sozinhas reconstroem outra carteira: a que não tem passphrase.",
@@ -4229,6 +4237,8 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "o arquivo da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com suas palavras.",
     [STR_W_SD_IO_B] = "o cartão SD não pôde ser lido.\n\nreinsira-o e tente novamente, ou restaure com suas palavras.",
     [STR_S_CMP_8] = "compare estes 8",
+    [STR_W_CHOOSE_NEW] = "CRIAR UMA NOVA CARTEIRA",
+    [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -4586,7 +4596,6 @@ static const char *const tbl_ru[STR_N] = {
     [STR_S_FLOW_1] = "КООРДИНАТОР СМОТРИТ И СОБИРАЕТ PSBT",
     [STR_S_FLOW_2] = "KISS ПРОВЕРЯЕТ И ПОДПИСЫВАЕТ PSBT",
     [STR_S_FLOW_3] = "КООРДИНАТОР РАССЫЛАЕТ ТРАНЗАКЦИЮ",
-    [STR_W_WHATSEED_BTN] = "ЧТО ТАКОЕ SEED?",
     [STR_W_WHATSEED_T] = "ВАША ФРАЗА ВОССТАНОВЛЕНИЯ",
     [STR_W_WHATSEED_S] = "12 или 24 слова по порядку, мнемоника BIP39",
     [STR_W_WHATSEED_B] = "эти слова и ваша кодовая фраза и есть ваш кошелёк. не это устройство.\n\nзапишите и то, и другое: любой совместимый signer BIP39 восстановит его, даже если устройство потеряется.\n\nодни слова восстановят другой кошелёк: тот, у которого нет кодовой фразы.",
@@ -4652,6 +4661,8 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "файл кошелька на этой карте поврежден, изменен или принадлежит другому устройству.\n\nиспользуйте правильную карту или восстановите кошелек по своим словам.",
     [STR_W_SD_IO_B] = "SD-карту не удалось прочитать.\n\nвставьте ее заново и повторите попытку или восстановите кошелек по своим словам.",
     [STR_S_CMP_8] = "сверьте эти 8",
+    [STR_W_CHOOSE_NEW] = "СОЗДАТЬ НОВЫЙ КОШЕЛЁК",
+    [STR_W_CHOOSE_RESTORE] = "ВОССТАНОВИТЬ ИЗ ФРАЗЫ ВОССТАНОВЛЕНИЯ",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -5009,7 +5020,6 @@ static const char *const tbl_tr[STR_N] = {
     [STR_S_FLOW_1] = "KOORDİNATÖR İZLER VE PSBT OLUŞTURUR",
     [STR_S_FLOW_2] = "KISS KONTROL EDER VE PSBT İMZALAR",
     [STR_S_FLOW_3] = "KOORDİNATÖR İŞLEMİ YAYINLAR",
-    [STR_W_WHATSEED_BTN] = "SEED NEDIR?",
     [STR_W_WHATSEED_T] = "KURTARMA CÜMLENIZ",
     [STR_W_WHATSEED_S] = "sırayla 12 ya da 24 kelime, yani BIP39 anımsatıcısı",
     [STR_W_WHATSEED_B] = "cüzdanınızı oluşturan şey bu kelimeler ve Passphrase'iniz. bu cihaz değil.\n\nikisini de yazın; uyumlu her BIP39 signer cüzdanı yeniden kurabilir, bu cihaz kaybolsa bile.\n\nkelimeler tek başına başka bir cüzdan kurar: Passphrase'i olmayanı.",
@@ -5075,6 +5085,8 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "bu karttaki cüzdan dosyası hasarlı, değiştirilmiş veya başka bir cihaza ait.\n\ndoğru kartı kullan veya kelimelerinden geri yükle.",
     [STR_W_SD_IO_B] = "SD kart okunamadı.\n\nkartı yeniden takıp dene veya kelimelerinden geri yükle.",
     [STR_S_CMP_8] = "bu 8'i karşılaştır",
+    [STR_W_CHOOSE_NEW] = "YENİ CÜZDAN OLUŞTUR",
+    [STR_W_CHOOSE_RESTORE] = "KURTARMA CÜMLESİNDEN GERİ YÜKLE",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -5432,7 +5444,6 @@ static const char *const tbl_vi[STR_N] = {
     [STR_S_FLOW_1] = "APP ĐIỀU PHỐI THEO DÕI VÀ TẠO PSBT",
     [STR_S_FLOW_2] = "KISS KIỂM TRA VÀ KÝ PSBT",
     [STR_S_FLOW_3] = "APP ĐIỀU PHỐI PHÁT GIAO DỊCH",
-    [STR_W_WHATSEED_BTN] = "SEED LÀ GÌ?",
     [STR_W_WHATSEED_T] = "CỤM TỪ KHÔI PHỤC CỦA BẠN",
     [STR_W_WHATSEED_S] = "12 hoặc 24 từ theo thứ tự, gọi là mnemonic BIP39",
     [STR_W_WHATSEED_B] = "những từ đó cùng cụm mật khẩu của bạn mới là ví. không phải thiết bị này.\n\nchép lại cả hai thì bất kỳ signer BIP39 tương thích nào cũng dựng lại được ví, dù thiết bị này có mất.\n\nchỉ riêng các từ sẽ dựng lại một ví khác: ví không có cụm mật khẩu.",
@@ -5498,6 +5509,8 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "tệp ví trên thẻ này bị hỏng, bị thay đổi hoặc thuộc về thiết bị khác.\n\nhãy dùng đúng thẻ hoặc khôi phục bằng cụm từ của bạn.",
     [STR_W_SD_IO_B] = "không thể đọc thẻ SD.\n\nhãy lắp lại rồi thử, hoặc khôi phục bằng cụm từ của bạn.",
     [STR_S_CMP_8] = "so sánh 8 ký tự này",
+    [STR_W_CHOOSE_NEW] = "TẠO VÍ MỚI",
+    [STR_W_CHOOSE_RESTORE] = "KHÔI PHỤC TỪ CỤM TỪ KHÔI PHỤC",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -5855,7 +5868,6 @@ static const char *const tbl_zh[STR_N] = {
     [STR_S_FLOW_1] = "协调器观察并创建 PSBT",
     [STR_S_FLOW_2] = "KISS 检查并签署 PSBT",
     [STR_S_FLOW_3] = "协调器广播这笔交易",
-    [STR_W_WHATSEED_BTN] = "什么是种子？",
     [STR_W_WHATSEED_T] = "你的助记词",
     [STR_W_WHATSEED_S] = "按顺序排列的12或24个单词，也就是BIP39助记词",
     [STR_W_WHATSEED_B] = "这些单词加上你的密码短语，才是你的钱包。不是这台设备。\n\n两样都抄下来，任何兼容的BIP39签名器都能把钱包重建出来，就算这台设备丢了也一样。\n\n只有单词，重建出来的是另一个钱包：没有密码短语的那一个。",
@@ -5921,6 +5933,8 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "卡上的钱包文件已损坏、被更改或属于其他设备。\n\n请使用正确的卡或通过助记词恢复。",
     [STR_W_SD_IO_B] = "无法读取 SD 卡。\n\n请重新插入并重试，或通过助记词恢复。",
     [STR_S_CMP_8] = "对比这 8 个字",
+    [STR_W_CHOOSE_NEW] = "创建新钱包",
+    [STR_W_CHOOSE_RESTORE] = "从助记词恢复",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -6278,7 +6292,6 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_S_FLOW_1] = "EL COORDINADOR OBSERVA Y CREA EL PSBT",
     [STR_S_FLOW_2] = "KISS REVISA Y FIRMA EL PSBT",
     [STR_S_FLOW_3] = "EL COORDINADOR DIFUNDE LA TRANSACCIÓN",
-    [STR_W_WHATSEED_BTN] = "¿QUÉ ES UNA SEED?",
     [STR_W_WHATSEED_T] = "TU FRASE DE RECUPERACIÓN",
     [STR_W_WHATSEED_S] = "12 o 24 palabras en orden, un mnemónico BIP39",
     [STR_W_WHATSEED_B] = "esas palabras y tu passphrase son lo que forma tu cartera. no este aparato.\n\napunta las dos cosas y cualquier signer BIP39 compatible puede reconstruirla, aunque este aparato se pierda.\n\nlas palabras solas reconstruyen otra cartera: la que no lleva passphrase.",
@@ -6344,6 +6357,8 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "el archivo de cartera de esta tarjeta está dañado, modificado o pertenece a otro dispositivo.\n\nusa la tarjeta correcta o restaura desde tus palabras.",
     [STR_W_SD_IO_B] = "no se pudo leer la tarjeta SD.\n\nvuelve a insertarla e inténtalo, o restaura desde tus palabras.",
     [STR_S_CMP_8] = "compara estos 8",
+    [STR_W_CHOOSE_NEW] = "CREAR UNA CARTERA NUEVA",
+    [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UNA FRASE DE RECUPERACIÓN",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -6701,7 +6716,6 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_S_FLOW_1] = "O COORDENADOR OBSERVA E CRIA O PSBT",
     [STR_S_FLOW_2] = "O KISS CONFERE E ASSINA O PSBT",
     [STR_S_FLOW_3] = "O COORDENADOR TRANSMITE A TRANSAÇÃO",
-    [STR_W_WHATSEED_BTN] = "O QUE É UMA SEED?",
     [STR_W_WHATSEED_T] = "A SUA FRASE DE RECUPERAÇÃO",
     [STR_W_WHATSEED_S] = "12 ou 24 palavras por ordem, um mnemónico BIP39",
     [STR_W_WHATSEED_B] = "essas palavras e a sua passphrase são o que forma a carteira. não este aparelho.\n\nanote as duas coisas e qualquer signer BIP39 compatível consegue reconstruí-la, mesmo que este aparelho se perca.\n\nas palavras sozinhas reconstroem outra carteira: a que não tem passphrase.",
@@ -6767,6 +6781,8 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "o ficheiro da carteira neste cartão está danificado, alterado ou pertence a outro dispositivo.\n\nuse o cartão correto ou restaure com as suas palavras.",
     [STR_W_SD_IO_B] = "não foi possível ler o cartão SD.\n\nvolte a introduzi-lo e tente novamente, ou restaure com as suas palavras.",
     [STR_S_CMP_8] = "compare estes 8",
+    [STR_W_CHOOSE_NEW] = "CRIAR UMA NOVA CARTEIRA",
+    [STR_W_CHOOSE_RESTORE] = "RESTAURAR DE UMA FRASE DE RECUPERAÇÃO",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -7124,7 +7140,6 @@ static const char *const tbl_nb[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINATOR FØLGER MED OG LAGER PSBT",
     [STR_S_FLOW_2] = "KISS SJEKKER OG SIGNERER PSBT",
     [STR_S_FLOW_3] = "KOORDINATOR KRINGKASTER TRANSAKSJONEN",
-    [STR_W_WHATSEED_BTN] = "HVA ER EN SEED?",
     [STR_W_WHATSEED_T] = "GJENOPPRETTINGSFRASEN DIN",
     [STR_W_WHATSEED_S] = "12 eller 24 ord i fast rekkefølge, et BIP39-mnemonic",
     [STR_W_WHATSEED_B] = "de ordene og passordfrasen din er det som utgjør lommeboken. ikke denne enheten.\n\nskriv ned begge, så kan enhver kompatibel BIP39-signer bygge den opp igjen, selv om denne enheten blir borte.\n\nordene alene bygger en annen lommebok: den uten passordfrase.",
@@ -7190,6 +7205,8 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "lommebokfilen på kortet er skadet, endret eller tilhører en annen enhet.\n\nbruk riktig kort, eller gjenopprett fra ordene dine.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke leses.\n\nsett det inn på nytt og prøv igjen, eller gjenopprett fra ordene dine.",
     [STR_S_CMP_8] = "sammenlign disse 8",
+    [STR_W_CHOOSE_NEW] = "OPPRETT NY LOMMEBOK",
+    [STR_W_CHOOSE_RESTORE] = "GJENOPPRETT FRA GJENOPPRETTINGSFRASE",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -7547,7 +7564,6 @@ static const char *const tbl_sv[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINATORN BEVAKAR OCH SKAPAR PSBT",
     [STR_S_FLOW_2] = "KISS KONTROLLERAR OCH SIGNERAR PSBT",
     [STR_S_FLOW_3] = "KOORDINATORN SÄNDER UT TRANSAKTIONEN",
-    [STR_W_WHATSEED_BTN] = "VAD ÄR EN SEED?",
     [STR_W_WHATSEED_T] = "DIN ÅTERSTÄLLNINGSFRAS",
     [STR_W_WHATSEED_S] = "12 eller 24 ord i bestämd ordning, ett BIP39-mnemonic",
     [STR_W_WHATSEED_B] = "de orden och din lösenfras är det som utgör plånboken. inte den här enheten.\n\nskriv ner båda, så kan vilken kompatibel BIP39-signer som helst bygga upp den igen, även om enheten försvinner.\n\norden ensamma bygger en annan plånbok: den utan lösenfras.",
@@ -7613,6 +7629,8 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "plånboksfilen på kortet är skadad, ändrad eller tillhör en annan enhet.\n\nanvänd rätt kort eller återställ från dina ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunde inte läsas.\n\nsätt in det igen och försök, eller återställ från dina ord.",
     [STR_S_CMP_8] = "jämför dessa 8",
+    [STR_W_CHOOSE_NEW] = "SKAPA NY PLÅNBOK",
+    [STR_W_CHOOSE_RESTORE] = "ÅTERSTÄLL FRÅN ÅTERSTÄLLNINGSFRAS",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -7970,7 +7988,6 @@ static const char *const tbl_da[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINATOR SER MED OG LAVER PSBT",
     [STR_S_FLOW_2] = "KISS TJEKKER OG SIGNERER PSBT",
     [STR_S_FLOW_3] = "KOORDINATOR UDSENDER TRANSAKTIONEN",
-    [STR_W_WHATSEED_BTN] = "HVAD ER EN SEED?",
     [STR_W_WHATSEED_T] = "DIN GENDANNELSESSÆTNING",
     [STR_W_WHATSEED_S] = "12 eller 24 ord i fast rækkefølge, et BIP39-mnemonic",
     [STR_W_WHATSEED_B] = "de ord og din adgangsfrase er det, der udgør tegnebogen. ikke denne enhed.\n\nskriv begge dele ned, så kan enhver kompatibel BIP39-signer bygge den op igen, også hvis denne enhed går tabt.\n\nordene alene bygger en anden tegnebog: den uden adgangsfrase.",
@@ -8036,6 +8053,8 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "tegnebogsfilen på kortet er beskadiget, ændret eller hører til en anden enhed.\n\nbrug det rigtige kort, eller gendan fra dine ord.",
     [STR_W_SD_IO_B] = "SD-kortet kunne ikke læses.\n\nindsæt det igen og prøv, eller gendan fra dine ord.",
     [STR_S_CMP_8] = "sammenlign disse 8",
+    [STR_W_CHOOSE_NEW] = "OPRET NY WALLET",
+    [STR_W_CHOOSE_RESTORE] = "GENDAN FRA GENDANNELSESSÆTNING",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -8393,7 +8412,6 @@ static const char *const tbl_cs[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINÁTOR SLEDUJE A VYTVOŘÍ PSBT",
     [STR_S_FLOW_2] = "KISS ZKONTROLUJE A PODEPÍŠE PSBT",
     [STR_S_FLOW_3] = "KOORDINÁTOR ODEŠLE TRANSAKCI",
-    [STR_W_WHATSEED_BTN] = "CO JE SEED?",
     [STR_W_WHATSEED_T] = "VAŠE OBNOVOVACÍ FRÁZE",
     [STR_W_WHATSEED_S] = "12 nebo 24 slov v pevném pořadí, mnemonika BIP39",
     [STR_W_WHATSEED_B] = "ta slova a vaše přístupová fráze jsou to, co tvoří peněženku. ne tohle zařízení.\n\nzapište si obojí a kterýkoli kompatibilní signer BIP39 ji dokáže obnovit, i když tohle zařízení ztratíte.\n\nsamotná slova obnoví jinou peněženku: tu bez přístupové fráze.",
@@ -8459,6 +8477,8 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "soubor peněženky na této kartě je poškozený, změněný nebo patří jinému zařízení.\n\npoužijte správnou kartu nebo obnovte peněženku ze svých slov.",
     [STR_W_SD_IO_B] = "SD kartu nešlo přečíst.\n\nvložte ji znovu a opakujte pokus, nebo obnovte peněženku ze svých slov.",
     [STR_S_CMP_8] = "porovnejte těchto 8",
+    [STR_W_CHOOSE_NEW] = "VYTVOŘIT NOVOU PENĚŽENKU",
+    [STR_W_CHOOSE_RESTORE] = "OBNOVIT Z OBNOVOVACÍ FRÁZE",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -8816,7 +8836,6 @@ static const char *const tbl_hr[STR_N] = {
     [STR_S_FLOW_1] = "KOORDINATOR PRATI I RADI PSBT",
     [STR_S_FLOW_2] = "KISS PROVJERAVA I POTPISUJE PSBT",
     [STR_S_FLOW_3] = "KOORDINATOR EMITIRA TRANSAKCIJU",
-    [STR_W_WHATSEED_BTN] = "ŠTO JE SEED?",
     [STR_W_WHATSEED_T] = "VAŠA FRAZA ZA OPORAVAK",
     [STR_W_WHATSEED_S] = "12 ili 24 riječi zadanim redom, BIP39 mnemonik",
     [STR_W_WHATSEED_B] = "te riječi i vaša kodna fraza su ono što čini novčanik. ne ovaj uređaj.\n\nzapišite oboje i bilo koji kompatibilan BIP39 signer može ga obnoviti, čak i ako ovaj uređaj nestane.\n\nsame riječi obnavljaju drugi novčanik: onaj bez kodne fraze.",
@@ -8882,6 +8901,8 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_SD_CORRUPT_B] = "datoteka novčanika na ovoj kartici je oštećena, promijenjena ili pripada drugom uređaju.\n\nupotrijebi ispravnu karticu ili obnovi pomoću svojih riječi.",
     [STR_W_SD_IO_B] = "SD kartica se ne može pročitati.\n\nponovno je umetni i pokušaj ili obnovi pomoću svojih riječi.",
     [STR_S_CMP_8] = "usporedi ovih 8",
+    [STR_W_CHOOSE_NEW] = "IZRADI NOVI NOVČANIK",
+    [STR_W_CHOOSE_RESTORE] = "OBNOVI IZ FRAZE ZA OPORAVAK",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

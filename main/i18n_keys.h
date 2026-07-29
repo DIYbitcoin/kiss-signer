@@ -356,7 +356,6 @@ enum {
     STR_S_FLOW_1,
     STR_S_FLOW_2,
     STR_S_FLOW_3,
-    STR_W_WHATSEED_BTN,
     STR_W_WHATSEED_T,
     STR_W_WHATSEED_S,
     STR_W_WHATSEED_B,
@@ -422,6 +421,8 @@ enum {
     STR_W_SD_CORRUPT_B,
     STR_W_SD_IO_B,
     STR_S_CMP_8,
+    STR_W_CHOOSE_NEW,
+    STR_W_CHOOSE_RESTORE,
     STR_N
 };
 
