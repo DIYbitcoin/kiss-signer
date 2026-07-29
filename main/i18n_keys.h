@@ -101,6 +101,8 @@ enum {
     STR_I_NET_MAIN,
     STR_I_H_FP_B,
     STR_I_H_TYPE_B,
+    STR_I_SEC_PATH,
+    STR_I_H_PATH_B,
     STR_I_H_PAIR_T,
     STR_I_H_PAIR_B,
     STR_I_H_ADDR_B,

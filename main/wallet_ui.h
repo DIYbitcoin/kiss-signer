@@ -35,5 +35,9 @@ void wallet_ui_drop_indev_for_test(void);   // put the process back to power-on
 // with_radio adds the C6 radio-reset readback. Only Settings passes true: it
 // is a diagnostic for people who already know what the C6 is, and the home
 // corner is not where you go looking for one.
-lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio);
+// stacked: version on its own row with the status facts under it (Settings,
+// where this sits beside a row of buttons). false puts everything on ONE line,
+// which is what the home corner wants: two facts along an empty bottom edge.
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
+                               bool stacked);
 void wallet_build_id_restyle(lv_obj_t *version_label);
