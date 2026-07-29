@@ -22,12 +22,18 @@
 //   2. CONTENT  does something above the action row reach down into it
 //   3. GROWTH   has a wrapping label grown into the text below it
 //   4. CLIPPED  was text laid out and then cut away where nobody can reach it
+//   5. ROLE     is one element wearing a themed accent and a status colour
 //
 // The first three are the ones the review asked for. The fourth was added after
 // reading docs/media/sign-verify.png: a label can ask for a box taller than the
 // container holding it, get clipped, and leave a row of glyphs sliced through
 // the middle while the other three checks see a perfectly clean screen. Same
 // root cause, absolute y under content that grows, so it belongs to this gate.
+//
+// The fifth is rule 1 of ADDENDUM-02 and it is here for the same reason the
+// others are: it is a question about a rendered object, and this is the only
+// gate that has one. It runs per accent rather than per locale, since colours
+// do not change with language.
 //
 // Asked once per locale, because a gate that only speaks English measures the
 // one language that was never going to break.
@@ -49,6 +55,7 @@
 
 #include "lvgl.h"
 #include "wallet_theme.h"
+#include "colour_de.h"
 
 // A hairline of shared area is not a bug. Label bounding boxes carry the full
 // line height rather than the ink, so stacked text legitimately touches and
@@ -505,6 +512,254 @@ static void oc_check_clipped(const char *tag)
     }
 }
 
+// ---------------------------------------------------------------- colour roles
+
+// Rule 1 of ADDENDUM-02: a themed accent and a status colour never appear on
+// the same element, pick one per object.
+//
+// sim/themecheck.c answers the palette half of that addendum, whether an accent
+// lands on top of a status colour, and it cannot answer this half: "on the same
+// element" is a property of a rendered object and themecheck never builds one.
+// This gate already holds the tree at every settled screen, so the question
+// costs a walk it was doing anyway.
+//
+// What breaks is hierarchy rather than meaning. A card whose border says
+// caution and whose label says suggested action asks the reader to hold two
+// colour systems at once, and at arm's length on a 4.3 inch panel both resolve
+// to "some coloured chrome". Status then stops standing out, which is the only
+// job status has.
+//
+// MONO is skipped, and that is the addendum's own observation: its accent IS
+// WT_INK, so every piece of ordinary text would classify as accent and the
+// check would report the entire UI. Nothing can be mistaken for a status there
+// because nothing except status is coloured, so there is no question to ask.
+#define OC_MAX_COLOURS 10
+
+typedef struct {
+    uint32_t    hex;
+    const char *where;
+} oc_colour_t;
+
+static const struct { const char *name; uint32_t hex; } OC_STATUS[] = {
+    { "WT_OK",   0x35D07F },
+    { "WT_WARN", 0xF2B84B },
+    { "WT_STOP", 0xFF4D5E },
+};
+#define OC_NSTATUS ((int)(sizeof OC_STATUS / sizeof OC_STATUS[0]))
+
+// A colour drawn at partial opacity is not the colour the eye receives, so
+// classify what lands on the panel: the source composited over the page. This
+// is what an opacity threshold would have been standing in for, without the
+// threshold being a number somebody picked by feel. A quarter opacity accent
+// wash resolves to something near WT_BG and stops counting as an accent on its
+// own, which is the correct answer and not a tuned one.
+//
+// The backdrop is approximated as WT_BG rather than whatever surface is really
+// underneath. Every surface in the kit (WT_BAR, WT_PANEL, WT_KEY) is within a
+// few units of WT_BG by construction, so the approximation costs nothing.
+static uint32_t oc_over_bg(lv_color_t c, lv_opa_t opa)
+{
+    lv_color_t bg = WT_BG;
+    int a = opa;
+    int r = (c.red   * a + bg.red   * (255 - a)) / 255;
+    int g = (c.green * a + bg.green * (255 - a)) / 255;
+    int b = (c.blue  * a + bg.blue  * (255 - a)) / 255;
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+}
+
+// Every colour this object actually paints, and the style property each came
+// from so a finding says where to look. Text is read only from labels: LVGL
+// inherits text colour, so asking a container returns its parent's ink and
+// invents an accent on a box that draws no glyphs.
+static int oc_colours_of(lv_obj_t *o, bool is_label, oc_colour_t *out, int cap)
+{
+    int n = 0;
+    lv_opa_t opa;
+
+    if (is_label && (opa = lv_obj_get_style_text_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_text_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "text";
+    }
+    if ((opa = lv_obj_get_style_bg_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_bg_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "fill";
+    }
+    if (lv_obj_get_style_border_width(o, LV_PART_MAIN) > 0 &&
+        (opa = lv_obj_get_style_border_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_border_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "border";
+    }
+    if (lv_obj_get_style_outline_width(o, LV_PART_MAIN) > 0 &&
+        (opa = lv_obj_get_style_outline_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_outline_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "outline";
+    }
+    if (lv_obj_get_style_line_width(o, LV_PART_MAIN) > 0 &&
+        (opa = lv_obj_get_style_line_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_line_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "line";
+    }
+    if (lv_obj_get_style_arc_width(o, LV_PART_MAIN) > 0 &&
+        (opa = lv_obj_get_style_arc_opa(o, LV_PART_MAIN)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_arc_color(o, LV_PART_MAIN), opa);
+        out[n++].where = "arc";
+    }
+    // The filled part of a bar or an arc is a separate style part, and it is
+    // usually the coloured one: an entropy meter is WT_OK over a WT_KEY track.
+    if ((opa = lv_obj_get_style_bg_opa(o, LV_PART_INDICATOR)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_bg_color(o, LV_PART_INDICATOR), opa);
+        out[n++].where = "indicator";
+    }
+    if (lv_obj_get_style_arc_width(o, LV_PART_INDICATOR) > 0 &&
+        (opa = lv_obj_get_style_arc_opa(o, LV_PART_INDICATOR)) > 0 && n < cap) {
+        out[n].hex = oc_over_bg(lv_obj_get_style_arc_color(o, LV_PART_INDICATOR), opa);
+        out[n++].where = "arc indicator";
+    }
+    return n;
+}
+
+// How much the ROLE check actually looked at. Printed because "0 findings" and
+// "never ran" read identically otherwise: if a walk stops reaching the themed
+// screens, these two counts fall to zero and say so, where the finding count
+// alone would keep reporting a clean gate.
+static int s_role_accent_objs;
+static int s_role_status_objs;
+
+static void oc_check_colour_roles(const char *tag)
+{
+    char t[64], sig[192], detail[320];
+
+    lv_color_t ac = wt_accent();
+    uint32_t ahex = ((uint32_t)ac.red << 16) | ((uint32_t)ac.green << 8) | ac.blue;
+    lv_color_t ink = WT_INK;
+    uint32_t inkhex = ((uint32_t)ink.red << 16) | ((uint32_t)ink.green << 8) | ink.blue;
+    if (cde_same(ahex, inkhex)) return;                 // MONO, see above
+
+    for (int i = 0; i < s_n; i++) {
+        oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+
+        oc_colour_t col[OC_MAX_COLOURS];
+        int nc = oc_colours_of(n->obj, n->is_label, col, OC_MAX_COLOURS);
+        if (nc < 1) continue;
+
+        for (int c = 0; c < nc; c++) {
+            if (cde_same(col[c].hex, ahex)) { s_role_accent_objs++; break; }
+        }
+        for (int c = 0; c < nc; c++) {
+            int hit = 0;
+            for (int s = 0; s < OC_NSTATUS && !hit; s++)
+                if (cde_same(col[c].hex, OC_STATUS[s].hex)) hit = 1;
+            if (hit) { s_role_status_objs++; break; }
+        }
+        if (nc < 2) continue;
+
+        for (int a = 0; a < nc; a++) {
+            if (!cde_same(col[a].hex, ahex)) continue;
+            for (int b = 0; b < nc; b++) {
+                if (b == a) continue;
+                // The two have to be TELLABLE APART to compete. In GREEN the
+                // accent is WT_OK to the byte, so an accent fill beside a WT_OK
+                // glyph renders as one colour and there is nothing for a reader
+                // to resolve. Only a second, visibly different colour that
+                // carries status meaning is a finding.
+                if (cde_same(col[b].hex, col[a].hex)) continue;
+                for (int s = 0; s < OC_NSTATUS; s++) {
+                    if (!cde_same(col[b].hex, OC_STATUS[s].hex)) continue;
+
+                    oc_text(n->obj, t, sizeof t);
+                    snprintf(sig, sizeof sig, "ROLE|%s|%s|%s|%s",
+                             wt_accent_name(), t, col[a].where, OC_STATUS[s].name);
+                    snprintf(detail, sizeof detail,
+                             "ROLE     \"%s\" wears the %s accent (%s #%06X) and %s "
+                             "(%s #%06X) at once",
+                             t, wt_accent_name(), col[a].where, (unsigned)col[a].hex,
+                             OC_STATUS[s].name, col[b].where, (unsigned)col[b].hex);
+                    oc_report_one(tag, sig, detail);
+                }
+            }
+        }
+    }
+}
+
+// Does the ROLE check still fire?
+//
+// It reports nothing on the current UI, which is the answer everyone wants and
+// also the answer a check that silently stopped working gives. The other four
+// checks are self evidencing: they found faults, the faults were fixed, and a
+// regression brings the finding back. This one landed clean, so on its own it
+// is indistinguishable from a no-op, and the day someone dresses a caution card
+// in accent chrome is the day it has to earn its place.
+//
+// So it gets three cases built out of real theme colours. The first must fire.
+// The second and third must not, and they are the two ways this check could
+// have been written to fire on everything: GREEN's accent IS WT_OK, so a rule
+// that compared roles without asking whether the colours are tellable apart
+// would report every verified glyph in that theme, and MONO's accent is WT_INK,
+// so a rule that skipped the MONO exclusion would report every label on the
+// device.
+//
+// Run: OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap
+int oc_selftest(void);
+
+static int oc_selftest_case(const char *name, int accent,
+                            lv_color_t fill, lv_color_t border,
+                            bool want_finding)
+{
+    wt_accent_set(accent);
+
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_screen_load(scr);
+    lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
+
+    lv_obj_t *card = lv_obj_create(scr);
+    lv_obj_set_size(card, 300, 100);
+    lv_obj_set_pos(card, 40, 40);
+    lv_obj_set_style_bg_color(card, fill, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(card, border, LV_PART_MAIN);
+    lv_obj_set_style_border_width(card, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(card, LV_OPA_COVER, LV_PART_MAIN);
+    lv_refr_now(NULL);
+
+    s_n = 0;
+    s_findings = 0;
+    s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_colour_roles("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+int oc_selftest(void)
+{
+    lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
+    int bad = 0;
+
+    printf("ROLE check self test\n");
+    wt_accent_set(WT_ACC_ORANGE);
+    bad += oc_selftest_case("ORANGE accent fill + WT_STOP border, fires",
+                            WT_ACC_ORANGE, wt_accent(), stop, true);
+    wt_accent_set(WT_ACC_GREEN);
+    bad += oc_selftest_case("GREEN accent fill + WT_OK border, one colour",
+                            WT_ACC_GREEN, wt_accent(), ok, false);
+    bad += oc_selftest_case("MONO ink fill + WT_STOP border, no accent",
+                            WT_ACC_MONO, ink, stop, false);
+    bad += oc_selftest_case("ORANGE, no status colour anywhere",
+                            WT_ACC_ORANGE, key, ink, false);
+
+    wt_accent_set(WT_ACC_MONO);
+    if (bad) printf("ROLE self test: %d case(s) wrong\n", bad);
+    else     printf("ROLE self test: 4 cases, all as expected\n");
+    return bad ? 1 : 0;
+}
+
 // ---------------------------------------------------------------- entry points
 
 void oc_check(const char *tag);
@@ -550,6 +805,7 @@ void oc_check(const char *tag)
     oc_check_content_bottom(tag);
     oc_check_wrap_growth(tag);
     oc_check_clipped(tag);
+    oc_check_colour_roles(tag);
 }
 
 int oc_report(void)
@@ -559,6 +815,16 @@ int oc_report(void)
 
     printf("\n[overlap] %s: %d stops checked, %d game frames skipped, "
            "%d distinct findings\n", lang, s_stops, s_skipped, s_findings);
+
+    // Where the walk STARTED, not wt_accent_name(). Two reasons: the walk taps
+    // the theme dots near the end and leaves on MONO, so the live theme would
+    // label every run MONO; and those same taps are why a MONO run still
+    // reports a couple of dozen accent objects rather than none.
+    const char *acc = getenv("SIM_ACCENT");
+    if (s_role_accent_objs || s_role_status_objs)
+        printf("[overlap] %s: role check saw %d accent and %d status objects, "
+               "walk started in %s\n", lang, s_role_accent_objs,
+               s_role_status_objs, acc && *acc ? acc : "MONO");
 
     for (int i = 0; i < s_seen_n; i++)
         if (s_seen_hits[i] > 1)

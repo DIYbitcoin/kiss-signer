@@ -14,6 +14,7 @@
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
+#include "wallet_theme.h"   // SIM_ACCENT picks the theme the walk renders in
 #include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
@@ -397,9 +398,28 @@ static void pump(int frames) {
 // sim, so the env var is the only language input.
 static const char *g_lang_code;
 
+// SIM_ACCENT=<name> (MONO, GREEN, CYPHERPINK, ORANGE) starts the walk in that
+// theme. The walk itself still visits the theme dots near the end and leaves on
+// MONO, which is deliberate: this only decides what the other ~160 stops are
+// wearing. Added for the ROLE check in sim/overlapcheck.c, which asks whether
+// an element carries an accent and a status colour at once and therefore has
+// nothing to look at until an accent is actually selected.
+static void sim_pick_accent(void) {
+  const char *a = getenv("SIM_ACCENT");
+  if (!a || !*a) return;
+  for (int i = 0; i < WT_ACC_N; i++) {
+    wt_accent_set(i);
+    if (strcmp(wt_accent_name(), a) == 0) return;
+  }
+  wt_accent_set(WT_ACC_MONO);
+  fprintf(stderr, "unknown SIM_ACCENT %s\n", a);
+  exit(1);
+}
+
 #ifdef OVERLAPCHECK
 void oc_check(const char *tag);   // sim/overlapcheck.c
 int  oc_report(void);
+int  oc_selftest(void);
 #endif
 
 static void save(const char *path) {
@@ -520,6 +540,13 @@ int main(void) {
   static uint8_t buf[HRES * 60 * 2];
   lv_display_set_buffers(d, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(d, flush_cb);
+
+#ifdef OVERLAPCHECK
+  // Before the walk, because it needs a display and nothing else.
+  if (getenv("OVERLAPCHECK_SELFTEST")) return oc_selftest();
+#endif
+
+  sim_pick_accent();
 
   build_game();
   pump(20);                                      // ~320ms: logo letters mid-drop
