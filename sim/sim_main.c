@@ -865,12 +865,12 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
-  // the RBF "?" is wallet_sign.c's 26px chip, now pinned at (740,358) for BOTH
-  // the replaceable and final wordings. It used to sit right after the text at
-  // 592 or 620 depending on which string rendered, so its x moved with the
-  // translation; it is fixed now, and far enough from the caution chip at
-  // (430,330) that neither lands in the other's hit box. This is its centre.
-  touch(753, 281); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
+  // the RBF "?" is wallet_sign.c's 30px chip, pinned at (738, SG_FOOT_Y-6) for
+  // BOTH the replaceable and final wordings. It used to sit right after the
+  // text, so its x moved with the translation; it is fixed now. The redraw
+  // moved the footer rule to 288 and the cells to 300, taking the chip with
+  // it. This is its centre.
+  touch(753, 309); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
   save("/tmp/sim_sign_rbf_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
@@ -904,11 +904,11 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
-  // The caution "?" is anchored to the TOP of the caution stack, which is
-  // itself anchored to the bottom of the content area, so its y is a
-  // function of how many cautions fired: three rows at 29 puts the chip at
-  // (430,311) and its centre here. It is not a fixed corner any more.
-  touch(445, 326); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
+  // The caution "?" used to be anchored to the top of the caution stack, so
+  // its y moved with the number of cautions that fired. Now that every
+  // caution owns its own row and answers for itself, one chip at (738,108)
+  // covers the whole stack and never moves. This is its centre.
+  touch(753, 123); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
