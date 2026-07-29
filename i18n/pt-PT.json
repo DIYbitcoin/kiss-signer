@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "VERIFICAR PALAVRAS",
   "L_VERIFY_FULL_BACKUP": "VERIFICAR CÓPIA COMPLETA",
   "G_T": "DEFINIÇÕES",
-  "G_TESTNET_NOTE": "TESTNET: moedas de treino sem valor.",
+  "G_TESTNET_NOTE": "TESTNET: bitcoin de teste",
   "G_MAINNET_NOTE": "MAINNET: bitcoin real",
   "G_TY_NATIVE_NOTE": "moderno, taxas mais baixas.",
   "G_TY_NESTED_NOTE": "SegWit antigo.",

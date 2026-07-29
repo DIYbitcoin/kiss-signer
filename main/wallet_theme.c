@@ -811,15 +811,22 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
     return l;
 }
 
-// Column captions ("NETWORK", "WALLET"). Deliberately SMALL and muted: these
-// are eyebrows, not content. They were briefly font23 and it inverted the whole
-// hierarchy — the label shouted while the value under it whispered. The size
+// Column captions ("NETWORK", "WALLET"). Deliberately SMALL: these are
+// eyebrows, not content. They were briefly font23 and it inverted the whole
+// hierarchy, the label shouting while the value under it whispered. The size
 // belongs to the thing you actually read.
+//
+// Small and WT_MUT together was the mistake: the caption lost twice, once on
+// scale and again on contrast, and on the device panel ADDRESS TYPE was
+// reported as barely visible. The desktop simulator never showed it, because a
+// monitor renders #7A869C on #070A10 far more generously than the panel does.
+// So the rank is carried by SIZE alone and the ink stays full strength. A
+// caption you cannot read is not a subtle caption, it is a missing one.
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
 {
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    lv_obj_set_style_text_color(l, WT_INK, 0);
     lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);

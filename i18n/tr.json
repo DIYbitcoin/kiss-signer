@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "KELİMELERİ DOĞRULA",
   "L_VERIFY_FULL_BACKUP": "TAM YEDEĞİ DOĞRULA",
   "G_T": "AYARLAR",
-  "G_TESTNET_NOTE": "TESTNET: değeri olmayan deneme coinleri.",
+  "G_TESTNET_NOTE": "TESTNET: test bitcoin",
   "G_MAINNET_NOTE": "MAINNET: gerçek bitcoin",
   "G_TY_NATIVE_NOTE": "modern, en düşük ücretler.",
   "G_TY_NESTED_NOTE": "eski segwit.",

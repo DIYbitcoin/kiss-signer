@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "PROVJERI RIJEČI",
   "L_VERIFY_FULL_BACKUP": "PROVJERI PUNU KOPIJU",
   "G_T": "POSTAVKE",
-  "G_TESTNET_NOTE": "TESTNET: probni coini bez vrijednosti.",
+  "G_TESTNET_NOTE": "TESTNET: testni bitcoin",
   "G_MAINNET_NOTE": "MAINNET: pravi bitcoin",
   "G_TY_NATIVE_NOTE": "moderno, najniže naknade.",
   "G_TY_NESTED_NOTE": "stariji segwit.",

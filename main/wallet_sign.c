@@ -324,7 +324,7 @@ static void fail_screen(const char *why)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(parent, tr(STR_S_FAIL_T), why);
-    mk_pill(tr(STR_C_BACK), 330, WT_ACTION_Y, 140, close_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive
@@ -809,27 +809,33 @@ static void verify_screen(lv_obj_t *parent)
     // defines here, which is how the second and third copies got hand typed.
     // The whole row shares the height so the three pills still line up.
     // one step back: to the file list it came from, or to the SCAN/SD chooser
-    // if it arrived by camera (which is where cancelling the scan lands too)
-    wt_pillh(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
+    // if it arrived by camera (which is where cancelling the scan lands too).
+    // Bottom right, per WT_BACK_X, which on THIS screen is also the safety
+    // answer: the RBF "?" chip hangs at x 726..780 down to this row's edge, and
+    // the button that inherits the graze from a missed tap on it is now the one
+    // that abandons the transaction rather than one that advances it.
+    wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
     if (s_sum.status != WPSBT_STOP) {
         // no DETAILS on STOP: the details page presents fields as verified,
         // and a refused transaction has nothing left to decide
-        wt_pillh(s_scr, tr(STR_S_DETAILS), 208, WT_ACTION_Y_TALL, 170, WT_ACTION_H_TALL,
+        wt_pillh(s_scr, tr(STR_S_DETAILS), 48, WT_ACTION_Y_TALL, 170, WT_ACTION_H_TALL,
                  details_cb, NULL);
         if (s_sum.status == WPSBT_CAUTION && !s_ack) {
             // gate the hold pill behind a deliberate acknowledgement
             //
-            // x=398, not 500. The RBF "?" one line above now reaches the row's
-            // y=398 edge, so x separation carries the safety boundary instead
-            // of pretending two vertical pixels help a fingertip. The right
-            // column has no slack to
-            // raise the chip into (297px of content between y=96 and y=393), so
-            // the BUTTON moves out from under it instead -- 398..650 against
-            // the chip's 726..780 is disjoint in x.
-            // HOLD TO SIGN stays at 480: it needs a sustained press, so a graze
-            // costs nothing.
-            lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 398, WT_ACTION_Y_TALL,
+            // 238..490. Both consequential buttons now live in the middle of
+            // the row, because BACK took the right corner and the help chips
+            // hang above it: x separation carries the safety boundary instead
+            // of pretending two vertical pixels help a fingertip.
+            //
+            // Still to fix, and NOT fixed here: this button and HOLD TO SIGN
+            // overlap in x across the two states (238..490 against 310..582),
+            // so a second tap in the same place can land on the sign button.
+            // The row is 704px and DETAILS + BACK spend 310 of it, so there is
+            // no arrangement of a 252 and a 272 in what is left that separates
+            // them. It needs the phase 3 restructure, which rebuilds this bar.
+            lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 238, WT_ACTION_Y_TALL,
                                     252, WT_ACTION_H_TALL, ack_cb, NULL);
             wt_pill_primary(ok);
             lv_obj_set_style_border_color(ok, WARN_COL, 0);
@@ -838,7 +844,7 @@ static void verify_screen(lv_obj_t *parent)
             // hold-to-sign: ring fills while pressed; let go = nothing happens
             s_arc = lv_arc_create(s_scr);
             lv_obj_set_size(s_arc, 64, 64);
-            lv_obj_set_pos(s_arc, 420, WT_ACTION_Y_TALL + 1);
+            lv_obj_set_pos(s_arc, 250, WT_ACTION_Y_TALL + 1);
             lv_arc_set_rotation(s_arc, 270);
             lv_arc_set_bg_angles(s_arc, 0, 360);
             lv_arc_set_range(s_arc, 0, 100);
@@ -850,7 +856,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
             lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
 
-            lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 480, WT_ACTION_Y_TALL,
+            lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 310, WT_ACTION_Y_TALL,
                                    272, WT_ACTION_H_TALL, NULL, NULL);
             lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
             lv_obj_set_style_border_color(p, wt_primary(), 0);
@@ -1042,7 +1048,7 @@ static void details_cb(lv_event_t *e)
                      : tr(STR_S_D_RBF_OFF),
            430, 352, wt_font14(), MUT_COL);
 
-    mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, details_back_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, details_back_cb);
 }
 
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came
@@ -1102,7 +1108,7 @@ static void qr_out_screen(size_t sw)
     s_out_len = sw;
     if (qr_enc_start() != 0) {
         mk_screen(parent, tr(STR_S_FAIL_T), tr(STR_S_QR_FAIL_ENC));
-        mk_pill(tr(STR_C_BACK), 330, WT_ACTION_Y, 140, close_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
         return;
     }
 
@@ -1147,7 +1153,7 @@ static void file_tap_cb(lv_event_t *e)
         // A refusal to sign, alone on an otherwise empty screen with 230px
         // of room under it. There is no reason for it to be the small type.
         wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, files_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
         return;
     }
     SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
@@ -1157,7 +1163,7 @@ static void file_tap_cb(lv_event_t *e)
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
         wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, files_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
         return;
     }
     log_summary("SD");
@@ -1171,7 +1177,7 @@ static void sd_open(lv_obj_t *parent)
         mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
         mk_lbl(tr(STR_S_NO_SD), 48, 140, wt_font28(), INK_COL);
         wt_note_col(s_scr, tr(STR_S_INSERT_CARD), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     int n = platform_sd_list_psbt(s_files, MAX_FILES);
@@ -1179,7 +1185,7 @@ static void sd_open(lv_obj_t *parent)
         mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
         mk_lbl(tr(STR_S_NO_PSBT_FILES), 48, 140, wt_font28(), INK_COL);
         wt_note_col(s_scr, tr(STR_S_SPARROW_SAVE), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
@@ -1254,7 +1260,7 @@ static void sd_open(lv_obj_t *parent)
         lv_obj_set_style_text_font(tag, wt_font14(), 0);
         lv_obj_set_style_text_letter_space(tag, 1, 0);
     }
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, choose_back_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
 
 // What the device concluded about a PSBT, in one serial line.
@@ -1308,7 +1314,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
         wt_note_col(s_scr, tr(STR_S_SCAN_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, choose_back_cb);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
         return;
     }
     log_summary("QR");
@@ -1512,5 +1518,5 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_style_text_font(hl, wt_font14(), 0);
     lv_obj_center(hl);
     wt_note(s_scr, tr(STR_S_OR_LOAD), 430, 270, 322, 58);
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, close_cb);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }

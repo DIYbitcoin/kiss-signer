@@ -266,7 +266,7 @@ static void verify_intro_screen(void)
     mk_body(tr(STR_W_VINTRO_B), 48, 122, 704, 274, MUT_COL);
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, WT_ACTION_Y, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, verify_exit_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, verify_exit_cb, NULL);
 }
 
 // ---- quiz (prove the backup) ----
@@ -486,7 +486,7 @@ static void entropy_screen(void)
            "source alone decides your words.", 48, 140,
            wt_font14(), MUT_COL);
     mk_pill("CAPTURE", 48, WT_ACTION_Y, 240, sim_entropy_cb, NULL);
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 #else
     mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
     if (camera_entropy_start()) {
@@ -497,7 +497,7 @@ static void entropy_screen(void)
         mk_lbl(tr(STR_C_CAM_UNAVAIL), 48, 240, wt_font28(), STOP_COL);
         mk_lbl(camera_spike_status(), 48, 284, wt_font14(), MUT_COL);
     }
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, ent_back_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_back_cb, NULL);
 #endif
 }
 
@@ -631,7 +631,7 @@ static void count_screen(void)
         mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 310, 340, restore_scan_cb, NULL);
         wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 310, 340, 76);
     }
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
@@ -687,7 +687,7 @@ static void storage_screen(void)
     mk_pill(tr(STR_W_AMNESIC_BTN), 48, 320, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
     wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 310, 420, 87);
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
 // ---- entry ----
@@ -726,7 +726,7 @@ static void whatseed_cb(lv_event_t *e)
     (void)e;
     mk_screen(tr(STR_W_WHATSEED_T), tr(STR_W_WHATSEED_S));
     mk_body(tr(STR_W_WHATSEED_B), 48, 118, 704, 260, INK_COL);
-    mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, whatseed_back_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, whatseed_back_cb, NULL);
 }
 
 static void choose_screen(void)
@@ -903,7 +903,7 @@ static void sd_problem_screen(int rc)
     wt_pill_primary(retry);
     lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 304, WT_ACTION_Y, 280,
                                 sd_recover_cb, NULL);
-    lv_obj_t *back = mk_pill(tr(STR_C_BACK), 610, WT_ACTION_Y, 140,
+    lv_obj_t *back = mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                              sd_problem_back_cb, NULL);
     lv_obj_t *row[3] = { retry, recover, back };
     wt_pill_row(row, 3);

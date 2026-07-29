@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "復元ワードを検証",
   "L_VERIFY_FULL_BACKUP": "完全バックアップを検証",
   "G_T": "設定",
-  "G_TESTNET_NOTE": "TESTNET:価値のない練習用コイン。",
+  "G_TESTNET_NOTE": "TESTNET:テスト用ビットコイン",
   "G_MAINNET_NOTE": "MAINNET:本物のビットコイン",
   "G_TY_NATIVE_NOTE": "現代的で手数料最安。",
   "G_TY_NESTED_NOTE": "旧式のsegwit。",

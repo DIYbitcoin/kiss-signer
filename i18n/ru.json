@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "ПРОВЕРИТЬ СЛОВА",
   "L_VERIFY_FULL_BACKUP": "ПРОВЕРИТЬ ВСЮ КОПИЮ",
   "G_T": "НАСТРОЙКИ",
-  "G_TESTNET_NOTE": "TESTNET: тренировочные монеты без ценности.",
+  "G_TESTNET_NOTE": "TESTNET: тестовый BTC",
   "G_MAINNET_NOTE": "MAINNET: реальный BTC",
   "G_TY_NATIVE_NOTE": "современный, самые низкие комиссии.",
   "G_TY_NESTED_NOTE": "старый segwit.",

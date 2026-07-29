@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "KONTROLLERA ORDEN",
   "L_VERIFY_FULL_BACKUP": "KONTROLLERA HELA BACKUPEN",
   "G_T": "INSTÄLLNINGAR",
-  "G_TESTNET_NOTE": "TESTNET: övningsmynt utan värde.",
+  "G_TESTNET_NOTE": "TESTNET: testbitcoin",
   "G_MAINNET_NOTE": "MAINNET: riktiga bitcoin",
   "G_TY_NATIVE_NOTE": "modern, lägst avgifter.",
   "G_TY_NESTED_NOTE": "äldre segwit.",
