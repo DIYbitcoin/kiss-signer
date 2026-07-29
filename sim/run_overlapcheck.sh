@@ -15,6 +15,16 @@ cd "$(dirname "$0")/.."
 
 bash sim/build_overlapcheck.sh
 
+# The ROLE check reports nothing on the current UI, so prove it can still report
+# anything at all before trusting a clean run. See oc_selftest in
+# sim/overlapcheck.c for why this one check needs that and the other four do not.
+echo
+if ! OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap; then
+    echo
+    echo "FAILED: the ROLE check no longer behaves, so a clean run means nothing."
+    exit 1
+fi
+
 # The locale codes are the names of the translation files, so a language added
 # to i18n/ is covered here the same day without this script being edited.
 langs=()
@@ -40,7 +50,7 @@ for l in "${langs[@]}"; do
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"
@@ -52,9 +62,38 @@ echo
 echo "totals: $summary"
 echo "text overlap gate: $total findings across ${#langs[@]} locales"
 
+# The ROLE check asks about colour, and colour does not change with language, so
+# sweeping it over 21 locales would be 21 identical answers. It changes with the
+# ACCENT instead, which the locale sweep never varies: those runs are all MONO,
+# where the accent is WT_INK and the check has nothing to look at. So the same
+# walk runs once per themed accent, in English.
+echo
+echo "theme role gate: 3 accents"
+echo
+roletotal=0
+for a in GREEN CYPHERPINK ORANGE; do
+    out=$(SIM_ACCENT="$a" /tmp/kissoverlap 2>&1)
+    rc=$?
+    n=$(printf '%s\n' "$out" | grep -c '^  ROLE')
+    roletotal=$((roletotal + n))
+    [ "$rc" -gt "$worst" ] && worst=$rc
+
+    if [ "$n" -gt 0 ]; then
+        printf '%-12s %3d findings\n' "$a" "$n"
+        printf '%s\n' "$out" | grep -E '^  ROLE' | sed 's/^/  /'
+        echo
+    else
+        printf '%-12s clean\n' "$a"
+    fi
+done
+
+echo
+echo "theme role gate: $roletotal findings across 3 accents"
+total=$((total + roletotal))
+
 if [ "$worst" -ne 0 ]; then
     echo
-    echo "FAILED: OVERLAPCHECK_STRICT is set and the gate found overlapping text."
+    echo "FAILED: OVERLAPCHECK_STRICT is set and the gate found something."
     exit 1
 fi
 if [ "$total" -gt 0 ]; then
