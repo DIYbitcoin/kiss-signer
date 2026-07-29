@@ -20,9 +20,13 @@ int main(int argc, char **argv){
         {"2-nested.psbt",        WSCRIPT_NESTED, WPSBT_READY},
         {"3-legacy.psbt",        WSCRIPT_LEGACY, WPSBT_READY},
         {"4-stop-wrongnet.psbt", WSCRIPT_NATIVE, WPSBT_STOP},
+        {"5-caution-highfee.psbt", WSCRIPT_NATIVE, WPSBT_CAUTION},
     };
     int fails=0;
-    for(int i=0;i<4;i++){
+    // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
+    // the table above compiled clean and quietly checked everything except the
+    // new one, which is the failure mode a fixture list can least afford.
+    for(size_t i=0;i<sizeof t/sizeof *t;i++){
         char path[1024]; snprintf(path,sizeof path,"%s/%s",argv[1],t[i].f);
         FILE *fp=fopen(path,"rb"); if(!fp){ printf("FAIL missing %s\n",t[i].f); fails++; continue; }
         unsigned char buf[8192]; size_t n=fread(buf,1,sizeof buf,fp); fclose(fp);

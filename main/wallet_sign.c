@@ -81,6 +81,13 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 #endif
 
 #define HOLD_MS   1200
+// HOLD TO SIGN ignores presses for this long after I UNDERSTAND was tapped.
+// See the note where the two buttons are built: they overlap in x and no
+// arrangement of them inside a 704px row separates them, so the fix is to make
+// the overlap unreachable in time rather than in space. Long enough to outlast
+// a double tap, short enough that nobody deliberately reaching for the button
+// ever meets it: the finger has to travel and the screen has to repaint first.
+#define SIGN_ARM_MS 500
 #define MAX_FILES 8
 #define SHOW_OUTS 3
 
@@ -94,6 +101,7 @@ static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
 static bool s_ack;                      // CAUTION acknowledged? (gates hold-to-sign)
+static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
 static uint8_t s_in[4096], s_out[4680];
 static lv_obj_t *s_parent;             // where this flow's screens are built
 static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came from
@@ -269,21 +277,46 @@ static void mk_status_light(void)
                      : tr_sym(LV_SYMBOL_CLOSE, STR_S_STOP);
     lv_color_t col = s_sum.status == WPSBT_READY ? MUT_COL
                    : s_sum.status == WPSBT_CAUTION ? WARN_COL : STOP_COL;
+    // A BADGE, not a pill. This used to be a 160x44 rounded rectangle with a
+    // filled background and a 2px coloured border, which is the exact shape of
+    // every button on this device, sitting in the top right corner where a
+    // button would sit. It says CHECK DETAILS. People tapped it. It is a
+    // status word and there is nothing to tap.
+    //
+    // So it loses the fill, the border and the radius, and keeps the colour
+    // and the icon, which were carrying the meaning all along. Text alone in a
+    // status colour is what every other read only value on this device looks
+    // like. It also gets font23 off the metadata rung: the verdict on a
+    // transaction is not metadata, and at 14 it was the smallest type on the
+    // screen it is supposed to summarise.
+    //
+    // wt_note_fit rather than a flat font23, because STOP and CAUTION carry a
+    // symbol and a translated word, and PRZYTRZYMAJ-length locales exist. It
+    // drops a rung rather than running into the title to its left.
+    // 592, not 532. Widening it left ran it into SIGNING AS and the wallet
+    // fingerprint, which own 430..580 of this header. 160px is what is free.
+    // The consequence is that STOP and CAUTION take 23 and CHECK DETAILS drops
+    // to 14, which reads as inconsistent and is not: the two words that mean
+    // "stop and look" get the size, and the one that means "nothing is wrong"
+    // does not need it.
     lv_obj_t *p = lv_obj_create(s_scr);
     lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, 160, 44);
-    lv_obj_set_pos(p, 592, 30);
-    lv_obj_set_style_radius(p, 22, 0);
-    lv_obj_set_style_bg_color(p, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(p, 2, 0);
-    lv_obj_set_style_border_color(p, col, 0);
+    // 56 tall, not 44. At font23 with a leading symbol the line box is 57px,
+    // so a 44px box clipped the top 7px off CAUTION and CAUTELA. The box only
+    // ever held a border that is now gone, so it costs nothing to fit the type
+    // rather than making the type fit it.
+    lv_obj_set_size(p, 160, 60);
+    lv_obj_set_pos(p, 592, 22);
+    lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(p, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *l = lv_label_create(p);
-    lv_label_set_text(l, word);
+    wt_note_fit(l, word, 160, 30);
     lv_obj_set_style_text_color(l, col, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_center(l);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_width(l, 160);
+    lv_obj_align(l, LV_ALIGN_RIGHT_MID, 0, 0);
 }
 
 // ---- signing ----
@@ -390,6 +423,9 @@ static void sign_press_cb(lv_event_t *e)
 {
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
+        // Not yet armed: this press is the tail of the one that acknowledged
+        // the caution, landing on the button that replaced it. Swallow it.
+        if (s_ack_t0 && lv_tick_elaps(s_ack_t0) < SIGN_ARM_MS) return;
         s_hold_t0 = lv_tick_get();
         if (!s_hold_tmr) s_hold_tmr = lv_timer_create(hold_tick, 30, NULL);
     } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
@@ -552,6 +588,7 @@ static void ack_cb(lv_event_t *e)
 {
     (void)e;
     s_ack = true;
+    s_ack_t0 = lv_tick_get();
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     verify_screen(s_parent);
@@ -791,7 +828,23 @@ static void verify_screen(lv_obj_t *parent)
             // row above it. One row is one line, always.
             wt_note_fit(r, row, 300, 29);
         }
+        // Anchored to the bottom of the column, then lifted clear of it.
+        // anchor_bottom lands the last row ON WT_CONTENT_BOTTOM, and the action
+        // row starts at exactly that y, so the warning ended up welded to the
+        // top edge of the button that answers it with no air between them. The
+        // reasoning for anchoring is still right, the warning must sit above
+        // the button it belongs to rather than float at a fixed y, but "above"
+        // and "touching" are not the same thing.
+        // Lifted by up to 26px, but only as far as the RBF line above allows.
+        // With one flag there is room and the warning gets air under it. With
+        // three there is none: the rows are 29px each and the RBF note ends at
+        // 303, so the stack already starts at 311 and any lift walks into it.
+        // Clamped rather than conditional, so the common case improves and the
+        // crowded case stays exactly where the gate proved it fits.
         int top = anchor_bottom(col, 468);
+        int lift = top - 311;
+        if (lift > 26) lift = 26;
+        if (lift > 0) { top -= lift; lv_obj_set_y(col, top); }
         // The "?" LEADS the stack it explains rather than trailing it: trailing,
         // it moved with the translated string's length and at x=720,y=362 its
         // 54px effective target reached into I UNDERSTAND, on the one screen
@@ -829,12 +882,23 @@ static void verify_screen(lv_obj_t *parent)
             // hang above it: x separation carries the safety boundary instead
             // of pretending two vertical pixels help a fingertip.
             //
-            // Still to fix, and NOT fixed here: this button and HOLD TO SIGN
-            // overlap in x across the two states (238..490 against 310..582),
-            // so a second tap in the same place can land on the sign button.
-            // The row is 704px and DETAILS + BACK spend 310 of it, so there is
-            // no arrangement of a 252 and a 272 in what is left that separates
-            // them. It needs the phase 3 restructure, which rebuilds this bar.
+            // This button and HOLD TO SIGN overlap in x across the two states,
+            // 238..490 against 310..582, so a second press in the same place
+            // can land on the sign button. That is not fixable here and the
+            // arithmetic is why: the row is 704px, DETAILS and BACK spend 310
+            // of it, and 252 + 272 does not fit in the 376 left over. No
+            // arrangement separates them, so moving either one is theatre.
+            //
+            // Fixed in time instead of in space. HOLD TO SIGN ignores presses
+            // for SIGN_ARM_MS after this button is tapped, which makes the
+            // overlap unreachable. It also costs nothing to a deliberate user:
+            // a finger that has to travel and a screen that has to repaint
+            // take longer than the arming window on their own.
+            //
+            // Worth being clear about the size of the hazard, because the
+            // earlier note here overstated it. Signing needs a HOLD, so a
+            // stray tap never signed anything; the exposure was a double tap
+            // that happened to become a hold. Real, but narrow.
             lv_obj_t *ok = wt_pillh(s_scr, tr(STR_C_I_UNDERSTAND), 238, WT_ACTION_Y_TALL,
                                     252, WT_ACTION_H_TALL, ack_cb, NULL);
             wt_pill_primary(ok);
@@ -936,7 +1000,19 @@ static void details_cb(lv_event_t *e)
                  (unsigned)det.n_total, (unsigned)det.n_in);
     else
         snprintf(buf, sizeof buf, tr(STR_S_D_INPUTS_FMT), (unsigned)det.n_in);
-    mk_lbl(buf, 40, 96, wt_font14(), MUT_COL);
+    // wt_section, not a muted font14 line. Every single label on this screen
+    // used to be font14, which is not "dense", it is no hierarchy at all: the
+    // count of inputs, the amount of each one, and the sighash flag all
+    // shouted at the same volume, so nothing led and the eye had to read all
+    // of it to find any of it. The eyebrow style is what WALLET and RECEIVE
+    // put above a value, and this is the same relationship.
+    lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 96);
+    // Bounded to the left column. STR_S_D_MANYIN_FMT is a sentence, not a
+    // word, and in Spanish it ran straight across into the TXID caption in the
+    // right column. It was font14 and unbounded before, which only hid the
+    // fault behind a smaller face.
+    lv_obj_set_width(ihdr, 372);
+    lv_label_set_long_mode(ihdr, LV_LABEL_LONG_WRAP);
 
     lv_obj_t *il = lv_obj_create(s_scr);
     lv_obj_remove_style_all(il);
@@ -964,7 +1040,10 @@ static void details_cb(lv_event_t *e)
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, INK_COL, 0);
-        lv_obj_set_style_text_font(amt, wt_font14(), 0);
+        // The amount leads the row at 23 and the txid trails it at 14. That is
+        // the whole fix for this list: what is being spent is the fact, and the
+        // coin it came from is the reference you check it against.
+        lv_obj_set_style_text_font(amt, wt_font23(), 0);
 
         // coin being spent: first 8 + last 8 of its txid, and the output index
         snprintf(buf, sizeof buf, "%.8s...%s : %u",
@@ -990,7 +1069,7 @@ static void details_cb(lv_event_t *e)
     }
 
     // the id to find it by, once broadcast — final only for segwit-only spends
-    mk_lbl(tr(STR_S_D_TXID), 430, 96, wt_font14(), MUT_COL);
+    wt_section(s_scr, tr(STR_S_D_TXID), 430, 96);
     char gt[80];
     group4(det.txid, gt, sizeof gt);
     lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
@@ -1034,7 +1113,10 @@ static void details_cb(lv_event_t *e)
     fmt_sats(leaving, a, sizeof a);
     wt_fmt_btc(leaving, gt, sizeof gt);
     snprintf(buf, sizeof buf, "%s sats   =   %s BTC", a, gt);
-    mk_lbl(buf, 430, 232, wt_font14(), MUT_COL);
+    // 23, and INK. This is the number a holder reads off the glass and compares
+    // against the coordinator, which is the entire reason the BTC form is here
+    // at all. It was the same size and the same grey as the locktime note.
+    mk_lbl(buf, 430, 228, wt_font23(), INK_COL);
 
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);
@@ -1159,6 +1241,7 @@ static void file_tap_cb(lv_event_t *e)
     SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
+    s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
@@ -1310,6 +1393,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     log_psbt_hex(s_in, len);
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
+    s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
@@ -1343,7 +1427,16 @@ static void coord_ok_cb(lv_event_t *e)
 // COORDINATOR <- QR -> KISS equation.  That equation showed transport, but not
 // which side acted first, what came back, or who actually broadcasts.  Those
 // are exactly the facts a first-time signer needs.
+//
+// Each step also carries an icon, for the same reason the scan key card does:
+// three rows of all caps type at the same size read as a wall, and the reader
+// has to parse every word to find out which row is the device. An icon is read
+// before the sentence is. The eye is deliberately the SAME glyph the scan key
+// card uses for watch only, because it means the same thing in both places.
+// Only one icon is coloured, and it is the key on step 2, which is the one row
+// where the private keys are involved and the only row this device performs.
 static void coord_step(lv_obj_t *parent, int y, const char *number,
+                       const char *icon, lv_color_t icon_color,
                        const char *text, bool signer)
 {
     lv_obj_t *row = lv_obj_create(parent);
@@ -1368,14 +1461,23 @@ static void coord_step(lv_obj_t *parent, int y, const char *number,
     lv_obj_set_style_text_font(n, wt_font23(), 0);
     lv_obj_align(n, LV_ALIGN_LEFT_MID, 18, 0);
 
+    lv_obj_t *ic = lv_label_create(row);
+    lv_label_set_text(ic, icon);
+    lv_obj_set_style_text_color(ic, icon_color, 0);
+    lv_obj_set_style_text_font(ic, wt_font23(), 0);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 52, 0);
+
+    // Text starts at 92 rather than 50, which is the icon's 26px column plus
+    // the gap. The label loses the same 44px off its width so the right edge
+    // does not move: the longest translations were already using it.
     lv_obj_t *l = lv_label_create(row);
     lv_label_set_text(l, text);
-    lv_obj_set_width(l, 640);
+    lv_obj_set_width(l, 596);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_text_color(l, INK_COL, 0);
     lv_obj_set_style_text_font(l, wt_font23(), 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 50, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, 92, 0);
 }
 
 static void coord_connector(lv_obj_t *parent, int y)
@@ -1401,7 +1503,7 @@ static void coord_help_cb(lv_event_t *e)
 
     lv_obj_t *t = lv_label_create(ovl);
     lv_label_set_text(t, tr(STR_S_COORD_T));
-    lv_obj_set_style_text_color(t, INK_COL, 0);
+    lv_obj_set_style_text_color(t, wt_accent(), 0);   // as the scan key card
     lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 54);
@@ -1424,11 +1526,14 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_remove_style_all(flow);
     lv_obj_set_size(flow, 800, 480);
     lv_obj_remove_flag(flow, LV_OBJ_FLAG_CLICKABLE);
-    coord_step(flow, 230, "1", tr(STR_S_FLOW_1), false);
+    coord_step(flow, 230, "1", LV_SYMBOL_EYE_OPEN, MUT_COL,
+               tr(STR_S_FLOW_1), false);
     coord_connector(flow, 274);
-    coord_step(flow, 288, "2", tr(STR_S_FLOW_2), true);
+    coord_step(flow, 288, "2", WT_ICON_KEY, wt_primary(),
+               tr(STR_S_FLOW_2), true);
     coord_connector(flow, 332);
-    coord_step(flow, 346, "3", tr(STR_S_FLOW_3), false);
+    coord_step(flow, 346, "3", LV_SYMBOL_UPLOAD, MUT_COL,
+               tr(STR_S_FLOW_3), false);
 
     lv_obj_t *ok = lv_obj_create(ovl);
     lv_obj_remove_style_all(ok);
@@ -1468,11 +1573,12 @@ void wallet_sign_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
-    // The PSBT help chip below sits at x=652, inside the subtitle's own lane.
+    // The PSBT help chip below sits at x=616, inside the subtitle's own lane.
     // The subtitle's box is the full 704 whatever the translation does, so the
-    // two overlapped in every locale, English included. 580 stops the lane at
-    // x=628, 24px clear of the chip.
-    wt_sub_fit(s_scr, 580);
+    // two overlapped in every locale, English included. 544 stops the lane at
+    // x=592, 24px clear of the chip. Was 580 against a chip that started at
+    // 652; the chip grew left when its label went from font14 to font23.
+    wt_sub_fit(s_scr, 544);
     // Both ways in are the same size. SCAN QR is short and primary, so on its
     // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
     // -- two buttons offering the same choice, one visibly louder. Primary
@@ -1501,9 +1607,14 @@ void wallet_sign_open(lv_obj_t *parent)
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);
     lv_obj_remove_style_all(hc);
-    lv_obj_set_size(hc, 100, 36);
-    lv_obj_set_pos(hc, 652, 64);
-    lv_obj_set_style_radius(hc, 18, 0);
+    // 136x44 at font23, up from 100x36 at font14. The old chip was legible on a
+    // desk and not at arm's length, which is the only distance that counts on a
+    // screen you hold up to a coordinator. Right edge stays on the 752 page
+    // margin and the top stays on 64, so it grows left and down into empty
+    // space rather than into the title above it.
+    lv_obj_set_size(hc, 136, 44);
+    lv_obj_set_pos(hc, 616, 64);
+    lv_obj_set_style_radius(hc, 22, 0);
     lv_obj_set_style_bg_color(hc, KEY_COL, 0);
     lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(hc, 1, 0);
@@ -1512,11 +1623,21 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_ext_click_area(hc, 14);                // small chip, honest target
     wt_tap_feedback(hc);
     lv_obj_add_event_cb(hc, coord_help_cb, LV_EVENT_CLICKED, NULL);
+    // Two labels, not one recoloured string. The word carries the accent
+    // because the accent is what this UI uses for "this is live, touch it", and
+    // the word is the thing being explained. The "?" stays muted: it is the
+    // grammar of the chip, not its subject. One help target on this screen and
+    // one only, so there is never a question of which "?" opens what.
     lv_obj_t *hl = lv_label_create(hc);
-    lv_label_set_text(hl, "PSBT  ?");
-    lv_obj_set_style_text_color(hl, INK_COL, 0);
-    lv_obj_set_style_text_font(hl, wt_font14(), 0);
-    lv_obj_center(hl);
+    lv_label_set_text(hl, "PSBT");
+    lv_obj_set_style_text_color(hl, wt_accent(), 0);
+    lv_obj_set_style_text_font(hl, wt_font23(), 0);
+    lv_obj_align(hl, LV_ALIGN_LEFT_MID, 18, 0);
+    lv_obj_t *hq = lv_label_create(hc);
+    lv_label_set_text(hq, "?");
+    lv_obj_set_style_text_color(hq, MUT_COL, 0);
+    lv_obj_set_style_text_font(hq, wt_font23(), 0);
+    lv_obj_align(hq, LV_ALIGN_RIGHT_MID, -18, 0);
     wt_note(s_scr, tr(STR_S_OR_LOAD), 430, 270, 322, 58);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
