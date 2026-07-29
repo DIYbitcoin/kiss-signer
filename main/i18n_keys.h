@@ -421,6 +421,7 @@ enum {
     STR_W_SD_MISSING_B,
     STR_W_SD_CORRUPT_B,
     STR_W_SD_IO_B,
+    STR_S_CMP_8,
     STR_N
 };
 
