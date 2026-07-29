@@ -520,16 +520,18 @@ static void ent_back_cb(lv_event_t *e)
 static void entropy_screen(void)
 {
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
+    // The SAME body in both builds. The simulator used to draw a hardcoded
+    // English paragraph here instead, which meant STR_W_RAND_B was device only
+    // and the overlap gate had never rendered it in ANY locale: the one screen
+    // whose copy explains where a wallet's randomness comes from was the one
+    // screen no gate could see. That paragraph also explained the mixing better
+    // than this one did, and it used a hyphen as punctuation. It is gone; the
+    // scripted capture says so on its own button instead.
+    mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
 #ifdef SIMULATOR
-    mk_lbl("(simulator: camera entropy is scripted)\n\n"
-           "on the device, the camera shot is MIXED with\n"
-           "the chip's own hardware randomness - neither\n"
-           "source alone decides your words.", 48, 140,
-           wt_font14(), MUT_COL);
-    mk_pill("CAPTURE", 48, WT_ACTION_Y, 240, sim_entropy_cb, NULL);
+    mk_pill("CAPTURE (SCRIPTED)", 48, WT_ACTION_Y, 300, sim_entropy_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 #else
-    mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);

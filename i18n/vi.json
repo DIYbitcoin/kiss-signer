@@ -58,7 +58,7 @@
   "W_12_NOTE": "khuyên dùng. entropy 128 bit,\ndễ chép và kiểm tra chính xác hơn.",
   "W_24_NOTE": "entropy 256 bit nhưng dài hơn.\nchọn để khớp với ví cũ.",
   "W_RAND_T": "THÊM NGẪU NHIÊN",
-  "W_RAND_S": "ví chỉ an toàn bằng độ ngẫu nhiên lúc nó\nđược tạo. camera cung cấp điều đó.",
+  "W_RAND_S": "ví chỉ an toàn bằng độ ngẫu nhiên lúc nó\nđược tạo. camera cung cấp một nửa điều đó.",
   "W_RAND_B": "hướng camera vào thứ gì đó lộn xộn:\nlá cây, sỏi, bộ bài đã xáo.\nchạm khi thanh chuyển sang xanh.\n\ntrộn với ngẫu nhiên của chính con chip,\nkhông nguồn nào tự quyết định.",
   "W_WRITE_T": "GHI LẠI NGAY",
   "W_WRITE_S": "các từ + đúng cụm mật khẩu khôi phục ví này",

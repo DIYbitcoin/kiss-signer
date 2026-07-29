@@ -58,7 +58,7 @@
   "W_12_NOTE": "önerilen. 128 bit entropi,\nhatasız yazıp doğrulamak daha kolay.",
   "W_24_NOTE": "256 bit entropi, ancak daha uzun.\neski bir cüzdanla eşleşmek için seçin.",
   "W_RAND_T": "RASTGELELİK EKLEYİN",
-  "W_RAND_S": "bir cüzdan ancak yaratılışındaki rastgelelik\nkadar güvenlidir. bunu kamera sağlar.",
+  "W_RAND_S": "bir cüzdan ancak yaratılışındaki rastgelelik\nkadar güvenlidir. bunun yarısını kamera sağlar.",
   "W_RAND_B": "kamerayı dağınık bir şeye tut:\nyapraklar, çakıl, karılmış deste.\nçubuk yeşile dönünce dokun.\n\nçipin kendi rastgeleliğiyle karışır,\nhiçbiri tek başına karar vermez.",
   "W_WRITE_T": "BUNLARI YAZIN",
   "W_WRITE_S": "kelimeler + aynı passphrase bu cüzdanı geri yükler",
