@@ -32,6 +32,14 @@ Do not explain controls or terminology while a task is in progress.
    compared and identify the privacy reminder and every anonymous help target.
    Pass when underlines/icons carry the meaning without relying on colour and
    each target responds on the first tap.
+6. **Repeat task 5 in GREEN.** MONO hides a whole class of bug, because its
+   accent is ink: nothing there can be mistaken for a status. In GREEN the
+   accent is 0x35D07F, byte identical to WT_OK, so every accent-coloured
+   control is the same green the device uses to say verified. Walk the signing
+   flow, the receive screen and the Silent Payment permission rows. Pass when
+   nothing that is merely the suggested action reads as something the device
+   has checked and approved. Worth a pass in ORANGE too, where the accent sits
+   closest to WT_WARN.
 
 ## Normal beta7 storage acceptance
 
@@ -39,26 +47,26 @@ Use only the normal, unencrypted beta firmware and a disposable seed. These
 tests deliberately do not claim that FLASH protects secrets from physical
 extraction.
 
-6. **Understand the three choices.** Open the storage chooser once during setup
+7. **Understand the three choices.** Open the storage chooser once during setup
    and once through **SETTINGS → STORAGE**. Ask where the words live for FLASH,
    SD CARD and AMNESIC. Pass when the participant says: internal storage,
    encrypted device-bound card, and current session only. The current mode must
    be visibly selected in Settings.
-7. **Keep a FLASH wallet.** Create or restore a disposable wallet in FLASH,
+8. **Keep a FLASH wallet.** Create or restore a disposable wallet in FLASH,
    record its fingerprint, lock, power-cycle and unlock again. Pass when the
    same fingerprint returns and the UI does not imply that normal beta flash is
    encrypted.
-8. **Move FLASH to AMNESIC.** From the disposable FLASH wallet, choose AMNESIC
+9. **Move FLASH to AMNESIC.** From the disposable FLASH wallet, choose AMNESIC
    and complete its destructive confirmation. Lock and return through the KISS
    gesture. Pass when KISS asks to load the wallet, no stored seed silently
    reappears, and loading the same words and passphrase restores the recorded
    fingerprint.
-9. **Persist a loaded AMNESIC session.** While that restored amnesic session is
-   still unlocked, move it to FLASH, then lock and power-cycle. Pass when the
-   same fingerprint unlocks from FLASH. In a second run, lock the amnesic
-   session before moving it: KISS must ask to load the wallet again rather than
-   claim it migrated words that are no longer in RAM.
-10. **Take a wallet to the card, and prove the card alone is inert.** Visit the
+10. **Persist a loaded AMNESIC session.** While that restored amnesic session is
+    still unlocked, move it to FLASH, then lock and power-cycle. Pass when the
+    same fingerprint unlocks from FLASH. In a second run, lock the amnesic
+    session before moving it: KISS must ask to load the wallet again rather than
+    claim it migrated words that are no longer in RAM.
+11. **Take a wallet to the card, and prove the card alone is inert.** Visit the
     chooser with no card inserted: choosing SD CARD must fail with a readable
     reason and must not change the current mode. Insert a blank card, move the
     disposable wallet to SD, then lock and power-cycle. Pass when the same
@@ -66,7 +74,7 @@ extraction.
     removed asks for the card rather than silently falling back to another mode.
     Then read `kiss-seed.enc` on a computer: pass only when nothing in it
     resembles the recovery words.
-11. **Read the last line.** On every screen the participant reaches, ask them to
+12. **Read the last line.** On every screen the participant reaches, ask them to
     read the last line of content aloud. Pass only when every glyph is fully
     visible. Fail on any half rendered row, any text overlapping other text, and
     any list whose final row is sliced by the screen edge. Repeat on the sign
@@ -74,7 +82,7 @@ extraction.
 
 ## Deferred encrypted-SD acceptance
 
-SD storage itself is part of beta7 acceptance, in task 10. What is deferred is
+SD storage itself is part of beta7 acceptance, in task 11. What is deferred is
 the flash-encrypted lane on top of it, which is what protects the device key at
 rest and so closes the case where someone holds both the device and the card.
 Do not flash irreversible RELEASE-mode encryption for this checklist. Its
@@ -85,5 +93,5 @@ rehearsal. Follow
 hardware test is authorized.
 
 Repeat failed tasks after glare, off-axis viewing, and a different phone camera.
-Do not call the normal beta7 UI accepted until tasks 1 to 11 pass without
+Do not call the normal beta7 UI accepted until tasks 1 to 12 pass without
 coaching.

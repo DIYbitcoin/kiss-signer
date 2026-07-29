@@ -50,7 +50,6 @@ static const slot_t SLOTS[] = {
     { "login/warn",       STR_L_WARN_B,     740, 204 },
     { "login/pp-intro",   STR_L_PPINTRO_B,  704, 280 },
     // wallet_setup.c — wizard explainers
-    { "setup/entropy",    STR_W_RAND_B,     704, 274 },
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-in",  STR_W_VINTRO_B,   704, 274 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
@@ -84,7 +83,6 @@ static const slot_t SLOTS[] = {
     { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
     // amnesic mode: seed-QR import + passphrase-from-QR
     { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
-    { "setup/rand-body",  STR_W_RAND_B,     704, 256 },
     // wallet_sign.c: the screens BEFORE and AFTER the detail page. The detail
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at
@@ -97,6 +95,15 @@ static const slot_t SLOTS[] = {
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
     { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
     { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
+    // wallet_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
+    // 704x294 overlay. Registered at 232, not the 294 the screen allows: eight
+    // lines at font23 is exactly 8 x 29, so the box IS the no-wrap condition
+    // and one wrapped definition (261) fails here. Written that way because
+    // 294 hid the real state of this page -- eleven locales were rendering the
+    // whole thing at font14 because enough definitions wrapped to overflow at
+    // 23, and a definition that wraps mid-clause is the one place a glossary
+    // must not be hard to read.
+    { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
     { "sign/no-network",  STR_S_NO_NETWORK,     322,  29 },
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
