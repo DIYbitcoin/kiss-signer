@@ -62,7 +62,6 @@ enum {
     STR_W_24_NOTE,
     STR_W_RAND_T,
     STR_W_RAND_S,
-    STR_W_RAND_B,
     STR_W_WRITE_T,
     STR_W_WRITE_S,
     STR_W_PAPER_ONLY,

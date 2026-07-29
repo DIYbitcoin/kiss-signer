@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bits de entropia, mas mais palavras.\nescolha para uma carteira antiga.",
   "W_RAND_T": "ADICIONE ALEATORIEDADE",
   "W_RAND_S": "uma carteira é tão segura quanto o acaso usado na\nsua criação. a câmara fornece parte desse acaso.",
-  "W_RAND_B": "aponte a câmara para algo desarrumado:\nfolhas, gravilha, um baralho baralhado.\ntoque quando a barra ficar verde.\n\nmisturado com o acaso do próprio chip,\nnenhum decide sozinho.",
   "W_WRITE_T": "ANOTE ESTAS PALAVRAS",
   "W_WRITE_S": "palavras + a mesma passphrase restauram esta carteira",
   "W_PAPER_ONLY": "só papel, nunca foto ou ficheiro.",

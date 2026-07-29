@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bit di entropia, ma più parole.\nsceglile per un vecchio portafoglio.",
   "W_RAND_T": "AGGIUNGI CASUALITÀ",
   "W_RAND_S": "un portafoglio è sicuro quanto è casuale la sua\ncreazione. la fotocamera ne fornisce una metà.",
-  "W_RAND_B": "inquadra qualcosa di disordinato:\nfoglie, ghiaia, un mazzo mescolato.\ntocca quando la barra diventa verde.\n\nmescolato al caso del chip stesso,\nnessuno dei due decide da solo.",
   "W_WRITE_T": "SCRIVILE SU CARTA",
   "W_WRITE_S": "parole + la stessa passphrase ripristinano il portafoglio",
   "W_PAPER_ONLY": "solo carta, mai foto o file.",

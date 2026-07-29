@@ -520,14 +520,23 @@ static void ent_back_cb(lv_event_t *e)
 static void entropy_screen(void)
 {
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
-    // The SAME body in both builds. The simulator used to draw a hardcoded
-    // English paragraph here instead, which meant STR_W_RAND_B was device only
-    // and the overlap gate had never rendered it in ANY locale: the one screen
-    // whose copy explains where a wallet's randomness comes from was the one
-    // screen no gate could see. That paragraph also explained the mixing better
-    // than this one did, and it used a hyphen as punctuation. It is gone; the
-    // scripted capture says so on its own button instead.
-    mk_body(tr(STR_W_RAND_B), 48, 140, 704, 256, MUT_COL);   // clears the 2-line subtitle
+    // No body here, and it has to stay that way. camera_entropy_start() below
+    // hands the panel to camera_spike.c, which writes all 480x800 every frame
+    // with LVGL suppressed, so anything drawn here is covered before it can be
+    // read. A six line paragraph used to sit at y=140: nobody has ever seen it
+    // on hardware, and on the ONE path where it was visible -- the camera
+    // failing to start -- it told the reader to aim a camera that had just
+    // failed, over the top of the CAM_UNAVAIL label at y=240.
+    //
+    // Nothing was lost with it. The captions the camera draws for itself,
+    // C_OSD_ENT_LOW_* and C_OSD_ENT_OK_*, already carry all four of its claims:
+    // what to point at, what not to point at, when to tap, and that the photo
+    // is mixed with the chip's own randomness. Those are composed by
+    // osd_strips.c and gated pixel for pixel by sim/osdcheck.c.
+    //
+    // So prose belongs on a screen the camera is not about to cover. This one
+    // keeps a title and a subtitle because those are what the failure path
+    // needs, and they are short enough to clear the error under them.
 #ifdef SIMULATOR
     mk_pill("CAPTURE (SCRIPTED)", 48, WT_ACTION_Y, 300, sim_entropy_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);

@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bitars entropi, men mer att kopiera.\nvälj detta för att matcha en äldre plånbok.",
   "W_RAND_T": "LÄGG TILL SLUMP",
   "W_RAND_S": "en plånbok är bara så säker som slumpen\nden skapades med. kameran bidrar med den.",
-  "W_RAND_B": "rikta kameran mot något rörigt:\nlöv, grus, en blandad kortlek.\ntryck när stapeln blir grön.\n\nblandas med chippets egen slump,\nså ingen av dem bestämmer ensam.",
   "W_WRITE_T": "SKRIV NER DESSA",
   "W_WRITE_S": "orden + samma lösenfras återställer plånboken",
   "W_PAPER_ONLY": "endast papper, aldrig foto eller fil.",
