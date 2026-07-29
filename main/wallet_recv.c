@@ -537,6 +537,14 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   return row;
 }
 
+// Spent, not missing. Half opacity on the pill and its glyph, and the tap
+// feedback and the click flag both off, so it neither lights up nor answers.
+static void page_arrow_dim(lv_obj_t *p) {
+  if (!p) return;
+  lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_opa(p, LV_OPA_40, 0);
+}
+
 static void page_cb(lv_event_t *e) {
   int step = (int)(intptr_t)lv_event_get_user_data(e);
   int base = (int)s_list_base + step * RECV_LIST_N;
@@ -566,7 +574,6 @@ static void recv_list_open(void) {
   lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
   lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(list, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
   // remove_style_all took the default scrollbar with it, and on this background
   // an unstyled one is invisible -- which on the device reads as "the list does
   // not scroll" rather than "you have not scrolled yet".
@@ -574,6 +581,16 @@ static void recv_list_open(void) {
   lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
   lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
   lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+  // ON, not AUTO, and this is the one thing about this screen that had to
+  // change. There are TWO ways to move through a hundred addresses here, the
+  // list scrolls and the arrows page by twenty, and the viewport is 324px
+  // against 48px rows: six and three quarters. AUTO hides the bar until you
+  // have already scrolled, so the only hint that row seven exists is a clipped
+  // row at the bottom edge, and the obvious control on the screen is an arrow
+  // that jumps straight past it. A reader could reasonably conclude the page
+  // holds six and that > skips fourteen they never saw. A bar that is there
+  // before the first touch says how much list there is, which is the question.
+  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
 
   // The list is NEVER scrolled programmatically. lv_obj_scroll_to_view()
   // during construction leaves the rows DRAWN at their scrolled positions
@@ -585,9 +602,16 @@ static void recv_list_open(void) {
 
   // Which slice of the range is on screen. Says OF 100 so the cap is a stated
   // fact rather than the list mysteriously refusing to go further.
+  // "OF" was hardcoded English on a device that ships 21 languages, and the
+  // range was joined with a hyphen, which is not punctuation this project
+  // uses. STR_C_OSD_OF is the localized "of" the scan overlay already counts
+  // parts with, so this needed no new string: ja renders it "/", which reads
+  // correctly here too. The range now uses an ellipsis, which is a span in
+  // every locale rather than a minus sign in some of them.
   lv_obj_t *pg = wt_lbl(s_scr, "", 0, 0, wt_font14(), lv_color_hex(0x4B5464));
-  lv_label_set_text_fmt(pg, "%u - %u  OF  %d", (unsigned)s_list_base + 1,
-                        (unsigned)s_list_base + RECV_LIST_N, RECV_LIST_CAP);
+  lv_label_set_text_fmt(pg, "%u…%u  %s  %d", (unsigned)s_list_base + 1,
+                        (unsigned)s_list_base + RECV_LIST_N,
+                        tr(STR_C_OSD_OF), RECV_LIST_CAP);
   lv_obj_update_layout(pg);
   lv_obj_set_pos(pg, 752 - lv_obj_get_width(pg), 34);
 
@@ -606,6 +630,16 @@ static void recv_list_open(void) {
   row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
   row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
   wt_pill_row(row, 4);
+
+  // An arrow at the end of the range says so. page_cb has always refused to
+  // step past 0 or the cap, correctly, but it refused SILENTLY: on the first
+  // page < looked exactly like > and did nothing, which reads as a device that
+  // missed the touch rather than a list that has no page before this one. The
+  // control is left in place and dimmed rather than hidden, because a button
+  // that vanishes takes its neighbour's position with it and the row would
+  // reflow under the finger.
+  if (s_list_base == 0) page_arrow_dim(row[1]);
+  if (s_list_base + RECV_LIST_N >= RECV_LIST_CAP) page_arrow_dim(row[2]);
 }
 
 // The path's "?", and it answers about the PATH alone.
