@@ -908,8 +908,19 @@ int main(void) {
   save("/tmp/sim_sign_back_files.ppm");
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
-  touch(364, 430); pump(3); release(); pump(6);     // I UNDERSTAND (238..490) -> hold pill
+  // I UNDERSTAND moved out of the action row and into the caution row itself,
+  // which is the point of the redraw: the answer sits beside the thing being
+  // read, and HOLD TO SIGN keeps its coordinates in both states. The pill is
+  // local (543,8) 170x40 inside a row pinned at (24, SG_PANEL_Y), so row 0's is
+  // 567..737 x 158..198. This is its centre. It was still tapping the old
+  // action-row position at (364,430), which the redraw deleted.
+  touch(652, 178); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
+  // BACK out of a screen an acknowledgement repainted. The tap above is what
+  // makes the orphaned-screen check at the end of this walk mean anything: the
+  // repaint is the only thing in the app that ever replaced a live screen
+  // without deleting it, so if the ack pill is not actually hit, nothing counts
+  // an orphan and the check passes on a build that leaks.
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
@@ -1468,6 +1479,21 @@ int main(void) {
     printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
            (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
            (unsigned)mon.max_used, (unsigned)mon.frag_pct);
+  }
+  // A sign screen that was replaced without being deleted stays parented under
+  // its replacement, invisible, until a BACK peels the top one off and drops
+  // the owner back on a transaction they already left. No saved frame shows it
+  // -- the walk's own diff between a good build and a leaking one was byte
+  // identical across all 177 frames -- so wallet_sign.c counts it instead and
+  // this is where the count is answered.
+  {
+    extern int g_sign_orphaned_screens;
+    if (g_sign_orphaned_screens) {
+      printf("FAIL: %d orphaned sign screen(s) left parented during the walk\n",
+             g_sign_orphaned_screens);
+      return 1;
+    }
+    printf("ok: no orphaned sign screens\n");
   }
   printf("sim done\n");
 #ifdef OVERLAPCHECK
