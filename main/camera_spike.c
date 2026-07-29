@@ -168,9 +168,27 @@ void camera_scan_progress(int seen, int total) {
 // vignetting is not corrected at all: ov02c10_default.json carries no lsc
 // section, so the ISP's shading block is never programmed, and correcting it
 // needs per lens coefficients measured on a flat field that we do not have.
-#define ENT_TARGET_X10  1200            // 20 frames at 6.0 bits, ~2s when good
-#define ENT_FRAME_CAP   120             // 12.0 bits, so no one frame carries a
-                                        // session on its own
+//
+// Which is exactly why a frame is credited with its EXCESS over a floor and
+// not with its raw reading. The floor is the part of the histogram width that
+// a featureless view produces anyway — vignetting, fixed pattern, the sensor's
+// own noise shape. Counting it would pay the holder for pointing at a wall.
+// Credit the excess and the bar reads as what it is: a blank wall crawls, a
+// bookshelf races, and the difference is visible while it happens rather than
+// only afterwards. Nothing is refused; a covered lens still finishes on the
+// trickle below, it just takes most of a minute to get there.
+//
+// At 10 sampled frames a second, target 1200:
+//   covered lens ~1.0 bits -> trickle 3  -> ~40s
+//   dark wall     3.5 bits -> 6          -> ~20s
+//   lit wall      4.5 bits -> 30         -> ~4s
+//   a lit desk    6.5 bits -> 70         -> ~1.8s
+//   gravel        8.0 bits -> 100        -> ~1.2s
+#define ENT_TARGET_X10  1200            // 20 frames at the knee, ~2s when good
+#define ENT_FLOOR_X10   30              // what an empty view reads on its own
+#define ENT_FRAME_GAIN  2               // excess over the floor, doubled
+#define ENT_FRAME_MIN   3               // the trickle: never stalls, never fast
+#define ENT_FRAME_CAP   120             // so no one frame carries a session
 // About 4130 of the 937,664 pixels, and 20 frames of those against a 256 bit
 // output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
 // walks instead of landing on the same columns every frame.
@@ -219,9 +237,10 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
                      d, sizeof d) == WALLY_OK &&
         wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
-      int add = s_ent_meter;
+      int add = (s_ent_meter - ENT_FLOOR_X10) * ENT_FRAME_GAIN;
+      if (add < ENT_FRAME_MIN) add = ENT_FRAME_MIN;
       if (add > ENT_FRAME_CAP) add = ENT_FRAME_CAP;
-      if (add > 0 && s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
+      if (s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
     }
     wally_bzero(d, sizeof d);
   }
@@ -639,12 +658,12 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
 }
 
 // The live Shannon estimate as digits, in the free end of the bottom band past
-// the bar. The bar on its own can only say "over" or "under" the gate, and both
-// of the people this screen serves want more than that. A holder standing at a
-// blank wall gets to watch the number climb as they turn toward something with
-// detail, which teaches what the gate is actually asking for far faster than
-// any wording would. Anyone tuning ENT_TARGET_X10 gets a figure they can
-// write down without a special build.
+// the bar. The bar says how much has been gathered; the number says how good
+// the view is right now, which is the half a filling bar cannot show. A holder
+// standing at a blank wall watches the number climb as they turn toward
+// something with detail, and the bar speed up with it, which teaches what the
+// screen is asking for far faster than any wording would. Anyone tuning
+// ENT_FLOOR_X10 gets a figure they can write down without a special build.
 //
 // Reuses the baked 0-9 glyphs. The decimal point is a plain square because
 // scan_osd bakes digits and no period.
