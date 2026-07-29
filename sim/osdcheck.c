@@ -175,9 +175,15 @@ static void compare_one(const char *txt, const lv_font_t *f, const char *what,
 
     osd_text_free(&strip);
     // The screen cannot be deleted while it is the active one, so park on a
-    // fresh blank first and let the next comparison build its own.
-    lv_obj_t *blank = lv_obj_create(NULL);
-    lv_screen_load(blank);
+    // fresh blank first. ONE blank for the whole run, not one per comparison:
+    // this used to build a new screen every time and never delete the previous
+    // one, so the gate leaked a screen per string. It survived at 252 strings
+    // and hung at 567, spinning forever inside lv_obj_create with LVGL's heap
+    // exhausted and not one line of output, which in CI is a job that never
+    // finishes and never says why.
+    static lv_obj_t *s_blank;
+    if (!s_blank) s_blank = lv_obj_create(NULL);
+    lv_screen_load(s_blank);
     lv_obj_delete(scr);
 }
 
