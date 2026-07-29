@@ -16,8 +16,15 @@ is bound by the same three constraints as the firmware:
 2. **One weight.** `tools/fonts/gen_fonts.sh` builds every face from Montserrat
    Medium, so there is no bold. Hierarchy comes from size, colour and letter
    spacing.
-3. **Fixed action geometry.** `WT_ACTION_Y 404`, `WT_ACTION_H 52`,
-   `WT_BACK_X 610`, and nothing above the row may cross `WT_CONTENT_BOTTOM`.
+3. **Fixed action geometry.** `WT_ACTION_Y 404`, `WT_ACTION_H 52`, and nothing
+   above the row may cross `WT_CONTENT_BOTTOM`. The back pill's x is *not*
+   fixed, and this rule used to say it was. It ends flush with the content lane
+   of the screen it sits on, because the app has no single lane: measured off
+   the frames, Settings' right column ends at 770, Receive's at about 751, and
+   Sign's panels at 776. `WT_BACK_X 610` ends at 750, which is the 48px page
+   margin `main/wallet_theme.c:373` declares and what most screens are drawn
+   to, so it stays the default. Sign is the exception and carries its own
+   `SG_BACK_X 636`.
 
 Colours are the `main/wallet_theme.h` macros. Never a new one.
 
