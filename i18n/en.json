@@ -58,7 +58,7 @@
   "W_12_NOTE": "recommended. 128 bits of entropy,\neasier to copy and verify.",
   "W_24_NOTE": "256 bits of entropy, but longer to copy.\nchoose it to match an old wallet.",
   "W_RAND_T": "ADD RANDOMNESS",
-  "W_RAND_S": "a wallet is only as safe as how randomly it\nwas created. the camera provides that.",
+  "W_RAND_S": "a wallet is only as safe as how randomly it\nwas created. the camera is one half of that.",
   "W_RAND_B": "point the camera at something messy:\nleaves, gravel, a shuffled deck.\ntap when the bar turns green.\n\nmixed with the chip's own randomness,\nso neither one decides alone.",
   "W_WRITE_T": "WRITE THESE DOWN",
   "W_WRITE_S": "words + the same passphrase restore this wallet",
