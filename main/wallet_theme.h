@@ -53,6 +53,13 @@ const lv_font_t *wt_font28(void);
 // read larger at a given pixel size). Never returns a Latin-only font to
 // a CJK locale.
 const lv_font_t *wt_font34(void);
+
+// Fixed pitch. Never hand one a translated string: they have no CJK variant
+// and no fallback, so a localised glyph draws LVGL's placeholder box.
+const lv_font_t *wt_font_mono14(void);
+const lv_font_t *wt_font_mono23(void);
+const lv_font_t *wt_font_mono28(void);
+const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // Largest body font that fits `txt` into w x max_h, measured for the ACTIVE
 // locale's font. Explainers should read at arm's length (and on a 3.5" port),
 // so short copy gets the big font; a long translation degrades to the small one

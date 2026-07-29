@@ -16,6 +16,13 @@ LV_FONT_DECLARE(font_kiss_lat23);   // wallet-home tile titles; CJK subset = til
 LV_FONT_DECLARE(font_kiss_lat28);
 // Latin/Cyrillic only -- no ja/ko/zh sibling exists at 34. See wt_font34().
 LV_FONT_DECLARE(font_kiss_lat34);
+
+// Fixed pitch, Latin only, no CJK variant and no fallback by design.
+// Addresses, fingerprints, derivation paths and amounts are never translated.
+LV_FONT_DECLARE(font_kiss_mono14);
+LV_FONT_DECLARE(font_kiss_mono23);
+LV_FONT_DECLARE(font_kiss_mono28);
+LV_FONT_DECLARE(font_kiss_num48);   // 13 glyphs: digits, space, full stop
 LV_FONT_DECLARE(font_kiss_ja23);
 LV_FONT_DECLARE(font_kiss_ko23);
 LV_FONT_DECLARE(font_kiss_zh23);
