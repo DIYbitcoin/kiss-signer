@@ -1642,11 +1642,11 @@ static void game_tick(lv_timer_t *t) {
     }
     // Per SWEEP-01 edit 4: the top-left corner locks from a wallet SUB screen
     // too, not only the home. H_EXIT_HINT promises "any time" and until now
-    // four screens ignored it; the safer half of the fix (extend the gesture)
-    // is here, the visible mark that makes it discoverable is out of scope
-    // for this pass. 88x88 target because the mark HANDOFF-05 keeps a place
-    // open for lands in that box. Route through the same teardown auto-lock
-    // uses, so a loaded PSBT is dropped the same way whichever route locks:
+    // four screens ignored it. The visible × in that corner is drawn by
+    // wt_lock_mark in wallet_theme.c and painted by each sub-screen; here we
+    // only route the touch. 88x88 target matches the mark's box. Route
+    // through the same teardown auto-lock uses, so a loaded PSBT is dropped
+    // the same way whichever route locks:
     // scan first (camera off before anything else), sign next (drops the
     // PSBT), then the passive screens, then wallet_lock.
     if (pressed && !s_prev_press && tx < 88 && ty < 88 &&
@@ -1708,7 +1708,7 @@ static void game_tick(lv_timer_t *t) {
       uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
-    if (!cam_on && pressed && !s_prev_press && tx < 200 && ty < 110) {
+    if (!cam_on && pressed && !s_prev_press && tx < 88 && ty < 88) {
       wallet_lock();
     } else if (cam_on) {
       bool zoom_zone = (tx >= 680 || tx <= 120) && ty > 120;
@@ -1753,7 +1753,7 @@ static void game_tick(lv_timer_t *t) {
     }
     if (!pressed) s_zoom_drag = false;
 #else
-    if (pressed && !s_prev_press && tx < 200 && ty < 110) wallet_lock();
+    if (pressed && !s_prev_press && tx < 88 && ty < 88) wallet_lock();
     else if (pressed && !s_prev_press && tx >= 566 && ty < 110)
       s_fp_pend = true;                  // fingerprint chip: open the card on release
     else if (pressed && !s_prev_press && tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340)
