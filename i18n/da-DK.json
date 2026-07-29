@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderne, laveste gebyrer.",
   "G_TY_NESTED_NOTE": "ældre segwit.",
   "G_TY_LEGACY_NOTE": "ældste type, højeste gebyrer.",
-  "G_SEPARATE": "hvert netværk + hver type er sin egen tegnebog",
   "G_CREATE_NEW": "OPRET NY SEED",
   "G_CREATE_NOTE": "erstatter seeden her.",
   "G_WIPE": "SLET SEED",

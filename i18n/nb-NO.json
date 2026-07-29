@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderne, lavest gebyr.",
   "G_TY_NESTED_NOTE": "eldre segwit.",
   "G_TY_LEGACY_NOTE": "eldste type, høyest gebyr.",
-  "G_SEPARATE": "hvert nettverk + hver type er en egen lommebok",
   "G_CREATE_NEW": "LAG NY SEED",
   "G_CREATE_NOTE": "erstatter seeden her.",
   "G_WIPE": "SLETT SEED",

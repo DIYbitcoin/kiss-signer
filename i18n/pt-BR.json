@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderno, menores taxas.",
   "G_TY_NESTED_NOTE": "segwit antigo.",
   "G_TY_LEGACY_NOTE": "o estilo mais antigo, taxas maiores.",
-  "G_SEPARATE": "cada rede + tipo é uma carteira separada",
   "G_CREATE_NEW": "CRIAR NOVA SEED",
   "G_CREATE_NOTE": "substitui a seed aqui.",
   "G_WIPE": "APAGAR SEED",

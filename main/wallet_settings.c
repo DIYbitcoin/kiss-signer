@@ -464,7 +464,11 @@ static void type_open_cb(lv_event_t *e)
     s_type_pill = s_type_pfx = s_type_expl = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 
-    s_scr = wt_screen(s_parent, tr(STR_I_SEC_TYPE), tr(STR_G_SEPARATE));
+    // No subtitle. It used to say that each network and type pair is its own
+    // separate wallet, which is true and which nobody needed told: the three
+    // rows below already name the tradeoff each type makes, and anyone who has
+    // met testnet knows its coins live somewhere else.
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_TYPE), NULL);
 
     // Oldest-to-newest makes the tradeoff legible as a progression, and puts
     // the recommended Native SegWit choice last, closest to the action row.
@@ -959,10 +963,15 @@ void wallet_settings_open(lv_obj_t *parent)
     // That is the whole reason the four rows above it moved: this is the last
     // thing in the column and it is a 72px two-line pill, so everything else
     // had to fit in what was left rather than the other way round.
+    // The hidden case leaves the slot empty. It used to carry a filler note
+    // reading "each network + type is its own separate wallet", which was there
+    // to stop the column ending on a gap. It told nobody anything they had not
+    // worked out, and a line of text nobody can act on reads as a mistake. An
+    // empty slot at the bottom of a column reads as the end of the column,
+    // which is what the paragraph above wants: the page that shipped before
+    // this feature existed.
     const int g = wallet_duress_real();
-    if (wallet_session_decoy() && g != WDG_NONE) {
-        wt_note(s_scr, tr(STR_G_SEPARATE), 48, 326, 340, 58);
-    } else {
+    if (!(wallet_session_decoy() && g != WDG_NONE)) {
         lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 326, 340, 72, duress_cb, NULL);
         wt_pill_two_line_val(dp, g == WDG_NONE ? tr(STR_GD_OFF)
                                                : tr(wallet_duress_label_key(g)));
