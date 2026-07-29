@@ -652,6 +652,37 @@ static void repaint_verify(void)
                            // row pushes the footer into the action bar
 #define SG_ROW_PILL_W 170
 
+// The action row spans the same lane as everything above it: 24..776.
+//
+// It did not, and that is what the redraw looked wrong from across the room for.
+// Every panel on this screen ends at 776 (SG_CHANGE_X + SG_CHANGE_W), the caution
+// rows are 24 + 752, and the footer cells sit inside the same lane, but BACK was
+// drawn at the app wide WT_BACK_X and stopped at 750. A 26px step, in the one
+// place the eye is already tracking a hard vertical edge down the page.
+//
+// WT_BACK_X is NOT changed to fix this, and the distinction matters. The app has
+// no single content lane: Settings' right column ends at 770 and Receive's at
+// about 751, both measured off the frames, so moving the shared constant to 776
+// would leave BACK hanging past the content on those screens instead. 610 is very
+// nearly right for a 48px page margin, which is what wallet_theme.c:373 declares
+// and what every screen except this one is drawn to. This screen is the exception,
+// so this screen carries the exception.
+//
+// HANDOFF-01 lists WT_BACK_X 610 under "fixed action geometry" while its own
+// coordinate table puts the panels at 24..776. Both cannot hold. The lane won,
+// because the lane is the thing the owner can see. That needs amending in
+// HANDOFF-01 constraint 3 and in design/README.md rule 3.
+#define SG_BACK_X    636   // 636..776, flush with the panels above
+// Even gutters, from the lane rather than from the centre of the screen: three
+// pills of 150 + 310 + 140 in a 752 lane leaves 152 to divide, so 76 either side
+// of HOLD TO SIGN. That puts its centre at 405 against a lane centre of 400, and
+// the 5px is simply DETAILS being 10px wider than BACK. Evening the gutters is
+// worth more than chasing that out, because uneven gutters are what read as a
+// mistake: HOLD used to sit 106px from DETAILS and 20px from BACK, close enough
+// to the escape hatch to look like a pair with it.
+#define SG_HOLD_X    250   // 250..560
+#define SG_ARC_DX      8   // the hold arc's inset from HOLD TO SIGN's left edge
+
 // A caution row carries its own acknowledgement now, so the answer to "I read
 // it" lives next to the thing being read instead of in the action row. That is
 // what frees HOLD TO SIGN to keep its coordinates in both states, which is the
@@ -882,7 +913,8 @@ static void verify_screen(lv_obj_t *parent)
                              wt_font23(), STOP_COL);
         lv_obj_set_width(r, 752 - 2 * SG_PAD);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+        // Same 752 lane as the panel it just drew, so the same BACK as verify.
+        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
                  s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
         return;
     }
@@ -1063,14 +1095,14 @@ actions:
     // Acknowledgement lives in the caution rows now, so there is no second
     // button competing for this position and no way for two taps in the same
     // place to become a signature nobody read.
-    wt_pillh(s_scr, tr(STR_S_DETAILS), 24, WT_ACTION_Y, 150, WT_ACTION_H,
+    wt_pillh(s_scr, tr(STR_S_DETAILS), SG_RECIP_X, WT_ACTION_Y, 150, WT_ACTION_H,
              details_cb, NULL);
-    wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
              s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
 
     s_arc = lv_arc_create(s_scr);
     lv_obj_set_size(s_arc, 40, 40);
-    lv_obj_set_pos(s_arc, 288, WT_ACTION_Y + 6);
+    lv_obj_set_pos(s_arc, SG_HOLD_X + SG_ARC_DX, WT_ACTION_Y + 6);
     lv_arc_set_rotation(s_arc, 270);
     lv_arc_set_bg_angles(s_arc, 0, 360);
     lv_arc_set_range(s_arc, 0, 100);
@@ -1082,7 +1114,7 @@ actions:
     lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
     lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
 
-    lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), 280, WT_ACTION_Y,
+    lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), SG_HOLD_X, WT_ACTION_Y,
                            310, WT_ACTION_H, NULL, NULL);
     wt_pill_label_max(p);          // the most consequential button in the app
     s_sign_lbl = lv_obj_get_child(p, 0);
