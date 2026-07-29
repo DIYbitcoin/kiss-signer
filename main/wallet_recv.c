@@ -43,6 +43,7 @@ static lv_obj_t *s_parent;
 #define RECV_PATH_Y 236
 
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
+static lv_obj_t *s_state_chip;
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
@@ -61,6 +62,7 @@ static void close_cb(lv_event_t *e) {
   s_addr_sg = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_state_chip = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -117,6 +119,29 @@ static void recv_refresh(void) {
   }
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
+
+  // The state chip named in HANDOFF-03: has this address ever been given away?
+  // The best proxy the offline signer has is wallet_usage_high: an address that
+  // has been spent from was definitely handed out to whoever sent the coins in
+  // the first place. Received-only addresses are not tracked, so "NEVER HANDED
+  // OUT" here means "we have no record of it being spent from", not a promise
+  // the address is virgin. That is honest and matches how the fresh landing
+  // logic already reads usage_high, so the chip and the landing agree on which
+  // address is which.
+  if (s_state_chip) {
+    uint8_t fp[4];
+    wallet_ui_last_fp(fp);
+    int high = wallet_usage_high(fp, wallet_testnet() ? 1 : 0, wallet_script());
+    bool handed = high >= 0 && (int)s_idx <= high;
+    lv_label_set_text(s_state_chip,
+                      tr(handed ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED));
+    lv_obj_set_style_text_color(s_state_chip, handed ? WT_WARN : WT_OK, 0);
+    lv_obj_update_layout(s_state_chip);
+    // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
+    // every refresh because the label length differs between the two states
+    // AND per locale.
+    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 108);
+  }
 }
 
 static void prev_cb(lv_event_t *e) {
@@ -557,6 +582,7 @@ static void page_cb(lv_event_t *e) {
 
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
+  s_state_chip = NULL;
   s_path_tn_lbl = NULL;
 
   // No subtitle. "trust what you see here, not your computer screen" is
@@ -684,6 +710,14 @@ static void recv_detail_open(void) {
   wt_qr_card(s_scr, &s_qr, 48, 96, 216, 184);
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
+
+  // The state chip HANDOFF-03 asks for. Simple label at the right edge of the
+  // ADDRESS #N row; recv_refresh sets the text and colour based on
+  // wallet_usage_high. No border, no fill: at font14 in WT_OK or WT_WARN and
+  // right aligned to the panel edge it reads as a status marker without
+  // building a custom chip object at all.
+  s_state_chip = wt_lbl(s_scr, "", 400, 108, wt_font14(), WT_MUT);
+  lv_obj_set_style_text_letter_space(s_state_chip, 2, 0);
 
   // The derivation path, which used to be a muted font14 line floating under
   // the address with nothing to say what it was. Three things were wrong with
