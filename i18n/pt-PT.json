@@ -329,7 +329,7 @@
   "S_FILES_HINT": "não assinados primeiro, depois A-Z. assinados são marcados.",
   "S_FILE_UNSIGNED": "NÃO ASSINADO",
   "S_GLOSSARY_T": "EXPLICAÇÕES SIMPLES",
-  "S_GLOSSARY_B": "ENTRADAS: moedas gastas por esta transação.\nSAÍDAS: todos os locais para onde envia bitcoin.\nTROCO: parte devolvida a um endereço que o KISS verificou como seu.\nTXID: identificador para acompanhar após transmitir.\nTAXA POR TAMANHO: taxa por unidade do tamanho da transação.\nLOCKTIME: primeiro bloco em que pode confirmar.\nCAMINHO DE DERIVAÇÃO: ramo padrão usado para encontrar uma chave.\nDESCRITOR: mapa só de leitura que observa e encontra endereços, mas não gasta.",
+  "S_GLOSSARY_B": "ENTRADAS: moedas gastas por esta transação.\nSAÍDAS: todos os locais para onde envia bitcoin.\nTROCO: parte devolvida ao seu endereço verificado.\nTXID: identificador para acompanhar após transmitir.\nTAXA POR TAMANHO: taxa por unidade de tamanho.\nLOCKTIME: primeiro bloco em que pode confirmar.\nCAMINHO DE DERIVAÇÃO: ramo padrão para uma chave.\nDESCRITOR: mapa de endereços só de leitura, não gasta.",
   "R_NOT_FOUND_FMT": "NÃO ESTÁ NOS PRIMEIROS %u ENDEREÇOS",
   "R_NOT_FOUND_B": "válido nesta rede, mas não está entre os primeiros 100 endereços de receção ou troco verificados. isto não é definitivo.",
   "R_WRONG_NET": "REDE ERRADA",

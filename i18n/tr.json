@@ -329,7 +329,7 @@
   "S_FILES_HINT": "önce imzasız, sonra A-Z. imzalı dosyalar işaretlidir.",
   "S_FILE_UNSIGNED": "İMZASIZ",
   "S_GLOSSARY_T": "BASİT AÇIKLAMALAR",
-  "S_GLOSSARY_B": "GİRDİLER: bu işlemin harcadığı coinler.\nÇIKTILAR: işlemin bitcoin gönderdiği tüm yerler.\nPARA ÜSTÜ: KISS'in size ait olduğunu doğruladığı adrese dönen kısım.\nTXID: yayından sonra izleme kimliği.\nÜCRET ORANI: işlem boyutunun her birimi için ücret.\nLOCKTIME: onaylanabileceği en erken blok.\nTÜRETME YOLU: anahtarı bulmak için standart dal.\nTANIMLAYICI: izleyip adres bulabilen, ancak harcayamayan salt okunur harita.",
+  "S_GLOSSARY_B": "GİRDİLER: bu işlemin harcadığı coinler.\nÇIKTILAR: işlemin bitcoin gönderdiği tüm yerler.\nPARA ÜSTÜ: doğrulanmış kendi adresinize dönen kısım.\nTXID: yayından sonra izleme kimliği.\nÜCRET ORANI: işlem boyutu birimi başına ücret.\nLOCKTIME: onaylanabileceği en erken blok.\nTÜRETME YOLU: anahtara giden standart dal.\nTANIMLAYICI: salt okunur adres haritası, harcayamaz.",
   "R_NOT_FOUND_FMT": "İLK %u ADRESTE BULUNAMADI",
   "R_NOT_FOUND_B": "bu ağ için geçerli, ancak kontrol edilen ilk 100 alma veya para üstü adresinde yok. bu kesin bir sonuç değildir.",
   "R_WRONG_NET": "YANLIŞ AĞ",

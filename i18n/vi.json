@@ -329,7 +329,7 @@
   "S_FILES_HINT": "chưa ký trước, rồi A-Z. tệp đã ký được đánh dấu.",
   "S_FILE_UNSIGNED": "CHƯA KÝ",
   "S_GLOSSARY_T": "GIẢI THÍCH ĐƠN GIẢN",
-  "S_GLOSSARY_B": "ĐẦU VÀO: các coin giao dịch này chi tiêu.\nĐẦU RA: mọi nơi giao dịch gửi bitcoin đến.\nTIỀN THỪA: phần quay lại địa chỉ KISS đã xác minh là của bạn.\nTXID: mã theo dõi sau khi phát lên mạng.\nMỨC PHÍ: phí cho mỗi đơn vị kích thước giao dịch.\nLOCKTIME: khối sớm nhất có thể xác nhận.\nĐƯỜNG DẪN SUY XUẤT: nhánh chuẩn để tìm khóa.\nDESCRIPTOR: bản đồ chỉ đọc để theo dõi và tìm địa chỉ, nhưng không thể chi tiêu.",
+  "S_GLOSSARY_B": "ĐẦU VÀO: các coin giao dịch này chi tiêu.\nĐẦU RA: mọi nơi giao dịch gửi bitcoin đến.\nTIỀN THỪA: phần quay lại địa chỉ đã xác minh của bạn.\nTXID: mã theo dõi sau khi phát lên mạng.\nMỨC PHÍ: phí cho mỗi đơn vị kích thước giao dịch.\nLOCKTIME: khối sớm nhất có thể xác nhận.\nĐƯỜNG DẪN SUY XUẤT: nhánh chuẩn để tìm khóa.\nDESCRIPTOR: bản đồ địa chỉ chỉ đọc, không thể chi tiêu.",
   "R_NOT_FOUND_FMT": "KHÔNG CÓ TRONG %u ĐỊA CHỈ ĐẦU",
   "R_NOT_FOUND_B": "hợp lệ trên mạng này, nhưng không nằm trong 100 địa chỉ nhận hoặc tiền thừa đầu tiên đã kiểm tra. đây chưa phải kết luận cuối.",
   "R_WRONG_NET": "SAI MẠNG",

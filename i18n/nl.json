@@ -329,7 +329,7 @@
   "S_FILES_HINT": "eerst ongetekend, dan A-Z. getekende bestanden zijn gemarkeerd.",
   "S_FILE_UNSIGNED": "ONGETEKEND",
   "S_GLOSSARY_T": "EENVOUDIGE UITLEG",
-  "S_GLOSSARY_B": "INPUTS: munten die deze transactie uitgeeft.\nOUTPUTS: alle plekken waar de transactie bitcoin heen stuurt.\nWISSELGELD: het deel dat teruggaat naar een door KISS geverifieerd eigen adres.\nTXID: volgnummer voor na het uitzenden.\nKOSTENTARIEF: kosten per eenheid transactiegrootte.\nLOCKTIME: het vroegste blok waarin bevestiging kan.\nAFLEIDINGSPAD: de standaardtak om een sleutel te vinden.\nDESCRIPTOR: alleen-lezen kaart om te volgen en adressen te vinden, niet om uit te geven.",
+  "S_GLOSSARY_B": "INPUTS: munten die deze transactie uitgeeft.\nOUTPUTS: alle plekken waar bitcoin heen gaat.\nWISSELGELD: het deel terug naar je geverifieerde adres.\nTXID: volgnummer voor na het uitzenden.\nKOSTENTARIEF: kosten per eenheid transactiegrootte.\nLOCKTIME: het vroegste blok waarin bevestiging kan.\nAFLEIDINGSPAD: de standaardtak naar een sleutel.\nDESCRIPTOR: alleen-lezen adreskaart, geeft niets uit.",
   "R_NOT_FOUND_FMT": "NIET IN DE EERSTE %u ADRESSEN",
   "R_NOT_FOUND_B": "geldig voor dit netwerk, maar niet in de eerste 100 gecontroleerde ontvangst- of wisselgeldadressen. dit is niet definitief.",
   "R_WRONG_NET": "VERKEERD NETWERK",

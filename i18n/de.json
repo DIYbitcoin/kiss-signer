@@ -329,7 +329,7 @@
   "S_FILES_HINT": "zuerst unsigniert, dann A-Z. signierte Dateien sind markiert.",
   "S_FILE_UNSIGNED": "UNSIGNIERT",
   "S_GLOSSARY_T": "EINFACH ERKLÄRT",
-  "S_GLOSSARY_B": "INPUTS: Coins, die diese Transaktion ausgibt.\nOUTPUTS: alle Ziele, an die sie Bitcoin sendet.\nWECHSELGELD: der Teil, der an eine von KISS geprüfte eigene Adresse zurückgeht.\nTXID: die Kennung zum Verfolgen nach dem Senden.\nGEBÜHRENRATE: Gebühr je Einheit der Transaktionsgröße.\nLOCKTIME: der früheste Block für eine Bestätigung.\nABLEITUNGSPFAD: der Standardzweig zum Finden eines Schlüssels.\nDESKRIPTOR: schreibgeschützte Karte zum Beobachten und Finden, nicht zum Ausgeben.",
+  "S_GLOSSARY_B": "INPUTS: Coins, die diese Transaktion ausgibt.\nOUTPUTS: alle Ziele, an die sie Bitcoin sendet.\nWECHSELGELD: geht zurück an deine geprüfte Adresse.\nTXID: die Kennung zum Verfolgen nach dem Senden.\nGEBÜHRENRATE: Gebühr je Einheit der Größe.\nLOCKTIME: der früheste Block für eine Bestätigung.\nABLEITUNGSPFAD: Standardzweig zu einem Schlüssel.\nDESKRIPTOR: nur lesbare Adresskarte, gibt nichts aus.",
   "R_NOT_FOUND_FMT": "NICHT IN DEN ERSTEN %u ADRESSEN",
   "R_NOT_FOUND_B": "für dieses Netzwerk gültig, aber nicht unter den ersten 100 geprüften Empfangs- oder Wechseladressen. das ist nicht endgültig.",
   "R_WRONG_NET": "FALSCHES NETZWERK",
