@@ -579,6 +579,18 @@ int main(void) {
   touch(696, 38); pump(3); release(); pump(3);      // SHOW toggle
   save("/tmp/sim_login_shown.ppm");
 
+  // tap-to-edit, SHOW only. "abc" is centred in the 704px slot at font28, so
+  // the three glyphs sit around x 374..425 with the entry row at y~109. Tap
+  // the left half of 'b', insert, take it back out, then send the caret to the
+  // end so the symbol-plane walk below still starts from exactly "abc".
+  touch(395, 109); pump(3); release(); pump(3);     // caret lands before 'b'
+  save("/tmp/sim_login_caret.ppm");                 // bar between 'a' and 'b'
+  touch(127, 353); pump(3); release(); pump(3);     // 'z' inserted mid-string
+  save("/tmp/sim_login_caret_ins.ppm");             // reads "azbc"
+  touch(753, 353); pump(3); release(); pump(3);     // backspace takes the 'z' back
+  save("/tmp/sim_login_caret_del.ppm");             // reads "abc" again
+  touch(700, 109); pump(3); release(); pump(3);     // tap past the text: caret to the end
+
   // symbol planes: #1! -> type '.' -> #2~ -> type '~' -> abc (entry: "abc.~")
   touch(70, 430); pump(3); release(); pump(3);      // #1! (bottom-left key)
   save("/tmp/sim_login_sym1.ppm");
