@@ -1291,9 +1291,10 @@ static void wallet_home_restyle(void) {
   }
   for (int i = 0; i < 4; i++) {
     if (s_card_frame[i]) {
-      lv_obj_set_style_border_color(s_card_frame[i], ac, 0);
+      bool primary = (i == 0 || i == 1);          // SIGN, RECEIVE per HANDOFF-05
+      lv_obj_set_style_border_color(s_card_frame[i], primary ? ac : WT_EDGE, 0);
       lv_obj_set_style_bg_color(s_card_frame[i], ac, 0);
-      lv_obj_set_style_shadow_color(s_card_frame[i], ac, 0);
+      if (primary) lv_obj_set_style_shadow_color(s_card_frame[i], ac, 0);
     }
     if (s_corner[i]) lv_obj_set_style_border_color(s_corner[i], ac, 0);
   }
@@ -2060,16 +2061,29 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // (wallet_mock.py live_frames): card frames + wash, corner brackets, title
   // underline, chip frame, theme tag. wallet_home_restyle() paints them in the
   // active accent, so switching themes recolors the home with zero re-bake.
+  //
+  // Two-tier weight, per HANDOFF-05. SIGN and RECEIVE are the two daily verbs
+  // and keep the full treatment: accent border at 2px plus the 18px glow.
+  // WALLET and SETTINGS are cupboards you open occasionally, so they take a
+  // 1px WT_EDGE border and no glow. The strips themselves stay as they are:
+  // they are RGB565A8 images and dimming them means regenerating the bake,
+  // which is the pipeline this decision exists to avoid. The frame difference
+  // reads as the tile because the strips sit inside the frames.
   for (int i = 0; i < 4; i++) {
+    bool primary = (i == 0 || i == 1);              // SIGN, RECEIVE
     lv_obj_t *c = lv_obj_create(s_wallet);
     lv_obj_remove_style_all(c);
     lv_obj_set_pos(c, 50 + i * 180, 150);
     lv_obj_set_size(c, 161, 183);
     lv_obj_set_style_radius(c, 12, 0);
-    lv_obj_set_style_border_width(c, 2, 0);
+    lv_obj_set_style_border_width(c, primary ? 2 : 1, 0);
     lv_obj_set_style_bg_opa(c, 26, 0);              // glass wash; icons stay readable
-    lv_obj_set_style_shadow_width(c, 18, 0);        // the baked art's neon glow, live
-    lv_obj_set_style_shadow_opa(c, 70, 0);
+    if (primary) {
+      lv_obj_set_style_shadow_width(c, 18, 0);      // the baked art's neon glow, live
+      lv_obj_set_style_shadow_opa(c, 70, 0);
+    } else {
+      lv_obj_set_style_shadow_opa(c, 0, 0);
+    }
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     s_card_frame[i] = c;
   }
