@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, echte bitcoin",
   "I_H_FP_B": "de ID-code van je wallet.\n\neen gekoppelde app toont DEZELFDE code.\nom zeker te zijn van je adressen, gebruik ONTVANGEN > CONTROLEER.",
   "I_H_TYPE_B": "hoe je adressen eruitzien.\nbc1... is de moderne, met de laagste kosten.\n\nm/... is waar de sleutels vandaan komen.\nje app vindt ze daarmee.",
+  "I_SEC_PATH": "AFLEIDINGSPAD",
+  "I_H_PATH_B": "m/... is waar de sleutels vandaan komen.\nje app vindt ze daarmee.",
   "I_H_PAIR_T": "DE COÖRDINATOR-WALLET",
   "I_H_PAIR_B": "een descriptor is een alleen-lezen kaart van deze wallet.\nSparrow kan saldo bekijken, adressen vinden en transacties maken.\n\nuitgeven kan niet. ondertekenen gebeurt HIER.",
   "I_H_ADDR_B": "aan je eerste adres herken je deze wallet.\nde coördinator-wallet moet dit ook tonen.\n\ndeel dit adres om te ontvangen.\ngebruik voor de volgende betaling een nieuw adres.\nhergebruik koppelt betalingen openbaar.",

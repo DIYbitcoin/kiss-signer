@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, prawdziwy bitcoin",
   "I_H_FP_B": "kod tożsamości tego portfela.\n\npołączona aplikacja pokaże TEN SAM kod.\naby mieć pewność co do twoich adresów, użyj ODBIERZ > SPRAWDŹ.",
   "I_H_TYPE_B": "jak wyglądają twoje adresy.\nbc1... jest nowoczesny, najtańszy.\n\nm/... mówi, skąd biorą się klucze.\naplikacja znajduje je po tej ścieżce.",
+  "I_SEC_PATH": "ŚCIEŻKA POCHODZENIA",
+  "I_H_PATH_B": "m/... mówi, skąd biorą się klucze.\naplikacja znajduje je po tej ścieżce.",
   "I_H_PAIR_T": "PORTFEL KOORDYNATORA",
   "I_H_PAIR_B": "deskryptor to mapa portfela tylko do odczytu.\nSparrow może sprawdzać saldo, znaleźć adresy i tworzyć transakcje.\n\nnie może wydawać. podpis jest TUTAJ.",
   "I_H_ADDR_B": "pierwszy adres identyfikuje ten portfel.\nportfel koordynatora powinien też go pokazać.\n\nudostępnij go, aby otrzymywać wpłaty.\ndo następnej płatności użyj nowego.\nponowne użycie publicznie łączy płatności.",

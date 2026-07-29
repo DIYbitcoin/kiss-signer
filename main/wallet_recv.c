@@ -12,6 +12,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_scan.h"
+#include "wallet_info.h"   // the one "?" card implementation lives there
 #include "wallet_theme.h"
 #include "wallet_ui.h"      // wallet_ui_last_fp: keys the reuse guard per wallet
 #include "wallet_usage.h"   // highest receive index this wallet has used
@@ -35,7 +36,13 @@
 
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
-static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl;
+// Where the derivation path block starts on the detail screen: caption at this
+// y, its "?" chip centred on it, the path 22 below. The address above now ends
+// at 198 (two lines of font23 from 140) and the privacy reminder below starts
+// at 308, so the block owns 230..287 with air on both sides.
+#define RECV_PATH_Y 236
+
+static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
 static lv_obj_t *s_sp_path_lbl, *s_sp_back_pill, *s_sp_toggle_pill;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
@@ -69,14 +76,44 @@ static void recv_refresh(void) {
   char grouped[120];
   wt_group4(addr, grouped, sizeof(grouped));
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font28());
+  // TWO lines, with every character of the address still on them.
+  //
+  // At font28 this ran to three, which spent the line the derivation path
+  // needed and made a value read as a paragraph. There are two ways to get a
+  // 42 character address into two lines in a 360px lane: drop characters into
+  // an ellipsis, or drop one rung of type. On a screen whose subtitle is
+  // "trust what you see here, not your computer screen", the characters are
+  // the wrong half to cut. A head and a tail with "..." between them still
+  // matches an address tampered with in the middle, which is precisely the
+  // comparison this screen exists to support.
+  //
+  // font23 is not a compromise size either: it is what the WALLET page has
+  // always shown FIRST ADDRESS at, in a lane of the same width. The two
+  // screens now render an address identically, so they can be checked against
+  // each other as well as against a coordinator.
+  s_addr_sg = wt_addr_spans(s_scr, grouped, 360, wt_font23());
   lv_obj_set_pos(s_addr_sg, 400, 140);
   lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
   int purpose = wallet_script() == WSCRIPT_LEGACY ? 44
               : wallet_script() == WSCRIPT_NESTED ? 49 : 84;
-  lv_label_set_text_fmt(s_path_lbl, "m/%dh/%dh/0h/0/%u   %s",
-                        purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx,
-                        wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
+  // Path and testnet marker are two labels now, not one format string: at
+  // font23 "m/84h/1h/0h/0/16" plus a translated "on TESTNET" is wider than the
+  // column. Split, the marker stays small and amber where it belongs and
+  // follows the path's MEASURED width, so it lands correctly in every locale.
+  lv_label_set_text_fmt(s_path_lbl, "m/%dh/%dh/0h/0/%u",
+                        purpose, wallet_testnet() ? 1 : 0, (unsigned)s_idx);
+  if (s_path_tn_lbl) {
+    lv_label_set_text(s_path_tn_lbl,
+                      wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
+    lv_obj_update_layout(s_path_lbl);
+    // Beside the PATH, not beside the caption. At RECV_PATH_Y + 8 it shared a
+    // row with the "?" chip, whose x follows the translated caption, so in
+    // Italian and Portuguese the chip landed on top of it. +28 centres this
+    // font14 marker on the font23 path line below, where the only thing to its
+    // left is a string of fixed width in every language.
+    lv_obj_set_pos(s_path_tn_lbl,
+                   400 + lv_obj_get_width(s_path_lbl) + 16, RECV_PATH_Y + 28);
+  }
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
 }
@@ -316,9 +353,22 @@ static void sp_addr_render(void) {
 
   // Full mainnet and testnet addresses wrap to different heights; keep the
   // path below either form and above the bottom controls.
+  //
+  // The ceiling is measured, not written down. It used to be a flat 370, which
+  // is where a font23 line STARTS if it is to end on 398, except that the line
+  // box is 28 and 370 + 28 is 398 exactly, so the last row of pixels landed ON
+  // WT_CONTENT_BOTTOM rather than above it. One pixel, in all 21 locales, and
+  // only in the testnet full view: tsp1 is a character longer than sp1, which
+  // is the one case that pushes the address tall enough for the clamp to bite.
+  //
+  // Nobody saw it because nobody could get here. The walk's TESTNET tap had
+  // been missing its pill since the action bar landed, so every frame named
+  // _tn was a picture of mainnet.
   lv_obj_update_layout(s_addr_sg);
+  lv_obj_update_layout(s_sp_path_lbl);
   int path_y = lv_obj_get_y(s_addr_sg) + lv_obj_get_height(s_addr_sg) + 14;
-  if (path_y > 370) path_y = 370;          // never behind the pill row at 404
+  int path_max = WT_CONTENT_BOTTOM - lv_obj_get_height(s_sp_path_lbl);
+  if (path_y > path_max) path_y = path_max;
   lv_obj_set_y(s_sp_path_lbl, path_y);
 
   // The folded text is useful enough to be a direct affordance, but address
@@ -369,7 +419,14 @@ static void sp_addr_open(lv_obj_t *parent) {
   if (s_qr)
     wt_qr_update(s_qr, s_sp_addr, (uint32_t)strlen(s_sp_addr));
 
-  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 200, wt_font23(), WT_MUT);
+  // WT_INK for the same reason as the other two paths: on this panel WT_MUT is
+  // not a quieter grey, it is nearly none. This one is already font23 and keeps
+  // its bare form, without the caption and "?" the detail screen's path got,
+  // because its y is computed from the address above it and clamped at 370
+  // (sp_addr_render) so the folded and full views can share the screen. A
+  // three object block cannot ride that clamp without landing under the action
+  // bar in the full view. It belongs with the phase 3 receive restructure.
+  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 200, wt_font23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
@@ -474,6 +531,7 @@ static void page_cb(lv_event_t *e) {
 
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
+  s_path_tn_lbl = NULL;
 
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address you are about to hand over, so it
@@ -532,6 +590,25 @@ static void recv_list_open(void) {
   wt_pill_row(row, 4);
 }
 
+// The path's "?", and it answers about the PATH alone.
+//
+// The text was already written and already translated: it is the second
+// paragraph of the WALLET page's ADDRESS TYPE card, lifted out per locale, so
+// 21 languages gained this explainer without a word of new translation. That
+// card keeps both paragraphs, because on WALLET the path sits INSIDE the
+// address type section and its column has no room for a second chip. Two
+// screens, two right answers, one body of text.
+static void path_help_cb(lv_event_t *e) {
+  (void)e;
+  wallet_info_help_card_open(s_scr, tr(STR_I_SEC_PATH), tr(STR_I_H_PATH_B));
+}
+
+#ifdef SIMULATOR
+void wallet_recv_sim_open_path_help(void) {
+  if (s_scr) path_help_cb(NULL);
+}
+#endif
+
 // Back out of one address to the list it was chosen from.
 static void detail_back_cb(lv_event_t *e) {
   (void)e;
@@ -550,9 +627,33 @@ static void recv_detail_open(void) {
 
   s_idx_lbl = wt_section(s_scr, "", 400, 102);   // "ADDRESS  #N" caption (index lives here)
 
-  // derivation path stays small: it is a reference, not an instruction. It ends
-  // ON WT_CONTENT_BOTTOM's side of the line, not merely above the pills.
-  s_path_lbl = wt_lbl(s_scr, "", 400, 286, wt_font14(), WT_MUT);
+  // The derivation path, which used to be a muted font14 line floating under
+  // the address with nothing to say what it was. Three things were wrong with
+  // that and all three are fixed here.
+  //
+  // It had no NAME, so it read as a serial number rather than as the one thing
+  // a coordinator asks you for. It gets the same caption every other value on
+  // this device has, taken from the glossary the sign screen already ships, so
+  // it needed no new translation in any of the 21 locales.
+  //
+  // It was WT_MUT, which is the same mistake the section captions had: on this
+  // panel #7A869C on #070A10 is not subtle, it is absent. The desktop monitor
+  // renders it far more generously than the device does, which is why the
+  // simulator never showed it and the first device test did.
+  //
+  // And it was font14, a size for footnotes, on a string you read out to
+  // another machine character by character. It is font23 now, which is what
+  // the address above it uses.
+  lv_obj_t *psec = wt_section(s_scr, tr(STR_I_SEC_PATH), 400, RECV_PATH_Y);
+  lv_obj_update_layout(psec);
+  // Chips are 30x30 anchored top left, so this centres on the caption's 19px
+  // line box. The x follows the MEASURED caption, because the caption is the
+  // one string here that is translated and PERCORSO DI DERIVAZIONE is 8
+  // characters longer than the English.
+  wt_help_chip(s_scr, 400 + lv_obj_get_width(psec) + 12, RECV_PATH_Y - 6,
+               WT_MUT, path_help_cb, NULL);
+  s_path_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 22, wt_font23(), WT_INK);
+  s_path_tn_lbl = wt_lbl(s_scr, "", 400, RECV_PATH_Y + 28, wt_font14(), WT_WARN);
 
   // R_VERIFY_NOTE used to sit here, under the path, explaining the VERIFY
   // button that used to sit in the row below. Both are gone. VERIFY answers

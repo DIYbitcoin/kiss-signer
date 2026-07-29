@@ -98,6 +98,8 @@
   "I_NET_MAIN": "MAINNET, bitcoin thật",
   "I_H_FP_B": "mã nhận dạng của ví này.\n\nứng dụng ghép nối phải hiện CÙNG mã.\nđể chắc chắn nó có địa chỉ của bạn, dùng NHẬN > KIỂM TRA.",
   "I_H_TYPE_B": "địa chỉ của bạn trông thế nào.\nbc1... là loại hiện đại, phí thấp nhất.\n\nm/... là nơi các khóa sinh ra.\nứng dụng dùng nó để tìm địa chỉ.",
+  "I_SEC_PATH": "ĐƯỜNG DẪN SUY XUẤT",
+  "I_H_PATH_B": "m/... là nơi các khóa sinh ra.\nứng dụng dùng nó để tìm địa chỉ.",
   "I_H_PAIR_T": "VÍ ĐIỀU PHỐI",
   "I_H_PAIR_B": "descriptor là bản đồ chỉ đọc của ví này.\nSparrow có thể xem số dư, tìm địa chỉ và tạo giao dịch.\n\nkhông thể chi tiêu. việc ký vẫn ở ĐÂY.",
   "I_H_ADDR_B": "địa chỉ đầu tiên giúp nhận ra ví này.\nví điều phối cũng phải hiện đúng địa chỉ đó.\n\nchia sẻ địa chỉ này để nhận tiền.\ndùng địa chỉ mới cho khoản tiếp theo.\ndùng lại sẽ công khai liên kết các khoản nhận.",

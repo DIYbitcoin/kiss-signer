@@ -12,6 +12,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_info.h"
+#include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
 #include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
@@ -621,9 +622,10 @@ int main(void) {
   sim_home_status(""); lv_refr_now(NULL); pump(2);   // clear so later frames are unaffected
 
   // step 4: Receive (address #0 QR, next -> #1) and watch-only Export
-  touch(310, 240); pump(3);
-  save("/tmp/sim_tile_press.ppm");                  // the tile flash, mid-fade
-  release(); pump(6);                               // Receive tile
+  // No sim_tile_press.ppm any more: the home tiles draw nothing on press, so a
+  // frame taken between touch and release is a picture of the home screen and
+  // check_sim_taps would rightly call it a dead interaction.
+  touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv.ppm");                        // the scrollable address list
   touch(158, 426); pump(3); release(); pump(6);     // Silent payment -> SP address view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
@@ -647,6 +649,9 @@ int main(void) {
   save("/tmp/sim_recv_scrolled.ppm");
   touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
   save("/tmp/sim_recv_detail.ppm");                 // QR + address + VERIFY
+  wallet_recv_sim_open_path_help(); pump(30);       // "?" x varies by locale: call it
+  save("/tmp/sim_recv_path_help.ppm");
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(168, 216); pump(3); release(); pump(6);     // ordinary receive QR -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
@@ -972,12 +977,19 @@ int main(void) {
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
-  touch(218, 164); pump(3); release(); pump(4);     // TESTNET pill (y=142, h44)
+  touch(305, 110); pump(3); release(); pump(4);     // TESTNET pill (223..388, 88..132)
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 addresses now
   save("/tmp/sim_recv_tn.ppm");                     // the list, on testnet
+  // The ONE screen where the derivation path is followed by an amber "on
+  // TESTNET" marker, placed after the path's measured width. Mainnet renders
+  // the marker empty, so without this stop neither the gate nor a reviewer
+  // ever sees the case that can collide with the right edge.
+  touch(400, 96); pump(3); release(); pump(6);      // first row -> that address
+  save("/tmp/sim_recv_detail_tn.ppm");
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the list
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
@@ -1006,7 +1018,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(218, 116); pump(3); release(); pump(4);     // MAINNET restore (y=94, h44)
+  touch(130, 110); pump(3); release(); pump(4);     // MAINNET restore (48..213, 88..132)
   touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow

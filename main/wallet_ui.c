@@ -1349,13 +1349,26 @@ void wallet_build_id_restyle(lv_obj_t *version_label)
 #endif
 }
 
-// Row pitch for the stacked build identity: font14's line box is 19px, and 3
+// Row pitch for the STACKED build identity: font14's line box is 19px, and 3
 // of air is what keeps two rows reading as a block rather than as one
 // squashed paragraph. Both rows together are 41px, which fits inside the
 // action bar (398..480) with room above and below.
 #define BUILD_ID_ROW 22
 
-lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
+// Gap between version and encryption when they share ONE row. Wider than a
+// word space on purpose: these are two unrelated facts, not a sentence, and
+// nothing may be drawn between them (a separator here would be a dash used as
+// punctuation, which this codebase does not do).
+#define BUILD_ID_GAP 28
+
+// Two callers, two shapes, and the shape belongs to the CALLER, not to this
+// function's other argument. Settings stacks, because it has three facts to
+// place beside a row of buttons. The home corner does not: it has two, an
+// empty bottom edge to put them on, and stacking them there turned a quiet
+// one line signature into a two line block wedged into the corner, which is
+// what the device showed and what got this parameter written.
+lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
+                               bool stacked)
 {
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
@@ -1381,18 +1394,24 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
   //
   // Stays ASCII on purpose: a glyph missing from the generated font hangs LVGL
   // outright, so this line is the wrong place to spend a "." or an em dash.
-  // Two rows, not one long line. This used to run version, encryption and radio
-  // end to end, which made it as wide as the panel and pushed it into the strip
-  // UNDER the action row, the only place a 450px line still fitted. Stacked, it
-  // is ~215px and sits in the action bar's own empty left half instead, beside
-  // the buttons rather than beneath them.
+  // Stacked, this used to run version, encryption and radio end to end, which
+  // made it as wide as the panel and pushed it into the strip UNDER the action
+  // row, the only place a 450px line still fitted. In two rows it is ~215px and
+  // sits in the action bar's own empty left half instead, beside the buttons
+  // rather than beneath them.
   //
   // The version gets the top row to ITSELF, because it is the field that grows:
   // a longer version string or a dirty commit suffix extends row one and leaves
-  // the two status facts below exactly where they were.
+  // the status facts below exactly where they were. On one row that argument
+  // does not apply, since there is nothing under them to push.
   lv_label_set_text_fmt(w, "encryption: %s", enc ? "ON" : "OFF");
   lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
-  lv_obj_set_pos(w, x, y + BUILD_ID_ROW);
+  if (stacked) {
+    lv_obj_set_pos(w, x, y + BUILD_ID_ROW);
+  } else {
+    lv_obj_update_layout(v);
+    lv_obj_set_pos(w, x + lv_obj_get_width(v) + BUILD_ID_GAP, y);
+  }
 
   // The C6 radio readback is a diagnostic for people who already know what a
   // C6 is. It earns its place in Settings, not in the corner of the home
@@ -1406,7 +1425,8 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio)
     // is ON or OFF and the translation of neither is fixed, so the gap is added
     // to what encryption actually rendered rather than to a guess about it.
     lv_obj_update_layout(w);
-    lv_obj_set_pos(r, x + lv_obj_get_width(w) + 24, y + BUILD_ID_ROW);
+    lv_obj_set_pos(r, lv_obj_get_x(w) + lv_obj_get_width(w) + 24,
+                   lv_obj_get_y(w));
   } else {
     (void)radio_held;
   }
