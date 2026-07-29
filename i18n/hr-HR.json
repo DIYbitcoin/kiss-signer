@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderno, najniže naknade.",
   "G_TY_NESTED_NOTE": "stariji segwit.",
   "G_TY_LEGACY_NOTE": "najstariji tip, najviše naknade.",
-  "G_SEPARATE": "svaka mreža + tip zaseban su novčanik",
   "G_CREATE_NEW": "IZRADI NOVI SEED",
   "G_CREATE_NOTE": "zamjenjuje ovdasnji seed.",
   "G_WIPE": "IZBRIŠI SEED",

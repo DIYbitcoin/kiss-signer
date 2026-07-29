@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderno, commissioni più basse.",
   "G_TY_NESTED_NOTE": "segwit più vecchio.",
   "G_TY_LEGACY_NOTE": "lo stile più vecchio, commissioni alte.",
-  "G_SEPARATE": "ogni rete + tipo è un portafoglio a sé",
   "G_CREATE_NEW": "NUOVO SEED",
   "G_CREATE_NOTE": "sostituisce il seed.",
   "G_WIPE": "CANCELLA SEED",

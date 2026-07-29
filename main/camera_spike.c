@@ -287,7 +287,9 @@ const char *camera_spike_status(void) { return s_status; }
 // So tap the log for the length of esp_video_init and keep the last line that
 // says something failed. Every gate in esp_video_isp_pipeline.c phrases its
 // error as "failed to <thing>", which is precisely the thing we cannot
-// otherwise see. Remove once the pipeline starts cleanly.
+// otherwise see. Written as a diagnostic and kept as a feature: it is what
+// turns "camera unavailable" into a line a holder can read off the glass and
+// send us, on a device that will never have a console attached.
 static char s_cam_log[64];
 static vprintf_like_t s_cam_log_prev;
 
@@ -588,17 +590,16 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
   blit_a4(fb, s, STRIP_TOP_PX, (PANEL_H - s->w) / 2);
 }
 
-// TEMPORARY, for threshold calibration. The live Shannon estimate as digits,
-// in the free end of the bottom band past the bar. ENT_THRESH_X10 was chosen
-// against the uncorrected image, and moving it honestly needs numbers read off
-// real scenes: a bar and a tick mark can only tell you "over" or "under", which
-// is the one thing already in doubt.
+// The live Shannon estimate as digits, in the free end of the bottom band past
+// the bar. The bar on its own can only say "over" or "under" the gate, and both
+// of the people this screen serves want more than that. A holder standing at a
+// blank wall gets to watch the number climb as they turn toward something with
+// detail, which teaches what the gate is actually asking for far faster than
+// any wording would. Anyone recalibrating ENT_THRESH_X10 gets a figure they can
+// write down without a special build.
 //
 // Reuses the baked 0-9 glyphs. The decimal point is a plain square because
-// scan_osd bakes digits and no period. Delete this, and its call, once the
-// constant is settled against measurements.
-#define ENT_DEBUG_DIGITS 1
-#if ENT_DEBUG_DIGITS
+// scan_osd bakes digits and no period.
 static void draw_ent_digits(uint16_t *fb)
 {
     static int disp;                    // eased like the bar, or it is a blur
@@ -623,67 +624,6 @@ static void draw_ent_digits(uint16_t *fb)
     blit_a4(fb, &scan_osd_glyph[lo], cx, cy);
 }
 
-// Right aligned unsigned decimal in the same landscape space blit_a4 uses.
-static int draw_num(uint16_t *fb, int cx, int cy, uint32_t v)
-{
-    int d[8], n = 0;
-    do { d[n++] = (int)(v % 10); v /= 10; } while (v && n < 8);
-    int x = cy;
-    for (int i = n - 1; i >= 0; i--) {
-        blit_a4(fb, &scan_osd_glyph[d[i]], cx, x);
-        x += scan_osd_glyph[d[i]].w + 3;
-    }
-    return x - cy;
-}
-
-// TEMPORARY. What the AE actually settled on, read back from the sensor.
-// A black preview cannot on its own distinguish "the controller drove exposure
-// to the floor" from "no frames are reaching the ISP at all", and those two
-// have opposite fixes. Exposure is in sensor lines, so one frame of the
-// 1288x728 format is 1164 of them and the power on default is 1132.
-static uint32_t s_dbg_exp, s_dbg_gain;
-
-static void dbg_read_ae(void)
-{
-    struct v4l2_ext_control c = {0};
-    struct v4l2_ext_controls cs = {0};
-    cs.count = 1;
-    cs.controls = &c;
-
-    // 9999 rather than leaving the old value, so "the read itself failed"
-    // stays distinguishable from "the AE really did settle on zero". The
-    // pipeline claims the device with VIDIOC_SET_OWNER, so a refusal here is a
-    // plausible outcome and it would otherwise look like a dark exposure.
-    cs.ctrl_class = V4L2_CID_CAMERA_CLASS;
-    c.id = V4L2_CID_EXPOSURE;
-    s_dbg_exp = ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0
-                    ? (uint32_t)c.value : 9999;
-
-    cs.ctrl_class = V4L2_CID_USER_CLASS;
-    c.id = V4L2_CID_GAIN;
-    s_dbg_gain = ioctl(s_cam.fd, VIDIOC_G_EXT_CTRLS, &cs) == 0
-                     ? (uint32_t)c.value : 9999;
-}
-
-static int num_w(uint32_t v)
-{
-    int w = 0, n = 0;
-    do { w += scan_osd_glyph[v % 10].w + 3; v /= 10; n++; } while (v && n < 8);
-    return w - 3;
-}
-
-// Exposure then gain, top band, far end. They started at the near end and sat
-// straight on top of the CLOSE glyph, which is the one control on this screen.
-static void draw_ae_digits(uint16_t *fb)
-{
-    static int tick;
-    if (++tick >= 15) { tick = 0; dbg_read_ae(); }
-    int we = num_w(s_dbg_exp), wg = num_w(s_dbg_gain);
-    int cy = PANEL_H - 14 - (we + 22 + wg);
-    draw_num(fb, STRIP_TOP_PX, cy, s_dbg_exp);
-    draw_num(fb, STRIP_TOP_PX, cy + we + 22, s_dbg_gain);
-}
-#endif
 
 // "Reading  12 of 34" as one line of real type: the baked strip, then live
 // counts from the glyph atlas (total may be unknown early — show seen alone).
@@ -1010,9 +950,6 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     int lang = i18n_get_lang();
     if (lang < 0 || lang >= I18N_LANG_N) lang = I18N_EN;
     blit_a4(fb, &scan_osd[lang][OSD_CLOSE], 449, 22); // localized close, top-left
-#if ENT_DEBUG_DIGITS
-    draw_ae_digits(fb);                 // temporary: exposure lines, then gain
-#endif
   }
   if (s_scan_mode) {
     draw_brackets(fb);                // viewfinder corners (solid once located)
@@ -1025,9 +962,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   }
   if (s_ent_mode) {
     draw_ent_bar(fb);
-#if ENT_DEBUG_DIGITS
-    draw_ent_digits(fb);                // temporary, see the note at its definition
-#endif
+    draw_ent_digits(fb);                // the same estimate as a figure
     draw_osd_strip(fb, s_ent_meter >= ENT_THRESH_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
   }
   if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
@@ -1100,7 +1035,7 @@ static bool cam_init(i2c_master_bus_handle_t bus) {
       .pwdn_pin = -1,
   };
   esp_video_init_config_t cfg = {.csi = &csi};
-  s_cam_log[0] = '\0';                  // temporary, see cam_log_tap
+  s_cam_log[0] = '\0';                  // see cam_log_tap
   s_cam_log_prev = esp_log_set_vprintf(cam_log_tap);
   esp_err_t err = esp_video_init(&cfg);
   esp_log_set_vprintf(s_cam_log_prev);

@@ -1343,7 +1343,16 @@ static void coord_ok_cb(lv_event_t *e)
 // COORDINATOR <- QR -> KISS equation.  That equation showed transport, but not
 // which side acted first, what came back, or who actually broadcasts.  Those
 // are exactly the facts a first-time signer needs.
+//
+// Each step also carries an icon, for the same reason the scan key card does:
+// three rows of all caps type at the same size read as a wall, and the reader
+// has to parse every word to find out which row is the device. An icon is read
+// before the sentence is. The eye is deliberately the SAME glyph the scan key
+// card uses for watch only, because it means the same thing in both places.
+// Only one icon is coloured, and it is the key on step 2, which is the one row
+// where the private keys are involved and the only row this device performs.
 static void coord_step(lv_obj_t *parent, int y, const char *number,
+                       const char *icon, lv_color_t icon_color,
                        const char *text, bool signer)
 {
     lv_obj_t *row = lv_obj_create(parent);
@@ -1368,14 +1377,23 @@ static void coord_step(lv_obj_t *parent, int y, const char *number,
     lv_obj_set_style_text_font(n, wt_font23(), 0);
     lv_obj_align(n, LV_ALIGN_LEFT_MID, 18, 0);
 
+    lv_obj_t *ic = lv_label_create(row);
+    lv_label_set_text(ic, icon);
+    lv_obj_set_style_text_color(ic, icon_color, 0);
+    lv_obj_set_style_text_font(ic, wt_font23(), 0);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 52, 0);
+
+    // Text starts at 92 rather than 50, which is the icon's 26px column plus
+    // the gap. The label loses the same 44px off its width so the right edge
+    // does not move: the longest translations were already using it.
     lv_obj_t *l = lv_label_create(row);
     lv_label_set_text(l, text);
-    lv_obj_set_width(l, 640);
+    lv_obj_set_width(l, 596);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_style_text_color(l, INK_COL, 0);
     lv_obj_set_style_text_font(l, wt_font23(), 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 50, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, 92, 0);
 }
 
 static void coord_connector(lv_obj_t *parent, int y)
@@ -1401,7 +1419,7 @@ static void coord_help_cb(lv_event_t *e)
 
     lv_obj_t *t = lv_label_create(ovl);
     lv_label_set_text(t, tr(STR_S_COORD_T));
-    lv_obj_set_style_text_color(t, INK_COL, 0);
+    lv_obj_set_style_text_color(t, wt_accent(), 0);   // as the scan key card
     lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 54);
@@ -1424,11 +1442,14 @@ static void coord_help_cb(lv_event_t *e)
     lv_obj_remove_style_all(flow);
     lv_obj_set_size(flow, 800, 480);
     lv_obj_remove_flag(flow, LV_OBJ_FLAG_CLICKABLE);
-    coord_step(flow, 230, "1", tr(STR_S_FLOW_1), false);
+    coord_step(flow, 230, "1", LV_SYMBOL_EYE_OPEN, MUT_COL,
+               tr(STR_S_FLOW_1), false);
     coord_connector(flow, 274);
-    coord_step(flow, 288, "2", tr(STR_S_FLOW_2), true);
+    coord_step(flow, 288, "2", WT_ICON_KEY, wt_primary(),
+               tr(STR_S_FLOW_2), true);
     coord_connector(flow, 332);
-    coord_step(flow, 346, "3", tr(STR_S_FLOW_3), false);
+    coord_step(flow, 346, "3", LV_SYMBOL_UPLOAD, MUT_COL,
+               tr(STR_S_FLOW_3), false);
 
     lv_obj_t *ok = lv_obj_create(ovl);
     lv_obj_remove_style_all(ok);
@@ -1468,11 +1489,12 @@ void wallet_sign_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
-    // The PSBT help chip below sits at x=652, inside the subtitle's own lane.
+    // The PSBT help chip below sits at x=616, inside the subtitle's own lane.
     // The subtitle's box is the full 704 whatever the translation does, so the
-    // two overlapped in every locale, English included. 580 stops the lane at
-    // x=628, 24px clear of the chip.
-    wt_sub_fit(s_scr, 580);
+    // two overlapped in every locale, English included. 544 stops the lane at
+    // x=592, 24px clear of the chip. Was 580 against a chip that started at
+    // 652; the chip grew left when its label went from font14 to font23.
+    wt_sub_fit(s_scr, 544);
     // Both ways in are the same size. SCAN QR is short and primary, so on its
     // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
     // -- two buttons offering the same choice, one visibly louder. Primary
@@ -1501,9 +1523,14 @@ void wallet_sign_open(lv_obj_t *parent)
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);
     lv_obj_remove_style_all(hc);
-    lv_obj_set_size(hc, 100, 36);
-    lv_obj_set_pos(hc, 652, 64);
-    lv_obj_set_style_radius(hc, 18, 0);
+    // 136x44 at font23, up from 100x36 at font14. The old chip was legible on a
+    // desk and not at arm's length, which is the only distance that counts on a
+    // screen you hold up to a coordinator. Right edge stays on the 752 page
+    // margin and the top stays on 64, so it grows left and down into empty
+    // space rather than into the title above it.
+    lv_obj_set_size(hc, 136, 44);
+    lv_obj_set_pos(hc, 616, 64);
+    lv_obj_set_style_radius(hc, 22, 0);
     lv_obj_set_style_bg_color(hc, KEY_COL, 0);
     lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(hc, 1, 0);
@@ -1512,11 +1539,21 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_ext_click_area(hc, 14);                // small chip, honest target
     wt_tap_feedback(hc);
     lv_obj_add_event_cb(hc, coord_help_cb, LV_EVENT_CLICKED, NULL);
+    // Two labels, not one recoloured string. The word carries the accent
+    // because the accent is what this UI uses for "this is live, touch it", and
+    // the word is the thing being explained. The "?" stays muted: it is the
+    // grammar of the chip, not its subject. One help target on this screen and
+    // one only, so there is never a question of which "?" opens what.
     lv_obj_t *hl = lv_label_create(hc);
-    lv_label_set_text(hl, "PSBT  ?");
-    lv_obj_set_style_text_color(hl, INK_COL, 0);
-    lv_obj_set_style_text_font(hl, wt_font14(), 0);
-    lv_obj_center(hl);
+    lv_label_set_text(hl, "PSBT");
+    lv_obj_set_style_text_color(hl, wt_accent(), 0);
+    lv_obj_set_style_text_font(hl, wt_font23(), 0);
+    lv_obj_align(hl, LV_ALIGN_LEFT_MID, 18, 0);
+    lv_obj_t *hq = lv_label_create(hc);
+    lv_label_set_text(hq, "?");
+    lv_obj_set_style_text_color(hq, MUT_COL, 0);
+    lv_obj_set_style_text_font(hq, wt_font23(), 0);
+    lv_obj_align(hq, LV_ALIGN_RIGHT_MID, -18, 0);
     wt_note(s_scr, tr(STR_S_OR_LOAD), 430, 270, 322, 58);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }

@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "moderní, nejnižší poplatky.",
   "G_TY_NESTED_NOTE": "starší segwit.",
   "G_TY_LEGACY_NOTE": "nejstarší typ, nejvyšší poplatky.",
-  "G_SEPARATE": "každá síť + typ tvoří samostatnou peněženku",
   "G_CREATE_NEW": "NOVÝ SEED",
   "G_CREATE_NOTE": "nahradi zdejsi seed.",
   "G_WIPE": "VYMAZAT SEED",

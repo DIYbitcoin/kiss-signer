@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "modern, laagste kosten.",
   "G_TY_NESTED_NOTE": "ouder segwit.",
   "G_TY_LEGACY_NOTE": "oudste stijl, hoogste kosten.",
-  "G_SEPARATE": "elk netwerk + type is een eigen aparte wallet",
   "G_CREATE_NEW": "NIEUWE SEED MAKEN",
   "G_CREATE_NOTE": "vervangt de seed hier.",
   "G_WIPE": "SEED WISSEN",

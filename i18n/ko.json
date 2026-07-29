@@ -128,7 +128,6 @@
   "G_TY_NATIVE_NOTE": "현대식, 최저 수수료.",
   "G_TY_NESTED_NOTE": "구식 segwit.",
   "G_TY_LEGACY_NOTE": "가장 오래된 형식, 최고 수수료.",
-  "G_SEPARATE": "네트워크 + 유형 조합마다 별개의 지갑입니다",
   "G_CREATE_NEW": "새 시드 만들기",
   "G_CREATE_NOTE": "여기 시드를 대체합니다.",
   "G_WIPE": "시드 지우기",
