@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bitova entropije, ali dulji prijepis.\nodaberite za podudaranje sa starim novčanikom.",
   "W_RAND_T": "DODAJTE NASUMIČNOST",
   "W_RAND_S": "novčanik je siguran samo koliko je nasumičan način\nna koji je izrađen. kamera tome pridonosi.",
-  "W_RAND_B": "usmjeri kameru na nešto neuredno:\nlišće, šljunak, promiješan špil karata.\ndodirni kad traka postane zelena.\n\nmiješa se s nasumičnošću samog čipa,\nnijedan izvor ne odlučuje sam.",
   "W_WRITE_T": "ZAPIŠITE OVE RIJEČI",
   "W_WRITE_S": "riječi + ista kodna fraza obnavljaju ovaj novčanik",
   "W_PAPER_ONLY": "samo papir, nikad fotografija ni datoteka.",

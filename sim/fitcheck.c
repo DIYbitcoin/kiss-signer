@@ -50,7 +50,6 @@ static const slot_t SLOTS[] = {
     { "login/warn",       STR_L_WARN_B,     740, 204 },
     { "login/pp-intro",   STR_L_PPINTRO_B,  704, 280 },
     // wallet_setup.c — wizard explainers
-    { "setup/entropy",    STR_W_RAND_B,     704, 274 },
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-in",  STR_W_VINTRO_B,   704, 274 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
@@ -84,7 +83,6 @@ static const slot_t SLOTS[] = {
     { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
     // amnesic mode: seed-QR import + passphrase-from-QR
     { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
-    { "setup/rand-body",  STR_W_RAND_B,     704, 256 },
     // wallet_sign.c: the screens BEFORE and AFTER the detail page. The detail
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at

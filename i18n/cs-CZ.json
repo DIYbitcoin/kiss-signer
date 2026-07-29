@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bitů entropie, ale delší opis.\nzvolte pro shodu se starší peněženkou.",
   "W_RAND_T": "PŘIDEJTE NÁHODNOST",
   "W_RAND_S": "peněženka je bezpečná jen tak, jak náhodně\nbyla vytvořena. kamera k tomu přispěje.",
-  "W_RAND_B": "namiř kameru na něco nepořádného:\nlistí, štěrk, zamíchaný balíček karet.\nklepni, až proužek zezelená.\n\nsmíchá se s náhodou samotného čipu,\nžádný zdroj nerozhoduje sám.",
   "W_WRITE_T": "ZAPIŠTE SI TATO SLOVA",
   "W_WRITE_S": "slova + stejná přístupová fráze obnoví peněženku",
   "W_PAPER_ONLY": "pouze papír, nikdy fotografie ani soubor.",

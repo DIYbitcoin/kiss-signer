@@ -59,7 +59,6 @@
   "W_24_NOTE": "256 bits de entropía, pero más largo.\nelígelo para una billetera anterior.",
   "W_RAND_T": "AGREGA ALEATORIEDAD",
   "W_RAND_S": "una billetera es tan segura como el azar con\nque fue creada. la cámara aporta la mitad de ese azar.",
-  "W_RAND_B": "apunta la cámara a algo desordenado:\nhojas, grava, una baraja mezclada.\ntoca cuando la barra se ponga verde.\n\nse mezcla con el azar del propio chip,\nasí ninguno decide solo.",
   "W_WRITE_T": "ANÓTALAS",
   "W_WRITE_S": "palabras + la misma passphrase restauran esta billetera",
   "W_PAPER_ONLY": "solo papel, sin foto ni archivo.",
