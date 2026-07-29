@@ -639,8 +639,11 @@ static void info_screen(void)
     lv_obj_update_layout(sec);
     mk_help_chip(48 + lv_obj_get_width(sec) + 12, 120, "fp");
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    lv_obj_t *f = wt_lbl(s_scr, buf, 48, 145, wt_font28(), WT_INK);
-    lv_obj_set_style_text_letter_space(f, 2, 0);
+    // Fixed pitch. The letter_space 2 is gone with it: that was hand kerning
+    // a proportional face into looking tabular, which the mono face is by
+    // construction. Same value, same face, same width as the Sign header and
+    // the unlock screen now print it.
+    wt_lbl(s_scr, buf, 48, 145, wt_font_mono28(), WT_INK);
 
     wt_section(s_scr, tr(STR_I_SEC_NET), 48, 188);
     wt_lbl(s_scr, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),

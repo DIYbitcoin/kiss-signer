@@ -627,8 +627,12 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_width(cap, 150);
         lv_label_set_long_mode(cap, LV_LABEL_LONG_CLIP);
         snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        lv_obj_t *f = mk_lbl(buf, 430, 50, wt_font23(), INK_COL);
-        lv_obj_set_style_text_letter_space(f, 2, 0);
+        // Fixed pitch. This is the value the holder compares against what is
+        // written next to their recovery words, so it must render the same
+        // width every time it appears, on every screen. The old letter_space 2
+        // was hand kerning a proportional face into looking tabular; the mono
+        // face is tabular by construction, so the tracking comes back off.
+        mk_lbl(buf, 430, 50, wt_font_mono23(), INK_COL);
     }
     mk_status_light();
 
@@ -638,10 +642,10 @@ static void verify_screen(lv_obj_t *parent)
     wt_note(s_scr, tr(STR_S_SENDING_CAP), 40, 96, 360, 29);
     fmt_sats(s_sum.send_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 40, 116, wt_font28(), INK_COL);
+    mk_lbl(buf, 40, 116, wt_font_mono28(), INK_COL);
     wt_fmt_btc(s_sum.send_sats, b, sizeof b);
     snprintf(buf, sizeof buf, "%s BTC", b);
-    mk_lbl(buf, 40, 152, wt_font23(), MUT_COL);
+    mk_lbl(buf, 40, 152, wt_font_mono23(), MUT_COL);
 
     // Outputs — EVERY output is shown (scroll if it doesn't fit); nothing the
     // user is asked to sign is ever hidden.  In the common one-recipient case,
@@ -701,12 +705,12 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *amt = lv_label_create(row);
             lv_label_set_text(amt, buf);
             lv_obj_set_style_text_color(amt, INK_COL, 0);
-            lv_obj_set_style_text_font(amt, wt_font23(), 0);
+            lv_obj_set_style_text_font(amt, wt_font_mono23(), 0);
             snprintf(buf, sizeof buf, "%s BTC", b);
             lv_obj_t *btc = lv_label_create(row);
             lv_label_set_text(btc, buf);
             lv_obj_set_style_text_color(btc, MUT_COL, 0);
-            lv_obj_set_style_text_font(btc, wt_font23(), 0);
+            lv_obj_set_style_text_font(btc, wt_font_mono23(), 0);
         }
 
         char ga[160];   // sp1/tsp1 is ~117 chars; +grouping spaces needs >120
@@ -715,11 +719,14 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *ad = lv_label_create(row);
             lv_label_set_text(ad, ga);
             lv_obj_set_style_text_color(ad, MUT_COL, 0);
-            lv_obj_set_style_text_font(ad, wt_font23(), 0);
+            lv_obj_set_style_text_font(ad, wt_font_mono23(), 0);
             lv_obj_set_width(ad, 340);
             lv_label_set_long_mode(ad, LV_LABEL_LONG_WRAP);
         } else {                             // compare-me (incl. SP): bright ends
-            wt_addr_spans(row, ga, 340, wt_font23());
+            // The one place fixed pitch is doing security work rather than
+            // tidiness: "compare these" asks for a character by character read,
+            // and both lit runs come out the same width so their ends line up.
+            wt_addr_spans(row, ga, 340, wt_font_mono23());
         }
 
         if (s_sum.outs[i].is_sp) {           // teach why a bc1p never appears here
@@ -747,13 +754,13 @@ static void verify_screen(lv_obj_t *parent)
     wt_note(s_scr, tr(STR_S_FEE), 430, 96, 340, 29);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 126, wt_font28(),
+    mk_lbl(buf, 430, 126, wt_font_mono28(),
            s_sum.status == WPSBT_CAUTION ? WARN_COL : INK_COL);
 
     wt_note(s_scr, tr(STR_S_TOTAL_LEAVING), 430, 166, 340, 29);
     fmt_sats(total, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    mk_lbl(buf, 430, 196, wt_font28(), INK_COL);   // the headline number, not a footnote
+    mk_lbl(buf, 430, 196, wt_font_mono28(), INK_COL);   // the headline number, not a footnote
 
     // The fee RATE and the BTC restatement of the total are on DETAILS now.
     //

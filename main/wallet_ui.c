@@ -791,7 +791,7 @@ static void setup_warn_screen(void) {
   lv_label_set_text_fmt(f, "%02X%02X%02X%02X",
                         s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
   lv_obj_set_style_text_color(f, INK_COL, 0);
-  lv_obj_set_style_text_font(f, wt_font28(), 0);
+  lv_obj_set_style_text_font(f, wt_font_mono28(), 0);
   lv_obj_set_style_text_letter_space(f, 4, 0);
   lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 300);   // body below now runs to 295
 
@@ -866,8 +866,19 @@ static void show_fingerprint(void) {
   lv_obj_t *big = lv_label_create(box);
   lv_label_set_text_fmt(big, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
   lv_obj_set_style_text_color(big, wt_accent(), 0);
-  lv_obj_set_style_text_font(big, &lv_font_montserrat_48, 0);
-  lv_obj_set_style_text_letter_space(big, 4, 0);
+  // font_kiss_num48, not lv_font_montserrat_48. This is the number the holder
+  // copies onto paper next to their recovery words and compares against the
+  // home screen forever after, so it is the one value on the device that most
+  // needs to render identically every single time. The built-in Montserrat
+  // face is proportional, so 8s and 1s changed the string's width with its
+  // content. lv_font_montserrat_48 stays in the image regardless: six other
+  // sites use it for LV_SYMBOL glyphs and overlay text, so this buys a stable
+  // width here and nothing in flash.
+  //
+  // letter_space 4 goes with it. It was opening up a proportional face to make
+  // a hex string scannable; a fixed advance already does that, and the extra
+  // tracking on top pushed the 8 characters wider than the box.
+  lv_obj_set_style_text_font(big, wt_font_num48(), 0);
   lv_obj_center(big);
 
   // the code card rises + fades in when the fingerprint is computed
