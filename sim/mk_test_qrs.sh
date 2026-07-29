@@ -23,6 +23,7 @@ clang -O1 -w -Imain -Icomponents/cUR/src \
 /tmp/mk_qr_parts "$OUT/2-nested.psbt"        pmofn  > "$OUT/pmofn-nested.parts"
 /tmp/mk_qr_parts "$OUT/3-legacy.psbt"        ur     > "$OUT/ur-legacy.parts"
 /tmp/mk_qr_parts "$OUT/4-stop-wrongnet.psbt" static > "$OUT/static-wrongnet.parts"
+/tmp/mk_qr_parts "$OUT/5-caution-highfee.psbt" static > "$OUT/static-caution.parts"
 
 # 3. render the page
 "$PY" sim/mk_test_qrs.py "$OUT"
