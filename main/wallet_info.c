@@ -66,9 +66,28 @@ static void sp_permission_fact(lv_obj_t *parent, const char *icon,
     lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *ic = wt_lbl(row, icon, 16, 4, wt_font23(), icon_color);
-    lv_obj_set_width(ic, 30);
-    lv_obj_t *fact = wt_note(row, tr(key), 58, 4, 482, 29);
+    // Icon and words centre as ONE group, which is why this is a flex row and
+    // not two absolute positions. Left aligned, the three rows had their icons
+    // pinned at x=16 and their text at x=58 while the words themselves ran to
+    // wildly different lengths, so the block read as a ragged list inside three
+    // centred pills. The group centres; the pill centres; they agree.
+    //
+    // The text is content sized with a 482 ceiling rather than a fixed 482 box.
+    // Content sized is what lets a short row centre tightly around its own
+    // words; the ceiling is what keeps a long translation wrapping inside the
+    // pill instead of running out of it. Every locale fits one line today, so
+    // the ceiling has never yet had to do anything.
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 14, 0);
+
+    lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(), icon_color);
+    lv_obj_set_width(ic, LV_SIZE_CONTENT);
+    lv_obj_t *fact = wt_note(row, tr(key), 0, 0, 482, 29);
+    lv_obj_set_width(fact, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(fact, 482, 0);
+    lv_obj_set_style_text_align(fact, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(fact, WT_INK, 0);
 }
 
@@ -90,8 +109,29 @@ static void sp_permission_model(lv_obj_t *parent)
     lv_obj_set_style_pad_row(col, 6, 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
+    // Three rows, three jobs, and only TWO of them are coloured.
+    //
+    // The scheme was capability / limit / consequence: accent for what the key
+    // does, WT_OK for what it cannot do, WT_WARN for the part you cannot take
+    // back. That is a real scale, and in GREEN theme it collapsed, because
+    // ACC_HEX[WT_ACC_GREEN] is 0x35D07F and WT_OK is 0x35D07F. Byte identical.
+    // The first two rows rendered the same colour, so a reader saw two greens
+    // and an amber and reasonably asked what the greens were supposed to mean.
+    // ORANGE has the same problem one row down: 0xFF8A3D beside WT_WARN's
+    // 0xF2B84B is a distinction nobody is going to make on a lit panel.
+    //
+    // Status colours are never themed, so the accent is the one that steps
+    // aside. FINDS PAYMENTS is not a status at all, it is the plain statement
+    // of what the thing does, and it takes WT_INK. What is left is two colours
+    // that each mean exactly one thing: green is the boundary that holds, amber
+    // is the cost that does not expire.
+    //
+    // In MONO this changes NOTHING: ACC_HEX[WT_ACC_MONO] is 0xE8EEF7 and WT_INK
+    // is 0xE8EEF7, so the shipped look is preserved to the byte. Every pixel
+    // that moves here moves in a theme where two rows used to be the same
+    // colour and now are not.
     sp_permission_fact(col, LV_SYMBOL_EYE_OPEN,
-                       STR_R_SP_FACT_FIND, wt_accent());
+                       STR_R_SP_FACT_FIND, WT_INK);
     sp_permission_fact(col, WT_ICON_LOCK,
                        STR_R_SP_FACT_NO_SPEND, WT_OK);
     sp_permission_fact(col, LV_SYMBOL_LOOP,
