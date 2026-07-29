@@ -329,7 +329,7 @@
   "S_FILES_HINT": "osignerade först, sedan A-Z. signerade filer är märkta.",
   "S_FILE_UNSIGNED": "OSIGNERAD",
   "S_GLOSSARY_T": "ENKLA FÖRKLARINGAR",
-  "S_GLOSSARY_B": "INDATA: mynt som transaktionen spenderar.\nUTDATA: alla platser dit transaktionen skickar bitcoin.\nVÄXEL: delen som går tillbaka till en adress KISS verifierat som din.\nTXID: spårnings-ID efter sändning.\nAVGIFTSTAKT: avgift per enhet transaktionsstorlek.\nLOCKTIME: tidigaste blocket där den kan bekräftas.\nHÄRLEDNINGSVÄG: standardgrenen för att hitta en nyckel.\nDESCRIPTOR: skrivskyddad karta som kan bevaka och hitta adresser, men inte spendera.",
+  "S_GLOSSARY_B": "INDATA: mynt som transaktionen spenderar.\nUTDATA: alla platser dit transaktionen skickar bitcoin.\nVÄXEL: delen tillbaka till din verifierade adress.\nTXID: spårnings-ID efter sändning.\nAVGIFTSTAKT: avgift per enhet transaktionsstorlek.\nLOCKTIME: tidigaste blocket där den kan bekräftas.\nHÄRLEDNINGSVÄG: standardgrenen till en nyckel.\nDESCRIPTOR: skrivskyddad adresskarta, kan inte spendera.",
   "R_NOT_FOUND_FMT": "INTE BLAND DE FÖRSTA %u ADRESSERNA",
   "R_NOT_FOUND_B": "giltig för nätverket, men inte bland de första 100 kontrollerade mottagnings- eller växeladresserna. detta är inte slutgiltigt.",
   "R_WRONG_NET": "FEL NÄTVERK",

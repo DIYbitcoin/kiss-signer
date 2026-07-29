@@ -97,6 +97,15 @@ static const slot_t SLOTS[] = {
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
     { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
     { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
+    // wallet_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
+    // 704x294 overlay. Registered at 232, not the 294 the screen allows: eight
+    // lines at font23 is exactly 8 x 29, so the box IS the no-wrap condition
+    // and one wrapped definition (261) fails here. Written that way because
+    // 294 hid the real state of this page -- eleven locales were rendering the
+    // whole thing at font14 because enough definitions wrapped to overflow at
+    // 23, and a definition that wraps mid-clause is the one place a glossary
+    // must not be hard to read.
+    { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
     { "sign/no-network",  STR_S_NO_NETWORK,     322,  29 },
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
