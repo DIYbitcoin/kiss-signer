@@ -433,7 +433,7 @@ static void storage_chooser_screen(void)
         wt_pill_select(p, current == mode);
         wt_wraph(s_scr, storage_mode_note(mode), 330, py[i] - 10, 420, 87);
     }
-    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140,
+    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                              storage_chooser_back_cb, NULL);
     lv_obj_set_ext_click_area(back, 10);
 }
@@ -487,7 +487,7 @@ static void type_open_cb(lv_event_t *e)
         wt_note(s_scr, type_note(sc), 68, ny[i], 664, 29);
     }
     lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, type_back_cb, NULL), 10);
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, type_back_cb, NULL), 10);
 }
 
 // The stroke chooser takes over the screen and hands control back here.
@@ -1024,7 +1024,7 @@ void wallet_settings_open(lv_obj_t *parent)
         // into a 160x64 target without moving a pixel of what is drawn. Not
         // more than 10: the language pill's right edge is at x=600, and a
         // wider reach would start eating taps meant for it.
-        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 610, WT_ACTION_Y, 140, 44, close_cb, NULL);
+        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, 44, close_cb, NULL);
         lv_obj_set_ext_click_area(back, 10);
         lv_obj_t *row[2] = { s_lang_pill, back };
         wt_pill_row(row, 2);

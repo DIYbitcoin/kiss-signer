@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "验证恢复词",
   "L_VERIFY_FULL_BACKUP": "验证完整备份",
   "G_T": "设置",
-  "G_TESTNET_NOTE": "TESTNET: 没有价值的练习币。",
+  "G_TESTNET_NOTE": "TESTNET: 测试比特币",
   "G_MAINNET_NOTE": "MAINNET: 真正的比特币",
   "G_TY_NATIVE_NOTE": "现代类型, 手续费最低。",
   "G_TY_NESTED_NOTE": "较老的 segwit。",

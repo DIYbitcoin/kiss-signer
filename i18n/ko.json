@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "복구 단어 검증",
   "L_VERIFY_FULL_BACKUP": "전체 백업 검증",
   "G_T": "설정",
-  "G_TESTNET_NOTE": "TESTNET: 가치 없는 연습용 코인.",
+  "G_TESTNET_NOTE": "TESTNET: 테스트용 비트코인",
   "G_MAINNET_NOTE": "MAINNET: 진짜 비트코인",
   "G_TY_NATIVE_NOTE": "현대식, 최저 수수료.",
   "G_TY_NESTED_NOTE": "구식 segwit.",

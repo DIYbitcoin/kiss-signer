@@ -121,7 +121,7 @@
   "I_VERIFY_COPY": "VERIFY WORDS",
   "L_VERIFY_FULL_BACKUP": "VERIFY FULL BACKUP",
   "G_T": "SETTINGS",
-  "G_TESTNET_NOTE": "TESTNET: practice coins with no value.",
+  "G_TESTNET_NOTE": "TESTNET: test bitcoin",
   "G_MAINNET_NOTE": "MAINNET: real bitcoin",
   "G_TY_NATIVE_NOTE": "modern, lowest fees.",
   "G_TY_NESTED_NOTE": "older segwit.",

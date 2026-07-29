@@ -339,9 +339,13 @@ static void pair_screen(void)
     // readable here and repeated with the proof step on the static NEXT page.
     s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
 
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_R_NEXT), 610, WT_ACTION_Y, 140,
+    // This BACK escapes pairing altogether, so it takes the corner and NEXT
+    // moves to the left. The pairing QR page one step further in keeps ITS back
+    // on the left, because that one only steps back to this page: same word,
+    // different job, and WT_BACK_X says which job earns the corner.
+    wt_pill(s_scr, tr(STR_R_NEXT), 48, WT_ACTION_Y, 140,
             pair_instructions_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -420,7 +424,7 @@ static void sp_key_warn_cb(lv_event_t *e)
     // A short hold is deliberate without adding the friction of signing.
     wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
                  900, sp_key_show, NULL);
-    wt_pillh(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
+    wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              sp_key_back_cb, NULL);
 }
 
@@ -549,7 +553,7 @@ static void words_warn_screen(lv_event_t *e)
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
     wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240, verify_copy_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----
@@ -665,7 +669,7 @@ static void info_screen(void)
         wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 60, false);
         wt_pill_apply_fit(pp, f, 340);
     }
-    wt_pill(s_scr, tr(STR_C_BACK), 610, WT_ACTION_Y, 140, close_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
 }
 
 void wallet_info_open(lv_obj_t *parent)
