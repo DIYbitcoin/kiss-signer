@@ -139,6 +139,18 @@ jobs:
           bash sim/build_osdcheck.sh
           /tmp/kissosd
 
+      # Status colours mean things: WT_OK is verified, WT_WARN is caution,
+      # WT_STOP is refused. An accent that lands on one of them does not break
+      # that meaning, it breaks the hierarchy, and it only shows up in a theme
+      # nobody develops in. This measures every accent against every status
+      # colour in Lab and fails on any collision that is not declared with the
+      # reason it is safe -- and on any declaration that has stopped being
+      # true, so the exemptions cannot rot.
+      - name: theme safety gate
+        run: |
+          bash sim/build_themecheck.sh
+          /tmp/kisstheme
+
       - name: setup node for interop rig
         uses: actions/setup-node@v4
         with:
