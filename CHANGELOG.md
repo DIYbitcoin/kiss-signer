@@ -15,7 +15,7 @@ signed; it changes what the device looks like while you use it.
   and a hundred in total. The four characters after the `bc1q` and the last four
   are lit, and those are the ones worth comparing, since every address starts the
   same way. Tap any one for its QR, its derivation path and VERIFY. That
-  one-at-a-time view is still there and keeps its arrows, so you never have to
+  single address view is still there and keeps its arrows, so you never have to
   scroll to reach the next address.
 - **A reminder to use a fresh address per payment**, on the screen showing the
   address you are about to hand over. KISS has no view of the chain and cannot
@@ -42,8 +42,8 @@ signed; it changes what the device looks like while you use it.
   smallest type on the device, and it is the only thing on that screen saying
   which kind of address the key belongs to.
 - **Opening RECEIVE no longer counts as showing an address.** Only opening a
-  specific one does. Before, merely visiting the screen advanced the
-  already-used marker.
+  specific one does. Before, merely visiting the screen marked the address
+  used.
 - **Wording follows one rule now**: bitcoin arriving is a *payment*, bitcoin you
   build and sign is a *transaction*. Three strings disagreed.
 - **The home screen says "encryption", not "enc"**, and the C6 radio readback
