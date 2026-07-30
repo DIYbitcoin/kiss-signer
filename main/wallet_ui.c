@@ -864,18 +864,20 @@ static void show_fingerprint(void) {
   s_fpscr = wt_screen(lv_screen_active(), tr(STR_D_FINGERPRINT), NULL);
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
 
-  // Band one: the code, in a framed card across the whole page with its caption
-  // inside it. Full width and not a 340 column beside a diagram, and that was
-  // tried: wt_diagram_fp is a flex ROW of three chips, about 600px in English
-  // and wider in half the locales, so a 404 column clipped "RECOVERY WORDS" off
-  // one end and "FINGERPRINT" off the other. A clipped diagram teaches nothing
-  // and looks broken; the code is what this screen is about, so it takes the
-  // page and the diagram stays where it already lives, one tap away behind the
-  // FINGERPRINT explainer.
+  // Band one: the code, in a framed card CENTRED at the size it has always had.
+  // 420x118 with the number at num48 is what the owner asked to keep, and the
+  // brief detour through a full width card is why they had to: something was
+  // meant to sit beside it, so the card grew to fill the page when that fell
+  // through. Nothing sits beside it. wt_diagram_fp was the candidate and it is
+  // a flex ROW of three chips, about 600px in English and wider in half the
+  // locales, so a 404 column clipped "RECOVERY WORDS" off one end and
+  // "FINGERPRINT" off the other. It stays where it already lives, one tap away
+  // behind the FINGERPRINT explainer, and this card goes back to being the one
+  // object on its line.
   lv_obj_t *box = lv_obj_create(s_fpscr);
   lv_obj_remove_style_all(box);
-  lv_obj_set_pos(box, 48, 96);
-  lv_obj_set_size(box, 704, 128);
+  lv_obj_set_pos(box, 190, 96);
+  lv_obj_set_size(box, 420, 118);
   lv_obj_set_style_radius(box, 16, 0);
   lv_obj_set_style_border_width(box, 2, 0);
   lv_obj_set_style_border_color(box, wt_accent(), 0);
@@ -892,7 +894,7 @@ static void show_fingerprint(void) {
   lv_obj_set_style_text_font(cap, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(cap, 2, 0);
   lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 16);
-  lv_obj_set_width(cap, 668);
+  lv_obj_set_width(cap, 384);
   lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
 
   lv_obj_t *big = lv_label_create(box);
@@ -943,7 +945,7 @@ static void show_fingerprint(void) {
   {
     const char *b1 = tr(nopass ? STR_L_FP_NOTE_NOPASS  : STR_L_FP_NOTE);
     const char *b2 = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2);
-    const int BW = 344, BY = 242, BH = WT_CONTENT_BOTTOM - BY;
+    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
     // Measured against BH - 8, not BH. wt_body_font answers for the text alone
     // and wt_why_block wraps it in a box whose own metrics cost a couple of
     // pixels, so a translation that fits "exactly" overhangs: Czech ran 4px
