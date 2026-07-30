@@ -19,6 +19,25 @@ bool camera_spike_toggle(lv_obj_t *parent, i2c_master_bus_handle_t i2c_bus);
 // One-line human-readable status of the last toggle/init attempt.
 const char *camera_spike_status(void);
 
+// Confine the live preview to a rect given in LANDSCAPE UI coordinates, the same
+// 800x480 space every wallet screen is laid out in. Everything outside it keeps
+// whatever LVGL drew there, so a screen can put a preview in one column and real
+// widgets in the other (ADDENDUM-01). Pass w or h as 0 to restore the full-panel
+// default, which is what the dev preview and every pre-two-column mode use.
+//
+// Two consequences the caller has to know about. The camera stops FLIPPING
+// framebuffers while a rect is set, because a flip swaps in the buffer LVGL did
+// not just paint; it writes into the live buffer instead, so tearing is possible
+// inside the preview rect and nowhere else. And LVGL may repaint outside the
+// rect while streaming, which is what makes a live column beside the video work.
+void camera_spike_set_preview_rect(int x, int y, int w, int h);
+
+// True when the given rect in LANDSCAPE UI coordinates is clear of the live
+// preview, so main.c's flush callback can let LVGL paint it. Always true when no
+// preview rect is set and the camera is off; always false while the camera owns
+// the whole panel.
+bool camera_spike_ui_rect_free(int x1, int y1, int x2, int y2);
+
 // True while the preview is live.
 bool camera_spike_is_on(void);
 
@@ -44,6 +63,10 @@ bool camera_entropy_start(void);
 void camera_entropy_tap(void);
 bool camera_entropy_result(uint8_t out[32]);
 void camera_entropy_stop(void);
+// How full source one is, 0..100, for the LVGL column beside the preview to
+// draw. Reads a volatile the camera task owns, so it is a snapshot and needs no
+// lock: the only consumer is an LVGL timer that redraws a bar.
+int camera_entropy_progress(void);
 
 // ---- step 6: QR scan mode (same pipeline + k_quirc decode every few frames) ----
 // on_decode runs in the CAMERA TASK context — copy the payload out, return fast.

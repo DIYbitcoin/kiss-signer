@@ -98,6 +98,75 @@ static int s_zoom = 0;               // DEFAULT = #1 = most zoomed out = widest 
 static volatile int s_clear_pending; // fbs to blank before blit (zoom/orient change)
 static volatile int s_osd_frames;    // frames left to show the on-video digits
 
+// ---- two-column mode (ADDENDUM-01) ----
+// The preview rect in PANEL space, and the crop/scale that fills it. Zero w
+// means the legacy behavior: the camera owns all 480x800 and flips framebuffers
+// every frame.
+//
+// The UI is an 800x480 landscape canvas rotated into a 480x800 portrait panel by
+// rot_flush in main.c, which maps logical (lx,ly) -> panel (479-ly, lx). So a UI
+// x range becomes a panel y range unchanged, and a UI y range becomes a panel x
+// range reflected. Both conversions live in set_preview_rect so no other code
+// has to hold that mapping in its head.
+// Initialised to the WHOLE panel, not to zero. Every expression below adds the
+// rect's origin and centres inside its size, so the fullscreen modes are the
+// same arithmetic with the full panel in it; left at zero they would centre the
+// picture at a negative offset and put the reticle in the corner.
+static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = PANEL_W, s_vp_h = PANEL_H;
+// The same rect in LANDSCAPE space, kept because the reticle, the sweep and
+// every other overlay primitive already draw in landscape coordinates. Storing
+// both means neither the drawing code nor the blit code has to convert.
+static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL_W;
+static bool s_vp_on;
+
+void camera_spike_set_preview_rect(int x, int y, int w, int h)
+{
+  if (w <= 0 || h <= 0) {                    // restore the full-panel default
+    s_vp_on = false;
+    s_vp_x = 0; s_vp_y = 0; s_vp_w = PANEL_W; s_vp_h = PANEL_H;
+    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
+    return;
+  }
+  s_vp_lx = x; s_vp_ly = y; s_vp_lw = w; s_vp_lh = h;
+  // UI x -> panel y directly; UI y -> panel x reflected, so the far edge of the
+  // UI rect becomes the near edge of the panel rect.
+  s_vp_y = x;
+  s_vp_h = w;
+  s_vp_x = (PANEL_W - 1) - (y + h - 1);
+  s_vp_w = h;
+  if (s_vp_x < 0) { s_vp_w += s_vp_x; s_vp_x = 0; }
+  if (s_vp_y < 0) { s_vp_h += s_vp_y; s_vp_y = 0; }
+  if (s_vp_x + s_vp_w > PANEL_W) s_vp_w = PANEL_W - s_vp_x;
+  if (s_vp_y + s_vp_h > PANEL_H) s_vp_h = PANEL_H - s_vp_y;
+  s_vp_on = (s_vp_w > 0 && s_vp_h > 0);
+  s_clear_pending = 2;                       // blank the new rect, not the panel
+  // Pin framebuffer 0 and make it the one being scanned out, because from here
+  // on both the video and LVGL write into it and neither one flips. Blanked
+  // first: it holds whatever a previous fullscreen session left behind, and
+  // flipping to that would show a stale frame until LVGL repaints over it.
+  if (s_vp_on && s_fb[0] && s_panel) {
+    memset(s_fb[0], 0, (size_t)PANEL_W * PANEL_H * 2);
+    esp_cache_msync(s_fb[0], (size_t)PANEL_W * PANEL_H * 2,
+                    ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, s_fb[0]);
+    s_fb_wr = 0;
+    // The wallet screen under the video has to repaint into the buffer we just
+    // flipped to; nothing else would ask it to.
+    lv_obj_invalidate(lv_screen_active());
+  }
+}
+
+bool camera_spike_ui_rect_free(int x1, int y1, int x2, int y2)
+{
+  if (!s_cam.streaming) return true;         // nothing on the panel to protect
+  if (!s_vp_on) return false;                // the camera owns everything
+  // Same mapping as above, then a plain rect overlap test in panel space.
+  int px0 = (PANEL_W - 1) - y2, px1 = (PANEL_W - 1) - y1;
+  int py0 = x1, py1 = x2;
+  return !(px1 >= s_vp_x && px0 <= s_vp_x + s_vp_w - 1 &&
+           py1 >= s_vp_y && py0 <= s_vp_y + s_vp_h - 1);
+}
+
 // ---- step 6 scan mode: k_quirc runs on every SCAN_EVERY'th raw sensor frame,
 // at HALF resolution (device-proven: half-res decodes where full-res chokes on
 // sensor line artifacts, and it's 4x cheaper). The gray copy un-mirrors the
@@ -430,6 +499,26 @@ const char *camera_spike_zoom(int dir) {
 // smaller than the panel at the letterbox levels.
 static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
                             float *scale, uint32_t *ow, uint32_t *oh) {
+  // Two-column mode has one fixed crop and scale sized to the preview rect, and
+  // ignores the zoom ladder: zoom and the orientation finder are dev
+  // affordances on the fullscreen preview, and a letterbox bar inside a 300px
+  // column would eat most of it.
+  if (s_vp_on) {
+    // Fill the rect exactly, and derive the crop from it rather than from a
+    // table: the output size is whatever the screen asked for, so the crop is
+    // that at 2x and the scale is a clean 8/16. If the sensor cannot give 2x
+    // (a rect wider than half the frame) fall back to 1:1, which always can.
+    *ow = (uint32_t)s_vp_w;
+    *oh = (uint32_t)s_vp_h;
+    if (*ow * 2 <= w && *oh * 2 <= h) {
+      *cw = *ow * 2; *ch = *oh * 2; *scale = 8 / 16.0f;
+    } else if (*ow <= w && *oh <= h) {
+      *cw = *ow; *ch = *oh; *scale = 1.0f;
+    } else {
+      return false;
+    }
+    return true;
+  }
   bool quarter = (s_orient % 2) == 1;  // 90/270 swaps output dims
   int zi = quarter ? 1 : 0;
   for (int z = s_zoom; z < ZOOM_LEVELS; z++) {  // fall deeper if crop won't fit sensor
@@ -537,22 +626,37 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 static int s_brk_half = BRK_HALF;
 
 static void draw_brackets(uint16_t *fb) {
-  const int cx = 400, cy = 240, arm = 44, t = 4;
+  // Centre and travel limits come from the preview rect, which defaults to the
+  // whole landscape screen, so the fullscreen numbers below are the same
+  // expression. In two-column mode the reticle keeps every behaviour it has --
+  // the breathing while searching, the ease toward the located code, the green
+  // close on acquire, the sweep -- inside the 300px column instead of across
+  // the panel. That gesture is the one thing on this screen that says the
+  // device is looking, so it follows the picture rather than being dropped
+  // with the text chrome LVGL took over.
+  const int cx = s_vp_lx + s_vp_lw / 2, cy = s_vp_ly + s_vp_lh / 2;
+  const int arm = s_vp_on ? 26 : 44, t = s_vp_on ? 3 : 4;
+  // Half the guide box, and how tight it may close. Fullscreen keeps its
+  // measured 225/95; a column derives them from its own short side, with a 6px
+  // margin so the corner arms never cross the border LVGL drew around it.
+  const int brk_half = s_vp_on
+      ? (s_vp_lw < s_vp_lh ? s_vp_lw : s_vp_lh) / 2 - 6 : BRK_HALF;
+  const int brk_min = s_vp_on ? arm + 8 : BRK_HALF_MIN;
   bool found = s_scan_found > 0;
 
   // Closing in on the code is the whole "it found it" gesture. s_qr_fill is
   // how much of the frame the code occupies; the guide follows it down, with a
   // floor so a distant code does not shrink the guide into a dot the user then
   // cannot aim with.
-  int want = BRK_HALF;
+  int want = brk_half;
   if (found && s_qr_fill > 0) {
-    want = BRK_HALF * s_qr_fill / 256 + arm / 2;
-    if (want < BRK_HALF_MIN) want = BRK_HALF_MIN;
-    if (want > BRK_HALF) want = BRK_HALF;
+    want = brk_half * s_qr_fill / 256 + arm / 2;
+    if (want < brk_min) want = brk_min;
+    if (want > brk_half) want = brk_half;
   }
   s_brk_half += (want - s_brk_half) / 4;          // ~4 frames to settle
-  if (s_brk_half > BRK_HALF) s_brk_half = BRK_HALF;
-  if (s_brk_half < BRK_HALF_MIN) s_brk_half = BRK_HALF_MIN;
+  if (s_brk_half > brk_half) s_brk_half = brk_half;
+  if (s_brk_half < brk_min) s_brk_half = brk_min;
   const int half = s_brk_half;
   // Located: solid, and green rather than white. Green is the wallet's
   // status-OK colour everywhere else on the device, and this is the only
@@ -580,7 +684,7 @@ static void draw_brackets(uint16_t *fb) {
   // same two-rectangle primitive as the corners, so they cost the same
   // nothing per frame.
   {
-    const int in = 22, arm2 = 26, t2 = 2;
+    const int in = s_vp_on ? 12 : 22, arm2 = s_vp_on ? 14 : 26, t2 = 2;
     uint8_t a2 = (uint8_t)(a > 6 ? a - 4 : 2);
     for (int sx = -1; sx <= 1; sx += 2)
       for (int sy = -1; sy <= 1; sy += 2) {
@@ -1010,12 +1114,25 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
-  uint16_t *fb = s_fb[s_fb_wr];
+  // Two-column mode pins framebuffer 0 and never flips: a flip would swap in the
+  // buffer LVGL did NOT just paint, so the column beside the video would
+  // alternate between the layout and whatever was there a frame ago. Writing the
+  // live buffer can tear, but only inside the preview rect, which is video.
+  uint16_t *fb = s_vp_on ? s_fb[0] : s_fb[s_fb_wr];
   if (!fb) return;
   if (s_clear_pending > 0) {          // zoom/orientation changed: blank stale bars.
     s_clear_pending--;                // CPU writes land in cache; the scanout reads
-    memset(fb, 0, PANEL_W * PANEL_H * 2);   // PSRAM directly -> write back explicitly
-    esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    if (s_vp_on) {                    // PSRAM directly -> write back explicitly
+      // Only the rect. The rest of the panel is LVGL's and blanking it would
+      // erase the column this mode exists to show.
+      for (int py = s_vp_y; py < s_vp_y + s_vp_h; py++)
+        memset(fb + (size_t)py * PANEL_W + s_vp_x, 0, (size_t)s_vp_w * 2);
+      esp_cache_msync(fb + (size_t)s_vp_y * PANEL_W,
+                      (size_t)s_vp_h * PANEL_W * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    } else {
+      memset(fb, 0, PANEL_W * PANEL_H * 2);
+      esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    }
   }
   ppa_srm_oper_config_t op = {
       .in = {
@@ -1033,8 +1150,10 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
           .buffer_size = PANEL_W * PANEL_H * 2,
           .pic_w = PANEL_W,
           .pic_h = PANEL_H,
-          .block_offset_x = (PANEL_W - ow) / 2,   // center; bars at letterbox levels
-          .block_offset_y = (PANEL_H - oh) / 2,
+          // Centered in the preview rect, which defaults to the whole panel, so
+          // the legacy letterbox behavior is the same expression.
+          .block_offset_x = s_vp_x + (s_vp_w - (int)ow) / 2,
+          .block_offset_y = s_vp_y + (s_vp_h - (int)oh) / 2,
           .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
       },
       .rotation_angle = rot[s_orient % 4],
@@ -1047,39 +1166,57 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     ESP_LOGW(TAG, "PPA blit failed");
     return;
   }
-  if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
-    darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
-    darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
-    blit_a4(fb, osd_title(OSD_CLOSE), 449, 22, OSD_DIM_CLOSE);  // top-left
+  // The reticle is the exception, and it draws in BOTH modes: it is the only
+  // thing on this screen that says the device is looking, its primitives already
+  // work in landscape coordinates, and draw_brackets takes its centre and travel
+  // from the preview rect, so in two-column mode the whole gesture happens
+  // inside the column. Everything else below is TEXT at panel coordinates
+  // chosen for a fullscreen preview, and in two-column mode that text is LVGL's
+  // job in the column beside the video, where the overlap gate can measure it
+  // and the locale tables can translate it.
+  if (s_scan_mode) draw_brackets(fb);
+  if (!s_vp_on) {
+    if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
+      darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
+      darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
+      blit_a4(fb, osd_title(OSD_CLOSE), 449, 22, OSD_DIM_CLOSE);  // top-left
+    }
+    if (s_scan_mode) {
+      draw_scan_bar(fb);
+      int osd = s_scan_osd;
+      if (osd == OSD_READ)              // "Reading  12 of 34" in one line of type
+        draw_read_line(fb, s_scan_seen, s_scan_total);
+      else
+        draw_osd_strip(fb, osd);
+    }
+    if (s_ent_mode) {
+      draw_ent_bar(fb);
+      draw_ent_digits(fb);                // the same estimate as a figure
+      draw_osd_strip(fb, s_ent_accum >= ENT_TARGET_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
+    }
+    if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
+      draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
+    if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
+      s_osd_frames--;                   // digits, real type, inset from overscan
+      if (s_orient + 1 <= 9)
+        blit_a4(fb, osd_digit(s_orient + 1), 430, 66, OSD_DIM_FULL);
+      if (s_zoom + 1 <= 9)
+        blit_a4(fb, osd_digit(s_zoom + 1), 430, 660, OSD_DIM_FULL);
+    }
   }
-  if (s_scan_mode) {
-    draw_brackets(fb);                // viewfinder corners (solid once located)
-    draw_scan_bar(fb);
-    int osd = s_scan_osd;
-    if (osd == OSD_READ)              // "Reading  12 of 34" in one line of type
-      draw_read_line(fb, s_scan_seen, s_scan_total);
-    else
-      draw_osd_strip(fb, osd);
+  if (s_vp_on) {
+    // Push just the rect, and do NOT flip: framebuffer 0 is the one being
+    // scanned out and the one LVGL is painting the other columns into, so the
+    // picture appears in place with no buffer swap.
+    esp_cache_msync(fb + (size_t)s_vp_y * PANEL_W,
+                    (size_t)s_vp_h * PANEL_W * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+  } else {
+    // CPU overlays (bar/digits) sit in cache; push them to PSRAM before scanout
+    esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    // draw_bitmap with a panel-owned framebuffer pointer = scanout flip, no copy
+    esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, fb);
+    s_fb_wr ^= 1;
   }
-  if (s_ent_mode) {
-    draw_ent_bar(fb);
-    draw_ent_digits(fb);                // the same estimate as a figure
-    draw_osd_strip(fb, s_ent_accum >= ENT_TARGET_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
-  }
-  if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
-    draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
-  if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
-    s_osd_frames--;                   // digits, real type, inset from overscan
-    if (s_orient + 1 <= 9)
-      blit_a4(fb, osd_digit(s_orient + 1), 430, 66, OSD_DIM_FULL);
-    if (s_zoom + 1 <= 9)
-      blit_a4(fb, osd_digit(s_zoom + 1), 430, 660, OSD_DIM_FULL);
-  }
-  // CPU overlays (bar/digits) sit in cache; push them to PSRAM before scanout
-  esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-  // draw_bitmap with a panel-owned framebuffer pointer = scanout flip, no copy
-  esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, fb);
-  s_fb_wr ^= 1;
   s_frames++;
   // decode AFTER the flip so the preview stays smooth between attempts; the
   // V4L2 buffer is only re-queued once show_frame returns, so `frame` is ours
@@ -1249,6 +1386,12 @@ static void cam_stop(void) {
   s_cam.streaming = false;
   // After the join, never before: the strips are what the stream task draws.
   osd_strips_close();
+  // Drop any preview rect with the stream that asked for it. A rect left set
+  // would confine the NEXT session, including the fullscreen dev preview, to a
+  // column of a screen that is no longer on the panel.
+  s_vp_on = false;
+  s_vp_x = 0; s_vp_y = 0; s_vp_w = PANEL_W; s_vp_h = PANEL_H;
+  s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
 }
 
 bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
@@ -1333,6 +1476,11 @@ bool camera_entropy_start(void) {
 }
 
 void camera_entropy_tap(void) { s_ent_req = true; }
+
+int camera_entropy_progress(void) {
+  int p = s_ent_accum * 100 / ENT_TARGET_X10;
+  return p < 0 ? 0 : p > 100 ? 100 : p;
+}
 
 bool camera_entropy_result(uint8_t out[32]) {
   if (!s_ent_done) return false;

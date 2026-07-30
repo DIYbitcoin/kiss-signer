@@ -362,11 +362,19 @@ static bool dpi_trans_done(esp_lcd_panel_handle_t p, esp_lcd_dpi_panel_event_dat
 // Mapping (90deg CW): logical (lx,ly) -> panel (px,py) = (479-ly, lx).
 static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   (void)disp;
-  // While the camera owns the panel (scan/entropy/preview), LVGL must not
-  // paint: menu animations under the wizard kept dirtying regions, and every
-  // repair flush flashed black boxes over the live video. Video ends with a
-  // full-screen invalidate, so dropping these flushes loses nothing.
-  if (camera_spike_is_on()) {
+  // While the camera owns the whole panel (the dev preview, and any mode with no
+  // preview rect set), LVGL must not paint: menu animations under the wizard kept
+  // dirtying regions, and every repair flush flashed black boxes over the live
+  // video. Video ends with a full-screen invalidate, so dropping those flushes
+  // loses nothing.
+  //
+  // Two-column mode (ADDENDUM-01) is the exception and the reason this is a rect
+  // test rather than a flag test. The camera confines itself to one column and
+  // stops flipping framebuffers, so a flush that does not touch that column is
+  // safe and is exactly how the source cards and the scan permissions card stay
+  // live beside the video.
+  if (camera_spike_is_on() &&
+      !camera_spike_ui_rect_free(area->x1, area->y1, area->x2, area->y2)) {
     lv_display_flush_ready(disp);
     return;
   }

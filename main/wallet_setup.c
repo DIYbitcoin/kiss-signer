@@ -544,37 +544,228 @@ static void ent_back_cb(lv_event_t *e)
 }
 #endif
 
+static void ent_mix_back_cb(lv_event_t *e) { (void)e; entropy_screen(); }
+
+// The "?" beside the equation. Stops the preview before replacing the screen:
+// the card is a full screen of prose and the camera owns a column of the panel,
+// so leaving the stream live would paint video across the paragraph. BACK
+// rebuilds the entropy screen, which restarts the camera on a fresh meter, and
+// a fresh meter is what the existing per session rule already wants.
+static void ent_mix_help_cb(lv_event_t *e)
+{
+    (void)e;
+#ifndef SIMULATOR
+    if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
+    camera_entropy_stop();
+#endif
+    mk_screen(tr(STR_W_ENT_MIX_T), NULL);
+    mk_body(tr(STR_W_ENT_MIX_B), 48, 118, 704, 260, INK_COL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_mix_back_cb, NULL);
+}
+
+// ---- ADDENDUM-01 section 2: the entropy screen's right column ----
+// The old screen had a title, a subtitle and nothing else, because the camera
+// wrote all 480x800 every frame with LVGL suppressed, so anything drawn here
+// was covered before it could be read.
+//
+// What that cost: the second source was invisible. The subtitle claims two
+// sources and says neither one decides, and a reader had no way to check that
+// claim at the exact moment their keys were being made. Worse, a reader who
+// believed only the camera mattered would think a dim room produces a weak
+// wallet, which is false.
+//
+// So the second source gets a bar that is already FULL when you arrive. That is
+// the whole argument, made visually: the chip has been contributing since boot
+// and there is nothing to aim. camera_spike.c now confines the preview to the
+// left column (camera_spike_set_preview_rect) and main.c lets LVGL paint
+// outside it, so this column is on screen while the video runs.
+// Vertical budget, measured rather than guessed. mk_screen2 draws its own two
+// line subtitle from y=66, which runs to about 120, so content starts at 128.
+// The floor is WT_CONTENT_BOTTOM (398). That leaves 270: a 200 tall preview with
+// its readiness line under it on the left, and two 96 tall cards plus the
+// equation on the right, both landing clear of the bar.
+#define ENT_CAM_X   48                  // the preview column, landscape UI space
+#define ENT_CAM_Y   128
+#define ENT_CAM_W   300
+#define ENT_CAM_H   200
+#define ENT_CARD_H  96
+#define ENT_COL_X   372                 // the source cards
+#define ENT_COL_W   380
+
+static lv_obj_t *s_ent_bar1, *s_ent_bar2, *s_ent_state, *s_ent_dot;
+static lv_obj_t *s_ent_capture;
+
+// One source card: caption, bit count right aligned, a bar, and a note. Returns
+// the bar so the caller can drive it.
+static lv_obj_t *ent_card(int y, int cap, int note, bool full)
+{
+    lv_obj_t *card = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(card);
+    lv_obj_set_pos(card, ENT_COL_X, y);
+    lv_obj_set_size(card, ENT_COL_W, ENT_CARD_H);
+    lv_obj_set_style_radius(card, 10, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_border_color(card, WT_HAIR, 0);
+    lv_obj_set_style_bg_color(card, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *c = wt_lbl(card, tr(cap), 14, 12, wt_font14(), MUT_COL);
+    lv_obj_set_style_text_letter_space(c, 1, 0);
+    // The bit count is the number W_12_NOTE already taught ("128 bits of
+    // entropy"), put next to the thing it describes. WT_OK on both cards: this
+    // is a quantity that is present, not a status that varies.
+    lv_obj_t *b = wt_lbl(card, tr(STR_W_ENT_BITS), 0, 12, wt_font14(), OK_COL);
+    lv_obj_update_layout(b);
+    lv_obj_set_pos(b, ENT_COL_W - 14 - lv_obj_get_width(b), 12);
+
+    // Track, then the fill on top of it. Two plain objects rather than a slider:
+    // nothing here is draggable and a slider brings knob styling to suppress.
+    lv_obj_t *track = lv_obj_create(card);
+    lv_obj_remove_style_all(track);
+    lv_obj_set_pos(track, 14, 42);
+    lv_obj_set_size(track, ENT_COL_W - 28, 5);
+    lv_obj_set_style_radius(track, 100, 0);
+    lv_obj_set_style_bg_color(track, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(track, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *fill = lv_obj_create(track);
+    lv_obj_remove_style_all(fill);
+    lv_obj_set_pos(fill, 0, 0);
+    lv_obj_set_size(fill, full ? ENT_COL_W - 28 : 0, 5);
+    lv_obj_set_style_radius(fill, 100, 0);
+    lv_obj_set_style_bg_color(fill, OK_COL, 0);
+    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(fill, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(fill, LV_OBJ_FLAG_SCROLLABLE);
+
+    // 52, not 58: the bar ends at 47 and two font14 lines are 38, so 52 lands
+    // the second line on 90 inside a 96 tall card. At 58 the longest English
+    // note wrapped to exactly 96 and lost its last row of pixels.
+    lv_obj_t *n = wt_lbl(card, tr(note), 14, 52, wt_font14(), MUT_COL);
+    lv_obj_set_width(n, ENT_COL_W - 28);
+    lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
+    return fill;
+}
+
+// Drive source one's bar and the readiness line from the camera's meter. Runs
+// on the same LVGL timer that polls for the capture result.
+static void ent_ui_sync(int pct)
+{
+    if (s_ent_bar1)
+        lv_obj_set_width(s_ent_bar1, (ENT_COL_W - 28) * pct / 100);
+    bool ready = pct >= 100;
+    if (s_ent_dot)
+        lv_obj_set_style_bg_color(s_ent_dot, ready ? OK_COL : WT_EDGE, 0);
+    if (s_ent_state) {
+        lv_label_set_text(s_ent_state,
+                          tr(ready ? STR_W_ENT_READY : STR_W_ENT_NOTREADY));
+        lv_obj_set_style_text_color(s_ent_state, ready ? OK_COL : MUT_COL, 0);
+    }
+    // CAPTURE is the discoverable form of "tap anywhere", which still works.
+    // Disabled until source one is full, because a capture below the gate is
+    // refused by camera_spike anyway and a button that silently does nothing
+    // reads as a missed touch.
+    if (s_ent_capture) {
+        lv_obj_set_style_opa(s_ent_capture, ready ? LV_OPA_COVER : LV_OPA_40, 0);
+        if (ready) lv_obj_add_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
+        else       lv_obj_remove_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
+    }
+}
+
 static void entropy_screen(void)
 {
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
-    // No body here, and it has to stay that way. camera_entropy_start() below
-    // hands the panel to camera_spike.c, which writes all 480x800 every frame
-    // with LVGL suppressed, so anything drawn here is covered before it can be
-    // read. A six line paragraph used to sit at y=140: nobody has ever seen it
-    // on hardware, and on the ONE path where it was visible -- the camera
-    // failing to start -- it told the reader to aim a camera that had just
-    // failed, over the top of the CAM_UNAVAIL label at y=240.
-    //
-    // Nothing was lost with it. The captions the camera draws for itself,
-    // C_OSD_ENT_LOW_* and C_OSD_ENT_OK_*, already carry all four of its claims:
-    // what to point at, what not to point at, when to tap, and that the photo
-    // is mixed with the chip's own randomness. Those are composed by
-    // osd_strips.c and gated pixel for pixel by sim/osdcheck.c.
-    //
-    // So prose belongs on a screen the camera is not about to cover. This one
-    // keeps a title and a subtitle because those are what the failure path
-    // needs, and they are short enough to clear the error under them.
+    s_ent_bar1 = s_ent_bar2 = s_ent_state = s_ent_dot = s_ent_capture = NULL;
+
+    // Left: the frame the preview lands in. Drawn as an empty bordered panel so
+    // the column reads as a viewport even before the first camera frame, and so
+    // the simulator (which never runs a camera) shows the same composition the
+    // device does.
+    lv_obj_t *vp = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(vp);
+    lv_obj_set_pos(vp, ENT_CAM_X, ENT_CAM_Y);
+    lv_obj_set_size(vp, ENT_CAM_W, ENT_CAM_H);
+    lv_obj_set_style_radius(vp, 10, 0);
+    lv_obj_set_style_border_width(vp, 1, 0);
+    lv_obj_set_style_border_color(vp, WT_EDGE, 0);
+    lv_obj_remove_flag(vp, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(vp, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Readiness, under the preview: a 9px dot and one line. This replaces the
+    // on-video bar as the cue a holder waits on.
+    s_ent_dot = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(s_ent_dot);
+    lv_obj_set_pos(s_ent_dot, ENT_CAM_X, ENT_CAM_Y + ENT_CAM_H + 14);
+    lv_obj_set_size(s_ent_dot, 9, 9);
+    lv_obj_set_style_radius(s_ent_dot, 100, 0);
+    lv_obj_set_style_bg_color(s_ent_dot, WT_EDGE, 0);
+    lv_obj_set_style_bg_opa(s_ent_dot, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_SCROLLABLE);
+    s_ent_state = wt_lbl(s_scr, tr(STR_W_ENT_NOTREADY), ENT_CAM_X + 18,
+                         ENT_CAM_Y + ENT_CAM_H + 8, wt_font14(), MUT_COL);
+    lv_obj_set_width(s_ent_state, ENT_CAM_W - 18);
+    lv_label_set_long_mode(s_ent_state, LV_LABEL_LONG_WRAP);
+
+    // Right: the two sources, then the equation.
+    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE, false);
+    s_ent_bar2 = ent_card(ENT_CAM_Y + ENT_CARD_H + 8, STR_W_ENT_SRC2_CAP,
+                          STR_W_ENT_SRC2_NOTE, true);
+
+    // 1 + 2 -> 12 WORDS, in the same vocabulary the fingerprint card uses, so
+    // it reads as part of one system rather than as new decoration. A flex
+    // column parent, because wt_diagram_row takes its y from the layout.
+    lv_obj_t *eq = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(eq);
+    lv_obj_set_pos(eq, ENT_COL_X, ENT_CAM_Y + 2 * ENT_CARD_H + 24);
+    lv_obj_set_size(eq, ENT_COL_W, 46);
+    lv_obj_set_flex_flow(eq, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(eq, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(eq, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(eq, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *row = wt_diagram_row(eq);
+    wt_chip(row, "1", false);
+    wt_diagram_op(row, "+");
+    wt_chip(row, "2", false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, tr(STR_W_ENT_RESULT), true);
+    wt_help_chip(s_scr, 752, ENT_CAM_Y + 2 * ENT_CARD_H + 28, MUT_COL,
+                 ent_mix_help_cb, NULL);
+
 #ifdef SIMULATOR
-    mk_pill("CAPTURE (SCRIPTED)", 48, WT_ACTION_Y, 300, sim_entropy_cb, NULL);
+    s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
+                            sim_entropy_cb, NULL);
+    wt_pill_primary(s_ent_capture);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    // The sim has no camera and no meter, so the walk would see a permanently
+    // disabled CAPTURE. Show the ready state: it is the one the scripted tap
+    // exercises, and the frame the docs publish.
+    ent_ui_sync(100);
 #else
+    // Rect BEFORE start: set_preview_rect pins and blanks the framebuffer both
+    // the video and LVGL will share, so it has to happen before the first frame
+    // arrives rather than after.
+    camera_spike_set_preview_rect(ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
     if (camera_entropy_start()) {
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
         if (!s_ent_tmr) s_ent_tmr = lv_timer_create(ent_poll_cb, 80, NULL);
+        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
+                                ent_tap_cb, NULL);
+        wt_pill_primary(s_ent_capture);
+        ent_ui_sync(0);
     } else {
-        mk_lbl(tr(STR_C_CAM_UNAVAIL), 48, 240, wt_font28(), STOP_COL);
-        mk_lbl(camera_spike_status(), 48, 284, wt_font14(), MUT_COL);
+        // The camera failed. The two cards above still tell the truth about the
+        // chip, so they stay; the preview column carries the error instead.
+        mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
+               wt_font23(), STOP_COL);
+        mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
+               wt_font14(), MUT_COL);
     }
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_back_cb, NULL);
 #endif
