@@ -1191,6 +1191,198 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     return sg;
 }
 
+lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w)
+{
+    lv_obj_t *h = wt_lbl(scr, txt, x, y, wt_font14(), WT_MUT);
+    lv_obj_set_style_text_letter_space(h, 2, 0);
+    lv_obj_set_width(h, w);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+    return h;
+}
+
+lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
+                 const char *val, lv_color_t vcol, int x, int y, int w,
+                 lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *row = lv_obj_create(scr);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_pos(row, x, y);
+    lv_obj_set_size(row, w, WT_ROW_H);
+    lv_obj_set_style_radius(row, 8, 0);
+    lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+    // Hairline separator, not a border box, for the same reason the address list
+    // rows use one: the group is a list, and a box around every line turns a
+    // list into a stack of cards competing for the same attention.
+    lv_obj_set_style_border_width(row, 1, 0);
+    lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
+    lv_obj_set_style_border_color(row, WT_DIV, 0);
+    lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    if (cb) {
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        wt_tap_feedback(row);
+        lv_obj_add_event_cb(row, cb, LV_EVENT_CLICKED, ud);
+    } else {
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    }
+
+    // The chevron first, so everything else can be measured against it.
+    int right = w - 12;
+    if (cb) {
+        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), WT_MUT);
+        lv_obj_update_layout(ch);
+        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -10, 0);
+        right = w - 10 - lv_obj_get_width(ch) - 10;
+    }
+
+    // The LABEL gets the full width on its own line, and the sub-line below
+    // shares its line with the value. The obvious arrangement -- label left,
+    // value vertically centred on the right -- does not survive this type
+    // scale: a row label at font23 is proportionally far wider than the 15px
+    // the drawing used, so "Recovery words live in" beside "FLASH" left the
+    // label about 150px and it wrapped into its own sub-line. Full width on top
+    // means no label in any locale can collide with a value, and the pairing of
+    // a small grey fact with the figure it describes on the same line reads
+    // better than the figure floating between two rows of text.
+    // The VALUE is built and measured BEFORE the label, so the label's box can
+    // exclude it. Sizing the label to the chevron alone let a long label run
+    // under a wide value: "Recovery words live in" against "SD CARD" collided
+    // where the same row against "FLASH" did not, so the defect only appeared
+    // once storage had been migrated.
+    // The value keeps its natural size: no width is set, so it lays out on one
+    // line at its content width. Do NOT give it a long mode -- LONG_CLIP on a
+    // label with no explicit size collapses its height to nothing.
+    lv_obj_t *v = NULL;
+    int vw = 0;
+    if (val && *val) {
+        v = wt_lbl(row, val, 0, 0, wt_font23(), vcol);
+        lv_obj_update_layout(v);
+        vw = lv_obj_get_width(v);
+    }
+
+    // The label takes the full width up to the chevron and is pinned to ONE
+    // line. Pinning is what makes it safe to be that wide: a label allowed to
+    // wrap grew a second line and that line landed on the value's row, which is
+    // how "Recovery words live in" collided with "SD CARD" while the same row
+    // against "FLASH" was clean. One line means the row's internal geometry is
+    // the same in every locale, and a translation too long to fit ellipsises
+    // rather than rearranging the row.
+    lv_obj_t *l = wt_lbl(row, label, 14, sub && *sub ? 7 : 18,
+                         wt_font23(), WT_INK);
+    // Width stops short of the value, and the height is pinned to one line.
+    // Both are needed. Pinning alone left the label's BOX spanning to the
+    // chevron, and because the value sits only a few pixels below the label's
+    // baseline the two boxes still shared a 2px band that the overlap gate
+    // rightly called a collision. Excluding the value's width as well means the
+    // two never share a pixel in any locale, whatever the translation does to
+    // either one.
+    // The label and the sub BOTH stop short of the value, and the value sits
+    // vertically centred on the row's right. That is what redraw 05 draws: the
+    // value's baseline falls between the label's and the sub's, not on either.
+    //
+    // Bounding the label horizontally is not optional. The overlap gate compares
+    // BOXES, and a label box spanning to the chevron contains the value's box
+    // whatever their baselines do, so a full-width label reported a collision
+    // with every value on the page. The labels are short enough for this to cost
+    // nothing: the one that was not, "Recovery words live in", is "Words live
+    // in" now.
+    int lw = right - vw - (vw ? 12 : 0) - 14;
+    lv_obj_set_width(l, lw > 60 ? lw : 60);
+    lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_update_layout(l);
+
+    int liney = (sub && *sub) ? 7 + lv_obj_get_height(l) + 3 : 0;
+
+    if (v) {
+        lv_obj_set_pos(v, right - vw, (WT_ROW_H - lv_obj_get_height(v)) / 2);
+        right -= vw + 12;
+    }
+
+    if (sub && *sub) {
+        lv_obj_t *s = wt_lbl(row, sub, 14, liney, wt_font14(), WT_MUT);
+        lv_obj_set_width(s, right - 14 > 40 ? right - 14 : 40);
+        // ONE line, height pinned. The width left for the sub depends on how
+        // wide the VALUE turned out, and a translated value ("DESACTIVADO" for
+        // OFF) squeezes it enough to wrap: the second line then fell past the
+        // row's bottom edge and was clipped in seven locales while English was
+        // clean. Pinning the height makes LONG_DOT truncate instead of wrap, so
+        // the row is the same height whatever the translation does.
+        lv_obj_set_height(s, lv_font_get_line_height(wt_font14()));
+        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+    }
+    return row;
+}
+
+lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
+                        int x, int y, int w, bool big)
+{
+    lv_obj_t *card = lv_obj_create(scr);
+    lv_obj_remove_style_all(card);
+    lv_obj_set_pos(card, x, y);
+    lv_obj_set_style_radius(card, 10, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_border_color(card, WT_HAIR, 0);
+    lv_obj_set_style_bg_color(card, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), WT_MUT);
+    lv_obj_set_style_text_letter_space(c, 1, 0);
+    lv_obj_set_width(c, w - 32);
+    lv_label_set_long_mode(c, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(c);
+
+    int vy = 12 + lv_obj_get_height(c) + 8;
+    lv_obj_t *v = wt_lbl(card, val, 16, vy,
+                         big ? wt_font_mono28() : wt_font_mono23(), WT_INK);
+    lv_obj_set_style_text_letter_space(v, 2, 0);
+    lv_obj_update_layout(v);
+    // Sized to its content, never to a guess: the caption is translated and the
+    // value can be four characters or forty.
+    lv_obj_set_size(card, w, vy + lv_obj_get_height(v) + 14);
+    return card;
+}
+
+lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
+                       int x, int y, int w, lv_color_t col)
+{
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, x, y);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *h = wt_lbl(box, head, 14, 0, wt_font14(), WT_INK);
+    lv_obj_set_width(h, w - 14);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(h);
+
+    lv_obj_t *b = wt_lbl(box, body, 14, lv_obj_get_height(h) + 6,
+                         wt_font14(), WT_MUT);
+    lv_obj_set_width(b, w - 14);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(b);
+
+    int hgt = lv_obj_get_height(h) + 6 + lv_obj_get_height(b);
+    lv_obj_set_size(box, w, hgt);
+    // The rule last and sized to the measured text, so it always matches the
+    // block's real height in whatever locale is rendering.
+    lv_obj_t *rule = lv_obj_create(box);
+    lv_obj_remove_style_all(rule);
+    lv_obj_set_pos(rule, 0, 0);
+    lv_obj_set_size(rule, 3, hgt);
+    lv_obj_set_style_radius(rule, 2, 0);
+    lv_obj_set_style_bg_color(rule, col, 0);
+    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(rule, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(rule, LV_OBJ_FLAG_SCROLLABLE);
+    return box;
+}
+
 static char s_wallet_id[16];
 
 void wt_set_wallet_id(const char *id)

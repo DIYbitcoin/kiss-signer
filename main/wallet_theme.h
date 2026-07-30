@@ -305,6 +305,50 @@ void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
 lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col);
 void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 
+// ---- the review's settings row list ----
+// A section eyebrow above a group of rows: font14, WT_MUT, tracked. Redraw 05
+// groups Settings under THIS WALLET / YOUR BACKUP / NO UNDO instead of leaving
+// eleven controls in one undifferentiated grid.
+lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
+
+// One row of that list: `label` in WT_INK at font23, `sub` under it in WT_MUT at
+// font14, an optional `val` right aligned in `vcol`, and a chevron at the right
+// edge when `cb` is given. A hairline along the bottom, a pressed fill, no
+// border: a row is a line in a list you pick from, not a button, and eleven
+// stacked lozenges read as eleven competing controls. Height is WT_ROW_H.
+//
+// Pass sub or val as NULL to omit them. Returns the row so a caller can recolour
+// its parts for a destructive group.
+// 68, not 64. The label is one line of font23 (28) from y=7, so it owns 7..35,
+// and the value is one line of font23 sitting on the sub-line at y=38, so it
+// owns 38..66. At 64 the value had to be lifted 5px to fit and its box then
+// shared a 2px band with the label's, which forced the label to give up the
+// width under the value and start ellipsising ("Address t..."). Four more pixels
+// buys both a full-width label and two boxes that never touch.
+#define WT_ROW_H 68
+lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
+                 const char *val, lv_color_t vcol, int x, int y, int w,
+                 lv_event_cb_t cb, void *ud);
+
+// A value in a box: small muted caption, then the value large and monospaced
+// inside a bordered WT_PANEL card. The review draws every figure worth reading
+// off the glass this way -- an ID code, a fingerprint, an amount -- because a
+// bare label above bare text reads as a form field, while a framed value reads
+// as the thing the screen is about. `big` picks font_mono28 over font_mono23 for
+// the values a holder compares character by character. Returns the card; its
+// height is whatever the content needed, so measure it before placing anything
+// underneath.
+lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
+                        int x, int y, int w, bool big);
+
+// A note with a coloured rule down its left edge: heading in WT_INK, body in
+// WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how you'll use
+// it" pattern. Two of these side by side turn a centred paragraph nobody reads
+// into two claims somebody can, which is the whole reason it exists. Returns the
+// block so the caller can measure it.
+lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
+                       int x, int y, int w, lv_color_t col);
+
 // The wallet's 8-character ID, for the top-right of a screen's header row. The
 // UI layer pushes the value down with wt_set_wallet_id when a wallet unlocks,
 // so the theme needs no dependency on wallet_ui to render it; passing NULL or

@@ -673,15 +673,23 @@ static void repaint_verify(void)
 // coordinate table puts the panels at 24..776. Both cannot hold. The lane won,
 // because the lane is the thing the owner can see. That needs amending in
 // HANDOFF-01 constraint 3 and in design/README.md rule 3.
-#define SG_BACK_X    636   // 636..776, flush with the panels above
-// Even gutters, from the lane rather than from the centre of the screen: three
-// pills of 150 + 310 + 140 in a 752 lane leaves 152 to divide, so 76 either side
-// of HOLD TO SIGN. That puts its centre at 405 against a lane centre of 400, and
-// the 5px is simply DETAILS being 10px wider than BACK. Evening the gutters is
-// worth more than chasing that out, because uneven gutters are what read as a
-// mistake: HOLD used to sit 106px from DETAILS and 20px from BACK, close enough
-// to the escape hatch to look like a pair with it.
-#define SG_HOLD_X    250   // 250..560
+// Re-measured off redraw 01, which reverses the order this file used to build:
+// BACK at 48, DETAILS at 160, and HOLD TO SIGN in the FAR RIGHT of the lane.
+//
+// The way out sits leftmost where a thumb rests and can be found without
+// looking, and the right corner is reserved for the action that does the
+// screen's work. Redraws 01, 02 and 03 all agree on that, so Receive follows the
+// same rule. The old arrangement put DETAILS leftmost and BACK in the corner,
+// which gave the escape hatch the most valuable target on a screen whose one
+// irreversible action was in the middle.
+//
+// The safety property that mattered is unchanged and is the reason HOLD keeps
+// hard coordinates: it never moves, never changes width and never changes label
+// between the normal and caution screens, so a tap learned on one lands on the
+// same pill on the other.
+#define SG_BACK_X     48   // 48..152, leftmost
+#define SG_DETAILS_X 160   // 160..310
+#define SG_HOLD_X    466   // 466..776, flush with the panels' right edge
 #define SG_ARC_DX      8   // the hold arc's inset from HOLD TO SIGN's left edge
 
 // A caution row carries its own acknowledgement now, so the answer to "I read
@@ -1109,10 +1117,10 @@ actions:
     // Acknowledgement lives in the caution rows now, so there is no second
     // button competing for this position and no way for two taps in the same
     // place to become a signature nobody read.
-    wt_pillh(s_scr, tr(STR_S_DETAILS), SG_RECIP_X, WT_ACTION_Y, 150, WT_ACTION_H,
-             details_cb, NULL);
-    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 104, WT_ACTION_H,
              s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
+    wt_pillh(s_scr, tr(STR_S_DETAILS), SG_DETAILS_X, WT_ACTION_Y, 150,
+             WT_ACTION_H, details_cb, NULL);
 
     s_arc = lv_arc_create(s_scr);
     lv_obj_set_size(s_arc, 40, 40);
