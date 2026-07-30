@@ -616,6 +616,7 @@ static void info_screen(void)
     s_pair_qr = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
     wt_lock_mark(s_scr);
+    wt_screen_id(s_scr);
 
     // This is a two-column screen. Its subtitle belongs to the facts column,
     // so it is measured and wrapped inside that column instead of being given

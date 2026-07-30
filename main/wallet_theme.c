@@ -1191,6 +1191,30 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     return sg;
 }
 
+static char s_wallet_id[16];
+
+void wt_set_wallet_id(const char *id)
+{
+    snprintf(s_wallet_id, sizeof s_wallet_id, "%s", id ? id : "");
+}
+
+lv_obj_t *wt_screen_id(lv_obj_t *scr)
+{
+    if (!scr || !s_wallet_id[0]) return NULL;
+    // Mono, so the eight characters sit at a fixed pitch and can be compared
+    // against the paper card by eye. Right aligned to 752, the page margin the
+    // rest of the header uses, and on the title's own row at y=28 so it reads as
+    // part of the header rather than as content.
+    lv_obj_t *l = lv_label_create(scr);
+    lv_label_set_text(l, s_wallet_id);
+    lv_obj_set_style_text_font(l, wt_font_mono14(), 0);
+    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    lv_obj_set_style_text_letter_space(l, 1, 0);
+    lv_obj_update_layout(l);
+    lv_obj_set_pos(l, 752 - lv_obj_get_width(l), 28);
+    return l;
+}
+
 // One label carrying its own bordered box, not a container plus a child: LVGL
 // labels take border and background styles, so LV_SIZE_CONTENT plus padding
 // gives a chip that measures itself against whatever the translation turns out
