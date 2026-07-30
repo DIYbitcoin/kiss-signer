@@ -2188,15 +2188,21 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_font(s_cam_lbl, &lv_font_montserrat_14, 0);   // bottom gap free
   lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -14);
 
-  // Persistent storage badge, above the build-identity line. It appears ONLY
-  // when this wallet lives on the SD card, so the home says at a glance that a
-  // card is required: accent while the card is in (and breathing, so it reads
-  // as live), amber "no card" while it is out. game_tick drives its state and
-  // the breathe; hidden for FLASH/AMNESIC, where there is nothing to insert.
+  // Persistent storage badge, on the SAME LINE as the build identity and to the
+  // right of it. It appears ONLY when this wallet lives on the SD card, so the
+  // home says at a glance that a card is required: accent while the card is in
+  // (and breathing, so it reads as live), amber "no card" while it is out.
+  // game_tick drives its state and the breathe; hidden for FLASH/AMNESIC, where
+  // there is nothing to insert.
+  //
+  // It sat at (48, 398), stacked directly above the version line, which put two
+  // unrelated facts in one corner and left the whole middle of the bottom edge
+  // empty. Home's build line is a single row ending around x=380, so 410 clears
+  // it and the theme cluster does not begin until ~710.
   s_sd_badge = lv_label_create(s_wallet);
   lv_label_set_text(s_sd_badge, "");
   lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
-  lv_obj_set_pos(s_sd_badge, 48, 398);
+  lv_obj_set_pos(s_sd_badge, 410, 424);
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
 
   // TESTNET badge — top-center, between the baked "KISS" logo (left) and the

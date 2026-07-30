@@ -444,35 +444,42 @@ static void storage_chooser_screen(void)
     static const int modes[3] = {
         WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
     };
-    // One CARD per mode, and the card comes first so it sits BEHIND the pill and
-    // the note rather than around them: the note's height budget is exactly three
-    // lines at font23 (87px), which is what Turkish, Portuguese and Russian
-    // actually need, and re-parenting it into a padded box takes those pixels
-    // away. Three rows at STG_PITCH from the y=96 content line land the last card
-    // on 396, two clear of WT_CONTENT_BOTTOM.
+    // One ROW per mode, on the grid the cards used to sit on. This was a card
+    // with a pill floating inside it and the mode's explanation orbiting to the
+    // right: three buttons for a question that is not "press one of these" but
+    // "which of these is on". A row answers that with a tick and no word at all,
+    // in every locale at once, and it puts the explanation INSIDE the option it
+    // belongs to instead of beside it.
     //
-    // The pill is vertically centred in its card and the note sits 4px down from
-    // the card's top edge, so the three lines it may need end 5px above the
-    // bottom edge. The note also moved 8px left, to 322, to keep the same 10px
-    // from the card's right edge that the pill has from its left. Its WIDTH is
-    // untouched at 420: change that and every locale re-wraps.
-    static const int py[3] = {118, 220, 322};
+    // 96 tall, which is the same box the note had before, so its three line
+    // budget at font23 survives intact -- Turkish, Portuguese and Russian all
+    // need those three lines and none of them re-wrap.
+    //
+    // The icons say the same three things the words do, one glance sooner: a
+    // floppy for the copy that stays on the chip, a card for the copy that
+    // leaves with you, and the incognito hat for the mode that keeps nothing.
+    static const char *const ICON[3] = {
+        LV_SYMBOL_SAVE, WT_ICON_SD, WT_ICON_SECRET
+    };
     for (int i = 0; i < 3; i++) {
         int mode = modes[i];
-        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
-        lv_obj_t *p = wt_pillh(s_scr, storage_mode_name(mode),
-                               48, py[i], 252, 52, storage_pick_cb,
-                               (void *)(intptr_t)mode);
-        wt_pill_select(p, current == mode);
-        lv_obj_t *note = wt_wraph(s_scr, storage_mode_note(mode),
-                                  322, WT_CHOICE_Y(i) + 4, 420, 87);
+        lv_obj_t *row = wt_row_x(s_scr, ICON[i], storage_mode_name(mode),
+                                 storage_mode_note(mode), NULL, NULL, NULL,
+                                 WT_INK, current == mode,
+                                 WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
+                                 WT_CHOICE_H, storage_pick_cb,
+                                 (void *)(intptr_t)mode);
         // Per ADDENDUM-02 style rule and HANDOFF-04's storage residual: the
         // FLASH note is a caution when the chip reports encryption OFF, not a
         // footnote. WT_WARN, not the default WT_MUT.  "your recovery words are
         // saved here unencrypted" needs to READ as a warning; drawing it in
         // muted grey was the review's original complaint on this row.
+        //
+        // It is the SUB that is tinted, not the row: wt_row_sev would wash the
+        // whole card amber, and a permanently amber option in a list of three
+        // reads as broken rather than as cautioned.
         if (mode == WSEED_MODE_KEEP && !wallet_seed_flash_encrypted())
-            lv_obj_set_style_text_color(note, WT_WARN, 0);
+            wt_row_sub_color(row, WT_WARN);
     }
     lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                              storage_chooser_back_cb, NULL);
@@ -518,26 +525,27 @@ static void type_open_cb(lv_event_t *e)
     static const int scripts[3] = {
         WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE
     };
-    // One card per type, on the same WT_CHOICE grid the storage chooser uses.
+    // One row per type, on the same WT_CHOICE grid the storage chooser uses.
     // These two screens are reached from adjacent rows of Settings and ask the
-    // same shape of question, so they are drawn on the same grid; only what goes
-    // inside a row differs, because a type's explanation is one line and a
-    // storage mode's is three.
+    // same shape of question, so they are drawn the same way, and now they are
+    // literally the same object: a tick on the live one, the tradeoff on the
+    // sub-line, the address PREFIX as the row's value.
     //
-    // The pill loses 20px of width to the card's padding. It has that to give:
-    // the longest label here is a type name and a four character prefix, and the
-    // fit report is what proves it (sim/fitcheck.c fails the build on font14).
+    // The prefix moves out of the label and into the value slot, which is what
+    // it always was. "Native SegWit   bc1..." was one string doing two jobs and
+    // it ellipsised to "Native SegWit   bc1..." losing the prefix -- the half a
+    // reader actually matches against what their coordinator shows.
+    //
+    // DIRECTORY on every row, because what a type really selects is a derivation
+    // branch. One mark repeated says "these three are the same kind of thing",
+    // which is exactly true here and is not true of the storage modes.
     int tn = wallet_testnet();
     for (int i = 0; i < 3; i++) {
         int sc = scripts[i];
-        char label[96];
-        snprintf(label, sizeof label, "%s   %s", type_name(sc),
-                 type_prefix(sc, tn));
-        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
-        lv_obj_t *p = wt_pillh(s_scr, label, 56, WT_CHOICE_Y(i) + 6, 684, 52,
-                               type_pick_cb, (void *)(intptr_t)sc);
-        wt_pill_select(p, wallet_script() == sc);
-        wt_note(s_scr, type_note(sc), 72, WT_CHOICE_Y(i) + 62, 650, 30);
+        wt_row_x(s_scr, LV_SYMBOL_DIRECTORY, type_name(sc), type_note(sc), NULL,
+                 type_prefix(sc, tn), wt_font_mono23(), WT_MUT,
+                 wallet_script() == sc, WT_CHOICE_X, WT_CHOICE_Y(i),
+                 WT_CHOICE_W, WT_CHOICE_H, type_pick_cb, (void *)(intptr_t)sc);
     }
     lv_obj_set_ext_click_area(
         wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, type_back_cb, NULL), 10);

@@ -880,19 +880,27 @@ static void count_screen(void)
 {
     // Reached only while RESTORING now; creating always makes 12.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
-    lv_obj_t *p = mk_pill(tr(STR_W_12), 48, 150, 340, count_pick_cb, (void *)(intptr_t)12);
-    wt_pill_primary(p);
-    mk_pill(tr(STR_W_24), 48, 230, 340, count_pick_cb, (void *)(intptr_t)24);
-    wt_wraph(s_scr, tr(STR_W_12_NOTE), 430, 150, 340, 76);
-    // was a bare font14 label while its twin above auto-fit: same box, same
-    // job, so it gets the same treatment
-    wt_wraph(s_scr, tr(STR_W_24_NOTE), 430, 230, 340, 76);
+    // Rows, on the chooser grid the storage and create-or-restore screens use.
+    // Three pills each trailing a note in a column 380px away was the last
+    // place on this device where a control and its explanation were separate
+    // objects that happened to share a y.
+    //
+    // LIST for a count of words, and WT_ICON_QR for the path that reads them off
+    // a code instead. No tick on any of them: the paper decides how many words
+    // there are, so the device has no current answer to mark.
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), NULL,
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
+             WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)12);
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), NULL,
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
+             WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
     // A SeedQR carries its own length, so it sits beside the count rather than
     // after it.
-    if (s_restore) {
-        mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 310, 340, restore_scan_cb, NULL);
-        wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 310, 340, 76);
-    }
+    if (s_restore)
+        wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_SEED_QR),
+                 tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
+                 WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
+                 restore_scan_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
@@ -923,40 +931,42 @@ static void storage_screen(void)
     mk_screen(tr(STR_W_STORE_T), tr(STR_W_STORE_S));
 
     // Three explicit storage names, always in the same order used by
-    // Settings. The note is beside its control instead of hidden behind a
+    // Settings. The note is inside its control instead of hidden behind a
     // help card: this choice decides what an attacker or a border search can
     // recover after power-off.
-    // Geometry from WT_CHOICE_*, matching storage_chooser_screen() in
-    // wallet_settings.c row for row: one card per mode with the pill centred in
-    // it and the note given three lines at font23 beside it. The two screens
+    // Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching
+    // storage_chooser_screen() in wallet_settings.c row for row. The two screens
     // present the identical choice and must not drift apart again, which is why
-    // the numbers live in wallet_theme.h and not in either file.
-    for (int i = 0; i < 3; i++)
-        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
-
-    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, WT_CHOICE_Y(0) + 22, 252,
-                              storage_pick_cb,
-                              (void *)(intptr_t)WSEED_MODE_KEEP);
-    wt_pill_primary(flash);
-
+    // the numbers live in wallet_theme.h and not in either file -- and now the
+    // shape does too, which is the drift that actually happened last time.
+    //
+    // Nothing is selected here. In Settings one of the three IS the current
+    // mode and wears the tick; this is first boot, there is no current mode yet,
+    // and a tick on FLASH would be the device answering its own question.
+    static const int MODE[3] = {
+        WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
+    };
+    static const char *const ICON[3] = {
+        LV_SYMBOL_SAVE, WT_ICON_SD, WT_ICON_SECRET
+    };
+    const int BTN[3] = { STR_W_KEEP_BTN, STR_W_SD_BTN, STR_W_AMNESIC_BTN };
     // The FLASH note tells the truth about what a chip dump would find, which
     // is the encryption state. Per HANDOFF-04's storage residual: when the
     // chip reports encryption OFF, this note is a caution not a footnote, so
     // it renders in WT_WARN not the default WT_MUT.
-    {
-        bool enc = wallet_seed_flash_encrypted();
-        lv_obj_t *n = wt_wraph(s_scr, tr(enc ? STR_W_FLASH_ENC_NOTE
-                                             : STR_W_KEEP_NOTE),
-                               322, WT_CHOICE_Y(0) + 4, 420, 87);
-        if (!enc) lv_obj_set_style_text_color(n, WT_WARN, 0);
+    bool enc = wallet_seed_flash_encrypted();
+    const int NOTE[3] = {
+        enc ? STR_W_FLASH_ENC_NOTE : STR_W_KEEP_NOTE,
+        STR_W_SD_NOTE, STR_W_AMNESIC_NOTE
+    };
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *row = wt_row_x(s_scr, ICON[i], tr(BTN[i]), tr(NOTE[i]), NULL,
+                                 NULL, NULL, WT_INK, false,
+                                 WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
+                                 WT_CHOICE_H, storage_pick_cb,
+                                 (void *)(intptr_t)MODE[i]);
+        if (i == 0 && !enc) wt_row_sub_color(row, WT_WARN);
     }
-    mk_pill(tr(STR_W_SD_BTN), 48, WT_CHOICE_Y(1) + 22, 252, storage_pick_cb,
-            (void *)(intptr_t)WSEED_MODE_SD);
-    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 322, WT_CHOICE_Y(1) + 4, 420, 87);
-
-    mk_pill(tr(STR_W_AMNESIC_BTN), 48, WT_CHOICE_Y(2) + 22, 252,
-            storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
-    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 322, WT_CHOICE_Y(2) + 4, 420, 87);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
@@ -1010,44 +1020,27 @@ static void choose_screen(void)
     // reaches. STR_W_CREATE_NEW and STR_W_RESTORE_FROM_WORDS keep their short
     // labels for the Settings-side pills at 190 and 280 wide that also reuse
     // them; they never lead a new owner in cold, so the shorthand still reads.
-    // A card per choice. This is the first screen a new owner ever sees, and it
+    // A ROW per choice. This is the first screen a new owner ever sees, and it
     // was two buttons with two paragraphs floating beside them; which paragraph
-    // belonged to which button was left to the reader's eye. The cards are
-    // different heights on purpose: RESTORE's note is a line longer than NEW's in
-    // every locale, and forcing them equal would cost the longer one its last
-    // line in exactly the languages that need it.
+    // belonged to which button was left to the reader's eye. A row settles that
+    // by construction, and it is the shape the rest of the device now uses for
+    // every list of options.
     //
-    // The notes moved 16px left, to 444, so their boxes end inside the card.
-    // At 460 with a 310 wide box they reached x=770, past the page's own 752
-    // margin: harmless while nothing was drawn there, wrong once a card is.
-    wt_card(s_scr, WT_CHOICE_X, 140, WT_CHOICE_W, 112);
-    wt_card(s_scr, WT_CHOICE_X, 260, WT_CHOICE_W, 136);
-
-    lv_obj_t *p = mk_pill(tr(STR_W_CHOOSE_NEW), 48, 170, 340, new_cb, NULL);
-    wt_pill_primary(p);
-    // Both pills are 340 and both take one type size, chosen for the PAIR. The
-    // restore pill used to be 400 wide because its English label was "RESTORE
-    // FROM A SEED PHRASE": two words longer than it needed to be, and the extra
-    // 60px hung it out past its neighbour so the two read as different kinds of
-    // control. The English label is "RESTORE SEED PHRASE" now; the other twenty
-    // locales keep their longer translations and pay for them with a smaller
-    // type size, which wt_pill_group_fit applies to BOTH so the row never
-    // splits across two rungs.
-    // RESTORE FROM A SEED PHRASE is longer than the primary and the plan's own
-    // escape hatch is to widen the pill rather than drop a rung. 400 wide takes
-    // the pill to x=448, so the note beside it moves to x=460 (w=310) to clear
-    // it. Neither label is the primary action, so the secondary sitting a rung
-    // BELOW the primary at 23 stays legitimate for locales whose translation
-    // still overflows 400.
-    lv_obj_t *rp = mk_pill(tr(STR_W_CHOOSE_RESTORE), 48, 302, 340, restore_cb, NULL);
-    {
-        const char *lbls[2] = { tr(STR_W_CHOOSE_NEW), tr(STR_W_CHOOSE_RESTORE) };
-        wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 52, true);
-        wt_pill_apply_fit(p,  f, 340);
-        wt_pill_apply_fit(rp, f, 340);
-    }
-    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     444, 146, 296, 100);
-    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 444, 266, 296, 124);
+    // The primary fill is gone with the pills. "New wallet first" is said by
+    // being the first row, which is how every list on this device says what to
+    // reach for first, and it is said better: a filled button beside a hollow
+    // one on the very first screen looks like one choice is disabled.
+    //
+    // PLUS for making one, LOOP for bringing one back. Both are in the baked
+    // SYMS set, and this is the one screen where a reader may not have the
+    // language yet -- the picker sits in the corner beside them.
+    wt_row_x(s_scr, LV_SYMBOL_PLUS, tr(STR_W_CHOOSE_NEW), tr(STR_W_NEW_NOTE),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
+             WT_CHOICE_W, WT_CHOICE_H, new_cb, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_LOOP, tr(STR_W_CHOOSE_RESTORE),
+             tr(STR_W_RESTORE_NOTE), NULL, NULL, NULL, WT_INK, false,
+             WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
+             restore_cb, NULL);
     // The third pill "WHAT IS A SEED?" is now a "?" chip beside the subtitle.
     // A question does not rank equal to the two decisions, and the pill's
     // bottom edge landed at 396 anyway, two pixels off the content floor.
