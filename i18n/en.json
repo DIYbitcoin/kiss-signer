@@ -296,7 +296,7 @@
   "H_THEME": "theme",
   "H_FINGERPRINT": "fingerprint",
   "H_FP_CARD_FMT": "FINGERPRINT  %s",
-  "H_EXIT_HINT": "tap the KISS logo any time to go back to the game.",
+  "H_EXIT_HINT": "tap the KISS logo on this screen to go back to the game.",
   "W_STORE_T": "WHERE SHOULD THIS WALLET LIVE?",
   "W_STORE_S": "choose what remains after you power off",
   "W_KEEP_BTN": "FLASH",

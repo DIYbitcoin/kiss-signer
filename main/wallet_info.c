@@ -43,13 +43,6 @@ static void swap_screen(void)           // replace the current section screen
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
-// ---- "?" explainers: dim overlay + card, fades in and settles (opa/translate
-// only — transform_scale hangs LVGL) ----
-static void help_ok_cb(lv_event_t *e)
-{
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-}
-
 enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
 
 static void sp_permission_fact(lv_obj_t *parent, const char *icon,
@@ -138,80 +131,56 @@ static void sp_permission_model(lv_obj_t *parent)
                        STR_R_SP_FACT_FOREVER, WT_WARN);
 }
 
+// The three diagrams, as wt_explain_open asides: draw into the box you are
+// given, report the height you used. Each of the underlying helpers appends into
+// a flex column, so each wrapper supplies one.
+static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *))
+{
+    lv_obj_t *col = lv_obj_create(par);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, x, y);
+    lv_obj_set_width(col, w);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 10, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    fill(col);
+    lv_obj_update_layout(col);
+    return lv_obj_get_height(col);
+}
+static int aside_fp(lv_obj_t *p, int x, int y, int w)
+{ return aside_col(p, x, y, w, wt_diagram_fp); }
+static int aside_pair(lv_obj_t *p, int x, int y, int w)
+{ return aside_col(p, x, y, w, wt_diagram_pair); }
+static int aside_scan(lv_obj_t *p, int x, int y, int w)
+{ return aside_col(p, x, y, w, sp_permission_model); }
+
 static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                               const char *body, int diagram, bool fp_exit_hint)
 {
-    lv_obj_t *ovl = lv_obj_create(parent);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(ovl, WT_BG, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);          // swallow stray taps
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(ovl, help_ok_cb, LV_EVENT_CLICKED, ovl);  // tap anywhere = ok
-
-    // The card is a flex COLUMN, so each block starts where the one above it
-    // actually ended. Every piece here used to be aligned to an absolute y
-    // chosen for the English copy: the body is wt_body_font-sized, so a longer
-    // translation grew it downward while the diagram stayed at 330 and the
-    // escape-gesture hint stayed at 356. On the home fingerprint card that put
-    // "tap the KISS logo any time to go back to the game" straight through the
-    // WORDS + PASSPHRASE > FINGERPRINT chips, in every locale including English.
-    //
-    // wt_card_intro staggers the card's DIRECT children, so they stay direct
-    // children of the overlay and the overlay itself does the laying out. The
-    // entrance animation is unchanged.
-    bool scan_card = diagram == DIAG_SCAN;
-    lv_obj_set_flex_flow(ovl, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(ovl, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(ovl, 20, 0);
-
-    lv_obj_t *t = wt_lbl(ovl, title, 0, 0, wt_font28(), wt_accent());
-    lv_obj_set_style_text_letter_space(t, 2, 0);
-    // The top offset is the title's MARGIN, not the overlay's padding. Padding
-    // moves a parent's content origin, and the OK pill below is placed at an
-    // absolute WT_ACTION_Y that is measured from that origin: with pad_top the
-    // button landed 90px lower, which on a 480px panel means off the bottom.
-    lv_obj_set_style_margin_top(t, scan_card ? 34 : 90, 0);
-
-    // body sizes itself: short copy reads big, a long translation stays inside
-    // the card. Width-capped + wrapping, so the hard newlines written for the
-    // small font can never run off the edge at the big one.
-    // The height budgets are what stops the column overflowing: title + body +
-    // diagram + hint + the gaps have to land above WT_CONTENT_BOTTOM, and the
-    // body is the only one of them that can be asked to give.
-    int bw = scan_card ? 700 : 720;
-    int bh = scan_card ? 145 : diagram == DIAG_NONE ? 225 : 145;
-    lv_obj_t *b = wt_lbl(ovl, body, 0, 0, wt_body_font(body, bw, bh), WT_MUT);
-    lv_obj_set_width(b, bw);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-
-    if (diagram == DIAG_FP)   wt_diagram_fp(ovl);
-    if (diagram == DIAG_PAIR) wt_diagram_pair(ovl);
-    if (diagram == DIAG_SCAN) sp_permission_model(ovl);
-
-    // The home card used to be the only place that taught the escape gesture.
-    // Keep that lesson when the two fingerprint cards become one.
-    if (diagram == DIAG_FP && fp_exit_hint) {
-        lv_obj_t *x = wt_lbl(ovl, tr(STR_H_EXIT_HINT), 0, 0,
-                             wt_body_font(tr(STR_H_EXIT_HINT), 700, 30), WT_MUT);
-        lv_obj_set_width(x, 700);
-        lv_label_set_long_mode(x, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_align(x, LV_TEXT_ALIGN_CENTER, 0);
+    // The escape-gesture hint belongs to the HOME fingerprint card and nowhere
+    // else, so it rides on the end of the body rather than being a fourth kind
+    // of block. It is one sentence and it is the last thing to read.
+    char with_hint[768];
+    if (fp_exit_hint) {
+        snprintf(with_hint, sizeof with_hint, "%s\n\n%s", body,
+                 tr(STR_H_EXIT_HINT));
+        body = with_hint;
     }
-
-    // OK is an action, so it sits on the action line every other screen uses,
-    // and it steps OUT of the column to get there: without IGNORE_LAYOUT the
-    // flex flow would stack it under the last paragraph and its y would depend
-    // on how long the translation ran.
-    lv_obj_t *ok = wt_pill(ovl, tr(STR_C_OK), 300, WT_ACTION_Y, 200,
-                           help_ok_cb, ovl);
-    lv_obj_add_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
-    lv_obj_set_pos(ok, 300, WT_ACTION_Y);
-    wt_card_intro(ovl);                       // staggered fade + rise (shared kit)
-    return ovl;
+    wt_explain_t e = {
+        .title  = title,
+        .icon   = diagram == DIAG_FP   ? WT_ICON_KEY
+                : diagram == DIAG_PAIR ? WT_ICON_QR
+                : diagram == DIAG_SCAN ? WT_ICON_SECRET : NULL,
+        .body   = body,
+        .ok_txt = tr(STR_C_OK),
+        .aside  = diagram == DIAG_FP   ? aside_fp
+                : diagram == DIAG_PAIR ? aside_pair
+                : diagram == DIAG_SCAN ? aside_scan : NULL,
+    };
+    return wt_explain_open(parent, &e);
 }
 
 static lv_obj_t *help_open_d(const char *title, const char *body, int diagram)
@@ -322,19 +291,24 @@ static void pair_instructions_cb(lv_event_t *e)
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       s_pair_fmt ? tr(STR_I_APP_MOBILE)
                                  : tr(STR_I_APP_DESKTOP));
-    wt_lock_mark(s_scr);
 
     // Page two is intentionally static: first the exact import steps, then
     // the independent address proof. The raw descriptor is already encoded in
     // the QR and no longer crowds out the instructions people must read.
-    wt_section(s_scr, tr(STR_I_SHOW_TO), 48, 104);
-    lv_obj_t *steps = wt_note(s_scr,
+    // A card per step, eyebrow inside it. Two paragraphs of instructions with
+    // two small captions above them, all floating on the page, left the reader to
+    // work out which caption owned which paragraph. Both bodies keep a three line
+    // budget at font23, which is what they had.
+    lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
+    wt_section(c1, tr(STR_I_SHOW_TO), 16, 10);
+    lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-        48, 128, 704, 116);
+        16, 34, 688, 116);
     lv_obj_set_style_text_color(steps, WT_INK, 0);
 
-    wt_section(s_scr, tr(STR_R_VERIFY), 48, 260);
-    lv_obj_t *prove = wt_note(s_scr, tr(STR_I_PROVE), 48, 284, 704, 112);
+    lv_obj_t *c2 = wt_card(s_scr, 36, 264, 716, 132);
+    wt_section(c2, tr(STR_R_VERIFY), 16, 8);
+    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, 30, 688, 96);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_qr_back_cb, NULL);
@@ -349,7 +323,6 @@ static void pair_screen(void)
     s_pair_qr = s_pair_note = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
-    wt_lock_mark(s_scr);
     if (wallet_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, "TESTNET", 672, 30, wt_font14(), WT_WARN);
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -422,7 +395,6 @@ static void sp_key_show(void *ud)
     (void)ud;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
-    wt_lock_mark(s_scr);
     lv_obj_t *qr = NULL;
     wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
 
@@ -449,7 +421,6 @@ static void sp_key_warn_cb(lv_event_t *e)
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN),
                       tr_sym(LV_SYMBOL_WARNING, STR_R_SP_WARN_S));
-    wt_lock_mark(s_scr);
     // Warning paragraph then the three permission rows, in a flex column: the
     // paragraph is wt_body_font-sized, so the block under it cannot be placed
     // at a y decided in advance. wt_body_font floors at font14 rather than
@@ -542,7 +513,16 @@ static void words_render_page(int page)
 
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WORDS_S));
-    wt_lock_mark(s_scr);
+
+    // One card per column. This is the screen a holder photographs with their
+    // eyes and copies onto paper one line at a time, and twelve numbered words
+    // floating on the page gave them nothing to keep their place against. The
+    // cards are sized from `rows`, not from a constant: the last page of a 24
+    // word mnemonic has fewer rows than the first.
+    const int WROW = 46;
+    const int card_h = rows * WROW + 12;
+    lv_obj_t *col[2] = { wt_card(s_scr, 48, 96, 344, card_h), NULL };
+    if (on > rows) col[1] = wt_card(s_scr, 408, 96, 344, card_h);
 
     const char *p = words;
     for (int i = 0; i < n && *p; i++) {
@@ -554,7 +534,8 @@ static void words_render_page(int page)
         if (i < first || i >= first + on) continue;
         snprintf(buf, sizeof buf, "%2d. %s", i + 1, w);
         const int k = i - first, c = k / rows, r = k % rows;
-        wt_lbl(s_scr, buf, 48 + c * 352, 108 + r * 46, wt_font28(), WT_INK);
+        if (!col[c]) continue;                 // cannot happen: c is 0 or 1
+        wt_lbl(col[c], buf, 14, 12 + r * WROW, wt_font28(), WT_INK);
     }
     memset(words, 0, sizeof words);
 
@@ -597,7 +578,6 @@ static void words_warn_screen(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
-    wt_lock_mark(s_scr);
     lv_obj_t *b = wt_lbl(s_scr, tr(STR_I_WARN_B), 48, 116,
                          wt_body_font(tr(STR_I_WARN_B), 700, 270), WT_MUT);
     lv_obj_set_width(b, 700);
@@ -615,8 +595,6 @@ static void info_screen(void)
 {
     s_pair_qr = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
-    wt_lock_mark(s_scr);
-    wt_screen_id(s_scr);
 
     // This is a two-column screen. Its subtitle belongs to the facts column,
     // so it is measured and wrapped inside that column instead of being given
@@ -624,9 +602,30 @@ static void info_screen(void)
     // 366 wide, not 340: this lane is bounded by PAIR COORDINATOR at x=430,
     // not by the left column's 340, and the extra 26px is the difference
     // between this setting on one line and breaking after "network,".
-    wt_note(s_scr, tr(STR_I_S), 48, 64, 366, 58);
+    // 40, not 58. The lane was budgeted for two lines at font23 and this English
+    // setting takes one; the second line's worth is what pays for the facts card
+    // below it having any padding at all. A translation that needs two lines
+    // still gets them, at font14, and still clears the card's top edge.
+    wt_note(s_scr, tr(STR_I_S), 48, 62, 366, 40);
 
-    // facts, left column
+    // facts, left column, in ONE card.
+    //
+    // Four captions with four values under them, floating on the page, is the
+    // flat list the settings screen stopped being: small type on WT_BG has no
+    // edge to be read against. Four separate cards do not fit -- these values
+    // are a mono28 fingerprint and a two line address, and the padding of four
+    // boxes costs more vertical room than the column has -- so the column IS the
+    // card, with the four facts stacked inside it. Same idiom as the Sign
+    // screen's footer strip: one panel, several facts, hairlines between them.
+    //
+    // Offsets below are relative to the card, which starts at FACTS_Y.
+    // 278 is measured, not chosen: 10 of top padding, then the four caption and
+    // value pairs at the same 9px rhythm the flat column already used, the last
+    // of them a two line address, and 12 of bottom padding. 108 + 278 = 386,
+    // which clears WT_CONTENT_BOTTOM by 12. There are no hairlines between the
+    // facts because there is no room for them; the rhythm does that job.
+    lv_obj_t *facts = wt_card(s_scr, 48, 108, 366, 278);
+    const int FX = 14, FW = 366 - 28;   // inner left edge and usable width
     uint8_t fp[4];
     char buf[128], grouped[120];
     wallet_ui_last_fp(fp);
@@ -643,23 +642,25 @@ static void info_screen(void)
     // end by WT_CONTENT_BOTTOM. It used to start that address at y=360, which
     // put its second line under the action row where the bar now covers it: the
     // owner was reading half an address and had no way to know it.
-    lv_obj_t *sec = wt_section(s_scr, tr(STR_D_FINGERPRINT), 48, 126);
+    lv_obj_t *sec = wt_section(facts, tr(STR_D_FINGERPRINT), FX, 10);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 120, "fp");
+    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 4, WT_MUT, help_cb,
+                 (void *)"fp");
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
     // Fixed pitch. The letter_space 2 is gone with it: that was hand kerning
     // a proportional face into looking tabular, which the mono face is by
     // construction. Same value, same face, same width as the Sign header and
     // the unlock screen now print it.
-    wt_lbl(s_scr, buf, 48, 145, wt_font_mono28(), WT_INK);
+    wt_lbl(facts, buf, FX, 29, wt_font_mono28(), WT_INK);
 
-    wt_section(s_scr, tr(STR_I_SEC_NET), 48, 188);
-    wt_lbl(s_scr, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-           48, 207, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
+    wt_section(facts, tr(STR_I_SEC_NET), FX, 72);
+    wt_lbl(facts, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
+           FX, 91, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_TYPE), 48, 242);
+    sec = wt_section(facts, tr(STR_I_SEC_TYPE), FX, 129);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 236, "type");
+    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 123, WT_MUT, help_cb,
+                 (void *)"type");
     // Type and path on ONE line, which is what let the path reach font23.
     //
     // The path was the only value on this column at font14, and there was no
@@ -693,16 +694,17 @@ static void info_screen(void)
              sc == WSCRIPT_LEGACY ? "Legacy"
                  : sc == WSCRIPT_NESTED ? "Nested SegWit" : "Native SegWit",
              purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(s_scr, buf, 48, 261, wt_font23(), WT_INK);
+    wt_lbl(facts, buf, FX, 148, wt_font23(), WT_INK);
 
-    sec = wt_section(s_scr, tr(STR_I_SEC_FIRST), 48, 300);
+    sec = wt_section(facts, tr(STR_I_SEC_FIRST), FX, 186);
     lv_obj_update_layout(sec);
-    mk_help_chip(48 + lv_obj_get_width(sec) + 12, 294, "addr");
+    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 180, WT_MUT, help_cb,
+                 (void *)"addr");
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
     wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(s_scr, grouped, 48, 322, wt_font23(), WT_INK);
-    lv_obj_set_width(a, 360);
+    lv_obj_t *a = wt_lbl(facts, grouped, FX, 208, wt_font23(), WT_INK);
+    lv_obj_set_width(a, FW);
     lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
 
     // One normal-size action. Pair used to call wt_pill_primary(), which
