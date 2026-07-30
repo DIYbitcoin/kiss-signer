@@ -62,6 +62,21 @@ enum {
     STR_W_24_NOTE,
     STR_W_RAND_T,
     STR_W_RAND_S,
+    // ADDENDUM-01 section 2: the entropy screen's two source cards, its mixing
+    // equation and its readiness line. English only for now, by the owner's
+    // call; tr() falls back to English for the other 20 locales until the
+    // locale pass, which is why adding these does not need 21 translations.
+    STR_W_ENT_SRC1_CAP,
+    STR_W_ENT_SRC1_NOTE,
+    STR_W_ENT_SRC2_CAP,
+    STR_W_ENT_SRC2_NOTE,
+    STR_W_ENT_BITS,
+    STR_W_ENT_NOTREADY,
+    STR_W_ENT_READY,
+    STR_W_ENT_CAPTURE,
+    STR_W_ENT_RESULT,
+    STR_W_ENT_MIX_T,
+    STR_W_ENT_MIX_B,
     STR_W_WRITE_T,
     STR_W_WRITE_S,
     STR_W_PAPER_ONLY,
@@ -172,6 +187,16 @@ enum {
     STR_R_SP_WHY_B,
     STR_N_T,
     STR_N_S,
+    // ADDENDUM-01 section 3: the scan screen's permissions card. English only
+    // for now; tr() falls back to English elsewhere until the locale pass.
+    STR_N_CAN_CAP,
+    STR_N_CAN,
+    STR_N_CANT_SPEND,
+    STR_N_CANT_SIGN,
+    STR_N_NOTHING_SIGNED,
+    STR_N_OR_SD,
+    STR_N_PSBT_T,
+    STR_N_PSBT_B,
     STR_N_STARTING,
     STR_N_TAP_CANCEL,
     STR_N_PARTS_FMT,

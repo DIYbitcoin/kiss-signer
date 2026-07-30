@@ -12,6 +12,7 @@
 #endif
 
 #include "i18n.h"
+#include "wallet_info.h"   // the one "?" card implementation lives there
 #include "wallet_theme.h"
 
 // A QR that decodes cleanly but is not a transport format we know is dropped
@@ -279,59 +280,141 @@ void wallet_scan_open_raw(lv_obj_t *parent,
     scan_open_common(parent);
 }
 
+// ---- ADDENDUM-01 section 3 geometry ----
+// The reticle column, and the card that answers the question nobody asks out
+// loud: somebody new to this is pointing a camera at a code they cannot read,
+// on a device holding their keys, wondering whether this is how people get
+// robbed. The screen has the space and the dead time to answer it.
+// 112 to WT_CONTENT_BOTTOM (398) is 286. The preview takes 208 of it and the
+// two status lines under it take the rest, so both land above the action bar
+// instead of behind it. The right column's own stack (caption, one CAN row,
+// three CANNOT rows, the paragraph) is measured to the same floor.
+#define SCN_CAM_X 48
+#define SCN_CAM_Y 112
+#define SCN_CAM_W 300
+#define SCN_CAM_H 208
+#define SCN_COL_X 396
+#define SCN_COL_W 356
+
+// One permission row: a glyph in `col` and a line of text beside it.
+static void scan_perm(lv_obj_t *par, int y, const char *glyph, int str,
+                      lv_color_t col)
+{
+    wt_lbl(par, glyph, 14, y, wt_font14(), col);
+    lv_obj_t *t = wt_lbl(par, tr(str), 40, y, wt_font14(), WT_MUT);
+    lv_obj_set_width(t, SCN_COL_W - 54);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+}
+
+static void scan_psbt_help_cb(lv_event_t *e)
+{
+    (void)e;
+    wallet_info_help_card_open(s_scr, tr(STR_N_PSBT_T), tr(STR_N_PSBT_B));
+}
+
 static void scan_open_common(lv_obj_t *parent)
 {
     scan_bzero(s_pend, sizeof s_pend);
     scan_bzero(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
 
-    s_scr = lv_obj_create(parent);
-    lv_obj_remove_style_all(s_scr);
-    lv_obj_set_size(s_scr, 800, 480);
-    lv_obj_set_style_bg_color(s_scr, BG_COL, 0);
-    lv_obj_set_style_bg_opa(s_scr, LV_OPA_COVER, 0);
-    lv_obj_move_foreground(s_scr);
+    // wt_screen, not a bare container: this screen used to build its own 800x480
+    // object and so was the one wallet surface that did not wear the card frame,
+    // the title treatment or the action bar the rest of the device has.
+    s_scr = wt_screen(parent, tr(STR_N_T), tr(STR_N_S));
     lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_scr, cancel_cb, LV_EVENT_CLICKED, NULL);
 #ifndef SIMULATOR
     lv_obj_add_event_cb(s_scr, zoom_drag_cb, LV_EVENT_ALL, NULL);
 #endif
 
-    // Use the same localized CLOSE wording as the baked camera framebuffer
-    // overlay. On hardware the live camera bypasses LVGL; in the simulator this
-    // pill is the equivalent visible control.
-    wt_pillh(s_scr, tr(STR_C_OSD_CLOSE), 48, 24, 150, 56,
-             cancel_btn_cb, NULL);
+    // The preview column. An empty bordered panel, so the composition reads the
+    // same in the simulator (which never runs a camera) as on the device, and so
+    // the column is a viewport before the first frame lands in it.
+    lv_obj_t *vp = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(vp);
+    lv_obj_set_pos(vp, SCN_CAM_X, SCN_CAM_Y);
+    lv_obj_set_size(vp, SCN_CAM_W, SCN_CAM_H);
+    lv_obj_set_style_radius(vp, 10, 0);
+    lv_obj_set_style_border_width(vp, 1, 0);
+    lv_obj_set_style_border_color(vp, WT_EDGE, 0);
+    lv_obj_remove_flag(vp, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(vp, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *cap = lv_label_create(s_scr);
-    lv_label_set_text(cap, tr(STR_N_T));
-    lv_obj_set_style_text_color(cap, INK_COL, 0);
-    lv_obj_set_style_text_font(cap, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 220, 24);
+    // Right column. One thing a scan CAN do, then the three it cannot.
+    wt_section(s_scr, tr(STR_N_CAN_CAP), SCN_COL_X, SCN_CAM_Y);
 
-    lv_obj_t *sub = wt_note(s_scr, tr(STR_N_S), 220, 62, 530, 29);
-    lv_obj_set_style_text_color(sub, MUT_COL, 0);
+    lv_obj_t *can = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(can);
+    lv_obj_set_pos(can, SCN_COL_X, SCN_CAM_Y + 26);
+    lv_obj_set_size(can, SCN_COL_W, 40);
+    lv_obj_set_style_radius(can, 8, 0);
+    lv_obj_set_style_border_width(can, 1, 0);
+    lv_obj_set_style_border_color(can, WT_OK, 0);
+    lv_obj_set_style_border_opa(can, 77, 0);      // ~30 percent
+    lv_obj_set_style_bg_color(can, WT_OK, 0);
+    lv_obj_set_style_bg_opa(can, 13, 0);          // ~5 percent
+    lv_obj_remove_flag(can, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(can, LV_OBJ_FLAG_SCROLLABLE);
+    scan_perm(can, 11, LV_SYMBOL_OK, STR_N_CAN, WT_OK);
 
+    lv_obj_t *cant = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(cant);
+    lv_obj_set_pos(cant, SCN_COL_X, SCN_CAM_Y + 76);
+    lv_obj_set_size(cant, SCN_COL_W, 68);
+    lv_obj_set_style_radius(cant, 8, 0);
+    lv_obj_set_style_border_width(cant, 1, 0);
+    lv_obj_set_style_border_color(cant, WT_HAIR, 0);
+    lv_obj_set_style_bg_color(cant, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(cant, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(cant, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(cant, LV_OBJ_FLAG_SCROLLABLE);
+    // TWO crosses, not the three ADDENDUM-01 drew. It also listed "reach your
+    // recovery words" and "put this device online", and the owner cut both:
+    // nobody arriving at a scan screen fears either. The product is called an
+    // airgapped signer and the home screen says so, so "cannot go online" tells
+    // a reader something they already knew, and a QR reaching the recovery words
+    // is not a worry anybody has until this card invents it. Padding a safety
+    // card with risks the reader does not hold makes the one that matters read
+    // like boilerplate. What is actually being asked, camera pointed at a code
+    // you cannot read on a device holding your keys, is "can this spend my
+    // money", and these two answer exactly that.
+    scan_perm(cant, 10, LV_SYMBOL_CLOSE, STR_N_CANT_SPEND, WT_STOP);
+    scan_perm(cant, 38, LV_SYMBOL_CLOSE, STR_N_CANT_SIGN,  WT_STOP);
+
+    wt_note(s_scr, tr(STR_N_NOTHING_SIGNED), SCN_COL_X, SCN_CAM_Y + 154,
+            SCN_COL_W - 44, 76);
+    wt_help_chip(s_scr, 752, SCN_CAM_Y + 154, MUT_COL, scan_psbt_help_cb, NULL);
+
+    // Status lives under the preview now, not in the middle of the screen: the
+    // middle of the screen is the permissions card.
     s_prog = lv_label_create(s_scr);
     lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
-    lv_obj_set_style_text_font(s_prog, wt_font28(), 0);
-    lv_obj_align(s_prog, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_text_font(s_prog, wt_font23(), 0);
+    lv_obj_set_pos(s_prog, SCN_CAM_X, SCN_CAM_Y + SCN_CAM_H + 10);
 
-    // Was STR_N_TAP_CANCEL, "tap the top-left corner to cancel" -- a sentence
-    // that only existed because the control was invisible. The pill says it
-    // now. The label stays because the camera-failure path writes the driver
-    // status into it, which is technical metadata and belongs at font14.
+    // The camera-failure path writes the driver status here, which is technical
+    // metadata and belongs at font14.
     s_hint = lv_label_create(s_scr);
     lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
     lv_obj_set_style_text_font(s_hint, wt_font14(), 0);
-    lv_obj_align(s_hint, LV_ALIGN_CENTER, 0, 24);
+    lv_obj_set_width(s_hint, SCN_CAM_W);
+    lv_label_set_long_mode(s_hint, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(s_hint, SCN_CAM_X, SCN_CAM_Y + SCN_CAM_H + 40);
+
+    // CANCEL in the action row, and the SD alternative NAMED beside it: the
+    // person struggling to scan does not know they have another option, because
+    // that choice was two screens ago. Muted text, not a button, because it is
+    // not reachable from here without cancelling first.
+    wt_pill(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y, 200, cancel_btn_cb, NULL);
+    wt_lbl(s_scr, tr(STR_N_OR_SD), 268, WT_ACTION_Y + 16, wt_font14(), MUT_COL);
 
     s_tmr = lv_timer_create(poll_cb, 80, NULL);
 
 #ifndef SIMULATOR
+    camera_spike_set_preview_rect(SCN_CAM_X, SCN_CAM_Y, SCN_CAM_W, SCN_CAM_H);
     if (camera_scan_start(s_bus, decode_cb)) {
         if (s_prog) lv_label_set_text(s_prog, tr(STR_N_WAIT_QR));
     } else {
