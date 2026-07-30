@@ -827,15 +827,15 @@ int main(void) {
   touch(118, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> the QR page
-  // SCAN KEY is no longer buried in the pair screen: it is a top-level pill on
-  // the WALLET screen at (430,236,340,60), so back out of pairing first. It was
+  // SCAN KEY is no longer buried in the pair screen: it is a top-level ROW in
+  // the WALLET screen's COORDINATOR column, so back out of pairing first. It was
   // moved because hiding a separate PRIVATE-key export one tap inside the
   // descriptor flow implied the two were the same action.
   touch(680, 430); pump(3); release(); pump(6);     // BACK (WT_BACK_X pill) -> WALLET
-  touch(743, 264); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
+  touch(748, 262); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
   save("/tmp/sim_sp_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(600, 266); pump(3); release(); pump(6);     // SCAN KEY -> consent warning
+  touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent warning
   save("/tmp/sim_sp_warn.ppm");
   touch(198, 430); pump(25); release(); pump(6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");

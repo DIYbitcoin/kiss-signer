@@ -158,7 +158,8 @@ static int aside_scan(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, sp_permission_model); }
 
 static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
-                              const char *body, int diagram, bool fp_exit_hint)
+                              const char *body, int diagram, bool fp_exit_hint,
+                              const char *icon)
 {
     // The escape-gesture hint belongs to the HOME fingerprint card and nowhere
     // else, so it rides on the end of the body rather than being a fourth kind
@@ -169,11 +170,13 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                  tr(STR_H_EXIT_HINT));
         body = with_hint;
     }
+    // The diagram picks the badge when there is one, because the reader met that
+    // mark on the control that sent them here. Without a diagram the caller says.
     wt_explain_t e = {
         .title  = title,
         .icon   = diagram == DIAG_FP   ? WT_ICON_KEY
                 : diagram == DIAG_PAIR ? WT_ICON_QR
-                : diagram == DIAG_SCAN ? WT_ICON_SECRET : NULL,
+                : diagram == DIAG_SCAN ? WT_ICON_SECRET : icon,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
         .aside  = diagram == DIAG_FP   ? aside_fp
@@ -185,12 +188,12 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
 
 static lv_obj_t *help_open_d(const char *title, const char *body, int diagram)
 {
-    return help_open_on(s_scr, title, body, diagram, false);
+    return help_open_on(s_scr, title, body, diagram, false, NULL);
 }
 
-static void help_open(const char *title, const char *body)
+static void help_open(const char *title, const char *body, const char *icon)
 {
-    help_open_d(title, body, DIAG_NONE);
+    help_open_on(s_scr, title, body, DIAG_NONE, false, icon);
 }
 
 lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
@@ -201,13 +204,13 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
     else
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
     return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
-                        fingerprint != NULL);
+                        fingerprint != NULL, NULL);
 }
 
 lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
-                                     const char *body)
+                                     const char *body, const char *icon)
 {
-    return help_open_on(parent, title, body, DIAG_NONE, false);
+    return help_open_on(parent, title, body, DIAG_NONE, false, icon);
 }
 
 static void help_cb(lv_event_t *e)
@@ -215,20 +218,24 @@ static void help_cb(lv_event_t *e)
     const char *key = (const char *)lv_event_get_user_data(e);
     if (!strcmp(key, "fp"))
         wallet_info_fp_card_open(s_scr, NULL);
+    // DIRECTORY for the address type, because what it is really about is the
+    // derivation branch under the name; DOWNLOAD for the first address, because
+    // an address is where money arrives. Both are in the baked symbol set.
     else if (!strcmp(key, "type"))
-        help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B));
+        help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B), LV_SYMBOL_DIRECTORY);
     else if (!strcmp(key, "pair"))
         help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR);
     else if (!strcmp(key, "scan"))
         help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN);
     else
-        help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B));
+        help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD);
 }
 
 #ifdef SIMULATOR
 void wallet_info_sim_open_type_help(void)
 {
-    if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B));
+    if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B),
+                         LV_SYMBOL_DIRECTORY);
 }
 
 void wallet_info_sim_open_fp_help(void)
@@ -591,168 +598,123 @@ static void words_warn_screen(lv_event_t *e)
 // ---- the section home: facts + actions ----
 static void pair_open_cb(lv_event_t *e)  { (void)e; pair_screen(); }
 
+// The four fact rows and the two coordinator rows all open something, and a row
+// carries its key the way a help chip used to.
+static void row_help_cb(lv_event_t *e) { help_cb(e); }
+
 static void info_screen(void)
 {
     s_pair_qr = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
 
-    // This is a two-column screen. Its subtitle belongs to the facts column,
-    // so it is measured and wrapped inside that column instead of being given
-    // the generic 704px subtitle lane that crosses into the actions column.
-    // 366 wide, not 340: this lane is bounded by PAIR COORDINATOR at x=430,
-    // not by the left column's 340, and the extra 26px is the difference
-    // between this setting on one line and breaking after "network,".
-    // 40, not 58. The lane was budgeted for two lines at font23 and this English
-    // setting takes one; the second line's worth is what pays for the facts card
-    // below it having any padding at all. A translation that needs two lines
-    // still gets them, at font14, and still clears the card's top edge.
-    wt_note(s_scr, tr(STR_I_S), 48, 62, 366, 40);
-
-    // facts, left column, in ONE card.
+    // ---- the same list Settings is drawn on ----
+    // This screen was one 366x278 fact card with four eyebrow-and-value pairs
+    // stacked inside it, beside two pills each trailing a loose paragraph. Four
+    // different shapes for six things that are all "a label, what it says, and
+    // where it takes you". Settings had already solved that, and the owner reads
+    // Settings without effort, so this is the same wt_row list on the same
+    // geometry rather than a second idiom for the same job. WT_LIST_* lives in
+    // the theme now precisely so the two cannot drift apart.
     //
-    // Four captions with four values under them, floating on the page, is the
-    // flat list the settings screen stopped being: small type on WT_BG has no
-    // edge to be read against. Four separate cards do not fit -- these values
-    // are a mono28 fingerprint and a two line address, and the padding of four
-    // boxes costs more vertical room than the column has -- so the column IS the
-    // card, with the four facts stacked inside it. Same idiom as the Sign
-    // screen's footer strip: one panel, several facts, hairlines between them.
+    // No subtitle. "fingerprint, network, addresses" named the three rows
+    // directly underneath it, and dropping it is what puts the first eyebrow on
+    // the same y=72 line Settings starts on.
     //
-    // Offsets below are relative to the card, which starts at FACTS_Y.
-    // 278 is measured, not chosen: 10 of top padding, then the four caption and
-    // value pairs at the same 9px rhythm the flat column already used, the last
-    // of them a two line address, and 12 of bottom padding. 108 + 278 = 386,
-    // which clears WT_CONTENT_BOTTOM by 12. There are no hairlines between the
-    // facts because there is no room for them; the rhythm does that job.
-    lv_obj_t *facts = wt_card(s_scr, 48, 108, 366, 278);
-    const int FX = 14, FW = 366 - 28;   // inner left edge and usable width
-    uint8_t fp[4];
+    // The help chips are gone with it. A row that opens an explainer opens it
+    // when you tap the ROW, which is the gesture this device already teaches on
+    // every Settings line, and a 365x64 target needs no aiming at a 20px circle.
+    // The labels stay in the eyebrow's upper case: they are the strings the 21
+    // locales already carry for these four facts, and inventing sentence case
+    // for them would mean English saying something no other language says.
     char buf[128], grouped[120];
+    uint8_t fp[4];
     wallet_ui_last_fp(fp);
 
-    // help chips sit AFTER the section text: titles vary wildly in width
-    // across 19 languages, a fixed x overlaps the longer ones (pt, ru)
-    // Caption small, VALUE big. These four values are the whole point of the
-    // screen -- the fingerprint you check, the network you are on, the address
-    // you read out loud -- so they get the size, and their labels stay eyebrows.
-    //
-    // The rhythm is 7px of air above a section eyebrow and 2px between a
-    // caption and the value it names, all the way down, because the last item
-    // is a grouped address that takes TWO lines at font23 and the column has to
-    // end by WT_CONTENT_BOTTOM. It used to start that address at y=360, which
-    // put its second line under the action row where the bar now covers it: the
-    // owner was reading half an address and had no way to know it.
-    lv_obj_t *sec = wt_section(facts, tr(STR_D_FINGERPRINT), FX, 10);
-    lv_obj_update_layout(sec);
-    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 4, WT_MUT, help_cb,
-                 (void *)"fp");
+    wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), WT_LIST_L_X, WT_LIST_TOP,
+                WT_LIST_W);
+
+    // Mono, through wt_row_f. This is a code you hold beside a coordinator's
+    // screen and compare digit by digit, and the proportional face is the one
+    // that makes 0 and O and 8 and B argue.
     snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    // Fixed pitch. The letter_space 2 is gone with it: that was hand kerning
-    // a proportional face into looking tabular, which the mono face is by
-    // construction. Same value, same face, same width as the Sign header and
-    // the unlock screen now print it.
-    wt_lbl(facts, buf, FX, 29, wt_font_mono28(), WT_INK);
+    wt_row_f(s_scr, tr(STR_D_FINGERPRINT), NULL, NULL, buf, wt_font_mono23(),
+             WT_INK, WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W,
+             row_help_cb, (void *)"fp");
 
-    wt_section(facts, tr(STR_I_SEC_NET), FX, 72);
-    wt_lbl(facts, wallet_testnet() ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-           FX, 91, wt_font23(), wallet_testnet() ? WT_WARN : WT_INK);
+    // The one row with nothing to open, so the one row with no chevron. Same
+    // pair of strings Settings puts on its own network row.
+    wt_row(s_scr, tr(STR_I_SEC_NET),
+           wallet_testnet() ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
+           wallet_testnet() ? "TESTNET" : "MAINNET",
+           wallet_testnet() ? WT_WARN : WT_INK,
+           WT_LIST_L_X, WT_LIST_Y(1), WT_LIST_W, NULL, NULL);
 
-    sec = wt_section(facts, tr(STR_I_SEC_TYPE), FX, 129);
-    lv_obj_update_layout(sec);
-    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 123, WT_MUT, help_cb,
-                 (void *)"type");
-    // Type and path on ONE line, which is what let the path reach font23.
+    // Type and path BOTH on the sub-line, and no value at all. The path was the
+    // value at mono23 first, and "ADDRESS TYPE" beside it ellipsised to
+    // "ADDRESS T..." -- a row's label and its value share one line, and these
+    // two are each about 170px in a 365 card. The rows in this column split
+    // cleanly in two anyway: a short fact goes in the value slot, a long
+    // reference goes on the sub-line, and this row and the address under it are
+    // both references.
     //
-    // The path was the only value on this column at font14, and there was no
-    // room to grow it: 126..396 against a 398 floor, and the 11px it needed
-    // were 11px the two line address below did not have. The line above it was
-    // "Native SegWit (bc1...)", and the address immediately below it starts
-    // bc1. So the parenthesis was spending a whole 29px line restating the
-    // value four rows down. Dropping it merges two lines into one and pays for
-    // the bigger path with 18px to spare.
-    //
-    // h, not an apostrophe, and this is a correctness fix rather than a style
-    // one. At font14 the apostrophes in m/84'/0'/0' render as tick marks a few
-    // pixels tall, and on the device panel the line reads as m/84/0/0. Those
-    // are DIFFERENT PATHS: a coordinator handed the unhardened one derives
-    // different keys and finds none of this wallet's addresses. h is
-    // unambiguous at any size, and it is what the receive and silent payment
-    // screens already print.
-    //
-    // WT_INK, not WT_MUT, for the reason wt_section learned the hard way:
-    // #7A869C on #070A10 survives a monitor and disappears on this panel. A
-    // reference you read out character by character cannot be the faintest
-    // thing on the screen.
-    //
-    // A path you read out to a coordinator is not a footnote. The receive
-    // screen already prints it at 23 with its own caption; the two screens
-    // print the SAME string, and one of them rendering it in the smallest type
-    // the device owns invited exactly the doubt the h fix above was about.
+    // h, not an apostrophe, and this is correctness rather than style: at small
+    // sizes the apostrophes in m/84'/0'/0' render as tick marks and the line
+    // reads as m/84/0/0. Those are DIFFERENT PATHS, and a coordinator handed the
+    // unhardened one finds none of this wallet's addresses.
     int sc = wallet_script();
     int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
     snprintf(buf, sizeof buf, "%s   m/%dh/%dh/0h",
              sc == WSCRIPT_LEGACY ? "Legacy"
                  : sc == WSCRIPT_NESTED ? "Nested SegWit" : "Native SegWit",
              purpose, wallet_testnet() ? 1 : 0);
-    wt_lbl(facts, buf, FX, 148, wt_font23(), WT_INK);
+    wt_row_f(s_scr, tr(STR_I_SEC_TYPE), buf, wt_font_mono14(), NULL, NULL,
+             WT_INK, WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W,
+             row_help_cb, (void *)"type");
 
-    sec = wt_section(facts, tr(STR_I_SEC_FIRST), FX, 186);
-    lv_obj_update_layout(sec);
-    wt_help_chip(facts, FX + lv_obj_get_width(sec) + 12, 180, WT_MUT, help_cb,
-                 (void *)"addr");
+    // The address goes on the SUB line, in mono, because it is 42 characters and
+    // a value slot holds a word. Folded to the head and tail the rest of the
+    // device shows: the full form belongs on RECEIVE, which is the screen built
+    // for reading one out, and this row's job is to say which wallet you are in.
     if (wallet_session_address(0, 0, buf, sizeof buf) != 0)
         snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
-    wt_group4(buf, grouped, sizeof grouped);
-    lv_obj_t *a = wt_lbl(facts, grouped, FX, 208, wt_font23(), WT_INK);
-    lv_obj_set_width(a, FW);
-    lv_label_set_long_mode(a, LV_LABEL_LONG_WRAP);
+    wt_addr_fold(buf, grouped, sizeof grouped);
+    wt_row_f(s_scr, tr(STR_I_SEC_FIRST), grouped, wt_font_mono14(), NULL, NULL,
+             WT_INK, WT_LIST_L_X, WT_LIST_Y(3), WT_LIST_W,
+             row_help_cb, (void *)"addr");
 
-    // One normal-size action. Pair used to call wt_pill_primary(), which
-    // promoted its label to 28pt and made it shout over every fact on screen.
-    // Selected styling keeps the visual priority while the text stays on the
-    // same 23pt rung as BACK.
-    lv_obj_t *pp = wt_pill_icon(s_scr, WT_ICON_KEY, tr(STR_I_PAIR_T), 430, 96,
-                                340, 60, pair_open_cb, NULL);
-    wt_pill_select(pp, true);
-    wt_note(s_scr, tr(STR_I_PAIR_BTN_NOTE), 430, 162, 340, 62);
-
-    // The silent-payment SCAN KEY is a top-level export, not a footnote of the
-    // pairing flow it used to hide inside. It hands a coordinator the scan
-    // PRIVATE key -- the one export on this device that lets someone else watch
-    // every payment you receive -- so it deserves its own pill and keeps its own
-    // consent warning (sp_key_warn_cb), which is still the only way to reach the
-    // key itself.
-    // 72 tall at y=228, not 60 at 236, because the badge under the label moved
-    // up to a readable 23. "silent payment" is the one thing on this screen
-    // that says WHICH kind of address this key belongs to, and it was rendering
-    // in the smallest type the device owns. The taller row needs 12px and the
-    // main label needs its own 29px line, so the pill grows and starts 8px
-    // higher; the note below gives back the difference and still clears the
-    // three lines at 23 it was widened for.
-    lv_obj_t *skp = wt_pill_icon(s_scr, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN),
-                                 430, 228, 340, 72, sp_key_warn_cb, NULL);
-    wt_pill_two_line_val(skp, tr(STR_S_SP_BADGE));
-    // "Scan" elsewhere means the camera. Here it means searching the chain.
-    // Explain that distinction without putting the private key one tap closer.
-    mk_help_chip(728, 249, "scan");
-    // 94, not 62: this sentence needs three lines at 23 and was silently
-    // dropping to font14 beside a PAIR COORDINATOR note at 23 -- the smaller
-    // type on the export that gives away the scan key. Nothing sits between
-    // here and BACK at y=404, so the rows were free the whole time.
-    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 430, 306, 340, 90);
-
-    // Both actions on this screen are the same size, chosen once for the pair
-    // rather than per label: PAIR COORDINATOR is short and would otherwise sit
-    // a rung above the export beside it.
-    // Measured WITH the icons, because that is what actually gets drawn.
+    // ---- right column ----
+    // Two exports, as rows. They were pills, which said "button" about two things
+    // that are really destinations: both open a screen and neither does anything
+    // by itself. Their notes were loose paragraphs floating beside them; a note
+    // that belongs to a control belongs INSIDE it, which is the whole point of a
+    // row's sub-line.
+    wt_row_head(s_scr, tr(STR_D_ONLINE_APP), WT_LIST_R_X, WT_LIST_TOP,
+                WT_LIST_W);
+    // STR_I_PAIR_S, not STR_I_PAIR_BTN_NOTE. A row's sub-line is pinned to one
+    // line and ellipsised, and the note is "the coordinator wallet that watches.
+    // it cannot sign." -- the half that gets cut is the half that matters. This
+    // string says what the row DOES, which is what a row's sub-line is for, and
+    // "it cannot sign" is still on the pairing screen and in its explainer.
+    wt_row(s_scr, tr(STR_I_PAIR_T), tr(STR_I_PAIR_S), NULL, WT_INK,
+           WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, pair_open_cb, NULL);
+    // "Scan" elsewhere on this device means the camera. Here it means searching
+    // the chain, and the badge under the label is what says which.
+    wt_row(s_scr, tr(STR_R_SP_SCAN_BTN), tr(STR_S_SP_BADGE), NULL, WT_INK,
+           WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, sp_key_warn_cb, NULL);
+    // The export's own warning is three lines about handing someone the key that
+    // watches every payment you ever receive, which is more than a sub-line
+    // holds. It gets a CARD with the "?" in its top right corner, which is the
+    // idiom the scan screen already uses for a paragraph that owns a help
+    // affordance. Loose on the page with the chip floating out to the right, it
+    // read as a stray control belonging to nothing.
     {
-        char pt[WT_ICON_TEXT_MAX], st[WT_ICON_TEXT_MAX];
-        wt_icon_text(pt, sizeof pt, WT_ICON_KEY, tr(STR_I_PAIR_T));
-        wt_icon_text(st, sizeof st, WT_ICON_SECRET, tr(STR_R_SP_SCAN_BTN));
-        const char *lbls[2] = { pt, st };
-        wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 60, false);
-        wt_pill_apply_fit(pp, f, 340);
+        lv_obj_t *why = wt_card(s_scr, WT_LIST_R_X, WT_LIST_Y(2),
+                                WT_LIST_W, 96);
+        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, 12,
+                WT_LIST_W - 28 - 34, 96 - 24);
+        wt_help_chip(why, WT_LIST_W - 42, 12, WT_MUT, help_cb, (void *)"scan");
     }
+
     wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
 }
 

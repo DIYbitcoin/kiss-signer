@@ -14,8 +14,11 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint);
 // borrows it rather than growing a second one that drifts: the receive screen
 // already had a hand rolled overlay for the silent payment chip and two is one
 // too many.
+// `icon` is a WT_ICON_* / LV_SYMBOL_* badge for the title row, or NULL. Only
+// codepoints in tools/fonts/gen_fonts.sh's SYMS resolve; anything else draws a
+// blank box the width of half a line.
 lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
-                                     const char *body);
+                                     const char *body, const char *icon);
 // Settings owns the RECOVERY WORDS entry. The sensitive reveal/verify screens
 // stay here so there is only one implementation of that flow; done_cb returns
 // to Settings when the user leaves it.

@@ -285,6 +285,10 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
 // spacing, because the tail is chunked from the right so the lit four always
 // lands on its own block.
 lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
+// wt_addr_short's fold as a plain string, for the places that take text rather
+// than an object. Mono is not optional on the result: the fold only helps if the
+// characters either side of the ellipsis are readable one at a time.
+void wt_addr_fold(const char *addr, char *out, size_t len);
 // A status badge: `col` border, 5 percent `col` fill, radius 100, label at
 // font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
 // state reads as in the design review, and it is not a pill: no press states,
@@ -339,6 +343,28 @@ lv_obj_t *wt_viewfinder(lv_obj_t *scr, int x, int y, int w, int h);
 lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
                  const char *val, lv_color_t vcol, int x, int y, int w,
                  lv_event_cb_t cb, void *ud);
+// The same row with the sub-line and the value in fonts you choose (NULL keeps
+// wt_row's font14 and font23). It exists for the WALLET screen: a fingerprint,
+// a derivation path and an address are read CHARACTER BY CHARACTER against
+// another screen, and the proportional face is the one that hides the
+// difference between the glyphs you are checking. Everything else about the row
+// is identical, including the one-line pinning and the ellipsis.
+lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
+                   const lv_font_t *sf, const char *val, const lv_font_t *vf,
+                   lv_color_t vcol, int x, int y, int w,
+                   lv_event_cb_t cb, void *ud);
+
+// The two-column list geometry Settings is drawn on, lifted out of it so the
+// WALLET screen cannot drift from the screen it is meant to match. First
+// eyebrow at WT_LIST_TOP, first card WT_LIST_HEAD below it, then WT_LIST_PITCH
+// per row: four rows land at 379, above the 398 floor.
+#define WT_LIST_L_X    25
+#define WT_LIST_R_X   412
+#define WT_LIST_W     365
+#define WT_LIST_TOP    72
+#define WT_LIST_HEAD   23
+#define WT_LIST_PITCH  71    // WT_ROW_H plus 7 of gap
+#define WT_LIST_Y(i)  (WT_LIST_TOP + WT_LIST_HEAD + (i) * WT_LIST_PITCH)
 
 // The storage chooser's three rows, which Settings and the setup wizard draw
 // identically and must never drift apart: same pill, same note, same y. The
@@ -379,15 +405,32 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
 // ---- the explainer card, behind every "?" on the device ----
 // Title top left like any other page, an optional icon badge on the title's row,
 // an optional value card for the thing the card is about, an optional diagram,
-// and the body as one or two rule-marked blocks. `body` is SPLIT on the first
-// blank line: the explainer strings are already written as two or three
-// paragraphs in all 21 locales, so the two-column treatment costs no new
-// translation. Anything after the second paragraph stays with the second block.
+// and the body below.
+//
+// The body layout is CHOSEN, not fixed. The paragraphs are split on blank lines
+// and then measured at font28, 23 and 14 in turn, in two arrangements: the whole
+// body across the full 704 lane, and the paragraphs dealt into two 344 columns at
+// the boundary that makes the columns most nearly equal. The first arrangement
+// that fits wins, so the type is the largest the page can actually hold instead
+// of the largest a 330px column could. This is measurement only and costs no
+// translation: the strings were already written as paragraphs in all 21 locales.
+//
+// `grid` overrides all of that for the one body that is a LIST rather than prose:
+// see WT_GRID_ICONS.
 //
 // `aside` draws a diagram into (x, y, w) and returns the height it used, so the
 // theme needs no dependency on the screens that own those diagrams.
 //
 // Tapping anywhere closes, as it always has.
+
+// Body modes.
+//   WT_BODY_PROSE  paragraphs, laid out as described above.
+//   WT_GRID_ICONS  one `term: definition` per LINE, drawn as a grid of icon
+//                  badges. `icons` supplies one glyph per line, in order, and
+//                  must hold at least as many as the body has lines. The colon
+//                  split is what makes this free: the glossary is written that
+//                  way in every locale, so an icon grid needs no new string.
+enum { WT_BODY_PROSE = 0, WT_GRID_ICONS };
 typedef struct {
     const char *title;
     const char *sub;      // NULL to omit
@@ -397,9 +440,20 @@ typedef struct {
     const char *body;
     const char *ok_txt;   // the dismiss pill's label, already translated
     int sev;              // WT_SEV_*: colours the title and the first rule
+    int mode;             // WT_BODY_PROSE / WT_GRID_ICONS
+    const char *const *icons;   // WT_GRID_ICONS only, one per body line
     int (*aside)(lv_obj_t *par, int x, int y, int w);
 } wt_explain_t;
 lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e);
+
+// Split a `term: definition` line at its first colon. Writes the term into
+// `head` and returns a pointer into `line` at the definition, or NULL when the
+// line carries no colon at all (then the whole line is the term).
+//
+// Accepts the ASCII colon AND the full width one, U+FF1A: the Chinese glossary
+// uses the wide form and a miss would put a whole sentence in the term slot.
+// Trailing space before the colon is trimmed, which is what French needs.
+const char *wt_split_colon(const char *line, char *head, size_t head_len);
 
 // Hold-to-confirm pill: the action fires only after the finger has been held
 // down for ms, and a fill sweeps across the pill while it does. Letting go

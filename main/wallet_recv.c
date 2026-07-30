@@ -51,7 +51,14 @@
 // The detail screen's right column: the address in a card, because that is what
 // the rest of the device does with a value worth reading off the glass.
 #define RECV_CARD_X 310
-#define RECV_CARD_Y 134
+// 144, measured off a rendered frame rather than reasoned about. The state chip
+// beside the eyebrow is a font14 label with pad_ver 5 and a 1px border, so it is
+// 30 tall and at y=104 it owns rows 104..133 inclusive. This card was at 134: its
+// top border shared an edge with the chip's bottom border, on the same 752 right
+// margin, with not one background pixel between them. Two rounded boxes touching
+// read on glass as one clipping the other, which is exactly what came back off
+// the device. 144 puts ten pixels of page between them.
+#define RECV_CARD_Y 144
 #define RECV_CARD_W 442
 // Fixed at the height the EXPANDED address needs, with the block centred inside
 // it, so the card is the thing that does not move: NEXT ADDRESS stays under the
@@ -836,15 +843,13 @@ static void recv_detail_open(void) {
 
   // Right column, x=310, w=442.
   //   y=106 caption ADDRESS #N + state chip right-aligned to x=752
-  //   y=134 card, 442x114: the address and the compare caption, centred as a
+  //   y=144 card, 442x114: the address and the compare caption, centred as a
   //         block by recv_refresh, folded or full
   //   y=268 privacy note, 442 wide, one line
   //   y=312 NEXT ADDRESS pill primary 250 wide 46 tall
   //
-  // The caption row moved UP from 112 and the card DOWN from 132. The state chip
-  // is right aligned to 752 and about 30 tall, so at y=106 it ran to 136 while
-  // the card started at 132: four pixels of overlap on the same right edge, which
-  // read on the device as the chip being clipped by the box.
+  // Nothing below the card moves for the extra ten pixels: the card ends at 258
+  // and the note was always at 268, and the QR beside it already runs to 314.
   s_idx_lbl = wt_section(s_scr, "", 310, 110);
   s_state_chip = wt_state_chip(s_scr, "", WT_MUT);
 
