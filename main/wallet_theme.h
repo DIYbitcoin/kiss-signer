@@ -39,6 +39,11 @@ lv_color_t wt_primary(void);             // selected/action accent: MONO -> WT_I
 lv_color_t wt_accent_bg(void);           // dark tinted fill for accent controls
 lv_color_t wt_accent_pressed(void);      // slightly brighter pressed fill
 const char *wt_accent_name(void);        // "MONO"/"GREEN"/"CYPHERPINK"/"ORANGE"
+// The colour the scan reticle turns when it locks on, as raw 5/6/5 components.
+// Components and not an lv_color_t because the caller is camera_spike.c, which
+// blends straight into the framebuffer and owns no LVGL object on that screen.
+// The accent, except in MONO -- see the body for why that one keeps the green.
+void       wt_lock_565(int *r5, int *g6, int *b5);
 
 // wallet text fonts: the generated i18n fonts (kiss_fonts.h), which carry
 // every script the translations use plus the LV_SYMBOL icons. ALL wallet
@@ -112,22 +117,31 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // arrives at that corner at an angle and lands short, which is why Settings put
 // it there first and gave it 10px of ext click area; the rest of the app then
 // hand typed 48 on fourteen screens and 330 on two more, so the escape hatch
-// moved depending on which screen you were escaping from. One number, one
-// corner, no exceptions.
+// moved depending on which screen you were escaping from.
 //
-// The corollary is worth stating because it is a safety property and not a
-// tidiness one: the right corner is where the least consequential button on
-// each screen now lives. Anything that spends money sits further left, away
-// from the reflex tap and out from under the help chips that hang above the
-// row's right end.
+// This said "one number, one corner, no exceptions" for a while and it was not
+// true, which is worse than a rule nobody follows. The real rule turns on WHAT
+// ELSE IS IN THE BAR:
+//
+//   the bar holds nothing but the exit  -> it takes this corner. Settings,
+//             Wallet, Details, the file chooser, the pairing screens. There is
+//             no consequential control for the corner to keep away from the
+//             reflex tap, so consistency wins and the exit sits where the eye
+//             already looks for it.
+//   the bar holds the screen's real action too -> the exit goes LEFTMOST and
+//             the far right is reserved for the action, because THAT is the
+//             safety property: nothing that spends money should sit under the
+//             thumb's resting corner. Sign's verify row and Receive's four-pill
+//             row are the cases, and redraws 01, 02, 03 and 05 all draw them
+//             this way.
 //
 // THE RULE IS ABOUT ESCAPING A SCREEN, NOT ABOUT THE WORD "BACK". STR_C_BACK
 // does two unrelated jobs in this app and only one of them belongs here:
 //
 //   escape  - leaves for the level above (close_cb, files_back_cb, sp_back_cb,
-//             the sign details page returning to verify). Right corner. If a
-//             screen's escape is called DONE instead, DONE takes the corner:
-//             the corner belongs to the exit, whatever it is labelled.
+//             the sign details page returning to verify). If a screen's escape
+//             is called DONE instead, DONE takes the corner: the corner belongs
+//             to the exit, whatever it is labelled.
 //   paging  - steps within the screen you are already on, and always has a
 //             NEXT beside it (the recovery words pages, the pairing QR page).
 //             That pair stays adjacent on the LEFT, because splitting BACK and
