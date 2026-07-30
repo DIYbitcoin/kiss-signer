@@ -1781,21 +1781,29 @@ void wallet_sign_open(lv_obj_t *parent)
     // "QR first, card second" was said with fill and border weight; it is said
     // now by being the first row, which is how every list on this device already
     // says what to reach for first.
-    // One row down the grid, not from the top of it. Only this chooser carries
-    // the PSBT help chip, which sits on the subtitle's row at 64..108 and would
-    // have the first row's top edge through it at the 96 content line. Two rows
-    // from WT_CHOICE_Y(1) run 198..294 and centre the pair in the page instead.
+    // This chooser has its own y, and the reason is the PSBT help chip. Only
+    // this screen carries one, it owns 64..108, and WT_CHOICE_Y(0) starts at the
+    // 96 content line -- so the shared grid puts the first row's top edge
+    // through it. Dropping to WT_CHOICE_Y(1) and (2) cleared the chip and left
+    // 90px of empty page above the pair instead, which is what came back off the
+    // device.
     //
+    // Centred between the chip's bottom edge and the content floor, which is the
+    // only arrangement a two-row screen with a header actually wants:
+    // (398 - 108 - 2*96 - 20) / 2 = 39, so 148 and 252. The three-row choosers
+    // keep WT_CHOICE_Y; they have no chip and they fill the page.
+#define SGC_ROW0 148
+#define SGC_ROW1 252
     // Both subs are forced to font14 rather than sized apiece. wt_body_font
     // answers per string, so the two-line SCAN QR note came back at 14 and the
     // one-line SD note at 23 -- two rows offering the same kind of choice, one
     // of them visibly shouting. A group shares a size or it stops being a group.
     wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR), tr(STR_S_POINT_CAM),
              wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
-             WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
+             SGC_ROW0, WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
     wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), tr(STR_S_OR_LOAD),
              wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
-             WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
+             SGC_ROW1, WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
     // A labelled help target teaches the acronym at first sight. An anonymous
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);

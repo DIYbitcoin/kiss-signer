@@ -746,7 +746,7 @@ int main(void) {
   // check_sim_taps would rightly call it a dead interaction.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv.ppm");                        // HANDOFF-03 landing: single-address detail
-  touch(455, 430); pump(3); release(); pump(6);     // SILENT PAYMENT pill -> SP address view
+  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row -> SP address view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
   save("/tmp/sim_recv_sp_zoom.ppm");
@@ -758,7 +758,7 @@ int main(void) {
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
-  touch(255, 430); pump(3); release(); pump(6);     // ALL ADDRESSES pill -> the list
+  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> the list
   save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
   // -- every other container turns scrolling off -- so the walk flicks it for
@@ -773,7 +773,7 @@ int main(void) {
   touch(167, 231); pump(3); release(); pump(6);     // QR card -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS pill -> next index
+  touch(365, 430); pump(3); release(); pump(4);     // NEXT ADDRESS pill -> next index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     touch(680, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
@@ -865,7 +865,7 @@ int main(void) {
   // gone by the second), so if the animation ever stops rendering the two
   // frames become identical and check_sim_taps.py fails.
   // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
-  touch(218, 340); pump(5);                        // FROM SD CARD (row 1)
+  touch(218, 296); pump(5);                        // FROM SD CARD (row 1)
   save("/tmp/sim_pill_ring.ppm");                  // ring still outside the edge
   pump(14);
   save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
@@ -896,7 +896,7 @@ int main(void) {
   save("/tmp/sim_sign_done.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 340); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
+  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
   touch(328, 216); pump(3); release(); pump(8);     // the STOP file -> blocked verify
   save("/tmp/sim_sign_stop.ppm");
   // BACK is ONE STEP now: from a transaction it returns to the list that
@@ -942,7 +942,7 @@ int main(void) {
   unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
   unlink("/tmp/simsd/warn-COMBO.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 340); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
+  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
@@ -952,7 +952,7 @@ int main(void) {
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
-  touch(218, 240); pump(3); release(); pump(6);     // SCAN QR -> scan screen
+  touch(218, 190); pump(3); release(); pump(6);     // SCAN QR -> scan screen
   save("/tmp/sim_qr_scan.ppm");
   {
     uint8_t fake[300];
@@ -998,9 +998,9 @@ int main(void) {
   touch(530, 190); pump(3); release(); pump(6);     // address card -> full address
   save("/tmp/sim_recv_full.ppm");
   touch(530, 190); pump(3); release(); pump(6);     // and back to folded
-  touch(435, 335); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
+  touch(365, 430); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
   save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
-  touch(435, 335); pump(3); release(); pump(4);     // NEXT ADDRESS again
+  touch(365, 430); pump(3); release(); pump(4);     // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> home
 
@@ -1129,7 +1129,7 @@ int main(void) {
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
   // The list is one pill away now. Capture it on testnet so the tb1 rows and
   // page counter render at least once outside the fresh-landing default.
-  touch(255, 430); pump(3); release(); pump(6);     // ALL ADDRESSES -> list
+  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> list
   save("/tmp/sim_recv_detail_tn.ppm");              // reused filename: now the list
   touch(680, 430); pump(3); release(); pump(6);     // BACK from list -> home
   touch(310, 240); pump(3); release(); pump(6);     // Receive again -> detail
@@ -1137,7 +1137,7 @@ int main(void) {
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(455, 430); pump(3); release(); pump(6);     // SILENT PAYMENT (testnet)
+  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row (testnet)
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
   save("/tmp/sim_recv_sp_zoom_tn.ppm");
@@ -1154,7 +1154,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail
   touch(100, 430); pump(3); release(); pump(4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
-  touch(218, 340); pump(3); release(); pump(6);     // FROM SD
+  touch(218, 296); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
@@ -1175,25 +1175,6 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
-  // KNOWN DEFECT, worked around here rather than papered over: the last letter
-  // of KISS is what makes the wallet appear, so the setup chooser is built with
-  // a finger still down, and LVGL resolves that press onto whatever now sits
-  // under it. This stroke ends at (462, 272), inside CREATE A NEW WALLET, so
-  // the gesture picks an option by itself and the walk lands on STORAGE.
-  //
-  // The 340px pills these rows replaced escaped it by luck -- they stopped at
-  // x=388. A 716 wide row leaves nowhere harmless for a finger to end up, which
-  // is what turned an accident into a certainty. lv_indev_reset,
-  // lv_indev_wait_release and a z-ordered shield in wt_screen were all tried;
-  // none holds, because LVGL re-resolves the still-pressed point on the
-  // following cycle. The fix belongs in the gesture recogniser, which already
-  // carries an s_wallet_swallow flag for the decoy's version of this and does
-  // not set it on this path.
-  //
-  // So BACK out of the screen the gesture chose and photograph the chooser it
-  // should have landed on. Deterministic: the stroke always ends in the same
-  // place, so it always picks the same row.
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out

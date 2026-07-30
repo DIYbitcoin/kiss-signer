@@ -51,14 +51,19 @@
 // The detail screen's right column: the address in a card, because that is what
 // the rest of the device does with a value worth reading off the glass.
 #define RECV_CARD_X 310
-// 144, measured off a rendered frame rather than reasoned about. The state chip
-// beside the eyebrow is a font14 label with pad_ver 5 and a 1px border, so it is
-// 30 tall and at y=104 it owns rows 104..133 inclusive. This card was at 134: its
-// top border shared an edge with the chip's bottom border, on the same 752 right
-// margin, with not one background pixel between them. Two rounded boxes touching
-// read on glass as one clipping the other, which is exactly what came back off
-// the device. 144 puts ten pixels of page between them.
-#define RECV_CARD_Y 144
+// Measured off a rendered frame rather than reasoned about. The state chip beside
+// the eyebrow is a font14 label with pad_ver 5 and a 1px border, so it is 30
+// tall; at y=96 it owns rows 96..125 inclusive, and this card at 136 leaves ten
+// pixels of page between them. It was 134 against a chip at 104 once -- top
+// border on bottom border, no background between -- and two rounded boxes
+// touching read on glass as one clipping the other, which is what came back off
+// the device.
+//
+// The whole band moved up 8 to make that clearance a THIRD time, at the other
+// end: two 64px destination rows now sit under this card, and at the old y the
+// second one's bottom border landed on the action bar's hairline. Same defect,
+// same fix, and the chip has never needed the space it had above it.
+#define RECV_CARD_Y 136
 #define RECV_CARD_W 442
 // Fixed at the height the EXPANDED address needs, with the block centred inside
 // it, so the card is the thing that does not move: NEXT ADDRESS stays under the
@@ -217,7 +222,7 @@ static void recv_refresh(void) {
     // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
     // every refresh because the label length differs between the two states
     // AND per locale.
-    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 104);
+    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 96);
   }
 }
 
@@ -859,7 +864,7 @@ static void recv_detail_open(void) {
   //
   // Nothing below the card moves for the extra ten pixels: the card ends at 258
   // and the note was always at 268, and the QR beside it already runs to 314.
-  s_idx_lbl = wt_section(s_scr, "", 310, 110);
+  s_idx_lbl = wt_section(s_scr, "", 310, 102);
   s_state_chip = wt_state_chip(s_scr, "", WT_MUT);
 
   s_addr_card = wt_card(s_scr, RECV_CARD_X, RECV_CARD_Y,
@@ -879,12 +884,24 @@ static void recv_detail_open(void) {
   lv_obj_set_width(s_cmp_lbl, RECV_CARD_W - 28);
   lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
 
-  // Privacy reminder as a single short line: HANDOFF-03 asks for 2 lines here,
-  // but the second half of STR_R_ONE_EACH ("reuse links payments") only fits
-  // in 442 wide at font14 in ~18 of 21 locales — fr/it/nl need three. Rather
-  // than pay a font drop for standing advice, this shows only the first
-  // clause; the WALLET card carries the full "reuse links payments" caution
-  // on its ADDRESS TYPE row, so the concept is not lost from the device.
+  // The two DESTINATIONS, as rows in the right column. They were buttons three
+  // and four of a bar carrying four, which is what made this the busiest bar on
+  // the device -- and neither of them does anything: both open a screen. A row
+  // says that with a chevron, in the same shape the address list below and the
+  // whole of Settings already use.
+  //
+  // The arithmetic is exact and there is no room for a third. The address card
+  // ends at 258, a row is WT_ROW_H, and 268 + 64 = 332, 334 + 64 = 398 -- so the
+  // second row's last drawn line is 397, one clear of WT_CONTENT_BOTTOM. NEXT
+  // stays a button for that reason and a better one: it is an ACTION, it changes
+  // what this screen is showing, and it belongs in the bar with VERIFY.
+  //
+  // The privacy reminder rides on ALL ADDRESSES' sub-line, which is where it
+  // belongs: the list is where you go to use a different address, and "use a new
+  // address each time" is why you would. HANDOFF-03 asks for two lines and the
+  // second clause of STR_R_ONE_EACH ("reuse links payments") only fits 442 at
+  // font14 in about 18 of 21 locales, so this takes the first clause only; the
+  // WALLET card still carries the full caution on its ADDRESS TYPE row.
   {
     char one[80];
     const char *full = tr(STR_R_ONE_EACH);
@@ -895,40 +912,34 @@ static void recv_detail_open(void) {
     } else {
       snprintf(one, sizeof one, "%s", full);
     }
-    lv_obj_t *note = wt_lbl(s_scr, one, 310, 268, wt_font14(), WT_MUT);
-    lv_obj_set_width(note, 442);
-    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_R_ALL_ADDR), one, NULL, NULL, NULL,
+             WT_INK, false, RECV_CARD_X, 260, RECV_CARD_W, 0,
+             list_from_detail_cb, NULL);
   }
+  wt_row_x(s_scr, WT_ICON_SECRET, tr(STR_R_SP_BTN), NULL, NULL,
+           NULL, NULL, WT_INK, false, RECV_CARD_X, 331, RECV_CARD_W, 0,
+           sp_open_cb, NULL);
 
-  // NEXT ADDRESS: primary, in the right column, next_cb bumps s_idx and
-  // recv_refresh redraws every widget that depends on the derived address.
-  // 312 + 46 = 358, just above the bottom of the QR card beside it, which is
-  // what folding the address bought: the pill used to sit at 344 against a
-  // block that reached 282.
-  wt_pill_primary(wt_pillh(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT),
-                           310, 312, 250, 46, next_cb, NULL));
-
-  // Action bar, measured off redraw 03 rather than from HANDOFF-03's table:
-  // BACK / ALL ADDRESSES / SILENT PAYMENT ... VERIFY, at x 48, 160, 360 and
-  // 612 with widths 104, 192, 198 and 140.
+  // Action bar: the three things that ACT. BACK is LEFTMOST and VERIFY is the
+  // far-right primary, which is the reverse of what HANDOFF-03's table said and
+  // of what every lone-BACK screen does. The drawing is right and it is a rule,
+  // not a quirk: the way OUT sits where a thumb rests and can be hit without
+  // looking, and the far right corner is reserved for the action that does the
+  // screen's work. The same order appears on redraws 01 and 02, so Sign follows
+  // it too.
   //
-  // BACK is LEFTMOST here and VERIFY is the far-right primary, which is the
-  // reverse of what the handoff table said and of what every other screen on
-  // the device does. The drawing is right and it is a rule, not a quirk: the way
-  // OUT sits where a thumb rests and can be hit without looking, and the far
-  // right corner is reserved for the action that does the screen's work. The
-  // same order appears on redraws 01 and 02, so Sign follows it too.
-  lv_obj_t *row[4];
-  row[0] = wt_pill(s_scr, tr(STR_C_BACK),     48,  WT_ACTION_Y, 104,
+  // NEXT ADDRESS came down from the content, where it floated at (310, 312) with
+  // nothing to stand on. Three controls in 704 instead of four gives each one
+  // room and puts the two that change something next to each other.
+  lv_obj_t *row[3];
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
                    close_cb, NULL);
-  row[1] = wt_pill(s_scr, tr(STR_R_ALL_ADDR), 160, WT_ACTION_Y, 192,
-                   list_from_detail_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_SP_BTN),   360, WT_ACTION_Y, 198,
-                   sp_open_cb, NULL);
-  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY),   612, WT_ACTION_Y, 140,
+  row[1] = wt_pill(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT), 240,
+                   WT_ACTION_Y, 250, next_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 612, WT_ACTION_Y, 140,
                    vfy_scan, NULL);
-  wt_pill_row(row, 4);
-  wt_pill_primary(row[3]);
+  wt_pill_row(row, 3);
+  wt_pill_primary(row[2]);
   recv_refresh();
 }
 

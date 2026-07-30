@@ -161,20 +161,25 @@ static int s_accent = WT_ACC_MONO;
 static const uint32_t ACC_HEX[WT_ACC_N] = {
     0xE8EEF7,   // MONO: same as WT_INK, the shipped look
     0x35D07F,   // GREEN (matches the home art dot)
-    // CYPHERPINK was 0xFF3EA5, and it was two things at once: too hot to read
-    // as the purple it is named for, and close enough to WT_STOP (0xFF4D5E)
-    // that in this theme a red warning and ordinary accent chrome shared a hue
-    // family. Status colours never move, so the accent did. 0xC45CE8 is the
-    // same brightness against the background (relative luminance 0.253 against
-    // the old 0.275, so nothing about contrast or legibility changes) and it is
-    // unmistakably not WT_STOP.
-    0xC45CE8,   // CYPHERPINK
+    // CYPHERPINK started at 0xFF3EA5 and went to 0xC45CE8, and that overshot:
+    // the only real complaint about the original was that at R=255 it sat about
+    // 24 degrees of hue from WT_STOP (0xFF4D5E), so a red warning and ordinary
+    // accent chrome read as the same family on a lit panel. Solving that by
+    // going purple solved a problem nobody had -- a theme called CYPHERPINK
+    // should be pink.
+    //
+    // 0xE85AB8 is the answer to the actual constraint. The red channel drops
+    // from 255 to 232 and the hue moves further round, so it is not in WT_STOP's
+    // family; it is plainly pink rather than violet; and its relative luminance
+    // sits between the two it replaces, so nothing about contrast changes.
+    // Status colours never move, so the accent is the one that has to.
+    0xE85AB8,   // CYPHERPINK
     0xFF8A3D,   // ORANGE
 };
 static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
     0x232E42,   // MONO: cool ink glass, bright enough that "selected" is obvious
     0x102417,   // GREEN
-    0x20182D,   // CYPHERPINK
+    0x261724,   // CYPHERPINK
     0x2B190D,   // ORANGE
 };
 // Each row is its accent scaled by the same per-channel ratios the pink pair
@@ -183,7 +188,7 @@ static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
 static const uint32_t ACC_PRESS_HEX[WT_ACC_N] = {
     0x33405A,
     0x173823,
-    0x2C2243,
+    0x342135,
     0x3A2513,
 };
 
@@ -599,7 +604,18 @@ lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
     lv_obj_remove_style_all(p);
     lv_obj_set_size(p, w, h);
     lv_obj_set_pos(p, x, y);
-    lv_obj_set_style_radius(p, 26, 0);
+    // 10, the same radius wt_card and wt_row_x use. It was 26 -- a lozenge --
+    // for as long as buttons were the only boxes on the page. They are not: the
+    // device is a list of rounded rectangles now, and a lozenge sitting under a
+    // column of them reads as a different family of object rather than as the
+    // same family doing a different job.
+    //
+    // What stays round is anything that is a MARK rather than a control: the "?"
+    // chip, the explainer's icon badge, the glossary's grid badges, the diagram
+    // tokens in wt_chip. A rectangle is the shape of "this does something"; a
+    // circle is the shape of "this is a thing". The word "pill" survives in
+    // every name here because renaming forty call sites would say nothing.
+    lv_obj_set_style_radius(p, 10, 0);
     lv_obj_set_style_bg_color(p, WT_KEY, 0);
     lv_obj_set_style_bg_color(p, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
@@ -705,7 +721,7 @@ lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int 
     lv_obj_remove_style_all(f);
     lv_obj_set_size(f, 0, h_);
     lv_obj_set_pos(f, 0, 0);
-    lv_obj_set_style_radius(f, 26, 0);
+    lv_obj_set_style_radius(f, 10, 0);   // matches the pill it sweeps across
     lv_obj_set_style_bg_color(f, WT_STOP, 0);
     lv_obj_set_style_bg_opa(f, 90, 0);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
