@@ -648,23 +648,32 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   if (wallet_session_address(0, idx, addr, sizeof addr) != 0)
     snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
 
-  lv_obj_t *row = wt_card(list, 0, 0, 690, ROW_H);
-  lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-  lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, LV_STATE_PRESSED);
-  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-  wt_tap_feedback(row);
-  lv_obj_add_event_cb(row, row_tap_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)idx);
+  // A wt_row_x shell rather than a bare wt_card, for the CHEVRON. These rows
+  // already looked right -- a card, a fill, an edge -- and never said the one
+  // thing that mattered, which is that tapping an address opens it. The rest of
+  // the device says that with a chevron and this list was the only place that
+  // did not.
+  //
+  // Empty label and no sub: the address is a wt_addr_short span group, which
+  // lights its head and tail in different inks, so it cannot be a row's plain
+  // label. The row is built empty and the span group is placed into it, which
+  // is what the icon lane at x=52 is measured to leave room for.
+  char num[8];
+  snprintf(num, sizeof num, "#%u", (unsigned)idx);
+  lv_obj_t *row = wt_row_x(list, LV_SYMBOL_DOWNLOAD, "", NULL, NULL, NULL,
+                           NULL, WT_MUT, false, 0, 0, 690, ROW_H,
+                           row_tap_cb, (void *)(uintptr_t)idx);
 
   // The index is a label FOR the address, not a rival to it, so it stays in the
   // small face while the address gets the readable one.
   lv_obj_t *n = lv_label_create(row);
-  lv_label_set_text_fmt(n, "#%u", (unsigned)idx);
+  lv_label_set_text(n, num);
   lv_obj_set_style_text_font(n, wt_font14(), 0);
   lv_obj_set_style_text_color(n, WT_MUT, 0);
-  lv_obj_align(n, LV_ALIGN_LEFT_MID, 14, 0);
+  lv_obj_align(n, LV_ALIGN_LEFT_MID, 52, 0);
 
   lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono28());
-  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 66, 0);
+  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 104, 0);
   return row;
 }
 

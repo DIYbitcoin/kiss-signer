@@ -1479,22 +1479,38 @@ static void file_tap_cb(lv_event_t *e)
     verify_screen(parent);
 }
 
+// Both dead ends on the SD path: no card in the slot, and a card with no .psbt
+// on it. They were a bare 28px line and a grey paragraph floating on an empty
+// page -- the only two screens in SIGN with no card frame and no mark, which is
+// the wrong pair of screens to leave looking unfinished, because they are the
+// two the owner reaches when something has already gone wrong. Same card, same
+// amber SD glyph, same words.
+static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body)
+{
+    mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
+    lv_obj_t *card = wt_card(s_scr, 48, 140, 704, 200);
+    lv_obj_t *ic = wt_lbl(card, WT_ICON_SD, 0, 0, wt_font28(), WARN_COL);
+    lv_obj_align(ic, LV_ALIGN_TOP_LEFT, 28, 26);
+    lv_obj_t *h = wt_lbl(card, head, 76, 22, wt_font28(), INK_COL);
+    lv_obj_set_width(h, 600);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(h);
+    wt_note_col(card, body, 28, 22 + lv_obj_get_height(h) + 14, 648,
+                200 - 58 - lv_obj_get_height(h), MUT_COL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
+}
+
 static void sd_open(lv_obj_t *parent)
 {
     s_src = SRC_SD;
     if (platform_sd_mount() != 0) {
-        mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
-        mk_lbl(tr(STR_S_NO_SD), 48, 140, wt_font28(), INK_COL);
-        wt_note_col(s_scr, tr(STR_S_INSERT_CARD), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
+        sd_empty_screen(parent, tr(STR_S_NO_SD), tr(STR_S_INSERT_CARD));
         return;
     }
     int n = platform_sd_list_psbt(s_files, MAX_FILES);
     if (n <= 0) {
-        mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
-        mk_lbl(tr(STR_S_NO_PSBT_FILES), 48, 140, wt_font28(), INK_COL);
-        wt_note_col(s_scr, tr(STR_S_SPARROW_SAVE), 48, 184, 704, 116, MUT_COL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
+        sd_empty_screen(parent, tr(STR_S_NO_PSBT_FILES),
+                        tr(STR_S_SPARROW_SAVE));
         return;
     }
     mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
@@ -1508,66 +1524,42 @@ static void sd_open(lv_obj_t *parent)
     // All discovered files fit in one scrollable, deterministic list. Unsigned
     // work is sorted first; signed PSBTs remain available for multisig handoffs
     // but are visibly labelled so nobody accidentally treats one as fresh.
+#define FILE_ROW_W 560
     lv_obj_t *list = lv_obj_create(s_scr);
     lv_obj_remove_style_all(list);
     lv_obj_set_pos(list, 48, 126);
-    lv_obj_set_size(list, 560, 264);
+    lv_obj_set_size(list, FILE_ROW_W, 264);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(list, 8, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    // One wt_row per file. These were hand built at radius 26 -- pill shaped
+    // list items, which is the loudest form of the idiom this device has
+    // stopped using: a row of buttons reads as six things to press, a row of
+    // cards reads as six things to choose between, and choosing is what this
+    // screen is for. wt_row_x also brings the chevron, which is the one thing
+    // the old rows never said: that tapping a filename OPENS it.
+    //
+    // The file glyph does the work the border colour used to. UNSIGNED stays as
+    // the value in the row's right slot, in WT_WARN when the file has already
+    // been signed, so "this one is spent" is still said twice.
     for (int i = 0; i < n; i++) {
         size_t nl = strlen(s_files[i]);
         bool signed_file = nl >= 12
                         && strcasecmp(s_files[i] + nl - 12, "-signed.psbt") == 0;
-        lv_obj_t *row = lv_obj_create(list);
-        lv_obj_remove_style_all(row);
+        lv_obj_t *row = wt_row_x(list, LV_SYMBOL_FILE, s_files[i], NULL, NULL,
+                                 signed_file ? tr(STR_S_SIGNED_T)
+                                             : tr(STR_S_FILE_UNSIGNED),
+                                 wt_font14(),
+                                 signed_file ? WARN_COL : MUT_COL, false,
+                                 0, 0, FILE_ROW_W, 0, file_tap_cb,
+                                 (void *)(intptr_t)i);
+        // The flex list places it, so the absolute x/y above are ignored, but
+        // the WIDTH is not: wt_row_x measures the label lane against it before
+        // flex ever runs. Passing the list's real width is what keeps a long
+        // filename ellipsising instead of running under the tag.
         lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_height(row, 56);
-        lv_obj_set_style_radius(row, 26, 0);
-        lv_obj_set_style_bg_color(row, KEY_COL, 0);
-        lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(row, 1, 0);
-        lv_obj_set_style_border_color(row, signed_file ? WARN_COL : MUT_COL, 0);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(row, file_tap_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-
-        // A flex row, so the name takes whatever the tag leaves and not a pixel
-        // more. The name used to be a fixed 410 wide aligned left and the tag
-        // aligned right, which is two independent guesses about one 560px row:
-        // "UNSIGNED" is 113px in Italian and 130 in Polish, so the tag walked
-        // left into the filename in six languages and the two overprinted.
-        // flex_grow makes the arithmetic the layout's problem, which means a
-        // longer translation shortens the ellipsis instead of colliding.
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_left(row, 20, 0);
-        lv_obj_set_style_pad_right(row, 18, 0);
-        lv_obj_set_style_pad_column(row, 16, 0);
-
-        lv_obj_t *name = lv_label_create(row);
-        lv_label_set_text(name, s_files[i]);
-        lv_obj_set_style_text_color(name, signed_file ? MUT_COL : INK_COL, 0);
-        // WHICH transaction you are about to sign, and it was the smallest type
-        // on the screen. One line at 23 fits the 56px row easily; the ladder
-        // only drops a name to 14 when it is long enough that 23 would run into
-        // LONG_DOT, because a truncated filename is worse than a small one.
-        // Measured at 370, the width left once the longest tag and both gutters
-        // are taken, so the font is chosen against the room the name will
-        // actually get rather than the room it used to assume.
-        lv_obj_set_style_text_font(name, wt_body_font(s_files[i], 370, 29), 0);
-        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-        lv_obj_set_flex_grow(name, 1);
-
-        lv_obj_t *tag = lv_label_create(row);
-        lv_label_set_text(tag, signed_file ? tr(STR_S_SIGNED_T)
-                                           : tr(STR_S_FILE_UNSIGNED));
-        lv_obj_set_style_text_color(tag, signed_file ? WARN_COL : MUT_COL, 0);
-        lv_obj_set_style_text_font(tag, wt_font14(), 0);
-        lv_obj_set_style_text_letter_space(tag, 1, 0);
     }
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
@@ -1774,38 +1766,36 @@ void wallet_sign_open(lv_obj_t *parent)
     // x=592, 24px clear of the chip. Was 580 against a chip that started at
     // 652; the chip grew left when its label went from font14 to font23.
     wt_sub_fit(s_scr, 544);
-    // Both ways in are the same size. SCAN QR is short and primary, so on its
-    // own wt_pill_fit gave it 28 while FROM SD CARD sat at 23 right underneath
-    // -- two buttons offering the same choice, one visibly louder. Primary
-    // still means primary; it says so with fill and border, not by being the
-    // only readable label in the pair.
-    // 140 / 268 rather than 150 / 230: each pill's explanation sits beside it,
-    // and at 80px apart the top one had 78px of column for a sentence that
-    // wants three readable lines. It was rendering at font14 next to a 28px
-    // button. Widening the gap is free, the bottom 120px of this page is empty.
-    // Icons ride inside the labels, so every measurement below still sees the
-    // exact string that gets drawn.
-    char qtxt[WT_ICON_TEXT_MAX], sdtxt[WT_ICON_TEXT_MAX];
-    wt_icon_text(qtxt, sizeof qtxt, WT_ICON_QR, tr(STR_S_SCAN_QR));
-    wt_icon_text(sdtxt, sizeof sdtxt, WT_ICON_SD, tr(STR_S_FROM_SD));
-    // A card per way in, sized to its own note rather than to a shared pitch:
-    // SCAN QR's explanation is three readable lines and FROM SD CARD's is two, so
-    // equal cards would either starve the first or pad the second. The pill is
-    // centred in its card and the note sits beside it, which is the same row the
-    // storage and address type choosers are built from.
-    wt_card(s_scr, WT_CHOICE_X, 132, WT_CHOICE_W, 140);
-    wt_card(s_scr, WT_CHOICE_X, 280, WT_CHOICE_W, 88);
-
-    lv_obj_t *q = mk_pill(qtxt, 48, 172, 340, scan_pick_cb);
-    wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
-    lv_obj_t *sd = mk_pill(sdtxt, 48, 294, 340, sd_pick_cb);
-    {
-        const char *src_lbls[2] = { qtxt, sdtxt };
-        wt_pill_fit_t f = wt_pill_group_fit(src_lbls, 2, 340, 60, true);
-        wt_pill_apply_fit(q, f, 340);
-        wt_pill_apply_fit(sd, f, 340);
-    }
-    wt_note(s_scr, tr(STR_S_POINT_CAM), 414, 144, 322, 116);
+    // Two ways in, as rows. They were pills centred in cards with their
+    // explanations floating alongside: a button apiece for two things that are
+    // both destinations, each trailing a paragraph that belonged to it but was
+    // not attached to it. A row says all of that in one object -- the way in is
+    // the label, what it does is the sub-line, the chevron says it opens
+    // something -- and it says it in the same shape SETTINGS and WALLET use, so
+    // there is one list idiom on the device instead of two.
+    //
+    // The icons carry the distinction faster than the words do: a QR code and an
+    // SD card are recognised across a room. Both are in the baked SYMS set.
+    //
+    // The primary/secondary pair is gone with the pills, and nothing is lost.
+    // "QR first, card second" was said with fill and border weight; it is said
+    // now by being the first row, which is how every list on this device already
+    // says what to reach for first.
+    // One row down the grid, not from the top of it. Only this chooser carries
+    // the PSBT help chip, which sits on the subtitle's row at 64..108 and would
+    // have the first row's top edge through it at the 96 content line. Two rows
+    // from WT_CHOICE_Y(1) run 198..294 and centre the pair in the page instead.
+    //
+    // Both subs are forced to font14 rather than sized apiece. wt_body_font
+    // answers per string, so the two-line SCAN QR note came back at 14 and the
+    // one-line SD note at 23 -- two rows offering the same kind of choice, one
+    // of them visibly shouting. A group shares a size or it stops being a group.
+    wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR), tr(STR_S_POINT_CAM),
+             wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
+             WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
+    wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), tr(STR_S_OR_LOAD),
+             wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
+             WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
     // A labelled help target teaches the acronym at first sight. An anonymous
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);
@@ -1841,6 +1831,5 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_style_text_color(hq, MUT_COL, 0);
     lv_obj_set_style_text_font(hq, wt_font23(), 0);
     lv_obj_align(hq, LV_ALIGN_RIGHT_MID, -18, 0);
-    wt_note(s_scr, tr(STR_S_OR_LOAD), 414, 296, 322, 58);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }

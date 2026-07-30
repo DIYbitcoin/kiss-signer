@@ -1227,12 +1227,27 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
                    lv_color_t vcol, int x, int y, int w,
                    lv_event_cb_t cb, void *ud)
 {
+    return wt_row_x(scr, NULL, label, sub, sf, val, vf, vcol, false,
+                    x, y, w, 0, cb, ud);
+}
+
+lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
+                   const char *sub, const lv_font_t *sf,
+                   const char *val, const lv_font_t *vf, lv_color_t vcol,
+                   bool sel, int x, int y, int w, int h,
+                   lv_event_cb_t cb, void *ud)
+{
+    // A NULL sf means two different things depending on the height, so the
+    // answer has to be taken before the default lands on it: on a standard row
+    // it is font14, on a tall one it is "measure the box and pick".
+    const bool sf_auto = (sf == NULL);
+    const int rowh = h > 0 ? h : WT_ROW_H;
     if (!sf) sf = wt_font14();
     if (!vf) vf = wt_font23();
     lv_obj_t *row = lv_obj_create(scr);
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
-    lv_obj_set_size(row, w, WT_ROW_H);
+    lv_obj_set_size(row, w, rowh);
     lv_obj_set_style_radius(row, 10, 0);
     lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
@@ -1262,8 +1277,26 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
     }
 
     // The chevron first, so everything else can be measured against it.
+    //
+    // SELECTED rows get a TICK there instead, in the accent, and the accent on
+    // the border. That swap is the whole reason this row exists: a chooser is
+    // not navigation. A chevron on STORAGE's three options promises each one
+    // leads somewhere, when what they actually do is turn on. A tick answers
+    // the only question the screen is asking -- which of these is live -- and
+    // it answers it in a mark rather than a word, in every locale at once.
+    //
+    // Not a filled row. A filled card in a list of three reads as "pressed",
+    // and these are not momentary; the accent edge says selected without
+    // borrowing the language of a button being held.
     int right = w - 12;
-    if (cb) {
+    if (sel) {
+        lv_obj_set_style_border_color(row, wt_accent(), 0);
+        lv_obj_t *ok = wt_lbl(row, LV_SYMBOL_OK, 0, 0, wt_font23(),
+                              wt_accent());
+        lv_obj_update_layout(ok);
+        lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -10, 0);
+        right = w - 10 - lv_obj_get_width(ok) - 10;
+    } else if (cb) {
         // WT_DIM, not WT_MUT: the drawing's chevrons are rgb(76,86,102), a rung
         // dimmer than its sub-lines. A chevron is an affordance, not content, so
         // it should be the quietest ink on the card.
@@ -1271,6 +1304,21 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
         lv_obj_update_layout(ch);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -10, 0);
         right = w - 10 - lv_obj_get_width(ch) - 10;
+    }
+
+    // The icon badge, and the lane every text on the row starts from. 14 with
+    // no icon, 52 with one: a 30px glyph at 14 plus an 8px gutter.
+    //
+    // The badge is a bare glyph and not a chip. A chip around it would be a
+    // third box inside a box inside a card, and the row's own border is already
+    // doing the framing this needs -- the explainer's badge is a chip precisely
+    // because it floats on an open page with nothing else to hold it.
+    const int lx = (icon && *icon) ? 52 : 14;
+    if (icon && *icon) {
+        lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(),
+                              sel ? wt_accent() : WT_MUT);
+        lv_obj_update_layout(ic);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, 14, 0);
     }
 
     // The LABEL gets the full width on its own line, and the sub-line below
@@ -1305,7 +1353,7 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
     // against "FLASH" was clean. One line means the row's internal geometry is
     // the same in every locale, and a translation too long to fit ellipsises
     // rather than rearranging the row.
-    lv_obj_t *l = wt_lbl(row, label, 14, sub && *sub ? 7 : 18,
+    lv_obj_t *l = wt_lbl(row, label, lx, sub && *sub ? 7 : 18,
                          wt_font23(), WT_INK);
     // Width stops short of the value, and the height is pinned to one line.
     // Both are needed. Pinning alone left the label's BOX spanning to the
@@ -1324,7 +1372,7 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
     // with every value on the page. The labels are short enough for this to cost
     // nothing: the one that was not, "Recovery words live in", is "Words live
     // in" now.
-    int lw = right - vw - (vw ? 12 : 0) - 14;
+    int lw = right - vw - (vw ? 12 : 0) - lx;
     lv_obj_set_width(l, lw > 60 ? lw : 60);
     lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -1333,23 +1381,59 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
     int liney = (sub && *sub) ? 7 + lv_obj_get_height(l) + 3 : 0;
 
     if (v) {
-        lv_obj_set_pos(v, right - vw, (WT_ROW_H - lv_obj_get_height(v)) / 2);
+        lv_obj_set_pos(v, right - vw, (rowh - lv_obj_get_height(v)) / 2);
         right -= vw + 12;
     }
 
     if (sub && *sub) {
-        lv_obj_t *s = wt_lbl(row, sub, 14, liney, sf, WT_MUT);
-        lv_obj_set_width(s, right - 14 > 40 ? right - 14 : 40);
-        // ONE line, height pinned. The width left for the sub depends on how
-        // wide the VALUE turned out, and a translated value ("DESACTIVADO" for
-        // OFF) squeezes it enough to wrap: the second line then fell past the
-        // row's bottom edge and was clipped in seven locales while English was
-        // clean. Pinning the height makes LONG_DOT truncate instead of wrap, so
-        // the row is the same height whatever the translation does.
-        lv_obj_set_height(s, lv_font_get_line_height(sf));
-        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+        int sw = right - lx > 40 ? right - lx : 40;
+        if (rowh > WT_ROW_H) {
+            // A TALL row's sub is a paragraph, not a caption, and it wraps. This
+            // is the chooser case: the sentence under "FLASH" is the reason
+            // somebody picks "SD CARD" instead, and an ellipsis through it takes
+            // out the second half, which is where the warning lives. Sized to
+            // the box that is actually left so a three line translation drops a
+            // font size rather than running out of the card.
+            int sh = rowh - liney - 12;
+            if (sh < 20) sh = 20;
+            lv_obj_t *s = wt_lbl(row, sub, lx, liney,
+                                 sf_auto ? wt_body_font(sub, sw, sh) : sf,
+                                 WT_MUT);
+            lv_obj_set_width(s, sw);
+            lv_obj_set_height(s, sh);
+            lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
+            lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
+        } else {
+            lv_obj_t *s = wt_lbl(row, sub, lx, liney, sf, WT_MUT);
+            lv_obj_set_width(s, sw);
+            // ONE line, height pinned. The width left for the sub depends on how
+            // wide the VALUE turned out, and a translated value ("DESACTIVADO"
+            // for OFF) squeezes it enough to wrap: the second line then fell past
+            // the row's bottom edge and was clipped in seven locales while
+            // English was clean. Pinning the height makes LONG_DOT truncate
+            // instead of wrap, so the row is the same height whatever the
+            // translation does.
+            lv_obj_set_height(s, lv_font_get_line_height(sf));
+            lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+            lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
+        }
     }
     return row;
+}
+
+// Recolour just a row's sub-line. For the one case where the explanation is a
+// warning and the option is not: FLASH storage on a chip with encryption off is
+// a legitimate mode somebody may deliberately want, so the CARD stays neutral
+// and only the sentence saying what it costs turns amber. wt_row_sev would wash
+// the whole row, and a permanently amber option in a list of three reads as
+// broken rather than as cautioned.
+//
+// By tag, not by child index: a row's children depend on which of the icon, the
+// value and the chevron it happened to be given.
+void wt_row_sub_color(lv_obj_t *row, lv_color_t c)
+{
+    lv_obj_t *s = wt_tagged(row, WT_SUB_TAG);
+    if (s) lv_obj_set_style_text_color(s, c, 0);
 }
 
 // Tint a built row by severity. Redraw 05 colours the BOX, not just a note

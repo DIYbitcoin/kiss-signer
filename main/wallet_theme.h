@@ -339,6 +339,10 @@ lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 // wallet, red for the pair that cannot be undone. PLAIN is WT_PANEL + WT_HAIR.
 enum { WT_SEV_PLAIN = 0, WT_SEV_OK, WT_SEV_WARN, WT_SEV_STOP };
 void wt_row_sev(lv_obj_t *row, int sev);
+// Recolour a built row's sub-line and nothing else. For an option that is fine
+// to pick but whose explanation is a warning -- FLASH storage on a chip with no
+// encryption is the case this exists for.
+void wt_row_sub_color(lv_obj_t *row, lv_color_t c);
 // The row's BOX with nothing in it: WT_PANEL fill, WT_HAIR hairline, radius 10,
 // not clickable, not scrollable. Position children relative to the card. Every
 // screen that shows a block of content wears one, because the fill is what makes
@@ -367,6 +371,37 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
                    const lv_font_t *sf, const char *val, const lv_font_t *vf,
                    lv_color_t vcol, int x, int y, int w,
                    lv_event_cb_t cb, void *ud);
+// The full row: a leading ICON badge, and a SELECTED state that swaps the
+// chevron for a tick in the accent and puts the accent on the border. Both of
+// the calls above land here with icon NULL and sel false, so this is the only
+// place a row's geometry lives.
+//
+// The icon shifts every text on the row from x=14 to x=52, which is 38px off the
+// label's lane. That is why SETTINGS and WALLET pass NULL: their cards are 365
+// wide and already carry a label and a value on one line, and FINGERPRINT beside
+// EC5A4595 has no 38px to give. Rows on the full 704 lane have it to spare, and
+// those are the ones a mark actually helps -- a file, a card, a QR and a saved
+// file are four things whose icons are recognised before their words are read.
+//
+// `sel` is for CHOOSERS, where the rows are options rather than destinations:
+// STORAGE, ADDRESS TYPE, the word count. Only ever set it on one row of a group;
+// nothing enforces that, because the caller is the only thing that knows which.
+//
+// Only codepoints in tools/fonts/gen_fonts.sh's SYMS resolve. One that is not
+// draws a blank box the width of half a line, and it draws it identically in the
+// simulator, so a wrong pick survives every gate and is caught on glass.
+// `h` is 0 for the standard WT_ROW_H row, whose sub-line is pinned to ONE line
+// and ellipsised. Pass a TALLER height and the sub becomes a paragraph instead:
+// it wraps, and with sf NULL it takes the largest size that fits the box left
+// under the label. That is what a chooser needs and a settings list does not --
+// "saved here unencrypted, your passphrase guards your real wallet and is never
+// saved here" is the reason somebody picks a different mode, and the half of it
+// that an ellipsis eats is the half that matters.
+lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
+                   const char *sub, const lv_font_t *sf,
+                   const char *val, const lv_font_t *vf, lv_color_t vcol,
+                   bool sel, int x, int y, int w, int h,
+                   lv_event_cb_t cb, void *ud);
 
 // The two-column list geometry Settings is drawn on, lifted out of it so the
 // WALLET screen cannot drift from the screen it is meant to match. First
@@ -380,14 +415,24 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
 #define WT_LIST_PITCH  71    // WT_ROW_H plus 7 of gap
 #define WT_LIST_Y(i)  (WT_LIST_TOP + WT_LIST_HEAD + (i) * WT_LIST_PITCH)
 
-// The storage chooser's three rows, which Settings and the setup wizard draw
-// identically and must never drift apart: same pill, same note, same y. The
-// CARD is drawn first and the pill and note keep their absolute positions on top
-// of it, because the note's 87px budget is exactly three lines at font23 and
-// re-parenting it into a padded box would spend pixels the longest translations
-// need. 96 is the content line every screen builds against, the pitch of 102
-// lands the third card's bottom edge on 396, and 716 wide from x=36 keeps the
-// page's 752 right margin.
+// The chooser lane, which every screen offering a short list of options draws
+// on and none of them may drift from: the storage modes, the address types, the
+// two ways into SIGN, the setup wizard's create-or-restore and its word count.
+// 716 wide from x=36 keeps the page's 752 right margin.
+//
+// These used to be CARDS with a rounded pill centred inside and a paragraph
+// floating beside it -- a button that said "press me" about a thing that is
+// really either a destination or a setting, with its explanation orbiting it.
+// They are wt_row_x lists now, which is the same idiom SETTINGS and WALLET are
+// built from: the option is the row, its explanation is the row's sub-line, and
+// the row says with a chevron or a tick which of the two kinds it is.
+//
+// The grid does NOT move: 96 is the content line every screen builds against,
+// the pitch of 102 lands the third row's bottom edge on 396, and a 96px row is
+// what gives the note three lines at font23 -- which is what Turkish,
+// Portuguese and Russian actually need for a storage mode. Only the object
+// changed. A row of this height wraps its sub-line instead of pinning it,
+// which is the whole reason wt_row_x takes a height at all.
 #define WT_CHOICE_X      36
 #define WT_CHOICE_W     716
 #define WT_CHOICE_H      96
