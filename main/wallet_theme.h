@@ -305,6 +305,19 @@ void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
 lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col);
 void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 
+// The wallet's 8-character ID, for the top-right of a screen's header row. The
+// UI layer pushes the value down with wt_set_wallet_id when a wallet unlocks,
+// so the theme needs no dependency on wallet_ui to render it; passing NULL or
+// "" clears it and wt_screen_id then draws nothing.
+//
+// Opt-in per screen rather than automatic in wt_screen, because several screens
+// already carry identity or furniture in that exact region: Sign has its
+// SIGNING AS chip, the home its fingerprint chip, Settings its theme dots, and
+// the setup chooser its language pill. Those either already satisfy the intent
+// or have nothing to show. Call this from any screen whose corner is free.
+void wt_set_wallet_id(const char *id);
+lv_obj_t *wt_screen_id(lv_obj_t *scr);
+
 // Hold-to-confirm pill: the action fires only after the finger has been held
 // down for ms, and a fill sweeps across the pill while it does. Letting go
 // early cancels and resets. Use this for anything a stray double tap must not
