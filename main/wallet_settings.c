@@ -56,12 +56,12 @@ void wallet_wiped_lock(void);
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_acc_name;            // live name under the dots
-static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl;
+static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl, *s_net_val;
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
-static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl;  // selected type row
+static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl, *s_type_val;
 static lv_obj_t *s_storage_pill;  // STORAGE over the explicit current mode
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
@@ -225,37 +225,62 @@ static void restyle(void)
             lv_obj_set_style_outline_color(s_acc_dot[i], INK_COL, 0);
         }
     if (s_acc_name) lv_label_set_text(s_acc_name, wt_accent_name());
-    lv_obj_set_style_bg_color(s_main_pill, tn ? KEY_COL : wt_accent_bg(), 0);
-    lv_obj_set_style_border_color(s_main_pill, tn ? MUT_COL : wt_primary(), 0);
-    lv_obj_set_style_border_width(s_main_pill, tn ? 1 : 2, 0);
-    lv_obj_set_style_bg_color(s_test_pill, tn ? lv_color_hex(0x2A2113) : KEY_COL, 0);
-    lv_obj_set_style_border_color(s_test_pill, tn ? WARN_COL : MUT_COL, 0);
-    lv_obj_set_style_border_width(s_test_pill, tn ? 2 : 1, 0);
-    wt_note_fit(s_state_lbl, tn ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
-                340, NET_NOTE_H);
-    lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
-
-    if (s_type_pill) {
-        int sc = wallet_script();
-        lv_label_set_text(lv_obj_get_child(s_type_pill, 0), type_name(sc));
-        lv_label_set_text(s_type_pfx, type_prefix(sc, tn));
-        lv_obj_set_style_text_color(s_type_pfx, wt_accent(), 0);
-        wt_pill_select(s_type_pill, true);
-        wt_note_fit(s_type_expl, type_note(sc), 340, TYPE_NOTE_H);
+    // The network row's value: the live network name, amber on testnet. That
+    // colour is the whole warning now that the two pills are gone, and it is
+    // paired with the sub-line below so the state never rests on colour alone.
+    if (s_net_val) {
+        int oldw = lv_obj_get_width(s_net_val);
+        int oldx = lv_obj_get_x(s_net_val);
+        lv_label_set_text(s_net_val, tn ? "TESTNET" : "MAINNET");
+        lv_obj_set_style_text_color(s_net_val, tn ? WARN_COL : INK_COL, 0);
+        lv_obj_update_layout(s_net_val);
+        // Keep its RIGHT edge where wt_row put it. Both words are untranslated
+        // and near enough the same width that this is usually a no-op, but
+        // re-anchoring from the right means it can never drift into the note.
+        lv_obj_set_x(s_net_val, oldx + oldw - lv_obj_get_width(s_net_val));
+    }
+    // The network note is a plain row sub-line now, not an auto-fitting note
+    // block: the row owns the width and the type size, so this only sets text
+    // and colour.
+    if (s_state_lbl) {
+        lv_label_set_text(s_state_lbl, tn ? tr(STR_G_TESTNET_NOTE)
+                                          : tr(STR_G_MAINNET_NOTE));
+        lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
     }
 
-    // The storage pill is selected, so wt_pill_select paints it in the accent,
-    // and it was painted once at build time and never again. Picking a new
-    // theme on this very screen left it wearing the old one until something
-    // else rebuilt the screen, which made the theme look like it had only half
-    // applied. Every other selected control on this screen is re-asserted
-    // above; this one was simply missed.
-    if (s_storage_pill) wt_pill_select(s_storage_pill, true);
+    // The address type row carries the type NAME as its right-hand value and the
+    // derivation path as its sub-line. Both are rebuilt by walking the row's
+    // children rather than by index, because wt_row adds the chevron first and a
+    // row without a sub-line has one child fewer.
+    if (s_type_pill) {
+        int sc = wallet_script();
+        if (s_type_pfx) lv_label_set_text(s_type_pfx, type_prefix(sc, tn));
+        if (s_type_val) {
+            int oldw = lv_obj_get_width(s_type_val);
+            int oldx = lv_obj_get_x(s_type_val);
+            lv_label_set_text(s_type_val, type_name(sc));
+            lv_obj_update_layout(s_type_val);
+            lv_obj_set_x(s_type_val, oldx + oldw - lv_obj_get_width(s_type_val));
+        }
+    }
 }
 
 static void pick_cb(lv_event_t *e)
 {
     int tn = (int)(intptr_t)lv_event_get_user_data(e);
+    wallet_set_network(tn);
+    store_u8("testnet", tn ? 1 : 0);
+    restyle();
+}
+
+// The network row: one tap flips it. Reversible in one more tap, exactly as the
+// two pills were, and the row's value plus its amber sub-line say which side you
+// are on. Nothing is derived until a screen asks for an address, so flipping
+// here costs nothing and destroys nothing.
+static void net_toggle_cb(lv_event_t *e)
+{
+    (void)e;
+    int tn = wallet_testnet() ? 0 : 1;
     wallet_set_network(tn);
     store_u8("testnet", tn ? 1 : 0);
     restyle();
@@ -918,44 +943,84 @@ void wallet_settings_open(lv_obj_t *parent)
     lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_pos(s_acc_name, 430, 39);       // centred on the 36px dot row
 
-    // LEFT: network + address type + ways in. The captions are small on
-    // purpose; the vertical budget they give back is what lets every note under
-    // a chooser render at a readable size instead of falling to font14.
+    // Redraw 05: two columns of ROWS under section eyebrows, not a grid of
+    // pills. Measured off the drawing: left column x=48 w=352, right x=424
+    // w=328, eyebrow then rows at WT_ROW_H each.
     //
-    // Five controls in the 74..WT_CONTENT_BOTTOM band, which is 324px. Stacked
-    // the way they were, the last one ran to y=452 and WAYS IN was sliced in
-    // half by the action row -- reported by sim/overlapcheck.c in all 21
-    // locales, and visible on the device as a caption with its bottom missing.
-    // Two things pay for the 54px that buys back:
+    // Why this shape rather than the pills it replaces. Eleven pills gave every
+    // control the same visual weight and the same answer to "what is this
+    // setting currently?", which was a second line of small type inside a
+    // button. A row states the setting on the left, its value on the right and
+    // the consequence underneath, so the page can be read down the value column
+    // alone. The groups are what make the destructive pair legible as a class
+    // instead of two more buttons in a stack.
     //
-    // MAINNET and TESTNET share ONE row instead of stacking. They are two
-    // values of one setting, and side by side is what that looks like; stacked
-    // they read as two separate buttons, which is also why the selected one
-    // needed a 2px border to say which was live. Both words are untranslated,
-    // so 165px is generous for either at font23 in every locale.
-    //
-    // And the column starts at 68 rather than 74. This screen passes NULL for
-    // the subtitle, so the y=96 content line the others build against does not
-    // apply: the title's own box ends at 63.
-    mk_section(tr(STR_I_SEC_NET), 48, 68);
-    s_main_pill = mk_pillh("MAINNET", 48, 88, 165, 44, pick_cb, (void *)(intptr_t)0);
-    s_test_pill = mk_pillh("TESTNET", 223, 88, 165, 44, pick_cb, (void *)(intptr_t)1);
-    s_state_lbl = wt_note(s_scr, "", 48, 136, 340, NET_NOTE_H);  // filled by restyle()
+    // MAINNET and TESTNET stay a real pair of pills: they are two values of one
+    // setting and the only control here where the choice itself is the widget.
+#define SG_L_X   48
+#define SG_L_W   376
+#define SG_R_X   448
+#define SG_R_W   304
+#define SG_TOP   72
+    wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
-    // The main page shows the selected type as one normal-size row. Tapping it
-    // opens a dedicated full-width chooser where all three names and their
-    // explanations fit at 23px.
-    mk_section(tr(STR_I_SEC_TYPE), 48, 198);   // 4px below the note at 136+58
-    // 72 tall, not 60: the example address is the second line and it is now a
-    // readable 23 rather than a 14px footnote on its own button. 72 is the
-    // smallest height that still leaves the type NAME at 23 above it.
-    s_type_pill = mk_pillh(type_name(wallet_script()), 48, 218, 340, 72,
-                           type_open_cb, NULL);
-    wt_pill_two_line_val(s_type_pill,
-                         type_prefix(wallet_script(), wallet_testnet()));
-    s_type_pfx = lv_obj_get_child(s_type_pill, 1);
-    s_type_expl = wt_note(s_scr, type_note(wallet_script()),
-                          48, 293, 340, TYPE_NOTE_H);
+    // Network: one row like the rest, its value the live network. The old pair
+    // of MAINNET/TESTNET pills is gone from this page. They needed 165px each to
+    // set at font23, and inside a row that left the label 20px; squeezed to 88
+    // both words wrapped mid-syllable. A row whose value says which network is
+    // live, and whose sub-line says whether the coins are real, states the same
+    // thing in the same idiom as the three rows under it. pick_cb still takes the
+    // network, so the tap flips it and restyle repaints the value.
+    {
+        int y = SG_TOP + 22;
+        // Built with real sub and value text so wt_row lays the line out, then
+        // restyle finds both back by walking. Handing it empty strings and
+        // adding my own labels afterwards is what put the note on top of the
+        // label: wt_row only reserves the sub-line when it is given one.
+        int tn0 = wallet_testnet();
+        s_main_pill = wt_row(s_scr, tr(STR_I_ROW_NETWORK),
+                             tn0 ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
+                             tn0 ? "TESTNET" : "MAINNET",
+                             tn0 ? WARN_COL : INK_COL,
+                             SG_L_X, y, SG_L_W, net_toggle_cb, NULL);
+        s_test_pill = NULL;
+        s_net_val = s_state_lbl = NULL;
+        uint32_t n = lv_obj_get_child_count(s_main_pill);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(s_main_pill, i);
+            if (!lv_obj_check_type(c, &lv_label_class)) continue;
+            const char *t = lv_label_get_text(c);
+            if (!t) continue;
+            if (!strcmp(t, "TESTNET") || !strcmp(t, "MAINNET")) s_net_val = c;
+            else if (lv_obj_get_x(c) == 14 && lv_obj_get_y(c) > 20) s_state_lbl = c;
+        }
+    }
+
+    // Address type: the path is the sub-line, the type name is the value.
+    s_type_pill = wt_row(s_scr, tr(STR_I_ROW_TYPE),
+                         type_prefix(wallet_script(), wallet_testnet()),
+                         type_name(wallet_script()), WT_INK,
+                         SG_L_X, SG_TOP + 22 + WT_ROW_H, SG_L_W,
+                         type_open_cb, NULL);
+    s_type_expl = NULL;                // the explanation lives on the chooser
+    // Capture the two labels restyle has to rewrite, rather than letting it
+    // guess by x. Guessing matched the CHEVRON too, so the arrow's glyph was
+    // replaced by the type name and the row grew a ghost second value.
+    s_type_pfx = NULL;
+    s_type_val = NULL;
+    {
+        uint32_t n = lv_obj_get_child_count(s_type_pill);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(s_type_pill, i);
+            if (!lv_obj_check_type(c, &lv_label_class)) continue;
+            const char *t = lv_label_get_text(c);
+            if (!t) continue;
+            if (!strcmp(t, type_prefix(wallet_script(), wallet_testnet())))
+                s_type_pfx = c;
+            else if (!strcmp(t, type_name(wallet_script())))
+                s_type_val = c;
+        }
+    }
     // Duress unlock (wallet_duress.h). ABSENT in a decoy session, not greyed
     // out: a disabled "ways in" row would tell whoever is holding the device
     // that a second signer exists, which is the one thing this must never do.
@@ -991,68 +1056,36 @@ void wallet_settings_open(lv_obj_t *parent)
     // empty slot at the bottom of a column reads as the end of the column,
     // which is what the paragraph above wants: the page that shipped before
     // this feature existed.
+    // Storage joins the left column, third row: it belongs with the facts about
+    // THIS WALLET rather than opening the right column, and the drawing puts it
+    // there. Its sub-line is the honest flash-encryption state.
+    s_storage_pill = wt_row(s_scr, tr(STR_I_ROW_STORAGE),
+                            wallet_seed_mode() == WSEED_MODE_KEEP &&
+                            !wallet_seed_flash_encrypted()
+                                ? tr(STR_W_FLASH_PLAIN_NOTE_SHORT) : "",
+                            storage_mode_name(wallet_seed_mode()), WT_INK,
+                            SG_L_X, SG_TOP + 22 + 2 * WT_ROW_H, SG_L_W,
+                            storage_open_cb, NULL);
+
     const int g = wallet_duress_real();
     if (!(wallet_session_decoy() && g != WDG_NONE)) {
-        lv_obj_t *dp = mk_pillh(tr(STR_GD_SET_BTN), 48, 326, 340, 72, duress_cb, NULL);
-        wt_pill_two_line_val(dp, g == WDG_NONE ? tr(STR_GD_OFF)
-                                               : tr(wallet_duress_label_key(g)));
+        wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_SUB),
+               g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+               WT_INK, SG_L_X, SG_TOP + 22 + 3 * WT_ROW_H, SG_L_W,
+               duress_cb, NULL);
     }
 
-    // RIGHT: the current storage mode is first and explicit. This is the only
-    // setting that decides whether wallet material remains after power-off, so
-    // it must not be hidden in setup or inferred from a note. Tapping opens the
-    // three-mode chooser; the second line is the current mode.
-    mk_section(tr(STR_I_T), 430, 74);
-    s_storage_pill = mk_pillh(tr(STR_G_STORAGE_SEC), 430, 94, 340, 72,
-                              storage_open_cb, NULL);
-    wt_pill_two_line_val(s_storage_pill,
-                         storage_mode_name(wallet_seed_mode()));
-    wt_pill_select(s_storage_pill, true);
-
-    // NO UNDO rule: one 1px WT_STOP hair with the label sitting on it, at
-    // y=176, before the two destructive actions. Groups CREATE NEW and WIPE
-    // together as the same class of thing. The rule is why the wipe note is
-    // gone from y=366: the two-word label under a red hairline says the same
-    // caution in the space a caption used, and confirmations still explain
-    // both actions in full before either runs.
+    // RIGHT COLUMN, group one: the backup. Redraw 05 gives this its own eyebrow
+    // rather than leaving the words row adrift among the destructive buttons,
+    // and that separation is the point: reading your words and destroying them
+    // are opposite intentions that used to sit in one stack.
+    wt_row_head(s_scr, tr(STR_I_SEC_YOUR_BACKUP), SG_R_X, SG_TOP, SG_R_W);
+    wt_row(s_scr, tr(STR_I_ROW_WORDS), tr(STR_I_WORDS_SUB), NULL, WT_INK,
+           SG_R_X, SG_TOP + 22, SG_R_W, words_cb, NULL);
     {
-        lv_obj_t *rule = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(rule);
-        lv_obj_set_pos(rule, 430, 186);
-        lv_obj_set_size(rule, 340, 1);
-        lv_obj_set_style_bg_color(rule, WT_STOP, 0);
-        lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
-        lv_obj_t *lbl = lv_label_create(s_scr);
-        lv_label_set_text(lbl, tr(STR_I_SEC_NO_UNDO));
-        lv_obj_set_style_text_font(lbl, wt_font14(), 0);
-        lv_obj_set_style_text_color(lbl, WT_STOP, 0);
-        lv_obj_set_style_text_letter_space(lbl, 2, 0);
-        lv_obj_set_style_bg_color(lbl, WT_BG, 0);       // knock out the rule
-        lv_obj_set_style_bg_opa(lbl, LV_OPA_COVER, 0);
-        lv_obj_set_style_pad_hor(lbl, 6, 0);
-        lv_obj_set_pos(lbl, 436, 176);                  // slight inset from rule end
-    }
-
-    // Under the rule: CREATE NEW at 200, WIPE joins it at 256. Both are the
-    // destructive actions; the rule above says why they belong together.
-    s_replace_pill = mk_pillh(tr(STR_G_CREATE_NEW), 430, 200, 340, 52,
-                              replace_cb, NULL);
-
-    // wipe: seed off the device entirely (back to just a game). Red text so it
-    // reads as destructive before it's ever tapped; a hold on the next screen
-    // is what actually erases.
-    s_wipe_pill = mk_pillh(tr(STR_G_WIPE), 430, 256, 340, 52, wipe_cb, NULL);
-    lv_obj_set_style_text_color(lv_obj_get_child(s_wipe_pill, 0), STOP_COL, 0);
-
-    // RECOVERY WORDS: the row moves DOWN and grows to 72 tall + two lines, so
-    // the second line can carry whether the paper backup was ever rehearsed
-    // on this device. The redraw that spawned this asked for a separate
-    // "YOUR BACKUP" column; the columns are full to the pixel and the state
-    // belongs on the row about the words anyway. 312 + 72 = 384, 14px above
-    // the 398 floor.
-    {
-        lv_obj_t *pill = mk_pillh(tr(STR_I_WORDS_BTN), 430, 312, 340, 72,
-                                  words_cb, NULL);
+        // Paper checked: its own row, because whether the paper was ever proven
+        // against this device is a fact about the backup, not a footnote on the
+        // button that shows the words.
         bool ok = wallet_ui_backup_verified();
         char buf[160];
         if (ok) {
@@ -1067,14 +1100,43 @@ void wallet_settings_open(lv_obj_t *parent)
             snprintf(buf, sizeof buf, "%s  %s",
                      LV_SYMBOL_WARNING, tr(STR_I_WORDS_UNVERIFIED));
         }
-        wt_pill_two_line_val(pill, buf);
-        // A colour cue AND a glyph, per ADDENDUM-02: in GREEN theme the
-        // accent is byte identical to WT_OK, so colour alone stops carrying
-        // meaning. The prefix stays regardless: ✓ for verified, ▲ for the
-        // never-checked warning.
-        lv_obj_t *sub = lv_obj_get_child(pill, 1);
-        if (sub) {
-            lv_obj_set_style_text_color(sub, ok ? WT_OK : WT_WARN, 0);
+        lv_obj_t *r = wt_row(s_scr, tr(STR_I_ROW_PAPER), buf, NULL,
+                             WT_INK, SG_R_X, SG_TOP + 22 + WT_ROW_H, SG_R_W,
+                             words_cb, NULL);
+        // A colour cue AND a glyph, per ADDENDUM-02: in GREEN theme the accent
+        // is byte identical to WT_OK, so colour alone stops carrying meaning.
+        // The sub-line is the row's third child (label, sub, chevron order
+        // varies, so find it by walking rather than by index).
+        uint32_t n = lv_obj_get_child_count(r);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(r, i);
+            if (lv_obj_get_style_text_color(c, 0).blue == WT_MUT.blue &&
+                lv_obj_get_y(c) > 24)
+                lv_obj_set_style_text_color(c, ok ? WT_OK : WT_WARN, 0);
+        }
+    }
+
+    // Group two: the destructive pair, under a WT_STOP eyebrow. The rule that
+    // used to be a hairline with a knocked-out label is now just the eyebrow in
+    // stop red, because the rows below carry their own separators and a second
+    // horizontal line immediately above one reads as a rendering fault.
+    {
+        int y = SG_TOP + 22 + 2 * WT_ROW_H + 12;
+        lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
+        lv_obj_set_style_text_color(h, STOP_COL, 0);
+        s_replace_pill = wt_row(s_scr, tr(STR_I_ROW_REPLACE),
+                                tr(STR_I_ROW_REPLACE_SUB), NULL, WT_INK,
+                                SG_R_X, y + 22, SG_R_W, replace_cb, NULL);
+        // Red LABEL so it reads as destructive before it is ever tapped; a hold
+        // on the confirmation is what actually erases.
+        s_wipe_pill = wt_row(s_scr, tr(STR_I_ROW_ERASE), tr(STR_I_ROW_ERASE_SUB), NULL,
+                             WT_INK, SG_R_X, y + 22 + WT_ROW_H, SG_R_W,
+                             wipe_cb, NULL);
+        uint32_t n = lv_obj_get_child_count(s_wipe_pill);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(s_wipe_pill, i);
+            if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
+                lv_obj_set_style_text_color(c, STOP_COL, 0);
         }
     }
 

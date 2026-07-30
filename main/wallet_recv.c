@@ -759,20 +759,27 @@ static void recv_detail_open(void) {
   wt_pill_primary(wt_pillh(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT),
                            310, 344, 250, 46, next_cb, NULL));
 
-  // Action bar per HANDOFF-03: ALL ADDRESSES / SILENT PAYMENT / VERIFY / BACK.
-  // Widths 190, 200, 140, 140. Positions 48, 250, 462, 610 (WT_BACK_X). Two
-  // 12px gutters between the first three (48+190+12=250, 250+200+12=462),
-  // and 462+140+8=610 lets BACK sit on the shared WT_BACK_X anchor.
+  // Action bar, measured off redraw 03 rather than from HANDOFF-03's table:
+  // BACK / ALL ADDRESSES / SILENT PAYMENT ... VERIFY, at x 48, 160, 360 and
+  // 612 with widths 104, 192, 198 and 140.
+  //
+  // BACK is LEFTMOST here and VERIFY is the far-right primary, which is the
+  // reverse of what the handoff table said and of what every other screen on
+  // the device does. The drawing is right and it is a rule, not a quirk: the way
+  // OUT sits where a thumb rests and can be hit without looking, and the far
+  // right corner is reserved for the action that does the screen's work. The
+  // same order appears on redraws 01 and 02, so Sign follows it too.
   lv_obj_t *row[4];
-  row[0] = wt_pill(s_scr, tr(STR_R_ALL_ADDR), 48,  WT_ACTION_Y, 190,
-                   list_from_detail_cb, NULL);
-  row[1] = wt_pill(s_scr, tr(STR_R_SP_BTN),   250, WT_ACTION_Y, 200,
-                   sp_open_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY),   462, WT_ACTION_Y, 140,
-                   vfy_scan, NULL);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK),     48,  WT_ACTION_Y, 104,
                    close_cb, NULL);
+  row[1] = wt_pill(s_scr, tr(STR_R_ALL_ADDR), 160, WT_ACTION_Y, 192,
+                   list_from_detail_cb, NULL);
+  row[2] = wt_pill(s_scr, tr(STR_R_SP_BTN),   360, WT_ACTION_Y, 198,
+                   sp_open_cb, NULL);
+  row[3] = wt_pill(s_scr, tr(STR_R_VERIFY),   612, WT_ACTION_Y, 140,
+                   vfy_scan, NULL);
   wt_pill_row(row, 4);
+  wt_pill_primary(row[3]);
   recv_refresh();
 }
 

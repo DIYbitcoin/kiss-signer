@@ -806,26 +806,34 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 92);
 
-  lv_obj_t *f = lv_label_create(s_warnscr);
-  lv_label_set_text_fmt(f, "%02X%02X%02X%02X",
-                        s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
-  lv_obj_set_style_text_color(f, INK_COL, 0);
-  lv_obj_set_style_text_font(f, wt_font_mono28(), 0);
-  lv_obj_set_style_text_letter_space(f, 4, 0);
-  lv_obj_align(f, LV_ALIGN_TOP_MID, 0, 300);   // body below now runs to 295
-
-  lv_obj_t *state = lv_label_create(s_warnscr);
-  lv_label_set_text(state, s_backup_verified ? tr_sym(LV_SYMBOL_OK, STR_L_BACKUP_VERIFIED)
-                                              : tr(STR_L_BACKUP_UNVERIFIED));
-  lv_obj_set_style_text_color(state, s_backup_verified ? WT_OK : WT_STOP, 0);
-  // whether the backup is verified decides whether the red ring stays: that is
-  // a status the owner reads, not a tag, so it belongs on the ladder.
-  lv_obj_set_style_text_font(state, wt_body_font(s_backup_verified
-                                                   ? tr(STR_L_BACKUP_VERIFIED)
-                                                   : tr(STR_L_BACKUP_UNVERIFIED),
-                                                 720, 29), 0);
-  lv_obj_set_style_text_letter_space(state, 2, 0);
-  lv_obj_align(state, LV_ALIGN_TOP_MID, 0, 348);
+  // The fingerprint in a value card, and the backup state as a real chip beside
+  // it. Both were bare centred labels: on the screen that teaches an owner what
+  // they just made, the one figure they have to copy onto paper read as a line
+  // of prose rather than as the value the screen is about. The card is what the
+  // design review draws around every figure meant to be read off the glass, and
+  // it is the same object the Receive and WALLET pages now use, so the three
+  // screens present a fingerprint identically.
+  //
+  // Centred as a pair: the card sizes itself to its caption in whatever locale
+  // is rendering, so its x follows the measured width rather than a constant.
+  char fpbuf[16];
+  snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
+           s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
+  // Card and chip share a ROW rather than stacking. Stacked, the pair ran from
+  // 288 to about 414, and the tall action row starts at 398: the state a holder
+  // most needs to see would have been the half under the bar. Side by side the
+  // pair is one card tall, which the band from the body's floor to 398 can hold
+  // in every locale.
+  lv_obj_t *card = wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf,
+                                 110, 300, 300, true);
+  lv_obj_t *state = wt_state_chip(s_warnscr,
+                                  s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
+                                                    : tr(STR_L_BACKUP_UNVERIFIED),
+                                  s_backup_verified ? WT_OK : WT_STOP);
+  lv_obj_update_layout(card);
+  lv_obj_update_layout(state);
+  lv_obj_set_pos(state, 440,
+                 300 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
 
   lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
                               48, WT_ACTION_Y_TALL, 300, WT_ACTION_H_TALL, setup_warn_verify_cb, NULL);
