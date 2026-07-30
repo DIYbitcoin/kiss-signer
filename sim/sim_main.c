@@ -1149,7 +1149,7 @@ int main(void) {
   touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
-  touch(100, 60); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
+  touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
   wallet_seed_wipe();                               // pretend a factory-fresh device
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
@@ -1362,7 +1362,7 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(20);    // SETTINGS tile
   save("/tmp/sim_decoy_settings.ppm");              // no WAYS IN row here
   touch(680, 426); pump(3); release(); pump(20);    // BACK
-  touch(100, 60); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
+  touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
 
   // KISS **plus the configured stroke** must reach the PASSPHRASE login, not the
   // spare. This is the case that shipped broken and that nothing here covered:
@@ -1457,7 +1457,7 @@ int main(void) {
   // there; reinserting the card advances to the ordinary passphrase screen.
   wallet_seed_move_to(WSEED_MODE_SD);
   s_sim_sd_present = 0;
-  touch(100, 60); pump(3); release(); pump(20);      // explicit lock -> game
+  touch(44, 44); pump(3); release(); pump(20);      // explicit lock -> game
   draw_kiss();
   save("/tmp/sim_sd_missing.ppm");
   touch(168, 430); pump(3); release(); pump(8);      // TRY AGAIN, still absent
