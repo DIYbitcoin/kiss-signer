@@ -746,7 +746,7 @@ int main(void) {
   // check_sim_taps would rightly call it a dead interaction.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv.ppm");                        // HANDOFF-03 landing: single-address detail
-  touch(350, 430); pump(3); release(); pump(6);     // SILENT PAYMENT pill -> SP address view
+  touch(455, 430); pump(3); release(); pump(6);     // SILENT PAYMENT pill -> SP address view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
   save("/tmp/sim_recv_sp_zoom.ppm");
@@ -758,7 +758,7 @@ int main(void) {
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
-  touch(143, 430); pump(3); release(); pump(6);     // ALL ADDRESSES pill -> the list
+  touch(255, 430); pump(3); release(); pump(6);     // ALL ADDRESSES pill -> the list
   save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
   // -- every other container turns scrolling off -- so the walk flicks it for
@@ -776,7 +776,7 @@ int main(void) {
   touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS pill -> next index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    touch(532, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
+    touch(680, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     wallet_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
@@ -800,7 +800,7 @@ int main(void) {
     save("/tmp/sim_vfy_sp.ppm");
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
-  touch(680, 430); pump(3); release(); pump(4);     // BACK -> home
+  touch(100, 430); pump(3); release(); pump(4);     // BACK (leftmost now) -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
@@ -883,13 +883,13 @@ int main(void) {
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
   touch(400, 426); pump(3); release(); pump(6);     // OK closes the card
-  touch(133, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
+  touch(235, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
   touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
   save("/tmp/sim_sign_glossary.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // OK closes glossary
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> verify again
-  touch(446, 430); pump(40);                        // hold the sign pill: ring ~half full
+  touch(620, 430); pump(40);                        // hold the sign pill: ring ~half full
   save("/tmp/sim_sign_hold.ppm");
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
@@ -903,7 +903,7 @@ int main(void) {
   // transaction came from, not to the home screen. The three files below are
   // opened one after another without ever leaving SIGN, which is the whole
   // point -- picking the wrong file used to cost the entire trip back in.
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   save("/tmp/sim_sign_back_files.ppm");
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
@@ -920,7 +920,7 @@ int main(void) {
   // repaint is the only thing in the app that ever replaced a live screen
   // without deleting it, so if the ack pill is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
   // The caution "?" used to be anchored to the top of the caution stack, so
@@ -930,7 +930,7 @@ int main(void) {
   touch(753, 123); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
   save("/tmp/sim_sign_back_choose.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
@@ -945,7 +945,7 @@ int main(void) {
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
@@ -974,7 +974,7 @@ int main(void) {
   }
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
-  touch(446, 430); pump(40);                        // hold to sign
+  touch(620, 430); pump(40);                        // hold to sign
   pump(45); release(); pump(8);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
@@ -996,7 +996,7 @@ int main(void) {
   save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
   touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
@@ -1006,7 +1006,7 @@ int main(void) {
   // STORAGE is a first-class Settings row, not a setup-only choice. SD is
   // offered on every build now, so exercise a real FLASH -> SD migration,
   // including the fact that a short press cannot fire it.
-  touch(600, 120); pump(3); release(); pump(6);     // current FLASH -> chooser
+  touch(200, 250); pump(3); release(); pump(6);     // storage row (left col) -> chooser
   save("/tmp/sim_storage_choose.ppm");               // all three selectable
   touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
@@ -1022,14 +1022,14 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(8);     // Settings BACK -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
-  touch(600, 120); pump(3); release(); pump(6);
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
   touch(174, 136); pump(3); release(); pump(6);     // FLASH
   touch(213, 425); pump(105); release(); pump(8);
   touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  touch(600, 348); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning
+  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
@@ -1057,7 +1057,7 @@ int main(void) {
   save("/tmp/sim_verify_ok.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
 
-  touch(600, 348); pump(3); release(); pump(6);     // RECOVERY WORDS -> warning again
+  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning again
   touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
@@ -1072,7 +1072,7 @@ int main(void) {
     for (int i = 0; i < 24; i++)
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
-    touch(600, 348); pump(3); release(); pump(6);   // RECOVERY WORDS -> warning
+    touch(580, 122); pump(3); release(); pump(6);   // Recovery words row -> warning
     touch(168, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     touch(278, 430); pump(3); release(); pump(6);   // NEXT
@@ -1093,7 +1093,7 @@ int main(void) {
   // ADDRESS TYPE is a full-width subpage now: the settings row opens it, and
   // the pick happens there. Walking both halves keeps a broken chooser from
   // hiding behind a frame that only ever showed the list.
-  touch(218, 254); pump(3); release(); pump(6);     // ADDRESS TYPE row -> chooser
+  touch(200, 188); pump(3); release(); pump(6);     // Address type row -> chooser
   save("/tmp/sim_addr_type.ppm");                   // 3 names + notes, NATIVE selected
   touch(400, 122); pump(3); release(); pump(6);     // pick LEGACY -> back to settings
   save("/tmp/sim_settings_legacy.ppm");             // the row now reads Legacy / 1...
@@ -1105,7 +1105,7 @@ int main(void) {
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
-  touch(305, 110); pump(3); release(); pump(4);     // TESTNET pill (223..388, 88..132)
+  touch(200, 122); pump(3); release(); pump(4);     // Network row: one tap flips to testnet
   save("/tmp/sim_settings_tn.ppm");
   touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
@@ -1113,7 +1113,7 @@ int main(void) {
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
   // The list is one pill away now. Capture it on testnet so the tb1 rows and
   // page counter render at least once outside the fresh-landing default.
-  touch(143, 430); pump(3); release(); pump(6);     // ALL ADDRESSES -> list
+  touch(255, 430); pump(3); release(); pump(6);     // ALL ADDRESSES -> list
   save("/tmp/sim_recv_detail_tn.ppm");              // reused filename: now the list
   touch(680, 430); pump(3); release(); pump(6);     // BACK from list -> home
   touch(310, 240); pump(3); release(); pump(6);     // Receive again -> detail
@@ -1121,7 +1121,7 @@ int main(void) {
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(350, 430); pump(3); release(); pump(6);     // SILENT PAYMENT (testnet)
+  touch(455, 430); pump(3); release(); pump(6);     // SILENT PAYMENT (testnet)
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
   save("/tmp/sim_recv_sp_zoom_tn.ppm");
@@ -1136,16 +1136,16 @@ int main(void) {
   save("/tmp/sim_recv_sp_help_tn.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
   touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail
-  touch(680, 430); pump(3); release(); pump(4);     // BACK from detail -> home
+  touch(100, 430); pump(3); release(); pump(4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 298); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the file list
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(130, 110); pump(3); release(); pump(4);     // MAINNET restore (48..213, 88..132)
+  touch(200, 122); pump(3); release(); pump(4);     // Network row: flip back to mainnet
   touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
@@ -1396,7 +1396,7 @@ int main(void) {
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   // the WIPE pill is wallet_settings.c's mk_pillh(430, 310, 340, 52)
-  touch(590, 282); pump(4); release(); pump(8);     // WIPE WALLET -> confirm screen
+  touch(580, 356); pump(4); release(); pump(8);     // Erase this wallet -> confirm screen
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen

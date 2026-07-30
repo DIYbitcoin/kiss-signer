@@ -189,6 +189,29 @@ enum {
     STR_N_S,
     // ADDENDUM-01 section 3: the scan screen's permissions card. English only
     // for now; tr() falls back to English elsewhere until the locale pass.
+    // Redraw 05: the Settings row list's section eyebrows and row sub-lines.
+    // English only for now; tr() falls back to English elsewhere.
+    STR_I_SEC_THIS_WALLET,
+    STR_I_SEC_YOUR_BACKUP,
+    STR_I_WORDS_SUB,
+    STR_GD_SET_SUB,
+    STR_W_FLASH_PLAIN_NOTE_SHORT,
+    // Row LABELS in sentence case, per redraw 05. The existing keys for these
+    // settings are shouted ("ADDRESS TYPE", "WAYS IN") because they were pill
+    // labels, and a shouted label is both longer and wrong for a list: at font23
+    // "ADDRESS TYPE" wraps to two lines inside a 64px row, while "Address type"
+    // does not. The old keys stay where they are still pill labels.
+    STR_I_ROW_NETWORK,
+    STR_I_ROW_TYPE,
+    STR_I_ROW_STORAGE,
+    STR_I_ROW_DURESS,
+    STR_I_ROW_WORDS,
+    STR_I_ROW_PAPER,
+    STR_I_ROW_REPLACE,
+    STR_I_ROW_ERASE,
+    STR_I_ROW_REPLACE_SUB,
+    STR_I_ROW_ERASE_SUB,
+    STR_I_ROW_PAPER_NEVER,
     STR_N_CAN_CAP,
     STR_N_CAN,
     STR_N_CANT_SPEND,
