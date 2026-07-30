@@ -285,6 +285,25 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
 // spacing, because the tail is chunked from the right so the lit four always
 // lands on its own block.
 lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
+// The design review's address treatment, as two objects. `head` is everything
+// except the final 8 characters, grouped in fours, WT_MUT, wrapped inside `w`.
+// `tail` is those final 8 as "xxxx xxxx" in WT_INK with a 2px underline, on one
+// line that can never wrap, which is the whole reason it is a separate object:
+// these 8 are what the owner compares against a coordinator, so a line break
+// through them is the one layout failure that changes what a person checks.
+// Either out pointer may be NULL. Neither object is positioned; the caller
+// places both.
+void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
+                       const lv_font_t *headf, const lv_font_t *tailf,
+                       lv_obj_t **head, lv_obj_t **tail);
+
+// A status badge: `col` border, 5 percent `col` fill, radius 100, label at
+// font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
+// state reads as in the design review, and it is not a pill: no press states,
+// no click flag, nothing to tap. Use wt_state_chip_set to change the text and
+// colour later, which re-measures the box for the new string and locale.
+lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col);
+void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 
 // Hold-to-confirm pill: the action fires only after the finger has been held
 // down for ms, and a fill sweeps across the pill while it does. Letting go
