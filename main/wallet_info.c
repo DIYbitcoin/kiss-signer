@@ -707,12 +707,39 @@ static void info_screen(void)
     // idiom the scan screen already uses for a paragraph that owns a help
     // affordance. Loose on the page with the chip floating out to the right, it
     // read as a stray control belonging to nothing.
+    //
+    // 160 tall, not 96. Nothing else lives in this column, so the card ran out
+    // at 333 with 65px of empty page under it and its note squeezed into 72 --
+    // which is font14, on a paragraph nobody is required to read twice. At 160
+    // it bottoms out at 396, one pixel clear of WT_CONTENT_BOTTOM, so the right
+    // column reaches the floor the way the four rows on the left do, and the
+    // note gets the height to be read at font23.
     {
         lv_obj_t *why = wt_card(s_scr, WT_LIST_R_X, WT_LIST_Y(2),
-                                WT_LIST_W, 96);
-        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, 12,
-                WT_LIST_W - 28 - 34, 96 - 24);
+                                WT_LIST_W, 160);
+        // The same badge the explainer this "?" opens wears in ITS top right
+        // corner: help_cb's "scan" branch goes through DIAG_SCAN, and DIAG_SCAN
+        // picks WT_ICON_SECRET. One mark on the card and on the page behind it
+        // is the entire reason wt_explain_open takes an icon at all -- a reader
+        // should recognise where they landed before reading a word of it.
+        lv_obj_t *badge = lv_obj_create(why);
+        lv_obj_remove_style_all(badge);
+        lv_obj_set_pos(badge, 14, 12);
+        lv_obj_set_size(badge, 34, 34);
+        lv_obj_set_style_radius(badge, 17, 0);
+        lv_obj_set_style_bg_color(badge, WT_KEY, 0);
+        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(badge, 1, 0);
+        lv_obj_set_style_border_color(badge, WT_EDGE, 0);
+        lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_center(wt_lbl(badge, WT_ICON_SECRET, 0, 0, wt_font23(),
+                             wt_accent()));
         wt_help_chip(why, WT_LIST_W - 42, 12, WT_MUT, help_cb, (void *)"scan");
+        // UNDER both marks, not beside them: the badge owns 14..48 and the chip
+        // 323..353, and a note threaded between them would be 275 wide and back
+        // at font14. Full width below the row is what buys the size.
+        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, 58, WT_LIST_W - 28, 90);
     }
 
     wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);

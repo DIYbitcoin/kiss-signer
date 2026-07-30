@@ -42,6 +42,7 @@
 #include "k_quirc.h"
 #include "i18n.h"
 #include "osd_strips.h"
+#include "wallet_theme.h"   // wt_lock_565: the reticle's acquire colour
 
 static const char *TAG = "camspike";
 
@@ -113,9 +114,9 @@ static volatile int s_osd_frames;    // frames left to show the on-video digits
 // same arithmetic with the full panel in it; left at zero they would centre the
 // picture at a negative offset and put the reticle in the corner.
 static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = PANEL_W, s_vp_h = PANEL_H;
-// The same rect in LANDSCAPE space, kept because the reticle, the sweep and
-// every other overlay primitive already draw in landscape coordinates. Storing
-// both means neither the drawing code nor the blit code has to convert.
+// The same rect in LANDSCAPE space, kept because the reticle and every other
+// overlay primitive already draw in landscape coordinates. Storing both means
+// neither the drawing code nor the blit code has to convert.
 static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL_W;
 static bool s_vp_on;
 static volatile bool s_paused;   // see camera_spike_pause
@@ -640,7 +641,6 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 // periods are in thirtieths of a second. Kept as named frame counts rather
 // than milliseconds because s_frames is the only clock this path has.
 #define BRK_BREATH_F 60     // 2s: brackets breathe while searching
-#define BRK_SWEEP_F  45     // 1.5s: one pass of the scan line
 #define BRK_HALF     225    // half the guide box, when nothing is located
 #define BRK_HALF_MIN 95     // never close tighter than this, however small the code
 
@@ -654,11 +654,11 @@ static void draw_brackets(uint16_t *fb) {
   // Centre and travel limits come from the preview rect, which defaults to the
   // whole landscape screen, so the fullscreen numbers below are the same
   // expression. In two-column mode the reticle keeps every behaviour it has --
-  // the breathing while searching, the ease toward the located code, the green
-  // close on acquire, the sweep -- inside the 300px column instead of across
-  // the panel. That gesture is the one thing on this screen that says the
-  // device is looking, so it follows the picture rather than being dropped
-  // with the text chrome LVGL took over.
+  // the breathing while searching, the ease toward the located code, the close
+  // on acquire -- inside the 300px column instead of across the panel. That
+  // gesture is the one thing on this screen that says the device is looking, so
+  // it follows the picture rather than being dropped with the text chrome LVGL
+  // took over.
   const int cx = s_vp_lx + s_vp_lw / 2, cy = s_vp_ly + s_vp_lh / 2;
   const int arm = s_vp_on ? 26 : 44, t = s_vp_on ? 3 : 4;
   // Half the guide box, and how tight it may close. Fullscreen keeps its
@@ -683,11 +683,16 @@ static void draw_brackets(uint16_t *fb) {
   if (s_brk_half > brk_half) s_brk_half = brk_half;
   if (s_brk_half < brk_min) s_brk_half = brk_min;
   const int half = s_brk_half;
-  // Located: solid, and green rather than white. Green is the wallet's
-  // status-OK colour everywhere else on the device, and this is the only
-  // moment on this screen where something definite has happened.
+  // Located: solid, and coloured rather than white. It used to be a hardcoded
+  // 6/52/15 -- WT_OK's green -- on the reasoning that green is the status-OK
+  // colour everywhere else on the device. But this is not a status readout, it
+  // is the one piece of chrome on the whole scan screen, and chrome wears the
+  // accent. wt_lock_565 answers with the accent and keeps the green for MONO,
+  // which has no accent to wear. Asked once per frame: it is three shifts.
   // Searching: a slow breath between 5 and 11, so the guide reads as live
   // rather than as a static overlay somebody forgot to remove.
+  int lr, lg, lb;
+  wt_lock_565(&lr, &lg, &lb);
   int ph = (int)(s_frames % BRK_BREATH_F);
   int tri = ph < BRK_BREATH_F / 2 ? ph : BRK_BREATH_F - ph;   // 0..30..0
   uint8_t a = found ? 15 : (uint8_t)(5 + tri * 6 / (BRK_BREATH_F / 2));
@@ -695,8 +700,8 @@ static void draw_brackets(uint16_t *fb) {
     for (int sy = -1; sy <= 1; sy += 2) {
       int x = cx + sx * half, y = cy + sy * half;
       if (found) {
-        lrect_blend_rgb(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a, 6, 52, 15);
-        lrect_blend_rgb(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a, 6, 52, 15);
+        lrect_blend_rgb(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a, lr, lg, lb);
+        lrect_blend_rgb(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a, lr, lg, lb);
       } else {
         lrect_blend(fb, sx < 0 ? x : x - arm, y - t / 2, arm, t, a);
         lrect_blend(fb, x - t / 2, sy < 0 ? y : y - arm, t, arm, a);
@@ -724,26 +729,14 @@ static void draw_brackets(uint16_t *fb) {
     lrect_blend(fb, cx + half - tick, cy - t2 / 2, tick, t2, a2);   // right
   }
 
-  // A line sweeping down the guide while nothing is located. It exists to say
-  // "still looking" during the state that otherwise has no motion at all: a
-  // dense QR can sit in frame for many seconds while quirc keeps failing, and
-  // a completely still screen reads as a hung device.
-  //
-  // It stops the moment a code is found, so motion means searching and
-  // stillness means located -- the opposite of the two being decoration.
-  //
-  // Drawn INTO the display framebuffer only, like the brackets and the bands:
-  // scan_decode reads the raw sensor frame, so nothing the sweep crosses is
-  // hidden from the decoder.
-  if (!found) {
-    int sp = (int)(s_frames % BRK_SWEEP_F);
-    int sy = cy - half + sp * (2 * half) / BRK_SWEEP_F;
-    // Dim at the ends of the travel and brightest through the middle, so it
-    // reads as a pass across the guide rather than a bar that teleports back.
-    int st = sp < BRK_SWEEP_F / 2 ? sp : BRK_SWEEP_F - sp;
-    uint8_t sa = (uint8_t)(2 + st * 6 / (BRK_SWEEP_F / 2));
-    lrect_blend(fb, cx - half, sy, 2 * half, 3, sa);
-  }
+  // There WAS a line sweeping down the guide while nothing was located, to say
+  // "still looking" during the state that otherwise has no motion. It is gone,
+  // and the reason is what it looked like rather than what it meant: the bar
+  // spanned the full width of the guide, so the code being aimed at covered its
+  // middle and only the slivers either side of the QR were visible. Two short
+  // dark segments crawling up the picture read as a rendering fault, not as a
+  // search. The breath above already says the device is live, and the guide
+  // closing on acquire already says it found something.
 }
 
 // Draw the zoom indicator into a framebuffer (panel coords). The landscape-right
