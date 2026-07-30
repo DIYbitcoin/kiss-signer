@@ -1516,6 +1516,32 @@ void wallet_wiped_lock(void) { wallet_lock(); }
 // keyboard, nothing on screen suggesting there is another way in. It is a real
 // signer -- own fingerprint, pairs, signs -- which is the point: the story an
 // attacker is shown has to survive them using it.
+// The gesture just opened a screen, and the finger that drew it is still down.
+//
+// LVGL resolves the pressed object during the press and delivers the click on
+// the release, so a screen that appears mid-stroke inherits that touch: the last
+// letter of KISS ends inside whatever now sits under the fingertip, and the lift
+// clicks it. On a wiped device that meant the gesture picked CREATE or RESTORE
+// by itself and the setup chooser was never seen. It was luck that kept it
+// harmless before -- the 340px pills there stopped at x=388 and the stroke ends
+// at 462. Rows are 716 wide and run the width of the page.
+//
+// The mechanism is already in this file for the decoy, which has the same
+// problem for the same reason and is the only exit that ever set the flag.
+// game_tick does the arming; this just says when.
+static void gesture_swallow(void) {
+  // Arm LVGL HERE, not only from game_tick's poll. A stroke is classified on the
+  // lift, so this runs during the very release that would deliver the stray
+  // click, and there is no ordering guarantee between game_tick and the input
+  // device's own timer -- wait for the next tick and the click may already be
+  // gone. lv_indev_wait_release clears the resolved object as well as arming the
+  // flag, so a release still to be processed has nothing left to click.
+  for (lv_indev_t *d = lv_indev_get_next(NULL); d; d = lv_indev_get_next(d))
+    lv_indev_wait_release(d);
+  s_wallet_swallow = true;
+  s_wallet_swallow_t = lv_tick_get();
+}
+
 static void wallet_open_decoy(void) {
   if (wallet_session_open(NULL) != 0) {   // no seed, or derivation failed
     wallet_login_open(wallet_start);      // fall back to the ordinary way in
@@ -1524,8 +1550,7 @@ static void wallet_open_decoy(void) {
   uint8_t fp[4] = {0};
   if (wallet_fingerprint(NULL, fp) == 0)  // same empty passphrase = the decoy's own
     wallet_ui_set_last_fp(fp);
-  s_wallet_swallow = true;                // the finger may still be mid-word
-  s_wallet_swallow_t = lv_tick_get();
+  gesture_swallow();                      // the finger may still be mid-word
   wallet_start();
 }
 
@@ -1605,6 +1630,34 @@ static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
   bool pressed = read_touch(&tx, &ty);
+
+  // Swallow the rest of the touch that opened a screen. Above every early
+  // return below, because the screens this protects -- the setup wizard, the
+  // login -- are exactly the ones that make game_tick bail out immediately.
+  //
+  // WHILE PRESSED ONLY, and re-armed every tick. lv_indev_wait_release clears
+  // its own flag on the next press cycle, so arming it once skips a single
+  // frame and LVGL resolves on the frame after; that is why the one-shot
+  // attempts at screen-creation time did nothing. Arming it after the finger is
+  // up is the opposite mistake -- the flag would then be waiting to eat the
+  // owner's next real tap.
+  //
+  // Cleared the instant the finger is up, with no quiet period. The MULTI-STROKE
+  // case -- the decoy opens on a lift and the next stroke of the same word lands
+  // milliseconds later -- is already handled by the 400ms in the s_wallet_on
+  // branch below, which is the only situation it can happen in. Holding the flag
+  // here for a grace period as well would swallow a real tap: the screens this
+  // protects are ones the owner starts using immediately, and the setup chooser
+  // lost its first tap to exactly that.
+  if (s_wallet_swallow) {
+    if (pressed) {
+      for (lv_indev_t *d = lv_indev_get_next(NULL); d; d = lv_indev_get_next(d))
+        lv_indev_wait_release(d);
+      s_wallet_swallow_t = lv_tick_get();
+    } else if (!s_wallet_on) {
+      s_wallet_swallow = false;      // the wallet's own branch owns its timing
+    }
+  }
 
   if (wallet_ui_active() || wallet_setup_active() ||
       wallet_duress_ui_active()) {                     // login/wizard own the touch
@@ -1863,6 +1916,7 @@ static void game_tick(lv_timer_t *t) {
                 if (sd_rc != WSEED_OK) {
                   wallet_setup_open_sd_missing(lv_screen_active(), sd_rc,
                                                stored_seed_ready);
+                  gesture_swallow();
                   s_kiss_pending = false;
                   s_gn = 0; s_strokes = 0;
                   sd_blocked = true;
@@ -1875,6 +1929,7 @@ static void game_tick(lv_timer_t *t) {
                 if (seed_mode == WSEED_MODE_AMNESIC)
                   wallet_setup_open_load(lv_screen_active(), stored_seed_ready);
                 else wallet_setup_open(lv_screen_active(), setup_done_login);
+                gesture_swallow();           // the finger is still on the panel
                 s_kiss_pending = false;
                 s_gn = 0; s_strokes = 0;
               }
@@ -1882,6 +1937,7 @@ static void game_tick(lv_timer_t *t) {
                 s_kiss_pending = false;
                 s_real_pending = true;       // same beat as the decoy: see KISS_OPEN_DELAY_MS
                 s_real_at = lv_tick_get();
+                gesture_swallow();
                 s_gn = 0; s_strokes = 0;
               }
               else {
