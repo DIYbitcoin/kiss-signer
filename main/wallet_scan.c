@@ -343,10 +343,39 @@ static void scan_status(const char *state, const char *hint)
     lv_obj_set_pos(s_hint, 14, 42);
 }
 
+#ifndef SIMULATOR
+static void help_closed_cb(lv_event_t *e)
+{
+    (void)e;
+    camera_spike_pause(false);
+}
+#endif
+
+// The one help card on this device that opens over a LIVE camera, and so the one
+// that has to say so. The video writes its rect straight into the framebuffer
+// being scanned out, past LVGL entirely, so without the pause the explainer
+// arrives with the picture punched through its left column AND the decoder keeps
+// reading: hold a QR up while reading about what a transaction is and the device
+// would walk itself to a transaction you never chose to scan.
+//
+// Resume hangs off the overlay's own deletion, not off the OK pill, because
+// wt_explain_open also closes on a tap anywhere and a camera left paused by the
+// other exit is a scan screen that never sees anything again.
 static void scan_psbt_help_cb(lv_event_t *e)
 {
     (void)e;
-    wallet_info_help_card_open(s_scr, tr(STR_N_PSBT_T), tr(STR_N_PSBT_B));
+#ifndef SIMULATOR
+    camera_spike_pause(true);
+#endif
+    lv_obj_t *card = wallet_info_help_card_open(s_scr, tr(STR_N_PSBT_T),
+                                                tr(STR_N_PSBT_B),
+                                                LV_SYMBOL_FILE);
+#ifndef SIMULATOR
+    if (card) lv_obj_add_event_cb(card, help_closed_cb, LV_EVENT_DELETE, NULL);
+    else      camera_spike_pause(false);
+#else
+    (void)card;
+#endif
 }
 
 static void scan_open_common(lv_obj_t *parent)

@@ -39,6 +39,16 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h);
 // everywhere and the video reclaims its rectangle on the next frame.
 bool camera_spike_owns_panel(void);
 
+// Freeze the preview WITHOUT tearing the pipeline down: the stream task keeps
+// dequeuing frames but stops blitting and stops decoding, so LVGL owns the whole
+// panel and no QR can land behind an overlay. Resuming costs one frame, where a
+// stop-and-restart costs a second of "STARTING".
+//
+// Any screen that opens something over a live preview must call this. The video
+// writes past LVGL straight into the scanned-out framebuffer, so an overlay alone
+// is a picture with a hole in it and a decoder still running underneath.
+void camera_spike_pause(bool on);
+
 // True while the preview is live.
 bool camera_spike_is_on(void);
 

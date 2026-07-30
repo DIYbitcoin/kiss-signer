@@ -118,6 +118,7 @@ static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = PANEL_W, s_vp_h = PANEL_H;
 // both means neither the drawing code nor the blit code has to convert.
 static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL_W;
 static bool s_vp_on;
+static volatile bool s_paused;   // see camera_spike_pause
 
 void camera_spike_set_preview_rect(int x, int y, int w, int h)
 {
@@ -167,6 +168,28 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 bool camera_spike_owns_panel(void)
 {
   return s_cam.streaming && !s_vp_on;
+}
+
+// Freeze the picture without tearing the pipeline down. The stream task keeps
+// dequeuing V4L2 buffers, so the sensor stays warm and resuming costs one frame,
+// but show_frame returns before it blits and before it decodes.
+//
+// This exists because an LVGL overlay is not enough on its own. The video writes
+// its rect straight into the scanned-out framebuffer, past LVGL entirely, so a
+// help card opened over the scan screen was painted over inside the preview rect
+// while the decoder went on reading QR codes behind it: the screen could advance
+// to a transaction the reader never asked to scan, from a card explaining what a
+// transaction is. Pausing is what makes an overlay mean what it looks like.
+//
+// Volatile and unguarded on purpose: one bool, written by the LVGL task and read
+// by the stream task, and neither cares which frame the change lands on.
+void camera_spike_pause(bool on)
+{
+  if (s_paused == on) return;
+  s_paused = on;
+  // Coming back, the rect holds whatever LVGL painted over it while we were away
+  // and the zoom bars are stale, so blank it before the next picture lands.
+  if (!on) s_clear_pending = 2;
 }
 
 // ---- step 6 scan mode: k_quirc runs on every SCAN_EVERY'th raw sensor frame,
@@ -1113,6 +1136,12 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   static const ppa_srm_rotation_angle_t rot[4] = {
       PPA_SRM_ROTATION_ANGLE_0, PPA_SRM_ROTATION_ANGLE_90,
       PPA_SRM_ROTATION_ANGLE_180, PPA_SRM_ROTATION_ANGLE_270};
+  // Paused: drop this frame whole. Returning here is safe because the caller
+  // re-queues the V4L2 buffer once show_frame returns, and it is the point that
+  // skips BOTH halves of the job — the blit below and the decode at the bottom.
+  // Half a pause, picture frozen but the decoder still reading, would be worse
+  // than none: the screen would advance with no sign of why.
+  if (s_paused) return;
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
@@ -1390,7 +1419,10 @@ static void cam_stop(void) {
   osd_strips_close();
   // Drop any preview rect with the stream that asked for it. A rect left set
   // would confine the NEXT session, including the fullscreen dev preview, to a
-  // column of a screen that is no longer on the panel.
+  // column of a screen that is no longer on the panel. A pause is dropped here
+  // for the same reason: a screen torn down while its help card was open would
+  // otherwise hand the next scan a camera that never draws.
+  s_paused = false;
   s_vp_on = false;
   s_vp_x = 0; s_vp_y = 0; s_vp_w = PANEL_W; s_vp_h = PANEL_H;
   s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
@@ -1427,6 +1459,7 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
   }
   s_scan_osd = OSD_SEARCH;
   s_scan_stuck = 0;                                // fresh scan, fresh patience
+  s_paused = false;                                // and a camera that draws
   s_scan_seen = 0;
   s_scan_total = 0;
   s_scan_cb = on_decode;
