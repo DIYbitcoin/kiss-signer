@@ -1091,6 +1091,24 @@ static lv_span_t *addr_span(lv_obj_t *sg, const char *txt, bool lit)
     return s;
 }
 
+// The same fold as wt_addr_short, as plain text: prefix, the four after it, an
+// ellipsis, and the last twelve in three blocks. No lit spans, because this is
+// for places that take a STRING and not an object -- a row's sub-line -- and
+// because the lighting means "compare these", which is a job that belongs on
+// RECEIVE where the whole address is on the glass beside its QR.
+void wt_addr_fold(const char *addr, char *out, size_t len)
+{
+    size_t n = addr ? strlen(addr) : 0;
+    if (!out || !len) return;
+    if (n < 20) { snprintf(out, len, "%s", addr ? addr : ""); return; }
+    int pre = !strncmp(addr, "tsp1", 4) ? 5
+            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
+               !strncmp(addr, "sp1", 3)) ? 4 : 0;
+    const char *t = addr + n - 12;
+    snprintf(out, len, "%.*s %.4s \xE2\x80\xA6 %.4s %.4s %.4s",
+             pre, addr, addr + pre, t, t + 4, t + 8);
+}
+
 lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
 {
     size_t n = strlen(addr);
@@ -1188,6 +1206,16 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
                  const char *val, lv_color_t vcol, int x, int y, int w,
                  lv_event_cb_t cb, void *ud)
 {
+    return wt_row_f(scr, label, sub, NULL, val, NULL, vcol, x, y, w, cb, ud);
+}
+
+lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
+                   const lv_font_t *sf, const char *val, const lv_font_t *vf,
+                   lv_color_t vcol, int x, int y, int w,
+                   lv_event_cb_t cb, void *ud)
+{
+    if (!sf) sf = wt_font14();
+    if (!vf) vf = wt_font23();
     lv_obj_t *row = lv_obj_create(scr);
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
@@ -1252,7 +1280,7 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
     lv_obj_t *v = NULL;
     int vw = 0;
     if (val && *val) {
-        v = wt_lbl(row, val, 0, 0, wt_font23(), vcol);
+        v = wt_lbl(row, val, 0, 0, vf, vcol);
         lv_obj_update_layout(v);
         vw = lv_obj_get_width(v);
     }
@@ -1297,7 +1325,7 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
     }
 
     if (sub && *sub) {
-        lv_obj_t *s = wt_lbl(row, sub, 14, liney, wt_font14(), WT_MUT);
+        lv_obj_t *s = wt_lbl(row, sub, 14, liney, sf, WT_MUT);
         lv_obj_set_width(s, right - 14 > 40 ? right - 14 : 40);
         // ONE line, height pinned. The width left for the sub depends on how
         // wide the VALUE turned out, and a translated value ("DESACTIVADO" for
@@ -1305,7 +1333,7 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
         // row's bottom edge and was clipped in seven locales while English was
         // clean. Pinning the height makes LONG_DOT truncate instead of wrap, so
         // the row is the same height whatever the translation does.
-        lv_obj_set_height(s, lv_font_get_line_height(wt_font14()));
+        lv_obj_set_height(s, lv_font_get_line_height(sf));
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
     }
     return row;
@@ -1489,6 +1517,217 @@ static void explain_close_cb(lv_event_t *e)
     lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
+const char *wt_split_colon(const char *line, char *head, size_t head_len)
+{
+    if (!line || !head || head_len == 0) return NULL;
+    const char *c = NULL;
+    size_t skip = 0;
+    for (const char *p = line; *p; p++) {
+        if (*p == ':') { c = p; skip = 1; break; }
+        // U+FF1A FULLWIDTH COLON, EF BC 9A
+        if ((unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBC &&
+            (unsigned char)p[2] == 0x9A) { c = p; skip = 3; break; }
+    }
+    if (!c) {
+        snprintf(head, head_len, "%s", line);
+        return NULL;
+    }
+    size_t n = (size_t)(c - line);
+    while (n && line[n - 1] == ' ') n--;     // "locktime :" in French
+    if (n >= head_len) n = head_len - 1;
+    lv_memcpy(head, line, n);
+    head[n] = 0;
+    const char *tail = c + skip;
+    while (*tail == ' ') tail++;
+    return *tail ? tail : NULL;
+}
+
+// ---- how the body is laid out ----
+// The old rule was: split at the FIRST blank line, paragraph one left, everything
+// else right, both measured against a 330px column. Three faults, and they
+// compounded. It never considered the full width lane, so a body that would have
+// read at font28 across 704 was measured against 330 and dropped a size. It split
+// by position rather than by length, so the home fingerprint card -- whose body
+// grows a third paragraph for the escape hint -- put four words in the left
+// column and two paragraphs in the right. And the pair share one font by design,
+// chosen by the taller half, so those four words rendered at font14 beside a
+// column that needed it. That is the "tiny text" the device showed.
+//
+// Now both arrangements are measured at every size and the first that fits wins.
+#define EXP_MAX_PARA 6
+#define EXP_FULL_W   704
+#define EXP_COL_W    344
+// Measure against the TEXT lane, not the block. wt_why_block spends 14 on the
+// coloured rule and its gutter, so a measurement taken at the block's own width
+// comes back short and the last line lands under the OK pill. That is not
+// hypothetical: measuring the full lane at 704 instead of 690 put the silent
+// payment card 19px past WT_CONTENT_BOTTOM in five locales.
+#define EXP_RULE_W   14
+#define EXP_FULL_TXT (EXP_FULL_W - EXP_RULE_W)
+#define EXP_COL_TXT  (EXP_COL_W - EXP_RULE_W)
+
+typedef struct {
+    const char *p[EXP_MAX_PARA];
+    int         n[EXP_MAX_PARA];    // byte length of each
+    int         count;
+} exp_paras_t;
+
+static void exp_split(const char *body, exp_paras_t *o)
+{
+    o->count = 0;
+    const char *s = body;
+    while (s && *s && o->count < EXP_MAX_PARA) {
+        const char *brk = strstr(s, "\n\n");
+        // The last slot swallows whatever is left, so a seven paragraph string
+        // still renders whole rather than losing its tail.
+        if (!brk || o->count == EXP_MAX_PARA - 1) {
+            o->p[o->count] = s;
+            o->n[o->count] = (int)strlen(s);
+            o->count++;
+            return;
+        }
+        o->p[o->count] = s;
+        o->n[o->count] = (int)(brk - s);
+        o->count++;
+        s = brk + 2;
+    }
+}
+
+// Height of paragraphs [a, b) joined by blank lines, at font f and width w.
+static int exp_height(const exp_paras_t *ps, int a, int b, const lv_font_t *f, int w)
+{
+    int h = 0;
+    for (int i = a; i < b; i++) {
+        lv_point_t sz;
+        char buf[512];
+        int n = ps->n[i];
+        if (n >= (int)sizeof buf) n = (int)sizeof buf - 1;
+        lv_memcpy(buf, ps->p[i], (size_t)n);
+        buf[n] = 0;
+        lv_text_get_size(&sz, buf, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+        h += sz.y;
+        if (i + 1 < b) h += lv_font_get_line_height(f);   // the blank line back
+    }
+    return h;
+}
+
+// Copy paragraphs [a, b) back into one string, blank line separated, so
+// wt_why_block sees the same shape the locale wrote.
+static void exp_join(const exp_paras_t *ps, int a, int b, char *out, size_t len)
+{
+    size_t o = 0;
+    out[0] = 0;
+    for (int i = a; i < b && o + 1 < len; i++) {
+        int n = ps->n[i];
+        if (o + (size_t)n + 3 >= len) n = (int)(len - o - 3);
+        if (n < 0) break;
+        lv_memcpy(out + o, ps->p[i], (size_t)n);
+        o += (size_t)n;
+        if (i + 1 < b && o + 2 < len) { out[o++] = '\n'; out[o++] = '\n'; }
+    }
+    out[o] = 0;
+}
+
+// ---- WT_GRID_ICONS ----
+// A glossary is a LIST, and it was being rendered as prose: eight lines of the
+// same grey at the same size, so the eight terms it defines had to be read in
+// order to find any one of them. Every line is written `TERM: definition` in all
+// 21 locales, so an icon badge and a heading can be lifted straight out of the
+// string that already exists. Nothing new to translate.
+#define GRID_COLS   2
+#define GRID_MAXN   12
+#define GRID_BADGE  34
+#define GRID_GUT    12
+
+static void grid_badge(lv_obj_t *par, const char *glyph, int x, int y,
+                       lv_color_t col)
+{
+    lv_obj_t *b = lv_obj_create(par);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, x, y);
+    lv_obj_set_size(b, GRID_BADGE, GRID_BADGE);
+    lv_obj_set_style_radius(b, GRID_BADGE / 2, 0);
+    lv_obj_set_style_bg_color(b, WT_KEY, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_border_color(b, WT_EDGE, 0);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_center(wt_lbl(b, glyph, 0, 0, wt_font14(), col));
+}
+
+static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
+                         lv_color_t sev)
+{
+    // One line per entry, and NOT a count of eight: a locale is free to ship
+    // seven or nine and the grid has to draw what it was handed.
+    const char *ln[GRID_MAXN];
+    int len[GRID_MAXN], n = 0;
+    for (const char *s = e->body; s && *s && n < GRID_MAXN; ) {
+        const char *nl = strchr(s, '\n');
+        ln[n] = s;
+        len[n] = nl ? (int)(nl - s) : (int)strlen(s);
+        n++;
+        if (!nl) break;
+        s = nl + 1;
+    }
+    if (!n) return;
+
+    int rows = (n + GRID_COLS - 1) / GRID_COLS;
+    int cw   = (EXP_FULL_W - GRID_GUT) / GRID_COLS;      // 346
+    int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
+    int pitch = room / rows;
+
+    // ONE font for every definition, chosen against the tallest cell, so the
+    // eight cells read as one table. Sized per cell they would stagger, which is
+    // the fault the two-column prose blocks had.
+    const lv_font_t *bf = wt_font23();
+    for (int pass = 0; pass < 2; pass++) {
+        int tallest = 0;
+        for (int i = 0; i < n; i++) {
+            char line[192], head[64];
+            int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+            lv_memcpy(line, ln[i], (size_t)l);
+            line[l] = 0;
+            const char *def = wt_split_colon(line, head, sizeof head);
+            if (!def) continue;
+            lv_point_t sz;
+            lv_text_get_size(&sz, def, bf, 0, 0, tw, LV_TEXT_FLAG_NONE);
+            int h = lv_font_get_line_height(wt_font14()) + 2 + sz.y;
+            if (h > tallest) tallest = h;
+        }
+        if (tallest <= pitch - 6) break;
+        bf = wt_font14();
+    }
+
+    for (int i = 0; i < n; i++) {
+        char line[192], head[64];
+        int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+        lv_memcpy(line, ln[i], (size_t)l);
+        line[l] = 0;
+        const char *def = wt_split_colon(line, head, sizeof head);
+
+        int cx = 48 + (i % GRID_COLS) * (cw + GRID_GUT);
+        int cy = y + (i / GRID_COLS) * pitch;
+
+        if (e->icons && e->icons[i])
+            grid_badge(ovl, e->icons[i], cx, cy, sev);
+
+        int tx = cx + GRID_BADGE + GRID_GUT;
+        lv_obj_t *t = wt_lbl(ovl, head, tx, cy + 2, wt_font14(), sev);
+        lv_obj_set_style_text_letter_space(t, 1, 0);
+        lv_obj_set_width(t, tw);
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+
+        if (!def) continue;
+        lv_obj_t *d = wt_lbl(ovl, def, tx,
+                             cy + 2 + lv_font_get_line_height(wt_font14()) + 2,
+                             bf, WT_MUT);
+        lv_obj_set_width(d, tw);
+        lv_label_set_long_mode(d, LV_LABEL_LONG_WRAP);
+    }
+}
+
 lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
 {
     if (!parent || !e) return NULL;
@@ -1564,34 +1803,86 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     }
     if (band) y += band + 20;
 
-    // Band two: the prose, as one block or two. WT_CONTENT_BOTTOM is the floor
-    // and the blocks are measured against what is left above it, so a long
-    // translation drops a font size instead of running under the OK pill.
+    // Band two: the body. WT_CONTENT_BOTTOM is the floor and everything is
+    // measured against what is left above it, so a long translation drops a font
+    // size instead of running under the OK pill.
     if (e->body && *e->body) {
-        const char *split = strstr(e->body, "\n\n");
         int room = WT_CONTENT_BOTTOM - y;
         if (room < 40) room = 40;
-        if (split) {
-            char first[512];
-            size_t n = (size_t)(split - e->body);
-            if (n >= sizeof first) n = sizeof first - 1;
-            lv_memcpy(first, e->body, n);
-            first[n] = 0;
-            // ONE size for the pair, the smaller of what each half can hold.
-            // Sized apart, a two word claim rendered at 28 beside a paragraph at
-            // 14 and the card read as two unrelated things rather than as two
-            // halves of one answer. Same rule wt_pill_group_fit applies to a row
-            // of buttons, for the same reason.
-            const lv_font_t *fa = wt_body_font(first, 330, room);
-            const lv_font_t *fb = wt_body_font(split + 2, 330, room);
-            const lv_font_t *f  = fa == wt_font14() || fb == wt_font14()
-                                ? wt_font14()
-                                : (fa == wt_font23() || fb == wt_font23()
-                                   ? wt_font23() : fa);
-            wt_why_block(ovl, NULL, first, 48, y, 344, room, f, sev);
-            wt_why_block(ovl, NULL, split + 2, 408, y, 344, room, f, WT_MUT);
+
+        if (e->mode == WT_GRID_ICONS) {
+            explain_grid(ovl, e, y, room, sev);
         } else {
-            wt_why_block(ovl, NULL, e->body, 48, y, 704, room, NULL, sev);
+        exp_paras_t ps;
+        exp_split(e->body, &ps);
+
+        const lv_font_t *ladder[3];
+        ladder[0] = wt_font28(); ladder[1] = wt_font23(); ladder[2] = wt_font14();
+
+        const lv_font_t *f = wt_font14();
+        int split_at = 0;                 // 0 = one full width block
+        int used = room;
+
+        for (int r = 0; r < 3; r++) {
+            const lv_font_t *cand = ladder[r];
+
+            // Full width first. It reads better than two columns and it is the
+            // only arrangement that can use the whole 704 lane, but a two line
+            // answer stretched across the page leaves a hole under itself, so it
+            // has to earn the lane by filling at least half the room. A single
+            // paragraph takes it regardless: there is nothing to split.
+            int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
+            if (hf <= room && (ps.count == 1 || hf * 2 >= room)) {
+                f = cand; split_at = 0; used = hf;
+                break;
+            }
+
+            // Otherwise deal the paragraphs into two columns at the boundary
+            // that makes them most nearly equal, rather than always after the
+            // first. Balanced columns are what let the pair share a bigger font:
+            // they share one by design, and one shares badly when one half is
+            // four words and the other is two paragraphs.
+            if (ps.count >= 2) {
+                int best = 1, best_gap = -1, best_tall = 0;
+                for (int k = 1; k < ps.count; k++) {
+                    int hl = exp_height(&ps, 0, k, cand, EXP_COL_TXT);
+                    int hr = exp_height(&ps, k, ps.count, cand, EXP_COL_TXT);
+                    int gap = hl > hr ? hl - hr : hr - hl;
+                    if (best_gap < 0 || gap < best_gap) {
+                        best_gap = gap; best = k; best_tall = hl > hr ? hl : hr;
+                    }
+                }
+                if (best_tall <= room) {
+                    f = cand; split_at = best; used = best_tall;
+                    break;
+                }
+            }
+
+            // Nothing fits at font14 either: keep it, clamp, and let
+            // wt_why_block's own bounds do the rest. Better a full card of the
+            // smallest type than a card that silently drops its second half.
+            if (r == 2) {
+                f = cand;
+                split_at = ps.count >= 2 ? 1 : 0;
+                used = room;
+            }
+        }
+
+        // Drop the band by a third of what is left over. Centring it outright
+        // floats the text away from the title it answers; hugging the top, which
+        // is what this did before, leaves the whole bottom of the card empty.
+        int slack = room - used;
+        if (slack > 0) { y += slack / 3; room -= slack / 3; }
+
+        if (split_at) {
+            char left[640], right[640];
+            exp_join(&ps, 0, split_at, left, sizeof left);
+            exp_join(&ps, split_at, ps.count, right, sizeof right);
+            wt_why_block(ovl, NULL, left,  48, y, EXP_COL_W, room, f, sev);
+            wt_why_block(ovl, NULL, right, 408, y, EXP_COL_W, room, f, WT_MUT);
+        } else {
+            wt_why_block(ovl, NULL, e->body, 48, y, EXP_FULL_W, room, f, sev);
+        }
         }
     }
 
