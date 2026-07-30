@@ -992,9 +992,15 @@ int main(void) {
   // knows whether this particular address received a payment.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> detail landing
   save("/tmp/sim_recv_fresh.ppm");                  // freshest address, one screen
-  touch(435, 356); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
+  // The address card folds. Tap it once for every character grouped in fours,
+  // tap it again to go back to the eight that matter. Both states get a frame:
+  // the fold is the only way to read the whole address off this screen.
+  touch(530, 190); pump(3); release(); pump(6);     // address card -> full address
+  save("/tmp/sim_recv_full.ppm");
+  touch(530, 190); pump(3); release(); pump(6);     // and back to folded
+  touch(435, 335); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
   save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
-  touch(435, 356); pump(3); release(); pump(4);     // NEXT ADDRESS again
+  touch(435, 335); pump(3); release(); pump(4);     // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> home
 
@@ -1019,11 +1025,11 @@ int main(void) {
   // The home now carries the SD-storage badge (accent, breathing while the
   // card is in). Pop out to capture it, then return to Settings to migrate
   // back to FLASH.
-  touch(680, 430); pump(3); release(); pump(8);     // Settings BACK -> home
+  touch(76, 426); pump(3); release(); pump(8);      // Settings BACK, left corner -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
-  touch(174, 136); pump(3); release(); pump(6);     // FLASH
+  touch(174, 144); pump(3); release(); pump(6);     // FLASH
   touch(213, 425); pump(105); release(); pump(8);
   touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
 
@@ -1083,7 +1089,7 @@ int main(void) {
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
 
-  touch(510, 424); pump(3); release(); pump(6);     // language pill (y=398) -> picker
+  touch(694, 426); pump(3); release(); pump(6);     // language pill, right corner now -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = wallet_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
@@ -1097,17 +1103,27 @@ int main(void) {
   save("/tmp/sim_addr_type.ppm");                   // 3 names + notes, NATIVE selected
   touch(400, 122); pump(3); release(); pump(6);     // pick LEGACY -> back to settings
   save("/tmp/sim_settings_legacy.ppm");             // the row now reads Legacy / 1...
-  touch(218, 254); pump(3); release(); pump(6);     // reopen the chooser
+  // 198, not 254. The Address card spans y=166..230; 254 was inside the
+  // STORAGE card below it, so this reopened the storage chooser and the walk
+  // spent the next six taps on the wrong subpage. It passed the tap gate
+  // anyway, because every frame it landed on still differed from the one
+  // before -- moving Settings BACK to the left corner is what finally made
+  // the misroute visible.
+  touch(218, 198); pump(3); release(); pump(6);     // Address card -> reopen the chooser
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
-  touch(674, 48); pump(3); release(); pump(4);      // theme dot: CYPHERPINK
+  touch(573, 426); pump(3); release(); pump(4);     // theme dot in the action bar: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
-  touch(680, 424); pump(3); release(); pump(6);     // BACK (y=398) -> home still pink
+  touch(76, 426); pump(3); release(); pump(6);      // BACK, left corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(578, 48); pump(3); release(); pump(4);      // theme dot: back to MONO
-  touch(200, 122); pump(3); release(); pump(4);     // Network row: one tap flips to testnet
+  touch(519, 426); pump(3); release(); pump(4);     // theme dot in the action bar: back to MONO
+  // The Network row is a SEGMENTED control now, so a tap on the row itself
+  // does nothing -- you pick a side. TESTNET is the right lozenge: the card
+  // starts at y=95, the track is centred in its 64 height and the lozenges sit
+  // 3px inside that, so 291..375 x 113..141. This is its centre.
+  touch(333, 127); pump(3); release(); pump(4);     // TESTNET segment
   save("/tmp/sim_settings_tn.ppm");
-  touch(680, 424); pump(3); release(); pump(6);     // BACK -> home
+  touch(76, 426); pump(3); release(); pump(6);      // BACK, left corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
@@ -1145,8 +1161,8 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(200, 122); pump(3); release(); pump(4);     // Network row: flip back to mainnet
-  touch(680, 424); pump(3); release(); pump(4);     // BACK -> home
+  touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
+  touch(76, 426); pump(3); release(); pump(4);      // BACK, left corner -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
@@ -1162,9 +1178,9 @@ int main(void) {
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out
-  touch(218, 290); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 264)
+  touch(218, 328); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 302)
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
-  touch(174, 136); pump(3); release(); pump(4);     // FLASH
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH
   // restoring shows a third option here: a SeedQR carries its own length, so
   // it sits beside 12/24 rather than after them
   save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN SEED QR
@@ -1184,7 +1200,7 @@ int main(void) {
   // Creating no longer asks how many words -- it is always 12 -- so FLASH
   // lands straight on the entropy screen, and the reveal is one page.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 136); pump(3); release(); pump(4);     // FLASH
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH
   save("/tmp/sim_setup_entropy.ppm");
   touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN

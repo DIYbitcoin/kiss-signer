@@ -56,7 +56,8 @@ void wallet_wiped_lock(void);
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_acc_name;            // live name under the dots
-static lv_obj_t *s_main_pill, *s_test_pill, *s_state_lbl, *s_net_val;
+static lv_obj_t *s_main_pill, *s_test_pill;   // the two network segments
+static lv_obj_t *s_state_lbl;                // the network row's sub-line
 static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
@@ -209,35 +210,41 @@ static void restyle(void)
 {
     int tn = wallet_testnet();
     // accent follows the picked theme everywhere it appears on this screen
-    lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), wt_accent(), 0);  // title
+    lv_obj_set_style_text_color(wt_screen_title(s_scr), wt_accent(), 0);
     wallet_build_id_restyle(s_build_id);
     for (int i = 0; i < WT_ACC_N; i++)
         if (s_acc_dot[i]) {
             bool on = (i == wt_accent_get());
             lv_obj_set_style_border_color(s_acc_dot[i], on ? wt_accent() : KEY_COL, 0);
-            lv_obj_set_style_border_width(s_acc_dot[i], on ? 3 : 1, 0);
-            lv_obj_set_style_shadow_width(s_acc_dot[i], on ? 12 : 0, 0);
+            // Scaled for the 18px dot in the action bar. At the old 36px these
+            // were 3/12/3; kept at that size on an 18px dot the halo is wider
+            // than the dot and the four of them merge into one bright smear.
+            lv_obj_set_style_border_width(s_acc_dot[i], on ? 2 : 1, 0);
+            lv_obj_set_style_shadow_width(s_acc_dot[i], on ? 7 : 0, 0);
             lv_obj_set_style_shadow_color(s_acc_dot[i], wt_accent(), 0);
             lv_obj_set_style_shadow_opa(s_acc_dot[i], on ? 90 : 0, 0);
             // detached ink halo: the gap reads even when the dot is white (MONO)
             lv_obj_set_style_outline_width(s_acc_dot[i], on ? 2 : 0, 0);
-            lv_obj_set_style_outline_pad(s_acc_dot[i], 3, 0);
+            lv_obj_set_style_outline_pad(s_acc_dot[i], 2, 0);
             lv_obj_set_style_outline_color(s_acc_dot[i], INK_COL, 0);
         }
     if (s_acc_name) lv_label_set_text(s_acc_name, wt_accent_name());
     // The network row's value: the live network name, amber on testnet. That
     // colour is the whole warning now that the two pills are gone, and it is
     // paired with the sub-line below so the state never rests on colour alone.
-    if (s_net_val) {
-        int oldw = lv_obj_get_width(s_net_val);
-        int oldx = lv_obj_get_x(s_net_val);
-        lv_label_set_text(s_net_val, tn ? "TESTNET" : "MAINNET");
-        lv_obj_set_style_text_color(s_net_val, tn ? WARN_COL : INK_COL, 0);
-        lv_obj_update_layout(s_net_val);
-        // Keep its RIGHT edge where wt_row put it. Both words are untranslated
-        // and near enough the same width that this is usually a no-op, but
-        // re-anchoring from the right means it can never drift into the note.
-        lv_obj_set_x(s_net_val, oldx + oldw - lv_obj_get_width(s_net_val));
+    // The segmented control: the live side is a filled lozenge, the other is
+    // just text on the track. MAINNET fills WT_INK, as drawn; TESTNET fills
+    // WT_WARN instead, because amber is what this app has always used to say
+    // "these coins are not real" and the fill is now the loudest place to say
+    // it. Both take dark ink on the fill -- WT_INK text on WT_WARN is the one
+    // pairing here with no contrast.
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *s = i ? s_test_pill : s_main_pill;
+        if (!s) continue;
+        bool on = (i == 1) == (tn != 0);
+        lv_obj_set_style_bg_color(s, i ? WARN_COL : INK_COL, 0);
+        lv_obj_set_style_bg_opa(s, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+        lv_obj_set_style_text_color(s, on ? WT_BAR : MUT_COL, 0);
     }
     // The network note is a plain row sub-line now, not an auto-fitting note
     // block: the row owns the width and the type size, so this only sets text
@@ -268,19 +275,6 @@ static void restyle(void)
 static void pick_cb(lv_event_t *e)
 {
     int tn = (int)(intptr_t)lv_event_get_user_data(e);
-    wallet_set_network(tn);
-    store_u8("testnet", tn ? 1 : 0);
-    restyle();
-}
-
-// The network row: one tap flips it. Reversible in one more tap, exactly as the
-// two pills were, and the row's value plus its amber sub-line say which side you
-// are on. Nothing is derived until a screen asks for an address, so flipping
-// here costs nothing and destroys nothing.
-static void net_toggle_cb(lv_event_t *e)
-{
-    (void)e;
-    int tn = wallet_testnet() ? 0 : 1;
     wallet_set_network(tn);
     store_u8("testnet", tn ? 1 : 0);
     restyle();
@@ -366,8 +360,7 @@ static void storage_result_screen(int rc, int target)
 
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, title, NULL);
-    wt_lock_mark(s_scr);
-    lv_obj_set_style_text_color(lv_obj_get_child(s_scr, 0), title_col, 0);
+    lv_obj_set_style_text_color(wt_screen_title(s_scr), title_col, 0);
     lv_obj_t *b = wt_lbl(s_scr, body, 48, 136,
                          wt_body_font(body, 704, 230), MUT_COL);
     lv_obj_set_width(b, 704);
@@ -400,7 +393,6 @@ static void storage_confirm_screen(int target)
                      : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_CONFIRM_T), NULL);
-    wt_lock_mark(s_scr);
     lv_obj_t *b = wt_lbl(s_scr, body, 48, 126,
                          wt_body_font(body, 704, 238),
                          target == WSEED_MODE_AMNESIC ? WARN_COL : MUT_COL);
@@ -448,27 +440,32 @@ static void storage_chooser_screen(void)
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current_line);
-    wt_lock_mark(s_scr);
 
     static const int modes[3] = {
         WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
     };
-    // 107px apart, not 108, and starting at 106 rather than 110. Each note is
-    // given three lines at font23 (87px) and each sits 10px above its pill, so
-    // the first note lands exactly on the y=96 content line and the third ends
-    // at 396. At 110 the third ran to 402 and the languages that actually need
-    // the third line, Turkish, Portuguese and Russian, were the ones that lost
-    // it: the mode that keeps nothing on the device explaining itself in two
-    // lines instead of three.
-    static const int py[3] = {106, 213, 320};
+    // One CARD per mode, and the card comes first so it sits BEHIND the pill and
+    // the note rather than around them: the note's height budget is exactly three
+    // lines at font23 (87px), which is what Turkish, Portuguese and Russian
+    // actually need, and re-parenting it into a padded box takes those pixels
+    // away. Three rows at STG_PITCH from the y=96 content line land the last card
+    // on 396, two clear of WT_CONTENT_BOTTOM.
+    //
+    // The pill is vertically centred in its card and the note sits 4px down from
+    // the card's top edge, so the three lines it may need end 5px above the
+    // bottom edge. The note also moved 8px left, to 322, to keep the same 10px
+    // from the card's right edge that the pill has from its left. Its WIDTH is
+    // untouched at 420: change that and every locale re-wraps.
+    static const int py[3] = {118, 220, 322};
     for (int i = 0; i < 3; i++) {
         int mode = modes[i];
+        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
         lv_obj_t *p = wt_pillh(s_scr, storage_mode_name(mode),
                                48, py[i], 252, 52, storage_pick_cb,
                                (void *)(intptr_t)mode);
         wt_pill_select(p, current == mode);
         lv_obj_t *note = wt_wraph(s_scr, storage_mode_note(mode),
-                                  330, py[i] - 10, 420, 87);
+                                  322, WT_CHOICE_Y(i) + 4, 420, 87);
         // Per ADDENDUM-02 style rule and HANDOFF-04's storage residual: the
         // FLASH note is a caution when the chip reports encryption OFF, not a
         // footnote. WT_WARN, not the default WT_MUT.  "your recovery words are
@@ -513,7 +510,6 @@ static void type_open_cb(lv_event_t *e)
     // rows below already name the tradeoff each type makes, and anyone who has
     // met testnet knows its coins live somewhere else.
     s_scr = wt_screen(s_parent, tr(STR_I_SEC_TYPE), NULL);
-    wt_lock_mark(s_scr);
 
     // Oldest-to-newest makes the tradeoff legible as a progression, and puts
     // the recommended Native SegWit choice last, closest to the action row.
@@ -522,18 +518,26 @@ static void type_open_cb(lv_event_t *e)
     static const int scripts[3] = {
         WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE
     };
-    static const int py[3] = {96, 190, 282};
-    static const int ny[3] = {154, 248, 340};
+    // One card per type, on the same WT_CHOICE grid the storage chooser uses.
+    // These two screens are reached from adjacent rows of Settings and ask the
+    // same shape of question, so they are drawn on the same grid; only what goes
+    // inside a row differs, because a type's explanation is one line and a
+    // storage mode's is three.
+    //
+    // The pill loses 20px of width to the card's padding. It has that to give:
+    // the longest label here is a type name and a four character prefix, and the
+    // fit report is what proves it (sim/fitcheck.c fails the build on font14).
     int tn = wallet_testnet();
     for (int i = 0; i < 3; i++) {
         int sc = scripts[i];
         char label[96];
         snprintf(label, sizeof label, "%s   %s", type_name(sc),
                  type_prefix(sc, tn));
-        lv_obj_t *p = wt_pillh(s_scr, label, 48, py[i], 704, 52,
+        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
+        lv_obj_t *p = wt_pillh(s_scr, label, 56, WT_CHOICE_Y(i) + 6, 684, 52,
                                type_pick_cb, (void *)(intptr_t)sc);
         wt_pill_select(p, wallet_script() == sc);
-        wt_note(s_scr, type_note(sc), 68, ny[i], 664, 29);
+        wt_note(s_scr, type_note(sc), 72, WT_CHOICE_Y(i) + 62, 650, 30);
     }
     lv_obj_set_ext_click_area(
         wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, type_back_cb, NULL), 10);
@@ -816,11 +820,6 @@ static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_
     return wt_pillh(s_scr, txt, x, y, w, h, cb, ud);
 }
 
-static lv_obj_t *mk_section(const char *txt, int x, int y)
-{
-    return wt_section(s_scr, txt, x, y);
-}
-
 // ---- language picker: full-screen overlay, every name in its own language
 // (a user stuck in a language they can't read must still find the way back).
 // Shared with the first-boot setup screen via wallet_lang_picker_open(). ----
@@ -909,9 +908,30 @@ void wallet_settings_open(lv_obj_t *parent)
     s_parent = parent;
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
-    wt_lock_mark(s_scr);
 
-    // THEME dots, top-right: tap a color, the wallet UI wears it everywhere
+    // The wallet fingerprint takes the top right, as it does on every other
+    // wallet screen. It used to be four 36px theme dots up here, which is the
+    // largest, brightest, most saturated thing on the page given to the one
+    // control that changes nothing about the wallet. Redraw 05 puts the ID here
+    // and demotes the dots into the action bar, and the reason is hierarchy: the
+    // top right of a settings page should say WHICH wallet you are editing.
+
+    // THEME, in the action bar: an 11px eyebrow and four 18px dots, right of
+    // centre. Same four accents, same picker callback, a third the diameter.
+    // Sized and placed off the drawing (label x=487 y=440, dots from x=545 on a
+    // 27px pitch), which puts them between the two pills without touching either.
+    s_acc_name = lv_label_create(s_scr);       // names the dressed colour
+    lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
+    lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
+    lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
+    // RIGHT aligned, ending 10px short of the first dot at x=510. Not placed by
+    // its left edge: this label is the live accent NAME, so it is "MONO" in one
+    // theme and "CYPHERPINK" in another, and a fixed left edge put the long one
+    // straight through the dots. The text overlap gate cannot catch that -- a
+    // dot is not text -- so the geometry has to make it impossible instead.
+    lv_obj_set_width(s_acc_name, 120);
+    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(s_acc_name, 380, WT_ACTION_Y + 8);
     for (int i = 0; i < WT_ACC_N; i++) {
         int save = wt_accent_get();
         wt_accent_set(i);                     // borrow the accent table for the dot fill
@@ -919,33 +939,38 @@ void wallet_settings_open(lv_obj_t *parent)
         wt_accent_set(save);
         lv_obj_t *d = lv_obj_create(s_scr);
         lv_obj_remove_style_all(d);
-        lv_obj_set_size(d, 36, 36);
-        lv_obj_set_pos(d, 560 + i * 48, 30);
-        lv_obj_set_style_radius(d, 18, 0);
+        lv_obj_set_size(d, 18, 18);
+        lv_obj_set_pos(d, 510 + i * 27, WT_ACTION_Y + 13);
+        lv_obj_set_style_radius(d, 9, 0);
         lv_obj_set_style_bg_color(d, c, 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(d, 1, 0);
         lv_obj_set_style_border_color(d, KEY_COL, 0);
         lv_obj_add_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(d, 6);
+        // The dot shrank from 36 to 18, so the TOUCH target has to grow to keep
+        // it tappable: 15px of ext area gives each one a 48x48 region, and the
+        // 27px pitch means those regions tile without overlapping a neighbour.
+        lv_obj_set_ext_click_area(d, 15);
         lv_obj_add_event_cb(d, theme_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         s_acc_dot[i] = d;
     }
-    // The name goes BESIDE the dots, not under them. Under them it landed on
-    // y=74, the same baseline as the WALLET section header 130px to its left,
-    // and two dim letter-spaced words on one line read as two section headers:
-    // "MONO" looked like it was titling the wallet-actions column.
-    s_acc_name = lv_label_create(s_scr);       // names the dressed color
-    lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
-    lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
-    lv_obj_set_width(s_acc_name, 118);
-    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(s_acc_name, 430, 39);       // centred on the 36px dot row
 
-    // Redraw 05: two columns of ROWS under section eyebrows, not a grid of
-    // pills. Measured off the drawing: left column x=48 w=352, right x=424
-    // w=328, eyebrow then rows at WT_ROW_H each.
+    // Redraw 05: two columns of CARDS under section eyebrows, not a grid of
+    // pills. Every number here is read off the drawing's own DOM rather than
+    // eyeballed: both columns are 365 wide, the left at x=25 and the right at
+    // x=412, cards 56..60 tall on a 64..67 pitch, first card at y=95 under an
+    // eyebrow at y=73.
+    //
+    // Ours are 64 tall on a 71 pitch, which is the same shape carrying the type
+    // this device actually has. The drawing's 56 fits a 15px label over a 12px
+    // sub; at the 23 and 14 the wallet uses, the same two lines need 64. Keeping
+    // the drawn card height instead would have meant shrinking the type, which
+    // was tried, flashed, and rejected on glass for being unreadable.
+    //
+    // The pitch is what has to be checked against WT_CONTENT_BOTTOM, not the
+    // height: the right column is the tall one, because it carries two cards, a
+    // second eyebrow and two more cards. 95 + 64 + 7 + 64 + 8 + 22 + 64 + 7 + 64
+    // lands its last card's bottom edge on 395, three pixels clear of 398.
     //
     // Why this shape rather than the pills it replaces. Eleven pills gave every
     // control the same visual weight and the same answer to "what is this
@@ -957,42 +982,100 @@ void wallet_settings_open(lv_obj_t *parent)
     //
     // MAINNET and TESTNET stay a real pair of pills: they are two values of one
     // setting and the only control here where the choice itself is the widget.
-#define SG_L_X   48
-#define SG_L_W   376
-#define SG_R_X   448
-#define SG_R_W   304
-#define SG_TOP   72
+#define SG_L_X    25
+#define SG_L_W   365
+#define SG_R_X   412
+#define SG_R_W   365
+#define SG_TOP    72
+#define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
+#define SG_PITCH 71    // 64 tall card + 7 gap
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
-    // Network: one row like the rest, its value the live network. The old pair
-    // of MAINNET/TESTNET pills is gone from this page. They needed 165px each to
-    // set at font23, and inside a row that left the label 20px; squeezed to 88
-    // both words wrapped mid-syllable. A row whose value says which network is
-    // live, and whose sub-line says whether the coins are real, states the same
-    // thing in the same idiom as the three rows under it. pick_cb still takes the
-    // network, so the tap flips it and restyle repaints the value.
+    // Network: the one row on this page whose control IS the choice, so redraw 05
+    // draws a SEGMENTED control instead of a value plus a chevron -- a bordered
+    // track holding two lozenges, the live one filled. There is no chevron on
+    // this row in the drawing either, and that is the point: you do not navigate
+    // into a two-state setting, you set it where it is stated.
+    //
+    // The pair of full pills this replaces failed for a measurable reason: at
+    // font23 each needed 165px, which inside a row left the label 20px, and
+    // squeezed to 88 both words wrapped mid-syllable. At font14 a segment sets
+    // in 84, so the whole track is 176. That is the only thing that changed --
+    // the type, not the idea.
+    //
+    // 177 rather than the drawing's 162, which costs 15px of fidelity nobody can
+    // see and buys the label 155px instead of 140. The overlap gate compares
+    // BOXES: wt_row sizes the label against the chevron, this row has none, so
+    // the label's box ran the whole width of the card and CONTAINED both
+    // lozenges -- two findings in all 21 locales. Both text lines have to be
+    // capped short of the track, and 155 is what keeps the longest translations
+    // of "Network" off the ellipsis.
+#define SG_SEG_X 177
+#define SG_SEG_TEXT_W (SG_SEG_X - 14 - 8)
     {
-        int y = SG_TOP + 22;
-        // Built with real sub and value text so wt_row lays the line out, then
-        // restyle finds both back by walking. Handing it empty strings and
-        // adding my own labels afterwards is what put the note on top of the
-        // label: wt_row only reserves the sub-line when it is given one.
+        int y = SG_TOP + SG_HEAD;
         int tn0 = wallet_testnet();
-        s_main_pill = wt_row(s_scr, tr(STR_I_ROW_NETWORK),
-                             tn0 ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
-                             tn0 ? "TESTNET" : "MAINNET",
-                             tn0 ? WARN_COL : INK_COL,
-                             SG_L_X, y, SG_L_W, net_toggle_cb, NULL);
-        s_test_pill = NULL;
-        s_net_val = s_state_lbl = NULL;
-        uint32_t n = lv_obj_get_child_count(s_main_pill);
+        // No value and no callback: the segments carry both. wt_row still lays
+        // out the label and the sub-line, and only reserves the sub-line when it
+        // is given one, so the note text goes in here rather than being added
+        // afterwards (doing that put the note on top of the label).
+        lv_obj_t *row = wt_row(s_scr, tr(STR_I_ROW_NETWORK),
+                               tn0 ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
+                               NULL, WT_INK, SG_L_X, y, SG_L_W, NULL, NULL);
+        s_state_lbl = NULL;
+
+        // The track. 162 from the card's left edge puts it at x=187 absolute,
+        // which is where the drawing has it, and 34 tall centred in a 64 card.
+        lv_obj_t *seg = lv_obj_create(row);
+        lv_obj_remove_style_all(seg);
+        lv_obj_set_pos(seg, SG_SEG_X, (WT_ROW_H - 34) / 2);
+        lv_obj_set_size(seg, 176, 34);
+        lv_obj_set_style_radius(seg, 100, 0);
+        lv_obj_set_style_border_width(seg, 1, 0);
+        lv_obj_set_style_border_color(seg, WT_EDGE, 0);
+        lv_obj_remove_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(seg, LV_OBJ_FLAG_CLICKABLE);
+
+        // Two lozenges inset 3 inside it, 90 wide each. Each one is a label
+        // carrying its own box, the same trick wt_state_chip uses: a container
+        // plus a child needs two layout passes to measure, and LVGL labels take
+        // background and radius styles perfectly well on their own.
+        static const char *const seg_txt[2] = { "MAINNET", "TESTNET" };
+        lv_obj_t **slot[2] = { &s_main_pill, &s_test_pill };
+        for (int i = 0; i < 2; i++) {
+            lv_obj_t *s = lv_label_create(seg);
+            lv_label_set_text(s, seg_txt[i]);
+            lv_obj_set_pos(s, 3 + i * 86, 3);
+            lv_obj_set_size(s, 84, 28);
+            lv_obj_set_style_radius(s, 100, 0);
+            lv_obj_set_style_text_font(s, wt_font14(), 0);
+            lv_obj_set_style_text_letter_space(s, 1, 0);
+            lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
+            // The glyphs are 14px in a 28px box, so the text has to be pushed
+            // down to sit on the lozenge's centre line rather than its top.
+            lv_obj_set_style_pad_top(s, 5, 0);
+            lv_obj_add_flag(s, LV_OBJ_FLAG_CLICKABLE);
+            // 10px reach in every direction: an 84x28 lozenge is a 104x48
+            // target, and the two cannot steal from each other because the reach
+            // is smaller than half the 86px pitch between them.
+            lv_obj_set_ext_click_area(s, 10);
+            lv_obj_add_event_cb(s, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+            *slot[i] = s;
+        }
+
+        // BOTH text lines stop short of the track, the label as well as the note.
+        // wt_row sizes them against the chevron, and this row has none, so each
+        // box ran the full width of the card and CONTAINED both lozenges. The
+        // lozenges are text, so the overlap gate called it -- correctly -- in
+        // every locale. Only the row's own two labels are touched here; the
+        // segments live inside `seg`, not in this child list.
+        uint32_t n = lv_obj_get_child_count(row);
         for (uint32_t i = 0; i < n; i++) {
-            lv_obj_t *c = lv_obj_get_child(s_main_pill, i);
+            lv_obj_t *c = lv_obj_get_child(row, i);
             if (!lv_obj_check_type(c, &lv_label_class)) continue;
-            const char *t = lv_label_get_text(c);
-            if (!t) continue;
-            if (!strcmp(t, "TESTNET") || !strcmp(t, "MAINNET")) s_net_val = c;
-            else if (lv_obj_get_x(c) == 14 && lv_obj_get_y(c) > 20) s_state_lbl = c;
+            lv_obj_set_width(c, SG_SEG_TEXT_W);
+            lv_label_set_long_mode(c, LV_LABEL_LONG_DOT);
+            if (lv_obj_get_style_text_font(c, 0) == wt_font14()) s_state_lbl = c;
         }
     }
 
@@ -1000,7 +1083,7 @@ void wallet_settings_open(lv_obj_t *parent)
     s_type_pill = wt_row(s_scr, tr(STR_I_ROW_TYPE),
                          type_prefix(wallet_script(), wallet_testnet()),
                          type_name(wallet_script()), WT_INK,
-                         SG_L_X, SG_TOP + 22 + WT_ROW_H, SG_L_W,
+                         SG_L_X, SG_TOP + SG_HEAD + SG_PITCH, SG_L_W,
                          type_open_cb, NULL);
     s_type_expl = NULL;                // the explanation lives on the chooser
     // Capture the two labels restyle has to rewrite, rather than letting it
@@ -1064,14 +1147,19 @@ void wallet_settings_open(lv_obj_t *parent)
                             !wallet_seed_flash_encrypted()
                                 ? tr(STR_W_FLASH_PLAIN_NOTE_SHORT) : "",
                             storage_mode_name(wallet_seed_mode()), WT_INK,
-                            SG_L_X, SG_TOP + 22 + 2 * WT_ROW_H, SG_L_W,
+                            SG_L_X, SG_TOP + SG_HEAD + 2 * SG_PITCH, SG_L_W,
                             storage_open_cb, NULL);
+    // Amber CARD, not just an amber note. The drawing tints this whole box when
+    // the words sit in a flash this build does not encrypt, which is the one
+    // fact on the page a holder should catch without reading anything.
+    if (wallet_seed_mode() == WSEED_MODE_KEEP && !wallet_seed_flash_encrypted())
+        wt_row_sev(s_storage_pill, WT_SEV_WARN);
 
     const int g = wallet_duress_real();
     if (!(wallet_session_decoy() && g != WDG_NONE)) {
         wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_SUB),
                g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
-               WT_INK, SG_L_X, SG_TOP + 22 + 3 * WT_ROW_H, SG_L_W,
+               WT_INK, SG_L_X, SG_TOP + SG_HEAD + 3 * SG_PITCH, SG_L_W,
                duress_cb, NULL);
     }
 
@@ -1081,7 +1169,7 @@ void wallet_settings_open(lv_obj_t *parent)
     // are opposite intentions that used to sit in one stack.
     wt_row_head(s_scr, tr(STR_I_SEC_YOUR_BACKUP), SG_R_X, SG_TOP, SG_R_W);
     wt_row(s_scr, tr(STR_I_ROW_WORDS), tr(STR_I_WORDS_SUB), NULL, WT_INK,
-           SG_R_X, SG_TOP + 22, SG_R_W, words_cb, NULL);
+           SG_R_X, SG_TOP + SG_HEAD, SG_R_W, words_cb, NULL);
     {
         // Paper checked: its own row, because whether the paper was ever proven
         // against this device is a fact about the backup, not a footnote on the
@@ -1101,7 +1189,7 @@ void wallet_settings_open(lv_obj_t *parent)
                      LV_SYMBOL_WARNING, tr(STR_I_WORDS_UNVERIFIED));
         }
         lv_obj_t *r = wt_row(s_scr, tr(STR_I_ROW_PAPER), buf, NULL,
-                             WT_INK, SG_R_X, SG_TOP + 22 + WT_ROW_H, SG_R_W,
+                             WT_INK, SG_R_X, SG_TOP + SG_HEAD + SG_PITCH, SG_R_W,
                              words_cb, NULL);
         // A colour cue AND a glyph, per ADDENDUM-02: in GREEN theme the accent
         // is byte identical to WT_OK, so colour alone stops carrying meaning.
@@ -1114,29 +1202,64 @@ void wallet_settings_open(lv_obj_t *parent)
                 lv_obj_get_y(c) > 24)
                 lv_obj_set_style_text_color(c, ok ? WT_OK : WT_WARN, 0);
         }
+        // and the card itself, which is how the drawing states it: green once
+        // the paper has been proven against this device, amber until it has.
+        wt_row_sev(r, ok ? WT_SEV_OK : WT_SEV_WARN);
     }
 
-    // Group two: the destructive pair, under a WT_STOP eyebrow. The rule that
-    // used to be a hairline with a knocked-out label is now just the eyebrow in
-    // stop red, because the rows below carry their own separators and a second
-    // horizontal line immediately above one reads as a rendering fault.
+    // Group two: the destructive pair, under a WT_STOP eyebrow with a WT_STOP
+    // rule running out to the right of it. The rule was taken out once, on the
+    // argument that a horizontal line immediately above a row's own separator
+    // reads as a rendering fault. That reasoning died with the separators: the
+    // rows are cards now, so the only line in this region is the rule itself,
+    // and the drawing has it -- 284x1 at 25 percent, starting after the label.
     {
-        int y = SG_TOP + 22 + 2 * WT_ROW_H + 12;
+        // No gap above the eyebrow. 72 + 23 + 2*71 is already 237, which clears
+        // the card above it (bottom edge 230) and still leaves the second card
+        // of THIS group ending on 395, inside WT_CONTENT_BOTTOM.
+        int y = SG_TOP + SG_HEAD + 2 * SG_PITCH;
         lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
         lv_obj_set_style_text_color(h, STOP_COL, 0);
+        // The rule starts one em past the WORDS and runs to the column's right
+        // edge, so a longer translation simply shortens it instead of striking
+        // through itself. Below 40px it is not a rule any more, so it goes.
+        //
+        // Measure the TEXT, not the label. wt_row_head sets the eyebrow's width
+        // to the whole column so a long translation ellipsises, so asking the
+        // object how wide it is answers 365 and puts the rule off the screen --
+        // which is exactly how the first attempt drew no rule at all.
+        lv_point_t hs;
+        lv_text_get_size(&hs, tr(STR_I_SEC_NO_UNDO), wt_font14(), 2, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        int rx = SG_R_X + hs.x + 10;
+        lv_obj_t *rule = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(rule);
+        lv_obj_set_pos(rule, rx, y + 6);
+        lv_obj_set_size(rule, SG_R_X + SG_R_W - rx, 1);
+        lv_obj_set_style_bg_color(rule, STOP_COL, 0);
+        lv_obj_set_style_bg_opa(rule, 64, 0);      // the drawing's 25 percent
+        lv_obj_remove_flag(rule, LV_OBJ_FLAG_CLICKABLE);
+        if (SG_R_X + SG_R_W - rx < 40) lv_obj_delete(rule);
+
         s_replace_pill = wt_row(s_scr, tr(STR_I_ROW_REPLACE),
                                 tr(STR_I_ROW_REPLACE_SUB), NULL, WT_INK,
-                                SG_R_X, y + 22, SG_R_W, replace_cb, NULL);
-        // Red LABEL so it reads as destructive before it is ever tapped; a hold
-        // on the confirmation is what actually erases.
+                                SG_R_X, y + SG_HEAD, SG_R_W, replace_cb, NULL);
         s_wipe_pill = wt_row(s_scr, tr(STR_I_ROW_ERASE), tr(STR_I_ROW_ERASE_SUB), NULL,
-                             WT_INK, SG_R_X, y + 22 + WT_ROW_H, SG_R_W,
+                             WT_INK, SG_R_X, y + SG_HEAD + SG_PITCH, SG_R_W,
                              wipe_cb, NULL);
-        uint32_t n = lv_obj_get_child_count(s_wipe_pill);
-        for (uint32_t i = 0; i < n; i++) {
-            lv_obj_t *c = lv_obj_get_child(s_wipe_pill, i);
-            if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
-                lv_obj_set_style_text_color(c, STOP_COL, 0);
+        // Red CARDS and red LABELS, so both read as destructive before either is
+        // tapped; a hold on the confirmation is what actually erases. The label
+        // takes WT_STOP_INK rather than WT_STOP: full stop red on a stop-tinted
+        // card is the one pairing on this page that vibrates.
+        lv_obj_t *pair[2] = { s_replace_pill, s_wipe_pill };
+        for (int p = 0; p < 2; p++) {
+            wt_row_sev(pair[p], WT_SEV_STOP);
+            uint32_t n = lv_obj_get_child_count(pair[p]);
+            for (uint32_t i = 0; i < n; i++) {
+                lv_obj_t *c = lv_obj_get_child(pair[p], i);
+                if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
+                    lv_obj_set_style_text_color(c, WT_STOP_INK, 0);
+            }
         }
     }
 
@@ -1157,25 +1280,46 @@ void wallet_settings_open(lv_obj_t *parent)
         // flag's width used to come straight out of the name's. BACK keeps its
         // 140 -- the extra comes from the gap between them.
 #define LANG_PILL_W 170
-        s_lang_pill = mk_pillh(shortname, 430, WT_ACTION_Y, LANG_PILL_W, 44, lang_open_cb, NULL);
+        // Far RIGHT, mirroring BACK's 21px left margin: 779 - 170. The drawing
+        // draws it 119 wide at x=662 because "ENGLISH" is all it has to fit;
+        // this one has to hold "PORTUGUÊS", so it keeps its width and gives up
+        // the x instead.
+        s_lang_pill = mk_pillh(shortname, 779 - LANG_PILL_W, WT_ACTION_Y,
+                               LANG_PILL_W, 44, lang_open_cb, NULL);
     }
 
     // build identity, bottom edge (below the pill row; bottom has no overscan)
-    // 418, not 460. Two rows now, centred in the action bar's empty left
-    // half (x 48..263 against ENGLISH starting at 430), instead of a single
-    // panel-wide line squeezed into the 24px strip below the buttons.
-    s_build_id = wallet_build_id_make(s_scr, 48, 418, true, true);  // radio readback lives here
+    // 150, not 48: BACK moved into the left corner and 48 is inside it now. This
+    // sits in the gap between BACK's right edge (132) and the THEME eyebrow
+    // (452), which is the only part of the bar the drawing leaves empty.
+    s_build_id = wallet_build_id_make(s_scr, 150, 418, true, true);  // radio readback lives here
 
     {
-        // BACK sits in the bottom-right corner, where a thumb arrives at an
-        // angle and lands short. 10px of ext click area turns a 140x44 pill
-        // into a 160x64 target without moving a pixel of what is drawn. Not
-        // more than 10: the language pill's right edge is at x=600, and a
-        // wider reach would start eating taps meant for it.
-        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, 44, close_cb, NULL);
+        // BACK takes the bottom LEFT corner on this screen, at the 21px margin
+        // the drawing uses. That is the opposite of the one-corner rule stated
+        // above WT_BACK_X, and it is deliberate: redraws 01, 02, 03 and 05 all
+        // put the escape leftmost and the consequential control furthest right,
+        // and Sign and Receive were already moved to match. The safety property
+        // the rule was protecting still holds -- the reflex corner holds the
+        // least consequential button -- it is just the other corner now, and
+        // what sits in the right one here only changes the language.
+        //
+        // 111 wide, as drawn. 10px of ext click area makes it a 131x64 target
+        // without moving a drawn pixel; the build identity line starts at 150,
+        // so the reach cannot eat a tap meant for anything else.
+        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 21, WT_ACTION_Y, 111, 44, close_cb, NULL);
         lv_obj_set_ext_click_area(back, 10);
-        lv_obj_t *row[2] = { s_lang_pill, back };
+        lv_obj_t *row[2] = { back, s_lang_pill };
         wt_pill_row(row, 2);
+
+        // The THEME control has to be raised above the action bar's floor. The
+        // bar is built lazily by the first wt_pill call, which is AFTER these
+        // were created, so it drew straight over the top of them: the label and
+        // all four dots vanished, and nothing errored because they were still
+        // there and still tappable, just hidden.
+        lv_obj_move_foreground(s_acc_name);
+        for (int i = 0; i < WT_ACC_N; i++)
+            if (s_acc_dot[i]) lv_obj_move_foreground(s_acc_dot[i]);
     }
 
     // NO FLAG ON THIS PILL. It used to carry the active language's flag, which

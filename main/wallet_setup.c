@@ -681,19 +681,11 @@ static void entropy_screen(void)
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
     s_ent_bar1 = s_ent_bar2 = s_ent_state = s_ent_dot = s_ent_capture = NULL;
 
-    // Left: the frame the preview lands in. Drawn as an empty bordered panel so
-    // the column reads as a viewport even before the first camera frame, and so
-    // the simulator (which never runs a camera) shows the same composition the
-    // device does.
-    lv_obj_t *vp = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(vp);
-    lv_obj_set_pos(vp, ENT_CAM_X, ENT_CAM_Y);
-    lv_obj_set_size(vp, ENT_CAM_W, ENT_CAM_H);
-    lv_obj_set_style_radius(vp, 10, 0);
-    lv_obj_set_style_border_width(vp, 1, 0);
-    lv_obj_set_style_border_color(vp, WT_EDGE, 0);
-    lv_obj_remove_flag(vp, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(vp, LV_OBJ_FLAG_SCROLLABLE);
+    // Left: the frame the preview lands in. The same viewfinder the scan screen
+    // uses, so the two camera screens are one object to the eye: a filled panel
+    // rather than an empty outline, with the bracket corners outside the rect
+    // where the video cannot cover them.
+    wt_viewfinder(s_scr, ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
 
     // Readiness, under the preview: a 9px dot and one line. This replaces the
     // on-video bar as the cue a holder waits on.
@@ -934,13 +926,15 @@ static void storage_screen(void)
     // Settings. The note is beside its control instead of hidden behind a
     // help card: this choice decides what an attacker or a border search can
     // recover after power-off.
-    // 106/213/320, matching storage_chooser_screen() in wallet_settings.c row
-    // for row: three notes of three lines at font23 with the first landing on
-    // the y=96 content line and the last ending at 396. At the old 110/218/326
-    // the AMNESIC note ran to 402, so Turkish, Portuguese and Russian lost the
-    // last line of the one mode that keeps nothing on the device. The two
-    // screens present the identical choice and must not drift apart again.
-    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, 106, 252,
+    // Geometry from WT_CHOICE_*, matching storage_chooser_screen() in
+    // wallet_settings.c row for row: one card per mode with the pill centred in
+    // it and the note given three lines at font23 beside it. The two screens
+    // present the identical choice and must not drift apart again, which is why
+    // the numbers live in wallet_theme.h and not in either file.
+    for (int i = 0; i < 3; i++)
+        wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W, WT_CHOICE_H);
+
+    lv_obj_t *flash = mk_pill(tr(STR_W_KEEP_BTN), 48, WT_CHOICE_Y(0) + 22, 252,
                               storage_pick_cb,
                               (void *)(intptr_t)WSEED_MODE_KEEP);
     wt_pill_primary(flash);
@@ -953,16 +947,16 @@ static void storage_screen(void)
         bool enc = wallet_seed_flash_encrypted();
         lv_obj_t *n = wt_wraph(s_scr, tr(enc ? STR_W_FLASH_ENC_NOTE
                                              : STR_W_KEEP_NOTE),
-                               330, 96, 420, 87);
+                               322, WT_CHOICE_Y(0) + 4, 420, 87);
         if (!enc) lv_obj_set_style_text_color(n, WT_WARN, 0);
     }
-    mk_pill(tr(STR_W_SD_BTN), 48, 213, 252, storage_pick_cb,
+    mk_pill(tr(STR_W_SD_BTN), 48, WT_CHOICE_Y(1) + 22, 252, storage_pick_cb,
             (void *)(intptr_t)WSEED_MODE_SD);
-    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 330, 203, 420, 87);
+    wt_wraph(s_scr, tr(STR_W_SD_NOTE), 322, WT_CHOICE_Y(1) + 4, 420, 87);
 
-    mk_pill(tr(STR_W_AMNESIC_BTN), 48, 320, 252,
+    mk_pill(tr(STR_W_AMNESIC_BTN), 48, WT_CHOICE_Y(2) + 22, 252,
             storage_pick_cb, (void *)(intptr_t)WSEED_MODE_AMNESIC);
-    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 330, 310, 420, 87);
+    wt_wraph(s_scr, tr(STR_W_AMNESIC_NOTE), 322, WT_CHOICE_Y(2) + 4, 420, 87);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
@@ -1016,17 +1010,44 @@ static void choose_screen(void)
     // reaches. STR_W_CREATE_NEW and STR_W_RESTORE_FROM_WORDS keep their short
     // labels for the Settings-side pills at 190 and 280 wide that also reuse
     // them; they never lead a new owner in cold, so the shorthand still reads.
-    lv_obj_t *p = mk_pill(tr(STR_W_CHOOSE_NEW), 48, 150, 340, new_cb, NULL);
+    // A card per choice. This is the first screen a new owner ever sees, and it
+    // was two buttons with two paragraphs floating beside them; which paragraph
+    // belonged to which button was left to the reader's eye. The cards are
+    // different heights on purpose: RESTORE's note is a line longer than NEW's in
+    // every locale, and forcing them equal would cost the longer one its last
+    // line in exactly the languages that need it.
+    //
+    // The notes moved 16px left, to 444, so their boxes end inside the card.
+    // At 460 with a 310 wide box they reached x=770, past the page's own 752
+    // margin: harmless while nothing was drawn there, wrong once a card is.
+    wt_card(s_scr, WT_CHOICE_X, 140, WT_CHOICE_W, 112);
+    wt_card(s_scr, WT_CHOICE_X, 260, WT_CHOICE_W, 136);
+
+    lv_obj_t *p = mk_pill(tr(STR_W_CHOOSE_NEW), 48, 170, 340, new_cb, NULL);
     wt_pill_primary(p);
+    // Both pills are 340 and both take one type size, chosen for the PAIR. The
+    // restore pill used to be 400 wide because its English label was "RESTORE
+    // FROM A SEED PHRASE": two words longer than it needed to be, and the extra
+    // 60px hung it out past its neighbour so the two read as different kinds of
+    // control. The English label is "RESTORE SEED PHRASE" now; the other twenty
+    // locales keep their longer translations and pay for them with a smaller
+    // type size, which wt_pill_group_fit applies to BOTH so the row never
+    // splits across two rungs.
     // RESTORE FROM A SEED PHRASE is longer than the primary and the plan's own
     // escape hatch is to widen the pill rather than drop a rung. 400 wide takes
     // the pill to x=448, so the note beside it moves to x=460 (w=310) to clear
     // it. Neither label is the primary action, so the secondary sitting a rung
     // BELOW the primary at 23 stays legitimate for locales whose translation
     // still overflows 400.
-    mk_pill(tr(STR_W_CHOOSE_RESTORE), 48, 264, 400, restore_cb, NULL);
-    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     460, 152, 310, 110);
-    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 460, 266, 310, 130);
+    lv_obj_t *rp = mk_pill(tr(STR_W_CHOOSE_RESTORE), 48, 302, 340, restore_cb, NULL);
+    {
+        const char *lbls[2] = { tr(STR_W_CHOOSE_NEW), tr(STR_W_CHOOSE_RESTORE) };
+        wt_pill_fit_t f = wt_pill_group_fit(lbls, 2, 340, 52, true);
+        wt_pill_apply_fit(p,  f, 340);
+        wt_pill_apply_fit(rp, f, 340);
+    }
+    wt_wraph(s_scr, tr(STR_W_NEW_NOTE),     444, 146, 296, 100);
+    wt_wraph(s_scr, tr(STR_W_RESTORE_NOTE), 444, 266, 296, 124);
     // The third pill "WHAT IS A SEED?" is now a "?" chip beside the subtitle.
     // A question does not rank equal to the two decisions, and the pill's
     // bottom edge landed at 396 anyway, two pixels off the content floor.

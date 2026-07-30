@@ -362,19 +362,31 @@ static bool dpi_trans_done(esp_lcd_panel_handle_t p, esp_lcd_dpi_panel_event_dat
 // Mapping (90deg CW): logical (lx,ly) -> panel (px,py) = (479-ly, lx).
 static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   (void)disp;
-  // While the camera owns the whole panel (the dev preview, and any mode with no
+  // While the camera owns the WHOLE panel (the dev preview, and any mode with no
   // preview rect set), LVGL must not paint: menu animations under the wizard kept
   // dirtying regions, and every repair flush flashed black boxes over the live
   // video. Video ends with a full-screen invalidate, so dropping those flushes
   // loses nothing.
   //
-  // Two-column mode (ADDENDUM-01) is the exception and the reason this is a rect
-  // test rather than a flag test. The camera confines itself to one column and
-  // stops flipping framebuffers, so a flush that does not touch that column is
-  // safe and is exactly how the source cards and the scan permissions card stay
-  // live beside the video.
-  if (camera_spike_is_on() &&
-      !camera_spike_ui_rect_free(area->x1, area->y1, area->x2, area->y2)) {
+  // In two-column mode (ADDENDUM-01) LVGL paints EVERYTHING, including over the
+  // preview rect, and the video simply takes its rect back on the next frame.
+  //
+  // This used to ask camera_spike_ui_rect_free() whether the flush touched the
+  // preview and drop the whole flush if it did, which broke the scan and entropy
+  // screens on hardware and looked perfect in the simulator, where there is no
+  // camera and this function never runs. LVGL renders PARTIAL into a 48-LINE
+  // FULL-WIDTH buffer (see display_start), so a screen build arrives as ten bands
+  // of 800x48. Every band whose y range crossed the preview was discarded across
+  // its entire width, right column included: on the scan screen the preview spans
+  // y112..299, so everything from y96 to y335 never reached the panel. The owner
+  // saw a thick black band with camera on the left and nothing on the right.
+  //
+  // Painting over the video instead costs at most one frame of the layout showing
+  // through the preview, at 30fps, and only while something is actually being
+  // repainted. In steady state LVGL is not flushing at all. A rect test cannot be
+  // made to work here without splitting each band into sub-rectangles, and
+  // rot_flush has ONE rotation buffer and owes exactly one flush_ready per flush.
+  if (camera_spike_owns_panel()) {
     lv_display_flush_ready(disp);
     return;
   }
@@ -1299,10 +1311,12 @@ static void wallet_home_restyle(void) {
   }
   for (int i = 0; i < 4; i++) {
     if (s_card_frame[i]) {
-      bool primary = (i == 0 || i == 1);          // SIGN, RECEIVE per HANDOFF-05
-      lv_obj_set_style_border_color(s_card_frame[i], primary ? ac : WT_EDGE, 0);
+      // All four, one weight. The two-tier version painted WALLET and SETTINGS
+      // in WT_EDGE and left their glow uncoloured, which is what made two of the
+      // four tiles look unfinished rather than secondary.
+      lv_obj_set_style_border_color(s_card_frame[i], ac, 0);
       lv_obj_set_style_bg_color(s_card_frame[i], ac, 0);
-      if (primary) lv_obj_set_style_shadow_color(s_card_frame[i], ac, 0);
+      lv_obj_set_style_shadow_color(s_card_frame[i], ac, 0);
     }
     if (s_corner[i]) lv_obj_set_style_border_color(s_corner[i], ac, 0);
   }
@@ -1648,27 +1662,17 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
-    // Per SWEEP-01 edit 4: the top-left corner locks from a wallet SUB screen
-    // too, not only the home. H_EXIT_HINT promises "any time" and until now
-    // four screens ignored it. The visible × in that corner is drawn by
-    // wt_lock_mark in wallet_theme.c and painted by each sub-screen; here we
-    // only route the touch. 88x88 target matches the mark's box. Route
-    // through the same teardown auto-lock uses, so a loaded PSBT is dropped
-    // the same way whichever route locks:
-    // scan first (camera off before anything else), sign next (drops the
-    // PSBT), then the passive screens, then wallet_lock.
-    if (pressed && !s_prev_press && tx < 88 && ty < 88 &&
-        (wallet_recv_active() || wallet_sign_active() ||
-         wallet_info_active() || wallet_settings_active())) {
-      if (wallet_scan_active())     wallet_scan_close();
-      if (wallet_sign_active())     wallet_sign_close();
-      if (wallet_recv_active())     wallet_recv_close();
-      if (wallet_info_active())     wallet_info_close();
-      if (wallet_settings_active()) wallet_settings_close();
-      wallet_lock();
-      s_prev_press = pressed;
-      return;
-    }
+    // NO corner lock on wallet sub-screens, and no × drawn in that corner.
+    // SWEEP-01 edit 4 put one on all four of them, reasoning that H_EXIT_HINT
+    // promises the gesture works "any time". The owner's answer, having lived
+    // with it: every one of those screens has a BACK, BACK is the way out people
+    // reach for, and a second unlabelled exit that skips past the level above and
+    // lands in the GAME is a way to lose your place by brushing the glass.
+    //
+    // The two corners that survive both earn it. Above: the scan screen, where
+    // the CANCEL pill is LVGL and the live camera paints over LVGL, so on a real
+    // board that pill can be dead and this is the only escape. Below: the wallet
+    // home, which has no BACK to reach for.
     if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
         wallet_scan_active() || wallet_info_active() || wallet_settings_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
@@ -1974,7 +1978,7 @@ static void storage_locked_screen(lv_obj_t *root,
   lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
   lv_obj_t *page = wt_screen(root, "STORAGE LOCKED",
                              "NON-DESTRUCTIVE SAFE MODE");
-  lv_obj_set_style_text_color(lv_obj_get_child(page, 0), WT_STOP, 0);
+  lv_obj_set_style_text_color(wt_screen_title(page), WT_STOP, 0);
   lv_obj_t *body = wt_wraph(page, BODY, 48, 116, 704, 236);
   lv_obj_set_style_text_color(body, WT_INK, 0);
   lv_obj_t *code = wt_lbl(page, cause, 48, 398, wt_font14(), WT_WARN);
@@ -2091,28 +2095,30 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // underline, chip frame, theme tag. wallet_home_restyle() paints them in the
   // active accent, so switching themes recolors the home with zero re-bake.
   //
-  // Two-tier weight, per HANDOFF-05. SIGN and RECEIVE are the two daily verbs
-  // and keep the full treatment: accent border at 2px plus the 18px glow.
-  // WALLET and SETTINGS are cupboards you open occasionally, so they take a
-  // 1px WT_EDGE border and no glow. The strips themselves stay as they are:
-  // they are RGB565A8 images and dimming them means regenerating the bake,
-  // which is the pipeline this decision exists to avoid. The frame difference
-  // reads as the tile because the strips sit inside the frames.
+  // ONE weight for all four tiles. This was a two-tier treatment per HANDOFF-05:
+  // SIGN and RECEIVE, the two daily verbs, took a 2px accent border plus the
+  // 18px glow, while WALLET and SETTINGS took 1px of WT_EDGE and no glow.
+  //
+  // On glass that did not read as a hierarchy, it read as a rendering fault --
+  // two lit tiles beside two dim ones, on a row of four identically sized boxes
+  // doing the same kind of job. A hierarchy needs something to separate the
+  // tiers; four tiles in one strip, same size, same spacing, same icon language,
+  // gives the eye nothing to attribute the difference to, so it attributes it to
+  // a bug. The order they sit in already says which two are the daily verbs.
+  //
+  // The strips inside the frames are RGB565A8 images and are unaffected: dimming
+  // those would mean regenerating the bake, which is the pipeline this whole
+  // live-chrome approach exists to avoid.
   for (int i = 0; i < 4; i++) {
-    bool primary = (i == 0 || i == 1);              // SIGN, RECEIVE
     lv_obj_t *c = lv_obj_create(s_wallet);
     lv_obj_remove_style_all(c);
     lv_obj_set_pos(c, 50 + i * 180, 150);
     lv_obj_set_size(c, 161, 183);
     lv_obj_set_style_radius(c, 12, 0);
-    lv_obj_set_style_border_width(c, primary ? 2 : 1, 0);
+    lv_obj_set_style_border_width(c, 2, 0);
     lv_obj_set_style_bg_opa(c, 26, 0);              // glass wash; icons stay readable
-    if (primary) {
-      lv_obj_set_style_shadow_width(c, 18, 0);      // the baked art's neon glow, live
-      lv_obj_set_style_shadow_opa(c, 70, 0);
-    } else {
-      lv_obj_set_style_shadow_opa(c, 0, 0);
-    }
+    lv_obj_set_style_shadow_width(c, 18, 0);        // the baked art's neon glow, live
+    lv_obj_set_style_shadow_opa(c, 70, 0);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     s_card_frame[i] = c;
   }

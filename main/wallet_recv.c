@@ -32,7 +32,53 @@
 // than a personal wallet gets through, and the counter states it out loud
 // rather than letting the list just stop.
 #define RECV_LIST_CAP 100
+// List rows are CARDS now, like every row on Settings. The height stays 48: a
+// row holds ONE mono28 line, where a settings row holds a label and a sub, so 48
+// is the same internal padding at half the content. The 6px gap is what a card
+// needs and a hairline list did not.
+//
+// 54 divides 324, the viewport height, exactly six times, and that is not a
+// coincidence: with LV_SCROLL_SNAP_START the list can only come to rest on a
+// multiple of the pitch, so six whole rows are visible and the seventh begins
+// exactly ON the bottom edge. Nothing is ever half a row. The old hairline list
+// had no such property and stopped wherever the throw died, which is why the
+// overlap gate found the bottom row clipped through its own text.
 #define ROW_H 48
+#define ROW_GAP 6
+#define ROW_PITCH (ROW_H + ROW_GAP)
+#define RECV_LIST_H (6 * ROW_PITCH)
+
+// The detail screen's right column: the address in a card, because that is what
+// the rest of the device does with a value worth reading off the glass.
+#define RECV_CARD_X 310
+#define RECV_CARD_Y 134
+#define RECV_CARD_W 442
+// Fixed at the height the EXPANDED address needs, with the block centred inside
+// it, so the card is the thing that does not move: NEXT ADDRESS stays under the
+// same thumb whether the address is folded or not. Folding was the whole point
+// of the change and a fold that shoves the button up gives it back.
+//
+// 114 = two lines of mono23 (58), 6, the compare caption (18), and 16 of padding
+// top and bottom. The grouped form of a 42 character bech32 is 52 characters and
+// takes exactly two lines in RECV_CARD_W - 28.
+#define RECV_CARD_H 114
+// mono23, where the list rows use mono28, and the difference is arithmetic
+// rather than taste: the folded form is 28 characters whatever the address, which
+// is about 500px at mono28, and this card has 414 to give beside a 238px QR. At
+// mono28 the final lit block fell off the card's right edge, which on the screen
+// whose whole job is showing you an address is the one thing that must not
+// happen. A list row is 690 wide and keeps the bigger face.
+#define RECV_ADDR_FONT wt_font_mono23()
+
+// The silent-payment screen's right column, beside its 304px QR card. 356..752
+// for the card, 366 for the content, and SP_COL_W is what is left after a 14px
+// right margin: the folded address is about 28 characters at mono28 (~406px on
+// testnet, whose prefix is a character longer), so it takes two lines here and
+// one in a 690px list row. It used to take one line and run off the panel.
+#define SP_CARD_X 356
+#define SP_CARD_W 396
+#define SP_COL_X  366
+#define SP_COL_W  372
 
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
@@ -42,9 +88,18 @@ static lv_obj_t *s_parent;
 // at 308, so the block owns 230..287 with air on both sides.
 #define RECV_PATH_Y 236
 
-static lv_obj_t *s_qr, *s_addr_sg, *s_addr_tail, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
+static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
 static lv_obj_t *s_state_chip;
+// The card the address lives in on the detail screen, and the caption inside it.
+// recv_refresh rebuilds the spans on every NEXT, so both have to outlive one
+// refresh: the spans are children of the card and are placed against the
+// caption, which is a child of the card too.
+static lv_obj_t *s_addr_card, *s_cmp_lbl;
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
+// The card behind the silent-payment address and its path. Sized by
+// sp_addr_render, because the folded and full views are wildly different
+// heights and the box has to be the shape of whichever one is up.
+static lv_obj_t *s_sp_card;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
 static uint32_t s_list_base;               // first index the list shows
@@ -52,6 +107,7 @@ static uint32_t s_list_base;               // first index the list shows
 // s_seen_key detects a wallet/network/type switch.
 static int s_seen_high = -1;
 static char s_seen_key[16];
+static bool s_addr_full;                   // detail address is folded by default
 static bool s_sp_full;                     // silent-payment text is folded by default
 static char s_sp_addr[128];
 
@@ -59,10 +115,12 @@ bool wallet_recv_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e) {
   (void)e;
-  s_addr_sg = s_addr_tail = NULL;
+  s_addr_sg = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_card = NULL;
   s_state_chip = NULL;
+  s_addr_card = s_cmp_lbl = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -77,17 +135,36 @@ static void recv_refresh(void) {
   if (s_qr)
     wt_qr_update(s_qr, addr, (uint32_t)strlen(addr));
   char grouped[120];
-  (void)grouped;
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
-  if (s_addr_tail) { lv_obj_delete(s_addr_tail); s_addr_tail = NULL; }
-  // Right column, x=310 w=442. Everything but the final 8 characters, grouped
-  // in fours at mono23 and muted, then those 8 on their own line at mono28 in
-  // ink with an underline. Nothing is elided: on a screen whose subtitle is
-  // "trust what you see here", every character stays on the glass.
-  wt_addr_head_tail(s_scr, addr, 442, wt_font_mono23(), wt_font_mono28(),
-                    &s_addr_sg, &s_addr_tail);
-  if (s_addr_sg) lv_obj_set_pos(s_addr_sg, 310, 146);
-  if (s_addr_tail) lv_obj_set_pos(s_addr_tail, 310, 222);
+
+  // FOLDED by default, and folded is the same one line the address list draws:
+  // constant prefix and middle muted, the four characters after the prefix and
+  // the final four lit. Those eight are the ones worth comparing and the eight
+  // the caption under them names, so the screen now shows exactly what it asks
+  // you to check instead of 42 characters with a note about which 8 matter.
+  //
+  // Tapping the card unfolds it to every character, grouped in fours. Nothing is
+  // hidden, it is one tap away, and the QR beside it has carried the whole
+  // address the entire time. Same fold that the silent payment screen has always
+  // had, so it is one behaviour on both address screens rather than two.
+  lv_obj_t *par = s_addr_card ? s_addr_card : s_scr;
+  if (s_addr_full) {
+    wt_group4(addr, grouped, sizeof(grouped));
+    s_addr_sg = wt_addr_spans(par, grouped, RECV_CARD_W - 28, RECV_ADDR_FONT);
+  } else {
+    s_addr_sg = wt_addr_short(par, addr, RECV_ADDR_FONT);
+  }
+  // Centred as a block, because the card's height is fixed for the taller state:
+  // top-aligning would leave the folded line floating in a box half empty.
+  if (s_addr_sg && s_cmp_lbl) {
+    lv_obj_update_layout(s_addr_sg);
+    lv_obj_update_layout(s_cmp_lbl);
+    int ah = lv_obj_get_height(s_addr_sg), ch = lv_obj_get_height(s_cmp_lbl);
+    int top = (RECV_CARD_H - (ah + 6 + ch)) / 2;
+    if (top < 10) top = 10;
+    lv_obj_set_pos(s_addr_sg, 14, top);
+    lv_obj_set_pos(s_cmp_lbl, 14, top + ah + 6);
+  }
   lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
   // The derivation path label is only wired up on the sub-screens that ask for
   // it (currently just the SP detail; HANDOFF-03 pulled it off the base
@@ -133,8 +210,18 @@ static void recv_refresh(void) {
     // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
     // every refresh because the label length differs between the two states
     // AND per locale.
-    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 106);
+    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 104);
   }
+}
+
+// Tapping the address card folds and unfolds it. recv_refresh rebuilds the
+// spans from scratch either way, so the toggle only has to flip the flag; the
+// flag is a static because NEXT rebuilds the same spans and the fold has to
+// survive it.
+static void addr_toggle_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_full = !s_addr_full;
+  recv_refresh();
 }
 
 static void next_cb(lv_event_t *e) {
@@ -222,8 +309,6 @@ static void vfy_result(const char *txt, size_t len) {
                                    : wallet_address_validate(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
-  wt_lock_mark(s_scr);
-  wt_screen_id(s_scr);
   // Only format and tail-highlight something that really is an address.
   // Arbitrary QR text is not grouped address data; feeding a short malformed
   // string through the span formatter also left LVGL with a broken short-span
@@ -312,12 +397,9 @@ static void sp_back_cb(lv_event_t *e) {
   s_addr_sg = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_card = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   wallet_recv_open(s_parent);
-}
-
-static void sp_help_close_cb(lv_event_t *e) {
-  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
 // A reusable Silent Payment address is intentionally NOT the address that
@@ -326,15 +408,6 @@ static void sp_help_close_cb(lv_event_t *e) {
 // the address instead of making them discover it in documentation.
 static void sp_help_cb(lv_event_t *e) {
   (void)e;
-  lv_obj_t *ovl = lv_obj_create(s_scr);
-  lv_obj_remove_style_all(ovl);
-  lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-  lv_obj_set_style_bg_color(ovl, WT_BG, 0);
-  lv_obj_set_style_bg_opa(ovl, 245, 0);
-  lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(ovl, sp_help_close_cb, LV_EVENT_CLICKED, ovl);
-
   // The two prefixes are the whole subject, so they are arguments rather than
   // baked text: %s appears five times and a translation may place them in any
   // order it needs. body is sized for the longest locale plus five 4-char
@@ -342,24 +415,19 @@ static void sp_help_cb(lv_event_t *e) {
   const bool tn = wallet_testnet();
   const char *share = tn ? "tsp1" : "sp1";     // what you hand out
   const char *seen  = tn ? "tb1p" : "bc1p";    // what lands in the transaction
-  char title[96], body[640];
+  static char title[96], body[640];            // outlive this call: the card reads them
   snprintf(title, sizeof title, tr(STR_R_SP_WHY_T), tn ? "TB1P" : "BC1P");
   snprintf(body, sizeof body, tr(STR_R_SP_WHY_B),
            share, seen, share, seen, seen);
 
-  lv_obj_t *t = wt_lbl(ovl, title, 0, 0, wt_font28(), wt_accent());
-  lv_obj_set_style_text_letter_space(t, 2, 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 82);
-
-  lv_obj_t *b = wt_lbl(ovl, body, 0, 0,
-                       wt_body_font(body, 720, 238), WT_MUT);
-  lv_obj_set_width(b, 720);
-  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 142);
-
-  wt_pill(ovl, tr(STR_C_OK), 300, 392, 200, sp_help_close_cb, ovl);
-  wt_card_intro(ovl);
+  // An eye, because the whole card is about which address other people SEE.
+  wt_explain_t x = {
+      .title  = title,
+      .icon   = LV_SYMBOL_EYE_OPEN,
+      .body   = body,
+      .ok_txt = tr(STR_C_OK),
+  };
+  wt_explain_open(s_scr, &x);
 }
 
 static void sp_addr_render(void) {
@@ -369,13 +437,30 @@ static void sp_addr_render(void) {
     // reading or comparing the address; the folded default is only a view.
     char grouped[200];
     wt_group4(s_sp_addr, grouped, sizeof(grouped));
-    s_addr_sg = wt_addr_spans(s_scr, grouped, 386, wt_font_mono28());
-    lv_obj_set_pos(s_addr_sg, 366, 100);
+    s_addr_sg = wt_addr_spans(s_scr, grouped, SP_COL_W, wt_font_mono28());
+    lv_obj_set_pos(s_addr_sg, SP_COL_X, 100);
   } else {
     // Match the readable list form: constant prefix muted, four meaningful
     // characters near each end lit. The QR still receives all of `s_sp_addr`.
+    //
+    // TWO lines if it needs them, and it does. This was a real defect rather
+    // than a preference: the folded form is about 28 characters whatever the
+    // address, which is ~406px at mono28, and this column is 386. The last lit
+    // block ran off the right edge of the panel as a partial group, and on
+    // testnet, where the prefix is a character longer, it ran into the frame. An
+    // address on a receive screen may not be clipped, ever.
+    //
+    // The fix is the wrap, not a smaller face. wt_addr_short builds a one line
+    // group because a list row is 690 wide and wants one; here the group is told
+    // its width and allowed to break, so the size stays readable and the height
+    // grows. sp_addr_render measures the address to place the path below it, so
+    // the second line costs nothing but the space it takes.
     s_addr_sg = wt_addr_short(s_scr, s_sp_addr, wt_font_mono28());
-    lv_obj_set_pos(s_addr_sg, 366, 150);
+    lv_spangroup_set_mode(s_addr_sg, LV_SPAN_MODE_BREAK);
+    lv_obj_set_width(s_addr_sg, SP_COL_W);
+    lv_obj_set_height(s_addr_sg, LV_SIZE_CONTENT);
+    lv_spangroup_refresh(s_addr_sg);
+    lv_obj_set_pos(s_addr_sg, SP_COL_X, 140);
   }
 
   // Full mainnet and testnet addresses wrap to different heights; keep the
@@ -403,6 +488,25 @@ static void sp_addr_render(void) {
   if (path_y > path_max) path_y = path_max;
   if (s_sp_path_sec) lv_obj_set_y(s_sp_path_sec, path_y);
   lv_obj_set_y(s_sp_path_lbl, path_y + cap_step);
+
+  // The card is fitted to whichever view is up, once both its contents have
+  // been measured and placed. A fixed box cannot serve both: the folded address
+  // is two lines and the full one is nine.
+  //
+  // Both edges are clamped to the page, and in the full view both clamps bite.
+  // 96 is the content line, so the card can never reach up into the subtitle;
+  // WT_CONTENT_BOTTOM is the floor, so it can never run under the action bar.
+  // The full view fills the column exactly, which is why its padding comes out
+  // thinner than the folded view's: there is no room to spend and an address may
+  // not be shortened to make a box look comfortable.
+  if (s_sp_card) {
+    int top = lv_obj_get_y(s_addr_sg) - 14;
+    int bot = path_y + cap_step + lv_obj_get_height(s_sp_path_lbl) + 12;
+    if (top < 96) top = 96;
+    if (bot > WT_CONTENT_BOTTOM) bot = WT_CONTENT_BOTTOM;
+    lv_obj_set_pos(s_sp_card, SP_CARD_X, top);
+    lv_obj_set_size(s_sp_card, SP_CARD_W, bot - top);
+  }
 
   // The folded text is useful enough to be a direct affordance, but address
   // span groups deliberately do not accept taps globally: doing that would
@@ -437,7 +541,6 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
-  wt_lock_mark(s_scr);
   // The longer tsp1 full view can make LVGL auto-scroll a default container
   // to its newest child, shifting the fixed 800x480 composition off-screen.
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -469,8 +572,11 @@ static void sp_addr_open(lv_obj_t *parent) {
   //
   // Both are placed by sp_addr_render, because the address above them wraps to
   // different heights in the folded and full views.
-  s_sp_path_sec = wt_section(s_scr, tr(STR_I_SEC_PATH), 366, 200);
-  s_sp_path_lbl = wt_lbl(s_scr, "", 366, 222, wt_font_mono23(), WT_INK);
+  // Created BEFORE the address and the path so it sits behind both, and resized
+  // by sp_addr_render once their real heights are known.
+  s_sp_card = wt_card(s_scr, SP_CARD_X, 126, SP_CARD_W, 160);
+  s_sp_path_sec = wt_section(s_scr, tr(STR_I_SEC_PATH), SP_COL_X, 200);
+  s_sp_path_lbl = wt_lbl(s_scr, "", SP_COL_X, 222, wt_font_mono23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
@@ -517,10 +623,12 @@ static void row_tap_cb(lv_event_t *e) {
 
 // One row: index, then the address on a single line.
 //
-// No pill. A row is not a button you press for an action, it is a line in a
-// list you pick from, and twenty stacked lozenges read as twenty competing
-// controls. A hairline under each row and a fill only while pressed says the
-// same thing quietly.
+// A CARD, the same box Settings gives every one of its rows. This was a hairline
+// and no fill, on the argument that twenty stacked boxes read as twenty
+// competing controls. That argument is about a page of DIFFERENT controls; here
+// every row is the same control twenty times, so the box is not competing with
+// anything, and the mono28 address gets the edge it needs to read as a value
+// rather than as grey text on the page.
 //
 // Nothing here marks an address as used. The signer only knows what it has
 // shown you and what it has signed a spend FROM; it has no chain view, so
@@ -533,20 +641,10 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   if (wallet_session_address(0, idx, addr, sizeof addr) != 0)
     snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
 
-  lv_obj_t *row = lv_obj_create(list);
-  lv_obj_remove_style_all(row);
-  lv_obj_set_size(row, 690, ROW_H);
-  lv_obj_set_style_radius(row, 8, 0);
+  lv_obj_t *row = wt_card(list, 0, 0, 690, ROW_H);
   lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
-  // Hairline separator, not a border box: the row is a line in a list.
-  lv_obj_set_style_border_width(row, 1, 0);
-  lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
-  lv_obj_set_style_border_color(row, lv_color_hex(0x1B212C), 0);
   lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, LV_STATE_PRESSED);
   lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);   // the LIST scrolls, not the row
   wt_tap_feedback(row);
   lv_obj_add_event_cb(row, row_tap_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)idx);
 
@@ -556,10 +654,10 @@ static lv_obj_t *recv_list_row(lv_obj_t *list, uint32_t idx) {
   lv_label_set_text_fmt(n, "#%u", (unsigned)idx);
   lv_obj_set_style_text_font(n, wt_font14(), 0);
   lv_obj_set_style_text_color(n, WT_MUT, 0);
-  lv_obj_align(n, LV_ALIGN_LEFT_MID, 10, 0);
+  lv_obj_align(n, LV_ALIGN_LEFT_MID, 14, 0);
 
   lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono28());
-  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 62, 0);
+  lv_obj_align(sg, LV_ALIGN_LEFT_MID, 66, 0);
   return row;
 }
 
@@ -581,30 +679,51 @@ static void page_cb(lv_event_t *e) {
   recv_list_open();
 }
 
+// BACK on the list means back to the ADDRESS, not out of Receive.
+//
+// The list used close_cb, which tears the whole flow down and lands on the main
+// menu. That was right when the list WAS the receive screen and the detail was
+// one tap in from it; HANDOFF-03 reversed the two, so from then on the only way
+// to see the list was ALL ADDRESSES from the detail, and its BACK skipped the
+// level it had come from. Escaping a screen goes up ONE level, always.
+static void back_to_detail_cb(lv_event_t *e) {
+  (void)e;
+  s_addr_sg = NULL;
+  s_addr_card = s_cmp_lbl = NULL;
+  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+  recv_detail_open();
+}
+
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
   s_state_chip = NULL;
   s_path_tn_lbl = NULL;
+  s_addr_card = s_cmp_lbl = NULL;
 
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address you are about to hand over, so it
   // belongs on the screen that shows one -- here it only cost the list a row
   // and said nothing about the list.
-  // No wt_screen_id here: the page counter already owns this screen's top-right
-  // corner, and it is the more useful of the two on a screen whose whole job is
-  // saying which slice of the hundred you are looking at.
+  // The page counter owns this screen's top-right corner, which is the useful
+  // thing to put there on a screen whose whole job is saying which slice of the
+  // hundred you are looking at.
   s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
-  wt_lock_mark(s_scr);
 
   lv_obj_t *list = lv_obj_create(s_scr);
   lv_obj_remove_style_all(list);
   lv_obj_set_pos(list, 48, 72);
-  lv_obj_set_size(list, 704, 324);
+  lv_obj_set_size(list, 704, RECV_LIST_H);
   lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
   lv_obj_set_layout(list, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(list, ROW_GAP, 0);   // the gap between cards
   lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(list, LV_DIR_VER);
+  // Rest on a row boundary, always. A flick that dies between two cards leaves
+  // one of them sliced through its own characters, which on a screen full of
+  // near-identical addresses is the worst possible place to lose pixels: the
+  // difference between #16 and #18 is exactly the part that got cut.
+  lv_obj_set_scroll_snap_y(list, LV_SCROLL_SNAP_START);
   // remove_style_all took the default scrollbar with it, and on this background
   // an unstyled one is invisible -- which on the device reads as "the list does
   // not scroll" rather than "you have not scrolled yet".
@@ -665,7 +784,8 @@ static void recv_list_open(void) {
   row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
   row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
   row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                   back_to_detail_cb, NULL);
   wt_pill_row(row, 4);
 
   // An arrow at the end of the range says so. page_cb has always refused to
@@ -698,16 +818,15 @@ void wallet_recv_sim_open_path_help(void) {}
 // ALL ADDRESSES: opens the paginated list the detail used to be reached from.
 static void list_from_detail_cb(lv_event_t *e) {
   (void)e;
-  s_addr_sg = s_addr_tail = NULL;
+  s_addr_sg = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   recv_list_open();
 }
 
 static void recv_detail_open(void) {
-  s_addr_sg = s_addr_tail = NULL;
+  s_addr_sg = NULL;
+  s_addr_full = false;   // every open starts folded, like the SP screen
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
-  wt_lock_mark(s_scr);
-  wt_screen_id(s_scr);
   // Left column: QR at (48, 112) 238x238 per HANDOFF-03. The card widget owns
   // the "+" corner cue for the zoom affordance. The extra vertical room the
   // 238 square costs came from dropping the derivation path row: the path is
@@ -715,20 +834,36 @@ static void recv_detail_open(void) {
   // you hand out an address, and the WALLET card still shows it.
   wt_qr_card(s_scr, &s_qr, 48, 112, 238, 202);
 
-  // Right column, x=310, w=442. HANDOFF-03 geometry.
-  //   y=112 caption ADDRESS #N + state chip right-aligned to x=752
-  //   y=146 address body wt_addr_spans mono23 muted, built by recv_refresh
-  //   y=236 lit tail own object mono28 ink, built by recv_refresh
-  //   y=268 caption "compare these 8"
-  //   y=300 privacy note, 442 wide, up to 2 lines
-  //   y=330 NEXT ADDRESS pill primary 250 wide 52 tall
-  s_idx_lbl = wt_section(s_scr, "", 310, 112);
+  // Right column, x=310, w=442.
+  //   y=106 caption ADDRESS #N + state chip right-aligned to x=752
+  //   y=134 card, 442x114: the address and the compare caption, centred as a
+  //         block by recv_refresh, folded or full
+  //   y=268 privacy note, 442 wide, one line
+  //   y=312 NEXT ADDRESS pill primary 250 wide 46 tall
+  //
+  // The caption row moved UP from 112 and the card DOWN from 132. The state chip
+  // is right aligned to 752 and about 30 tall, so at y=106 it ran to 136 while
+  // the card started at 132: four pixels of overlap on the same right edge, which
+  // read on the device as the chip being clipped by the box.
+  s_idx_lbl = wt_section(s_scr, "", 310, 110);
   s_state_chip = wt_state_chip(s_scr, "", WT_MUT);
 
+  s_addr_card = wt_card(s_scr, RECV_CARD_X, RECV_CARD_Y,
+                        RECV_CARD_W, RECV_CARD_H);
+  // The card IS the fold control. No separate hit box and no extra pill: the
+  // thing you want bigger is the thing you tap, and a 442x124 target needs no
+  // aiming.
+  lv_obj_add_flag(s_addr_card, LV_OBJ_FLAG_CLICKABLE);
+  wt_tap_feedback(s_addr_card);
+  lv_obj_add_event_cb(s_addr_card, addr_toggle_cb, LV_EVENT_CLICKED, NULL);
+
   // The compare caption from HANDOFF-01: same string in every locale, points
-  // at the underlined mono28 line above. Font14 muted so it never competes
-  // with the characters it labels.
-  wt_lbl(s_scr, tr(STR_S_CMP_8), 310, 258, wt_font14(), WT_MUT);
+  // at the lit characters above. Font14 muted so it never competes with the
+  // characters it labels. Placed by recv_refresh, under whatever height the
+  // address came out at.
+  s_cmp_lbl = wt_lbl(s_addr_card, tr(STR_S_CMP_8), 14, 116, wt_font14(), WT_MUT);
+  lv_obj_set_width(s_cmp_lbl, RECV_CARD_W - 28);
+  lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
 
   // Privacy reminder as a single short line: HANDOFF-03 asks for 2 lines here,
   // but the second half of STR_R_ONE_EACH ("reuse links payments") only fits
@@ -746,18 +881,18 @@ static void recv_detail_open(void) {
     } else {
       snprintf(one, sizeof one, "%s", full);
     }
-    lv_obj_t *note = wt_lbl(s_scr, one, 310, 296, wt_font14(), WT_MUT);
+    lv_obj_t *note = wt_lbl(s_scr, one, 310, 268, wt_font14(), WT_MUT);
     lv_obj_set_width(note, 442);
     lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
   }
 
   // NEXT ADDRESS: primary, in the right column, next_cb bumps s_idx and
   // recv_refresh redraws every widget that depends on the derived address.
-  // 344 + 46 = 390 clears the action-bar hairline; the pill is one rung
-  // shorter than the 52 HANDOFF-03 named so the right column stays inside
-  // WT_CONTENT_BOTTOM without pushing the note back into the tail above.
+  // 312 + 46 = 358, just above the bottom of the QR card beside it, which is
+  // what folding the address bought: the pill used to sit at 344 against a
+  // block that reached 282.
   wt_pill_primary(wt_pillh(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT),
-                           310, 344, 250, 46, next_cb, NULL));
+                           310, 312, 250, 46, next_cb, NULL));
 
   // Action bar, measured off redraw 03 rather than from HANDOFF-03's table:
   // BACK / ALL ADDRESSES / SILENT PAYMENT ... VERIFY, at x 48, 160, 360 and

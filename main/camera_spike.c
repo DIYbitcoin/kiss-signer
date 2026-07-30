@@ -156,15 +156,17 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
   }
 }
 
-bool camera_spike_ui_rect_free(int x1, int y1, int x2, int y2)
+// The one state in which LVGL must not paint: video on, and no preview rect, so
+// the picture covers all 480x800. With a rect set, LVGL owns the panel and the
+// video takes its own rectangle back every frame.
+//
+// This replaced a per-rect "is this area clear of the preview" test. The test
+// itself was right; asking it from a flush callback was not, because LVGL flushes
+// in full-width bands and the caller could only accept or drop a whole band. See
+// the comment in rot_flush (main.c) for the failure that produced.
+bool camera_spike_owns_panel(void)
 {
-  if (!s_cam.streaming) return true;         // nothing on the panel to protect
-  if (!s_vp_on) return false;                // the camera owns everything
-  // Same mapping as above, then a plain rect overlap test in panel space.
-  int px0 = (PANEL_W - 1) - y2, px1 = (PANEL_W - 1) - y1;
-  int py0 = x1, py1 = x2;
-  return !(px1 >= s_vp_x && px0 <= s_vp_x + s_vp_w - 1 &&
-           py1 >= s_vp_y && py0 <= s_vp_y + s_vp_h - 1);
+  return s_cam.streaming && !s_vp_on;
 }
 
 // ---- step 6 scan mode: k_quirc runs on every SCAN_EVERY'th raw sensor frame,
