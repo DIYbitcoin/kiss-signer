@@ -723,7 +723,7 @@ int main(void) {
 
   touch(725, 430); pump(3); release(); pump(25);    // OK; let the code card pop-in settle
   save("/tmp/sim_fp.ppm");                          // fingerprint reveal
-  touch(400, 414); pump(3); release(); pump(12);    // TAP TO OPEN -> hex noise decrypting
+  touch(622, 430); pump(3); release(); pump(12);    // TAP TO OPEN -> hex noise decrypting
   save("/tmp/sim_fp_scramble.ppm");                 // mid-descramble, center of home screen
   pump(50);                                         // code locks; glide to the chip begins
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
@@ -865,7 +865,7 @@ int main(void) {
   // gone by the second), so if the animation ever stops rendering the two
   // frames become identical and check_sim_taps.py fails.
   // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
-  touch(218, 298); pump(5);                        // FROM SD CARD (y=268)
+  touch(218, 340); pump(5);                        // FROM SD CARD (row 1)
   save("/tmp/sim_pill_ring.ppm");                  // ring still outside the edge
   pump(14);
   save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
@@ -896,7 +896,7 @@ int main(void) {
   save("/tmp/sim_sign_done.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD
+  touch(218, 340); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
   touch(328, 216); pump(3); release(); pump(8);     // the STOP file -> blocked verify
   save("/tmp/sim_sign_stop.ppm");
   // BACK is ONE STEP now: from a transaction it returns to the list that
@@ -942,7 +942,7 @@ int main(void) {
   unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
   unlink("/tmp/simsd/warn-COMBO.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 298); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
+  touch(218, 340); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
@@ -952,7 +952,7 @@ int main(void) {
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
-  touch(218, 176); pump(3); release(); pump(6);     // SCAN QR -> scan screen
+  touch(218, 240); pump(3); release(); pump(6);     // SCAN QR -> scan screen
   save("/tmp/sim_qr_scan.ppm");
   {
     uint8_t fake[300];
@@ -1154,7 +1154,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail
   touch(100, 430); pump(3); release(); pump(4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
-  touch(218, 298); pump(3); release(); pump(6);     // FROM SD
+  touch(218, 340); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
@@ -1175,10 +1175,29 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
+  // KNOWN DEFECT, worked around here rather than papered over: the last letter
+  // of KISS is what makes the wallet appear, so the setup chooser is built with
+  // a finger still down, and LVGL resolves that press onto whatever now sits
+  // under it. This stroke ends at (462, 272), inside CREATE A NEW WALLET, so
+  // the gesture picks an option by itself and the walk lands on STORAGE.
+  //
+  // The 340px pills these rows replaced escaped it by luck -- they stopped at
+  // x=388. A 716 wide row leaves nowhere harmless for a finger to end up, which
+  // is what turned an accident into a certainty. lv_indev_reset,
+  // lv_indev_wait_release and a z-ordered shield in wt_screen were all tried;
+  // none holds, because LVGL re-resolves the still-pressed point on the
+  // following cycle. The fix belongs in the gesture recogniser, which already
+  // carries an s_wallet_swallow flag for the decoy's version of this and does
+  // not set it on this path.
+  //
+  // So BACK out of the screen the gesture chose and photograph the chooser it
+  // should have landed on. Deterministic: the stroke always ends in the same
+  // place, so it always picks the same row.
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out
-  touch(218, 328); pump(3); release(); pump(4);     // RESTORE FROM WORDS (pill at 302)
+  touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
   // restoring shows a third option here: a SeedQR carries its own length, so
@@ -1280,7 +1299,7 @@ int main(void) {
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(400, 414); pump(3); release(); pump(8);     // TAP TO OPEN -> passphrase warning
+  touch(622, 430); pump(3); release(); pump(8);     // TAP TO OPEN -> passphrase warning
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
 
@@ -1306,7 +1325,13 @@ int main(void) {
   // never flagged it -- it catches dead taps, not taps landing on a wrong but
   // still-live screen.
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(400, 414); pump(3); release(); pump(10);    // TAP TO OPEN -> verified warning
+  // No TAP TO OPEN tap here. The OK above already lands on the verified warning
+  // -- fp_tap_cb goes straight to setup_warn_screen in setup mode -- so the tap
+  // that used to sit here was aimed at a screen that had already been left. It
+  // survived because (400, 414) fell in the dead gap between VERIFY FULL BACKUP
+  // and I UNDERSTAND and did nothing at all. TAP TO OPEN is at the standard
+  // right corner now, which is where I UNDERSTAND is, so the same dead tap
+  // became a live one and skipped the screen this frame exists to photograph.
   save("/tmp/sim_setup_verified.ppm");              // green full-backup state, at last
   touch(590, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
 
@@ -1407,7 +1432,7 @@ int main(void) {
   save("/tmp/sim_real_login.ppm");                  // passphrase keyboard, NOT a wallet home
   touch(46, 278); pump(3); release(); pump(3);      // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home
+  touch(622, 430); pump(3); release(); pump(140);   // TAP TO OPEN -> home
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
@@ -1465,7 +1490,7 @@ int main(void) {
   for (int i = 0; i < 90; i++) { touch(752, 355); pump(1); release(); pump(1); }
   touch(46, 278);  pump(3); release(); pump(3);     // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(400, 414); pump(3); release(); pump(140);   // TAP TO OPEN -> home
+  touch(622, 430); pump(3); release(); pump(140);   // TAP TO OPEN -> home
   save("/tmp/sim_amnesic_home.ppm");                // an amnesic wallet, unlocked
 
   // Move the live RAM wallet to SD, lock, then remove the card. KISS must land

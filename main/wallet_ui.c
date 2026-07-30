@@ -851,30 +851,49 @@ static void show_fingerprint(void) {
   memcpy(s_shown_fp, fp, sizeof s_shown_fp);
   s_shown_fp_valid = true;
 
-  s_fpscr = lv_obj_create(lv_screen_active());
-  lv_obj_remove_style_all(s_fpscr);
-  lv_obj_set_size(s_fpscr, 800, 480);
-  lv_obj_set_style_bg_color(s_fpscr, BG_COL, 0);
-  lv_obj_set_style_bg_opa(s_fpscr, LV_OPA_COVER, 0);
+  // An EMPTY passphrase is a legitimate choice with its own confirmation card,
+  // and the two notes below used to describe a passphrase the owner does not
+  // have -- on the first screen the device ever shows them.
+  const bool nopass = (s_plen == 0);
+
+  // A real page, at last. This was the one screen on the device built as a bare
+  // lv_obj on the active screen: no wt_screen, no card frame, no title, no
+  // action bar, two hand rolled pills. Everything it showed was centred in a
+  // column down the middle with dead space either side, which is what "the rest
+  // looks plain" was pointing at. The big code was never the problem.
+  s_fpscr = wt_screen(lv_screen_active(), tr(STR_D_FINGERPRINT), NULL);
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
 
-  lv_obj_t *cap = lv_label_create(s_fpscr);
-  lv_label_set_text(cap, tr(STR_L_FP_CAP));
-  lv_obj_set_style_text_color(cap, MUT_COL, 0);
-  lv_obj_set_style_text_font(cap, wt_font14(), 0);
-  lv_obj_set_style_text_letter_space(cap, 2, 0);
-  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 64);
-
-  // the fingerprint sits in a chip-style box, like the home screen's corner chip
+  // Band one: the code, in a framed card across the whole page with its caption
+  // inside it. Full width and not a 340 column beside a diagram, and that was
+  // tried: wt_diagram_fp is a flex ROW of three chips, about 600px in English
+  // and wider in half the locales, so a 404 column clipped "RECOVERY WORDS" off
+  // one end and "FINGERPRINT" off the other. A clipped diagram teaches nothing
+  // and looks broken; the code is what this screen is about, so it takes the
+  // page and the diagram stays where it already lives, one tap away behind the
+  // FINGERPRINT explainer.
   lv_obj_t *box = lv_obj_create(s_fpscr);
   lv_obj_remove_style_all(box);
-  lv_obj_set_size(box, 420, 118);
+  lv_obj_set_pos(box, 48, 96);
+  lv_obj_set_size(box, 704, 128);
   lv_obj_set_style_radius(box, 16, 0);
   lv_obj_set_style_border_width(box, 2, 0);
   lv_obj_set_style_border_color(box, wt_accent(), 0);
   lv_obj_set_style_bg_color(box, lv_color_hex(0x0C1018), 0);
   lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
-  lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 104);
+  lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+  // The caption moves INSIDE the card. Outside it was an eyebrow floating over
+  // a box; inside it is the box's own label, which is how every other framed
+  // value on this device is built (wt_value_card, the receive address card).
+  lv_obj_t *cap = lv_label_create(box);
+  lv_label_set_text(cap, tr(STR_L_FP_CAP));
+  lv_obj_set_style_text_color(cap, MUT_COL, 0);
+  lv_obj_set_style_text_font(cap, wt_font14(), 0);
+  lv_obj_set_style_text_letter_space(cap, 2, 0);
+  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 16);
+  lv_obj_set_width(cap, 668);
+  lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
 
   lv_obj_t *big = lv_label_create(box);
   lv_label_set_text_fmt(big, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
@@ -892,7 +911,7 @@ static void show_fingerprint(void) {
   // a hex string scannable; a fixed advance already does that, and the extra
   // tracking on top pushed the 8 characters wider than the box.
   lv_obj_set_style_text_font(big, wt_font_num48(), 0);
-  lv_obj_center(big);
+  lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -18);
 
   // the code card rises + fades in when the fingerprint is computed
   lv_anim_t pa;
@@ -908,63 +927,39 @@ static void show_fingerprint(void) {
   lv_anim_set_values(&pa, 40, 255);
   lv_anim_start(&pa);
 
-  // These two lines are how an owner learns what the fingerprint above is FOR,
-  // on the first screen the device ever shows them. They were 14pt sitting 28px
-  // apart, which is one 23pt line plus nothing -- so the room had to grow with
-  // the type: the chip ends at 222 and the OPEN pill starts at 388, and two
-  // 58px slots at 246 and 310 land inside that with clearance at both ends.
+  // Band two: the two things an owner has to know about the code above, as the
+  // review's pair of ruled blocks. They were centred grey paragraphs stacked
+  // down the middle of the page, which is the arrangement people skip; two
+  // claims side by side with a coloured rule are two claims somebody reads.
   //
-  // An EMPTY passphrase is a legitimate choice with its own confirmation card,
-  // and both of these lines used to describe a passphrase the owner does not
-  // have -- on the first screen the device ever shows them.
-  const bool nopass = (s_plen == 0);
-  lv_obj_t *note = wt_note(s_fpscr,
-                           tr(nopass ? STR_L_FP_NOTE_NOPASS : STR_L_FP_NOTE),
-                           50, 246, 700, 58);
-  lv_obj_set_style_text_color(note, lv_color_hex(0xB9C2D4), 0);
-  lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
+  // Accent on the first because it states how the wallet works, WT_WARN on the
+  // second because it is the branch where something has gone wrong: a code that
+  // does not match the paper means the passphrase was mistyped, and every
+  // passphrase is valid, so nothing else on the device will ever say so.
+  //
+  // One font for the pair, measured against the longer of the two. Sized apart
+  // they land on different rungs and the block that matters more is whichever
+  // happened to be shorter.
+  {
+    const char *b1 = tr(nopass ? STR_L_FP_NOTE_NOPASS  : STR_L_FP_NOTE);
+    const char *b2 = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2);
+    const int BW = 344, BY = 242, BH = WT_CONTENT_BOTTOM - BY;
+    // Measured against BH - 8, not BH. wt_body_font answers for the text alone
+    // and wt_why_block wraps it in a box whose own metrics cost a couple of
+    // pixels, so a translation that fits "exactly" overhangs: Czech ran 4px
+    // past WT_CONTENT_BOTTOM at the size this said was fine.
+    const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
+                                      BW - 14, BH - 8);
+    wt_why_block(s_fpscr, NULL, b1,  48, BY, BW, BH, f, wt_accent());
+    wt_why_block(s_fpscr, NULL, b2, 408, BY, BW, BH, f, WT_WARN);
+  }
 
-  lv_obj_t *note2 = wt_note(s_fpscr,
-                            tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2),
-                            50, 310, 700, 58);
-  lv_obj_set_style_text_color(note2, MUT_COL, 0);
-  lv_obj_set_style_text_align(note2, LV_TEXT_ALIGN_CENTER, 0);
-
-  // bottom action pill
-  lv_obj_t *go = lv_obj_create(s_fpscr);
-  lv_obj_remove_style_all(go);
-  lv_obj_set_size(go, 260, 52);
-  lv_obj_set_style_radius(go, 26, 0);
-  lv_obj_set_style_bg_color(go, wt_accent_bg(), 0);
-  lv_obj_set_style_bg_color(go, wt_accent_pressed(), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(go, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(go, 2, 0);
-  lv_obj_set_style_border_color(go, wt_accent(), 0);
-  lv_obj_align(go, LV_ALIGN_BOTTOM_MID, 0, -40);
-  lv_obj_add_flag(go, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(go, fp_tap_cb, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *gol = lv_label_create(go);
-  lv_label_set_text(gol, tr(STR_L_TAP_TO_OPEN));
-  lv_obj_set_style_text_color(gol, INK_COL, 0);
-  lv_obj_set_style_text_font(gol, wt_body_font(tr(STR_L_TAP_TO_OPEN), 236, 40), 0);
-  lv_obj_set_style_text_letter_space(gol, 2, 0);
-  lv_obj_center(gol);
-
-  lv_obj_t *back = lv_obj_create(s_fpscr);   // bottom-left: back to the keyboard
-  lv_obj_remove_style_all(back);
-  lv_obj_set_size(back, 140, 52);
-  lv_obj_set_style_radius(back, 26, 0);
-  lv_obj_set_style_border_width(back, 1, 0);
-  lv_obj_set_style_border_color(back, MUT_COL, 0);
-  lv_obj_align(back, LV_ALIGN_BOTTOM_LEFT, 48, -40);
-  lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(back, fp_back_cb, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *backl = lv_label_create(back);
-  lv_label_set_text(backl, tr(STR_C_BACK));
-  lv_obj_set_style_text_color(backl, MUT_COL, 0);
-  lv_obj_set_style_text_font(backl, wt_body_font(tr(STR_C_BACK), 116, 40), 0);
-  lv_obj_set_style_text_letter_space(backl, 2, 0);
-  lv_obj_center(backl);
+  // The action bar every other screen has. This one holds the screen's real
+  // action, so it is the second case in WT_BACK_X's rule: the way out goes
+  // leftmost and the far right corner is reserved for TAP TO OPEN.
+  wt_pill(s_fpscr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, fp_back_cb, NULL);
+  wt_pill_primary(wt_pill(s_fpscr, tr(STR_L_TAP_TO_OPEN), 492, WT_ACTION_Y,
+                          260, fp_tap_cb, NULL));
 
   lv_obj_add_flag(s_login, LV_OBJ_FLAG_HIDDEN);
 }
