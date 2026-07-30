@@ -109,14 +109,19 @@ static void recv_refresh(void) {
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
 
-  // The state chip named in HANDOFF-03: has this address ever been given away?
-  // The best proxy the offline signer has is wallet_usage_high: an address that
-  // has been spent from was definitely handed out to whoever sent the coins in
-  // the first place. Received-only addresses are not tracked, so "NEVER HANDED
-  // OUT" here means "we have no record of it being spent from", not a promise
-  // the address is virgin. That is honest and matches how the fresh landing
-  // logic already reads usage_high, so the chip and the landing agree on which
-  // address is which.
+  // The state chip HANDOFF-03 asks for, in the vocabulary every other bitcoin
+  // wallet uses: an address is USED or UNUSED. The doc drew it as "NEVER HANDED
+  // OUT" and "HANDED OUT ALREADY", which the owner cut, and rightly: handing an
+  // address to somebody happens off this device, so a signer with no chain view
+  // cannot know whether it happened. Claiming it did, on the screen whose
+  // subtitle is "trust what you see here", spends the credit that sentence asks
+  // for.
+  //
+  // Used and unused is a claim of the same shape as what wallet_usage_high
+  // actually holds: an address this device signed a spend from is on chain, so
+  // USED is certain. UNUSED means no record here, which is what the standard
+  // term means in any watch-only wallet too, and the privacy note beside the
+  // chip is what tells the owner to move on to a fresh one either way.
   if (s_state_chip) {
     uint8_t fp[4];
     wallet_ui_last_fp(fp);

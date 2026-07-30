@@ -20,7 +20,14 @@ const i18n_lang_t *i18n_lang_info(int lang)
 const char *tr(int id)
 {
     if (id < 0 || id >= STR_N) return "";
-    return i18n_tables[s_lang][id];
+    // Fall back to English rather than returning the NULL a missing designated
+    // initializer leaves behind. A key added to i18n_keys.h and filled in for
+    // English only used to hand every other locale a NULL, and the first label
+    // to receive it took the renderer down -- so the cost of shipping a new
+    // string was 21 translations or a crash, with nothing in between. English
+    // in one locale is a visible gap somebody can fix; a hang is not.
+    const char *s = i18n_tables[s_lang][id];
+    return s ? s : (i18n_tables[I18N_EN][id] ? i18n_tables[I18N_EN][id] : "");
 }
 
 // LV_SYMBOL_* + translated text in one string. Rotating buffers: labels copy
