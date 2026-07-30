@@ -1025,7 +1025,7 @@ int main(void) {
   // The home now carries the SD-storage badge (accent, breathing while the
   // card is in). Pop out to capture it, then return to Settings to migrate
   // back to FLASH.
-  touch(76, 426); pump(3); release(); pump(8);      // Settings BACK, left corner -> home
+  touch(680, 430); pump(3); release(); pump(8);      // Settings BACK, right corner -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
@@ -1089,7 +1089,7 @@ int main(void) {
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
 
-  touch(694, 426); pump(3); release(); pump(6);     // language pill, right corner now -> picker
+  touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = wallet_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
@@ -1107,23 +1107,23 @@ int main(void) {
   // STORAGE card below it, so this reopened the storage chooser and the walk
   // spent the next six taps on the wrong subpage. It passed the tap gate
   // anyway, because every frame it landed on still differed from the one
-  // before -- moving Settings BACK to the left corner is what finally made
-  // the misroute visible.
+  // before -- moving Settings BACK across the bar is what finally made the
+  // misroute visible.
   touch(218, 198); pump(3); release(); pump(6);     // Address card -> reopen the chooser
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
-  touch(573, 426); pump(3); release(); pump(4);     // theme dot in the action bar: CYPHERPINK
+  touch(533, 426); pump(3); release(); pump(4);     // theme dot in the action bar: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
-  touch(76, 426); pump(3); release(); pump(6);      // BACK, left corner -> home still pink
+  touch(680, 430); pump(3); release(); pump(6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(519, 426); pump(3); release(); pump(4);     // theme dot in the action bar: back to MONO
+  touch(479, 426); pump(3); release(); pump(4);     // theme dot in the action bar: back to MONO
   // The Network row is a SEGMENTED control now, so a tap on the row itself
   // does nothing -- you pick a side. TESTNET is the right lozenge: the card
   // starts at y=95, the track is centred in its 64 height and the lozenges sit
   // 3px inside that, so 291..375 x 113..141. This is its centre.
   touch(333, 127); pump(3); release(); pump(4);     // TESTNET segment
   save("/tmp/sim_settings_tn.ppm");
-  touch(76, 426); pump(3); release(); pump(6);      // BACK, left corner -> home
+  touch(680, 430); pump(3); release(); pump(6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
@@ -1162,7 +1162,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
-  touch(76, 426); pump(3); release(); pump(4);      // BACK, left corner -> home
+  touch(680, 430); pump(3); release(); pump(4);      // BACK, right corner -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu

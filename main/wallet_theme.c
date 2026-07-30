@@ -199,6 +199,19 @@ const char *wt_accent_name(void)
 }
 lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
+void wt_lock_565(int *r5, int *g6, int *b5)
+{
+    // MONO's accent IS the ink, so a white lock would say nothing the brackets
+    // going solid and closing on the code does not already say. That theme keeps
+    // the green, which is the only place on the device a status colour and an
+    // accent trade places -- and it is the honest way round, because in MONO
+    // there is no accent to match.
+    uint32_t hex = s_accent == WT_ACC_MONO ? 0x35D07F : ACC_HEX[s_accent];
+    if (r5) *r5 = (int)((hex >> 19) & 0x1F);
+    if (g6) *g6 = (int)((hex >> 10) & 0x3F);
+    if (b5) *b5 = (int)((hex >>  3) & 0x1F);
+}
+
 // largest of {23, 14} that fits (defined with wt_note); used by the subtitle too
 static const lv_font_t *note_font(const char *txt, int w, int max_h);
 

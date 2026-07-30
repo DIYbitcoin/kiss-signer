@@ -178,7 +178,13 @@ static const char *const tbl_en[STR_N] = {
     [STR_R_SP_WARN_B] = "KISS keeps the spending key.\ncoordinator gets only this PRIVATE scan key.\nshare only with a trusted Silent Payments coordinator.\na new passphrase makes a different key.",
     [STR_R_SP_SHOW] = "HOLD TO SHOW SCAN KEY",
     [STR_R_SP_EXPORT_S] = "watch only: it finds payments, never spends",
-    [STR_R_SP_EXPORT_NOTE] = "your coordinator wallet finds\npayments to your\nsilent address.",
+    // "wallet" comes out of line one and nothing is lost: the PAIR COORDINATOR
+    // row directly above this card already says "your coordinator wallet", so
+    // the word is on screen either way. What the cut buys is the line fitting a
+    // 337px card at font23 instead of wrapping and dropping the whole note to
+    // 14 -- the paragraph explaining what a private scan key does should not be
+    // the smallest type on the page.
+    [STR_R_SP_EXPORT_NOTE] = "your coordinator finds\npayments to your\nsilent address.",
     [STR_R_SP_WHY_T] = "WHY YOU SEE %s",
     [STR_R_SP_WHY_B] = "%s... is your reusable Silent Payment address. Share it to receive bitcoin.\n\nFor privacy, the sender's wallet turns it into a new, one time %s... address for that payment.\n\nSo %s... is what you share; %s... is what appears in the transaction. Seeing %s... is correct.",
     [STR_N_T] = "SCAN",

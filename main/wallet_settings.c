@@ -909,29 +909,30 @@ void wallet_settings_open(lv_obj_t *parent)
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
-    // The wallet fingerprint takes the top right, as it does on every other
-    // wallet screen. It used to be four 36px theme dots up here, which is the
-    // largest, brightest, most saturated thing on the page given to the one
-    // control that changes nothing about the wallet. Redraw 05 puts the ID here
-    // and demotes the dots into the action bar, and the reason is hierarchy: the
-    // top right of a settings page should say WHICH wallet you are editing.
+    // The top right belongs to the LANGUAGE pill now; see the block that builds
+    // it below. It held four 36px theme dots once, which was the largest,
+    // brightest, most saturated thing on the page handed to the one control that
+    // changes nothing about the wallet, and then briefly the wallet fingerprint,
+    // which moved to the home screen with every other copy of it.
 
-    // THEME, in the action bar: an 11px eyebrow and four 18px dots, right of
-    // centre. Same four accents, same picker callback, a third the diameter.
-    // Sized and placed off the drawing (label x=487 y=440, dots from x=545 on a
-    // 27px pitch), which puts them between the two pills without touching either.
+    // THEME, in the action bar: an 11px eyebrow and four 18px dots. Same four
+    // accents, same picker callback, a third the diameter of the originals.
+    // The whole block sits 40px left of where the drawing put it, because BACK
+    // has taken the right corner: the fourth dot's 15px ext click area used to
+    // reach 624 and BACK's pill starts at 610, so they would have been fighting
+    // over the same taps. Ending the dots at 557 leaves 53px of daylight.
     s_acc_name = lv_label_create(s_scr);       // names the dressed colour
     lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
     lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
-    // RIGHT aligned, ending 10px short of the first dot at x=510. Not placed by
+    // RIGHT aligned, ending 10px short of the first dot at x=470. Not placed by
     // its left edge: this label is the live accent NAME, so it is "MONO" in one
     // theme and "CYPHERPINK" in another, and a fixed left edge put the long one
     // straight through the dots. The text overlap gate cannot catch that -- a
     // dot is not text -- so the geometry has to make it impossible instead.
     lv_obj_set_width(s_acc_name, 120);
     lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(s_acc_name, 380, WT_ACTION_Y + 8);
+    lv_obj_set_pos(s_acc_name, 340, WT_ACTION_Y + 8);
     for (int i = 0; i < WT_ACC_N; i++) {
         int save = wt_accent_get();
         wt_accent_set(i);                     // borrow the accent table for the dot fill
@@ -940,7 +941,7 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_t *d = lv_obj_create(s_scr);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 18, 18);
-        lv_obj_set_pos(d, 510 + i * 27, WT_ACTION_Y + 13);
+        lv_obj_set_pos(d, 470 + i * 27, WT_ACTION_Y + 13);
         lv_obj_set_style_radius(d, 9, 0);
         lv_obj_set_style_bg_color(d, c, 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
@@ -1277,55 +1278,69 @@ void wallet_settings_open(lv_obj_t *parent)
         memcpy(shortname, nat, n);
         shortname[n] = 0;
         // 170, up from 160: this pill carries a flag AND a native name, and the
-        // flag's width used to come straight out of the name's. BACK keeps its
-        // 140 -- the extra comes from the gap between them.
+        // flag's width used to come straight out of the name's.
 #define LANG_PILL_W 170
-        // Far RIGHT, mirroring BACK's 21px left margin: 779 - 170. The drawing
-        // draws it 119 wide at x=662 because "ENGLISH" is all it has to fit;
-        // this one has to hold "PORTUGUÊS", so it keeps its width and gives up
-        // the x instead.
-        s_lang_pill = mk_pillh(shortname, 779 - LANG_PILL_W, WT_ACTION_Y,
+        // TOP right, on the page's own 752 margin rather than the action bar's
+        // 779. It sat bottom right until BACK came for that corner, and up here
+        // it is the better neighbour anyway: it is the only control on this
+        // screen that changes how everything else READS, which is a header job.
+        //
+        // y=18 matters twice. It lines the pill up with the title's box, and it
+        // is above WT_CONTENT_BOTTOM, so wt_pillh does NOT build an action bar
+        // for it -- the bar is BACK's now.
+        s_lang_pill = mk_pillh(shortname, 752 - LANG_PILL_W, 18,
                                LANG_PILL_W, 44, lang_open_cb, NULL);
+        wt_pill_row(&s_lang_pill, 1);
+        // The title had the whole 704 lane and now shares it with a 170px pill.
+        // Nothing else would catch this: the overlap gate measures text against
+        // text, a pill is not text, and a long locale's title would simply run
+        // underneath it. 518 = 704 - 170 - 16 of gap.
+        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - 48);
     }
 
-    // build identity, bottom edge (below the pill row; bottom has no overscan)
-    // 150, not 48: BACK moved into the left corner and 48 is inside it now. This
-    // sits in the gap between BACK's right edge (132) and the THEME eyebrow
-    // (452), which is the only part of the bar the drawing leaves empty.
-    s_build_id = wallet_build_id_make(s_scr, 150, 418, true, true);  // radio readback lives here
-
     {
-        // BACK takes the bottom LEFT corner on this screen, at the 21px margin
-        // the drawing uses. That is the opposite of the one-corner rule stated
-        // above WT_BACK_X, and it is deliberate: redraws 01, 02, 03 and 05 all
-        // put the escape leftmost and the consequential control furthest right,
-        // and Sign and Receive were already moved to match. The safety property
-        // the rule was protecting still holds -- the reflex corner holds the
-        // least consequential button -- it is just the other corner now, and
-        // what sits in the right one here only changes the language.
-        //
-        // 111 wide, as drawn. 10px of ext click area makes it a 131x64 target
-        // without moving a drawn pixel; the build identity line starts at 150,
-        // so the reach cannot eat a tap meant for anything else.
-        lv_obj_t *back = mk_pillh(tr(STR_C_BACK), 21, WT_ACTION_Y, 111, 44, close_cb, NULL);
-        lv_obj_set_ext_click_area(back, 10);
-        lv_obj_t *row[2] = { back, s_lang_pill };
-        wt_pill_row(row, 2);
+        // BACK takes the bottom RIGHT corner, at WT_BACK_X, in the standard
+        // 140x52 pill every other lone-BACK screen uses. It spent a while in the
+        // left corner on the reasoning that redraws 01, 02, 03 and 05 put the
+        // escape leftmost -- but that rule is about a bar that holds SEVERAL
+        // pills, where the far right is reserved for the control doing the
+        // screen's work. Sign and Receive are those screens and keep it. This
+        // bar has one pill in it, so there is no consequential control for the
+        // corner to protect, and matching WALLET is worth more than matching a
+        // rule whose condition is absent.
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                close_cb, NULL);
 
-        // The THEME control has to be raised above the action bar's floor. The
-        // bar is built lazily by the first wt_pill call, which is AFTER these
-        // were created, so it drew straight over the top of them: the label and
-        // all four dots vanished, and nothing errored because they were still
-        // there and still tappable, just hidden.
+        // Build identity AFTER the pill, and that order is load bearing. The
+        // action bar is built lazily by the first wt_pill on the screen; the
+        // language pill used to be that pill and used to come first, so this
+        // line landed on top of the bar by accident of sequence. The pill went
+        // to the top of the screen, BACK became the bar's builder, and the
+        // version vanished behind it. Raising it afterwards is not enough
+        // either: wallet_build_id_make creates THREE sibling labels and hands
+        // back only the first, so a move_foreground on the return value lifts
+        // the version and leaves encryption and radio buried. Building it last
+        // is the fix that cannot half work.
+        //
+        // x=48, the page margin. It sat at 150 only because BACK held the left
+        // corner and 48 was inside it. Two rows from 48 run to about 258, and
+        // the THEME eyebrow does not start until 340.
+        s_build_id = wallet_build_id_make(s_scr, 48, 418, true, true);
+
+        // The THEME control has to be raised above the action bar's floor for
+        // the same reason: the label and all four dots are created before any
+        // pill exists, so the bar drew straight over the top of them. Nothing
+        // errored, because they were still there and still tappable, just
+        // hidden.
         lv_obj_move_foreground(s_acc_name);
         for (int i = 0; i < WT_ACC_N; i++)
             if (s_acc_dot[i]) lv_obj_move_foreground(s_acc_dot[i]);
     }
 
     // NO FLAG ON THIS PILL. It used to carry the active language's flag, which
-    // meant SETTINGS displayed a foreign country's flag permanently next to
-    // BACK for twenty of the twenty-one locales -- a national flag as fixed
-    // furniture on a Bitcoin signer, standing in for nothing the user needs.
+    // meant SETTINGS displayed a foreign country's flag permanently, for twenty
+    // of the twenty-one locales -- a national flag as fixed furniture on a
+    // Bitcoin signer, standing in for nothing the user needs.
     // The native name already says which language is active, and it is the
     // honest label: a language is not a country. Flags stay in the PICKER, one
     // per row, where they genuinely help scan twenty-one options and there is
