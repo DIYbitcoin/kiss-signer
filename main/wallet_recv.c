@@ -218,6 +218,7 @@ static void vfy_result(const char *txt, size_t len) {
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
   wt_lock_mark(s_scr);
+  wt_screen_id(s_scr);
   // Only format and tail-highlight something that really is an address.
   // Arbitrary QR text is not grouped address data; feeding a short malformed
   // string through the span formatter also left LVGL with a broken short-span
@@ -584,6 +585,9 @@ static void recv_list_open(void) {
   // anti-phishing advice about ONE address you are about to hand over, so it
   // belongs on the screen that shows one -- here it only cost the list a row
   // and said nothing about the list.
+  // No wt_screen_id here: the page counter already owns this screen's top-right
+  // corner, and it is the more useful of the two on a screen whose whole job is
+  // saying which slice of the hundred you are looking at.
   s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
   wt_lock_mark(s_scr);
 
@@ -698,6 +702,7 @@ static void recv_detail_open(void) {
   s_addr_sg = s_addr_tail = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), tr(STR_R_S));
   wt_lock_mark(s_scr);
+  wt_screen_id(s_scr);
   // Left column: QR at (48, 112) 238x238 per HANDOFF-03. The card widget owns
   // the "+" corner cue for the zoom affordance. The extra vertical room the
   // 238 square costs came from dropping the derivation path row: the path is
