@@ -216,7 +216,6 @@ static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_delete_async(s_scr);
     }
     s_scr = wt_screen(parent, title, sub);
-    wt_lock_mark(s_scr);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
@@ -302,55 +301,6 @@ static const char *tr_reason(const char *r)
 // the coordinator is the whole point of this screen
 #define group4   wt_group4
 #define fmt_sats wt_fmt_sats
-
-static void mk_status_light(void)
-{
-    const char *word = s_sum.status == WPSBT_READY ? tr(STR_S_READY)
-                     : s_sum.status == WPSBT_CAUTION ? tr_sym(LV_SYMBOL_WARNING, STR_S_CAUTION)
-                     : tr_sym(LV_SYMBOL_CLOSE, STR_S_STOP);
-    lv_color_t col = s_sum.status == WPSBT_READY ? MUT_COL
-                   : s_sum.status == WPSBT_CAUTION ? WARN_COL : STOP_COL;
-    // A BADGE, not a pill. This used to be a 160x44 rounded rectangle with a
-    // filled background and a 2px coloured border, which is the exact shape of
-    // every button on this device, sitting in the top right corner where a
-    // button would sit. It says CHECK DETAILS. People tapped it. It is a
-    // status word and there is nothing to tap.
-    //
-    // So it loses the fill, the border and the radius, and keeps the colour
-    // and the icon, which were carrying the meaning all along. Text alone in a
-    // status colour is what every other read only value on this device looks
-    // like. It also gets font23 off the metadata rung: the verdict on a
-    // transaction is not metadata, and at 14 it was the smallest type on the
-    // screen it is supposed to summarise.
-    //
-    // wt_note_fit rather than a flat font23, because STOP and CAUTION carry a
-    // symbol and a translated word, and PRZYTRZYMAJ-length locales exist. It
-    // drops a rung rather than running into the title to its left.
-    // 592, not 532. Widening it left ran it into SIGNING AS and the wallet
-    // fingerprint, which own 430..580 of this header. 160px is what is free.
-    // The consequence is that STOP and CAUTION take 23 and CHECK DETAILS drops
-    // to 14, which reads as inconsistent and is not: the two words that mean
-    // "stop and look" get the size, and the one that means "nothing is wrong"
-    // does not need it.
-    lv_obj_t *p = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(p);
-    // 56 tall, not 44. At font23 with a leading symbol the line box is 57px,
-    // so a 44px box clipped the top 7px off CAUTION and CAUTELA. The box only
-    // ever held a border that is now gone, so it costs nothing to fit the type
-    // rather than making the type fit it.
-    lv_obj_set_size(p, 160, 60);
-    lv_obj_set_pos(p, 592, 22);
-    lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
-    lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(p, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *l = lv_label_create(p);
-    wt_note_fit(l, word, 160, 30);
-    lv_obj_set_style_text_color(l, col, 0);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_width(l, 160);
-    lv_obj_align(l, LV_ALIGN_RIGHT_MID, 0, 0);
-}
 
 // ---- signing ----
 static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home on its own
@@ -469,67 +419,14 @@ static void sign_press_cb(lv_event_t *e)
 static void details_cb(lv_event_t *e);
 static void verify_screen(lv_obj_t *parent);
 
-// ---- cautions: a short summary on the verify screen, the "why" one tap away ----
-// The categories that fired, one per element. This used to join them with " + "
-// into a single string and render it as a wrapping label at a fixed y, which is
-// exactly the fault the whole layout phase is about: with three flags it grew
-// over the RBF line beneath it and then ran 21px into the action row, in all 21
-// locales. A caller that gets the parts can give each one its own row and know
-// the height before it draws.
-static int caution_parts(uint16_t f, const char **parts, int cap)
-{
-    int n = 0;
-    if (n < cap && (f & WPSBT_C_HIGHFEE))     parts[n++] = tr(STR_S_C_HIGHFEE);
-    if (n < cap && (f & WPSBT_C_DUST_INPUT))  parts[n++] = tr(STR_S_C_DUSTIN);
-    if (n < cap && (f & WPSBT_C_DUST_CHANGE)) parts[n++] = tr(STR_S_C_DUSTCH);
-    else if (n < cap && (f & WPSBT_C_SMALL_CHANGE)) parts[n++] = tr(STR_S_C_SMALLCH);
-    return n;
-}
-
-// Put an object's BOTTOM edge on the content line, wherever its top ends up.
-//
-// The caution stack grows UPWARD from the action row: one flag or three, the
-// last row always sits directly above the button that acknowledges it, and the
-// facts above simply have more or less air under them. Anchoring the top
-// instead is what made three flags overflow, because the top is the one end
-// whose distance to the bottom is not known until the rows exist.
-// Returns that top edge. Reading it back with lv_obj_get_y() does NOT work:
-// coords are only refreshed on the next layout pass, so a caller that asks
-// immediately gets the position the object had before it was moved, which is
-// how the caution "?" chip first landed at the top of the screen.
-static int anchor_bottom(lv_obj_t *o, int x)
-{
-    lv_obj_update_layout(o);
-    int y = WT_CONTENT_BOTTOM - lv_obj_get_height(o);
-    lv_obj_set_pos(o, x, y);
-    return y;
-}
-
-static void caution_ok_cb(lv_event_t *e)
-{
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-}
-
 // The full "why", plain words + the concrete next step (freeze/label in the
-// coordinator). Reuses the app's dim-overlay explainer style.
+// coordinator). One wt_explain_open card like every other "?" on the device: the
+// reasons stack in the first block and the footer, which is the thing to DO
+// about them, takes the second. The blank line between them was already in the
+// composed string, so the split costs nothing.
 static void caution_help_cb(lv_event_t *e)
 {
     (void)e;
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, tr(STR_S_WHY_T));
-    lv_obj_set_style_text_color(t, WARN_COL, 0);
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
-
     // sized for the longest translations (Cyrillic/CJK run 2-3 bytes per char);
     // every append clamps o because snprintf returns the WOULD-BE length
     char body[1536];
@@ -540,8 +437,6 @@ static void caution_help_cb(lv_event_t *e)
             int w_ = snprintf(body + o, sizeof body - o, __VA_ARGS__); \
             if (w_ > 0) { o += (size_t)w_; if (o >= sizeof body) o = sizeof body - 1; } \
         } } while (0)
-    // reasons stack one per line — three at once plus a blank line before the
-    // footer is exactly the 8 rows this card holds at the big font
     if (f & WPSBT_C_HIGHFEE)
         BODY_ADD("%s\n", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
@@ -551,78 +446,42 @@ static void caution_help_cb(lv_event_t *e)
     BODY_ADD(o ? "\n%s" : "%s", tr(STR_S_WHY_FOOT));
     #undef BODY_ADD
 
-    // several cautions can stack here, so this body is the longest in the app:
-    // auto-fit keeps it readable when it is short and inside the card when not
-    lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, body);
-    lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_body_font(body, 720, 300), 0);
-    lv_obj_set_width(b, 720);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 96);
-
-    wt_pill(ovl, tr(STR_C_OK), 300, 412, 200, caution_ok_cb, ovl);
-    wt_card_intro(ovl);
+    wt_explain_t x = {
+        .title  = tr(STR_S_WHY_T),
+        .icon   = LV_SYMBOL_WARNING,
+        .body   = body,
+        .ok_txt = tr(STR_C_OK),
+        .sev    = WT_SEV_WARN,
+    };
+    wt_explain_open(s_scr, &x);
 }
 
 // ---- "?" on the RBF line: plain-words Replace-By-Fee ----
-static void rbf_ok_cb(lv_event_t *e)
-{
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-}
-
 static void rbf_help_cb(lv_event_t *e)
 {
     (void)e;
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(ovl, rbf_ok_cb, LV_EVENT_CLICKED, ovl);   // tap anywhere = close
-
     // The card was a wall of text about a yes/no property of the transaction,
-    // and the two answers looked identical until you read to the end. One big
-    // glyph says which one this is before a word is read: a replace arrow when
+    // and the two answers looked identical until you read to the end. The icon
+    // badge says which one this is before a word is read: a replace arrow when
     // the fee can still be raised, a padlock when it cannot.
-    lv_obj_t *ic = lv_label_create(ovl);
-    lv_label_set_text(ic, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK);
-    lv_obj_set_style_text_font(ic, wt_font34(), 0);
-    // INK for the replace arrow, not the accent. One element rendering an
-    // accent in one state and a status colour in the other is the thing
-    // ADDENDUM-02 leads with, and GREEN theme is where it bites: the accent
-    // there is 0x35D07F, which IS WT_OK, so "the fee can still be raised"
-    // arrived in the exact green this device uses to say verified. That is a
-    // neutral property of the transaction wearing the colour of a safety
-    // check. The glyphs differ either way, so meaning never rested on the
-    // colour, but the colour was arguing for something the screen does not
-    // mean. Ink says it plainly and leaves amber to mean caution alone.
-    // MONO is unchanged to the byte: its accent IS WT_INK.
-    lv_obj_set_style_text_color(ic, s_sum.rbf ? INK_COL : WARN_COL, 0);
-    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 46);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF));
-    lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 100);
-
-    const char *rbf_body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
-    lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, rbf_body);
-    lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_body_font(rbf_body, 720, 230), 0);
-    lv_obj_set_width(b, 720);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 156);
-
-    wt_pill(ovl, tr(STR_C_OK), 300, 400, 200, rbf_ok_cb, ovl);
-    wt_card_intro(ovl);
+    //
+    // The replaceable state is PLAIN, not OK, and that is deliberate. One
+    // element rendering an accent in one state and a status colour in the other
+    // is the thing ADDENDUM-02 leads with, and GREEN theme is where it bites:
+    // the accent there is 0x35D07F, which IS WT_OK, so "the fee can still be
+    // raised" would arrive in the exact green this device uses to say verified.
+    // That is a neutral property of the transaction wearing the colour of a
+    // safety check. The glyphs differ either way, so meaning never rested on
+    // colour. MONO is unchanged to the byte: its accent IS WT_INK.
+    const char *body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
+    wt_explain_t x = {
+        .title  = s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF),
+        .icon   = s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
+        .body   = body,
+        .ok_txt = tr(STR_C_OK),
+        .sev    = s_sum.rbf ? WT_SEV_PLAIN : WT_SEV_WARN,
+    };
+    wt_explain_open(s_scr, &x);
 }
 
 // The verify screen has no partial redraw: every state change rebuilds it. The
@@ -1169,39 +1028,18 @@ static void details_back_cb(lv_event_t *e)
     repaint_verify();
 }
 
-static void glossary_ok_cb(lv_event_t *e)
-{
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-}
-
 static void glossary_cb(lv_event_t *e)
 {
     (void)e;
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, tr(STR_S_GLOSSARY_T));
-    lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 44);
-
-    const char *copy = tr(STR_S_GLOSSARY_B);
-    lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, copy);
-    lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_body_font(copy, 704, 294), 0);
-    lv_obj_set_width(b, 704);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(b, 48, 98);
-
-    wt_pill(ovl, tr(STR_C_OK), 300, WT_ACTION_Y, 200, glossary_ok_cb, ovl);
-    wt_card_intro(ovl);
+    // One paragraph, so it renders as one full width block rather than two
+    // columns. wt_explain_open decides that from the copy, not from a flag.
+    wt_explain_t x = {
+        .title  = tr(STR_S_GLOSSARY_T),
+        .icon   = LV_SYMBOL_LIST,
+        .body   = tr(STR_S_GLOSSARY_B),
+        .ok_txt = tr(STR_C_OK),
+    };
+    wt_explain_open(s_scr, &x);
 }
 
 static void details_cb(lv_event_t *e)
@@ -1235,7 +1073,21 @@ static void details_cb(lv_event_t *e)
     // shouted at the same volume, so nothing led and the eye had to read all
     // of it to find any of it. The eyebrow style is what WALLET and RECEIVE
     // put above a value, and this is the same relationship.
-    lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 96);
+    // The two columns get a card each, and the cards go in BEHIND the content
+    // rather than around it: every y on this page is hand measured against a 372
+    // and a 330 wide lane, and a txid is exactly 64 hex characters, so shaving
+    // padding off either lane turns two lines of it into three and walks the
+    // whole column down into the next label. Created first, so they are behind
+    // everything that follows in z-order, and nothing below moves by a pixel.
+    //
+    // 88..396 for both, which is the header row's floor to just above the action
+    // bar. The right column ends higher than the left one and keeps the
+    // difference as air, because two cards of different heights beside each other
+    // read as a layout accident rather than as two columns.
+    wt_card(s_scr, 28, 100, 384, 296);
+    wt_card(s_scr, 418, 100, 334, 296);
+
+    lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 108);
     // Bounded to the left column. STR_S_D_MANYIN_FMT is a sentence, not a
     // word, and in Spanish it ran straight across into the TXID caption in the
     // right column. It was font14 and unbounded before, which only hid the
@@ -1247,7 +1099,7 @@ static void details_cb(lv_event_t *e)
     lv_obj_remove_style_all(il);
     // the many-inputs header wraps to 2 lines: start the list below it
     // (latent in the original layout, exposed by the 17-input fixture)
-    int ly = det.n_total > det.n_in ? 146 : 118;
+    int ly = det.n_total > det.n_in ? 158 : 130;
     lv_obj_set_pos(il, 40, ly);
     lv_obj_set_size(il, 372, 392 - ly);
     lv_obj_set_style_pad_all(il, 8, 0);
@@ -1298,10 +1150,10 @@ static void details_cb(lv_event_t *e)
     }
 
     // the id to find it by, once broadcast — final only for segwit-only spends
-    wt_section(s_scr, tr(STR_S_D_TXID), 430, 96);
+    wt_section(s_scr, tr(STR_S_D_TXID), 430, 108);
     char gt[80];
     group4(det.txid, gt, sizeof gt);
-    lv_obj_t *tx = mk_lbl(gt, 430, 118, wt_font14(), INK_COL);
+    lv_obj_t *tx = mk_lbl(gt, 430, 130, wt_font14(), INK_COL);
     lv_obj_set_width(tx, 330);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
     // The fee rate, arrived from the verify screen's right column, which had to
@@ -1328,7 +1180,7 @@ static void details_cb(lv_event_t *e)
         snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
                  (unsigned)(s_sum.fee_rate_x10 / 10),
                  (unsigned)(s_sum.fee_rate_x10 % 10));
-    lv_obj_t *fr = mk_lbl(buf, 430, 163, wt_font14(), MUT_COL);
+    lv_obj_t *fr = mk_lbl(buf, 430, 175, wt_font14(), MUT_COL);
     lv_obj_set_width(fr, 330);
     lv_label_set_long_mode(fr, LV_LABEL_LONG_WRAP);
 
@@ -1658,11 +1510,6 @@ static void scan_pick_cb(lv_event_t *e)
 }
 
 // ---- PSBT help: one plain-English card with the complete signing loop ----
-static void coord_ok_cb(lv_event_t *e)
-{
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-}
-
 // A numbered sequence is intentionally used instead of the old
 // COORDINATOR <- QR -> KISS equation.  That equation showed transport, but not
 // which side acted first, what came back, or who actually broadcasts.  Those
@@ -1730,75 +1577,48 @@ static void coord_connector(lv_obj_t *parent, int y)
     lv_obj_set_style_bg_opa(line, LV_OPA_COVER, 0);
 }
 
+// The three step flow, as a wt_explain_open aside: draws into the lane it is
+// given and reports the height it used. coord_step places itself at the page's
+// own 48/704 content width, so the x and w it is handed are the full lane and it
+// ignores them; only the y matters.
+static int aside_coord_flow(lv_obj_t *par, int x, int y, int w)
+{
+    (void)x; (void)w;
+    const int ROW = 44, GAP = 14, H = 3 * ROW + 2 * GAP;
+    // ONE container, so the sequence enters as a unit. Five loose objects on
+    // the overlay would each take their own turn in the entrance stagger and
+    // the flow would assemble itself a step at a time in front of the reader,
+    // which is the opposite of what a diagram of a sequence should do.
+    lv_obj_t *box = lv_obj_create(par);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, 0, y);
+    lv_obj_set_size(box, 800, H);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+    coord_step(box, 0, "1", LV_SYMBOL_EYE_OPEN, MUT_COL, tr(STR_S_FLOW_1), false);
+    coord_connector(box, ROW);
+    coord_step(box, ROW + GAP, "2", WT_ICON_KEY, wt_primary(),
+               tr(STR_S_FLOW_2), true);
+    coord_connector(box, 2 * ROW + GAP);
+    coord_step(box, 2 * (ROW + GAP), "3", LV_SYMBOL_UPLOAD, MUT_COL,
+               tr(STR_S_FLOW_3), false);
+    return H;
+}
+
 static void coord_help_cb(lv_event_t *e)
 {
     (void)e;
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);      // swallow stray taps
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, tr(STR_S_COORD_T));
-    lv_obj_set_style_text_color(t, wt_accent(), 0);   // as the scan key card
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(t, 2, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 54);
-
-    lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, tr(STR_S_COORD_B));
-    lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_S_COORD_B), 720, 112), 0);
-    lv_obj_set_width(b, 720);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 108);
-
-    // One child container makes the three steps enter together; animating
-    // every row separately delayed the OK button and made the flow appear
-    // half-built for its first second. Every locale gets the three steps now:
-    // the compact two-box fallback that used to stand in for them said far
-    // less than the numbered sequence it replaced.
-    lv_obj_t *flow = lv_obj_create(ovl);
-    lv_obj_remove_style_all(flow);
-    lv_obj_set_size(flow, 800, 480);
-    lv_obj_remove_flag(flow, LV_OBJ_FLAG_CLICKABLE);
-    coord_step(flow, 230, "1", LV_SYMBOL_EYE_OPEN, MUT_COL,
-               tr(STR_S_FLOW_1), false);
-    coord_connector(flow, 274);
-    coord_step(flow, 288, "2", WT_ICON_KEY, wt_primary(),
-               tr(STR_S_FLOW_2), true);
-    coord_connector(flow, 332);
-    coord_step(flow, 346, "3", LV_SYMBOL_UPLOAD, MUT_COL,
-               tr(STR_S_FLOW_3), false);
-
-    lv_obj_t *ok = lv_obj_create(ovl);
-    lv_obj_remove_style_all(ok);
-    lv_obj_set_size(ok, 200, 52);
-    lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, WT_ACTION_Y);
-    lv_obj_set_style_radius(ok, 26, 0);
-    lv_obj_set_style_bg_color(ok, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(ok, 1, 0);
-    lv_obj_set_style_border_color(ok, MUT_COL, 0);
-    lv_obj_add_flag(ok, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(ok, coord_ok_cb, LV_EVENT_CLICKED, ovl);
-    lv_obj_t *ol = lv_label_create(ok);
-    lv_label_set_text(ol, tr(STR_C_OK));
-    lv_obj_set_style_text_color(ol, INK_COL, 0);
-    lv_obj_set_style_text_font(ol, wt_font14(), 0);
-    lv_obj_set_style_text_letter_space(ol, 2, 0);
-    lv_obj_center(ol);
-    // Same entrance as every other "?" card. This one used to open with a hard
-    // cut, on the reasoning that its three-step sequence was busy enough
-    // already -- but the steps were deliberately built inside ONE container so
-    // they would enter together, which only buys anything if something is
-    // animating them. Four direct children stagger in (title, body, the flow
-    // as a unit, OK), so the sequence still arrives whole.
-    wt_card_intro(ovl);
+    // The numbered sequence leads and the sentence closes it. Every locale gets
+    // all three steps: the compact two-box fallback that used to stand in for
+    // them said far less than the sequence it replaced.
+    wt_explain_t x = {
+        .title  = tr(STR_S_COORD_T),
+        .icon   = WT_ICON_KEY,
+        .body   = tr(STR_S_COORD_B),
+        .ok_txt = tr(STR_C_OK),
+        .aside  = aside_coord_flow,
+    };
+    wt_explain_open(s_scr, &x);
 }
 
 static void sd_pick_cb(lv_event_t *e)
@@ -1833,16 +1653,24 @@ void wallet_sign_open(lv_obj_t *parent)
     char qtxt[WT_ICON_TEXT_MAX], sdtxt[WT_ICON_TEXT_MAX];
     wt_icon_text(qtxt, sizeof qtxt, WT_ICON_QR, tr(STR_S_SCAN_QR));
     wt_icon_text(sdtxt, sizeof sdtxt, WT_ICON_SD, tr(STR_S_FROM_SD));
-    lv_obj_t *q = mk_pill(qtxt, 48, 140, 340, scan_pick_cb);
+    // A card per way in, sized to its own note rather than to a shared pitch:
+    // SCAN QR's explanation is three readable lines and FROM SD CARD's is two, so
+    // equal cards would either starve the first or pad the second. The pill is
+    // centred in its card and the note sits beside it, which is the same row the
+    // storage and address type choosers are built from.
+    wt_card(s_scr, WT_CHOICE_X, 132, WT_CHOICE_W, 140);
+    wt_card(s_scr, WT_CHOICE_X, 280, WT_CHOICE_W, 88);
+
+    lv_obj_t *q = mk_pill(qtxt, 48, 172, 340, scan_pick_cb);
     wt_pill_primary(q);                                   // QR primary, SD fallback (spec)
-    lv_obj_t *sd = mk_pill(sdtxt, 48, 268, 340, sd_pick_cb);
+    lv_obj_t *sd = mk_pill(sdtxt, 48, 294, 340, sd_pick_cb);
     {
         const char *src_lbls[2] = { qtxt, sdtxt };
         wt_pill_fit_t f = wt_pill_group_fit(src_lbls, 2, 340, 60, true);
         wt_pill_apply_fit(q, f, 340);
         wt_pill_apply_fit(sd, f, 340);
     }
-    wt_note(s_scr, tr(STR_S_POINT_CAM), 430, 142, 322, 116);
+    wt_note(s_scr, tr(STR_S_POINT_CAM), 414, 144, 322, 116);
     // A labelled help target teaches the acronym at first sight. An anonymous
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);
@@ -1878,6 +1706,6 @@ void wallet_sign_open(lv_obj_t *parent)
     lv_obj_set_style_text_color(hq, MUT_COL, 0);
     lv_obj_set_style_text_font(hq, wt_font23(), 0);
     lv_obj_align(hq, LV_ALIGN_RIGHT_MID, -18, 0);
-    wt_note(s_scr, tr(STR_S_OR_LOAD), 430, 270, 322, 58);
+    wt_note(s_scr, tr(STR_S_OR_LOAD), 414, 296, 322, 58);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }

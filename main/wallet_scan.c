@@ -56,6 +56,10 @@ static uint8_t s_psbt[QRT_MAX_PSBT];
 static char s_pend[2600];
 static size_t s_pend_len;            // 0 = slot empty; atomic acquire/release only
 
+// Writes the status card's two lines. Defined with the layout it places, down
+// beside the geometry; declared here because the decode path calls it.
+static void scan_status(const char *state, const char *hint);
+
 // memset can be optimized away once the compiler sees a buffer is dead.  This
 // volatile store loop is intentionally boring: scanner payloads and assembled
 // PSBTs must not remain in static RAM after the scan has finished.
@@ -204,7 +208,7 @@ static void feed(const char *data, size_t len)
         char b[48];
         if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
         else snprintf(b, sizeof b, "%s", tr(STR_N_READING));
-        lv_label_set_text(s_prog, b);
+        scan_status(b, NULL);
     }
 #ifndef SIMULATOR
     camera_scan_progress(seen, total);
@@ -247,8 +251,7 @@ static void poll_cb(lv_timer_t *t)
         return;
     }
     if (camera_spike_check_died() && s_prog) {
-        lv_label_set_text(s_prog, tr(STR_N_CAM_STOP));
-        if (s_hint) lv_label_set_text(s_hint, tr(STR_N_RETRY));
+        scan_status(tr(STR_N_CAM_STOP), tr(STR_N_RETRY));
         lv_obj_invalidate(lv_screen_active()); // video gone: repaint the LVGL screen
     }
 #endif
@@ -285,16 +288,38 @@ void wallet_scan_open_raw(lv_obj_t *parent,
 // loud: somebody new to this is pointing a camera at a code they cannot read,
 // on a device holding their keys, wondering whether this is how people get
 // robbed. The screen has the space and the dead time to answer it.
-// 112 to WT_CONTENT_BOTTOM (398) is 286. The preview takes 208 of it and the
-// two status lines under it take the rest, so both land above the action bar
-// instead of behind it. The right column's own stack (caption, one CAN row,
-// three CANNOT rows, the paragraph) is measured to the same floor.
+//
+// Both columns run 112 to WT_CONTENT_BOTTOM (398) and both are made of the same
+// cards the settings screen is made of. Everything on this screen used to float
+// on the page: an empty bordered rectangle for a viewport, two bare status lines
+// under it, a paragraph with a "?" adrift to the right of it. Cards are the
+// difference, and the status line is the clearest case -- "waiting for QR" is
+// the only thing on this screen that changes, and it had nothing around it to
+// change inside.
 #define SCN_CAM_X 48
 #define SCN_CAM_Y 112
 #define SCN_CAM_W 300
-#define SCN_CAM_H 208
+// 188, not the 208 this column had while its status was two bare labels. The
+// status is a card now and the card has to hold the camera-failure case, whose
+// hint is a whole instruction ("tap the top left corner to go back and retry")
+// rather than a word. Two lines of it need 84, and the twenty pixels come from
+// the preview because the preview can spare them: the decoder always reads the
+// full sensor, so this rectangle only has to be big enough to aim with.
+#define SCN_CAM_H 188
 #define SCN_COL_X 396
 #define SCN_COL_W 356
+// The status card, under the preview: a line of state at font23 over up to two
+// lines of detail at font14, in the box a settings row uses.
+#define SCN_STAT_Y (SCN_CAM_Y + SCN_CAM_H + 10)
+#define SCN_STAT_H 84
+// The right column's three cards. The CAN row, the two CANNOT rows, then the
+// paragraph that carries the "?" in its own corner instead of beside it.
+#define SCN_CAN_Y  136
+#define SCN_CAN_H   48
+#define SCN_CANT_Y 192
+#define SCN_CANT_H  84
+#define SCN_WHY_Y  284
+#define SCN_WHY_H  104
 
 // One permission row: a glyph in `col` and a line of text beside it.
 static void scan_perm(lv_obj_t *par, int y, const char *glyph, int str,
@@ -304,6 +329,18 @@ static void scan_perm(lv_obj_t *par, int y, const char *glyph, int str,
     lv_obj_t *t = wt_lbl(par, tr(str), 40, y, wt_font14(), WT_MUT);
     lv_obj_set_width(t, SCN_COL_W - 54);
     lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+}
+
+static void scan_status(const char *state, const char *hint)
+{
+    if (!s_prog || !s_hint) return;
+    if (state) lv_label_set_text(s_prog, state);
+    if (hint)  lv_label_set_text(s_hint, hint);
+    const char *h = lv_label_get_text(s_hint);
+    bool two = h && h[0];
+    lv_obj_set_pos(s_prog, 14, two ? 8
+                   : (SCN_STAT_H - lv_font_get_line_height(wt_font23())) / 2);
+    lv_obj_set_pos(s_hint, 14, 42);
 }
 
 static void scan_psbt_help_cb(lv_event_t *e)
@@ -328,47 +365,21 @@ static void scan_open_common(lv_obj_t *parent)
     lv_obj_add_event_cb(s_scr, zoom_drag_cb, LV_EVENT_ALL, NULL);
 #endif
 
-    // The preview column. An empty bordered panel, so the composition reads the
-    // same in the simulator (which never runs a camera) as on the device, and so
-    // the column is a viewport before the first frame lands in it.
-    lv_obj_t *vp = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(vp);
-    lv_obj_set_pos(vp, SCN_CAM_X, SCN_CAM_Y);
-    lv_obj_set_size(vp, SCN_CAM_W, SCN_CAM_H);
-    lv_obj_set_style_radius(vp, 10, 0);
-    lv_obj_set_style_border_width(vp, 1, 0);
-    lv_obj_set_style_border_color(vp, WT_EDGE, 0);
-    lv_obj_remove_flag(vp, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(vp, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Right column. One thing a scan CAN do, then the three it cannot.
+    // The preview column. A PANEL, not an empty outline: before the first camera
+    // frame lands (and always, in the simulator) this is the largest object on
+    // the screen, and an unfilled rectangle that size reads as a hole rather than
+    // as a viewport waiting for a picture.
+    wt_viewfinder(s_scr, SCN_CAM_X, SCN_CAM_Y, SCN_CAM_W, SCN_CAM_H);
+
+    // Right column. One thing a scan CAN do, then the two it cannot.
     wt_section(s_scr, tr(STR_N_CAN_CAP), SCN_COL_X, SCN_CAM_Y);
 
-    lv_obj_t *can = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(can);
-    lv_obj_set_pos(can, SCN_COL_X, SCN_CAM_Y + 26);
-    lv_obj_set_size(can, SCN_COL_W, 40);
-    lv_obj_set_style_radius(can, 8, 0);
-    lv_obj_set_style_border_width(can, 1, 0);
-    lv_obj_set_style_border_color(can, WT_OK, 0);
-    lv_obj_set_style_border_opa(can, 77, 0);      // ~30 percent
-    lv_obj_set_style_bg_color(can, WT_OK, 0);
-    lv_obj_set_style_bg_opa(can, 13, 0);          // ~5 percent
-    lv_obj_remove_flag(can, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(can, LV_OBJ_FLAG_SCROLLABLE);
-    scan_perm(can, 11, LV_SYMBOL_OK, STR_N_CAN, WT_OK);
+    lv_obj_t *can = wt_card(s_scr, SCN_COL_X, SCN_CAN_Y, SCN_COL_W, SCN_CAN_H);
+    wt_row_sev(can, WT_SEV_OK);
+    scan_perm(can, (SCN_CAN_H - 18) / 2, LV_SYMBOL_OK, STR_N_CAN, WT_OK);
 
-    lv_obj_t *cant = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(cant);
-    lv_obj_set_pos(cant, SCN_COL_X, SCN_CAM_Y + 76);
-    lv_obj_set_size(cant, SCN_COL_W, 68);
-    lv_obj_set_style_radius(cant, 8, 0);
-    lv_obj_set_style_border_width(cant, 1, 0);
-    lv_obj_set_style_border_color(cant, WT_HAIR, 0);
-    lv_obj_set_style_bg_color(cant, WT_PANEL, 0);
-    lv_obj_set_style_bg_opa(cant, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(cant, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(cant, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *cant = wt_card(s_scr, SCN_COL_X, SCN_CANT_Y, SCN_COL_W, SCN_CANT_H);
     // TWO crosses, not the three ADDENDUM-01 drew. It also listed "reach your
     // recovery words" and "put this device online", and the owner cut both:
     // nobody arriving at a scan screen fears either. The product is called an
@@ -379,30 +390,45 @@ static void scan_open_common(lv_obj_t *parent)
     // like boilerplate. What is actually being asked, camera pointed at a code
     // you cannot read on a device holding your keys, is "can this spend my
     // money", and these two answer exactly that.
-    scan_perm(cant, 10, LV_SYMBOL_CLOSE, STR_N_CANT_SPEND, WT_STOP);
-    scan_perm(cant, 38, LV_SYMBOL_CLOSE, STR_N_CANT_SIGN,  WT_STOP);
+    scan_perm(cant, 16, LV_SYMBOL_CLOSE, STR_N_CANT_SPEND, WT_STOP);
+    scan_perm(cant, 48, LV_SYMBOL_CLOSE, STR_N_CANT_SIGN,  WT_STOP);
 
-    wt_note(s_scr, tr(STR_N_NOTHING_SIGNED), SCN_COL_X, SCN_CAM_Y + 154,
-            SCN_COL_W - 44, 76);
-    wt_help_chip(s_scr, 752, SCN_CAM_Y + 154, MUT_COL, scan_psbt_help_cb, NULL);
+    // The paragraph gets a card of its own and the "?" goes in its top right
+    // corner. The chip used to sit at x=752 beside the text, which is past the
+    // 752 page margin and belonged to nothing: a help affordance floating in the
+    // gutter reads as a stray control rather than as this paragraph's footnote.
+    lv_obj_t *why = wt_card(s_scr, SCN_COL_X, SCN_WHY_Y, SCN_COL_W, SCN_WHY_H);
+    lv_obj_t *note = wt_note(why, tr(STR_N_NOTHING_SIGNED), 14, 12,
+                             SCN_COL_W - 28 - 34, SCN_WHY_H - 24);
+    (void)note;
+    wt_help_chip(why, SCN_COL_W - 42, 12, MUT_COL, scan_psbt_help_cb, NULL);
 
-    // Status lives under the preview now, not in the middle of the screen: the
-    // middle of the screen is the permissions card.
-    s_prog = lv_label_create(s_scr);
+    // Status under the preview, as a ROW: the state at font23 over the detail at
+    // font14, in the same box a settings row uses, because that is what this is.
+    // It was two bare labels on the page, and the one thing on this screen that
+    // changes while you wait had nothing around it to change inside.
+    lv_obj_t *stat = wt_card(s_scr, SCN_CAM_X, SCN_STAT_Y, SCN_CAM_W, SCN_STAT_H);
+    s_prog = lv_label_create(stat);
     lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
     lv_obj_set_style_text_font(s_prog, wt_font23(), 0);
-    lv_obj_set_pos(s_prog, SCN_CAM_X, SCN_CAM_Y + SCN_CAM_H + 10);
+    lv_obj_set_width(s_prog, SCN_CAM_W - 28);
+    lv_obj_set_height(s_prog, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(s_prog, 14, 8);
 
     // The camera-failure path writes the driver status here, which is technical
-    // metadata and belongs at font14.
-    s_hint = lv_label_create(s_scr);
+    // metadata and belongs at font14. Two lines, height pinned: LONG_DOT on a
+    // sized label wraps and then ellipsises, so the longest translation of the
+    // retry instruction degrades inside the card instead of past its edge.
+    s_hint = lv_label_create(stat);
     lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
     lv_obj_set_style_text_font(s_hint, wt_font14(), 0);
-    lv_obj_set_width(s_hint, SCN_CAM_W);
-    lv_label_set_long_mode(s_hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(s_hint, SCN_CAM_X, SCN_CAM_Y + SCN_CAM_H + 40);
+    lv_obj_set_width(s_hint, SCN_CAM_W - 28);
+    lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_font14()));
+    lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
+    scan_status(NULL, NULL);            // places both lines for the one-line case
 
     // CANCEL in the action row, and the SD alternative NAMED beside it: the
     // person struggling to scan does not know they have another option, because
@@ -416,12 +442,11 @@ static void scan_open_common(lv_obj_t *parent)
 #ifndef SIMULATOR
     camera_spike_set_preview_rect(SCN_CAM_X, SCN_CAM_Y, SCN_CAM_W, SCN_CAM_H);
     if (camera_scan_start(s_bus, decode_cb)) {
-        if (s_prog) lv_label_set_text(s_prog, tr(STR_N_WAIT_QR));
+        scan_status(tr(STR_N_WAIT_QR), NULL);
     } else {
-        lv_label_set_text(s_prog, tr(STR_C_CAM_UNAVAIL));
-        lv_label_set_text(s_hint, camera_spike_status());
+        scan_status(tr(STR_C_CAM_UNAVAIL), camera_spike_status());
     }
 #else
-    lv_label_set_text(s_prog, tr(STR_N_WAIT_QR));
+    scan_status(tr(STR_N_WAIT_QR), NULL);
 #endif
 }

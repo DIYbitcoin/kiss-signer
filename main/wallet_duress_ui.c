@@ -256,9 +256,15 @@ static void stage_build(int stage)
     // two-column screen first, and it rendered badly in every language: the
     // right-hand heading ran off the panel and the body wrapped mid-sentence,
     // because 250px cannot hold copy written in lines sized for 430.
+    //
+    // Each body sits in a card now, which is the house look and also what makes
+    // three paragraphs of teaching copy read as one block rather than as loose
+    // text on the page. The body gives up 16px of width to the card's padding and
+    // has it to spare: the height budget is 260 against about 200 of English.
     case ST_INTRO: {
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_INTRO_B), 48, 118, 704, 260);
+        wt_card(s_scr, 36, 104, 716, 288);
+        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_INTRO_B), 52, 118, 688, 260);
         lv_obj_set_style_text_color(b, WT_INK, 0);
         // "SET UP A SPARE", not OK: on a screen explaining a decoy wallet, an
         // OK button tells the owner nothing about which of the two things is
@@ -274,7 +280,8 @@ static void stage_build(int stage)
     }
     case ST_FUND: {
         s_scr = wt_screen(s_parent, tr(STR_GD_FUND_T), NULL);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_FUND_B), 48, 118, 704, 260);
+        wt_card(s_scr, 36, 104, 716, 288);
+        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_FUND_B), 52, 118, 688, 260);
         lv_obj_set_style_text_color(b, WT_INK, 0);
         // Same rationale as ST_INTRO: name the action.
         wt_pill(s_scr, tr(STR_GD_SET_UP_SPARE), 48, WT_ACTION_Y, 240, next_cb, NULL);
@@ -286,7 +293,8 @@ static void stage_build(int stage)
     case ST_DRAW2: draw_screen(true);    break;
     case ST_NOPASS: {
         s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_NOPASS_B), 48, 118, 704, 260);
+        wt_card(s_scr, 36, 104, 716, 288);
+        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_NOPASS_B), 52, 118, 688, 260);
         lv_obj_set_style_text_color(b, WT_INK, 0);
         // The only way back to plain behaviour for a signer that was allowed to
         // configure a stroke before this case was handled.

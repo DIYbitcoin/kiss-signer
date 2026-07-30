@@ -28,15 +28,16 @@ const char *camera_spike_status(void);
 // Two consequences the caller has to know about. The camera stops FLIPPING
 // framebuffers while a rect is set, because a flip swaps in the buffer LVGL did
 // not just paint; it writes into the live buffer instead, so tearing is possible
-// inside the preview rect and nowhere else. And LVGL may repaint outside the
-// rect while streaming, which is what makes a live column beside the video work.
+// inside the preview rect and nowhere else. And LVGL keeps repainting the WHOLE
+// panel while streaming, preview rect included: that is what makes a live column
+// beside the video work, and a repaint that lands on the preview is corrected by
+// the next video frame rather than being held off.
 void camera_spike_set_preview_rect(int x, int y, int w, int h);
 
-// True when the given rect in LANDSCAPE UI coordinates is clear of the live
-// preview, so main.c's flush callback can let LVGL paint it. Always true when no
-// preview rect is set and the camera is off; always false while the camera owns
-// the whole panel.
-bool camera_spike_ui_rect_free(int x1, int y1, int x2, int y2);
+// True only while the live preview covers the WHOLE panel, which is the one
+// state in which LVGL must not paint. With a preview rect set, LVGL paints
+// everywhere and the video reclaims its rectangle on the next frame.
+bool camera_spike_owns_panel(void);
 
 // True while the preview is live.
 bool camera_spike_is_on(void);

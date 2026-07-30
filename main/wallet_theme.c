@@ -398,25 +398,9 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     return scr;
 }
 
-void wt_lock_mark(lv_obj_t *scr)
+lv_obj_t *wt_screen_title(lv_obj_t *scr)
 {
-    // A × in the top-left corner: hints that a tap here closes the wallet
-    // surface and hands the device back to the game. The tap region itself is
-    // 88x88 and lives in main.c so the router can gate on which sub-screen is
-    // active; here we only draw the affordance. WT_MUT, not accent, per
-    // SWEEP-01 edit 4: this is an exit, not an action, and in GREEN theme an
-    // accent mark would compete with WT_OK on the same screen.
-    //
-    // font23 X sits under y=42, so the mark's box ends about 20px above the
-    // title's baseline at y=52 and about 8px right of x=32. The title starts at
-    // x=48, so nothing that draws below overlaps. wt_screen already made the
-    // screen non-clickable, so the label consumes no touches: main.c owns the
-    // corner router and the 88x88 hit region extends past this glyph.
-    lv_obj_t *m = lv_label_create(scr);
-    lv_label_set_text(m, LV_SYMBOL_CLOSE);
-    lv_obj_set_style_text_font(m, wt_font23(), 0);
-    lv_obj_set_style_text_color(m, WT_MUT, 0);
-    lv_obj_set_pos(m, 16, 22);
+    return wt_tagged(scr, WT_TITLE_TAG);
 }
 
 void wt_title_fit(lv_obj_t *scr, int w)
@@ -1208,17 +1192,25 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
     lv_obj_set_size(row, w, WT_ROW_H);
-    lv_obj_set_style_radius(row, 8, 0);
+    lv_obj_set_style_radius(row, 10, 0);
     lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
-    // Hairline separator, not a border box, for the same reason the address list
-    // rows use one: the group is a list, and a box around every line turns a
-    // list into a stack of cards competing for the same attention.
+    // A CARD, not a hairline-separated list line. This used to be a bottom rule
+    // and no fill, on the argument that a box around every line turns a list
+    // into a stack of cards competing for attention. That argument lost to the
+    // drawing, and to the device: redraw 05 gives every row a WT_PANEL fill, a
+    // WT_HAIR border and a 10px radius, and the reason is legibility rather than
+    // decoration. A label sitting on its own fill has an edge to be read
+    // against; the same label floating on the page reads as weak type, which is
+    // exactly what the flat list looked like on glass.
+    //
+    // wt_row_sev() then tints the whole card by severity, which is the other
+    // thing the flat list could not do: a warning had to rest on the colour of
+    // one small note inside it instead of on the box around it.
+    lv_obj_set_style_bg_color(row, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(row, 1, 0);
-    lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
-    lv_obj_set_style_border_color(row, WT_DIV, 0);
-    lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(row, WT_HAIR, 0);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     if (cb) {
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
@@ -1231,7 +1223,10 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
     // The chevron first, so everything else can be measured against it.
     int right = w - 12;
     if (cb) {
-        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), WT_MUT);
+        // WT_DIM, not WT_MUT: the drawing's chevrons are rgb(76,86,102), a rung
+        // dimmer than its sub-lines. A chevron is an affordance, not content, so
+        // it should be the quietest ink on the card.
+        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), WT_DIM);
         lv_obj_update_layout(ch);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -10, 0);
         right = w - 10 - lv_obj_get_width(ch) - 10;
@@ -1316,12 +1311,53 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
     return row;
 }
 
-lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
-                        int x, int y, int w, bool big)
+// Tint a built row by severity. Redraw 05 colours the BOX, not just a note
+// inside it: the green card is a state that is satisfied, the amber one a
+// warning about where the words live, the red pair the two actions that cannot
+// be undone. Measured off the drawing, which uses a 4 to 5 percent fill under a
+// 30 percent border of the same hue -- barely a wash, but enough that the group
+// reads before any of its words do.
+//
+// Opacities are LV_OPA values (0..255): 13 is the 5 percent fill, 77 the 30
+// percent border. Status hues are never themed, so this takes no accent.
+void wt_row_sev(lv_obj_t *row, int sev)
+{
+    if (!row) return;
+    lv_color_t c;
+    switch (sev) {
+        case WT_SEV_OK:   c = WT_OK;   break;
+        case WT_SEV_WARN: c = WT_WARN; break;
+        case WT_SEV_STOP: c = WT_STOP; break;
+        default:
+            lv_obj_set_style_bg_color(row, WT_PANEL, 0);
+            lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_color(row, WT_HAIR, 0);
+            lv_obj_set_style_border_opa(row, LV_OPA_COVER, 0);
+            return;
+    }
+    lv_obj_set_style_bg_color(row, c, 0);
+    lv_obj_set_style_bg_opa(row, 13, 0);
+    lv_obj_set_style_border_color(row, c, 0);
+    lv_obj_set_style_border_opa(row, 77, 0);
+}
+
+// The box every Settings row is made of, with nothing in it. Extracted so the
+// screens whose content is not a ROW can still wear it: an address block, a
+// camera viewport, a status line. Same fill, same hairline, same 10px radius, so
+// a card on Receive and a card on Settings are the same object to the eye, and
+// wt_row_sev() tints either one.
+//
+// The fill is what does the work. Type on WT_PANEL has an edge to be read
+// against; the same type floating on WT_BG reads as weak, which is the whole
+// difference between the settings screen the owner liked and the flat list it
+// replaced. Any screen with a block of content and no card is the flat list
+// again under a different name.
+lv_obj_t *wt_card(lv_obj_t *scr, int x, int y, int w, int h)
 {
     lv_obj_t *card = lv_obj_create(scr);
     lv_obj_remove_style_all(card);
     lv_obj_set_pos(card, x, y);
+    lv_obj_set_size(card, w, h);
     lv_obj_set_style_radius(card, 10, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, WT_HAIR, 0);
@@ -1329,6 +1365,46 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    return card;
+}
+
+// A camera viewport: the card, a WT_EDGE edge, and four bracket corners drawn
+// OUTSIDE it. Outside is the whole point. On the device the camera writes
+// straight to the panel over exactly this rectangle, so anything inside these
+// bounds is gone the moment the first frame lands; the brackets live in LVGL's
+// own pixels and survive. They are also what tells an empty preview from a
+// rendering fault, which is what both camera screens look like in the simulator
+// and on a device whose camera failed to start.
+lv_obj_t *wt_viewfinder(lv_obj_t *scr, int x, int y, int w, int h)
+{
+    lv_obj_t *vp = wt_card(scr, x, y, w, h);
+    lv_obj_set_style_border_color(vp, WT_EDGE, 0);
+
+    const int L = 16, T = 2, G = 5;      // arm length, thickness, gap from the box
+    const int x0 = x - G, y0 = y - G, x1 = x + w + G, y1 = y + h + G;
+    // { x, y, w, h } per arm, two arms per corner, clockwise from top left.
+    const int arm[8][4] = {
+        { x0,     y0,     L, T }, { x0,     y0,     T, L },
+        { x1 - L, y0,     L, T }, { x1 - T, y0,     T, L },
+        { x1 - L, y1 - T, L, T }, { x1 - T, y1 - L, T, L },
+        { x0,     y1 - T, L, T }, { x0,     y1 - L, T, L },
+    };
+    for (int i = 0; i < 8; i++) {
+        lv_obj_t *a = lv_obj_create(scr);
+        lv_obj_remove_style_all(a);
+        lv_obj_set_pos(a, arm[i][0], arm[i][1]);
+        lv_obj_set_size(a, arm[i][2], arm[i][3]);
+        lv_obj_set_style_bg_color(a, WT_EDGE, 0);
+        lv_obj_set_style_bg_opa(a, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE);
+    }
+    return vp;
+}
+
+lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
+                        int x, int y, int w, bool big)
+{
+    lv_obj_t *card = wt_card(scr, x, y, w, 0);
 
     lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), WT_MUT);
     lv_obj_set_style_text_letter_space(c, 1, 0);
@@ -1348,7 +1424,8 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 }
 
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
-                       int x, int y, int w, lv_color_t col)
+                       int x, int y, int w, int max_h, const lv_font_t *f,
+                       lv_color_t col)
 {
     lv_obj_t *box = lv_obj_create(scr);
     lv_obj_remove_style_all(box);
@@ -1356,18 +1433,29 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
     lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *h = wt_lbl(box, head, 14, 0, wt_font14(), WT_INK);
-    lv_obj_set_width(h, w - 14);
-    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
-    lv_obj_update_layout(h);
+    // The heading is optional. A block split out of an existing explainer
+    // paragraph has no heading to give it, and inventing one would mean a new
+    // string in twenty one locales for decoration.
+    int by = 0;
+    if (head && *head) {
+        lv_obj_t *h = wt_lbl(box, head, 14, 0, wt_font14(), WT_INK);
+        lv_obj_set_width(h, w - 14);
+        lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+        lv_obj_update_layout(h);
+        by = lv_obj_get_height(h) + 6;
+    }
 
-    lv_obj_t *b = wt_lbl(box, body, 14, lv_obj_get_height(h) + 6,
-                         wt_font14(), WT_MUT);
+    // The body takes the largest size that fits the room it was given, unless the
+    // caller has already chosen one for a GROUP of blocks. Fixing it at font14
+    // would make a card of two short paragraphs render in the smallest type the
+    // device owns, which is the mistake this makeover started by making.
+    lv_obj_t *b = wt_lbl(box, body, 14, by,
+                         f ? f : wt_body_font(body, w - 14, max_h - by), WT_MUT);
     lv_obj_set_width(b, w - 14);
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
     lv_obj_update_layout(b);
 
-    int hgt = lv_obj_get_height(h) + 6 + lv_obj_get_height(b);
+    int hgt = by + lv_obj_get_height(b);
     lv_obj_set_size(box, w, hgt);
     // The rule last and sized to the measured text, so it always matches the
     // block's real height in whatever locale is rendering.
@@ -1383,28 +1471,135 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
     return box;
 }
 
-static char s_wallet_id[16];
-
-void wt_set_wallet_id(const char *id)
+// ---- the explainer card ----
+// Every "?" on the device opens one of these, and they were all the same thing:
+// a centred title over a centred paragraph, floating in the middle of a dimmed
+// screen. The design handoff draws them as a page like any other -- title top
+// left, the value the card is about in a bordered box, and the prose as two
+// claims with coloured rules beside them rather than one block nobody finishes.
+//
+// The two-column split costs NOTHING in translation, which is the only reason it
+// is affordable: the explainer bodies were already written as two or three
+// paragraphs separated by a blank line, in all twenty one locales, so this
+// splits a string that exists rather than asking for a string that does not.
+// Anything past the second paragraph joins the second block, so a three
+// paragraph body stays two columns instead of inventing a third.
+static void explain_close_cb(lv_event_t *e)
 {
-    snprintf(s_wallet_id, sizeof s_wallet_id, "%s", id ? id : "");
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
-lv_obj_t *wt_screen_id(lv_obj_t *scr)
+lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
 {
-    if (!scr || !s_wallet_id[0]) return NULL;
-    // Mono, so the eight characters sit at a fixed pitch and can be compared
-    // against the paper card by eye. Right aligned to 752, the page margin the
-    // rest of the header uses, and on the title's own row at y=28 so it reads as
-    // part of the header rather than as content.
-    lv_obj_t *l = lv_label_create(scr);
-    lv_label_set_text(l, s_wallet_id);
-    lv_obj_set_style_text_font(l, wt_font_mono14(), 0);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_letter_space(l, 1, 0);
-    lv_obj_update_layout(l);
-    lv_obj_set_pos(l, 752 - lv_obj_get_width(l), 28);
-    return l;
+    if (!parent || !e) return NULL;
+
+    lv_obj_t *ovl = lv_obj_create(parent);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(ovl, WT_BG, 0);
+    lv_obj_set_style_bg_opa(ovl, 245, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);          // swallow stray taps
+    lv_obj_remove_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(ovl, explain_close_cb, LV_EVENT_CLICKED, ovl);
+
+    // The title, and the first block's rule, carry the card's severity. A
+    // caution explainer opened from an amber row should not arrive wearing the
+    // accent: the colour is what says which of the eleven cards you are on
+    // before a word of it is read.
+    lv_color_t sev = e->sev == WT_SEV_OK   ? WT_OK
+                   : e->sev == WT_SEV_WARN ? WT_WARN
+                   : e->sev == WT_SEV_STOP ? WT_STOP : wt_accent();
+
+    // The subject badge, right of the title row. An icon is worth more than the
+    // word it replaces only if it is the SAME icon the reader met on the screen
+    // that sent them here, so callers pass the one their control already wears.
+    const int icon_w = 48;
+    if (e->icon && *e->icon) {
+        lv_obj_t *chip = lv_obj_create(ovl);
+        lv_obj_remove_style_all(chip);
+        lv_obj_set_pos(chip, 752 - icon_w, 20);
+        lv_obj_set_size(chip, icon_w, icon_w);
+        lv_obj_set_style_radius(chip, icon_w / 2, 0);
+        lv_obj_set_style_bg_color(chip, WT_KEY, 0);
+        lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(chip, 1, 0);
+        lv_obj_set_style_border_color(chip, WT_EDGE, 0);
+        lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *g = wt_lbl(chip, e->icon, 0, 0, wt_font28(), sev);
+        lv_obj_center(g);
+    }
+
+    // Title and subtitle exactly where wt_screen puts them, because an explainer
+    // is a page and should not announce itself as a different kind of object.
+    int lane = e->icon && *e->icon ? 704 - icon_w - 16 : 704;
+    lv_obj_t *t = wt_lbl(ovl, e->title, 48, 18, wt_font28(), sev);
+    lv_obj_set_style_text_letter_space(t, 2, 0);
+    lv_obj_set_width(t, lane);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+
+    int y = 76;
+    if (e->sub && *e->sub) {
+        lv_obj_t *s = wt_lbl(ovl, e->sub, 48, 64, wt_body_font(e->sub, lane, 29),
+                             WT_MUT);
+        lv_obj_set_width(s, lane);
+        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+        y = 104;
+    }
+
+    // Band one: the value this card is about, and whatever diagram the caller
+    // draws. Either may be absent; with both, they share the row.
+    int band = 0;
+    bool has_val = e->val && *e->val;
+    if (has_val) {
+        lv_obj_t *vc = wt_value_card(ovl, e->cap ? e->cap : "", e->val,
+                                     48, y, e->aside ? 340 : 704, true);
+        lv_obj_update_layout(vc);
+        band = lv_obj_get_height(vc);
+    }
+    if (e->aside) {
+        int ax = has_val ? 408 : 48, aw = has_val ? 344 : 704;
+        int ah = e->aside(ovl, ax, y, aw);
+        if (ah > band) band = ah;
+    }
+    if (band) y += band + 20;
+
+    // Band two: the prose, as one block or two. WT_CONTENT_BOTTOM is the floor
+    // and the blocks are measured against what is left above it, so a long
+    // translation drops a font size instead of running under the OK pill.
+    if (e->body && *e->body) {
+        const char *split = strstr(e->body, "\n\n");
+        int room = WT_CONTENT_BOTTOM - y;
+        if (room < 40) room = 40;
+        if (split) {
+            char first[512];
+            size_t n = (size_t)(split - e->body);
+            if (n >= sizeof first) n = sizeof first - 1;
+            lv_memcpy(first, e->body, n);
+            first[n] = 0;
+            // ONE size for the pair, the smaller of what each half can hold.
+            // Sized apart, a two word claim rendered at 28 beside a paragraph at
+            // 14 and the card read as two unrelated things rather than as two
+            // halves of one answer. Same rule wt_pill_group_fit applies to a row
+            // of buttons, for the same reason.
+            const lv_font_t *fa = wt_body_font(first, 330, room);
+            const lv_font_t *fb = wt_body_font(split + 2, 330, room);
+            const lv_font_t *f  = fa == wt_font14() || fb == wt_font14()
+                                ? wt_font14()
+                                : (fa == wt_font23() || fb == wt_font23()
+                                   ? wt_font23() : fa);
+            wt_why_block(ovl, NULL, first, 48, y, 344, room, f, sev);
+            wt_why_block(ovl, NULL, split + 2, 408, y, 344, room, f, WT_MUT);
+        } else {
+            wt_why_block(ovl, NULL, e->body, 48, y, 704, room, NULL, sev);
+        }
+    }
+
+    lv_obj_t *ok = wt_pill(ovl, e->ok_txt, 300, WT_ACTION_Y, 200,
+                           explain_close_cb, ovl);
+    lv_obj_remove_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    wt_card_intro(ovl);
+    return ovl;
 }
 
 // One label carrying its own bordered box, not a container plus a child: LVGL
@@ -1438,53 +1633,6 @@ void wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col)
     lv_obj_update_layout(chip);
 }
 
-void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
-                       const lv_font_t *headf, const lv_font_t *tailf,
-                       lv_obj_t **head, lv_obj_t **tail)
-{
-    if (head) *head = NULL;
-    if (tail) *tail = NULL;
-    if (!par || !addr) return;
-
-    size_t n = strlen(addr);
-    // Not an address: a locked-session message or an error string. One muted
-    // label, no split, rather than slicing arbitrary text into fake blocks.
-    if (n < ADDR_TAIL_CHARS + 4) {
-        if (head) *head = wt_lbl(par, addr, 0, 0, headf, WT_MUT);
-        return;
-    }
-
-    char hbuf[256], hgrp[320], tbuf[16];
-    size_t hn = n - ADDR_TAIL_CHARS;
-    if (hn >= sizeof hbuf) hn = sizeof hbuf - 1;
-    lv_memcpy(hbuf, addr, hn);
-    hbuf[hn] = 0;
-    wt_group4(hbuf, hgrp, sizeof hgrp);
-    const char *t = addr + n - ADDR_TAIL_CHARS;
-    snprintf(tbuf, sizeof tbuf, "%.4s %.4s", t, t + 4);
-
-    if (head) {
-        lv_obj_t *h = lv_label_create(par);
-        lv_label_set_text(h, hgrp);
-        lv_obj_set_style_text_font(h, headf, 0);
-        lv_obj_set_style_text_color(h, WT_MUT, 0);
-        lv_obj_set_width(h, w);
-        lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
-        *head = h;
-    }
-    if (tail) {
-        // No width and no wrap mode: the label sizes to its content, so the 8
-        // characters stay on one line whatever the column does around them.
-        lv_obj_t *tl = lv_label_create(par);
-        lv_label_set_text(tl, tbuf);
-        lv_obj_set_style_text_font(tl, tailf, 0);
-        lv_obj_set_style_text_color(tl, WT_INK, 0);
-        lv_obj_set_style_text_decor(tl, LV_TEXT_DECOR_UNDERLINE, 0);
-        *tail = tl;
-    }
-}
-
-// ---- explainer-card entrance animation (shared by every "?" card) ----
 static void ci_opa(void *o, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)o, (lv_opa_t)v, 0); }
 static void ci_ty(void *o, int32_t v)  { lv_obj_set_style_translate_y((lv_obj_t *)o, v, 0); }
 static void ci_bg(void *o, int32_t v)  { lv_obj_set_style_bg_opa((lv_obj_t *)o, (lv_opa_t)v, 0); }
@@ -1505,12 +1653,20 @@ void wt_card_intro(lv_obj_t *card)
 
     // then the content settles in, one element after the next. translate_y is a
     // render offset, so it composes cleanly with lv_obj_align and reverts to 0.
+    // The whole stagger fits in a fixed window, however many children there
+    // are. It used to be a flat 60ms per child, which was fine for a card of
+    // four and became a 900ms drip once the explainer grew an icon badge, a
+    // value card, a diagram and two blocks: the OK button arrived a second
+    // after the title. Spreading a constant budget keeps the cadence and caps
+    // the wait.
     uint32_t n = lv_obj_get_child_count(card);
+    uint32_t step = n > 1 ? 300 / (n - 1) : 0;
+    if (step > 60) step = 60;
     for (uint32_t i = 0; i < n; i++) {
         lv_obj_t *ch = lv_obj_get_child(card, i);
         lv_obj_set_style_opa(ch, 0, 0);
         lv_obj_set_style_translate_y(ch, 14, 0);
-        uint32_t delay = 40 + i * 60;
+        uint32_t delay = 40 + i * step;
         lv_anim_t a;
         lv_anim_init(&a);
         lv_anim_set_var(&a, ch);

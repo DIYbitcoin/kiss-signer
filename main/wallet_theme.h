@@ -68,19 +68,19 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
-// Draw the corner-lock affordance: a small × in WT_MUT at (16, 22), font23.
-// The 88x88 tap region this hints at is enforced in main.c's touch handler,
-// which routes through the same auto-lock teardown as the idle timer. This is
-// discoverability only; do NOT wire a click handler here, because the corner
-// gesture is a global router that lives beside the wallet sub-screens rather
-// than inside them. Call from any wallet sub-screen that owns its own touches.
-void wt_lock_mark(lv_obj_t *scr);
 // Re-fit the title into `w` px on ONE line, stepping 34 -> 28 -> 23. wt_screen
 // already does this at 704, the full width between the page margins. Call it
 // again, narrower, on any screen that puts something else on the title's row:
 // a title has no width of its own, so a long translation simply keeps going
 // and runs straight through whatever is up there.
 void wt_title_fit(lv_obj_t *scr, int w);
+// The title label of a wt_screen, or NULL if `scr` is not one. Use this rather
+// than reaching for a child index: screen_card() is deliberately wt_screen's
+// FIRST child, so lv_obj_get_child(scr, 0) is the decorative frame, and setting
+// a text colour on it silently does nothing. Three screens recoloured the card
+// for months believing they were recolouring the title. Index 1 is not the fix
+// either, because it is only the title on screens that have no subtitle.
+lv_obj_t *wt_screen_title(lv_obj_t *scr);
 // The same for the subtitle, which wt_screen gives the full 704px lane and one
 // line of height. Narrow it on any screen that parks something inside that
 // lane: the subtitle's BOX is 704 wide whatever the translation does, so it
@@ -285,18 +285,6 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
 // spacing, because the tail is chunked from the right so the lit four always
 // lands on its own block.
 lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
-// The design review's address treatment, as two objects. `head` is everything
-// except the final 8 characters, grouped in fours, WT_MUT, wrapped inside `w`.
-// `tail` is those final 8 as "xxxx xxxx" in WT_INK with a 2px underline, on one
-// line that can never wrap, which is the whole reason it is a separate object:
-// these 8 are what the owner compares against a coordinator, so a line break
-// through them is the one layout failure that changes what a person checks.
-// Either out pointer may be NULL. Neither object is positioned; the caller
-// places both.
-void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
-                       const lv_font_t *headf, const lv_font_t *tailf,
-                       lv_obj_t **head, lv_obj_t **tail);
-
 // A status badge: `col` border, 5 percent `col` fill, radius 100, label at
 // font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
 // state reads as in the design review, and it is not a pill: no press states,
@@ -319,16 +307,51 @@ lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 //
 // Pass sub or val as NULL to omit them. Returns the row so a caller can recolour
 // its parts for a destructive group.
-// 68, not 64. The label is one line of font23 (28) from y=7, so it owns 7..35,
-// and the value is one line of font23 sitting on the sub-line at y=38, so it
-// owns 38..66. At 64 the value had to be lifted 5px to fit and its box then
-// shared a 2px band with the label's, which forced the label to give up the
-// width under the value and start ellipsising ("Address t..."). Four more pixels
-// buys both a full-width label and two boxes that never touch.
-#define WT_ROW_H 68
+// 64, which is what a CARD needs and no more: one line of font23 from y=7 owns
+// 7..35, the font14 sub under it owns 38..56, and 8px of bottom padding closes
+// the box. It was 68 while these were flat list lines, to keep the value's box
+// from sharing a band with the label's; the value is centred rather than sitting
+// on the sub-line now, and the two are separated horizontally in any case, so
+// the extra four pixels only bought air inside the card. Redraw 05 draws 56 for
+// its smaller type; 64 is the same proportion at the type this device has.
+#define WT_ROW_H 64
+// Severity of a row CARD, applied after wt_row builds it. Redraw 05 tints the
+// whole box rather than one note inside it, so a group reads before its words
+// do: green for a state already satisfied, amber for a warning about the
+// wallet, red for the pair that cannot be undone. PLAIN is WT_PANEL + WT_HAIR.
+enum { WT_SEV_PLAIN = 0, WT_SEV_OK, WT_SEV_WARN, WT_SEV_STOP };
+void wt_row_sev(lv_obj_t *row, int sev);
+// The row's BOX with nothing in it: WT_PANEL fill, WT_HAIR hairline, radius 10,
+// not clickable, not scrollable. Position children relative to the card. Every
+// screen that shows a block of content wears one, because the fill is what makes
+// small type read on glass. wt_row_sev() tints it like any row.
+lv_obj_t *wt_card(lv_obj_t *scr, int x, int y, int w, int h);
+// A wt_card with a WT_EDGE edge and four bracket corners just OUTSIDE it: the
+// camera preview on the scan and entropy screens. The brackets are outside on
+// purpose, because on the device the camera paints over the rect itself and
+// anything drawn inside is hidden from the first frame on.
+lv_obj_t *wt_viewfinder(lv_obj_t *scr, int x, int y, int w, int h);
+// The destructive row LABEL. Lighter than WT_STOP so it stays readable as text
+// on a WT_STOP-tinted card: the drawing uses rgb(255,140,151) for "Replace this
+// wallet" and "Erase this wallet", against the rgb(255,77,94) of the border
+// around them. Full WT_STOP on the tint is the one combination that vibrates.
+#define WT_STOP_INK lv_color_hex(0xFF8C97)
 lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
                  const char *val, lv_color_t vcol, int x, int y, int w,
                  lv_event_cb_t cb, void *ud);
+
+// The storage chooser's three rows, which Settings and the setup wizard draw
+// identically and must never drift apart: same pill, same note, same y. The
+// CARD is drawn first and the pill and note keep their absolute positions on top
+// of it, because the note's 87px budget is exactly three lines at font23 and
+// re-parenting it into a padded box would spend pixels the longest translations
+// need. 96 is the content line every screen builds against, the pitch of 102
+// lands the third card's bottom edge on 396, and 716 wide from x=36 keeps the
+// page's 752 right margin.
+#define WT_CHOICE_X      36
+#define WT_CHOICE_W     716
+#define WT_CHOICE_H      96
+#define WT_CHOICE_Y(i)  (96 + (i) * 102)
 
 // A value in a box: small muted caption, then the value large and monospaced
 // inside a bordered WT_PANEL card. The review draws every figure worth reading
@@ -341,26 +364,42 @@ lv_obj_t *wt_row(lv_obj_t *scr, const char *label, const char *sub,
 lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
                         int x, int y, int w, bool big);
 
-// A note with a coloured rule down its left edge: heading in WT_INK, body in
-// WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how you'll use
-// it" pattern. Two of these side by side turn a centred paragraph nobody reads
-// into two claims somebody can, which is the whole reason it exists. Returns the
-// block so the caller can measure it.
+// A note with a coloured rule down its left edge: optional heading in WT_INK,
+// body in WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how
+// you'll use it" pattern. Two of these side by side turn a centred paragraph
+// nobody reads into two claims somebody can, which is the whole reason it
+// exists. Pass head as NULL for body only. Pass f as NULL to take the largest
+// size that fits `max_h`, so a short claim reads big and a long translation
+// shrinks rather than overflowing; pass a font to make several blocks share one
+// size. Returns the block so the caller can measure it.
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
-                       int x, int y, int w, lv_color_t col);
+                       int x, int y, int w, int max_h, const lv_font_t *f,
+                       lv_color_t col);
 
-// The wallet's 8-character ID, for the top-right of a screen's header row. The
-// UI layer pushes the value down with wt_set_wallet_id when a wallet unlocks,
-// so the theme needs no dependency on wallet_ui to render it; passing NULL or
-// "" clears it and wt_screen_id then draws nothing.
+// ---- the explainer card, behind every "?" on the device ----
+// Title top left like any other page, an optional icon badge on the title's row,
+// an optional value card for the thing the card is about, an optional diagram,
+// and the body as one or two rule-marked blocks. `body` is SPLIT on the first
+// blank line: the explainer strings are already written as two or three
+// paragraphs in all 21 locales, so the two-column treatment costs no new
+// translation. Anything after the second paragraph stays with the second block.
 //
-// Opt-in per screen rather than automatic in wt_screen, because several screens
-// already carry identity or furniture in that exact region: Sign has its
-// SIGNING AS chip, the home its fingerprint chip, Settings its theme dots, and
-// the setup chooser its language pill. Those either already satisfy the intent
-// or have nothing to show. Call this from any screen whose corner is free.
-void wt_set_wallet_id(const char *id);
-lv_obj_t *wt_screen_id(lv_obj_t *scr);
+// `aside` draws a diagram into (x, y, w) and returns the height it used, so the
+// theme needs no dependency on the screens that own those diagrams.
+//
+// Tapping anywhere closes, as it always has.
+typedef struct {
+    const char *title;
+    const char *sub;      // NULL to omit
+    const char *icon;     // WT_ICON_* / LV_SYMBOL_*, NULL to omit
+    const char *cap;      // caption over the value
+    const char *val;      // NULL to omit the value card
+    const char *body;
+    const char *ok_txt;   // the dismiss pill's label, already translated
+    int sev;              // WT_SEV_*: colours the title and the first rule
+    int (*aside)(lv_obj_t *par, int x, int y, int w);
+} wt_explain_t;
+lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e);
 
 // Hold-to-confirm pill: the action fires only after the finger has been held
 // down for ms, and a fill sweeps across the pill while it does. Letting go

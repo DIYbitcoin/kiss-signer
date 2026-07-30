@@ -62,7 +62,6 @@ static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
 static char s_first[PASS_MAX + 1];
 static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
-static void publish_wallet_id(void);
 static uint8_t s_shown_fp[4];              // candidate shown, unpublished until OPEN
 static bool s_shown_fp_valid;
 static bool s_caps_lock;                   // CAPS plane: stays until tapped off
@@ -657,7 +656,6 @@ static void fp_tap_cb(lv_event_t *e) {
   }
   if (s_shown_fp_valid) {
     memcpy(s_last_fp, s_shown_fp, sizeof s_last_fp);
-    publish_wallet_id();
   }
   // the passphrase dies here (deniability); the derived session key lives in RAM
   // until wallet lock so Receive/Sign can derive without re-typing
@@ -678,24 +676,12 @@ static void fp_back_cb(lv_event_t *e) {
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 bool wallet_ui_backup_verified(void) { return s_backup_verified; }
 
-// Hand the identity down to the theme so wt_screen_id can render it in a
-// screen's corner without wallet_theme depending on this file. Both entry
-// points that record a fingerprint route through here, so the two cannot drift.
-static void publish_wallet_id(void)
-{
-  char id[16];
-  snprintf(id, sizeof id, "%02X%02X%02X%02X",
-           s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
-  wt_set_wallet_id(id);
-}
-
 // The decoy signer opens straight from the game with no login screen at all,
 // so nothing here runs to record its fingerprint. main.c sets it directly
 // rather than duplicating the home-chip logic on that path.
 void wallet_ui_set_last_fp(const uint8_t fp[4])
 {
   memcpy(s_last_fp, fp, 4);
-  publish_wallet_id();
 }
 
 // Post-setup, pre-home: recovery words + passphrase rederive this wallet.
