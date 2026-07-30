@@ -77,24 +77,17 @@ static void recv_refresh(void) {
   if (s_qr)
     wt_qr_update(s_qr, addr, (uint32_t)strlen(addr));
   char grouped[120];
-  wt_group4(addr, grouped, sizeof(grouped));
+  (void)grouped;
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
   if (s_addr_tail) { lv_obj_delete(s_addr_tail); s_addr_tail = NULL; }
-  // Right column body at x=310 w=442, per HANDOFF-03. The full 42-character
-  // address, grouped in fours at mono23, muted. Wraps into two lines. Nothing
-  // is elided: on a screen whose subtitle is "trust what you see here", the
-  // full string is the thing being compared.
-  s_addr_sg = wt_addr_spans(s_scr, grouped, 442, wt_font_mono23());
-  lv_obj_set_pos(s_addr_sg, 310, 146);
-  // The comparison line: HEAD-4 and TAIL-4 lit, ink, mono28, one line. Sign
-  // draws the same pair at mono23; here at 28 because the receive detail owns
-  // its column entirely and the eight characters are the security-critical
-  // thing on the screen. Only built when the derived string is a real address
-  // (bech32 opens with a constant prefix wt_addr_short needs).
-  if (rc == 0 && strlen(addr) >= 20) {
-    s_addr_tail = wt_addr_short(s_scr, addr, wt_font_mono28());
-    lv_obj_set_pos(s_addr_tail, 310, 236);
-  }
+  // Right column, x=310 w=442. Everything but the final 8 characters, grouped
+  // in fours at mono23 and muted, then those 8 on their own line at mono28 in
+  // ink with an underline. Nothing is elided: on a screen whose subtitle is
+  // "trust what you see here", every character stays on the glass.
+  wt_addr_head_tail(s_scr, addr, 442, wt_font_mono23(), wt_font_mono28(),
+                    &s_addr_sg, &s_addr_tail);
+  if (s_addr_sg) lv_obj_set_pos(s_addr_sg, 310, 146);
+  if (s_addr_tail) lv_obj_set_pos(s_addr_tail, 310, 222);
   lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
   // The derivation path label is only wired up on the sub-screens that ask for
   // it (currently just the SP detail; HANDOFF-03 pulled it off the base
@@ -129,14 +122,13 @@ static void recv_refresh(void) {
     wallet_ui_last_fp(fp);
     int high = wallet_usage_high(fp, wallet_testnet() ? 1 : 0, wallet_script());
     bool handed = high >= 0 && (int)s_idx <= high;
-    lv_label_set_text(s_state_chip,
-                      tr(handed ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED));
-    lv_obj_set_style_text_color(s_state_chip, handed ? WT_WARN : WT_OK, 0);
-    lv_obj_update_layout(s_state_chip);
+    wt_state_chip_set(s_state_chip,
+                      tr(handed ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED),
+                      handed ? WT_WARN : WT_OK);
     // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
     // every refresh because the label length differs between the two states
     // AND per locale.
-    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 112);
+    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 106);
   }
 }
 
@@ -721,13 +713,12 @@ static void recv_detail_open(void) {
   //   y=300 privacy note, 442 wide, up to 2 lines
   //   y=330 NEXT ADDRESS pill primary 250 wide 52 tall
   s_idx_lbl = wt_section(s_scr, "", 310, 112);
-  s_state_chip = wt_lbl(s_scr, "", 310, 112, wt_font14(), WT_MUT);
-  lv_obj_set_style_text_letter_space(s_state_chip, 2, 0);
+  s_state_chip = wt_state_chip(s_scr, "", WT_MUT);
 
   // The compare caption from HANDOFF-01: same string in every locale, points
-  // at the mono28 line above. Font14 muted so it never competes with the
-  // characters it labels.
-  wt_lbl(s_scr, tr(STR_S_CMP_8), 310, 268, wt_font14(), WT_MUT);
+  // at the underlined mono28 line above. Font14 muted so it never competes
+  // with the characters it labels.
+  wt_lbl(s_scr, tr(STR_S_CMP_8), 310, 258, wt_font14(), WT_MUT);
 
   // Privacy reminder as a single short line: HANDOFF-03 asks for 2 lines here,
   // but the second half of STR_R_ONE_EACH ("reuse links payments") only fits

@@ -326,6 +326,29 @@ static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool prim
     }
 }
 
+// The card every wallet screen sits inside. Purely decorative: it is the FIRST
+// child, so it draws behind everything, and every screen's absolute coordinates
+// are untouched by its arrival. Inset 8 with radius 16 and a WT_EDGE hairline,
+// which is what turns a set of objects floating on the panel into one surface
+// with a boundary -- the single biggest difference between the shipped screens
+// and the design review's drawings.
+//
+// Not clickable and not scrollable, for the same reason the action bar is not:
+// a tap that misses a control must fall through to whatever is behind it.
+static void screen_card(lv_obj_t *scr)
+{
+    lv_obj_t *card = lv_obj_create(scr);
+    lv_obj_remove_style_all(card);
+    lv_obj_set_pos(card, 8, 8);
+    lv_obj_set_size(card, 784, 464);
+    lv_obj_set_style_radius(card, 16, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_border_color(card, WT_EDGE, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+}
+
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
     lv_obj_t *scr = lv_obj_create(parent);
@@ -335,6 +358,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(scr);
+    screen_card(scr);
 
     // The page title is the one label on every screen, so it sets the tone for
     // how big the device "feels". wt_font34 gives Latin/Cyrillic a real 34px
@@ -456,11 +480,16 @@ static void action_bar_ensure(lv_obj_t *scr)
         if (lv_obj_get_user_data(lv_obj_get_child(scr, i)) == (void *)WT_BAR_TAG)
             return;
 
+    // Inset to the card screen_card draws, not the full panel width: the row is
+    // the bottom of one surface, so its hairline has to stop where that surface
+    // stops. 9 and 782 sit one pixel inside the card's 8..792 border, and 73
+    // takes the fill down to the card's inner bottom edge at 471 rather than
+    // painting over its rounded corners.
     lv_obj_t *bar = lv_obj_create(scr);
     lv_obj_remove_style_all(bar);
     lv_obj_set_user_data(bar, (void *)WT_BAR_TAG);
-    lv_obj_set_pos(bar, 0, WT_CONTENT_BOTTOM);
-    lv_obj_set_size(bar, 800, 480 - WT_CONTENT_BOTTOM);
+    lv_obj_set_pos(bar, 9, WT_CONTENT_BOTTOM);
+    lv_obj_set_size(bar, 782, 471 - WT_CONTENT_BOTTOM);
     lv_obj_set_style_bg_color(bar, WT_BAR, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(bar, WT_HAIR, 0);
@@ -1160,6 +1189,83 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
                            f == wt_font14() ? wt_font23() : f);
     lv_spangroup_refresh(sg);
     return sg;
+}
+
+// One label carrying its own bordered box, not a container plus a child: LVGL
+// labels take border and background styles, so LV_SIZE_CONTENT plus padding
+// gives a chip that measures itself against whatever the translation turns out
+// to be. A container with a child label needs two layout passes and was the
+// shape that segfaulted the first time this was tried.
+lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
+{
+    lv_obj_t *c = lv_label_create(par);
+    lv_obj_set_style_text_font(c, wt_font14(), 0);
+    lv_obj_set_style_text_letter_space(c, 1, 0);
+    lv_obj_set_style_radius(c, 100, 0);
+    lv_obj_set_style_border_width(c, 1, 0);
+    lv_obj_set_style_pad_hor(c, 12, 0);
+    lv_obj_set_style_pad_ver(c, 5, 0);
+    lv_obj_set_style_bg_opa(c, 13, 0);        // ~5 percent
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    wt_state_chip_set(c, txt, col);
+    return c;
+}
+
+void wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col)
+{
+    if (!chip) return;
+    lv_label_set_text(chip, txt ? txt : "");
+    lv_obj_set_style_text_color(chip, col, 0);
+    lv_obj_set_style_border_color(chip, col, 0);
+    lv_obj_set_style_bg_color(chip, col, 0);
+    lv_obj_update_layout(chip);
+}
+
+void wt_addr_head_tail(lv_obj_t *par, const char *addr, int w,
+                       const lv_font_t *headf, const lv_font_t *tailf,
+                       lv_obj_t **head, lv_obj_t **tail)
+{
+    if (head) *head = NULL;
+    if (tail) *tail = NULL;
+    if (!par || !addr) return;
+
+    size_t n = strlen(addr);
+    // Not an address: a locked-session message or an error string. One muted
+    // label, no split, rather than slicing arbitrary text into fake blocks.
+    if (n < ADDR_TAIL_CHARS + 4) {
+        if (head) *head = wt_lbl(par, addr, 0, 0, headf, WT_MUT);
+        return;
+    }
+
+    char hbuf[256], hgrp[320], tbuf[16];
+    size_t hn = n - ADDR_TAIL_CHARS;
+    if (hn >= sizeof hbuf) hn = sizeof hbuf - 1;
+    lv_memcpy(hbuf, addr, hn);
+    hbuf[hn] = 0;
+    wt_group4(hbuf, hgrp, sizeof hgrp);
+    const char *t = addr + n - ADDR_TAIL_CHARS;
+    snprintf(tbuf, sizeof tbuf, "%.4s %.4s", t, t + 4);
+
+    if (head) {
+        lv_obj_t *h = lv_label_create(par);
+        lv_label_set_text(h, hgrp);
+        lv_obj_set_style_text_font(h, headf, 0);
+        lv_obj_set_style_text_color(h, WT_MUT, 0);
+        lv_obj_set_width(h, w);
+        lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+        *head = h;
+    }
+    if (tail) {
+        // No width and no wrap mode: the label sizes to its content, so the 8
+        // characters stay on one line whatever the column does around them.
+        lv_obj_t *tl = lv_label_create(par);
+        lv_label_set_text(tl, tbuf);
+        lv_obj_set_style_text_font(tl, tailf, 0);
+        lv_obj_set_style_text_color(tl, WT_INK, 0);
+        lv_obj_set_style_text_decor(tl, LV_TEXT_DECOR_UNDERLINE, 0);
+        *tail = tl;
+    }
 }
 
 // ---- explainer-card entrance animation (shared by every "?" card) ----
