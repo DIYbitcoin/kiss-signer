@@ -965,6 +965,9 @@ int main(void) {
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
   save("/tmp/sim_sign_done.ppm");
+  touch(508, 262); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
+  save("/tmp/sim_sign_sigcheck.ppm");
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> signed screen again
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
