@@ -1247,8 +1247,9 @@ int main(void) {
   for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); } release(); pump(2);
   touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
-  touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
-  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
+  // The K reveals as soon as the "K I S" strokes satisfy the recogniser (see
+  // detect_KISS); a fourth "S" stroke would land as a tap on the now-revealed
+  // chooser (hitting CREATE NEW -> storage). Stop at the reveal.
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out
