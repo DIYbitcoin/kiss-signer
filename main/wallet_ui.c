@@ -61,6 +61,7 @@ static bool s_setup_mode;                  // first login after the wizard: type
 static bool s_first_done;                  // first of the two entries captured
 static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
+static lv_obj_t *s_pp_hint;                // length-coaching hint (setup only)
 static char s_first[PASS_MAX + 1];
 static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
 static uint8_t s_shown_fp[4];              // candidate shown, unpublished until OPEN
@@ -92,7 +93,11 @@ static int pass_bits(void) {
 
 static void meter_refresh(void) {
   if (!s_meter) return;
-  if (!s_setup_mode || s_plen == 0) { lv_label_set_text(s_meter, ""); return; }
+  if (!s_setup_mode || s_plen == 0) {
+    lv_label_set_text(s_meter, "");
+    if (s_pp_hint) lv_label_set_text(s_pp_hint, "");
+    return;
+  }
   int bits = pass_bits();
   if (bits < 40) {
     lv_label_set_text(s_meter, tr(STR_L_WEAK));
@@ -104,6 +109,9 @@ static void meter_refresh(void) {
     lv_label_set_text(s_meter, tr(STR_L_STRONG));
     lv_obj_set_style_text_color(s_meter, WT_OK, 0);
   }
+  // Coach toward length while weak or fair; length is the best lever, so the
+  // hint does not branch. Cleared once strong.
+  if (s_pp_hint) lv_label_set_text(s_pp_hint, bits < 70 ? tr(STR_L_PP_HINT) : "");
 }
 
 static lv_obj_t *s_pp_intro;   // setup passphrase-intro screen (owns touch too)
@@ -1525,6 +1533,12 @@ void wallet_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_text_font(s_meter, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_meter, 2, 0);
   lv_obj_set_pos(s_meter, 660, 132);
+
+  s_pp_hint = lv_label_create(s_login);    // length-coaching hint (setup mode only)
+  lv_label_set_text(s_pp_hint, "");
+  lv_obj_set_style_text_font(s_pp_hint, wt_font14(), 0);
+  lv_obj_set_style_text_color(s_pp_hint, MUT_COL, 0);
+  lv_obj_align(s_pp_hint, LV_ALIGN_TOP_MID, 0, 132);   // centered between count and meter
   entry_refresh();
 
   s_kb = lv_buttonmatrix_create(s_login);
