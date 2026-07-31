@@ -48,3 +48,9 @@ int wallet_dice_take(uint8_t *out, unsigned len)
     wally_bzero(h, sizeof h);
     return rc == WALLY_OK ? 0 : -1;
 }
+
+int wallet_dice_peek(uint8_t out[32])
+{
+    if (!out) return -1;
+    return wally_sha256((const unsigned char *)s_digits, s_n, out, 32) == WALLY_OK ? 0 : -1;
+}

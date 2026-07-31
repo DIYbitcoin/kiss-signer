@@ -31,3 +31,8 @@ const char *wallet_dice_digits(void);
 // Returns 0 on success; -1 if len is not 16/32, out is NULL, or the count is
 // below the floor for that len (50 for 16, 99 for 32).
 int         wallet_dice_take(uint8_t *out, unsigned len);
+
+// SHA256 the current digit string into out[32] regardless of count, for the
+// live verification fingerprint. Returns 0, or -1 on NULL/hash failure. Unlike
+// take(), this has no floor and is not seed material past the display.
+int         wallet_dice_peek(uint8_t out[32]);
