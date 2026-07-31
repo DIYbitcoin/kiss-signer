@@ -900,7 +900,7 @@ static void method_screen(void)
 #define DICE_CARD_X   100
 #define DICE_CARD_Y   130
 #define DICE_CARD_W   600
-#define DICE_CARD_H   300
+#define DICE_CARD_H   250   // ends at 380, clear of the action row at WT_ACTION_Y (404)
 #define DICE_KEY_W     84
 #define DICE_KEY_H     60
 #define DICE_KEY_GAP   10
@@ -1035,9 +1035,10 @@ static void dice_screen(void)
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
 
-    mk_pill(tr(STR_W_DICE_UNDO), 18, DICE_CARD_Y + DICE_CARD_H + 6, 120, dice_undo_cb, NULL);
-    s_dice_done = mk_pill(tr(STR_C_DONE), 300, DICE_CARD_Y + DICE_CARD_H + 6, 200,
-                          dice_done_cb, NULL);   // hidden until the floor is met
+    // action row (WT_ACTION_Y): UNDO left, DONE middle (hidden until the floor
+    // is met), CANCEL right. Same row the rest of the wizard uses.
+    mk_pill(tr(STR_W_DICE_UNDO), 48, WT_ACTION_Y, 140, dice_undo_cb, NULL);
+    s_dice_done = mk_pill(tr(STR_C_DONE), 330, WT_ACTION_Y, 200, dice_done_cb, NULL);
     mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
     dice_refresh();
 }
