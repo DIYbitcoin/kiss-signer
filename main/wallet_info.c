@@ -45,9 +45,10 @@ static void swap_screen(void)           // replace the current section screen
 
 // DIAG_FP_PIC is DIAG_FP plus the wallet's picture under the equation. It is a
 // separate id and not a flag because the picture may only appear on a card that
-// is ALSO showing the code: the picture is a recognition aid, never the identity
-// itself, and this card opens two ways — from the home chip, whose title carries
-// the eight characters, and from the WALLET screen's "?", whose title does not.
+// is ALSO showing the code: the picture is a recognition aid and never the
+// identity itself, so a card with a pattern and no number is the one shape this
+// must never take. Every caller that has the eight characters passes them and
+// gets DIAG_FP_PIC; DIAG_FP is what is left for anyone who does not.
 enum { DIAG_NONE = 0, DIAG_FP, DIAG_FP_PIC, DIAG_PAIR, DIAG_SCAN };
 
 static void sp_permission_fact(lv_obj_t *parent, const char *icon,
@@ -161,12 +162,19 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
 // picture at a size worth learning. The column reports its own height back to
 // wt_explain_open, which is what lets the body reflow around the taller aside
 // without anyone hand-tuning a y.
+// The fingerprint the OPEN card is about, parsed from the eight characters in
+// its own title. Deriving the picture from the title's string rather than from
+// wallet_ui_last_fp is what makes the two incapable of disagreeing — and it is
+// required, not merely tidy: the reveal screen opens this card for a candidate
+// wallet that has NOT been published to s_last_fp yet, so reading the session's
+// last fingerprint there would draw the previous wallet's picture under the new
+// wallet's code.
+static uint8_t s_card_fp[4];
+
 static void fp_model(lv_obj_t *col)
 {
     wt_diagram_fp(col);
-    uint8_t fp[4];
-    wallet_ui_last_fp(fp);
-    wt_squiggle(col, 0, 0, fp, 6);      // NULL before any unlock: no picture yet
+    wt_squiggle(col, 0, 0, s_card_fp, 6);   // all-zero: wt_squiggle draws nothing
 }
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_fp); }
@@ -218,19 +226,33 @@ static void help_open(const char *title, const char *body, const char *icon)
     help_open_on(s_scr, title, body, DIAG_NONE, false, icon);
 }
 
-lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
+lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
+                                   bool exit_hint)
 {
     char title[64];
-    if (fingerprint && fingerprint[0])
+    const bool has_code = fingerprint && fingerprint[0];
+    if (has_code)
         snprintf(title, sizeof title, tr(STR_H_FP_CARD_FMT), fingerprint);
     else
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
-    // The picture rides along only when the title carries the code, which is the
-    // home-chip path. From the WALLET screen's "?" the title is the bare word,
-    // and a picture with no number beside it is the one thing this must not be.
+
+    // Eight hex characters back into the four bytes the picture is drawn from.
+    // Anything shorter or malformed leaves the buffer zeroed, and wt_squiggle
+    // refuses a zeroed fingerprint, so a bad string costs the picture and never
+    // draws a wrong one.
+    memset(s_card_fp, 0, sizeof s_card_fp);
+    if (has_code && strlen(fingerprint) >= 8) {
+        unsigned b[4];
+        if (sscanf(fingerprint, "%2x%2x%2x%2x", &b[0], &b[1], &b[2], &b[3]) == 4)
+            for (int i = 0; i < 4; i++) s_card_fp[i] = (uint8_t)b[i];
+    }
+
+    // The picture rides along only when the title carries the code. Without it
+    // the card would be showing a pattern and no number, which is the one thing
+    // this must never be.
     return help_open_on(parent, title, tr(STR_I_H_FP_B),
-                        (fingerprint && fingerprint[0]) ? DIAG_FP_PIC : DIAG_FP,
-                        fingerprint != NULL, NULL);
+                        has_code ? DIAG_FP_PIC : DIAG_FP,
+                        exit_hint, NULL);
 }
 
 lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
@@ -239,11 +261,25 @@ lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
     return help_open_on(parent, title, body, DIAG_NONE, false, icon);
 }
 
+// The fingerprint row's explainer, opened WITH the code so the card draws the
+// wallet's picture. This screen is the one place where the rule about never
+// showing a picture without its number is met by the PAGE rather than by the
+// card: the fingerprint row behind this overlay is already showing the eight
+// characters in mono, and that row is what the reader tapped to get here.
+static void fp_help_open(void)
+{
+    uint8_t fp[4];
+    char fpbuf[16];
+    wallet_ui_last_fp(fp);
+    snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+    wallet_info_fp_card_open(s_scr, fpbuf, false);
+}
+
 static void help_cb(lv_event_t *e)
 {
     const char *key = (const char *)lv_event_get_user_data(e);
     if (!strcmp(key, "fp"))
-        wallet_info_fp_card_open(s_scr, NULL);
+        fp_help_open();
     // DIRECTORY for the address type, because what it is really about is the
     // derivation branch under the name; DOWNLOAD for the first address, because
     // an address is where money arrives. Both are in the baked symbol set.
@@ -266,7 +302,7 @@ void wallet_info_sim_open_type_help(void)
 
 void wallet_info_sim_open_fp_help(void)
 {
-    if (s_scr) wallet_info_fp_card_open(s_scr, NULL);
+    if (s_scr) fp_help_open();   // the row's own path, so the shot matches the device
 }
 #endif
 

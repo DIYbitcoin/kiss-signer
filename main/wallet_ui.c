@@ -14,6 +14,7 @@
 #include "wallet_seed.h"
 #include "wallet_setup.h"   // optional full post-creation recovery rehearsal
 #include "pass_edit.h"      // insert/delete at the caret, tested in sim/test_passedit.c
+#include "wallet_info.h"    // wallet_info_fp_card_open: the "?" on the reveal screen
 #include "wallet_theme.h"
 
 #ifndef SIMULATOR
@@ -839,6 +840,19 @@ static void setup_warn_screen(void) {
 static void fp_pop_ty_cb(void *v, int32_t y) { lv_obj_set_style_translate_y((lv_obj_t *)v, y, 0); }
 static void fp_pop_opa_cb(void *v, int32_t o) { lv_obj_set_style_opa((lv_obj_t *)v, o, 0); }
 
+// The reveal screen's "?": the same explainer the home chip opens, for the
+// wallet being revealed. s_shown_fp and not wallet_ui_last_fp, because the
+// candidate is deliberately unpublished until the owner taps OPEN, and on the
+// very first setup there is no last fingerprint at all.
+static void fp_help_cb(lv_event_t *e) {
+  (void)e;
+  if (!s_fpscr) return;
+  char fpbuf[16];
+  snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
+           s_shown_fp[0], s_shown_fp[1], s_shown_fp[2], s_shown_fp[3]);
+  wallet_info_fp_card_open(s_fpscr, s_shown_fp_valid ? fpbuf : NULL, false);
+}
+
 static void show_fingerprint(void) {
   uint8_t fp[4] = {0};
   if (wallet_fingerprint(s_plen ? s_pass : NULL, fp) != 0) {
@@ -863,6 +877,20 @@ static void show_fingerprint(void) {
   // looks plain" was pointing at. The big code was never the problem.
   s_fpscr = wt_screen(lv_screen_active(), tr(STR_D_FINGERPRINT), NULL);
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
+
+  // The "?", top right, same 30px circle and 54px target as every other
+  // anonymous help affordance on the device.
+  //
+  // This screen shows two things the owner has never seen before, and until now
+  // it explained only one of them: the notes below say what the CODE is, and
+  // nothing said what the picture beside it is. A pattern nobody explained is a
+  // pattern people distrust, and this is the screen where they first meet it.
+  //
+  // The title has to be told to keep clear of the chip. wt_screen fits it to the
+  // full 704px lane, and a title has no width of its own, so a long translation
+  // of FINGERPRINT would run straight underneath the circle.
+  wt_title_fit(s_fpscr, 640);
+  wt_help_chip(s_fpscr, 715, 35, MUT_COL, fp_help_cb, NULL);
 
   // Band one: the code, in a framed card CENTRED at the size it has always had.
   // 420x118 with the number at num48 is what the owner asked to keep, and the
