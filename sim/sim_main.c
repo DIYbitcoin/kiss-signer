@@ -400,12 +400,17 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
              "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsqmpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
-    // several cautions at once: proves the summary + WHY card stack up
+    // Every caution at once: proves the summary + WHY card stack up. Four rows
+    // is the most the verify screen can ever draw, and it is the only fixture
+    // that reaches the tighter gap + dropped footer, so this is where that
+    // layout gets looked at.
+    s->n_in = WPSBT_MERGE_INS;
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
-    s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT | WPSBT_C_DUST_CHANGE;
+    s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
+                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
   return 0;
@@ -1001,7 +1006,11 @@ int main(void) {
   // its y moved with the number of cautions that fired. Now that every
   // caution owns its own row and answers for itself, one chip at (738,108)
   // covers the whole stack and never moves. This is its centre.
-  touch(753, 123); pump(3); release(); pump(6);     // "?" -> WHY FLAGGED card
+  // pump(6) caught this card mid fade, so the frame showed a dimmed screen and
+  // an icon on its way in. The card is the only place the caution reasons are
+  // spelled out, and with four of them stacked it is exactly the frame worth
+  // looking at, so wait for the fade to finish before saving.
+  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list

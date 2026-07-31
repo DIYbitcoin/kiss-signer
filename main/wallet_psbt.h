@@ -21,10 +21,22 @@ typedef enum {
 #define WPSBT_C_DUST_INPUT   (1u << 1)   // spending a tiny KISS-owned coin (dust-attack tell)
 #define WPSBT_C_SMALL_CHANGE (1u << 2)   // change below the privacy threshold
 #define WPSBT_C_DUST_CHANGE  (1u << 3)   // change below the standardness dust limit
+#define WPSBT_C_MERGE_INS    (1u << 4)   // many coins spent at once (linked forever)
 
 // Privacy threshold: coins/change under this are flagged (soft). Not a dust
 // limit — that is a per-type standardness floor (see wallet_psbt.c).
 #define WPSBT_PRIVACY_SATS   5000
+
+// Merge bar: spending this many of our coins in one transaction proves to every
+// observer that they share an owner, and no later behaviour undoes it. The bar
+// is deliberately well above everyday coin selection. Two- and three-input
+// spends are what a wallet does when no single coin covers the amount — the
+// user did not choose that, so warning about it is fatigue, not information,
+// and the same reasoning keeps WPSBT_HIGH_RATE_X10 high. At five the count
+// stops looking like coin selection and starts looking like a decision:
+// consolidating, or sweeping a wallet somewhere else. That is the case worth
+// interrupting, because the coordinator can still be told to split it.
+#define WPSBT_MERGE_INS      5
 
 // High-fee-rate backstop (sat/vB * 10). Krux warns only on the fee-as-share-of
 // -send (>=10%, which we match) and deliberately never thresholds sat/vB, since
