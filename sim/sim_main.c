@@ -967,7 +967,7 @@ int main(void) {
   save("/tmp/sim_sign_done.ppm");
   touch(508, 262); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
   save("/tmp/sim_sign_sigcheck.ppm");
-  touch(118, 430); pump(3); release(); pump(6);     // BACK -> signed screen again
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> signed screen again
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
@@ -1251,6 +1251,8 @@ int main(void) {
   // detect_KISS); a fourth "S" stroke would land as a tap on the now-revealed
   // chooser (hitting CREATE NEW -> storage). Stop at the reveal.
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
+  pump(15);                                          // let the K-draw reveal transition settle
+                                                     // before the first tap, or it lands dead
 
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
