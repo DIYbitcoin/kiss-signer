@@ -123,6 +123,7 @@
   "I_NET_TEST": "TESTNET, øvingsmynter",
   "I_NET_MAIN": "MAINNET, ekte bitcoin",
   "I_H_FP_B": "lommebokens ID-kode.\n\nen tilkoblet app skal vise SAMME kode.\nfor å være sikker på adressene dine, bruk MOTTA > KONTROLLER.",
+  "I_H_FP_PIC": "den samme koden, tegnet.\nannen lommebok, annet bilde.",
   "I_H_TYPE_B": "hvordan adressene dine ser ut.\nbc1... er den moderne med lavest gebyr.\n\nm/... er hvor nøklene kommer fra.\nappen din finner dem med den.",
   "I_SEC_PATH": "DERIVASJONSSTI",
   "I_H_PATH_B": "m/... er hvor nøklene kommer fra.\nappen din finner dem med den.",

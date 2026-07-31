@@ -174,7 +174,26 @@ static uint8_t s_card_fp[4];
 static void fp_model(lv_obj_t *col)
 {
     wt_diagram_fp(col);
-    wt_squiggle(col, 0, 0, s_card_fp, 6);   // all-zero: wt_squiggle draws nothing
+
+    // The picture and the line that says what it IS, side by side in one row.
+    //
+    // The line is needed because the "?" that leads here otherwise answers a
+    // question nobody asked: the body below explains the CODE, so a reader who
+    // tapped a small circle wanting to know about the PATTERN got three
+    // sentences about something else.
+    //
+    // Side by side and not stacked, because stacked cost 132 + 56 of the height
+    // this card has left and pushed the body 56px through WT_CONTENT_BOTTOM into
+    // the OK pill. In a row the pair costs the taller of the two, and the 704px
+    // lane is mostly empty anyway with a 96px picture centred in it.
+    lv_obj_t *row = wt_diagram_row(col);
+    lv_obj_t *sq = wt_squiggle(row, 0, 0, s_card_fp, 6);   // all-zero: draws nothing
+    if (sq) {
+        lv_obj_t *n = wt_note(row, tr(STR_I_H_FP_PIC), 0, 0, 380, 56);
+        lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
+    } else {
+        lv_obj_delete(row);      // no picture, no row, no gap where one was
+    }
 }
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_fp); }
