@@ -18,6 +18,7 @@
 
 #include "sp_test_vectors.h"
 #include "sp_spend_vectors.h"
+#include "sign_vectors.h"   // SV_SCHNORR_SP_*: golden Schnorr sigs (BIP340 ref)
 #include "wallet_sp.h"
 #include "wallet_psbt.h"
 #include "wallet_crypto.h"
@@ -430,7 +431,8 @@ static int sp_tap_key_sig(const struct wally_psbt *p, size_t idx,
 // the emitted signature against embit's OUTKEY + SIGHASH cross-checks BOTH our
 // tweaked key and our sighash against the independent implementation.
 static void sp_test_spend_one(const char *tag, const char *b64,
-                              const uint8_t *outkey, const uint8_t *sighash) {
+                              const uint8_t *outkey, const uint8_t *sighash,
+                              const char *golden) {
     char name[80];
     wpsbt_summary_t sum;
     uint8_t out1[4096], out2[4096];
@@ -460,6 +462,18 @@ static void sp_test_spend_one(const char *tag, const char *b64,
         int have = sp_tap_key_sig(p, 0, sig, &siglen) == 0 && siglen == 64;
         snprintf(name, sizeof name, "%s carries a 64-byte taproot key sig", tag);
         spchk(name, have);
+        // Golden vector: the exact Schnorr bytes the BIP340 reference signer
+        // produced independently for this spend (KISS's aux applied to the
+        // embit-computed sighash). A drift in KISS's nonce or aux fails here.
+        char sighex[130] = {0};
+        if (have) {
+            char *sh = NULL; wally_hex_from_bytes(sig, 64, &sh);
+            if (sh) { snprintf(sighex, sizeof sighex, "%s", sh); wally_free_string(sh); }
+        }
+        snprintf(name, sizeof name, "%s signature is the golden byte string", tag);
+        if (strcmp(sighex, golden) != 0)
+            printf("  got  %s\n  want %s\n", sighex, golden);
+        spchk(name, strcmp(sighex, golden) == 0);
         // the crux: our signature verifies under embit's output key AND embit's
         // sighash - so our tweak math and our BIP341 sighash both match embit
         snprintf(name, sizeof name, "%s sig verifies vs embit outkey+sighash", tag);
@@ -531,9 +545,11 @@ static void sp_test_spend_explicit_sighash(void) {
 
 static void sp_test_spend(void) {
     sp_test_spend_one("spend even-Y", SPV_SPEND_EVEN_B64,
-                      SPV_SPEND_EVEN_OUTKEY, SPV_SPEND_EVEN_SIGHASH);
+                      SPV_SPEND_EVEN_OUTKEY, SPV_SPEND_EVEN_SIGHASH,
+                      SV_SCHNORR_SP_EVEN);
     sp_test_spend_one("spend odd-Y", SPV_SPEND_ODD_B64,
-                      SPV_SPEND_ODD_OUTKEY, SPV_SPEND_ODD_SIGHASH);
+                      SPV_SPEND_ODD_OUTKEY, SPV_SPEND_ODD_SIGHASH,
+                      SV_SCHNORR_SP_ODD);
 
     // foreign tweak: the PSBT's tweak does NOT reproduce the on-chain P2TR key.
     // The signer MUST refuse (BIP376 anti-theft), never emit a signature.
