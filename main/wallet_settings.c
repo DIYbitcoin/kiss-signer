@@ -361,11 +361,9 @@ static void storage_result_screen(int rc, int target)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, title, NULL);
     lv_obj_set_style_text_color(wt_screen_title(s_scr), title_col, 0);
-    lv_obj_t *b = wt_lbl(s_scr, body, 48, 136,
-                         wt_body_font(body, 704, 230), MUT_COL);
-    lv_obj_set_width(b, 704);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    // The rule colour carries the outcome, so the block agrees with the title
+    // above it instead of being grey under a green or red heading.
+    wt_why_body(s_scr, body, 136, title_col, true);
     lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 300, WT_ACTION_Y, 200,
                            storage_result_ack_cb, NULL);
     if (rc == WSEED_OK) wt_pill_primary(ok);
@@ -393,12 +391,8 @@ static void storage_confirm_screen(int target)
                      : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_CONFIRM_T), NULL);
-    lv_obj_t *b = wt_lbl(s_scr, body, 48, 126,
-                         wt_body_font(body, 704, 238),
-                         target == WSEED_MODE_AMNESIC ? WARN_COL : MUT_COL);
-    lv_obj_set_width(b, 704);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    wt_why_body(s_scr, body, 126,
+                target == WSEED_MODE_AMNESIC ? WARN_COL : wt_accent(), true);
 
     // The tall row: this hold label wraps to two lines in most locales. It used
     // to be a hand typed 392/66, a third convention beside the 404 everywhere

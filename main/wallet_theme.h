@@ -459,9 +459,27 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 // size that fits `max_h`, so a short claim reads big and a long translation
 // shrinks rather than overflowing; pass a font to make several blocks share one
 // size. Returns the block so the caller can measure it.
+// One shared size for a PAIR of blocks: the smaller of the two rungs, since
+// the taller half decides whether either fits. Never pick by strlen.
+const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h);
+
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
                        int x, int y, int w, int max_h, const lv_font_t *f,
                        lv_color_t col);
+
+// A whole explainer body as ruled blocks, filling the room from `y` down to
+// WT_CONTENT_BOTTOM. Splits the string on its blank lines and picks whichever
+// of full width or two balanced columns reads best at the largest font that
+// fits, so a screen gets the reveal screen's arrangement without hand placing
+// anything. `sev` colours the first block (accent, or a status colour when the
+// screen is a warning); the second is always WT_MUT.
+//
+// Costs nothing to translate: it splits copy that already exists.
+// `two_col`: true on a full screen, where 2+ paragraphs should become two
+// columns rather than one wide block; false on the explainer overlay, whose
+// full width arrangement is tuned and approved.
+void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
+                 bool two_col);
 
 // ---- the explainer card, behind every "?" on the device ----
 // Title top left like any other page, an optional icon badge on the title's row,

@@ -299,7 +299,7 @@ static void verify_finish(void)
         snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
         mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        mk_body(tr(STR_W_VBAD_B), 48, 206, 704, 190, MUT_COL);
+        wt_why_body(s_scr, tr(STR_W_VBAD_B), 206, STOP_COL, true);
         lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 48, WT_ACTION_Y, 300, verify_retry_cb, NULL);
         wt_pill_primary(p);
         mk_pill(tr(STR_C_DONE), 610, WT_ACTION_Y, 140, verify_exit_cb, NULL);
@@ -340,8 +340,7 @@ static void verify_intro_screen(void)
         const char *b1 = tr(STR_W_VINTRO_W1_B), *b2 = tr(STR_W_VINTRO_W2_B);
         const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
         const int HEAD_ROOM = 46;
-        const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
-                                          BW - 14, BH - HEAD_ROOM - 8);
+        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
         wt_why_block(s_scr, tr(STR_W_VINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
         wt_why_block(s_scr, tr(STR_W_VINTRO_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
     }
@@ -1694,7 +1693,7 @@ static void load_back_cb(lv_event_t *e) { (void)e; load_screen(); }
 static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
-    mk_body(tr(STR_W_QRBAD_B), 48, 140, 704, 240, STOP_COL);
+    wt_why_body(s_scr, tr(STR_W_QRBAD_B), 140, STOP_COL, true);
     lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, WT_ACTION_Y, 300,
                           s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
     wt_pill_primary(p);

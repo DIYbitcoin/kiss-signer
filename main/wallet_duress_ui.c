@@ -305,8 +305,7 @@ static void stage_build(int stage)
     }
     default: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DONE_T), NULL);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_DONE_B), 48, 118, 704, 250);
-        lv_obj_set_style_text_color(b, WT_INK, 0);
+        wt_why_body(s_scr, tr(STR_GD_DONE_B), 118, WT_OK, true);
         wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 200, save_cb, NULL);
         break;
     }

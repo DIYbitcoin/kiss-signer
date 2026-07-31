@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "NOCH EINE SCHICHT",
   "L_PPINTRO_S": "letzter Schritt: erstelle deine Passphrase",
   "L_PPINTRO_W1_H": "wird nicht gespeichert",
-  "L_PPINTRO_W1_B": "du tippst sie bei jeder Anmeldung neu. keine Kopie bleibt.",
+  "L_PPINTRO_W1_B": "du gibst sie bei jeder Anmeldung neu ein. das Gerät behält keine Kopie.",
   "L_PPINTRO_W2_H": "nicht wiederherstellbar",
   "L_PPINTRO_W2_B": "eine andere Passphrase öffnet eine andere Wallet, ohne Warnung.",
   "L_CREATE_PASS_BTN": "PASSPHRASE ERSTELLEN",
