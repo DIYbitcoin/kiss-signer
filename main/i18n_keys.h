@@ -77,6 +77,14 @@ enum {
     STR_W_ENT_RESULT,
     STR_W_ENT_MIX_T,
     STR_W_ENT_MIX_B,
+    // ADDENDUM-02: source 3, the tap screen. Same convention as section 2
+    // above -- English only for now, by the owner's call; tr() falls back to
+    // English for the other 20 locales until the locale pass, so these four
+    // need no translations to ship. See docs/specs/tap-entropy.md.
+    STR_W_ENT_TAP_T,
+    STR_W_ENT_TAP_S,
+    STR_W_ENT_SRC3_CAP,
+    STR_W_ENT_TAP_NOTE,
     STR_W_WRITE_T,
     STR_W_WRITE_S,
     STR_W_PAPER_ONLY,
