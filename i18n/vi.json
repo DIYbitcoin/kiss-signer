@@ -127,7 +127,6 @@
   "I_NET_TEST": "TESTNET, coin tập dượt",
   "I_NET_MAIN": "MAINNET, bitcoin thật",
   "I_H_FP_B": "mã nhận dạng của ví này.\n\nứng dụng ghép nối phải hiện CÙNG mã.\nđể chắc chắn nó có địa chỉ của bạn, dùng NHẬN > KIỂM TRA.",
-  "I_H_FP_PIC": "cùng mã đó, vẽ ra.\nví khác, hình khác.",
   "I_H_TYPE_B": "địa chỉ của bạn trông thế nào.\nbc1... là loại hiện đại, phí thấp nhất.\n\nm/... là nơi các khóa sinh ra.\nứng dụng dùng nó để tìm địa chỉ.",
   "I_SEC_PATH": "ĐƯỜNG DẪN SUY XUẤT",
   "I_H_PATH_B": "m/... là nơi các khóa sinh ra.\nứng dụng dùng nó để tìm địa chỉ.",

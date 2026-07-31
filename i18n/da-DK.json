@@ -127,7 +127,6 @@
   "I_NET_TEST": "TESTNET, øvemønter",
   "I_NET_MAIN": "MAINNET, rigtige bitcoin",
   "I_H_FP_B": "din tegnebogs ID-kode.\n\nen parret app skal vise SAMME kode.\nfor at være sikker på dine adresser, brug MODTAG > KONTROLLÉR.",
-  "I_H_FP_PIC": "den samme kode, tegnet.\nanden tegnebog, andet billede.",
   "I_H_TYPE_B": "hvordan dine adresser ser ud.\nbc1... er den moderne med lavest gebyr.\n\nm/... er hvor nøglerne kommer fra.\ndin app finder dem med den.",
   "I_SEC_PATH": "AFLEDNINGSSTI",
   "I_H_PATH_B": "m/... er hvor nøglerne kommer fra.\ndin app finder dem med den.",

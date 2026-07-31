@@ -127,7 +127,6 @@
   "I_NET_TEST": "TESTNET, övningsmynt",
   "I_NET_MAIN": "MAINNET, riktiga bitcoin",
   "I_H_FP_B": "plånbokens ID-kod.\n\nen parad app ska visa SAMMA kod.\nför att vara säker på dina adresser, använd TA EMOT > KONTROLLERA.",
-  "I_H_FP_PIC": "samma kod, ritad.\nannan plånbok, annan bild.",
   "I_H_TYPE_B": "hur dina adresser ser ut.\nbc1... är den moderna med lägst avgift.\n\nm/... är varifrån nycklarna kommer.\nappen hittar dem med den.",
   "I_SEC_PATH": "HÄRLEDNINGSVÄG",
   "I_H_PATH_B": "m/... är varifrån nycklarna kommer.\nappen hittar dem med den.",
