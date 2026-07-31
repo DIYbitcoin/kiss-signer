@@ -312,7 +312,40 @@ static void verify_intro_screen(void)
 {
     mk_screen(tr(STR_W_VINTRO_T),
               tr(STR_W_VINTRO_S));
-    mk_body(tr(STR_W_VINTRO_B), 48, 122, 704, 274, MUT_COL);
+
+    // Band one: what the check claims, framed and drawn. The screen used to open
+    // with three stacked grey paragraphs, which is the arrangement a reader
+    // skips on the way to the button -- and this is the screen whose whole point
+    // is that the reader understands what is about to be proven.
+    //
+    // 128..212, matching the passphrase intro and the fingerprint reveal, so the
+    // setup flow keeps one skeleton from screen to screen.
+    lv_obj_t *vcard = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *vcol = lv_obj_create(vcard);
+    lv_obj_remove_style_all(vcol);
+    lv_obj_set_pos(vcol, 0, 0);
+    lv_obj_set_size(vcol, 704, 84);
+    lv_obj_set_flex_flow(vcol, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(vcol, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
+    wt_diagram_verify(vcol);
+
+    // Band two: what it proves, and what it will never do. Accent on the claim,
+    // WT_WARN on the limit, the same colour argument every other paired block on
+    // the device makes. HEAD_ROOM budgets the font14 heading wt_why_block draws
+    // above the body; see the identical note on the passphrase intro.
+    {
+        const char *b1 = tr(STR_W_VINTRO_W1_B), *b2 = tr(STR_W_VINTRO_W2_B);
+        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+        const int HEAD_ROOM = 46;
+        const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
+                                          BW - 14, BH - HEAD_ROOM - 8);
+        wt_why_block(s_scr, tr(STR_W_VINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
+        wt_why_block(s_scr, tr(STR_W_VINTRO_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+    }
+
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, WT_ACTION_Y, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, verify_exit_cb, NULL);
