@@ -163,6 +163,13 @@ int wallet_dice_take(uint8_t *out, unsigned len) {
   for (unsigned i = 0; i < len; i++) out[i] = (uint8_t)(i * 3 + 1);
   return 0;
 }
+int wallet_dice_peek(uint8_t out[32]) {
+  if (!out) return -1;
+  // no real SHA in the sim: a value that visibly moves as rolls are added, so
+  // the fingerprint label can be walked and shot for the docs.
+  for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i + s_sim_dn);
+  return 0;
+}
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
