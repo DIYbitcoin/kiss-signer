@@ -71,6 +71,20 @@ int wallet_entropy_mix(const uint8_t a[32], const uint8_t b[32], uint8_t out[32]
     return rc;
 }
 
+int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], uint8_t out[32])
+{
+    if (!a || !b || !c || !out)
+        return -1;
+    uint8_t cat[96];
+    memcpy(cat, a, 32);
+    memcpy(cat + 32, b, 32);
+    memcpy(cat + 64, c, 32);
+    int rc = wally_sha256(cat, sizeof cat, out, 32) == WALLY_OK ? 0 : -1;
+    wally_bzero(cat, sizeof cat);
+    return rc;
+}
+
 int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 {
     if (passphrase && !passphrase[0])

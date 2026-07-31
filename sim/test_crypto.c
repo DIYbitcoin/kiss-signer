@@ -32,6 +32,10 @@ int test_sdseed_layer(void);
 int test_duress(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
+// sim/test_squiggle.c — the wallet's picture, frozen
+int test_squiggle(void);
+// sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
+int test_tapent(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -472,6 +476,8 @@ int main(int argc, char **argv) {
     fails += test_sdseed_layer();
     fails += test_duress();
     fails += test_passedit();
+    fails += test_squiggle();
+    fails += test_tapent();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);
