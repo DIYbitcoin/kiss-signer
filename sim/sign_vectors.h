@@ -16,3 +16,12 @@
 #define SV_ECDSA_LEGACY "304402202113f27e8fff9fe6aa3ccda7a954dffa738725be100597a1188963d8b0d967ec022064260f6205c2bcc4a2e4f5745e4ae6e72c60e95a2e09acffd647da798ee07b6d01"
 #define SV_ECDSA_NESTED "304402203c7cd538720247ffe06df2168876adcf4a206e84f31aed9bf81ec02f8e5814c302206dff5b063fe2aa381e536ffddc4a08bd498ec5457546219257d505ca77f8cc0301"
 #define SV_ECDSA_NATIVE "3044022075deee1de97201a2e93f4570ebf5e46e0ab59913b45f99902ef0e4fc7ba028e4022056129256869ccf4248455afd62d9faa136a15bff8f27a5dbd70f754b6af8c56901"
+
+// Silent-payment Schnorr spends (BIP340, aux = sha256(spend_priv ||
+// sha256(psbt_bytes))). Reproduced independently by the BIP340 reference signer
+// in tools/sign_fixtures/gen_sp_sign_vectors.py, over the fixtures in
+// main/sp_spend_vectors.h -- the taproot sighash there is itself embit-computed,
+// so nothing in this line traces back to KISS's own signer. 64-byte
+// SIGHASH_DEFAULT form.
+#define SV_SCHNORR_SP_EVEN "f89a728d7cdfa6b2086694063e3aa1a891398ca722b5d03aaa9cc9b6130773e4de827dc3f9dcd9b2642ba38829590f8da1d22d478e71d3631e617a0e46728925"
+#define SV_SCHNORR_SP_ODD  "b22c18e13af4478b5f5a0257d67f92fde86e23f45d3bfac3077afd7ee024e86c7c21d4e9b6d271643ec4e0e4414a7513a661cffb49589632a381131ca12997a9"

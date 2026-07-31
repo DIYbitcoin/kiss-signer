@@ -210,10 +210,13 @@ KISS signature from the seed:
   signer using a different aux produces a different, still valid, signature.
 
 **Pinned in CI.** `sim/sign_vectors.h` holds the exact signature bytes for the
-ECDSA cases, computed independently with embit (see
-`tools/sign_fixtures/gen_sign_vectors.py`), never copied from KISS's own output.
-The test suite asserts them, so any drift in nonce derivation fails the build.
-A determinism check signs the same PSBT twice and requires identical bytes.
+ECDSA cases (computed independently with embit,
+`tools/sign_fixtures/gen_sign_vectors.py`) and the silent-payment Schnorr spends
+(computed with the BIP340 reference signer,
+`tools/sign_fixtures/gen_sp_sign_vectors.py`), never copied from KISS's own
+output. The test suite asserts them, so any drift in nonce derivation or the
+Schnorr aux fails the build. A determinism check signs the same PSBT twice and
+requires identical bytes.
 
 **Checking a unit yourself.** Sign the same PSBT, with the same seed, on a
 second signer you trust independently: a second KISS you compiled yourself from
