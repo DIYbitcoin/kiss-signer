@@ -23,6 +23,7 @@
 //   3. GROWTH   has a wrapping label grown into the text below it
 //   4. CLIPPED  was text laid out and then cut away where nobody can reach it
 //   5. ROLE     is one element wearing a themed accent and a status colour
+//   6. BARE     is a screen just a wall of text, with none of the kit's chrome
 //
 // The first three are the ones the review asked for. The fourth was added after
 // reading docs/media/sign-verify.png: a label can ask for a box taller than the
@@ -625,6 +626,112 @@ static int oc_colours_of(lv_obj_t *o, bool is_label, oc_colour_t *out, int cap)
 static int s_role_accent_objs;
 static int s_role_status_objs;
 
+// ---- 6. BARE: a screen whose only content is a wall of text ----------------
+//
+// The product has a kit for this -- wt_card, wt_value_card, wt_why_block,
+// wt_chip, the diagram rows -- and the fault this catches is not using it: a
+// title, one 704px grey paragraph and a button. It is not a rendering bug, so
+// none of the five checks above can see it; every one of those screens is
+// perfectly laid out. It is the layout being wrong to begin with.
+//
+// It is a GATE and not a note in a document because that is the only kind of
+// rule that has held in this tree. The chrome rule has been written down more
+// than once and screens kept shipping bare anyway.
+//
+// A wall is a wrapping label wide enough to be the page's body. A frame is
+// anything with a border and a fill big enough to be a card or a chip, or a
+// why-block's rule bar -- narrow, tall, and the one thing on a bare screen that
+// is never present. A screen with a wall and no frame is the shape being
+// rejected.
+//
+// The thresholds are deliberately generous: 560px is far wider than a 344px
+// why-block, and 90px is three lines at font23. Nothing that has been through
+// the kit can trip this, so a finding is a real bare screen rather than a
+// judgement call about density.
+static bool oc_is_frame(const oc_node_t *n)
+{
+    int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+    if (n->is_label) return false;
+    if (area_is_backdrop(&n->vis)) return false;      // the screen's own base
+    // A PILL IS NOT CHROME. wt_pill draws a bordered, filled box well over the
+    // size floor below, so counting buttons made every screen in the product
+    // look furnished and the first run of this check found nothing at all. The
+    // question is what the screen puts ABOVE the action row to carry its
+    // content, so the action row itself is not an answer to it, and neither is
+    // anything else the reader can press.
+    if (n->clickable) return false;
+    if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
+    // a why-block's coloured rule: 3px wide, as tall as the claim beside it
+    if (w <= 4 && h >= 30) return true;
+    if (w < 100 || h < 30) return false;
+    return lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) >= 1 &&
+           lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50;
+}
+
+// The screens that are bare TODAY, queued for the chrome rollout. Each entry is
+// here because the screen EXISTS in this state, not because it is acceptable,
+// and the list only ever shrinks: delete the line when the screen is rebuilt.
+//
+// Landing the gate with a backlog rather than waiting until all of them are
+// fixed is the whole point. Held back, it protects nothing while the work is in
+// progress; landed, it stops screen number nine from ever being written. The
+// count of unhit entries is printed at the end of the run, so a stale line
+// cannot sit here quietly after its screen has been fixed.
+//
+// Matched on the stop tag, which is locale independent -- the finding text is
+// translated copy and would need twenty one spellings of the same exemption.
+static const char *OC_BARE_BACKLOG[] = {
+    "sign_sigcheck",        // wallet_sign.c  "this code comes from the signature"
+    "storage_confirm_sd",   // wallet_settings.c
+    "storage_hold_noop",    // the same confirm screen, reached a second way
+    "storage_sd_ok",        // wallet_settings.c
+    "words_warn",           // wallet_ui.c    "make sure nobody can see the screen"
+    "verify_mismatch",      // wallet_setup.c "check your paper against ..."
+    "duress_done",          // wallet_duress_ui.c
+    "amnesic_qrbad",        // wallet_setup.c
+    "amnesic_ppwarn",       // wallet_ui.c
+};
+static bool s_bare_hit[sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]];
+
+static bool oc_bare_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]; i++)
+        if (strstr(tag, OC_BARE_BACKLOG[i])) { s_bare_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_bare(const char *tag)
+{
+    char t[64], sig[192], detail[320];
+
+    // Only screens that play by the kit's rules in the first place. The game,
+    // the keyboard and the gesture unlock have no action row and no obligation
+    // to look like a wallet page, which is the same exemption check 2 uses.
+    if (!oc_has_action_row()) return;
+
+    const oc_node_t *wall = NULL;
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        if (oc_is_frame(n)) return;                   // screen has chrome, done
+        if (wall) continue;
+        if (!n->is_label || !n->wraps) continue;
+        int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+        if (w >= 560 && h >= 90) wall = n;
+    }
+    if (!wall) return;
+    if (oc_bare_excused(tag)) return;
+
+    oc_text(wall->obj, t, sizeof t);
+    snprintf(sig, sizeof sig, "BARE|%s", t);
+    snprintf(detail, sizeof detail,
+             "BARE     \"%s\" is a %dx%d paragraph and the screen has no framed "
+             "element (wt_card / wt_value_card / wt_why_block / wt_chip)",
+             t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
+             (int)(wall->vis.y2 - wall->vis.y1 + 1));
+    oc_report_one(tag, sig, detail);
+}
+
 static void oc_check_colour_roles(const char *tag)
 {
     char t[64], sig[192], detail[320];
@@ -806,6 +913,7 @@ void oc_check(const char *tag)
     oc_check_wrap_growth(tag);
     oc_check_clipped(tag);
     oc_check_colour_roles(tag);
+    oc_check_bare(tag);
 }
 
 int oc_report(void)
@@ -825,6 +933,21 @@ int oc_report(void)
         printf("[overlap] %s: role check saw %d accent and %d status objects, "
                "walk started in %s\n", lang, s_role_accent_objs,
                s_role_status_objs, acc && *acc ? acc : "MONO");
+
+    // An entry that was never hit means its screen has been rebuilt (or renamed)
+    // and the exemption is now protecting nothing. Printed rather than failed,
+    // because the same list is read by every locale's run and a screen only
+    // reachable in some walks would otherwise turn a fix into a build break.
+    {
+        int bare_left = 0;
+        for (unsigned i = 0; i < sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]; i++) {
+            if (s_bare_hit[i]) { bare_left++; continue; }
+            printf("[overlap] %s: BARE backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_BARE_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the BARE backlog\n",
+               lang, bare_left);
+    }
 
     for (int i = 0; i < s_seen_n; i++)
         if (s_seen_hits[i] > 1)
