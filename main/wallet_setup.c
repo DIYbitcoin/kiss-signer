@@ -928,15 +928,34 @@ static void ent_chip_lit(lv_obj_t *c, bool lit)
     if (l) lv_obj_set_style_text_color(l, col, 0);
 }
 
+// What this function has already PAINTED. -1 is "nothing yet", so the first
+// call after a screen build always draws every part.
+//
+// These exist because of the camera, not to save cycles. With a preview rect
+// set, camera_spike stops flipping framebuffers and writes the video into the
+// SAME buffer LVGL paints this column into (camera_spike.c, show_frame), and
+// rot_flush in main.c accepts that an LVGL repaint lands on top of the video for
+// one frame -- explicitly "only while something is actually being repainted".
+//
+// This sync runs on an 80ms poll, and LVGL has no early-out to lean on:
+// lv_obj_set_local_style_prop ends in lv_obj_refresh_style on EVERY call, same
+// value or not. So an unguarded sync invalidates a dozen objects 12.5 times a
+// second for as long as the camera is live, "something is being repainted"
+// becomes permanently true, and the owner watches a black box crawl over their
+// own video. Comparing first is what keeps the steady state silent.
+static int s_ent_last_pct   = -1;
+static int s_ent_last_key   = -1;
+static int s_ent_last_ready = -1;    // tri-state, so the first paint is forced
+
 // Drive source one's bar, the state line and the equation from the camera's
 // meter. Runs on the same LVGL timer that polls for the capture result.
 static void ent_ui_sync(int pct, int reason)
 {
-    if (s_ent_bar1)
+    if (s_ent_bar1 && pct != s_ent_last_pct) {
         lv_obj_set_width(s_ent_bar1, (ENT_COL_W - 28) * pct / 100);
+        s_ent_last_pct = pct;
+    }
     bool ready = pct >= 100;
-    if (s_ent_dot)
-        lv_obj_set_style_bg_color(s_ent_dot, ready ? OK_COL : WT_EDGE, 0);
 
     // Four states, and each one is an INSTRUCTION. It used to be two lines, and
     // the not-ready one ("point at something with more detail") was a guess
@@ -944,17 +963,27 @@ static void ent_ui_sync(int pct, int reason)
     // or simply not arriving, so it said the same thing either way. Now that a
     // frame can score zero for two different reasons, a holder watching a bar
     // that will never move on its own has to be told which one they are in.
-    if (s_ent_state) {
-        int k = ready       ? STR_W_ENT_DONE1
-              : reason == ENT_R_DARK  ? STR_W_ENT_LOW
-              : reason == ENT_R_STILL ? STR_W_ENT_STILL
-              : STR_W_ENT_GOING;
+    //
+    // Keyed on the STRING rather than on `reason`, because two reasons can pick
+    // the same line and re-setting a label to the text it already holds is a
+    // full invalidation for no visible change.
+    int k = ready       ? STR_W_ENT_DONE1
+          : reason == ENT_R_DARK  ? STR_W_ENT_LOW
+          : reason == ENT_R_STILL ? STR_W_ENT_STILL
+          : STR_W_ENT_GOING;
+    if (s_ent_state && k != s_ent_last_key) {
         lv_label_set_text(s_ent_state, tr(k));
         lv_obj_set_style_text_color(s_ent_state,
                                     ready ? OK_COL
                                     : k == STR_W_ENT_GOING ? MUT_COL : WARN_COL, 0);
+        s_ent_last_key = k;
     }
 
+    // Everything below moves on the SAME edge -- the moment source one fills --
+    // so it is one comparison and not five. Chips 2, 3 and the result never
+    // change at all after the first paint; they were being rewritten twelve
+    // times a second to say exactly what they already said.
+    //
     // The equation reads as state, not as a picture. Chip 2 is lit from the
     // moment the screen opens because the chip's own noise has been running
     // since boot and its bar is already full; chip 1 lights when the camera
@@ -962,19 +991,24 @@ static void ent_ui_sync(int pct, int reason)
     // so does the result, which is what the three of them ADD UP TO rather than
     // something already in hand. Drawing "12 WORDS" in the accent while a
     // source was still missing was the screen claiming to be finished.
-    ent_chip_lit(s_ent_c1, ready);
-    ent_chip_lit(s_ent_c2, true);
-    ent_chip_lit(s_ent_c3, false);
-    ent_chip_lit(s_ent_cr, false);
+    if ((int)ready != s_ent_last_ready) {
+        if (s_ent_dot)
+            lv_obj_set_style_bg_color(s_ent_dot, ready ? OK_COL : WT_EDGE, 0);
+        ent_chip_lit(s_ent_c1, ready);
+        ent_chip_lit(s_ent_c2, true);
+        ent_chip_lit(s_ent_c3, false);
+        ent_chip_lit(s_ent_cr, false);
 
-    // The action pill is the discoverable form of "tap anywhere", which still
-    // works. Disabled until source one is full, because a capture below the
-    // gate is refused by camera_spike anyway and a button that silently does
-    // nothing reads as a missed touch.
-    if (s_ent_capture) {
-        lv_obj_set_style_opa(s_ent_capture, ready ? LV_OPA_COVER : LV_OPA_40, 0);
-        if (ready) lv_obj_add_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
-        else       lv_obj_remove_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
+        // The action pill is the discoverable form of "tap anywhere", which
+        // still works. Disabled until source one is full, because a capture
+        // below the gate is refused by camera_spike anyway and a button that
+        // silently does nothing reads as a missed touch.
+        if (s_ent_capture) {
+            lv_obj_set_style_opa(s_ent_capture, ready ? LV_OPA_COVER : LV_OPA_40, 0);
+            if (ready) lv_obj_add_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
+            else       lv_obj_remove_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
+        }
+        s_ent_last_ready = ready;
     }
 }
 
@@ -1149,6 +1183,12 @@ static void entropy_screen(void)
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
     s_ent_bar1 = s_ent_bar2 = s_ent_state = s_ent_dot = s_ent_capture = NULL;
     s_ent_c1 = s_ent_c2 = s_ent_c3 = s_ent_cr = NULL;
+    // The widgets above are gone, so what ent_ui_sync last painted is gone with
+    // them. Forgetting this is how a "nothing changed" guard turns into a meter
+    // that never fills on the second visit: the screen is rebuilt on retry and
+    // on every capture, and a surviving cache would match the new empty bar and
+    // decline to draw anything.
+    s_ent_last_pct = s_ent_last_key = s_ent_last_ready = -1;
 
     // Left: the frame the preview lands in. The same viewfinder the scan screen
     // uses, so the two camera screens are one object to the eye: a filled panel
