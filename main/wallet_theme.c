@@ -2164,6 +2164,30 @@ void wt_diagram_fp(lv_obj_t *parent)
     wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
 }
 
+// What a backup check actually claims: RECOVERY WORDS -> THIS WALLET. Two chips
+// and one arrow, because the whole screen is one assertion and a longer diagram
+// would be inventing steps to look busy.
+//
+// Both labels already exist in every locale (STR_D_WORDS is the fingerprint
+// equation's own first chip, so the two diagrams agree on what words are
+// called), and both marks are in SYMS at every chip size. The tick is accented
+// because the match is the outcome being proven, the same way the fingerprint
+// equation accents its result.
+//
+// STR_I_T and not STR_I_SEC_THIS_WALLET, which reads better in English and is
+// the string this was first written with: that key is the literal text "THIS
+// WALLET" in all twenty one locales, so on a Russian screen it sat in English
+// between two translated chips. It is a section HEADING everywhere else it
+// appears, where nobody had noticed; in a diagram beside translated words it is
+// obvious. STR_I_T is the WALLET page's own title and is properly localised.
+void wt_diagram_verify(lv_obj_t *parent)
+{
+    lv_obj_t *row = wt_diagram_row(parent);
+    wt_chip_icon(row, LV_SYMBOL_LIST, tr(STR_D_WORDS), false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip_icon(row, LV_SYMBOL_OK, tr(STR_I_T), true);
+}
+
 void wt_diagram_pair(lv_obj_t *parent)
 {
     // the airgap: an online app and the offline signer, bridged only by QR

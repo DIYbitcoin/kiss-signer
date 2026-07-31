@@ -48,10 +48,18 @@ static const slot_t SLOTS[] = {
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // wallet_ui.c:469,769 — login warning + passphrase intro
     { "login/warn",       STR_L_WARN_B,     740, 204 },
-    { "login/pp-intro",   STR_L_PPINTRO_B,  704, 280 },
+    // The passphrase intro and the backup check both went from one 704px
+    // paragraph to a PAIR of wt_why_blocks, so each body is measured in the
+    // narrower box it actually renders in: 344 wide less the block's own 14px
+    // inset, and 166 tall less the font14 heading above it (HEAD_ROOM 46) and
+    // the 8px wt_why_block costs for its own metrics. A body that only fits at
+    // 704 wide is exactly the regression this row exists to catch.
+    { "login/pp-w1",      STR_L_PPINTRO_W1_B, 330, 112 },
+    { "login/pp-w2",      STR_L_PPINTRO_W2_B, 330, 112 },
+    { "setup/verify-w1",  STR_W_VINTRO_W1_B,  330, 112 },
+    { "setup/verify-w2",  STR_W_VINTRO_W2_B,  330, 112 },
     // wallet_setup.c — wizard explainers
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
-    { "setup/verify-in",  STR_W_VINTRO_B,   704, 274 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
     // Three-mode storage appears in both setup and Settings with the same

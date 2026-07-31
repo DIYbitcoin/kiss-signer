@@ -1402,10 +1402,50 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_PPINTRO_T),
                             tr(STR_L_PPINTRO_S));
   s_pp_intro = scr;
-  lv_obj_t *ib = wt_lbl(scr, tr(STR_L_PPINTRO_B),
-      48, 116, wt_body_font(tr(STR_L_PPINTRO_B), 704, 280), WT_MUT);
-  lv_obj_set_width(ib, 704);
-  lv_label_set_long_mode(ib, LV_LABEL_LONG_WRAP);
+
+  // This screen was a title, one 704px grey paragraph and a button. Three
+  // paragraphs stacked down the page is the arrangement people skip, and it is
+  // the exact shape wt_why_block was written to replace -- on the one screen
+  // that has to land, because everything it says is irreversible.
+  //
+  // Band one: the equation, framed. words + passphrase -> fingerprint is not
+  // decoration here, it IS the subject: the sentence "your passphrase chooses
+  // which wallet you get" drawn instead of written. Each chip carries its own
+  // mark, so the claim arrives before the labels are read.
+  //
+  // 128..212, the same rhythm the fingerprint reveal uses (card ends 214, blocks
+  // start 232), so the two setup screens share a skeleton.
+  lv_obj_t *card = wt_card(scr, 48, 128, 704, 84);
+  lv_obj_t *col = lv_obj_create(card);
+  lv_obj_remove_style_all(col);
+  lv_obj_set_pos(col, 0, 0);
+  lv_obj_set_size(col, 704, 84);
+  lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+  wt_diagram_fp(col);
+
+  // Band two: the two claims, side by side, on the reveal screen's geometry.
+  // Accent on how it works, WT_WARN on the branch where it goes wrong -- the
+  // same colour argument the reveal screen makes, so a reader who has seen one
+  // already knows which side is the warning.
+  {
+    const char *b1 = tr(STR_L_PPINTRO_W1_B), *b2 = tr(STR_L_PPINTRO_W2_B);
+    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+    // The shared font is measured against the room LEFT BY THE HEADING, which
+    // wt_why_block adds above the body at font14. Budgeting for two heading
+    // lines costs a rung in the locales whose heading fits on one, and that is
+    // the safe direction: the alternative is a heading that wraps in Norwegian
+    // and pushes the body through WT_CONTENT_BOTTOM into the pill.
+    const int HEAD_ROOM = 46;
+    const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
+                                      BW - 14, BH - HEAD_ROOM - 8);
+    wt_why_block(scr, tr(STR_L_PPINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
+    wt_why_block(scr, tr(STR_L_PPINTRO_W2_H), b2, 408, BY, BW, BH, f, WT_WARN);
+  }
+
   lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 280, pp_intro_go_cb, NULL);
   wt_pill_primary(go);
 }
