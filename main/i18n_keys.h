@@ -130,7 +130,6 @@ enum {
     STR_I_NET_TEST,
     STR_I_NET_MAIN,
     STR_I_H_FP_B,
-    STR_I_H_FP_PIC,
     STR_I_H_TYPE_B,
     STR_I_SEC_PATH,
     STR_I_H_PATH_B,

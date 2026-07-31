@@ -127,7 +127,6 @@
   "I_NET_TEST": "TESTNET, probni coini",
   "I_NET_MAIN": "MAINNET, pravi bitcoin",
   "I_H_FP_B": "identifikacijski kod ovog novčanika.\n\npovezana aplikacija pokazuje ISTI kod.\nda budete sigurni da ima vaše adrese, koristite PRIMI > PROVJERI.",
-  "I_H_FP_PIC": "isti kod, nacrtan.\ndrugi novčanik, druga slika.",
   "I_H_TYPE_B": "kako izgledaju tvoje adrese.\nbc1... je moderna, s najnižom naknadom.\n\nm/... govori odakle dolaze ključevi.\naplikacija ih po tome pronalazi.",
   "I_SEC_PATH": "PUT IZVOĐENJA",
   "I_H_PATH_B": "m/... govori odakle dolaze ključevi.\naplikacija ih po tome pronalazi.",

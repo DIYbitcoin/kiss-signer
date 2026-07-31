@@ -43,13 +43,7 @@ static void swap_screen(void)           // replace the current section screen
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
-// DIAG_FP_PIC is DIAG_FP plus the wallet's picture under the equation. It is a
-// separate id and not a flag because the picture may only appear on a card that
-// is ALSO showing the code: the picture is a recognition aid and never the
-// identity itself, so a card with a pattern and no number is the one shape this
-// must never take. Every caller that has the eight characters passes them and
-// gets DIAG_FP_PIC; DIAG_FP is what is left for anyone who does not.
-enum { DIAG_NONE = 0, DIAG_FP, DIAG_FP_PIC, DIAG_PAIR, DIAG_SCAN };
+enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
 
 static void sp_permission_fact(lv_obj_t *parent, const char *icon,
                                int key, lv_color_t icon_color)
@@ -156,49 +150,8 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_update_layout(col);
     return lv_obj_get_height(col);
 }
-// The equation ends at a chip carrying the WORD "fingerprint". Under it goes
-// the thing itself, so the arrow points at something instead of at a label, and
-// so the card that explains the fingerprint is where the owner meets its
-// picture at a size worth learning. The column reports its own height back to
-// wt_explain_open, which is what lets the body reflow around the taller aside
-// without anyone hand-tuning a y.
-// The fingerprint the OPEN card is about, parsed from the eight characters in
-// its own title. Deriving the picture from the title's string rather than from
-// wallet_ui_last_fp is what makes the two incapable of disagreeing — and it is
-// required, not merely tidy: the reveal screen opens this card for a candidate
-// wallet that has NOT been published to s_last_fp yet, so reading the session's
-// last fingerprint there would draw the previous wallet's picture under the new
-// wallet's code.
-static uint8_t s_card_fp[4];
-
-static void fp_model(lv_obj_t *col)
-{
-    wt_diagram_fp(col);
-
-    // The picture and the line that says what it IS, side by side in one row.
-    //
-    // The line is needed because the "?" that leads here otherwise answers a
-    // question nobody asked: the body below explains the CODE, so a reader who
-    // tapped a small circle wanting to know about the PATTERN got three
-    // sentences about something else.
-    //
-    // Side by side and not stacked, because stacked cost 132 + 56 of the height
-    // this card has left and pushed the body 56px through WT_CONTENT_BOTTOM into
-    // the OK pill. In a row the pair costs the taller of the two, and the 704px
-    // lane is mostly empty anyway with a 96px picture centred in it.
-    lv_obj_t *row = wt_diagram_row(col);
-    lv_obj_t *sq = wt_squiggle(row, 0, 0, s_card_fp, 6);   // all-zero: draws nothing
-    if (sq) {
-        lv_obj_t *n = wt_note(row, tr(STR_I_H_FP_PIC), 0, 0, 380, 56);
-        lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
-    } else {
-        lv_obj_delete(row);      // no picture, no row, no gap where one was
-    }
-}
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_fp); }
-static int aside_fp_pic(lv_obj_t *p, int x, int y, int w)
-{ return aside_col(p, x, y, w, fp_model); }
 static int aside_pair(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_pair); }
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
@@ -221,14 +174,12 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
     // mark on the control that sent them here. Without a diagram the caller says.
     wt_explain_t e = {
         .title  = title,
-        .icon   = diagram == DIAG_FP
-               || diagram == DIAG_FP_PIC ? WT_ICON_KEY
+        .icon   = diagram == DIAG_FP     ? WT_ICON_KEY
                 : diagram == DIAG_PAIR   ? WT_ICON_QR
                 : diagram == DIAG_SCAN   ? WT_ICON_SECRET : icon,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
         .aside  = diagram == DIAG_FP     ? aside_fp
-                : diagram == DIAG_FP_PIC ? aside_fp_pic
                 : diagram == DIAG_PAIR   ? aside_pair
                 : diagram == DIAG_SCAN   ? aside_scan : NULL,
     };
@@ -255,22 +206,7 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
     else
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
 
-    // Eight hex characters back into the four bytes the picture is drawn from.
-    // Anything shorter or malformed leaves the buffer zeroed, and wt_squiggle
-    // refuses a zeroed fingerprint, so a bad string costs the picture and never
-    // draws a wrong one.
-    memset(s_card_fp, 0, sizeof s_card_fp);
-    if (has_code && strlen(fingerprint) >= 8) {
-        unsigned b[4];
-        if (sscanf(fingerprint, "%2x%2x%2x%2x", &b[0], &b[1], &b[2], &b[3]) == 4)
-            for (int i = 0; i < 4; i++) s_card_fp[i] = (uint8_t)b[i];
-    }
-
-    // The picture rides along only when the title carries the code. Without it
-    // the card would be showing a pattern and no number, which is the one thing
-    // this must never be.
-    return help_open_on(parent, title, tr(STR_I_H_FP_B),
-                        has_code ? DIAG_FP_PIC : DIAG_FP,
+    return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
                         exit_hint, NULL);
 }
 

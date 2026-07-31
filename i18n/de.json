@@ -127,7 +127,6 @@
   "I_NET_TEST": "TESTNET, Übungs-Coins",
   "I_NET_MAIN": "MAINNET, echtes Bitcoin",
   "I_H_FP_B": "der Ausweis-Code deiner Wallet.\n\ndeine App muss DENSELBEN Code zeigen.\num sicher zu sein, dass sie deine Adressen hat: EMPFANGEN > PRÜFEN.",
-  "I_H_FP_PIC": "derselbe Code, gezeichnet.\nandere Wallet, anderes Bild.",
   "I_H_TYPE_B": "wie deine Adressen aussehen.\nbc1... ist die moderne, günstigste.\n\nm/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",
   "I_SEC_PATH": "ABLEITUNGSPFAD",
   "I_H_PATH_B": "m/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",

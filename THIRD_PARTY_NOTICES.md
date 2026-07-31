@@ -19,7 +19,6 @@ recipient receives the required attributions and license texts.
 | cUR | Uniform Resources (UR) codec | BSD-2-Clause-Plus-Patent | [`components/cUR/LICENSE`](components/cUR/LICENSE) |
 | k_quirc (quirc) | QR decoding | MIT | [`components/k_quirc/LICENSE`](components/k_quirc/LICENSE) |
 | esp_cam_sensor | camera sensor driver | Apache-2.0 | [`components/esp_cam_sensor/LICENSE`](components/esp_cam_sensor/LICENSE) |
-| bitsquiggle32 (BitSquiggles) | the fingerprint drawn as a pattern | Grug 2-Clause | [`components/bitsquiggle32/LICENSE`](components/bitsquiggle32/LICENSE) |
 
 ## Software components (fetched at build, not in this tree)
 

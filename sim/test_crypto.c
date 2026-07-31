@@ -33,8 +33,6 @@ int test_sdseed_layer(void);
 int test_duress(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
-// sim/test_squiggle.c — the wallet's picture, frozen
-int test_squiggle(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
 int test_tapent(void);
 // sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
@@ -564,7 +562,6 @@ int main(int argc, char **argv) {
     fails += test_sdseed_layer();
     fails += test_duress();
     fails += test_passedit();
-    fails += test_squiggle();
     fails += test_tapent();
     fails += test_dice();
 

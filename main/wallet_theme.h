@@ -281,23 +281,6 @@ lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
 lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
 // the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
 void wt_diagram_fp(lv_obj_t *parent);
-
-// The wallet's picture: the four fingerprint bytes as a 16x22 pattern
-// (components/bitsquiggle32), drawn at `scale` px per pattern pixel, in the
-// theme accent on nothing. Returns NULL for a null or all-zero fingerprint —
-// the same rule wallet_setup.c applies to the hex, because a zeroed buffer is
-// how a failed derivation looks and it must never be drawn as an identity.
-//
-// It exists because a fingerprint is RECOGNISED, not read: nobody remembers
-// 3A7F1C2B, and everybody remembers a shape. It is a recognition aid and
-// nothing else. 32 bits is not protection, a targeted collision is feasible,
-// and so every screen that draws one also shows the hex. Never ship one alone.
-//
-// Integer scales only. The pattern is expanded here, pixel by pixel, precisely
-// so LVGL never gets the chance to interpolate it: a smoothed squiggle is a
-// blurred one, which is the opposite of the point.
-lv_obj_t *wt_squiggle(lv_obj_t *parent, int x, int y, const uint8_t fp[4],
-                      int scale);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
 void wt_diagram_pair(lv_obj_t *parent);
 
