@@ -127,6 +127,19 @@ def pick_order():
     return sorted(range(len(LOCALES)), key=key)
 
 
+# Keys that are legitimately the same in every language, so the untranslated
+# check below must not flag them. Proper nouns and the Bitcoin address type
+# names other wallets print in English too. Anything added here needs a reason
+# on its line; "we did not get round to it" is not one.
+UNTRANSLATED_OK = {
+    "I_APP_DESKTOP",   # Sparrow, a product name
+    "I_APP_MOBILE",    # BlueWallet, a product name
+    "S_TY_LEGACY",     # Legacy / Nested SegWit / Native SegWit: the address type
+    "S_TY_NESTED",     # names as every coordinator and the BIPs spell them, and
+    "S_TY_NATIVE",     # the string a user matches against another wallet's UI
+}
+
+
 def main():
     errors = []
     warnings = []
@@ -179,6 +192,26 @@ def main():
                                   f"(would HANG LVGL): {' '.join(f'U+{ord(c):04X} {c}' for c in bad)}")
             data[k] = v
         tables[ident] = data
+
+    # ---- untranslated: byte identical to English in EVERY other locale ----
+    #
+    # A key that was never translated passes every other check in this file: it
+    # exists in all 21 files, so the count reads "494 keys x 21 locales" and
+    # looks finished. 62 keys were sitting like that, including the WALLET and
+    # SETTINGS row labels every owner reads on every visit, and the whole seed
+    # entropy flow. Nobody noticed because nothing asked.
+    #
+    # One locale matching English is normal and says nothing (Dutch "Network",
+    # German "Wallet"). ALL TWENTY matching is not a coincidence, it is a string
+    # that was added and never handed to the translators.
+    en_ident = next(i for s, i, _f, _n in LOCALES if s == "en")
+    for k in keys:
+        if not en[k].strip() or k in UNTRANSLATED_OK:
+            continue
+        if all(tables[i].get(k) == en[k] for _s, i, _f, _n in LOCALES if i != en_ident):
+            errors.append(f"{k}: identical to English in all {len(LOCALES)-1} other "
+                          f"locales, so it was never translated: {en[k][:48]!r}. "
+                          f"Translate it, or add it to UNTRANSLATED_OK with a reason")
 
     for w in warnings:
         print(f"warn: {w}")
