@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bitsquiggle32.h"
 #include "i18n.h"
 #include "kiss_fonts.h"
 
@@ -2136,92 +2135,33 @@ lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
     return l;
 }
 
-// ---- the wallet's picture ------------------------------------------------
-// What it is for, and what it is emphatically not, is in wallet_theme.h.
-
-// Hands back the pixel buffer this file owns. Worth knowing if the image cache
-// is ever switched on: LV_CACHE_DEF_SIZE is 0 in both sim/lv_conf.h and
-// sdkconfig, so nothing retains a decode of these pixels and the drop inside
-// lv_canvas_destructor finds nothing to do. With a cache enabled that drop would
-// run AFTER this event, keyed on memory this function had already freed, and the
-// buffer would have to be dropped here first.
-static void squiggle_free_cb(lv_event_t *e)
+// Each term carries its own mark, because this equation is read at a glance or
+// not at all: three same-shaped word chips are three things to READ before the
+// arrow means anything, and the reader is here precisely because words did not
+// land the first time. The list, the lock and the key say the whole sentence
+// before the labels are parsed, and the labels stay under them because three
+// unlabelled icons would be a riddle rather than a shortcut.
+//
+// All three codepoints are already in SYMS in tools/fonts/gen_fonts.sh at every
+// size a chip can take, so this costs nothing in flash and needs no font rebuild
+// — and the key is the same mark the card's own badge carries, which is what
+// ties the answer to the question the reader tapped.
+static void wt_chip_icon(lv_obj_t *row, const char *icon, const char *txt,
+                         bool accent)
 {
-    lv_free(lv_event_get_user_data(e));
-}
-
-lv_obj_t *wt_squiggle(lv_obj_t *parent, int x, int y, const uint8_t fp[4],
-                      int scale)
-{
-    if (!parent || !fp || scale < 1) return NULL;
-    // A zeroed fingerprint is what a FAILED derivation looks like, not a
-    // wallet. wallet_setup.c refuses to print the hex for exactly this reason,
-    // and a picture would be the worse thing to get wrong, because a picture is
-    // what gets trusted at a glance instead of read. (A genuine 00000000 exists
-    // with probability 2^-32 and costs that one owner the picture, which is the
-    // safe direction to be wrong in.)
-    if (!(fp[0] | fp[1] | fp[2] | fp[3])) return NULL;
-
-    // Big endian, so the picture and the hex beside it are the same number in
-    // the same order and a reader can hold one idea instead of two.
-    uint32_t v = ((uint32_t)fp[0] << 24) | ((uint32_t)fp[1] << 16) |
-                 ((uint32_t)fp[2] <<  8) |  (uint32_t)fp[3];
-
-    // The style argument only chooses the colours the library derives from the
-    // value, and those are dropped on the floor here: a squiggle is painted in
-    // wt_accent() so the palette keeps meaning what it means (accent identity,
-    // amber testnet, red destructive) and so MONO and colourblind eyes get the
-    // same pattern everyone else gets. The 16x22 raster is identical for every
-    // style, so this picks the one that says so.
-    Bitsquiggle32PixelGrid g;
-    if (bitsquiggle32_pixels(v, BITSQUIGGLE32_MONOCHROME, &g) != 0) return NULL;
-
-    const int w = (int)g.width * scale;
-    const int h = (int)g.height * scale;
-    const uint32_t stride = lv_draw_buf_width_to_stride((uint32_t)w,
-                                                        LV_COLOR_FORMAT_A8);
-    uint8_t *buf = lv_malloc((size_t)stride * (size_t)h);
-    if (!buf) return NULL;
-    lv_memset(buf, 0, (size_t)stride * (size_t)h);
-
-    // Expanded here, one pattern pixel to one scale x scale square, rather than
-    // handed to LVGL with a scale factor: LVGL interpolates, and a squiggle
-    // that has been smoothed is a squiggle that has been blurred, which is the
-    // whole point thrown away. A8, so the buffer is a mask and the colour comes
-    // from the recolour below.
-    for (int py = 0; py < (int)g.height; py++) {
-        for (int px = 0; px < (int)g.width; px++) {
-            if (!g.pixels[py * (int)g.width + px]) continue;
-            for (int dy = 0; dy < scale; dy++)
-                lv_memset(buf + (size_t)(py * scale + dy) * stride
-                              + (size_t)(px * scale), 0xFF, (size_t)scale);
-        }
-    }
-
-    lv_obj_t *c = lv_canvas_create(parent);
-    lv_obj_remove_style_all(c);
-    lv_canvas_set_buffer(c, buf, w, h, LV_COLOR_FORMAT_A8);
-    lv_obj_set_size(c, w, h);
-    lv_obj_set_pos(c, x, y);         // a flex parent lays it out and ignores this
-    // Resolved once, at build time. The accent can only change from Settings,
-    // which restyles its own screen and refreshes home; no screen that draws a
-    // squiggle can be open while that happens.
-    lv_obj_set_style_image_recolor(c, wt_accent(), 0);
-    lv_obj_set_style_image_recolor_opa(c, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(c, squiggle_free_cb, LV_EVENT_DELETE, buf);
-    return c;
+    char buf[WT_ICON_TEXT_MAX];
+    snprintf(buf, sizeof buf, "%s %s", icon, txt);
+    wt_chip(row, buf, accent);
 }
 
 void wt_diagram_fp(lv_obj_t *parent)
 {
     lv_obj_t *row = wt_diagram_row(parent);
-    wt_chip(row, tr(STR_D_WORDS), false);
+    wt_chip_icon(row, LV_SYMBOL_LIST, tr(STR_D_WORDS), false);
     wt_diagram_op(row, "+");
-    wt_chip(row, tr(STR_D_PASSPHRASE), false);
+    wt_chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, tr(STR_D_FINGERPRINT), true);
+    wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
 }
 
 void wt_diagram_pair(lv_obj_t *parent)
