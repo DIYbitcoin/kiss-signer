@@ -57,5 +57,44 @@ int test_dice(void)
     wallet_dice_roll(1); wallet_dice_roll(2);
     ok("digits reflect rolls", strcmp(wallet_dice_digits(), "12") == 0);
 
+    // ---- floor gate ----
+    uint8_t e[32]; char got[65];
+    roll_str(R50);                                  // 50 rolls
+    ok("50 rolls: 12-word take ok", wallet_dice_take(e, 16) == 0);
+    ok("50 rolls: 24-word take refused", wallet_dice_take(e, 32) == -1);
+    wallet_dice_undo();                             // 49 rolls
+    ok("49 rolls: 12-word take refused", wallet_dice_take(e, 16) == -1);
+
+    // ---- KAT: 12-word entropy == first 16 bytes of SHA256(R50) ----
+    roll_str(R50);
+    wallet_dice_take(e, 16); hex(e, 16, got);
+    ok("12-word entropy == SHA256(R50)[0..16]", strncmp(got, KAT50, 32) == 0);
+    if (strncmp(got, KAT50, 32) != 0) printf("  got %s\n  want %.32s\n", got, KAT50);
+
+    // ---- KAT: 24-word entropy == SHA256(R99) ----
+    roll_str(R99);
+    ok("99 rolls: 24-word take ok", wallet_dice_take(e, 32) == 0);
+    hex(e, 32, got);
+    ok("24-word entropy == SHA256(R99)", strcmp(got, KAT99) == 0);
+    if (strcmp(got, KAT99) != 0) printf("  got %s\n  want %s\n", got, KAT99);
+
+    // ---- entropy -> a real, deterministic BIP39 mnemonic ----
+    // (self-consistency here; the human off-device cross-check against an
+    // external BIP39 tool is the device-acceptance step in the spec.)
+    char words[256], words2[256];
+    ok("entropy -> mnemonic rc",
+       wallet_seed_from_entropy(e, 32, words, sizeof words) == 0);
+    roll_str(R99); wallet_dice_take(e, 32);
+    ok("same rolls -> same mnemonic",
+       wallet_seed_from_entropy(e, 32, words2, sizeof words2) == 0 &&
+       strcmp(words, words2) == 0);
+
+    // ---- length validation + wipe ----
+    ok("bad len rejected", wallet_dice_take(e, 20) == -1);
+    ok("NULL out rejected", wallet_dice_take(NULL, 32) == -1);
+    wallet_dice_reset();
+    ok("reset clears count", wallet_dice_count() == 0);
+    ok("reset clears digits", wallet_dice_digits()[0] == '\0');
+
     return fails;
 }
