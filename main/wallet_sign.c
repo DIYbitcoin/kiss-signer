@@ -1474,7 +1474,12 @@ static void qr_out_screen(size_t sw)
     wt_qr_card(s_scr, &s_qr_img, 48, 96, 302, 274);
 
     int n = qrt_encoder_parts(s_qenc);
-    mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SIGNED_T), 430, 100, wt_font14(), OK_COL);
+    // The signature fingerprint takes the top slot of the right column. The
+    // redundant "OK SIGNED" label that sat here is dropped: the page title and
+    // the sub line both already say the transaction is signed, and this is the
+    // one place the QR path can show the code without crowding (the card below
+    // is 302 square, running to the action band). Same code the SD screen shows.
+    draw_sig_fp(430, 520, 100, -1);
     s_part_lbl = mk_lbl(n > 1 ? tr(STR_S_QR_PART1) : tr(STR_S_QR_SINGLE), 430, 124,
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
