@@ -17,6 +17,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_L_WEAK] = "WEAK",
     [STR_L_FAIR] = "FAIR",
     [STR_L_STRONG] = "STRONG",
+    [STR_L_PP_HINT] = "longer is stronger",
     [STR_L_TYPE_AGAIN] = "TYPE IT AGAIN TO CONFIRM",
     [STR_L_CREATE_YOUR_PASS] = "CREATE YOUR PASSPHRASE",
     [STR_L_CANCEL_SETUP_T] = "CANCEL SETUP?",
