@@ -123,6 +123,7 @@
   "I_NET_TEST": "TESTNET, moedas de treino",
   "I_NET_MAIN": "MAINNET, bitcoin de verdade",
   "I_H_FP_B": "o código de identidade desta carteira.\n\no app emparelhado deve mostrar o MESMO.\npara ter certeza de que tem seus endereços, use RECEBER > VERIFICAR.",
+  "I_H_FP_PIC": "o mesmo código, desenhado.\noutra carteira, outra imagem.",
   "I_H_TYPE_B": "como são os seus endereços.\nbc1... é o moderno, com a menor taxa.\n\nm/... diz de onde vêm as chaves.\no seu app usa isso para encontrá-las.",
   "I_SEC_PATH": "CAMINHO DE DERIVAÇÃO",
   "I_H_PATH_B": "m/... diz de onde vêm as chaves.\no seu app usa isso para encontrá-las.",
