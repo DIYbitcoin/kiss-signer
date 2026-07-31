@@ -17,9 +17,11 @@ clang -O1 -w \
   -I"$WALLY/upstream/src/secp256k1/include" \
   -Imain \
   -Icomponents/cUR/src \
+  -Icomponents/bitsquiggle32 \
   "$WALLY/upstream/src/amalgamation/combined.c" \
   components/cUR/src/*.c components/cUR/src/types/*.c components/cUR/src/sha256/sha256.c \
-  main/wallet_crypto.c main/wallet_psbt.c main/wallet_sp.c main/wallet_seed.c main/wallet_seed_sd.c main/platform_sd.c main/wallet_usage.c main/wallet_duress.c main/qr_transport.c \
-  sim/test_crypto.c sim/test_qr.c sim/test_seed.c sim/test_sp.c sim/test_sdseed.c sim/test_duress.c sim/test_passedit.c \
+  components/bitsquiggle32/bitsquiggle32.c \
+  main/wallet_crypto.c main/wallet_psbt.c main/wallet_sp.c main/wallet_seed.c main/wallet_seed_sd.c main/platform_sd.c main/wallet_usage.c main/wallet_duress.c main/qr_transport.c main/wallet_tapent.c \
+  sim/test_crypto.c sim/test_qr.c sim/test_seed.c sim/test_sp.c sim/test_sdseed.c sim/test_duress.c sim/test_passedit.c sim/test_squiggle.c sim/test_tapent.c \
   -o /tmp/kisstest
 echo "built /tmp/kisstest"
