@@ -136,6 +136,33 @@ int wallet_tapent_take(uint8_t out[32]) {
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i * 7);
   return 0;
 }
+// Dice source (verifiable path). Real logic + SHA256 live in wallet_dice.c and
+// are exercised by kisstest; the sim links no crypto, so this stub only has to
+// let the dice screen advance and complete. Floors match DICE_FLOOR_128/256.
+static char     s_sim_dice[128];
+static unsigned s_sim_dn;
+void wallet_dice_reset(void) { s_sim_dn = 0; s_sim_dice[0] = 0; }
+int wallet_dice_roll(int face) {
+  if (face < 1 || face > 6) return 0;
+  if (s_sim_dn >= 120) return 0;
+  s_sim_dice[s_sim_dn++] = (char)('0' + face);
+  s_sim_dice[s_sim_dn] = 0;
+  return 1;
+}
+int wallet_dice_undo(void) {
+  if (s_sim_dn == 0) return 0;
+  s_sim_dice[--s_sim_dn] = 0;
+  return 1;
+}
+unsigned wallet_dice_count(void) { return s_sim_dn; }
+const char *wallet_dice_digits(void) { return s_sim_dice; }
+int wallet_dice_take(uint8_t *out, unsigned len) {
+  if (!out || (len != 16 && len != 32)) return -1;
+  unsigned floor = (len == 32) ? 99 : 50;
+  if (s_sim_dn < floor) return -1;
+  for (unsigned i = 0; i < len; i++) out[i] = (uint8_t)(i * 3 + 1);
+  return 0;
+}
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
