@@ -123,6 +123,7 @@
   "I_NET_TEST": "TESTNET, practice coins",
   "I_NET_MAIN": "MAINNET, real bitcoin",
   "I_H_FP_B": "your wallet's ID code.\n\nyour coordinator wallet should show the SAME code.\nto be sure it has your addresses, use RECEIVE > VERIFY.",
+  "I_H_FP_PIC": "the same code, drawn.\nanother wallet, another picture.",
   "I_H_TYPE_B": "what your addresses look like.\nbc1... is the modern one, lowest fees.\n\nm/... is where the keys come from.\nyour coordinator wallet uses it to find them.",
   "I_SEC_PATH": "DERIVATION PATH",
   "I_H_PATH_B": "m/... is where the keys come from.\nyour coordinator wallet uses it to find them.",
