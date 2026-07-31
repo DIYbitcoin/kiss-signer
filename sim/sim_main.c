@@ -1270,22 +1270,25 @@ int main(void) {
     return 1;
   }
 
-  // the real path: CREATE SEED, simulated entropy, quiz, login twice.
-  // Creating no longer asks how many words -- it is always 12 -- so FLASH
-  // lands straight on the entropy screen, and the reveal is one page.
+  // the real path: CREATE SEED, entropy, quiz, login twice. Creating no longer
+  // asks how many words -- it is always 12 -- so FLASH lands on the method
+  // choice (camera+taps vs dice). The walk takes the dice path because it is
+  // the newer one and completes without a camera; the camera+taps screens are
+  // still reached by other coverage. kisstest covers the real SHA256.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH
-  save("/tmp/sim_setup_entropy.ppm");
-  touch(168, 430); pump(3); release(); pump(4);     // CAPTURE -> the tap screen
-  save("/tmp/sim_setup_taps.ppm");                  // source 3: the empty tap card
-  // Fill the 64-segment bar. The sim's tapent stub counts every press (real
-  // debounce is a device concern, unit-tested on the host), so 64 presses on
-  // the card centre (100+300, 130+130) complete it.
-  // pump(4) per phase (~64ms) so a read always lands while pressed and while
-  // released: the indev read timer is ~30ms, and a tighter cycle drifts past
-  // it and drops taps.
-  for (int i = 0; i < 64; i++) { touch(400, 260); pump(4); release(); pump(4); }
-  pump(40);                                          // let the 400ms hold-then-advance fire
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  save("/tmp/sim_setup_method.ppm");                // camera+taps vs dice
+  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1)
+  save("/tmp/sim_setup_dice.ppm");                  // empty d6 keypad, 0 / 50
+  // Roll 50 on the keypad, cycling the six faces so the string is not all one
+  // digit (which would trip the same-y-rolls nudge). Keys sit at y~180; face i
+  // centre x = 160 + i*94. The sim stub counts every press, so 50 -> DONE.
+  for (int i = 0; i < 50; i++) {
+    int kx = 160 + (i % 6) * 94;
+    touch(kx, 180); pump(4); release(); pump(4);
+  }
+  save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, fingerprint, DONE shown
+  touch(430, 425); pump(3); release(); pump(4);     // DONE -> words
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
