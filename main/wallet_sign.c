@@ -1815,7 +1815,12 @@ void wallet_sign_open(lv_obj_t *parent)
     // space rather than into the title above it.
     lv_obj_set_size(hc, 136, 44);
     lv_obj_set_pos(hc, 616, 64);
-    lv_obj_set_style_radius(hc, 22, 0);
+    // 10, like wt_pillh, wt_card and the two rows underneath it. It was 22 --
+    // exactly half the height, so a full lozenge -- and it was the last one on
+    // the device after the buttons became rectangles. A single rounded object on
+    // a screen of square-shouldered ones does not read as a different KIND of
+    // control, it reads as the one that was missed.
+    lv_obj_set_style_radius(hc, 10, 0);
     lv_obj_set_style_bg_color(hc, KEY_COL, 0);
     lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(hc, 1, 0);
