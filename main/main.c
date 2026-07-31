@@ -1621,7 +1621,7 @@ static void fp_card_deleted_cb(lv_event_t *e) {
 
 static void fp_card_open(void) {
   if (s_fp_card) return;
-  s_fp_card = wallet_info_fp_card_open(s_wallet, s_fp_hex);
+  s_fp_card = wallet_info_fp_card_open(s_wallet, s_fp_hex, true);
   if (s_fp_card)
     lv_obj_add_event_cb(s_fp_card, fp_card_deleted_cb, LV_EVENT_DELETE, NULL);
 }
