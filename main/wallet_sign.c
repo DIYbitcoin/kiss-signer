@@ -343,10 +343,24 @@ static void draw_sig_fp(int cap_x, int val_x, int y, int chip_x)
              toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
              toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
              toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
-    mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y, wt_font14(), MUT_COL);
-    mk_lbl(code, val_x, y, wt_font_mono14(), INK_COL);
+    // val_x is a MINIMUM, not a position. The gap between caption and code was
+    // 90px at both call sites, which is "SIGNATURE" at font14 and nothing more:
+    // Dutch HANDTEKENING needs 116 and Portuguese ASSINATURA 92, so both ran
+    // into the code. Measuring the caption and pushing the code out by whatever
+    // it overruns fixes every locale at once, and leaves English pixel identical
+    // because English is what the two numbers were measured against.
+    //
+    // Pushed rather than re-centred: this pair is placed by its callers as part
+    // of a group that one of them centres under a filename, so moving the
+    // caption would move a layout that was already argued out.
+    lv_obj_t *cap = mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y, wt_font14(), MUT_COL);
+    lv_obj_update_layout(cap);
+    const int GAP = 12;
+    int need = cap_x + lv_obj_get_width(cap) + GAP;
+    int push = need > val_x ? need - val_x : 0;
+    mk_lbl(code, val_x + push, y, wt_font_mono14(), INK_COL);
     if (chip_x >= 0)
-        wt_help_chip(s_scr, chip_x, y - 4, MUT_COL, sig_fp_help_cb, NULL);
+        wt_help_chip(s_scr, chip_x + push, y - 4, MUT_COL, sig_fp_help_cb, NULL);
 }
 
 static void done_screen(const char *outname)
