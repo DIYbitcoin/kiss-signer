@@ -179,6 +179,7 @@ static lv_obj_t *s_hearts[3];
 static lv_obj_t *s_menu_panel;
 static lv_obj_t *s_logo_lt[LOGO_LT_N];  // logo letters (children of the menu panel; drop in on entry)
 static lv_obj_t *s_menu_fruit[MENU_FRUIT_N];  // accent fruit: hop in after the letters, then float
+static bool s_menu_idle_drift;     // ...forever, unless menu_idle_drift_stop ends it
 static lv_obj_t *s_over_panel, *s_over_lbl, *s_best_lbl, *s_newbest;
 static int s_score, s_best, s_lives = 3;
 static int s_swipe_n;        // fruit sliced in the current swipe (for combos)
@@ -799,6 +800,35 @@ static void fruit_hop_done(lv_anim_t *a) {
   lv_anim_set_duration(&f, 3400 + i * 370);
   lv_anim_set_reverse_duration(&f, 3400 + i * 370);
   lv_anim_start(&f);
+  s_menu_idle_drift = true;
+}
+
+// Stop the idle drift once the menu is not the screen being looked at.
+//
+// These two animations are LV_ANIM_REPEAT_INFINITE and nothing ever ended them,
+// so the four fruit went on floating under the wallet, the wizard and every
+// sub-screen for the whole session. A moving object under an opaque screen is
+// not free: LVGL invalidates the rect it vacated, recomposites it with whatever
+// is on top, and rot_flush pushes the result to the panel.
+//
+// On the seed entropy screen that is not merely wasteful, it is the bug. Fruit 0
+// and 2 sit at x 150 and 172, inside the preview column at x 48..348, so ~15
+// times a second a 93x92 patch of the LAYOUT was being stamped over the live
+// camera picture -- the black box crawling across the video. Measured with
+// KISS_FLUSH_STATS: 16, 18 and 10 preview hits per second while streaming, and
+// the hit rects were these fruit's exact drift ranges.
+//
+// It also cost every other screen in the product a repaint it never used: the
+// idle flush rate sat at 28-40/s on wallet screens with nothing animating.
+//
+// Only the stop lives here. Every path back to the menu already runs
+// menu_intro(), which deletes any surviving drift and starts it again, so this
+// stays a one-sided change.
+static void menu_idle_drift_stop(void) {
+  if (!s_menu_idle_drift) return;
+  for (int i = 0; i < MENU_FRUIT_N; i++)
+    if (s_menu_fruit[i]) lv_anim_delete(s_menu_fruit[i], NULL);
+  s_menu_idle_drift = false;
 }
 static void menu_intro(void) {
   for (int i = 0; i < LOGO_LT_N; i++) {
@@ -1478,6 +1508,7 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
     }
   }
   saver_hide();
+  menu_idle_drift_stop();          // nothing under the wallet may keep moving
   lv_obj_add_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
@@ -1661,6 +1692,11 @@ static void game_tick(lv_timer_t *t) {
 
   if (wallet_ui_active() || wallet_setup_active() ||
       wallet_duress_ui_active()) {                     // login/wizard own the touch
+    // The menu is buried; its fruit must stop drifting. This is the hook and not
+    // the menu panel's hidden flag because the wizard opens OVER the menu with
+    // the panel still visible, which is how the drift reached the camera preview
+    // in the first place. Idempotent, so running it every tick costs one bool.
+    menu_idle_drift_stop();
     // VERIFY BACKUP runs the setup module DURING a session; keep the idle clock
     // fresh so finishing a long word-entry doesn't insta-lock on return.
     if (s_wallet_on && pressed) s_wallet_act_t = lv_tick_get();
