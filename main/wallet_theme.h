@@ -281,6 +281,8 @@ lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
 lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
 // the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
 void wt_diagram_fp(lv_obj_t *parent);
+// the backup check's claim: RECOVERY WORDS -> THIS WALLET (accent = the match).
+void wt_diagram_verify(lv_obj_t *parent);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
 void wt_diagram_pair(lv_obj_t *parent);
 
