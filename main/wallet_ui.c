@@ -915,6 +915,34 @@ static void show_fingerprint(void) {
   lv_obj_set_style_text_font(big, wt_font_num48(), 0);
   lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -18);
 
+  // The thing this card was always meant to hold beside the number: the same
+  // fingerprint as a picture. It belongs HERE rather than on some later screen
+  // because this is where the owner meets the code, and a shape is what a
+  // person actually recognises a wallet by later — nobody recalls eight hex
+  // characters, everybody recalls a pattern. It never appears without the
+  // number: 32 bits catches a mistyped passphrase, not somebody choosing a
+  // collision, so the code stays the thing that is checked. See wt_squiggle.
+  //
+  // Geometry, all of it measured rather than guessed:
+  //
+  //   caption  up to 363px wide (pt-BR "A IMPRESSÃO DIGITAL DA SUA CARTEIRA")
+  //   number   232px, num48 being fixed advance 461/16 per character
+  //   card     420 x 118, centred at (190, 96), and staying that way
+  //
+  // 363 of 420 is why the picture goes UNDER the caption and not beside it:
+  // there is no column left over that a long translation would not spill out
+  // of, and the caption is centred, so in almost every locale it would cross
+  // whatever sat at the left edge. Below the caption there are 78 vertical
+  // pixels, which is 3x (48 x 66) and not the 4x this was sketched at.
+  //
+  // Horizontally the picture and the number centre AS A GROUP: 48 + 20 + 232 =
+  // 300 in 420 puts the picture at 60 and the number's column at 128. Vertically
+  // 43 centres the picture on the number beside it. The card's size, position
+  // and pop-in are all untouched, which is what keeps this from reopening a
+  // layout that was already argued out.
+  lv_obj_t *sq = wt_squiggle(box, 60, 43, fp, 3);
+  if (sq) lv_obj_align(big, LV_ALIGN_BOTTOM_LEFT, 128, -18);
+
   // the code card rises + fades in when the fingerprint is computed
   lv_anim_t pa;
   lv_anim_init(&pa);
