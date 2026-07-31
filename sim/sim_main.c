@@ -118,6 +118,31 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
 }
+// Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
+// and wallet_crypto.c and needs wally's SHA256; the sim links no crypto, same
+// reason as the seed stub above. Here they only have to let the tap screen
+// advance and complete. kisstest exercises the real versions. 64 == WTAP_TARGET.
+static unsigned s_sim_taps;
+void wallet_tapent_reset(void) { s_sim_taps = 0; }
+int wallet_tapent_tap(uint64_t us, uint32_t cyc, int16_t x, int16_t y) {
+  (void)us; (void)cyc; (void)x; (void)y;
+  if (s_sim_taps >= 64) return 0;
+  s_sim_taps++;
+  return 1;
+}
+unsigned wallet_tapent_count(void) { return s_sim_taps; }
+int wallet_tapent_take(uint8_t out[32]) {
+  if (s_sim_taps < 64) return -1;
+  for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i * 7);
+  return 0;
+}
+int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], uint8_t out[32]) {
+  if (!a || !b || !c || !out) return -1;
+  for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i]);
+  return 0;
+}
+
 // storage mode: the real logic + its edge cases live in wallet_seed.c and are
 // covered by kisstest. Here it only has to steer the screens -- but it has to
 // steer them the same way, so the staged-vs-applied split is mirrored: the
@@ -1202,7 +1227,16 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
   save("/tmp/sim_setup_entropy.ppm");
-  touch(168, 430); pump(3); release(); pump(4);     // CAPTURE (simulated)
+  touch(168, 430); pump(3); release(); pump(4);     // CAPTURE -> the tap screen
+  save("/tmp/sim_setup_taps.ppm");                  // source 3: the empty tap card
+  // Fill the 64-segment bar. The sim's tapent stub counts every press (real
+  // debounce is a device concern, unit-tested on the host), so 64 presses on
+  // the card centre (100+300, 130+130) complete it.
+  // pump(4) per phase (~64ms) so a read always lands while pressed and while
+  // released: the indev read timer is ~30ms, and a tighter cycle drifts past
+  // it and drops taps.
+  for (int i = 0; i < 64; i++) { touch(400, 260); pump(4); release(); pump(4); }
+  pump(40);                                          // let the 400ms hold-then-advance fire
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");

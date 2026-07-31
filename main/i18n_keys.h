@@ -85,6 +85,8 @@ enum {
     STR_W_ENT_TAP_S,
     STR_W_ENT_SRC3_CAP,
     STR_W_ENT_TAP_NOTE,
+    STR_W_ENT_FAIL_T,
+    STR_W_ENT_FAIL_B,
     STR_W_WRITE_T,
     STR_W_WRITE_S,
     STR_W_PAPER_ONLY,
