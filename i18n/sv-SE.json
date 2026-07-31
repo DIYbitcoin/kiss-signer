@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "ETT LAGER TILL",
   "L_PPINTRO_S": "sista steget: skapa din lösenfras",
   "L_PPINTRO_W1_H": "sparas inte",
-  "L_PPINTRO_W1_B": "du skriver in den vid varje inloggning. ingen kopia sparas.",
+  "L_PPINTRO_W1_B": "du anger den vid varje inloggning. ingen kopia sparas.",
   "L_PPINTRO_W2_H": "går inte att återställa",
   "L_PPINTRO_W2_B": "en annan lösenfras öppnar en annan plånbok, utan varning.",
   "L_CREATE_PASS_BTN": "SKAPA LÖSENFRAS",

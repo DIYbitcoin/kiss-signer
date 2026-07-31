@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "NOG ÉÉN LAAG",
   "L_PPINTRO_S": "laatste stap: maak je passphrase",
   "L_PPINTRO_W1_H": "wordt niet bewaard",
-  "L_PPINTRO_W1_B": "je typt hem bij elke login opnieuw. er blijft geen kopie.",
+  "L_PPINTRO_W1_B": "je voert hem bij elke login opnieuw in. er blijft geen kopie.",
   "L_PPINTRO_W2_H": "niet te herstellen",
   "L_PPINTRO_W2_B": "een andere passphrase opent een andere wallet, zonder waarschuwing.",
   "L_CREATE_PASS_BTN": "MAAK PASSPHRASE",

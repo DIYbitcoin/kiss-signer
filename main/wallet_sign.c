@@ -327,7 +327,10 @@ static void sig_fp_help_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
-    wt_note(s_scr, tr(STR_S_SIG_FP_HELP_B), 48, 118, 704, 260);
+    // Ruled claims instead of a 704px paragraph: this screen answers "can I
+    // trust this code", and wt_why_body splits the answer the copy was already
+    // written in without asking for a new string in twenty one locales.
+    wt_why_body(s_scr, tr(STR_S_SIG_FP_HELP_B), 118, wt_accent(), true);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, sig_help_back_cb);
 }
 

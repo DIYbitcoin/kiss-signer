@@ -1564,6 +1564,24 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     return card;
 }
 
+
+// The body font for a PAIR of blocks that must share one size. Taking the
+// smaller of the two rungs, because they render side by side and the taller
+// half decides whether either of them fits.
+//
+// strlen is not a substitute for this and was the bug: the passphrase intro
+// picked its font from whichever body had more BYTES, and a longer string that
+// happens to wrap short chose a size the shorter one could not survive. Italian
+// went 7px past WT_CONTENT_BOTTOM the moment a translation changed length.
+const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
+{
+    const lv_font_t *fa = wt_body_font(a, w, max_h);
+    const lv_font_t *fb = wt_body_font(b, w, max_h);
+    if (fa == wt_font14() || fb == wt_font14()) return wt_font14();
+    if (fa == wt_font23() || fb == wt_font23()) return wt_font23();
+    return fa;
+}
+
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
                        int x, int y, int w, int max_h, const lv_font_t *f,
                        lv_color_t col)
@@ -1739,6 +1757,108 @@ static void exp_join(const exp_paras_t *ps, int a, int b, char *out, size_t len)
         if (i + 1 < b && o + 2 < len) { out[o++] = '\n'; out[o++] = '\n'; }
     }
     out[o] = 0;
+}
+
+
+// Lay a body out as ruled blocks in the room between `y` and WT_CONTENT_BOTTOM,
+// choosing the arrangement and the font size that read best: full width when the
+// text can earn the 704 lane, two balanced columns otherwise, dropping a rung
+// before it ever overflows. `sev` colours the first block, WT_MUT the second.
+//
+// This was the private guts of wt_explain_open and it is public now because the
+// explainer cards were not the only screens with a wall of grey text in them.
+// Nine more screens had one, and giving each its own hand placed layout is how
+// the walls got there in the first place. The explainer card calls this too, so
+// there is one body layout on the device rather than ten.
+//
+// It costs NOTHING in translation: every one of these bodies is already written
+// as two or three paragraphs separated by a blank line in all 21 locales, so
+// this splits a string that exists rather than asking for one that does not.
+void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
+                 bool two_col)
+{
+    if (!par || !body || !*body) return;
+    int room = WT_CONTENT_BOTTOM - y;
+    if (room < 40) room = 40;
+
+exp_paras_t ps;
+    exp_split(body, &ps);
+
+    const lv_font_t *ladder[3];
+    ladder[0] = wt_font28(); ladder[1] = wt_font23(); ladder[2] = wt_font14();
+
+    const lv_font_t *f = wt_font14();
+    int split_at = 0;                 // 0 = one full width block
+    int used = room;
+
+    for (int r = 0; r < 3; r++) {
+        const lv_font_t *cand = ladder[r];
+
+        // Full width first. It reads better than two columns and it is the
+        // only arrangement that can use the whole 704 lane, but a two line
+        // answer stretched across the page leaves a hole under itself, so it
+        // has to earn the lane by filling at least half the room. A single
+        // paragraph takes it regardless: there is nothing to split.
+        // two_col is what a full SCREEN asks for and a card does not. The
+        // "earn the lane" rule below was tuned for the explainer overlay, which
+        // has little room, so a body nearly always fills half of it and takes
+        // the full width. A screen has ~280px and three paragraphs fill it
+        // easily, so the same rule produced the exact wall of grey text these
+        // screens were being rebuilt to stop being. With 2+ paragraphs a screen
+        // goes straight to the two columns the reveal screen established.
+        int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
+        if (!(two_col && ps.count >= 2) &&
+            hf <= room && (ps.count == 1 || hf * 2 >= room)) {
+            f = cand; split_at = 0; used = hf;
+            break;
+        }
+
+        // Otherwise deal the paragraphs into two columns at the boundary
+        // that makes them most nearly equal, rather than always after the
+        // first. Balanced columns are what let the pair share a bigger font:
+        // they share one by design, and one shares badly when one half is
+        // four words and the other is two paragraphs.
+        if (ps.count >= 2) {
+            int best = 1, best_gap = -1, best_tall = 0;
+            for (int k = 1; k < ps.count; k++) {
+                int hl = exp_height(&ps, 0, k, cand, EXP_COL_TXT);
+                int hr = exp_height(&ps, k, ps.count, cand, EXP_COL_TXT);
+                int gap = hl > hr ? hl - hr : hr - hl;
+                if (best_gap < 0 || gap < best_gap) {
+                    best_gap = gap; best = k; best_tall = hl > hr ? hl : hr;
+                }
+            }
+            if (best_tall <= room) {
+                f = cand; split_at = best; used = best_tall;
+                break;
+            }
+        }
+
+        // Nothing fits at font14 either: keep it, clamp, and let
+        // wt_why_block's own bounds do the rest. Better a full card of the
+        // smallest type than a card that silently drops its second half.
+        if (r == 2) {
+            f = cand;
+            split_at = ps.count >= 2 ? 1 : 0;
+            used = room;
+        }
+    }
+
+    // Drop the band by a third of what is left over. Centring it outright
+    // floats the text away from the title it answers; hugging the top, which
+    // is what this did before, leaves the whole bottom of the card empty.
+    int slack = room - used;
+    if (slack > 0) { y += slack / 3; room -= slack / 3; }
+
+    if (split_at) {
+        char left[640], right[640];
+        exp_join(&ps, 0, split_at, left, sizeof left);
+        exp_join(&ps, split_at, ps.count, right, sizeof right);
+        wt_why_block(par, NULL, left,  48, y, EXP_COL_W, room, f, sev);
+        wt_why_block(par, NULL, right, 408, y, EXP_COL_W, room, f, WT_MUT);
+    } else {
+        wt_why_block(par, NULL, body, 48, y, EXP_FULL_W, room, f, sev);
+    }
 }
 
 // ---- WT_GRID_ICONS ----
@@ -1926,76 +2046,7 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         if (e->mode == WT_GRID_ICONS) {
             explain_grid(ovl, e, y, room, sev);
         } else {
-        exp_paras_t ps;
-        exp_split(e->body, &ps);
-
-        const lv_font_t *ladder[3];
-        ladder[0] = wt_font28(); ladder[1] = wt_font23(); ladder[2] = wt_font14();
-
-        const lv_font_t *f = wt_font14();
-        int split_at = 0;                 // 0 = one full width block
-        int used = room;
-
-        for (int r = 0; r < 3; r++) {
-            const lv_font_t *cand = ladder[r];
-
-            // Full width first. It reads better than two columns and it is the
-            // only arrangement that can use the whole 704 lane, but a two line
-            // answer stretched across the page leaves a hole under itself, so it
-            // has to earn the lane by filling at least half the room. A single
-            // paragraph takes it regardless: there is nothing to split.
-            int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
-            if (hf <= room && (ps.count == 1 || hf * 2 >= room)) {
-                f = cand; split_at = 0; used = hf;
-                break;
-            }
-
-            // Otherwise deal the paragraphs into two columns at the boundary
-            // that makes them most nearly equal, rather than always after the
-            // first. Balanced columns are what let the pair share a bigger font:
-            // they share one by design, and one shares badly when one half is
-            // four words and the other is two paragraphs.
-            if (ps.count >= 2) {
-                int best = 1, best_gap = -1, best_tall = 0;
-                for (int k = 1; k < ps.count; k++) {
-                    int hl = exp_height(&ps, 0, k, cand, EXP_COL_TXT);
-                    int hr = exp_height(&ps, k, ps.count, cand, EXP_COL_TXT);
-                    int gap = hl > hr ? hl - hr : hr - hl;
-                    if (best_gap < 0 || gap < best_gap) {
-                        best_gap = gap; best = k; best_tall = hl > hr ? hl : hr;
-                    }
-                }
-                if (best_tall <= room) {
-                    f = cand; split_at = best; used = best_tall;
-                    break;
-                }
-            }
-
-            // Nothing fits at font14 either: keep it, clamp, and let
-            // wt_why_block's own bounds do the rest. Better a full card of the
-            // smallest type than a card that silently drops its second half.
-            if (r == 2) {
-                f = cand;
-                split_at = ps.count >= 2 ? 1 : 0;
-                used = room;
-            }
-        }
-
-        // Drop the band by a third of what is left over. Centring it outright
-        // floats the text away from the title it answers; hugging the top, which
-        // is what this did before, leaves the whole bottom of the card empty.
-        int slack = room - used;
-        if (slack > 0) { y += slack / 3; room -= slack / 3; }
-
-        if (split_at) {
-            char left[640], right[640];
-            exp_join(&ps, 0, split_at, left, sizeof left);
-            exp_join(&ps, split_at, ps.count, right, sizeof right);
-            wt_why_block(ovl, NULL, left,  48, y, EXP_COL_W, room, f, sev);
-            wt_why_block(ovl, NULL, right, 408, y, EXP_COL_W, room, f, WT_MUT);
-        } else {
-            wt_why_block(ovl, NULL, e->body, 48, y, EXP_FULL_W, room, f, sev);
-        }
+        wt_why_body(ovl, e->body, y, sev, false);
         }
     }
 

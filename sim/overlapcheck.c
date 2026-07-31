@@ -681,22 +681,19 @@ static bool oc_is_frame(const oc_node_t *n)
 // Matched on the stop tag, which is locale independent -- the finding text is
 // translated copy and would need twenty one spellings of the same exemption.
 static const char *OC_BARE_BACKLOG[] = {
-    "sign_sigcheck",        // wallet_sign.c  "this code comes from the signature"
-    "storage_confirm_sd",   // wallet_settings.c
-    "storage_hold_noop",    // the same confirm screen, reached a second way
-    "storage_sd_ok",        // wallet_settings.c
-    "words_warn",           // wallet_ui.c    "make sure nobody can see the screen"
-    "verify_mismatch",      // wallet_setup.c "check your paper against ..."
-    "duress_done",          // wallet_duress_ui.c
-    "amnesic_qrbad",        // wallet_setup.c
-    "amnesic_ppwarn",       // wallet_ui.c
+    // EMPTY, and that is the point. Nine stops were listed here when the check
+    // landed; all nine have been rebuilt with wt_why_body, so every screen on
+    // the device that has an action row now puts something framed above it.
+    // A new entry is a screen someone chose not to fix, and needs saying so.
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
 static bool s_bare_hit[sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]];
 
 static bool oc_bare_excused(const char *tag)
 {
     for (unsigned i = 0; i < sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]; i++)
-        if (strstr(tag, OC_BARE_BACKLOG[i])) { s_bare_hit[i] = true; return true; }
+        if (OC_BARE_BACKLOG[i] && strstr(tag, OC_BARE_BACKLOG[i]))
+            { s_bare_hit[i] = true; return true; }
     return false;
 }
 
@@ -941,6 +938,7 @@ int oc_report(void)
     {
         int bare_left = 0;
         for (unsigned i = 0; i < sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]; i++) {
+            if (!OC_BARE_BACKLOG[i]) continue;
             if (s_bare_hit[i]) { bare_left++; continue; }
             printf("[overlap] %s: BARE backlog entry \"%s\" never matched a stop"
                    " -- rebuild it or delete the line\n", lang, OC_BARE_BACKLOG[i]);
