@@ -1284,12 +1284,31 @@ int main(void) {
 
   // the real path: CREATE SEED, entropy, quiz, login twice. Creating no longer
   // asks how many words -- it is always 12 -- so FLASH lands on the method
-  // choice (camera+taps vs dice). The walk takes the dice path because it is
-  // the newer one and completes without a camera; the camera+taps screens are
-  // still reached by other coverage. kisstest covers the real SHA256.
+  // choice (camera+taps vs dice). Both branches are visited: the camera one for
+  // its layout only (it cannot complete without a sensor), the dice one all the
+  // way to a wallet. kisstest covers the real SHA256.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   save("/tmp/sim_setup_method.ppm");                // camera+taps vs dice
+
+  // A detour through the CAMERA branch before taking dice. Nothing here can
+  // gather entropy without a camera, but every save() in this walk is a stop
+  // for sim/overlapcheck.c in all 21 locales, and these two screens had NO
+  // coverage at all: the walk went straight to dice, so ADD RANDOMNESS and its
+  // explainer were the only setup screens no gate had ever rendered. That is
+  // exactly how they drifted off-theme far enough for the owner to find it on
+  // hardware. Row 0 of the method screen is 96..192, so 144 is its middle.
+  touch(394, 144); pump(3); release(); pump(6);     // camera+taps (row 0)
+  save("/tmp/sim_setup_entropy.ppm");               // ADD RANDOMNESS, ready state
+  touch(725, 364); pump(3); release(); pump(40);    // "?" on the equation card;
+                                                    // 40 = the staggered card
+                                                    // intro fully settled
+  save("/tmp/sim_setup_ent_why.ppm");               // WHY THREE SOURCES, icon grid
+  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
+  touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED again
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+
   touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1)
   save("/tmp/sim_setup_dice.ppm");                  // empty d6 keypad, 0 / 50
   // Roll 50 on the keypad, cycling the six faces so the string is not all one

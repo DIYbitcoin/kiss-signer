@@ -692,6 +692,10 @@ static void tap_screen(void)
 }
 
 #ifdef SIMULATOR
+// camera_spike.h is device only, and the sim builds the same screen. It will
+// never produce a reason code, but ent_ui_sync's signature is shared.
+enum { ENT_R_OK = 0, ENT_R_DARK, ENT_R_STILL };
+
 static void sim_entropy_cb(lv_event_t *e)
 {
     (void)e;
@@ -707,14 +711,17 @@ static void sim_entropy_cb(lv_event_t *e)
 #else
 // The capture happens on the camera task; an LVGL timer collects the hash.
 static lv_timer_t *s_ent_tmr;
-static void ent_ui_sync(int pct);   // defined below; the poll drives it live
+static void ent_ui_sync(int pct, int reason);   // below; the poll drives it live
 
 static void ent_poll_cb(lv_timer_t *t)
 {
     // Reflect live accrual every tick: the SOURCE-1 fill, the readiness dot,
-    // the "ready" line and the CAPTURE gate all read from this. Without it the
-    // meter climbs invisibly and the screen looks frozen until a lucky tap.
-    ent_ui_sync(camera_entropy_progress());
+    // the state line, the chips and the action gate all read from this. Without
+    // it the meter climbs invisibly and the screen looks frozen until a lucky
+    // tap. The reason rides along so a bar that is NOT climbing can say why,
+    // which since the light and novelty gates landed is a state a holder can
+    // sit in indefinitely.
+    ent_ui_sync(camera_entropy_progress(), camera_entropy_reason());
 
     // Capture freezes sources 1 and 2 into the statics and hands them here.
     // They wait through the tap screen; the mnemonic is not made until the
@@ -749,15 +756,42 @@ static void ent_back_cb(lv_event_t *e)
     camera_entropy_stop();
     choose_screen();
 }
+
+// The explainer overlay is being torn down: put the camera screen back, with a
+// fresh meter. Deferred by one tick, because entropy_screen() replaces the
+// screen whose delete event is running right now.
+static void ent_mix_reopen_cb(lv_timer_t *t) { lv_timer_delete(t); entropy_screen(); }
+static void ent_mix_closed_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_timer_t *t = lv_timer_create(ent_mix_reopen_cb, 1, NULL);
+    if (t) lv_timer_set_repeat_count(t, 1);
+}
 #endif
 
-static void ent_mix_back_cb(lv_event_t *e) { (void)e; entropy_screen(); }
+// One glyph per body line, in order: the lens, the chip, the hand's tap, and
+// the dice the fourth line sends an unconvinced reader to (the same LIST glyph
+// method_screen puts on the DICE row, so the two marks agree).
+static const char *const ENT_MIX_ICONS[] = {
+    LV_SYMBOL_IMAGE,
+    LV_SYMBOL_CHARGE,
+    LV_SYMBOL_OK,
+    LV_SYMBOL_LIST,
+};
 
-// The "?" beside the equation. Stops the preview before replacing the screen:
-// the card is a full screen of prose and the camera owns a column of the panel,
-// so leaving the stream live would paint video across the paragraph. BACK
+// The "?" on the equation card. This was a hand-built page -- three wt_row_x
+// rows at hardcoded y, a takeaway label placed by eye -- and it looked like a
+// different device to every other "?" on this one. wt_explain_open IS the
+// explainer: title and badge where wt_screen puts them, a body font measured
+// against the active locale rather than assumed, a dismiss pill, close on a tap
+// anywhere. WT_GRID_ICONS takes the body as one `term: definition` per line and
+// deals it into a badge grid, which is exactly the shape three named sources
+// want and needs no string this file would otherwise have invented.
+//
+// The camera stops first: the card covers the panel and the preview owns a
+// column of it, so a live stream would paint video across the text. BACK
 // rebuilds the entropy screen, which restarts the camera on a fresh meter, and
-// a fresh meter is what the existing per session rule already wants.
+// a fresh meter per visit is what the existing rule already wants.
 static void ent_mix_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -765,24 +799,31 @@ static void ent_mix_help_cb(lv_event_t *e)
     if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
     camera_entropy_stop();
 #endif
-    mk_screen(tr(STR_W_ENT_MIX_T), NULL);
-
-    // The same three-source vocabulary the ADD RANDOMNESS screen speaks: one
-    // icon row per source (icon + caption + one line), not a wall of prose.
-    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_ENT_SRC1_CAP), tr(STR_W_ENT_SRC1_NOTE),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 104, WT_CHOICE_W, 66, NULL, NULL);
-    wt_row_x(s_scr, LV_SYMBOL_CHARGE, tr(STR_W_ENT_SRC2_CAP), tr(STR_W_ENT_SRC2_NOTE),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 178, WT_CHOICE_W, 66, NULL, NULL);
-    wt_row_x(s_scr, LV_SYMBOL_OK, tr(STR_W_ENT_SRC3_CAP), tr(STR_W_ENT_TAP_S),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 252, WT_CHOICE_W, 66, NULL, NULL);
-
-    // One big takeaway line instead of three paragraphs.
-    lv_obj_t *tl = wt_lbl(s_scr, tr(STR_W_ENT_MIX_B), WT_CHOICE_X + 4, 336,
-                          wt_font23(), INK_COL);
-    lv_obj_set_width(tl, WT_CHOICE_W - 8);
-    lv_label_set_long_mode(tl, LV_LABEL_LONG_WRAP);
-
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_mix_back_cb, NULL);
+    // The subtitle is the claim, and it is a WEAKER claim than the one it
+    // replaces. "an attacker must beat all three" is true of a bad RNG and
+    // false of bad firmware: all three sources are produced by this device, so
+    // firmware that lies produces all three lies together. What is honestly
+    // true is that no ONE of them decides the wallet -- and the reader who
+    // wants more than that is handed the dice path on the fourth line, because
+    // dice is the only source here that can be checked off the device.
+    wt_explain_t x = {
+        .title  = tr(STR_W_ENT_MIX_T),
+        .sub    = tr(STR_W_ENT_MIX_S),
+        .icon   = LV_SYMBOL_SHUFFLE,
+        .body   = tr(STR_W_ENT_MIX_B),
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_GRID_ICONS,
+        .icons  = ENT_MIX_ICONS,
+    };
+    lv_obj_t *ovl = wt_explain_open(s_scr, &x);
+#ifndef SIMULATOR
+    // The card is an OVERLAY, not a replacement screen, so the entropy screen
+    // is still underneath with a stopped camera and no poll timer. Rebuild it
+    // when the overlay goes: there is no BACK button to hang this on, because
+    // an explainer closes on a tap anywhere.
+    if (ovl) lv_obj_add_event_cb(ovl, ent_mix_closed_cb, LV_EVENT_DELETE, NULL);
+    else     entropy_screen();
+#endif
 }
 
 // ---- ADDENDUM-01 section 2: the entropy screen's right column ----
@@ -816,6 +857,8 @@ static void ent_mix_help_cb(lv_event_t *e)
 
 static lv_obj_t *s_ent_bar1, *s_ent_bar2, *s_ent_state, *s_ent_dot;
 static lv_obj_t *s_ent_capture;
+// The equation's chips are STATE, not decoration, so they are held and driven.
+static lv_obj_t *s_ent_c1, *s_ent_c2, *s_ent_c3, *s_ent_cr;
 
 // One source card: caption, bit count right aligned, a bar, and a note. Returns
 // the bar so the caller can drive it.
@@ -873,24 +916,61 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full)
     return fill;
 }
 
-// Drive source one's bar and the readiness line from the camera's meter. Runs
-// on the same LVGL timer that polls for the capture result.
-static void ent_ui_sync(int pct)
+// Light one of the equation's chips, or leave it as an unmet promise. A chip is
+// two objects -- the box and the label inside it -- so both move or the change
+// reads as a rendering fault.
+static void ent_chip_lit(lv_obj_t *c, bool lit)
+{
+    if (!c) return;
+    lv_color_t col = lit ? OK_COL : WT_DIM;
+    lv_obj_set_style_border_color(c, col, 0);
+    lv_obj_t *l = lv_obj_get_child(c, 0);
+    if (l) lv_obj_set_style_text_color(l, col, 0);
+}
+
+// Drive source one's bar, the state line and the equation from the camera's
+// meter. Runs on the same LVGL timer that polls for the capture result.
+static void ent_ui_sync(int pct, int reason)
 {
     if (s_ent_bar1)
         lv_obj_set_width(s_ent_bar1, (ENT_COL_W - 28) * pct / 100);
     bool ready = pct >= 100;
     if (s_ent_dot)
         lv_obj_set_style_bg_color(s_ent_dot, ready ? OK_COL : WT_EDGE, 0);
+
+    // Four states, and each one is an INSTRUCTION. It used to be two lines, and
+    // the not-ready one ("point at something with more detail") was a guess
+    // dressed as advice: the screen had no idea whether the view was too dark
+    // or simply not arriving, so it said the same thing either way. Now that a
+    // frame can score zero for two different reasons, a holder watching a bar
+    // that will never move on its own has to be told which one they are in.
     if (s_ent_state) {
-        lv_label_set_text(s_ent_state,
-                          tr(ready ? STR_W_ENT_READY : STR_W_ENT_NOTREADY));
-        lv_obj_set_style_text_color(s_ent_state, ready ? OK_COL : MUT_COL, 0);
+        int k = ready       ? STR_W_ENT_DONE1
+              : reason == ENT_R_DARK  ? STR_W_ENT_LOW
+              : reason == ENT_R_STILL ? STR_W_ENT_STILL
+              : STR_W_ENT_GOING;
+        lv_label_set_text(s_ent_state, tr(k));
+        lv_obj_set_style_text_color(s_ent_state,
+                                    ready ? OK_COL
+                                    : k == STR_W_ENT_GOING ? MUT_COL : WARN_COL, 0);
     }
-    // CAPTURE is the discoverable form of "tap anywhere", which still works.
-    // Disabled until source one is full, because a capture below the gate is
-    // refused by camera_spike anyway and a button that silently does nothing
-    // reads as a missed touch.
+
+    // The equation reads as state, not as a picture. Chip 2 is lit from the
+    // moment the screen opens because the chip's own noise has been running
+    // since boot and its bar is already full; chip 1 lights when the camera
+    // fills; chip 3 stays dark because it is collected on the NEXT screen, and
+    // so does the result, which is what the three of them ADD UP TO rather than
+    // something already in hand. Drawing "12 WORDS" in the accent while a
+    // source was still missing was the screen claiming to be finished.
+    ent_chip_lit(s_ent_c1, ready);
+    ent_chip_lit(s_ent_c2, true);
+    ent_chip_lit(s_ent_c3, false);
+    ent_chip_lit(s_ent_cr, false);
+
+    // The action pill is the discoverable form of "tap anywhere", which still
+    // works. Disabled until source one is full, because a capture below the
+    // gate is refused by camera_spike anyway and a button that silently does
+    // nothing reads as a missed touch.
     if (s_ent_capture) {
         lv_obj_set_style_opa(s_ent_capture, ready ? LV_OPA_COVER : LV_OPA_40, 0);
         if (ready) lv_obj_add_flag(s_ent_capture, LV_OBJ_FLAG_CLICKABLE);
@@ -1068,6 +1148,7 @@ static void entropy_screen(void)
 {
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
     s_ent_bar1 = s_ent_bar2 = s_ent_state = s_ent_dot = s_ent_capture = NULL;
+    s_ent_c1 = s_ent_c2 = s_ent_c3 = s_ent_cr = NULL;
 
     // Left: the frame the preview lands in. The same viewfinder the scan screen
     // uses, so the two camera screens are one object to the eye: a filled panel
@@ -1086,7 +1167,7 @@ static void entropy_screen(void)
     lv_obj_set_style_bg_opa(s_ent_dot, LV_OPA_COVER, 0);
     lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_SCROLLABLE);
-    s_ent_state = wt_lbl(s_scr, tr(STR_W_ENT_NOTREADY), ENT_CAM_X + 18,
+    s_ent_state = wt_lbl(s_scr, tr(STR_W_ENT_LOW), ENT_CAM_X + 18,
                          ENT_CAM_Y + ENT_CAM_H + 8, wt_font14(), MUT_COL);
     lv_obj_set_width(s_ent_state, ENT_CAM_W - 18);
     lv_label_set_long_mode(s_ent_state, LV_LABEL_LONG_WRAP);
@@ -1096,36 +1177,43 @@ static void entropy_screen(void)
     s_ent_bar2 = ent_card(ENT_CAM_Y + ENT_CARD_H + 8, STR_W_ENT_SRC2_CAP,
                           STR_W_ENT_SRC2_NOTE, true);
 
-    // 1 + 2 -> 12 WORDS, in the same vocabulary the fingerprint card uses, so
-    // it reads as part of one system rather than as new decoration. A flex
-    // column parent, because wt_diagram_row takes its y from the layout.
-    lv_obj_t *eq = lv_obj_create(s_scr);
+    // 1 + 2 + 3 -> 12 WORDS, in a CARD, with the "?" in that card's own top
+    // right corner. Both halves of that matter. The chips used to float on the
+    // page and the "?" sat further right again at (752, 66) with the word WHY
+    // beside it, which is the arrangement wallet_scan.c already learned not to
+    // ship: a help affordance in the gutter belongs to nothing, so a reader has
+    // to guess what it explains. Boxed with the diagram, it is that diagram's
+    // footnote and nothing else, and it is the shape the PSBT and glossary "?"
+    // marks already wear.
+    //
+    // 336..392, under the two 96-tall source cards (which end at 328) and clear
+    // of WT_CONTENT_BOTTOM at 398.
+    lv_obj_t *eqc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y + 2 * ENT_CARD_H + 16,
+                            ENT_COL_W, 56);
+    wt_help_chip(eqc, ENT_COL_W - 42, 13, MUT_COL, ent_mix_help_cb, NULL);
+
+    // A flex column parent, because wt_diagram_row takes its y from the layout.
+    // Width stops short of the chip so a long translated result chip cannot
+    // centre itself underneath it.
+    lv_obj_t *eq = lv_obj_create(eqc);
     lv_obj_remove_style_all(eq);
-    lv_obj_set_pos(eq, ENT_COL_X, ENT_CAM_Y + 2 * ENT_CARD_H + 24);
-    lv_obj_set_size(eq, ENT_COL_W, 46);
+    lv_obj_set_pos(eq, 0, 0);
+    lv_obj_set_size(eq, ENT_COL_W - 46, 56);
     lv_obj_set_flex_flow(eq, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(eq, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     lv_obj_remove_flag(eq, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(eq, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *row = wt_diagram_row(eq);
-    wt_chip(row, "1", false);
+    // Every chip is built inert and lit by ent_ui_sync, so no state is painted
+    // here that the screen has not actually reached.
+    s_ent_c1 = wt_chip(row, "1", false);
     wt_diagram_op(row, "+");
-    wt_chip(row, "2", false);
+    s_ent_c2 = wt_chip(row, "2", false);
     wt_diagram_op(row, "+");
-    // Source 3 is not collected on this screen, so its chip is drawn inert: a
-    // dim chip in an equation reads as a promise the next screen keeps.
-    lv_obj_t *c3 = wt_chip(row, "3", false);
-    lv_obj_set_style_text_color(c3, WT_DIM, 0);
-    lv_obj_set_style_border_color(c3, WT_DIM, 0);
+    s_ent_c3 = wt_chip(row, "3", false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, tr(STR_W_ENT_RESULT), true);
-    // Help: the top-right corner every other screen uses, and labelled so the
-    // "?" announces itself. Word and chip both open the explainer.
-    lv_obj_t *why = wt_lbl(s_scr, tr(STR_W_ENT_WHY), 700, 68, wt_font14(), MUT_COL);
-    lv_obj_add_flag(why, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(why, ent_mix_help_cb, LV_EVENT_CLICKED, NULL);
-    wt_help_chip(s_scr, 752, 66, MUT_COL, ent_mix_help_cb, NULL);
+    s_ent_cr = wt_chip(row, tr(STR_W_ENT_RESULT), false);
 
 #ifdef SIMULATOR
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
@@ -1133,9 +1221,9 @@ static void entropy_screen(void)
     wt_pill_primary(s_ent_capture);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
     // The sim has no camera and no meter, so the walk would see a permanently
-    // disabled CAPTURE. Show the ready state: it is the one the scripted tap
-    // exercises, and the frame the docs publish.
-    ent_ui_sync(100);
+    // disabled action pill. Show the ready state: it is the one the scripted
+    // tap exercises, and the frame the docs publish.
+    ent_ui_sync(100, ENT_R_OK);
 #else
     // Rect BEFORE start: set_preview_rect pins and blanks the framebuffer both
     // the video and LVGL will share, so it has to happen before the first frame
@@ -1148,7 +1236,7 @@ static void entropy_screen(void)
         s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
                                 ent_tap_cb, NULL);
         wt_pill_primary(s_ent_capture);
-        ent_ui_sync(0);
+        ent_ui_sync(0, camera_entropy_reason());
     } else {
         // The camera failed. The two cards above still tell the truth about the
         // chip, so they stay; the preview column carries the error instead.
@@ -1451,13 +1539,35 @@ static void choose_screen(void)
              tr(STR_W_RESTORE_NOTE), NULL, NULL, NULL, WT_INK, false,
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              restore_cb, NULL);
-    // The third pill "WHAT IS A SEED?" is now a "?" chip beside the subtitle.
-    // A question does not rank equal to the two decisions, and the pill's
-    // bottom edge landed at 396 anyway, two pixels off the content floor.
-    // The chip is 30x30 with a 12px hit slop -> 54px effective target, so it
-    // is still tappable at arm's length. Placed at (752, 66) it sits on the
-    // subtitle's baseline, at the right end of the header lane.
-    wt_help_chip(s_scr, 752, 66, MUT_COL, whatseed_cb, NULL);
+    // "WHAT IS A SEED?" was a third pill, then a bare "?" chip parked at
+    // (752, 66) in the header lane. Both were wrong in opposite directions. The
+    // pill ranked a question equal to the two decisions; the naked chip ranked
+    // it as nothing at all, floating in the gutter beside a subtitle it did not
+    // belong to, so the first screen a new owner ever sees offered a control
+    // with no clue what it opened.
+    //
+    // A short note card in the same 716 lane, with the "?" in ITS top right
+    // corner, is what the rest of the device already does (wallet_scan.c, and
+    // the export note in wallet_info.c). Now the mark is attached to the words
+    // that say what it answers. It is not a third choice: it is 76 tall where
+    // the rows are 96, carries no icon badge and no chevron, and sits below the
+    // pair rather than in their rhythm.
+    //
+    // 306..382, under the second row (which ends at 294) and clear of
+    // WT_CONTENT_BOTTOM at 398.
+    {
+        // One line's worth of height for the note, vertically centred with the
+        // chip. wt_note_fit takes the biggest font that fits the box it is
+        // given, so a taller box does NOT mean bigger type here -- it means a
+        // short sentence stranded at the top of a half empty card.
+        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, 306, WT_CHOICE_W, 76);
+        wt_note(hc, tr(STR_W_SEED_HELP), 16, 22, WT_CHOICE_W - 32 - 34, 34);
+        wt_help_chip(hc, WT_CHOICE_W - 44, 23, MUT_COL, whatseed_cb, NULL);
+        // The whole card opens it, not just the 30px mark. Someone who does not
+        // know what a seed is will reach for the sentence, not the punctuation.
+        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(hc, whatseed_cb, LV_EVENT_CLICKED, NULL);
+    }
     mk_pill(tr(STR_C_CANCEL), 610, WT_ACTION_Y, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
