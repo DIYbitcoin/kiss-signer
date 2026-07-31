@@ -43,7 +43,12 @@ static void swap_screen(void)           // replace the current section screen
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
-enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
+// DIAG_FP_PIC is DIAG_FP plus the wallet's picture under the equation. It is a
+// separate id and not a flag because the picture may only appear on a card that
+// is ALSO showing the code: the picture is a recognition aid, never the identity
+// itself, and this card opens two ways — from the home chip, whose title carries
+// the eight characters, and from the WALLET screen's "?", whose title does not.
+enum { DIAG_NONE = 0, DIAG_FP, DIAG_FP_PIC, DIAG_PAIR, DIAG_SCAN };
 
 static void sp_permission_fact(lv_obj_t *parent, const char *icon,
                                int key, lv_color_t icon_color)
@@ -150,8 +155,23 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_update_layout(col);
     return lv_obj_get_height(col);
 }
+// The equation ends at a chip carrying the WORD "fingerprint". Under it goes
+// the thing itself, so the arrow points at something instead of at a label, and
+// so the card that explains the fingerprint is where the owner meets its
+// picture at a size worth learning. The column reports its own height back to
+// wt_explain_open, which is what lets the body reflow around the taller aside
+// without anyone hand-tuning a y.
+static void fp_model(lv_obj_t *col)
+{
+    wt_diagram_fp(col);
+    uint8_t fp[4];
+    wallet_ui_last_fp(fp);
+    wt_squiggle(col, 0, 0, fp, 6);      // NULL before any unlock: no picture yet
+}
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_fp); }
+static int aside_fp_pic(lv_obj_t *p, int x, int y, int w)
+{ return aside_col(p, x, y, w, fp_model); }
 static int aside_pair(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_pair); }
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
@@ -174,14 +194,16 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
     // mark on the control that sent them here. Without a diagram the caller says.
     wt_explain_t e = {
         .title  = title,
-        .icon   = diagram == DIAG_FP   ? WT_ICON_KEY
-                : diagram == DIAG_PAIR ? WT_ICON_QR
-                : diagram == DIAG_SCAN ? WT_ICON_SECRET : icon,
+        .icon   = diagram == DIAG_FP
+               || diagram == DIAG_FP_PIC ? WT_ICON_KEY
+                : diagram == DIAG_PAIR   ? WT_ICON_QR
+                : diagram == DIAG_SCAN   ? WT_ICON_SECRET : icon,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
-        .aside  = diagram == DIAG_FP   ? aside_fp
-                : diagram == DIAG_PAIR ? aside_pair
-                : diagram == DIAG_SCAN ? aside_scan : NULL,
+        .aside  = diagram == DIAG_FP     ? aside_fp
+                : diagram == DIAG_FP_PIC ? aside_fp_pic
+                : diagram == DIAG_PAIR   ? aside_pair
+                : diagram == DIAG_SCAN   ? aside_scan : NULL,
     };
     return wt_explain_open(parent, &e);
 }
@@ -203,7 +225,11 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint)
         snprintf(title, sizeof title, tr(STR_H_FP_CARD_FMT), fingerprint);
     else
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
-    return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
+    // The picture rides along only when the title carries the code, which is the
+    // home-chip path. From the WALLET screen's "?" the title is the bare word,
+    // and a picture with no number beside it is the one thing this must not be.
+    return help_open_on(parent, title, tr(STR_I_H_FP_B),
+                        (fingerprint && fingerprint[0]) ? DIAG_FP_PIC : DIAG_FP,
                         fingerprint != NULL, NULL);
 }
 
