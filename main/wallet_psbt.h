@@ -106,5 +106,14 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s);
 // Refuses (nonzero) if nothing loaded, status is STOP, or session closed.
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
 
+// First 8 lower-case hex of sha256 over every input's signature bytes,
+// concatenated in input order (ECDSA partial sigs = DER+sighash; taproot key
+// sig = the 64/65-byte 0x13 field). Writes 8 chars + NUL to out. Signatures
+// only, so it is transport- and PSBT-framing-independent: any signer that
+// produced the same signatures yields the same fingerprint. Nonzero on a parse
+// failure or a PSBT carrying no signatures.
+int wallet_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
+                                char out[9]);
+
 // Drop the held PSBT (call when leaving the sign flow).
 void wallet_psbt_free(void);

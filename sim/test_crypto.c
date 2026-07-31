@@ -487,14 +487,25 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
         }
         wallet_psbt_free();
         if (strcmp(label, "native") == 0) {
+            // Signature fingerprint: sha256 of the input's signature bytes, first
+            // 4 bytes. Computed independently from SV_ECDSA_NATIVE:
+            //   python3 -c "import hashlib;print(hashlib.sha256(bytes.fromhex('<native sig>')).hexdigest()[:8])"
+            char fp[9] = {0};
+            chki("sig fingerprint rc", wallet_psbt_sig_fingerprint(sb, sw, fp), 0);
+            chk("sig fingerprint is the golden code", fp, "a1e0d4c5");
+
             // Determinism localizer: the same PSBT signs to the same bytes every
             // time. A stray RNG in the nonce path breaks this even where a golden
-            // vector might still match by luck. Reload, re-sign, require identical.
+            // vector might still match by luck. Reload, re-sign, require identical
+            // bytes AND an identical fingerprint.
             wpsbt_summary_t s2; uint8_t sb2[4096]; size_t sw2 = 0;
             wallet_psbt_load(pb, pl, &s2);
             chki("native re-sign rc", wallet_psbt_sign(sb2, sizeof sb2, &sw2), 0);
             chkb("native signing is deterministic (byte-identical)",
                  sw2 == sw && memcmp(sb2, sb, sw) == 0);
+            char fp2[9] = {0};
+            wallet_psbt_sig_fingerprint(sb2, sw2, fp2);
+            chkb("sig fingerprint stable across re-sign", strcmp(fp, fp2) == 0);
             wallet_psbt_free();
         }
     }
