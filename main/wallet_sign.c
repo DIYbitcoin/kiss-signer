@@ -13,6 +13,8 @@
 #include "i18n.h"
 #include "platform_sd.h"
 #include "qr_transport.h"
+#include <ctype.h>
+
 #include "wallet_crypto.h"
 #include "wallet_psbt.h"
 #include "wallet_scan.h"
@@ -312,6 +314,41 @@ static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home o
     close_cb(NULL);
 }
 
+// The ? explainer: what the SIGNATURE code is for. Same pattern as the entropy
+// screen's WHY THREE SOURCES. BACK rebuilds the SD signed screen from the saved
+// outname (the file is written; nothing is re-signed).
+static void done_screen(const char *outname);
+static void sig_help_back_cb(lv_event_t *e) { (void)e; done_screen(s_done_name); }
+
+static void sig_fp_help_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_done_tmr) { lv_timer_delete(s_done_tmr); s_done_tmr = NULL; }  // don't drift home under the panel
+    lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
+    wt_note(s_scr, tr(STR_S_SIG_FP_HELP_B), 48, 118, 704, 260);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, sig_help_back_cb);
+}
+
+// Caption + grouped mono code (+ optional ? chip), shared by the SD and QR
+// signed screens so the upper-casing lives in one place. Draws nothing when no
+// fingerprint was computed.
+static void draw_sig_fp(int cap_x, int val_x, int y, int chip_x)
+{
+    if (!s_sig_fp[0]) return;
+    char code[12];
+    snprintf(code, sizeof code, "%c%c%c%c %c%c%c%c",
+             toupper((unsigned char)s_sig_fp[0]), toupper((unsigned char)s_sig_fp[1]),
+             toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
+             toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
+             toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
+    mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y, wt_font14(), MUT_COL);
+    mk_lbl(code, val_x, y, wt_font_mono14(), INK_COL);
+    if (chip_x >= 0)
+        wt_help_chip(s_scr, chip_x, y - 4, MUT_COL, sig_fp_help_cb, NULL);
+}
+
 static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
@@ -326,10 +363,12 @@ static void done_screen(const char *outname)
     lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 150);
     lv_obj_t *fn = mk_lbl(outname, 0, 230, wt_font28(), INK_COL);
     lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 230);
+    // The signature fingerprint, centred under the filename, with its ? panel.
+    draw_sig_fp(296, 386, 262, 496);
     // "take the card back to your coordinator" is the next thing to do, and
     // this screen auto-returns home after 6s. It has 110px of empty width-704
     // page under it; it does not need to be the small type.
-    lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 284, 704, 90);
+    lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 300, 704, 90);
     lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
     mk_pill(tr(STR_C_DONE), 330, WT_ACTION_Y, 140, close_cb);
     // nothing needs to stay on screen (the file is saved), so drift back to home
