@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "UNA CAPA MÁS",
   "L_PPINTRO_S": "último paso: crea tu passphrase",
   "L_PPINTRO_W1_H": "no se guarda",
-  "L_PPINTRO_W1_B": "la escribes en cada inicio de sesión. no se guarda copia.",
+  "L_PPINTRO_W1_B": "la introduces en cada inicio de sesión. no se guarda copia.",
   "L_PPINTRO_W2_H": "no se recupera",
   "L_PPINTRO_W2_B": "otra passphrase abre otra cartera, sin aviso.",
   "L_CREATE_PASS_BTN": "CREAR PASSPHRASE",

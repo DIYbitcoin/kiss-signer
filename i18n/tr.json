@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "BİR KATMAN DAHA",
   "L_PPINTRO_S": "son adım: passphrase'inizi oluşturun",
   "L_PPINTRO_W1_H": "saklanmaz",
-  "L_PPINTRO_W1_B": "her girişte yeniden yazarsın. kopyası tutulmaz.",
+  "L_PPINTRO_W1_B": "her girişte yeniden girersin. kopyası tutulmaz.",
   "L_PPINTRO_W2_H": "geri getirilemez",
   "L_PPINTRO_W2_B": "başka bir Passphrase başka bir cüzdan açar, uyarı yok.",
   "L_CREATE_PASS_BTN": "PASSPHRASE OLUŞTUR",

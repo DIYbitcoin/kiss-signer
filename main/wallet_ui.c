@@ -1320,10 +1320,7 @@ static void pp_scan_warn_cb(lv_event_t *e) {
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_SCAN_WARN_T),
                             tr(STR_L_SCAN_WARN_S));
   lv_obj_move_foreground(scr);
-  lv_obj_t *b = wt_lbl(scr, tr(STR_L_SCAN_WARN_B), 48, 122,
-                       wt_body_font(tr(STR_L_SCAN_WARN_B), 704, 274), WT_MUT);
-  lv_obj_set_width(b, 704);
-  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+  wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
   lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
   wt_pill_primary(go);
   wt_pill(scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
@@ -1440,8 +1437,7 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
     // the safe direction: the alternative is a heading that wraps in Norwegian
     // and pushes the body through WT_CONTENT_BOTTOM into the pill.
     const int HEAD_ROOM = 46;
-    const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
-                                      BW - 14, BH - HEAD_ROOM - 8);
+    const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
     wt_why_block(scr, tr(STR_L_PPINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
     wt_why_block(scr, tr(STR_L_PPINTRO_W2_H), b2, 408, BY, BW, BH, f, WT_WARN);
   }

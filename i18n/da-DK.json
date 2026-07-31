@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "ET LAG MERE",
   "L_PPINTRO_S": "sidste trin: opret din adgangsfrase",
   "L_PPINTRO_W1_H": "gemmes ikke",
-  "L_PPINTRO_W1_B": "du taster den hver gang du logger ind. ingen kopi gemmes.",
+  "L_PPINTRO_W1_B": "du indtaster den hver gang du logger ind. ingen kopi gemmes.",
   "L_PPINTRO_W2_H": "kan ikke gendannes",
   "L_PPINTRO_W2_B": "en anden adgangsfrase åbner en anden tegnebog, uden advarsel.",
   "L_CREATE_PASS_BTN": "OPRET ADGANGSFRASE",

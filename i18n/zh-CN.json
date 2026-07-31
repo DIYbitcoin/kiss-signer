@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "再加一层",
   "L_PPINTRO_S": "最后一步: 创建密码短语",
   "L_PPINTRO_W1_H": "不保存",
-  "L_PPINTRO_W1_B": "每次都要输入，设备不留副本。",
+  "L_PPINTRO_W1_B": "每次都要重新输入，设备不留副本。",
   "L_PPINTRO_W2_H": "无法恢复",
   "L_PPINTRO_W2_B": "任何其他密码短语都会打开另一个钱包，且不会有警告。",
   "L_CREATE_PASS_BTN": "创建密码短语",

@@ -602,10 +602,7 @@ static void words_warn_screen(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
-    lv_obj_t *b = wt_lbl(s_scr, tr(STR_I_WARN_B), 48, 116,
-                         wt_body_font(tr(STR_I_WARN_B), 700, 270), WT_MUT);
-    lv_obj_set_width(b, 700);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    wt_why_body(s_scr, tr(STR_I_WARN_B), 116, WT_WARN, true);
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
     wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240, verify_copy_cb, NULL);

@@ -44,7 +44,7 @@
   "L_PPINTRO_T": "ONE MORE LAYER",
   "L_PPINTRO_S": "last step: create your passphrase",
   "L_PPINTRO_W1_H": "not stored",
-  "L_PPINTRO_W1_B": "you type it fresh at every login. no copy is kept.",
+  "L_PPINTRO_W1_B": "you enter it at every login. the device keeps no copy.",
   "L_PPINTRO_W2_H": "not recoverable",
   "L_PPINTRO_W2_B": "another passphrase opens another wallet, silently.",
   "L_CREATE_PASS_BTN": "CREATE PASSPHRASE",
