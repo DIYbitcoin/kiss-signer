@@ -653,7 +653,7 @@ static void do_wipe(void *ud)
         lv_obj_remove_style_all(ok);
         lv_obj_set_size(ok, 200, 52);
         lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 386);
-        lv_obj_set_style_radius(ok, 26, 0);
+        lv_obj_set_style_radius(ok, 10, 0);   // wt_pillh's radius: this is a button
         lv_obj_set_style_bg_color(ok, KEY_COL, 0);
         lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(ok, 1, 0);
@@ -706,7 +706,7 @@ static void do_wipe(void *ud)
     lv_obj_remove_style_all(ok);
     lv_obj_set_size(ok, 200, 52);
     lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 386);
-    lv_obj_set_style_radius(ok, 26, 0);
+    lv_obj_set_style_radius(ok, 10, 0);   // wt_pillh's radius: this is a button
     lv_obj_set_style_bg_color(ok, KEY_COL, 0);
     lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(ok, 1, 0);

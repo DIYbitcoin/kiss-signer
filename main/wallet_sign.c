@@ -692,7 +692,7 @@ static void verify_screen(lv_obj_t *parent)
     // defect 01 from the review, closed by deletion rather than by relocation.
     {
         lv_obj_t *chip = sg_panel(540, 14, 236, 36, np ? WARN_COL : WT_EDGE);
-        lv_obj_set_style_radius(chip, 18, 0);
+        lv_obj_set_style_radius(chip, 10, 0);   // was 18: half of 36, a lozenge
         lv_obj_set_style_bg_opa(chip, LV_OPA_TRANSP, 0);
         lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_CENTER,
@@ -813,7 +813,7 @@ static void verify_screen(lv_obj_t *parent)
 
             if (done) {
                 lv_obj_t *p = sg_panel(543, 8, SG_ROW_PILL_W, 40, OK_COL);
-                lv_obj_set_style_radius(p, 20, 0);
+                lv_obj_set_style_radius(p, 10, 0);   // was 20: half of 40, a lozenge
                 lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
                 lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
                 lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
