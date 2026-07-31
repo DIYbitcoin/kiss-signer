@@ -25,5 +25,5 @@ clang -O1 -w -g \
   main/wallet_sp.c \
   main/wallet_usage.c main/wallet_seed_sd.c main/platform_sd.c \
   sim/test_fuzz.c \
-  -o /tmp/kissfuzz
+  -lm -o /tmp/kissfuzz
 echo "built /tmp/kissfuzz"
