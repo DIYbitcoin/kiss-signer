@@ -427,6 +427,18 @@ int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
   memset(out, 0xAB, n); *written = n;
   return 0;
 }
+// The real fingerprint (sha256 over the signature bytes) needs wally; the sim
+// links none, same as the sign stub above. A tiny deterministic hash gives the
+// walk a stable, plausible code to render. kisstest covers the real function.
+int wallet_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
+  if (!b || !out) return -1;
+  unsigned long h = 2166136261UL;
+  for (size_t i = 0; i < len; i++) { h ^= b[i]; h *= 16777619UL; }
+  static const char HEX[] = "0123456789abcdef";
+  for (int k = 0; k < 8; k++) out[k] = HEX[(h >> (28 - 4 * k)) & 0xf];
+  out[8] = 0;
+  return 0;
+}
 void wallet_psbt_free(void) {}
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
