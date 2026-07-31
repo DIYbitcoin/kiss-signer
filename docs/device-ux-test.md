@@ -75,12 +75,28 @@ extraction.
     Then read `kiss-seed.enc` on a computer: pass only when nothing in it
     resembles the recovery words.
 12. **Explain the randomness.** During setup, at the randomness screen, ask
-    where the randomness comes from. Pass only when the answer names two
-    sources and says neither one decides alone. Then cover the lens and ask
-    whether the wallet is now less safe. Pass when they say no. The camera
-    draws that caption over its own live video, so it is the one claim on the
-    device that no gate can render and only a person can confirm.
-13. **Read the last line.** On every screen the participant reaches, ask them to
+    where the randomness comes from. Pass only when the answer names three
+    sources (the camera, the chip, and their own taps) and says no single one
+    decides alone. Then cover the lens and ask whether the wallet is now less
+    safe. Pass when they say no. The camera draws that caption over its own live
+    video, so it is the one claim on the device that no gate can render and only
+    a person can confirm.
+13. **Fill the tap bar.** On the tap screen, tap the card until the bar fills.
+    Pass when 64 real taps light exactly 64 segments (no double counts from
+    panel bounce, no drops while mashing), a held drag across the card counts
+    once, and CANCEL from a part-filled bar returns to the randomness screen
+    having staged nothing.
+14. **Prove the tap entropy is real (the coarse-clock check).** This is a
+    correctness check, not a safety one: the seed is safe regardless, because
+    the camera and chip TRNG floor it even if the taps contribute nothing. But
+    the screen claims three sources, so the taps must actually carry entropy.
+    Temporarily log `esp_cpu_get_cycle_count()` per tap and confirm the low bits
+    vary across a real session. Pass when they do. If the touch controller
+    delivers events on a coarse tick they will not, in which case the taps are a
+    dead source and the fix is to timestamp in the touch ISR rather than on the
+    LVGL callback. Without this check, a coarse clock leaves the device honestly
+    saying "three sources" while shipping two.
+15. **Read the last line.** On every screen the participant reaches, ask them to
     read the last line of content aloud. Pass only when every glyph is fully
     visible. Fail on any half rendered row, any text overlapping other text, and
     any list whose final row is sliced by the screen edge. Repeat on the sign
