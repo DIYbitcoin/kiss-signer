@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... is je herbruikbare stille-betalingsadres. deel het om bitcoin te ontvangen.\n\nvoor privacy maakt de wallet van de verzender er een nieuw eenmalig %s... adres van voor die betaling.\n\ndus %s... deel je, %s... verschijnt in de transactie. %s... zien is goed.",
   "N_T": "SCANNEN",
   "N_S": "toon de QR van de coördinator",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "DEZE WALLET",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... to twój wielokrotnego użytku adres cichej płatności. udostępnij go, aby otrzymać bitcoin.\n\ndla prywatności portfel nadawcy zamienia go na nowy jednorazowy adres %s... dla tej płatności.\n\nwięc %s... udostępniasz, a %s... pojawia się w transakcji. widok %s... jest poprawny.",
   "N_T": "SKANUJ",
   "N_S": "pokaż kamerze QR koordynatora",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "TEN PORTFEL",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",
