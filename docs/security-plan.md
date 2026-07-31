@@ -175,12 +175,60 @@ Not phases, shipped properties:
   than one source, since a fingerprint published only here is only as
   trustworthy as this page.
 - **Every output re-derived on the device** before a signature is possible.
-- **Two entropy sources at wallet creation**, the camera and the chip's hardware
-  RNG, mixed so that neither one alone decides the words.
+- **Three entropy sources at wallet creation**, the camera, the chip's hardware
+  RNG, and the timing of the user's own taps, hashed together so that no single
+  one decides the words. The taps are a source no manufacturer can reproduce.
 - **The installer cannot serve a stale binary.** CI fails if the page offers a
   build whose version does not match `VERSION`.
 - **Vendored dependencies**, pinned. See
   [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+
+## Signing is verifiable
+
+Dark Skippy is a signing-time attack: malicious firmware chooses the nonce of a
+signature so that it leaks bits of the master seed, and an attacker reads them
+back off the blockchain across two signatures. A perfectly generated seed is
+exfiltrated anyway, because the leak is in the nonce, not the seed. The three
+entropy sources above do nothing against it; this does.
+
+KISS signs deterministically, and that is the defense. A nonce that is a fixed
+function of the key and the message is not free, so firmware cannot vary it to
+smuggle out the seed without also failing to reproduce the one honest signature.
+
+**The frozen rules.** Stated so an independent implementation reproduces every
+KISS signature from the seed:
+
+- **ECDSA** (legacy, nested, native inputs): RFC6979 deterministic nonce with
+  low-R grinding, the counter incremented until R is low. This is
+  `EC_FLAG_GRIND_R` and it matches Bitcoin Core, so a Core signer with the same
+  key produces the same bytes. KISS refuses any sighash that is not ALL or
+  DEFAULT, so the message is unambiguous.
+- **Schnorr** (silent-payment spends, the only Schnorr path): BIP340 with
+  `aux_rand = sha256(spend_priv || sha256(psbt_bytes))`. Deterministic, and
+  bound to both the wallet and the whole transaction. This aux is KISS-specific,
+  so a KISS-aware verifier or a second KISS reproduces it; a generic BIP340
+  signer using a different aux produces a different, still valid, signature.
+
+**Pinned in CI.** `sim/sign_vectors.h` holds the exact signature bytes for the
+ECDSA cases, computed independently with embit (see
+`tools/sign_fixtures/gen_sign_vectors.py`), never copied from KISS's own output.
+The test suite asserts them, so any drift in nonce derivation fails the build.
+A determinism check signs the same PSBT twice and requires identical bytes.
+
+**Checking a unit yourself.** Sign the same PSBT, with the same seed, on a
+second signer you trust independently: a second KISS you compiled yourself from
+audited source, or any tool that implements the rules above. Compare the
+signature bytes. Deterministic signing means they must be identical; a single
+differing byte means one signer chose its nonce, which is the Dark Skippy tell.
+The strength of this check is the independence of the second signer. Two units
+running the same untrusted build prove nothing: they leak identically and still
+match.
+
+Deferred: the Schnorr aux is KISS-specific, so only a KISS-aware verifier
+reproduces taproot signatures. Switching to a fully standard BIP340 deterministic
+nonce would let any conforming tool verify them, at the cost of changing every
+silent-payment signature. Revisit when a concrete external verifier needs it.
+See [`specs/verifiable-determinism.md`](specs/verifiable-determinism.md).
 
 ## Reporting
 
