@@ -450,7 +450,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // Portuguese and Russian actually need for a storage mode. Only the object
 // changed. A row of this height wraps its sub-line instead of pinning it,
 // which is the whole reason wt_row_x takes a height at all.
-#define WT_CHOICE_X      36
+#define WT_CHOICE_X      42   // (800 - WT_CHOICE_W) / 2: rows centered, equal margins
 #define WT_CHOICE_W     716
 #define WT_CHOICE_H      96
 #define WT_CHOICE_Y(i)  (96 + (i) * 102)
