@@ -243,9 +243,10 @@ void camera_scan_progress(int seen, int total) {
 // unpredictability that one frame cannot, and dilutes the fixed pattern
 // described below rather than counting it once per attempt.
 //
-// The refusal bought nothing. wallet_entropy_mix folds the chain together with
-// esp_fill_random, so a wholly predictable scene still leaves the seed no
-// worse than the hardware TRNG alone. The gate is a quality prompt, not a
+// The refusal bought nothing. wallet_setup folds this chain together with
+// esp_fill_random AND the user's tap timing, so a wholly predictable scene
+// still leaves the seed no worse than the other two. The gate is a quality
+// prompt, not a
 // security control, and creating a new seed is the ONLY path to this screen:
 // a prompt that can permanently refuse is a device that cannot make a wallet.
 //
@@ -295,8 +296,9 @@ static volatile bool s_ent_mode;
 static volatile int s_ent_meter;        // Shannon estimate of ONE frame, x10
 static volatile int s_ent_accum;        // summed across frames, x10
 static volatile bool s_ent_req;         // UI tapped: finish if the bar is full
-static volatile bool s_ent_done;        // s_ent_hash is ready
-static uint8_t s_ent_hash[32];
+static volatile bool s_ent_done;        // s_ent_hash + s_ent_trng are ready
+static uint8_t s_ent_hash[32];          // source 1 alone: the frame fold, frozen
+static uint8_t s_ent_trng[32];          // source 2 alone: the chip read at capture
 static uint8_t s_ent_chain[32];         // running fold over sampled frames
 static uint16_t s_ent_sub[ENT_SUB_MAX]; // strided subsample, hashed per frame
 static uint32_t *s_ent_hist;            // 256KB histogram, PSRAM
@@ -343,14 +345,15 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   if (s_ent_req) {
     s_ent_req = false;
     if (s_ent_accum >= ENT_TARGET_X10 && !s_ent_done) {
-      // mix in the chip's hardware TRNG: seed = SHA256(chain || trng), so a
-      // predictable scene can't weaken the seed below the TRNG and a weak
-      // TRNG is still covered by the photos (belt and braces, invisible to UX)
-      uint8_t trng[32];
-      esp_fill_random(trng, sizeof trng);
-      if (wallet_entropy_mix(s_ent_chain, trng, s_ent_hash) == 0)
-        s_ent_done = true;
-      wally_bzero(trng, sizeof trng);
+      // Freeze source 1 and read source 2, and keep them SEPARATE. This used
+      // to fold them together and call the result a seed; it no longer does,
+      // because the tap screen adds source 3 and the one call that builds a
+      // wallet has to be able to name all three. Folding here would leave that
+      // call site passing the same chain twice, which is a fine seed and an
+      // unreadable audit.
+      memcpy(s_ent_hash, s_ent_chain, sizeof s_ent_hash);
+      esp_fill_random(s_ent_trng, sizeof s_ent_trng);
+      s_ent_done = true;
     }                                   // an early tap just does nothing —
   }                                     // the part-filled bar already says why
 }
@@ -1496,6 +1499,7 @@ bool camera_entropy_start(void) {
   // backed out and came in again started part filled, on frames they saw
   // during a visit they abandoned.
   wally_bzero(s_ent_chain, sizeof s_ent_chain);
+  wally_bzero(s_ent_trng, sizeof s_ent_trng);
   s_zoom = 0;
   s_ent_mode = true;
   if (!cam_start()) { s_ent_mode = false; return false; }
@@ -1510,10 +1514,15 @@ int camera_entropy_progress(void) {
   return p < 0 ? 0 : p > 100 ? 100 : p;
 }
 
-bool camera_entropy_result(uint8_t out[32]) {
+// Both sources in ONE call, deliberately. Each is wiped as it is handed over,
+// so two separate one-shot accessors would leave the second caller reading a
+// zeroed buffer depending on which ran first. One call has no such order.
+bool camera_entropy_sources(uint8_t chain_out[32], uint8_t trng_out[32]) {
   if (!s_ent_done) return false;
-  memcpy(out, s_ent_hash, 32);
-  memset(s_ent_hash, 0, sizeof s_ent_hash);   // seed material: don't linger
+  memcpy(chain_out, s_ent_hash, 32);
+  memcpy(trng_out, s_ent_trng, 32);
+  wally_bzero(s_ent_hash, sizeof s_ent_hash);   // seed material: don't linger
+  wally_bzero(s_ent_trng, sizeof s_ent_trng);
   s_ent_done = false;
   return true;
 }
@@ -1524,6 +1533,8 @@ void camera_entropy_stop(void) {
   cam_stop();                                 // waits for the stream task, so
   wally_bzero(s_ent_chain, sizeof s_ent_chain);   // nothing is folding into
   wally_bzero(s_ent_sub, sizeof s_ent_sub);       // these while they are wiped
+  wally_bzero(s_ent_hash, sizeof s_ent_hash);
+  wally_bzero(s_ent_trng, sizeof s_ent_trng);
   s_ent_accum = 0;
   if (s_ent_hist) { free(s_ent_hist); s_ent_hist = NULL; }
   lv_obj_invalidate(lv_screen_active());
