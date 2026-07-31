@@ -37,6 +37,8 @@ int test_passedit(void);
 int test_squiggle(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
 int test_tapent(void);
+// sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
+int test_dice(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -507,6 +509,7 @@ int main(int argc, char **argv) {
     fails += test_passedit();
     fails += test_squiggle();
     fails += test_tapent();
+    fails += test_dice();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);
