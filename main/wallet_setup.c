@@ -19,6 +19,7 @@
 #include "wallet_seed.h"
 #include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
 #include "wallet_tapent.h"   // source 3: the timing of the user's own taps
+#include "wallet_dice.h"     // alternate path: verifiable off-device dice rolls
 #include "wallet_theme.h"
 #include "wallet_ui.h"
 
@@ -76,6 +77,8 @@ static void cancel_cb(lv_event_t *e);
 static void goto_count_cb(lv_event_t *e);
 static bool s_qr_from_restore;
 static void entropy_screen(void);
+static void dice_screen(void);
+static void method_screen(void);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
@@ -874,6 +877,125 @@ static void ent_ui_sync(int pct)
     }
 }
 
+// The camera path and the dice path both end at wallet_setup_entropy(); this
+// screen is the only fork between them. Camera is convenient and multi-source;
+// dice is single-source but recomputable off-device, for owners who want to
+// verify the firmware did not cheat.
+static void method_cam_cb(lv_event_t *e)  { (void)e; entropy_screen(); }
+static void method_dice_cb(lv_event_t *e) { (void)e; dice_screen(); }
+
+static void method_screen(void)
+{
+    mk_screen(tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
+    wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_CHOOSE_NEW), tr(STR_W_NEW_NOTE), NULL,
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
+             WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_DICE_NOTE),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
+             WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+}
+
+// ---- dice screen ----
+#define DICE_CARD_X   100
+#define DICE_CARD_Y   130
+#define DICE_CARD_W   600
+#define DICE_CARD_H   300
+#define DICE_KEY_W     84
+#define DICE_KEY_H     60
+#define DICE_KEY_GAP   10
+
+static lv_obj_t *s_dice_card;
+static lv_obj_t *s_dice_tally;
+static lv_obj_t *s_dice_done;
+
+static unsigned dice_floor(void) { return s_count == 24 ? DICE_FLOOR_256 : DICE_FLOOR_128; }
+
+static void dice_refresh(void)
+{
+    unsigned n = wallet_dice_count();
+    if (s_dice_tally) {
+        char buf[16];
+        snprintf(buf, sizeof buf, tr(STR_W_DICE_TALLY_FMT), n, dice_floor());
+        lv_label_set_text(s_dice_tally, buf);
+    }
+    if (s_dice_done) {
+        if (n >= dice_floor()) lv_obj_remove_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
+        else                   lv_obj_add_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void dice_key_cb(lv_event_t *e)
+{
+    int face = (int)(intptr_t)lv_event_get_user_data(e);
+    wallet_dice_roll(face);
+    dice_refresh();
+}
+
+static void dice_undo_cb(lv_event_t *e) { (void)e; wallet_dice_undo(); dice_refresh(); }
+
+// Build the seed. Same wipe discipline as tap_done_cb: entropy is seed material.
+static void dice_done_cb(lv_event_t *e)
+{
+    (void)e;
+    unsigned need = s_count == 24 ? 32 : 16;
+    uint8_t entropy[32];
+    if (wallet_dice_take(entropy, need) == 0) {
+        wallet_dice_reset();
+        wallet_setup_entropy(entropy, need);
+    } else {
+        // Cannot happen once the floor is met, but never leave a dead button.
+        mk_screen(tr(STR_W_ENT_FAIL_T), NULL);
+        mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
+        mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
+    }
+    memset(entropy, 0, sizeof entropy);
+}
+
+static void dice_cancel_cb(lv_event_t *e) { wallet_dice_reset(); cancel_cb(e); }
+
+static void dice_screen(void)
+{
+    wallet_dice_reset();
+    s_dice_tally = NULL; s_dice_done = NULL;
+    mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_S));
+
+    s_dice_card = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(s_dice_card);
+    lv_obj_set_pos(s_dice_card, DICE_CARD_X, DICE_CARD_Y);
+    lv_obj_set_size(s_dice_card, DICE_CARD_W, DICE_CARD_H);
+    lv_obj_set_style_radius(s_dice_card, 10, 0);
+    lv_obj_set_style_border_width(s_dice_card, 1, 0);
+    lv_obj_set_style_border_color(s_dice_card, WT_EDGE, 0);
+    lv_obj_set_style_bg_color(s_dice_card, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(s_dice_card, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(s_dice_card, LV_OBJ_FLAG_SCROLLABLE);
+
+    // six d6 keys, 1..6, in a row
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t *k = lv_button_create(s_dice_card);
+        lv_obj_set_pos(k, 18 + i * (DICE_KEY_W + DICE_KEY_GAP), 20);
+        lv_obj_set_size(k, DICE_KEY_W, DICE_KEY_H);
+        lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
+        lv_obj_t *lbl = lv_label_create(k);
+        char d[2] = { (char)('1' + i), 0 };
+        lv_label_set_text(lbl, d);
+        lv_obj_center(lbl);
+    }
+
+    s_dice_tally = wt_lbl(s_dice_card, "", 18, 108, wt_font_mono28(), INK_COL);
+    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, 158,
+                            wt_font14(), MUT_COL);
+    lv_obj_set_width(note, DICE_CARD_W - 36);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+
+    mk_pill(tr(STR_W_DICE_UNDO), 18, DICE_CARD_Y + DICE_CARD_H + 6, 120, dice_undo_cb, NULL);
+    s_dice_done = mk_pill(tr(STR_C_DONE), 300, DICE_CARD_Y + DICE_CARD_H + 6, 200,
+                          dice_done_cb, NULL);   // hidden until the floor is met
+    mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
+    dice_refresh();
+}
+
 static void entropy_screen(void)
 {
     mk_screen2(tr(STR_W_RAND_T), tr(STR_W_RAND_S));
@@ -1133,7 +1255,7 @@ static void storage_pick_cb(lv_event_t *e)
     // 24-word path stays fully supported for RESTORE, because seeds made on
     // other signers arrive at whatever length they arrive.
     s_count = 12;
-    entropy_screen();
+    method_screen();
 }
 
 static void storage_screen(void)
