@@ -84,6 +84,15 @@ void camera_entropy_stop(void);
 // lock: the only consumer is an LVGL timer that redraws a bar.
 int camera_entropy_progress(void);
 
+// Why the bar is doing what it is doing, so the screen can give an instruction
+// instead of leaving a stalled bar unexplained. A frame has to clear BOTH gates
+// to be credited, and each failure has its own fix, so they are separate codes.
+//   ENT_R_DARK   the view is too flat or too dark to hold detail: aim elsewhere
+//   ENT_R_STILL  detailed, but barely changed since the last frame: move
+//   ENT_R_OK     the last frame was credited
+enum { ENT_R_OK = 0, ENT_R_DARK, ENT_R_STILL };
+int camera_entropy_reason(void);
+
 // ---- step 6: QR scan mode (same pipeline + k_quirc decode every few frames) ----
 // on_decode runs in the CAMERA TASK context — copy the payload out, return fast.
 // i2c_bus is really i2c_master_bus_handle_t (void* keeps sim includes clean).

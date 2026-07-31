@@ -245,16 +245,13 @@ void camera_scan_progress(int seen, int total) {
 //
 // The refusal bought nothing. wallet_setup folds this chain together with
 // esp_fill_random AND the user's tap timing, so a wholly predictable scene
-// still leaves the seed no worse than the other two. The gate is a quality
-// prompt, not a
-// security control, and creating a new seed is the ONLY path to this screen:
-// a prompt that can permanently refuse is a device that cannot make a wallet.
+// still leaves the seed no worse than the other two.
 //
 // And 6.0 was picked against an image with the sensor's black pedestal intact
 // and no auto exposure, both of which inflated it. There is no honest way to
 // re-derive that number off the device. Accumulating dissolves the question:
-// a messy scene fills the bar in about two seconds, a blank wall takes longer,
-// neither is ever refused, and no constant has to be calibrated against a lens.
+// a messy scene fills the bar in about two seconds and a dull one crawls,
+// with no constant having to be calibrated against a lens.
 //
 // What the Shannon number still is not. A histogram is order blind: shuffle
 // every pixel in the frame and the estimate does not move. So any FIXED
@@ -269,22 +266,53 @@ void camera_scan_progress(int seen, int total) {
 // not with its raw reading. The floor is the part of the histogram width that
 // a featureless view produces anyway — vignetting, fixed pattern, the sensor's
 // own noise shape. Counting it would pay the holder for pointing at a wall.
-// Credit the excess and the bar reads as what it is: a blank wall crawls, a
-// bookshelf races, and the difference is visible while it happens rather than
-// only afterwards. Nothing is refused; a covered lens still finishes on the
-// trickle below, it just takes most of a minute to get there.
+//
+// A frame under the floor now scores ZERO, and that is the part that changed.
+// It used to score ENT_FRAME_MIN, a trickle justified as "never stalls": the
+// bar always finished, a covered lens included, in about forty seconds. An
+// owner watched it fill against a dark surface and called it a bug. It is one.
+// Whether the resulting seed was weak is beside the point — sources 2 and 3
+// still fold in — what was broken is that a meter labelled with how much
+// randomness has been gathered reported gathering where there was none, which
+// is the exact failure this project spends its time auditing other wallets
+// for. Nothing is stranded by the change: the screen now says WHY the bar is
+// not moving, a dead camera still reaches a wallet through the taps, and DICE
+// is one screen back.
+//
+// The second gate is NOVELTY, and it closes a hole of the same shape. The
+// Shannon estimate scores ONE frame in isolation, so a detailed but motionless
+// view — a printed photo under a propped device, a pipeline that has stopped
+// delivering new buffers — scores high forever while adding almost nothing
+// after the first frame. Spatial detail is not new information. So the strided
+// subsample's green channel is kept from frame to frame and compared. Green
+// because it is 6 bits where blue is 5, and the closest thing in RGB565 to a
+// luma channel: it moves first when anything in the scene does.
+//
+// This is deliberately a test for a FROZEN source and not a steadiness meter.
+// A handheld device always passes it, and should: photon shot noise across a
+// real scene is genuine unpredictability and there is no reason to make an
+// owner wave the thing about. What it refuses is a view that is not arriving.
 //
 // At 10 sampled frames a second, target 1200:
-//   covered lens ~1.0 bits -> trickle 3  -> ~40s
-//   dark wall     3.5 bits -> 6          -> ~20s
-//   lit wall      4.5 bits -> 30         -> ~4s
-//   a lit desk    6.5 bits -> 70         -> ~1.8s
-//   gravel        8.0 bits -> 100        -> ~1.2s
+//   covered lens                 -> 0    -> never fills, and the screen says so
+//   frozen view, any detail      -> 0    -> never fills, and the screen says so
+//   dark wall      3.5 bits      -> 6    -> ~20s
+//   lit wall       4.5 bits      -> 30   -> ~4s
+//   a lit desk     6.5 bits      -> 70   -> ~1.8s
+//   gravel         8.0 bits      -> 100  -> ~1.2s
 #define ENT_TARGET_X10  1200            // 20 frames at the knee, ~2s when good
 #define ENT_FLOOR_X10   30              // what an empty view reads on its own
 #define ENT_FRAME_GAIN  2               // excess over the floor, doubled
-#define ENT_FRAME_MIN   3               // the trickle: never stalls, never fast
 #define ENT_FRAME_CAP   120             // so no one frame carries a session
+// Novelty, in green steps and in percent of the subsample. Two 6-bit steps is
+// about 8/255, above the shot noise a still scene shows in good light and far
+// below anything a hand or a scene does. Full credit once a quarter of the
+// samples have moved; under ENT_NOV_MIN the frame is treated as not arriving
+// and scores nothing, and between the two the credit scales, so a view that is
+// only just alive fills slowly rather than lying either way.
+#define ENT_NOV_DELTA   2
+#define ENT_NOV_MIN     3               // percent of samples, below this = frozen
+#define ENT_NOV_FULL    25              // percent of samples for undiluted credit
 // About 4130 of the 937,664 pixels, and 20 frames of those against a 256 bit
 // output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
 // walks instead of landing on the same columns every frame.
@@ -297,10 +325,13 @@ static volatile int s_ent_meter;        // Shannon estimate of ONE frame, x10
 static volatile int s_ent_accum;        // summed across frames, x10
 static volatile bool s_ent_req;         // UI tapped: finish if the bar is full
 static volatile bool s_ent_done;        // s_ent_hash + s_ent_trng are ready
+static volatile int s_ent_reason;       // ENT_R_*: why the last frame scored what it did
 static uint8_t s_ent_hash[32];          // source 1 alone: the frame fold, frozen
 static uint8_t s_ent_trng[32];          // source 2 alone: the chip read at capture
 static uint8_t s_ent_chain[32];         // running fold over sampled frames
 static uint16_t s_ent_sub[ENT_SUB_MAX]; // strided subsample, hashed per frame
+static uint8_t s_ent_prev[ENT_SUB_MAX]; // last frame's green channel, for novelty
+static bool s_ent_prev_ok;              // false until the first frame lands
 static uint32_t *s_ent_hist;            // 256KB histogram, PSRAM
 
 void camera_spike_set_bus(void *i2c_bus) { s_bus_saved = i2c_bus; }
@@ -330,16 +361,49 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     size_t k = 0;
     for (size_t i = 0; i < n && k < ENT_SUB_MAX; i += ENT_SUB_STRIDE)
       s_ent_sub[k++] = px[i];
-    uint8_t d[32];
-    if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
-                     d, sizeof d) == WALLY_OK &&
-        wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
-      int add = (s_ent_meter - ENT_FLOOR_X10) * ENT_FRAME_GAIN;
-      if (add < ENT_FRAME_MIN) add = ENT_FRAME_MIN;
-      if (add > ENT_FRAME_CAP) add = ENT_FRAME_CAP;
-      if (s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
+
+    // Gate one: is there detail at all. Gate two: is any of it new. Both are
+    // scored before anything is folded, because a frame that earns nothing has
+    // nothing to contribute to the chain either — folding it would only dilute
+    // the frames that did earn something with predictable material.
+    int add = (s_ent_meter - ENT_FLOOR_X10) * ENT_FRAME_GAIN;
+    if (add > ENT_FRAME_CAP) add = ENT_FRAME_CAP;
+    if (add <= 0) { add = 0; s_ent_reason = ENT_R_DARK; }
+
+    size_t moved = 0;
+    for (size_t i = 0; i < k; i++) {
+      uint8_t g = (uint8_t)((s_ent_sub[i] >> 5) & 0x3F);
+      int dg = (int)g - (int)s_ent_prev[i];
+      if (dg < 0) dg = -dg;
+      if (dg >= ENT_NOV_DELTA) moved++;
+      s_ent_prev[i] = g;
     }
-    wally_bzero(d, sizeof d);
+    bool have_base = s_ent_prev_ok && k;
+    s_ent_prev_ok = true;
+    int nov = have_base ? (int)(moved * 100 / k) : 0;
+    if (!have_base) {
+      // The first frame has no baseline: every sample would read as moved
+      // against a zeroed buffer. Score it nothing and say nothing about it —
+      // the opening reason set by camera_entropy_start still stands.
+      add = 0;
+    } else if (add > 0) {
+      if (nov < ENT_NOV_MIN) { add = 0; s_ent_reason = ENT_R_STILL; }
+      else {
+        if (nov < ENT_NOV_FULL) add = add * nov / ENT_NOV_FULL;
+        if (add <= 0) { add = 0; s_ent_reason = ENT_R_STILL; }
+        else s_ent_reason = ENT_R_OK;
+      }
+    }
+
+    if (add > 0) {
+      uint8_t d[32];
+      if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
+                       d, sizeof d) == WALLY_OK &&
+          wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
+        if (s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
+      }
+      wally_bzero(d, sizeof d);
+    }
   }
 
   if (s_ent_req) {
@@ -1495,6 +1559,12 @@ bool camera_entropy_start(void) {
   s_ent_accum = 0;
   s_ent_req = false;
   s_ent_done = false;
+  // DARK until a frame says otherwise: the screen opens on the honest state
+  // rather than on "good, keep going" for the fraction of a second before the
+  // first frame lands.
+  s_ent_reason = ENT_R_DARK;
+  s_ent_prev_ok = false;
+  memset(s_ent_prev, 0, sizeof s_ent_prev);
   // A fresh chain per session. Carrying one over would mean a holder who
   // backed out and came in again started part filled, on frames they saw
   // during a visit they abandoned.
@@ -1513,6 +1583,8 @@ int camera_entropy_progress(void) {
   int p = s_ent_accum * 100 / ENT_TARGET_X10;
   return p < 0 ? 0 : p > 100 ? 100 : p;
 }
+
+int camera_entropy_reason(void) { return s_ent_reason; }
 
 // Both sources in ONE call, deliberately. Each is wiped as it is handed over,
 // so two separate one-shot accessors would leave the second caller reading a
@@ -1533,8 +1605,10 @@ void camera_entropy_stop(void) {
   cam_stop();                                 // waits for the stream task, so
   wally_bzero(s_ent_chain, sizeof s_ent_chain);   // nothing is folding into
   wally_bzero(s_ent_sub, sizeof s_ent_sub);       // these while they are wiped
+  wally_bzero(s_ent_prev, sizeof s_ent_prev);
   wally_bzero(s_ent_hash, sizeof s_ent_hash);
   wally_bzero(s_ent_trng, sizeof s_ent_trng);
+  s_ent_prev_ok = false;
   s_ent_accum = 0;
   if (s_ent_hist) { free(s_ent_hist); s_ent_hist = NULL; }
   lv_obj_invalidate(lv_screen_active());
