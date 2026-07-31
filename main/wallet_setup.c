@@ -707,9 +707,15 @@ static void sim_entropy_cb(lv_event_t *e)
 #else
 // The capture happens on the camera task; an LVGL timer collects the hash.
 static lv_timer_t *s_ent_tmr;
+static void ent_ui_sync(int pct);   // defined below; the poll drives it live
 
 static void ent_poll_cb(lv_timer_t *t)
 {
+    // Reflect live accrual every tick: the SOURCE-1 fill, the readiness dot,
+    // the "ready" line and the CAPTURE gate all read from this. Without it the
+    // meter climbs invisibly and the screen looks frozen until a lucky tap.
+    ent_ui_sync(camera_entropy_progress());
+
     // Capture freezes sources 1 and 2 into the statics and hands them here.
     // They wait through the tap screen; the mnemonic is not made until the
     // last tap folds all three in tap_done_cb.
@@ -760,7 +766,22 @@ static void ent_mix_help_cb(lv_event_t *e)
     camera_entropy_stop();
 #endif
     mk_screen(tr(STR_W_ENT_MIX_T), NULL);
-    mk_body(tr(STR_W_ENT_MIX_B), 48, 118, 704, 260, INK_COL);
+
+    // The same three-source vocabulary the ADD RANDOMNESS screen speaks: one
+    // icon row per source (icon + caption + one line), not a wall of prose.
+    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_ENT_SRC1_CAP), tr(STR_W_ENT_SRC1_NOTE),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 104, WT_CHOICE_W, 66, NULL, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_CHARGE, tr(STR_W_ENT_SRC2_CAP), tr(STR_W_ENT_SRC2_NOTE),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 178, WT_CHOICE_W, 66, NULL, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_OK, tr(STR_W_ENT_SRC3_CAP), tr(STR_W_ENT_TAP_S),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, 252, WT_CHOICE_W, 66, NULL, NULL);
+
+    // One big takeaway line instead of three paragraphs.
+    lv_obj_t *tl = wt_lbl(s_scr, tr(STR_W_ENT_MIX_B), WT_CHOICE_X + 4, 336,
+                          wt_font23(), INK_COL);
+    lv_obj_set_width(tl, WT_CHOICE_W - 8);
+    lv_label_set_long_mode(tl, LV_LABEL_LONG_WRAP);
+
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_mix_back_cb, NULL);
 }
 
@@ -1099,8 +1120,12 @@ static void entropy_screen(void)
     lv_obj_set_style_border_color(c3, WT_DIM, 0);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     wt_chip(row, tr(STR_W_ENT_RESULT), true);
-    wt_help_chip(s_scr, 752, ENT_CAM_Y + 2 * ENT_CARD_H + 28, MUT_COL,
-                 ent_mix_help_cb, NULL);
+    // Help: the top-right corner every other screen uses, and labelled so the
+    // "?" announces itself. Word and chip both open the explainer.
+    lv_obj_t *why = wt_lbl(s_scr, tr(STR_W_ENT_WHY), 700, 68, wt_font14(), MUT_COL);
+    lv_obj_add_flag(why, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(why, ent_mix_help_cb, LV_EVENT_CLICKED, NULL);
+    wt_help_chip(s_scr, 752, 66, MUT_COL, ent_mix_help_cb, NULL);
 
 #ifdef SIMULATOR
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
