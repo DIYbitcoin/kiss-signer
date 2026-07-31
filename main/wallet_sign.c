@@ -115,6 +115,8 @@ static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
 static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
 static lv_obj_t *s_ez_pill;
+static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8 hex)
+static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
 static void qr_out_screen(size_t sw);
 
@@ -372,6 +374,11 @@ static void do_sign_cb(lv_timer_t *t)
         fail_screen(tr(STR_S_FAIL_SIGN));
         return;
     }
+    // Fingerprint the signature now, while the bytes are in hand, for both exit
+    // screens. On the (unexpected) failure path it is left empty and the screens
+    // just omit the aid.
+    if (wallet_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
+        s_sig_fp[0] = 0;
     mark_used_receives();
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         qr_out_screen(sw);
