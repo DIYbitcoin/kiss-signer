@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... je tvoje opakovaně použitelná adresa tiché platby. sdílej ji, když chceš přijímat bitcoin.\n\nkvůli soukromí z ní peněženka odesílatele udělá novou jednorázovou adresu %s... pro tu platbu.\n\ntakže %s... sdílíš, %s... se objeví v transakci. vidět %s... je správně.",
   "N_T": "SKENOVAT",
   "N_S": "ukažte QR kód koordinátoru kameře",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "TATO PENĚŽENKA",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

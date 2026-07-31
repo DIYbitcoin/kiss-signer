@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... 是你可以重复使用的静默支付地址。把它分享出去就能收到比特币。\n\n为了隐私, 付款方的钱包会为那笔付款生成一个全新的一次性 %s... 地址。\n\n所以你分享的是 %s..., 交易里出现的是 %s...。看到 %s... 是正常的。",
   "N_T": "扫码",
   "N_S": "把协调器的二维码对准相机",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "这个钱包",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

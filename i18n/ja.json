@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... は繰り返し使えるサイレントペイメントのアドレスです。ビットコインを受け取るために共有してください。\n\nプライバシーのため、送金側のウォレットはその支払い用に新しい使い捨ての %s... アドレスを作ります。\n\nつまり共有するのが %s...、取引に現れるのが %s... です。%s... が見えていれば正しい状態です。",
   "N_T": "スキャン",
   "N_S": "コーディネーターのQRをカメラに見せてください",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "このウォレット",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

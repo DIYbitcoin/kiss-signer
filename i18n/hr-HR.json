@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... je vaša adresa tihe uplate za višekratnu uporabu. podijelite je da primite bitcoin.\n\nzbog privatnosti novčanik pošiljatelja od nje radi novu jednokratnu adresu %s... za tu uplatu.\n\ndakle %s... dijelite, %s... se pojavljuje u transakciji. vidjeti %s... je ispravno.",
   "N_T": "SKENIRAJ",
   "N_S": "pokažite QR kod koordinatora kameri",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "OVAJ NOVČANIK",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

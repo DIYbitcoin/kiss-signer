@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... est ton adresse de paiement furtif réutilisable. partage-la pour recevoir des bitcoins.\n\npour la confidentialité, le portefeuille de l'envoyeur en fait une adresse %s... neuve et unique pour ce paiement.\n\ndonc %s... est ce que tu partages, %s... est ce qui apparaît dans la transaction. voir %s... est normal.",
   "N_T": "SCANNER",
   "N_S": "montre le QR du coordinateur à la caméra",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "CE PORTEFEUILLE",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

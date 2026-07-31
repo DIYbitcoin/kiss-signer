@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... yeniden kullanılabilir sessiz ödeme adresinizdir. bitcoin almak için paylaşın.\n\ngizlilik için gönderenin cüzdanı bunu o ödemeye özel, tek kullanımlık yeni bir %s... adresine dönüştürür.\n\nyani %s... paylaştığınız, %s... işlemde görünendir. %s... görmeniz doğrudur.",
   "N_T": "TARA",
   "N_S": "koordinatörün QR'ını kameraya gösterin",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "BU CÜZDAN",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

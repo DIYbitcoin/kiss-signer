@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... ist deine wiederverwendbare Silent-Payment-Adresse. teile sie, um Bitcoin zu empfangen.\n\nfür die Privatsphäre macht die Wallet des Senders daraus eine neue Einmaladresse %s... für diese Zahlung.\n\n%s... gibst du weiter, %s... steht in der Transaktion. %s... zu sehen ist richtig.",
   "N_T": "SCANNEN",
   "N_S": "zeige der Kamera den QR des Koordinators",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "DIESE WALLET",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",
