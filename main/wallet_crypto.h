@@ -19,6 +19,13 @@ int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4]);
 // creation: a = SHA256 of the camera frame, b = hardware TRNG bytes.
 int wallet_entropy_mix(const uint8_t a[32], const uint8_t b[32], uint8_t out[32]);
 
+// Flat three-input fold: out = SHA256(a || b || c). Camera, chip TRNG, taps —
+// in that order, matching the source numbers the setup screens show. Flat
+// rather than nested mix() calls so the one question that matters (what went
+// into this seed) is answerable by reading one line.
+int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], uint8_t out[32]);
+
 // ---- network (mainnet / testnet) ----
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
 // descriptor xpub/tpub serialization. The master key itself is network-free,
