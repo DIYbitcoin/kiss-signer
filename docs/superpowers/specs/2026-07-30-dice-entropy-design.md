@@ -39,10 +39,13 @@ The design is judged against these adversaries, in priority order:
    reproduction target. KISS is the security property, not a nicety.
 
 4. **Quantum.**
-   Grover's algorithm halves brute-force cost against a symmetric secret. Defense:
-   default this path to **24 words (256-bit)**, leaving a 128-bit margin post-Grover.
-   (The larger quantum risk to Bitcoin is Shor breaking exposed public keys at *signing*
-   time — protocol-level, out of scope for seed generation.)
+   Grover's algorithm halves brute-force cost against a symmetric secret. Defense here is
+   **12 words (128-bit) plus a strong BIP39 passphrase** — the passphrase is the quantum
+   lever, adding entropy on top of the seed and guarding the real funds, consistent with
+   the device's existing "creation makes 12 words" rule. 24 words stays available for
+   restore but is not the creation default. (The larger quantum risk to Bitcoin is Shor
+   breaking exposed public keys at *signing* time — protocol-level, out of scope for seed
+   generation.)
 
 ### Explicitly out of scope
 - **Dark Skippy** is a *signing-time* nonce-exfiltration attack, not an entropy problem.
@@ -56,7 +59,8 @@ Goals
 - A dice-only setup path whose seed is independently verifiable off-device.
 - Recipe simple enough to reproduce with a shell one-liner and any BIP39 tool.
 - Hard entropy floor: refuse to build a seed below the roll threshold.
-- 12- or 24-word output, matching the existing `s_count` selection; 24 is the default.
+- 12- or 24-word output, matching the existing `s_count` selection; creation defaults to
+  12 words (with a strong passphrase as the quantum lever); 24 stays available for restore.
 
 Non-goals (YAGNI)
 - d20 support. d6 only for v1. (`wallet_dice` leaves room to add it later.)
