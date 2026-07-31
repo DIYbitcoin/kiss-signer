@@ -918,8 +918,8 @@ static void dice_refresh(void)
     unsigned n = wallet_dice_count();
     if (s_dice_tally) {
         char buf[16];
-        snprintf(buf, sizeof buf, tr(STR_W_DICE_TALLY_FMT), n, dice_floor());
-        lv_label_set_text(s_dice_tally, buf);
+        snprintf(buf, sizeof buf, "%u / %u", n, dice_floor());   // literal, not a
+        lv_label_set_text(s_dice_tally, buf);                     // translatable format
     }
     if (s_dice_fp) {
         // first 8 bytes by default (enough to spot a mismatch), all 32 on tap.

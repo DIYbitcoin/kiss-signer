@@ -85,7 +85,6 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_DICE_NOTE] = "your own rolls. checkable on any computer.",
     [STR_W_DICE_T] = "ROLL A DIE",
     [STR_W_DICE_S] = "enter each roll. the words come only from these.",
-    [STR_W_DICE_TALLY_FMT] = "%u / %u",
     [STR_W_DICE_UNDO] = "UNDO",
     [STR_W_DICE_VERIFY_NOTE] = "SHA256 of your rolls. recompute it offline to check.",
     [STR_W_DICE_SAMEY] = "that doesn't look rolled. continue?",
