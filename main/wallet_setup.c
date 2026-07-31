@@ -908,6 +908,8 @@ static void method_screen(void)
 static lv_obj_t *s_dice_card;
 static lv_obj_t *s_dice_tally;
 static lv_obj_t *s_dice_done;
+static lv_obj_t *s_dice_fp;        // live SHA256 fingerprint, for the owner to check
+static bool     s_dice_fp_full;    // tap the fingerprint to reveal all 64 hex
 
 static unsigned dice_floor(void) { return s_count == 24 ? DICE_FLOOR_256 : DICE_FLOOR_128; }
 
@@ -919,11 +921,24 @@ static void dice_refresh(void)
         snprintf(buf, sizeof buf, tr(STR_W_DICE_TALLY_FMT), n, dice_floor());
         lv_label_set_text(s_dice_tally, buf);
     }
+    if (s_dice_fp) {
+        // first 8 bytes by default (enough to spot a mismatch), all 32 on tap.
+        char fp[65] = "";
+        uint8_t e[32];
+        if (n > 0 && wallet_dice_peek(e) == 0) {
+            int bytes = s_dice_fp_full ? 32 : 8;
+            for (int i = 0; i < bytes; i++) snprintf(fp + i * 2, 3, "%02x", e[i]);
+        }
+        lv_label_set_text(s_dice_fp, fp);
+        memset(e, 0, sizeof e);
+    }
     if (s_dice_done) {
         if (n >= dice_floor()) lv_obj_remove_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
         else                   lv_obj_add_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
     }
 }
+
+static void dice_fp_cb(lv_event_t *e) { (void)e; s_dice_fp_full = !s_dice_fp_full; dice_refresh(); }
 
 static void dice_key_cb(lv_event_t *e)
 {
@@ -934,10 +949,12 @@ static void dice_key_cb(lv_event_t *e)
 
 static void dice_undo_cb(lv_event_t *e) { (void)e; wallet_dice_undo(); dice_refresh(); }
 
-// Build the seed. Same wipe discipline as tap_done_cb: entropy is seed material.
-static void dice_done_cb(lv_event_t *e)
+// Build the seed from the banked rolls. Same wipe discipline as tap_done_cb:
+// entropy is seed material. The rolls stay in the module until take() consumes
+// them, so this can be reached straight from the "same-y rolls" nudge without
+// losing them.
+static void dice_commit(void)
 {
-    (void)e;
     unsigned need = s_count == 24 ? 32 : 16;
     uint8_t entropy[32];
     if (wallet_dice_take(entropy, need) == 0) {
@@ -952,12 +969,32 @@ static void dice_done_cb(lv_event_t *e)
     memset(entropy, 0, sizeof entropy);
 }
 
+static void dice_force_cb(lv_event_t *e) { (void)e; dice_commit(); }
+
+static void dice_done_cb(lv_event_t *e)
+{
+    (void)e;
+    // If every entered face is identical, that is not a rolled die. Warn once,
+    // but offer CONTINUE (keeps the rolls) so the rare legitimate case is not
+    // blocked; BACK returns to the method choice and starts fresh.
+    const char *d = wallet_dice_digits();
+    bool samey = d[0] != 0;
+    for (const char *p = d; *p; p++) if (*p != d[0]) { samey = false; break; }
+    if (samey) {
+        mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_SAMEY));
+        mk_pill(tr(STR_W_DICE_USE), 300, WT_ACTION_Y, 200, dice_force_cb, NULL);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, method_dice_cb, NULL);
+        return;
+    }
+    dice_commit();
+}
+
 static void dice_cancel_cb(lv_event_t *e) { wallet_dice_reset(); cancel_cb(e); }
 
 static void dice_screen(void)
 {
     wallet_dice_reset();
-    s_dice_tally = NULL; s_dice_done = NULL;
+    s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_fp_full = false;
     mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_S));
 
     s_dice_card = lv_obj_create(s_scr);
@@ -983,11 +1020,20 @@ static void dice_screen(void)
         lv_obj_center(lbl);
     }
 
-    s_dice_tally = wt_lbl(s_dice_card, "", 18, 108, wt_font_mono28(), INK_COL);
-    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, 158,
+    s_dice_tally = wt_lbl(s_dice_card, "", 18, 100, wt_font_mono28(), INK_COL);
+
+    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, 150,
                             wt_font14(), MUT_COL);
     lv_obj_set_width(note, DICE_CARD_W - 36);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+
+    // live SHA256 fingerprint: first 8 bytes, tap to reveal all 64 hex. The
+    // value the owner can reproduce on any offline machine to check the device.
+    s_dice_fp = wt_lbl(s_dice_card, "", 18, 192, wt_font14(), INK_COL);
+    lv_obj_set_width(s_dice_fp, DICE_CARD_W - 36);
+    lv_label_set_long_mode(s_dice_fp, LV_LABEL_LONG_WRAP);
+    lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
 
     mk_pill(tr(STR_W_DICE_UNDO), 18, DICE_CARD_Y + DICE_CARD_H + 6, 120, dice_undo_cb, NULL);
     s_dice_done = mk_pill(tr(STR_C_DONE), 300, DICE_CARD_Y + DICE_CARD_H + 6, 200,

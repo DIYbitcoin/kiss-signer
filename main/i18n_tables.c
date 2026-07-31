@@ -89,6 +89,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_DICE_UNDO] = "UNDO",
     [STR_W_DICE_VERIFY_NOTE] = "SHA256 of your rolls. recompute it offline to check.",
     [STR_W_DICE_SAMEY] = "that doesn't look rolled. continue?",
+    [STR_W_DICE_USE] = "CONTINUE",
     [STR_W_WRITE_T] = "WRITE THESE DOWN",
     [STR_W_WRITE_S] = "words + the same passphrase restore this wallet",
     [STR_W_PAPER_ONLY] = "paper only. never type or photograph.",

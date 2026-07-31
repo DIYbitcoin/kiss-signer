@@ -96,5 +96,14 @@ int test_dice(void)
     ok("reset clears count", wallet_dice_count() == 0);
     ok("reset clears digits", wallet_dice_digits()[0] == '\0');
 
+    // ---- peek: full SHA256 of the current digits, no floor ----
+    roll_str(R50);
+    ok("peek rc", wallet_dice_peek(e) == 0);
+    hex(e, 32, got);
+    ok("peek == SHA256(R50) full", strcmp(got, KAT50) == 0);
+    if (strcmp(got, KAT50) != 0) printf("  got %s\n  want %s\n", got, KAT50);
+    ok("peek under the floor still works", (wallet_dice_undo(), wallet_dice_peek(e) == 0));
+    ok("peek NULL rejected", wallet_dice_peek(NULL) == -1);
+
     return fails;
 }
