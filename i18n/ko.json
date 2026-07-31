@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... 는 반복해서 쓸 수 있는 사일런트 페이먼트 주소입니다. 비트코인을 받으려면 이 주소를 공유하세요.\n\n프라이버시를 위해 보내는 쪽 지갑이 그 결제용으로 새 일회용 %s... 주소를 만듭니다.\n\n그래서 공유하는 것은 %s..., 거래에 나타나는 것은 %s... 입니다. %s... 가 보이면 정상입니다.",
   "N_T": "스캔",
   "N_S": "코디네이터의 QR을 카메라에 보여주세요",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "이 지갑",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

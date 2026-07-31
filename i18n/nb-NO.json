@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... er din gjenbrukbare adresse for stille betaling. del den for å motta bitcoin.\n\nav hensyn til personvern gjør avsenderens lommebok den om til en ny engangsadresse %s... for den betalingen.\n\nså %s... deler du, %s... står i transaksjonen. å se %s... er riktig.",
   "N_T": "SKANN",
   "N_S": "vis koordinatorens QR-kode til kameraet",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "DENNE LOMMEBOKEN",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

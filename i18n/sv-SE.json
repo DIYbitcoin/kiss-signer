@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... är din återanvändbara adress för tyst betalning. dela den för att ta emot bitcoin.\n\nför integritetens skull gör avsändarens plånbok om den till en ny engångsadress %s... för just den betalningen.\n\nså %s... delar du, %s... står i transaktionen. att se %s... är rätt.",
   "N_T": "SKANNA",
   "N_S": "visa koordinatorns QR-kod för kameran",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "DEN HÄR PLÅNBOKEN",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

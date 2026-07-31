@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... é o seu endereço reutilizável de pagamento silencioso. compartilhe para receber bitcoin.\n\npor privacidade, a carteira de quem paga cria um endereço %s... novo e de uso único para aquele pagamento.\n\nentão %s... é o que você compartilha e %s... é o que aparece na transação. ver %s... está certo.",
   "N_T": "ESCANEAR",
   "N_S": "mostre o QR do coordenador para a câmera",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "ESTA CARTEIRA",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

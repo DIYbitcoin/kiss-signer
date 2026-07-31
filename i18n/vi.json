@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... là địa chỉ thanh toán im lặng dùng lại được của bạn. chia sẻ nó để nhận bitcoin.\n\nvì riêng tư, ví của người gửi biến nó thành một địa chỉ %s... mới, dùng một lần cho khoản đó.\n\nvậy %s... là thứ bạn chia sẻ, %s... là thứ xuất hiện trong giao dịch. thấy %s... là đúng.",
   "N_T": "QUÉT",
   "N_S": "đưa QR của app điều phối vào camera",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "VÍ NÀY",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... è il tuo indirizzo silent payment riutilizzabile. condividilo per ricevere bitcoin.\n\nper privacy il portafoglio di chi paga lo trasforma in un indirizzo %s... nuovo e monouso per quel pagamento.\n\nquindi %s... è quello che condividi, %s... è quello che compare nella transazione. vedere %s... è corretto.",
   "N_T": "SCANSIONA",
   "N_S": "mostra alla camera il QR del coordinatore",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "QUESTO PORTAFOGLIO",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",

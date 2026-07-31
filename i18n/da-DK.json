@@ -205,7 +205,7 @@
   "R_SP_WHY_B": "%s... er din genbrugelige adresse til stille betaling. del den for at modtage bitcoin.\n\nfor privatlivets skyld laver afsenderens tegnebog den om til en ny engangsadresse %s... til den betaling.\n\nså %s... deler du, %s... står i transaktionen. at se %s... er korrekt.",
   "N_T": "SCAN",
   "N_S": "vis koordinatorens QR-kode til kameraet",
-  "I_SEC_THIS_WALLET": "THIS WALLET",
+  "I_SEC_THIS_WALLET": "DENNE TEGNEBOG",
   "I_SEC_YOUR_BACKUP": "YOUR BACKUP",
   "I_WORDS_SUB": "show them, or check your paper",
   "GD_SET_SUB": "a spare you can show",
