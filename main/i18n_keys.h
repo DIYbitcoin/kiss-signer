@@ -74,6 +74,7 @@ enum {
     STR_W_ENT_RESULT,
     STR_W_ENT_MIX_T,
     STR_W_ENT_MIX_B,
+    STR_W_ENT_WHY,
     STR_W_ENT_TAP_T,
     STR_W_ENT_TAP_S,
     STR_W_ENT_SRC3_CAP,
