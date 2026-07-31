@@ -16,6 +16,7 @@ clang -O1 -w \
   -I"$WALLY/upstream/src/secp256k1/src" \
   -I"$WALLY/upstream/src/secp256k1/include" \
   -Imain \
+  -Isim \
   -Icomponents/cUR/src \
   -Icomponents/bitsquiggle32 \
   "$WALLY/upstream/src/amalgamation/combined.c" \

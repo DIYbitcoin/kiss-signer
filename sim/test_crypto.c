@@ -7,6 +7,7 @@
 #include "wallet_crypto.h"
 #include "wallet_psbt.h"
 #include "wallet_usage.h"
+#include "sign_vectors.h"   // golden signatures, independently computed (embit)
 
 #include <wally_bip32.h>
 #include <wally_bip39.h>
@@ -457,6 +458,23 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
         snprintf(nm, sizeof nm, "%s signed parses", label);
         chkb(nm, wally_psbt_from_bytes(sb, sw, 0, &sp) == WALLY_OK);
         if (sp) {
+            // Golden vector: the input-0 signature must equal the byte string an
+            // INDEPENDENT signer (embit, tools/sign_fixtures/gen_sign_vectors.py)
+            // produced for the same PSBT + dev seed. A change to nonce derivation
+            // or low-R grinding fails here. This is the Dark Skippy tell caught
+            // at the source: the nonce is not free, and CI proves it did not move.
+            const char *want = strcmp(label, "legacy") == 0 ? SV_ECDSA_LEGACY
+                             : strcmp(label, "nested") == 0 ? SV_ECDSA_NESTED
+                             : SV_ECDSA_NATIVE;
+            char got[160] = {0};
+            if (sp->inputs[0].signatures.num_items == 1) {
+                const struct wally_map_item *it = &sp->inputs[0].signatures.items[0];
+                char *gh = NULL;
+                wally_hex_from_bytes(it->value, it->value_len, &gh);
+                if (gh) { snprintf(got, sizeof got, "%s", gh); wally_free_string(gh); }
+            }
+            snprintf(nm, sizeof nm, "%s signature is the golden byte string", label);
+            chk(nm, got, want);
             snprintf(nm, sizeof nm, "%s signed finalizes", label);
             chkb(nm, wally_psbt_finalize(sp, 0) == WALLY_OK);
             struct wally_tx *stx = NULL;
@@ -466,6 +484,17 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
             wally_psbt_free(sp);
         }
         wallet_psbt_free();
+        if (strcmp(label, "native") == 0) {
+            // Determinism localizer: the same PSBT signs to the same bytes every
+            // time. A stray RNG in the nonce path breaks this even where a golden
+            // vector might still match by luck. Reload, re-sign, require identical.
+            wpsbt_summary_t s2; uint8_t sb2[4096]; size_t sw2 = 0;
+            wallet_psbt_load(pb, pl, &s2);
+            chki("native re-sign rc", wallet_psbt_sign(sb2, sizeof sb2, &sw2), 0);
+            chkb("native signing is deterministic (byte-identical)",
+                 sw2 == sw && memcmp(sb2, sb, sw) == 0);
+            wallet_psbt_free();
+        }
     }
     wallet_set_script(WSCRIPT_NATIVE);
 }
