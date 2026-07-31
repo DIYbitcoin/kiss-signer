@@ -300,6 +300,10 @@ static const char *const tbl_en[STR_N] = {
     [STR_S_SIGNED_T] = "SIGNED",
     [STR_S_DONE_SD_SUB] = "signed. return this card to Sparrow, load the -signed.psbt file, then broadcast",
     [STR_S_SAVED_NOTE] = "saved to the card. KISS stayed offline",
+    // ADDENDUM-03: signature fingerprint + its ? explainer (English only).
+    [STR_S_SIG_FP_CAP] = "SIGNATURE",
+    [STR_S_SIG_FP_HELP_T] = "SIGNATURE CHECK",
+    [STR_S_SIG_FP_HELP_B] = "this code comes from the signature itself.\n\nsign the same transaction on another signer you trust. if it shows the same code, neither device changed anything.\n\na different code means one of them did.",
     [STR_S_FAIL_T] = "SIGN FAILED",
     [STR_S_FAIL_SIGN] = "the transaction could not be signed",
     [STR_S_FAIL_SD_WRITE] = "could not write to the SD card",

@@ -309,6 +309,12 @@ enum {
     STR_S_SIGNED_T,
     STR_S_DONE_SD_SUB,
     STR_S_SAVED_NOTE,
+    // ADDENDUM-03: the signed screen's signature fingerprint + its ? explainer.
+    // English only; tr() falls back for the other locales until the locale pass.
+    // See docs/specs/signature-fingerprint.md.
+    STR_S_SIG_FP_CAP,
+    STR_S_SIG_FP_HELP_T,
+    STR_S_SIG_FP_HELP_B,
     STR_S_FAIL_T,
     STR_S_FAIL_SIGN,
     STR_S_FAIL_SD_WRITE,
