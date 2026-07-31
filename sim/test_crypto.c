@@ -320,6 +320,52 @@ static size_t mk_val_psbt(uint64_t in_val, uint64_t ext_val, uint64_t chg_val,
     return wr;
 }
 
+// n-in native-segwit PSBT, every input ours (84h/0/i) and worth `per` sats, one
+// external output taking the lot minus `fee`. No change: this is the shape a
+// consolidation or a wallet sweep actually has, which is what the merge caution
+// is about. Each input gets its own txid so they are distinct outpoints.
+static size_t mk_nin_psbt(int n_in, uint64_t per, uint64_t fee,
+                          uint8_t *out, size_t cap) {
+    uint8_t ext_spk[22] = {0x00, 0x14};
+    memset(ext_spk + 2, 0x11, 20);
+
+    struct wally_tx *tx = NULL;
+    wally_tx_init_alloc(2, 0, n_in, 1, &tx);
+    for (int i = 0; i < n_in; i++) {
+        uint8_t txid[32]; memset(txid, 0xA0 + i, 32);
+        wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
+    }
+    wally_tx_add_raw_output(tx, per * (uint64_t)n_in - fee, ext_spk, 22, 0);
+
+    struct wally_psbt *p = NULL;
+    wally_psbt_init_alloc(0, n_in, 1, 1, 0, &p);
+    wally_psbt_set_global_tx(p, tx);
+    for (int i = 0; i < n_in; i++) {
+        struct ext_key kin;
+        derive5(84, 0, (uint32_t)i, &kin);
+        uint8_t spk[22]; size_t len = 0;
+        build_spk(WSCRIPT_NATIVE, kin.pub_key, spk, &len);
+        struct wally_tx_output *u = NULL;
+        wally_tx_output_init_alloc(per, spk, len, &u);
+        wally_psbt_set_input_witness_utxo(p, i, u);
+        wally_tx_output_free(u);
+
+        const uint32_t pin[5] = {H + 84, H, H, 0, (uint32_t)i};
+        struct wally_map *m = NULL;
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, kin.pub_key, 33, t_fp, 4, pin, 5);
+        wally_psbt_set_input_keypaths(p, i, m);
+        wally_map_free(m);
+        wally_bzero(&kin, sizeof kin);
+    }
+
+    size_t wr = 0;
+    wally_psbt_to_bytes(p, 0, out, cap, &wr);
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+    return wr;
+}
+
 // 2-in (native 84h + legacy 44h, both ours) / 2-out mixed-type PSBT: input0
 // carries a witness_utxo, input1 a full prev tx. 100k + 100k in, 60k out +
 // 139k change (native), fee 1000.
@@ -823,6 +869,35 @@ int main(int argc, char **argv) {
     chkb("combo has high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
     chkb("combo has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
     chkb("combo has dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
+    wallet_psbt_free();
+
+    // ---- merging coins: the bar sits above everyday coin selection ----
+    // one under the bar: four ordinary coins is still a wallet picking inputs,
+    // and warning there would be the fatigue the threshold exists to avoid
+    pl = mk_nin_psbt(WPSBT_MERGE_INS - 1, 100000, 8000, pb, sizeof pb);
+    chki("under-merge load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("under-merge input count", (int)sum.n_in, WPSBT_MERGE_INS - 1);
+    chki("under-merge READY", sum.status, WPSBT_READY);
+    chki("under-merge no cautions", sum.caution_flags, 0);
+    wallet_psbt_free();
+
+    // at the bar: flagged, still signable, and no other flag rides along (the
+    // coins are ordinary and the fee is moderate, so this is the merge alone)
+    pl = mk_nin_psbt(WPSBT_MERGE_INS, 100000, 10000, pb, sizeof pb);
+    chki("merge load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("merge input count", (int)sum.n_in, WPSBT_MERGE_INS);
+    chki("merge CAUTION", sum.status, WPSBT_CAUTION);
+    chki("merge flag alone", sum.caution_flags, WPSBT_C_MERGE_INS);
+    chkb("merge reason says merging", strstr(sum.reason, "merging") != NULL);
+    chkb("merge still signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
+    wallet_psbt_free();
+
+    // a sweep of tiny coins stacks the merge flag on the dust-input one: they
+    // answer different questions (how many are tied together vs who sent them)
+    pl = mk_nin_psbt(WPSBT_MERGE_INS + 2, 3000, 2000, pb, sizeof pb);
+    chki("merge-dust load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chkb("merge-dust has merge", (sum.caution_flags & WPSBT_C_MERGE_INS) != 0);
+    chkb("merge-dust has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
     wallet_psbt_free();
 
     // ---- amount sanity: consensus cap + no unsigned wraparound ----

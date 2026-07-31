@@ -487,6 +487,8 @@ static void caution_help_cb(lv_event_t *e)
         BODY_ADD("%s\n", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD("%s\n", tr(STR_S_WHY_DUSTIN));
+    if (f & WPSBT_C_MERGE_INS)
+        BODY_ADD("%s\n", tr(STR_S_WHY_MERGE));
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
         BODY_ADD("%s\n", tr(STR_S_WHY_TINYCH));
     BODY_ADD(o ? "\n%s" : "%s", tr(STR_S_WHY_FOOT));
@@ -610,6 +612,11 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
         { bits[n] = WPSBT_C_HIGHFEE;     parts[n++] = tr(STR_S_C_HIGHFEE); }
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
+    // input-side, so it sits with the dust row rather than with the change ones.
+    // Four rows is the ceiling this can reach (fee + dust in + merge + one of
+    // the two change rows), which is exactly the cap the row stack draws for.
+    if (n < cap && (f & WPSBT_C_MERGE_INS))
+        { bits[n] = WPSBT_C_MERGE_INS;   parts[n++] = tr(STR_S_C_MERGE); }
     if (n < cap && (f & WPSBT_C_DUST_CHANGE))
         { bits[n] = WPSBT_C_DUST_CHANGE; parts[n++] = tr(STR_S_C_DUSTCH); }
     else if (n < cap && (f & WPSBT_C_SMALL_CHANGE))
