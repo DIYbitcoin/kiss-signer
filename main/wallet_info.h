@@ -6,9 +6,18 @@
 
 bool wallet_info_active(void);            // true while any of its screens is up
 void wallet_info_open(lv_obj_t *parent);
-// Shared fingerprint explainer. Pass the home fingerprint to include it in the
-// title, or NULL for the generic WALLET-page card.
-lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint);
+// Shared fingerprint explainer, opened from the home chip, the WALLET row and
+// the reveal screen's "?".
+//
+// `fingerprint` (eight hex characters, or NULL) puts the code in the title AND
+// is what the card's picture is drawn from, so the two can never disagree.
+//
+// `exit_hint` appends the "tap the KISS logo to go back to the game" line. That
+// gesture only exists on HOME, so only the home chip passes true. It used to be
+// inferred from `fingerprint != NULL`, which was the same thing right up until
+// the other two callers started passing a code as well.
+lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
+                                   bool exit_hint);
 // The plain "?" card, title over body over OK, for screens outside this file.
 // There is one implementation of that card and it lives here, so Receive
 // borrows it rather than growing a second one that drifts: the receive screen
