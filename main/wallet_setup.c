@@ -14,14 +14,19 @@
 
 #include "flag_imgs.h"
 #include "i18n.h"
+#include "wallet_crypto.h"   // wallet_entropy_mix3: camera + chip + taps -> seed
 #include "wallet_scan.h"     // wallet_scan_open_raw: seed-QR import (amnesic load)
 #include "wallet_seed.h"
 #include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
+#include "wallet_tapent.h"   // source 3: the timing of the user's own taps
 #include "wallet_theme.h"
 #include "wallet_ui.h"
 
 #ifndef SIMULATOR
 #include "camera_spike.h"
+#include "esp_cpu.h"         // esp_cpu_get_cycle_count: where the tap entropy is
+#include "esp_random.h"      // esp_fill_random: TRNG when the camera never ran
+#include "esp_timer.h"       // esp_timer_get_time
 #endif
 
 // main.c owns the full replacement/setup hand-off (including the type-twice
@@ -509,13 +514,192 @@ void wallet_setup_entropy(const uint8_t *entropy, unsigned len)
     words_screen();
 }
 
+// ---- source 3: the tap screen (see docs/specs/tap-entropy.md) ----
+// One card, centred, that IS the tap target: nothing to aim at, no missed
+// touch. The bar counts events that happened -- one segment per counted tap --
+// rather than scoring their quality, because a quality score is a claim the
+// code cannot prove and is exactly the false assurance the Coldcard postmortem
+// warns about. The camera's two sources were captured on the previous screen
+// and wait in the statics below until the last tap folds all three.
+#define TAP_CARD_X   100
+#define TAP_CARD_Y   130
+#define TAP_CARD_W   600
+#define TAP_CARD_H   260
+#define TAP_SEG_GAP    3
+
+static uint8_t s_cam_chain[32];   // source 1: the camera frame fold, frozen
+static uint8_t s_cam_trng[32];    // source 2: the chip read at capture
+static bool    s_cam_have;        // false when the camera failed: cam stays 0
+
+static lv_obj_t *s_tap_segs[WTAP_TARGET];
+static lv_obj_t *s_tap_count;
+static lv_obj_t *s_tap_card;
+
+// The clock the tap timing is read from. On device this is where the entropy
+// lives; in the sim it is monotonic by construction so a scripted walk never
+// trips the debounce (real timing entropy is the device's job, unit-tested on
+// the host by sim/test_tapent.c).
+static void tap_clock(uint64_t *us, uint32_t *cyc)
+{
+#ifdef SIMULATOR
+    static uint64_t t;
+    t += WTAP_DEBOUNCE_US + 1000;
+    *us = t;
+    *cyc = ui_rand();
+#else
+    *us = (uint64_t)esp_timer_get_time();
+    *cyc = esp_cpu_get_cycle_count();
+#endif
+}
+
+static void tap_fill_trng(uint8_t *b, size_t n)
+{
+#ifdef SIMULATOR
+    for (size_t i = 0; i < n; i++) b[i] = (uint8_t)(ui_rand() & 0xFF);
+#else
+    esp_fill_random(b, n);
+#endif
+}
+
+// The seed did not build. All source material is already wiped by the time we
+// know, so the only way on is a fresh collection: rebuild the entropy screen.
+static void ent_retry_cb(lv_event_t *e) { (void)e; entropy_screen(); }
+
+// The only place a seed comes into existence: three chains in, words out, and
+// every intermediate wiped on the way through.
+static void tap_done_cb(lv_timer_t *t)
+{
+    lv_timer_delete(t);
+    uint8_t cam[32], trng[32], taps[32], seed[32];
+    // A camera that never captured leaves cam all-zero and gets a fresh TRNG
+    // read here, so a dead lens costs a source, not the wallet: a hash is as
+    // strong as its best input.
+    if (s_cam_have) {
+        memcpy(cam, s_cam_chain, 32);
+        memcpy(trng, s_cam_trng, 32);
+    } else {
+        memset(cam, 0, 32);
+        tap_fill_trng(trng, 32);
+    }
+    int ok = wallet_tapent_take(taps) == 0 &&
+             wallet_entropy_mix3(cam, trng, taps, seed) == 0;
+    memset(cam, 0, sizeof cam);
+    memset(trng, 0, sizeof trng);
+    memset(taps, 0, sizeof taps);
+    memset(s_cam_chain, 0, sizeof s_cam_chain);
+    memset(s_cam_trng, 0, sizeof s_cam_trng);
+    s_cam_have = false;
+    wallet_tapent_reset();
+    if (ok) {
+        wallet_setup_entropy(seed, 32);
+    } else {
+        // Can't happen after a full 64-tap gate (take succeeds, mix3 only fails
+        // on NULL), but if it ever does, say so plainly instead of leaving the
+        // owner on a full bar that does nothing. TRY AGAIN restarts collection.
+        mk_screen(tr(STR_W_ENT_FAIL_T), NULL);
+        mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
+        mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
+    }
+    memset(seed, 0, sizeof seed);
+}
+
+static void tap_hit_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_point_t p = {0, 0};
+    lv_indev_t *indev = lv_indev_active();
+    if (indev) lv_indev_get_point(indev, &p);
+
+    uint64_t us; uint32_t cyc;
+    tap_clock(&us, &cyc);
+    if (!wallet_tapent_tap(us, cyc, (int16_t)p.x, (int16_t)p.y))
+        return;                          // debounced: no light, no count
+
+    unsigned n = wallet_tapent_count();
+    if (n >= 1 && n <= WTAP_TARGET && s_tap_segs[n - 1])
+        lv_obj_set_style_bg_color(s_tap_segs[n - 1], OK_COL, 0);
+    if (s_tap_count) {
+        char buf[16];
+        snprintf(buf, sizeof buf, "%u / %u", n, (unsigned)WTAP_TARGET);
+        lv_label_set_text(s_tap_count, buf);
+    }
+    if (n >= WTAP_TARGET) {
+        lv_obj_remove_flag(s_tap_card, LV_OBJ_FLAG_CLICKABLE);
+        // Hold the full bar so completion is seen, not inferred.
+        lv_timer_create(tap_done_cb, 400, NULL);
+    }
+}
+
+static void tap_screen(void)
+{
+    wallet_tapent_reset();
+    memset(s_tap_segs, 0, sizeof s_tap_segs);
+    s_tap_count = NULL;
+    mk_screen2(tr(STR_W_ENT_TAP_T), tr(STR_W_ENT_TAP_S));
+
+    s_tap_card = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(s_tap_card);
+    lv_obj_set_pos(s_tap_card, TAP_CARD_X, TAP_CARD_Y);
+    lv_obj_set_size(s_tap_card, TAP_CARD_W, TAP_CARD_H);
+    lv_obj_set_style_radius(s_tap_card, 10, 0);
+    lv_obj_set_style_border_width(s_tap_card, 1, 0);
+    lv_obj_set_style_border_color(s_tap_card, WT_EDGE, 0);
+    lv_obj_set_style_bg_color(s_tap_card, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(s_tap_card, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(s_tap_card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_tap_card, LV_OBJ_FLAG_CLICKABLE);
+    // CLICKED, not PRESSED: one count per completed down-up, the same event the
+    // rest of the app uses. A press dragged off the card never clicks, so a
+    // drag counts once, not once per move.
+    lv_obj_add_event_cb(s_tap_card, tap_hit_cb, LV_EVENT_CLICKED, NULL);
+
+    wt_lbl(s_tap_card, tr(STR_W_ENT_SRC3_CAP), 18, 16, wt_font14(), MUT_COL);
+
+    // 64 segments, not a smooth fill: a segment is a countable event, while a
+    // continuous bar would imply a measurement of quality we refuse to claim.
+    int inner = TAP_CARD_W - 36;
+    int sw = (inner - (WTAP_TARGET - 1) * TAP_SEG_GAP) / WTAP_TARGET;
+    for (int i = 0; i < WTAP_TARGET; i++) {
+        lv_obj_t *seg = lv_obj_create(s_tap_card);
+        lv_obj_remove_style_all(seg);
+        lv_obj_set_pos(seg, 18 + i * (sw + TAP_SEG_GAP), 62);
+        lv_obj_set_size(seg, sw, 26);
+        lv_obj_set_style_radius(seg, 2, 0);
+        lv_obj_set_style_bg_color(seg, WT_EDGE, 0);
+        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(seg, LV_OBJ_FLAG_CLICKABLE);   // presses hit the card
+        lv_obj_remove_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
+        s_tap_segs[i] = seg;
+    }
+
+    char buf[16];
+    snprintf(buf, sizeof buf, "0 / %u", (unsigned)WTAP_TARGET);
+    s_tap_count = wt_lbl(s_tap_card, buf, 18, 108, wt_font_mono28(), INK_COL);
+    lv_obj_remove_flag(s_tap_count, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t *note = wt_lbl(s_tap_card, tr(STR_W_ENT_TAP_NOTE), 18, 168,
+                            wt_font14(), MUT_COL);
+    lv_obj_set_width(note, TAP_CARD_W - 36);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    lv_obj_remove_flag(note, LV_OBJ_FLAG_CLICKABLE);
+
+    // CANCEL only. Same rule the words screen documents: no screen without an
+    // exit. Nothing is staged here, because the seed does not exist yet.
+    mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 160, cancel_cb, NULL);
+}
+
 #ifdef SIMULATOR
 static void sim_entropy_cb(lv_event_t *e)
 {
     (void)e;
-    uint8_t ent[32];
-    for (int i = 0; i < 32; i++) ent[i] = (uint8_t)(ui_rand() & 0xFF);
-    wallet_setup_entropy(ent, 32);
+    // The sim has no camera: stand in for sources 1 and 2 so the tap screen,
+    // which is the same on both builds, can be walked and shot for the docs.
+    for (int i = 0; i < 32; i++) {
+        s_cam_chain[i] = (uint8_t)(ui_rand() & 0xFF);
+        s_cam_trng[i]  = (uint8_t)(ui_rand() & 0xFF);
+    }
+    s_cam_have = true;
+    tap_screen();
 }
 #else
 // The capture happens on the camera task; an LVGL timer collects the hash.
@@ -523,17 +707,31 @@ static lv_timer_t *s_ent_tmr;
 
 static void ent_poll_cb(lv_timer_t *t)
 {
-    uint8_t h[32];
-    if (camera_entropy_result(h)) {
+    // Capture freezes sources 1 and 2 into the statics and hands them here.
+    // They wait through the tap screen; the mnemonic is not made until the
+    // last tap folds all three in tap_done_cb.
+    if (camera_entropy_sources(s_cam_chain, s_cam_trng)) {
         lv_timer_delete(t);
         s_ent_tmr = NULL;
         camera_entropy_stop();
-        wallet_setup_entropy(h, 32);
-        memset(h, 0, sizeof h);
+        s_cam_have = true;
+        tap_screen();
     }
 }
 
 static void ent_tap_cb(lv_event_t *e) { (void)e; camera_entropy_tap(); }
+
+// The camera-failure route: no frame fold to carry, so the seed will come from
+// the chip TRNG and the taps. s_cam_have stays false, which tap_done_cb reads
+// as "cam is all-zero, read a fresh TRNG".
+static void tap_only_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
+    camera_entropy_stop();
+    s_cam_have = false;
+    tap_screen();
+}
 
 static void ent_back_cb(lv_event_t *e)
 {
@@ -724,6 +922,12 @@ static void entropy_screen(void)
     wt_chip(row, "1", false);
     wt_diagram_op(row, "+");
     wt_chip(row, "2", false);
+    wt_diagram_op(row, "+");
+    // Source 3 is not collected on this screen, so its chip is drawn inert: a
+    // dim chip in an equation reads as a promise the next screen keeps.
+    lv_obj_t *c3 = wt_chip(row, "3", false);
+    lv_obj_set_style_text_color(c3, WT_DIM, 0);
+    lv_obj_set_style_border_color(c3, WT_DIM, 0);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     wt_chip(row, tr(STR_W_ENT_RESULT), true);
     wt_help_chip(s_scr, 752, ENT_CAM_Y + 2 * ENT_CARD_H + 28, MUT_COL,
@@ -758,6 +962,12 @@ static void entropy_screen(void)
                wt_font23(), STOP_COL);
         mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
                wt_font14(), MUT_COL);
+        // A dead camera must not be a dead device: sources 2 and 3 are still
+        // there, so the seed loses a source rather than the device losing its
+        // only path to a wallet. CAPTURE goes straight to the taps.
+        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
+                                tap_only_cb, NULL);
+        wt_pill_primary(s_ent_capture);
     }
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, ent_back_cb, NULL);
 #endif
@@ -980,6 +1190,12 @@ static void cancel_cb(lv_event_t *e)
     // wizard must drop that answer as well as any staged words, otherwise the
     // next setup/login can inherit a mode the owner never committed.
     wallet_seed_discard();
+    // Captured entropy is seed material too: a cancel from the tap screen must
+    // not leave the camera's two chains sitting in RAM for the next flow.
+    memset(s_cam_chain, 0, sizeof s_cam_chain);
+    memset(s_cam_trng, 0, sizeof s_cam_trng);
+    s_cam_have = false;
+    wallet_tapent_reset();
     close_all();
 }
 

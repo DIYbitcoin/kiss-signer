@@ -67,12 +67,17 @@ const char *camera_spike_zoom(int dir);
 void camera_spike_set_bus(void *i2c_bus);
 
 // ---- step 7: entropy mode — live Shannon meter drawn into the video, tap
-// captures SHA256(SHA256(frame) || hardware TRNG) once the 6.0-bit gate passes
-// (neither source alone can weaken the seed). Poll _result from an LVGL timer
-// (the capture happens on the camera task).
+// freezes the frame fold and reads the chip TRNG once the 6.0-bit gate passes.
+// Poll _sources from an LVGL timer (the capture happens on the camera task).
 bool camera_entropy_start(void);
 void camera_entropy_tap(void);
-bool camera_entropy_result(uint8_t out[32]);
+// Sources 1 and 2, SEPARATELY: chain_out = the fold over sampled frames,
+// trng_out = the chip read taken at capture. NEITHER is a seed. wallet_setup
+// folds both with the tap chain (wallet_entropy_mix3) before any mnemonic
+// exists, so the call that makes a wallet names all three inputs. Both buffers
+// are wiped here as they are handed over, which is why this is one call and
+// not two.
+bool camera_entropy_sources(uint8_t chain_out[32], uint8_t trng_out[32]);
 void camera_entropy_stop(void);
 // How full source one is, 0..100, for the LVGL column beside the preview to
 // draw. Reads a volatile the camera task owns, so it is a snapshot and needs no
