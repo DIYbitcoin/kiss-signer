@@ -1,6 +1,12 @@
 # Verifiable determinism: signatures a compromised KISS cannot fake
 
-Status: design approved 2026-07-30, not implemented.
+Status: implemented 2026-07-30. Golden signature vectors for the ECDSA inputs
+(legacy, nested, native) and the silent-payment Schnorr spends (even-Y and
+odd-Y, SIGHASH_DEFAULT) are pinned in `sim/sign_vectors.h`, each reproduced by
+an independent signer (embit for ECDSA, the BIP340 reference for Schnorr) and
+asserted by the suite, with a determinism re-sign check. Remaining: the
+explicit-SIGHASH_ALL 65-byte Schnorr form (encoding already tested, exact bytes
+not yet pinned) and the deferred aux-standardization question below.
 
 Dark Skippy is a signing-time attack. Malicious firmware picks the nonce of a
 signature so that it leaks bits of the master seed, and an attacker reads those
