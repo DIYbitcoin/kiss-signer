@@ -993,6 +993,51 @@ int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     return wally_psbt_to_bytes(s_psbt, 0, out, out_len, written) == WALLY_OK ? 0 : -4;
 }
 
+int wallet_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
+                                char out[9])
+{
+    if (!signed_psbt || !out)
+        return -1;
+    struct wally_psbt *p = NULL;
+    if (wally_psbt_from_bytes(signed_psbt, len, 0, &p) != WALLY_OK || !p)
+        return -1;
+    // Accumulate the signature bytes in input order, then hash once. Signatures
+    // only: the whole point is that a signer producing the same signatures
+    // agrees, whatever its PSBT framing.
+    uint8_t acc[4096];
+    size_t n = 0;
+    int any = 0, overflow = 0;
+    for (size_t i = 0; i < p->num_inputs && !overflow; i++) {
+        const struct wally_map *sigs = &p->inputs[i].signatures;
+        for (size_t j = 0; j < sigs->num_items; j++) {
+            const struct wally_map_item *it = &sigs->items[j];
+            if (n + it->value_len > sizeof acc) { overflow = 1; break; }
+            memcpy(acc + n, it->value, it->value_len);
+            n += it->value_len; any = 1;
+        }
+        const struct wally_map_item *tap =
+            wally_map_get_integer(&p->inputs[i].psbt_fields, 0x13);
+        if (!overflow && tap && (tap->value_len == 64 || tap->value_len == 65)) {
+            if (n + tap->value_len > sizeof acc) { overflow = 1; }
+            else { memcpy(acc + n, tap->value, tap->value_len); n += tap->value_len; any = 1; }
+        }
+    }
+    wally_psbt_free(p);
+    if (overflow || !any) { wally_bzero(acc, sizeof acc); return -1; }
+    uint8_t h[32];
+    int rc = wally_sha256(acc, n, h, 32);
+    wally_bzero(acc, sizeof acc);
+    if (rc != WALLY_OK)
+        return -1;
+    static const char HEX[] = "0123456789abcdef";
+    for (int k = 0; k < 4; k++) {
+        out[k * 2]     = HEX[h[k] >> 4];
+        out[k * 2 + 1] = HEX[h[k] & 0x0f];
+    }
+    out[8] = 0;
+    return 0;
+}
+
 void wallet_psbt_free(void)
 {
     if (s_psbt) {
