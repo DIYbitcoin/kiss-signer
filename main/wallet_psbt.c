@@ -765,6 +765,16 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                : (n49 && !n44 && !n84) ? 49
                : (n84 && !n44 && !n49) ? 84 : 0;
 
+    // Merging coins is the one privacy loss a signer can see coming and the one
+    // it can never take back: the moment this broadcasts, every input is public
+    // proof the rest belong to the same owner. Counted over ALL our inputs, not
+    // the dust ones — WPSBT_C_DUST_INPUT is about who sent the coin, this is
+    // about how many are being tied together, and a sweep of perfectly ordinary
+    // coins does the same damage. Soft CAUTION: consolidating is often the right
+    // call, and the signer has no UTXO set to propose a better selection with.
+    if (s->n_in >= WPSBT_MERGE_INS)
+        caution(s, WPSBT_C_MERGE_INS, "merging many coins (privacy)");
+
     // ---- outputs: re-derive change ourselves; never trust "this is change" ----
     // Refuse rather than verify a subset: an output we don't show is an output
     // the user can't approve, and skipping it would corrupt the fee math.
