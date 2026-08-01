@@ -4,6 +4,43 @@ All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer, so entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
+## [Unreleased]
+
+The fee on the screen. A signature over a SegWit coin only covers *that* coin's
+amount, so a coordinator can understate what the other coins are worth, the
+device subtracts and shows a fee lower than the one that will actually be paid,
+and the difference goes to a miner. The signer now proves those amounts whenever
+the transaction lets it, and says so plainly when it cannot. Found and fixed
+first by odudex in Krux (release 26.08.0); the reading of the attack and the
+wording of the warning are theirs.
+
+### Fixed
+
+- **The amount of every coin is now read from the transaction that created it**,
+  whenever your coordinator sends that transaction along. That previous
+  transaction has to hash to the exact coin being spent, so its amount cannot be
+  anything other than the truth. Before, a native or nested SegWit coin was taken
+  at the coordinator's word even when the proof was sitting in the same file.
+- **A coordinator that contradicts itself about a coin is refused**, rather than
+  the signer picking whichever number it read first.
+
+### Added
+
+- **A warning when the amounts cannot be proven.** With two or more coins and no
+  previous transactions attached, the fee shown can be lower than the fee paid,
+  and no amount of checking inside one transaction can rule it out. The signer
+  says so and lets you decide, because signing the same transaction twice is
+  perfectly normal when you hold more than one key. Coins spent from a Taproot
+  address are not affected, and neither is a single coin spend.
+- **DETAILS marks each coin**: a tick where a previous transaction vouched for
+  the amount, a struck through eye where it was only claimed.
+
+### Changed
+
+- **The DETAILS line about sighash ALL no longer overclaims.** It said signatures
+  cover every amount above. They cover every destination and its amount; the
+  amounts going *in* are the thing this release is about.
+
 ## [0.1.0-beta7], 2026-07-28
 
 Look and feel. Nothing here changes how a key is derived or a transaction is

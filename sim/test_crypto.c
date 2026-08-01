@@ -321,18 +321,53 @@ static size_t mk_val_psbt(uint64_t in_val, uint64_t ext_val, uint64_t chg_val,
 // n-in native-segwit PSBT, every input ours (84h/0/i) and worth `per` sats, one
 // external output taking the lot minus `fee`. No change: this is the shape a
 // consolidation or a wallet sweep actually has, which is what the merge caution
-// is about. Each input gets its own txid so they are distinct outpoints.
-static size_t mk_nin_psbt(int n_in, uint64_t per, uint64_t fee,
-                          uint8_t *out, size_t cap) {
+// is about. Each input gets its own outpoint so they are distinct.
+//
+// `mode` decides what backs each input's amount. That is the axis
+// WPSBT_C_UNPROVEN_IN turns on, and it is a parameter rather than four builders
+// so every case below spends the same coins in the same transaction:
+//
+//   NIN_CLAIM  witness_utxo only, invented outpoint    -> amount claimed
+//   NIN_PROVE  witness_utxo + the real previous tx     -> amount proven
+//   NIN_OMIT   same outpoint as PROVE, prev tx dropped -> byte-identical tx to
+//              PROVE with the proof removed, which is what makes the
+//              signature-unchanged regression mean anything
+//   NIN_LIE    real previous tx, witness_utxo overstating it by one sat
+#define NIN_MAX 16
+enum { NIN_CLAIM = 0, NIN_PROVE, NIN_OMIT, NIN_LIE };
+static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
+                             uint8_t *out, size_t cap) {
     uint8_t ext_spk[22] = {0x00, 0x14};
     memset(ext_spk + 2, 0x11, 20);
+    if (n_in > NIN_MAX) return 0;
+
+    // build every previous tx first: every mode but CLAIM makes the outer tx
+    // spend THEIR txids, which is the whole point -- a lie about the amount
+    // would change the txid and stop being a lie about this coin
+    struct wally_tx *prev[NIN_MAX] = {0};
+    uint8_t spks[NIN_MAX][22]; size_t spklen[NIN_MAX];
+    uint8_t txids[NIN_MAX][32];
+    for (int i = 0; i < n_in; i++) {
+        struct ext_key kin;
+        derive5(84, 0, (uint32_t)i, &kin);
+        spklen[i] = 0;
+        build_spk(WSCRIPT_NATIVE, kin.pub_key, spks[i], &spklen[i]);
+        wally_bzero(&kin, sizeof kin);
+        if (mode != NIN_CLAIM) {
+            uint8_t dt[32]; memset(dt, 0xB0 + i, 32);
+            wally_tx_init_alloc(2, 0, 1, 1, &prev[i]);
+            wally_tx_add_raw_input(prev[i], dt, 32, 0, 0xFFFFFFFF, NULL, 0, NULL, 0);
+            wally_tx_add_raw_output(prev[i], per, spks[i], spklen[i], 0);
+            wally_tx_get_txid(prev[i], txids[i], 32);
+        } else {
+            memset(txids[i], 0xA0 + i, 32);
+        }
+    }
 
     struct wally_tx *tx = NULL;
     wally_tx_init_alloc(2, 0, n_in, 1, &tx);
-    for (int i = 0; i < n_in; i++) {
-        uint8_t txid[32]; memset(txid, 0xA0 + i, 32);
-        wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
-    }
+    for (int i = 0; i < n_in; i++)
+        wally_tx_add_raw_input(tx, txids[i], 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
     wally_tx_add_raw_output(tx, per * (uint64_t)n_in - fee, ext_spk, 22, 0);
 
     struct wally_psbt *p = NULL;
@@ -341,12 +376,14 @@ static size_t mk_nin_psbt(int n_in, uint64_t per, uint64_t fee,
     for (int i = 0; i < n_in; i++) {
         struct ext_key kin;
         derive5(84, 0, (uint32_t)i, &kin);
-        uint8_t spk[22]; size_t len = 0;
-        build_spk(WSCRIPT_NATIVE, kin.pub_key, spk, &len);
         struct wally_tx_output *u = NULL;
-        wally_tx_output_init_alloc(per, spk, len, &u);
+        wally_tx_output_init_alloc(mode == NIN_LIE ? per + 1 : per,
+                                   spks[i], spklen[i], &u);
         wally_psbt_set_input_witness_utxo(p, i, u);
         wally_tx_output_free(u);
+        if (mode == NIN_PROVE || mode == NIN_LIE)
+            wally_psbt_set_input_utxo(p, i, prev[i]);
+        if (prev[i]) wally_tx_free(prev[i]);
 
         const uint32_t pin[5] = {H + 84, H, H, 0, (uint32_t)i};
         struct wally_map *m = NULL;
@@ -361,7 +398,17 @@ static size_t mk_nin_psbt(int n_in, uint64_t per, uint64_t fee,
     wally_psbt_to_bytes(p, 0, out, cap, &wr);
     wally_psbt_free(p);
     wally_tx_free(tx);
-    return wr;
+    // libwally reports the length it WANTED when the buffer is short, and out
+    // then holds nothing. Say so rather than handing back a phantom length.
+    return wr > cap ? 0 : wr;
+}
+
+// The merge tests are about how many coins are tied together, not about who
+// proved what, so they spend PROVEN coins and keep asserting the merge flag
+// alone. The unproven cases below call mk_nin_psbt_ex directly.
+static size_t mk_nin_psbt(int n_in, uint64_t per, uint64_t fee,
+                          uint8_t *out, size_t cap) {
+    return mk_nin_psbt_ex(n_in, per, fee, NIN_PROVE, out, cap);
 }
 
 // 2-in (native 84h + legacy 44h, both ours) / 2-out mixed-type PSBT: input0
@@ -689,7 +736,10 @@ int main(int argc, char **argv) {
     printf("---- step 5: PSBT ----\n");
     if (fixture_keys() != 0) { printf("FAIL: psbt fixture keys\n"); return 1; }
 
-    uint8_t pb[1024], sb[2048];
+    // 4096, not 1024: a PSBT that carries the full previous transaction for
+    // every input -- the shape that proves its own amounts -- is several times
+    // the size of one that only claims them. Same ceiling the device has.
+    uint8_t pb[4096], sb[4096];
     size_t pl, sw = 0;
     wpsbt_summary_t sum;
 
@@ -895,6 +945,112 @@ int main(int argc, char **argv) {
     chki("merge-dust load rc", wallet_psbt_load(pb, pl, &sum), 0);
     chkb("merge-dust has merge", (sum.caution_flags & WPSBT_C_MERGE_INS) != 0);
     chkb("merge-dust has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
+    wallet_psbt_free();
+
+    // ---- amounts declared vs amounts proven --------------------------------
+    // BIP143 signs the amount of the input being signed and nothing else, so a
+    // coordinator can run two sessions, name a different (individually true)
+    // amount in each, and combine one valid signature per input. The tx that
+    // broadcasts pays a fee neither screen showed. Nothing in a single PSBT can
+    // rule that out -- so with two or more inputs whose amounts are only
+    // CLAIMED, say so. See WPSBT_C_UNPROVEN_IN.
+
+    // one input: the lie lands in that input's own sighash and breaks it, so a
+    // bare witness_utxo is enough and there is nothing to warn about
+    pl = mk_nin_psbt_ex(1, 100000, 1000, NIN_CLAIM, pb, sizeof pb);
+    chki("1-in unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("1-in unproven READY", sum.status, WPSBT_READY);
+    chki("1-in unproven no cautions", sum.caution_flags, 0);
+    chki("1-in unproven count", (int)sum.n_unproven_in, 1);
+    wallet_psbt_free();
+
+    // two inputs, amounts claimed and not proven: the case krux warns on
+    pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
+    chki("2-in unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("2-in unproven CAUTION", sum.status, WPSBT_CAUTION);
+    chki("2-in unproven flag alone", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
+    chki("2-in unproven count", (int)sum.n_unproven_in, 2);
+    chkb("2-in unproven reason", strstr(sum.reason, "not proven") != NULL);
+    chkb("2-in unproven still signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
+    wallet_psbt_free();
+
+    // the same two coins with their previous transactions attached: nothing left
+    // to lie about, so the warning goes away. This is the escape hatch, and it
+    // is what keeps the caution from being permanent noise.
+    pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+    chkb("2-in proven builds", pl > 0);
+    chki("2-in proven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("2-in proven READY", sum.status, WPSBT_READY);
+    chki("2-in proven no cautions", sum.caution_flags, 0);
+    chki("2-in proven count zero", (int)sum.n_unproven_in, 0);
+    wallet_psbt_free();
+
+    // proving costs bytes, and that is the whole reason a coordinator skips it
+    {
+        uint8_t pa[4096];
+        size_t bare = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pa, sizeof pa);
+        size_t full = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+        chkb("previous transactions make the PSBT bigger", full > bare);
+    }
+
+    // A witness_utxo that contradicts the previous transaction is a coordinator
+    // disagreeing with itself about a coin. Refuse rather than pick a side --
+    // and note the amount reading LOW is the theft direction, so the one sat
+    // difference here is not a rounding question.
+    pl = mk_nin_psbt_ex(1, 100000, 1000, NIN_LIE, pb, sizeof pb);
+    chki("contradiction load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("contradiction STOP", sum.status, WPSBT_STOP);
+    chkb("contradiction reason", strstr(sum.reason, "previous transaction") != NULL);
+    chkb("contradiction refuses to sign", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
+    wallet_psbt_free();
+
+    // THE regression for the precedence flip: PROVE and OMIT are the same
+    // transaction spending the same outpoint for the same amount, differing
+    // only in whether the proof rides along. Reading the amount off the
+    // previous transaction instead of the witness_utxo must not move a single
+    // byte of the signature, or this change quietly broke every signer that
+    // ever co-signed with this one.
+    {
+        uint8_t sa[4096], sbb[4096];
+        size_t wa = 0, wb = 0;
+        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_OMIT, pb, sizeof pb);
+        chki("omit load rc", wallet_psbt_load(pb, pl, &sum), 0);
+        chki("omit is the unproven one", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
+        chki("omit sign rc", wallet_psbt_sign(sa, sizeof sa, &wa), 0);
+        wallet_psbt_free();
+
+        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+        chki("prove load rc", wallet_psbt_load(pb, pl, &sum), 0);
+        chki("prove sign rc", wallet_psbt_sign(sbb, sizeof sbb, &wb), 0);
+        wallet_psbt_free();
+
+        // the serialized PSBTs differ (one carries the previous transactions),
+        // so compare the thing that must not move: the signatures themselves
+        char fa[9], fb[9];
+        chki("omit sig fingerprint rc", wallet_psbt_sig_fingerprint(sa, wa, fa), 0);
+        chki("prove sig fingerprint rc", wallet_psbt_sig_fingerprint(sbb, wb, fb), 0);
+        chk("proof does not change the signature", fa, fb);
+    }
+
+    // DETAILS says WHICH coin: the per-input mark the verify row cannot carry
+    pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
+    chki("details unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    {
+        wpsbt_details_t dt;
+        chki("details unproven rc", wallet_psbt_details(&dt), 0);
+        chki("details unproven n_in", dt.n_in, 2);
+        chkb("details in0 not proven", !dt.ins[0].proven);
+        chkb("details in1 not proven", !dt.ins[1].proven);
+    }
+    wallet_psbt_free();
+    pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+    chki("details proven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    {
+        wpsbt_details_t dt;
+        chki("details proven rc", wallet_psbt_details(&dt), 0);
+        chkb("details in0 proven", dt.ins[0].proven);
+        chkb("details in1 proven", dt.ins[1].proven);
+    }
     wallet_psbt_free();
 
     // ---- amount sanity: consensus cap + no unsigned wraparound ----
@@ -1118,7 +1274,12 @@ int main(int argc, char **argv) {
         size_t plm = mk_mixed_psbt(pb2, sizeof pb2);
         chkb("mixed psbt builds", plm > 0);
         chki("mixed psbt load rc", wallet_psbt_load(pb2, plm, &sm), 0);
-        chki("mixed psbt READY", sm.status, WPSBT_READY);
+        // CAUTION, not READY: the legacy input carries its previous transaction
+        // and is proven, the native one carries only a witness_utxo and is not,
+        // and two inputs is where the two-session amount lie becomes possible.
+        chki("mixed psbt CAUTION", sm.status, WPSBT_CAUTION);
+        chki("mixed psbt unproven alone", sm.caution_flags, WPSBT_C_UNPROVEN_IN);
+        chki("mixed psbt one unproven", (int)sm.n_unproven_in, 1);
         chki("mixed psbt purpose 0 (mixed)", sm.purpose, 0);
         chki("mixed psbt n_in", sm.n_in, 2);
         // legacy sig ≈107 vB full weight + native witness ≈28 vB: the estimate

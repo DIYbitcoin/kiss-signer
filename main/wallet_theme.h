@@ -201,6 +201,16 @@ void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
 // the rows of the address list. Never scales anything — see the comment on the
 // implementation for why that matters.
 void wt_tap_feedback(lv_obj_t *obj);
+
+// ---- decoration ----
+// Stamp an object that carries NO information: ambient motion, texture, a
+// speck of atmosphere. The layout rules exist so content stays readable and
+// stays out of the action bar, and a thing nobody reads has neither property
+// to lose -- so the screen-walk gate skips these where the rule would
+// otherwise fire on the wrong object. Use it sparingly and never on anything
+// the owner is meant to look at: silencing a check is the whole cost.
+void wt_mark_decor(lv_obj_t *o);
+bool wt_is_decor(const lv_obj_t *o);
 // One visual language for anonymous "?" affordances: a 30px circle with a
 // 54px effective hit target. `color` carries warning semantics when needed;
 // size, border and press feedback remain identical everywhere.
