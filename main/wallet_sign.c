@@ -482,11 +482,18 @@ static void sign_press_cb(lv_event_t *e)
 static void details_cb(lv_event_t *e);
 static void verify_screen(lv_obj_t *parent);
 
-// The full "why", plain words + the concrete next step (freeze/label in the
-// coordinator). One wt_explain_open card like every other "?" on the device: the
-// reasons stack in the first block and the footer, which is the thing to DO
-// about them, takes the second. The blank line between them was already in the
-// composed string, so the split costs nothing.
+// The full "why". Four reasons can fire at once, and stacked as prose they
+// arrived as one grey block that had to be read start to finish to find the one
+// that applied. Every reason is already written `TERM: definition` in all 21
+// locales, which is exactly what WT_GRID_ICONS eats, so each one becomes a
+// badge and a heading and the reader finds theirs by its mark.
+//
+// The icons are built in the same order as the lines, because the grid pairs
+// them by index: a reason that does not fire must take neither slot.
+//
+// The footer is the thing to DO about all of this, so it belongs to the card
+// rather than to any one reason. It rides in the subtitle, where it reads once
+// under the title instead of pretending to be a fifth entry with no mark.
 static void caution_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -494,29 +501,41 @@ static void caution_help_cb(lv_event_t *e)
     // every append clamps o because snprintf returns the WOULD-BE length
     char body[1536];
     size_t o = 0;
+    const char *icons[4];
+    int ni = 0;
     uint16_t f = s_sum.caution_flags;
-    #define BODY_ADD(...) do { \
+    #define BODY_ADD(icon_, ...) do { \
         if (o + 1 < sizeof body) { \
             int w_ = snprintf(body + o, sizeof body - o, __VA_ARGS__); \
             if (w_ > 0) { o += (size_t)w_; if (o >= sizeof body) o = sizeof body - 1; } \
-        } } while (0)
+        } \
+        icons[ni++] = (icon_); \
+    } while (0)
     if (f & WPSBT_C_HIGHFEE)
-        BODY_ADD("%s\n", tr(STR_S_WHY_HIGHFEE));
+        BODY_ADD(LV_SYMBOL_CHARGE, "%s", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
-        BODY_ADD("%s\n", tr(STR_S_WHY_DUSTIN));
+        BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
     if (f & WPSBT_C_MERGE_INS)
-        BODY_ADD("%s\n", tr(STR_S_WHY_MERGE));
+        BODY_ADD(LV_SYMBOL_LIST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_MERGE));
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
-        BODY_ADD("%s\n", tr(STR_S_WHY_TINYCH));
-    BODY_ADD(o ? "\n%s" : "%s", tr(STR_S_WHY_FOOT));
+        BODY_ADD(LV_SYMBOL_MINUS, "%s%s", o ? "\n" : "", tr(STR_S_WHY_TINYCH));
     #undef BODY_ADD
+    (void)ni;
+
+    // No flag set means no grid to draw, and a card with a title and nothing
+    // under it is worse than the prose it replaced. The "?" only exists on a
+    // flagged row, so this is defensive, not a state a reader reaches.
+    if (!o) return;
 
     wt_explain_t x = {
         .title  = tr(STR_S_WHY_T),
+        .sub    = tr(STR_S_WHY_FOOT),
         .icon   = LV_SYMBOL_WARNING,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
         .sev    = WT_SEV_WARN,
+        .mode   = WT_GRID_ICONS,
+        .icons  = icons,
     };
     wt_explain_open(s_scr, &x);
 }
@@ -538,6 +557,13 @@ static void rbf_help_cb(lv_event_t *e)
     // That is a neutral property of the transaction wearing the colour of a
     // safety check. The glyphs differ either way, so meaning never rested on
     // colour. MONO is unchanged to the byte: its accent IS WT_INK.
+    //
+    // Both states answer the same two questions -- what happens if it gets
+    // stuck, and where the coins go -- so both are a two entry list and not
+    // prose. Drawn as a grid, the two cards differ only in the second half of
+    // one definition, which is the honest shape of a yes/no property.
+    static const char *const RBF_ICONS_ON[]  = { WT_ICON_REPLACE, LV_SYMBOL_OK };
+    static const char *const RBF_ICONS_OFF[] = { WT_ICON_LOCK,    LV_SYMBOL_OK };
     const char *body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
     wt_explain_t x = {
         .title  = s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF),
@@ -545,6 +571,8 @@ static void rbf_help_cb(lv_event_t *e)
         .body   = body,
         .ok_txt = tr(STR_C_OK),
         .sev    = s_sum.rbf ? WT_SEV_PLAIN : WT_SEV_WARN,
+        .mode   = WT_GRID_ICONS,
+        .icons  = s_sum.rbf ? RBF_ICONS_ON : RBF_ICONS_OFF,
     };
     wt_explain_open(s_scr, &x);
 }

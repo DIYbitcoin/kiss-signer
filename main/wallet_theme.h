@@ -175,6 +175,14 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // and LVGL already ships its codepoint, so it is spelled with LVGL's name.
 #define WT_ICON_LOCK    "\xEF\x80\xA3"   // U+F023 lock
 #define WT_ICON_REPLACE LV_SYMBOL_REFRESH
+// The caution grid's dust attack badge: a drop, for the smallest amount of a
+// thing there is. Already in SYMS, so it costs no font rebuild.
+#define WT_ICON_DUST    "\xEF\x81\x83"   // U+F043 tint
+// "never shown", "not stored", "nobody can see this" -- the claim several
+// explainers make in words. Already in SYMS.
+#define WT_ICON_HIDDEN  "\xEF\x81\xB0"   // U+F070 eye-slash
+// A coordinator running on a phone, for the pairing steps. Already in SYMS.
+#define WT_ICON_PHONE   "\xEF\x82\x95"   // U+F095 phone
 
 // Compose "<icon>  <label>" into out. The icon rides INSIDE the pill's label
 // rather than sitting beside it as a second object, so wt_pill_fit keeps

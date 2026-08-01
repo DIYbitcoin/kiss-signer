@@ -1871,6 +1871,11 @@ exp_paras_t ps;
 #define GRID_MAXN   12
 #define GRID_BADGE  34
 #define GRID_GUT    12
+// One entry, in bytes. The longest today is the Russian dust attack line at 189
+// and Cyrillic runs two bytes a character, so a 192 byte buffer would truncate
+// the next translation that grows -- mid codepoint, because the copy below is a
+// byte copy. Sized so the line the check gate measures is the line drawn.
+#define GRID_LINE_MAX 256
 
 static void grid_badge(lv_obj_t *par, const char *glyph, int x, int y,
                        lv_color_t col)
@@ -1918,7 +1923,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     for (int pass = 0; pass < 2; pass++) {
         int tallest = 0;
         for (int i = 0; i < n; i++) {
-            char line[192], head[64];
+            char line[GRID_LINE_MAX], head[64];
             int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
             lv_memcpy(line, ln[i], (size_t)l);
             line[l] = 0;
@@ -1934,7 +1939,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     }
 
     for (int i = 0; i < n; i++) {
-        char line[192], head[64];
+        char line[GRID_LINE_MAX], head[64];
         int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
         lv_memcpy(line, ln[i], (size_t)l);
         line[l] = 0;
