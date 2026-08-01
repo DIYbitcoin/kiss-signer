@@ -1067,29 +1067,144 @@ static void method_screen(void)
 }
 
 // ---- dice screen ----
+// The card sits on the y=96 content line and runs to 394, four clear of
+// WT_CONTENT_BOTTOM: the histogram needs the height, and the only direction
+// with any was up.
 #define DICE_CARD_X   100
-#define DICE_CARD_Y   130
+#define DICE_CARD_Y    96
 #define DICE_CARD_W   600
-#define DICE_CARD_H   250   // ends at 380, clear of the action row at WT_ACTION_Y (404)
+#define DICE_CARD_H   298
 #define DICE_KEY_W     84
 #define DICE_KEY_H     60
 #define DICE_KEY_GAP   10
+#define DICE_KEY_Y     20   // keys 20..80, card relative
+#define DICE_BAR_TOP   92   // tracks 92..136
+#define DICE_BAR_H     44   // full height = TWICE the fair share, so the fair
+#define DICE_BAR_W     40   //   share tick always sits at exactly half height
+#define DICE_BAR_BASE (DICE_BAR_TOP + DICE_BAR_H)
+#define DICE_TICK_Y   (DICE_BAR_TOP + DICE_BAR_H / 2)
+#define DICE_CNT_Y    140   // per face counts under the columns
+#define DICE_TALLY_Y  168
+#define DICE_NOTE_Y   210
+#define DICE_FP_Y     250
 
 static lv_obj_t *s_dice_card;
 static lv_obj_t *s_dice_tally;
 static lv_obj_t *s_dice_done;
 static lv_obj_t *s_dice_fp;        // live SHA256 fingerprint, for the owner to check
 static bool     s_dice_fp_full;    // tap the fingerprint to reveal all 64 hex
+static lv_obj_t *s_dice_fill[6];   // histogram fills, grown up from the base
+static lv_obj_t *s_dice_cnt[6];    // exact count under each column
+static lv_obj_t *s_dice_chip;      // the one status coloured element on the screen
+static int      s_dice_last_verdict;
 
-static unsigned dice_floor(void) { return s_count == 24 ? DICE_FLOOR_256 : DICE_FLOOR_128; }
+// The floor is not derived here any more: wallet_dice_judge computes it from
+// the byte need, so the screen reads it off the verdict struct and cannot
+// disagree with the module about where DONE unlocks.
+static unsigned dice_need(void) { return s_count == 24 ? 32 : 16; }
+
+// The "?" beside the verdict chip. Same canonical explainer as every other "?"
+// on the device; unlike the entropy screen's there is no camera to stop and
+// restart, so it is a plain overlay with no teardown. First glyph is the LIST
+// mark method_screen already puts on the DICE row, so the marks agree.
+static const char *const DICE_HELP_ICONS[] = {
+    LV_SYMBOL_LIST,
+    LV_SYMBOL_LOOP,
+    LV_SYMBOL_WARNING,
+};
+
+static void dice_help_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_explain_t x = {
+        .title  = tr(STR_W_DICE_HELP_T),
+        .icon   = LV_SYMBOL_LIST,
+        .body   = tr(STR_W_DICE_HELP_B),
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_GRID_ICONS,
+        .icons  = DICE_HELP_ICONS,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
+// The live histogram: six columns welded positionally to the six keys that
+// feed them, with a hairline at the level a fair die homes in on. Krux ships
+// the same information as a bar graph behind a "stats for nerds" menu plus a
+// bit count; here the distribution IS the screen, and no bit count appears
+// anywhere in the product, because the plug-in estimate reads ~3.6 bits under
+// the promised 128 at 50 rolls and a number below the promise invites exactly
+// the panic it was meant to prevent. The bits stay in wallet_dice_q.c and its
+// tests, where they gate instead of alarm.
+//
+// On the tap screen's rule that a continuous bar would claim a measurement of
+// quality: each column here is a COUNT, printed in figures directly under it.
+// It claims nothing the number does not already state.
+static void dice_bars_make(lv_obj_t *par, int x0, int pitch, int y)
+{
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t *tr = lv_obj_create(par);
+        lv_obj_remove_style_all(tr);
+        lv_obj_set_pos(tr, x0 + i * pitch, y);
+        lv_obj_set_size(tr, DICE_BAR_W, DICE_BAR_H);
+        lv_obj_set_style_bg_color(tr, WT_DIV, 0);
+        lv_obj_set_style_bg_opa(tr, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(tr, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(tr, LV_OBJ_FLAG_CLICKABLE);
+
+        lv_obj_t *f = lv_obj_create(tr);
+        lv_obj_remove_style_all(f);
+        lv_obj_set_pos(f, 0, DICE_BAR_H);
+        lv_obj_set_size(f, DICE_BAR_W, 0);
+        lv_obj_set_style_bg_color(f, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
+        s_dice_fill[i] = f;
+    }
+    // The fair share line, drawn LAST so it crosses over the fills: a level
+    // skyline against it says "a die did this" with no words in any locale.
+    lv_obj_t *tick = lv_obj_create(par);
+    lv_obj_remove_style_all(tick);
+    lv_obj_set_pos(tick, x0 - DICE_KEY_GAP - 12, y + DICE_BAR_H / 2);
+    lv_obj_set_size(tick, 5 * pitch + DICE_BAR_W + 2 * (DICE_KEY_GAP + 12), 1);
+    lv_obj_set_style_bg_color(tick, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
+}
+
+static void dice_bars_set(const wallet_dice_q_t *q)
+{
+    // Full height is twice the fair share: count = n/6 lands on the tick at
+    // half, count = n/3 tops out. Nothing references the floor, so the scale
+    // is honest at roll 7 and at roll 180 alike.
+    for (int i = 0; i < 6; i++) {
+        if (!s_dice_fill[i]) continue;
+        int h = 0;
+        if (q->n) {
+            h = (int)(q->face[i] * 3 * DICE_BAR_H / q->n);
+            if (h > DICE_BAR_H) h = DICE_BAR_H;
+        }
+        lv_obj_set_pos(s_dice_fill[i], 0, DICE_BAR_H - h);
+        lv_obj_set_size(s_dice_fill[i], DICE_BAR_W, h);
+        if (s_dice_cnt[i]) {
+            char b[8];
+            snprintf(b, sizeof b, "%u", q->face[i]);
+            lv_label_set_text(s_dice_cnt[i], b);
+        }
+    }
+}
 
 static void dice_refresh(void)
 {
     unsigned n = wallet_dice_count();
+    wallet_dice_q_t q;
+    wallet_dice_judge(wallet_dice_digits(), n, dice_need(), &q);
+    dice_bars_set(&q);
+
     if (s_dice_tally) {
+        // Literal, not a translatable format. Past the floor the denominator
+        // goes: there is no target left, and "60 / 50" reads as a fault.
         char buf[16];
-        snprintf(buf, sizeof buf, "%u / %u", n, dice_floor());   // literal, not a
-        lv_label_set_text(s_dice_tally, buf);                     // translatable format
+        if (n <= q.floor) snprintf(buf, sizeof buf, "%u / %u", n, q.floor);
+        else              snprintf(buf, sizeof buf, "%u", n);
+        lv_label_set_text(s_dice_tally, buf);
     }
     if (s_dice_fp) {
         // first 8 bytes by default (enough to spot a mismatch), all 32 on tap.
@@ -1103,8 +1218,35 @@ static void dice_refresh(void)
         memset(e, 0, sizeof e);
     }
     if (s_dice_done) {
-        if (n >= dice_floor()) lv_obj_remove_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
-        else                   lv_obj_add_flag(s_dice_done, LV_OBJ_FLAG_HIDDEN);
+        // Disabled, not hidden: a control that pops into existence at roll 50
+        // reads as a rendering fault, where a greyed one says "not yet".
+        bool ready = n >= q.floor;
+        lv_obj_set_style_opa(s_dice_done, ready ? LV_OPA_COVER : LV_OPA_40, 0);
+        if (ready) lv_obj_add_flag(s_dice_done, LV_OBJ_FLAG_CLICKABLE);
+        else       lv_obj_remove_flag(s_dice_done, LV_OBJ_FLAG_CLICKABLE);
+    }
+    if (s_dice_chip && q.verdict != s_dice_last_verdict) {
+        // Guarded because wt_state_chip_set re-measures; the bars are not,
+        // because the 132/n scale genuinely moves them on every press. Hidden
+        // below the floor rather than disabled: a verdict that does not exist
+        // yet is not a control, and "23 / 50" already says keep rolling.
+        s_dice_last_verdict = q.verdict;
+        if (q.verdict == WD_Q_SHORT) {
+            lv_obj_add_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            char b[64];
+            if (q.verdict == WD_Q_OK)
+                snprintf(b, sizeof b, "%s", LV_SYMBOL_OK);
+            else
+                snprintf(b, sizeof b, "%s %s", LV_SYMBOL_WARNING,
+                         tr(q.verdict == WD_Q_UNEVEN ? STR_W_DICE_UNEVEN
+                                                     : STR_W_DICE_PATTERN));
+            wt_state_chip_set(s_dice_chip, b,
+                              q.verdict == WD_Q_OK ? OK_COL : WARN_COL);
+            lv_obj_align(s_dice_chip, LV_ALIGN_TOP_RIGHT, -(DICE_CARD_W - 540),
+                         DICE_TALLY_Y + 2);
+            lv_obj_remove_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 }
 
@@ -1141,19 +1283,60 @@ static void dice_commit(void)
 
 static void dice_force_cb(lv_event_t *e) { (void)e; dice_commit(); }
 
+static void dice_screen_build(void);
+// ROLL MORE: back to the keypad WITH the rolls banked. This pill is the whole
+// point of the warning — the old samey screen's only way back went through
+// dice_screen(), which reset the module and silently threw away fifty rolls.
+static void dice_keep_cb(lv_event_t *e) { (void)e; dice_screen_build(); }
+
+// The verdict screen. Replaces the samey nudge, which was a bare title,
+// subtitle and two pills — the exact shape the BARE gate exists to refuse, and
+// it survived only because no walk ever rendered it. The evidence leads: the
+// same six columns from the keypad, so the owner is shown the shape being
+// questioned rather than told about it.
+static void dice_warn_screen(int verdict)
+{
+    mk_screen(tr(STR_W_DICE_WARN_T),
+              tr(verdict == WD_Q_UNEVEN ? STR_W_DICE_UNEVEN_S
+                                        : STR_W_DICE_PATTERN_S));
+    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+    for (int i = 0; i < 6; i++) s_dice_cnt[i] = NULL;
+    dice_bars_make(card, 58, 117, 24);
+    wallet_dice_q_t q;
+    wallet_dice_judge(wallet_dice_digits(), wallet_dice_count(), dice_need(), &q);
+    dice_bars_set(&q);
+
+    const lv_font_t *f = wt_body_font2(tr(STR_W_DICE_W1_B), tr(STR_W_DICE_W2_B),
+                                       330, 112);
+    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
+                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
+                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
+
+    // USE ANYWAY farthest from the thumb's resting corner, the fix nearest it.
+    // A plain pill, not a hold: the weak passphrase warning is a plain USE
+    // ANYWAY, and extra ceremony here would teach people to stop reading both.
+    lv_obj_t *p[3];
+    p[0] = wt_pillh(s_scr, tr(STR_L_USE_ANYWAY), 48, WT_ACTION_Y_TALL, 216, 66,
+                    dice_force_cb, NULL);
+    p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 286, WT_ACTION_Y_TALL, 216, 66,
+                    method_dice_cb, NULL);
+    p[2] = wt_pillh(s_scr, tr(STR_W_DICE_MORE), 524, WT_ACTION_Y_TALL, 216, 66,
+                    dice_keep_cb, NULL);
+    wt_pill_row(p, 3);
+}
+
 static void dice_done_cb(lv_event_t *e)
 {
     (void)e;
-    // If every entered face is identical, that is not a rolled die. Warn once,
-    // but offer CONTINUE (keeps the rolls) so the rare legitimate case is not
-    // blocked; BACK returns to the method choice and starts fresh.
-    const char *d = wallet_dice_digits();
-    bool samey = d[0] != 0;
-    for (const char *p = d; *p; p++) if (*p != d[0]) { samey = false; break; }
-    if (samey) {
-        mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_SAMEY));
-        mk_pill(tr(STR_W_DICE_USE), 300, WT_ACTION_Y, 200, dice_force_cb, NULL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, method_dice_cb, NULL);
+    // Judge the raw digits, warn, and honour the owner's choice. Never a hard
+    // stop: the camera meter refusing at zero is the device distrusting its
+    // OWN source, while dice entropy is the owner's — a device that overrides
+    // it has taken back the trust root this whole path exists to hand over.
+    wallet_dice_q_t q;
+    wallet_dice_judge(wallet_dice_digits(), wallet_dice_count(), dice_need(), &q);
+    if (q.verdict == WD_Q_UNEVEN || q.verdict == WD_Q_PATTERN) {
+        dice_warn_screen(q.verdict);
         return;
     }
     dice_commit();
@@ -1161,27 +1344,19 @@ static void dice_done_cb(lv_event_t *e)
 
 static void dice_cancel_cb(lv_event_t *e) { wallet_dice_reset(); cancel_cb(e); }
 
-static void dice_screen(void)
+static void dice_screen_build(void)
 {
-    wallet_dice_reset();
     s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_fp_full = false;
+    s_dice_chip = NULL; s_dice_last_verdict = -1;
+    for (int i = 0; i < 6; i++) { s_dice_fill[i] = NULL; s_dice_cnt[i] = NULL; }
     mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_S));
 
-    s_dice_card = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(s_dice_card);
-    lv_obj_set_pos(s_dice_card, DICE_CARD_X, DICE_CARD_Y);
-    lv_obj_set_size(s_dice_card, DICE_CARD_W, DICE_CARD_H);
-    lv_obj_set_style_radius(s_dice_card, 10, 0);
-    lv_obj_set_style_border_width(s_dice_card, 1, 0);
-    lv_obj_set_style_border_color(s_dice_card, WT_EDGE, 0);
-    lv_obj_set_style_bg_color(s_dice_card, WT_PANEL, 0);
-    lv_obj_set_style_bg_opa(s_dice_card, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(s_dice_card, LV_OBJ_FLAG_SCROLLABLE);
+    s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
-    // six d6 keys, 1..6, in a row
+    // six d6 keys, 1..6, in a row, each directly over the column it feeds
     for (int i = 0; i < 6; i++) {
         lv_obj_t *k = lv_button_create(s_dice_card);
-        lv_obj_set_pos(k, 18 + i * (DICE_KEY_W + DICE_KEY_GAP), 20);
+        lv_obj_set_pos(k, 18 + i * (DICE_KEY_W + DICE_KEY_GAP), DICE_KEY_Y);
         lv_obj_set_size(k, DICE_KEY_W, DICE_KEY_H);
         lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_obj_t *lbl = lv_label_create(k);
@@ -1190,27 +1365,51 @@ static void dice_screen(void)
         lv_obj_center(lbl);
     }
 
-    s_dice_tally = wt_lbl(s_dice_card, "", 18, 100, wt_font_mono28(), INK_COL);
+    // the live histogram under the keys, one exact count under each column
+    dice_bars_make(s_dice_card, 18 + (DICE_KEY_W - DICE_BAR_W) / 2,
+                   DICE_KEY_W + DICE_KEY_GAP, DICE_BAR_TOP);
+    for (int i = 0; i < 6; i++) {
+        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", 18 + i * (DICE_KEY_W + DICE_KEY_GAP),
+                               DICE_CNT_Y, wt_font14(), MUT_COL);
+        lv_obj_set_width(s_dice_cnt[i], DICE_KEY_W);
+        lv_obj_set_style_text_align(s_dice_cnt[i], LV_TEXT_ALIGN_CENTER, 0);
+    }
 
-    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, 150,
+    s_dice_tally = wt_lbl(s_dice_card, "", 18, DICE_TALLY_Y, wt_font_mono28(), INK_COL);
+
+    // the verdict chip (hidden until the floor) and the "?" that explains it
+    s_dice_chip = wt_state_chip(s_dice_card, "", WARN_COL);
+    lv_obj_add_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
+    wt_help_chip(s_dice_card, DICE_CARD_W - 44, DICE_TALLY_Y - 2, MUT_COL,
+                 dice_help_cb, NULL);
+
+    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, DICE_NOTE_Y,
                             wt_font14(), MUT_COL);
     lv_obj_set_width(note, DICE_CARD_W - 36);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 
     // live SHA256 fingerprint: first 8 bytes, tap to reveal all 64 hex. The
     // value the owner can reproduce on any offline machine to check the device.
-    s_dice_fp = wt_lbl(s_dice_card, "", 18, 192, wt_font14(), INK_COL);
+    s_dice_fp = wt_lbl(s_dice_card, "", 18, DICE_FP_Y, wt_font14(), INK_COL);
     lv_obj_set_width(s_dice_fp, DICE_CARD_W - 36);
     lv_label_set_long_mode(s_dice_fp, LV_LABEL_LONG_WRAP);
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
 
-    // action row (WT_ACTION_Y): UNDO left, DONE middle (hidden until the floor
-    // is met), CANCEL right. Same row the rest of the wizard uses.
-    mk_pill(tr(STR_W_DICE_UNDO), 48, WT_ACTION_Y, 140, dice_undo_cb, NULL);
+    // action row (WT_ACTION_Y): UNDO left, DONE middle (disabled until the
+    // floor is met), CANCEL right. Same row the rest of the wizard uses.
+    // UNDO is 200, not the 140 it wore unmeasured: DESHACER, DESFAZER and
+    // HOÀN TÁC all fell to font14 at 140, and the row has the slack.
+    mk_pill(tr(STR_W_DICE_UNDO), 48, WT_ACTION_Y, 200, dice_undo_cb, NULL);
     s_dice_done = mk_pill(tr(STR_C_DONE), 330, WT_ACTION_Y, 200, dice_done_cb, NULL);
     mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
     dice_refresh();
+}
+
+static void dice_screen(void)
+{
+    wallet_dice_reset();
+    dice_screen_build();
 }
 
 static void entropy_screen(void)

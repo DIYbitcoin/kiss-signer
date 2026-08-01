@@ -139,13 +139,19 @@ int wallet_tapent_take(uint8_t out[32]) {
 }
 // Dice source (verifiable path). Real logic + SHA256 live in wallet_dice.c and
 // are exercised by kisstest; the sim links no crypto, so this stub only has to
-// let the dice screen advance and complete. Floors match DICE_FLOOR_128/256.
-static char     s_sim_dice[128];
+// let the dice screen advance and complete. The QUALITY judge is not stubbed:
+// wallet_dice_q.c needs no crypto and links for real, so the walk renders true
+// verdicts against this buffer — a fake WD_Q_OK would leave the warning screen
+// unrendered by every gate, which is exactly the drift this walk exists to
+// catch. Constants come from the header so a raised DICE_MAX cannot silently
+// cap the sim under the screen it is walking.
+#include "wallet_dice.h"
+static char     s_sim_dice[DICE_MAX + 1];
 static unsigned s_sim_dn;
 void wallet_dice_reset(void) { s_sim_dn = 0; s_sim_dice[0] = 0; }
 int wallet_dice_roll(int face) {
   if (face < 1 || face > 6) return 0;
-  if (s_sim_dn >= 120) return 0;
+  if (s_sim_dn >= DICE_MAX) return 0;
   s_sim_dice[s_sim_dn++] = (char)('0' + face);
   s_sim_dice[s_sim_dn] = 0;
   return 1;
@@ -159,7 +165,7 @@ unsigned wallet_dice_count(void) { return s_sim_dn; }
 const char *wallet_dice_digits(void) { return s_sim_dice; }
 int wallet_dice_take(uint8_t *out, unsigned len) {
   if (!out || (len != 16 && len != 32)) return -1;
-  unsigned floor = (len == 32) ? 99 : 50;
+  unsigned floor = (len == 32) ? DICE_FLOOR_256 : DICE_FLOOR_128;
   if (s_sim_dn < floor) return -1;
   for (unsigned i = 0; i < len; i++) out[i] = (uint8_t)(i * 3 + 1);
   return 0;
@@ -1346,15 +1352,34 @@ int main(void) {
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
 
   touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1)
-  save("/tmp/sim_setup_dice.ppm");                  // empty d6 keypad, 0 / 50
-  // Roll 50 on the keypad, cycling the six faces so the string is not all one
-  // digit (which would trip the same-y-rolls nudge). Keys sit at y~180; face i
-  // centre x = 160 + i*94. The sim stub counts every press, so 50 -> DONE.
+  save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
+  // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
+  // real judge this loop is a textbook ramp — so instead of dodging that, it
+  // IS the flagged run: perfectly level columns wearing a PATTERN chip, which
+  // is the whole argument for judging order and not just counts. Keys sit at
+  // y=146 (card at 96, keys 20..80 inside); face i centre x = 160 + i*94.
   for (int i = 0; i < 50; i++) {
     int kx = 160 + (i % 6) * 94;
-    touch(kx, 180); pump(4); release(); pump(4);
+    touch(kx, 146); pump(4); release(); pump(4);
   }
-  save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, fingerprint, DONE shown
+  save("/tmp/sim_setup_dice_flag.ppm");             // PATTERN chip over LEVEL bars
+  touch(671, 277); pump(3); release(); pump(40);    // "?" beside the chip; 40 =
+                                                    // the card intro settled
+  save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
+  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
+  touch(430, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
+  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 3 pills
+  touch(394, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
+  // The healthy run: a fixed string that reads as rolled, checked in and
+  // asserted OK by kisstest. face bits 128.62 (floor 102.50), step bits 126.61
+  // (floor 100.45), counts 10/7/9/9/7/8, no repeating block.
+  static const char SIM_DICE_OK[] =
+      "14464111145452332224636431261353544615153616323265";
+  for (int i = 0; i < 50; i++) {
+    int kx = 160 + (SIM_DICE_OK[i] - '1') * 94;
+    touch(kx, 146); pump(4); release(); pump(4);
+  }
+  save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live
   touch(430, 425); pump(3); release(); pump(4);     // DONE -> words
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN

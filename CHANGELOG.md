@@ -26,6 +26,20 @@ wording of the warning are theirs.
 
 ### Added
 
+- **The dice screen now judges the rolls, not just counts them.** Before, fifty
+  presses of one key made a "valid" seed: the hash whitens whatever goes in, so
+  the words always look perfect and nothing downstream can tell. Six live
+  columns now grow under the six keys with a line at the level a fair die
+  levels out to, the exact count sits under each column, and a chip says
+  UNEVEN or PATTERN when the rolls do not look rolled — including 1 2 3 4 5 6
+  typed over and over, which counts as perfectly level and is still not
+  random. The warning explains itself, keeps your rolls, and offers ROLL MORE;
+  it never blocks, because the whole point of dice is that you are the source
+  the device must not overrule. The bar is set so honest dice trip it about
+  once in a million sessions, and the roll ceiling rose from 120 to 180 so
+  ROLL MORE has room to actually fix a flagged run. Inspired by Krux's entropy
+  measurement, with the threshold derived from exact enumeration instead of
+  copied (theirs flags half of all honest sessions).
 - **A warning when the amounts cannot be proven.** With two or more coins and no
   previous transactions attached, the fee shown can be lower than the fee paid,
   and no amount of checking inside one transaction can rule it out. The signer
