@@ -65,7 +65,23 @@ Goals
 Non-goals (YAGNI)
 - d20 support. d6 only for v1. (`wallet_dice` leaves room to add it later.)
 - Folding dice with the on-device sources (breaks verifiability — the whole point).
-- Bias correction beyond the roll-count floor (SHA256 whitens; the floor is conservative).
+
+Reversed non-goal (2026-08-01): this spec originally waved bias checking away
+with "SHA256 whitens; the floor is conservative". That reasoning was backwards.
+Whitening is exactly why the rolls must be judged raw: 50 presses of one key
+hash into words that look as good as anyone's, and nothing downstream can ever
+notice. `wallet_dice_q.c` now judges the digit string before the hash — face
+entropy, step entropy (the same statistic on consecutive differences, which is
+a bijection for fair rolls, so one threshold serves both) and a repeated-block
+scan. The bar `WD_RATE = 2050` milli-bits per roll sits between log2(4) and
+log2(5), giving the rule a hand-checkable meaning: four or fewer distinct
+faces always warns, five or six is judged on levelness. Exact enumeration of
+all 3,478,761 six-bin compositions of 50 puts the false alarm at 1 in ~1.1
+million honest sessions. (Krux's `min_bits - 2` rule fires on 49.5% of honest
+50-roll sessions by the same enumeration — the plug-in estimator runs ~3.6
+bits low at N=50 — which is why the threshold was derived, not copied.) The
+verdict warns and offers ROLL MORE with the rolls kept; it never blocks,
+because dice entropy is the owner's trust root, not the device's.
 
 ## 4. The recipe (normative — this is what makes it verifiable)
 

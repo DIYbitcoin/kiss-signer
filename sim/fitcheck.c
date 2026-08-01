@@ -157,6 +157,16 @@ static const slot_t SLOTS[] = {
     // lines their copy was written for.
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
     { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
+    // dice screens: never registered before the quality check landed, which is
+    // how the samey nudge shipped unmeasured. The verdict subtitles are one
+    // line on wt_screen; the verify note gets two card lines; the two why
+    // blocks share rule 2's 330x112 body budget.
+    { "sub/dice",         STR_W_DICE_S,           704, 30, 0 },
+    { "sub/dice-uneven",  STR_W_DICE_UNEVEN_S,    704, 30, 0 },
+    { "sub/dice-pattern", STR_W_DICE_PATTERN_S,   704, 30, 0 },
+    { "setup/dice-verify",STR_W_DICE_VERIFY_NOTE, 564, 36, 1 },
+    { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
+    { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
@@ -293,6 +303,12 @@ static const pill_t PILLS[] = {
     // cannot read this button has no idea which of the two presses keeps the
     // short passphrase. key_action, same tier as the one that spends.
     { "login/use-anyway", STR_L_USE_ANYWAY,   314, 56, 1, 1 },
+    // The dice verdict row: all three are key_action, because a holder who
+    // cannot read them cannot tell which press keeps the flagged rolls.
+    { "setup/dice-more",  STR_W_DICE_MORE,    216, 66, 0, 1 },
+    { "setup/dice-over",  STR_W_START_OVER,   216, 66, 0, 1 },
+    { "setup/dice-use",   STR_L_USE_ANYWAY,   216, 66, 1, 1 },
+    { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
 
