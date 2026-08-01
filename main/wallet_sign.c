@@ -499,9 +499,9 @@ static void caution_help_cb(lv_event_t *e)
     (void)e;
     // sized for the longest translations (Cyrillic/CJK run 2-3 bytes per char);
     // every append clamps o because snprintf returns the WOULD-BE length
-    char body[1536];
+    char body[1792];
     size_t o = 0;
-    const char *icons[4];
+    const char *icons[5];
     int ni = 0;
     uint16_t f = s_sum.caution_flags;
     #define BODY_ADD(icon_, ...) do { \
@@ -511,8 +511,13 @@ static void caution_help_cb(lv_event_t *e)
         } \
         icons[ni++] = (icon_); \
     } while (0)
+    // First, because it is the entry that says the fee on the screen behind this
+    // card may not be the fee. Every other reason argues about a number; this one
+    // argues about whether the number is knowable.
+    if (f & WPSBT_C_UNPROVEN_IN)
+        BODY_ADD(WT_ICON_HIDDEN, "%s", tr(STR_S_WHY_UNPROVEN));
     if (f & WPSBT_C_HIGHFEE)
-        BODY_ADD(LV_SYMBOL_CHARGE, "%s", tr(STR_S_WHY_HIGHFEE));
+        BODY_ADD(LV_SYMBOL_CHARGE, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
     if (f & WPSBT_C_MERGE_INS)
@@ -604,6 +609,20 @@ static void repaint_verify(void)
 #define SG_ROW_H      56   // a caution row is NEVER taller than this: a taller
                            // row pushes the footer into the action bar
 #define SG_ROW_PILL_W 170
+#define SG_ROW_MAX      5  // unproven + fee + dust in + merge + one change row
+
+// The fifth row does not fit at SG_ROW_H: 150 + 5*56 + 4*4 lands at 446, well
+// past WT_CONTENT_BOTTOM (398). Four rows and fewer are untouched, and the
+// tighter metric is reached ONLY at five, so the layout the owner sees on an
+// ordinary flagged transaction is the same one it has always been.
+//
+// 48 is not an arbitrary shrink: the ack pill is 40 tall and the row is built
+// around it, so 48 is 4px of breathing room above and below, which is the least
+// that still reads as a row rather than a stripe. 146 + 5*48 + 4*2 = 394, four
+// clear of the bottom, and 146 is safe above because the hero row ends at 140.
+#define SG_ROW_H5     48
+#define SG_ROW_Y5    146
+#define SG_ROW_GAP5    2
 
 // The action row spans the same lane as everything above it: 24..776.
 //
@@ -653,13 +672,21 @@ static void repaint_verify(void)
 static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int cap)
 {
     int n = 0;
+    // Ahead of the fee row, because it is the one reason that puts the fee row's
+    // own number in doubt. Reading "high fee" first and "amounts not proven"
+    // second invites the owner to judge a figure they have just been told may be
+    // wrong.
+    if (n < cap && (f & WPSBT_C_UNPROVEN_IN))
+        { bits[n] = WPSBT_C_UNPROVEN_IN; parts[n++] = tr(STR_S_C_UNPROVEN); }
     if (n < cap && (f & WPSBT_C_HIGHFEE))
         { bits[n] = WPSBT_C_HIGHFEE;     parts[n++] = tr(STR_S_C_HIGHFEE); }
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
     // input-side, so it sits with the dust row rather than with the change ones.
-    // Four rows is the ceiling this can reach (fee + dust in + merge + one of
-    // the two change rows), which is exactly the cap the row stack draws for.
+    // Five rows is the ceiling this can reach (unproven + fee + dust in + merge +
+    // one of the two change rows), which is exactly the cap the row stack draws
+    // for. It was four until the unproven-amount row arrived, and the stack grew
+    // a tighter metric for the fifth rather than dropping a reason on the floor.
     if (n < cap && (f & WPSBT_C_MERGE_INS))
         { bits[n] = WPSBT_C_MERGE_INS;   parts[n++] = tr(STR_S_C_MERGE); }
     if (n < cap && (f & WPSBT_C_DUST_CHANGE))
@@ -671,8 +698,8 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
 
 static uint16_t caution_all_bits(uint16_t f)
 {
-    const char *p[4]; uint16_t b[4];
-    uint16_t n = caution_rows(f, p, b, 4), all = 0;
+    const char *p[SG_ROW_MAX]; uint16_t b[SG_ROW_MAX];
+    uint16_t n = caution_rows(f, p, b, SG_ROW_MAX), all = 0;
     for (int i = 0; i < n; i++) all |= b[i];
     return all;
 }
@@ -765,9 +792,9 @@ static void verify_screen(lv_obj_t *parent)
     s_parent = parent;                    // details page rebuilds us from here
     mk_screen(parent, tr(STR_S_T), NULL);
 
-    const char *parts[4]; uint16_t bits[4];
+    const char *parts[SG_ROW_MAX]; uint16_t bits[SG_ROW_MAX];
     uint16_t np = (s_sum.status == WPSBT_CAUTION)
-                    ? caution_rows(s_sum.caution_flags, parts, bits, 4) : 0;
+                    ? caution_rows(s_sum.caution_flags, parts, bits, SG_ROW_MAX) : 0;
 
     // ---- header ---------------------------------------------------------
     // The filename is not translated and never will be, so it is mono: it is
@@ -892,41 +919,48 @@ static void verify_screen(lv_obj_t *parent)
         // footer strip below them, exactly as drawn. Three or four drop it:
         // fee, network and RBF all already live on DETAILS, and a row that
         // wraps to gain height would push the footer into the action bar.
-        int gap = (np >= 4) ? 4 : 8;
+        // Five is the ceiling and the one case that shrinks the row itself --
+        // see SG_ROW_H5 for why 48 and not less.
+        bool tight = (np >= 5);
+        int rh  = tight ? SG_ROW_H5 : SG_ROW_H;
+        int gap = tight ? SG_ROW_GAP5 : (np >= 4) ? 4 : 8;
+        // everything inside the row is measured off the ack pill, so the whole
+        // interior rises by the same 4px the row lost
+        int pad = tight ? 4 : 8;
         bool keep_footer = (np <= 2);
-        int y = SG_PANEL_Y;
+        int y = tight ? SG_ROW_Y5 : SG_PANEL_Y;
         for (int i = 0; i < np; i++) {
             bool done = (s_ack_flags & bits[i]) != 0;
-            lv_obj_t *row = sg_panel(24, y, 752, SG_ROW_H,
+            lv_obj_t *row = sg_panel(24, y, 752, rh,
                                      done ? OK_COL : WARN_COL);
-            sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
-                   wt_font23(), done ? OK_COL : WARN_COL);
+            sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD,
+                   tight ? 12 : 16, wt_font23(), done ? OK_COL : WARN_COL);
             // The text column runs from x=52 inside the row to the pill's left
             // edge at 543, so 491px at font14. wt_note_fit drops a rung rather
             // than taking a second line, because one row is one line, always.
             lv_obj_t *t = lv_label_create(row);
-            lv_obj_set_pos(t, 52, 19);
+            lv_obj_set_pos(t, 52, tight ? 15 : 19);
             lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
-            wt_note_fit(t, parts[i], 491 - 16, 24);
+            wt_note_fit(t, parts[i], 491 - 16, tight ? 22 : 24);
 
             if (done) {
-                lv_obj_t *p = sg_panel(543, 8, SG_ROW_PILL_W, 40, OK_COL);
+                lv_obj_t *p = sg_panel(543, pad, SG_ROW_PILL_W, 40, OK_COL);
                 lv_obj_set_style_radius(p, 10, 0);   // was 20: half of 40, a lozenge
                 lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
                 lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
                 lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
                                       LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
                 lv_obj_set_parent(p, row);
-                lv_obj_set_pos(p, 543, 8);
+                lv_obj_set_pos(p, 543, pad);
                 lv_obj_t *l = lv_label_create(p);
                 lv_label_set_text(l, LV_SYMBOL_OK);
                 lv_obj_set_style_text_font(l, wt_font23(), 0);
                 lv_obj_set_style_text_color(l, OK_COL, 0);
             } else {
-                wt_pillh(row, tr(STR_C_I_UNDERSTAND), 543, 8, SG_ROW_PILL_W, 40,
+                wt_pillh(row, tr(STR_C_I_UNDERSTAND), 543, pad, SG_ROW_PILL_W, 40,
                          row_ack_cb, (void *)(uintptr_t)bits[i]);
             }
-            y += SG_ROW_H + gap;
+            y += rh + gap;
         }
         if (keep_footer) goto footer;
         goto actions;
@@ -1310,10 +1344,17 @@ static void details_cb(lv_event_t *e)
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
         fmt_sats(det.ins[i].sats, a, sizeof a);
-        snprintf(buf, sizeof buf, "%s sats", a);
+        // The verify screen can only say "one of these amounts is not proven".
+        // This is the page that says WHICH, so the mark leads the number and the
+        // number wears the doubt: a tick when a previous transaction hashing to
+        // this outpoint vouched for it, an eye-slash in WARN when the amount is
+        // only what the coordinator claimed. Both glyphs are already in SYMS.
+        bool ok = det.ins[i].proven;
+        snprintf(buf, sizeof buf, "%s %s sats",
+                 ok ? LV_SYMBOL_OK : WT_ICON_HIDDEN, a);
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
-        lv_obj_set_style_text_color(amt, INK_COL, 0);
+        lv_obj_set_style_text_color(amt, ok ? INK_COL : WARN_COL, 0);
         // The amount leads the row at 23 and the txid trails it at 14. That is
         // the whole fix for this list: what is being spent is the fact, and the
         // coin it came from is the reference you check it against.

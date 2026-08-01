@@ -400,6 +400,11 @@ static void oc_check_content_bottom(const char *tag)
         // about where content was put.
         if (!n->is_label && !n->leaf) continue;
         if (area_is_backdrop(&n->vis)) continue;
+        // Decoration carries nothing to read, so it has nothing to lose to the
+        // action bar. The home motes rise the whole height of the screen and
+        // would otherwise report this rule against a 4px speck, at whichever
+        // tick the walk happened to save the frame. See wt_mark_decor.
+        if (wt_is_decor(n->obj)) continue;
 
         // Starts above the line and finishes at or below it: the definition of
         // reaching into the action row. Something that starts below the line is

@@ -18,6 +18,17 @@ static const char WT_SCREEN_TAG[] = "wt_screen";
 static const char WT_BAR_TAG[]    = "wt_action_bar";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
+static const char WT_DECOR_TAG[]  = "wt_decor";
+
+void wt_mark_decor(lv_obj_t *o)
+{
+    if (o) lv_obj_set_user_data(o, (void *)WT_DECOR_TAG);
+}
+
+bool wt_is_decor(const lv_obj_t *o)
+{
+    return o && lv_obj_get_user_data((lv_obj_t *)o) == (void *)WT_DECOR_TAG;
+}
 
 // Find one of wt_screen's own children by its tag. By tag and not by index:
 // the subtitle is only child 1 on the screens that HAVE a subtitle, and on the

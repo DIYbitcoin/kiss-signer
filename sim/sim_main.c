@@ -400,18 +400,29 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->outs[0].sats = 60000;
     snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
              "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsqmpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna");
+  } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
+    // The new caution on its own: a two-input spend whose amounts were declared
+    // and not proved. One row, footer kept -- the ordinary shape of it.
+    s->n_in = 2;
+    s->n_unproven_in = 2;
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_UNPROVEN_IN;
+    snprintf(s->reason, sizeof s->reason,
+             "input amounts not proven - fee may be higher");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
-    // Every caution at once: proves the summary + WHY card stack up. Four rows
+    // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the verify screen can ever draw, and it is the only fixture
-    // that reaches the tighter gap + dropped footer, so this is where that
-    // layout gets looked at.
+    // that reaches the tight row metric (SG_ROW_H5) and the dropped footer, so
+    // this is where that layout gets looked at.
     s->n_in = WPSBT_MERGE_INS;
+    s->n_unproven_in = WPSBT_MERGE_INS;
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
     s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
-                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS;
+                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS |
+                       WPSBT_C_UNPROVEN_IN;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
   return 0;
@@ -421,11 +432,20 @@ int wallet_psbt_details(wpsbt_details_t *d) {
   // n_total > n_in exercises the many-inputs header (S_D_MANYIN_FMT) with a
   // 2-digit count: the longest formatted line in the whole sign flow (ja is
   // ~140 bytes) and the exact case that used to truncate in buf[128]
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 1; d->n_total = 17;
+  // Two inputs, one proven and one not, so the per-input mark is drawn in BOTH
+  // states on the same page -- a tick beside a coin a previous transaction
+  // vouched for, an eye-slash in WARN beside one the coordinator only claimed.
+  // One state on its own proves nothing about the other.
+  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 2; d->n_total = 17;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
   snprintf(d->ins[0].txid, sizeof d->ins[0].txid, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   d->ins[0].vout = 0; d->ins[0].sats = 100000;
   d->ins[0].purpose = 84; d->ins[0].change = 0; d->ins[0].index = 0;
+  d->ins[0].proven = true;
+  snprintf(d->ins[1].txid, sizeof d->ins[1].txid, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  d->ins[1].vout = 1; d->ins[1].sats = 61000;
+  d->ins[1].purpose = 84; d->ins[1].change = 0; d->ins[1].index = 1;
+  d->ins[1].proven = false;
   return 0;
 }
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
@@ -683,6 +703,11 @@ int main(void) {
   unlink("/tmp/simsd/zsp-SPAY-signed.psbt");
   sd = fopen("/tmp/simsd/zsp-SPAY.psbt", "wb");
   if (sd) { fputs("SPAY", sd); fclose(sd); }
+  // sorts after zsp-SPAY for the same reason, and it is visited in the same
+  // late block, once the earlier files have been cleared away
+  unlink("/tmp/simsd/zzz-UNPRV-signed.psbt");
+  sd = fopen("/tmp/simsd/zzz-UNPRV.psbt", "wb");
+  if (sd) { fputs("UNPRV", sd); fclose(sd); }
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
@@ -1020,7 +1045,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
   // the list shows only the first 4 files, so clear the others (all frames above
-  // are already saved) to leave zsp-SPAY alone in row 0.
+  // are already saved) to leave zsp-SPAY in row 0 and zzz-UNPRV in row 1.
   unlink("/tmp/simsd/payment-01.psbt");   unlink("/tmp/simsd/payment-01-signed.psbt");
   unlink("/tmp/simsd/risky-STOP.psbt");
   unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
@@ -1029,6 +1054,16 @@ int main(void) {
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
+  touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+  // The unproven-amount caution on its own: one row, footer kept. It is the
+  // shape an ordinary two-input spend from a coordinator that ships bare
+  // witness_utxos now has, so it is worth a stop of its own rather than only
+  // being seen inside the five-row COMBO pile.
+  touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> verify
+  save("/tmp/sim_sign_unproven.ppm");
+  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
+  save("/tmp/sim_sign_unproven_why.ppm");
+  touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
