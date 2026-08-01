@@ -1,5 +1,6 @@
 // KISS Signer crypto layer (libwally). Step 1: prove the crypto stack.
 #pragma once
+#include <stdbool.h>
 #include <stdint.h>
 
 // Runs the BIP39/BIP32 test vector (standard "abandon ... about" dev mnemonic,
@@ -25,6 +26,30 @@ int wallet_entropy_mix(const uint8_t a[32], const uint8_t b[32], uint8_t out[32]
 // into this seed) is answerable by reading one line.
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]);
+
+// ---- hardware entropy source ----
+// The chip's RNG only emits TRUE random numbers while a physical noise source
+// is feeding it, and on this board none of the ways that happens by accident
+// apply. There is no radio to switch one on (enforced at link time), the P4
+// revision this firmware targets predates the dedicated TRNG block, and the
+// second stage bootloader turns the SAR ADC source OFF on its way out —
+// "Disabling RNG early entropy source" is the last thing it logs. Espressif's
+// own word for what esp_random returns in that state is "pseudo-random".
+//
+// It still returns bytes. It still reports success. That is the whole hazard:
+// it is the shape of bug that reached Coldcard through random.bytes(), where
+// the call ran, the numbers looked fine, and the source behind them was not
+// the one anybody believed it was. No statistical check finds this, because a
+// decent PRNG passes them all. Only provenance answers it.
+//
+// So the app switches the source on itself, once, and leaves it on. It clashes
+// with only the ADC and the radio, and this firmware uses neither.
+void wallet_trng_start(void);
+
+// False until wallet_trng_start has run. Key material with no second source
+// folded into it MUST refuse to be generated while this is false, rather than
+// quietly handing back a weak key that every later check will call valid.
+bool wallet_trng_live(void);
 
 // ---- network (mainnet / testnet) ----
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
