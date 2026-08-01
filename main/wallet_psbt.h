@@ -22,6 +22,12 @@ typedef enum {
 #define WPSBT_C_SMALL_CHANGE (1u << 2)   // change below the privacy threshold
 #define WPSBT_C_DUST_CHANGE  (1u << 3)   // change below the standardness dust limit
 #define WPSBT_C_MERGE_INS    (1u << 4)   // many coins spent at once (linked forever)
+// An input amount we were TOLD but could not PROVE. BIP143 commits only to the
+// amount of the input being signed, so across two signing sessions a coordinator
+// can declare a different (individually truthful) amount each time and combine
+// one valid signature per input. The fee shown is then lower than the fee paid,
+// and the difference is burned. Verification cannot see it; only the owner can.
+#define WPSBT_C_UNPROVEN_IN  (1u << 5)
 
 // Privacy threshold: coins/change under this are flagged (soft). Not a dust
 // limit — that is a per-type standardness floor (see wallet_psbt.c).
@@ -64,6 +70,7 @@ typedef struct {
     uint32_t n_unknown;      // unknown/proprietary PSBT fields (global+in+out)
     uint32_t n_sp;           // silent payment outputs among outs[]
     uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment
+    uint32_t n_unproven_in;  // inputs whose amount came from a bare witness_utxo
     bool     testnet;        // network this summary was verified under
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;
@@ -93,6 +100,7 @@ typedef struct {
     uint32_t purpose;        // 44/49/84 (verify already proved it's ours), 352 = SP spend
     uint32_t change, index;  // our derivation tail m/../<change>/<index>
     bool     is_sp;          // BIP376: spends a received silent-payment (P2TR) coin
+    bool     proven;         // sats came from a previous tx that hashes to the outpoint
 } wpsbt_in_t;
 
 typedef struct {

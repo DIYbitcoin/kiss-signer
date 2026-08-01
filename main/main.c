@@ -2348,6 +2348,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_set_style_bg_opa(s_mote[i], LV_OPA_COVER, 0);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
     lv_obj_set_pos(s_mote[i], 0, 474);
+    // A mote rises the full height of the screen, so at some tick it is always
+    // sitting below WT_CONTENT_BOTTOM -- which is content crossing the line as
+    // far as the screen-walk gate can tell, and is nothing at all as far as a
+    // reader can tell. Whether it fired came down to how many ticks the walk
+    // had spent before it saved the home frame, so the gate reported a real
+    // rule against the one object on the screen the rule was never about.
+    wt_mark_decor(s_mote[i]);
   }
 
 

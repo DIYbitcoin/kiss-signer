@@ -654,6 +654,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
+    uint32_t nunproven = 0;   // amount taken from a witness_utxo with no prev tx behind it
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
@@ -692,6 +693,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             s->in_sats += u->satoshi;
             s->n_sp_in++;
             ntap++;
+            nunproven++;   // witness_utxo only; BIP341 is what covers it, see below
             if (u->satoshi > 0 && u->satoshi < WPSBT_PRIVACY_SATS)
                 caution(s, WPSBT_C_DUST_INPUT, "possible dust attack (privacy)");
             continue;
@@ -712,20 +714,23 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             continue;
         }
 
-        // Where the amount + scriptPubKey come from depends on the type. The
-        // LEGACY sighash does not commit to amounts, so a witness_utxo on a
-        // legacy input is exactly the fake-fee lie the full-previous-tx rule
-        // exists to block: purpose 44 REQUIRES non_witness_utxo, txid-checked.
-        // Segwit sighash (BIP143) commits to the amount, so witness_utxo is
-        // safe there (a lied-about amount just makes the signature invalid).
+        // Where the amount + scriptPubKey come from. The full previous
+        // transaction is the only source that PROVES either one: it has to hash
+        // to the outpoint being spent, so a lie about the amount is a lie about
+        // a txid and cannot survive. A witness_utxo is a claim, nothing more.
+        //
+        // So the prev tx wins whenever it is there, for every script type, and a
+        // witness_utxo that contradicts it is the coordinator disagreeing with
+        // itself about a coin -- refuse rather than pick a side. The LEGACY
+        // sighash does not commit to amounts at all, so purpose 44 has no second
+        // source to fall back to and REQUIRES the prev tx. Segwit may fall back
+        // (BIP143 commits to the amount of the input being signed) but the coin
+        // is then only as honest as one signing session: see nunproven below.
         const uint8_t *utxo_spk = NULL;
         size_t utxo_spk_len = 0;
         uint64_t utxo_val = 0;
-        if (purpose != 44 && in->witness_utxo) {
-            utxo_spk = in->witness_utxo->script;
-            utxo_spk_len = in->witness_utxo->script_len;
-            utxo_val = in->witness_utxo->satoshi;
-        } else if (in->utxo) {          // full prev tx: its txid must match
+        bool proven = false;
+        if (in->utxo) {                 // full prev tx: its txid must match
             uint8_t ptxid[32];
             uint32_t vout = tx->inputs[i].index;
             if (wally_tx_get_txid(in->utxo, ptxid, sizeof ptxid) == WALLY_OK &&
@@ -734,10 +739,21 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                 utxo_spk = in->utxo->outputs[vout].script;
                 utxo_spk_len = in->utxo->outputs[vout].script_len;
                 utxo_val = in->utxo->outputs[vout].satoshi;
+                proven = true;
             } else {
                 stop(s, "input's previous transaction does not match");
                 continue;
             }
+            const struct wally_tx_output *w = in->witness_utxo;
+            if (w && (w->satoshi != utxo_val || w->script_len != utxo_spk_len ||
+                      memcmp(w->script, utxo_spk, utxo_spk_len) != 0)) {
+                stop(s, "input's previous transaction does not match");
+                continue;
+            }
+        } else if (purpose != 44 && in->witness_utxo) {
+            utxo_spk = in->witness_utxo->script;
+            utxo_spk_len = in->witness_utxo->script_len;
+            utxo_val = in->witness_utxo->satoshi;
         }
         if (!utxo_spk) {
             stop(s, purpose == 44
@@ -745,6 +761,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                      : "input amount unverifiable");   // fake-fee theft vector
             continue;
         }
+        if (!proven) nunproven++;
         if (utxo_val > MAX_MONEY) {
             stop(s, "input amount over 21M BTC (corrupt)");
             continue;
@@ -764,6 +781,23 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     s->purpose = (n44 && !n49 && !n84) ? 44
                : (n49 && !n44 && !n84) ? 49
                : (n84 && !n44 && !n49) ? 84 : 0;
+
+    s->n_unproven_in = nunproven;
+    // The fee on the screen is a subtraction, and every input amount is a term in
+    // it. BIP143 commits only to the amount of the input being signed, so with
+    // two or more inputs a coordinator can run two signing sessions, declare a
+    // different but individually truthful amount in each, and combine one valid
+    // signature per input. Both signatures verify. The tx that broadcasts pays a
+    // fee neither screen showed, and the difference goes to a miner.
+    //
+    // Nothing in the PSBT can rule that out: each session, on its own, is honest.
+    // BIP341 hashes EVERY input amount into the sighash, so an all-taproot spend
+    // is immune, and with one input the lie lands in that input's own sighash and
+    // invalidates it. Everything else is the owner's call, which is what a
+    // CAUTION is for -- and a coordinator that attaches the previous transactions
+    // clears it outright, because then there is nothing left to lie about.
+    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
+        caution(s, WPSBT_C_UNPROVEN_IN, "input amounts not proven - fee may be higher");
 
     // Merging coins is the one privacy loss a signer can see coming and the one
     // it can never take back: the moment this broadcasts, every input is public
@@ -902,10 +936,14 @@ int wallet_psbt_details(wpsbt_details_t *d)
         wpsbt_in_t *di = &d->ins[d->n_in++];
         txid_hex(tx->inputs[i].txhash, di->txid);
         di->vout = tx->inputs[i].index;
-        if (in->witness_utxo) {
-            di->sats = in->witness_utxo->satoshi;
-        } else if (in->utxo && di->vout < in->utxo->num_outputs) {
+        // Same precedence as load, for the same reason: the prev tx is the only
+        // source that proves the number. Load already checked it hashes to this
+        // outpoint, so there is nothing to re-check here.
+        if (in->utxo && di->vout < in->utxo->num_outputs) {
             di->sats = in->utxo->outputs[di->vout].satoshi;
+            di->proven = true;
+        } else if (in->witness_utxo) {
+            di->sats = in->witness_utxo->satoshi;
         }
         if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
             di->is_sp = true;          // BIP376: spends a received silent payment
