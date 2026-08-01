@@ -243,6 +243,57 @@ static void draw_screen(bool again)
     draw_reset();
 }
 
+// ---- the teaching diagrams ------------------------------------------------
+// A centred flex column to hang diagram rows off, because wt_diagram_row sizes
+// itself to its content and a screen is not a flex container. Same shape as the
+// asides in wallet_info.c; kept local because only this file stacks two rows.
+static lv_obj_t *diagram_box(int y)
+{
+    lv_obj_t *col = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 48, y);
+    lv_obj_set_width(col, 704);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 12, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    return col;
+}
+
+static void chip_icon(lv_obj_t *row, const char *icon, const char *txt,
+                      bool accent)
+{
+    char buf[WT_ICON_TEXT_MAX];
+    wt_icon_text(buf, sizeof buf, icon, txt);
+    wt_chip(row, buf, accent);
+}
+
+// The two ways in, drawn. This was three paragraphs saying which gesture opens
+// which wallet, and a gesture mapping is a picture: the letters, what is added
+// to them, and what opens. The spare is plain and the real one is accented,
+// which is the same accent-is-the-outcome rule the fingerprint equation uses.
+//
+// KISS is not translated because it is not a word here, it is the four letters
+// the finger draws. The stroke's name and both wallet labels are.
+static void diagram_two_ways(void)
+{
+    lv_obj_t *box = diagram_box(112);
+
+    lv_obj_t *r1 = wt_diagram_row(box);
+    wt_chip(r1, "KISS", false);
+    wt_diagram_op(r1, LV_SYMBOL_RIGHT);
+    chip_icon(r1, WT_ICON_SECRET, tr(STR_D_SPARE), false);
+
+    lv_obj_t *r2 = wt_diagram_row(box);
+    wt_chip(r2, "KISS", false);
+    wt_diagram_op(r2, "+");
+    wt_chip(r2, tr(STR_GD_PICK_REAL_T), false);
+    wt_diagram_op(r2, LV_SYMBOL_RIGHT);
+    chip_icon(r2, WT_ICON_KEY, tr(STR_D_REAL), true);
+}
+
 static void stage_build(int stage)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -252,20 +303,18 @@ static void stage_build(int stage)
     s_stage = stage;
 
     switch (stage) {
-    // Two teaching screens, each the full 704px width. They were one
-    // two-column screen first, and it rendered badly in every language: the
-    // right-hand heading ran off the panel and the body wrapped mid-sentence,
-    // because 250px cannot hold copy written in lines sized for 430.
+    // The two teaching screens were a card with three paragraphs of prose in
+    // it. The card counts as chrome, so the BARE gate passed them, and the
+    // reader still met forty words of grey where the subject is a mapping from
+    // gestures to wallets -- which is a picture, not a paragraph.
     //
-    // Each body sits in a card now, which is the house look and also what makes
-    // three paragraphs of teaching copy read as one block rather than as loose
-    // text on the page. The body gives up 16px of width to the card's padding and
-    // has it to spare: the height budget is 260 against about 200 of English.
+    // Each one now leads with the diagram and keeps only the claim the diagram
+    // cannot make. wt_why_body splits on blank lines and places itself, so the
+    // body no longer needs a height budget guessed against English.
     case ST_INTRO: {
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
-        wt_card(s_scr, 36, 104, 716, 288);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_INTRO_B), 52, 118, 688, 260);
-        lv_obj_set_style_text_color(b, WT_INK, 0);
+        diagram_two_ways();
+        wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
         // "SET UP A SPARE", not OK: on a screen explaining a decoy wallet, an
         // OK button tells the owner nothing about which of the two things is
         // about to happen. This one commits to the second wallet with words.
@@ -280,9 +329,14 @@ static void stage_build(int stage)
     }
     case ST_FUND: {
         s_scr = wt_screen(s_parent, tr(STR_GD_FUND_T), NULL);
-        wt_card(s_scr, 36, 104, 716, 288);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_FUND_B), 52, 118, 688, 260);
-        lv_obj_set_style_text_color(b, WT_INK, 0);
+        // The spare has an identity of its own, which is the half of this
+        // screen that is a fact rather than an instruction.
+        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
+        // Two claims, two columns: it really works, and an empty one is a tell.
+        wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
         // Same rationale as ST_INTRO: name the action.
         wt_pill(s_scr, tr(STR_GD_SET_UP_SPARE), 48, WT_ACTION_Y, 240, next_cb, NULL);
         wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
@@ -293,9 +347,14 @@ static void stage_build(int stage)
     case ST_DRAW2: draw_screen(true);    break;
     case ST_NOPASS: {
         s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
-        wt_card(s_scr, 36, 104, 716, 288);
-        lv_obj_t *b = wt_wraph(s_scr, tr(STR_GD_NOPASS_B), 52, 118, 688, 260);
-        lv_obj_set_style_text_color(b, WT_INK, 0);
+        // Why there is nothing to hide behind, in two chips: the layer this
+        // feature stands on is missing. GD_OFF is the same "NOT SET" the ways
+        // in row on Settings shows, so the reader has met it already.
+        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        wt_chip(row, tr(STR_GD_OFF), false);
+        wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
         // The only way back to plain behaviour for a signer that was allowed to
         // configure a stroke before this case was handled.
         if (wallet_duress_real() != WDG_NONE)

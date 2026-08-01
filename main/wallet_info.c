@@ -157,9 +157,16 @@ static int aside_pair(lv_obj_t *p, int x, int y, int w)
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, sp_permission_model); }
 
+// Two entries, and the mark for each. A body written `TERM: definition` per
+// line is a LIST, and passing icons here is what says so: wt_explain_open then
+// draws badges and headings instead of a grey paragraph the reader has to
+// finish before finding the half that applies to them.
+static const char *const PAIR_ICONS[] = { LV_SYMBOL_EYE_OPEN, WT_ICON_LOCK };
+static const char *const TYPE_ICONS[] = { LV_SYMBOL_OK, LV_SYMBOL_DIRECTORY };
+
 static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                               const char *body, int diagram, bool fp_exit_hint,
-                              const char *icon)
+                              const char *icon, const char *const *icons)
 {
     // The escape-gesture hint belongs to the HOME fingerprint card and nowhere
     // else, so it rides on the end of the body rather than being a fourth kind
@@ -179,6 +186,8 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                 : diagram == DIAG_SCAN   ? WT_ICON_SECRET : icon,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
+        .mode   = icons ? WT_GRID_ICONS : WT_BODY_PROSE,
+        .icons  = icons,
         .aside  = diagram == DIAG_FP     ? aside_fp
                 : diagram == DIAG_PAIR   ? aside_pair
                 : diagram == DIAG_SCAN   ? aside_scan : NULL,
@@ -186,14 +195,16 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
     return wt_explain_open(parent, &e);
 }
 
-static lv_obj_t *help_open_d(const char *title, const char *body, int diagram)
+static lv_obj_t *help_open_d(const char *title, const char *body, int diagram,
+                             const char *const *icons)
 {
-    return help_open_on(s_scr, title, body, diagram, false, NULL);
+    return help_open_on(s_scr, title, body, diagram, false, NULL, icons);
 }
 
-static void help_open(const char *title, const char *body, const char *icon)
+static void help_open(const char *title, const char *body, const char *icon,
+                      const char *const *icons)
 {
-    help_open_on(s_scr, title, body, DIAG_NONE, false, icon);
+    help_open_on(s_scr, title, body, DIAG_NONE, false, icon, icons);
 }
 
 lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
@@ -207,13 +218,13 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
 
     return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
-                        exit_hint, NULL);
+                        exit_hint, NULL, NULL);
 }
 
 lv_obj_t *wallet_info_help_card_open(lv_obj_t *parent, const char *title,
                                      const char *body, const char *icon)
 {
-    return help_open_on(parent, title, body, DIAG_NONE, false, icon);
+    return help_open_on(parent, title, body, DIAG_NONE, false, icon, NULL);
 }
 
 // The fingerprint row's explainer, opened WITH the code so the card draws the
@@ -239,20 +250,22 @@ static void help_cb(lv_event_t *e)
     // derivation branch under the name; DOWNLOAD for the first address, because
     // an address is where money arrives. Both are in the baked symbol set.
     else if (!strcmp(key, "type"))
-        help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B), LV_SYMBOL_DIRECTORY);
+        help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B), LV_SYMBOL_DIRECTORY,
+                  TYPE_ICONS);
     else if (!strcmp(key, "pair"))
-        help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR);
+        help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR, PAIR_ICONS);
     else if (!strcmp(key, "scan"))
-        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN);
+        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN, NULL);
     else
-        help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD);
+        help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD,
+                  NULL);
 }
 
 #ifdef SIMULATOR
 void wallet_info_sim_open_type_help(void)
 {
     if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B),
-                         LV_SYMBOL_DIRECTORY);
+                         LV_SYMBOL_DIRECTORY, TYPE_ICONS);
 }
 
 void wallet_info_sim_open_fp_help(void)
@@ -323,15 +336,18 @@ static void pair_instructions_cb(lv_event_t *e)
     // two small captions above them, all floating on the page, left the reader to
     // work out which caption owned which paragraph. Both bodies keep a three line
     // budget at font23, which is what they had.
+    // Marks before words, and the mark says which device the steps are for: a
+    // phone for BlueWallet, a file for Sparrow on a computer. Both are in SYMS.
     lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
-    wt_section(c1, tr(STR_I_SHOW_TO), 16, 10);
+    wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE : LV_SYMBOL_FILE,
+                          STR_I_SHOW_TO), 16, 10);
     lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
         16, 34, 688, 116);
     lv_obj_set_style_text_color(steps, WT_INK, 0);
 
     lv_obj_t *c2 = wt_card(s_scr, 36, 264, 716, 132);
-    wt_section(c2, tr(STR_R_VERIFY), 16, 8);
+    wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
     lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, 30, 688, 96);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 

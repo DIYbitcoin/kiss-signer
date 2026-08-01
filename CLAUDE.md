@@ -54,11 +54,21 @@ bash sim/build_osdcheck.sh && /tmp/kissosd         # on-video overlay text
 bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locales
 ```
 
-`overlapcheck` asks six questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
-ROLE and **BARE**. BARE is rule 1 above, enforced: a screen with a wide
-paragraph and no framed element fails the build. Screens that are already bare
-are listed in `OC_BARE_BACKLOG` in `sim/overlapcheck.c`; that list only shrinks,
-and the run prints how many are left.
+`overlapcheck` asks seven questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
+ROLE, **BARE** and **WALL**. Both of the last two are rule 1 above, enforced:
+
+- **BARE** — a wide paragraph and no framed element at all.
+- **WALL** — a wide paragraph where every frame on the screen is a box drawn
+  *around* it. A `wt_card` full of `wt_wraph` passes BARE and is still a wall of
+  text; this is the check that says so. A chip, a badge, a row, a value card or
+  a why-block rule anywhere else on the screen clears it.
+
+Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG` in
+`sim/overlapcheck.c`) and the run prints how many are left. Both are empty
+today. WALL fires on a shape the product no longer contains, so
+`OVERLAPCHECK_SELFTEST=1` builds that shape and proves the gate still reports
+it — a clean sweep means nothing without that, which is why `run_overlapcheck.sh`
+runs the self test first and refuses to continue if it fails.
 
 ## i18n
 
