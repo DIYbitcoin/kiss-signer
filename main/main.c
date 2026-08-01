@@ -2425,6 +2425,11 @@ void app_main(void) {
   display_start();
   backlight_on();
   touch_start();
+  // After the display, because switching the entropy source on reconfigures
+  // ADC1 and the analog i2c clock, and the panel's LDO comes up through the
+  // same analog block. Nothing needs randomness before a screen exists, so
+  // this costs nothing and keeps boot order boring.
+  wallet_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
   while (1) {           // single-threaded LVGL loop (we own the display + flush)
