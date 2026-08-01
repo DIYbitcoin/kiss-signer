@@ -15,13 +15,13 @@ cd "$(dirname "$0")/.."
 
 bash sim/build_overlapcheck.sh
 
-# The ROLE check reports nothing on the current UI, so prove it can still report
-# anything at all before trusting a clean run. See oc_selftest in
-# sim/overlapcheck.c for why this one check needs that and the other four do not.
+# WALL and ROLE both report nothing on the current UI, so prove they can still
+# report anything at all before trusting a clean run. See oc_selftest in
+# sim/overlapcheck.c for why these two need that and the other five do not.
 echo
 if ! OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap; then
     echo
-    echo "FAILED: the ROLE check no longer behaves, so a clean run means nothing."
+    echo "FAILED: a self test check no longer behaves, so a clean run means nothing."
     exit 1
 fi
 
@@ -50,7 +50,7 @@ for l in "${langs[@]}"; do
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"

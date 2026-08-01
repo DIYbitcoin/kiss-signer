@@ -418,19 +418,55 @@ static void sp_back_cb(lv_event_t *e) {
 // appears in the transaction. This surprises people who compare Sparrow's
 // output list after a first test payment, so explain the two prefixes beside
 // the address instead of making them discover it in documentation.
+// Which prefix goes where, as two chips. The card is about two strings that
+// look different, and the answer to "why are they different" is a picture of
+// the pair: what you hand out, and what turns up in the transaction. The marks
+// carry the roles, so the diagram costs no string in any of the 21 locales --
+// upload is the one you give away, and the eye is the card's own badge.
+//
+// The aside takes no user data, so the two prefixes live here for the length of
+// the card. Same lifetime as the title and body beside them.
+static const char *s_sp_share, *s_sp_seen;
+
+static int aside_sp_prefixes(lv_obj_t *par, int x, int y, int w) {
+  (void)w;
+  char buf[WT_ICON_TEXT_MAX];
+  lv_obj_t *col = lv_obj_create(par);
+  lv_obj_remove_style_all(col);
+  lv_obj_set_pos(col, x, y);
+  lv_obj_set_width(col, 704);
+  lv_obj_set_height(col, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+  // wt_icon_text writes the icon into out before it reads txt, so out and txt
+  // must not be the same buffer -- aliasing them drops the label and leaves two
+  // chips wearing nothing but their mark.
+  lv_obj_t *row = wt_diagram_row(col);
+  wt_icon_text(buf, sizeof buf, LV_SYMBOL_UPLOAD, s_sp_share);
+  wt_chip(row, buf, false);
+  wt_diagram_op(row, LV_SYMBOL_RIGHT);
+  wt_icon_text(buf, sizeof buf, LV_SYMBOL_EYE_OPEN, s_sp_seen);
+  wt_chip(row, buf, true);
+
+  lv_obj_update_layout(col);
+  return lv_obj_get_height(col);
+}
+
 static void sp_help_cb(lv_event_t *e) {
   (void)e;
-  // The two prefixes are the whole subject, so they are arguments rather than
-  // baked text: %s appears five times and a translation may place them in any
-  // order it needs. body is sized for the longest locale plus five 4-char
-  // prefixes, not for English.
+  // The prefixes are the whole subject, so they are arguments rather than baked
+  // text. Two of the three paragraphs said which one you share and which one
+  // appears -- that IS the diagram now, and what survives is the part no
+  // picture makes: why the sender's wallet swaps one for the other.
   const bool tn = wallet_testnet();
-  const char *share = tn ? "tsp1" : "sp1";     // what you hand out
-  const char *seen  = tn ? "tb1p" : "bc1p";    // what lands in the transaction
   static char title[96], body[640];            // outlive this call: the card reads them
+  s_sp_share = tn ? "tsp1" : "sp1";            // what you hand out
+  s_sp_seen  = tn ? "tb1p" : "bc1p";           // what lands in the transaction
   snprintf(title, sizeof title, tr(STR_R_SP_WHY_T), tn ? "TB1P" : "BC1P");
-  snprintf(body, sizeof body, tr(STR_R_SP_WHY_B),
-           share, seen, share, seen, seen);
+  snprintf(body, sizeof body, tr(STR_R_SP_WHY_B), s_sp_seen);
 
   // An eye, because the whole card is about which address other people SEE.
   wt_explain_t x = {
@@ -438,6 +474,7 @@ static void sp_help_cb(lv_event_t *e) {
       .icon   = LV_SYMBOL_EYE_OPEN,
       .body   = body,
       .ok_txt = tr(STR_C_OK),
+      .aside  = aside_sp_prefixes,
   };
   wt_explain_open(s_scr, &x);
 }

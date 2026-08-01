@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include "i18n.h"
 #include "wallet_crypto.h"
+#include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
@@ -1604,6 +1605,15 @@ int main(void) {
   s_sim_sd_present = 1;
   touch(168, 430); pump(3); release(); pump(12);     // hot-plug retry -> login
   save("/tmp/sim_sd_reinserted_login.ppm");
+
+  // The one duress screen the walk above cannot reach. ST_NOPASS only appears
+  // when WAYS IN is opened on a wallet with no passphrase, and every wallet
+  // this walk builds has one, so the screen was rebuilt in this tree with no
+  // gate looking at it. Opened directly here, as the last stop: it is a leaf
+  // with nothing after it, so it needs no way back and disturbs no state.
+  wallet_duress_ui_open_nopass(lv_screen_active(), NULL);
+  pump(40);
+  save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an

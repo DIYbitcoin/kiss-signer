@@ -24,6 +24,7 @@
 //   4. CLIPPED  was text laid out and then cut away where nobody can reach it
 //   5. ROLE     is one element wearing a themed accent and a status colour
 //   6. BARE     is a screen just a wall of text, with none of the kit's chrome
+//   7. WALL     is the only chrome a box drawn around that wall of text
 //
 // The first three are the ones the review asked for. The fourth was added after
 // reading docs/media/sign-verify.png: a label can ask for a box taller than the
@@ -729,6 +730,108 @@ static void oc_check_bare(const char *tag)
     oc_report_one(tag, sig, detail);
 }
 
+// ---- 7. WALL: a paragraph with a card drawn round it ----------------------
+//
+// BARE stops at the first frame it finds (oc_check_bare's early return), which
+// is the right question for "did anyone reach for the kit at all" and the wrong
+// one for what shipped next: three duress teaching screens answered it with
+// wt_card(36, 104, 716, 288) wrapped around forty words of wt_wraph. A border
+// round a wall of text is still a wall of text, and BARE passed all three.
+//
+// So WALL asks the question BARE cannot: is every frame on this screen just a
+// box drawn AROUND the paragraph? A chip, a badge, a row, a value card or a
+// why-block's rule bar all sit beside or above the body rather than containing
+// it, so any one of them clears the screen. Only the container-round-the-prose
+// shape is left, and that shape is the one being rejected.
+//
+// Same wall thresholds as BARE (560x90) so the two checks agree on what counts
+// as a page's body, and the same action-row exemption.
+static const char *OC_WALL_BACKLOG[] = {
+    // EMPTY. The three duress stops that this check was written against lead
+    // with a diagram now. A new entry is a screen someone chose not to rebuild,
+    // and needs saying so here.
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_wall_hit[sizeof OC_WALL_BACKLOG / sizeof OC_WALL_BACKLOG[0]];
+
+static bool oc_wall_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_WALL_BACKLOG / sizeof OC_WALL_BACKLOG[0]; i++)
+        if (OC_WALL_BACKLOG[i] && strstr(tag, OC_WALL_BACKLOG[i]))
+            { s_wall_hit[i] = true; return true; }
+    return false;
+}
+
+// Chrome, for WALL's purposes, and deliberately a WIDER net than oc_is_frame.
+// BARE's 100x30 floor exists so a stray decoration cannot make a bare screen
+// look furnished; here the question is the opposite one -- did the screen put
+// anything at all beside the prose -- and a wt_chip is about 60x28 and a grid
+// badge is 34x34. Measuring those against BARE's floor would call a diagram of
+// six chips "no chrome" and fire on a screen that is entirely picture.
+static bool oc_is_chrome(const oc_node_t *n)
+{
+    int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+    if (n->is_label) return false;
+    if (area_is_backdrop(&n->vis)) return false;
+    if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
+    // A PILL IS NOT CHROME, same as BARE -- but a wt_chip IS, and LVGL marks
+    // both clickable: lv_obj_create sets the flag and wt_chip's
+    // lv_obj_remove_style_all does not clear it. Height separates them without
+    // this gate having to know about event handlers. Every pill in the product
+    // is WT_ACTION_H tall or taller; a chip is about 33 and a grid badge 34.
+    if (n->clickable && h >= WT_ACTION_H) return false;
+    if (w <= 4 && h >= 30) return true;               // a why-block's rule bar
+    if (w < 20 || h < 16) return false;
+    return lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) >= 1 ||
+           lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50;
+}
+
+// Does the frame's box cover the paragraph's? Inclusive, with 4px of slack:
+// a card is drawn a hair outside the text it holds, and LVGL rounds.
+static bool oc_frame_holds(const oc_node_t *f, const oc_node_t *w)
+{
+    return f->vis.x1 <= w->vis.x1 + 4 && f->vis.x2 >= w->vis.x2 - 4 &&
+           f->vis.y1 <= w->vis.y1 + 4 && f->vis.y2 >= w->vis.y2 - 4;
+}
+
+static void oc_check_wall(const char *tag)
+{
+    char t[64], sig[192], detail[320];
+
+    if (!oc_has_action_row()) return;
+
+    const oc_node_t *wall = NULL;
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label || !n->wraps) continue;
+        int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+        if (w >= 560 && h >= 90) { wall = n; break; }
+    }
+    if (!wall) return;
+
+    // Any frame that is NOT a box around the paragraph is the screen carrying
+    // its content some other way, and that is all this check wants to see.
+    int frames = 0;
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !oc_is_chrome(n)) continue;
+        if (!oc_frame_holds(n, wall)) return;
+        frames++;
+    }
+    if (!frames) return;                  // no frame at all: BARE's finding
+    if (oc_wall_excused(tag)) return;
+
+    oc_text(wall->obj, t, sizeof t);
+    snprintf(sig, sizeof sig, "WALL|%s", t);
+    snprintf(detail, sizeof detail,
+             "WALL     \"%s\" is a %dx%d paragraph and every frame on the screen "
+             "is a box drawn around it (use a diagram row, chips, rows or "
+             "wt_why_block instead)",
+             t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
+             (int)(wall->vis.y2 - wall->vis.y1 + 1));
+    oc_report_one(tag, sig, detail);
+}
+
 static void oc_check_colour_roles(const char *tag)
 {
     char t[64], sig[192], detail[320];
@@ -841,10 +944,59 @@ static int oc_selftest_case(const char *name, int accent,
     return got == want_finding ? 0 : 1;
 }
 
+// WALL fires on a shape the product no longer contains, so a clean run over the
+// walk proves nothing about it. Same problem the ROLE check has, same answer:
+// build the shape here and check the gate still says so.
+//
+// The pill is what gives the synthetic screen an action row, which is the
+// exemption both BARE and WALL share.
+static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
+{
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_screen_load(scr);
+    lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
+
+    lv_obj_t *card = wt_card(scr, 36, 104, 716, 288);
+    (void)card;
+    lv_obj_t *body = wt_wraph(scr,
+        "a paragraph long enough to be a page's body, wide enough to be its "
+        "only content, and tall enough that nobody reads it twice. this is the "
+        "shape a card drawn round prose leaves behind.", 52, 118, 688, 260);
+    (void)body;
+    if (with_chip) {
+        lv_obj_t *row = wt_diagram_row(scr);
+        lv_obj_set_pos(row, 48, 60);
+        wt_chip(row, "SOMETHING", false);
+    }
+    wt_pill(scr, "OK", 300, WT_ACTION_Y, 200, NULL, NULL);
+    lv_refr_now(NULL);
+
+    s_n = 0;
+    s_findings = 0;
+    s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_wall("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
     int bad = 0;
+
+    printf("WALL check self test\n");
+    bad += oc_selftest_wall("card wrapped round a paragraph, fires", false, true);
+    bad += oc_selftest_wall("same paragraph with a chip beside it, clear", true, false);
+    if (bad) printf("WALL self test: %d case(s) wrong\n", bad);
+    else     printf("WALL self test: 2 cases, all as expected\n");
+    printf("\n");
 
     printf("ROLE check self test\n");
     wt_accent_set(WT_ACC_ORANGE);
@@ -911,6 +1063,7 @@ void oc_check(const char *tag)
     oc_check_clipped(tag);
     oc_check_colour_roles(tag);
     oc_check_bare(tag);
+    oc_check_wall(tag);
 }
 
 int oc_report(void)
@@ -945,6 +1098,17 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d screens still on the BARE backlog\n",
                lang, bare_left);
+    }
+    {
+        int wall_left = 0;
+        for (unsigned i = 0; i < sizeof OC_WALL_BACKLOG / sizeof OC_WALL_BACKLOG[0]; i++) {
+            if (!OC_WALL_BACKLOG[i]) continue;
+            if (s_wall_hit[i]) { wall_left++; continue; }
+            printf("[overlap] %s: WALL backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_WALL_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the WALL backlog\n",
+               lang, wall_left);
     }
 
     for (int i = 0; i < s_seen_n; i++)

@@ -1053,7 +1053,10 @@ static void method_dice_cb(lv_event_t *e) { (void)e; dice_screen(); }
 
 static void method_screen(void)
 {
-    mk_screen(tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
+    // NOT STR_W_HOWMANY: this screen forks camera against dice, and it wore the
+    // word-count screen's subtitle asking how many words. Nothing on it answers
+    // that question.
+    mk_screen(tr(STR_W_NEW_T), tr(STR_W_METHOD_S));
     wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_NEW), tr(STR_W_NEW_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
