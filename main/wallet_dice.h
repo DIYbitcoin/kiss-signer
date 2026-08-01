@@ -6,7 +6,10 @@
 #pragma once
 #include <stdint.h>
 
-#define DICE_MAX        120     // buffer ceiling, comfortably above 99 rolls
+#define DICE_MAX        180     // buffer ceiling. Sized so ROLL MORE can rescue
+                                // a flagged session: at the 24 word floor of 99
+                                // the old ceiling of 120 left 21 rolls, which
+                                // cannot move the quality statistic.
 #define DICE_FLOOR_128  50      // 12 words / 128 bit  (50 * log2 6 = 129 bit)
 #define DICE_FLOOR_256  99      // 24 words / 256 bit  (99 * log2 6 = 256 bit)
 
@@ -36,3 +39,43 @@ int         wallet_dice_take(uint8_t *out, unsigned len);
 // live verification fingerprint. Returns 0, or -1 on NULL/hash failure. Unlike
 // take(), this has no floor and is not seed material past the display.
 int         wallet_dice_peek(uint8_t out[32]);
+
+// ---- roll quality (wallet_dice_q.c: no crypto, links real in the sim) ----
+// SHA256 whitens the rolls, so the words always look perfect and nothing
+// downstream can ever notice that the input was fifty presses of one key.
+// The judgement has to happen here, on the raw digits, before the hash.
+
+// Milli-bits a roll must be worth to count as rolled. A fair d6 carries
+// log2(6) = 2585. The bar sits between log2(4) = 2000 and log2(5) = 2322 on
+// purpose, which gives the rule a meaning the owner can check by hand: a
+// string using four or fewer of the six faces ALWAYS warns, five or six is
+// judged on how level the counts are. Exact enumeration of every 50 roll
+// histogram puts the false alarm rate at 1 in 1.1 million honest sessions.
+#define WD_RATE  2050
+
+enum { WD_Q_SHORT = 0,  // below the floor: nothing to judge yet
+       WD_Q_OK,
+       WD_Q_UNEVEN,     // the six faces did not come up like a die's
+       WD_Q_PATTERN };  // the ORDER is predictable, however level the faces
+
+typedef struct {
+    int      verdict;     // WD_Q_*
+    unsigned n;           // rolls judged
+    unsigned floor;       // the roll count this len needs
+    unsigned face[6];     // index 0 = face 1
+    unsigned step[6];     // (face - previous face) mod 6
+    int32_t  bits;        // milli-bits carried by the faces
+    int32_t  step_bits;   // milli-bits carried by the steps
+    unsigned period;      // 0, or the block length the string repeats at
+} wallet_dice_q_t;
+
+// Entropy of a six bin histogram, in milli-bits TOTAL (not per roll):
+// N*log2(N) - sum(c*log2(c)), from an integer lookup table. No float
+// anywhere, so the number is bit-identical on the device and on any
+// computer the owner recomputes it on.
+int32_t wallet_dice_bits(const unsigned counts[6]);
+
+// Judge a roll string against the floor for `len` (16 or 32). Pure: no
+// globals, no clock, no crypto. Fills every field of `out`.
+void    wallet_dice_judge(const char *digits, unsigned n, unsigned len,
+                          wallet_dice_q_t *out);
