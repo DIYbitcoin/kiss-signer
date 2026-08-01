@@ -8,6 +8,8 @@
 #include "wally_core.h"
 #include "wally_crypto.h"
 
+#include "wallet_crypto.h"   // wallet_trng_live: the chip RNG is not on by default
+
 #ifdef ESP_PLATFORM
 #include "esp_random.h"
 #include "nvs.h"
@@ -42,6 +44,13 @@ static int ct_equal(const uint8_t *a, const uint8_t *b, size_t n)
 static int fill_random(uint8_t *out, size_t len)
 {
 #ifdef ESP_PLATFORM
+    // The seed survives a weak chip RNG because three sources are folded into
+    // it. The device key below is not folded with anything: it is whatever
+    // this call returns. So it is the one place that has to ask whether the
+    // noise source is actually running, and refuse if it is not — esp_fill_random
+    // reports success either way, and a key made from an unseeded RNG would
+    // pass every check downstream of here.
+    if (!wallet_trng_live()) return -1;
     esp_fill_random(out, len);
     return 0;
 #else

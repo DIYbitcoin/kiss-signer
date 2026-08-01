@@ -14,6 +14,10 @@
 
 #include "wallet_seed.h"
 
+#ifdef ESP_PLATFORM
+#include "bootloader_random.h"   // bootloader_random_enable: see wallet_crypto.h
+#endif
+
 // Standard BIP39 test vector — ONLY the boot selftest uses it now; the live
 // wallet derives from the seed the user stored (wallet_seed.c). Steps 3-6
 // shipped on this as "the dev seed"; step 7 retired it from the hot path.
@@ -84,6 +88,24 @@ int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
     wally_bzero(cat, sizeof cat);
     return rc;
 }
+
+// ---- hardware entropy source ----
+// Why the chip does not already have this on, and why no test would notice:
+// see the block comment in wallet_crypto.h. Enabled once and never disabled,
+// because disabling is only required before the ADC or the radio and this
+// firmware has neither.
+static bool s_trng_live;
+
+void wallet_trng_start(void)
+{
+#ifdef ESP_PLATFORM
+    bootloader_random_enable();
+#endif
+    // On the host build the callers reach /dev/urandom, which needs no switch.
+    s_trng_live = true;
+}
+
+bool wallet_trng_live(void) { return s_trng_live; }
 
 int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 {
