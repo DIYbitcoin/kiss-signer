@@ -448,20 +448,20 @@ int wallet_psbt_details(wpsbt_details_t *d) {
   // n_total > n_in exercises the many-inputs header (S_D_MANYIN_FMT) with a
   // 2-digit count: the longest formatted line in the whole sign flow (ja is
   // ~140 bytes) and the exact case that used to truncate in buf[128]
-  // Two inputs, one proven and one not, so the per-input mark is drawn in BOTH
-  // states on the same page -- a tick beside a coin a previous transaction
-  // vouched for, an eye-slash in WARN beside one the coordinator only claimed.
-  // One state on its own proves nothing about the other.
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 2; d->n_total = 17;
+  // Five inputs, proven states mixed, so the page draws BOTH per-input marks
+  // (a tick beside a coin a previous transaction vouched for, an eye-slash in
+  // WARN beside one only claimed) AND overflows its viewport, which is what
+  // keeps the always-on scrollbar honest: past two inputs the list must not
+  // look like it ends at the fold.
+  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 5; d->n_total = 17;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
-  snprintf(d->ins[0].txid, sizeof d->ins[0].txid, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-  d->ins[0].vout = 0; d->ins[0].sats = 100000;
-  d->ins[0].purpose = 84; d->ins[0].change = 0; d->ins[0].index = 0;
-  d->ins[0].proven = true;
-  snprintf(d->ins[1].txid, sizeof d->ins[1].txid, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-  d->ins[1].vout = 1; d->ins[1].sats = 61000;
-  d->ins[1].purpose = 84; d->ins[1].change = 0; d->ins[1].index = 1;
-  d->ins[1].proven = false;
+  for (uint32_t i = 0; i < 5; i++) {
+    memset(d->ins[i].txid, "abcde"[i], 64);
+    d->ins[i].txid[64] = 0;
+    d->ins[i].vout = i; d->ins[i].sats = 100000 - i * 9750;
+    d->ins[i].purpose = 84; d->ins[i].change = 0; d->ins[i].index = i;
+    d->ins[i].proven = (i == 0);   // the fold hides unproven coins: scroll
+  }
   return 0;
 }
 int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
