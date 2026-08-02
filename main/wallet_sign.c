@@ -360,14 +360,25 @@ static void draw_sig_fp(int cap_x, int val_x, int y, int chip_x)
     // Pushed rather than re-centred: this pair is placed by its callers as part
     // of a group that one of them centres under a filename, so moving the
     // caption would move a layout that was already argued out.
-    lv_obj_t *cap = mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y, wt_font14(), MUT_COL);
+    // The code is at mono23 and the caption stays at 14, sat 5px down so the
+    // two centre on one line. mono14 made the ONE string this screen asks the
+    // owner to read back against another device the smallest text on it -- the
+    // caption is furniture, the code is the point, and the sizes said the
+    // opposite. On device, at arm's length, 14 was a squint.
+    lv_obj_t *cap = mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y + 5, wt_font14(), MUT_COL);
     lv_obj_update_layout(cap);
     const int GAP = 12;
     int need = cap_x + lv_obj_get_width(cap) + GAP;
     int push = need > val_x ? need - val_x : 0;
-    mk_lbl(code, val_x + push, y, wt_font_mono14(), INK_COL);
-    if (chip_x >= 0)
-        wt_help_chip(s_scr, chip_x + push, y - 4, MUT_COL, sig_fp_help_cb, NULL);
+    lv_obj_t *val = mk_lbl(code, val_x + push, y, wt_font_mono23(), INK_COL);
+    if (chip_x >= 0) {
+        // Measured off the code label, not a hardcoded x: the chip trails the
+        // code at whatever width the mono face actually gives it, so a font
+        // change here is one change, not two.
+        lv_obj_update_layout(val);
+        wt_help_chip(s_scr, val_x + push + lv_obj_get_width(val) + GAP, y - 2,
+                     MUT_COL, sig_fp_help_cb, NULL);
+    }
 }
 
 static void done_screen(const char *outname)
@@ -1576,8 +1587,11 @@ static void qr_out_screen(size_t sw)
     // the sub line both already say the transaction is signed, and this is the
     // one place the QR path can show the code without crowding (the card below
     // is 302 square, running to the action band). Same code the SD screen shows.
-    draw_sig_fp(430, 520, 100, -1);
-    s_part_lbl = mk_lbl(n > 1 ? tr(STR_S_QR_PART1) : tr(STR_S_QR_SINGLE), 430, 124,
+    // 96 tops the column flush with the QR card beside it; the code at mono23
+    // runs to 125, so the part counter drops to 130 and still clears the first
+    // note at 168.
+    draw_sig_fp(430, 520, 96, -1);
+    s_part_lbl = mk_lbl(n > 1 ? tr(STR_S_QR_PART1) : tr(STR_S_QR_SINGLE), 430, 130,
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
     // part counter. The right column is 322 wide and nothing but the EASY SCAN
