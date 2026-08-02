@@ -532,7 +532,7 @@ static void caution_help_cb(lv_event_t *e)
     if (f & WPSBT_C_UNPROVEN_IN)
         BODY_ADD(WT_ICON_HIDDEN, "%s", tr(STR_S_WHY_UNPROVEN));
     if (f & WPSBT_C_HIGHFEE)
-        BODY_ADD(LV_SYMBOL_CHARGE, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
+        BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
     if (f & WPSBT_C_MERGE_INS)
@@ -1105,11 +1105,14 @@ footer:
     sg_rule(0, SG_FOOT_RULE, 800, 1);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    // The bolt is the fee's mark everywhere else it appears -- the WHY card,
-    // the DETAILS rate row -- so the caption that names the figure wears it
-    // too. One mark per concept, met before it is read, is what lets a new
-    // reader recognise the fee on a screen before knowing the word for it.
-    sg_cell(24, 230, tr_sym(LV_SYMBOL_CHARGE, STR_S_FEE), buf, wt_font_mono23(),
+    // Scissors are the fee's mark everywhere it appears -- here, the WHY card,
+    // the DETAILS rate row, the glossary -- one mark per concept, met before it
+    // is read, so a new reader recognises the fee before knowing the word. And
+    // scissors, NOT the bolt this device used to use: to a bitcoiner a bolt
+    // means the Lightning Network, which this signer has nothing to do with,
+    // and the WHY copy already says "a big slice of what you are sending" --
+    // the mark now draws what the sentence says.
+    sg_cell(24, 230, tr_sym(LV_SYMBOL_CUT, STR_S_FEE), buf, wt_font_mono23(),
             np ? WARN_COL : INK_COL);
     sg_rule(270, SG_FOOT_Y + 2, 1, 70);
     sg_cell(294, 210, tr(STR_I_SEC_NET),
@@ -1201,7 +1204,7 @@ static const char *const GLOSS_ICONS[] = {
     LV_SYMBOL_UPLOAD,       // OUTPUTS
     LV_SYMBOL_LOOP,         // CHANGE
     LV_SYMBOL_GPS,          // TXID
-    LV_SYMBOL_CHARGE,       // FEE RATE
+    LV_SYMBOL_CUT,          // FEE RATE
     WT_ICON_LOCK,           // LOCKTIME
     LV_SYMBOL_DIRECTORY,    // DERIVATION PATH
     LV_SYMBOL_EYE_OPEN,     // DESCRIPTOR
@@ -1522,7 +1525,7 @@ static void details_cb(lv_event_t *e)
     // muted line. It is a property of the transaction exactly like the three
     // below it, and STR_S_FEERATE_PCT_FMT is already a whole sentence, so it
     // takes the head slot with no note under it.
-    det_flag_row(RX, &ry, LV_SYMBOL_CHARGE, fee_line, NULL, RW, RFLOOR);
+    det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW, RFLOOR);
     det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW, RFLOOR);
     det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW, RFLOOR);
     // The same mark the RBF explainer wears, so the row and the card that
