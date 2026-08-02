@@ -857,7 +857,10 @@ static void verify_screen(lv_obj_t *parent)
             uint8_t fp[4];
             wallet_ui_last_fp(fp);
             lv_obj_t *c = lv_label_create(chip);
-            lv_label_set_text(c, tr(STR_S_SIGNING_AS));
+            // The key is step 2's mark on the HOW SIGNING WORKS diagram: the
+            // same mark on the chip says "this is the step you are at" without
+            // a word of overlap between the two screens.
+            lv_label_set_text(c, tr_sym(WT_ICON_KEY, STR_S_SIGNING_AS));
             lv_obj_set_style_text_font(c, wt_font14(), 0);
             lv_obj_set_style_text_color(c, MUT_COL, 0);
             snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
@@ -989,8 +992,10 @@ static void verify_screen(lv_obj_t *parent)
 
         int rw = change_n ? SG_RECIP_W : 752;
         lv_obj_t *rp = sg_panel(SG_RECIP_X, SG_PANEL_Y, rw, SG_PANEL_H, WT_HAIR);
-        lv_obj_t *cap = sg_lbl(rp, tr(STR_S_SENDING_OUT), SG_PAD, 12,
-                               wt_font14(), MUT_COL);
+        // The up arrow is the glossary's OUTPUTS badge: coins leaving. Panel
+        // and glossary teach each other's mark.
+        lv_obj_t *cap = sg_lbl(rp, tr_sym(LV_SYMBOL_UPLOAD, STR_S_SENDING_OUT),
+                               SG_PAD, 12, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
         // Every output is still shown. One recipient is the common case and
@@ -1100,7 +1105,11 @@ footer:
     sg_rule(0, SG_FOOT_RULE, 800, 1);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
-    sg_cell(24, 230, tr(STR_S_FEE), buf, wt_font_mono23(),
+    // The bolt is the fee's mark everywhere else it appears -- the WHY card,
+    // the DETAILS rate row -- so the caption that names the figure wears it
+    // too. One mark per concept, met before it is read, is what lets a new
+    // reader recognise the fee on a screen before knowing the word for it.
+    sg_cell(24, 230, tr_sym(LV_SYMBOL_CHARGE, STR_S_FEE), buf, wt_font_mono23(),
             np ? WARN_COL : INK_COL);
     sg_rule(270, SG_FOOT_Y + 2, 1, 70);
     sg_cell(294, 210, tr(STR_I_SEC_NET),
@@ -1109,9 +1118,12 @@ footer:
     sg_rule(520, SG_FOOT_Y + 2, 1, 70);
     // No caption: there is no uppercase "if it gets stuck" key, and inventing
     // one would mean 21 translations for a label the value already states.
-    // S_RBF_T_* is already caption-cased, so it carries the cell on its own.
+    // S_RBF_T_* is already caption-cased, so it carries the cell on its own --
+    // wearing the same badge its ? card answers with (replace arrow / padlock),
+    // so the cell teaches the icon and the card confirms it.
     sg_cell(544, 190, NULL,
-            s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF),
+            s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
+                      : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF),
             NULL, INK_COL);
     wt_help_chip(s_scr, 738, SG_FOOT_Y - 6, MUT_COL, rbf_help_cb, NULL);
 
