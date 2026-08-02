@@ -1017,7 +1017,12 @@ int main(void) {
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
   save("/tmp/sim_sign_done.ppm");
-  touch(508, 262); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
+  // The chip trails the measured mono23 code now (wallet_sign.c draw_sig_fp),
+  // so its centre moved right when the code grew from mono14. The old tap at
+  // (508,262) landed in the gap between code and chip, silently captured the
+  // signed screen under this stop's name, and nothing failed: a wrong tap that
+  // opens nothing is invisible to every check but a person looking at the frame.
+  touch(552, 276); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
   save("/tmp/sim_sign_sigcheck.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> signed screen again
   touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
