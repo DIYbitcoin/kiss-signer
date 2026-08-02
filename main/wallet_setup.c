@@ -420,9 +420,7 @@ static void quiz_screen(void)
 
     // Progress as dots, not as text. Per SWEEP-01 edit 3: three 10px dots
     // under the title, WT_OK when the round has been passed and WT_EDGE when
-    // not. "spot check X of Y" is not gone from the code; it stays available
-    // to OSDs and screen readers via STR_W_QUIZ_N_FMT, it is just no longer
-    // the only progress cue.
+    // not. The title already names the check, so the dots are the only counter.
     for (int i = 0; i < QUIZ_ROUNDS; i++) {
         lv_obj_t *dot = lv_obj_create(s_scr);
         lv_obj_remove_style_all(dot);
