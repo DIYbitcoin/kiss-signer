@@ -52,6 +52,16 @@ int wallet_fingerprint(const char *passphrase, unsigned char out[4]) {
   return 0;
 }
 
+// Entropy source seam. On the device wallet_trng_start switches the SAR ADC
+// noise source on and the flag records that it happened; on the host the
+// callers reach /dev/urandom, which needs no switch, so the flag is the whole
+// implementation. It is still a flag rather than a constant true, because the
+// Settings footer reports it and the walk should render the state a booted
+// device is in, not the state of a process that skipped boot.
+static bool s_sim_trng;
+void wallet_trng_start(void) { s_sim_trng = true; }
+bool wallet_trng_live(void) { return s_sim_trng; }
+
 // step-7 seams: the seed store is a RAM flag. A fresh sim run starts SEEDED so
 // the legacy script flows unchanged; the wizard test at the end wipes first.
 #include <string.h>
@@ -714,6 +724,11 @@ int main(void) {
   unlink("/tmp/simsd/zzz-UNPRV-signed.psbt");
   sd = fopen("/tmp/simsd/zzz-UNPRV.psbt", "wb");
   if (sd) { fputs("UNPRV", sd); fclose(sd); }
+
+  // app_main does this right after the display comes up, and the Settings
+  // footer reports it ("noise source"). Without it the walk would render an
+  // amber OFF on a state that only means "the sim skipped boot".
+  wallet_trng_start();
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
