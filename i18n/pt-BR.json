@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "ISSO ABRE OUTRA CARTEIRA. TENTE DE NOVO.",
   "S_TOTAL_LEAVING": "TOTAL SAINDO DA CARTEIRA",
   "S_FILES_HINT": "não assinados primeiro, depois A-Z. assinados são marcados.",
+  "S_FILES_MORE_FMT": "mostrando %d de %d arquivos. remova alguns para ver o resto",
   "S_FILE_UNSIGNED": "NÃO ASSINADO",
   "S_GLOSSARY_T": "EXPLICAÇÕES SIMPLES",
   "S_GLOSSARY_B": "ENTRADAS: moedas gastas por esta transação.\nSAÍDAS: todos os lugares para onde envia bitcoin.\nTROCO: parte devolvida ao seu endereço verificado.\nTXID: identificador para acompanhar após transmitir.\nTAXA POR TAMANHO: taxa por unidade de tamanho.\nLOCKTIME: primeiro bloco em que pode confirmar.\nCAMINHO DE DERIVAÇÃO: ramo padrão para uma chave.\nDESCRITOR: mapa de endereços só de leitura, não gasta.",

@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "TO OTWIERA INNY PORTFEL. SPRÓBUJ PONOWNIE.",
   "S_TOTAL_LEAVING": "ŁĄCZNIE OPUSZCZA PORTFEL",
   "S_FILES_HINT": "najpierw niepodpisane, potem A-Z. podpisane są oznaczone.",
+  "S_FILES_MORE_FMT": "pokazano %d z %d plików. usuń kilka, aby zobaczyć resztę",
   "S_FILE_UNSIGNED": "NIEPODPISANY",
   "S_GLOSSARY_T": "PROSTE WYJAŚNIENIA",
   "S_GLOSSARY_B": "WEJŚCIA: monety wydawane przez tę transakcję.\nWYJŚCIA: wszystkie miejsca, do których trafia bitcoin.\nRESZTA: część wracająca na twój zweryfikowany adres.\nTXID: identyfikator do śledzenia po rozgłoszeniu.\nSTAWKA OPŁATY: opłata za jednostkę rozmiaru.\nLOCKTIME: najwcześniejszy blok potwierdzenia.\nŚCIEŻKA POCHODZENIA: standardowa gałąź do klucza.\nDESKRYPTOR: mapa adresów tylko do odczytu, nie wydaje.",

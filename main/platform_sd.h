@@ -17,8 +17,12 @@ void platform_sd_unmount(void);
 int  platform_sd_probe(void);
 
 // Fill names[] with *.psbt files (unsigned first, signed second, A-Z within
-// each group; dotfiles skipped). Returns count, <0 on error.
-int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max);
+// each group; dotfiles skipped). Returns count, <0 on error. When the card
+// holds more than max, the FIRST max in that same order are kept -- never a
+// directory-order arbitrary subset -- and *total (optional) carries the real
+// count so the caller can say some are missing rather than showing a shorter
+// card than the one in the slot.
+int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total);
 int  platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len);
 int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);
 

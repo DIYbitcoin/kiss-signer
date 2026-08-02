@@ -102,6 +102,10 @@ static const slot_t SLOTS[] = {
     { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
     { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
+    // wallet_sign.c sd_open — the one hint line at y=98, drawn at font14 by
+    // design (may_be_small), one line wide as the whole content lane. The %d
+    // pair expands to at most 2 digits each, no wider than the specifiers.
+    { "sign/files-more",  STR_S_FILES_MORE_FMT, 704, 29, 1 },
     { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
     // wallet_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
     // 704x294 overlay. Registered at 232, not the 294 the screen allows: eight

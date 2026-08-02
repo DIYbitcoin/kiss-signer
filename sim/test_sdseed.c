@@ -7,6 +7,7 @@
 // them must fail closed with the output buffer zeroed, because the caller
 // hands that buffer straight to the BIP39 layer.
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "platform_sd.h"
@@ -42,7 +43,52 @@ static int seed_loads_as(const char *want) {
     return ok;
 }
 
+// The Sign screen's file list, at the layer that decides what it can show.
+// The cap used to bite BEFORE the sort, so a full card showed an arbitrary
+// FAT-order subset and the files that vanished left no trace -- on a real
+// device test that read as "the card has two files" when it had nine. The
+// contract now: the names kept are the FIRST `max` in display order (unsigned
+// A-Z, then signed), and *total always says how many the card really holds.
+static int test_sd_list(void) {
+    system("rm -f /tmp/simsd/*.psbt");
+    char names[4][SD_NAME_LEN];
+    int total = 0;
+
+    // seed 6 files, written in an order that is neither A-Z nor grouped, with
+    // dot-junk that must never count. b- and d- are signed so the unsigned
+    // three sort ahead of them despite the alphabet saying otherwise.
+    static const char *fs[] = {
+        "d-two-signed.psbt", "c-mid.psbt", "._c-mid.psbt",
+        "a-first.psbt", "b-one-signed.psbt", "e-last.psbt",
+    };
+    for (size_t i = 0; i < sizeof fs / sizeof *fs; i++) {
+        char p[96]; snprintf(p, sizeof p, "/tmp/simsd/%s", fs[i]);
+        FILE *f = fopen(p, "wb");
+        if (f) { fputs("x", f); fclose(f); }
+    }
+
+    int n = platform_sd_list_psbt(names, 4, &total);
+    dchk("sd list: window filled", n == 4);
+    dchk("sd list: total counts past the window", total == 5);
+    dchk("sd list: unsigned lead in A-Z order",
+         strcmp(names[0], "a-first.psbt") == 0 &&
+         strcmp(names[1], "c-mid.psbt") == 0 &&
+         strcmp(names[2], "e-last.psbt") == 0);
+    dchk("sd list: first signed file takes the last slot",
+         strcmp(names[3], "b-one-signed.psbt") == 0);
+
+    // under the cap: everything shows and total agrees, so no hint fires
+    remove("/tmp/simsd/d-two-signed.psbt");
+    remove("/tmp/simsd/e-last.psbt");
+    n = platform_sd_list_psbt(names, 4, &total);
+    dchk("sd list: under cap shows all", n == 3 && total == 3);
+
+    system("rm -f /tmp/simsd/*.psbt");
+    return 0;
+}
+
 int test_sdseed_layer(void) {
+    test_sd_list();
     uint8_t key[32], key2[32];
     uint8_t blob[SDSEED_MAX_BLOB], blob2[SDSEED_MAX_BLOB];
     size_t len = 0, len2 = 0;

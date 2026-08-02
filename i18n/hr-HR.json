@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "TO OTVARA DRUGI NOVČANIK. POKUŠAJ PONOVNO.",
   "S_TOTAL_LEAVING": "UKUPNO IZLAZI IZ NOVČANIKA",
   "S_FILES_HINT": "prvo nepotpisane, zatim A-Z. potpisane su označene.",
+  "S_FILES_MORE_FMT": "prikazano %d od %d datoteka. ukloni koju da vidiš ostale",
   "S_FILE_UNSIGNED": "NEPOTPISANO",
   "S_GLOSSARY_T": "JEDNOSTAVNA OBJAŠNJENJA",
   "S_GLOSSARY_B": "ULAZI: novčići koje ova transakcija troši.\nIZLAZI: sva mjesta na koja transakcija šalje bitcoin.\nOSTATAK: dio vraćen na tvoju potvrđenu adresu.\nTXID: oznaka za praćenje nakon objave.\nSTOPA NAKNADE: naknada po jedinici veličine.\nLOCKTIME: najraniji blok u kojem se može potvrditi.\nPUT IZVOĐENJA: standardna grana do ključa.\nDESKRIPTOR: karta adresa samo za čitanje, ne troši.",

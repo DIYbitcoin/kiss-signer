@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "ESO ABRE OTRA CARTERA. INTÉNTALO DE NUEVO.",
   "S_TOTAL_LEAVING": "TOTAL QUE SALE DE LA CARTERA",
   "S_FILES_HINT": "primero sin firmar, luego A-Z. los firmados están marcados.",
+  "S_FILES_MORE_FMT": "mostrando %d de %d archivos. quita algunos para ver el resto",
   "S_FILE_UNSIGNED": "SIN FIRMAR",
   "S_GLOSSARY_T": "EXPLICACIONES SIMPLES",
   "S_GLOSSARY_B": "ENTRADAS: monedas que gasta esta transacción.\nSALIDAS: todos los destinos a los que envía bitcoin.\nCAMBIO: la parte que vuelve a tu dirección verificada.\nTXID: identificador para seguirla tras transmitir.\nTASA DE COMISIÓN: comisión por unidad de tamaño.\nLOCKTIME: el primer bloque en que puede confirmarse.\nRUTA DE DERIVACIÓN: rama estándar hacia una clave.\nDESCRIPTOR: mapa de direcciones solo lectura, no gasta.",

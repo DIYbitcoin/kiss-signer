@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "DAS ÖFFNET EINE ANDERE WALLET. NOCHMAL.",
   "S_TOTAL_LEAVING": "GESAMT AUS DER WALLET",
   "S_FILES_HINT": "zuerst unsigniert, dann A-Z. signierte Dateien sind markiert.",
+  "S_FILES_MORE_FMT": "%d von %d Dateien angezeigt. entferne welche, um den Rest zu sehen",
   "S_FILE_UNSIGNED": "UNSIGNIERT",
   "S_GLOSSARY_T": "EINFACH ERKLÄRT",
   "S_GLOSSARY_B": "INPUTS: Coins, die diese Transaktion ausgibt.\nOUTPUTS: alle Ziele, an die sie Bitcoin sendet.\nWECHSELGELD: geht zurück an deine geprüfte Adresse.\nTXID: die Kennung zum Verfolgen nach dem Senden.\nGEBÜHRENRATE: Gebühr je Einheit der Größe.\nLOCKTIME: der früheste Block für eine Bestätigung.\nABLEITUNGSPFAD: Standardzweig zu einem Schlüssel.\nDESKRIPTOR: nur lesbare Adresskarte, gibt nichts aus.",
