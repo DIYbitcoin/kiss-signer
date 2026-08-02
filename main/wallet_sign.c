@@ -324,6 +324,18 @@ static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home o
 static void done_screen(const char *outname);
 static void sig_help_back_cb(lv_event_t *e) { (void)e; done_screen(s_done_name); }
 
+// A code chip for the comparison rows below: wt_chip with its label in mono.
+// Mono because the whole point of the code is digit for digit comparison, and
+// INK because the code is the subject, not the furniture around it.
+static lv_obj_t *sig_code_chip(lv_obj_t *row, const char *code)
+{
+    lv_obj_t *c = wt_chip(row, code, false);
+    lv_obj_t *l = lv_obj_get_child(c, 0);
+    lv_obj_set_style_text_font(l, wt_font_mono14(), 0);
+    lv_obj_set_style_text_color(l, INK_COL, 0);
+    return c;
+}
+
 static void sig_fp_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -331,10 +343,36 @@ static void sig_fp_help_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
-    // Ruled claims instead of a 704px paragraph: this screen answers "can I
-    // trust this code", and wt_why_body splits the answer the copy was already
-    // written in without asking for a new string in twenty one locales.
-    wt_why_body(s_scr, tr(STR_S_SIG_FP_HELP_B), 118, wt_accent(), true);
+
+    // The answer, drawn before it is said: the same transaction signed on two
+    // signers either shows one code twice, or it does not. Two rows, two
+    // verdicts, no vocabulary -- a reader who cannot parse the claims below
+    // yet still leaves knowing what to compare and what a mismatch looks like.
+    // The codes are invented, and deliberately not this device's own format
+    // example from the signed screen: these chips are two DIFFERENT devices.
+    lv_obj_t *r1 = wt_diagram_row(s_scr);
+    sig_code_chip(r1, "3F00 C01D");
+    wt_diagram_op(r1, "=");
+    sig_code_chip(r1, "3F00 C01D");
+    lv_obj_t *ok = wt_diagram_op(r1, LV_SYMBOL_OK);
+    lv_obj_set_style_text_color(ok, OK_COL, 0);
+    lv_obj_set_style_text_font(ok, wt_font23(), 0);   // the verdict is the payload
+    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 116);
+
+    lv_obj_t *r2 = wt_diagram_row(s_scr);
+    sig_code_chip(r2, "3F00 C01D");
+    wt_diagram_op(r2, LV_SYMBOL_CLOSE);
+    sig_code_chip(r2, "8A41 77E2");
+    lv_obj_t *warn = wt_diagram_op(r2, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_color(warn, WARN_COL, 0);
+    lv_obj_set_style_text_font(warn, wt_font23(), 0);
+    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 162);
+
+    // Ruled claims under the picture: wt_why_body splits the answer the copy
+    // was already written in without asking for a new string in twenty one
+    // locales. Started below the rows, so the body takes whatever rung fits
+    // the room the diagram left it.
+    wt_why_body(s_scr, tr(STR_S_SIG_FP_HELP_B), 216, wt_accent(), true);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, sig_help_back_cb);
 }
 
