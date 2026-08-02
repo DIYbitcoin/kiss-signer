@@ -137,6 +137,9 @@ UNTRANSLATED_OK = {
     "S_TY_LEGACY",     # Legacy / Nested SegWit / Native SegWit: the address type
     "S_TY_NESTED",     # names as every coordinator and the BIPs spell them, and
     "S_TY_NATIVE",     # the string a user matches against another wallet's UI
+    "N_PARTS_FMT",     # %d/%d: digits and a slash, deliberately locale neutral
+    "S_QR_PART_FMT",   # (SWEEP-03); ja/ko/tr/vi/zh already wrote "of" as "/"
+    "W_WORD_N_FMT",    # %d/%d  %s_: same counter plus the typed-prefix echo
 }
 
 

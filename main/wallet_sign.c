@@ -1653,7 +1653,7 @@ static void qr_out_screen(size_t sw)
     // runs to 125, so the part counter drops to 130 and still clears the first
     // note at 168.
     draw_sig_fp(430, 520, 96, -1);
-    s_part_lbl = mk_lbl(n > 1 ? tr(STR_S_QR_PART1) : tr(STR_S_QR_SINGLE), 430, 130,
+    s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 130,
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
     // part counter. The right column is 322 wide and nothing but the EASY SCAN
