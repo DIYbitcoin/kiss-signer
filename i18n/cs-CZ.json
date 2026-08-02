@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "OTEVÍRÁ JINOU PENĚŽENKU. ZKUSTE ZNOVU.",
   "S_TOTAL_LEAVING": "CELKEM ODCHÁZÍ Z PENĚŽENKY",
   "S_FILES_HINT": "nejprve nepodepsané, pak A-Z. podepsané jsou označeny.",
+  "S_FILES_MORE_FMT": "zobrazeno %d z %d souborů. odeber pár, ať vidíš zbytek",
   "S_FILE_UNSIGNED": "NEPODEPSÁNO",
   "S_GLOSSARY_T": "JEDNODUCHÁ VYSVĚTLENÍ",
   "S_GLOSSARY_B": "VSTUPY: mince utracené touto transakcí.\nVÝSTUPY: všechna místa, kam transakce posílá bitcoin.\nDROBNÉ: část vrácená na vaši ověřenou adresu.\nTXID: identifikátor pro sledování po odeslání.\nSAZBA POPLATKU: poplatek za jednotku velikosti.\nLOCKTIME: nejdřívější blok, kdy může být potvrzena.\nODVOZOVACÍ CESTA: standardní větev ke klíči.\nDESKRIPTOR: mapa adres jen pro čtení, neutrácí.",

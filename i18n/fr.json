@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "CELA OUVRE UN AUTRE PORTEFEUILLE. RÉESSAYEZ.",
   "S_TOTAL_LEAVING": "TOTAL QUITTANT LE PORTEFEUILLE",
   "S_FILES_HINT": "non signés d'abord, puis A-Z. les fichiers signés sont marqués.",
+  "S_FILES_MORE_FMT": "%d fichiers sur %d affichés. retirez en pour voir le reste",
   "S_FILE_UNSIGNED": "NON SIGNÉ",
   "S_GLOSSARY_T": "EXPLICATIONS SIMPLES",
   "S_GLOSSARY_B": "ENTRÉES: pièces dépensées par cette transaction.\nSORTIES: chaque destination recevant du bitcoin.\nMONNAIE: part rendue à votre adresse vérifiée.\nTXID: identifiant de suivi après la diffusion.\nTAUX DE FRAIS: frais par unité de taille.\nLOCKTIME: premier bloc où elle peut être confirmée.\nCHEMIN DE DÉRIVATION: branche standard vers une clé.\nDESCRIPTEUR: adresses en lecture seule, sans dépenser.",

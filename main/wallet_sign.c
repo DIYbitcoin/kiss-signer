@@ -90,7 +90,11 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 // what is under the finger, and 500ms is the cost of nothing: the finger has to
 // travel from the row to the action bar and the screen has to repaint first.
 #define SIGN_ARM_MS 500
-#define MAX_FILES 8
+// 24, up from 8: signing writes a -signed sibling next to every file, so a card
+// with a handful of transactions crossed 8 in one session. The list scrolls, so
+// the cap is only the buffer bound (24 x 64 = 1.5 KB static), and past it the
+// screen now says so instead of showing a shorter card than the one in the slot.
+#define MAX_FILES 24
 #define SHOW_OUTS 3
 
 enum { SRC_SD = 0, SRC_QR = 1 };
@@ -1651,7 +1655,8 @@ static void sd_open(lv_obj_t *parent)
         sd_empty_screen(parent, tr(STR_S_NO_SD), tr(STR_S_INSERT_CARD));
         return;
     }
-    int n = platform_sd_list_psbt(s_files, MAX_FILES);
+    int total = 0;
+    int n = platform_sd_list_psbt(s_files, MAX_FILES, &total);
     if (n <= 0) {
         sd_empty_screen(parent, tr(STR_S_NO_PSBT_FILES),
                         tr(STR_S_SPARROW_SAVE));
@@ -1663,7 +1668,18 @@ static void sd_open(lv_obj_t *parent)
     // Stays at 14, and stays a hint: it describes the SORT ORDER of the list
     // below, which is not a decision anyone makes. y=98 because the subtitle is
     // a readable 23 now and bottoms at 95; at 88 the two were overlapping.
-    mk_lbl(tr(STR_S_FILES_HINT), 48, 98, wt_font14(), MUT_COL);
+    //
+    // Unless the card holds more than the list: then this line's one slot goes
+    // to the fact that changes what the owner is looking at. A list that shows
+    // 24 of 31 files and describes only its sort order is quietly lying about
+    // the card, and the file that matters may be one of the seven.
+    if (total > n) {
+        char more[96];
+        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), n, total);
+        mk_lbl(more, 48, 98, wt_font14(), WARN_COL);
+    } else {
+        mk_lbl(tr(STR_S_FILES_HINT), 48, 98, wt_font14(), MUT_COL);
+    }
 
     // All discovered files fit in one scrollable, deterministic list. Unsigned
     // work is sorted first; signed PSBTs remain available for multisig handoffs

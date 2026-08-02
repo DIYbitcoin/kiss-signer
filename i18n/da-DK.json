@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "DET ÅBNER EN ANDEN TEGNEBOG. PRØV IGEN.",
   "S_TOTAL_LEAVING": "I ALT UD AF TEGNEBOGEN",
   "S_FILES_HINT": "usignerede først, derefter A-Z. signerede filer er mærket.",
+  "S_FILES_MORE_FMT": "viser %d af %d filer. fjern nogle for at se resten",
   "S_FILE_UNSIGNED": "USIGNERET",
   "S_GLOSSARY_T": "ENKLE FORKLARINGER",
   "S_GLOSSARY_B": "INPUT: mønter denne transaktion bruger.\nOUTPUT: alle steder transaktionen sender bitcoin.\nBYTTEPENGE: delen tilbage til din bekræftede adresse.\nTXID: sporings-ID efter udsendelse.\nGEBYRSATS: gebyr pr. enhed transaktionsstørrelse.\nLOCKTIME: tidligste blok hvor den kan bekræftes.\nAFLEDNINGSSTI: standardgrenen til en nøgle.\nDESCRIPTOR: skrivebeskyttet adressekort, kan ikke bruge.",
