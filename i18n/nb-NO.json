@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "DET ÅPNER EN ANNEN LOMMEBOK. PRØV IGJEN.",
   "S_TOTAL_LEAVING": "TOTALT UT AV LOMMEBOKEN",
   "S_FILES_HINT": "usignert først, så A-Z. signerte filer er merket.",
+  "S_FILES_MORE_FMT": "viser %d av %d filer. fjern noen for å se resten",
   "S_FILE_UNSIGNED": "USIGNERT",
   "S_GLOSSARY_T": "ENKLE FORKLARINGER",
   "S_GLOSSARY_B": "INNDATA: mynter denne transaksjonen bruker.\nUTDATA: alle steder transaksjonen sender bitcoin.\nVEKSEL: delen tilbake til din bekreftede adresse.\nTXID: sporings-ID etter kringkasting.\nGEBYRSATS: gebyr per enhet transaksjonsstørrelse.\nLOCKTIME: tidligste blokk der den kan bekreftes.\nDERIVASJONSSTI: standardgren til en nøkkel.\nDESCRIPTOR: skrivebeskyttet adressekart, kan ikke bruke.",

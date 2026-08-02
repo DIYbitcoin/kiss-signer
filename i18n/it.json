@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "APRE UN ALTRO PORTAFOGLIO. RIPROVA.",
   "S_TOTAL_LEAVING": "TOTALE IN USCITA DAL PORTAFOGLIO",
   "S_FILES_HINT": "prima non firmati, poi A-Z. i file firmati sono marcati.",
+  "S_FILES_MORE_FMT": "mostrati %d file su %d. rimuovine alcuni per vedere il resto",
   "S_FILE_UNSIGNED": "NON FIRMATO",
   "S_GLOSSARY_T": "SPIEGAZIONI SEMPLICI",
   "S_GLOSSARY_B": "INPUT: monete spese da questa transazione.\nOUTPUT: ogni destinazione a cui invia bitcoin.\nRESTO: parte restituita al tuo indirizzo verificato.\nTXID: identificativo per seguirla dopo l'invio.\nTASSO COMMISSIONE: costo per unità di dimensione.\nLOCKTIME: primo blocco in cui può confermarsi.\nPERCORSO DI DERIVAZIONE: ramo standard a una chiave.\nDESCRITTORE: indirizzi in sola lettura, non spende.",

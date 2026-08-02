@@ -124,24 +124,42 @@ static int name_cmp(const void *a, const void *b)
     return strcasecmp(na, nb);          // stable, obvious A-Z order within each group
 }
 
-int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max)
+int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total)
 {
     DIR *d = opendir(SD_BASE);
     if (!d)
         return -1;
-    int n = 0;
+    int n = 0, all = 0;
     struct dirent *e;
-    while (n < max && (e = readdir(d)) != NULL) {
+    // Read the WHOLE directory and keep the `max` names that sort first. The
+    // old loop stopped reading at max, which capped the list in FAT directory
+    // order -- effectively creation order -- so which files a full card showed
+    // had nothing to do with the order on screen, and the files that vanished
+    // gave no sign they existed. On a real device test that read as "the card
+    // has two files" when it had nine. Insertion keeps memory bounded at the
+    // caller's array, and max is small, so N*max is nothing.
+    while ((e = readdir(d)) != NULL) {
         const char *nm = e->d_name;
         size_t l = strlen(nm);
         if (nm[0] == '.')                     // macOS AppleDouble junk on real cards
             continue;
         if (l < 6 || l >= SD_NAME_LEN || strcasecmp(nm + l - 5, ".psbt") != 0)
             continue;
-        snprintf(names[n++], SD_NAME_LEN, "%s", nm);
+        all++;
+        int at = 0;
+        while (at < n && name_cmp(names[at], nm) <= 0)
+            at++;
+        if (at >= max)                        // sorts past the window: not kept,
+            continue;                         // but still counted in `all`
+        for (int i = (n < max ? n : max - 1); i > at; i--)
+            memcpy(names[i], names[i - 1], SD_NAME_LEN);
+        snprintf(names[at], SD_NAME_LEN, "%s", nm);
+        if (n < max)
+            n++;
     }
     closedir(d);
-    qsort(names, (size_t)n, SD_NAME_LEN, name_cmp);
+    if (total)
+        *total = all;
     return n;
 }
 

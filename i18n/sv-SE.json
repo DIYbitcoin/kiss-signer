@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "DET ÖPPNAR EN ANNAN PLÅNBOK. FÖRSÖK IGEN.",
   "S_TOTAL_LEAVING": "TOTALT UT UR PLÅNBOKEN",
   "S_FILES_HINT": "osignerade först, sedan A-Z. signerade filer är märkta.",
+  "S_FILES_MORE_FMT": "visar %d av %d filer. ta bort några för att se resten",
   "S_FILE_UNSIGNED": "OSIGNERAD",
   "S_GLOSSARY_T": "ENKLA FÖRKLARINGAR",
   "S_GLOSSARY_B": "INDATA: mynt som transaktionen spenderar.\nUTDATA: alla platser dit transaktionen skickar bitcoin.\nVÄXEL: delen tillbaka till din verifierade adress.\nTXID: spårnings-ID efter sändning.\nAVGIFTSTAKT: avgift per enhet transaktionsstorlek.\nLOCKTIME: tidigaste blocket där den kan bekräftas.\nHÄRLEDNINGSVÄG: standardgrenen till en nyckel.\nDESCRIPTOR: skrivskyddad adresskarta, kan inte spendera.",

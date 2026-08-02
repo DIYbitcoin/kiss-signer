@@ -407,6 +407,7 @@
   "L_BACKUP_PASS_BAD": "THAT OPENS A DIFFERENT WALLET. TRY AGAIN.",
   "S_TOTAL_LEAVING": "TOTAL LEAVING WALLET",
   "S_FILES_HINT": "unsigned first, then A to Z. signed files are labelled.",
+  "S_FILES_MORE_FMT": "showing %d of %d files. remove some to see the rest",
   "S_FILE_UNSIGNED": "UNSIGNED",
   "S_GLOSSARY_T": "SIMPLE EXPLAINERS",
   "S_GLOSSARY_B": "INPUTS: coins this transaction spends.\nOUTPUTS: every place it sends bitcoin.\nCHANGE: the part returned to your own verified address.\nTXID: the tracking ID used after broadcast.\nFEE RATE: fee paid per unit of transaction size.\nLOCKTIME: the earliest block it may confirm in.\nDERIVATION PATH: the standard branch used to find a key.\nDESCRIPTOR: a read only address map. it cannot spend.",
