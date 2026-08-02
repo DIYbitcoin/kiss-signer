@@ -1348,7 +1348,16 @@ static void details_cb(lv_event_t *e)
     lv_obj_set_style_pad_row(il, 4, 0);
     lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(il, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(il, LV_SCROLLBAR_MODE_AUTO);
+    // MODE_ON past two inputs, same rule and same 5px bar as the verify
+    // screen's output list: a list with more below the fold must not look
+    // identical to one that ends there. AUTO hid the bar until the owner had
+    // already scrolled, so a five input transaction read as a two input one --
+    // on the page whose whole job is saying what the transaction spends.
+    lv_obj_set_scrollbar_mode(il, det.n_in > 2 ? LV_SCROLLBAR_MODE_ON
+                                               : LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_width(il, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(il, MUT_COL, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(il, LV_OPA_50, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(il, LV_OPA_TRANSP, 0);
     for (uint32_t i = 0; i < det.n_in; i++) {
         lv_obj_t *row = lv_obj_create(il);
