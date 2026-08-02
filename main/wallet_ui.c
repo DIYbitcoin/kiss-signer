@@ -1674,6 +1674,33 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     lv_obj_update_layout(w);
     lv_obj_set_pos(r, lv_obj_get_x(w) + lv_obj_get_width(w) + 24,
                    lv_obj_get_y(w));
+
+    // Third fact on the same row: whether the chip's RNG has a physical noise
+    // source behind it (wallet_crypto.h). It is stated rather than tested
+    // because no test can tell a seeded PRNG from a TRNG -- a self test that
+    // generates seeds and counts collisions passes cleanly on a board whose
+    // source was switched off, which is precisely the state this firmware
+    // shipped in until it was turned on at boot. Provenance is the only
+    // answerable question, so provenance is what the line reports.
+    //
+    // OFF is amber for the same reason encryption OFF is: it does not mean the
+    // seed is weak (that is a fold of camera, chip and taps, so a dead source
+    // costs a source), it means the SD backup key has one source and that one
+    // is not what it claims. Follows radio's measured width, same as above.
+    lv_obj_t *n = lv_label_create(parent);
+    lv_obj_set_style_text_font(n, wt_font14(), 0);
+    // "randomness", not "RNG" or "TRNG": the two facts beside it are named in
+    // words a reader can look up, and the acronym buys nothing an owner can
+    // act on. NOISE says where the numbers come from, which is the whole
+    // claim. The bad state is NO SOURCE rather than OFF or NONE, because
+    // neither of those is true -- numbers still come out, they just have
+    // nothing physical behind them, and that is the sentence to render.
+    bool noise = wallet_trng_live();
+    lv_label_set_text_fmt(n, "randomness: %s", noise ? "NOISE" : "NO SOURCE");
+    lv_obj_set_style_text_color(n, noise ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    lv_obj_update_layout(r);
+    lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + 24,
+                   lv_obj_get_y(r));
   } else {
     (void)radio_held;
   }
