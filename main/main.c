@@ -1370,16 +1370,18 @@ static void wallet_home_restyle(void) {
 }
 
 // The SD-storage badge: shown only when this wallet lives on the card, accent
-// while the card is in (game_tick breathes it), amber "no card" while it is
-// out. Driven both here (immediate, on unlock and return from Settings) and by
-// the game_tick hot-plug poll (catches a card pulled or pushed while idle).
+// while the card is in (game_tick breathes it), an amber cross while it is
+// out. Marks, not words: the pair needs no locale and the colour carries the
+// state. Driven both here (immediate, on unlock and return from Settings) and
+// by the game_tick hot-plug poll (catches a card pulled or pushed while idle).
 static void sd_badge_sync(bool present) {
   if (!s_sd_badge) return;
   s_sd_badge_live = false;
   if (wallet_seed_mode() == WSEED_MODE_SD) {
     lv_obj_clear_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(s_sd_badge,
-                      present ? LV_SYMBOL_SD_CARD "  SD" : LV_SYMBOL_SD_CARD "  no card");
+                      present ? LV_SYMBOL_SD_CARD "  " LV_SYMBOL_OK
+                              : LV_SYMBOL_SD_CARD "  " LV_SYMBOL_CLOSE);
     lv_obj_set_style_text_color(s_sd_badge, present ? wt_accent() : WT_WARN, 0);
     if (present) s_sd_badge_live = true;             // breathe in game_tick
     else         lv_obj_set_style_opa(s_sd_badge, LV_OPA_COVER, 0);  // warning stays solid
@@ -1790,12 +1792,12 @@ static void game_tick(lv_timer_t *t) {
       s_sd_tick = 0;
       bool present = platform_sd_probe() != 0;
       if (present && !s_sd_present && s_cam_lbl) {   // just inserted: show the toast
-        lv_label_set_text(s_cam_lbl, "SD card ready");
+        lv_label_set_text(s_cam_lbl, tr(STR_S_SD_READY));
         lv_obj_set_style_text_color(s_cam_lbl, wt_accent(), 0);
         s_sd_toast = 3;                              // ~3 polls (~4.5s) then fade
       } else if (s_sd_toast > 0 && --s_sd_toast == 0 && s_cam_lbl) {
         lv_label_set_text(s_cam_lbl, "");
-        lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // reset: no green leak
+        lv_obj_set_style_text_color(s_cam_lbl, WT_MUT, 0);  // reset: no green leak
       }
       s_sd_present = present;
       sd_badge_sync(present);                        // persistent SD-storage badge
