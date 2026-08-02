@@ -268,7 +268,6 @@ static const pill_t PILLS[] = {
     { "storage/main",     STR_G_STORAGE_SEC,   340, 72 - 35, 0, 1 },
     { "storage/hold-move",STR_G_STORAGE_HOLD_MOVE,330, 66, 0, 1 },
     { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
-    { "set/create",       STR_G_CREATE_NEW,   340, 52, 0, 1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },

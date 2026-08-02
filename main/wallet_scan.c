@@ -121,10 +121,10 @@ static void cancel_cb(lv_event_t *e)
     // Tap-anywhere cancelled the scan every time the user's grip grazed the
     // glass — device testing found that out the hard way.
     //
-    // This region now has a CANCEL pill drawn in it, so the target is visible
-    // instead of folklore. The region stays slightly larger than the pill and
-    // stays live: it costs nothing, and it keeps working for anyone who
-    // learned the corner before the pill existed.
+    // The visible CANCEL pill lives on the bottom action row now; this corner
+    // region stays live anyway because it costs nothing and it keeps working
+    // for anyone who learned the camera close convention while the pill still
+    // sat up here.
     lv_indev_t *indev = lv_event_get_indev(e);
     if (indev) {
         lv_point_t p;
