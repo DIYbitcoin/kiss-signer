@@ -182,6 +182,11 @@ def main():
             if SPEC_RE.findall(v) != en_specs[k]:
                 errors.append(f"{stem}:{k}: printf specifiers differ from en "
                               f"({SPEC_RE.findall(v)} vs {en_specs[k]})")
+            if v.count("\n") != en[k].count("\n"):
+                errors.append(f"{stem}:{k}: {v.count(chr(10))} newlines vs "
+                              f"{en[k].count(chr(10))} in en; a shape mismatch "
+                              f"means the translation follows an older en "
+                              f"(caught L_WARN_B stale in 20 locales)")
             if stem != "en" and len(v) > max(12, len(en[k]) * 1.4):
                 warnings.append(f"{stem}:{k}: {len(v)} chars vs {len(en[k])} en "
                                 f"(+{len(v)*100//max(1,len(en[k]))-100}%), may overflow")

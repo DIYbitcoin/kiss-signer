@@ -364,7 +364,11 @@ static void stage_build(int stage)
     }
     default: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DONE_T), NULL);
-        wt_why_body(s_scr, tr(STR_GD_DONE_B), 118, WT_OK, true);
+        // Same shape as ST_INTRO: the mapping is drawn, and the body keeps
+        // only what the diagram cannot say — the stroke routes, it does not
+        // unlock, and this is the last screen in the flow that says so.
+        diagram_two_ways();
+        wt_why_body(s_scr, tr(STR_GD_DONE_B), 250, WT_OK, true);
         wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 200, save_cb, NULL);
         break;
     }

@@ -140,7 +140,9 @@ static const slot_t SLOTS[] = {
     // three rows above already say. Neither box has a string to measure now.
     { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
     { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
-    { "set/wipe-note",    STR_G_WIPE_NOTE,    340, 30, 1 },
+    // wallet_duress_ui.c ST_DONE: wt_why_body at y=250 under the two-ways
+    // diagram, so the body has WT_CONTENT_BOTTOM - 250 = 148 to live in.
+    { "duress/done",      STR_GD_DONE_B,      700, 148, 0 },
     // wallet_recv.c / wallet_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
     { "sub/receive",      STR_R_S,            704, 30, 0 },
