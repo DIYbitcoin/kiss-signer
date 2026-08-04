@@ -242,7 +242,7 @@
   "I_ROW_DURESS": "Duress wallet",
   "I_ROW_WORDS": "Recovery words",
   "I_ROW_PAPER": "Paper checked",
-  "I_ROW_REPLACE": "Replace this wallet",
+  "I_ROW_REPLACE": "Start a new wallet",
   "I_ROW_ERASE": "Erase this wallet",
   "I_ROW_REPLACE_SUB": "the current words stop working",
   "I_ROW_ERASE_SUB": "back to being only a game",

@@ -242,7 +242,7 @@
   "I_ROW_DURESS": "強要ウォレット",
   "I_ROW_WORDS": "リカバリー単語",
   "I_ROW_PAPER": "紙の確認",
-  "I_ROW_REPLACE": "このウォレットを作り直す",
+  "I_ROW_REPLACE": "新しいウォレットを作成",
   "I_ROW_ERASE": "このウォレットを消す",
   "I_ROW_REPLACE_SUB": "今の単語は使えなくなります",
   "I_ROW_ERASE_SUB": "ゲームだけに戻ります",
