@@ -539,6 +539,7 @@
   "W_PROOF_BURNED": "yakıldı. kartta şifresiz duruyor. asla para için kullanma.",
   "W_PROOF_WORDS_BTN": "KELİMELERİ GÖSTER",
   "S_SIGNED_ALREADY": "ZATEN IMZALI",
+  "S_ROW_SIGNATURE": "IMZA",
   "S_RM_SIGNED": "IMZALILARI SIL",
   "S_RM_C_B": "bunlar karttan silinir.\n\nimzasiz hicbir sey silinmez.",
   "S_RM_ALL": "HEPSINI SIL"

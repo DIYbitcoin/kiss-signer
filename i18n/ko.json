@@ -539,6 +539,7 @@
   "W_PROOF_BURNED": "소각됨. 카드에 암호화 없이 그대로. 자산엔 절대 금지.",
   "W_PROOF_WORDS_BTN": "단어 보기",
   "S_SIGNED_ALREADY": "서명 완료",
+  "S_ROW_SIGNATURE": "서명",
   "S_RM_SIGNED": "서명 파일 지우기",
   "S_RM_C_B": "이 파일들이 카드에서 사라집니다.\n\n미서명 파일은 그대로 남습니다.",
   "S_RM_ALL": "모두 지우기"
