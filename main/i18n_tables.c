@@ -544,7 +544,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "SIGNED ALREADY",
     [STR_S_RM_SIGNED] = "REMOVE SIGNED",
     [STR_S_RM_C_B] = "these go from the card.\n\nnothing unsigned is touched.",
-    [STR_S_RM_HOLD] = "HOLD TO REMOVE",
+    [STR_S_RM_ALL] = "REMOVE ALL",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -1090,7 +1090,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "SCHON SIGNIERT",
     [STR_S_RM_SIGNED] = "SIGNIERTE LOESCHEN",
     [STR_S_RM_C_B] = "diese verschwinden von der Karte.\n\nnichts Unsigniertes wird angeruehrt.",
-    [STR_S_RM_HOLD] = "HALTEN ZUM LOESCHEN",
+    [STR_S_RM_ALL] = "ALLE LOESCHEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1636,7 +1636,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "YA FIRMADO",
     [STR_S_RM_SIGNED] = "BORRAR FIRMADOS",
     [STR_S_RM_C_B] = "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
-    [STR_S_RM_HOLD] = "MANTEN PARA BORRAR",
+    [STR_S_RM_ALL] = "BORRAR TODOS",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -2182,7 +2182,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "DEJA SIGNE",
     [STR_S_RM_SIGNED] = "SUPPRIMER LES SIGNES",
     [STR_S_RM_C_B] = "ceux ci disparaissent de la carte.\n\nrien de non signe n est touche.",
-    [STR_S_RM_HOLD] = "MAINTENIR POUR SUPPRIMER",
+    [STR_S_RM_ALL] = "TOUT SUPPRIMER",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2728,7 +2728,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "GIA FIRMATO",
     [STR_S_RM_SIGNED] = "ELIMINA I FIRMATI",
     [STR_S_RM_C_B] = "questi spariscono dalla scheda.\n\nnulla di non firmato viene toccato.",
-    [STR_S_RM_HOLD] = "TIENI PREMUTO PER ELIMINARE",
+    [STR_S_RM_ALL] = "ELIMINA TUTTI",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -3274,7 +3274,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "署名済み",
     [STR_S_RM_SIGNED] = "署名済みを消去",
     [STR_S_RM_C_B] = "これらはカードから消えます。\n\n未署名のファイルはそのままです。",
-    [STR_S_RM_HOLD] = "長押しで消去",
+    [STR_S_RM_ALL] = "すべて消去",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -3820,7 +3820,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "서명 완료",
     [STR_S_RM_SIGNED] = "서명 파일 지우기",
     [STR_S_RM_C_B] = "이 파일들이 카드에서 사라집니다.\n\n미서명 파일은 그대로 남습니다.",
-    [STR_S_RM_HOLD] = "길게 눌러 지우기",
+    [STR_S_RM_ALL] = "모두 지우기",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -4366,7 +4366,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "AL ONDERTEKEND",
     [STR_S_RM_SIGNED] = "ONDERTEKENDE WISSEN",
     [STR_S_RM_C_B] = "deze verdwijnen van de kaart.\n\nniets zonder handtekening wordt geraakt.",
-    [STR_S_RM_HOLD] = "HOUD VAST OM TE WISSEN",
+    [STR_S_RM_ALL] = "ALLES WISSEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -4912,7 +4912,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "JUZ PODPISANE",
     [STR_S_RM_SIGNED] = "USUN PODPISANE",
     [STR_S_RM_C_B] = "te znikna z karty.\n\nnic niepodpisanego nie zostanie ruszone.",
-    [STR_S_RM_HOLD] = "PRZYTRZYMAJ ABY USUNAC",
+    [STR_S_RM_ALL] = "USUN WSZYSTKIE",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -5458,7 +5458,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "JA ASSINADO",
     [STR_S_RM_SIGNED] = "APAGAR ASSINADOS",
     [STR_S_RM_C_B] = "estes somem do cartao.\n\nnada sem assinatura e tocado.",
-    [STR_S_RM_HOLD] = "SEGURE PARA APAGAR",
+    [STR_S_RM_ALL] = "APAGAR TUDO",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -6004,7 +6004,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "УЖЕ ПОДПИСАНО",
     [STR_S_RM_SIGNED] = "УДАЛИТЬ ПОДПИСАННЫЕ",
     [STR_S_RM_C_B] = "они исчезнут с карты.\n\nничего без подписи не тронуто.",
-    [STR_S_RM_HOLD] = "УДЕРЖИВАЙТЕ ДЛЯ УДАЛЕНИЯ",
+    [STR_S_RM_ALL] = "УДАЛИТЬ ВСЕ",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -6550,7 +6550,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "ZATEN IMZALI",
     [STR_S_RM_SIGNED] = "IMZALILARI SIL",
     [STR_S_RM_C_B] = "bunlar karttan silinir.\n\nimzasiz hicbir sey silinmez.",
-    [STR_S_RM_HOLD] = "SILMEK ICIN BASILI TUT",
+    [STR_S_RM_ALL] = "HEPSINI SIL",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -7096,7 +7096,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "DA KY",
     [STR_S_RM_SIGNED] = "XOA CAC BAN DA KY",
     [STR_S_RM_C_B] = "nhung tep nay se mat khoi the.\n\nkhong dong toi tep chua ky.",
-    [STR_S_RM_HOLD] = "GIU DE XOA",
+    [STR_S_RM_ALL] = "XOA TAT CA",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -7642,7 +7642,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "已签名",
     [STR_S_RM_SIGNED] = "删除已签名",
     [STR_S_RM_C_B] = "这些将从卡上消失。\n\n未签名的文件都保留。",
-    [STR_S_RM_HOLD] = "长按删除",
+    [STR_S_RM_ALL] = "全部删除",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -8188,7 +8188,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "YA FIRMADO",
     [STR_S_RM_SIGNED] = "BORRAR FIRMADOS",
     [STR_S_RM_C_B] = "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
-    [STR_S_RM_HOLD] = "MANTEN PARA BORRAR",
+    [STR_S_RM_ALL] = "BORRAR TODOS",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -8734,7 +8734,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "JA ASSINADO",
     [STR_S_RM_SIGNED] = "APAGAR ASSINADOS",
     [STR_S_RM_C_B] = "estes desaparecem do cartao.\n\nnada por assinar e tocado.",
-    [STR_S_RM_HOLD] = "MANTER PARA APAGAR",
+    [STR_S_RM_ALL] = "APAGAR TUDO",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -9280,7 +9280,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "ALLEREDE SIGNERT",
     [STR_S_RM_SIGNED] = "SLETT SIGNERTE",
     [STR_S_RM_C_B] = "disse forsvinner fra kortet.\n\nikke noe usignert roeres.",
-    [STR_S_RM_HOLD] = "HOLD FOR A SLETTE",
+    [STR_S_RM_ALL] = "SLETT ALLE",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -9826,7 +9826,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "REDAN SIGNERAD",
     [STR_S_RM_SIGNED] = "RADERA SIGNERADE",
     [STR_S_RM_C_B] = "dessa forsvinner fran kortet.\n\ninget osignerat rors.",
-    [STR_S_RM_HOLD] = "HALL FOR ATT RADERA",
+    [STR_S_RM_ALL] = "RADERA ALLA",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -10372,7 +10372,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "ALLEREDE SIGNERET",
     [STR_S_RM_SIGNED] = "SLET SIGNEREDE",
     [STR_S_RM_C_B] = "disse forsvinder fra kortet.\n\nintet usigneret roeres.",
-    [STR_S_RM_HOLD] = "HOLD FOR AT SLETTE",
+    [STR_S_RM_ALL] = "SLET ALLE",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -10918,7 +10918,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "JIZ PODEPSANO",
     [STR_S_RM_SIGNED] = "SMAZAT PODEPSANE",
     [STR_S_RM_C_B] = "tyto zmizi z karty.\n\nnic nepodepsaneho se nedotkne.",
-    [STR_S_RM_HOLD] = "DRZTE PRO SMAZANI",
+    [STR_S_RM_ALL] = "SMAZAT VSE",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -11464,7 +11464,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_S_SIGNED_ALREADY] = "VEC POTPISANO",
     [STR_S_RM_SIGNED] = "OBRISI POTPISANE",
     [STR_S_RM_C_B] = "ovi nestaju s kartice.\n\nnista nepotpisano se ne dira.",
-    [STR_S_RM_HOLD] = "DRZI ZA BRISANJE",
+    [STR_S_RM_ALL] = "OBRISI SVE",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "JA ASSINADO",
   "S_RM_SIGNED": "APAGAR ASSINADOS",
   "S_RM_C_B": "estes somem do cartao.\n\nnada sem assinatura e tocado.",
-  "S_RM_HOLD": "SEGURE PARA APAGAR"
+  "S_RM_ALL": "APAGAR TUDO"
 }

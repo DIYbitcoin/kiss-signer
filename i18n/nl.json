@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "AL ONDERTEKEND",
   "S_RM_SIGNED": "ONDERTEKENDE WISSEN",
   "S_RM_C_B": "deze verdwijnen van de kaart.\n\nniets zonder handtekening wordt geraakt.",
-  "S_RM_HOLD": "HOUD VAST OM TE WISSEN"
+  "S_RM_ALL": "ALLES WISSEN"
 }

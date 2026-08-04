@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "ZATEN IMZALI",
   "S_RM_SIGNED": "IMZALILARI SIL",
   "S_RM_C_B": "bunlar karttan silinir.\n\nimzasiz hicbir sey silinmez.",
-  "S_RM_HOLD": "SILMEK ICIN BASILI TUT"
+  "S_RM_ALL": "HEPSINI SIL"
 }

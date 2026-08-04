@@ -45,6 +45,11 @@ int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);
 int  platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
                              int n, int del);
 
+// Just the signed outputs, A-Z, for the screen that removes them one at a time.
+// Same reason it reads the directory rather than filtering the list: with more
+// unsigned files than the list window holds, the signed ones are not in it.
+int  platform_sd_list_signed(char names[][SD_NAME_LEN], int max, int *total);
+
 // Secret-bearing callers use the atomic form. It writes and verifies a sibling
 // temporary file before switching names, keeping the previous file recoverable
 // until the replacement is durable. delete also removes interrupted-write

@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "GIA FIRMATO",
   "S_RM_SIGNED": "ELIMINA I FIRMATI",
   "S_RM_C_B": "questi spariscono dalla scheda.\n\nnulla di non firmato viene toccato.",
-  "S_RM_HOLD": "TIENI PREMUTO PER ELIMINARE"
+  "S_RM_ALL": "ELIMINA TUTTI"
 }

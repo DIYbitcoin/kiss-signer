@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "已签名",
   "S_RM_SIGNED": "删除已签名",
   "S_RM_C_B": "这些将从卡上消失。\n\n未签名的文件都保留。",
-  "S_RM_HOLD": "长按删除"
+  "S_RM_ALL": "全部删除"
 }
