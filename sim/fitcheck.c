@@ -264,6 +264,100 @@ static const slot_t SLOTS[] = {
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
+// wt_row LABELS, which nothing measured until a rename made one of them fail.
+//
+// These are not pills and not bodies: wt_row_x draws the label at a FIXED
+// font23, pinned to one line, with LV_LABEL_LONG_DOT. There is no font ladder
+// to fall down, so an over-long translation does not shrink and does not wrap
+// -- it silently ellipsises, and it looks completely deliberate. No gate saw
+// it. overlapcheck compares boxes and the box is exactly the width it was
+// given; fitcheck only knew about copy that shrinks. So "Address type" drew as
+// "Address t..." in ENGLISH, on the default screen, and the walk was clean.
+//
+// The budget is wt_row_x's own arithmetic, not a guess:
+//   right = w - 10 - chevron - 10;  lw = right - vw - (vw ? 12 : 0) - 14
+// so the value competes with the label for the row, which is why a row whose
+// value is TRANSLATED has to be measured with its longest value.
+typedef struct {
+    const char *surface;
+    int key;               // STR_* of the label
+    int val_key;           // STR_* of the widest value it sits against, or -1
+    const char *val_lit;   // ... or an untranslated literal, or NULL
+    int w;                 // the row's width
+} row_t;
+static const row_t ROWS[] = {
+    // wallet_settings.c, left column at SG_L_W = 365
+    { "set/network",  STR_I_ROW_NETWORK, -1, NULL,    365 - 176 },  // segmented track
+    { "set/type",     STR_I_ROW_TYPE,    -1, "m/n...", 365 },
+    { "set/storage",  STR_I_ROW_STORAGE, STR_W_AMNESIC_BTN, NULL, 365 },
+    { "set/duress",   STR_I_ROW_DURESS,  STR_GD_OFF, NULL, 365 },
+    // right column, SG_R_W = 365. None of these carry a value.
+    { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
+    { "set/replace",  STR_I_ROW_REPLACE, -1, NULL, 365 },
+    { "set/erase",    STR_I_ROW_ERASE,   -1, NULL, 365 },
+};
+#define NROW ((int)(sizeof ROWS / sizeof ROWS[0]))
+
+// Row labels that ellipsise TODAY, recorded the day the check was written.
+//
+// Shrink only, like OC_BARE_BACKLOG in sim/overlapcheck.c. A check that starts
+// out failing gets switched off, and a check that starts out silent never
+// catches the next one, so it starts out honest instead: everything already
+// broken is listed by name, anything not on the list fails the build, and the
+// run prints how many are left. Delete a line when the copy is fixed. Never
+// add one.
+//
+// Two rows account for almost all of it. "Words live in" and "Duress wallet"
+// are short in English and become a clause in most other languages, and they
+// sit against a translated value ("AMNESIC", "NOT SET") that eats the same
+// row. Fixing them means shorter labels in ten locales or a wider left column,
+// which is a copy pass of its own, not a rename.
+static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
+    { "cs-CZ", "set/duress" },
+    { "de",    "set/duress" },  { "de",    "set/storage" },
+    { "es-ES", "set/duress" },  { "es-ES", "set/storage" },
+    { "es-MX", "set/duress" },  { "es-MX", "set/storage" },
+    { "fr",    "set/duress" },  { "fr",    "set/storage" },
+    { "hr-HR", "set/duress" },
+    { "it",    "set/duress" },  { "it",    "set/storage" },
+    // 324px against a 317px budget: seven pixels, on the row that erases.
+    { "it",    "set/erase"  },
+    { "nl",    "set/duress" },  { "nl",    "set/storage" },
+    { "pl",    "set/duress" },
+    { "pt-BR", "set/duress" },  { "pt-BR", "set/storage" },
+    { "pt-PT", "set/duress" },  { "pt-PT", "set/storage" },
+    { "ru",    "set/duress" },  { "ru",    "set/storage" },
+    { "tr",    "set/duress" },  { "tr",    "set/storage" },
+};
+#define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
+
+static bool row_backlogged(const char *lang, const char *surface)
+{
+    for (int i = 0; i < NROW_BACKLOG; i++)
+        if (strcmp(ROW_BACKLOG[i].lang, lang) == 0 &&
+            strcmp(ROW_BACKLOG[i].surface, surface) == 0)
+            return true;
+    return false;
+}
+
+// The label box wt_row_x will give this row, in the ACTIVE locale.
+static int row_label_budget(const row_t *r)
+{
+    lv_point_t sz;
+    lv_text_get_size(&sz, LV_SYMBOL_RIGHT, wt_font23(), 0, 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int right = r->w - 10 - (int)sz.x - 10;
+    int vw = 0;
+    const char *val = r->val_lit ? r->val_lit
+                    : r->val_key >= 0 ? tr(r->val_key) : NULL;
+    if (val && *val) {
+        lv_text_get_size(&sz, val, wt_font23(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        vw = (int)sz.x + 12;
+    }
+    return right - vw - 14;
+}
+
 // Pill labels. A button must never be smaller than the note beside it, and
 // notes cap at 23, so font14 here is a FAILURE: it means the box is too narrow
 // for that translation and the pill needs widening (or the word shortening).
@@ -371,6 +465,7 @@ int main(int argc, char **argv)
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
+    int row_cut = 0, row_known = 0;
 #define MAXFAIL 64
     static char fails[MAXFAIL][96];
     for (int l = 0; l < I18N_LANG_N; l++) {
@@ -425,6 +520,7 @@ int main(int argc, char **argv)
         }
         int pbad = 0;
         char plines[NPILL][160];
+        char rlines[NROW][160];
         for (int i = 0; i < NPILL; i++) {
             const char *txt = tr(PILLS[i].key);
             char ibuf[WT_ICON_TEXT_MAX];
@@ -456,8 +552,32 @@ int main(int argc, char **argv)
                      rung, wrap ? " wrap" : "     ", (int)sz.x, PILLS[i].w - 28,
                      rung == 14 ? (PILLS[i].key_action ? "  FAIL" : "  widen") : "");
         }
-        printf("%-6s %-22s %2d/%d at font14, %d/%d pills\n", li->code, li->native,
-               small, NSLOT, pbad, NPILL);
+        // Row labels: fixed font23, one line, ellipsis on overflow. Measured
+        // unwrapped so the answer is the width the words actually need.
+        int rbad = 0;
+        for (int i = 0; i < NROW; i++) {
+            const char *txt = tr(ROWS[i].key);
+            int budget = row_label_budget(&ROWS[i]);
+            lv_point_t sz;
+            lv_text_get_size(&sz, txt, wt_font23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            rlines[i][0] = '\0';
+            if ((int)sz.x > budget) {
+                rbad++;
+                bool known = row_backlogged(li->code, ROWS[i].surface);
+                if (known) row_known++;
+                else       row_cut++;
+                snprintf(rlines[i], sizeof rlines[i],
+                         "  row  %-15s %3dpx / %3dpx  %s  \"%s\"",
+                         ROWS[i].surface, (int)sz.x, budget,
+                         known ? "ellipsis (backlog)" : "ELLIPSIS", txt);
+            }
+        }
+
+        printf("%-6s %-22s %2d/%d at font14, %d/%d pills, %d/%d rows\n",
+               li->code, li->native, small, NSLOT, pbad, NPILL, rbad, NROW);
+        for (int i = 0; i < NROW; i++)
+            if (rlines[i][0]) puts(rlines[i]);
         for (int i = 0; i < NSLOT; i++)
             if (strstr(lines[i], "cut ")) puts(lines[i]);
         for (int i = 0; i < NPILL; i++)
@@ -466,6 +586,7 @@ int main(int argc, char **argv)
         total_small += small + pbad;
     }
     printf("\ntotal at font14: %d\n", total_small);
+    printf("row labels ellipsised: %d backlogged, %d new\n", row_known, row_cut);
 
     // Every icon a pill draws must exist, at every size, with real ink in it.
     //
@@ -575,6 +696,17 @@ int main(int argc, char **argv)
     // only too small in Polish, and a pill that drops to 14 without being a
     // key action. Neither is a translation problem. Both mean a box measured
     // against English that the device will render in something else.
+    if (row_cut) {
+        printf("\nFAIL: %d row label(s) ellipsise and are not in ROW_BACKLOG.\n",
+               row_cut);
+        puts("A wt_row label is drawn at a FIXED font23 on one line with\n"
+             "LV_LABEL_LONG_DOT. It does not shrink and it does not wrap, it\n"
+             "just loses its last words, and no other gate can see that.\n"
+             "Shorten that locale's label, or shorten the VALUE it sits\n"
+             "against -- the value takes its width off the label's budget.");
+        return 1;
+    }
+
     if (total_small) {
         printf("\nFAIL: %d slot(s) fall to font14 in at least one locale.\n",
                total_small);
