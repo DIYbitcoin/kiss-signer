@@ -34,6 +34,49 @@ if ! "$PY" -m esptool version >/dev/null 2>&1; then
     exit 1
 fi
 
+# Detached armor signature over $1, self checked against the public key that is
+# in the repo. Returns 1 when there is no secret key at all, so the caller can
+# emit an honestly labelled unsigned release. Exits when a key exists but the
+# signature fails or does not verify: a release that claims a signature it does
+# not have is worse than one that admits it has none. Two callers now, the
+# SHA256SUMS manifest and the offline installer zip.
+gpg_sign() {
+    target="$1"
+    command -v gpg >/dev/null || return 1
+    gpg --list-secret-keys ${GPG_KEY_ID:+"$GPG_KEY_ID"} >/dev/null 2>&1 || return 1
+
+    # NOT --batch: batch mode suppresses the pinentry passphrase popup, so once
+    # the agent cache expires the sign fails silently ("No such file or
+    # directory"). Interactive lets pinentry prompt; --yes still auto-overwrites.
+    rm -f "$target.asc"
+    if ! gpg --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
+           --detach-sign -o "$target.asc" "$target"; then
+        echo "ERROR: GPG signing failed on $target (passphrase prompt?). Run in a"
+        echo "terminal with: export GPG_TTY=\$(tty)   then rerun. Nothing was released."
+        exit 1
+    fi
+    # self-check: the signature we just wrote must verify against the PUBLIC key
+    # in the repo (not just the local keyring), or the release is not "signed".
+    if [ ! -f "$GPG_PUB_FILE" ]; then
+        echo "ERROR: $GPG_PUB_FILE missing - export it first:"
+        echo "  gpg --armor --export ${GPG_KEY_ID:-<your key id>} > $GPG_PUB_FILE"
+        exit 1
+    fi
+    VERIFY_RING="$(mktemp -d)"
+    gpg --homedir "$VERIFY_RING" --import "$GPG_PUB_FILE" 2>/dev/null
+    if ! gpg --homedir "$VERIFY_RING" --verify "$target.asc" "$target" 2>/dev/null; then
+        rm -rf "$VERIFY_RING"
+        echo "ERROR: signature on $target does NOT verify against $GPG_PUB_FILE"
+        echo "(the repo public key and the signing key disagree - fix before release)"
+        exit 1
+    fi
+    rm -rf "$VERIFY_RING"
+    GPG_FPR=$(gpg --with-colons --show-keys "$GPG_PUB_FILE" 2>/dev/null \
+              | awk -F: '/^fpr:/ {print $10; exit}')
+    echo "gpg: $target.asc (verifies against $GPG_PUB_FILE, fpr $GPG_FPR)"
+    return 0
+}
+
 # 0. the documentation screenshots, BEFORE the clean-tree check below.
 #
 # Every frame bakes the version in: sim/build_sim.sh compiles VERSION into
@@ -134,38 +177,8 @@ PY
 # 4. signatures (each honest and optional)
 GPGSIGNED=0
 GPG_FPR=""
-if command -v gpg >/dev/null && gpg --list-secret-keys ${GPG_KEY_ID:+"$GPG_KEY_ID"} >/dev/null 2>&1; then
-    # NOT --batch: batch mode suppresses the pinentry passphrase popup, so once
-    # the agent cache expires the sign fails silently ("No such file or
-    # directory"). Interactive lets pinentry prompt; --yes still auto-overwrites.
-    rm -f "$OUT/SHA256SUMS.asc"
-    if ! gpg --yes ${GPG_KEY_ID:+-u "$GPG_KEY_ID"} --armor \
-           --detach-sign -o "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS"; then
-        echo "ERROR: GPG signing failed (passphrase prompt?). Run in a terminal"
-        echo "with: export GPG_TTY=\$(tty)   then rerun. Nothing was released."
-        exit 1
-    fi
-    # self-check: the signature we just wrote must verify against the PUBLIC key
-    # in the repo (not just the local keyring), or the release is not "signed".
-    if [ ! -f "$GPG_PUB_FILE" ]; then
-        echo "ERROR: $GPG_PUB_FILE missing - export it first:"
-        echo "  gpg --armor --export ${GPG_KEY_ID:-<your key id>} > $GPG_PUB_FILE"
-        exit 1
-    fi
-    VERIFY_RING="$(mktemp -d)"
-    gpg --homedir "$VERIFY_RING" --import "$GPG_PUB_FILE" 2>/dev/null
-    if gpg --homedir "$VERIFY_RING" --verify "$OUT/SHA256SUMS.asc" "$OUT/SHA256SUMS" 2>/dev/null; then
-        GPGSIGNED=1
-        GPG_FPR=$(gpg --with-colons --show-keys "$GPG_PUB_FILE" 2>/dev/null \
-                  | awk -F: '/^fpr:/ {print $10; exit}')
-        echo "gpg: $OUT/SHA256SUMS.asc (verifies against $GPG_PUB_FILE, fpr $GPG_FPR)"
-    else
-        rm -rf "$VERIFY_RING"
-        echo "ERROR: signature does NOT verify against $GPG_PUB_FILE"
-        echo "(the repo public key and the signing key disagree - fix before release)"
-        exit 1
-    fi
-    rm -rf "$VERIFY_RING"
+if gpg_sign "$OUT/SHA256SUMS"; then
+    GPGSIGNED=1
 else
     rm -f "$OUT/SHA256SUMS.asc"
     echo "NOTE: no GPG secret key found - SHA256SUMS left unsigned (see docs/installer/SIGNING.md)"
@@ -270,7 +283,29 @@ json.dump({
 print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")
 PY
 
+# 6. release notes, written before the zip so the zip can carry them: inside an
+# offline bundle they are the only copy of the verify commands, the fingerprint
+# and the changelog that does not need a network to read.
+"$PY" tools/make_release_notes.py --write
+
+# 7. the offline installer zip: the whole install page, the firmware and the
+# signed hashes in one download, so flashing needs no network at all.
+#
+# It cannot join SHA256SUMS. The zip contains release.json, and release.json is
+# written above from the outcome of signing SHA256SUMS, so a manifest covering
+# the zip would have to be signed before the zip existed. It carries its own
+# detached signature instead. That is also the honest shape: inside the bundle
+# the page IS the verifier, so what a user needs signed is the container.
+"$PY" tools/make_offline_zip.py --out dist
+ZIP="dist/kiss-signer-${VERSION}-offline.zip"
+if [ "$GPGSIGNED" = "1" ]; then
+    gpg_sign "$ZIP"
+else
+    rm -f "$ZIP.asc"
+fi
+
 echo
 echo "web release ready: $OUT/firmware/$NAME"
+echo "offline installer: $ZIP"
+[ "$GPGSIGNED" = "1" ] && echo "                   $ZIP.asc"
 [ "$GPGSIGNED" = "1" ] || echo "REMINDER: set up the GPG release key before the first public release."
-"$PY" tools/make_release_notes.py --write

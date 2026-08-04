@@ -45,12 +45,24 @@ tools/make_web_release.sh          # GPG_KEY_ID=<id> to pick a specific key
 
 Builds, merges, writes SHA256SUMS, signs with whatever keys exist (and says so
 honestly in `release.json`'s `authenticity` block), regenerates
-`manifest.json`/`release.json`, and writes `release-notes.md`. Attach the
-firmware image, `SHA256SUMS`, `SHA256SUMS.asc`, `release.json`, and
-`kiss_signer_pgp.asc` to the GitHub Release. Use `release-notes.md` as the
-GitHub Release body so every release keeps the same shape: download, verify,
-install, changelog. The installer page is a later GitHub Pages path, not the
-beta install path.
+`manifest.json`/`release.json`, writes `release-notes.md`, and packs
+`dist/kiss-signer-<version>-offline.zip` with its own `.asc`. Attach the
+firmware image, `SHA256SUMS`, `SHA256SUMS.asc`, `release.json`,
+`kiss_signer_pgp.asc`, **and both offline zip files** to the GitHub Release. Use
+`release-notes.md` as the GitHub Release body so every release keeps the same
+shape: download, verify, install, changelog. The installer page is a later
+GitHub Pages path, not the beta install path.
+
+The zip is signed on its own rather than listed in `SHA256SUMS`, because it
+contains `release.json`, which is written from the outcome of signing
+`SHA256SUMS`. A manifest covering the zip would have to be signed before the zip
+existed. It is also the right shape: inside an offline bundle the page is the
+verifier, so the thing a user needs signed is the container that carries it.
+
+The zip is not committed. It is derived from `docs/` and the release build, and
+at about 4 MB per release it belongs on the Releases page rather than in git
+history. `tools/make_offline_zip.py --check` runs in CI and fails if the page
+starts loading a file the bundle does not carry.
 
 ## Verifying a download (user)
 
@@ -61,6 +73,9 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 
 # 2. the firmware matches the signed manifest
 shasum -a 256 -c SHA256SUMS --ignore-missing
+
+# the offline installer zip is signed on its own
+gpg --verify kiss-signer-<version>-offline.zip.asc kiss-signer-<version>-offline.zip
 
 # optional extra check (minisign)
 minisign -Vm kiss-signer-<version>.bin -p kiss_signer.pub
