@@ -1698,9 +1698,20 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     bool noise = wallet_trng_live();
     lv_label_set_text_fmt(n, "randomness: %s", noise ? "NOISE" : "NO SOURCE");
     lv_obj_set_style_text_color(n, noise ? MUT_COL : lv_color_hex(0xF2B84B), 0);
-    lv_obj_update_layout(r);
-    lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + 24,
-                   lv_obj_get_y(r));
+    if (stacked) {
+      // Row THREE, not the end of row two. Three facts end to end reach x=443,
+      // and Settings hangs the theme name in the same band ending at 460 -- no
+      // overlap, so no gate saw it, and on the device it still read as a
+      // caption under the colour picker rather than a line of this block. A
+      // row of its own keeps every fact left of 275, which is where the theme
+      // control's lane starts and where this block's width is nobody else's
+      // problem.
+      lv_obj_set_pos(n, x, y + 2 * BUILD_ID_ROW);
+    } else {
+      lv_obj_update_layout(r);
+      lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + 24,
+                     lv_obj_get_y(r));
+    }
   } else {
     (void)radio_held;
   }
