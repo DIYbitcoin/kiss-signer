@@ -50,6 +50,30 @@ static void test_mix3(void)
     ok("mix3 rejects NULL", wallet_entropy_mix3(NULL, b, c, out) != 0);
 }
 
+// The jitter source has no test vector and cannot have one: a fixed answer
+// would mean it stopped measuring the machine. What IS testable is the only
+// property it is folded in for -- that it moves on its own, with no RNG
+// anywhere in the path. Eight calls back to back is the hostile case, because
+// the closer together they run the more alike their timing is.
+static void test_jitter(void)
+{
+    uint8_t j[8][32];
+    int zero = 1;
+
+    ok("jitter rejects NULL", wallet_jitter(NULL) != 0);
+
+    for (int i = 0; i < 8; i++)
+        ok("jitter returns 0", wallet_jitter(j[i]) == 0);
+
+    for (int i = 0; i < 32; i++)
+        if (j[0][i]) zero = 0;
+    ok("jitter is not all zero", !zero);
+
+    for (int i = 0; i < 8; i++)
+        for (int k = i + 1; k < 8; k++)
+            ok("back to back jitter reads differ", memcmp(j[i], j[k], 32) != 0);
+}
+
 #include "wallet_tapent.h"
 
 static void test_debounce(void)
@@ -116,6 +140,7 @@ int test_tapent(void)
     fails = 0;
     printf("\n-- tap entropy --\n");
     test_mix3();
+    test_jitter();
     test_debounce();
     test_fold();
     return fails;
