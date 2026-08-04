@@ -23,7 +23,7 @@ clang -O1 -w \
   "$WALLY/upstream/src/amalgamation/combined.c" \
   main/wallet_crypto.c main/wallet_psbt.c main/wallet_sp.c \
   main/wallet_seed.c main/wallet_seed_sd.c main/platform_sd.c \
-  main/wallet_usage.c main/wallet_duress.c \
+  main/wallet_usage.c main/wallet_backup.c main/wallet_duress.c \
   sim/check_sd_psbts.c \
   -o /tmp/check_sd_psbts
 /tmp/check_sd_psbts "$DIR"
