@@ -51,6 +51,30 @@ void wallet_trng_start(void);
 // quietly handing back a weak key that every later check will call valid.
 bool wallet_trng_live(void);
 
+// ---- timing jitter ----
+// A second source for the key that cannot have the camera or the taps folded
+// into it. The seed gets three sources because the owner is standing there
+// supplying two of them; the SD device key is minted the first time a card is
+// written, long after those screens wiped their material, so at that moment
+// the chip is the only thing in the room.
+//
+// This reads the CPU cycle counter either side of a system timer read, a few
+// hundred times over. The two clocks are not driven from the same place, so
+// the width of that gap moves with cache, bus contention and interrupt
+// arrival rather than with anything the caller sets. It is the one physical
+// source on this board that does not run through the circuit esp_random does,
+// which is the whole reason it is worth folding: the failure being defended
+// against is that circuit being off, and a source sharing it would go down
+// with it.
+//
+// No bit count is claimed, and none should be. Measuring jitter honestly means
+// measuring it on the hardware in hand, and a number printed next to it would
+// be exactly the unprovable quality score the tap screen refuses to show. It
+// is folded, not trusted: SHA256(chip || jitter) cannot be weaker than the
+// chip alone, and it stops a chip returning constants from picking the key by
+// itself. Returns 0 on success.
+int wallet_jitter(uint8_t out[32]);
+
 // ---- network (mainnet / testnet) ----
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
 // descriptor xpub/tpub serialization. The master key itself is network-free,

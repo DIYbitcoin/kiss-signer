@@ -41,25 +41,47 @@ static int ct_equal(const uint8_t *a, const uint8_t *b, size_t n)
     return d == 0;
 }
 
+// Everything random on this card comes through here: the device key, and the
+// IV of every blob written under it. Never the chip on its own.
+//
+// The seed screens fold three sources because the owner is present to supply
+// two of them. Nothing here has that: the key is minted the first time a card
+// is written, and an IV is minted mid write. So the second source is the one
+// that needs no owner, timing jitter (wallet_crypto.h), and the shape is the
+// same as the seed's — SHA256(chip || jitter), no weaker than the chip alone.
+//
+// The wallet_trng_live gate stays, and is not made redundant by the fold. The
+// two answer different questions. The gate is provenance: esp_fill_random
+// reports success whether or not a noise source is behind it, so key material
+// must refuse to exist while nobody has switched one on. The fold is the case
+// the gate cannot see, a source that is on and still returning something
+// degenerate. A key that failed both would pass every check downstream of
+// here, which is why neither is dropped for the other.
 static int fill_random(uint8_t *out, size_t len)
 {
+    if (!out || len > 32) return -1;      // key is 32, iv is 16; nothing else
+    uint8_t chip[32], jit[32], mixed[32];
+    int rc;
+
 #ifdef ESP_PLATFORM
-    // The seed survives a weak chip RNG because three sources are folded into
-    // it. The device key below is not folded with anything: it is whatever
-    // this call returns. So it is the one place that has to ask whether the
-    // noise source is actually running, and refuse if it is not — esp_fill_random
-    // reports success either way, and a key made from an unseeded RNG would
-    // pass every check downstream of here.
     if (!wallet_trng_live()) return -1;
-    esp_fill_random(out, len);
-    return 0;
+    esp_fill_random(chip, sizeof chip);
+    rc = 0;
 #else
     FILE *f = fopen("/dev/urandom", "rb");
     if (!f) return -1;
-    size_t n = fread(out, 1, len, f);
+    rc = fread(chip, 1, sizeof chip, f) == sizeof chip ? 0 : -1;
     fclose(f);
-    return n == len ? 0 : -1;
 #endif
+
+    if (rc == 0) rc = wallet_jitter(jit);
+    if (rc == 0) rc = wallet_entropy_mix(chip, jit, mixed);
+    if (rc == 0) memcpy(out, mixed, len);
+
+    sd_bzero(chip, sizeof chip);
+    sd_bzero(jit, sizeof jit);
+    sd_bzero(mixed, sizeof mixed);
+    return rc;
 }
 
 static void subkeys(const uint8_t key32[32], uint8_t enc[32], uint8_t mac[32])

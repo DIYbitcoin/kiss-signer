@@ -16,6 +16,10 @@
 
 #ifdef ESP_PLATFORM
 #include "bootloader_random.h"   // bootloader_random_enable: see wallet_crypto.h
+#include "esp_cpu.h"             // esp_cpu_get_cycle_count: the jitter source
+#include "esp_timer.h"           // esp_timer_get_time: the clock it is read against
+#else
+#include <time.h>
 #endif
 
 // Standard BIP39 test vector — ONLY the boot selftest uses it now; the live
@@ -106,6 +110,64 @@ void wallet_trng_start(void)
 }
 
 bool wallet_trng_live(void) { return s_trng_live; }
+
+// ---- timing jitter ----
+// Why this exists and what is and is not claimed for it: wallet_crypto.h.
+//
+// The host halves are not a simulation of the device ones. On the host the
+// only caller reaches /dev/urandom, so the fold there is belt and braces and
+// the coarser clock costs nothing; the point of building it on both is that
+// the fold is one code path, exercised by kisstest rather than only ever
+// running on hardware no test can reach.
+#ifdef ESP_PLATFORM
+static uint32_t wj_cycles(void) { return (uint32_t)esp_cpu_get_cycle_count(); }
+static uint64_t wj_clock(void)  { return (uint64_t)esp_timer_get_time(); }
+#else
+static uint32_t wj_cycles(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint32_t)ts.tv_nsec;
+}
+static uint64_t wj_clock(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+#endif
+
+// Chained rather than accumulated into one buffer, exactly as wallet_tapent.c
+// folds a tap: the working set stays 48 bytes on a task stack instead of a
+// kilobyte, and hashing inside the loop feeds its own variable cost back into
+// the next round's gap.
+#define WJ_ROUNDS 256
+
+int wallet_jitter(uint8_t out[32])
+{
+    if (!out)
+        return -1;
+    uint8_t chain[32] = {0};
+    uint8_t cat[48];
+    int rc = 0;
+    for (unsigned i = 0; i < WJ_ROUNDS && rc == 0; i++) {
+        uint32_t c0 = wj_cycles();
+        uint64_t t  = wj_clock();
+        uint32_t d  = wj_cycles() - c0;   // the gap: this is the entropy
+        // 16 bytes: cycles || clock || gap, little-endian, the same record
+        // shape a tap folds so one reader can check both.
+        memcpy(cat, chain, 32);
+        for (int k = 0; k < 4; k++) cat[32 + k] = (uint8_t)(c0 >> (8 * k));
+        for (int k = 0; k < 8; k++) cat[36 + k] = (uint8_t)(t  >> (8 * k));
+        for (int k = 0; k < 4; k++) cat[44 + k] = (uint8_t)(d  >> (8 * k));
+        rc = wally_sha256(cat, sizeof cat, chain, 32) == WALLY_OK ? 0 : -1;
+    }
+    if (rc == 0)
+        memcpy(out, chain, 32);
+    wally_bzero(cat, sizeof cat);
+    wally_bzero(chain, sizeof chain);
+    return rc;
+}
 
 int wallet_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 {

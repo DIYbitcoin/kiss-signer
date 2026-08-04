@@ -24,7 +24,30 @@ wording of the warning are theirs.
 - **A coordinator that contradicts itself about a coin is refused**, rather than
   the signer picking whichever number it read first.
 
+### Changed
+
+- **The key that locks your seed to an SD card no longer comes from one place.**
+  It used to be 32 bytes straight from the chip's random number generator. Your
+  seed was never in that position, because three sources are folded into it and
+  a hash is as strong as its best input, but the card key had no second source
+  to fall back on, and this chip's noise generator is one the firmware has to
+  switch on itself. So the card key and the random value in front of every
+  sealed card are now mixed with a measurement of the device's own timing,
+  which does not run through that generator and so cannot fail with it. Cards
+  written before this still open: a device keeps the key it already minted.
+
 ### Added
+
+- **THE INSTALLER NOW FITS IN ONE FILE, so you can flash with the network
+  unplugged.** Every release carries `kiss-signer-VERSION-offline.zip`, about
+  4 MB: the install page, the firmware and the signed hashes together. Download
+  it once on a machine that has a network, check the signature, carry it to the
+  machine that does not, unzip, and run the serve file inside. It shows the page
+  to that one computer and reaches nothing else, so nothing about the flash
+  depends on the network behaving on the day you do it. Prompted by Krux
+  Installer, which stopped downloading anything at flash time in its v0.0.23 by
+  embedding the firmware at build time; the argument that fewer moving parts
+  between you and your device is worth the packaging work is theirs.
 
 - **MY OWN WORDS: a seed from paper cards, with the device only doing the
   math.** A third way to create a wallet, beside the camera and the dice: cut
