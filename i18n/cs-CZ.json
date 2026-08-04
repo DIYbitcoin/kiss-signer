@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "JIZ PODEPSANO",
   "S_RM_SIGNED": "SMAZAT PODEPSANE",
   "S_RM_C_B": "tyto zmizi z karty.\n\nnic nepodepsaneho se nedotkne.",
-  "S_RM_HOLD": "DRZTE PRO SMAZANI"
+  "S_RM_ALL": "SMAZAT VSE"
 }

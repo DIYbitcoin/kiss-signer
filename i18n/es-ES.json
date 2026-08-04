@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "YA FIRMADO",
   "S_RM_SIGNED": "BORRAR FIRMADOS",
   "S_RM_C_B": "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
-  "S_RM_HOLD": "MANTEN PARA BORRAR"
+  "S_RM_ALL": "BORRAR TODOS"
 }

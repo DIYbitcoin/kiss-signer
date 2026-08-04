@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "ALLEREDE SIGNERT",
   "S_RM_SIGNED": "SLETT SIGNERTE",
   "S_RM_C_B": "disse forsvinner fra kortet.\n\nikke noe usignert roeres.",
-  "S_RM_HOLD": "HOLD FOR A SLETTE"
+  "S_RM_ALL": "SLETT ALLE"
 }

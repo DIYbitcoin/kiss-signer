@@ -1117,16 +1117,18 @@ int main(void) {
   must_show("file list after signing", tr(STR_S_RM_SIGNED));
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
   touch(218, 430); pump(3); release(); pump(8);
-  save("/tmp/sim_sign_rm_confirm.ppm");             // count + HOLD TO REMOVE
-  // a tap is NOT enough: press, release early, the confirm is still the screen
-  touch(400, 398); pump(2); release(); pump(4);
-  save("/tmp/sim_sign_rm_noop.ppm");                // still the confirm, nothing gone
-  touch(400, 398); pump(50);                        // hold: partial red sweep
+  save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
+  // Row 0's own hold pill: rows start at y=132, 64 tall, pill at local (543,12)
+  // 170x40, so 567..737 x 144..184. A tap is NOT enough.
+  touch(652, 164); pump(2); release(); pump(4);
+  save("/tmp/sim_sign_rm_noop.ppm");                // still the list, nothing gone
+  touch(652, 164); pump(40);                        // hold: partial red sweep
   lv_refr_now(NULL);
   save("/tmp/sim_sign_rm_holding.ppm");
   release(); pump(6);                               // let go early -> nothing happened
-  touch(680, 398); pump(3); release(); pump(8);     // CANCEL instead, keep the fixtures
-  save("/tmp/sim_sign_rm_cancel.ppm");              // back to the list, unchanged
+  save("/tmp/sim_sign_rm_letgo.ppm");               // still the list, unchanged
+  touch(680, 430); pump(3); release(); pump(8);     // BACK, keep the fixtures
+  save("/tmp/sim_sign_rm_back.ppm");                // back to the file list
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
   // I UNDERSTAND moved out of the action row and into the caution row itself,

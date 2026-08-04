@@ -1929,75 +1929,126 @@ static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body
 }
 
 // ---- REMOVE SIGNED --------------------------------------------------------
-// The card accumulates one -signed.psbt per hold, the list window is 24, and
-// until now the only advice the device offered was a string telling the owner
-// to go and use a computer. It can clean up after itself.
+// The card accumulates one -signed.psbt per hold and the list window is 24, so
+// the device can clean up after itself rather than telling the owner to go and
+// find a computer.
 //
-// It removes ONLY files named *-signed.psbt: its own output shape. An unsigned
-// PSBT cannot match that predicate, so the one thing this must never do is not
-// a thing it can do. The honest caveat is that the test is the NAME -- a file
-// someone else put on the card called "quarterly-signed.psbt" would go too,
-// which is why the count is framed on the confirm before the hold, not after.
-static void rm_cancel_cb(lv_event_t *e)
+// This is a LIST, not a count. The first shape put the number of files in a
+// framed card, which was wrong twice over: a card with one signed file shows
+// TWO amber rows (the source and its output) beside a confirm that said "1", so
+// the two readings looked like a contradiction when both were right, and the
+// owner has every reason to want to drop one signature and keep another. Naming
+// the files answers both -- there is nothing left to reconcile, and each one has
+// its own hold.
+//
+// Only files named *-signed.psbt are ever listed here, which is the whole safety
+// property: an unsigned PSBT cannot appear, so it cannot be picked. The honest
+// caveat is that the test is the NAME, so a file someone else called
+// quarterly-signed.psbt would be offered too -- which is exactly why they are
+// listed by name instead of counted.
+#define RM_MAX 16
+static char s_rmf[RM_MAX][SD_NAME_LEN];
+static int  s_rmn;
+
+static void rm_screen(void);
+
+static void rm_back_cb(lv_event_t *e)
 {
-    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+    (void)e;
+    files_back_cb(NULL);
 }
 
-static void rm_go(void *ud)
+static void rm_repaint(void)
+{
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    rm_screen();
+}
+
+static void rm_one(void *ud)
+{
+    int i = (int)(intptr_t)ud;
+    if (i >= 0 && i < s_rmn)
+        platform_sd_delete(s_rmf[i]);
+    // Re-read the card rather than shuffling the array: the file either went or
+    // it did not, and the next screen should say which.
+    rm_repaint();
+}
+
+static void rm_all(void *ud)
 {
     (void)ud;
     platform_sd_signed_scan(NULL, NULL, 0, 1);
-    // Straight back to the list, which re-scans the card and redraws itself.
-    // The pill's absence is the receipt: gone means the sweep was clean, still
-    // there means it stopped early and these are what survived. That is why
-    // there is no "removed N" screen and no failure string to translate.
-    files_back_cb(NULL);
+    rm_repaint();
+}
+
+static void rm_screen(void)
+{
+    int total = 0;
+    s_rmn = platform_sd_list_signed(s_rmf, RM_MAX, &total);
+    if (s_rmn <= 0) {                      // nothing left: the job is done
+        files_back_cb(NULL);
+        return;
+    }
+
+    mk_screen(s_parent, tr(STR_S_RM_SIGNED), NULL);
+    // Both claims, above the list they describe. The second one is the reason
+    // this screen is safe and it is the sentence that has to be here.
+    lv_obj_t *h = mk_lbl(tr(STR_S_RM_C_B), 48, 74, wt_font14(), MUT_COL);
+    lv_obj_set_width(h, 704);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+
+    lv_obj_t *list = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, 24, 132);
+    lv_obj_set_size(list, 752, 258);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(list, 8, 0);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, s_rmn > 3 ? LV_SCROLLBAR_MODE_ON
+                                              : LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_width(list, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, MUT_COL, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
+
+    for (int i = 0; i < s_rmn; i++) {
+        lv_obj_t *row = sg_panel(0, 0, 752, WT_ROW_H, WT_EDGE);
+        lv_obj_set_parent(row, list);
+        lv_obj_set_width(row, lv_pct(100));
+        sg_lbl(row, LV_SYMBOL_FILE, SG_PAD, 20, wt_font23(), MUT_COL);
+        lv_obj_t *nm = lv_label_create(row);
+        lv_obj_set_pos(nm, 52, 22);
+        lv_obj_set_style_text_font(nm, wt_font_mono14(), 0);
+        lv_obj_set_style_text_color(nm, INK_COL, 0);
+        lv_obj_set_width(nm, 470);            // up to the pill's left edge
+        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+        lv_label_set_text(nm, s_rmf[i]);
+        // The mark alone, no label: this pill is one of up to sixteen and a
+        // translated phrase on each would not fit. wt_hold_pill sweeps WT_STOP
+        // across it while held, which is the affordance doing the explaining.
+        wt_hold_pill(row, LV_SYMBOL_TRASH, 543, 12, 170, 40, 1200,
+                     rm_one, (void *)(intptr_t)i);
+    }
+
+    if (total > s_rmn) {                    // more than the screen can hold
+        char more[96];
+        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn, total);
+        mk_lbl(more, 48, 108, wt_font14(), WARN_COL);
+    }
+
+    // REMOVE ALL is a hold too, and it is the one the sweep lives on. It sits
+    // left, away from BACK in the corner.
+    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), 48, WT_ACTION_Y, 300, WT_ACTION_H,
+                 1500, rm_all, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, rm_back_cb);
 }
 
 static void rm_open_cb(lv_event_t *e)
 {
     (void)e;
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, 800, 480);
-    lv_obj_set_pos(ovl, 0, 0);
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);      // swallow stray taps
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, tr(STR_S_RM_SIGNED));
-    lv_obj_set_style_text_color(t, STOP_COL, 0);
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(t, 3, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
-
-    // The figure the screen is about, framed. It is also why the body below
-    // carries no number: no locale has to solve "1 signed files".
-    char cnt[16];
-    snprintf(cnt, sizeof cnt, "%d", s_nsig);
-    lv_obj_t *card = wt_value_card(ovl, tr(STR_S_SIGNED_ALREADY), cnt,
-                                   280, 150, 240, false);
-    lv_obj_update_layout(card);
-    int by = 150 + lv_obj_get_height(card) + 16;
-
-    lv_obj_t *b = lv_label_create(ovl);
-    lv_label_set_text(b, tr(STR_S_RM_C_B));
-    lv_obj_set_style_text_color(b, MUT_COL, 0);
-    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_S_RM_C_B), 704, 372 - by - 8), 0);
-    lv_obj_set_width(b, 704);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, by);
-
-    // x=240, not the wipe overlay's 48. That is the wipe's own rule rather than
-    // a departure from it: the destructive control goes nowhere near the pill
-    // that opened it, and the pill that opened THIS one is at 48..388 in the
-    // action row directly below. 1500ms is the storage-move rung, not the
-    // wipe's 2000 -- what goes here regenerates from the PSBTs beside it.
-    wt_hold_pill(ovl, tr(STR_S_RM_HOLD), 240, 372, 320, 52, 1500, rm_go, ovl);
-    wt_pill(ovl, tr(STR_C_CANCEL), 585, 372, 165, rm_cancel_cb, ovl);
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    rm_screen();
 }
 
 static void sd_open(lv_obj_t *parent)
