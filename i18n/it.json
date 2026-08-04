@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "verificato · ID %s è sul tuo foglio",
   "I_WORDS_UNVERIFIED": "foglio mai controllato",
   "GD_SET_UP_SPARE": "IMPOSTA DI RISERVA",
-  "W_QUIZ_SHOW_AGAIN": "MOSTRA PAROLE"
+  "W_QUIZ_SHOW_AGAIN": "MOSTRA PAROLE",
+  "W_PROOF_T": "PROVALO",
+  "W_PROOF_S": "una foto diventa un file, uno SHA256 e 24 parole.\nverifica tutti e tre su qualsiasi computer.",
+  "W_PROOF_SHOT": "SCATTA",
+  "W_PROOF_FILE_NOTE": "salvata sulla scheda esattamente come scattata. lo SHA256 e le parole nascono solo da questi byte.",
+  "W_PROOF_SD_T": "INSERISCI UNA SCHEDA SD",
+  "W_PROOF_SD_B": "la foto di prova ha bisogno di una scheda, una qualsiasi. inseriscila e riprova.",
+  "W_PROOF_SAVING": "scrittura della foto sulla scheda",
+  "W_PROOF_FAIL_B": "la scheda ha rifiutato il file. nulla è stato salvato, nulla è stato creato. prova un'altra scheda.",
+  "W_PROOF_R_T": "LA TUA PROVA",
+  "W_PROOF_R_S": "gli stessi byte sono sulla carta, pronti al controllo.",
+  "W_PROOF_HASH_CAP": "SHA256 DELLA FOTO",
+  "W_PROOF_CHECK_H": "verifica",
+  "W_PROOF_CHECK_B": "SHA256 del file: questo hash. in uno strumento BIP39: queste 24 parole.",
+  "W_PROOF_BURN_H": "brucia",
+  "W_PROOF_BURN_B": "chi ha la carta può ricavare le parole. per controllo, mai per fondi.",
+  "W_PROOF_BURNED": "bruciate. in chiaro sulla carta. mai per fondi.",
+  "W_PROOF_WORDS_BTN": "MOSTRA PAROLE"
 }

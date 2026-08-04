@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "gecontroleerd · ID %s staat op je kaart",
   "I_WORDS_UNVERIFIED": "papier nooit gecontroleerd",
   "GD_SET_UP_SPARE": "RESERVE INSTELLEN",
-  "W_QUIZ_SHOW_AGAIN": "WOORDEN OPNIEUW TONEN"
+  "W_QUIZ_SHOW_AGAIN": "WOORDEN OPNIEUW TONEN",
+  "W_PROOF_T": "BEWIJS HET",
+  "W_PROOF_S": "één foto wordt een bestand, een hash en 24 woorden.\ncheck alle drie op elke computer.",
+  "W_PROOF_SHOT": "VASTLEGGEN",
+  "W_PROOF_FILE_NOTE": "op de kaart opgeslagen, exact zoals vastgelegd. de hash en de woorden komen alleen uit deze bytes.",
+  "W_PROOF_SD_T": "PLAATS EEN SD-KAART",
+  "W_PROOF_SD_B": "de bewijsfoto moet op een kaart landen. plaats er een en probeer het opnieuw.",
+  "W_PROOF_SAVING": "foto wordt naar de kaart geschreven",
+  "W_PROOF_FAIL_B": "de kaart weigerde het bestand. er is niets bewaard en niets gemaakt. probeer een andere kaart.",
+  "W_PROOF_R_T": "JOUW BEWIJS",
+  "W_PROOF_R_S": "dezelfde bytes staan op de kaart, klaar om te checken.",
+  "W_PROOF_HASH_CAP": "SHA256 VAN DE FOTO",
+  "W_PROOF_CHECK_H": "check het",
+  "W_PROOF_CHECK_B": "SHA256 van het bestand: deze hash. in een BIP39-tool: deze 24 woorden.",
+  "W_PROOF_BURN_H": "verbrand het",
+  "W_PROOF_BURN_B": "met de kaart zijn deze woorden af te leiden. om te checken, nooit geld.",
+  "W_PROOF_BURNED": "verbrand. ze liggen bloot op de kaart. nooit voor geld.",
+  "W_PROOF_WORDS_BTN": "TOON WOORDEN"
 }

@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "verificado · ID %s está no seu papel",
   "I_WORDS_UNVERIFIED": "papel nunca verificado",
   "GD_SET_UP_SPARE": "CONFIGURAR RESERVA",
-  "W_QUIZ_SHOW_AGAIN": "MOSTRAR PALAVRAS"
+  "W_QUIZ_SHOW_AGAIN": "MOSTRAR PALAVRAS",
+  "W_PROOF_T": "TIRE A PROVA",
+  "W_PROOF_S": "uma foto vira um arquivo, um SHA256 e 24 palavras.\nconfira os três em qualquer computador.",
+  "W_PROOF_SHOT": "CAPTURAR",
+  "W_PROOF_FILE_NOTE": "salva no cartão exatamente como capturada. o SHA256 e as palavras vêm só destes bytes.",
+  "W_PROOF_SD_T": "INSIRA UM CARTÃO SD",
+  "W_PROOF_SD_B": "a foto de prova precisa de um cartão. qualquer um serve. insira e tente de novo.",
+  "W_PROOF_SAVING": "gravando a foto no cartão",
+  "W_PROOF_FAIL_B": "o cartão recusou o arquivo. nada foi salvo e nada foi criado. tente outro cartão.",
+  "W_PROOF_R_T": "SUA PROVA",
+  "W_PROOF_R_S": "os mesmos bytes já estão no cartão, para conferir.",
+  "W_PROOF_HASH_CAP": "SHA256 DA FOTO",
+  "W_PROOF_CHECK_H": "confira",
+  "W_PROOF_CHECK_B": "SHA256 do arquivo: este hash. em um app BIP39: estas 24 palavras.",
+  "W_PROOF_BURN_H": "queime",
+  "W_PROOF_BURN_B": "quem tem o cartão deriva as palavras. para conferir, nunca fundos.",
+  "W_PROOF_BURNED": "queimadas. abertas no cartão. nunca para fundos.",
+  "W_PROOF_WORDS_BTN": "VER PALAVRAS"
 }

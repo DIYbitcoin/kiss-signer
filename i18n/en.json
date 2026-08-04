@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "checked · ID %s is on your card",
   "I_WORDS_UNVERIFIED": "paper never checked",
   "GD_SET_UP_SPARE": "SET UP A SPARE",
-  "W_QUIZ_SHOW_AGAIN": "SHOW WORDS AGAIN"
+  "W_QUIZ_SHOW_AGAIN": "SHOW WORDS AGAIN",
+  "W_PROOF_T": "CAMERA AUDIT",
+  "W_PROOF_S": "one frame becomes a file, a SHA256 hash and a 24 word seed.\nverify all three on any computer.",
+  "W_PROOF_SHOT": "CAPTURE",
+  "W_PROOF_FILE_NOTE": "saved to the card exactly as captured. the hash and the words come only from these bytes.",
+  "W_PROOF_SD_T": "INSERT ANY SD CARD",
+  "W_PROOF_SD_B": "the audit frame needs a card to land on. insert one, then try again.",
+  "W_PROOF_SAVING": "writing the frame to the card",
+  "W_PROOF_FAIL_B": "the card refused the file. nothing was kept and nothing was made. try another card.",
+  "W_PROOF_R_T": "AUDIT RESULT",
+  "W_PROOF_R_S": "the same bytes now sit on the card, ready to verify.",
+  "W_PROOF_HASH_CAP": "SHA256 OF THE FRAME",
+  "W_PROOF_CHECK_H": "verify it",
+  "W_PROOF_CHECK_B": "SHA256 the file: this hash. feed it to any BIP39 tool: these 24 words.",
+  "W_PROOF_BURN_H": "burn it",
+  "W_PROOF_BURN_B": "anyone with the card can derive these words. for checking, never for funds.",
+  "W_PROOF_BURNED": "burned. they sit on the card unencrypted. never for funds.",
+  "W_PROOF_WORDS_BTN": "SHOW WORDS"
 }
