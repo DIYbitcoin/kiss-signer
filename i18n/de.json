@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "SCHON SIGNIERT",
   "S_RM_SIGNED": "SIGNIERTE LOESCHEN",
   "S_RM_C_B": "diese verschwinden von der Karte.\n\nnichts Unsigniertes wird angeruehrt.",
-  "S_RM_HOLD": "HALTEN ZUM LOESCHEN"
+  "S_RM_ALL": "ALLE LOESCHEN"
 }

@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "DEJA SIGNE",
   "S_RM_SIGNED": "SUPPRIMER LES SIGNES",
   "S_RM_C_B": "ceux ci disparaissent de la carte.\n\nrien de non signe n est touche.",
-  "S_RM_HOLD": "MAINTENIR POUR SUPPRIMER"
+  "S_RM_ALL": "TOUT SUPPRIMER"
 }

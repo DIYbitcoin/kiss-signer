@@ -541,5 +541,5 @@
   "S_SIGNED_ALREADY": "SIGNED ALREADY",
   "S_RM_SIGNED": "REMOVE SIGNED",
   "S_RM_C_B": "these go from the card.\n\nnothing unsigned is touched.",
-  "S_RM_HOLD": "HOLD TO REMOVE"
+  "S_RM_ALL": "REMOVE ALL"
 }

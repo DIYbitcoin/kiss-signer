@@ -544,7 +544,7 @@ enum {
     STR_S_SIGNED_ALREADY,
     STR_S_RM_SIGNED,
     STR_S_RM_C_B,
-    STR_S_RM_HOLD,
+    STR_S_RM_ALL,
     STR_N
 };
 

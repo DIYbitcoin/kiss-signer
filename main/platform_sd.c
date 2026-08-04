@@ -165,6 +165,35 @@ static int signed_pass(char names[][SD_NAME_LEN], uint8_t *mark, int n,
     return found;
 }
 
+int platform_sd_list_signed(char names[][SD_NAME_LEN], int max, int *total)
+{
+    DIR *d = opendir(SD_BASE);
+    if (!d)
+        return -1;
+    int n = 0, all = 0;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        const char *nm = e->d_name;
+        if (nm[0] == '.' || strlen(nm) >= SD_NAME_LEN || !name_is_signed(nm))
+            continue;
+        all++;
+        int at = 0;
+        while (at < n && strcasecmp(names[at], nm) <= 0)
+            at++;
+        if (at >= max)
+            continue;
+        for (int i = (n < max ? n : max - 1); i > at; i--)
+            memcpy(names[i], names[i - 1], SD_NAME_LEN);
+        snprintf(names[at], SD_NAME_LEN, "%s", nm);
+        if (n < max)
+            n++;
+    }
+    closedir(d);
+    if (total)
+        *total = all;
+    return n;
+}
+
 int platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
                             int n, int del)
 {
