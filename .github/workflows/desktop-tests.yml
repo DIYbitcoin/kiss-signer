@@ -95,6 +95,15 @@ jobs:
       - name: installer artifacts match VERSION
         run: python3 tools/check_installer_version.py
 
+      # The offline installer zip is built at release time and never in CI, and
+      # the page inside it is never loaded here, so a new <img> on docs/index.html
+      # would ship a bundle with a hole in it and every other check would stay
+      # green. This compares what the pages actually load against what the zip
+      # packs. Deliberately does not look at VERSION: that is the check above,
+      # and it tolerates the window where a release is staged.
+      - name: offline installer packs everything the page loads
+        run: python3 tools/make_offline_zip.py --check
+
       # The camera overlay glyph-coverage check used to live here. It read the
       # desktop TTFs the strips were baked from and named any character they
       # lacked, which is how every Russian overlay, plus Vietnamese, Croatian

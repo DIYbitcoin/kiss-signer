@@ -14,6 +14,11 @@ Download these assets from this release into one folder:
 - `kiss_signer_pgp.asc`: KISS release public key
 - `release.json`: release metadata for tools
 
+Flashing on a machine with no network? Take these two instead:
+
+- `kiss-signer-0.1.0-beta7-offline.zip`: the install page, the firmware and the signed hashes in one file
+- `kiss-signer-0.1.0-beta7-offline.zip.asc`: GPG signature for the zip
+
 ## Verify
 
 ```sh
@@ -23,6 +28,9 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 
 shasum -a 256 --ignore-missing -c SHA256SUMS
 # Linux: sha256sum --ignore-missing -c SHA256SUMS
+
+# the offline installer carries its own signature
+gpg --verify kiss-signer-0.1.0-beta7-offline.zip.asc kiss-signer-0.1.0-beta7-offline.zip
 ```
 
 Main firmware SHA256:
@@ -37,7 +45,9 @@ Release commit:
 
 For beta releases, flash this exact verified `.bin` using the README install steps.
 
-The browser installer needs GitHub Pages, and it stays off whenever a release is staged. It requires Chrome, Brave, or Edge on desktop. Safari and Firefox cannot flash ESP32 devices over Web Serial.
+To flash from a browser instead, unzip `kiss-signer-0.1.0-beta7-offline.zip`, run the serve file inside it (`serve.command` on macOS, `serve.bat` on Windows, `./serve.sh` on Linux) and open the address it prints. It serves to that one computer only and reaches nothing else, so the machine you flash from can be offline the whole time. `00-START-HERE.txt` inside the zip walks through it.
+
+Both browser routes, the hosted page and this zip, need Chrome, Brave or Edge on desktop. Safari and Firefox cannot flash ESP32 devices over Web Serial. The hosted page also stays off whenever a release is staged; the zip does not, because it is the release.
 
 After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 

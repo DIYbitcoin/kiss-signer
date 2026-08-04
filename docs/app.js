@@ -73,6 +73,39 @@ function shortHex(s) {
   return s.length > 20 ? s.slice(0, 8) + "…" + s.slice(-8) : s;
 }
 
+// A file that is missing and a file that has been changed are two different
+// accusations, and only one of them is about trust. This page also ships inside
+// the offline installer zip, where the likeliest faults by a wide margin are a
+// half unzipped folder or a server started one directory too high. Telling that
+// person their download looks tampered with is both wrong and frightening, so
+// anything that failed to arrive is tagged, and only real size or hash
+// disagreements keep the tampering wording.
+function readError(message) {
+  const error = new Error(message);
+  error.kind = "read";
+  return error;
+}
+
+async function readFile(url, label) {
+  let response;
+  try {
+    response = await fetch(url, { cache: "no-store" });
+  } catch (cause) {
+    throw readError(`${label} could not be fetched`);
+  }
+  if (!response.ok) throw readError(`${label} HTTP ${response.status}`);
+  return response;
+}
+
+async function readJson(url, label) {
+  const response = await readFile(url, label);
+  try {
+    return await response.json();
+  } catch (cause) {
+    throw readError(`${label} is not readable JSON`);
+  }
+}
+
 function renderRelease(release) {
   releaseTitle.textContent = release.version + " (" + release.commit + ")";
   renderAuthenticity(release);
@@ -80,15 +113,10 @@ function renderRelease(release) {
 
 async function verifyFirmware() {
   try {
-    const [releaseResponse, manifestResponse] = await Promise.all([
-      fetch(releaseUrl, { cache: "no-store" }),
-      fetch(manifestUrl, { cache: "no-store" })
+    const [release, manifest] = await Promise.all([
+      readJson(releaseUrl, "release.json"),
+      readJson(manifestUrl, "manifest.json")
     ]);
-    if (!releaseResponse.ok) throw new Error(`release.json HTTP ${releaseResponse.status}`);
-    if (!manifestResponse.ok) throw new Error(`manifest.json HTTP ${manifestResponse.status}`);
-
-    const release = await releaseResponse.json();
-    const manifest = await manifestResponse.json();
     renderRelease(release);
 
     const part = manifest.builds?.[0]?.parts?.[0];
@@ -98,8 +126,7 @@ async function verifyFirmware() {
 
     setVerifyState("pending", "Hashing firmware");
     setReceipt(hashCheck, "checking", "warn");
-    const firmwareResponse = await fetch(`${base}${release.browserFirmware.path}`, { cache: "no-store" });
-    if (!firmwareResponse.ok) throw new Error(`firmware HTTP ${firmwareResponse.status}`);
+    const firmwareResponse = await readFile(`${base}${release.browserFirmware.path}`, "the firmware");
     const firmware = await firmwareResponse.arrayBuffer();
     if (firmware.byteLength !== release.browserFirmware.size) {
       throw new Error(`size mismatch: got ${firmware.byteLength}`);
@@ -119,8 +146,18 @@ async function verifyFirmware() {
     hashCheck.onclick = () => navigator.clipboard?.writeText(digest);
   } catch (error) {
     verified = false;
-    setVerifyState("stop", "This file does not match the release, do not flash it");
-    setReceipt(hashCheck, "failed", "stop");
+    if (error && error.kind === "read") {
+      setVerifyState("stop", "Could not read the install files in this folder");
+      setReceipt(hashCheck, "not read", "warn");
+    } else {
+      setVerifyState("stop", "This file does not match the release, do not flash it");
+      setReceipt(hashCheck, "failed", "stop");
+    }
+    // release.json is what fills these in, so a failure before it lands leaves
+    // both rows saying "checking" forever, which reads as a check still running
+    [signatureCheck, keyCheck].forEach((el) => {
+      if (el && el.textContent === "checking") setReceipt(el, "not read", "warn");
+    });
   }
   updateFlashGate();
 }
