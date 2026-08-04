@@ -190,6 +190,18 @@ static const slot_t SLOTS[] = {
     { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
     { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
+    // cards mode (MY OWN WORDS): subtitles, the method-row note, both why
+    // pairs and the checksum page's one number line. The candidate pills are
+    // dynamic English BIP39 words and are deliberately not rows here.
+    { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
+    { "sub/cksum",        STR_W_CKSUM_S,      704, 30, 0 },
+    { "sub/cards-pick",   STR_W_CARDS_PICK_S, 704, 30, 0 },
+    { "setup/cards-note", STR_W_CARDS_NOTE,   420, 87 },
+    { "setup/cards-w1",   STR_W_CARDS_W1_B,   330, 112 },
+    { "setup/cards-w2",   STR_W_CARDS_W2_B,   330, 112 },
+    { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
+    { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
+    { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
@@ -330,6 +342,10 @@ static const pill_t PILLS[] = {
     // The dice verdict row: all three are key_action, because a holder who
     // cannot read them cannot tell which press keeps the flagged rolls.
     { "setup/dice-more",  STR_W_DICE_MORE,    216, 66, 0, 1 },
+    // cards mode: the two primary pills that advance the flow. TYPE MY WORDS
+    // also serves the backup-check intro at the same 300 width.
+    { "setup/cards-type", STR_W_TYPE_MY_WORDS, 300, 66, 1, 1 },
+    { "setup/cksum-go",   STR_W_CKSUM_GO,      300, 66, 1, 1 },
     { "setup/dice-over",  STR_W_START_OVER,   216, 66, 0, 1 },
     { "setup/dice-use",   STR_L_USE_ANYWAY,   216, 66, 1, 1 },
     { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
