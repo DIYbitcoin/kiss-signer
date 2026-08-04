@@ -124,6 +124,76 @@ static int name_cmp(const void *a, const void *b)
     return strcasecmp(na, nb);          // stable, obvious A-Z order within each group
 }
 
+// Does `cand` name the "-signed.psbt" sibling of `src`? Compared against the
+// source's own length so "payment-011.psbt" is not claimed by
+// "payment-01-signed.psbt", and case insensitively because FAT preserves case
+// but does not respect it.
+static int is_sibling_of(const char *signed_name, size_t base, const char *src)
+{
+    return strlen(src) == base + 5 &&
+           strncasecmp(src, signed_name, base) == 0 &&
+           strcasecmp(src + base, ".psbt") == 0;
+}
+
+// One pass over the directory. See platform_sd.h for why it must be the
+// directory and not the caller's array.
+static int signed_pass(char names[][SD_NAME_LEN], uint8_t *mark, int n,
+                       char *victim, size_t victim_len)
+{
+    DIR *d = opendir(SD_BASE);
+    if (!d)
+        return -1;
+    int found = 0;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        const char *nm = e->d_name;
+        if (nm[0] == '.' || strlen(nm) >= SD_NAME_LEN || !name_is_signed(nm))
+            continue;
+        size_t base = strlen(nm) - 12;      // strlen("-signed.psbt")
+        found++;
+        if (victim) {                       // caller wants one to delete
+            snprintf(victim, victim_len, "%s", nm);
+            break;                          // close the dir BEFORE unlinking
+        }
+        if (!mark || base == 0)             // a bare "-signed.psbt" owns nothing
+            continue;
+        for (int i = 0; i < n; i++)
+            if (is_sibling_of(nm, base, names[i]))
+                mark[i] = 1;
+    }
+    closedir(d);
+    return found;
+}
+
+int platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
+                            int n, int del)
+{
+    if (mark)
+        memset(mark, 0, (size_t)(n > 0 ? n : 0));
+    if (!del)
+        return signed_pass(names, mark, n, NULL, 0);
+
+    // Deleting: take ONE victim per pass and close the directory before
+    // unlinking it. FATFS makes no promise about f_readdir after f_unlink in the
+    // same directory, and a delete-in-place loop can silently skip files --
+    // which would leave the REMOVE pill up after a hold that looked like it
+    // worked. Cards hold tens of files and this runs once per hold, so the
+    // extra opendir per file costs nothing anyone can feel.
+    int removed = 0;
+    for (;;) {
+        char victim[SD_NAME_LEN];
+        victim[0] = 0;
+        int rc = signed_pass(NULL, NULL, 0, victim, sizeof victim);
+        if (rc < 0)
+            return removed ? removed : -1;
+        if (!victim[0])
+            return removed;                 // nothing left to take
+        if (platform_sd_delete(victim) != 0)
+            return removed;                 // stop on the first refusal; the
+        removed++;                          // pill stays up with what survived
+    }
+}
+
 int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total)
 {
     DIR *d = opendir(SD_BASE);

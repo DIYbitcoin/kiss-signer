@@ -26,6 +26,25 @@ int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total);
 int  platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len);
 int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);
 
+// The device's own signed outputs (*-signed.psbt), in one directory pass.
+//
+// names/mark/n: mark[i] becomes 1 when names[i]'s "-signed.psbt" sibling is on
+// the card. It reads the DIRECTORY rather than names[], and that is the whole
+// point of the function. platform_sd_list_psbt keeps only the first `max` names
+// in sort order and unsigned names sort first, so a card holding more unsigned
+// files than the window has signed siblings the array never saw. Cross checking
+// the array would answer "not signed" for files that are -- which is exactly the
+// bug this exists to fix, reintroduced one layer down.
+//
+// del removes every signed output, via platform_sd_delete so interrupted-write
+// sidecars go with it. Nothing that is not named *-signed.psbt is ever touched:
+// an unsigned PSBT has no way to match the predicate.
+//
+// Returns how many signed outputs were found (removed, when del), <0 if the card
+// could not be read. Requires an already mounted card.
+int  platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
+                             int n, int del);
+
 // Secret-bearing callers use the atomic form. It writes and verifies a sibling
 // temporary file before switching names, keeping the previous file recoverable
 // until the replacement is durable. delete also removes interrupted-write

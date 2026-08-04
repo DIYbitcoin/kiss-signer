@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "spali ga",
   "W_PROOF_BURN_B": "tko ima karticu, može izračunati riječi. za provjeru, nikad za novac.",
   "W_PROOF_BURNED": "spaljene. na kartici stoje nešifrirane. nikad za novac.",
-  "W_PROOF_WORDS_BTN": "PRIKAŽI RIJEČI"
+  "W_PROOF_WORDS_BTN": "PRIKAŽI RIJEČI",
+  "S_SIGNED_ALREADY": "VEC POTPISANO",
+  "S_RM_SIGNED": "OBRISI POTPISANE",
+  "S_RM_C_B": "ovi nestaju s kartice.\n\nnista nepotpisano se ne dira.",
+  "S_RM_HOLD": "DRZI ZA BRISANJE"
 }

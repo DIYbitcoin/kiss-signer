@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "burn it",
   "W_PROOF_BURN_B": "anyone with the card can derive these words. for checking, never for funds.",
   "W_PROOF_BURNED": "burned. they sit on the card unencrypted. never for funds.",
-  "W_PROOF_WORDS_BTN": "SHOW WORDS"
+  "W_PROOF_WORDS_BTN": "SHOW WORDS",
+  "S_SIGNED_ALREADY": "SIGNED ALREADY",
+  "S_RM_SIGNED": "REMOVE SIGNED",
+  "S_RM_C_B": "these go from the card.\n\nnothing unsigned is touched.",
+  "S_RM_HOLD": "HOLD TO REMOVE"
 }

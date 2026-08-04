@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "소각하기",
   "W_PROOF_BURN_B": "카드를 가진 누구나 이 단어를 계산합니다. 점검용일 뿐, 절대 자산에 쓰지 마세요.",
   "W_PROOF_BURNED": "소각됨. 카드에 암호화 없이 그대로. 자산엔 절대 금지.",
-  "W_PROOF_WORDS_BTN": "단어 보기"
+  "W_PROOF_WORDS_BTN": "단어 보기",
+  "S_SIGNED_ALREADY": "서명 완료",
+  "S_RM_SIGNED": "서명 파일 지우기",
+  "S_RM_C_B": "이 파일들이 카드에서 사라집니다.\n\n미서명 파일은 그대로 남습니다.",
+  "S_RM_HOLD": "길게 눌러 지우기"
 }

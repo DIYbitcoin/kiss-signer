@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "verbrenn es",
   "W_PROOF_BURN_B": "wer die Karte hat, kann diese Wörter ableiten. zum Prüfen, nie für Geld.",
   "W_PROOF_BURNED": "verbrannt. sie liegen offen auf der Karte. nie für Geld.",
-  "W_PROOF_WORDS_BTN": "WÖRTER ZEIGEN"
+  "W_PROOF_WORDS_BTN": "WÖRTER ZEIGEN",
+  "S_SIGNED_ALREADY": "SCHON SIGNIERT",
+  "S_RM_SIGNED": "SIGNIERTE LOESCHEN",
+  "S_RM_C_B": "diese verschwinden von der Karte.\n\nnichts Unsigniertes wird angeruehrt.",
+  "S_RM_HOLD": "HALTEN ZUM LOESCHEN"
 }

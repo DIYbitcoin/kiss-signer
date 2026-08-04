@@ -541,6 +541,10 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_PROOF_BURN_B] = "anyone with the card can derive these words. for checking, never for funds.",
     [STR_W_PROOF_BURNED] = "burned. they sit on the card unencrypted. never for funds.",
     [STR_W_PROOF_WORDS_BTN] = "SHOW WORDS",
+    [STR_S_SIGNED_ALREADY] = "SIGNED ALREADY",
+    [STR_S_RM_SIGNED] = "REMOVE SIGNED",
+    [STR_S_RM_C_B] = "these go from the card.\n\nnothing unsigned is touched.",
+    [STR_S_RM_HOLD] = "HOLD TO REMOVE",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -1083,6 +1087,10 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_PROOF_BURN_B] = "wer die Karte hat, kann diese Wörter ableiten. zum Prüfen, nie für Geld.",
     [STR_W_PROOF_BURNED] = "verbrannt. sie liegen offen auf der Karte. nie für Geld.",
     [STR_W_PROOF_WORDS_BTN] = "WÖRTER ZEIGEN",
+    [STR_S_SIGNED_ALREADY] = "SCHON SIGNIERT",
+    [STR_S_RM_SIGNED] = "SIGNIERTE LOESCHEN",
+    [STR_S_RM_C_B] = "diese verschwinden von der Karte.\n\nnichts Unsigniertes wird angeruehrt.",
+    [STR_S_RM_HOLD] = "HALTEN ZUM LOESCHEN",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1625,6 +1633,10 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_PROOF_BURN_B] = "quien tenga la tarjeta saca las palabras. para revisar, nunca fondos.",
     [STR_W_PROOF_BURNED] = "quemadas. sin cifrar en la tarjeta. nunca para fondos.",
     [STR_W_PROOF_WORDS_BTN] = "VER PALABRAS",
+    [STR_S_SIGNED_ALREADY] = "YA FIRMADO",
+    [STR_S_RM_SIGNED] = "BORRAR FIRMADOS",
+    [STR_S_RM_C_B] = "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
+    [STR_S_RM_HOLD] = "MANTEN PARA BORRAR",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -2167,6 +2179,10 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_PROOF_BURN_B] = "qui a la carte peut calculer ces mots. pour vérifier, jamais les fonds.",
     [STR_W_PROOF_BURNED] = "brûlés. en clair sur la carte. jamais pour des fonds.",
     [STR_W_PROOF_WORDS_BTN] = "VOIR LES MOTS",
+    [STR_S_SIGNED_ALREADY] = "DEJA SIGNE",
+    [STR_S_RM_SIGNED] = "SUPPRIMER LES SIGNES",
+    [STR_S_RM_C_B] = "ceux ci disparaissent de la carte.\n\nrien de non signe n est touche.",
+    [STR_S_RM_HOLD] = "MAINTENIR POUR SUPPRIMER",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2709,6 +2725,10 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_PROOF_BURN_B] = "chi ha la carta può ricavare le parole. per controllo, mai per fondi.",
     [STR_W_PROOF_BURNED] = "bruciate. restano in chiaro sulla scheda. mai per fondi.",
     [STR_W_PROOF_WORDS_BTN] = "MOSTRA PAROLE",
+    [STR_S_SIGNED_ALREADY] = "GIA FIRMATO",
+    [STR_S_RM_SIGNED] = "ELIMINA I FIRMATI",
+    [STR_S_RM_C_B] = "questi spariscono dalla scheda.\n\nnulla di non firmato viene toccato.",
+    [STR_S_RM_HOLD] = "TIENI PREMUTO PER ELIMINARE",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -3251,6 +3271,10 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_PROOF_BURN_B] = "カードがあれば誰でもこの単語を計算できます。確認用。資産には決して使いません。",
     [STR_W_PROOF_BURNED] = "破棄済み。カードには暗号化なし。資産への使用は厳禁。",
     [STR_W_PROOF_WORDS_BTN] = "単語を表示",
+    [STR_S_SIGNED_ALREADY] = "署名済み",
+    [STR_S_RM_SIGNED] = "署名済みを消去",
+    [STR_S_RM_C_B] = "これらはカードから消えます。\n\n未署名のファイルはそのままです。",
+    [STR_S_RM_HOLD] = "長押しで消去",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -3793,6 +3817,10 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_PROOF_BURN_B] = "카드를 가진 누구나 이 단어를 계산합니다. 점검용일 뿐, 절대 자산에 쓰지 마세요.",
     [STR_W_PROOF_BURNED] = "소각됨. 카드에 암호화 없이 그대로. 자산엔 절대 금지.",
     [STR_W_PROOF_WORDS_BTN] = "단어 보기",
+    [STR_S_SIGNED_ALREADY] = "서명 완료",
+    [STR_S_RM_SIGNED] = "서명 파일 지우기",
+    [STR_S_RM_C_B] = "이 파일들이 카드에서 사라집니다.\n\n미서명 파일은 그대로 남습니다.",
+    [STR_S_RM_HOLD] = "길게 눌러 지우기",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -4335,6 +4363,10 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_PROOF_BURN_B] = "met de kaart zijn deze woorden af te leiden. om te checken, nooit geld.",
     [STR_W_PROOF_BURNED] = "verbrand. ze liggen bloot op de kaart. nooit voor geld.",
     [STR_W_PROOF_WORDS_BTN] = "TOON WOORDEN",
+    [STR_S_SIGNED_ALREADY] = "AL ONDERTEKEND",
+    [STR_S_RM_SIGNED] = "ONDERTEKENDE WISSEN",
+    [STR_S_RM_C_B] = "deze verdwijnen van de kaart.\n\nniets zonder handtekening wordt geraakt.",
+    [STR_S_RM_HOLD] = "HOUD VAST OM TE WISSEN",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -4877,6 +4909,10 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_PROOF_BURN_B] = "kto ma kartę, wyliczy te słowa. do kontroli, nigdy do środków.",
     [STR_W_PROOF_BURNED] = "spalone. leżą na karcie niezaszyfrowane. nigdy do środków.",
     [STR_W_PROOF_WORDS_BTN] = "POKAŻ SŁOWA",
+    [STR_S_SIGNED_ALREADY] = "JUZ PODPISANE",
+    [STR_S_RM_SIGNED] = "USUN PODPISANE",
+    [STR_S_RM_C_B] = "te znikna z karty.\n\nnic niepodpisanego nie zostanie ruszone.",
+    [STR_S_RM_HOLD] = "PRZYTRZYMAJ ABY USUNAC",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -5419,6 +5455,10 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_PROOF_BURN_B] = "quem tem o cartão deriva as palavras. para conferir, nunca fundos.",
     [STR_W_PROOF_BURNED] = "queimadas. sem criptografia no cartão. nunca para fundos.",
     [STR_W_PROOF_WORDS_BTN] = "VER PALAVRAS",
+    [STR_S_SIGNED_ALREADY] = "JA ASSINADO",
+    [STR_S_RM_SIGNED] = "APAGAR ASSINADOS",
+    [STR_S_RM_C_B] = "estes somem do cartao.\n\nnada sem assinatura e tocado.",
+    [STR_S_RM_HOLD] = "SEGURE PARA APAGAR",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -5961,6 +6001,10 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_PROOF_BURN_B] = "у кого карта, тот выведет эти слова. для проверки, не для денег.",
     [STR_W_PROOF_BURNED] = "сожжены. на карте без шифрования. не для денег.",
     [STR_W_PROOF_WORDS_BTN] = "ПОКАЗАТЬ СЛОВА",
+    [STR_S_SIGNED_ALREADY] = "УЖЕ ПОДПИСАНО",
+    [STR_S_RM_SIGNED] = "УДАЛИТЬ ПОДПИСАННЫЕ",
+    [STR_S_RM_C_B] = "они исчезнут с карты.\n\nничего без подписи не тронуто.",
+    [STR_S_RM_HOLD] = "УДЕРЖИВАЙТЕ ДЛЯ УДАЛЕНИЯ",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -6503,6 +6547,10 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_PROOF_BURN_B] = "kartı olan herkes kelimeleri türetir. kontrol için, asla para için.",
     [STR_W_PROOF_BURNED] = "yakıldı. kartta şifresiz duruyor. asla para için kullanma.",
     [STR_W_PROOF_WORDS_BTN] = "KELİMELERİ GÖSTER",
+    [STR_S_SIGNED_ALREADY] = "ZATEN IMZALI",
+    [STR_S_RM_SIGNED] = "IMZALILARI SIL",
+    [STR_S_RM_C_B] = "bunlar karttan silinir.\n\nimzasiz hicbir sey silinmez.",
+    [STR_S_RM_HOLD] = "SILMEK ICIN BASILI TUT",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -7045,6 +7093,10 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_PROOF_BURN_B] = "ai cầm thẻ đều tính ra các từ này. chỉ để kiểm tra, đừng dùng cho tiền.",
     [STR_W_PROOF_BURNED] = "đã đốt bỏ. lộ rõ trên thẻ. đừng dùng cho tiền.",
     [STR_W_PROOF_WORDS_BTN] = "HIỆN CÁC TỪ",
+    [STR_S_SIGNED_ALREADY] = "DA KY",
+    [STR_S_RM_SIGNED] = "XOA CAC BAN DA KY",
+    [STR_S_RM_C_B] = "nhung tep nay se mat khoi the.\n\nkhong dong toi tep chua ky.",
+    [STR_S_RM_HOLD] = "GIU DE XOA",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -7587,6 +7639,10 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_PROOF_BURN_B] = "拿到卡的人都能算出这些词。只用于检验，绝不用于资金。",
     [STR_W_PROOF_BURNED] = "已弃用。这些词明文存在卡上，绝不用于资金。",
     [STR_W_PROOF_WORDS_BTN] = "显示这些词",
+    [STR_S_SIGNED_ALREADY] = "已签名",
+    [STR_S_RM_SIGNED] = "删除已签名",
+    [STR_S_RM_C_B] = "这些将从卡上消失。\n\n未签名的文件都保留。",
+    [STR_S_RM_HOLD] = "长按删除",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -8129,6 +8185,10 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_PROOF_BURN_B] = "quien tenga la tarjeta saca las palabras. para comprobar, nunca fondos.",
     [STR_W_PROOF_BURNED] = "quemadas. sin cifrar en la tarjeta. nunca para fondos.",
     [STR_W_PROOF_WORDS_BTN] = "VER PALABRAS",
+    [STR_S_SIGNED_ALREADY] = "YA FIRMADO",
+    [STR_S_RM_SIGNED] = "BORRAR FIRMADOS",
+    [STR_S_RM_C_B] = "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
+    [STR_S_RM_HOLD] = "MANTEN PARA BORRAR",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -8671,6 +8731,10 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_PROOF_BURN_B] = "quem tem o cartão deriva as palavras. para conferir, nunca fundos.",
     [STR_W_PROOF_BURNED] = "queimadas. sem encriptação no cartão. nunca para fundos.",
     [STR_W_PROOF_WORDS_BTN] = "VER PALAVRAS",
+    [STR_S_SIGNED_ALREADY] = "JA ASSINADO",
+    [STR_S_RM_SIGNED] = "APAGAR ASSINADOS",
+    [STR_S_RM_C_B] = "estes desaparecem do cartao.\n\nnada por assinar e tocado.",
+    [STR_S_RM_HOLD] = "MANTER PARA APAGAR",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -9213,6 +9277,10 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_PROOF_BURN_B] = "alle med kortet kan regne ut disse ordene. til sjekk, aldri til penger.",
     [STR_W_PROOF_BURNED] = "brent. ordene ligger åpent på kortet. aldri til penger.",
     [STR_W_PROOF_WORDS_BTN] = "VIS ORDENE",
+    [STR_S_SIGNED_ALREADY] = "ALLEREDE SIGNERT",
+    [STR_S_RM_SIGNED] = "SLETT SIGNERTE",
+    [STR_S_RM_C_B] = "disse forsvinner fra kortet.\n\nikke noe usignert roeres.",
+    [STR_S_RM_HOLD] = "HOLD FOR A SLETTE",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -9755,6 +9823,10 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_PROOF_BURN_B] = "alla med kortet kan räkna fram dessa ord. för koll, aldrig för pengar.",
     [STR_W_PROOF_BURNED] = "bränt. orden ligger öppet på kortet. aldrig för pengar.",
     [STR_W_PROOF_WORDS_BTN] = "VISA ORDEN",
+    [STR_S_SIGNED_ALREADY] = "REDAN SIGNERAD",
+    [STR_S_RM_SIGNED] = "RADERA SIGNERADE",
+    [STR_S_RM_C_B] = "dessa forsvinner fran kortet.\n\ninget osignerat rors.",
+    [STR_S_RM_HOLD] = "HALL FOR ATT RADERA",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -10297,6 +10369,10 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_PROOF_BURN_B] = "enhver med kortet kan beregne disse ord. til tjek, aldrig til penge.",
     [STR_W_PROOF_BURNED] = "brændt. ordene ligger åbent på kortet. aldrig til penge.",
     [STR_W_PROOF_WORDS_BTN] = "VIS ORDENE",
+    [STR_S_SIGNED_ALREADY] = "ALLEREDE SIGNERET",
+    [STR_S_RM_SIGNED] = "SLET SIGNEREDE",
+    [STR_S_RM_C_B] = "disse forsvinder fra kortet.\n\nintet usigneret roeres.",
+    [STR_S_RM_HOLD] = "HOLD FOR AT SLETTE",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -10839,6 +10915,10 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_PROOF_BURN_B] = "kdo má kartu, slova dopočítá. jen na kontrolu, nikdy na peníze.",
     [STR_W_PROOF_BURNED] = "spálená. leží na kartě nešifrovaná. nikdy na peníze.",
     [STR_W_PROOF_WORDS_BTN] = "ZOBRAZIT SLOVA",
+    [STR_S_SIGNED_ALREADY] = "JIZ PODEPSANO",
+    [STR_S_RM_SIGNED] = "SMAZAT PODEPSANE",
+    [STR_S_RM_C_B] = "tyto zmizi z karty.\n\nnic nepodepsaneho se nedotkne.",
+    [STR_S_RM_HOLD] = "DRZTE PRO SMAZANI",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -11381,6 +11461,10 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_PROOF_BURN_B] = "tko ima karticu, može izračunati riječi. za provjeru, nikad za novac.",
     [STR_W_PROOF_BURNED] = "spaljene. na kartici stoje nešifrirane. nikad za novac.",
     [STR_W_PROOF_WORDS_BTN] = "PRIKAŽI RIJEČI",
+    [STR_S_SIGNED_ALREADY] = "VEC POTPISANO",
+    [STR_S_RM_SIGNED] = "OBRISI POTPISANE",
+    [STR_S_RM_C_B] = "ovi nestaju s kartice.\n\nnista nepotpisano se ne dira.",
+    [STR_S_RM_HOLD] = "DRZI ZA BRISANJE",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

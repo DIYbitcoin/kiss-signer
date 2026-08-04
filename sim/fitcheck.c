@@ -98,6 +98,7 @@ static const slot_t SLOTS[] = {
     { "sign/point-cam",   STR_S_POINT_CAM,      322, 116 },
     { "sign/or-load",     STR_S_OR_LOAD,        322,  58 },
     { "sign/read-fail",   STR_S_READ_FAIL,      704, 232 },
+    { "sign/rm-confirm",  STR_S_RM_C_B,         704, 100 },
     { "sign/not-psbt",    STR_S_NOT_PSBT,       704, 232 },
     { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
