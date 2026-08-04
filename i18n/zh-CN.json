@@ -237,7 +237,7 @@
   "GD_SET_SUB": "一个可以给人看的备用钱包",
   "W_FLASH_PLAIN_NOTE_SHORT": "未加密",
   "I_ROW_NETWORK": "网络",
-  "I_ROW_TYPE": "地址",
+  "I_ROW_TYPE": "地址类型",
   "I_ROW_STORAGE": "词存放在",
   "I_ROW_DURESS": "胁迫钱包",
   "I_ROW_WORDS": "助记词",

@@ -237,7 +237,7 @@
   "GD_SET_SUB": "見せられる予備のウォレット",
   "W_FLASH_PLAIN_NOTE_SHORT": "暗号化なし",
   "I_ROW_NETWORK": "ネットワーク",
-  "I_ROW_TYPE": "アドレス",
+  "I_ROW_TYPE": "アドレスタイプ",
   "I_ROW_STORAGE": "単語の保存先",
   "I_ROW_DURESS": "強要ウォレット",
   "I_ROW_WORDS": "リカバリー単語",

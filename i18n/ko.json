@@ -237,7 +237,7 @@
   "GD_SET_SUB": "보여줄 수 있는 예비 지갑",
   "W_FLASH_PLAIN_NOTE_SHORT": "암호화 없음",
   "I_ROW_NETWORK": "네트워크",
-  "I_ROW_TYPE": "주소",
+  "I_ROW_TYPE": "주소 유형",
   "I_ROW_STORAGE": "단어 저장 위치",
   "I_ROW_DURESS": "강요 지갑",
   "I_ROW_WORDS": "복구 단어",
