@@ -190,17 +190,40 @@ int test_seed_layer(void) {
                                  "000000000000000000000000", 48, got, sizeof got) != 0);
 
         // 3. CompactSeedQR: raw entropy bytes, 16 or 32
-        memset(ent, 0x00, sizeof ent);
+        // Ordinary entropy still goes straight through, and must agree with the
+        // entropy path byte for byte.
+        for (size_t i = 0; i < sizeof ent; i++) ent[i] = (uint8_t)(i * 37 + 11);
+        wallet_seed_from_entropy(ent, 16, words, sizeof words);
         schk("qr: compact 16 bytes rc",
              wallet_seed_from_qr((const char *)ent, 16, got, sizeof got) == 0);
-        schk("qr: compact 16 = dev words", strcmp(got, DEV_WORDS) == 0);
-        memset(ent, 0xFF, sizeof ent);
+        schk("qr: compact 16 matches entropy path", strcmp(got, words) == 0);
         wallet_seed_from_entropy(ent, 32, words, sizeof words);
         schk("qr: compact 32 rc",
              wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) == 0);
         schk("qr: compact 32 matches entropy path", strcmp(got, words) == 0);
         schk("qr: 20 raw bytes refused",
              wallet_seed_from_qr((const char *)ent, 20, got, sizeof got) != 0);
+
+        // Degenerate entropy is refused. These are the shapes a blank, a solid
+        // or a hand-drawn CompactSeedQR produces, and every one of them used to
+        // build a real wallet without a word said. wallet_seed_from_entropy is
+        // NOT the gate -- it happily turns 32 zero bytes into the dev mnemonic
+        // -- so the check lives in wallet_seed_from_qr and these prove it.
+        memset(ent, 0x00, sizeof ent);
+        schk("qr: compact all-zero 16 refused",
+             wallet_seed_from_qr((const char *)ent, 16, got, sizeof got) != 0);
+        schk("qr: compact all-zero 32 refused",
+             wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        memset(ent, 0xFF, sizeof ent);
+        schk("qr: compact all-ones 32 refused",
+             wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        memset(ent, 0xA5, sizeof ent);   // one repeated byte, half the bits set
+        schk("qr: compact one repeated byte refused",
+             wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        // ... and a single bit set in 32 bytes: not all one value, still nothing
+        memset(ent, 0x00, sizeof ent); ent[7] = 0x08;
+        schk("qr: compact near-empty entropy refused",
+             wallet_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
 
         schk("qr: empty refused", wallet_seed_from_qr("", 0, got, sizeof got) != 0);
         schk("qr: garbage refused",

@@ -18,6 +18,7 @@
 #include "wallet_psbt.h"
 #include "wallet_seed.h"
 #include "qr_transport.h"
+#include "bytewords.h"
 
 #include <wally_bip32.h>
 #include <wally_bip39.h>
@@ -94,6 +95,47 @@ static size_t mk_valid_psbt(uint8_t *out, size_t outsz) {
     wally_bzero(&k00, sizeof k00);
     wally_bzero(&k10, sizeof k10);
     return wr;
+}
+
+// ---- hand-built UR frames --------------------------------------------------
+// qrt_encoder_new_frag cannot produce the shape below: a conforming encoder
+// zero-pads every fragment to one nominal length, so every frame of a stream
+// carries the same data_len. The attack is two frames that are each perfectly
+// well formed on their own -- right bytewords CRC, CBOR header agreeing with
+// the URI path, seq_len and message_len inside the caps -- and disagree only
+// with EACH OTHER. Only a hand-built frame gets there, which is why the
+// stream-corrupting loop above never found it.
+static size_t cbor_uint(uint8_t *p, uint32_t v) {
+    if (v < 24)    { p[0] = (uint8_t)v; return 1; }
+    if (v < 256)   { p[0] = 0x18; p[1] = (uint8_t)v; return 2; }
+    if (v < 65536) { p[0] = 0x19; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)v; return 3; }
+    p[0] = 0x1a; p[1] = (uint8_t)(v >> 24); p[2] = (uint8_t)(v >> 16);
+    p[3] = (uint8_t)(v >> 8); p[4] = (uint8_t)v; return 5;
+}
+static size_t cbor_bstr_hdr(uint8_t *p, size_t n) {
+    if (n < 24)  { p[0] = (uint8_t)(0x40 | n); return 1; }
+    if (n < 256) { p[0] = 0x58; p[1] = (uint8_t)n; return 2; }
+    p[0] = 0x59; p[1] = (uint8_t)(n >> 8); p[2] = (uint8_t)n; return 3;
+}
+static int mk_ur_part(char *out, size_t outsz, uint32_t seq_num, uint32_t seq_len,
+                      uint32_t msg_len, uint32_t checksum, size_t frag_len) {
+    static uint8_t cbor[1024];
+    if (frag_len + 16 > sizeof cbor) return -1;
+    size_t o = 0;
+    cbor[o++] = 0x85;                       // CBOR array of 5
+    o += cbor_uint(cbor + o, seq_num);
+    o += cbor_uint(cbor + o, seq_len);
+    o += cbor_uint(cbor + o, msg_len);
+    o += cbor_uint(cbor + o, checksum);
+    o += cbor_bstr_hdr(cbor + o, frag_len);
+    for (size_t i = 0; i < frag_len; i++) cbor[o + i] = (uint8_t)(0xA5 ^ i);
+    o += frag_len;
+    char *bw = NULL;
+    if (!bytewords_encode(cbor, o, &bw)) return -1;   // real CRC32, appended here
+    int n = snprintf(out, outsz, "ur:crypto-psbt/%u-%u/%s",
+                     (unsigned)seq_num, (unsigned)seq_len, bw);
+    bytewords_free(bw);
+    return (n > 0 && (size_t)n < outsz) ? n : -1;
 }
 
 int main(void)
@@ -226,6 +268,43 @@ int main(void)
         qrt_encoder_free(e);
     }
     printf("PASS: 200 corrupted-part UR streams never stitched a wrong payload\n");
+
+    // ---- 3c. two CRC-valid UR frames that disagree on fragment length ----
+    // The reducer XORs one part's body into another's. With a short simple part
+    // and a long mixed part it used to read (long - short) bytes past the short
+    // one's heap block: silent corruption the final CRC usually caught, a
+    // LoadProhibited reboot when the block sat near the end of a heap region.
+    // ASAN turns that into a hard failure here. Both orderings, and seq_num 3..6
+    // because the mixed part's degree comes from the PRNG and degree 1 would
+    // land on the simple-part path instead.
+    {
+        static char f_short[512], f_long[1200];
+        const uint32_t MSG = 16, SUM = 0x1234ABCDu;
+        int ok = 1;
+        for (int order = 0; order < 2 && ok; order++) {
+            for (uint32_t seq = 3; seq <= 6 && ok; seq++) {
+                if (mk_ur_part(f_short, sizeof f_short, order ? seq : 1, 2, MSG, SUM, 8) < 0 ||
+                    mk_ur_part(f_long, sizeof f_long, order ? 1 : seq, 2, MSG, SUM, 400) < 0) {
+                    ok = 0; break;
+                }
+                qrt_parser_t *p = qrt_parser_new();
+                if (!p) { ok = 0; break; }
+                qrt_parser_feed(p, order ? f_long : f_short, strlen(order ? f_long : f_short));
+                qrt_parser_feed(p, order ? f_short : f_long, strlen(order ? f_short : f_long));
+                // 16 bytes of "message" is not a PSBT, so completing at all
+                // would mean the decoder stitched something out of two frames
+                // that never described the same message.
+                if (qrt_parser_complete(p)) {
+                    printf("FAIL: mismatched-fragment UR frames completed (order %d seq %u)\n",
+                           order, seq);
+                    fails++;
+                }
+                qrt_parser_free(p);
+            }
+        }
+        chkb("mismatched-fragment UR frames build", ok);
+    }
+    printf("PASS: mismatched-fragment UR frames rejected, no OOB\n");
 
     wallet_session_close();
     printf(fails ? "\n%d FUZZ FAIL\n" : "\nALL FUZZ PASS\n", fails);
