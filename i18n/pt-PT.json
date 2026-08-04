@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "queime",
   "W_PROOF_BURN_B": "quem tem o cartão deriva as palavras. para conferir, nunca fundos.",
   "W_PROOF_BURNED": "queimadas. sem encriptação no cartão. nunca para fundos.",
-  "W_PROOF_WORDS_BTN": "VER PALAVRAS"
+  "W_PROOF_WORDS_BTN": "VER PALAVRAS",
+  "S_SIGNED_ALREADY": "JA ASSINADO",
+  "S_RM_SIGNED": "APAGAR ASSINADOS",
+  "S_RM_C_B": "estes desaparecem do cartao.\n\nnada por assinar e tocado.",
+  "S_RM_HOLD": "MANTER PARA APAGAR"
 }

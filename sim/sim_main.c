@@ -1107,6 +1107,26 @@ int main(void) {
   // point -- picking the wrong file used to cost the entire trip back in.
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   save("/tmp/sim_sign_back_files.ppm");
+  // payment-01.psbt was signed a few taps ago, so its row must now read SIGNED
+  // ALREADY in amber and REMOVE SIGNED must have appeared in the action row.
+  // That is the whole bug: the badge used to be computed from the row's OWN
+  // name, so the source stayed grey UNSIGNED with its signature sitting right
+  // beneath it, and there was no way to see what had already been done.
+  // tr(), not the English: this walk runs in all 21 locales.
+  must_show("file list after signing", tr(STR_S_SIGNED_ALREADY));
+  must_show("file list after signing", tr(STR_S_RM_SIGNED));
+  // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
+  touch(218, 430); pump(3); release(); pump(8);
+  save("/tmp/sim_sign_rm_confirm.ppm");             // count + HOLD TO REMOVE
+  // a tap is NOT enough: press, release early, the confirm is still the screen
+  touch(400, 398); pump(2); release(); pump(4);
+  save("/tmp/sim_sign_rm_noop.ppm");                // still the confirm, nothing gone
+  touch(400, 398); pump(50);                        // hold: partial red sweep
+  lv_refr_now(NULL);
+  save("/tmp/sim_sign_rm_holding.ppm");
+  release(); pump(6);                               // let go early -> nothing happened
+  touch(680, 398); pump(3); release(); pump(8);     // CANCEL instead, keep the fixtures
+  save("/tmp/sim_sign_rm_cancel.ppm");              // back to the list, unchanged
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
   // I UNDERSTAND moved out of the action row and into the caution row itself,

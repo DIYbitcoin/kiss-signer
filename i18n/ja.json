@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "破棄する",
   "W_PROOF_BURN_B": "カードがあれば誰でもこの単語を計算できます。確認用。資産には決して使いません。",
   "W_PROOF_BURNED": "破棄済み。カードには暗号化なし。資産への使用は厳禁。",
-  "W_PROOF_WORDS_BTN": "単語を表示"
+  "W_PROOF_WORDS_BTN": "単語を表示",
+  "S_SIGNED_ALREADY": "署名済み",
+  "S_RM_SIGNED": "署名済みを消去",
+  "S_RM_C_B": "これらはカードから消えます。\n\n未署名のファイルはそのままです。",
+  "S_RM_HOLD": "長押しで消去"
 }

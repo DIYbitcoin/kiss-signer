@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "spal go",
   "W_PROOF_BURN_B": "kto ma kartę, wyliczy te słowa. do kontroli, nigdy do środków.",
   "W_PROOF_BURNED": "spalone. leżą na karcie niezaszyfrowane. nigdy do środków.",
-  "W_PROOF_WORDS_BTN": "POKAŻ SŁOWA"
+  "W_PROOF_WORDS_BTN": "POKAŻ SŁOWA",
+  "S_SIGNED_ALREADY": "JUZ PODPISANE",
+  "S_RM_SIGNED": "USUN PODPISANE",
+  "S_RM_C_B": "te znikna z karty.\n\nnic niepodpisanego nie zostanie ruszone.",
+  "S_RM_HOLD": "PRZYTRZYMAJ ABY USUNAC"
 }
