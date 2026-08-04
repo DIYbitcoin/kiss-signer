@@ -2113,17 +2113,26 @@ static void sd_open(lv_obj_t *parent)
     // the value in the row's right slot, in WT_WARN when the file has already
     // been signed, so "this one is spent" is still said twice.
     for (int i = 0; i < n; i++) {
-        // "has this transaction been signed", NOT "is this row's own name
-        // -signed". Those are different questions and this asked the wrong one:
-        // payment-01.psbt read UNSIGNED in grey with payment-01-signed.psbt two
-        // rows below it, so the owner had no way to see what they had already
-        // done and signed the same work again. s_sig[] comes from the card.
-        bool signed_file = s_sig[i] || is_signed_name(s_files[i]);
+        // THREE states, because there are three kinds of file here and the
+        // first version of this said the same words about two of them.
+        //
+        // Signing one transaction turns its source amber AND drops its output
+        // in as a new row. When both read SIGNED ALREADY in the same colour it
+        // looks like two things were signed, and then REMOVE offers only one,
+        // which reads as the device contradicting itself. It never was: the
+        // source is a transaction that has been signed, the output IS the
+        // signature. Different facts, so different words and different colour.
+        //
+        //   *-signed.psbt        the signature itself   OK, a finished thing
+        //   source with one      you already did this   WARN, do not redo it
+        //   anything else        still to do            MUT
+        bool is_out = is_signed_name(s_files[i]);
+        const char *tag = is_out ? tr(STR_S_ROW_SIGNATURE)
+                        : s_sig[i] ? tr(STR_S_SIGNED_ALREADY)
+                                   : tr(STR_S_FILE_UNSIGNED);
+        lv_color_t tcol = is_out ? OK_COL : s_sig[i] ? WARN_COL : MUT_COL;
         lv_obj_t *row = wt_row_x(list, LV_SYMBOL_FILE, s_files[i], NULL, NULL,
-                                 signed_file ? tr(STR_S_SIGNED_ALREADY)
-                                             : tr(STR_S_FILE_UNSIGNED),
-                                 wt_font14(),
-                                 signed_file ? WARN_COL : MUT_COL, false,
+                                 tag, wt_font14(), tcol, false,
                                  0, 0, FILE_ROW_W, 0, file_tap_cb,
                                  (void *)(intptr_t)i);
         // The flex list places it, so the absolute x/y above are ignored, but

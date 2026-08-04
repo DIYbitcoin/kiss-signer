@@ -539,6 +539,7 @@
   "W_PROOF_BURNED": "brûlés. en clair sur la carte. jamais pour des fonds.",
   "W_PROOF_WORDS_BTN": "VOIR LES MOTS",
   "S_SIGNED_ALREADY": "DEJA SIGNE",
+  "S_ROW_SIGNATURE": "SIGNATURE",
   "S_RM_SIGNED": "SUPPRIMER LES SIGNES",
   "S_RM_C_B": "ceux ci disparaissent de la carte.\n\nrien de non signe n est touche.",
   "S_RM_ALL": "TOUT SUPPRIMER"
