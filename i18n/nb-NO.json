@@ -539,6 +539,7 @@
   "W_PROOF_BURNED": "brent. ordene ligger åpent på kortet. aldri til penger.",
   "W_PROOF_WORDS_BTN": "VIS ORDENE",
   "S_SIGNED_ALREADY": "ALLEREDE SIGNERT",
+  "S_ROW_SIGNATURE": "SIGNATUR",
   "S_RM_SIGNED": "SLETT SIGNERTE",
   "S_RM_C_B": "disse forsvinner fra kortet.\n\nikke noe usignert roeres.",
   "S_RM_ALL": "SLETT ALLE"

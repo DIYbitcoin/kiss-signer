@@ -539,6 +539,7 @@
   "W_PROOF_BURNED": "verbrand. ze liggen bloot op de kaart. nooit voor geld.",
   "W_PROOF_WORDS_BTN": "TOON WOORDEN",
   "S_SIGNED_ALREADY": "AL ONDERTEKEND",
+  "S_ROW_SIGNATURE": "HANDTEKENING",
   "S_RM_SIGNED": "ONDERTEKENDE WISSEN",
   "S_RM_C_B": "deze verdwijnen van de kaart.\n\nniets zonder handtekening wordt geraakt.",
   "S_RM_ALL": "ALLES WISSEN"
