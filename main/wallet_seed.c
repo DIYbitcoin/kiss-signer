@@ -231,6 +231,98 @@ static int storage_erase(int mode_after)
          ? 0 : -1;
 }
 
+// Residue scrub, after one KEEP wallet has replaced another.
+//
+// storage_write_keep persists the new mnemonic with nvs_set_str, which is a
+// LOGICAL overwrite for exactly the reason spelled out above nvs_erase_key: NVS
+// is log structured, so the mnemonic that was just replaced stays on its page,
+// readable to anyone who dumps the chip. ERASE THIS WALLET takes the sector
+// path because of that. START A NEW WALLET did not, so the wallet an owner
+// deliberately walked away from outlived the act of walking away, on the one
+// storage mode that is the default.
+//
+// Deliberately runs AFTER the replacement has committed and verified, not
+// before. fp_tap_cb's whole invariant is "a failed commit leaves the old wallet
+// untouched"; erasing first would trade a residue bug for a device that can end
+// up holding nothing.
+//
+// Returns 0 on success, or if the erase never ran -- the new wallet is live and
+// correct either way, and residue is a hardening miss, not a commit failure.
+// -1 ONLY when the partition was erased and the words could not be put back,
+// which is the one case where the caller must not report success.
+static int storage_scrub_keep(const char *words)
+{
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    uint8_t keep[N_KEEP];
+    bool have[N_KEEP];
+
+    for (size_t i = 0; i < N_KEEP; i++)
+        have[i] = false;
+    if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
+        for (size_t i = 0; i < N_KEEP; i++)
+            have[i] = nvs_get_u8(h, KEEP_KEYS[i], &keep[i]) == ESP_OK;
+        nvs_close(h);
+    }
+
+    esp_err_t err = nvs_flash_deinit();
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_INITIALIZED)
+        return 0;                       // nothing erased; the new wallet stands
+    if (nvs_flash_erase() != ESP_OK) {
+        (void)nvs_flash_init();
+        return 0;
+    }
+    if (nvs_flash_init() != ESP_OK)
+        return -1;                      // erased, and NVS will not come back
+
+    // Past this point the words exist only in the caller's buffer. Retry once:
+    // a fresh partition has every reason to accept a write, and the cost of
+    // giving up here is a device with no wallet on it.
+    int rc = -1;
+    for (int attempt = 0; attempt < 2 && rc != 0; attempt++) {
+        if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+            continue;
+        rc = 0;
+        for (size_t i = 0; i < N_KEEP; i++)
+            if (have[i] && nvs_set_u8(h, KEEP_KEYS[i], keep[i]) != ESP_OK)
+                rc = -1;
+        if (nvs_set_str(h, "words", words) != ESP_OK ||
+            nvs_set_u8(h, "smode", WSEED_MODE_KEEP) != ESP_OK ||
+            nvs_commit(h) != ESP_OK)
+            rc = -1;
+        nvs_close(h);
+    }
+    if (rc != 0)
+        return -1;
+#else
+    // Host has no log-structured store to leave residue in: storage_write_keep
+    // renames over the file. Do the same work anyway so the desktop tests walk
+    // this path and assert the contract (right words, mode still KEEP) that the
+    // device branch has to keep.
+    if (remove(SEED_FILE) != 0 && errno != ENOENT)
+        return 0;
+    FILE *f = fopen(SEED_FILE, "w");
+    if (!f)
+        return -1;
+    int rc = fputs(words, f) >= 0 ? 0 : -1;
+    if (rc == 0 && fflush(f) != 0) rc = -1;
+    if (rc == 0 && fsync(fileno(f)) != 0) rc = -1;
+    if (fclose(f) != 0) rc = -1;
+    if (rc != 0)
+        return -1;
+    if (storage_mode_write(WSEED_MODE_KEEP) != 0)
+        return -1;
+#endif
+    char verify[WSEED_MAX_MNEMONIC];
+    int mode = -1;
+    int ok = storage_read_keep(verify, sizeof verify) == 0 &&
+             strcmp(verify, words) == 0 &&
+             storage_mode_read_checked(&mode) == 0 &&
+             mode == WSEED_MODE_KEEP ? 0 : -1;
+    wally_bzero(verify, sizeof verify);
+    return ok;
+}
+
 // ---- storage mode (see wallet_seed.h) ----
 static int storage_mode_read_checked(int *out_mode)
 {
@@ -594,11 +686,47 @@ int wallet_seed_commit(void)
         }
         return sidecar_cleanup ? WSEED_ERR_CLEANUP : WSEED_OK;
     }
+    // Ask BEFORE the write whether there was a wallet here at all, because
+    // after it the answer is always yes. prior_mode is not enough on its own:
+    // storage_mode_read reports a factory-fresh store as KEEP (it says so), so
+    // gating the scrub on the mode alone would erase the partition during
+    // first-time setup, when there is nothing to scrub and the only wallet on
+    // the device is the one being written.
+    bool had_prior_words = false;
+    if (prior_mode == WSEED_MODE_KEEP) {
+        char prev[WSEED_MAX_MNEMONIC];
+        had_prior_words = storage_read_keep(prev, sizeof prev) == 0;
+        wally_bzero(prev, sizeof prev);
+    }
     int rc = storage_write_keep(s_pending);
     if (rc != WSEED_OK && rc != WSEED_ERR_CLEANUP)
         return rc;   // still staged, but the caller decides: the setup login
                      // discards it rather than hold an unsaved mnemonic in RAM
     int result = rc;
+    if (had_prior_words) {
+        // One KEEP wallet just replaced another, so the previous mnemonic is
+        // sitting on an NVS page that was only logically overwritten. Scrub it.
+        //
+        // Only this transition. From SD, storage_write_keep above is mid
+        // handover and erasing would take dkey with it; from AMNESIC there was
+        // never anything in flash to scrub.
+        //
+        // A scrub that could not erase reports success on purpose: the wallet
+        // is committed and verified either way, and returning anything nonzero
+        // here would send fp_tap_cb into wallet_seed_discard() on a wallet that
+        // is already durable.
+        if (storage_scrub_keep(s_pending) != 0)
+            return WSEED_ERR_SD_IO;
+        // On device the erase above was the whole NVS partition, so it already
+        // took the receive-index history and the paper-check marks with it. Say
+        // it explicitly so the host build ends up in the SAME state: otherwise
+        // the simulator would show a replacement wallet wearing the replaced
+        // one's green "paper checked", which is the exact lie this row exists
+        // to avoid. A replacement is a different wallet, as the AMNESIC branch
+        // above already says.
+        wallet_usage_wipe();
+        wallet_backup_forget();
+    }
     if (prior_mode == WSEED_MODE_SD) {
         int card_cleanup = storage_delete_sd();
         int key_cleanup = sd_seed_forget_device_key();
