@@ -280,7 +280,7 @@ static const pill_t PILLS[] = {
     // of the whole signing flow.
     { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
     { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
-    { "proof/open",       STR_W_PROOF_T,         220, 52, 0, 1 },
+    { "proof/open",       STR_W_PROOF_BTN,       220, 52, 0, 1 },
     { "proof/capture",    STR_W_PROOF_SHOT,      300, 52, 1, 1 },
     { "proof/words",      STR_W_PROOF_WORDS_BTN, 300, 52, 1, 1 },
     { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
