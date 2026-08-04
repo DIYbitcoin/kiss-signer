@@ -38,6 +38,7 @@
 
 #include "esp_random.h"
 #include "wallet_crypto.h"   // wallet_entropy_mix: camera hash + TRNG -> seed
+#include "wallet_proof.h"    // WPROOF_FRAME_BYTES: the one size a proof names
 
 #include "k_quirc.h"
 #include "i18n.h"
@@ -333,6 +334,16 @@ static uint16_t s_ent_sub[ENT_SUB_MAX]; // strided subsample, hashed per frame
 static uint8_t s_ent_prev[ENT_SUB_MAX]; // last frame's green channel, for novelty
 static bool s_ent_prev_ok;              // false until the first frame lands
 static uint32_t *s_ent_hist;            // 256KB histogram, PSRAM
+
+// ---- proof mode (CAMERA AUDIT): freeze ONE whole raw frame for the owner's
+// off-device audit. No meter and no gates — any frame proves the machinery,
+// so there is nothing here to score and nothing that can refuse. The bytes
+// are public by design (they go to the SD card in cleartext), which is why
+// the buffer gets a plain free rather than a wipe.
+static volatile bool s_proof_mode;
+static volatile bool s_proof_req;       // UI tapped CAPTURE: copy the next frame
+static volatile bool s_proof_done;      // s_proof_buf holds the frozen frame
+static uint8_t *s_proof_buf;            // WPROOF_FRAME_BYTES, PSRAM
 
 void camera_spike_set_bus(void *i2c_bus) { s_bus_saved = i2c_bus; }
 
@@ -1285,8 +1296,9 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
       draw_ent_digits(fb);                // the same estimate as a figure
       draw_osd_strip(fb, s_ent_accum >= ENT_TARGET_X10 ? OSD_ENT_OK : OSD_ENT_LOW);
     }
-    if (!s_scan_mode && !s_ent_mode)    // dev preview only: scan/entropy screens
-      draw_zoom_bar(fb);                // don't need the zoom ladder cluttering
+    if (!s_scan_mode && !s_ent_mode && !s_proof_mode)  // dev preview only:
+      draw_zoom_bar(fb);                // purposeful screens don't need the
+                                        // zoom ladder cluttering the video
     if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
       s_osd_frames--;                   // digits, real type, inset from overscan
       if (s_orient + 1 <= 9)
@@ -1315,6 +1327,17 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     scan_decode(frame, w, h);
   if (s_ent_mode && s_ent_hist && (s_frames % SCAN_EVERY) == 0)
     ent_frame(frame, w, h);
+  // Proof capture takes the very NEXT frame, not a sampled one: the owner
+  // tapped on what they were seeing. The copy happens after the blit and the
+  // pause lands in the same frame, so the picture frozen on the panel is the
+  // frame in the buffer — what the owner sees is what gets hashed.
+  if (s_proof_mode && s_proof_req && !s_proof_done && s_proof_buf) {
+    s_proof_req = false;
+    esp_cache_msync((void *)frame, s_cam.buf_len, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+    memcpy(s_proof_buf, frame, (size_t)w * h * 2);
+    s_proof_done = true;
+    s_paused = true;
+  }
   if ((s_frames % 60) == 0) {
     int64_t dt = esp_timer_get_time() - s_t0;
     ESP_LOGI(TAG, "60 frames in %.1fs (%.1f fps)", dt / 1e6, 60e6 / dt);
@@ -1613,6 +1636,64 @@ void camera_entropy_stop(void) {
   if (s_ent_hist) { free(s_ent_hist); s_ent_hist = NULL; }
   lv_obj_invalidate(lv_screen_active());
   set_status("CAM: entropy stopped");
+}
+
+// ---- proof mode: CAMERA AUDIT. Contract in camera_spike.h; what the resulting
+// file does and does not prove is docs/specs/prove-it.md. ----
+
+bool camera_proof_start(void) {
+  if (s_cam.streaming) cam_stop();
+  if (!s_cam.inited && !cam_init((i2c_master_bus_handle_t)s_bus_saved))
+    return false;
+  // The pinned test vector, the owner's recipe and the file format all name
+  // one exact size. A sensor negotiating anything else is a surprise to
+  // surface, not to adapt to: a proof file of a novel size proves nothing.
+  if ((size_t)s_cam.w * s_cam.h * 2 != WPROOF_FRAME_BYTES) {
+    set_status("CAM: proof needs %ux%u, sensor gave %ux%u",
+               WPROOF_FRAME_W, WPROOF_FRAME_H,
+               (unsigned)s_cam.w, (unsigned)s_cam.h);
+    return false;
+  }
+  // The full-frame copy, allocated before the stream starts so the failure a
+  // low-memory session hits is this status line, not a dead CAPTURE pill.
+  if (!s_proof_buf) {
+    s_proof_buf = heap_caps_malloc(WPROOF_FRAME_BYTES,
+                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_proof_buf) { set_status("CAM: proof frame alloc failed"); return false; }
+  }
+  s_proof_req = false;
+  s_proof_done = false;
+  s_zoom = 0;
+  s_proof_mode = true;
+  if (!cam_start()) { s_proof_mode = false; return false; }
+  set_status("CAM: proof %ux%u", (unsigned)s_cam.w, (unsigned)s_cam.h);
+  return true;
+}
+
+void camera_proof_capture(void) { s_proof_req = true; }
+
+bool camera_proof_done(void) { return s_proof_done; }
+
+const uint8_t *camera_proof_data(size_t *len) {
+  if (!s_proof_done || !s_proof_buf) return NULL;
+  if (len) *len = WPROOF_FRAME_BYTES;
+  return s_proof_buf;
+}
+
+void camera_proof_stop(void) {
+  if (!s_proof_mode && !s_cam.streaming) return;
+  s_proof_mode = false;
+  cam_stop();                           // joins the stream task; the frozen
+}                                       // copy survives for the SD write
+
+void camera_proof_end(void) {
+  s_proof_mode = false;
+  if (s_cam.streaming) cam_stop();
+  if (s_proof_buf) { free(s_proof_buf); s_proof_buf = NULL; }
+  s_proof_done = false;
+  s_proof_req = false;
+  lv_obj_invalidate(lv_screen_active());
+  set_status("CAM: proof ended");
 }
 
 bool camera_spike_toggle(lv_obj_t *parent, i2c_master_bus_handle_t bus) {

@@ -20,7 +20,20 @@
 #include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
 #include "wallet_tapent.h"   // source 3: the timing of the user's own taps
 #include "wallet_dice.h"     // alternate path: verifiable off-device dice rolls
+#include "wallet_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
+#include "platform_sd.h"     // the proof needs a card before it can start
 #include "wallet_theme.h"
+
+// The proof's words and hash must not outlive the screen that showed them, and
+// libwally is NOT linked into the simulator build of this translation unit, so
+// wally_bzero here does not compile. Same volatile store loop wallet_scan.c and
+// wallet_seed_sd.c already carry, for the same reason: memset can be optimized
+// away once the compiler sees a buffer is dead.
+static void wz_bzero(void *ptr, size_t len)
+{
+    volatile uint8_t *p = (volatile uint8_t *)ptr;
+    while (len--) *p++ = 0;
+}
 #include "wallet_ui.h"
 
 #ifndef SIMULATOR
@@ -79,6 +92,11 @@ static bool s_qr_from_restore;
 static void entropy_screen(void);
 static void dice_screen(void);
 static void method_screen(void);
+// PROVE IT (docs/specs/prove-it.md): the burned proof run off the WHY overlay.
+static void proof_screen(void);
+static void proof_result_screen(void);
+static void proof_words_screen(void);
+static void ent_prove_cb(lv_event_t *e);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
@@ -490,14 +508,9 @@ static void words_screen(void)
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
 
-    if (pages > 1) {
-        char cnt[40];   // large enough for conservative compiler range analysis
-        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_count);
-        if (s_wpage > 0)
-            mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, words_page_cb,
-                    (void *)(intptr_t)-1);
-        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
-    }
+    if (pages > 1 && s_wpage > 0)
+        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, words_page_cb,
+                (void *)(intptr_t)-1);
     // There was no way OUT of this screen: BACK only pages between halves of
     // the word list, so someone who picked the wrong length, or who simply has
     // no paper to hand, could only go forward or pull the power. CANCEL is the
@@ -517,6 +530,15 @@ static void words_screen(void)
                 (void *)(intptr_t)1);
     else
         mk_pill(tr(STR_W_WROTE), 430, WT_ACTION_Y, 320, words_go_cb, NULL);
+    // After the pills, never before: the first pill summons the opaque action
+    // bar (action_bar_ensure), which swallowed this counter on page one, where
+    // no pill preceded it. Page two only ever looked right because BACK was
+    // built first there.
+    if (pages > 1) {
+        char cnt[40];   // large enough for conservative compiler range analysis
+        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_count);
+        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+    }
 }
 
 // ---- entropy (NEW path) ----
@@ -799,6 +821,21 @@ static void ent_mix_closed_cb(lv_event_t *e)
 }
 #endif
 
+// PROVE IT leaves through the overlay's pill, not through its close. The
+// overlay's DELETE handler schedules an entropy_screen rebuild one tick out
+// (ent_mix_closed_cb), which would stomp the proof screen the moment it
+// appeared -- so the handler comes off before the navigation tears it down.
+static void ent_prove_cb(lv_event_t *e)
+{
+#ifndef SIMULATOR
+    lv_obj_t *ovl = lv_event_get_user_data(e);
+    if (ovl) lv_obj_remove_event_cb(ovl, ent_mix_closed_cb);
+#else
+    (void)e;
+#endif
+    proof_screen();
+}
+
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
 // the dice the fourth line sends an unconvinced reader to (the same LIST glyph
 // method_screen puts on the DICE row, so the two marks agree).
@@ -846,6 +883,13 @@ static void ent_mix_help_cb(lv_event_t *e)
         .icons  = ENT_MIX_ICONS,
     };
     lv_obj_t *ovl = wt_explain_open(s_scr, &x);
+    // The doubt this card names is the doubt the proof answers: the pill sits
+    // exactly where the reader has just been told the camera cannot be
+    // checked. A tap on the pill stays on the pill (nothing here bubbles), so
+    // the overlay's close-on-tap-anywhere is not in play.
+    if (ovl)
+        wt_pill(ovl, tr(STR_W_PROOF_T), 48, WT_ACTION_Y, 220, ent_prove_cb,
+                ovl);
 #ifndef SIMULATOR
     // The card is an OVERLAY, not a replacement screen, so the entropy screen
     // is still underneath with a stopped camera and no poll timer. Rebuild it
@@ -1062,6 +1106,321 @@ static void method_screen(void)
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+}
+
+// ---- PROVE IT (docs/specs/prove-it.md) ----
+// The WHY overlay concedes that all three sources are made by this device and
+// hands doubters the dice. This is the camera's answer: one frame becomes a
+// file on the card, a SHA256 and 24 words, all checkable on any computer. The
+// words are a real seed sitting on the card in cleartext, so they live in
+// their own buffers -- never s_w -- and every exit wipes them. No path from
+// here reaches the quiz or store_and_finish.
+static char s_pf_w[24][12];       // the burned words; structurally not s_w
+static uint8_t s_pf_hash[32];     // sha256 of the frame, shown lowercase like shasum
+static int s_pf_page;
+static lv_obj_t *s_pf_state;      // line under the viewfinder; SAVING paints here
+static lv_obj_t *s_pf_shot, *s_pf_backp;
+#ifndef SIMULATOR
+static lv_timer_t *s_pf_tmr;
+#endif
+
+static void pf_wipe(void)
+{
+    wz_bzero(s_pf_w, sizeof s_pf_w);
+    wz_bzero(s_pf_hash, sizeof s_pf_hash);
+    s_pf_page = 0;
+}
+
+// Same splitter as wallet_setup_entropy, into the proof's own grid.
+static void pf_split(const char *words)
+{
+    memset(s_pf_w, 0, sizeof s_pf_w);
+    int nw = 0;
+    const char *p = words;
+    while (*p && nw < 24) {
+        int n = 0;
+        while (p[n] && p[n] != ' ' && n < 11) n++;
+        memcpy(s_pf_w[nw], p, (size_t)n);
+        s_pf_w[nw][n] = 0;
+        nw++;
+        p += n;
+        while (*p == ' ') p++;
+    }
+}
+
+// Every proof exit lands back on the entropy screen, which restarts the
+// wizard's camera on a fresh meter -- the state BACK from the WHY overlay
+// would have produced anyway.
+static void pf_exit(void)
+{
+    pf_wipe();
+    entropy_screen();
+}
+
+static void pf_back_cb(lv_event_t *e)
+{
+    (void)e;
+#ifndef SIMULATOR
+    if (s_pf_tmr) { lv_timer_delete(s_pf_tmr); s_pf_tmr = NULL; }
+    camera_proof_stop();
+    camera_proof_end();
+#endif
+    pf_exit();
+}
+
+static void pf_retry_cb(lv_event_t *e) { (void)e; proof_screen(); }
+static void pf_done_cb(lv_event_t *e) { (void)e; pf_exit(); }
+
+// The no-card gate and the failed-write screen are one shape: a framed SD row
+// that says what is missing or what went wrong, TRY AGAIN, and a way out.
+static void pf_gate_screen(const char *label, int body_key)
+{
+    mk_screen(tr(STR_W_PROOF_T), NULL);
+    wt_row_x(s_scr, WT_ICON_SD, label, tr(body_key), NULL, NULL, NULL, WT_INK,
+             false, WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
+             NULL, NULL);
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, WT_ACTION_Y, 240,
+                          pf_retry_cb, NULL);
+    wt_pill_primary(p);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pf_back_cb, NULL);
+}
+
+// Frame in hand: hash it, write it, derive the words. Runs one LVGL tick after
+// the SAVING line paints (the do_sign_cb defer pattern), because the atomic
+// write of 1.9MB blocks for seconds and a screen that freezes silently reads
+// as a crash.
+static void pf_finish(void)
+{
+    char words[WSEED_MAX_MNEMONIC];
+    int rc;
+#ifdef SIMULATOR
+    rc = wallet_proof_run(NULL, 0, s_pf_hash, words, sizeof words);
+#else
+    camera_proof_stop();               // stream off BEFORE SDMMC gets touched
+    size_t n = 0;
+    const uint8_t *fr = camera_proof_data(&n);
+    rc = fr ? wallet_proof_run(fr, n, s_pf_hash, words, sizeof words)
+            : WPROOF_ERR_ARG;
+    camera_proof_end();
+#endif
+    if (rc == WPROOF_OK) {
+        pf_split(words);
+        wz_bzero(words, sizeof words);
+        s_pf_page = 0;
+        proof_result_screen();
+    } else {
+        pf_wipe();
+        pf_gate_screen(WPROOF_NAME, STR_W_PROOF_FAIL_B);
+    }
+}
+
+#ifdef SIMULATOR
+// The sim has no camera; the stubbed wallet_proof_run in sim_main.c writes a
+// small real file and derives the fixed SIM_WORDS, so the walk exercises the
+// same screens the device shows.
+static void pf_sim_capture_cb(lv_event_t *e) { (void)e; pf_finish(); }
+#else
+static void pf_capture_cb(lv_event_t *e) { (void)e; camera_proof_capture(); }
+
+static void pf_write_cb(lv_timer_t *t)
+{
+    lv_timer_delete(t);
+    pf_finish();
+}
+
+static void pf_poll_cb(lv_timer_t *t)
+{
+    if (!camera_proof_done()) return;
+    lv_timer_delete(t);
+    s_pf_tmr = NULL;
+    // The preview is frozen on exactly the captured frame. Say what happens
+    // next and take both pills away: the write is not interruptible, and a
+    // BACK that silently lost the race with it would read as a missed touch.
+    if (s_pf_state) lv_label_set_text(s_pf_state, tr(STR_W_PROOF_SAVING));
+    if (s_pf_shot) {
+        lv_obj_set_style_opa(s_pf_shot, LV_OPA_40, 0);
+        lv_obj_remove_flag(s_pf_shot, LV_OBJ_FLAG_CLICKABLE);
+    }
+    if (s_pf_backp) {
+        lv_obj_set_style_opa(s_pf_backp, LV_OPA_40, 0);
+        lv_obj_remove_flag(s_pf_backp, LV_OBJ_FLAG_CLICKABLE);
+    }
+    lv_timer_create(pf_write_cb, 50, NULL);
+}
+#endif
+
+static void proof_screen(void)
+{
+    pf_wipe();
+    s_pf_state = s_pf_shot = s_pf_backp = NULL;
+    if (platform_sd_probe() != 1) {
+        pf_gate_screen(tr(STR_W_PROOF_SD_T), STR_W_PROOF_SD_B);
+        return;
+    }
+    mk_screen2(tr(STR_W_PROOF_T), tr(STR_W_PROOF_S));
+
+    // Left: the same viewfinder geometry as the entropy screen, so the proof
+    // reads as the same camera being put to a different question.
+    wt_viewfinder(s_scr, ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
+    s_pf_state = wt_lbl(s_scr, "", ENT_CAM_X, ENT_CAM_Y + ENT_CAM_H + 8,
+                        wt_font14(), WARN_COL);
+    lv_obj_set_width(s_pf_state, ENT_CAM_W);
+    lv_label_set_long_mode(s_pf_state, LV_LABEL_LONG_WRAP);
+
+    // Right: the recipe as a diagram -- frame to SHA256 to words -- in the
+    // equation card's shape, then the file the card will receive.
+    lv_obj_t *pc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y, ENT_COL_W, 56);
+    lv_obj_t *pq = lv_obj_create(pc);
+    lv_obj_remove_style_all(pq);
+    lv_obj_set_pos(pq, 0, 0);
+    lv_obj_set_size(pq, ENT_COL_W, 56);
+    lv_obj_set_flex_flow(pq, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(pq, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(pq, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(pq, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *row = wt_diagram_row(pq);
+    wt_chip(row, LV_SYMBOL_IMAGE, false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, "SHA256", false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, tr(STR_W_24), true);
+
+    // The filename is a C literal, never translated: the owner types it into a
+    // shell, so the screen shows exactly what the card will hold. 132 tall,
+    // not the chooser's 96: the note wraps to three lines in this narrower
+    // column and a 96 row cuts the third.
+    wt_row_x(s_scr, WT_ICON_SD, WPROOF_NAME, tr(STR_W_PROOF_FILE_NOTE), NULL,
+             NULL, NULL, WT_INK, false, ENT_COL_X, ENT_CAM_Y + 64, ENT_COL_W,
+             132, NULL, NULL);
+
+#ifdef SIMULATOR
+    s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), 48, WT_ACTION_Y, 300,
+                        pf_sim_capture_cb, NULL);
+    wt_pill_primary(s_pf_shot);
+#else
+    // Rect BEFORE start, same as the entropy screen: the video and LVGL share
+    // one framebuffer from the first frame.
+    camera_spike_set_preview_rect(ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
+    if (camera_proof_start()) {
+        s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), 48, WT_ACTION_Y, 300,
+                            pf_capture_cb, NULL);
+        wt_pill_primary(s_pf_shot);
+        if (!s_pf_tmr) s_pf_tmr = lv_timer_create(pf_poll_cb, 80, NULL);
+    } else {
+        // No camera, no proof: unlike the wizard there is no source to fall
+        // back to, so the column carries the error and BACK is the only way.
+        mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
+               wt_font23(), STOP_COL);
+        mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
+               wt_font14(), MUT_COL);
+    }
+#endif
+    s_pf_backp = mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                         pf_back_cb, NULL);
+}
+
+static void pf_words_cb(lv_event_t *e)
+{
+    (void)e;
+    s_pf_page = 0;
+    proof_words_screen();
+}
+
+static void proof_result_screen(void)
+{
+    mk_screen(tr(STR_W_PROOF_R_T), tr(STR_W_PROOF_R_S));
+
+    // The hash, framed, with the filename it belongs to in the card's corner.
+    // Lowercase, like the dice fingerprint and like shasum's own output, so
+    // the owner compares character by character with no case translation.
+    // Hand-built rather than wt_value_card because the 79 grouped characters
+    // must wrap, and the value card pins its value to one line.
+    char hex[65];
+    for (int i = 0; i < 32; i++)
+        snprintf(hex + i * 2, 3, "%02x", s_pf_hash[i]);
+    char grp[96];
+    wt_group4(hex, grp, sizeof grp);
+
+    lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 0);
+    lv_obj_t *cap = wt_lbl(card, tr(STR_W_PROOF_HASH_CAP), 14, 12, wt_font14(),
+                           MUT_COL);
+    lv_obj_set_style_text_letter_space(cap, 1, 0);
+    lv_obj_t *fn = wt_lbl(card, WPROOF_NAME, 0, 12, wt_font_mono14(), OK_COL);
+    lv_obj_update_layout(fn);
+    lv_obj_set_pos(fn, 704 - 14 - lv_obj_get_width(fn), 12);
+    lv_obj_set_width(cap, 704 - 28 - lv_obj_get_width(fn) - 12);
+    lv_label_set_long_mode(cap, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(cap);
+    int vy = 12 + lv_obj_get_height(cap) + 8;
+    lv_obj_t *v = wt_lbl(card, grp, 14, vy, wt_font_mono23(), INK_COL);
+    lv_obj_set_width(v, 676);
+    lv_label_set_long_mode(v, LV_LABEL_LONG_WRAP);
+    lv_obj_update_layout(v);
+    lv_obj_set_size(card, 704, vy + lv_obj_get_height(v) + 14);
+
+    // Accent on how the check works, WARN on where the words go wrong: the
+    // proven pair geometry, same call shape as the dice verdict screen.
+    const lv_font_t *f = wt_body_font2(tr(STR_W_PROOF_CHECK_B),
+                                       tr(STR_W_PROOF_BURN_B), 330, 112);
+    wt_why_block(s_scr, tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
+                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
+    wt_why_block(s_scr, tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
+                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+
+    lv_obj_t *sw = mk_pill(tr(STR_W_PROOF_WORDS_BTN), 48, WT_ACTION_Y, 300,
+                           pf_words_cb, NULL);
+    wt_pill_primary(sw);
+    mk_pill(tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, pf_done_cb, NULL);
+}
+
+static void pf_words_page_cb(lv_event_t *e)
+{
+    s_pf_page += (int)(intptr_t)lv_event_get_user_data(e);
+    proof_words_screen();
+}
+
+static void pf_words_back_cb(lv_event_t *e) { (void)e; proof_result_screen(); }
+
+// The words screen's grid, reading the proof's own buffers. Always 24 words
+// over two pages, and the loud line is the opposite claim: these are NOT for
+// paper, they are on the card in the open.
+static void proof_words_screen(void)
+{
+    if (s_pf_page < 0) s_pf_page = 0;
+    if (s_pf_page > 1) s_pf_page = 1;
+    mk_screen(tr(STR_W_24), NULL);
+
+    const int first = s_pf_page * WORDS_PER_PAGE;
+    const int rows = 6;
+    for (int k = 0; k < WORDS_PER_PAGE; k++) {
+        char buf[32];
+        snprintf(buf, sizeof buf, "%2d. %.11s", first + k + 1,
+                 s_pf_w[first + k]);
+        mk_lbl(buf, 48 + (k / rows) * 352, 104 + (k % rows) * 40, wt_font28(),
+               INK_COL);
+    }
+    lv_obj_t *po = mk_lbl(tr(STR_W_PROOF_BURNED), 48, 352,
+                          wt_body_font(tr(STR_W_PROOF_BURNED), 700, 40),
+                          STOP_COL);
+    lv_obj_set_width(po, 700);
+    lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
+
+    if (s_pf_page == 0) {
+        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_back_cb, NULL);
+        mk_pill(tr(STR_R_NEXT), 430, WT_ACTION_Y, 320, pf_words_page_cb,
+                (void *)(intptr_t)1);
+    } else {
+        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_page_cb,
+                (void *)(intptr_t)-1);
+        mk_pill(tr(STR_C_DONE), 430, WT_ACTION_Y, 320, pf_done_cb, NULL);
+    }
+    // After the pills, never before: the first pill summons the opaque action
+    // bar (action_bar_ensure), and anything drawn into the band before that
+    // moment is painted under it.
+    char cnt[40];
+    snprintf(cnt, sizeof cnt, "%d-%d / 24", first + 1, first + WORDS_PER_PAGE);
+    mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
 }
 
 // ---- dice screen ----

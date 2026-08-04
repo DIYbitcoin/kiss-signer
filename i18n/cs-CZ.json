@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "ověřeno · ID %s je na vašem papíře",
   "I_WORDS_UNVERIFIED": "papír nikdy neověřen",
   "GD_SET_UP_SPARE": "NASTAVIT ZÁLOŽNÍ",
-  "W_QUIZ_SHOW_AGAIN": "ZOBRAZIT SLOVA ZNOVU"
+  "W_QUIZ_SHOW_AGAIN": "ZOBRAZIT SLOVA ZNOVU",
+  "W_PROOF_T": "DOKAŽ TO",
+  "W_PROOF_S": "z jednoho snímku vznikne soubor, hash a 24 slov.\nvšechny tři ověříš na jakémkoli počítači.",
+  "W_PROOF_SHOT": "SNÍMEK",
+  "W_PROOF_FILE_NOTE": "uloženo na kartu přesně tak, jak bylo zachyceno. hash i slova vznikají jen z těchto bajtů.",
+  "W_PROOF_SD_T": "VLOŽ JAKOUKOLI SD KARTU",
+  "W_PROOF_SD_B": "důkazní snímek potřebuje kartu, kam dopadne. vlož nějakou a zkus to znovu.",
+  "W_PROOF_SAVING": "zápis snímku na kartu",
+  "W_PROOF_FAIL_B": "karta soubor odmítla. nic se neuložilo a nic nevzniklo. zkus jinou kartu.",
+  "W_PROOF_R_T": "TVŮJ DŮKAZ",
+  "W_PROOF_R_S": "stejné bajty jsou na kartě, připravené ke kontrole.",
+  "W_PROOF_HASH_CAP": "SHA256 SNÍMKU",
+  "W_PROOF_CHECK_H": "ověř to",
+  "W_PROOF_CHECK_B": "SHA256 souboru: tento hash. do BIP39 nástroje: těchto 24 slov.",
+  "W_PROOF_BURN_H": "spal to",
+  "W_PROOF_BURN_B": "kdo má kartu, slova dopočítá. jen na kontrolu, nikdy na peníze.",
+  "W_PROOF_BURNED": "spálená. leží na kartě v čitelné podobě. nikdy na peníze.",
+  "W_PROOF_WORDS_BTN": "ZOBRAZIT SLOVA"
 }

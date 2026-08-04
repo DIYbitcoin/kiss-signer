@@ -163,6 +163,22 @@ static const slot_t SLOTS[] = {
     // lines their copy was written for.
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
     { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
+    { "sub/proof",        STR_W_PROOF_S,      704, 58, 0 },
+    // CAMERA AUDIT (docs/specs/prove-it.md). The why pair shares rule 2's 330x112
+    // body budget; the burned line takes the paper-only slot; the notes live
+    // in wt_row_x subs (380-wide file row, 716-wide gate rows, both 96 tall)
+    // and under the 300-wide viewfinder, so font14 is an accepted outcome
+    // there. The hash caption shares its card row with the mono14 filename,
+    // so it is measured in the width that leaves.
+    { "sub/proof-r",      STR_W_PROOF_R_S,       704,  30, 0 },
+    { "proof/check",      STR_W_PROOF_CHECK_B,   330, 112 },
+    { "proof/burn",       STR_W_PROOF_BURN_B,    330, 112 },
+    { "proof/burned",     STR_W_PROOF_BURNED,    700,  40 },
+    { "proof/file-note",  STR_W_PROOF_FILE_NOTE, 282,  80, 1 },
+    { "proof/sd",         STR_W_PROOF_SD_B,      620,  46, 1 },
+    { "proof/fail",       STR_W_PROOF_FAIL_B,    620,  46, 1 },
+    { "proof/saving",     STR_W_PROOF_SAVING,    300,  40, 1 },
+    { "proof/hash-cap",   STR_W_PROOF_HASH_CAP,  545,  40, 1 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
     // line on wt_screen; the verify note gets two card lines; the two why
@@ -264,6 +280,9 @@ static const pill_t PILLS[] = {
     // of the whole signing flow.
     { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
     { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
+    { "proof/open",       STR_W_PROOF_T,         220, 52, 0, 1 },
+    { "proof/capture",    STR_W_PROOF_SHOT,      300, 52, 1, 1 },
+    { "proof/words",      STR_W_PROOF_WORDS_BTN, 300, 52, 1, 1 },
     { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
     { "storage/sd",       STR_W_SD_BTN,        252, 52, 0, 1 },
     { "storage/amnesic",  STR_W_AMNESIC_BTN,   252, 52, 0, 1 },
