@@ -20,6 +20,7 @@
 #include "wallet_settings.h"   // wallet_lang_picker_open: first-boot language switch
 #include "wallet_tapent.h"   // source 3: the timing of the user's own taps
 #include "wallet_dice.h"     // alternate path: verifiable off-device dice rolls
+#include "wallet_lastword.h" // cards path: the checksum valid last words
 #include "wallet_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
 #include "platform_sd.h"     // the proof needs a card before it can start
 #include "wallet_theme.h"
@@ -81,6 +82,13 @@ static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 static char s_prefix[12];       // restore: letters typed for the current word
 static lv_obj_t *s_word_lbl, *s_sug[3];
 
+// cards mode (MY OWN WORDS): 11 or 23 words drawn from paper cards on the
+// restore keyboard, then a last word picked from the checksum valid
+// candidates. No machine randomness enters the seed.
+static bool s_cards;
+static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
+static int s_ncand, s_cpage;
+
 static void choose_screen(void);
 static void count_screen(void);
 // SeedQR was only reachable from the amnesic per-session load, so someone
@@ -101,6 +109,9 @@ static void ent_prove_cb(lv_event_t *e);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
+static void cards_intro_screen(void);
+static void cards_cksum_open(void);
+static void cards_pick_screen(void);
 static void verify_finish(void);
 static void verify_finish_exit(void);
 
@@ -122,6 +133,12 @@ static void wipe_state(void)
     memset(s_w, 0, sizeof s_w);
     memset(s_prefix, 0, sizeof s_prefix);
     s_nw = 0;
+    // The candidate set narrows the last word to 128 (or 8) possibilities for
+    // a seed the owner may still finish elsewhere, so it wipes with the words.
+    s_cards = false;
+    memset(s_cand, 0, sizeof s_cand);
+    s_ncand = 0;
+    s_cpage = 0;
 }
 
 static void close_all(void)
@@ -195,6 +212,13 @@ static lv_obj_t *mk_body(const char *txt, int x, int y, int w, int h, lv_color_t
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     return l;
 }
+
+// How many words the keyboard collects. In cards mode it stops one short of
+// s_count: the last word is picked from the checksum candidates, never typed.
+// s_count itself stays 12/24 the whole flow, because the reveal pager, the
+// quiz and the entropy paths all read it as the seed length. Any future
+// consumer of "how many words does the keyboard take" belongs here.
+static int entry_target(void) { return s_cards ? s_count - 1 : s_count; }
 
 // join s_w[0..s_nw) into a mnemonic string
 static void join_words(char *out, size_t out_len)
@@ -1093,12 +1117,17 @@ static void ent_ui_sync(int pct, int reason)
     }
 }
 
-// The camera path and the dice path both end at wallet_setup_entropy(); this
-// screen is the only fork between them. Camera is convenient and multi-source;
-// dice is single-source but recomputable off-device, for owners who want to
-// verify the firmware did not cheat.
-static void method_cam_cb(lv_event_t *e)  { (void)e; entropy_screen(); }
-static void method_dice_cb(lv_event_t *e) { (void)e; dice_screen(); }
+// The camera and dice paths both end at wallet_setup_entropy(); the cards path
+// ends at the same words_screen from its own picker. This screen is the only
+// fork between the three. Camera is convenient and multi-source; dice is
+// single-source but recomputable off-device; cards is the owner's own words
+// with no machine randomness at all.
+//
+// Camera and dice restore the creation invariant (12 words) because a BACK
+// out of the cards count screen can arrive here carrying s_count = 24.
+static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_count = 12; entropy_screen(); }
+static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_count = 12; dice_screen(); }
+static void method_cards_cb(lv_event_t *e) { (void)e; s_cards = true; count_screen(); }
 
 static void method_screen(void)
 {
@@ -1112,6 +1141,9 @@ static void method_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_DICE_NOTE),
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_CHOOSE_CARDS), tr(STR_W_CARDS_NOTE),
+             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(2),
+             WT_CHOICE_W, WT_CHOICE_H, method_cards_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
@@ -1904,7 +1936,7 @@ static const char *RESTORE_MAP[] = {
 static void restore_refresh(void)
 {
     char buf[96];   // ru "слово %d из %d" + typed prefix overflowed 48
-    snprintf(buf, sizeof buf, tr(STR_W_WORD_N_FMT), s_nw + 1, s_count, s_prefix);
+    snprintf(buf, sizeof buf, tr(STR_W_WORD_N_FMT), s_nw + 1, entry_target(), s_prefix);
     lv_label_set_text(s_word_lbl, buf);
     const char *sug[3] = {0};
     int n = s_prefix[0] ? wallet_seed_suggest(s_prefix, sug, 3) : 0;
@@ -1926,7 +1958,8 @@ static void restore_accept_cb(lv_event_t *e)
     snprintf(s_w[s_nw], sizeof s_w[s_nw], "%s", w);
     s_nw++;
     s_prefix[0] = 0;
-    if (s_nw >= s_count) {
+    if (s_nw >= entry_target()) {
+        if (s_cards) { cards_cksum_open(); return; }   // the picker owns the last word
         if (s_verify) verify_finish();     // check the paper, don't stage a seed
         else store_and_finish();
         return;
@@ -1968,7 +2001,8 @@ static void restore_screen(void)
     s_nw = 0;
     s_prefix[0] = 0;
     RESTORE_MAP[30] = tr(STR_C_CANCEL);   // slot 30 = the CANCEL key (localized)
-    mk_screen(s_verify ? tr(STR_W_VERIFY_T) : tr(STR_W_RESTORE_T),
+    mk_screen(s_cards  ? tr(STR_W_CARDS_T)
+            : s_verify ? tr(STR_W_VERIFY_T) : tr(STR_W_RESTORE_T),
               s_verify ? tr(STR_W_VERIFY_S)
                        : tr(STR_W_RESTORE_S));
 
@@ -1998,17 +2032,237 @@ static void restore_screen(void)
     restore_refresh();
 }
 
+// ---- cards (MY OWN WORDS): the owner's words, the device's checksum ----
+// The creation mode with no machine randomness in the seed: 11 or 23 words
+// drawn from paper cards, typed on the restore keyboard above, then a last
+// word picked from the checksum valid candidates. The picked word joins s_w
+// and the flow rejoins words_screen -> quiz -> store like every other mode.
+// See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
+
+static void cards_cancel_cb(lv_event_t *e)
+{
+    (void)e;
+    wipe_state();
+    // Same discard the restore keyboard's CANCEL does: the staged storage
+    // mode must not outlive the words it was staged for.
+    wallet_seed_discard();
+    choose_screen();
+}
+
+static void cards_start_cb(lv_event_t *e)   { (void)e; restore_screen(); }
+static void cards_pick_go_cb(lv_event_t *e) { (void)e; cards_pick_screen(); }
+
+static void cards_intro_screen(void)
+{
+    mk_screen(tr(STR_W_CARDS_T), tr(STR_W_CARDS_S));
+
+    // The draw as an equation: 11 + 1 -> 12. Numerals, so the card reads in
+    // every locale; the accent sits on the 1 the device contributes. Same
+    // 128..212 band as the backup check and passphrase intros.
+    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *col = lv_obj_create(card);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 0, 0);
+    lv_obj_set_size(col, 704, 84);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *row = wt_diagram_row(col);
+    char n1[16], n2[16];   // 16: device gcc sizes %d for a full int
+    snprintf(n1, sizeof n1, "%d", s_count - 1);
+    snprintf(n2, sizeof n2, "%d", s_count);
+    wt_chip(row, n1, false);
+    wt_diagram_op(row, "+");
+    wt_chip(row, "1", true);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, n2, false);
+
+    {
+        const char *b1 = tr(STR_W_CARDS_W1_B), *b2 = tr(STR_W_CARDS_W2_B);
+        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+        const int HEAD_ROOM = 46;
+        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        wt_why_block(s_scr, tr(STR_W_CARDS_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
+        wt_why_block(s_scr, tr(STR_W_CARDS_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+    }
+
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, WT_ACTION_Y, 300,
+                          cards_start_cb, NULL);
+    wt_pill_primary(p);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_count_cb, NULL);
+}
+
+// A warn twin of the accent chip: same shape, opposite verdict.
+static void cards_chip_warn(lv_obj_t *chip)
+{
+    lv_obj_set_style_border_width(chip, 2, 0);
+    lv_obj_set_style_border_color(chip, WARN_COL, 0);
+    lv_obj_set_style_text_color(lv_obj_get_child(chip, 0), WARN_COL, 0);
+}
+
+// The checksum explainer: why the last word is picked from a list. Two
+// equations, identical but for the mark on the last word; that mark flipping
+// the verdict IS the checksum, told in symbols before the blocks say it in
+// words.
+static void cards_cksum_screen(void)
+{
+    mk_screen(tr(STR_W_CKSUM_T), tr(STR_W_CKSUM_S));
+
+    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 100);
+    lv_obj_t *col = lv_obj_create(card);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 0, 0);
+    lv_obj_set_size(col, 704, 100);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 8, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+    char n1[16], okw[16], badw[16];   // 16: device gcc sizes %d for a full int
+    snprintf(n1, sizeof n1, "%d", s_count - 1);
+    snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
+    snprintf(badw, sizeof badw, "%s 1", LV_SYMBOL_CLOSE);
+
+    lv_obj_t *r1 = wt_diagram_row(col);
+    wt_chip(r1, n1, false);
+    wt_diagram_op(r1, "+");
+    wt_chip(r1, okw, true);
+    wt_diagram_op(r1, LV_SYMBOL_RIGHT);
+    wt_chip(r1, LV_SYMBOL_OK, true);
+
+    lv_obj_t *r2 = wt_diagram_row(col);
+    wt_chip(r2, n1, false);
+    wt_diagram_op(r2, "+");
+    cards_chip_warn(wt_chip(r2, badw, false));
+    wt_diagram_op(r2, LV_SYMBOL_RIGHT);
+    cards_chip_warn(wt_chip(r2, LV_SYMBOL_CLOSE, false));
+
+    // The one concrete number: how many of the 2048 list words fit these.
+    char fit[96];
+    snprintf(fit, sizeof fit, tr(STR_W_CKSUM_FIT_FMT), s_ncand);
+    lv_obj_t *fl = mk_lbl(fit, 48, 210, wt_font14(), wt_accent());
+    lv_obj_set_width(fl, 704);
+    lv_obj_set_style_text_align(fl, LV_TEXT_ALIGN_CENTER, 0);
+
+    {
+        const char *b1 = tr(STR_W_CKSUM_W1_B), *b2 = tr(STR_W_CKSUM_W2_B);
+        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+        const int HEAD_ROOM = 46;
+        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        wt_why_block(s_scr, tr(STR_W_CKSUM_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
+        wt_why_block(s_scr, tr(STR_W_CKSUM_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+    }
+
+    lv_obj_t *p = mk_pill(tr(STR_W_CKSUM_GO), 48, WT_ACTION_Y, 300,
+                          cards_pick_go_cb, NULL);
+    wt_pill_primary(p);
+    mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cards_cancel_cb, NULL);
+}
+
+static void cards_cksum_open(void)
+{
+    char partial[WSEED_MAX_MNEMONIC];
+    join_words(partial, sizeof partial);
+    s_ncand = wallet_lastword_candidates(partial, s_cand);
+    wz_bzero(partial, sizeof partial);
+    s_cpage = 0;
+    if (s_ncand <= 0) {
+        // Unreachable by construction: every typed word came off the suggest
+        // pills, so the prefix is wordlist words and the count is 128 or 8.
+        // Still never a dead branch on a seed path.
+        mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
+        mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
+        mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
+        return;
+    }
+    cards_cksum_screen();
+}
+
+// ---- cards: pick the last word ----
+// 4 x 4 pill pages: the 24 word draw fits its 8 candidates on one page, the
+// 12 word draw pages its 128 in 8. Every candidate is a real English BIP39
+// word, untranslated on purpose, exactly as the reveal grid shows them.
+#define CARDS_PER_PAGE 16
+
+static void cards_page_cb(lv_event_t *e)
+{
+    s_cpage += (int)(intptr_t)lv_event_get_user_data(e);
+    cards_pick_screen();
+}
+
+static void cards_pick_cb(lv_event_t *e)
+{
+    int pos = (int)(intptr_t)lv_event_get_user_data(e);
+    const char *w = wallet_lastword_word(s_cand[pos]);
+    if (!w) return;
+    snprintf(s_w[s_count - 1], sizeof s_w[0], "%s", w);
+    // The set is checksum valid by construction, so store_and_finish cannot
+    // refuse it; the reveal and quiz see a full seed like any other mode.
+    s_nw = s_count;
+    s_wpage = 0;
+    words_screen();
+}
+
+static void cards_pick_screen(void)
+{
+    const int pages = (s_ncand + CARDS_PER_PAGE - 1) / CARDS_PER_PAGE;
+    if (s_cpage < 0) s_cpage = 0;
+    if (s_cpage >= pages) s_cpage = pages - 1;
+
+    mk_screen(tr(STR_W_CARDS_PICK_T), tr(STR_W_CARDS_PICK_S));
+
+    const int first = s_cpage * CARDS_PER_PAGE;
+    int on = s_ncand - first;
+    if (on > CARDS_PER_PAGE) on = CARDS_PER_PAGE;
+    const int rows = (on + 3) / 4;
+
+    // The grid wears the chooser frame: 14px side margins + 16px gaps fill
+    // WT_CHOICE_W exactly (14 + 4*160 + 3*16 + 14 = 716). 56px pills keep the
+    // 52px touch floor; 4 rows bottom at 104 + 286 = 390, under the 398 line.
+    lv_obj_t *card = wt_card(s_scr, WT_CHOICE_X, 104, WT_CHOICE_W, rows * 66 + 22);
+    for (int k = 0; k < on; k++) {
+        wt_pillh(card, wallet_lastword_word(s_cand[first + k]),
+                 14 + (k % 4) * 176, 16 + (k / 4) * 66, 160, 56,
+                 cards_pick_cb, (void *)(intptr_t)(first + k));
+    }
+
+    // Same action row contract as the reveal pager: CANCEL only on page one,
+    // BACK owns that slot on later pages, NEXT while there is more to see.
+    if (s_cpage == 0)
+        mk_pill(tr(STR_C_CANCEL), 48, WT_ACTION_Y, 160, cards_cancel_cb, NULL);
+    else
+        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, cards_page_cb,
+                (void *)(intptr_t)-1);
+    if (s_cpage < pages - 1)
+        mk_pill(tr(STR_R_NEXT), 430, WT_ACTION_Y, 320, cards_page_cb,
+                (void *)(intptr_t)1);
+    if (pages > 1) {
+        char cnt[40];
+        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_ncand);
+        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+    }
+}
+
 // ---- word count ----
 static void count_pick_cb(lv_event_t *e)
 {
     s_count = (int)(intptr_t)lv_event_get_user_data(e);
+    if (s_cards) { cards_intro_screen(); return; }
     if (s_restore) restore_screen();
     else entropy_screen();
 }
 
+static void goto_method_cb(lv_event_t *e) { (void)e; method_screen(); }
+
 static void count_screen(void)
 {
-    // Reached only while RESTORING now; creating always makes 12.
+    // Reached while RESTORING or in cards mode; camera and dice always make 12.
+    // Cards gets the choice because its cost lives in the draw, not here: the
+    // owner has already decided how many cards to pull.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     // Rows, on the chooser grid the storage and create-or-restore screens use.
     // Three pills each trailing a note in a column 380px away was the last
@@ -2031,7 +2285,8 @@ static void count_screen(void)
                  tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            s_cards ? goto_method_cb : goto_choose_cb, NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----

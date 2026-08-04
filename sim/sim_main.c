@@ -204,6 +204,23 @@ int wallet_dice_peek(uint8_t out[32]) {
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i + s_sim_dn);
   return 0;
 }
+// Last word source (cards path). The real enumeration needs wally's BIP39
+// validator and is exercised by kisstest; the walk only needs the right SHAPE:
+// 8 candidates after a 23 word prefix, 128 after 11, real-looking labels.
+#include "wallet_lastword.h"
+int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
+  if (!partial) return -1;
+  int words = 1;
+  for (const char *p = partial; *p; p++)
+    if (*p == ' ') words++;
+  if (words != 11 && words != 23) return -1;
+  int n = words == 23 ? 8 : 128;
+  for (int i = 0; i < n; i++) out[i] = (uint16_t)i;
+  return n;
+}
+const char *wallet_lastword_word(uint16_t i) {
+  return i < 2048 ? SIM_WORDS[i % 24] : NULL;
+}
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
@@ -1461,6 +1478,46 @@ int main(void) {
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
   touch(590, 430); pump(3); release(); pump(6);     // DONE -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
+
+  // The CARDS detour (MY OWN WORDS): both lengths, to the picker and back out.
+  // The candidate math is stubbed above (first N indices over SIM_WORDS);
+  // these stops prove layout in 21 locales, kisstest owns correctness. Method
+  // row 2 is 300..396, so 346 is its middle.
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS (row 2)
+  save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
+  save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
+  for (int i = 0; i < 11; i++) restore_word("a");   // 11 x first suggestion
+  save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK
+  touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
+  save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
+  touch(590, 430); pump(3); release(); pump(4);     // NEXT -> page 2
+  save("/tmp/sim_setup_cards_pick2.ppm");           // BACK owns the left slot now
+  touch(128, 434); pump(3); release(); pump(4);     // BACK -> page 1
+  touch(128, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards cancel left storage mode staged\n");
+    return 1;
+  }
+  // the 24 word draw: 23 typed, a single page of 8 candidates, no pager
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  for (int i = 0; i < 23; i++) restore_word("a");   // 23 x first suggestion
+  touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
+  save("/tmp/sim_setup_cards_pick24.ppm");          // 8 pills, no pager
+  touch(128, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards cancel (24) left storage mode staged\n");
+    return 1;
+  }
+
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED again
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
 

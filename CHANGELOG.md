@@ -26,6 +26,17 @@ wording of the warning are theirs.
 
 ### Added
 
+- **MY OWN WORDS: a seed from paper cards, with the device only doing the
+  math.** A third way to create a wallet, beside the camera and the dice: cut
+  the BIP39 word list into cards, shuffle, draw 11 (or 23) blind, and type
+  them in. The last word of a seed phrase is part checksum, so it cannot be
+  drawn — the device computes every word that completes your draw (128 for a
+  12 word seed, 8 for a 24 word one), shows them all, and you pick one. No
+  machine randomness enters the seed, and the result checks out on any BIP39
+  tool. A full page explains the checksum on the way: same words, right or
+  wrong last word, tick or cross — and a wrong word can never hide, which is
+  why a typo in a restore is always caught.
+
 - **CAMERA AUDIT: the camera path can now be audited on any computer.** The WHY
   THREE SOURCES card used to end by conceding that all three sources are made
   by this device and pointing doubters at dice. It now also offers the
