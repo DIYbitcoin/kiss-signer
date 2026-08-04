@@ -654,6 +654,42 @@ void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center st
 
 static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 
+// Does any label on the live screen contain this text? The verify screen is the
+// one place in the app where a missing string is a security defect rather than
+// a cosmetic one, and a saved frame cannot say "the address is absent" -- it
+// looks like a perfectly tidy screen that simply does not mention where the
+// coins are going. So the walk asks the object tree directly.
+// Spangroups too, and the address is one: wt_addr_spans splits it into a muted
+// head and an accented tail, so no single label ever holds the whole string.
+// Concatenating the spans is the only way to ask "is the address on screen".
+static int find_label_text(lv_obj_t *o, const char *needle) {
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    if (t && strstr(t, needle)) return 1;
+  }
+  if (lv_obj_check_type(o, &lv_spangroup_class)) {
+    char joined[512];
+    size_t n = 0;
+    uint32_t ns = lv_spangroup_get_span_count(o);
+    for (uint32_t i = 0; i < ns && n + 1 < sizeof joined; i++) {
+      const char *t = lv_span_get_text(lv_spangroup_get_child(o, (int32_t)i));
+      if (!t) continue;
+      n += (size_t)snprintf(joined + n, sizeof joined - n, "%s", t);
+      if (n >= sizeof joined) n = sizeof joined - 1;
+    }
+    joined[n] = 0;
+    if (strstr(joined, needle)) return 1;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+    if (find_label_text(lv_obj_get_child(o, i), needle)) return 1;
+  return 0;
+}
+static int g_walk_fails;
+static void must_show(const char *what, const char *needle) {
+  if (find_label_text(lv_screen_active(), needle)) return;
+  printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
+  g_walk_fails++;
+}
 static void release(void) { g_pressed = false; }
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
@@ -1072,10 +1108,31 @@ int main(void) {
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
+  // THE regression. Five cautions used to replace the output panels outright,
+  // so the destination vanished from the transactions the device trusted least
+  // -- and a coordinator could induce exactly that by padding the input count
+  // or leaving the previous transactions off. The frame above proves it looks
+  // right; these three prove the facts are actually on it.
+  must_show("verify (5 cautions)", "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  must_show("verify (5 cautions)", "200 sats");       // the change amount
+  must_show("verify (5 cautions)", "800 sats");       // the fee, in sats
+  // Five cautions and the recipient address on the SAME screen. This frame is
+  // the regression: the address panel used to be replaced by the row stack, so
+  // the transaction the device trusted least was the one whose destination it
+  // never showed. The bar's pill is at the row pill's old x, so the FEE ack tap
+  // above and this REVIEW tap land in the same place.
+  touch(652, 172); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
+  save("/tmp/sim_sign_cautions.ppm");
+  // Row 0's I UNDERSTAND: rows start at y=88 with the pill at local (543,8),
+  // so it is 567..737 x 96..136. This is its centre.
+  touch(652, 116); pump(3); release(); pump(8);     // -> row goes green, page repaints
+  save("/tmp/sim_sign_cautions_ack.ppm");
+  touch(118, 430); pump(3); release(); pump(8);     // BACK -> verify, address still there
+  save("/tmp/sim_sign_combo_back.ppm");
   // The caution "?" used to be anchored to the top of the caution stack, so
-  // its y moved with the number of cautions that fired. Now that every
-  // caution owns its own row and answers for itself, one chip at (738,108)
-  // covers the whole stack and never moves. This is its centre.
+  // its y moved with the number of cautions that fired. The bar is one row at
+  // one y whatever the count, so the chip at (738,108) never moves. This is its
+  // centre.
   // pump(6) caught this card mid fade, so the frame showed a dimmed screen and
   // an icon on its way in. The card is the only place the caution reasons are
   // spelled out, and with four of them stacked it is exactly the frame worth
@@ -1105,6 +1162,12 @@ int main(void) {
   // being seen inside the five-row COMBO pile.
   touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> verify
   save("/tmp/sim_sign_unproven.ppm");
+  // The single-caution shape: the one an ordinary two-input spend from a
+  // coordinator that ships bare witness_utxos has, and the one most owners
+  // will actually meet. Same guarantee.
+  must_show("verify (1 caution)", "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  must_show("verify (1 caution)", "39 000 sats");
+  must_show("verify (1 caution)", "1 000 sats");
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
   save("/tmp/sim_sign_unproven_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
@@ -1750,6 +1813,10 @@ int main(void) {
       return 1;
     }
     printf("ok: no orphaned sign screens\n");
+  }
+  if (g_walk_fails) {
+    printf("FAIL: %d missing fact(s) on a verify screen\n", g_walk_fails);
+    return 1;
   }
   printf("sim done\n");
 #ifdef OVERLAPCHECK

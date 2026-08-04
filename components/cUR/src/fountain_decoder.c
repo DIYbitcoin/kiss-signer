@@ -691,8 +691,16 @@ static bool reduce_part_by_part(const decoder_part_t *const a,
   }
 
   result->data_len = a->data_len;
-  for (size_t i = 0; i < a->data_len; i++) {
+  // Bounded by BOTH lengths, the way reduce_mixed_by already is. The session
+  // check in fountain_decoder_receive_part should make a short b impossible,
+  // but this loop is one of two places a hostile frame reaches first, and a
+  // read past b->data is a heap panic on a device with no console.
+  size_t n = a->data_len < b->data_len ? a->data_len : b->data_len;
+  for (size_t i = 0; i < n; i++) {
     result->data[i] = a->data[i] ^ b->data[i];
+  }
+  for (size_t i = n; i < a->data_len; i++) {
+    result->data[i] = a->data[i];
   }
   return true;
 }
@@ -1299,6 +1307,24 @@ bool fountain_decoder_receive_part(fountain_decoder_t *decoder,
         return false;
       }
       free(degree_probs);
+    }
+  } else {
+    // Every later frame must describe the SAME message as the first one. The
+    // spec says so; nothing enforced it, and the gap was not cosmetic. Frames
+    // are XORed together to recover fragments, so a part carrying a shorter
+    // body than the one it reduces used to be read past its end
+    // (reduce_part_by_part), and a part declaring a different seq_len
+    // generated indexes outside expected_part_indexes, which part_indexes_equal
+    // can then never match -- the decode wedged with no escape but cancel.
+    //
+    // Both frames are individually well formed: correct bytewords CRC, CBOR
+    // header agreeing with the URI path, seq_len and message_len inside the
+    // caps. Only the comparison ACROSS frames tells them apart.
+    if (part->data_len != decoder->expected_fragment_len ||
+        part->seq_len != decoder->expected_part_indexes->count ||
+        part->message_len != decoder->expected_message_len ||
+        part->checksum != decoder->expected_checksum) {
+      return false;
     }
   }
 

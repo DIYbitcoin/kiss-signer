@@ -37,6 +37,8 @@ int test_passedit(void);
 int test_tapent(void);
 // sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
 int test_dice(void);
+// sim/test_proof.c — the CAMERA AUDIT frame -> file -> hash -> words pipeline
+int test_proof(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -74,6 +76,10 @@ enum {
     MUT_HIGH_FEE  = 16,  // shrink change so fee dwarfs the send -> CAUTION
     MUT_TESTNET   = 32,  // keypaths at m/84h/1h/0h -> valid only in testnet mode
     MUT_OPRETURN  = 64,  // out0 is an OP_RETURN blob -> no address to verify -> STOP
+    MUT_HARD_IDX  = 128, // change at m/84h/0h/0h/1/0h -- OUR key, re-derives fine,
+                         // and no xpub on earth can derive it back -> STOP
+    MUT_CONSOLID  = 256, // every output is change: a self-consolidation, the one
+                         // shape the old fee-share test skipped entirely
 };
 
 static struct ext_key t_master, t_k00, t_k10;   // full-path keys (pub_key valid)
@@ -122,7 +128,18 @@ static size_t mk_psbt(int mut, uint8_t *out, size_t outsz) {
     } else {
         p2wpkh_spk(k10->pub_key, chg_spk);
     }
-    uint64_t chg_sats = (mut & MUT_HIGH_FEE) ? 5000 : 39000;   // fee 35000 vs 1000
+    uint64_t chg_sats = (mut & (MUT_HIGH_FEE | MUT_CONSOLID)) ? 5000 : 39000;  // fee 35000 vs 1000
+
+    // A hardened address index. The key IS ours and bip32 derives it happily
+    // from the private master, which is exactly why the path check has to be
+    // the thing that refuses it.
+    struct ext_key khard;
+    const uint32_t coin_h = (mut & MUT_TESTNET) ? H + 1 : H;
+    const uint32_t p10h[5] = {H + 84, coin_h, H, 1, H};
+    if (mut & MUT_HARD_IDX) {
+        bip32_key_from_parent_path(&t_master, p10h, 5, BIP32_FLAG_KEY_PRIVATE, &khard);
+        p2wpkh_spk(khard.pub_key, chg_spk);
+    }
 
     struct wally_tx *tx = NULL;
     wally_tx_init_alloc(2, 0, 1, 2, &tx);
@@ -130,6 +147,8 @@ static size_t mk_psbt(int mut, uint8_t *out, size_t outsz) {
     if (mut & MUT_OPRETURN) {            // OP_RETURN blob: no address to show
         const uint8_t opret[10] = {0x6A, 0x08, 0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF};
         wally_tx_add_raw_output(tx, 60000, opret, sizeof opret, 0);
+    } else if (mut & MUT_CONSOLID) {     // out0 pays our own receive branch too
+        wally_tx_add_raw_output(tx, 60000, in_spk, 22, 0);
     } else {
         wally_tx_add_raw_output(tx, 60000, t_ext_spk, 22, 0);
     }
@@ -152,9 +171,19 @@ static size_t mk_psbt(int mut, uint8_t *out, size_t outsz) {
     wally_map_keypath_add(m, k00->pub_key, 33, t_fp, 4, p00, 5);
     wally_psbt_set_input_keypaths(p, 0, m);
     wally_map_free(m);
+    if (mut & MUT_CONSOLID) {            // out0 needs its own keypath to count
+        m = NULL;                        // as change rather than as a recipient
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, k00->pub_key, 33, t_fp, 4, p00, 5);
+        wally_psbt_set_output_keypaths(p, 0, m);
+        wally_map_free(m);
+    }
     m = NULL;
     wally_map_keypath_public_key_init_alloc(1, &m);
-    wally_map_keypath_add(m, k10->pub_key, 33, t_fp, 4, p10, 5);
+    if (mut & MUT_HARD_IDX)
+        wally_map_keypath_add(m, khard.pub_key, 33, t_fp, 4, p10h, 5);
+    else
+        wally_map_keypath_add(m, k10->pub_key, 33, t_fp, 4, p10, 5);
     wally_psbt_set_output_keypaths(p, 1, m);
     wally_map_free(m);
 
@@ -611,6 +640,7 @@ int main(int argc, char **argv) {
     fails += test_passedit();
     fails += test_tapent();
     fails += test_dice();
+    fails += test_proof();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);
@@ -1108,6 +1138,32 @@ int main(int argc, char **argv) {
     chki("nonstandard output STOP", sum.status, WPSBT_STOP);
     chkb("nonstandard reason says nonstandard", strstr(sum.reason, "nonstandard") != NULL);
     chkb("nonstandard sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
+    wallet_psbt_free();
+
+    // A hardened change index. The key is genuinely this wallet's and derives
+    // from the private master without complaint, so re-derivation alone cannot
+    // catch it -- but the descriptor this device exports is an xpub, and no
+    // xpub can ever derive a hardened child. Change sent there is provably ours
+    // and permanently invisible to every watch-only wallet the owner has.
+    pl = mk_psbt(MUT_HARD_IDX, pb, sizeof pb);
+    chki("hardened change index load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("hardened change index STOP", sum.status, WPSBT_STOP);
+    chkb("hardened change index sign refused",
+         wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
+    wallet_psbt_free();
+
+    // Self-consolidation: every output is change, so send_sats is 0. The
+    // fee-share test used to be skipped outright in that case, leaving a 35%
+    // fee judged only by its sat/vB rate -- which at this size passes. The
+    // share is measured against the coins being consolidated now.
+    pl = mk_psbt(MUT_CONSOLID, pb, sizeof pb);
+    chki("consolidation load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("consolidation has no send", (int)sum.send_sats, 0);
+    chkb("consolidation rate alone would not have fired",
+         sum.fee_rate_x10 <= WPSBT_HIGH_RATE_X10);
+    chki("consolidation high fee CAUTION", sum.status, WPSBT_CAUTION);
+    chkb("consolidation flags the fee",
+         (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
     wallet_psbt_free();
 
     chkb("garbage refuses to load", wallet_psbt_load((const uint8_t *)"nope", 4, &sum) != 0);
