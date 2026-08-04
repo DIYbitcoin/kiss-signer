@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "vérifié · ID %s est sur ton papier",
   "I_WORDS_UNVERIFIED": "papier jamais vérifié",
   "GD_SET_UP_SPARE": "CRÉER UN LEURRE",
-  "W_QUIZ_SHOW_AGAIN": "REVOIR LES MOTS"
+  "W_QUIZ_SHOW_AGAIN": "REVOIR LES MOTS",
+  "W_PROOF_T": "PROUVEZ-LE",
+  "W_PROOF_S": "une photo devient fichier, SHA256 et 24 mots.\nvérifiez les trois sur n'importe quel ordinateur.",
+  "W_PROOF_SHOT": "CAPTURER",
+  "W_PROOF_FILE_NOTE": "enregistrée sur la carte telle que capturée. le SHA256 et les mots ne viennent que de ces octets.",
+  "W_PROOF_SD_T": "INSÉREZ UNE CARTE SD",
+  "W_PROOF_SD_B": "la photo de preuve a besoin d'une carte, n'importe laquelle. insérez-la et réessayez.",
+  "W_PROOF_SAVING": "écriture de la photo sur la carte",
+  "W_PROOF_FAIL_B": "la carte a refusé le fichier. rien n'a été gardé, rien n'a été créé. essayez une autre carte.",
+  "W_PROOF_R_T": "VOTRE PREUVE",
+  "W_PROOF_R_S": "les mêmes octets sont sur la carte, prêts à vérifier.",
+  "W_PROOF_HASH_CAP": "SHA256 DE LA PHOTO",
+  "W_PROOF_CHECK_H": "vérifier",
+  "W_PROOF_CHECK_B": "SHA256 du fichier: ce hash. dans un outil BIP39: ces 24 mots.",
+  "W_PROOF_BURN_H": "brûler",
+  "W_PROOF_BURN_B": "qui a la carte peut calculer ces mots. pour vérifier, jamais les fonds.",
+  "W_PROOF_BURNED": "brûlés. en clair sur la carte. jamais pour des fonds.",
+  "W_PROOF_WORDS_BTN": "VOIR LES MOTS"
 }

@@ -502,5 +502,22 @@
   "I_WORDS_VERIFIED_FMT": "geprüft · ID %s ist auf deiner Karte",
   "I_WORDS_UNVERIFIED": "Papier nie geprüft",
   "GD_SET_UP_SPARE": "ZWEITE EINRICHTEN",
-  "W_QUIZ_SHOW_AGAIN": "WÖRTER NOCHMAL ZEIGEN"
+  "W_QUIZ_SHOW_AGAIN": "WÖRTER NOCHMAL ZEIGEN",
+  "W_PROOF_T": "BEWEIS ES",
+  "W_PROOF_S": "ein Foto wird zu Datei, Hash und 24 Wörtern.\nprüfe alle drei auf jedem Computer.",
+  "W_PROOF_SHOT": "AUFNEHMEN",
+  "W_PROOF_FILE_NOTE": "auf der Karte gespeichert, exakt wie aufgenommen. Hash und Wörter stammen nur aus diesen Bytes.",
+  "W_PROOF_SD_T": "EINE SD-KARTE EINLEGEN",
+  "W_PROOF_SD_B": "das Beweisfoto braucht eine Karte. lege irgendeine ein und versuche es erneut.",
+  "W_PROOF_SAVING": "Foto wird auf die Karte geschrieben",
+  "W_PROOF_FAIL_B": "die Karte hat die Datei abgelehnt. nichts wurde behalten, nichts erzeugt. versuche eine andere Karte.",
+  "W_PROOF_R_T": "DEIN BEWEIS",
+  "W_PROOF_R_S": "dieselben Bytes sind auf der Karte, bereit zum Prüfen.",
+  "W_PROOF_HASH_CAP": "SHA256 DES FOTOS",
+  "W_PROOF_CHECK_H": "prüf es",
+  "W_PROOF_CHECK_B": "SHA256 der Datei: dieser Hash. in ein BIP39-Tool: diese 24 Wörter.",
+  "W_PROOF_BURN_H": "verbrenn es",
+  "W_PROOF_BURN_B": "wer die Karte hat, kann diese Wörter ableiten. zum Prüfen, nie für Geld.",
+  "W_PROOF_BURNED": "verbrannt. sie liegen offen auf der Karte. nie für Geld.",
+  "W_PROOF_WORDS_BTN": "WÖRTER ZEIGEN"
 }

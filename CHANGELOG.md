@@ -26,6 +26,21 @@ wording of the warning are theirs.
 
 ### Added
 
+- **CAMERA AUDIT: the camera path can now be audited on any computer.** The WHY
+  THREE SOURCES card used to end by conceding that all three sources are made
+  by this device and pointing doubters at dice. It now also offers the
+  camera's own answer: a proof run that captures one frame, writes those exact
+  bytes to the SD card as `kiss-proof.bin`, and shows the SHA256 of that file
+  plus the 24 words that hash alone derives to — through the same BIP39 code
+  the real wizard uses. Hash the file on any computer and feed the result to
+  any BIP39 tool (or run `tools/verify_proof.py`): file, hash and words must
+  all agree, or the device lied. The words are burned — they sit on the card
+  in the open, the screen says so in red, and they never touch the quiz or
+  storage. Real seed creation is unchanged: three sources, same mix. Krux
+  showed the way by exposing entropy hashes for off-device checking; the
+  burned-proof shape is ours, since our camera seed mixes sources that no
+  export could ever verify.
+
 - **The dice screen now judges the rolls, not just counts them.** Before, fifty
   presses of one key made a "valid" seed: the hash whitens whatever goes in, so
   the words always look perfect and nothing downstream can tell. Six live

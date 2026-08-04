@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include "i18n.h"
 #include "wallet_crypto.h"
+#include "wallet_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
+#include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
@@ -128,6 +130,21 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
   for (int i = 0; i < count && o + 12 < n; i++)
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
+}
+// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no crypto).
+// The stub writes a SMALL real file through the real platform_sd so the walk's
+// SD gate and the host directory stay honest, fakes the hash, and derives the
+// fixed SIM_WORDS. kisstest runs the real pipeline against a pinned vector.
+int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
+                     char *words_out, size_t words_len) {
+  (void)frame; (void)len;
+  uint8_t junk[64];
+  for (int i = 0; i < 64; i++) junk[i] = (uint8_t)(i * 3 + 1);
+  if (platform_sd_mount() != 0 ||
+      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0)
+    return WPROOF_ERR_SD;
+  for (int i = 0; i < 32; i++) hash_out[i] = (uint8_t)(i * 5 + 1);
+  return wallet_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
 // Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
 // and wallet_crypto.c and needs wally's SHA256; the sim links no crypto, same
@@ -636,6 +653,7 @@ static void save_seq(void) {
 void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center status slot
 
 static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
+
 static void release(void) { g_pressed = false; }
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
@@ -1366,7 +1384,19 @@ int main(void) {
                                                     // 40 = the staggered card
                                                     // intro fully settled
   save("/tmp/sim_setup_ent_why.ppm");               // WHY THREE SOURCES, icon grid
-  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
+  // The PROVE IT detour. The explainer's own OK stays covered by the dice "?"
+  // below; this path leaves through the pill instead, walks the whole burned
+  // proof run, and lands back on the entropy screen. The stub writes a real
+  // (small) kiss-proof.bin into /tmp/simsd.
+  touch(158, 430); pump(3); release(); pump(6);     // PROVE IT -> capture screen
+  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
+  touch(198, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
+  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
+  touch(198, 430); pump(3); release(); pump(6);     // SHOW WORDS
+  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
+  touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
+  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
+  touch(590, 430); pump(3); release(); pump(6);     // DONE -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED again
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
