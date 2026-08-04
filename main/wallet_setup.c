@@ -895,7 +895,7 @@ static void ent_mix_help_cb(lv_event_t *e)
     // checked. A tap on the pill stays on the pill (nothing here bubbles), so
     // the overlay's close-on-tap-anywhere is not in play.
     if (ovl)
-        wt_pill(ovl, tr(STR_W_PROOF_T), 48, WT_ACTION_Y, 220, ent_prove_cb,
+        wt_pill(ovl, tr(STR_W_PROOF_BTN), 48, WT_ACTION_Y, 220, ent_prove_cb,
                 ovl);
 #ifndef SIMULATOR
     // The card is an OVERLAY, not a replacement screen, so the entropy screen
