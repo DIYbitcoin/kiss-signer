@@ -37,6 +37,9 @@ int test_passedit(void);
 int test_tapent(void);
 // sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
 int test_dice(void);
+
+// sim/test_lastword.c — the checksum valid last word enumeration (cards mode)
+int test_lastword(void);
 // sim/test_proof.c — the CAMERA AUDIT frame -> file -> hash -> words pipeline
 int test_proof(void);
 
@@ -640,6 +643,7 @@ int main(int argc, char **argv) {
     fails += test_passedit();
     fails += test_tapent();
     fails += test_dice();
+    fails += test_lastword();
     fails += test_proof();
 
     uint8_t fp[4] = {0};
