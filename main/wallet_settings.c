@@ -62,7 +62,7 @@ static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
-static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl, *s_type_val;
+static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl, *s_type_name;
 static lv_obj_t *s_storage_pill;  // STORAGE over the explicit current mode
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
 
@@ -255,19 +255,22 @@ static void restyle(void)
         lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
     }
 
-    // The address type row carries the type NAME as its right-hand value and the
-    // derivation path as its sub-line. Both are rebuilt by walking the row's
+    // The address type row carries the address PREFIX as its right-hand value
+    // and the type name as its sub-line. Both are rebuilt by walking the row's
     // children rather than by index, because wt_row adds the chevron first and a
     // row without a sub-line has one child fewer.
     if (s_type_pill) {
         int sc = wallet_script();
-        if (s_type_pfx) lv_label_set_text(s_type_pfx, type_prefix(sc, tn));
-        if (s_type_val) {
-            int oldw = lv_obj_get_width(s_type_val);
-            int oldx = lv_obj_get_x(s_type_val);
-            lv_label_set_text(s_type_val, type_name(sc));
-            lv_obj_update_layout(s_type_val);
-            lv_obj_set_x(s_type_val, oldx + oldw - lv_obj_get_width(s_type_val));
+        // The sub-line is left aligned, so it only needs its text.
+        if (s_type_name) lv_label_set_text(s_type_name, type_name(sc));
+        // The value is right aligned and wt_row placed it by its old width, so
+        // re-pin its right edge after the text changes length.
+        if (s_type_pfx) {
+            int oldw = lv_obj_get_width(s_type_pfx);
+            int oldx = lv_obj_get_x(s_type_pfx);
+            lv_label_set_text(s_type_pfx, type_prefix(sc, tn));
+            lv_obj_update_layout(s_type_pfx);
+            lv_obj_set_x(s_type_pfx, oldx + oldw - lv_obj_get_width(s_type_pfx));
         }
     }
 }
@@ -1082,10 +1085,20 @@ void wallet_settings_open(lv_obj_t *parent)
         }
     }
 
-    // Address type: the path is the sub-line, the type name is the value.
+    // Address type: the ADDRESS PREFIX is the value, the type name is the
+    // sub-line. That is the way round it has to be, not a preference.
+    //
+    // wt_row_x sizes the label to the width the value leaves it, and the label
+    // is pinned to one ellipsised line. With the translated "Native SegWit" on
+    // the right, "Address type" ran out of room in ENGLISH -- it drew as
+    // "Address t..." -- and every locale's budget moved with its own
+    // translation of the type name. "bc1..." is never translated and is the
+    // width of "FLASH" next door, so the label now gets ~260px in all 21
+    // locales at once. It is also the half an owner recognises: bc1 is what
+    // they see in their wallet, Native SegWit is the name for it.
     s_type_pill = wt_row(s_scr, tr(STR_I_ROW_TYPE),
-                         type_prefix(wallet_script(), wallet_testnet()),
-                         type_name(wallet_script()), WT_INK,
+                         type_name(wallet_script()),
+                         type_prefix(wallet_script(), wallet_testnet()), WT_INK,
                          SG_L_X, SG_TOP + SG_HEAD + SG_PITCH, SG_L_W,
                          type_open_cb, NULL);
     s_type_expl = NULL;                // the explanation lives on the chooser
@@ -1093,7 +1106,7 @@ void wallet_settings_open(lv_obj_t *parent)
     // guess by x. Guessing matched the CHEVRON too, so the arrow's glyph was
     // replaced by the type name and the row grew a ghost second value.
     s_type_pfx = NULL;
-    s_type_val = NULL;
+    s_type_name = NULL;
     {
         uint32_t n = lv_obj_get_child_count(s_type_pill);
         for (uint32_t i = 0; i < n; i++) {
@@ -1104,7 +1117,7 @@ void wallet_settings_open(lv_obj_t *parent)
             if (!strcmp(t, type_prefix(wallet_script(), wallet_testnet())))
                 s_type_pfx = c;
             else if (!strcmp(t, type_name(wallet_script())))
-                s_type_val = c;
+                s_type_name = c;
         }
     }
     // Duress unlock (wallet_duress.h). ABSENT in a decoy session, not greyed

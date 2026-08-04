@@ -237,7 +237,7 @@
   "GD_SET_SUB": "eine Zweitwallet zum Vorzeigen",
   "W_FLASH_PLAIN_NOTE_SHORT": "unverschlüsselt",
   "I_ROW_NETWORK": "Netzwerk",
-  "I_ROW_TYPE": "Adresse",
+  "I_ROW_TYPE": "Adresstyp",
   "I_ROW_STORAGE": "Wörter liegen in",
   "I_ROW_DURESS": "Zwangs Wallet",
   "I_ROW_WORDS": "Wiederherstellungswörter",

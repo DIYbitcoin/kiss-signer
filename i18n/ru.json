@@ -237,7 +237,7 @@
   "GD_SET_SUB": "запасной, который можно показать",
   "W_FLASH_PLAIN_NOTE_SHORT": "без шифрования",
   "I_ROW_NETWORK": "Сеть",
-  "I_ROW_TYPE": "Адрес",
+  "I_ROW_TYPE": "Тип адреса",
   "I_ROW_STORAGE": "Слова лежат в",
   "I_ROW_DURESS": "Кошелек под принуждением",
   "I_ROW_WORDS": "Слова восстановления",
