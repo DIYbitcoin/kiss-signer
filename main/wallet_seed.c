@@ -5,6 +5,7 @@
 #include "wallet_seed_sd.h"
 #include "platform_sd.h"
 #include "wallet_usage.h"
+#include "wallet_backup.h"   // the paper check dies with the wallet it was about
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -498,6 +499,7 @@ int wallet_seed_set_mode(int mode)
             wally_bzero(s_active_ram, sizeof s_active_ram);
             s_has_active_ram = false;
             wallet_usage_wipe();
+            wallet_backup_forget();    // amnesic keeps no metadata either
         }
     }
     return rc;
@@ -687,6 +689,7 @@ int wallet_seed_wipe(void)
     clear_staged();
     clear_active_ram();
     wallet_usage_wipe();
+    wallet_backup_forget();          // the paper check was about THAT wallet
 
     // Best effort on the card, but absence cannot block a wipe: destroying the
     // device key below permanently invalidates a card that is elsewhere.
