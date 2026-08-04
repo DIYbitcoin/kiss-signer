@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "wallet_backup.h"
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 
@@ -326,6 +327,67 @@ int test_seed_layer(void) {
         schk("wizard: abandoned replacement leaves the old words",
              wallet_seed_load(got, sizeof got) == 0 &&
              strcmp(got, DEV_WORDS) == 0);
+
+        // START A NEW WALLET, KEEP -> KEEP: the transition that now runs a
+        // residue scrub after the write, because nvs_set_str only overwrites
+        // the replaced mnemonic logically and it stayed readable on its page.
+        //
+        // The host has no log-structured store, so these assert the CONTRACT
+        // the scrub must not break -- right words, mode still KEEP, wallet
+        // still there. Whether the old bytes are physically gone is a device
+        // fact and only a chip dump can answer it.
+        schk("replace: stage a KEEP replacement", wallet_seed_stage(ALT_WORDS) == 0);
+        schk("replace: commit ok", wallet_seed_commit() == 0);
+        schk("replace: mode is still KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
+        schk("replace: a wallet still exists", wallet_seed_exists() == 1);
+        schk("replace: the new words are what loads",
+             wallet_seed_load(got, sizeof got) == 0 &&
+             strcmp(got, ALT_WORDS) == 0);
+        schk("replace: nothing is left staged", wallet_seed_commit() != 0);
+
+        // and it survives being done twice in a row, which is the shape of an
+        // owner who changes their mind at the wizard
+        schk("replace: stage a second replacement", wallet_seed_stage(DEV_WORDS) == 0);
+        schk("replace: second commit ok", wallet_seed_commit() == 0);
+        schk("replace: second replacement loads",
+             wallet_seed_load(got, sizeof got) == 0 &&
+             strcmp(got, DEV_WORDS) == 0);
+
+        // the paper check was a claim about the wallet that just went away
+        {
+            uint8_t fp[4] = { 0x11, 0x22, 0x33, 0x44 };
+            wallet_backup_mark(fp);
+            schk("replace: paper marked before the replacement",
+                 wallet_backup_checked(fp));
+            schk("replace: stage over a checked wallet",
+                 wallet_seed_stage(ALT_WORDS) == 0);
+            schk("replace: commit ok", wallet_seed_commit() == 0);
+            schk("replace: the paper check did not survive",
+                 !wallet_backup_checked(fp));
+        }
+
+        // FIRST setup is not a replacement, and must not be treated as one.
+        // storage_mode_read calls a factory-fresh store KEEP, so a scrub gated
+        // on the mode alone would erase the partition on the way IN -- taking
+        // the accent and language the owner had just picked, and opening a
+        // power-cut window on a device whose only wallet is the one being
+        // written. There has to be a wallet there already for there to be
+        // residue.
+        {
+            uint8_t fp[4] = { 0x55, 0x66, 0x77, 0x88 };
+            schk("first setup: wipe to factory", wallet_seed_wipe() == 0);
+            schk("first setup: no wallet", wallet_seed_exists() == 0);
+            wallet_backup_mark(fp);      // stands in for any pre-setup NVS state
+            schk("first setup: stage the first wallet",
+                 wallet_seed_stage(DEV_WORDS) == 0);
+            schk("first setup: commit ok", wallet_seed_commit() == 0);
+            schk("first setup: the wallet is there",
+                 wallet_seed_load(got, sizeof got) == 0 &&
+                 strcmp(got, DEV_WORDS) == 0);
+            schk("first setup: nothing was scrubbed on the way in",
+                 wallet_backup_checked(fp));
+            wallet_backup_forget();
+        }
     }
 
     // leave the dev seed stored: the rest of the suite depends on it
