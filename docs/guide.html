@@ -210,6 +210,11 @@
           <code>SHA256SUMS</code> plus its detached GPG signature
           <code>SHA256SUMS.asc</code>, the release public key
           <code>kiss_signer_pgp.asc</code>, and <code>release.json</code>.
+          Beside them sits
+          <code>kiss-signer-&lt;version&gt;-offline.zip</code>, that same firmware
+          with an install page and this guide, for flashing with no network at
+          all. It is signed on its own by
+          <code>kiss-signer-&lt;version&gt;-offline.zip.asc</code>.
         </p>
 <pre><code>gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
@@ -230,9 +235,10 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
         <p>
-          The future web installer will hash the firmware in your browser before
-          flashing, but it still will not verify the GPG signature for you. Do
-          that yourself once per release.
+          The install page hashes the firmware in your browser before it offers
+          you the button, and that check runs the same way inside the offline
+          zip. It still does not verify the GPG signature for you, in either
+          place. Do that yourself once per release.
         </p>
       </section>
 

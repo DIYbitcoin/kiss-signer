@@ -123,6 +123,27 @@ esptool --chip esp32p4 -p <port> -b 460800 \
 
 Stuck on any step? The [docs](docs/) walk through each one per OS.
 
+### No internet where you flash
+
+Every release also carries `kiss-signer-VERSION-offline.zip`, about 4 MB: the
+install page, the firmware and the signed hashes in one download. Get it on a
+machine that has a network, check its signature, then move it to the machine
+that does not:
+
+```sh
+gpg --verify kiss-signer-VERSION-offline.zip.asc kiss-signer-VERSION-offline.zip
+```
+
+Unzip it, run `serve.command` (macOS), `serve.bat` (Windows) or `./serve.sh`
+(Linux), and open the address it prints in Chrome, Brave or Edge. It serves to
+that one computer only and reaches nothing else. `00-START-HERE.txt` inside says
+the same in more detail.
+
+> [!NOTE]
+> This is the only way to flash from a browser with the network off. The page
+> hosted on GitHub Pages fetches itself while you use it, so pulling the plug
+> halfway leaves you with a page that cannot finish.
+
 ## First boot
 
 The game is what boots. A secret gesture on the game menu opens the signer
@@ -241,6 +262,7 @@ the repo is public. They cover:
 
 - **Verify the release.** GPG + SHA256 walkthrough, including Windows
 - **Flash with esptool.** Command line install on macOS / Linux / Windows
+- **Flash with no internet.** The offline zip: one download, unzip, serve, flash
 - **Build from source.** Reproducible Docker builds, hashes match CI
 - **Flash encryption.** The final signer build that cannot be undone, and what it costs
 - **First boot.** The unlock gesture, passphrase model, pairing Sparrow

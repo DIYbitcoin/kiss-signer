@@ -128,6 +128,17 @@
           build you are running.
           <a class="motion-link" href="guide.html#storage">Read the three modes first &rarr;</a>
         </p>
+
+        <!-- Inside the install card on purpose: when the staged artifacts go
+             stale the whole card is pulled, and the offline download has to go
+             with it rather than outlive the release it belongs to. -->
+        <p class="power-note">
+          <strong>No internet where you flash?</strong> The offline installer is
+          one 4 MB download: a stripped back version of this install card, the
+          firmware, and the signed hashes. Get it once, unzip it anywhere, run
+          the serve file inside, and flash with the network off.
+          <a class="motion-link" href="https://github.com/kkdao/kiss-signer/releases/latest">Offline installer, on the latest release &rarr;</a>
+        </p>
       </section>
 
       <details class="receipt reveal" aria-label="Security checks">
