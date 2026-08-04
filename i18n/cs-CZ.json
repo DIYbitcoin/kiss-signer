@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "spal to",
   "W_PROOF_BURN_B": "kdo má kartu, slova dopočítá. jen na kontrolu, nikdy na peníze.",
   "W_PROOF_BURNED": "spálená. leží na kartě nešifrovaná. nikdy na peníze.",
-  "W_PROOF_WORDS_BTN": "ZOBRAZIT SLOVA"
+  "W_PROOF_WORDS_BTN": "ZOBRAZIT SLOVA",
+  "S_SIGNED_ALREADY": "JIZ PODEPSANO",
+  "S_RM_SIGNED": "SMAZAT PODEPSANE",
+  "S_RM_C_B": "tyto zmizi z karty.\n\nnic nepodepsaneho se nedotkne.",
+  "S_RM_HOLD": "DRZTE PRO SMAZANI"
 }

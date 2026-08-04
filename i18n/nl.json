@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "verbrand het",
   "W_PROOF_BURN_B": "met de kaart zijn deze woorden af te leiden. om te checken, nooit geld.",
   "W_PROOF_BURNED": "verbrand. ze liggen bloot op de kaart. nooit voor geld.",
-  "W_PROOF_WORDS_BTN": "TOON WOORDEN"
+  "W_PROOF_WORDS_BTN": "TOON WOORDEN",
+  "S_SIGNED_ALREADY": "AL ONDERTEKEND",
+  "S_RM_SIGNED": "ONDERTEKENDE WISSEN",
+  "S_RM_C_B": "deze verdwijnen van de kaart.\n\nniets zonder handtekening wordt geraakt.",
+  "S_RM_HOLD": "HOUD VAST OM TE WISSEN"
 }

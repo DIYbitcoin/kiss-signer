@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "brûler",
   "W_PROOF_BURN_B": "qui a la carte peut calculer ces mots. pour vérifier, jamais les fonds.",
   "W_PROOF_BURNED": "brûlés. en clair sur la carte. jamais pour des fonds.",
-  "W_PROOF_WORDS_BTN": "VOIR LES MOTS"
+  "W_PROOF_WORDS_BTN": "VOIR LES MOTS",
+  "S_SIGNED_ALREADY": "DEJA SIGNE",
+  "S_RM_SIGNED": "SUPPRIMER LES SIGNES",
+  "S_RM_C_B": "ceux ci disparaissent de la carte.\n\nrien de non signe n est touche.",
+  "S_RM_HOLD": "MAINTENIR POUR SUPPRIMER"
 }

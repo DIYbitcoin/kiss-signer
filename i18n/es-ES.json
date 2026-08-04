@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "quémalas",
   "W_PROOF_BURN_B": "quien tenga la tarjeta saca las palabras. para comprobar, nunca fondos.",
   "W_PROOF_BURNED": "quemadas. sin cifrar en la tarjeta. nunca para fondos.",
-  "W_PROOF_WORDS_BTN": "VER PALABRAS"
+  "W_PROOF_WORDS_BTN": "VER PALABRAS",
+  "S_SIGNED_ALREADY": "YA FIRMADO",
+  "S_RM_SIGNED": "BORRAR FIRMADOS",
+  "S_RM_C_B": "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
+  "S_RM_HOLD": "MANTEN PARA BORRAR"
 }

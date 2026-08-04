@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "brænd det",
   "W_PROOF_BURN_B": "enhver med kortet kan beregne disse ord. til tjek, aldrig til penge.",
   "W_PROOF_BURNED": "brændt. ordene ligger åbent på kortet. aldrig til penge.",
-  "W_PROOF_WORDS_BTN": "VIS ORDENE"
+  "W_PROOF_WORDS_BTN": "VIS ORDENE",
+  "S_SIGNED_ALREADY": "ALLEREDE SIGNERET",
+  "S_RM_SIGNED": "SLET SIGNEREDE",
+  "S_RM_C_B": "disse forsvinder fra kortet.\n\nintet usigneret roeres.",
+  "S_RM_HOLD": "HOLD FOR AT SLETTE"
 }

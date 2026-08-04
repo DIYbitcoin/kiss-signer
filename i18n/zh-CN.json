@@ -537,5 +537,9 @@
   "W_PROOF_BURN_H": "弃用它",
   "W_PROOF_BURN_B": "拿到卡的人都能算出这些词。只用于检验，绝不用于资金。",
   "W_PROOF_BURNED": "已弃用。这些词明文存在卡上，绝不用于资金。",
-  "W_PROOF_WORDS_BTN": "显示这些词"
+  "W_PROOF_WORDS_BTN": "显示这些词",
+  "S_SIGNED_ALREADY": "已签名",
+  "S_RM_SIGNED": "删除已签名",
+  "S_RM_C_B": "这些将从卡上消失。\n\n未签名的文件都保留。",
+  "S_RM_HOLD": "长按删除"
 }

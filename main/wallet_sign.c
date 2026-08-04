@@ -95,6 +95,12 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 // the cap is only the buffer bound (24 x 64 = 1.5 KB static), and past it the
 // screen now says so instead of showing a shorter card than the one in the slot.
 #define MAX_FILES 24
+// Set from the card each time the list is built: s_sig[i] means s_files[i]
+// already has a signature beside it, s_nsig is how many signed outputs the whole
+// card holds (which is what REMOVE SIGNED is gated on and counts down).
+static uint8_t s_sig[MAX_FILES];
+static int     s_nsig;
+static bool    s_cur_signed;      // ... for the one the owner then opened
 #define SHOW_OUTS 3
 
 enum { SRC_SD = 0, SRC_QR = 1 };
@@ -127,6 +133,44 @@ static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can r
 static void qr_out_screen(size_t sw);
 
 bool wallet_sign_active(void) { return s_scr != NULL; }
+
+// Is this name one of our own signed outputs?
+static bool is_signed_name(const char *nm)
+{
+    size_t n = strlen(nm);
+    return n >= 12 && strcasecmp(nm + n - 12, "-signed.psbt") == 0;
+}
+
+// The name a signature for `src` gets written under, into s_done_name -- which
+// is also the buffer the "?" panel rebuilds the SIGNED screen from, so filling
+// it here is what stops that screen showing a blank filename.
+//
+// Two things this gets right that the open-coded version did not:
+//
+//  - It CLAMPS. The old code appended unconditionally, so a 57 character source
+//    produced a 64 character name, name_ok refused it, and platform_sd_write
+//    returned -3 -- discarding a signature that already existed in RAM, behind a
+//    generic write error. A truncated name is recoverable; a lost signature is
+//    a second hold-to-sign at best.
+//  - It does not re-append. Signing an already-signed file used to make
+//    "x-signed-signed.psbt", growing seven characters a round toward that same
+//    cliff. Re-signing is deterministic, so writing the same name back is not a
+//    loss: it is the same bytes.
+static const char *signed_name(const char *src)
+{
+    if (is_signed_name(src)) {
+        snprintf(s_done_name, sizeof s_done_name, "%s", src);
+        return s_done_name;
+    }
+    size_t bl = strlen(src);
+    if (bl > 5) bl -= 5;                                  // strip ".psbt"
+    // "-signed.psbt" is 12 bytes, and name_ok wants the whole thing under
+    // SD_NAME_LEN including its NUL.
+    size_t room = SD_NAME_LEN - 1 - 12;
+    if (bl > room) bl = room;
+    snprintf(s_done_name, sizeof s_done_name, "%.*s-signed.psbt", (int)bl, src);
+    return s_done_name;
+}
 
 static void hold_stop(void)
 {
@@ -493,12 +537,13 @@ static void do_sign_cb(lv_timer_t *t)
         qr_out_screen(sw);
         return;
     }
-    char outname[SD_NAME_LEN + 8];
-    size_t bl = strlen(s_cur);
-    if (bl > 5) bl -= 5;                                  // strip ".psbt"
-    snprintf(outname, sizeof outname, "%.*s-signed.psbt", (int)bl, s_cur);
-    int rc = platform_sd_write(outname, s_out, sw);
-    if (rc != 0) {
+    const char *outname = signed_name(s_cur);
+    // Atomic, like the seed and the proof. This overwrites when the file is
+    // already there, and a plain fopen("wb") truncates on open -- so a card
+    // pulled mid-write replaced a good signature with a short one. The atomic
+    // form keeps the old file until the new one is written and verified.
+    int rc = platform_sd_write_atomic(outname, s_out, sw);
+    if (rc < 0) {
         fail_screen(tr(STR_S_FAIL_SD_WRITE));
         return;
     }
@@ -965,11 +1010,40 @@ static void verify_screen(lv_obj_t *parent)
     // x=132 assumed a tighter title than this device actually draws, and in a
     // locale whose word for SIGN is longer than English the collision gets
     // worse. Measured, not assumed.
+    //
+    // A file that already has a signature beside it on the card says so HERE
+    // too, not just on the row that was tapped -- this is the screen that asks
+    // for the hold, so it is the screen that has to carry the fact. It does not
+    // block anything: re-signing is deterministic and is the right move when a
+    // card write failed. It just means the owner always knows which it is.
+    //
+    // The badge is placed FIRST and right anchored, then the filename is bounded
+    // to whatever lane is left, which is the discipline wt_row_x already uses.
+    // Sized rather than assumed: this band is shared with the header chip at
+    // x=540, and a long filename used to be free to run under it.
     {
         lv_point_t ts;
         lv_text_get_size(&ts, tr(STR_S_T), wt_font34(), 3, 0,
                          LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        sg_lbl(s_scr, s_cur, 48 + ts.x + 18, 34, wt_font_mono14(), MUT_COL);
+        int fx = 48 + ts.x + 18, fr = 530;      // 10 clear of the chip at 540
+        if (s_src == SRC_SD && s_cur_signed) {
+            // font14, NOT mono: the mono faces carry no icon plane, so a
+            // symbol set in them draws a placeholder box.
+            lv_obj_t *w = sg_lbl(s_scr, tr_sym(LV_SYMBOL_WARNING, STR_S_SIGNED_ALREADY),
+                                 0, 33, wt_font14(), WARN_COL);
+            lv_obj_update_layout(w);
+            int ww = lv_obj_get_width(w);
+            lv_obj_set_pos(w, fr - ww, 33);
+            fr -= ww + 12;
+        }
+        // Below about 60px a filename is ellipsis and one character, which tells
+        // nobody anything. It is already on the row that was tapped and in the
+        // DETAILS page title, so drop it rather than let it collide.
+        if (fr - fx >= 60) {
+            lv_obj_t *f = sg_lbl(s_scr, s_cur, fx, 34, wt_font_mono14(), MUT_COL);
+            lv_obj_set_width(f, fr - fx);
+            lv_label_set_long_mode(f, LV_LABEL_LONG_DOT);
+        }
     }
 
     // The chip at the top right is ONE slot in two states. The caution count
@@ -1798,6 +1872,11 @@ static void file_tap_cb(lv_event_t *e)
 {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     snprintf(s_cur, sizeof s_cur, "%s", s_files[idx]);
+    // Carried from the row to the verify screen, so the badge the owner just
+    // read on the list is still there on the screen that asks them to sign. No
+    // second card read: the list already asked.
+    bool opened_signed = (idx >= 0 && idx < MAX_FILES && s_sig[idx])
+                      || is_signed_name(s_cur);
     size_t len = 0;
     int rrc = platform_sd_read(s_cur, s_in, sizeof s_in, &len);
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
@@ -1816,6 +1895,7 @@ static void file_tap_cb(lv_event_t *e)
     s_ack_flags = 0;
     s_on_cautions = false;
     s_ack_t0 = 0;
+    s_cur_signed = opened_signed;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(parent, tr(STR_S_T), s_cur);
@@ -1848,6 +1928,78 @@ static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
 
+// ---- REMOVE SIGNED --------------------------------------------------------
+// The card accumulates one -signed.psbt per hold, the list window is 24, and
+// until now the only advice the device offered was a string telling the owner
+// to go and use a computer. It can clean up after itself.
+//
+// It removes ONLY files named *-signed.psbt: its own output shape. An unsigned
+// PSBT cannot match that predicate, so the one thing this must never do is not
+// a thing it can do. The honest caveat is that the test is the NAME -- a file
+// someone else put on the card called "quarterly-signed.psbt" would go too,
+// which is why the count is framed on the confirm before the hold, not after.
+static void rm_cancel_cb(lv_event_t *e)
+{
+    lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+}
+
+static void rm_go(void *ud)
+{
+    (void)ud;
+    platform_sd_signed_scan(NULL, NULL, 0, 1);
+    // Straight back to the list, which re-scans the card and redraws itself.
+    // The pill's absence is the receipt: gone means the sweep was clean, still
+    // there means it stopped early and these are what survived. That is why
+    // there is no "removed N" screen and no failure string to translate.
+    files_back_cb(NULL);
+}
+
+static void rm_open_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *ovl = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ovl);
+    lv_obj_set_size(ovl, 800, 480);
+    lv_obj_set_pos(ovl, 0, 0);
+    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);      // swallow stray taps
+    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *t = lv_label_create(ovl);
+    lv_label_set_text(t, tr(STR_S_RM_SIGNED));
+    lv_obj_set_style_text_color(t, STOP_COL, 0);
+    lv_obj_set_style_text_font(t, wt_font28(), 0);
+    lv_obj_set_style_text_letter_space(t, 3, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 96);
+
+    // The figure the screen is about, framed. It is also why the body below
+    // carries no number: no locale has to solve "1 signed files".
+    char cnt[16];
+    snprintf(cnt, sizeof cnt, "%d", s_nsig);
+    lv_obj_t *card = wt_value_card(ovl, tr(STR_S_SIGNED_ALREADY), cnt,
+                                   280, 150, 240, false);
+    lv_obj_update_layout(card);
+    int by = 150 + lv_obj_get_height(card) + 16;
+
+    lv_obj_t *b = lv_label_create(ovl);
+    lv_label_set_text(b, tr(STR_S_RM_C_B));
+    lv_obj_set_style_text_color(b, MUT_COL, 0);
+    lv_obj_set_style_text_font(b, wt_body_font(tr(STR_S_RM_C_B), 704, 372 - by - 8), 0);
+    lv_obj_set_width(b, 704);
+    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_MID, 0, by);
+
+    // x=240, not the wipe overlay's 48. That is the wipe's own rule rather than
+    // a departure from it: the destructive control goes nowhere near the pill
+    // that opened it, and the pill that opened THIS one is at 48..388 in the
+    // action row directly below. 1500ms is the storage-move rung, not the
+    // wipe's 2000 -- what goes here regenerates from the PSBTs beside it.
+    wt_hold_pill(ovl, tr(STR_S_RM_HOLD), 240, 372, 320, 52, 1500, rm_go, ovl);
+    wt_pill(ovl, tr(STR_C_CANCEL), 585, 372, 165, rm_cancel_cb, ovl);
+}
+
 static void sd_open(lv_obj_t *parent)
 {
     s_src = SRC_SD;
@@ -1857,6 +2009,11 @@ static void sd_open(lv_obj_t *parent)
     }
     int total = 0;
     int n = platform_sd_list_psbt(s_files, MAX_FILES, &total);
+    // Which of these have a signature already sitting on the card, and how many
+    // signed outputs are there to sweep. ONE pass answers both, so the badges
+    // and the REMOVE pill's existence can never disagree with each other.
+    s_nsig = platform_sd_signed_scan(s_files, s_sig, n > 0 ? n : 0, 0);
+    if (s_nsig < 0) s_nsig = 0;
     if (n <= 0) {
         sd_empty_screen(parent, tr(STR_S_NO_PSBT_FILES),
                         tr(STR_S_SPARROW_SAVE));
@@ -1882,8 +2039,8 @@ static void sd_open(lv_obj_t *parent)
     }
 
     // All discovered files fit in one scrollable, deterministic list. Unsigned
-    // work is sorted first; signed PSBTs remain available for multisig handoffs
-    // but are visibly labelled so nobody accidentally treats one as fresh.
+    // work is sorted first; signed PSBTs stay listed so a signature can be
+    // re-verified, and every row that already has one says so.
 #define FILE_ROW_W 560
     lv_obj_t *list = lv_obj_create(s_scr);
     lv_obj_remove_style_all(list);
@@ -1905,11 +2062,14 @@ static void sd_open(lv_obj_t *parent)
     // the value in the row's right slot, in WT_WARN when the file has already
     // been signed, so "this one is spent" is still said twice.
     for (int i = 0; i < n; i++) {
-        size_t nl = strlen(s_files[i]);
-        bool signed_file = nl >= 12
-                        && strcasecmp(s_files[i] + nl - 12, "-signed.psbt") == 0;
+        // "has this transaction been signed", NOT "is this row's own name
+        // -signed". Those are different questions and this asked the wrong one:
+        // payment-01.psbt read UNSIGNED in grey with payment-01-signed.psbt two
+        // rows below it, so the owner had no way to see what they had already
+        // done and signed the same work again. s_sig[] comes from the card.
+        bool signed_file = s_sig[i] || is_signed_name(s_files[i]);
         lv_obj_t *row = wt_row_x(list, LV_SYMBOL_FILE, s_files[i], NULL, NULL,
-                                 signed_file ? tr(STR_S_SIGNED_T)
+                                 signed_file ? tr(STR_S_SIGNED_ALREADY)
                                              : tr(STR_S_FILE_UNSIGNED),
                                  wt_font14(),
                                  signed_file ? WARN_COL : MUT_COL, false,
@@ -1920,6 +2080,18 @@ static void sd_open(lv_obj_t *parent)
         // flex ever runs. Passing the list's real width is what keeps a long
         // filename ellipsising instead of running under the tag.
         lv_obj_set_width(row, lv_pct(100));
+    }
+    // BACK keeps the corner where the thumb rests; the destructive control does
+    // not go there. 48..388 against BACK's 610..750 leaves 222px of clear air.
+    // A tap in WT_WARN, not a hold in WT_STOP, because this only opens a
+    // confirm -- the project's rule is that the hold belongs to the act itself.
+    if (s_nsig > 0) {
+        lv_obj_t *rm = wt_pill_icon(s_scr, LV_SYMBOL_TRASH, tr(STR_S_RM_SIGNED),
+                                    48, WT_ACTION_Y, 340, WT_ACTION_H,
+                                    rm_open_cb, NULL);
+        lv_obj_set_style_border_color(rm, WARN_COL, 0);
+        lv_obj_t *rl = lv_obj_get_child(rm, 0);
+        if (rl) lv_obj_set_style_text_color(rl, WARN_COL, 0);
     }
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
@@ -1974,6 +2146,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     s_ack_flags = 0;
     s_on_cautions = false;
     s_ack_t0 = 0;
+    s_cur_signed = false;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);

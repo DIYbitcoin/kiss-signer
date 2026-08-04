@@ -50,7 +50,7 @@ static int seed_loads_as(const char *want) {
 // contract now: the names kept are the FIRST `max` in display order (unsigned
 // A-Z, then signed), and *total always says how many the card really holds.
 static int test_sd_list(void) {
-    system("rm -f /tmp/simsd/*.psbt");
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
     char names[4][SD_NAME_LEN];
     int total = 0;
 
@@ -83,12 +83,106 @@ static int test_sd_list(void) {
     n = platform_sd_list_psbt(names, 4, &total);
     dchk("sd list: under cap shows all", n == 3 && total == 3);
 
-    system("rm -f /tmp/simsd/*.psbt");
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
+    return 0;
+}
+
+// Which listed files already have a signature beside them on the card.
+//
+// The list screen used to answer this by asking whether the row's OWN name
+// ended in -signed, so payment-01.psbt read UNSIGNED with payment-01-signed.psbt
+// two rows below it, and the owner signed the same work twice. The tests that
+// matter here are the ones that fail if anyone ever answers it from the array
+// platform_sd_list_psbt returned instead of from the card.
+static int test_sd_signed_scan(void) {
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
+    static char names[24][SD_NAME_LEN];
+    static uint8_t mark[24];
+    char p[96];
+
+    // THE WINDOW TRAP. 20 unsigned + 10 signed against a 24 name window: the
+    // unsigned group sorts first and fills 20 slots, so only 4 signed names are
+    // in names[] and the other 6 are invisible to it. Every one of the 20 must
+    // still come back marked, because the scan reads the DIRECTORY.
+    for (int i = 0; i < 20; i++) {
+        snprintf(p, sizeof p, "/tmp/simsd/f%02d.psbt", i);
+        FILE *f = fopen(p, "wb"); if (f) { fputs("x", f); fclose(f); }
+    }
+    for (int i = 0; i < 10; i++) {              // siblings of f00..f09 only
+        snprintf(p, sizeof p, "/tmp/simsd/f%02d-signed.psbt", i);
+        FILE *f = fopen(p, "wb"); if (f) { fputs("x", f); fclose(f); }
+    }
+    int total = 0;
+    int n = platform_sd_list_psbt(names, 24, &total);
+    dchk("scan: window is the trap (24 of 30)", n == 24 && total == 30);
+    int nsig = platform_sd_signed_scan(names, mark, n, 0);
+    dchk("scan: counts every signed file, not just the listed ones", nsig == 10);
+    int marked = 0, wrong = 0;
+    for (int i = 0; i < n; i++) {
+        int want = (strncmp(names[i], "f0", 2) == 0 && !strstr(names[i], "-signed"));
+        if (mark[i]) marked++;
+        if (!!mark[i] != !!want) wrong++;
+    }
+    dchk("scan: all ten sources marked despite the window", marked == 10);
+    dchk("scan: nothing else marked", wrong == 0);
+
+    // case, and prefix. FAT preserves case but does not respect it; and
+    // "payment-011.psbt" must not be claimed by "payment-01-signed.psbt".
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
+    const char *cs[] = { "payment-01.psbt", "payment-011.psbt",
+                         "PAYMENT-01-SIGNED.PSBT" };
+    for (size_t i = 0; i < sizeof cs / sizeof *cs; i++) {
+        snprintf(p, sizeof p, "/tmp/simsd/%s", cs[i]);
+        FILE *f = fopen(p, "wb"); if (f) { fputs("x", f); fclose(f); }
+    }
+    n = platform_sd_list_psbt(names, 24, &total);
+    platform_sd_signed_scan(names, mark, n, 0);
+    int m01 = -1, m011 = -1;
+    for (int i = 0; i < n; i++) {
+        if (strcmp(names[i], "payment-01.psbt") == 0)  m01 = mark[i];
+        if (strcmp(names[i], "payment-011.psbt") == 0) m011 = mark[i];
+    }
+    dchk("scan: case insensitive sibling marks its source", m01 == 1);
+    dchk("scan: a longer name is not claimed by the shorter one", m011 == 0);
+
+    // a bare "-signed.psbt" owns no source and must mark nothing, not crash
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
+    FILE *f = fopen("/tmp/simsd/-signed.psbt", "wb");
+    if (f) { fputs("x", f); fclose(f); }
+    f = fopen("/tmp/simsd/lonely.psbt", "wb");
+    if (f) { fputs("x", f); fclose(f); }
+    n = platform_sd_list_psbt(names, 24, &total);
+    nsig = platform_sd_signed_scan(names, mark, n, 0);
+    int any = 0;
+    for (int i = 0; i < n; i++) if (mark[i]) any = 1;
+    dchk("scan: a bare -signed.psbt counts but owns nothing",
+         nsig == 1 && any == 0);
+
+    // the sweep: every signed file goes, every unsigned file stays
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
+    const char *sw[] = { "keep-a.psbt", "keep-b.psbt",
+                         "keep-a-signed.psbt", "gone-c-signed.psbt" };
+    for (size_t i = 0; i < sizeof sw / sizeof *sw; i++) {
+        snprintf(p, sizeof p, "/tmp/simsd/%s", sw[i]);
+        FILE *g = fopen(p, "wb"); if (g) { fputs("x", g); fclose(g); }
+    }
+    dchk("scan: sweep removes exactly the signed files",
+         platform_sd_signed_scan(NULL, NULL, 0, 1) == 2);
+    n = platform_sd_list_psbt(names, 24, &total);
+    dchk("scan: the unsigned files all survived", n == 2 && total == 2);
+    dchk("scan: and they are the right two",
+         strcmp(names[0], "keep-a.psbt") == 0 &&
+         strcmp(names[1], "keep-b.psbt") == 0);
+    dchk("scan: a swept card reports nothing left",
+         platform_sd_signed_scan(names, mark, n, 0) == 0);
+
+    system("rm -f /tmp/simsd/*.psbt /tmp/simsd/*.PSBT");
     return 0;
 }
 
 int test_sdseed_layer(void) {
     test_sd_list();
+    test_sd_signed_scan();
     uint8_t key[32], key2[32];
     uint8_t blob[SDSEED_MAX_BLOB], blob2[SDSEED_MAX_BLOB];
     size_t len = 0, len2 = 0;

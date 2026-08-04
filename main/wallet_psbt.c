@@ -551,6 +551,17 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         return -1;
 
     wallet_psbt_free();
+    // Cleared BEFORE the parse, not after it. The memset used to sit below four
+    // early `return -2` paths, so a rejected PSBT left the PREVIOUS one's
+    // amounts and caution flags in the caller's summary. Both call sites happen
+    // to bail to an error screen without reading it, which is one careless edit
+    // away from drawing the last transaction's numbers under this filename.
+    //
+    // And it fails CLOSED: WPSBT_READY is 0, so a plain memset would hand a
+    // zeroed-but-READY summary to any caller that ignored the return code.
+    memset(s, 0, sizeof *s);
+    s->status = WPSBT_STOP;
+
     // Coordinators hand out base64 as often as binary ("cHNidP" = b64("psbt")).
     uint8_t b64buf[4096];
     if (len >= 6 && memcmp(bytes, "cHNidP", 6) == 0) {
@@ -595,8 +606,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     wally_sha256(bytes, len, psbt_hash, 32);
     memcpy(s_psbt_hash, psbt_hash, 32);            // BIP376 sign-time aux uses it too
 
-    memset(s, 0, sizeof *s);
-    s->status = WPSBT_READY;
+    s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = wallet_testnet() != 0;
 
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
