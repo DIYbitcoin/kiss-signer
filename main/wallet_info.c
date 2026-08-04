@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "i18n.h"
+#include "wallet_backup.h"  // wallet_backup_mark: the paper check, made durable
 #include "wallet_crypto.h"
 #include "wallet_seed.h"
 #include "wallet_setup.h"   // wallet_setup_open_verify: check the paper backup
@@ -604,7 +605,26 @@ static void words_show_cb(lv_event_t *e)
 
 // VERIFY MY COPY: hand off to the setup module's paper-check flow, then return
 // to the screen that launched RECOVERY WORDS (normally Settings).
-static void winfo_after_verify(void) { words_finish(); }
+//
+// The result used to be dropped on the floor here, so the only route an owner
+// can reach after setup could not turn the backup row green -- it stayed amber
+// forever no matter how many times they read their paper into the keypad.
+//
+// No second passphrase prompt on this route, unlike the setup rehearsal. There
+// the session was made by a passphrase invented moments earlier, so it proves
+// nothing and has to be retyped. Here the owner is already unlocked: the live
+// fingerprint IS the words + passphrase pair, and the check just compared every
+// word against the stored mnemonic. Asking again would only teach them that the
+// device nags.
+static void winfo_after_verify(void)
+{
+    if (wallet_setup_verify_succeeded()) {
+        uint8_t fp[4];
+        wallet_ui_last_fp(fp);
+        wallet_backup_mark(fp);
+    }
+    words_finish();
+}
 
 static void verify_copy_cb(lv_event_t *e)
 {
@@ -618,10 +638,36 @@ static void words_warn_screen(lv_event_t *e)
     (void)e;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
-    wt_why_body(s_scr, tr(STR_I_WARN_B), 116, WT_WARN, true);
+
+    // SETTINGS folded its two backup cards into one, so this page inherits the
+    // subject: it is where the paper check gets stated and where it gets done.
+    // The chip sits on the content line rather than beside the title, so the
+    // page title keeps its full 34 -- a 36 character Dutch chip up there would
+    // shrink it two rungs.
+    //
+    // Glyph AND colour, per ADDENDUM-02: GREEN theme's accent is byte identical
+    // to WT_OK, so a green chip alone says nothing in that theme.
+    bool ok = wallet_ui_backup_checked();
+    lv_obj_t *chip = wt_state_chip(s_scr,
+                                   tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
+                                          ok ? STR_L_BACKUP_VERIFIED
+                                             : STR_L_BACKUP_UNVERIFIED),
+                                   ok ? WT_OK : WT_WARN);
+    lv_obj_set_pos(chip, 48, 96);
+    // Measure it rather than budget for it: the chip is self sizing and its
+    // height follows the locale's font, so the body starts under the real box.
+    lv_obj_update_layout(chip);
+    wt_why_body(s_scr, tr(STR_I_WARN_B), 96 + lv_obj_get_height(chip) + 12,
+                WT_WARN, true);
+
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
-    wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240, verify_copy_cb, NULL);
+    // The unchecked chip names the gap; this is the button that closes it, so
+    // it wears the same amber until it has been used (as the setup warning
+    // screen's VERIFY FULL BACKUP does).
+    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240,
+                           verify_copy_cb, NULL);
+    if (!ok) lv_obj_set_style_border_color(vp, WT_WARN, 0);
     wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 

@@ -25,6 +25,7 @@ static int fails;
 int test_qr_transport(const uint8_t *psbt, size_t psbt_len);
 // sim/test_seed.c — step 7 seed layer (runs FIRST; leaves the dev seed stored)
 int test_seed_layer(void);
+int test_backup_layer(void);
 // sim/test_sp.c — step 8 silent payments (BIP352/374/375)
 int test_sp(void);
 // sim/test_sdseed.c — the sealed blob SD-card storage writes
@@ -638,6 +639,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
 int main(int argc, char **argv) {
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
+    fails += test_backup_layer();
     fails += test_sdseed_layer();
     fails += test_duress();
     fails += test_passedit();

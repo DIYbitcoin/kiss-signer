@@ -1327,6 +1327,12 @@ int main(void) {
   touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
   save("/tmp/sim_verify_ok.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
+  // The backup row in its OTHER state. The walk has always come back through
+  // here and never looked: while "Paper checked" was a second card the amber
+  // one was captured and the green one never was, and now that the two cards
+  // are one row that changes colour, glyph and sub-line, the unchecked frame
+  // covers half of what this row can draw.
+  save("/tmp/sim_settings_checked.ppm");            // green, with the wallet ID
 
   touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning again
   touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS

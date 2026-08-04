@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "i18n.h"
+#include "wallet_backup.h"  // the paper check, remembered past this session
 #include "wallet_crypto.h"
 #include "wallet_scan.h"    // wallet_scan_open_raw: passphrase-from-QR
 #include "wallet_duress_ui.h"  // last setup step: which stroke opens which signer
@@ -683,7 +684,20 @@ static void fp_back_cb(lv_event_t *e) {
 }
 
 void wallet_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
+
+// "rehearsed during THIS setup", which is the question the setup warning screen
+// asks: it is deciding whether to let the owner walk away, so a check done on a
+// previous boot is not an answer.
 bool wallet_ui_backup_verified(void) { return s_backup_verified; }
+
+// "has this wallet's paper ever been proven against this device", which is the
+// question SETTINGS asks. Same fact, longer memory. Kept apart from the flag
+// above on purpose -- merging them would let a stored answer excuse the owner
+// from the rehearsal they are standing in front of.
+bool wallet_ui_backup_checked(void)
+{
+  return s_backup_verified || wallet_backup_checked(s_last_fp);
+}
 
 // The decoy signer opens straight from the game with no login screen at all,
 // so nothing here runs to record its fingerprint. main.c sets it directly
@@ -1200,6 +1214,7 @@ static void kb_cb(lv_event_t *e) {
       } else {
         s_backup_verify_pass = false;
         s_backup_verified = true;
+        wallet_backup_mark(s_last_fp);   // and it outlives this session now
         entry_refresh();
         setup_warn_screen();
       }

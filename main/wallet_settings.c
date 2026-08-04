@@ -1184,13 +1184,13 @@ void wallet_settings_open(lv_obj_t *parent)
     // and that separation is the point: reading your words and destroying them
     // are opposite intentions that used to sit in one stack.
     wt_row_head(s_scr, tr(STR_I_SEC_YOUR_BACKUP), SG_R_X, SG_TOP, SG_R_W);
-    wt_row(s_scr, tr(STR_I_ROW_WORDS), tr(STR_I_WORDS_SUB), NULL, WT_INK,
-           SG_R_X, SG_TOP + SG_HEAD, SG_R_W, words_cb, NULL);
     {
-        // Paper checked: its own row, because whether the paper was ever proven
-        // against this device is a fact about the backup, not a footnote on the
-        // button that shows the words.
-        bool ok = wallet_ui_backup_verified();
+        // ONE row, not two. "Recovery words" and "Paper checked" were separate
+        // cards that called the same callback and opened the same screen -- one
+        // destination drawn twice, on the column the owner said reads heavy.
+        // The state belongs on the row that goes and deals with it, and the
+        // page it opens is where there is room to say more.
+        bool ok = wallet_ui_backup_checked();
         char buf[160];
         if (ok) {
             uint8_t fp[4]; wallet_ui_last_fp(fp);
@@ -1204,20 +1204,11 @@ void wallet_settings_open(lv_obj_t *parent)
             snprintf(buf, sizeof buf, "%s  %s",
                      LV_SYMBOL_WARNING, tr(STR_I_WORDS_UNVERIFIED));
         }
-        lv_obj_t *r = wt_row(s_scr, tr(STR_I_ROW_PAPER), buf, NULL,
-                             WT_INK, SG_R_X, SG_TOP + SG_HEAD + SG_PITCH, SG_R_W,
-                             words_cb, NULL);
+        lv_obj_t *r = wt_row(s_scr, tr(STR_I_ROW_WORDS), buf, NULL, WT_INK,
+                             SG_R_X, SG_TOP + SG_HEAD, SG_R_W, words_cb, NULL);
         // A colour cue AND a glyph, per ADDENDUM-02: in GREEN theme the accent
         // is byte identical to WT_OK, so colour alone stops carrying meaning.
-        // The sub-line is the row's third child (label, sub, chevron order
-        // varies, so find it by walking rather than by index).
-        uint32_t n = lv_obj_get_child_count(r);
-        for (uint32_t i = 0; i < n; i++) {
-            lv_obj_t *c = lv_obj_get_child(r, i);
-            if (lv_obj_get_style_text_color(c, 0).blue == WT_MUT.blue &&
-                lv_obj_get_y(c) > 24)
-                lv_obj_set_style_text_color(c, ok ? WT_OK : WT_WARN, 0);
-        }
+        wt_row_sub_color(r, ok ? WT_OK : WT_WARN);
         // and the card itself, which is how the drawing states it: green once
         // the paper has been proven against this device, amber until it has.
         wt_row_sev(r, ok ? WT_SEV_OK : WT_SEV_WARN);
@@ -1230,9 +1221,13 @@ void wallet_settings_open(lv_obj_t *parent)
     // rows are cards now, so the only line in this region is the rule itself,
     // and the drawing has it -- 284x1 at 25 percent, starting after the label.
     {
-        // No gap above the eyebrow. 72 + 23 + 2*71 is already 237, which clears
-        // the card above it (bottom edge 230) and still leaves the second card
-        // of THIS group ending on 395, inside WT_CONTENT_BOTTOM.
+        // 237, unchanged by the fold above. The backup row now ends at 159, so
+        // there is a blank 78px band here where a second card used to be, and
+        // it stays blank: reading your words and destroying them are opposite
+        // intentions, and the distance between the two eyebrows is the clearest
+        // way the page can say so. Moving the pair up would recover space the
+        // column does not need -- the last card still ends on 395, inside
+        // WT_CONTENT_BOTTOM -- and would put ERASE one row nearer the thumb.
         int y = SG_TOP + SG_HEAD + 2 * SG_PITCH;
         lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
         lv_obj_set_style_text_color(h, STOP_COL, 0);
