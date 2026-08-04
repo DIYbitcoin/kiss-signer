@@ -129,7 +129,22 @@ static uint32_t path_purpose_for_coin(const uint32_t *path, size_t len, uint32_t
     if (!purpose_supported(purpose) ||
         path[1] != (BIP32_INITIAL_HARDENED_CHILD + coin) ||
         path[2] != BIP32_INITIAL_HARDENED_CHILD ||
-        (path[3] != 0 && path[3] != 1))
+        (path[3] != 0 && path[3] != 1) ||
+        // The address index must NOT be hardened. Nothing stopped it before,
+        // and the key re-derives perfectly well from the private master here --
+        // which is the trap. The descriptor this device exports is an xpub
+        // (wallet_crypto.h), and a hardened child cannot be derived from an
+        // xpub by anyone, ever. Change sent to m/84h/0h/0h/1/2147483648h is
+        // provably ours, invisible to every watch-only wallet the owner has,
+        // and unrecoverable from the backup this device tells them to keep.
+        // A coordinator has no legitimate reason to ask for one.
+        //
+        // The index is NOT bounded above beyond that. A gap-limit caution was
+        // considered and left out: the row stack is full at five (see
+        // SG_ROW_MAX in wallet_sign.c) and a sixth reason does not fit the
+        // page, and a large index still re-derives to a key the seed owns.
+        // Worth revisiting if a row ever frees up.
+        path[4] >= BIP32_INITIAL_HARDENED_CHILD)
         return 0;
     return purpose;
 }
@@ -885,9 +900,18 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // past data it doesn't understand (spec safety model).
     if (s->n_unknown > 0)
         stop(s, "unknown data in this transaction");
-    // high fee = a big share of an actual send (skip when send_sats==0, e.g. a
-    // self-consolidation), or an outsized rate regardless
-    if ((s->send_sats > 0 && s->fee_sats * 10 >= s->send_sats) ||
+    // high fee = a tenth or more of what the fee is being paid to move, or an
+    // outsized rate regardless.
+    //
+    // The share test used to be skipped entirely when send_sats was zero, which
+    // left a pure self-consolidation -- every output change, and the exact shape
+    // a fee-inflation attack wants, since nothing appears to leave the wallet --
+    // judged on the rate alone. A consolidation still has something the fee is a
+    // share OF: the coins being consolidated. Ordinary sends keep the identical
+    // test and the identical threshold; only the previously untested case gains
+    // one.
+    uint64_t fee_base = s->send_sats > 0 ? s->send_sats : s->in_sats;
+    if ((fee_base > 0 && s->fee_sats * 10 >= fee_base) ||
         s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
         caution(s, WPSBT_C_HIGHFEE, "unusually high fee - check it before signing");
 

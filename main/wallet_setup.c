@@ -24,11 +24,12 @@
 #include "platform_sd.h"     // the proof needs a card before it can start
 #include "wallet_theme.h"
 
-// The proof's words and hash must not outlive the screen that showed them, and
-// libwally is NOT linked into the simulator build of this translation unit, so
-// wally_bzero here does not compile. Same volatile store loop wallet_scan.c and
-// wallet_seed_sd.c already carry, for the same reason: memset can be optimized
-// away once the compiler sees a buffer is dead.
+// memset can be optimized away once the compiler sees a buffer is dead, and
+// every wipe in this file is exactly that shape: the last read of the seed,
+// the mnemonic or a source of entropy is the line above the wipe. libwally is
+// not linked into the simulator build of this translation unit, so this is the
+// same volatile store loop wallet_scan.c and wallet_seed_sd.c already carry
+// rather than a fourth spelling of the idea.
 static void wz_bzero(void *ptr, size_t len)
 {
     volatile uint8_t *p = (volatile uint8_t *)ptr;
@@ -227,7 +228,7 @@ static void store_and_finish(void)
     // STAGE only: the seed reaches flash after the passphrase-twice + fingerprint
     // ritual (setup login commits it). Abandoning that leaves no half-made wallet.
     int rc = wallet_seed_stage(words);
-    memset(words, 0, sizeof words);
+    wz_bzero(words, sizeof words);
     if (rc != 0) {                          // restore path: checksum failed
         mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
         mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
@@ -564,7 +565,10 @@ void wallet_setup_entropy(const uint8_t *entropy, unsigned len)
         p += n;
         while (*p == ' ') p++;
     }
-    memset(words, 0, sizeof words);
+    // wally_bzero, not memset: `words` is dead after this line, so a compiler
+    // is free to drop a plain memset and leave a mnemonic on the stack. The rest
+    // of this file already reaches for the same primitive.
+    wz_bzero(words, sizeof words);
     s_wpage = 0;
     words_screen();
 }
@@ -638,11 +642,14 @@ static void tap_done_cb(lv_timer_t *t)
     }
     int ok = wallet_tapent_take(taps) == 0 &&
              wallet_entropy_mix3(cam, trng, taps, seed) == 0;
-    memset(cam, 0, sizeof cam);
-    memset(trng, 0, sizeof trng);
-    memset(taps, 0, sizeof taps);
-    memset(s_cam_chain, 0, sizeof s_cam_chain);
-    memset(s_cam_trng, 0, sizeof s_cam_trng);
+    // Every one of these is dead-store territory: last read is the line above,
+    // so memset is elidable and wally_bzero is not. Same reasoning as
+    // wallet_scan.c's scan_bzero and wallet_seed_sd.c's sd_bzero.
+    wz_bzero(cam, sizeof cam);
+    wz_bzero(trng, sizeof trng);
+    wz_bzero(taps, sizeof taps);
+    wz_bzero(s_cam_chain, sizeof s_cam_chain);
+    wz_bzero(s_cam_trng, sizeof s_cam_trng);
     s_cam_have = false;
     wallet_tapent_reset();
     if (ok) {
@@ -655,7 +662,7 @@ static void tap_done_cb(lv_timer_t *t)
         mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
         mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
     }
-    memset(seed, 0, sizeof seed);
+    wz_bzero(seed, sizeof seed);
 }
 
 static void tap_hit_cb(lv_event_t *e)
@@ -1635,7 +1642,7 @@ static void dice_commit(void)
         mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
         mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
     }
-    memset(entropy, 0, sizeof entropy);
+    wz_bzero(entropy, sizeof entropy);
 }
 
 static void dice_force_cb(lv_event_t *e) { (void)e; dice_commit(); }
@@ -2265,7 +2272,7 @@ static void qr_text_cb(const char *txt, size_t len)
     int rc = wallet_seed_from_qr(txt, len, words, sizeof words);
     if (rc == 0)
         rc = wallet_seed_stage(words);
-    memset(words, 0, sizeof words);          // a scanned mnemonic must not linger
+    wz_bzero(words, sizeof words);           // a scanned mnemonic must not linger
     if (rc != 0) { qr_bad_screen(); return; }
     void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
     s_load = false;
@@ -2421,7 +2428,7 @@ void wallet_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
     }
     int n = 1;                                          // fix the entry length to the
     for (char *p = words; *p; p++) if (*p == ' ') n++;  // stored seed's word count
-    memset(words, 0, sizeof words);
+    wz_bzero(words, sizeof words);
     s_count = n;
     verify_intro_screen();
 }

@@ -659,23 +659,36 @@ static void repaint_verify(void)
 #define SG_PAD        15
 #define SG_FOOT_RULE 288
 #define SG_FOOT_Y    300
-#define SG_ROW_H      56   // a caution row is NEVER taller than this: a taller
-                           // row pushes the footer into the action bar
+#define SG_ROW_H      56   // a caution row, on the page the rows now live on
 #define SG_ROW_PILL_W 170
 #define SG_ROW_MAX      5  // unproven + fee + dust in + merge + one change row
 
-// The fifth row does not fit at SG_ROW_H: 150 + 5*56 + 4*4 lands at 446, well
-// past WT_CONTENT_BOTTOM (398). Four rows and fewer are untouched, and the
-// tighter metric is reached ONLY at five, so the layout the owner sees on an
-// ordinary flagged transaction is the same one it has always been.
+// The caution bar: one row, always, however many reasons there are. 44 is the
+// ack pill (40) plus 2px above and below, the least that still reads as a bar.
 //
-// 48 is not an arbitrary shrink: the ack pill is 40 tall and the row is built
-// around it, so 48 is 4px of breathing room above and below, which is the least
-// that still reads as a row rather than a stripe. 146 + 5*48 + 4*2 = 394, four
-// clear of the bottom, and 146 is safe above because the hero row ends at 140.
-#define SG_ROW_H5     48
-#define SG_ROW_Y5    146
-#define SG_ROW_GAP5    2
+// Everything below it moves down, and the 52px has to come from somewhere. It
+// does NOT come from the recipient panel's existence -- that was the defect --
+// it comes from 16px of the panel's height and 24px of footer air:
+//
+//   bar     150..194
+//   panels  202..306   (SG_PAN_H_C, 16 shorter; the "compare these 8" hint is
+//                       what gives way, and only the hint -- the address and
+//                       the two compared runs are both still drawn)
+//   rule    314
+//   footer  322..379   worst measured case, a network name wrapping to two
+//                      lines at font14. WT_CONTENT_BOTTOM is 398.
+//
+// Measured by overlapcheck across 21 locales, not budgeted on paper: the first
+// attempt put the strip 12px past the bottom in pt-BR, ru and tr, and the run
+// said so before any of this shipped.
+#define SG_BAR_Y     150
+#define SG_BAR_H      44
+#define SG_PAN_Y_C   202   // panels, with a bar above them
+#define SG_PAN_H_C   104
+#define SG_RULE_Y_C  314
+#define SG_FOOT_Y_C  322
+#define SG_FOOT_H     70   // column rule height, clean screen
+#define SG_FOOT_H_C   46   // ... and with a bar above, where the strip sits lower
 
 // The action row spans the same lane as everything above it: 24..776.
 //
@@ -757,6 +770,18 @@ static uint16_t caution_all_bits(uint16_t f)
     return all;
 }
 
+// The row stack lives on its own screen now (cautions_screen), so acking has two
+// possible things to redraw. See the note above verify_screen's caution bar for
+// why the rows left the verify screen.
+static bool s_on_cautions;
+static void cautions_screen(void);
+static void repaint_cautions(void)
+{
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    cautions_screen();
+}
+
 static void row_ack_cb(lv_event_t *e)
 {
     uint16_t bit = (uint16_t)(uintptr_t)lv_event_get_user_data(e);
@@ -765,8 +790,25 @@ static void row_ack_cb(lv_event_t *e)
     if ((s_ack_flags & caution_all_bits(s_sum.caution_flags))
         == caution_all_bits(s_sum.caution_flags))
         s_ack = true;
-    repaint_verify();                       // this row goes green, and
-}                                           // HOLD TO SIGN lights when all are in
+    if (s_on_cautions) repaint_cautions();  // this row goes green, and
+    else               repaint_verify();    // HOLD TO SIGN lights when all are in
+}
+
+static void cautions_open_cb(lv_event_t *e)
+{
+    (void)e;
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_on_cautions = true;
+    cautions_screen();
+}
+
+static void cautions_back_cb(lv_event_t *e)
+{
+    (void)e;
+    s_on_cautions = false;
+    repaint_verify();
+}
 
 // A raised block: WT_PANEL on a 1px border, radius 12. Used for both output
 // panels and every caution row, so they read as the same kind of object.
@@ -809,17 +851,21 @@ static void sg_rule(int x, int y, int w, int h)
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
 }
 
+// Where the footer strip actually sits this repaint: SG_FOOT_Y on a clean
+// screen, SG_BAR_DY lower when a caution bar pushed the panels down.
+static int s_foot_y = SG_FOOT_Y;
+
 // One footer cell: caption, value, qualifier. The value is the only thing here
 // that changes a decision, so it takes the middle rung; the other two are 14.
 static void sg_cell(int x, int w, const char *cap, const char *val,
                     const lv_font_t *vf, lv_color_t vc)
 {
     if (cap) {
-        lv_obj_t *c = sg_lbl(s_scr, cap, x, SG_FOOT_Y, wt_font14(), MUT_COL);
+        lv_obj_t *c = sg_lbl(s_scr, cap, x, s_foot_y, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(c, 2, 0);
     }
     lv_obj_t *v = lv_label_create(s_scr);
-    lv_obj_set_pos(v, x, SG_FOOT_Y + 20);
+    lv_obj_set_pos(v, x, s_foot_y + 20);
     lv_obj_set_style_text_color(v, vc, 0);
     if (vf) {                       // a mono figure: fixed width, known to fit
         lv_label_set_text(v, val);
@@ -837,6 +883,68 @@ static void sg_cell(int x, int w, const char *cap, const char *val,
         lv_obj_set_width(v, w);
         lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
     }
+}
+
+// ---- the caution rows, on a page of their own ------------------------------
+// They used to be drawn on the verify screen INSTEAD of the output panels, and
+// that is the bug this page exists to close: the address the owner was being
+// asked to sign for disappeared the moment the device found anything to warn
+// about, which is precisely when it matters most. A coordinator could reach
+// that state on purpose -- five inputs, or simply not attaching the previous
+// transactions -- so the screen showed least about the transactions it trusted
+// least.
+//
+// Rows cannot share the verify screen with the panels: five of them at the
+// metric that keeps a row readable is 296px, and the band between the hero and
+// the footer is 138. One of the two had to move, and it is not going to be the
+// address. Here they get the whole page and the comfortable 56px metric back.
+static void cautions_screen(void)
+{
+    const char *parts[SG_ROW_MAX]; uint16_t bits[SG_ROW_MAX];
+    uint16_t np = caution_rows(s_sum.caution_flags, parts, bits, SG_ROW_MAX);
+
+    // No subtitle. The file name is on the screen this one was opened from and
+    // on the screen it goes back to, and here it would cost row 0 its top edge.
+    mk_screen(s_parent, tr(STR_S_WHY_T), NULL);
+    wt_help_chip(s_scr, 738, 34, WARN_COL, caution_help_cb, NULL);
+
+    // 88 + 5*56 + 4*4 = 384, fourteen clear of WT_CONTENT_BOTTOM. The gap is 4
+    // rather than the verify screen's 8 so the fifth row keeps SG_ROW_H: the
+    // tight metric existed only because the rows were sharing a screen, and
+    // they no longer are.
+    int y = 88;
+    for (int i = 0; i < np; i++) {
+        bool done = (s_ack_flags & bits[i]) != 0;
+        lv_obj_t *row = sg_panel(24, y, 752, SG_ROW_H, done ? OK_COL : WARN_COL);
+        sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
+               wt_font23(), done ? OK_COL : WARN_COL);
+        lv_obj_t *t = lv_label_create(row);
+        lv_obj_set_pos(t, 52, 19);
+        lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
+        wt_note_fit(t, parts[i], 491 - 16, 24);
+
+        if (done) {
+            lv_obj_t *p = sg_panel(543, 8, SG_ROW_PILL_W, 40, OK_COL);
+            lv_obj_set_style_radius(p, 10, 0);
+            lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
+            lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_parent(p, row);
+            lv_obj_set_pos(p, 543, 8);
+            lv_obj_t *l = lv_label_create(p);
+            lv_label_set_text(l, LV_SYMBOL_OK);
+            lv_obj_set_style_text_font(l, wt_font23(), 0);
+            lv_obj_set_style_text_color(l, OK_COL, 0);
+        } else {
+            wt_pillh(row, tr(STR_C_I_UNDERSTAND), 543, 8, SG_ROW_PILL_W, 40,
+                     row_ack_cb, (void *)(uintptr_t)bits[i]);
+        }
+        y += SG_ROW_H + 4;
+    }
+
+    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+             cautions_back_cb, NULL);
 }
 
 static void verify_screen(lv_obj_t *parent)
@@ -968,68 +1076,54 @@ static void verify_screen(lv_obj_t *parent)
         return;
     }
 
+    // ---- the caution bar -------------------------------------------------
+    // One row tall, whatever the count, and it never takes the panels' place.
+    // The rows themselves are a page away (cautions_screen); what stays here is
+    // the reason nearest the top of caution_rows' priority order, plus how many
+    // more there are, plus the way in. A flagged transaction and a clean one
+    // now differ by 52px of bar -- not by whether the owner is shown where the
+    // coins are going.
+    //
+    // The single-caution case still acks in place: one reason, one pill, no
+    // navigation, which is the shape most flagged transactions actually have.
     if (np) {
-        // ---- caution rows -------------------------------------------------
-        // Each row is one line by construction and never taller than 56px, so
-        // the stack's height is known before it is built. Two rows keep the
-        // footer strip below them, exactly as drawn. Three or four drop it:
-        // fee, network and RBF all already live on DETAILS, and a row that
-        // wraps to gain height would push the footer into the action bar.
-        // Five is the ceiling and the one case that shrinks the row itself --
-        // see SG_ROW_H5 for why 48 and not less.
-        bool tight = (np >= 5);
-        int rh  = tight ? SG_ROW_H5 : SG_ROW_H;
-        int gap = tight ? SG_ROW_GAP5 : (np >= 4) ? 4 : 8;
-        // everything inside the row is measured off the ack pill, so the whole
-        // interior rises by the same 4px the row lost
-        int pad = tight ? 4 : 8;
-        bool keep_footer = (np <= 2);
-        int y = tight ? SG_ROW_Y5 : SG_PANEL_Y;
-        for (int i = 0; i < np; i++) {
-            bool done = (s_ack_flags & bits[i]) != 0;
-            lv_obj_t *row = sg_panel(24, y, 752, rh,
-                                     done ? OK_COL : WARN_COL);
-            sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD,
-                   tight ? 12 : 16, wt_font23(), done ? OK_COL : WARN_COL);
-            // The text column runs from x=52 inside the row to the pill's left
-            // edge at 543, so 491px at font14. wt_note_fit drops a rung rather
-            // than taking a second line, because one row is one line, always.
-            lv_obj_t *t = lv_label_create(row);
-            lv_obj_set_pos(t, 52, tight ? 15 : 19);
-            lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
-            wt_note_fit(t, parts[i], 491 - 16, tight ? 22 : 24);
+        bool all_done = (s_ack_flags & caution_all_bits(s_sum.caution_flags))
+                        == caution_all_bits(s_sum.caution_flags);
+        lv_obj_t *bar = sg_panel(24, SG_BAR_Y, 752, SG_BAR_H,
+                                 all_done ? OK_COL : WARN_COL);
+        sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
+               wt_font23(), all_done ? OK_COL : WARN_COL);
+        // "+N" carries the rest of the list without a string to translate: the
+        // header chip already states the total, so this only has to say that
+        // the one line shown is not all of it.
+        if (np > 1) snprintf(buf, sizeof buf, "%s   +%u", parts[0], (unsigned)(np - 1));
+        else        snprintf(buf, sizeof buf, "%s", parts[0]);
+        lv_obj_t *t = lv_label_create(bar);
+        lv_obj_set_pos(t, 52, 13);
+        lv_obj_set_style_text_color(t, all_done ? MUT_COL : INK_COL, 0);
+        wt_note_fit(t, buf, 491 - 16, 24);
 
-            if (done) {
-                lv_obj_t *p = sg_panel(543, pad, SG_ROW_PILL_W, 40, OK_COL);
-                lv_obj_set_style_radius(p, 10, 0);   // was 20: half of 40, a lozenge
-                lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
-                lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
-                lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
-                                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-                lv_obj_set_parent(p, row);
-                lv_obj_set_pos(p, 543, pad);
-                lv_obj_t *l = lv_label_create(p);
-                lv_label_set_text(l, LV_SYMBOL_OK);
-                lv_obj_set_style_text_font(l, wt_font23(), 0);
-                lv_obj_set_style_text_color(l, OK_COL, 0);
-            } else {
-                wt_pillh(row, tr(STR_C_I_UNDERSTAND), 543, pad, SG_ROW_PILL_W, 40,
-                         row_ack_cb, (void *)(uintptr_t)bits[i]);
-            }
-            y += rh + gap;
-        }
-        if (keep_footer) goto footer;
-        goto actions;
+        if (np == 1 && !all_done)
+            wt_pillh(bar, tr(STR_C_I_UNDERSTAND), 543, 2, SG_ROW_PILL_W, 40,
+                     row_ack_cb, (void *)(uintptr_t)bits[0]);
+        else
+            wt_pillh(bar, tr(STR_S_C_REVIEW), 543, 2, SG_ROW_PILL_W, 40,
+                     cautions_open_cb, NULL);
     }
 
     // ---- the two outputs -------------------------------------------------
+    // Drawn on EVERY verify screen. There is no status, no count of warnings
+    // and no acknowledgement state that removes them; that was the defect.
+    const int pan_y = np ? SG_PAN_Y_C : SG_PANEL_Y;
+    const int pan_h = np ? SG_PAN_H_C : SG_PANEL_H;
+    s_foot_y = np ? SG_FOOT_Y_C : SG_FOOT_Y;
     {
         int recipient_n = 0, change_n = 0;
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
             { if (s_sum.outs[i].is_change) change_n++; else recipient_n++; }
 
         int rw = change_n ? SG_RECIP_W : 752;
-        lv_obj_t *rp = sg_panel(SG_RECIP_X, SG_PANEL_Y, rw, SG_PANEL_H, WT_HAIR);
+        lv_obj_t *rp = sg_panel(SG_RECIP_X, pan_y, rw, pan_h, WT_HAIR);
         // The up arrow is the glossary's OUTPUTS badge: coins leaving. Panel
         // and glossary teach each other's mark.
         lv_obj_t *cap = sg_lbl(rp, tr_sym(LV_SYMBOL_UPLOAD, STR_S_SENDING_OUT),
@@ -1042,7 +1136,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *list = lv_obj_create(rp);
         lv_obj_remove_style_all(list);
         lv_obj_set_pos(list, SG_PAD, 34);
-        lv_obj_set_size(list, rw - 2 * SG_PAD, SG_PANEL_H - 42);
+        lv_obj_set_size(list, rw - 2 * SG_PAD, pan_h - 42);
         lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(list, 6, 0);
         lv_obj_set_scroll_dir(list, LV_DIR_VER);
@@ -1087,6 +1181,10 @@ static void verify_screen(lv_obj_t *parent)
             // width, which a proportional face cannot do.
             if (recipient_n == 1) {
                 wt_addr_short(list, s_sum.outs[i].addr, wt_font_mono23());
+                // The hint below is the one thing the shorter cautioned panel
+                // gives up. The address and the two compared runs above it are
+                // drawn either way; only the sentence explaining them goes.
+                if (!np) {
                 // The caption HANDOFF-01 asks for, next line down. Without it
                 // the two lit runs are still there and still landing at the
                 // same character width above the address body, but the reason
@@ -1099,6 +1197,7 @@ static void verify_screen(lv_obj_t *parent)
                 lv_obj_set_style_text_font(ccap, wt_font14(), 0);
                 lv_obj_set_style_text_color(ccap, MUT_COL, 0);
                 lv_obj_set_style_text_letter_space(ccap, 1, 0);
+                }
             }
             if (s_sum.outs[i].is_sp) {
                 lv_obj_t *n = lv_label_create(list);
@@ -1114,33 +1213,55 @@ static void verify_screen(lv_obj_t *parent)
             // WT_OK is a status here, not decoration: it means re-derived and
             // verified on this device. Per ADDENDUM-02 the accent never lands
             // on this panel, and the glyph carries the meaning without colour.
-            lv_obj_t *cp = sg_panel(SG_CHANGE_X, SG_PANEL_Y, SG_CHANGE_W,
-                                    SG_PANEL_H, OK_COL);
+            lv_obj_t *cp = sg_panel(SG_CHANGE_X, pan_y, SG_CHANGE_W,
+                                    pan_h, OK_COL);
+            // The caption goes above the list once, because it says the same
+            // thing about every entry under it.
+            lv_obj_t *ct = lv_label_create(cp);
+            lv_obj_set_pos(ct, SG_PAD, 12);
+            lv_obj_set_style_text_color(ct, OK_COL, 0);
+            lv_obj_set_width(ct, SG_CHANGE_W - 2 * SG_PAD);
+            lv_label_set_long_mode(ct, LV_LABEL_LONG_WRAP);
+            // Sized to the panel, not assumed to fit: this caption is
+            // translated and the panel is only 270 wide, so English alone
+            // already ran off the edge and clipped silently.
+            lv_label_set_text(ct, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
+            lv_obj_set_style_text_font(ct, wt_font14(), 0);
+            lv_obj_update_layout(ct);
+
+            // EVERY change output, not the first one. This used to break after
+            // one, so a two-change PSBT showed one amount while the fee was
+            // computed from both and the difference had nowhere to show up.
+            // Each of them was independently re-derived to get here, so this is
+            // disclosure rather than a check -- which is exactly why hiding the
+            // rest of it was indefensible.
+            int cy = 12 + lv_obj_get_height(ct) + 10;
+            lv_obj_t *clist = lv_obj_create(cp);
+            lv_obj_remove_style_all(clist);
+            lv_obj_set_pos(clist, SG_PAD, cy);
+            lv_obj_set_size(clist, SG_CHANGE_W - 2 * SG_PAD, pan_h - cy - 8);
+            lv_obj_set_flex_flow(clist, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_row(clist, 4, 0);
+            lv_obj_set_scroll_dir(clist, LV_DIR_VER);
+            lv_obj_set_scrollbar_mode(clist, change_n > 1 ? LV_SCROLLBAR_MODE_ON
+                                                          : LV_SCROLLBAR_MODE_OFF);
+            lv_obj_set_style_width(clist, 5, LV_PART_SCROLLBAR);
+            lv_obj_set_style_bg_color(clist, MUT_COL, LV_PART_SCROLLBAR);
+            lv_obj_set_style_bg_opa(clist, LV_OPA_50, LV_PART_SCROLLBAR);
             for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
                 if (!s_sum.outs[i].is_change) continue;
-                // Sized to the panel, not assumed to fit: this caption is
-                // translated and the panel is only 270 wide, so English alone
-                // already ran off the edge and clipped silently.
-                lv_obj_t *ct = lv_label_create(cp);
-                lv_obj_set_pos(ct, SG_PAD, 12);
-                lv_obj_set_style_text_color(ct, OK_COL, 0);
-                lv_obj_set_width(ct, SG_CHANGE_W - 2 * SG_PAD);
-                lv_label_set_long_mode(ct, LV_LABEL_LONG_WRAP);
-                lv_label_set_text(ct, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
-                lv_obj_set_style_text_font(ct, wt_font14(), 0);
                 fmt_sats(s_sum.outs[i].sats, a, sizeof a);
                 snprintf(buf, sizeof buf, "%s sats", a);
-                lv_obj_update_layout(ct);
-                sg_lbl(cp, buf, SG_PAD, 12 + lv_obj_get_height(ct) + 10,
-                       wt_font_mono23(), INK_COL);
-                break;
+                lv_obj_t *cv = lv_label_create(clist);
+                lv_label_set_text(cv, buf);
+                lv_obj_set_style_text_font(cv, wt_font_mono23(), 0);
+                lv_obj_set_style_text_color(cv, INK_COL, 0);
             }
         }
     }
 
-footer:
     // ---- the facts strip -------------------------------------------------
-    sg_rule(0, SG_FOOT_RULE, 800, 1);
+    sg_rule(0, np ? SG_RULE_Y_C : SG_FOOT_RULE, 800, 1);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
     // Scissors are the fee's mark everywhere it appears -- here, the WHY card,
@@ -1152,11 +1273,14 @@ footer:
     // the mark now draws what the sentence says.
     sg_cell(24, 230, tr_sym(LV_SYMBOL_CUT, STR_S_FEE), buf, wt_font_mono23(),
             np ? WARN_COL : INK_COL);
-    sg_rule(270, SG_FOOT_Y + 2, 1, 70);
+    // The strip sits lower with a bar above it, so the column rules give back
+    // the 24px they would otherwise push past WT_CONTENT_BOTTOM.
+    const int frh = np ? SG_FOOT_H_C : SG_FOOT_H;
+    sg_rule(270, s_foot_y + 2, 1, frh);
     sg_cell(294, 210, tr(STR_I_SEC_NET),
             s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
             NULL, s_sum.testnet ? WARN_COL : INK_COL);
-    sg_rule(520, SG_FOOT_Y + 2, 1, 70);
+    sg_rule(520, s_foot_y + 2, 1, frh);
     // No caption: there is no uppercase "if it gets stuck" key, and inventing
     // one would mean 21 translations for a label the value already states.
     // S_RBF_T_* is already caption-cased, so it carries the cell on its own --
@@ -1166,9 +1290,8 @@ footer:
             s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                       : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF),
             NULL, INK_COL);
-    wt_help_chip(s_scr, 738, SG_FOOT_Y - 6, MUT_COL, rbf_help_cb, NULL);
+    wt_help_chip(s_scr, 738, s_foot_y - 6, MUT_COL, rbf_help_cb, NULL);
 
-actions:
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
 
     // ---- the action row --------------------------------------------------
@@ -1691,6 +1814,7 @@ static void file_tap_cb(lv_event_t *e)
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
+    s_on_cautions = false;
     s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
@@ -1848,6 +1972,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     int lrc = wallet_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
+    s_on_cautions = false;
     s_ack_t0 = 0;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);

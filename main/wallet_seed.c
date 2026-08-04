@@ -904,9 +904,29 @@ int wallet_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
         return 0;
     }
 
-    // CompactSeedQR: raw entropy, no encoding at all.
+    // CompactSeedQR: raw entropy, no encoding at all. Every other seed route in
+    // this device passes its entropy through a health check first (camera floor
+    // and novelty, dice histogram and period); this one is 16 or 32 bytes off a
+    // QR and straight into a wallet, so a printed square of 32 zero bytes used
+    // to become a real, funded-if-you-fund-it wallet with nothing said. It is
+    // the owner's own QR, so this is a footgun rather than an attack -- but the
+    // check is two lines and the failure is total.
+    //
+    // Deliberately narrow: only the degenerate cases that cannot be an accident
+    // of a real generator. A byte pattern this weak is a mistake or a joke, and
+    // a real 128/256 bits of entropy has no chance of tripping it.
     if (len == 16 || len == 32) {
-        if (wallet_seed_from_entropy((const uint8_t *)data, len, out, out_len) != 0)
+        const uint8_t *e = (const uint8_t *)data;
+        unsigned same = 0, bits = 0;
+        for (size_t i = 0; i < len; i++) {
+            if (e[i] == e[0]) same++;
+            for (uint8_t b = e[i]; b; b &= (uint8_t)(b - 1)) bits++;
+        }
+        // all one byte value (00.., ff.., aa..), or fewer than a tenth of the
+        // bits set either way -- the shapes a hand-drawn or blank QR produces.
+        if (same == len || bits < len || bits > len * 8 - len)
+            goto fail;
+        if (wallet_seed_from_entropy(e, len, out, out_len) != 0)
             goto fail;
         return 0;                        // built from entropy: the checksum is ours
     }
