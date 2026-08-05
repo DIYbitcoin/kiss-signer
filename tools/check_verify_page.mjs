@@ -46,6 +46,16 @@ if (ctx.claimedHash("#h=" + VEC_HASH.slice(1)) !== null)
   fail("claimedHash accepted 63 hex chars");
 if (ctx.claimedHash("") !== null) fail("claimedHash accepted an empty fragment");
 
+// The slot wallet_proof.c writes over for the card's self verifying copy.
+if (ctx.KISS_CLAIM !== "-".repeat(64))
+  fail("the shipped page does not carry an empty 64 dash claim slot");
+if (ctx.bakedClaim(ctx.KISS_CLAIM) !== null)
+  fail("an unwritten slot must read as no claim");
+if (ctx.bakedClaim(VEC_HASH.toUpperCase()) !== VEC_HASH)
+  fail("bakedClaim does not accept the hash the device writes into the slot");
+if (ctx.bakedClaim(undefined) !== null || ctx.bakedClaim("nope") !== null)
+  fail("bakedClaim accepted a missing or malformed claim");
+
 if (ctx.WORDS.length !== 2048 || ctx.WORDS[0] !== "abandon" || ctx.WORDS[2047] !== "zoo")
   fail("embedded wordlist is not the standard 2048");
 

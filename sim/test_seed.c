@@ -7,6 +7,7 @@
 
 #include "wallet_backup.h"
 #include "wallet_crypto.h"
+#include "wallet_duress.h"
 #include "wallet_seed.h"
 
 #define DEV_WORDS "abandon abandon abandon abandon abandon abandon " \
@@ -366,6 +367,23 @@ int test_seed_layer(void) {
                  !wallet_backup_checked(fp));
         }
 
+        // and neither did the stroke that opened the wallet that went away.
+        // On device the scrub's partition erase takes "greal" because it is
+        // deliberately outside KEEP_KEYS; on host it is a static that nothing
+        // erases, so the commit has to say so. Without that line a replacement
+        // wallet still unlocks on its predecessor's decoy gesture HERE and not
+        // on glass, which is the worst place for the two to disagree.
+        {
+            schk("replace: stroke set before the replacement",
+                 wallet_duress_set(WDG_UNDERLINE) == 0 &&
+                 wallet_duress_real() == WDG_UNDERLINE);
+            schk("replace: stage over a wallet with a stroke",
+                 wallet_seed_stage(DEV_WORDS) == 0);
+            schk("replace: commit ok", wallet_seed_commit() == 0);
+            schk("replace: the unlock stroke did not survive",
+                 wallet_duress_real() == WDG_NONE);
+        }
+
         // FIRST setup is not a replacement, and must not be treated as one.
         // storage_mode_read calls a factory-fresh store KEEP, so a scrub gated
         // on the mode alone would erase the partition on the way IN -- taking
@@ -378,6 +396,10 @@ int test_seed_layer(void) {
             schk("first setup: wipe to factory", wallet_seed_wipe() == 0);
             schk("first setup: no wallet", wallet_seed_exists() == 0);
             wallet_backup_mark(fp);      // stands in for any pre-setup NVS state
+            // and a stroke picked during setup, which is the same question
+            // asked of the thing the replacement branch DOES scrub
+            schk("first setup: set a stroke on the way in",
+                 wallet_duress_set(WDG_UNDERLINE) == 0);
             schk("first setup: stage the first wallet",
                  wallet_seed_stage(DEV_WORDS) == 0);
             schk("first setup: commit ok", wallet_seed_commit() == 0);
@@ -386,6 +408,11 @@ int test_seed_layer(void) {
                  strcmp(got, DEV_WORDS) == 0);
             schk("first setup: nothing was scrubbed on the way in",
                  wallet_backup_checked(fp));
+            // had_prior_words is what keeps the scrub off the first commit, so
+            // the stroke picked above has to still be there
+            schk("first setup: the stroke was not scrubbed either",
+                 wallet_duress_real() == WDG_UNDERLINE);
+            wallet_duress_forget();
             wallet_backup_forget();
         }
     }

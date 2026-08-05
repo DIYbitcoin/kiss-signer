@@ -242,7 +242,7 @@
   "I_ROW_WORDS": "Wiederherstellungswörter",
   "I_ROW_REPLACE": "Neue Wallet erstellen",
   "I_ROW_ERASE": "Diese Wallet löschen",
-  "I_ROW_REPLACE_SUB": "die jetzigen Wörter gelten dann nicht mehr",
+  "I_ROW_REPLACE_SUB": "neue Wörter, du signierst weiter",
   "I_ROW_ERASE_SUB": "zurück zu nur einem Spiel",
   "I_ROW_PAPER_NEVER": "nie gegen dieses Gerät geprüft",
   "N_CAN_CAP": "WAS EIN SCAN KANN",
