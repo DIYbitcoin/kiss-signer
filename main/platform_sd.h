@@ -68,4 +68,7 @@ int  platform_sd_delete(const char *name);       // absent file is success
 #define PLATFORM_SD_TEST_FAIL_BAK_DELETE (1u << 4)
 void platform_sd_test_set_present(int present);
 void platform_sd_test_fail_next(unsigned flags);
+// Let n matching operations pass before the armed flag fires, so a fault can
+// be aimed at the second write of a multi-file sequence.
+void platform_sd_test_fail_skip(int n);
 #endif

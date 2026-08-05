@@ -165,15 +165,17 @@ static const slot_t SLOTS[] = {
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
     { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
     { "sub/proof",        STR_W_PROOF_S,      704, 58, 0 },
-    // CAMERA AUDIT (docs/specs/prove-it.md). The why pair shares rule 2's 330x112
-    // body budget; the burned line takes the paper-only slot; the notes live
+    // CAMERA AUDIT (docs/specs/prove-it.md). The why pair narrows to 262 wide
+    // (248 inside the block inset) to seat the verify QR as the third framed
+    // element on the result screen; the burned line takes the paper-only slot;
+    // the notes live
     // in wt_row_x subs (380-wide file row, 716-wide gate rows, both 96 tall)
     // and under the 300-wide viewfinder, so font14 is an accepted outcome
     // there. The hash caption shares its card row with the mono14 filename,
     // so it is measured in the width that leaves.
     { "sub/proof-r",      STR_W_PROOF_R_S,       704,  30, 0 },
-    { "proof/check",      STR_W_PROOF_CHECK_B,   330, 112 },
-    { "proof/burn",       STR_W_PROOF_BURN_B,    330, 112 },
+    { "proof/check",      STR_W_PROOF_CHECK_B,   248, 112 },
+    { "proof/burn",       STR_W_PROOF_BURN_B,    248, 112 },
     { "proof/burned",     STR_W_PROOF_BURNED,    700,  40 },
     { "proof/file-note",  STR_W_PROOF_FILE_NOTE, 282,  80, 1 },
     { "proof/sd",         STR_W_PROOF_SD_B,      620,  46, 1 },
