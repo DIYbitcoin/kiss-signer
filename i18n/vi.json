@@ -531,7 +531,7 @@
   "W_PROOF_R_S": "khung hình và trang kiểm tra nó đã nằm trên thẻ.",
   "W_PROOF_HASH_CAP": "SHA256 CỦA KHUNG HÌNH",
   "W_PROOF_CHECK_H": "xác minh",
-  "W_PROOF_CHECK_B": "quét mã: trang tự kiểm tra hash và các từ.",
+  "W_PROOF_CHECK_B": "mở trang trên thẻ rồi thả file vào đó.",
   "W_PROOF_BURN_H": "đốt bỏ",
   "W_PROOF_BURN_B": "ai có thẻ đều suy ra được. không bao giờ dùng cho tiền.",
   "W_PROOF_BURNED": "đã đốt bỏ. lộ rõ trên thẻ. đừng dùng cho tiền.",

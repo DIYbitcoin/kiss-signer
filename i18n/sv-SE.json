@@ -531,7 +531,7 @@
   "W_PROOF_R_S": "bildrutan och sidan som kontrollerar den finns på kortet.",
   "W_PROOF_HASH_CAP": "SHA256 AV FOTOT",
   "W_PROOF_CHECK_H": "verifiera det",
-  "W_PROOF_CHECK_B": "skanna koden: sidan kontrollerar hashen och orden.",
+  "W_PROOF_CHECK_B": "öppna sidan på kortet och släpp filen på den.",
   "W_PROOF_BURN_H": "bränn det",
   "W_PROOF_BURN_B": "alla med kortet kan härleda dem. aldrig för medel.",
   "W_PROOF_BURNED": "bränt. orden ligger öppet på kortet. aldrig för pengar.",

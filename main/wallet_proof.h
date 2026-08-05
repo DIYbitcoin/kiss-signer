@@ -15,12 +15,10 @@
 
 // The offline checker page, written beside the frame (same rule: a literal the
 // owner sees in a file listing). The card copy carries the hash this run
-// claimed, appended as WPROOF_CLAIM_FMT, so opening it and dropping the file
-// is the entire check: no QR, no typing. It still comes from the device being
-// audited, so the independent copy lives at WPROOF_VERIFY_URL, which the AUDIT
-// RESULT QR extends with #h=<hash> to make that copy compare too.
+// claimed, so opening it and dropping the file is the entire check. It comes
+// from the device being audited, so a doubter fetches the same page from the
+// repo or the site the page itself names, and checks with that copy instead.
 #define WPROOF_PAGE_NAME   "kiss-verify.html"
-#define WPROOF_VERIFY_URL  "https://kkdao.github.io/kiss-signer/verify.html"
 // The page ships a 64 dash placeholder; the card's copy gets this run's hash
 // written over it, in place, so the file keeps its length and the claim sits
 // in the page's own script rather than after it.

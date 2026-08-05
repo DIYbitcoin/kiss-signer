@@ -531,7 +531,7 @@
   "W_PROOF_R_S": "kadr i strona, która go sprawdza, są na karcie.",
   "W_PROOF_HASH_CAP": "SHA256 KADRU",
   "W_PROOF_CHECK_H": "sprawdź go",
-  "W_PROOF_CHECK_B": "zeskanuj kod: strona sprawdzi hash i słowa.",
+  "W_PROOF_CHECK_B": "otwórz stronę z karty i upuść na nią plik.",
   "W_PROOF_BURN_H": "spal go",
   "W_PROOF_BURN_B": "każdy z kartą może je wyprowadzić. nigdy do środków.",
   "W_PROOF_BURNED": "spalone. leżą na karcie niezaszyfrowane. nigdy do środków.",
