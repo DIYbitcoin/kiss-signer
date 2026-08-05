@@ -125,6 +125,13 @@ python3 tools/check_flash_budget.py build-release/guition_kiss_bringup.bin parti
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"
 echo
+echo "sha256 of what the commands below flash (release assets must match"
+echo "docs/installer/SHA256SUMS):"
+shasum -a 256 \
+  build-release/bootloader/bootloader.bin \
+  build-release/partition_table/partition-table.bin \
+  build-release/guition_kiss_bringup.bin | sed 's/^/  /'
+echo
 echo "ESP-IDF flash (local ESP-IDF install; sdkconfig uses no-reset):"
 echo "  idf.py -B build-release -p <port> flash"
 echo

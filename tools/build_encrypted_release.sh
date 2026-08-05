@@ -206,6 +206,13 @@ PY
 python3 tools/check_flash_budget.py \
   "$BUILD_DIR/guition_kiss_bringup.bin" partitions_encrypted.csv
 
+# hashed here, printed inside the flash recipes below: the flash is one way,
+# so the compare against the reproducible build CI output has to happen with
+# the hash and the command in the same place
+SHA_BOOT=$(shasum -a 256 "$BUILD_DIR/bootloader/bootloader.bin" | cut -d' ' -f1)
+SHA_PT=$(shasum -a 256 "$BUILD_DIR/partition_table/partition-table.bin" | cut -d' ' -f1)
+SHA_APP=$(shasum -a 256 "$BUILD_DIR/guition_kiss_bringup.bin" | cut -d' ' -f1)
+
 if [ "$RECIPE" = rehearsal ]; then
 cat <<EOF
 
@@ -233,6 +240,11 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
      0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
      0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
      0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+
+   sha256 of those three files (compare with the reproducible build run in CI):
+     $SHA_BOOT  bootloader.bin
+     $SHA_PT  partition-table.bin
+     $SHA_APP  guition_kiss_bringup.bin
 
 3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
    create, lock, unlock, sign, wipe. Reflash and repeat as needed.
@@ -275,6 +287,12 @@ encrypted release build OK: $BUILD_DIR/
      0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
      0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
      0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+
+   sha256 of those three files. The flash is one way, so hold them against
+   the reproducible build run in CI BEFORE step 2, not after:
+     $SHA_BOOT  bootloader.bin
+     $SHA_PT  partition-table.bin
+     $SHA_APP  guition_kiss_bringup.bin
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
    When Settings shows "flash encryption: ENABLED" (calm, not amber),
