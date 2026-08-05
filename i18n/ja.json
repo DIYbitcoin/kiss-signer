@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "確認済 · ID %s は紙にあります",
   "I_WORDS_UNVERIFIED": "紙は未確認",
   "GD_SET_UP_SPARE": "予備を設定",
+  "GD_SET_UP_REAL": "本物を設定",
   "W_QUIZ_SHOW_AGAIN": "単語をもう一度",
   "W_PROOF_T": "カメラ検証",
   "W_PROOF_BTN": "検証",

@@ -284,13 +284,26 @@ typedef struct {
     int val_key;           // STR_* of the widest value it sits against, or -1
     const char *val_lit;   // ... or an untranslated literal, or NULL
     int w;                 // the row's width
+    const int *val_set;    // ... or a -1 terminated set, measured at its widest
 } row_t;
+
+// The ways in row does not show ONE value, it shows whichever of seven applies:
+// NOT SET, or the name of the stroke that reaches the real wallet. Measuring it
+// against NOT SET alone was the reason a row reading "Duress w... LINE THROUGH"
+// on a real device came back clean here. Which of the seven is longest changes
+// with the language, so the budget takes the widest in the ACTIVE locale.
+static const int DURESS_VALS[] = {
+    STR_GD_OFF,   STR_GD_UNDERLINE, STR_GD_OVERLINE, STR_GD_STRIKE,
+    STR_GD_SLASH, STR_GD_CIRCLE,    STR_GD_CHECK,    -1,
+};
+
 static const row_t ROWS[] = {
     // wallet_settings.c, left column at SG_L_W = 365
     { "set/network",  STR_I_ROW_NETWORK, -1, NULL,    365 - 176 },  // segmented track
     { "set/type",     STR_I_ROW_TYPE,    -1, "m/n...", 365 },
     { "set/storage",  STR_I_ROW_STORAGE, STR_W_AMNESIC_BTN, NULL, 365 },
-    { "set/duress",   STR_I_ROW_DURESS,  STR_GD_OFF, NULL, 365 },
+    // Full width under both columns now: SG_FULL_W, not SG_L_W.
+    { "set/duress",   STR_I_ROW_DURESS,  -1, NULL, 752, DURESS_VALS },
     // right column, SG_R_W = 365. None of these carry a value.
     { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
     { "set/replace",  STR_I_ROW_REPLACE, -1, NULL, 365 },
@@ -307,27 +320,27 @@ static const row_t ROWS[] = {
 // run prints how many are left. Delete a line when the copy is fixed. Never
 // add one.
 //
-// Two rows account for almost all of it. "Words live in" and "Duress wallet"
-// are short in English and become a clause in most other languages, and they
-// sit against a translated value ("AMNESIC", "NOT SET") that eats the same
-// row. Fixing them means shorter labels in ten locales or a wider left column,
-// which is a copy pass of its own, not a rename.
+// "Words live in" is what is left. It is short in English, becomes a clause in
+// most other languages, and sits against a translated value ("AMNESIC") that
+// eats the same row.
+//
+// "Duress wallet" used to be the other half of this list, in thirteen locales.
+// The note here said fixing it meant shorter labels in ten locales OR a wider
+// column; the row went full width under both columns instead, so all thirteen
+// came off. That is the shrink this backlog exists to record.
 static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
-    { "cs-CZ", "set/duress" },
-    { "de",    "set/duress" },  { "de",    "set/storage" },
-    { "es-ES", "set/duress" },  { "es-ES", "set/storage" },
-    { "es-MX", "set/duress" },  { "es-MX", "set/storage" },
-    { "fr",    "set/duress" },  { "fr",    "set/storage" },
-    { "hr-HR", "set/duress" },
-    { "it",    "set/duress" },  { "it",    "set/storage" },
+    { "de",    "set/storage" },
+    { "es-ES", "set/storage" },
+    { "es-MX", "set/storage" },
+    { "fr",    "set/storage" },
+    { "it",    "set/storage" },
     // 324px against a 317px budget: seven pixels, on the row that erases.
     { "it",    "set/erase"  },
-    { "nl",    "set/duress" },  { "nl",    "set/storage" },
-    { "pl",    "set/duress" },
-    { "pt-BR", "set/duress" },  { "pt-BR", "set/storage" },
-    { "pt-PT", "set/duress" },  { "pt-PT", "set/storage" },
-    { "ru",    "set/duress" },  { "ru",    "set/storage" },
-    { "tr",    "set/duress" },  { "tr",    "set/storage" },
+    { "nl",    "set/storage" },
+    { "pt-BR", "set/storage" },
+    { "pt-PT", "set/storage" },
+    { "ru",    "set/storage" },
+    { "tr",    "set/storage" },
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
@@ -348,12 +361,24 @@ static int row_label_budget(const row_t *r)
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     int right = r->w - 10 - (int)sz.x - 10;
     int vw = 0;
-    const char *val = r->val_lit ? r->val_lit
-                    : r->val_key >= 0 ? tr(r->val_key) : NULL;
-    if (val && *val) {
-        lv_text_get_size(&sz, val, wt_font23(), 0, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        vw = (int)sz.x + 12;
+    if (r->val_set) {
+        // widest of the set, in this locale
+        for (int i = 0; r->val_set[i] >= 0; i++) {
+            const char *v = tr(r->val_set[i]);
+            if (!v || !*v) continue;
+            lv_text_get_size(&sz, v, wt_font23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if ((int)sz.x > vw) vw = (int)sz.x;
+        }
+        if (vw) vw += 12;
+    } else {
+        const char *val = r->val_lit ? r->val_lit
+                        : r->val_key >= 0 ? tr(r->val_key) : NULL;
+        if (val && *val) {
+            lv_text_get_size(&sz, val, wt_font23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            vw = (int)sz.x + 12;
+        }
     }
     return right - vw - 14;
 }
@@ -398,6 +423,36 @@ static const pill_t PILLS[] = {
     { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
+    // wallet_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
+    // key_action, and not arguably: these two pills are the flow's only
+    // statement of WHICH wallet the next screen configures, and reading them
+    // as the same button is the exact mistake that sent the owner looking for
+    // a bug. A locale that has to drop to font14 to fit one of them has lost
+    // the distinction, so it fails the build rather than shipping quietly.
+    // h is 52, not 66: these go through wt_pill, which hands wt_pillh a fixed
+    // 52. Registered at 66 the budget bh becomes 58, which is two font23 lines,
+    // and the model reports a comfortable wrapped fit for a label the device
+    // actually draws at font14. The height is part of the measurement.
+    // ST_FUND's pill is 420 and key_action: it is the only thing on that screen
+    // that says which wallet the next screen configures, so font14 fails here.
+    { "duress/real",      STR_GD_SET_UP_REAL,  420, 52, 0, 1 },
+    // NOT NOW, on all four duress screens. It was 140 and wanted 122-162px of a
+    // 112px budget in THIRTEEN locales, so the way out of this flow was drawn
+    // in the smallest type on the screen nearly everywhere. 560+190 keeps its
+    // right edge on 750 where it was.
+    { "duress/skip",      STR_GD_SKIP,         190, 52, 0, 1 },
+    { "duress/turnoff",   STR_GD_TURN_OFF,     260, 52, 0, 1 },
+    // NOT registered yet: ST_INTRO's SET UP A SPARE. Measured at 240x52 it
+    // wants 232-317px of a 212px budget in TWELVE locales, so it is font14 on
+    // most of the world's devices today -- older than this branch, and not a
+    // widen. ST_INTRO carries three pills, and at the widths font23 actually
+    // needs (345 for SPARE, 260 for TURN THIS OFF, 190 for NOT NOW, plus gaps)
+    // the row wants 819px of the 702 it has. Those three also overlap by 8px
+    // as they stand: the first runs to 288 and TURN THIS OFF starts at 280,
+    // which only shows when a configured wallet reaches ST_INTRO from Settings.
+    // Registering it here would turn the gate red on a screen this change does
+    // not redesign, so the number is recorded rather than enforced. Add the
+    // entry with the row.
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
     // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
     // LONG_CLIP. There is no font fallback here, so an over-long translation

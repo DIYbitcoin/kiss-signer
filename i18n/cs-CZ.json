@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "ověřeno · ID %s je na vašem papíře",
   "I_WORDS_UNVERIFIED": "papír nikdy neověřen",
   "GD_SET_UP_SPARE": "NASTAVIT ZÁLOŽNÍ",
+  "GD_SET_UP_REAL": "NASTAVIT SKUTEČNOU",
   "W_QUIZ_SHOW_AGAIN": "ZOBRAZIT SLOVA ZNOVU",
   "W_PROOF_T": "AUDIT KAMERY",
   "W_PROOF_BTN": "AUDIT",

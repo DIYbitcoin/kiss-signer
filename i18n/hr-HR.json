@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "provjereno · ID %s je na tvom papiru",
   "I_WORDS_UNVERIFIED": "papir nikad provjeren",
   "GD_SET_UP_SPARE": "POSTAVI REZERVNI",
+  "GD_SET_UP_REAL": "SADA PRAVI",
   "W_QUIZ_SHOW_AGAIN": "PRIKAŽI RIJEČI PONOVNO",
   "W_PROOF_T": "AUDIT KAMERE",
   "W_PROOF_BTN": "AUDIT",
