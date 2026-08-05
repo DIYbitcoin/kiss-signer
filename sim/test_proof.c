@@ -84,18 +84,28 @@ static void test_vector_and_file(void)
         fclose(f);
     }
 
-    // The courtesy half: the checker page landed beside the frame, byte for
-    // byte the embedded array, and the array is a page rather than garbage.
+    // The courtesy half: the checker page landed beside the frame, carrying
+    // the embedded bytes unchanged plus this run's claim, so opening it from
+    // the card and dropping the file is the whole check.
     f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
     ok("page file exists", f != NULL);
     if (f) {
-        uint8_t *back = malloc(verify_page_html_len + 1);
+        char *back = malloc(verify_page_html_len + 2);
         size_t rd = back ? fread(back, 1, verify_page_html_len + 1, f) : 0;
-        ok("page file is exactly the embedded length",
-           rd == verify_page_html_len);
-        ok("page file is byte identical to the embedded page",
+        if (back) back[rd < verify_page_html_len + 1 ? rd : 0] = 0;
+        ok("page file is exactly the embedded length", rd == verify_page_html_len);
+        // The only difference from the embedded bytes is the claim slot, and
+        // it now holds this run's hash: that is what makes the card's copy
+        // verify itself when the file lands on it.
+        ok("the claim on the card is this run's hash",
            back && rd == verify_page_html_len &&
-           memcmp(back, verify_page_html, verify_page_html_len) == 0);
+           memmem(back, rd, VEC_HASH, 64) != NULL);
+        ok("no unwritten claim slot survives on the card",
+           back && rd == verify_page_html_len &&
+           memmem(back, rd, WPROOF_CLAIM_SLOT, 64) == NULL);
+        ok("the embedded page still ships the empty slot",
+           memmem(verify_page_html, verify_page_html_len,
+                  WPROOF_CLAIM_SLOT, 64) != NULL);
         ok("embedded page opens like a page",
            verify_page_html_len > 14 &&
            memcmp(verify_page_html, "<!doctype html", 14) == 0);

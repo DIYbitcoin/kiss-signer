@@ -146,14 +146,25 @@ int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
   uint8_t junk[64];
   for (int i = 0; i < 64; i++) junk[i] = (uint8_t)(i * 3 + 1);
   if (platform_sd_mount() != 0 ||
-      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0 ||
-      platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
-                               verify_page_html_len) < 0)
+      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0)
     return WPROOF_ERR_SD;
   CRYAL_SHA256_CTX cx;
   ur_bundled_sha256_init(&cx);
   ur_bundled_sha256_update(&cx, junk, sizeof junk);
   ur_bundled_sha256_final(&cx, hash_out);
+  // Same shape the device writes: the page with this run's hash over the claim
+  // slot, so the sim's card really does self verify when opened in a browser.
+  char hex[65];
+  for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", hash_out[i]);
+  uint8_t *page = malloc(verify_page_html_len);
+  if (!page) return WPROOF_ERR_SD;
+  memcpy(page, verify_page_html, verify_page_html_len);
+  uint8_t *slot = memmem(page, verify_page_html_len, WPROOF_CLAIM_SLOT, 64);
+  if (slot) memcpy(slot, hex, 64);
+  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, page,
+                                     verify_page_html_len);
+  free(page);
+  if (prc < 0) return WPROOF_ERR_SD;
   return wallet_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
 // Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
@@ -1518,6 +1529,12 @@ int main(void) {
   touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
   touch(590, 430); pump(3); release(); pump(6);     // DONE -> entropy screen
+  // ...and again through the action row's own AUDIT pill, the route that does
+  // not require doubting the camera first. Straight back out: the screens it
+  // reaches are the ones already walked above.
+  touch(480, 430); pump(3); release(); pump(6);     // AUDIT pill -> capture
+  save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
 
   // The CARDS detour (MY OWN WORDS): both lengths, to the picker and back out.

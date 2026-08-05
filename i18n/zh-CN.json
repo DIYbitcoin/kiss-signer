@@ -242,7 +242,7 @@
   "I_ROW_WORDS": "助记词",
   "I_ROW_REPLACE": "创建新钱包",
   "I_ROW_ERASE": "删除这个钱包",
-  "I_ROW_REPLACE_SUB": "现在的词将不再有效",
+  "I_ROW_REPLACE_SUB": "换新词，继续签名",
   "I_ROW_ERASE_SUB": "回到只是一个游戏",
   "I_ROW_PAPER_NEVER": "从未与本机核对过",
   "N_CAN_CAP": "扫描能做什么",
