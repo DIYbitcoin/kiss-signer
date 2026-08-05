@@ -242,7 +242,7 @@
   "I_ROW_WORDS": "リカバリー単語",
   "I_ROW_REPLACE": "新しいウォレットを作成",
   "I_ROW_ERASE": "このウォレットを消す",
-  "I_ROW_REPLACE_SUB": "今の単語は使えなくなります",
+  "I_ROW_REPLACE_SUB": "新しい単語で署名は続きます",
   "I_ROW_ERASE_SUB": "ゲームだけに戻ります",
   "I_ROW_PAPER_NEVER": "この端末で確認していません",
   "N_CAN_CAP": "スキャンでできること",

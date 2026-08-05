@@ -242,7 +242,7 @@
   "I_ROW_WORDS": "Mots de récupération",
   "I_ROW_REPLACE": "Nouveau portefeuille",
   "I_ROW_ERASE": "Effacer ce portefeuille",
-  "I_ROW_REPLACE_SUB": "les mots actuels cessent de fonctionner",
+  "I_ROW_REPLACE_SUB": "nouveaux mots, vous signez toujours",
   "I_ROW_ERASE_SUB": "retour à un simple jeu",
   "I_ROW_PAPER_NEVER": "jamais vérifié avec cet appareil",
   "N_CAN_CAP": "CE QU'UN SCAN PEUT FAIRE",

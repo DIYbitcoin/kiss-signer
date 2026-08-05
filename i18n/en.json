@@ -242,7 +242,7 @@
   "I_ROW_WORDS": "Recovery words",
   "I_ROW_REPLACE": "Start a new wallet",
   "I_ROW_ERASE": "Erase this wallet",
-  "I_ROW_REPLACE_SUB": "the current words stop working",
+  "I_ROW_REPLACE_SUB": "new words, you keep signing",
   "I_ROW_ERASE_SUB": "back to being only a game",
   "I_ROW_PAPER_NEVER": "never checked against this device",
   "N_CAN_CAP": "WHAT A SCAN CAN DO",
