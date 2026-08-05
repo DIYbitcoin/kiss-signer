@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "확인됨 · ID %s 은(는) 종이에 있음",
   "I_WORDS_UNVERIFIED": "종이 미확인",
   "GD_SET_UP_SPARE": "예비 설정",
+  "GD_SET_UP_REAL": "진짜 설정",
   "W_QUIZ_SHOW_AGAIN": "단어 다시 보기",
   "W_PROOF_T": "카메라 감사",
   "W_PROOF_BTN": "감사",
