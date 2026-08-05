@@ -6,7 +6,6 @@
 #include "platform_sd.h"
 #include "wallet_usage.h"
 #include "wallet_backup.h"   // the paper check dies with the wallet it was about
-#include "wallet_duress.h"   // and so does the stroke that opened it
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -727,12 +726,6 @@ int wallet_seed_commit(void)
         // above already says.
         wallet_usage_wipe();
         wallet_backup_forget();
-        // The unlock stroke went with it too, and for the same reason: "greal"
-        // is deliberately outside KEEP_KEYS so the partition erase takes it.
-        // The host build keeps it in a static, so without this line the
-        // simulator shows a brand new wallet still opening on the replaced
-        // wallet's decoy gesture -- and the DURESS row would name it.
-        wallet_duress_forget();
     }
     if (prior_mode == WSEED_MODE_SD) {
         int card_cleanup = storage_delete_sd();
