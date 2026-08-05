@@ -1420,26 +1420,19 @@ static void proof_result_screen(void)
     lv_obj_update_layout(v);
     lv_obj_set_size(card, 704, vy + lv_obj_get_height(v) + 14);
 
-    // The device's claim as a link: the hosted checker page with the hash in
-    // the fragment, so the page compares the file and the human never eyeballs
-    // 64 hex chars. 115 bytes -> QR v6 (41 modules) at ECC M; 124px is scale 3
-    // exactly, and the card's tap-to-zoom is the real scan surface, so the
-    // card stays at its geometric minimum to give the text its width back.
-    lv_obj_t *qr = NULL;
-    wt_qr_card(s_scr, &qr, 48, 232, 148, 124);
-    char url[128];
-    snprintf(url, sizeof url, WPROOF_VERIFY_URL "#h=%s", hex);
-    wt_qr_update(qr, url, (uint32_t)strlen(url));
-
+    // No QR here. It carried the hash to the hosted page, but the check needs
+    // the FILE, and the file is 1.9MB on the card -- so the machine that reads
+    // the card is the machine that checks, and a phone scanning a code could
+    // never finish. The card's own copy of the page carries the claim instead.
+    //
     // Accent on how the check works, WARN on where the words go wrong: the
-    // pair keeps rule 2's y, height, roles and split shape, but narrows from
-    // 344 to 262 to seat the QR as the third framed element.
+    // proven pair geometry, same call shape as the dice verdict screen.
     const lv_font_t *f = wt_body_font2(tr(STR_W_PROOF_CHECK_B),
-                                       tr(STR_W_PROOF_BURN_B), 248, 112);
+                                       tr(STR_W_PROOF_BURN_B), 330, 112);
     wt_why_block(s_scr, tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
-                 212, 232, 262, WT_CONTENT_BOTTOM - 232, f, wt_accent());
+                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
     wt_why_block(s_scr, tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
-                 490, 232, 262, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
 
     lv_obj_t *sw = mk_pill(tr(STR_W_PROOF_WORDS_BTN), 48, WT_ACTION_Y, 300,
                            pf_words_cb, NULL);

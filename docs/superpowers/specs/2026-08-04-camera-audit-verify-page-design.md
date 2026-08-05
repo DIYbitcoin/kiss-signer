@@ -20,12 +20,18 @@ says **MATCH**. Three additions, one artifact:
    and the 24 words in pure JS and shows both. If the URL fragment carries
    `#h=<64 hex>`, it compares and renders MATCH / MISMATCH — the human never
    eyeballs hex.
-2. **A copy on the card.** The proof run writes the same bytes as
-   `kiss-verify.html` next to `kiss-proof.bin`, so a user with nothing but the
-   card and a browser can run the check.
-3. **A QR on the AUDIT RESULT screen** encoding
-   `https://kkdao.github.io/kiss-signer/verify.html#h=<hash>` — the device
-   states its claim inside the link, and the page referees.
+2. **A self verifying copy on the card.** The proof run writes the page as
+   `kiss-verify.html` next to `kiss-proof.bin`, with the hash it claimed
+   written into the page, so a user with nothing but the card and a browser
+   opens it, drops the file and reads the verdict.
+3. **The AUDIT entry in the entropy screen's action row**, not only behind the
+   "?" overlay: finding out you can test the camera should not require already
+   doubting it.
+
+A QR of `verify.html#h=<hash>` shipped on the result screen first and was cut.
+The check needs the 1.9MB file, the file is on the card, and a phone that
+scanned the code could never finish — so the machine that reads the card is
+the machine that checks, and the claim belongs in the card's own copy.
 
 ## 2. Threat model
 
@@ -88,13 +94,14 @@ the invariant "an SD error leaves no proof file" and the fail copy "nothing was
 kept and nothing was made" stay true, and no partial file of either name can
 exist.
 
-### The QR
+### The screens
 
-`wt_qr_card` at 48,232, card 162, QR 130 on the AUDIT RESULT screen — version 6
-byte mode at ECC M (115 byte URL, 134 capacity), scale 3 inline, tap to zoom
-for the 392 px scan surface the kit already provides. The why-block pair keeps
-its proven y, height, roles and split shape; both blocks narrow from 344 to 246
-to seat the third framed element.
+AUDIT RESULT keeps the shape it already had: the hash card, then the why pair
+at rule 2's proven geometry (344 wide at 48 and 408). The entry point moves:
+`wt_pill_icon` at 368 on the entropy screen's action row, between CAPTURE and
+BACK, wearing the frame mark. Its callback hands the camera over the way BACK
+does, or the proof screen would open a second stream onto a framebuffer the
+entropy preview is still writing.
 
 ## 5. Out of scope
 
