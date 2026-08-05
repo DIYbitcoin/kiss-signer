@@ -366,7 +366,8 @@ SERVE_BAT = "\r\n".join([
 ])
 
 
-def render_start_here(version: str, firmware: str, fingerprint: str | None) -> str:
+def render_start_here(version: str, firmware: str, fingerprint: str | None,
+                      sha256: str | None) -> str:
     """The first thing a person sees after unzipping. Plain text, CRLF.
 
     Not .md: Windows has no default handler for it, so a double click asks
@@ -476,6 +477,14 @@ def render_start_here(version: str, firmware: str, fingerprint: str | None) -> s
         "      cd site/installer/firmware",
         "      shasum -a 256 --ignore-missing -c ../SHA256SUMS    (macOS)",
         "      sha256sum --ignore-missing -c ../SHA256SUMS        (Linux)",
+    ] + ([
+        "",
+        f"  The firmware ({firmware}) should hash to:",
+        "",
+        f"      {sha256}",
+        "",
+        "  The install page shows the same value before it offers the button.",
+    ] if sha256 else []) + [
         "",
         "",
         "MORE",
@@ -670,7 +679,9 @@ def build(out_dir: pathlib.Path) -> int:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         add(zf, "00-START-HERE.txt",
             render_start_here(version, pathlib.PurePath(firmware).name,
-                              fingerprint).encode("utf-8"))
+                              fingerprint,
+                              (meta.get("browserFirmware") or {}).get("sha256"),
+                              ).encode("utf-8"))
         add(zf, "serve.py", SERVE_PY.encode("utf-8"), 0o755)
         add(zf, "serve.command", SERVE_SH.encode("utf-8"), 0o755)
         add(zf, "serve.sh", SERVE_SH.encode("utf-8"), 0o755)
