@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "已核对 · ID %s 在你的纸上",
   "I_WORDS_UNVERIFIED": "纸未核对",
   "GD_SET_UP_SPARE": "设置备用",
+  "GD_SET_UP_REAL": "设置真钱包",
   "W_QUIZ_SHOW_AGAIN": "再次显示单词",
   "W_PROOF_T": "相机检验",
   "W_PROOF_BTN": "检验",

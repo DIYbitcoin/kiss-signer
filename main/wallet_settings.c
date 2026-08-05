@@ -995,6 +995,15 @@ void wallet_settings_open(lv_obj_t *parent)
 #define SG_TOP    72
 #define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
 #define SG_PITCH 71    // 64 tall card + 7 gap
+// The ways in row runs under BOTH columns and the gutter between them: 752.
+// It is the only row on this page that is about a mapping rather than a
+// setting, and at SG_L_W its label ellipsised to "Duress w..." while the value
+// took the rest -- which reads as a struck through label, not as a narrow row.
+#define SG_FULL_W (SG_R_X + SG_R_W - SG_L_X)
+// 331, not a multiple of SG_PITCH. This row answers to the page edge rather
+// than to either column's grid: it clears the deepest column (NO UNDO ends on
+// 324) by the standard 7px gap and ends on 395, inside WT_CONTENT_BOTTOM.
+#define SG_FULL_Y 331
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: the one row on this page whose control IS the choice, so redraw 05
@@ -1171,11 +1180,21 @@ void wallet_settings_open(lv_obj_t *parent)
     if (wallet_seed_mode() == WSEED_MODE_KEEP && !wallet_seed_flash_encrypted())
         wt_row_sev(s_storage_pill, WT_SEV_WARN);
 
+    // FULL WIDTH, under both columns. This row was the fourth card in the left
+    // column, and it did not belong there twice over: it is the only thing on
+    // the page that states a mapping rather than a setting, and 365px could not
+    // hold "Duress wallet" beside a value as long as LINE THROUGH.
+    //
+    // The sub-line is GD_SET_NOTE, not GD_SET_SUB. The value on this row is the
+    // stroke that opens the REAL wallet -- wallet_duress_real(), set by
+    // wallet_duress_set() -- so "a spare you can show" described the other
+    // wallet entirely, which is the reading that sent the owner looking for a
+    // bug. "which stroke opens which wallet" is what the row actually answers.
     const int g = wallet_duress_real();
     if (!(wallet_session_decoy() && g != WDG_NONE)) {
-        wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_SUB),
+        wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
                g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
-               WT_INK, SG_L_X, SG_TOP + SG_HEAD + 3 * SG_PITCH, SG_L_W,
+               WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
                duress_cb, NULL);
     }
 
@@ -1221,14 +1240,22 @@ void wallet_settings_open(lv_obj_t *parent)
     // rows are cards now, so the only line in this region is the rule itself,
     // and the drawing has it -- 284x1 at 25 percent, starting after the label.
     {
-        // 237, unchanged by the fold above. The backup row now ends at 159, so
-        // there is a blank 78px band here where a second card used to be, and
-        // it stays blank: reading your words and destroying them are opposite
-        // intentions, and the distance between the two eyebrows is the clearest
-        // way the page can say so. Moving the pair up would recover space the
-        // column does not need -- the last card still ends on 395, inside
-        // WT_CONTENT_BOTTOM -- and would put ERASE one row nearer the thumb.
-        int y = SG_TOP + SG_HEAD + 2 * SG_PITCH;
+        // 166, one pitch under the backup row rather than two. The 78px band
+        // that used to sit here was deliberate -- reading your words and
+        // destroying them are opposite intentions, and distance said so -- and
+        // the argument for keeping it was that the column did not need the
+        // space. It does now: the ways in row moved out of the left column and
+        // spans the page at SG_FULL_Y, so this column has to end above 331.
+        //
+        // The separation survives without the band. These two rows are STOP
+        // tinted with red labels under their own red eyebrow and rule; the
+        // backup row above is a green or amber card under a different eyebrow.
+        // Nothing about the pair reads as continuous with it.
+        //
+        // The old note also warned this would put ERASE nearer the thumb. It
+        // does the opposite: ERASE moves 331 -> 260, a row further from the
+        // action bar, with a benign row between it and the bottom of the page.
+        int y = SG_TOP + SG_HEAD + SG_PITCH;
         lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
         lv_obj_set_style_text_color(h, STOP_COL, 0);
         // The rule starts one em past the WORDS and runs to the column's right

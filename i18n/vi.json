@@ -517,6 +517,7 @@
   "I_WORDS_VERIFIED_FMT": "đã kiểm · ID %s có trên giấy của bạn",
   "I_WORDS_UNVERIFIED": "giấy chưa kiểm",
   "GD_SET_UP_SPARE": "TẠO VÍ DỰ PHÒNG",
+  "GD_SET_UP_REAL": "TẠO VÍ THẬT",
   "W_QUIZ_SHOW_AGAIN": "HIỆN LẠI CÁC TỪ",
   "W_PROOF_T": "KIỂM TRA CAMERA",
   "W_PROOF_BTN": "KIỂM CHỨNG",
