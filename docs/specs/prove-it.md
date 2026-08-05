@@ -21,12 +21,12 @@ and shows both, having first written `frame` byte for byte to `kiss-proof.bin`
 and the offline checker page beside it as `kiss-verify.html`. The owner then
 checks, on any computer they trust, any of three ways:
 
-1. Open `verify.html` (hosted at kkdao.github.io/kiss-signer, in the repo at
-   `docs/verify.html`, or the card's own copy) and drop the file on it: the
-   page computes the hash and the words in the browser, offline. The QR on the
-   AUDIT RESULT screen carries `verify.html#h=<hash>` — the device's claim
-   inside the link — so the page renders MATCH or MISMATCH instead of a human
-   comparing 64 hex characters.
+1. Open the card's own `kiss-verify.html` and drop the file on it: the page
+   computes the hash and the words in the browser, offline, and because the
+   device wrote its claimed hash into that copy it renders MATCH or MISMATCH
+   instead of a human comparing 64 hex characters. For the independent version
+   of the same check, open `verify.html` from the repo or the site instead;
+   that copy has no claim, so it prints the hash and words to compare.
 2. `shasum -a 256 kiss-proof.bin` equals the hash on the screen, and any BIP39
    tool fed that hash as entropy produces the same 24 words.
 3. `tools/verify_proof.py` does both of step 2's halves in one command.
@@ -88,7 +88,7 @@ check it.
     WHY overlay -> CAMERA AUDIT -> [SD gate] -> viewfinder + CAPTURE
                 -> one frame frozen on screen -> SD writes (atomic, verified:
                    the frame, then the checker page)
-                -> hash + verify QR + check/burn cards -> 24 words -> wizard
+                -> hash + check/burn cards -> 24 words -> back to the wizard
 
 The frame frozen on the preview IS the captured frame: capture pauses the video
 on exactly the buffer that was copied, so what the owner saw is what got
@@ -136,7 +136,8 @@ against the same pinned vector (JS drift).
 4. A card pulled mid write lands on the fail screen with no partial
    `kiss-proof.bin` and no `kiss-verify.html`.
 5. The 1.83MB PSRAM proof buffer allocates with a wallet open.
-6. A phone scans the zoomed AUDIT RESULT QR; the page opens with the claim,
-   and fed the card's file it shows MATCH.
-7. `kiss-verify.html` opened from the card itself, offline in a browser,
-   accepts the file and shows the same hash and words as the screen.
+6. `kiss-verify.html` opened from the card itself, offline in a browser, fed
+   the card's file, shows MATCH and the same 24 words as the screen.
+7. The AUDIT pill on the entropy screen's action row reaches the same flow as
+   the one on the WHY overlay, and hands the camera over cleanly (no second
+   stream onto a framebuffer the entropy preview is still writing).

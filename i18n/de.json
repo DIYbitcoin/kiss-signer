@@ -531,7 +531,7 @@
   "W_PROOF_R_S": "das Bild und die Seite, die es prüft, sind auf der Karte.",
   "W_PROOF_HASH_CAP": "SHA256 DES FOTOS",
   "W_PROOF_CHECK_H": "prüf es",
-  "W_PROOF_CHECK_B": "Code scannen: die Seite prüft Hash und Wörter.",
+  "W_PROOF_CHECK_B": "die Seite auf der Karte öffnen, Datei hineinziehen.",
   "W_PROOF_BURN_H": "verbrenn es",
   "W_PROOF_BURN_B": "wer die Karte hat, kann sie ableiten. nie für Geld.",
   "W_PROOF_BURNED": "verbrannt. sie liegen offen auf der Karte. nie für Geld.",

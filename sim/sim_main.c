@@ -1520,10 +1520,7 @@ int main(void) {
   touch(158, 430); pump(3); release(); pump(6);     // PROVE IT -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
   touch(198, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
-  save("/tmp/sim_setup_prove_result.ppm");          // hash card + QR + check/burn
-  touch(120, 300); pump(3); release(); pump(6);     // verify QR card -> zoom
-  save("/tmp/sim_setup_prove_zoom.ppm");            // 392px QR, close chip
-  touch(763, 35);  pump(3); release(); pump(6);     // close zoom
+  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
   touch(198, 430); pump(3); release(); pump(6);     // SHOW WORDS
   save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
   touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
