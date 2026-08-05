@@ -14,12 +14,18 @@
 #define WPROOF_NAME        "kiss-proof.bin"
 
 // The offline checker page, written beside the frame (same rule: a literal the
-// owner sees in a file listing). The card copy comes from the device being
-// audited, so it is the convenience check; the independent copy lives at
-// WPROOF_VERIFY_URL, which the AUDIT RESULT QR extends with #h=<hash> so the
-// page compares instead of the human.
+// owner sees in a file listing). The card copy carries the hash this run
+// claimed, appended as WPROOF_CLAIM_FMT, so opening it and dropping the file
+// is the entire check: no QR, no typing. It still comes from the device being
+// audited, so the independent copy lives at WPROOF_VERIFY_URL, which the AUDIT
+// RESULT QR extends with #h=<hash> to make that copy compare too.
 #define WPROOF_PAGE_NAME   "kiss-verify.html"
 #define WPROOF_VERIFY_URL  "https://kkdao.github.io/kiss-signer/verify.html"
+// The page ships a 64 dash placeholder; the card's copy gets this run's hash
+// written over it, in place, so the file keeps its length and the claim sits
+// in the page's own script rather than after it.
+#define WPROOF_CLAIM_SLOT \
+    "----------------------------------------------------------------"
 
 // The whole negotiated sensor frame, raw RGB565. The pinned test vector and
 // the owner's recipe both depend on this exact size, so a frame of any other
@@ -37,8 +43,8 @@ enum {
 
 // SHA256 the frame, write those exact bytes to WPROOF_NAME (atomic form, so
 // the card copy is read back and byte compared before it gets the name), write
-// the embedded checker page as WPROOF_PAGE_NAME the same way, then derive the
-// 24 words from the hash alone. hash_out and words_out are filled only on
+// the embedded checker page plus this run's claim as WPROOF_PAGE_NAME the same
+// way, then derive the 24 words from the hash alone. hash_out and words_out are filled only on
 // WPROOF_OK; words_len must be >= WSEED_MAX_MNEMONIC. A stale-sidecar cleanup
 // result from either write is success: the target is committed and verified.
 // On WPROOF_ERR_SD neither file exists (a failed page write deletes the

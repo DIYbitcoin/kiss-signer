@@ -98,8 +98,9 @@
         offline. Both must match what the device showed.
       </p>
       <p class="mut">
-        The copy of this page on the card came from the device being audited.
-        For an independent check, fetch it from
+        The copy on the card already carries the hash the device claimed, so
+        dropping the file is the whole check. That copy came from the device
+        being audited, though. For an independent check, fetch this page from
         <a href="https://kkdao.github.io/kiss-signer/verify.html">kkdao.github.io/kiss-signer/verify.html</a>
         or the repository, on a computer you trust.
       </p>
@@ -249,13 +250,26 @@ words    = 24 x 11 bit slices of entropy + checksum, standard English list</pre>
         return m ? m[1].toLowerCase() : null;
       }
 
+      // The device overwrites these 64 dashes with the hash it claimed as it
+      // writes this page to the card, so opening THAT copy and dropping the
+      // file is the whole check: no QR, no fragment, no typing. Dashes are not
+      // hex, so every other copy of this page reads "no claim" and falls back
+      // to the URL. Keep the literal exactly 64 characters on one line:
+      // wallet_proof.c finds it by value and writes over it in place.
+      var KISS_CLAIM =
+        "----------------------------------------------------------------";
+
+      function bakedClaim(value) {
+        return typeof value === "string" ? claimedHash("#h=" + value) : null;
+      }
+
       // ---- DOM wiring; absent under Node.
       if (typeof document !== "undefined") {
         var $ = function (id) { return document.getElementById(id); };
         var computedHex = null;
 
         var renderVerdict = function () {
-          var claim = claimedHash(location.hash);
+          var claim = claimedHash(location.hash) || bakedClaim(KISS_CLAIM);
           var v = $("verdict");
           if (!claim) { v.className = "card"; return; }
           if (!computedHex) {
