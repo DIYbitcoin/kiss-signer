@@ -13,6 +13,8 @@
 #include "wallet_crypto.h"
 #include "wallet_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
+#include "verify_page.h"    // ...and the real checker page beside it
+#include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
@@ -131,19 +133,27 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
 }
-// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no crypto).
-// The stub writes a SMALL real file through the real platform_sd so the walk's
-// SD gate and the host directory stay honest, fakes the hash, and derives the
-// fixed SIM_WORDS. kisstest runs the real pipeline against a pinned vector.
+// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no wally).
+// The stub writes a SMALL real file AND the real checker page through the real
+// platform_sd so the walk's SD gate and the host directory stay honest, and
+// hashes the junk with cUR's already-linked SHA256 -- still deterministic, but
+// now dropping /tmp/simsd/kiss-proof.bin on the page (or scanning the sim's
+// QR) shows MATCH instead of a confusing MISMATCH. Words stay the fixed
+// SIM_WORDS; kisstest runs the real pipeline against a pinned vector.
 int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
                      char *words_out, size_t words_len) {
   (void)frame; (void)len;
   uint8_t junk[64];
   for (int i = 0; i < 64; i++) junk[i] = (uint8_t)(i * 3 + 1);
   if (platform_sd_mount() != 0 ||
-      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0)
+      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0 ||
+      platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
+                               verify_page_html_len) < 0)
     return WPROOF_ERR_SD;
-  for (int i = 0; i < 32; i++) hash_out[i] = (uint8_t)(i * 5 + 1);
+  CRYAL_SHA256_CTX cx;
+  ur_bundled_sha256_init(&cx);
+  ur_bundled_sha256_update(&cx, junk, sizeof junk);
+  ur_bundled_sha256_final(&cx, hash_out);
   return wallet_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
 // Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
@@ -1499,7 +1509,10 @@ int main(void) {
   touch(158, 430); pump(3); release(); pump(6);     // PROVE IT -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
   touch(198, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
-  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
+  save("/tmp/sim_setup_prove_result.ppm");          // hash card + QR + check/burn
+  touch(120, 300); pump(3); release(); pump(6);     // verify QR card -> zoom
+  save("/tmp/sim_setup_prove_zoom.ppm");            // 392px QR, close chip
+  touch(763, 35);  pump(3); release(); pump(6);     // close zoom
   touch(198, 430); pump(3); release(); pump(6);     // SHOW WORDS
   save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
   touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24

@@ -17,12 +17,19 @@ The proof run computes
     hash  = SHA256(frame)            // the 1,875,328 raw RGB565 bytes
     words = BIP39(hash)              // 24 words, standard checksum, English list
 
-and shows both, having first written `frame` byte for byte to `kiss-proof.bin`.
-The owner then checks, on any computer they trust:
+and shows both, having first written `frame` byte for byte to `kiss-proof.bin`
+and the offline checker page beside it as `kiss-verify.html`. The owner then
+checks, on any computer they trust, any of three ways:
 
-1. `shasum -a 256 kiss-proof.bin` equals the hash on the screen.
-2. Any BIP39 tool fed that hash as entropy produces the same 24 words.
-   `tools/verify_proof.py` does both steps in one command.
+1. Open `verify.html` (hosted at kkdao.github.io/kiss-signer, in the repo at
+   `docs/verify.html`, or the card's own copy) and drop the file on it: the
+   page computes the hash and the words in the browser, offline. The QR on the
+   AUDIT RESULT screen carries `verify.html#h=<hash>` — the device's claim
+   inside the link — so the page renders MATCH or MISMATCH instead of a human
+   comparing 64 hex characters.
+2. `shasum -a 256 kiss-proof.bin` equals the hash on the screen, and any BIP39
+   tool fed that hash as entropy produces the same 24 words.
+3. `tools/verify_proof.py` does both of step 2's halves in one command.
 
 If both hold, the device's SHA256 and its BIP39 wordlist and checksum are
 honest for camera bytes, end to end — the proof path calls the same
@@ -44,6 +51,22 @@ Where else it could lie, named so nobody reads more into the proof than it says:
 Same caveat class the WHY card already concedes: all three sources are made by
 this device.
 
+## The page on the card is not the referee
+
+`kiss-verify.html` is written by the device being audited: firmware that lies
+about the hash can ship a page that repeats the lie. The card copy exists so
+the casual check costs one double click; the independent check fetches the
+page from the repo or the hosted URL on a machine the owner trusts. The page
+says this about itself, above the fold.
+
+Three implementations of `BIP39(SHA256(file))` now exist — C in the firmware,
+Python in `tools/verify_proof.py`, JS in the page — and drift between them is
+an attack surface. All three are pinned to the same independent vector:
+`sim/test_proof.c` pins the C, CI runs the page's actual script body under
+Node against the identical pattern and words (`tools/check_verify_page.mjs`),
+and a second CI step regenerates the embedded C array from `docs/verify.html`
+and diffs it against the committed copy (`tools/gen_verify_page.py`).
+
 ## Burned words
 
 The words the proof shows are a real, valid BIP39 seed — and they sit on the
@@ -63,13 +86,18 @@ the reader is told the camera path cannot be checked is the moment they can now
 check it.
 
     WHY overlay -> CAMERA AUDIT -> [SD gate] -> viewfinder + CAPTURE
-                -> one frame frozen on screen -> SD write (atomic, verified)
-                -> hash + check/burn cards -> 24 words -> back to the wizard
+                -> one frame frozen on screen -> SD writes (atomic, verified:
+                   the frame, then the checker page)
+                -> hash + verify QR + check/burn cards -> 24 words -> wizard
 
 The frame frozen on the preview IS the captured frame: capture pauses the video
 on exactly the buffer that was copied, so what the owner saw is what got
-hashed. The SD write is `platform_sd_write_atomic`, whose read back and byte
-compare is the file half of the proof property.
+hashed. Both SD writes are `platform_sd_write_atomic`, whose read back and byte
+compare is the file half of the proof property. The frame goes first because it
+is the artifact; if the page write then fails, the run deletes the committed
+frame (best effort) and reports the same SD failure, so an error screen never
+has files behind it — a truly dead card can refuse the delete too, but that
+screen showed no hash, so the leftover frame contradicts nothing.
 
 The real wizard is untouched: three sources, same mix, same screens.
 
@@ -82,8 +110,15 @@ The real wizard is untouched: three sources, same mix, same screens.
   the real libwally;
 - the file on the (host) card is byte identical to the input and re-hashes to
   the same digest;
-- SD write and rename faults surface as errors and leave no target file;
+- the checker page lands beside it, byte identical to the embedded array;
+- SD write and rename faults surface as errors and leave no file of either
+  name — including a fault aimed at the second (page) write, which must pull
+  the committed frame back out;
 - null or empty frames are refused.
+
+**CI.** `tools/gen_verify_page.py` regenerated and diffed (page/array drift),
+and `tools/check_verify_page.mjs` runs the page's script body under Node
+against the same pinned vector (JS drift).
 
 **Device.** Required; the host cannot see the camera or real SDMMC.
 
@@ -99,5 +134,9 @@ The real wizard is untouched: three sources, same mix, same screens.
    compiles `camera_spike.c`, so only hardware can run it.
 3. The frozen preview matches the saved file (photograph a clock).
 4. A card pulled mid write lands on the fail screen with no partial
-   `kiss-proof.bin`.
+   `kiss-proof.bin` and no `kiss-verify.html`.
 5. The 1.83MB PSRAM proof buffer allocates with a wallet open.
+6. A phone scans the zoomed AUDIT RESULT QR; the page opens with the claim,
+   and fed the card's file it shows MATCH.
+7. `kiss-verify.html` opened from the card itself, offline in a browser,
+   accepts the file and shows the same hash and words as the screen.
