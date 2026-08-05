@@ -441,18 +441,17 @@ static const pill_t PILLS[] = {
     // in the smallest type on the screen nearly everywhere. 560+190 keeps its
     // right edge on 750 where it was.
     { "duress/skip",      STR_GD_SKIP,         190, 52, 0, 1 },
+    // ST_NOPASS still draws this one through wt_pill, so 52 is its tightest box.
     { "duress/turnoff",   STR_GD_TURN_OFF,     260, 52, 0, 1 },
-    // NOT registered yet: ST_INTRO's SET UP A SPARE. Measured at 240x52 it
-    // wants 232-317px of a 212px budget in TWELVE locales, so it is font14 on
-    // most of the world's devices today -- older than this branch, and not a
-    // widen. ST_INTRO carries three pills, and at the widths font23 actually
-    // needs (345 for SPARE, 260 for TURN THIS OFF, 190 for NOT NOW, plus gaps)
-    // the row wants 819px of the 702 it has. Those three also overlap by 8px
-    // as they stand: the first runs to 288 and TURN THIS OFF starts at 280,
-    // which only shows when a configured wallet reaches ST_INTRO from Settings.
-    // Registering it here would turn the gate red on a screen this change does
-    // not redesign, so the number is recorded rather than enforced. Add the
-    // entry with the row.
+    // ST_INTRO's row is TALL: three pills at WT_ACTION_Y_TALL, h 66. The extra
+    // 14px is the whole point -- bh becomes 58, which is two font23 lines, so
+    // SET UP A SPARE wraps at 23 rather than falling to font14 in twelve
+    // locales. Registered at the height the screen actually passes wt_pillh: at
+    // 52 this entry would fail, and at 66 on a screen that really used 52 it
+    // would pass while the device drew font14.
+    { "duress/spare",     STR_GD_SET_UP_SPARE, 240, 66, 0, 1 },
+    { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
+    { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
     // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
     // LONG_CLIP. There is no font fallback here, so an over-long translation
