@@ -17,13 +17,16 @@
 #define SD_BASE "/tmp/simsd"
 static int s_test_present = 1;
 static unsigned s_test_fail;
+static int s_test_fail_skip;
 
 void platform_sd_test_set_present(int present) { s_test_present = present != 0; }
 void platform_sd_test_fail_next(unsigned flags) { s_test_fail = flags; }
+void platform_sd_test_fail_skip(int n) { s_test_fail_skip = n; }
 
 static int test_fail(unsigned flag)
 {
     if (!(s_test_fail & flag)) return 0;
+    if (s_test_fail_skip > 0) { s_test_fail_skip--; return 0; }
     s_test_fail &= ~flag;
     return 1;
 }

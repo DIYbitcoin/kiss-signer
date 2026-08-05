@@ -36,6 +36,17 @@ jobs:
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c 'tools/fonts/glyphs_*.txt'
 
+      - name: verify page drift
+        run: |
+          python3 tools/gen_verify_page.py
+          git diff --exit-code -- main/verify_page.c main/verify_page.h
+
+      # The page's JS, the firmware's C and verify_proof.py all implement
+      # BIP39(SHA256(file)); this runs the page's actual script body against
+      # the same pinned vector sim/test_proof.c uses, so they cannot drift.
+      - name: verify page vector (node)
+        run: node tools/check_verify_page.mjs
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh

@@ -867,6 +867,28 @@ static void ent_prove_cb(lv_event_t *e)
     proof_screen();
 }
 
+// The same detour from the entropy screen's own action row, where the camera
+// is still running: hand it over the way BACK does, or the proof screen opens
+// a second stream onto a framebuffer this one is still writing.
+static void ent_audit_cb(lv_event_t *e)
+{
+    (void)e;
+#ifndef SIMULATOR
+    if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
+    camera_entropy_stop();
+#endif
+    proof_screen();
+}
+
+// Between CAPTURE (48..348) and BACK (610..750). The mark is the frame the
+// audit is about, the same glyph the recipe diagram and the camera method row
+// already carry.
+static void ent_audit_pill(void)
+{
+    wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_BTN),
+                 368, WT_ACTION_Y, 224, WT_ACTION_H, ent_audit_cb, NULL);
+}
+
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
 // the dice the fourth line sends an unconvinced reader to (the same LIST glyph
 // method_screen puts on the DICE row, so the two marks agree).
@@ -1398,6 +1420,11 @@ static void proof_result_screen(void)
     lv_obj_update_layout(v);
     lv_obj_set_size(card, 704, vy + lv_obj_get_height(v) + 14);
 
+    // No QR here. It carried the hash to the hosted page, but the check needs
+    // the FILE, and the file is 1.9MB on the card -- so the machine that reads
+    // the card is the machine that checks, and a phone scanning a code could
+    // never finish. The card's own copy of the page carries the claim instead.
+    //
     // Accent on how the check works, WARN on where the words go wrong: the
     // proven pair geometry, same call shape as the dice verdict screen.
     const lv_font_t *f = wt_body_font2(tr(STR_W_PROOF_CHECK_B),
@@ -1885,10 +1912,15 @@ static void entropy_screen(void)
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     s_ent_cr = wt_chip(row, tr(STR_W_ENT_RESULT), false);
 
+    // The audit used to be reachable only through the "?" overlay, which meant
+    // the owner had to already doubt the camera to find out they could test
+    // it. It sits in the action row instead, between the action and the way
+    // out; the overlay keeps its pill, where the doubt is actually named.
 #ifdef SIMULATOR
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
+    ent_audit_pill();
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
     // The sim has no camera and no meter, so the walk would see a permanently
     // disabled action pill. Show the ready state: it is the one the scripted
@@ -1906,6 +1938,7 @@ static void entropy_screen(void)
         s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
                                 ent_tap_cb, NULL);
         wt_pill_primary(s_ent_capture);
+        ent_audit_pill();
         ent_ui_sync(0, camera_entropy_reason());
     } else {
         // The camera failed. The two cards above still tell the truth about the
