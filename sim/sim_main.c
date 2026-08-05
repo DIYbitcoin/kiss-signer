@@ -14,6 +14,7 @@
 #include "wallet_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
+#include "wallet_duress.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
@@ -1872,6 +1873,19 @@ int main(void) {
   wallet_duress_ui_open_nopass(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
+
+  // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
+  // Settings on a wallet that already has a stroke, this screen grows a THIRD
+  // pill -- TURN THIS OFF, the only way back to plain behaviour -- and the
+  // setup walk can never show it, because during setup there is nothing to
+  // turn off yet. That is the whole reason the row overlapped by 8px for as
+  // long as it did: no stop had ever contained all three pills at once.
+  //
+  // A leaf, like the nopass stop above it: opened directly, nothing after it.
+  (void)wallet_duress_set(WDG_UNDERLINE);
+  wallet_duress_ui_open(lv_screen_active(), NULL);
+  pump(40);
+  save("/tmp/sim_duress_intro_set.ppm");            // three pills, one TALL row
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
