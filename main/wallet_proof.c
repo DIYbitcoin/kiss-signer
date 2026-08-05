@@ -1,10 +1,13 @@
 // The CAMERA AUDIT pipeline. See wallet_proof.h for the contract and
 // docs/specs/prove-it.md for what the proof does and does not prove.
 //
-// Order of operations: hash first, then the atomic write, then the words.
-// The write's read back and byte compare is the file half of the property --
-// if the card holds different bytes than the ones hashed, the write fails and
-// no proof file exists to contradict the screen.
+// Order of operations: hash first, then the frame's atomic write, then the
+// checker page, then the words. The write's read back and byte compare is the
+// file half of the property -- if the card holds different bytes than the ones
+// hashed, the write fails and no proof file exists to contradict the screen.
+// The frame goes first because it is the artifact; the page is the courtesy,
+// and a card that takes 1.9MB and then refuses 26KB is a card that lies, so a
+// failed page write pulls the frame back out and reports the same SD error.
 #include "wallet_proof.h"
 
 #include <string.h>
@@ -12,6 +15,7 @@
 #include <wally_crypto.h>
 
 #include "platform_sd.h"
+#include "verify_page.h"
 #include "wallet_seed.h"
 
 int wallet_proof_run(const uint8_t *frame, size_t len,
@@ -33,6 +37,13 @@ int wallet_proof_run(const uint8_t *frame, size_t len,
     int rc = platform_sd_write_atomic(WPROOF_NAME, frame, len);
     if (rc != 0 && rc != PLATFORM_SD_ATOMIC_CLEANUP)
         return WPROOF_ERR_SD;
+
+    rc = platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
+                                  verify_page_html_len);
+    if (rc != 0 && rc != PLATFORM_SD_ATOMIC_CLEANUP) {
+        (void)platform_sd_delete(WPROOF_NAME);
+        return WPROOF_ERR_SD;
+    }
 
     if (wallet_seed_from_entropy(h, sizeof h, words_out, words_len) != 0)
         return WPROOF_ERR_DERIVE;
