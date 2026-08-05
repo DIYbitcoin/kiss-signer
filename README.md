@@ -111,6 +111,7 @@ pip install esptool   # or: pipx install esptool / uvx esptool
 
 # port: /dev/cu.usbmodem* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
 # replace VERSION with the release number
+shasum -a 256 --ignore-missing -c SHA256SUMS   # step 2 again, beside the write on purpose
 esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \

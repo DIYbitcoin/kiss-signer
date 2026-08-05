@@ -253,6 +253,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 <pre><code>pip install esptool        # or: pipx install esptool / uvx esptool
 
 # port: /dev/cu.usbmodem* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
+shasum -a 256 --ignore-missing -c SHA256SUMS   # the check from 01 again, beside the write
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
