@@ -154,6 +154,31 @@ mkdir -p "$OUT/firmware"
 # drop stale firmware images so the served folder only holds this release
 find "$OUT/firmware" -name 'kiss-signer-*.bin*' ! -name "$NAME*" -delete
 
+# 2.5 manifest.json, BEFORE SHA256SUMS so the signature can cover it.
+# esp-web-tools flashes every part of the matching build at its own offset, so
+# an unsigned manifest is arbitrary bytes at an arbitrary offset that a passing
+# gpg --verify still calls good. Its contents depend only on the version, never
+# on the signing outcome, so it can be written this early. release.json cannot:
+# it records whether signing succeeded, so it stays in step 5 and out of the
+# signed manifest, exactly like the offline zip.
+NAME="$NAME" VERSION="$VERSION" GIT_REV="$GIT_REV" "$PY" - <<'PY'
+import json, os
+out = "docs/installer"
+name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
+json.dump({
+    "name": "KISS Signer",
+    "version": f"{version}-{rev}",
+    "new_install_prompt_erase": True,
+    "new_install_improv_wait_time": 0,
+    "builds": [{
+        "chipFamily": "ESP32-P4",
+        "improv": False,
+        "parts": [{"path": f"firmware/{name}", "offset": 0}],
+    }],
+}, open(f"{out}/manifest.json", "w"), indent=2)
+print(f"wrote {out}/manifest.json")
+PY
+
 # 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
 NAME="$NAME" "$PY" - <<'PY'
 import hashlib, os
@@ -171,6 +196,9 @@ with open(f"{out}/SHA256SUMS", "w") as f:
     f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
     for label, p in parts:
         f.write(f"{sha(p)}  {p}  ({label})\n")
+    # The flash list itself. Without this line the signature covers what gets
+    # flashed but not the instructions for flashing it.
+    f.write(f"{sha(f'{out}/manifest.json')}  manifest.json  (flash list)\n")
 print(f"wrote {out}/SHA256SUMS")
 PY
 
@@ -192,7 +220,7 @@ if command -v minisign >/dev/null && [ -f "$MINISIGN_KEY" ]; then
     echo "minisign: $OUT/firmware/$NAME.minisig"
 fi
 
-# 5. manifest.json + release.json
+# 5. release.json (manifest.json is step 2.5, inside the signature)
 GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
 GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
 GPG_FPR="$GPG_FPR" \
@@ -215,17 +243,9 @@ parts = [
     ("application",     "build-release/guition_kiss_bringup.bin",             0x10000),
 ]
 
-json.dump({
-    "name": "KISS Signer",
-    "version": f"{version}-{rev}",
-    "new_install_prompt_erase": True,
-    "new_install_improv_wait_time": 0,
-    "builds": [{
-        "chipFamily": "ESP32-P4",
-        "improv": False,
-        "parts": [{"path": f"firmware/{name}", "offset": 0}],
-    }],
-}, open(f"{out}/manifest.json", "w"), indent=2)
+
+# manifest.json is written in step 2.5 so SHA256SUMS can cover it. Do not move
+# it back here: a manifest written after the signature is an unsigned flash list.
 
 status = ("pgp+minisign" if gpg_signed and mini_signed
           else "pgp" if gpg_signed
