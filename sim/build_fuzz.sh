@@ -6,8 +6,10 @@ set -e
 cd "$(dirname "$0")/.."
 WALLY=components/libwally-core
 clang -O1 -w -g \
-  -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -fsanitize=address,undefined -fno-sanitize-recover=undefined \
+  -fno-omit-frame-pointer \
   -DNDEBUG=1 -DBUILD_MINIMAL=1 -DECMULT_WINDOW_SIZE=8 \
+  -DAVOID_UNALIGNED_ACCESS=1 \
   -DKISS_ROOT="\"$PWD\"" \
   -I"$WALLY" \
   -I"$WALLY/upstream" \
