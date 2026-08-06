@@ -69,6 +69,9 @@ asking. Nothing on a device can.
 ## Phase 1, flash and NVS encryption
 
 **Status: in progress. Build profile complete, hardware testing underway.**
+The staged plan, and why this burn happens in the same pass as secure boot
+rather than before it, is in
+[`specs/flash-encryption-rollout.md`](specs/flash-encryption-rollout.md).
 
 `tools/build_encrypted_release.sh` produces flash encryption in RELEASE mode
 plus NVS encryption. Plain flash encryption does not cover `nvs` data
@@ -89,6 +92,22 @@ What this changes per storage mode:
   inert either way. Encryption protects that device key at rest, which closes
   the case where someone holds the device *and* the card.
 - **AMNESIC** is unaffected. Nothing is written anywhere.
+
+**Moving FLASH to SD CARD does not scrub the old words on a beta device.** The
+screen says the old copy was removed, and the NVS entry is indeed deleted, but
+NVS is log structured: deletion is logical, and the bytes stay on their flash
+page until a compaction that may never come. On a beta board that page is
+plaintext, so a flash dump can still recover a wallet that was moved to a card
+specifically to get it off flash. Once this phase lands the residue is
+ciphertext and the sentence on screen becomes true as written.
+
+The obvious fix, erasing the whole NVS partition on the move, is deliberately
+not taken. The SD device key lives in that partition, and a power cut between
+the erase and its restore would leave a card no device can open. That trade is
+recorded at `main/wallet_seed.c`'s `storage_publish_sd`. The durable fix is the
+eFuse backed device key, which removes the key from the set that has to survive
+an erase; until then the honest statement is this paragraph rather than a
+migration that can lose a wallet.
 
 All three modes are offered on every build. SD was previously gated behind
 encryption, which was backwards: it withheld the safer persistent mode while
