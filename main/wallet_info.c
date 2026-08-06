@@ -657,8 +657,36 @@ static void words_warn_screen(lv_event_t *e)
     // Measure it rather than budget for it: the chip is self sizing and its
     // height follows the locale's font, so the body starts under the real box.
     lv_obj_update_layout(chip);
-    wt_why_body(s_scr, tr(STR_I_WARN_B), 96 + lv_obj_get_height(chip) + 12,
-                WT_WARN, true);
+    int below = 96 + lv_obj_get_height(chip);
+
+    // The dice judge's verdict, carried forward from the seed that was made.
+    // It belongs on THIS page and not on the one that showed it first: the
+    // warning during setup arrives at the most excited moment of the ritual,
+    // and this is the screen someone opens to copy words onto paper, which is
+    // the last moment redoing the seed is still cheap.
+    //
+    // Reuses the string the dice warning screen already wears, so this costs no
+    // new key in 21 locales, and the same mark: glyph AND colour, per
+    // ADDENDUM-02, because an amber chip alone says nothing in some themes.
+    if (wallet_seed_entropy_note() != 0) {
+        lv_obj_t *ent = wt_state_chip(s_scr,
+                                      tr_sym(LV_SYMBOL_WARNING,
+                                             STR_W_DICE_WARN_T),
+                                      WT_WARN);
+        lv_obj_update_layout(ent);
+        // Side by side when the locale leaves room, stacked when it does not.
+        // A 36 character Dutch backup chip beside this one would run off the
+        // page, and measuring is cheaper than guessing which locales do that.
+        int x = 48 + lv_obj_get_width(chip) + 12;
+        if (x + lv_obj_get_width(ent) <= 752) {
+            lv_obj_set_pos(ent, x, 96);
+        } else {
+            lv_obj_set_pos(ent, 48, below + 8);
+            below += 8 + lv_obj_get_height(ent);
+        }
+    }
+
+    wt_why_body(s_scr, tr(STR_I_WARN_B), below + 12, WT_WARN, true);
 
     lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);

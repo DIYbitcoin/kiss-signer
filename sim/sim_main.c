@@ -279,9 +279,19 @@ int wallet_seed_flash_encrypted(void) { return 0; }
 // The screen walk creates seeds through the same funnel the device uses, so it
 // reaches the entropy note. RAM here: the walk is one process and there is no
 // boot for it to survive.
-static int s_sim_ent_note;
+// SIM_ENT_NOTE=1 starts the walk with a flagged seed, which is the only way the
+// overlap gate ever renders the second chip on the recovery words page. Without
+// it the walk creates clean seeds and the widest version of that chip line --
+// two self sizing chips beside each other, in 21 locales -- is never measured.
+static int s_sim_ent_note = -1;
 void wallet_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
-int wallet_seed_entropy_note(void) { return s_sim_ent_note; }
+int wallet_seed_entropy_note(void) {
+  if (s_sim_ent_note < 0) {
+    const char *e = getenv("SIM_ENT_NOTE");
+    s_sim_ent_note = (e && *e && *e != '0') ? 2 /* WD_Q_UNEVEN */ : 0;
+  }
+  return s_sim_ent_note;
+}
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
