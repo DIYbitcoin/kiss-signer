@@ -271,6 +271,9 @@ int wallet_seed_set_mode(int m) {
 // The desktop store is a plain file, so at-rest encryption is off: the FLASH
 // note reads as the unencrypted (steering) copy in the sim, matching a normal
 // beta device.
+//
+// The screen-walk sim always runs the beta lane. The settable version of this
+// lives in main/wallet_seed.c, which is what the unit test binary links.
 int wallet_seed_flash_encrypted(void) { return 0; }
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
