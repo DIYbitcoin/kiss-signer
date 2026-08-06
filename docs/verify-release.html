@@ -51,6 +51,10 @@
         text-align: center;
         cursor: pointer;
       }
+      /* A label is inline by default, so the dashed box lands ON the paragraph
+         above it. verify.html never noticed because its drop target has no
+         prose beside it. */
+      #drop { display: block; }
       #drop.over { border-color: #35d07f; }
       #drop input { display: none; }
       #drop .hint { color: #7a869c; margin-top: 6px; font-size: .9rem; }
