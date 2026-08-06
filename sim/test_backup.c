@@ -12,6 +12,10 @@
 #include "wallet_backup.h"
 #include "wallet_seed.h"
 
+// sim_main.c: the paper check record carries a master fingerprint, so it is
+// only written when flash encryption is under it. Tests drive both lanes.
+void wallet_seed_test_set_flash_encrypted(int on);
+
 static int bfails;
 
 static void bchk(const char *name, int ok) {
@@ -25,6 +29,11 @@ int test_backup_layer(void) {
     const uint8_t fp_zero[4] = { 0, 0, 0, 0 };
 
     // KEEP is the mode that persists. Start from a known-empty table.
+    //
+    // Flash encryption ON for this block: the record carries a master
+    // fingerprint, so a plaintext lane deliberately keeps it in session RAM and
+    // writes nothing. The unencrypted lane is tested at the end.
+    wallet_seed_test_set_flash_encrypted(1);
     bchk("backup: KEEP mode for the persisting tests",
          wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
     wallet_backup_forget();
@@ -68,5 +77,25 @@ int test_backup_layer(void) {
          !wallet_backup_checked(fp_a));
 
     wallet_backup_forget();
+
+    // The unencrypted lane, which is what a beta device actually runs. A record
+    // keyed by master fingerprint proves which wallet was used, and a second
+    // one in the same namespace proves a passphrase wallet exists at all, so
+    // below encrypted flash nothing may be written. It stays answerable for the
+    // session and goes with the power.
+    //
+    // Reading it back cannot use the same lane: with persistence off the reader
+    // deliberately answers from session RAM, which would say yes no matter what
+    // storage held. So mark with encryption off, then turn it on and read. That
+    // sends the reader to NVS, and a false there is proof nothing was written.
+    wallet_seed_test_set_flash_encrypted(0);
+    bchk("backup: unencrypted KEEP still answers within the session",
+         (wallet_backup_mark(fp_a), wallet_backup_checked(fp_a)));
+    wallet_seed_test_set_flash_encrypted(1);
+    bchk("backup: unencrypted mark wrote nothing to storage",
+         !wallet_backup_checked(fp_a));
+
+    wallet_backup_forget();
+    wallet_seed_test_set_flash_encrypted(0);   // leave the sim on the beta lane
     return bfails;
 }

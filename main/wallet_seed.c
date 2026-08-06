@@ -420,12 +420,22 @@ static int storage_mode_write(int mode)
 // So there is no "SD unsupported" state to gate on; the predicate that used to
 // express one is gone.
 
+// Now load bearing beyond the storage note: it gates whether a wallet
+// fingerprint may be written to NVS at all (wallet_usage.c, wallet_backup.c).
+// Both answers therefore need host coverage — the beta lane where the record
+// must NOT be written, and the encrypted lane where it is allowed and must
+// still behave. Same seam convention as wallet_seed_test_fail_next above.
+#ifndef ESP_PLATFORM
+static int s_test_flash_enc;
+void wallet_seed_test_set_flash_encrypted(int on) { s_test_flash_enc = on ? 1 : 0; }
+#endif
+
 int wallet_seed_flash_encrypted(void)
 {
 #ifdef ESP_PLATFORM
     return esp_efuse_is_flash_encryption_enabled() ? 1 : 0;
 #else
-    return 0;
+    return s_test_flash_enc;
 #endif
 }
 
