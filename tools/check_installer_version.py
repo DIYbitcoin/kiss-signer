@@ -132,6 +132,27 @@ def main() -> int:
                     "relative path inside docs/installer"
                 )
 
+    # docs/verify-release.html bakes the expected hash, size and filename so it
+    # works over file:// from the offline bundle with no network. A baked value
+    # that drifts is worse than no page at all: it tells someone their genuine
+    # download is corrupt, or worse, stays green for the previous release.
+    verify_page = ROOT / "docs" / "verify-release.html"
+    if verify_page.is_file():
+        text = verify_page.read_text()
+        rel = json.loads((INSTALLER / "release.json").read_text())["browserFirmware"]
+        for var, value in (
+            ("EXPECT", f'"{rel["sha256"]}"'),
+            ("EXPECT_SIZE", str(rel["size"])),
+            ("EXPECT_NAME", f'"{pathlib.PurePosixPath(rel["path"]).name}"'),
+        ):
+            if f"var {var} = {value};" not in text:
+                problems.append(
+                    f"docs/verify-release.html {var} does not match release.json "
+                    f"({value})"
+                )
+        if version not in text:
+            problems.append(f"docs/verify-release.html does not name {version!r}")
+
     # The README badge is the fourth copy, and the only one a reader sees before
     # they download anything.
     if BADGE.is_file():
