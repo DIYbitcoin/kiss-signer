@@ -104,11 +104,31 @@ static void persistent_wipe(void)
 
 #endif
 
+// The key is built from the master fingerprint, so writing one to plaintext
+// NVS records WHICH wallet was used. On a device with a passphrase that is the
+// whole game: a decoy holds its own fingerprint, and a second one in the same
+// namespace proves a second wallet exists, then serves as an offline oracle to
+// grind passphrases against. That defeats what wallet_duress.h is for.
+//
+// So persistence needs encrypted flash under it, not merely a non AMNESIC mode.
+// On the beta lane this costs the cross boot memory of the receive high water
+// mark; within a session the table below still carries it. A convenience is the
+// right thing to lose here.
+//
+// Read and write move together. Gating only the write would leave the reader
+// asking NVS for a record nothing writes any more, so the mark would appear to
+// vanish the instant it was made — a silently dead feature rather than a
+// deliberately session scoped one.
+static bool may_persist(void)
+{
+    return wallet_seed_mode() != WSEED_MODE_AMNESIC && wallet_seed_flash_encrypted();
+}
+
 int wallet_usage_high(const uint8_t fp[4], int testnet, int script)
 {
     char key[16];
     usage_key(fp, testnet, script, key);
-    if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
+    if (!may_persist())
         return tab_high(s_session, s_session_n, key);
     int v = persistent_high(key);
     if (v >= 0) tab_mark(s_session, &s_session_n, key, (uint32_t)v);
@@ -120,12 +140,17 @@ void wallet_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t id
     char key[16];
     usage_key(fp, testnet, script, key);
     tab_mark(s_session, &s_session_n, key, idx);
-    if (wallet_seed_mode() != WSEED_MODE_AMNESIC)
+    if (may_persist())
         persistent_mark(key, idx);
 }
 
+// Second door onto the same NVS keys: the mode change paths in wallet_seed.c
+// flush the whole session table at once. Gating only wallet_usage_mark would
+// leave every fingerprint to land here instead.
 void wallet_usage_persist_session(void)
 {
+    if (!may_persist())
+        return;
     for (int i = 0; i < s_session_n; i++)
         persistent_mark(s_session[i].key, s_session[i].v);
 }
