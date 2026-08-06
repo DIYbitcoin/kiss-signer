@@ -66,6 +66,12 @@ starts loading a file the bundle does not carry.
 
 ## Verifying a download (user)
 
+Most people should use [`docs/verify-release.html`](../verify-release.html),
+which hashes the file in the browser with no network and compares it against
+the published value, then gives the one GPG command below. It travels in the
+offline zip, so it works on an airgapped machine. The rest of this section is
+the same thing done entirely by hand.
+
 ```sh
 # 1. the manifest is signed by the project key
 gpg --import kiss_signer_pgp.asc

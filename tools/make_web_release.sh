@@ -303,6 +303,31 @@ json.dump({
 print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")
 PY
 
+# 5.5 re-bake docs/verify-release.html against the release just written.
+# The page hashes a dropped file with no network, so the expected values have to
+# live inside it rather than be fetched. A stale bake is worse than no page: it
+# would call a genuine download corrupt, or stay green for the previous release.
+# tools/check_installer_version.py fails the build if these drift.
+"$PY" - <<'PY'
+import json, pathlib, re
+page = pathlib.Path("docs/verify-release.html")
+if page.is_file():
+    rel = json.loads(pathlib.Path("docs/installer/release.json").read_text())
+    bf = rel["browserFirmware"]
+    name = pathlib.PurePosixPath(bf["path"]).name
+    t = page.read_text()
+    t = re.sub(r'var EXPECT = "[0-9a-f]*";', f'var EXPECT = "{bf["sha256"]}";', t)
+    t = re.sub(r'var EXPECT_SIZE = \d+;', f'var EXPECT_SIZE = {bf["size"]};', t)
+    t = re.sub(r'var EXPECT_NAME = "[^"]*";', f'var EXPECT_NAME = "{name}";', t)
+    t = re.sub(r'<span class="mono">kiss-signer-[^<]*</span>',
+               f'<span class="mono">{name}</span>', t)
+    t = re.sub(r'Expected for <b>[^<]*</b>:\s*\n?\s*<span class="mono">[0-9a-f]*</span>',
+               f'Expected for <b>{rel["version"]}</b>:\n        '
+               f'<span class="mono">{bf["sha256"]}</span>', t)
+    page.write_text(t)
+    print("re-baked docs/verify-release.html")
+PY
+
 # 6. release notes, written before the zip so the zip can carry them: inside an
 # offline bundle they are the only copy of the verify commands, the fingerprint
 # and the changelog that does not need a network to read.
