@@ -128,4 +128,21 @@ int wallet_seed_diff_word(const char *typed, const char *stored);
 #define WSEED_TEST_FAIL_MODE_WRITE  (1u << 0)
 #define WSEED_TEST_FAIL_SEED_REMOVE (1u << 1)
 void wallet_seed_test_fail_next(unsigned flags);
+
+// ---- entropy quality note ----
+// What the dice judge said about the rolls this device's seed was made from:
+// 0 = nothing to say, WD_Q_UNEVEN or WD_Q_PATTERN otherwise. Every seed
+// creating path writes it, so a clean rebuild clears a previous verdict.
+//
+// This exists because a warning shown once, at the most excited moment of
+// setup, is a warning the product forgot on the owner's behalf. SHA256 whitens
+// the rolls, so nothing downstream can ever notice the input was fifty presses
+// of one key; the judgement happens on the raw digits (wallet_dice_q.c) and
+// this is where the answer is kept afterwards.
+//
+// Device wide, never per wallet, and deliberately not keyed by fingerprint:
+// the rolls made one master seed and every passphrase wallet descends from it,
+// so this reveals nothing about how many wallets exist.
+void wallet_seed_set_entropy_note(int v);
+int  wallet_seed_entropy_note(void);
 #endif
