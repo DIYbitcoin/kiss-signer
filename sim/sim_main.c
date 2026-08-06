@@ -275,6 +275,13 @@ int wallet_seed_set_mode(int m) {
 // The screen-walk sim always runs the beta lane. The settable version of this
 // lives in main/wallet_seed.c, which is what the unit test binary links.
 int wallet_seed_flash_encrypted(void) { return 0; }
+
+// The screen walk creates seeds through the same funnel the device uses, so it
+// reaches the entropy note. RAM here: the walk is one process and there is no
+// boot for it to survive.
+static int s_sim_ent_note;
+void wallet_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
+int wallet_seed_entropy_note(void) { return s_sim_ent_note; }
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
