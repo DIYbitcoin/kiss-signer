@@ -1,5 +1,8 @@
 # Contributing
 
+> **Found a vulnerability?** Do not open a pull request or an issue for it.
+> [SECURITY.md](SECURITY.md) says where to send it privately.
+
 ## Branches
 
 Two long-lived branches. The split exists because this repo publishes
