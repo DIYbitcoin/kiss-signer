@@ -3,6 +3,9 @@
 What protects a KISS Signer today, what is planned, and what is deliberately
 out of scope. Written so a reader can tell the three apart.
 
+To report a vulnerability rather than read about the design, see
+[SECURITY.md](../SECURITY.md).
+
 > **On the normal beta firmware, none of the hardening below is active.**
 > Treat a beta device as a hot wallet with a good interface.
 
