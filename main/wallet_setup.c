@@ -567,6 +567,12 @@ static void words_screen(void)
 }
 
 // ---- entropy (NEW path) ----
+// The verdict the dice judge reached about the rolls behind the NEXT call to
+// wallet_setup_entropy. Camera and taps leave it 0, which is what clears a
+// previous device's worth of warning when a seed is rebuilt honestly.
+static int s_ent_note;
+void wallet_setup_entropy_note(int v) { s_ent_note = v; }
+
 void wallet_setup_entropy(const uint8_t *entropy, unsigned len)
 {
     if (!s_scr || s_restore || !entropy || (len != 16 && len != 32))
@@ -577,6 +583,10 @@ void wallet_setup_entropy(const uint8_t *entropy, unsigned len)
         return;
     if (wallet_seed_from_entropy(entropy, need, words, sizeof words) != 0)
         return;
+    // Every seed creating path funnels through here, so this is the one place
+    // that can promise the note describes the seed the owner actually has.
+    wallet_seed_set_entropy_note(s_ent_note);
+    s_ent_note = 0;
     // split into the word array for the reveal grid + quiz
     s_nw = 0;
     const char *p = words;
@@ -1693,6 +1703,14 @@ static void dice_commit(void)
     unsigned need = s_count == 24 ? 32 : 16;
     uint8_t entropy[32];
     if (wallet_dice_take(entropy, need) == 0) {
+        // Judge the digits one last time, BEFORE reset() drops them. This is
+        // the only moment the raw rolls and the decision to keep them exist
+        // together, and after the hash nothing can ever tell.
+        wallet_dice_q_t q;
+        wallet_dice_judge(wallet_dice_digits(), wallet_dice_count(),
+                          dice_need(), &q);
+        wallet_setup_entropy_note(q.verdict == WD_Q_UNEVEN ||
+                                  q.verdict == WD_Q_PATTERN ? q.verdict : 0);
         wallet_dice_reset();
         wallet_setup_entropy(entropy, need);
     } else {
