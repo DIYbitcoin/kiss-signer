@@ -27,24 +27,28 @@ wording of the warning are theirs.
 ### Changed
 
 - **Words you drew yourself are now checked before they become a wallet.** MY
-  OWN WORDS lets you draw BIP39 words off paper cards and type them in, and
-  until now the device accepted whatever you typed. Type the same word eleven
-  times, or one short run over and over, and it now refuses: those carry no
-  secret at all, and anybody could type them. Draws that are merely weaker than
-  you think, words sitting side by side on the list, words in list order, or
-  more repeats than a full deck deals, get a warning you can read and then
-  overrule. Whichever screen you see, it shows your own draw as a row of bars,
-  so the shape being questioned is the one on the screen. If you overrule a
+  OWN WORDS lets you cut up the BIP39 word list, pick from it blind and type
+  what you get. Until now the device accepted whatever you typed. Type one word
+  eleven times, or one short run over and over, and it now refuses: those carry
+  no secret at all, and anybody could type them. Picks that are merely weaker
+  than you think, words sitting side by side on the list, words in list order,
+  or more repeats than 2048 words would give, get a warning you can read and
+  then overrule. Whichever screen you see, it shows your own pick as a row of
+  bars, so the shape being questioned is the one on screen. If you overrule a
   warning, the verdict follows the seed to the page where you copy the words
   onto paper, which is the last moment redoing it is still cheap.
 
-  Sorting your cards before typing them is worth calling out, because it looks
-  harmless: the order you drew them in was part of the secret, and putting them
-  in order throws about 25 bits away.
+  Sorting the pieces before typing them is worth calling out, because it looks
+  harmless: the order you picked them in was part of the secret, and putting
+  them in order throws about 25 bits away.
+
+  A "?" on the intro screen now explains where the words come from: the list is
+  public and the same 2048 words in every wallet, the secret is which ones a
+  blind pick lands on, and the last word is arithmetic rather than a choice.
 
   What this cannot see is a set that merely looks random: a memorised phrase, a
   line of a song, or words you picked while feeling unpredictable. Only a blind
-  draw is random.
+  pick is random.
 
 - **A dice roll the device does not believe was rolled is now refused, not
   nudged.** The check on your rolls has always been there and has always been
@@ -78,11 +82,11 @@ wording of the warning are theirs.
   embedding the firmware at build time; the argument that fewer moving parts
   between you and your device is worth the packaging work is theirs.
 
-- **MY OWN WORDS: a seed from paper cards, with the device only doing the
-  math.** A third way to create a wallet, beside the camera and the dice: cut
-  the BIP39 word list into cards, shuffle, draw 11 (or 23) blind, and type
-  them in. The last word of a seed phrase is part checksum, so it cannot be
-  drawn — the device computes every word that completes your draw (128 for a
+- **MY OWN WORDS: a seed you pick off the word list, with the device only
+  doing the math.** A third way to create a wallet, beside the camera and the
+  dice: cut the BIP39 word list up, mix the pieces, pick 11 (or 23) blind, and
+  type them in. The last word of a seed phrase is part checksum, so it cannot
+  be picked — the device computes every word that completes your set (128 for a
   12 word seed, 8 for a 24 word one), shows them all, and you pick one. No
   machine randomness enters the seed, and the result checks out on any BIP39
   tool. A full page explains the checksum on the way: same words, right or
