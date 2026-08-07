@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
 #include "i18n.h"
 #include "wallet_crypto.h"
@@ -756,10 +757,58 @@ static int find_label_text(lv_obj_t *o, const char *needle) {
     if (find_label_text(lv_obj_get_child(o, i), needle)) return 1;
   return 0;
 }
+// What IS on the screen, when what should be is not. A bare "no label contains
+// the address" says nothing about whether the walk landed on the wrong screen,
+// the right screen with the wrong numbers, or a screen that never finished
+// building -- and those want three different fixes.
+//
+// This exists because the walk has been seen failing these checks
+// nondeterministically: on 2026-08-07, four runs from a byte identical starting
+// state gave 0, 3, 7 and 7 failures, and it has never been reproduced since
+// (61 consecutive clean runs across idle, ASan, three allocator modes and CPU
+// contention). Whatever it is, it is rare and it is not going to be caught by
+// staring at the code, so the next occurrence has to explain itself.
+static void dump_labels(lv_obj_t *o, int depth, int *budget) {
+  if (*budget <= 0) return;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    if (t && *t) { printf("      %*s\"%s\"\n", depth, "", t); (*budget)--; }
+  } else if (lv_obj_check_type(o, &lv_spangroup_class)) {
+    uint32_t ns = lv_spangroup_get_span_count(o);
+    printf("      %*s<spangroup %u>", depth, "", (unsigned)ns);
+    for (uint32_t i = 0; i < ns; i++) {
+      const char *t = lv_span_get_text(lv_spangroup_get_child(o, (int32_t)i));
+      if (t) printf(" \"%s\"", t);
+    }
+    printf("\n");
+    (*budget)--;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+    dump_labels(lv_obj_get_child(o, i), depth + 1, budget);
+}
+
 static int g_walk_fails;
 static void must_show(const char *what, const char *needle) {
   if (find_label_text(lv_screen_active(), needle)) return;
   printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
+  // Only for the first failure of a run: six of these would bury the log, and
+  // the first one is the one that says where the walk actually was.
+  if (g_walk_fails == 0) {
+    lv_obj_t *scr = lv_screen_active();
+    int budget = 40;
+    printf("      --- what the active screen actually holds (%u children) ---\n",
+           (unsigned)lv_obj_get_child_count(scr));
+    dump_labels(scr, 0, &budget);
+    if (budget <= 0) printf("      ... (truncated at 40)\n");
+    // And the picture, because the tree says what exists and the frame says
+    // what the owner would have seen. NOT in gate builds: save() there is a
+    // checkpoint call into the overlap gate, and a frame that only appears on
+    // failing runs would be a stop the gate cannot compare against anything.
+#ifndef OVERLAPCHECK
+    save("/tmp/sim_walk_FAIL.ppm");
+    printf("      --- frame written to /tmp/sim_walk_FAIL.ppm ---\n");
+#endif
+  }
   g_walk_fails++;
 }
 static void release(void) { g_pressed = false; }
@@ -815,6 +864,81 @@ static void restore_word(const char *prefix)
   touch(163, 182); pump(3); release(); pump(3);    // first suggestion
 }
 
+// ---- the walk owns its fixtures ----
+// /tmp/simsd is platform_sd.c's SD_BASE on the host, and THREE binaries write
+// into it: this walk, /tmp/kissoverlap (the same walk instrumented) and
+// /tmp/kisstest (test_sdseed.c, test_fw.c and test_proof.c all put files
+// there). The sign screens list that directory and the walk taps rows by
+// position, so one file left behind by any of them silently shifts which PSBT
+// a tap opens -- and the failure surfaces as six missing labels on a verify
+// screen, which reads exactly like a layout regression in whatever change is
+// being tested. That cost a long false bisect on 2026-08-07.
+//
+// So the walk takes ownership instead of unlinking a list of names it happens
+// to remember: everything goes, then the six fixtures are written back. Same
+// for the host's wallet state files, which kisstest also writes -- a leftover
+// provisioned seed starts the walk on a login screen instead of first boot.
+//
+// Nothing outside a run depends on what a previous run left. kiss-proof.bin
+// and kiss-verify.html are written DURING the walk by the proof flow, and
+// sim/test_proof.c makes its own copies through wallet_proof_run before it
+// reads them back, so it never needs the walk's.
+//
+// NOT a fix for run-to-run flakiness. The walk has been seen to give different
+// results from a byte identical starting state under machine load; that is a
+// separate defect and this function does not address it. What this buys is
+// that the starting state is at least the same every time, so the next person
+// bisecting has one fewer variable.
+#define SIMSD "/tmp/simsd"
+
+static void sim_fixture_reset(void) {
+  mkdir(SIMSD, 0777);
+
+  // Two passes: collect, close, then remove. Deleting inside the readdir loop
+  // is the shape platform_sd.c avoids for the same reason -- see its comment
+  // about f_readdir after f_unlink -- and there is no reason to write the
+  // fragile version here just because the host happens to tolerate it.
+  char doomed[64][256];
+  int n = 0;
+  DIR *d = opendir(SIMSD);
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL && n < 64) {
+      if (e->d_name[0] == '.') continue;
+      snprintf(doomed[n++], sizeof doomed[0], SIMSD "/%s", e->d_name);
+    }
+    closedir(d);
+  }
+  for (int i = 0; i < n; i++) remove(doomed[i]);
+
+  // The six the sign walk taps, and the content each one's verify screen is
+  // built from (sim_main.c's wallet_psbt_load stub branches on these words).
+  // The names are chosen so a plain sort puts them in the order the walk taps:
+  // payment-01, risky-STOP, silly-FEE, warn-COMBO, zsp-SPAY, zzz-UNPRV.
+  static const struct { const char *name, *body; } FIXTURES[] = {
+    { "payment-01.psbt", "fake-psbt-binary" },
+    { "risky-STOP.psbt", "STOP"  },
+    { "silly-FEE.psbt",  "FEE"   },
+    { "warn-COMBO.psbt", "COMBO" },
+    { "zsp-SPAY.psbt",   "SPAY"  },
+    { "zzz-UNPRV.psbt",  "UNPRV" },
+  };
+  for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
+    char p[256];
+    snprintf(p, sizeof p, SIMSD "/%s", FIXTURES[i].name);
+    FILE *f = fopen(p, "wb");
+    if (f) { fputs(FIXTURES[i].body, f); fclose(f); }
+  }
+
+  // wallet_seed.c and wallet_seed_sd.c persist to these on the host build.
+  static const char *const STATE[] = {
+    "/tmp/kiss_seed.txt",      "/tmp/kiss_seed.txt.tmp",
+    "/tmp/kiss_seed_mode.txt", "/tmp/kiss_seed_mode.txt.tmp",
+    "/tmp/kiss_seed_entq.txt", "/tmp/kiss_device_key.bin",
+  };
+  for (unsigned i = 0; i < sizeof STATE / sizeof STATE[0]; i++) remove(STATE[i]);
+}
+
 int main(void) {
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
@@ -827,29 +951,7 @@ int main(void) {
   }
 
   // seed the fake SD card for the step-5 Sign flow
-  mkdir("/tmp/simsd", 0777);
-  unlink("/tmp/simsd/payment-01-signed.psbt");
-  FILE *sd = fopen("/tmp/simsd/payment-01.psbt", "wb");
-  if (sd) { fputs("fake-psbt-binary", sd); fclose(sd); }
-  sd = fopen("/tmp/simsd/risky-STOP.psbt", "wb");
-  if (sd) { fputs("STOP", sd); fclose(sd); }
-  // sorts AFTER risky-STOP (the list is qsorted) so the older walks' row taps
-  // keep hitting the files they were written for
-  unlink("/tmp/simsd/silly-FEE-signed.psbt");
-  sd = fopen("/tmp/simsd/silly-FEE.psbt", "wb");
-  if (sd) { fputs("FEE", sd); fclose(sd); }
-  unlink("/tmp/simsd/warn-COMBO-signed.psbt");
-  sd = fopen("/tmp/simsd/warn-COMBO.psbt", "wb");
-  if (sd) { fputs("COMBO", sd); fclose(sd); }
-  // sorts LAST (after warn-COMBO) so existing sign-walk row taps stay put
-  unlink("/tmp/simsd/zsp-SPAY-signed.psbt");
-  sd = fopen("/tmp/simsd/zsp-SPAY.psbt", "wb");
-  if (sd) { fputs("SPAY", sd); fclose(sd); }
-  // sorts after zsp-SPAY for the same reason, and it is visited in the same
-  // late block, once the earlier files have been cleared away
-  unlink("/tmp/simsd/zzz-UNPRV-signed.psbt");
-  sd = fopen("/tmp/simsd/zzz-UNPRV.psbt", "wb");
-  if (sd) { fputs("UNPRV", sd); fclose(sd); }
+  sim_fixture_reset();
 
   // app_main does this right after the display comes up, and the Settings
   // footer reports it ("noise source"). Without it the walk would render an
