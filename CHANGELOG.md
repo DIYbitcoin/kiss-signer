@@ -26,6 +26,35 @@ wording of the warning are theirs.
 
 ### Changed
 
+- **Words you drew yourself are now checked before they become a wallet.** MY
+  OWN WORDS lets you draw BIP39 words off paper cards and type them in, and
+  until now the device accepted whatever you typed. Type the same word eleven
+  times, or one short run over and over, and it now refuses: those carry no
+  secret at all, and anybody could type them. Draws that are merely weaker than
+  you think, words sitting side by side on the list, words in list order, or
+  more repeats than a full deck deals, get a warning you can read and then
+  overrule. Whichever screen you see, it shows your own draw as a row of bars,
+  so the shape being questioned is the one on the screen. If you overrule a
+  warning, the verdict follows the seed to the page where you copy the words
+  onto paper, which is the last moment redoing it is still cheap.
+
+  Sorting your cards before typing them is worth calling out, because it looks
+  harmless: the order you drew them in was part of the secret, and putting them
+  in order throws about 25 bits away.
+
+  What this cannot see is a set that merely looks random: a memorised phrase, a
+  line of a song, or words you picked while feeling unpredictable. Only a blind
+  draw is random.
+
+- **A dice roll the device does not believe was rolled is now refused, not
+  nudged.** The check on your rolls has always been there and has always been
+  right; it just used to offer a USE ANYWAY next to it, one tap away at the
+  moment in setup you are least inclined to read carefully. Now a run that fails
+  is turned down. Nothing about the check itself changed, and nothing was made
+  stricter: the bar sits exactly where it did, and roughly one honest session in
+  a million ever reaches it. ROLL MORE is the way through and it keeps every
+  roll you have already entered, so you never start over unless you want to.
+
 - **The key that locks your seed to an SD card no longer comes from one place.**
   It used to be 32 bytes straight from the chip's random number generator. Your
   seed was never in that position, because three sources are folded into it and
