@@ -36,6 +36,17 @@ jobs:
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c 'tools/fonts/glyphs_*.txt'
 
+      - name: verify page drift
+        run: |
+          python3 tools/gen_verify_page.py
+          git diff --exit-code -- main/verify_page.c main/verify_page.h
+
+      # The page's JS, the firmware's C and verify_proof.py all implement
+      # BIP39(SHA256(file)); this runs the page's actual script body against
+      # the same pinned vector sim/test_proof.c uses, so they cannot drift.
+      - name: verify page vector (node)
+        run: node tools/check_verify_page.mjs
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
@@ -94,6 +105,52 @@ jobs:
       # the page still offers the button, since a pulled button flashes nothing.
       - name: installer artifacts match VERSION
         run: python3 tools/check_installer_version.py
+
+      # The committed firmware binary is 7.5 MB of bytes that CI never rebuilt
+      # and never hashed. Everything else about a release was checked except
+      # whether the file we ship is the file we signed, so a PR that swapped
+      # those bytes shipped them. This binds the committed binary to
+      # release.json, to the signed SHA256SUMS, and the signature to the
+      # committed key, on every PR.
+      - name: committed installer firmware matches what was signed
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, sys
+          inst = pathlib.Path("docs/installer")
+          meta = json.loads((inst / "release.json").read_text())
+          bf = meta["browserFirmware"]
+          blob = (inst / bf["path"]).read_bytes()
+          bad = []
+          if len(blob) != bf["size"]:
+              bad.append(f"size {len(blob)} != release.json {bf['size']}")
+          got = hashlib.sha256(blob).hexdigest()
+          if got != bf["sha256"]:
+              bad.append(f"sha256 {got} != release.json {bf['sha256']}")
+          # SHA256SUMS names the GitHub Release asset, not the staging path.
+          want = dict(
+              (line.split("  ")[1].strip(), line.split("  ")[0])
+              for line in (inst / "SHA256SUMS").read_text().splitlines() if line.strip()
+          )
+          asset = pathlib.Path(bf["path"]).name
+          if asset not in want:
+              bad.append(f"SHA256SUMS does not list {asset}")
+          elif want[asset] != got:
+              bad.append(f"SHA256SUMS says {want[asset]} for {asset}, file hashes {got}")
+          for problem in bad:
+              print("FAIL ", problem)
+          sys.exit(1 if bad else 0)
+          PY
+          cd docs/installer
+          export GNUPGHOME=$(mktemp -d)
+          gpg --batch --import kiss_signer_pgp.asc
+          gpg --batch --verify SHA256SUMS.asc SHA256SUMS
+          # The signature must be from the key release.json names, not merely
+          # from some key we happen to have imported.
+          want=$(python3 -c "import json;print(json.load(open('release.json'))['authenticity']['gpgFingerprint'])")
+          gpg --batch --with-colons --show-keys kiss_signer_pgp.asc \
+            | awk -F: '/^fpr:/{print $10; exit}' | grep -qx "$want" \
+            || { echo "FAIL  kiss_signer_pgp.asc is not $want"; exit 1; }
+          echo "PASS: committed firmware matches release.json and the signed SHA256SUMS"
 
       # The offline installer zip is built at release time and never in CI, and
       # the page inside it is never loaded here, so a new <img> on docs/index.html

@@ -1,4 +1,26 @@
+# Two app slots, so firmware can be replaced from an SD card without a cable.
+#
+# The old table was a single 0xC00000 factory partition, which is 12 MB for an
+# image that is 7.4 MiB: room the device could not use, because you cannot
+# rewrite the partition you are executing from. Split into two 0x7F0000 slots
+# it can, and the half that is not running holds the old firmware until the new
+# one has proved it boots (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE).
+#
+# The arithmetic is exact and there is no slack to give away: 0x20000 of header
+# plus two 0x7F0000 slots is 0x1000000, the whole 16 MB. A slot holds the
+# current image with about 560 KB spare, so a large new asset is a build
+# failure rather than a surprise on the bench. The reserve, if one is ever
+# needed, is the game art in menu_img.c/gameover_img.c/sprites.c.
+#
+# otadata records which slot boots and whether it is still on trial. It sits
+# under the app alignment line with phy_init and nvs, where the 0x12000..0x20000
+# gap is alignment padding rather than anything spendable.
+#
+# Changing this table is the one thing an SD update cannot do to itself: an
+# existing device needs a final USB flash to cross over. Release notes say so.
 # Name,   Type, SubType, Offset,   Size
 nvs,      data, nvs,     0x9000,   0x6000
 phy_init, data, phy,     0xf000,   0x1000
-factory,  app,  factory, 0x10000,  0xC00000
+otadata,  data, ota,     0x10000,  0x2000
+ota_0,    app,  ota_0,   0x20000,  0x7F0000
+ota_1,    app,  ota_1,   0x810000, 0x7F0000

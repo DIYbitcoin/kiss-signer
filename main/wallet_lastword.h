@@ -18,3 +18,15 @@ int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]);
 // The BIP39 word at index 0..2047. Stable pointer into wally's own list,
 // never freed (bip39_get_word_by_index). NULL out of range.
 const char *wallet_lastword_word(uint16_t index);
+
+// Wordlist index of `w`, or -1 when it is not an English BIP39 word. The
+// inverse of wallet_lastword_word, which wally does not expose. Binary search:
+// the English list is lexicographic, and sim/test_lastword.c asserts that
+// outright so the search can never outlive its premise.
+int wallet_lastword_index(const char *w);
+
+// ---- this module answers a maths question and does not judge the answer ----
+// "abandon" x11 is the canonical BIP39 zero entropy vector and candidates()
+// must keep returning 128 for it forever. Whether a set of words is worth
+// making a seed from is wallet_cards_q.h's question, deliberately asked in a
+// different module so the two can disagree about the same input.

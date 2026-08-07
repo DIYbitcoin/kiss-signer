@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "platform_sd.h"
+#include "verify_page.h"
 #include "wallet_proof.h"
 
 static int fails;
@@ -83,6 +84,35 @@ static void test_vector_and_file(void)
         fclose(f);
     }
 
+    // The courtesy half: the checker page landed beside the frame, carrying
+    // the embedded bytes unchanged plus this run's claim, so opening it from
+    // the card and dropping the file is the whole check.
+    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    ok("page file exists", f != NULL);
+    if (f) {
+        char *back = malloc(verify_page_html_len + 2);
+        size_t rd = back ? fread(back, 1, verify_page_html_len + 1, f) : 0;
+        if (back) back[rd < verify_page_html_len + 1 ? rd : 0] = 0;
+        ok("page file is exactly the embedded length", rd == verify_page_html_len);
+        // The only difference from the embedded bytes is the claim slot, and
+        // it now holds this run's hash: that is what makes the card's copy
+        // verify itself when the file lands on it.
+        ok("the claim on the card is this run's hash",
+           back && rd == verify_page_html_len &&
+           memmem(back, rd, VEC_HASH, 64) != NULL);
+        ok("no unwritten claim slot survives on the card",
+           back && rd == verify_page_html_len &&
+           memmem(back, rd, WPROOF_CLAIM_SLOT, 64) == NULL);
+        ok("the embedded page still ships the empty slot",
+           memmem(verify_page_html, verify_page_html_len,
+                  WPROOF_CLAIM_SLOT, 64) != NULL);
+        ok("embedded page opens like a page",
+           verify_page_html_len > 14 &&
+           memcmp(verify_page_html, "<!doctype html", 14) == 0);
+        free(back);
+        fclose(f);
+    }
+
     // Same frame, same answers: the proof is a function of the bytes alone.
     uint8_t hash2[32] = {0};
     char words2[512] = {0};
@@ -100,15 +130,20 @@ static void test_faults(void)
 
     uint8_t hash[32]; char words[512];
 
-    // A card that refuses the write is an error, and no proof file survives to
-    // contradict the screen.
+    // A card that refuses the write is an error, and no file of either name
+    // survives to contradict the screen. Earlier OK runs left both files, so
+    // each fault case starts from a bare card.
     platform_sd_delete(WPROOF_NAME);
+    platform_sd_delete(WPROOF_PAGE_NAME);
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
     ok("write fault surfaces as SD error",
        wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
     FILE *f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("write fault leaves no proof file", f == NULL);
+    if (f) fclose(f);
+    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    ok("write fault leaves no page file", f == NULL);
     if (f) fclose(f);
 
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_RENAME);
@@ -117,6 +152,21 @@ static void test_faults(void)
            == WPROOF_ERR_SD);
     f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("rename fault leaves no proof file", f == NULL);
+    if (f) fclose(f);
+
+    // Aim the fault at the SECOND write: the frame commits, the page fails,
+    // and the run must pull the frame back out -- the header's "on error
+    // neither file exists" contract, exercised end to end.
+    platform_sd_test_fail_skip(1);
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
+    ok("page write fault surfaces as SD error",
+       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+           == WPROOF_ERR_SD);
+    f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
+    ok("page write fault deletes the committed frame", f == NULL);
+    if (f) fclose(f);
+    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    ok("page write fault leaves no page file", f == NULL);
     if (f) fclose(f);
 
     // No card, no proof.
@@ -162,5 +212,6 @@ int test_proof(void)
     test_faults();
     test_args();
     platform_sd_delete(WPROOF_NAME);
+    platform_sd_delete(WPROOF_PAGE_NAME);
     return fails;
 }

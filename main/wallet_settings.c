@@ -10,6 +10,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_info.h"
+#include "wallet_fw_ui.h"   // the firmware pill opens it
 #include "wallet_seed.h"
 #include "wallet_setup.h"
 #include "wallet_duress.h"
@@ -289,6 +290,19 @@ static void settings_reopen(void)
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wallet_settings_open(parent);
+}
+
+// The firmware screens own the display while they are up and hand it back the
+// same way the duress screens do, by rebuilding Settings underneath.
+static void fw_open_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    // Same reset settings_reopen does. The row pointers outlive the screen they
+    // point into otherwise, and restyle() walks them.
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_fw_ui_open(parent, settings_reopen);
 }
 
 // ---- wallet storage: explicit current mode + transactional migration ----
@@ -995,6 +1009,15 @@ void wallet_settings_open(lv_obj_t *parent)
 #define SG_TOP    72
 #define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
 #define SG_PITCH 71    // 64 tall card + 7 gap
+// The ways in row runs under BOTH columns and the gutter between them: 752.
+// It is the only row on this page that is about a mapping rather than a
+// setting, and at SG_L_W its label ellipsised to "Duress w..." while the value
+// took the rest -- which reads as a struck through label, not as a narrow row.
+#define SG_FULL_W (SG_R_X + SG_R_W - SG_L_X)
+// 331, not a multiple of SG_PITCH. This row answers to the page edge rather
+// than to either column's grid: it clears the deepest column (NO UNDO ends on
+// 324) by the standard 7px gap and ends on 395, inside WT_CONTENT_BOTTOM.
+#define SG_FULL_Y 331
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: the one row on this page whose control IS the choice, so redraw 05
@@ -1171,13 +1194,27 @@ void wallet_settings_open(lv_obj_t *parent)
     if (wallet_seed_mode() == WSEED_MODE_KEEP && !wallet_seed_flash_encrypted())
         wt_row_sev(s_storage_pill, WT_SEV_WARN);
 
+    // FULL WIDTH, under both columns. This row was the fourth card in the left
+    // column, and it did not belong there twice over: it is the only thing on
+    // the page that states a mapping rather than a setting, and 365px could not
+    // hold "Duress wallet" beside a value as long as LINE THROUGH.
+    //
+    // The sub-line is GD_SET_NOTE, not GD_SET_SUB. The value on this row is the
+    // stroke that opens the REAL wallet -- wallet_duress_real(), set by
+    // wallet_duress_set() -- so "a spare you can show" described the other
+    // wallet entirely, which is the reading that sent the owner looking for a
+    // bug. "which stroke opens which wallet" is what the row actually answers.
+    // Unconditional, and that is the point. This row was hidden in a decoy
+    // session whenever a stroke was configured, so an attacker who knew where
+    // to look could catch a coerced owner handing over the spare: the row's
+    // absence was the confession. Showing it is safe only because the unlock no
+    // longer forks on wallet_duress_real() either -- there is nothing left for
+    // its presence to corroborate.
     const int g = wallet_duress_real();
-    if (!(wallet_session_decoy() && g != WDG_NONE)) {
-        wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_SUB),
-               g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
-               WT_INK, SG_L_X, SG_TOP + SG_HEAD + 3 * SG_PITCH, SG_L_W,
-               duress_cb, NULL);
-    }
+    wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
+           g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+           WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
+           duress_cb, NULL);
 
     // RIGHT COLUMN, group one: the backup. Redraw 05 gives this its own eyebrow
     // rather than leaving the words row adrift among the destructive buttons,
@@ -1221,14 +1258,22 @@ void wallet_settings_open(lv_obj_t *parent)
     // rows are cards now, so the only line in this region is the rule itself,
     // and the drawing has it -- 284x1 at 25 percent, starting after the label.
     {
-        // 237, unchanged by the fold above. The backup row now ends at 159, so
-        // there is a blank 78px band here where a second card used to be, and
-        // it stays blank: reading your words and destroying them are opposite
-        // intentions, and the distance between the two eyebrows is the clearest
-        // way the page can say so. Moving the pair up would recover space the
-        // column does not need -- the last card still ends on 395, inside
-        // WT_CONTENT_BOTTOM -- and would put ERASE one row nearer the thumb.
-        int y = SG_TOP + SG_HEAD + 2 * SG_PITCH;
+        // 166, one pitch under the backup row rather than two. The 78px band
+        // that used to sit here was deliberate -- reading your words and
+        // destroying them are opposite intentions, and distance said so -- and
+        // the argument for keeping it was that the column did not need the
+        // space. It does now: the ways in row moved out of the left column and
+        // spans the page at SG_FULL_Y, so this column has to end above 331.
+        //
+        // The separation survives without the band. These two rows are STOP
+        // tinted with red labels under their own red eyebrow and rule; the
+        // backup row above is a green or amber card under a different eyebrow.
+        // Nothing about the pair reads as continuous with it.
+        //
+        // The old note also warned this would put ERASE nearer the thumb. It
+        // does the opposite: ERASE moves 331 -> 260, a row further from the
+        // action bar, with a benign row between it and the bottom of the page.
+        int y = SG_TOP + SG_HEAD + SG_PITCH;
         lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
         lv_obj_set_style_text_color(h, STOP_COL, 0);
         // The rule starts one em past the WORDS and runs to the column's right
@@ -1301,11 +1346,30 @@ void wallet_settings_open(lv_obj_t *parent)
         s_lang_pill = mk_pillh(shortname, 752 - LANG_PILL_W, 18,
                                LANG_PILL_W, 44, lang_open_cb, NULL);
         wt_pill_row(&s_lang_pill, 1);
-        // The title had the whole 704 lane and now shares it with a 170px pill.
-        // Nothing else would catch this: the overlap gate measures text against
-        // text, a pill is not text, and a long locale's title would simply run
-        // underneath it. 518 = 704 - 170 - 16 of gap.
-        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - 48);
+
+        // FIRMWARE, beside LANGUAGE, because they are the same kind of thing:
+        // the two controls on this screen that belong to the DEVICE rather than
+        // the wallet in it. It spent a version in the action bar on the
+        // reasoning that it should sit next to the build identity it acts on,
+        // and that bar turned out to be full -- build identity runs to about
+        // 275, the theme name occupies 340..460, the dots 470..557 and BACK
+        // 610..750, so a 240px pill at 300 landed straight through the theme
+        // block. The overlap gate caught it as 120x15 px of shared pixels
+        // against the accent NAME, in every locale, which is what a bar with no
+        // room left looks like from the outside.
+        //
+        // Same width as LANGUAGE, 16px of gap, and above WT_CONTENT_BOTTOM so
+        // wt_pill_icon does not build a second action bar -- the bar is BACK's.
+        wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_G_FW_PILL),
+                     752 - LANG_PILL_W - 16 - LANG_PILL_W, 18,
+                     LANG_PILL_W, 44, fw_open_cb, NULL);
+
+        // The title had the whole 704 lane, then shared it with one 170px pill,
+        // and now shares it with two. Nothing else would catch this: the overlap
+        // gate measures text against text, a pill is not text, and a long
+        // locale's title would simply run underneath them. 332 = 704 - 170 - 170
+        // - 16 - 16 of gaps.
+        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - LANG_PILL_W - 16 - 48);
     }
 
     {
@@ -1320,6 +1384,9 @@ void wallet_settings_open(lv_obj_t *parent)
         // rule whose condition is absent.
         wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                 close_cb, NULL);
+
+        // FIRMWARE is not here. It is device chrome, so it went up beside the
+        // language pill; this bar had no room for it. See the header block.
 
         // Build identity AFTER the pill, and that order is load bearing. The
         // action bar is built lazily by the first wt_pill on the screen; the

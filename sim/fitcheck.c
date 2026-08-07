@@ -203,6 +203,31 @@ static const slot_t SLOTS[] = {
     { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
     { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
     { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
+    // cards_help_cb() -- THE 2048 WORD LIST, three definitions in an icon grid.
+    // Measured at the REAL cell lane, not the page: explain_grid deals two
+    // columns, so each definition wraps inside 300px and gets pitch minus its
+    // heading, about 133px. 3 x 133 is that allowance for all three cells.
+    //
+    // Deliberately NOT sign/glossary's 704 no-wrap box. That one exists because
+    // a glossary definition must never break mid clause and eight rows leave no
+    // slack; three rows here have room to wrap and wrapping is what the grid
+    // does. Copying the stricter proxy would have bought terser copy for no
+    // reason. This is still the first setup wizard explainer with ANY fit
+    // coverage -- the dice and entropy ones have none.
+    { "setup/cards-help", STR_W_CARDS_HELP_B,  300, 399 },
+    // the two verdict screens: five subtitles (one per rule) and five bodies.
+    // No may_be_small on the bodies -- the why-block pair shares one font, so a
+    // fall to font14 here is a gate failure, not a graceful degrade.
+    { "sub/cards-same",   STR_W_CARDS_SAME_S,   704, 30, 0 },
+    { "sub/cards-period", STR_W_CARDS_PERIOD_S, 704, 30, 0 },
+    { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  704, 30, 0 },
+    { "sub/cards-sorted", STR_W_CARDS_SORTED_S, 704, 30, 0 },
+    { "sub/cards-dup",    STR_W_CARDS_DUP_S,    704, 30, 0 },
+    { "setup/cards-block",  STR_W_CARDS_BLOCK_B,  330, 112 },
+    { "setup/cards-clustb", STR_W_CARDS_CLUST_B,  330, 112 },
+    { "setup/cards-sortb",  STR_W_CARDS_SORTED_B, 330, 112 },
+    { "setup/cards-dupb",   STR_W_CARDS_DUP_B,    330, 112 },
+    { "setup/cards-fix",    STR_W_CARDS_FIX_B,    330, 112 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
@@ -284,13 +309,26 @@ typedef struct {
     int val_key;           // STR_* of the widest value it sits against, or -1
     const char *val_lit;   // ... or an untranslated literal, or NULL
     int w;                 // the row's width
+    const int *val_set;    // ... or a -1 terminated set, measured at its widest
 } row_t;
+
+// The ways in row does not show ONE value, it shows whichever of seven applies:
+// NOT SET, or the name of the stroke that reaches the real wallet. Measuring it
+// against NOT SET alone was the reason a row reading "Duress w... LINE THROUGH"
+// on a real device came back clean here. Which of the seven is longest changes
+// with the language, so the budget takes the widest in the ACTIVE locale.
+static const int DURESS_VALS[] = {
+    STR_GD_OFF,   STR_GD_UNDERLINE, STR_GD_OVERLINE, STR_GD_STRIKE,
+    STR_GD_SLASH, STR_GD_CIRCLE,    STR_GD_CHECK,    -1,
+};
+
 static const row_t ROWS[] = {
     // wallet_settings.c, left column at SG_L_W = 365
     { "set/network",  STR_I_ROW_NETWORK, -1, NULL,    365 - 176 },  // segmented track
     { "set/type",     STR_I_ROW_TYPE,    -1, "m/n...", 365 },
     { "set/storage",  STR_I_ROW_STORAGE, STR_W_AMNESIC_BTN, NULL, 365 },
-    { "set/duress",   STR_I_ROW_DURESS,  STR_GD_OFF, NULL, 365 },
+    // Full width under both columns now: SG_FULL_W, not SG_L_W.
+    { "set/duress",   STR_I_ROW_DURESS,  -1, NULL, 752, DURESS_VALS },
     // right column, SG_R_W = 365. None of these carry a value.
     { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
     { "set/replace",  STR_I_ROW_REPLACE, -1, NULL, 365 },
@@ -307,27 +345,27 @@ static const row_t ROWS[] = {
 // run prints how many are left. Delete a line when the copy is fixed. Never
 // add one.
 //
-// Two rows account for almost all of it. "Words live in" and "Duress wallet"
-// are short in English and become a clause in most other languages, and they
-// sit against a translated value ("AMNESIC", "NOT SET") that eats the same
-// row. Fixing them means shorter labels in ten locales or a wider left column,
-// which is a copy pass of its own, not a rename.
+// "Words live in" is what is left. It is short in English, becomes a clause in
+// most other languages, and sits against a translated value ("AMNESIC") that
+// eats the same row.
+//
+// "Duress wallet" used to be the other half of this list, in thirteen locales.
+// The note here said fixing it meant shorter labels in ten locales OR a wider
+// column; the row went full width under both columns instead, so all thirteen
+// came off. That is the shrink this backlog exists to record.
 static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
-    { "cs-CZ", "set/duress" },
-    { "de",    "set/duress" },  { "de",    "set/storage" },
-    { "es-ES", "set/duress" },  { "es-ES", "set/storage" },
-    { "es-MX", "set/duress" },  { "es-MX", "set/storage" },
-    { "fr",    "set/duress" },  { "fr",    "set/storage" },
-    { "hr-HR", "set/duress" },
-    { "it",    "set/duress" },  { "it",    "set/storage" },
+    { "de",    "set/storage" },
+    { "es-ES", "set/storage" },
+    { "es-MX", "set/storage" },
+    { "fr",    "set/storage" },
+    { "it",    "set/storage" },
     // 324px against a 317px budget: seven pixels, on the row that erases.
     { "it",    "set/erase"  },
-    { "nl",    "set/duress" },  { "nl",    "set/storage" },
-    { "pl",    "set/duress" },
-    { "pt-BR", "set/duress" },  { "pt-BR", "set/storage" },
-    { "pt-PT", "set/duress" },  { "pt-PT", "set/storage" },
-    { "ru",    "set/duress" },  { "ru",    "set/storage" },
-    { "tr",    "set/duress" },  { "tr",    "set/storage" },
+    { "nl",    "set/storage" },
+    { "pt-BR", "set/storage" },
+    { "pt-PT", "set/storage" },
+    { "ru",    "set/storage" },
+    { "tr",    "set/storage" },
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
@@ -340,6 +378,101 @@ static bool row_backlogged(const char *lang, const char *surface)
     return false;
 }
 
+// The SUB-LINE under a row label, which had the same blind spot the labels had
+// and kept it one release longer.
+//
+// A standard row's sub is drawn at font14, one line, LV_LABEL_LONG_DOT
+// (wallet_theme.c, the `else` branch of wt_row_x's sub block). Same failure as
+// the label: it does not shrink, it does not wrap, it loses its last words and
+// looks deliberate. The check above measured the label and stopped there, so
+// "die jetzigen Wörter gelten dann nicht mehr" under START A NEW WALLET was
+// free to ellipsise in German and nothing said so.
+//
+// The budget is the same number the label gets -- wt_row_x computes
+// `lw = right - vw - (vw ? 12 : 0) - lx` for the label and `sw = right - lx`
+// AFTER `right -= vw + 12`, which is the same arithmetic twice -- so this
+// reuses row_label_budget() and changes only the face it measures with.
+//
+// A flat table rather than a field on row_t: a row shows a DIFFERENT sub
+// depending on state, and each variant has to be measured on its own. Taking
+// the longest translation of one representative variant would be a guess, and
+// the WORDS row is the case that proves it -- its two subs carry different
+// marks and only one takes a fingerprint.
+typedef struct {
+    const char *surface;   // the ROWS[] entry whose budget this shares
+    int key;               // STR_* of the sub
+    const char *pfx;       // the mark and gap the screen prepends, or NULL
+    const char *arg;       // the %s a _FMT sub is given, or NULL
+} sub_t;
+static const sub_t SUBROWS[] = {
+    // wallet_settings.c:1176 -- sits against GD_OFF, same as its label.
+    { "set/duress",  STR_GD_SET_SUB, NULL, NULL },
+    // wallet_settings.c:1195-1207 -- both branches prefix a mark and two
+    // spaces, and the checked one interpolates the 8 hex digits of a
+    // fingerprint. Measured with a real one, because "%s" is two characters
+    // wide and the thing the screen draws is eight.
+    { "set/words",   STR_I_WORDS_VERIFIED_FMT, LV_SYMBOL_OK "  ", "A1B2C3D4" },
+    { "set/words",   STR_I_WORDS_UNVERIFIED, LV_SYMBOL_WARNING "  ", NULL },
+    // The NO UNDO pair. These two say which of the rows leaves you a wallet,
+    // which is the one thing the titles alone could not carry.
+    { "set/replace", STR_I_ROW_REPLACE_SUB, NULL, NULL },
+    { "set/erase",   STR_I_ROW_ERASE_SUB, NULL, NULL },
+};
+#define NSUBROW ((int)(sizeof SUBROWS / sizeof SUBROWS[0]))
+
+// Row SUB-LINES that ellipsise today, recorded the day the check was written.
+// Shrink only, exactly like ROW_BACKLOG above: delete a line when the copy is
+// fixed, never add one.
+//
+// Twenty eight entries, and not one of them is set/replace or set/erase -- the
+// NO UNDO pair was reworded in the same commit that added this check and fits
+// in all 21 locales, which is the whole reason the check could be turned on.
+//
+// The two rows here are the two rows ROW_BACKLOG already names, for the same
+// reason: DURESS sits against a translated value ("NOT SET" becomes
+// "ISKLJUČENO"), and the value takes its width off the sub as well as off the
+// label, so Croatian is measuring a 204px sentence against 72px of row. WORDS
+// has no value but its sub carries a mark, two spaces and eight hex digits of
+// fingerprint before the sentence even starts. Both want shorter copy in a
+// dozen locales, or a wider left column -- a pass of its own, not a rename.
+static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
+    { "cs-CZ", "set/duress" },  { "cs-CZ", "set/words" },
+    { "da-DK", "set/duress" },
+    { "de",    "set/duress" },  { "de",    "set/words" },
+    { "es-ES", "set/duress" },
+    { "es-MX", "set/duress" },
+    { "fr",    "set/duress" },
+    { "hr-HR", "set/duress" },  { "hr-HR", "set/words" },
+    { "it",    "set/duress" },
+    { "nb-NO", "set/duress" },  { "nb-NO", "set/words" },
+    { "nl",    "set/duress" },  { "nl",    "set/words" },
+    { "pl",    "set/duress" },  { "pl",    "set/words" },
+    { "pt-BR", "set/duress" },  { "pt-BR", "set/words" },
+    { "pt-PT", "set/duress" },  { "pt-PT", "set/words" },
+    { "ru",    "set/duress" },  { "ru",    "set/words" },
+    { "sv-SE", "set/duress" },  { "sv-SE", "set/words" },
+    { "tr",    "set/duress" },
+    { "vi",    "set/duress" },  { "vi",    "set/words" },
+};
+#define NSUBROW_BACKLOG \
+    ((int)(sizeof ROWSUB_BACKLOG / sizeof ROWSUB_BACKLOG[0]))
+
+static bool rowsub_backlogged(const char *lang, const char *surface)
+{
+    for (int i = 0; i < NSUBROW_BACKLOG; i++)
+        if (strcmp(ROWSUB_BACKLOG[i].lang, lang) == 0 &&
+            strcmp(ROWSUB_BACKLOG[i].surface, surface) == 0)
+            return true;
+    return false;
+}
+
+static const row_t *row_by_surface(const char *surface)
+{
+    for (int i = 0; i < NROW; i++)
+        if (strcmp(ROWS[i].surface, surface) == 0) return &ROWS[i];
+    return NULL;
+}
+
 // The label box wt_row_x will give this row, in the ACTIVE locale.
 static int row_label_budget(const row_t *r)
 {
@@ -348,12 +481,24 @@ static int row_label_budget(const row_t *r)
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     int right = r->w - 10 - (int)sz.x - 10;
     int vw = 0;
-    const char *val = r->val_lit ? r->val_lit
-                    : r->val_key >= 0 ? tr(r->val_key) : NULL;
-    if (val && *val) {
-        lv_text_get_size(&sz, val, wt_font23(), 0, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        vw = (int)sz.x + 12;
+    if (r->val_set) {
+        // widest of the set, in this locale
+        for (int i = 0; r->val_set[i] >= 0; i++) {
+            const char *v = tr(r->val_set[i]);
+            if (!v || !*v) continue;
+            lv_text_get_size(&sz, v, wt_font23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if ((int)sz.x > vw) vw = (int)sz.x;
+        }
+        if (vw) vw += 12;
+    } else {
+        const char *val = r->val_lit ? r->val_lit
+                        : r->val_key >= 0 ? tr(r->val_key) : NULL;
+        if (val && *val) {
+            lv_text_get_size(&sz, val, wt_font23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            vw = (int)sz.x + 12;
+        }
     }
     return right - vw - 14;
 }
@@ -398,6 +543,35 @@ static const pill_t PILLS[] = {
     { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
+    // wallet_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
+    // key_action, and not arguably: these two pills are the flow's only
+    // statement of WHICH wallet the next screen configures, and reading them
+    // as the same button is the exact mistake that sent the owner looking for
+    // a bug. A locale that has to drop to font14 to fit one of them has lost
+    // the distinction, so it fails the build rather than shipping quietly.
+    // h is 52, not 66: these go through wt_pill, which hands wt_pillh a fixed
+    // 52. Registered at 66 the budget bh becomes 58, which is two font23 lines,
+    // and the model reports a comfortable wrapped fit for a label the device
+    // actually draws at font14. The height is part of the measurement.
+    // ST_FUND's pill is 420 and key_action: it is the only thing on that screen
+    // that says which wallet the next screen configures, so font14 fails here.
+    { "duress/real",      STR_GD_SET_UP_REAL,  420, 52, 0, 1 },
+    // NOT NOW, on all four duress screens. It was 140 and wanted 122-162px of a
+    // 112px budget in THIRTEEN locales, so the way out of this flow was drawn
+    // in the smallest type on the screen nearly everywhere. 560+190 keeps its
+    // right edge on 750 where it was.
+    { "duress/skip",      STR_GD_SKIP,         190, 52, 0, 1 },
+    // ST_NOPASS still draws this one through wt_pill, so 52 is its tightest box.
+    { "duress/turnoff",   STR_GD_TURN_OFF,     260, 52, 0, 1 },
+    // ST_INTRO's row is TALL: three pills at WT_ACTION_Y_TALL, h 66. The extra
+    // 14px is the whole point -- bh becomes 58, which is two font23 lines, so
+    // SET UP A SPARE wraps at 23 rather than falling to font14 in twelve
+    // locales. Registered at the height the screen actually passes wt_pillh: at
+    // 52 this entry would fail, and at 66 on a screen that really used 52 it
+    // would pass while the device drew font14.
+    { "duress/spare",     STR_GD_SET_UP_SPARE, 240, 66, 0, 1 },
+    { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
+    { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
     // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
     // LONG_CLIP. There is no font fallback here, so an over-long translation
@@ -436,13 +610,14 @@ static const pill_t PILLS[] = {
     { "login/use-anyway", STR_L_USE_ANYWAY,   314, 56, 1, 1 },
     // The dice verdict row: all three are key_action, because a holder who
     // cannot read them cannot tell which press keeps the flagged rolls.
-    { "setup/dice-more",  STR_W_DICE_MORE,    216, 66, 0, 1 },
+    { "setup/dice-more",  STR_W_DICE_MORE,    330, 66, 0, 1 },
     // cards mode: the two primary pills that advance the flow. TYPE MY WORDS
     // also serves the backup-check intro at the same 300 width.
     { "setup/cards-type", STR_W_TYPE_MY_WORDS, 300, 66, 1, 1 },
     { "setup/cksum-go",   STR_W_CKSUM_GO,      300, 66, 1, 1 },
-    { "setup/dice-over",  STR_W_START_OVER,   216, 66, 0, 1 },
-    { "setup/dice-use",   STR_L_USE_ANYWAY,   216, 66, 1, 1 },
+    { "setup/dice-over",  STR_W_START_OVER,   330, 66, 0, 1 },
+    { "setup/cards-use",  STR_L_USE_ANYWAY,   330, 66, 1, 1 },
+    { "setup/cards-cxl",  STR_C_CANCEL,       330, 66, 0, 1 },
     { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
@@ -466,6 +641,7 @@ int main(int argc, char **argv)
 
     int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
     int row_cut = 0, row_known = 0;
+    int sub_cut = 0, sub_known = 0;
 #define MAXFAIL 64
     static char fails[MAXFAIL][96];
     for (int l = 0; l < I18N_LANG_N; l++) {
@@ -521,6 +697,7 @@ int main(int argc, char **argv)
         int pbad = 0;
         char plines[NPILL][160];
         char rlines[NROW][160];
+        char slines[NSUBROW][160];
         for (int i = 0; i < NPILL; i++) {
             const char *txt = tr(PILLS[i].key);
             char ibuf[WT_ICON_TEXT_MAX];
@@ -574,10 +751,52 @@ int main(int argc, char **argv)
             }
         }
 
-        printf("%-6s %-22s %2d/%d at font14, %d/%d pills, %d/%d rows\n",
-               li->code, li->native, small, NSLOT, pbad, NPILL, rbad, NROW);
+        // Row sub-lines: fixed font14, one line, ellipsis on overflow. Same
+        // budget as the label above, measured with the smaller face.
+        int sbad = 0;
+        for (int i = 0; i < NSUBROW; i++) {
+            const row_t *r = row_by_surface(SUBROWS[i].surface);
+            char body[192];
+            if (SUBROWS[i].arg) {
+                // The format string comes from the locale table, so the
+                // compiler cannot check it. That is the point of the check:
+                // measure what the screen draws, not the unexpanded template.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+                snprintf(body, sizeof body, tr(SUBROWS[i].key),
+                         SUBROWS[i].arg);
+#pragma GCC diagnostic pop
+            } else {
+                snprintf(body, sizeof body, "%s", tr(SUBROWS[i].key));
+            }
+            char built[256];
+            snprintf(built, sizeof built, "%s%s",
+                     SUBROWS[i].pfx ? SUBROWS[i].pfx : "", body);
+            int budget = row_label_budget(r);
+            lv_point_t sz;
+            lv_text_get_size(&sz, built, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            slines[i][0] = '\0';
+            if ((int)sz.x > budget) {
+                sbad++;
+                bool known = rowsub_backlogged(li->code, SUBROWS[i].surface);
+                if (known) sub_known++;
+                else       sub_cut++;
+                snprintf(slines[i], sizeof slines[i],
+                         "  sub  %-15s %3dpx / %3dpx  %s  \"%s\"",
+                         SUBROWS[i].surface, (int)sz.x, budget,
+                         known ? "ellipsis (backlog)" : "ELLIPSIS", built);
+            }
+        }
+
+        printf("%-6s %-22s %2d/%d at font14, %d/%d pills, %d/%d rows, "
+               "%d/%d subs\n",
+               li->code, li->native, small, NSLOT, pbad, NPILL, rbad, NROW,
+               sbad, NSUBROW);
         for (int i = 0; i < NROW; i++)
             if (rlines[i][0]) puts(rlines[i]);
+        for (int i = 0; i < NSUBROW; i++)
+            if (slines[i][0]) puts(slines[i]);
         for (int i = 0; i < NSLOT; i++)
             if (strstr(lines[i], "cut ")) puts(lines[i]);
         for (int i = 0; i < NPILL; i++)
@@ -587,6 +806,7 @@ int main(int argc, char **argv)
     }
     printf("\ntotal at font14: %d\n", total_small);
     printf("row labels ellipsised: %d backlogged, %d new\n", row_known, row_cut);
+    printf("row subs ellipsised:   %d backlogged, %d new\n", sub_known, sub_cut);
 
     // Every icon a pill draws must exist, at every size, with real ink in it.
     //
@@ -704,6 +924,17 @@ int main(int argc, char **argv)
              "just loses its last words, and no other gate can see that.\n"
              "Shorten that locale's label, or shorten the VALUE it sits\n"
              "against -- the value takes its width off the label's budget.");
+        return 1;
+    }
+
+    if (sub_cut) {
+        printf("\nFAIL: %d row sub-line(s) ellipsise and are not in "
+               "ROWSUB_BACKLOG.\n", sub_cut);
+        puts("A standard wt_row sub is drawn at a FIXED font14 on one line\n"
+             "with LV_LABEL_LONG_DOT, on the same budget as the label above\n"
+             "it. It loses its last words silently, and on the NO UNDO rows\n"
+             "the last words are the ones saying whether you keep a wallet.\n"
+             "Shorten that locale's sub-line.");
         return 1;
     }
 

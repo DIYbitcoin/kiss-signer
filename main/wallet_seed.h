@@ -129,3 +129,38 @@ int wallet_seed_diff_word(const char *typed, const char *stored);
 #define WSEED_TEST_FAIL_SEED_REMOVE (1u << 1)
 void wallet_seed_test_fail_next(unsigned flags);
 #endif
+
+// ---- entropy quality note ----
+// What the device thought of the draw its seed was made from: 0 = nothing to
+// say, otherwise a verdict. Every seed creating path writes it, so a clean
+// rebuild clears a previous one.
+//
+// This exists because a warning shown once, at the most excited moment of
+// setup, is a warning the product forgot on the owner's behalf. The seed is a
+// hash by the time anything downstream sees it, so nothing later can notice the
+// input was fifty presses of one key; the judgement happens on the raw material
+// (wallet_dice_q.c, wallet_cards_q.c) and this is where the answer is kept.
+//
+// NOT host only, despite sitting next to the test seam above. Both callers --
+// wallet_setup.c (writes) and wallet_info.c (reads) -- are unguarded, and the
+// definitions in wallet_seed.c are unguarded too, so a declaration hidden from
+// the device build is an implicit declaration on the device build and nothing
+// else. It was inside the #ifndef until this comment was written.
+//
+// Device wide, never per wallet, and deliberately not keyed by fingerprint:
+// the draw made one master seed and every passphrase wallet descends from it,
+// so this reveals nothing about how many wallets exist.
+// Packed so the reader can tell WHICH path spoke, because the two wear
+// different titles. 0 is "nothing to say" and every path writes it on a clean
+// seed, which is what clears a previous device's verdict.
+//
+// 1..15 are dice verdicts written by firmware from before dice became a hard
+// stop. Nothing writes them any more; they are still READ so a device that
+// upgrades keeps telling the truth about the seed it already has.
+#define WSEED_ENTQ_NONE   0
+#define WSEED_ENTQ_DICE   0x00   // legacy: a bare WD_Q_* in 1..15
+#define WSEED_ENTQ_CARDS  0x20   // this bit set, WC_Q_* in the low nibble
+#define WSEED_ENTQ_IS_CARDS(v) (((v) & 0xF0) == WSEED_ENTQ_CARDS)
+
+void wallet_seed_set_entropy_note(int v);
+int  wallet_seed_entropy_note(void);

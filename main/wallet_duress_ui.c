@@ -186,7 +186,7 @@ static void pick_screen(void)
         wt_pill(s_scr, tr(wallet_duress_label_key(g)),
                 48 + col * 240, 150 + row * 104, 220, pick_cb, (void *)(intptr_t)g);
     }
-    wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
 }
 
 static void draw_screen(bool again)
@@ -239,7 +239,7 @@ static void draw_screen(bool again)
     lv_obj_add_event_cb(s_canvas, draw_press_cb, LV_EVENT_PRESSING, NULL);
     lv_obj_add_event_cb(s_canvas, draw_release_cb, LV_EVENT_RELEASED, NULL);
 
-    wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
     draw_reset();
 }
 
@@ -315,16 +315,43 @@ static void stage_build(int stage)
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
         diagram_two_ways();
         wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
+        // The only TALL action row in this flow, and the only one that needs to
+        // be. It carries THREE pills, and "SET UP A SPARE" is 232 to 317px at
+        // font23 in twelve locales against a 212px budget, so on a 52px row
+        // wt_pill_fit ran out of rungs and drew the screen's primary action in
+        // the smallest type on it. At 66 the same label takes a SECOND LINE at
+        // 23 instead -- which is exactly what WT_ACTION_Y_TALL is for, and the
+        // reason it already exists is the same one: HOLD TO SIGN.
+        //
+        // Widening was not available. At the widths font23 needs on one line
+        // (345 + 260 + 190, plus gaps) the row wants 819px of the 702 between
+        // 48 and 750. Wrapping buys the height instead of the width.
+        //
+        // The three x positions are also a fix. SET UP A SPARE ran to 288 and
+        // TURN THIS OFF started at 280, so the two overlapped by 8px whenever a
+        // configured wallet arrived here from Settings -- the one path no walk
+        // stop visits, which is why it survived. 48..288, 300..520, 560..750.
+        lv_obj_t *row[3];
+        int nrow = 0;
         // "SET UP A SPARE", not OK: on a screen explaining a decoy wallet, an
         // OK button tells the owner nothing about which of the two things is
         // about to happen. This one commits to the second wallet with words.
-        wt_pill(s_scr, tr(STR_GD_SET_UP_SPARE), 48, WT_ACTION_Y, 240, next_cb, NULL);
+        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SET_UP_SPARE), 48,
+                               WT_ACTION_Y_TALL, 240, WT_ACTION_H_TALL,
+                               next_cb, NULL);
         // Reached from Settings with a configuration already in place, this is
         // the only way back to plain behaviour. Absent during setup, where
         // there is nothing yet to turn off.
         if (wallet_duress_real() != WDG_NONE)
-            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 280, WT_ACTION_Y, 260, turn_off_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
+            row[nrow++] = wt_pillh(s_scr, tr(STR_GD_TURN_OFF), 300,
+                                   WT_ACTION_Y_TALL, 220, WT_ACTION_H_TALL,
+                                   turn_off_cb, NULL);
+        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y_TALL,
+                               190, WT_ACTION_H_TALL, skip_cb, NULL);
+        // One rung for the row. Without this the three fit independently and
+        // the screen can draw a 23 beside a 14, which reads as one button
+        // mattering more than the one that leaves.
+        wt_pill_row(row, nrow);
         break;
     }
     case ST_FUND: {
@@ -337,9 +364,24 @@ static void stage_build(int stage)
         chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
         // Two claims, two columns: it really works, and an empty one is a tell.
         wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
-        // Same rationale as ST_INTRO: name the action.
-        wt_pill(s_scr, tr(STR_GD_SET_UP_SPARE), 48, WT_ACTION_Y, 240, next_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_SKIP), 610, WT_ACTION_Y, 140, skip_cb, NULL);
+        // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
+        // point of the pair. ST_INTRO's pill opens THIS screen, which is about
+        // the spare, so it says SPARE. This pill opens ST_PICK, where the
+        // stroke being chosen is the one that reaches the REAL wallet
+        // (wallet_duress_set stores it as wallet_duress_real). It said SET UP A
+        // SPARE for both, which put the word SPARE on the door to the real
+        // wallet's only setting, and readers concluded the stroke belonged to
+        // the decoy. The two CTAs name different wallets on purpose.
+        // 420, not the 240 the other CTAs take. This screen's action row holds
+        // only this pill and NOT NOW at 610, so there is nothing to crowd, and
+        // 240 was not enough: "NOW THE REAL ONE" needs 261px at font23 and cs,
+        // pl and ru need up to 289, so every one of them dropped to font14 --
+        // the rung wt_pill_fit reaches only after tracking and a second line
+        // have both failed. A routing button rendered in the smallest type on
+        // the screen is the one that gets skimmed, which is how the stroke ends
+        // up on the wrong wallet.
+        wt_pill(s_scr, tr(STR_GD_SET_UP_REAL), 48, WT_ACTION_Y, 420, next_cb, NULL);
+        wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
         break;
     }
     case ST_PICK:  pick_screen();        break;
