@@ -32,6 +32,9 @@ static lv_obj_t *s_pct_card;
 #define BLK_L_X  48
 #define BLK_R_X 408
 #define BLK_H   (WT_CONTENT_BOTTOM - BLK_Y)
+// The font14 heading wt_why_block draws above the body, allowing for one
+// that wraps to two lines. Same budget wallet_setup.c uses.
+#define WT_FW_HEAD_ROOM 46
 
 static void fw_screen(void);
 
@@ -163,10 +166,14 @@ static void confirm_screen(void)
     const char *lb = down ? tr(STR_G_FW_DOWN_B) : tr(STR_G_FW_WHY_B);
     const char *rh = tr(STR_G_FW_RISK_H);
     const char *rb = tr(STR_G_FW_RISK_B);
-    // One shared size across the pair, measured against the room a heading
-    // leaves: wt_why_block draws the heading at font14 above the body, and 46
-    // covers a heading that wraps to two lines.
-    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W, BLK_H - 46 - 8);
+    // One shared size across the pair, measured the way the proven pairs do it:
+    // BLK_W - 14 because wt_why_block spends that on its rule and padding, and
+    // BLK_H - HEAD_ROOM - 8 because the heading is drawn above the body at
+    // font14 and the box's own metrics cost a few pixels on top. Measuring
+    // against the full BLK_W picked a size for a wider box than the text
+    // actually gets, so it wrapped to an extra line and ran 7px past
+    // WT_CONTENT_BOTTOM in Japanese and Swedish.
+    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
     wt_why_block(s_scr, lh, lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
                  down ? WT_WARN : wt_accent());
     wt_why_block(s_scr, rh, rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f, WT_WARN);
@@ -205,7 +212,7 @@ static void nothing_to_install(int rc)
     }
     const char *rh = tr(STR_G_FW_WHERE_H);
     const char *rb = tr(STR_G_FW_WHERE_B);
-    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W, BLK_H - 46 - 8);
+    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
     wt_why_block(s_scr, lh, lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
                  rc == WFW_ERR_SAME ? wt_accent() : WT_WARN);
     wt_why_block(s_scr, rh, rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f, wt_accent());
@@ -240,8 +247,15 @@ static void fw_screen(void)
         size_str(sz, sizeof sz, s_img.size);
         const char *dir = s_img.cmp > 0 ? tr(STR_G_FW_NEWER) : tr(STR_G_FW_OLDER);
 
-        wt_row_x(s_scr, WT_ICON_SD, tr(STR_G_FW_ROW_FILE), NULL, NULL,
-                 s_img.name, NULL, WT_INK, false,
+        // The file name is the row's LABEL, not its value, and there is no
+        // "File" word in front of it. As a value it had to share the row with a
+        // label and wrapped into it: the walk caught 22 characters of
+        // kiss-signer-99.0.0.bin overlapping "File" by 5x28px in every locale,
+        // and a real release name is longer than the fixture's. As the label it
+        // gets the row's whole width, and the card mark already says what kind
+        // of name it is, which is the rule about preferring a mark to a word.
+        wt_row_x(s_scr, WT_ICON_SD, s_img.name, NULL, NULL,
+                 NULL, NULL, WT_INK, false,
                  WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, WT_ROW_H, NULL, NULL);
         wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_ROW_SIZE), NULL, NULL,
                  sz, NULL, WT_INK, false,
