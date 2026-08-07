@@ -116,6 +116,8 @@ enum {
     STR_W_CARDS_W1_B,
     STR_W_CARDS_W2_H,
     STR_W_CARDS_W2_B,
+    STR_W_CARDS_HELP_T,
+    STR_W_CARDS_HELP_B,
     STR_W_CKSUM_T,
     STR_W_CKSUM_S,
     STR_W_CKSUM_W1_H,

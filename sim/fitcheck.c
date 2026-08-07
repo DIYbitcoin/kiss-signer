@@ -203,6 +203,18 @@ static const slot_t SLOTS[] = {
     { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
     { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
     { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
+    // cards_help_cb() -- THE 2048 WORD LIST, three definitions in an icon grid.
+    // Measured at the REAL cell lane, not the page: explain_grid deals two
+    // columns, so each definition wraps inside 300px and gets pitch minus its
+    // heading, about 133px. 3 x 133 is that allowance for all three cells.
+    //
+    // Deliberately NOT sign/glossary's 704 no-wrap box. That one exists because
+    // a glossary definition must never break mid clause and eight rows leave no
+    // slack; three rows here have room to wrap and wrapping is what the grid
+    // does. Copying the stricter proxy would have bought terser copy for no
+    // reason. This is still the first setup wizard explainer with ANY fit
+    // coverage -- the dice and entropy ones have none.
+    { "setup/cards-help", STR_W_CARDS_HELP_B,  300, 399 },
     // the two verdict screens: five subtitles (one per rule) and five bodies.
     // No may_be_small on the bodies -- the why-block pair shares one font, so a
     // fall to font14 here is a gate failure, not a graceful degrade.
