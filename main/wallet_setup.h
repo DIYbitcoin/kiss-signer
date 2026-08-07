@@ -36,3 +36,8 @@ void wallet_setup_open_sd_missing(lv_obj_t *parent, int reason,
 // Feed captured entropy (device: camera page; sim: scripted). len 16 or 32.
 // Advances the NEW flow to the word-reveal screen.
 void wallet_setup_entropy(const uint8_t *entropy, unsigned len);
+
+// The dice verdict (WD_Q_*) behind the next wallet_setup_entropy call, or 0.
+// Set it before handing the entropy over; the funnel persists it and clears
+// itself, so a path that does not call this records a clean seed.
+void wallet_setup_entropy_note(int v);

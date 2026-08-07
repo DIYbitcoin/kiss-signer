@@ -169,5 +169,34 @@ int test_duress(void) {
         dchk("WDG_NONE has no label", wallet_duress_label_key(WDG_NONE) < 0);
     }
 
+    // ---- routing policy (uniform: the stored stroke must not change it) ----
+    dchk("no word at all opens nothing",
+         wallet_duress_route(false, WDG_NONE) == WDR_NONE);
+    dchk("a scribble with a stroke still opens nothing",
+         wallet_duress_route(false, WDG_CIRCLE) == WDR_NONE);
+    dchk("word alone opens the decoy",
+         wallet_duress_route(true, WDG_NONE) == WDR_DECOY);
+    {
+        int all_real = 1;
+        for (int g = WDG_NONE + 1; g < WDG_N; g++)
+            if (wallet_duress_route(true, g) != WDR_REAL) all_real = 0;
+        dchk("word plus any stroke reaches the passphrase", all_real);
+    }
+
+    // The property the whole change exists for: the answer must not depend on
+    // what is stored. Before this, drawing the word once told an attacker
+    // whether a stroke was configured, because the device either prompted or
+    // did not.
+    {
+        int stable = 1;
+        for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
+            wallet_duress_set(cfg);
+            if (wallet_duress_route(true, WDG_NONE) != WDR_DECOY) stable = 0;
+            if (wallet_duress_route(true, WDG_UNDERLINE) != WDR_REAL) stable = 0;
+        }
+        dchk("routing is identical whatever stroke is configured", stable);
+    }
+    wallet_duress_set(WDG_NONE);
+
     return dfails;
 }

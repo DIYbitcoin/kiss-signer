@@ -119,9 +119,27 @@ async function verifyFirmware() {
     ]);
     renderRelease(release);
 
-    const part = manifest.builds?.[0]?.parts?.[0];
-    if (!part || part.offset !== release.browserFirmware.offset || part.path !== release.browserFirmware.path) {
+    // Check the WHOLE flash list, not just the first entry. esp-web-tools
+    // writes every part at its own declared offset and resolves each path
+    // against the manifest URL, so a path may be absolute and cross origin.
+    // Validating parts[0] alone let an appended part carry arbitrary bytes to
+    // an arbitrary offset while this page still went green: manifest.json is
+    // not listed in SHA256SUMS, so the PGP signature covers none of it.
+    if (!Array.isArray(manifest.builds) || manifest.builds.length !== 1) {
+      throw new Error("manifest declares more than one build");
+    }
+    const parts = manifest.builds[0].parts;
+    if (!Array.isArray(parts) || parts.length !== 1) {
+      throw new Error("manifest declares more than one flash part");
+    }
+    const part = parts[0];
+    if (part.offset !== release.browserFirmware.offset || part.path !== release.browserFirmware.path) {
       throw new Error("manifest does not match release metadata");
+    }
+    // An absolute path in a part silently overrides `base`. Resolve it the way
+    // esp-web-tools will and require it to stay on this origin.
+    if (new URL(part.path, manifestUrl).origin !== location.origin) {
+      throw new Error("manifest part is not same origin");
     }
 
     setVerifyState("pending", "Hashing firmware");

@@ -24,3 +24,7 @@ __pycache__/
 # the review is being worked through. Never committed, the repo carries the
 # results rather than the brief.
 design_handoff_kiss_signer/
+
+# third party audit working notes (crypto-wallet-security-audit skill): working
+# state, not a deliverable. Only a reviewed summary belongs in the repo.
+audit-notes/

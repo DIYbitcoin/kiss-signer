@@ -43,8 +43,30 @@ k_quirc_t *k_quirc_new(void) {
   return q;
 }
 
+// kiss-signer: wipe before free, on both paths that free these buffers.
+//
+// This decoder is pointed at seed material. A SeedQR restore and a passphrase
+// QR both arrive as an image, and q->image / q->pixels hold that image after
+// binarisation -- which is the code itself, still readable, still decodable by
+// anyone who reads the freed block back. The heap on this device is not
+// scrubbed on free and the beta has no flash encryption behind it, so handing
+// these blocks back with the pattern intact leaves a recoverable mnemonic
+// sitting in whatever allocates next.
+//
+// Sized from q->w/q->h rather than a remembered length: those are the fields
+// resize() sets alongside the allocation, so they cannot drift apart from it.
+static void wipe_buffers(k_quirc_t *q) {
+  size_t n;
+  if (q->image && image_allocation_size(q->w, q->h, sizeof(uint8_t), &n) == 0)
+    memset(q->image, 0, n);
+  if (q->owns_pixels && q->pixels &&
+      image_allocation_size(q->w, q->h, sizeof(quirc_pixel_t), &n) == 0)
+    memset(q->pixels, 0, n);
+}
+
 void k_quirc_destroy(k_quirc_t *q) {
   if (q) {
+    wipe_buffers(q);
     if (q->image)
       K_FREE(q->image);
     if (q->owns_pixels && q->pixels)
@@ -91,6 +113,9 @@ int k_quirc_resize(k_quirc_t *q, int w, int h) {
     }
   }
 
+  // Same reasoning as k_quirc_destroy: a resize frees the previous frame's
+  // buffers, and on this device the previous frame may have been a seed.
+  wipe_buffers(q);
   if (q->image)
     K_FREE(q->image);
   if (q->owns_pixels && q->pixels)

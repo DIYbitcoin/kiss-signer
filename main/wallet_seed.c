@@ -6,6 +6,7 @@
 #include "platform_sd.h"
 #include "wallet_usage.h"
 #include "wallet_backup.h"   // the paper check dies with the wallet it was about
+#include "wallet_duress.h"   // and so does the stroke that opened it
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -25,6 +26,7 @@
 #define MODE_FILE "/tmp/kiss_seed_mode.txt"
 #define SEED_TMP  "/tmp/kiss_seed.txt.tmp"
 #define MODE_TMP  "/tmp/kiss_seed_mode.txt.tmp"
+#define ENTQ_FILE "/tmp/kiss_seed_entq.txt"
 static unsigned s_seed_test_fail;
 void wallet_seed_test_fail_next(unsigned flags) { s_seed_test_fail = flags; }
 static int seed_test_fail(unsigned flag)
@@ -410,6 +412,54 @@ static int storage_mode_write(int mode)
            storage_mode_read_checked(&verify) == 0 && verify == mode ? 0 : -1;
 }
 
+// ---- entropy quality note (see wallet_seed.h) ----
+// One flag for the DEVICE, not per wallet, and that is the whole reason it is
+// safe to store in the clear. The dice made one master seed; every passphrase
+// wallet descends from it, so this says nothing about how many wallets exist
+// and cannot become the oracle wallet_usage's fingerprint keys were.
+//
+// Written on every path that creates a seed, including the clean ones, so a
+// flagged attempt that was abandoned and redone honestly does not leave its
+// verdict behind. A whole partition erase (wipe, replace, amnesic) takes it,
+// which is correct: the verdict belongs to the seed that is gone.
+void wallet_seed_set_entropy_note(int v)
+{
+    if (v < 0 || v > 255) return;
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    if (nvs_set_u8(h, "entq", (uint8_t)v) == ESP_OK)
+        nvs_commit(h);
+    nvs_close(h);
+#else
+    FILE *f = fopen(ENTQ_FILE, "w");
+    if (!f) return;
+    fprintf(f, "%d", v);
+    fclose(f);
+#endif
+}
+
+int wallet_seed_entropy_note(void)
+{
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
+        return 0;
+    uint8_t v = 0;
+    int rc = nvs_get_u8(h, "entq", &v) == ESP_OK ? (int)v : 0;
+    nvs_close(h);
+    return rc;
+#else
+    FILE *f = fopen(ENTQ_FILE, "r");
+    if (!f) return 0;
+    int v = 0;
+    if (fscanf(f, "%d", &v) != 1) v = 0;
+    fclose(f);
+    return v;
+#endif
+}
+
 // SD is available whenever the card hardware is, which on this board is always.
 // The seed is written to the card as an authenticated, device-key-sealed blob:
 // a stolen card alone is inert (its key lives in this device's flash) and the
@@ -420,12 +470,22 @@ static int storage_mode_write(int mode)
 // So there is no "SD unsupported" state to gate on; the predicate that used to
 // express one is gone.
 
+// Now load bearing beyond the storage note: it gates whether a wallet
+// fingerprint may be written to NVS at all (wallet_usage.c, wallet_backup.c).
+// Both answers therefore need host coverage — the beta lane where the record
+// must NOT be written, and the encrypted lane where it is allowed and must
+// still behave. Same seam convention as wallet_seed_test_fail_next above.
+#ifndef ESP_PLATFORM
+static int s_test_flash_enc;
+void wallet_seed_test_set_flash_encrypted(int on) { s_test_flash_enc = on ? 1 : 0; }
+#endif
+
 int wallet_seed_flash_encrypted(void)
 {
 #ifdef ESP_PLATFORM
     return esp_efuse_is_flash_encryption_enabled() ? 1 : 0;
 #else
-    return 0;
+    return s_test_flash_enc;
 #endif
 }
 
@@ -726,6 +786,12 @@ int wallet_seed_commit(void)
         // above already says.
         wallet_usage_wipe();
         wallet_backup_forget();
+        // The unlock stroke went with it too, and for the same reason: "greal"
+        // is deliberately outside KEEP_KEYS so the partition erase takes it.
+        // The host build keeps it in a static, so without this line the
+        // simulator shows a brand new wallet still opening on the replaced
+        // wallet's decoy gesture -- and the DURESS row would name it.
+        wallet_duress_forget();
     }
     if (prior_mode == WSEED_MODE_SD) {
         int card_cleanup = storage_delete_sd();

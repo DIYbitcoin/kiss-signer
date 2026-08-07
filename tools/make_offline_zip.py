@@ -55,6 +55,11 @@ SITE_REQUIRED = [
     # their network has bought it, and what they need is the one card that
     # flashes. OFFLINE_INDEX below is that page, and it is what the zip serves.
     "guide.html",
+    # The standalone release check. It bakes the expected hash and carries its
+    # own SHA256, so it is the one page here that still does something useful
+    # with no network at all — which is exactly the situation someone who
+    # unpacked this zip on an offline machine is in.
+    "verify-release.html",
     "app.js",
     "styles.css",
     "assets/kiss-mark.svg",
@@ -145,6 +150,7 @@ OFFLINE_INDEX = """<!doctype html>
       </a>
       <nav class="topnav" aria-label="Site">
         <a href="guide.html">Docs</a>
+        <a href="verify-release.html">Check the file</a>
       </nav>
     </header>
 
