@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every valid last word for a drawn BIP39 phrase, computed off the device.
 
-The MY OWN WORDS flow asks the owner to draw 11 or 23 words from paper cards
+The MY OWN WORDS flow asks the owner to pick 11 or 23 words off the word list
 and then picks the final word from the list this prints. Run it on a computer
 the signer has never touched: if the screen offers a word this does not, the
 firmware is lying. The device shows 128 candidates for a 12 word seed and 8

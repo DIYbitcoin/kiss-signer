@@ -83,9 +83,12 @@ static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 static char s_prefix[12];       // restore: letters typed for the current word
 static lv_obj_t *s_word_lbl, *s_sug[3];
 
-// cards mode (MY OWN WORDS): 11 or 23 words drawn from paper cards on the
-// restore keyboard, then a last word picked from the checksum valid
-// candidates. No machine randomness enters the seed.
+// cards mode (MY OWN WORDS): 11 or 23 words picked off the cut up word list
+// and typed on the restore keyboard, then a last word picked from the checksum
+// valid candidates. No machine randomness enters the seed.
+//
+// The identifiers still say "cards" because the owner-facing copy is what had
+// to change: it described the list as a deck and was read as playing cards.
 static bool s_cards;
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
@@ -2124,8 +2127,8 @@ static void restore_screen(void)
 
 // ---- cards (MY OWN WORDS): the owner's words, the device's checksum ----
 // The creation mode with no machine randomness in the seed: 11 or 23 words
-// drawn from paper cards, typed on the restore keyboard above, then a last
-// word picked from the checksum valid candidates. The picked word joins s_w
+// picked off the cut up word list, typed on the restore keyboard above, then a
+// last word picked from the checksum valid candidates. The picked word joins s_w
 // and the flow rejoins words_screen -> quiz -> store like every other mode.
 // See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
 
@@ -2563,7 +2566,7 @@ static void count_screen(void)
 {
     // Reached while RESTORING or in cards mode; camera and dice always make 12.
     // Cards gets the choice because its cost lives in the draw, not here: the
-    // owner has already decided how many cards to pull.
+    // owner has already decided how many words to pick.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     // Rows, on the chooser grid the storage and create-or-restore screens use.
     // Three pills each trailing a note in a column 380px away was the last
