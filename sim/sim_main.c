@@ -16,6 +16,8 @@
 #include "verify_page.h"    // ...and the real checker page beside it
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
+#include "wallet_fw.h"          // the SD firmware seams: no flash here, no key
+#include "wallet_fw_ui.h"       // its screens, opened directly like the above
 #include "wallet_duress.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
@@ -1998,6 +2000,70 @@ int main(void) {
   wallet_duress_ui_open(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_intro_set.ppm");            // three pills, one TALL row
+
+  // ---- firmware from the SD card -------------------------------------------
+  // Leaves, opened directly, for the reason the duress stops above are: the
+  // route in is a pill in the Settings action bar and every screen past the
+  // first needs state a desktop build does not have.
+  //
+  // Without wallet_fw_test_* the sim can only ever reach "cannot be checked":
+  // there is no flash and no signing key here, so the value card, the four
+  // fact rows, the hold and the writing screen would be shapes no gate had
+  // ever measured, in any locale. That is exactly the hole BARE and WALL exist
+  // to catch, so the seam is what makes their verdict on these screens mean
+  // anything.
+  {
+    // A real app descriptor: 0xE9 image magic, then ABCD5432 at offset 32 with
+    // a version far ahead of any VERSION file, so the scan reads it as newer.
+    unsigned char img[512];
+    memset(img, 0, sizeof img);
+    img[0] = 0xE9;
+    img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
+    memcpy(img + 32 + 16, "99.0.0", 6);
+    memcpy(img + 32 + 48, "kiss", 4);
+    FILE *fw = fopen("/tmp/simsd/kiss-signer-99.0.0.bin", "wb");
+    if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
+  }
+
+  // 1. the state a build without the release key reaches: two blocks, no rows.
+  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_unsigned.ppm");                 // cannot be checked + where it goes
+
+  // 2. the ordinary one: version card, four marked rows, INSTALL primary.
+  wallet_fw_test_set_available(WFW_OK);
+  wallet_fw_test_set_install(WFW_OK, 4);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
+
+  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
+
+  // The hold is 1500ms and pump is 16ms a frame, so 100 frames clears it with
+  // room to spare. Landing on the writing screen and then the result in one
+  // go is correct: the install runs inside the hold's completion.
+  touch(213, 431); pump(100); release(); pump(20);
+  save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
+
+  // 3. the refusal that matters most, on the same route: a signature that did
+  // not check out has to read as "nothing was written", not as a vague error.
+  wallet_fw_test_set_install(WFW_ERR_REJECTED, 2);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  touch(213, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
+  save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
+
+  // 4. no card at all: the same two block shape, different left hand claim.
+  unlink("/tmp/simsd/kiss-signer-99.0.0.bin");
+  platform_sd_test_set_present(0);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_nocard.ppm");
+  platform_sd_test_set_present(1);
+  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
