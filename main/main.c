@@ -37,6 +37,7 @@
 #include "wallet_sign.h"
 #include "wallet_scan.h"
 #include "wallet_settings.h"
+#include "wallet_fw.h"   // wallet_fw_mark_valid: release the previous slot
 #include "wallet_info.h"
 #include "wallet_setup.h"
 #include "wallet_seed.h"
@@ -2441,6 +2442,19 @@ void app_main(void) {
   wallet_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+
+  // Release the slot that was running before an SD update, now that this
+  // firmware has proved the parts a bad image would take out: the crypto
+  // selftest above, the display, the touch panel and a built screen. Anything
+  // that reboots before this line -- a crash, the watchdog, a hand on the
+  // power -- hands the device back to the firmware that was working.
+  //
+  // Here rather than at unlock, on purpose. Waiting for the owner to type a
+  // passphrase would silently revert a good update if they set the device down
+  // first, and a wallet that unlocks is not the bar: a device that boots and
+  // draws is.
+  wallet_fw_mark_valid();
+
   while (1) {           // single-threaded LVGL loop (we own the display + flush)
     uint32_t next = lv_timer_handler();
     if (next > 20) next = 20;
