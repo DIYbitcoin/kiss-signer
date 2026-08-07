@@ -31,9 +31,9 @@ wording of the warning are theirs.
   new one never comes up. Nothing stops you installing an older build on
   purpose: this is a way back, not a lock.
 
-- **Words you drew yourself are now checked before they become a wallet.** MY
-  OWN WORDS lets you draw BIP39 words off paper cards and type them in, and
-  until now the device accepted whatever you typed. Type the same word eleven
+- **Words you drew yourself are now checked before they become a wallet.**
+  BLIND DRAW lets you draw BIP39 words from your own copy of the word list and
+  type them in, and until now the device accepted whatever you typed. Type the same word eleven
   times, or one short run over and over, and it now refuses: those carry no
   secret at all, and anybody could type them. Draws that are merely weaker than
   you think, words sitting side by side on the list, words in list order, or
@@ -83,10 +83,10 @@ wording of the warning are theirs.
   embedding the firmware at build time; the argument that fewer moving parts
   between you and your device is worth the packaging work is theirs.
 
-- **MY OWN WORDS: a seed from paper cards, with the device only doing the
-  math.** A third way to create a wallet, beside the camera and the dice: cut
-  the BIP39 word list into cards, shuffle, draw 11 (or 23) blind, and type
-  them in. The last word of a seed phrase is part checksum, so it cannot be
+- **BLIND DRAW: a seed you drew by hand, with the device only doing the
+  math.** A third way to create a wallet, beside the camera and the dice: make
+  a physical copy of the BIP39 word list — cut it into cards, or 3D print it
+  as tiles — mix it well, draw 11 (or 23) blind, and type them in. The last word of a seed phrase is part checksum, so it cannot be
   drawn — the device computes every word that completes your draw (128 for a
   12 word seed, 8 for a 24 word one), shows them all, and you pick one. No
   machine randomness enters the seed, and the result checks out on any BIP39
