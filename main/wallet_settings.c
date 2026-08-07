@@ -1190,13 +1190,17 @@ void wallet_settings_open(lv_obj_t *parent)
     // wallet_duress_set() -- so "a spare you can show" described the other
     // wallet entirely, which is the reading that sent the owner looking for a
     // bug. "which stroke opens which wallet" is what the row actually answers.
+    // Unconditional, and that is the point. This row was hidden in a decoy
+    // session whenever a stroke was configured, so an attacker who knew where
+    // to look could catch a coerced owner handing over the spare: the row's
+    // absence was the confession. Showing it is safe only because the unlock no
+    // longer forks on wallet_duress_real() either -- there is nothing left for
+    // its presence to corroborate.
     const int g = wallet_duress_real();
-    if (!(wallet_session_decoy() && g != WDG_NONE)) {
-        wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
-               g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
-               WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
-               duress_cb, NULL);
-    }
+    wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
+           g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+           WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
+           duress_cb, NULL);
 
     // RIGHT COLUMN, group one: the backup. Redraw 05 gives this its own eyebrow
     // rather than leaving the words row adrift among the destructive buttons,
