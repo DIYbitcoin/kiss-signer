@@ -45,6 +45,8 @@ int test_lastword(void);
 int test_cards_q(void);
 // sim/test_proof.c — the CAMERA AUDIT frame -> file -> hash -> words pipeline
 int test_proof(void);
+// sim/test_fw.c — SD firmware update: version ordering and image descriptors
+int test_fw(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -650,6 +652,7 @@ int main(int argc, char **argv) {
     fails += test_lastword();
     fails += test_cards_q();
     fails += test_proof();
+    fails += test_fw();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);

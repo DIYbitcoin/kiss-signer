@@ -10,8 +10,19 @@
 #   also leaves bootloader headroom for a future secure-boot pass. The app
 #   keeps its required 64KB alignment at 0x20000.
 # This lane is FULL-flash-only on a fresh board, so moved offsets cost nothing.
+#
+# Two app slots for the same reason as the plain lane, and the same exact fit:
+# 0x20000 of header plus two 0x7F0000 slots is the whole 16 MB. Both data
+# partitions this lane adds (otadata, nvs_key) go UNDER 0x20000, in the space
+# the app's 64KB alignment leaves free, so the slots stay the same size in both
+# lanes and an image that fits one fits the other.
+#
+# OTA writes go through esp_ota_write, which encrypts as it goes, so the slot
+# receiving an update is written in the same form the bootloader will read.
 # Name,    Type, SubType,  Offset,   Size,      Flags
 nvs,       data, nvs,      0x11000,  0x6000,
 phy_init,  data, phy,      0x17000,  0x1000,
-factory,   app,  factory,  0x20000,  0xC00000,
-nvs_key,   data, nvs_keys, 0xC20000, 0x1000,   encrypted
+otadata,   data, ota,      0x18000,  0x2000,
+nvs_key,   data, nvs_keys, 0x1a000,  0x1000,   encrypted
+ota_0,     app,  ota_0,    0x20000,  0x7F0000,
+ota_1,     app,  ota_1,    0x810000, 0x7F0000,
