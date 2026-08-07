@@ -190,18 +190,39 @@ echo
 echo "ESP-IDF app-only reflash:"
 echo "  idf.py -B build-release -p <port> app-flash"
 echo
+# Read out of flasher_args.json, never typed here. This block used to claim it
+# came from flash_args and did not: enabling rollback added an ota_data
+# partition at 0x10000 and moved the app to 0x20000, and these lines still said
+# 0x10000 for the app. Anyone following them would have written the app over
+# the slot the bootloader reads to decide which app to run, and got a board
+# that does not come back.
+APP_LINE=$(python3 - <<'PY'
+import json
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+off = next(o for o, f in d.items() if f.endswith("guition_kiss_bringup.bin"))
+print(f"    {off} build-release/guition_kiss_bringup.bin")
+PY
+)
+ALL_LINES=$(python3 - <<'PY'
+import json
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+items = sorted(d.items(), key=lambda kv: int(kv[0], 16))
+for i, (off, f) in enumerate(items):
+    tail = "" if i == len(items) - 1 else " \\"
+    print(f"    {off:<8}build-release/{f}{tail}")
+PY
+)
+
 echo "direct esptool fallback - app-only reflash:"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
-echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo "$APP_LINE"
 echo
 echo "direct esptool fallback - full flash (fresh board, or whenever bootloader/partitions changed;"
-echo "offsets from build-release/flash_args - the encrypted-release lane will"
-echo "need this full set):"
+echo "offsets from build-release/flasher_args.json - the encrypted-release lane"
+echo "will need this full set):"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
-echo "    0x2000  build-release/bootloader/bootloader.bin \\"
-echo "    0x8000  build-release/partition_table/partition-table.bin \\"
-echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo "$ALL_LINES"
 echo
 echo "then: unplug -> ~3s -> replug (v1.3 sample never boots off a USB reset)"
