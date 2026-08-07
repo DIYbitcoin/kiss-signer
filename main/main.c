@@ -1595,10 +1595,15 @@ static void wallet_open_decoy(void) {
 // letters' x-clusters into one blob -- detect_KISS needs >=3 and would reject
 // the very draw the owner meant. So the word is matched against everything
 // BEFORE the final stroke, and the final stroke goes to the classifier alone.
+//
+// This function recognises shapes; it does not decide anything. The decision is
+// wallet_duress_route, which lives in wallet_duress.c because nothing here is
+// linked into a test binary. It used to consult wallet_duress_real() right at
+// the bottom, and that was the leak the audit found: a device with a stroke
+// configured answered a bare word with the decoy, one without answered with a
+// passphrase keyboard, so one gesture separated them.
 static int unlock_kind(void) {
-  const int real = wallet_duress_real();
-
-  if (real != WDG_NONE && s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
+  if (s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
     for (int i = 1; i < s_stroke_n0; i++) {          // bbox of the WORD only
       if (s_gpt[i].x < bx0) bx0 = s_gpt[i].x;
@@ -1611,16 +1616,15 @@ static int unlock_kind(void) {
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
-      if (wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1) == real)
-        return 1;
-      // any other stroke falls through to the plain-word test below, which
-      // lands on the decoy: an unrecognized scribble must never be the thing
-      // that surfaces a passphrase prompt
+      int stroke = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+      if (stroke != WDG_NONE)
+        return wallet_duress_route(true, stroke);
+      // an unrecognized final scribble is not a modifier: fall through to the
+      // plain-word test below, which lands on the decoy. A scribble must never
+      // be the thing that surfaces a passphrase prompt.
     }
   }
-  if (detect_KISS(s_gpt, s_gn, s_strokes))
-    return real == WDG_NONE ? 1 : 0;   // never configured: word -> passphrase, as before
-  return -1;
+  return wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
@@ -1971,7 +1975,7 @@ static void game_tick(lv_timer_t *t) {
                 s_kiss_pending = false;
                 s_gn = 0; s_strokes = 0;
               }
-              else if (kind == 1) {          // the owner's stroke, or no stroke set
+              else if (kind == 1) {          // a modifier stroke: ask for the passphrase
                 s_kiss_pending = false;
                 s_real_pending = true;       // same beat as the decoy: see KISS_OPEN_DELAY_MS
                 s_real_at = lv_tick_get();
