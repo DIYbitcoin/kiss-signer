@@ -105,6 +105,22 @@ Both browser routes, the hosted page and this zip, need Chrome, Brave or Edge on
 
 After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 
+### Coming from beta7 or earlier: this one needs the cable
+
+This release splits the flash into two firmware slots, which is what lets every
+release after it arrive on an SD card instead of a USB cable. A partition table
+cannot be replaced by the thing it defines, so the crossing itself has to be
+done over USB, once.
+
+Your recovery words are not touched: `nvs`, where they live, sits at the same
+address in both layouts. Back them up before flashing anyway, the way you would
+before any firmware change.
+
+After this, Settings has a FIRMWARE button. Put a signed `.bin` on a card, hold
+to install, and the device checks the signature against the key built into it
+before anything is written. If the new firmware fails to start, the device goes
+back to this one on its own.
+
 ## Changelog
 
 {changelog_section(version)}
