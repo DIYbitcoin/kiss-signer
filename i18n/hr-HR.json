@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "ništa nije spremljeno.\n\npokušajte potez ponovno ili se\nvratite i odaberite drugi.",
   "GD_SKIP": "NE SADA",
   "GD_DONE_T": "OBA ULAZA SU POSTAVLJENA",
-  "GD_DONE_B": "potez nije ključ: pravi novčanik i dalje pita za kodnu frazu.\n\nto možete kasnije promijeniti u POSTAVKAMA pravog novčanika.",
+  "GD_DONE_B": "potez nije ključ: pravi novčanik i dalje pita za kodnu frazu.",
   "GD_SET_BTN": "ULAZI",
   "GD_SET_NOTE": "koji potez otvara koji novčanik.",
   "GD_OFF": "NIJE POSTAVLJENO",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NIJE INSTALIRANO",
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_CARD_B": "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
-  "G_FW_FAIL_WRITE_B": "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu."
+  "G_FW_FAIL_WRITE_B": "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

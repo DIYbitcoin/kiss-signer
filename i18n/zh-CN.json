@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "什么都没有保存。\n\n再画一次，或者回去\n换一笔。",
   "GD_SKIP": "现在不设",
   "GD_DONE_T": "两个入口都设好了",
-  "GD_DONE_B": "那一笔打不开真正的钱包: 每次都会问你的密码短语。\n\n以后可以在真正钱包的设置里改。",
+  "GD_DONE_B": "那一笔打不开真正的钱包: 每次都会问你的密码短语。",
   "GD_SET_BTN": "入口",
   "GD_SET_NOTE": "哪一笔打开哪个钱包。",
   "GD_OFF": "未设置",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "没有写入",
   "G_FW_FAIL_SIG_B": "签名不对。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_CARD_B": "卡在中间停止回应。\n\n什么都没有变成可启动，设备还是用原来的版本。",
-  "G_FW_FAIL_WRITE_B": "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。"
+  "G_FW_FAIL_WRITE_B": "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

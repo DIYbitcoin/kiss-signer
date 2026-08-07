@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "der blev ikke gemt noget.\n\nprøv stregen igen, eller gå\ntilbage og vælg en anden.",
   "GD_SKIP": "IKKE NU",
   "GD_DONE_T": "BEGGE VEJE IND ER SAT",
-  "GD_DONE_B": "stregen er ingen nøgle: den rigtige tegnebog spørger stadig om din adgangsfrase.\n\ndu kan ændre det senere under INDSTILLINGER i din rigtige tegnebog.",
+  "GD_DONE_B": "stregen er ingen nøgle: den rigtige tegnebog spørger stadig om din adgangsfrase.",
   "GD_SET_BTN": "VEJE IND",
   "GD_SET_NOTE": "hvilket streg der åbner hvilken tegnebog.",
   "GD_OFF": "IKKE SAT",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "IKKE INSTALLERET",
   "G_FW_FAIL_SIG_B": "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "G_FW_FAIL_CARD_B": "kortet holdt op med at svare undervejs.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
-  "G_FW_FAIL_WRITE_B": "skrivningen blev ikke færdig.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware."
+  "G_FW_FAIL_WRITE_B": "skrivningen blev ikke færdig.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

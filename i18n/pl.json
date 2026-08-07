@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "nic nie zostało zapisane.\n\nspróbuj jeszcze raz albo wróć\ni wybierz inne pociągnięcie.",
   "GD_SKIP": "NIE TERAZ",
   "GD_DONE_T": "OBA WEJŚCIA USTAWIONE",
-  "GD_DONE_B": "pociągnięcie to nie klucz: prawdziwy portfel wciąż pyta o frazę dostępu.\n\nmożesz to później zmienić w USTAWIENIACH prawdziwego portfela.",
+  "GD_DONE_B": "pociągnięcie to nie klucz: prawdziwy portfel wciąż pyta o frazę dostępu.",
   "GD_SET_BTN": "WEJŚCIA",
   "GD_SET_NOTE": "które pociągnięcie otwiera który portfel.",
   "GD_OFF": "NIE USTAWIONO",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NIE ZAINSTALOWANO",
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_CARD_B": "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
-  "G_FW_FAIL_WRITE_B": "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware."
+  "G_FW_FAIL_WRITE_B": "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "nic se neuložilo.\n\nzkuste tah znovu, nebo se vraťte\na vyberte jiný.",
   "GD_SKIP": "TEĎ NE",
   "GD_DONE_T": "OBĚ CESTY JSOU NASTAVENÉ",
-  "GD_DONE_B": "tah není klíč: skutečná peněženka se stále ptá na přístupovou frázi.\n\nzměnit to jde později v NASTAVENÍ uvnitř skutečné peněženky.",
+  "GD_DONE_B": "tah není klíč: skutečná peněženka se stále ptá na přístupovou frázi.",
   "GD_SET_BTN": "CESTY DOVNITŘ",
   "GD_SET_NOTE": "který tah otevře kterou peněženku.",
   "GD_OFF": "NENASTAVENO",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NENAINSTALOVÁNO",
   "G_FW_FAIL_SIG_B": "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_CARD_B": "karta v půlce přestala odpovídat.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
-  "G_FW_FAIL_WRITE_B": "zápis se nedokončil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru."
+  "G_FW_FAIL_WRITE_B": "zápis se nedokončil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

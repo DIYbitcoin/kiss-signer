@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "ingenting sparades.\n\nprova draget igen, eller gå\ntillbaka och välj ett annat.",
   "GD_SKIP": "INTE NU",
   "GD_DONE_T": "BÅDA VÄGARNA IN ÄR SATTA",
-  "GD_DONE_B": "draget är ingen nyckel: den riktiga plånboken frågar fortfarande efter lösenfrasen.\n\ndu kan ändra detta senare under INSTÄLLNINGAR i din riktiga plånbok.",
+  "GD_DONE_B": "draget är ingen nyckel: den riktiga plånboken frågar fortfarande efter lösenfrasen.",
   "GD_SET_BTN": "VÄGAR IN",
   "GD_SET_NOTE": "vilket drag som öppnar vilken plånbok.",
   "GD_OFF": "INTE SATT",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "INTE INSTALLERAD",
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_CARD_B": "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
-  "G_FW_FAIL_WRITE_B": "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware."
+  "G_FW_FAIL_WRITE_B": "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }
