@@ -212,7 +212,14 @@ int wallet_fw_scan(wfw_image_t *out)
         if (wallet_fw_desc_parse(hdr, got, ver, sizeof ver, proj, sizeof proj) != 0)
             continue;
 
-        snprintf(out->name, sizeof out->name, "%s", names[i]);
+        // %.*s, not %s. A card name is SD_NAME_LEN and this field is 64, so the
+        // copy has always truncated; plain %s left the compiler to work that
+        // out and -Werror=format-truncation refused the build for it. Stating
+        // the bound says the cut is the intent, not an oversight: the name is
+        // shown to the owner and only ever compared as a whole path elsewhere.
+        // The simulator never sees this -- its build does not carry -Werror.
+        snprintf(out->name, sizeof out->name, "%.*s",
+                 (int)(sizeof out->name - 1), names[i]);
         snprintf(out->version, sizeof out->version, "%s", ver);
         snprintf(out->project, sizeof out->project, "%s", proj);
         out->size = len;
