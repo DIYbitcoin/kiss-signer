@@ -41,6 +41,8 @@ int test_dice(void);
 
 // sim/test_lastword.c — the checksum valid last word enumeration (cards mode)
 int test_lastword(void);
+// sim/test_cards_q.c — whether the owner's own words are worth a seed
+int test_cards_q(void);
 // sim/test_proof.c — the CAMERA AUDIT frame -> file -> hash -> words pipeline
 int test_proof(void);
 
@@ -646,6 +648,7 @@ int main(int argc, char **argv) {
     fails += test_tapent();
     fails += test_dice();
     fails += test_lastword();
+    fails += test_cards_q();
     fails += test_proof();
 
     uint8_t fp[4] = {0};
