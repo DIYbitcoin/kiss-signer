@@ -1578,6 +1578,12 @@ int main(void) {
   save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
+  // The "?" in the equation card's corner: card at x=48,y=128 plus (704-44,12)
+  // puts the 30px chip at 708,140, so its centre is 723,155. 40 = the staggered
+  // card intro fully settled, same as the dice and entropy explainer stops.
+  touch(723, 155); pump(3); release(); pump(40);
+  save("/tmp/sim_setup_cards_why.ppm");             // THE 2048 WORD LIST, icon grid
+  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
   // Eleven DISTINCT, non monotone words. The cards judge links real, so the old

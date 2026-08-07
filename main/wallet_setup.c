@@ -1200,7 +1200,11 @@ static void method_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_DICE_NOTE),
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
-    wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_CHOOSE_CARDS), tr(STR_W_CARDS_NOTE),
+    // KEYBOARD, not SHUFFLE. This row's whole subject is a word LIST the owner
+    // cuts up and picks from, and a shuffle mark is the last thing on this
+    // screen that reads as a deck of playing cards -- which is exactly how the
+    // mode kept being misread. The glyph now says what the owner does here.
+    wt_row_x(s_scr, LV_SYMBOL_KEYBOARD, tr(STR_W_CHOOSE_CARDS), tr(STR_W_CARDS_NOTE),
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(2),
              WT_CHOICE_W, WT_CHOICE_H, method_cards_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
@@ -2138,6 +2142,36 @@ static void cards_cancel_cb(lv_event_t *e)
 static void cards_start_cb(lv_event_t *e)   { (void)e; restore_screen(); }
 static void cards_pick_go_cb(lv_event_t *e) { (void)e; cards_pick_screen(); }
 
+// What the owner is actually being asked to do, in three marks. None of it can
+// be read off the equation card above: that the list is public and the same
+// 2048 words in every wallet, that the secret is WHICH ones a blind pick lands
+// on, and that the last word is arithmetic rather than a choice. The SHUFFLE
+// mark earns its place on this line and not on the method row, because here it
+// labels one step -- mixing the pieces -- instead of the whole mode.
+//
+// Index paired with the three lines of STR_W_CARDS_HELP_B: explain_grid counts
+// the newlines and reads this array in step, so a locale shipping four lines
+// would read past the end. Every locale ships three.
+static const char *const CARDS_HELP_ICONS[] = {
+    LV_SYMBOL_LIST,
+    LV_SYMBOL_SHUFFLE,
+    LV_SYMBOL_OK,
+};
+
+static void cards_help_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_explain_t x = {
+        .title  = tr(STR_W_CARDS_HELP_T),
+        .icon   = LV_SYMBOL_LIST,
+        .body   = tr(STR_W_CARDS_HELP_B),
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_GRID_ICONS,
+        .icons  = CARDS_HELP_ICONS,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 static void cards_intro_screen(void)
 {
     mk_screen(tr(STR_W_CARDS_T), tr(STR_W_CARDS_S));
@@ -2149,7 +2183,10 @@ static void cards_intro_screen(void)
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
-    lv_obj_set_size(col, 704, 84);
+    // 46 narrower than the card so a locale with wider numerals cannot centre
+    // the equation underneath the "?" in the corner. Same reservation the
+    // entropy screen's equation card makes for the same chip.
+    lv_obj_set_size(col, 704 - 46, 84);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -2164,6 +2201,12 @@ static void cards_intro_screen(void)
     wt_chip(row, "1", true);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     wt_chip(row, n2, false);
+
+    // The mark sits in the corner of the thing it answers, which is what the
+    // rest of the device does. The equation says 11 + 1 -> 12 without saying
+    // where the 11 come from or why the device gets the 1; that is what opens
+    // from here.
+    wt_help_chip(card, 704 - 44, 12, MUT_COL, cards_help_cb, NULL);
 
     {
         const char *b1 = tr(STR_W_CARDS_W1_B), *b2 = tr(STR_W_CARDS_W2_B);
