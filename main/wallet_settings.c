@@ -1332,11 +1332,30 @@ void wallet_settings_open(lv_obj_t *parent)
         s_lang_pill = mk_pillh(shortname, 752 - LANG_PILL_W, 18,
                                LANG_PILL_W, 44, lang_open_cb, NULL);
         wt_pill_row(&s_lang_pill, 1);
-        // The title had the whole 704 lane and now shares it with a 170px pill.
-        // Nothing else would catch this: the overlap gate measures text against
-        // text, a pill is not text, and a long locale's title would simply run
-        // underneath it. 518 = 704 - 170 - 16 of gap.
-        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - 48);
+
+        // FIRMWARE, beside LANGUAGE, because they are the same kind of thing:
+        // the two controls on this screen that belong to the DEVICE rather than
+        // the wallet in it. It spent a version in the action bar on the
+        // reasoning that it should sit next to the build identity it acts on,
+        // and that bar turned out to be full -- build identity runs to about
+        // 275, the theme name occupies 340..460, the dots 470..557 and BACK
+        // 610..750, so a 240px pill at 300 landed straight through the theme
+        // block. The overlap gate caught it as 120x15 px of shared pixels
+        // against the accent NAME, in every locale, which is what a bar with no
+        // room left looks like from the outside.
+        //
+        // Same width as LANGUAGE, 16px of gap, and above WT_CONTENT_BOTTOM so
+        // wt_pill_icon does not build a second action bar -- the bar is BACK's.
+        wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_G_FW_PILL),
+                     752 - LANG_PILL_W - 16 - LANG_PILL_W, 18,
+                     LANG_PILL_W, 44, fw_open_cb, NULL);
+
+        // The title had the whole 704 lane, then shared it with one 170px pill,
+        // and now shares it with two. Nothing else would catch this: the overlap
+        // gate measures text against text, a pill is not text, and a long
+        // locale's title would simply run underneath them. 332 = 704 - 170 - 170
+        // - 16 - 16 of gaps.
+        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - LANG_PILL_W - 16 - 48);
     }
 
     {
@@ -1351,6 +1370,9 @@ void wallet_settings_open(lv_obj_t *parent)
         // rule whose condition is absent.
         wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                 close_cb, NULL);
+
+        // FIRMWARE is not here. It is device chrome, so it went up beside the
+        // language pill; this bar had no room for it. See the header block.
 
         // Build identity AFTER the pill, and that order is load bearing. The
         // action bar is built lazily by the first wt_pill on the screen; the
