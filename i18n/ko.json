@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "서명이 맞지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
   "G_FW_FAIL_CARD_B": "카드가 쓰는 중에 답하지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
   "G_FW_FAIL_WRITE_B": "쓰기가 끝나지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "이 획으로 패스프레이즈를 입력합니다"
 }

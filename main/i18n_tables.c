@@ -486,7 +486,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "nothing was saved.\n\ntry the stroke again, or go back\nand pick a different one.",
     [STR_GD_SKIP] = "NOT NOW",
     [STR_GD_DONE_T] = "BOTH WAYS IN ARE SET",
-    [STR_GD_DONE_B] = "the stroke is not a key: the real wallet still asks for your passphrase.\n\nchange this later from SETTINGS, inside your real wallet.",
+    [STR_GD_DONE_B] = "the stroke is not a key: the real wallet still asks for your passphrase.",
     [STR_GD_SET_BTN] = "WAYS IN",
     [STR_GD_SET_NOTE] = "which stroke opens which wallet.",
     [STR_GD_OFF] = "NOT SET",
@@ -603,6 +603,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "the signature did not check out.\n\nnothing was made bootable and the device still runs the firmware it had.",
     [STR_G_FW_FAIL_CARD_B] = "the card stopped responding partway through.\n\nnothing was made bootable and the device still runs the firmware it had.",
     [STR_G_FW_FAIL_WRITE_B] = "the write did not finish.\n\nnothing was made bootable and the device still runs the firmware it had.",
+    [STR_H_WAYS_IN_HINT] = "a stroke after the word asks for a passphrase",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -1090,7 +1091,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "nichts wurde gespeichert.\n\nversuch den Strich noch einmal oder\ngeh zurück und wähle einen anderen.",
     [STR_GD_SKIP] = "JETZT NICHT",
     [STR_GD_DONE_T] = "BEIDE WEGE SIND GESETZT",
-    [STR_GD_DONE_B] = "der Strich ist kein Schlüssel: die echte Wallet fragt weiter nach deiner Passphrase.\n\ndu kannst das später in den EINSTELLUNGEN deiner echten Wallet ändern.",
+    [STR_GD_DONE_B] = "der Strich ist kein Schlüssel: die echte Wallet fragt weiter nach deiner Passphrase.",
     [STR_GD_SET_BTN] = "WEGE HINEIN",
     [STR_GD_SET_NOTE] = "welcher Strich welche Wallet öffnet.",
     [STR_GD_OFF] = "NICHT GESETZT",
@@ -1207,6 +1208,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "die Signatur stimmte nicht.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
     [STR_G_FW_FAIL_CARD_B] = "die Karte antwortete mittendrin nicht mehr.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
     [STR_G_FW_FAIL_WRITE_B] = "das Schreiben wurde nicht fertig.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
+    [STR_H_WAYS_IN_HINT] = "ein Strich nach dem Wort fragt nach der Passphrase",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -1694,7 +1696,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "no se guardó nada.\n\nintenta el trazo otra vez, o regresa\ny elige uno distinto.",
     [STR_GD_SKIP] = "AHORA NO",
     [STR_GD_DONE_T] = "LAS DOS ENTRADAS QUEDARON LISTAS",
-    [STR_GD_DONE_B] = "el trazo no es una llave: la billetera de verdad sigue pidiendo tu passphrase.\n\npuedes cambiarlo después en AJUSTES, dentro de tu billetera de verdad.",
+    [STR_GD_DONE_B] = "el trazo no es una llave: la billetera de verdad sigue pidiendo tu passphrase.",
     [STR_GD_SET_BTN] = "MANERAS DE ENTRAR",
     [STR_GD_SET_NOTE] = "qué trazo abre qué billetera.",
     [STR_GD_OFF] = "SIN DEFINIR",
@@ -1811,6 +1813,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
     [STR_G_FW_FAIL_CARD_B] = "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
+    [STR_H_WAYS_IN_HINT] = "un trazo tras la palabra pide la passphrase",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -2298,7 +2301,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "rien n'a été enregistré.\n\nréessayez le trait, ou revenez\nen arrière et choisissez-en un autre.",
     [STR_GD_SKIP] = "PLUS TARD",
     [STR_GD_DONE_T] = "LES DEUX ENTRÉES SONT RÉGLÉES",
-    [STR_GD_DONE_B] = "le trait n'est pas une clé : le vrai portefeuille demande toujours votre phrase secrète.\n\nvous pouvez changer cela plus tard dans RÉGLAGES, dans votre vrai portefeuille.",
+    [STR_GD_DONE_B] = "le trait n'est pas une clé : le vrai portefeuille demande toujours votre phrase secrète.",
     [STR_GD_SET_BTN] = "FAÇONS D'ENTRER",
     [STR_GD_SET_NOTE] = "quel trait ouvre quel portefeuille.",
     [STR_GD_OFF] = "NON RÉGLÉ",
@@ -2415,6 +2418,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
     [STR_G_FW_FAIL_CARD_B] = "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
     [STR_G_FW_FAIL_WRITE_B] = "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
+    [STR_H_WAYS_IN_HINT] = "un trait après le mot demande la phrase secrète",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -2902,7 +2906,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "non è stato salvato nulla.\n\nriprova il tratto, oppure torna\nindietro e scegline un altro.",
     [STR_GD_SKIP] = "NON ORA",
     [STR_GD_DONE_T] = "ENTRAMBI I MODI SONO IMPOSTATI",
-    [STR_GD_DONE_B] = "il tratto non è una chiave: il wallet vero chiede sempre la tua passphrase.\n\npuoi cambiarlo dopo da IMPOSTAZIONI, dentro il tuo wallet vero.",
+    [STR_GD_DONE_B] = "il tratto non è una chiave: il wallet vero chiede sempre la tua passphrase.",
     [STR_GD_SET_BTN] = "MODI PER ENTRARE",
     [STR_GD_SET_NOTE] = "quale tratto apre quale wallet.",
     [STR_GD_OFF] = "NON IMPOSTATO",
@@ -3019,6 +3023,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "la firma non era valida.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
     [STR_G_FW_FAIL_CARD_B] = "la scheda ha smesso di rispondere a metà.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "la scrittura non è finita.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
+    [STR_H_WAYS_IN_HINT] = "un tratto dopo la parola chiede la passphrase",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -3506,7 +3511,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "何も保存されていません。\n\nもう一度描くか、戻って\n別の線を選んでください。",
     [STR_GD_SKIP] = "いまはしない",
     [STR_GD_DONE_T] = "ふたつの入り口ができました",
-    [STR_GD_DONE_B] = "線だけでは開きません。本物のウォレットは今もパスフレーズをききます。\n\nあとから本物のウォレットの設定で変更できます。",
+    [STR_GD_DONE_B] = "線だけでは開きません。本物のウォレットは今もパスフレーズをききます。",
     [STR_GD_SET_BTN] = "入り口",
     [STR_GD_SET_NOTE] = "どの線がどのウォレットを開くか。",
     [STR_GD_OFF] = "未設定",
@@ -3623,6 +3628,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "署名が合いませんでした。\n\n何も起動できるようにはならず、端末は前のままです。",
     [STR_G_FW_FAIL_CARD_B] = "カードが書き込み中に応答しなくなりました。\n\n何も起動できるようにはならず、端末は前のままです。",
     [STR_G_FW_FAIL_WRITE_B] = "書き込みが終わりませんでした。\n\n何も起動できるようにはならず、端末は前のままです。",
+    [STR_H_WAYS_IN_HINT] = "線のあとにパスフレーズをききます",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -4110,7 +4116,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "아무것도 저장되지 않았습니다.\n\n다시 그리거나, 돌아가서\n다른 획을 고르세요.",
     [STR_GD_SKIP] = "지금은 안 함",
     [STR_GD_DONE_T] = "두 길 모두 정해졌습니다",
-    [STR_GD_DONE_B] = "획만으로는 열리지 않습니다. 진짜 지갑은 패스프레이즈를 묻습니다.\n\n나중에 진짜 지갑의 설정에서 바꿀 수 있습니다.",
+    [STR_GD_DONE_B] = "획만으로는 열리지 않습니다. 진짜 지갑은 패스프레이즈를 묻습니다.",
     [STR_GD_SET_BTN] = "들어가는 길",
     [STR_GD_SET_NOTE] = "어떤 획이 어떤 지갑을 여는지.",
     [STR_GD_OFF] = "설정 안 됨",
@@ -4227,6 +4233,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "서명이 맞지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
     [STR_G_FW_FAIL_CARD_B] = "카드가 쓰는 중에 답하지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
     [STR_G_FW_FAIL_WRITE_B] = "쓰기가 끝나지 않았습니다.\n\n시작할 수 있게 된 것은 없고 기기는 쓰는 버전 그대로입니다.",
+    [STR_H_WAYS_IN_HINT] = "이 획으로 패스프레이즈를 입력합니다",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -4714,7 +4721,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "er is niets opgeslagen.\n\nprobeer de streek opnieuw, of ga\nterug en kies een andere.",
     [STR_GD_SKIP] = "NU NIET",
     [STR_GD_DONE_T] = "BEIDE MANIEREN STAAN INGESTELD",
-    [STR_GD_DONE_B] = "de streek is geen sleutel: je echte wallet vraagt nog steeds om je passphrase.\n\nje kunt dit later aanpassen via INSTELLINGEN, in je echte wallet.",
+    [STR_GD_DONE_B] = "de streek is geen sleutel: je echte wallet vraagt nog steeds om je passphrase.",
     [STR_GD_SET_BTN] = "MANIEREN NAAR BINNEN",
     [STR_GD_SET_NOTE] = "welke streek welke wallet opent.",
     [STR_GD_OFF] = "NIET INGESTELD",
@@ -4831,6 +4838,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
     [STR_G_FW_FAIL_CARD_B] = "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
+    [STR_H_WAYS_IN_HINT] = "een streek na het woord vraagt om de passphrase",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -5318,7 +5326,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "nic nie zostało zapisane.\n\nspróbuj jeszcze raz albo wróć\ni wybierz inne pociągnięcie.",
     [STR_GD_SKIP] = "NIE TERAZ",
     [STR_GD_DONE_T] = "OBA WEJŚCIA USTAWIONE",
-    [STR_GD_DONE_B] = "pociągnięcie to nie klucz: prawdziwy portfel wciąż pyta o frazę dostępu.\n\nmożesz to później zmienić w USTAWIENIACH prawdziwego portfela.",
+    [STR_GD_DONE_B] = "pociągnięcie to nie klucz: prawdziwy portfel wciąż pyta o frazę dostępu.",
     [STR_GD_SET_BTN] = "WEJŚCIA",
     [STR_GD_SET_NOTE] = "które pociągnięcie otwiera który portfel.",
     [STR_GD_OFF] = "NIE USTAWIONO",
@@ -5435,6 +5443,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
     [STR_G_FW_FAIL_CARD_B] = "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
+    [STR_H_WAYS_IN_HINT] = "kreska po słowie prosi o frazę dostępu",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -5922,7 +5931,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "nada foi salvo.\n\ntente o traço de novo, ou volte\ne escolha outro.",
     [STR_GD_SKIP] = "AGORA NÃO",
     [STR_GD_DONE_T] = "AS DUAS ENTRADAS ESTÃO PRONTAS",
-    [STR_GD_DONE_B] = "o traço não é uma chave: a carteira de verdade ainda pede sua passphrase.\n\nvocê pode mudar isso depois em AJUSTES, dentro da sua carteira de verdade.",
+    [STR_GD_DONE_B] = "o traço não é uma chave: a carteira de verdade ainda pede sua passphrase.",
     [STR_GD_SET_BTN] = "FORMAS DE ENTRAR",
     [STR_GD_SET_NOTE] = "qual traço abre qual carteira.",
     [STR_GD_OFF] = "NÃO DEFINIDO",
@@ -6039,6 +6048,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "a assinatura não era válida.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
     [STR_G_FW_FAIL_CARD_B] = "o cartão parou de responder no meio.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "a gravação não terminou.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
+    [STR_H_WAYS_IN_HINT] = "um traço após a palavra pede a passphrase",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -6526,7 +6536,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "ничего не сохранено.\n\nповторите штрих или вернитесь\nи выберите другой.",
     [STR_GD_SKIP] = "НЕ СЕЙЧАС",
     [STR_GD_DONE_T] = "ОБА ВХОДА НАСТРОЕНЫ",
-    [STR_GD_DONE_B] = "штрих не ключ: настоящий кошелёк всё равно спросит кодовую фразу.\n\nизменить это можно позже в НАСТРОЙКАХ настоящего кошелька.",
+    [STR_GD_DONE_B] = "штрих не ключ: настоящий кошелёк всё равно спросит кодовую фразу.",
     [STR_GD_SET_BTN] = "ВХОДЫ",
     [STR_GD_SET_NOTE] = "какой штрих какой кошелёк открывает.",
     [STR_GD_OFF] = "НЕ ЗАДАНО",
@@ -6643,6 +6653,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "подпись не сошлась.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
     [STR_G_FW_FAIL_CARD_B] = "карта перестала отвечать на полпути.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
     [STR_G_FW_FAIL_WRITE_B] = "запись не завершилась.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
+    [STR_H_WAYS_IN_HINT] = "штрих после слова запросит кодовую фразу",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -7130,7 +7141,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "hiçbir şey kaydedilmedi.\n\nçizgiyi tekrar deneyin ya da geri\ndönüp başka birini seçin.",
     [STR_GD_SKIP] = "ŞIMDI DEĞIL",
     [STR_GD_DONE_T] = "IKI GIRIŞ DE AYARLANDI",
-    [STR_GD_DONE_B] = "çizgi bir anahtar değildir: gerçek cüzdan yine de Passphrase'inizi sorar.\n\nbunu sonra gerçek cüzdanınızdaki AYARLAR'dan değiştirebilirsiniz.",
+    [STR_GD_DONE_B] = "çizgi bir anahtar değildir: gerçek cüzdan yine de Passphrase'inizi sorar.",
     [STR_GD_SET_BTN] = "GIRIŞ YOLLARI",
     [STR_GD_SET_NOTE] = "hangi çizgi hangi cüzdanı açar.",
     [STR_GD_OFF] = "AYARLANMADI",
@@ -7247,6 +7258,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
     [STR_G_FW_FAIL_CARD_B] = "kart yarıda yanıt vermeyi bıraktı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
     [STR_G_FW_FAIL_WRITE_B] = "yazma tamamlanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
+    [STR_H_WAYS_IN_HINT] = "kelimeden sonra bir çizgi passphrase ister",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -7734,7 +7746,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "chưa lưu gì cả.\n\nvẽ lại nét đó, hoặc quay lại\nchọn nét khác.",
     [STR_GD_SKIP] = "ĐỂ SAU",
     [STR_GD_DONE_T] = "CẢ HAI LỐI VÀO ĐÃ ĐẶT XONG",
-    [STR_GD_DONE_B] = "nét vẽ không phải chìa khóa: ví thật vẫn hỏi cụm mật khẩu của bạn.\n\nbạn có thể đổi sau trong CÀI ĐẶT, bên trong ví thật.",
+    [STR_GD_DONE_B] = "nét vẽ không phải chìa khóa: ví thật vẫn hỏi cụm mật khẩu của bạn.",
     [STR_GD_SET_BTN] = "LỐI VÀO",
     [STR_GD_SET_NOTE] = "nét nào mở ví nào.",
     [STR_GD_OFF] = "CHƯA ĐẶT",
@@ -7851,6 +7863,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "chữ ký không hợp lệ.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
     [STR_G_FW_FAIL_CARD_B] = "thẻ ngừng phản hồi giữa chừng.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
     [STR_G_FW_FAIL_WRITE_B] = "việc ghi chưa hoàn tất.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
+    [STR_H_WAYS_IN_HINT] = "một nét sau từ sẽ hỏi cụm mật khẩu",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -8338,7 +8351,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "什么都没有保存。\n\n再画一次，或者回去\n换一笔。",
     [STR_GD_SKIP] = "现在不设",
     [STR_GD_DONE_T] = "两个入口都设好了",
-    [STR_GD_DONE_B] = "那一笔打不开真正的钱包: 每次都会问你的密码短语。\n\n以后可以在真正钱包的设置里改。",
+    [STR_GD_DONE_B] = "那一笔打不开真正的钱包: 每次都会问你的密码短语。",
     [STR_GD_SET_BTN] = "入口",
     [STR_GD_SET_NOTE] = "哪一笔打开哪个钱包。",
     [STR_GD_OFF] = "未设置",
@@ -8455,6 +8468,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "签名不对。\n\n什么都没有变成可启动，设备还是用原来的版本。",
     [STR_G_FW_FAIL_CARD_B] = "卡在中间停止回应。\n\n什么都没有变成可启动，设备还是用原来的版本。",
     [STR_G_FW_FAIL_WRITE_B] = "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。",
+    [STR_H_WAYS_IN_HINT] = "再画一笔，进入密码短语",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -8942,7 +8956,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "no se ha guardado nada.\n\nprueba el trazo otra vez, o vuelve\natrás y elige uno distinto.",
     [STR_GD_SKIP] = "AHORA NO",
     [STR_GD_DONE_T] = "LAS DOS ENTRADAS ESTÁN LISTAS",
-    [STR_GD_DONE_B] = "el trazo no es una llave: la cartera de verdad sigue pidiendo tu passphrase.\n\npuedes cambiarlo después en AJUSTES, dentro de tu cartera de verdad.",
+    [STR_GD_DONE_B] = "el trazo no es una llave: la cartera de verdad sigue pidiendo tu passphrase.",
     [STR_GD_SET_BTN] = "MANERAS DE ENTRAR",
     [STR_GD_SET_NOTE] = "qué trazo abre qué cartera.",
     [STR_GD_OFF] = "SIN DEFINIR",
@@ -9059,6 +9073,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
     [STR_G_FW_FAIL_CARD_B] = "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
+    [STR_H_WAYS_IN_HINT] = "un trazo tras la palabra pide la passphrase",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -9546,7 +9561,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "não foi guardado nada.\n\ntente o traço outra vez, ou volte\natrás e escolha outro.",
     [STR_GD_SKIP] = "AGORA NÃO",
     [STR_GD_DONE_T] = "AS DUAS ENTRADAS ESTÃO PRONTAS",
-    [STR_GD_DONE_B] = "o traço não é uma chave: a carteira verdadeira continua a pedir a passphrase.\n\npode mudar isto mais tarde em DEFINIÇÕES, dentro da carteira verdadeira.",
+    [STR_GD_DONE_B] = "o traço não é uma chave: a carteira verdadeira continua a pedir a passphrase.",
     [STR_GD_SET_BTN] = "FORMAS DE ENTRAR",
     [STR_GD_SET_NOTE] = "que traço abre que carteira.",
     [STR_GD_OFF] = "POR DEFINIR",
@@ -9663,6 +9678,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "a assinatura não era válida.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
     [STR_G_FW_FAIL_CARD_B] = "o cartão deixou de responder a meio.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "a escrita não terminou.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
+    [STR_H_WAYS_IN_HINT] = "um traço após a palavra pede a passphrase",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -10150,7 +10166,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "ingenting ble lagret.\n\nprøv strøket igjen, eller gå\ntilbake og velg et annet.",
     [STR_GD_SKIP] = "IKKE NÅ",
     [STR_GD_DONE_T] = "BEGGE VEIENE INN ER SATT",
-    [STR_GD_DONE_B] = "strøket er ingen nøkkel: den ekte lommeboken spør fortsatt etter passordfrasen.\n\ndu kan endre dette senere under INNSTILLINGER i den ekte lommeboken.",
+    [STR_GD_DONE_B] = "strøket er ingen nøkkel: den ekte lommeboken spør fortsatt etter passordfrasen.",
     [STR_GD_SET_BTN] = "VEIER INN",
     [STR_GD_SET_NOTE] = "hvilket strøk som åpner hvilken lommebok.",
     [STR_GD_OFF] = "IKKE SATT",
@@ -10267,6 +10283,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
     [STR_G_FW_FAIL_CARD_B] = "kortet sluttet å svare underveis.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
     [STR_G_FW_FAIL_WRITE_B] = "skrivingen ble ikke ferdig.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
+    [STR_H_WAYS_IN_HINT] = "en strek etter ordet ber om passordfrasen",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -10754,7 +10771,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "ingenting sparades.\n\nprova draget igen, eller gå\ntillbaka och välj ett annat.",
     [STR_GD_SKIP] = "INTE NU",
     [STR_GD_DONE_T] = "BÅDA VÄGARNA IN ÄR SATTA",
-    [STR_GD_DONE_B] = "draget är ingen nyckel: den riktiga plånboken frågar fortfarande efter lösenfrasen.\n\ndu kan ändra detta senare under INSTÄLLNINGAR i din riktiga plånbok.",
+    [STR_GD_DONE_B] = "draget är ingen nyckel: den riktiga plånboken frågar fortfarande efter lösenfrasen.",
     [STR_GD_SET_BTN] = "VÄGAR IN",
     [STR_GD_SET_NOTE] = "vilket drag som öppnar vilken plånbok.",
     [STR_GD_OFF] = "INTE SATT",
@@ -10871,6 +10888,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
     [STR_G_FW_FAIL_CARD_B] = "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
+    [STR_H_WAYS_IN_HINT] = "ett streck efter ordet ber om lösenfrasen",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -11358,7 +11376,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "der blev ikke gemt noget.\n\nprøv stregen igen, eller gå\ntilbage og vælg en anden.",
     [STR_GD_SKIP] = "IKKE NU",
     [STR_GD_DONE_T] = "BEGGE VEJE IND ER SAT",
-    [STR_GD_DONE_B] = "stregen er ingen nøgle: den rigtige tegnebog spørger stadig om din adgangsfrase.\n\ndu kan ændre det senere under INDSTILLINGER i din rigtige tegnebog.",
+    [STR_GD_DONE_B] = "stregen er ingen nøgle: den rigtige tegnebog spørger stadig om din adgangsfrase.",
     [STR_GD_SET_BTN] = "VEJE IND",
     [STR_GD_SET_NOTE] = "hvilket streg der åbner hvilken tegnebog.",
     [STR_GD_OFF] = "IKKE SAT",
@@ -11475,6 +11493,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
     [STR_G_FW_FAIL_CARD_B] = "kortet holdt op med at svare undervejs.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
     [STR_G_FW_FAIL_WRITE_B] = "skrivningen blev ikke færdig.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
+    [STR_H_WAYS_IN_HINT] = "en streg efter ordet beder om adgangsfrasen",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -11962,7 +11981,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "nic se neuložilo.\n\nzkuste tah znovu, nebo se vraťte\na vyberte jiný.",
     [STR_GD_SKIP] = "TEĎ NE",
     [STR_GD_DONE_T] = "OBĚ CESTY JSOU NASTAVENÉ",
-    [STR_GD_DONE_B] = "tah není klíč: skutečná peněženka se stále ptá na přístupovou frázi.\n\nzměnit to jde později v NASTAVENÍ uvnitř skutečné peněženky.",
+    [STR_GD_DONE_B] = "tah není klíč: skutečná peněženka se stále ptá na přístupovou frázi.",
     [STR_GD_SET_BTN] = "CESTY DOVNITŘ",
     [STR_GD_SET_NOTE] = "který tah otevře kterou peněženku.",
     [STR_GD_OFF] = "NENASTAVENO",
@@ -12079,6 +12098,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
     [STR_G_FW_FAIL_CARD_B] = "karta v půlce přestala odpovídat.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
     [STR_G_FW_FAIL_WRITE_B] = "zápis se nedokončil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
+    [STR_H_WAYS_IN_HINT] = "tah po slovu vyžádá přístupovou frázi",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -12566,7 +12586,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_GD_DRAW_BAD_B] = "ništa nije spremljeno.\n\npokušajte potez ponovno ili se\nvratite i odaberite drugi.",
     [STR_GD_SKIP] = "NE SADA",
     [STR_GD_DONE_T] = "OBA ULAZA SU POSTAVLJENA",
-    [STR_GD_DONE_B] = "potez nije ključ: pravi novčanik i dalje pita za kodnu frazu.\n\nto možete kasnije promijeniti u POSTAVKAMA pravog novčanika.",
+    [STR_GD_DONE_B] = "potez nije ključ: pravi novčanik i dalje pita za kodnu frazu.",
     [STR_GD_SET_BTN] = "ULAZI",
     [STR_GD_SET_NOTE] = "koji potez otvara koji novčanik.",
     [STR_GD_OFF] = "NIJE POSTAVLJENO",
@@ -12683,6 +12703,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_G_FW_FAIL_SIG_B] = "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
     [STR_G_FW_FAIL_CARD_B] = "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
     [STR_G_FW_FAIL_WRITE_B] = "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
+    [STR_H_WAYS_IN_HINT] = "potez nakon riječi traži kodnu frazu",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

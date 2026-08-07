@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_CARD_B": "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_WRITE_B": "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "ett streck efter ordet ber om lösenfrasen"
 }

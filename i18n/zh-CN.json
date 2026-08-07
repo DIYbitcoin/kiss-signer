@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "签名不对。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_CARD_B": "卡在中间停止回应。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_WRITE_B": "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "再画一笔，进入密码短语"
 }

@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_CARD_B": "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_WRITE_B": "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "kreska po słowie prosi o frazę dostępu"
 }
