@@ -15,9 +15,13 @@ answer must not add machine randomness to the seed.
 - Both 12 and 24 word seeds (11 + 1 and 23 + 1).
 - The device computes ALL checksum valid last words (128 for 12, 8 for 24)
   and the owner picks one. No TRNG bits enter the seed.
-- A full page checksum explainer sits between word entry and the picker:
-  marks before words (✓ / ✗ diagram rows), one concrete number
-  ("8 of 2048 words fit yours"), two why blocks.
+- A full page checksum explainer sits between word entry and the picker: two
+  diagram rows, one concrete number ("8 of 2048 words fit yours"), two why
+  blocks. The rows are the owner's own first word beside its wordlist number,
+  then `11 + ✓1 → ✓`. An early draft mirrored that second row into a ✗ twin
+  instead of showing the number; it was cut because the WARN why block directly
+  below already told the wrong-word story in full, while nothing anywhere told
+  the owner that a word IS a number, which is the premise the page rests on.
 
 ## Shape
 
