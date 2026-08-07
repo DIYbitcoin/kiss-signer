@@ -144,12 +144,24 @@ NAME="kiss-signer-${VERSION}.bin"
 OUT="docs/installer"
 mkdir -p "$OUT/firmware"
 
-# 2. merge bootloader + partition table + app into one offset-0 image
+# 2. merge every part of the build into one offset-0 image.
+# The offsets come out of the build, never out of this file. They used to be
+# typed here, and enabling rollback added an ota_data partition at 0x10000 and
+# moved the app to 0x20000: a merge still writing the app at 0x10000 would lay
+# it over the slot the bootloader reads to choose which app to run, and publish
+# that as the one click install. manifest.json flashes this merged image at
+# offset 0, so whatever is wrong here is wrong for every web installer user.
+MERGE_PARTS=$("$PY" - <<'PY'
+import json
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+for off, f in sorted(d.items(), key=lambda kv: int(kv[0], 16)):
+    print(off, "build-release/" + f)
+PY
+)
+# Unquoted on purpose: each offset and path has to arrive as its own argument.
 "$PY" -m esptool --chip esp32p4 merge-bin -o "$OUT/firmware/$NAME" \
   --flash-mode dio --flash-freq 80m --flash-size 16MB \
-  0x2000  build-release/bootloader/bootloader.bin \
-  0x8000  build-release/partition_table/partition-table.bin \
-  0x10000 build-release/guition_kiss_bringup.bin
+  $MERGE_PARTS
 
 # drop stale firmware images so the served folder only holds this release
 find "$OUT/firmware" -name 'kiss-signer-*.bin*' ! -name "$NAME*" -delete
@@ -237,10 +249,20 @@ def sha(p):
     return hashlib.sha256(open(p, "rb").read()).hexdigest()
 
 full = f"{out}/firmware/{name}"
+
+# Same source as the merge above: what release.json tells a verifier the image
+# is made of has to be what the image is actually made of, and a hand written
+# list here drifts the moment the partition layout does.
+LABELS = {
+    "bootloader.bin":       "bootloader",
+    "partition-table.bin":  "partition table",
+    "ota_data_initial.bin": "ota data",
+}
 parts = [
-    ("bootloader",      "build-release/bootloader/bootloader.bin",            0x2000),
-    ("partition table", "build-release/partition_table/partition-table.bin",  0x8000),
-    ("application",     "build-release/guition_kiss_bringup.bin",             0x10000),
+    (LABELS.get(f.rsplit("/", 1)[-1], "application"), "build-release/" + f, int(off, 16))
+    for off, f in sorted(
+        json.load(open("build-release/flasher_args.json"))["flash_files"].items(),
+        key=lambda kv: int(kv[0], 16))
 ]
 
 
