@@ -26,6 +26,11 @@ wording of the warning are theirs.
 
 ### Changed
 
+- **A firmware update that does not start is no longer the end of the device.**
+  The bootloader now keeps the version you were running and returns to it if the
+  new one never comes up. Nothing stops you installing an older build on
+  purpose: this is a way back, not a lock.
+
 - **Words you drew yourself are now checked before they become a wallet.** MY
   OWN WORDS lets you draw BIP39 words off paper cards and type them in, and
   until now the device accepted whatever you typed. Type the same word eleven
