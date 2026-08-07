@@ -50,6 +50,24 @@ int  platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
 // unsigned files than the list window holds, the signed ones are not in it.
 int  platform_sd_list_signed(char names[][SD_NAME_LEN], int max, int *total);
 
+// Firmware images, A-Z, same dotfile and window rules as list_psbt. The suffix
+// is the ONLY thing checked here: a name carries no authority, so the gate on a
+// firmware image is its header and its signature, not what it is called.
+int  platform_sd_list_firmware(char names[][SD_NAME_LEN], int max, int *total);
+
+// Streaming read, because a firmware image is megabytes and platform_sd_read
+// wants the whole file in a caller buffer. Open reports the size up front so a
+// caller can refuse an image too big for the slot before reading a byte of it.
+//
+// read_chunk returns 0 and sets *got, with *got == 0 meaning end of file. A
+// short read is NOT an error: FAT over SDMMC returns what it has. Anything that
+// is a real failure -- the card pulled mid read is the one that matters --
+// comes back < 0, and the caller must treat a partial image as no image.
+typedef struct platform_sd_file platform_sd_file;
+platform_sd_file *platform_sd_open(const char *name, size_t *len);
+int  platform_sd_read_chunk(platform_sd_file *f, uint8_t *buf, size_t max, size_t *got);
+void platform_sd_close(platform_sd_file *f);
+
 // Secret-bearing callers use the atomic form. It writes and verifies a sibling
 // temporary file before switching names, keeping the previous file recoverable
 // until the replacement is durable. delete also removes interrupted-write
