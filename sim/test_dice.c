@@ -176,8 +176,17 @@ static int test_dice_q(void)
         }
         printf("  fp sweep: %d flagged of 40000, worst 50-roll face margin %d milli-bits\n",
                bad, (int)worst);
-        ok("honest rolls: under 1 in 1000 flagged", bad * 1000 <= 40000);
+        // Zero, not a loose bound. A flag used to cost one tap on USE ANYWAY
+        // and now costs the session, so "under 1 in 1000" no longer describes
+        // what is being promised. The measured value has always been 0.
+        ok("honest rolls: none flagged", bad == 0);
     }
+
+    // ---- what a block is, in one place ----
+    ok("blocked: UNEVEN refuses",  wallet_dice_blocked(WD_Q_UNEVEN) == 1);
+    ok("blocked: PATTERN refuses", wallet_dice_blocked(WD_Q_PATTERN) == 1);
+    ok("blocked: OK does not",     wallet_dice_blocked(WD_Q_OK) == 0);
+    ok("blocked: SHORT does not",  wallet_dice_blocked(WD_Q_SHORT) == 0);
 
     // ---- reproducibility ----
     judge_str("32242143134455423244323113221421221154241112323431", 16, &q);

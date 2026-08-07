@@ -94,11 +94,21 @@ static void persistent_wipe(void)
 
 #endif
 
+// Same reasoning as wallet_usage.c's may_persist, and the same read/write pair:
+// the key carries the master fingerprint, so a plaintext record names which
+// wallet was backed up. That needs encrypted flash under it, not just a non
+// AMNESIC mode. Below the bar the flag is session scoped, exactly as AMNESIC
+// already is, so the SETTINGS row still answers correctly for this session.
+static bool may_persist(void)
+{
+    return wallet_seed_mode() != WSEED_MODE_AMNESIC && wallet_seed_flash_encrypted();
+}
+
 bool wallet_backup_checked(const uint8_t fp[4])
 {
     char key[16];
     backup_key(fp, key);
-    if (wallet_seed_mode() == WSEED_MODE_AMNESIC)
+    if (!may_persist())
         return tab_has(s_session, s_session_n, key);
     return persistent_has(key);
 }
@@ -108,7 +118,7 @@ void wallet_backup_mark(const uint8_t fp[4])
     char key[16];
     backup_key(fp, key);
     tab_add(s_session, &s_session_n, key);
-    if (wallet_seed_mode() != WSEED_MODE_AMNESIC)
+    if (may_persist())
         persistent_add(key);
 }
 

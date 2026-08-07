@@ -107,6 +107,25 @@ int test_lastword(void)
            set_has(cand, n, word_index(last + 1)));
     }
 
+    // ---- the inverse, and the premise its binary search rests on ----
+    // wallet_lastword_index binary searches, which is only correct while the
+    // English list is lexicographic. That is asserted here rather than assumed,
+    // and word_index above stays a linear scan so the two never share a bug.
+    {
+        int round = 0, ascending = 1;
+        for (int i = 0; i < 2048; i++) {
+            const char *c = wallet_lastword_word((uint16_t)i);
+            if (c && wallet_lastword_index(c) == i) round++;
+            if (i && strcmp(c, wallet_lastword_word((uint16_t)(i - 1))) <= 0)
+                ascending = 0;
+        }
+        ok("index: round trips for all 2048 words", round == 2048);
+        ok("index: the list is strictly ascending (the search's premise)", ascending);
+    }
+    ok("index: off list word -> -1", wallet_lastword_index("zzzz") == -1);
+    ok("index: NULL -> -1", wallet_lastword_index(NULL) == -1);
+    ok("index: empty -> -1", wallet_lastword_index("") == -1);
+
     // ---- rejections ----
     ok("NULL -> -1", wallet_lastword_candidates(NULL, cand) == -1);
     abandon_str(prefix, sizeof prefix, 10);

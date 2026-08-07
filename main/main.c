@@ -37,6 +37,7 @@
 #include "wallet_sign.h"
 #include "wallet_scan.h"
 #include "wallet_settings.h"
+#include "wallet_fw.h"   // wallet_fw_mark_valid: release the previous slot
 #include "wallet_info.h"
 #include "wallet_setup.h"
 #include "wallet_seed.h"
@@ -1595,10 +1596,15 @@ static void wallet_open_decoy(void) {
 // letters' x-clusters into one blob -- detect_KISS needs >=3 and would reject
 // the very draw the owner meant. So the word is matched against everything
 // BEFORE the final stroke, and the final stroke goes to the classifier alone.
+//
+// This function recognises shapes; it does not decide anything. The decision is
+// wallet_duress_route, which lives in wallet_duress.c because nothing here is
+// linked into a test binary. It used to consult wallet_duress_real() right at
+// the bottom, and that was the leak the audit found: a device with a stroke
+// configured answered a bare word with the decoy, one without answered with a
+// passphrase keyboard, so one gesture separated them.
 static int unlock_kind(void) {
-  const int real = wallet_duress_real();
-
-  if (real != WDG_NONE && s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
+  if (s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
     for (int i = 1; i < s_stroke_n0; i++) {          // bbox of the WORD only
       if (s_gpt[i].x < bx0) bx0 = s_gpt[i].x;
@@ -1611,16 +1617,15 @@ static int unlock_kind(void) {
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
-      if (wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1) == real)
-        return 1;
-      // any other stroke falls through to the plain-word test below, which
-      // lands on the decoy: an unrecognized scribble must never be the thing
-      // that surfaces a passphrase prompt
+      int stroke = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+      if (stroke != WDG_NONE)
+        return wallet_duress_route(true, stroke);
+      // an unrecognized final scribble is not a modifier: fall through to the
+      // plain-word test below, which lands on the decoy. A scribble must never
+      // be the thing that surfaces a passphrase prompt.
     }
   }
-  if (detect_KISS(s_gpt, s_gn, s_strokes))
-    return real == WDG_NONE ? 1 : 0;   // never configured: word -> passphrase, as before
-  return -1;
+  return wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
@@ -1971,7 +1976,7 @@ static void game_tick(lv_timer_t *t) {
                 s_kiss_pending = false;
                 s_gn = 0; s_strokes = 0;
               }
-              else if (kind == 1) {          // the owner's stroke, or no stroke set
+              else if (kind == 1) {          // a modifier stroke: ask for the passphrase
                 s_kiss_pending = false;
                 s_real_pending = true;       // same beat as the decoy: see KISS_OPEN_DELAY_MS
                 s_real_at = lv_tick_get();
@@ -2325,6 +2330,29 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // stays the quiet thing it is meant to be.
   s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
 
+  // The other way in, stated where every owner can read it.
+  //
+  // It exists because unlock routing is now uniform: a word alone opens this
+  // wallet on EVERY device, so an owner who never configured a stroke would
+  // otherwise land here, see a wallet that is not theirs, and conclude the
+  // device lost it. There is deliberately no error to show them, so the way on
+  // has to be written where they will already be standing.
+  //
+  // Shown in every session, decoy included, and that is what makes it safe: a
+  // line that appeared only for some owners would be the tell this whole change
+  // removes. It describes the product, not this device, and is equally true on
+  // one that has never been configured and one whose owner has no passphrase.
+  //
+  // ABOVE the build id rather than beside it: that row is two measured labels
+  // (version, then encryption at x + width(version) + gap), so its right edge
+  // follows the version string, and a neighbour pinned at a constant x would
+  // collide the first time the version grew.
+  // y=372, not 396. At 396 an 18px line ran to 414: seventeen past
+  // WT_CONTENT_BOTTOM (398), and straight into the theme label that starts at
+  // 406. The chrome below that floor -- theme, build id -- is exempt from the
+  // rule by being chrome. A content line is not, and this is one.
+  wt_note(s_wallet, tr(STR_H_WAYS_IN_HINT), 48, 372, 704, 22);
+
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
   for (int i = 0; i < 4; i++) {
@@ -2441,6 +2469,19 @@ void app_main(void) {
   wallet_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+
+  // Release the slot that was running before an SD update, now that this
+  // firmware has proved the parts a bad image would take out: the crypto
+  // selftest above, the display, the touch panel and a built screen. Anything
+  // that reboots before this line -- a crash, the watchdog, a hand on the
+  // power -- hands the device back to the firmware that was working.
+  //
+  // Here rather than at unlock, on purpose. Waiting for the owner to type a
+  // passphrase would silently revert a good update if they set the device down
+  // first, and a wallet that unlocks is not the bar: a device that boots and
+  // draws is.
+  wallet_fw_mark_valid();
+
   while (1) {           // single-threaded LVGL loop (we own the display + flush)
     uint32_t next = lv_timer_handler();
     if (next > 20) next = 20;

@@ -2,6 +2,13 @@
 
 Date: 2026-08-04. Status: approved.
 
+> **Superseded on the copy, not the design (2026-08-07).** Everything below
+> still describes what shipped. The owner-facing wording does not: this document
+> calls the cut up wordlist "cards" and the mode's copy followed it, which was
+> read as a deck of *playing* cards twice by the person who approved this spec.
+> The screens now talk about the word list throughout, and a "?" on the intro
+> explains it. The C identifiers still say `cards`.
+
 ## Problem
 
 The DIY paper seed: the owner cuts the BIP39 list into cards, shuffles, draws

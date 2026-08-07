@@ -13,7 +13,12 @@
 #include "wallet_crypto.h"
 #include "wallet_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
+#include "verify_page.h"    // ...and the real checker page beside it
+#include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
+#include "wallet_fw.h"          // the SD firmware seams: no flash here, no key
+#include "wallet_fw_ui.h"       // its screens, opened directly like the above
+#include "wallet_duress.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
@@ -131,10 +136,13 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
 }
-// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no crypto).
-// The stub writes a SMALL real file through the real platform_sd so the walk's
-// SD gate and the host directory stay honest, fakes the hash, and derives the
-// fixed SIM_WORDS. kisstest runs the real pipeline against a pinned vector.
+// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no wally).
+// The stub writes a SMALL real file AND the real checker page through the real
+// platform_sd so the walk's SD gate and the host directory stay honest, and
+// hashes the junk with cUR's already-linked SHA256 -- still deterministic, but
+// now dropping /tmp/simsd/kiss-proof.bin on the page (or scanning the sim's
+// QR) shows MATCH instead of a confusing MISMATCH. Words stay the fixed
+// SIM_WORDS; kisstest runs the real pipeline against a pinned vector.
 int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
                      char *words_out, size_t words_len) {
   (void)frame; (void)len;
@@ -143,7 +151,23 @@ int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
   if (platform_sd_mount() != 0 ||
       platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0)
     return WPROOF_ERR_SD;
-  for (int i = 0; i < 32; i++) hash_out[i] = (uint8_t)(i * 5 + 1);
+  CRYAL_SHA256_CTX cx;
+  ur_bundled_sha256_init(&cx);
+  ur_bundled_sha256_update(&cx, junk, sizeof junk);
+  ur_bundled_sha256_final(&cx, hash_out);
+  // Same shape the device writes: the page with this run's hash over the claim
+  // slot, so the sim's card really does self verify when opened in a browser.
+  char hex[65];
+  for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", hash_out[i]);
+  uint8_t *page = malloc(verify_page_html_len);
+  if (!page) return WPROOF_ERR_SD;
+  memcpy(page, verify_page_html, verify_page_html_len);
+  uint8_t *slot = memmem(page, verify_page_html_len, WPROOF_CLAIM_SLOT, 64);
+  if (slot) memcpy(slot, hex, 64);
+  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, page,
+                                     verify_page_html_len);
+  free(page);
+  if (prc < 0) return WPROOF_ERR_SD;
   return wallet_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
 // Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
@@ -221,6 +245,17 @@ int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
 const char *wallet_lastword_word(uint16_t i) {
   return i < 2048 ? SIM_WORDS[i % 24] : NULL;
 }
+// The walk's 24 fake words stand in for the 2048 word list, so their INDICES
+// have to spread the way real ones do: 83 apart is far wider than WC_NEAR, so
+// an ordinary typed set judges clean and the flagged shapes stay exactly where
+// the walk puts them on purpose. index() and word() are deliberately NOT
+// inverses here -- nothing in the flow round trips them, the judge only reads
+// index() and the picker only reads word() -- and kisstest owns the real pair.
+int wallet_lastword_index(const char *w) {
+  for (int i = 0; i < 24; i++)
+    if (strcmp(SIM_WORDS[i], w) == 0) return i * 83;
+  return -1;
+}
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
@@ -249,7 +284,27 @@ int wallet_seed_set_mode(int m) {
 // The desktop store is a plain file, so at-rest encryption is off: the FLASH
 // note reads as the unencrypted (steering) copy in the sim, matching a normal
 // beta device.
+//
+// The screen-walk sim always runs the beta lane. The settable version of this
+// lives in main/wallet_seed.c, which is what the unit test binary links.
 int wallet_seed_flash_encrypted(void) { return 0; }
+
+// The screen walk creates seeds through the same funnel the device uses, so it
+// reaches the entropy note. RAM here: the walk is one process and there is no
+// boot for it to survive.
+// SIM_ENT_NOTE=1 starts the walk with a flagged seed, which is the only way the
+// overlap gate ever renders the second chip on the recovery words page. Without
+// it the walk creates clean seeds and the widest version of that chip line --
+// two self sizing chips beside each other, in 21 locales -- is never measured.
+static int s_sim_ent_note = -1;
+void wallet_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
+int wallet_seed_entropy_note(void) {
+  if (s_sim_ent_note < 0) {
+    const char *e = getenv("SIM_ENT_NOTE");
+    s_sim_ent_note = (e && *e && *e != '0') ? 2 /* WD_Q_UNEVEN */ : 0;
+  }
+  return s_sim_ent_note;
+}
 int wallet_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
@@ -1505,6 +1560,12 @@ int main(void) {
   touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
   touch(590, 430); pump(3); release(); pump(6);     // DONE -> entropy screen
+  // ...and again through the action row's own AUDIT pill, the route that does
+  // not require doubting the camera first. Straight back out: the screens it
+  // reaches are the ones already walked above.
+  touch(480, 430); pump(3); release(); pump(6);     // AUDIT pill -> capture
+  save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
+  touch(680, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
 
   // The CARDS detour (MY OWN WORDS): both lengths, to the picker and back out.
@@ -1517,10 +1578,22 @@ int main(void) {
   save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
+  // The "?" in the equation card's corner: card at x=48,y=128 plus (704-44,12)
+  // puts the 30px chip at 708,140, so its centre is 723,155. 40 = the staggered
+  // card intro fully settled, same as the dice and entropy explainer stops.
+  touch(723, 155); pump(3); release(); pump(40);
+  save("/tmp/sim_setup_cards_why.ppm");             // THE 2048 WORD LIST, icon grid
+  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
-  for (int i = 0; i < 11; i++) restore_word("a");   // 11 x first suggestion
-  save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK
+  // Eleven DISTINCT, non monotone words. The cards judge links real, so the old
+  // "a" eleven times is now the block screen -- see CARDS_BLOCK below, where
+  // that shape is typed on purpose. Under the index stub these sit 83 or more
+  // apart, far outside WC_NEAR, so an ordinary draw judges clean.
+  static const char *CARDS_OK11[11] = {
+      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy" };
+  for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
+  save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
   touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
   touch(590, 430); pump(3); release(); pump(4);     // NEXT -> page 2
@@ -1537,12 +1610,55 @@ int main(void) {
   touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
   touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
-  for (int i = 0; i < 23; i++) restore_word("a");   // 23 x first suggestion
+  static const char *CARDS_OK23[23] = {
+      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m", "fil",
+      "fol", "st", "fea", "stab", "na", "fen", "ab", "abi", "abl", "abo" };
+  for (int i = 0; i < 23; i++) restore_word(CARDS_OK23[i]);
   touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick24.ppm");          // 8 pills, no pager
   touch(128, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards cancel (24) left storage mode staged\n");
+    return 1;
+  }
+
+  // The refused draw. The judge links REAL here, so typing one word eleven
+  // times IS the block, rendered rather than described -- the same argument the
+  // dice ramp below makes, and the only way any gate ever sees this screen.
+  // Two pill row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
+  save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 pills
+  touch(587, 431); pump(3); release(); pump(4);     // START OVER -> empty keyboard
+  save("/tmp/sim_setup_cards_retype.ppm");          // "1/11 _": the draw really is gone
+  for (int i = 0; i < 11; i++) restore_word("g");   // back to the block
+  touch(213, 431); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards block cancel left storage mode staged\n");
+    return 1;
+  }
+
+  // The warned draw, and the chip that has to survive USE ANYWAY. Ascending
+  // index order gives sorted = +1 with no near pairs, so the verdict is SORTED
+  // and the chip reads IN ORDER.
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  static const char *CARDS_SORTED11[11] = {
+      "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
+  for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
+  save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
+  touch(213, 431); pump(3); release(); pump(4);     // USE ANYWAY -> the checksum card
+  save("/tmp/sim_setup_cards_cksum_warn.ppm");      // the amber IN ORDER chip, kept
+  touch(680, 430); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
   }
 
@@ -1566,8 +1682,13 @@ int main(void) {
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
   touch(430, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
-  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 3 pills
-  touch(394, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
+  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
+  // ROLL MORE is the way through a refusal, and it keeps every banked roll --
+  // the whole argument for DICE_MAX = 180, which no gate rendered until now.
+  touch(587, 431); pump(3); release(); pump(4);     // ROLL MORE -> the keypad
+  save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
+  touch(430, 425); pump(3); release(); pump(6);     // DONE -> refused again
+  touch(213, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
   // The healthy run: a fixed string that reads as rolled, checked in and
   // asserted OK by kisstest. face bits 128.62 (floor 102.50), step bits 126.61
   // (floor 100.45), counts 10/7/9/9/7/8, no repeating block.
@@ -1872,6 +1993,83 @@ int main(void) {
   wallet_duress_ui_open_nopass(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
+
+  // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
+  // Settings on a wallet that already has a stroke, this screen grows a THIRD
+  // pill -- TURN THIS OFF, the only way back to plain behaviour -- and the
+  // setup walk can never show it, because during setup there is nothing to
+  // turn off yet. That is the whole reason the row overlapped by 8px for as
+  // long as it did: no stop had ever contained all three pills at once.
+  //
+  // A leaf, like the nopass stop above it: opened directly, nothing after it.
+  (void)wallet_duress_set(WDG_UNDERLINE);
+  wallet_duress_ui_open(lv_screen_active(), NULL);
+  pump(40);
+  save("/tmp/sim_duress_intro_set.ppm");            // three pills, one TALL row
+
+  // ---- firmware from the SD card -------------------------------------------
+  // Leaves, opened directly, for the reason the duress stops above are: the
+  // route in is a pill in the Settings action bar and every screen past the
+  // first needs state a desktop build does not have.
+  //
+  // Without wallet_fw_test_* the sim can only ever reach "cannot be checked":
+  // there is no flash and no signing key here, so the value card, the four
+  // fact rows, the hold and the writing screen would be shapes no gate had
+  // ever measured, in any locale. That is exactly the hole BARE and WALL exist
+  // to catch, so the seam is what makes their verdict on these screens mean
+  // anything.
+  {
+    // A real app descriptor: 0xE9 image magic, then ABCD5432 at offset 32 with
+    // a version far ahead of any VERSION file, so the scan reads it as newer.
+    unsigned char img[512];
+    memset(img, 0, sizeof img);
+    img[0] = 0xE9;
+    img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
+    memcpy(img + 32 + 16, "99.0.0", 6);
+    memcpy(img + 32 + 48, "kiss", 4);
+    FILE *fw = fopen("/tmp/simsd/kiss-signer-99.0.0.bin", "wb");
+    if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
+  }
+
+  // 1. the state a build without the release key reaches: two blocks, no rows.
+  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_unsigned.ppm");                 // cannot be checked + where it goes
+
+  // 2. the ordinary one: version card, four marked rows, INSTALL primary.
+  wallet_fw_test_set_available(WFW_OK);
+  wallet_fw_test_set_install(WFW_OK, 4);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
+
+  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
+
+  // The hold is 1500ms and pump is 16ms a frame, so 100 frames clears it with
+  // room to spare. Landing on the writing screen and then the result in one
+  // go is correct: the install runs inside the hold's completion.
+  touch(213, 431); pump(100); release(); pump(20);
+  save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
+
+  // 3. the refusal that matters most, on the same route: a signature that did
+  // not check out has to read as "nothing was written", not as a vague error.
+  wallet_fw_test_set_install(WFW_ERR_REJECTED, 2);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  touch(213, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
+  save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
+
+  // 4. no card at all: the same two block shape, different left hand claim.
+  unlink("/tmp/simsd/kiss-signer-99.0.0.bin");
+  platform_sd_test_set_present(0);
+  wallet_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_nocard.ppm");
+  platform_sd_test_set_present(1);
+  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an

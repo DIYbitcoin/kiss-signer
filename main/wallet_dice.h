@@ -79,3 +79,10 @@ int32_t wallet_dice_bits(const unsigned counts[6]);
 // globals, no clock, no crypto. Fills every field of `out`.
 void    wallet_dice_judge(const char *digits, unsigned n, unsigned len,
                           wallet_dice_q_t *out);
+
+// 1 when the verdict refuses. Both flagged verdicts refuse: a run this judge
+// does not believe was rolled does not become a seed, and ROLL MORE is the way
+// through — it keeps every roll already banked, which is what DICE_MAX = 180 is
+// for. Named rather than spelled out at each call site so DONE, the tests and
+// any future caller cannot drift apart about what a block is.
+int     wallet_dice_blocked(int verdict);

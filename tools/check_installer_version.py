@@ -107,6 +107,52 @@ def main() -> int:
                 f"which does not start with {version!r}"
             )
 
+        # Shape, not just version. esp-web-tools flashes EVERY part of the
+        # matching build at its own offset, and manifest.json is not covered by
+        # SHA256SUMS, so an appended part is arbitrary bytes at an arbitrary
+        # offset that the signature still calls good. docs/app.js refuses this
+        # at flash time; this refuses it at review time, where a JSON hunk with
+        # no hash in it is easy to wave through.
+        builds = manifest.get("builds")
+        if not isinstance(builds, list) or len(builds) != 1:
+            problems.append(
+                f"manifest.json declares {len(builds) if isinstance(builds, list) else 'no'} "
+                "builds, expected exactly 1"
+            )
+        else:
+            parts = builds[0].get("parts")
+            if not isinstance(parts, list) or len(parts) != 1:
+                problems.append(
+                    f"manifest.json declares {len(parts) if isinstance(parts, list) else 'no'} "
+                    "flash parts, expected exactly 1"
+                )
+            elif not isinstance(parts[0].get("path"), str) or "//" in parts[0]["path"]:
+                problems.append(
+                    f"manifest.json part path {parts[0].get('path')!r} is not a "
+                    "relative path inside docs/installer"
+                )
+
+    # docs/verify-release.html bakes the expected hash, size and filename so it
+    # works over file:// from the offline bundle with no network. A baked value
+    # that drifts is worse than no page at all: it tells someone their genuine
+    # download is corrupt, or worse, stays green for the previous release.
+    verify_page = ROOT / "docs" / "verify-release.html"
+    if verify_page.is_file():
+        text = verify_page.read_text()
+        rel = json.loads((INSTALLER / "release.json").read_text())["browserFirmware"]
+        for var, value in (
+            ("EXPECT", f'"{rel["sha256"]}"'),
+            ("EXPECT_SIZE", str(rel["size"])),
+            ("EXPECT_NAME", f'"{pathlib.PurePosixPath(rel["path"]).name}"'),
+        ):
+            if f"var {var} = {value};" not in text:
+                problems.append(
+                    f"docs/verify-release.html {var} does not match release.json "
+                    f"({value})"
+                )
+        if version not in text:
+            problems.append(f"docs/verify-release.html does not name {version!r}")
+
     # The README badge is the fourth copy, and the only one a reader sees before
     # they download anything.
     if BADGE.is_file():
