@@ -129,6 +129,19 @@ int wallet_duress_label_key(int gesture)
     }
 }
 
+// ---- unlock routing ------------------------------------------------------
+// See wallet_duress.h for why this ignores the configured stroke, and why it
+// lives here rather than beside the gesture plumbing in main.c.
+//
+// Outside the ESP_PLATFORM split below on purpose: there is one rule, and the
+// device and the host must not be able to drift apart on it.
+int wallet_duress_route(bool word_ok, int stroke)
+{
+    if (!word_ok)
+        return WDR_NONE;
+    return (stroke > WDG_NONE && stroke < WDG_N) ? WDR_REAL : WDR_DECOY;
+}
+
 // ---- configuration -------------------------------------------------------
 
 static int valid_gesture(int g)
