@@ -2330,6 +2330,29 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // stays the quiet thing it is meant to be.
   s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
 
+  // The other way in, stated where every owner can read it.
+  //
+  // It exists because unlock routing is now uniform: a word alone opens this
+  // wallet on EVERY device, so an owner who never configured a stroke would
+  // otherwise land here, see a wallet that is not theirs, and conclude the
+  // device lost it. There is deliberately no error to show them, so the way on
+  // has to be written where they will already be standing.
+  //
+  // Shown in every session, decoy included, and that is what makes it safe: a
+  // line that appeared only for some owners would be the tell this whole change
+  // removes. It describes the product, not this device, and is equally true on
+  // one that has never been configured and one whose owner has no passphrase.
+  //
+  // ABOVE the build id rather than beside it: that row is two measured labels
+  // (version, then encryption at x + width(version) + gap), so its right edge
+  // follows the version string, and a neighbour pinned at a constant x would
+  // collide the first time the version grew.
+  // y=372, not 396. At 396 an 18px line ran to 414: seventeen past
+  // WT_CONTENT_BOTTOM (398), and straight into the theme label that starts at
+  // 406. The chrome below that floor -- theme, build id -- is exempt from the
+  // rule by being chrome. A content line is not, and this is one.
+  wt_note(s_wallet, tr(STR_H_WAYS_IN_HINT), 48, 372, 704, 22);
+
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
   for (int i = 0; i < 4; i++) {
