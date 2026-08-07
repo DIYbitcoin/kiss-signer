@@ -164,6 +164,11 @@ int wallet_fw_available(void)
     return WFW_OK;
 #elif defined(ESP_PLATFORM) && defined(CONFIG_SECURE_BOOT)
     return WFW_OK;
+#elif defined(ESP_PLATFORM)
+    // An unsigned dev build. The paragraph above is the whole answer, and until
+    // now this arm fell through to a seam that only exists off device, so the
+    // build the sdkconfig in this repo produces did not compile at all.
+    return WFW_ERR_UNSIGNED;
 #else
     return s_test_avail;
 #endif
@@ -212,7 +217,12 @@ int wallet_fw_scan(wfw_image_t *out)
         if (wallet_fw_desc_parse(hdr, got, ver, sizeof ver, proj, sizeof proj) != 0)
             continue;
 
-        snprintf(out->name, sizeof out->name, "%s", names[i]);
+        // A card can carry a name far longer than the row that shows it, and
+        // cutting it is the right answer: the descriptor already decided this
+        // is the image. The precision says that out loud, because the device
+        // compiler treats a bare %s that might not fit as an error.
+        snprintf(out->name, sizeof out->name, "%.*s",
+                 (int)(sizeof out->name - 1), names[i]);
         snprintf(out->version, sizeof out->version, "%s", ver);
         snprintf(out->project, sizeof out->project, "%s", proj);
         out->size = len;
