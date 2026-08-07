@@ -82,6 +82,12 @@ int wallet_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud);
 // call when the running slot was never on trial.
 void wallet_fw_mark_valid(void);
 
-// True on the first boot after an update, once, so the home screen can say the
-// update took. Clears itself on read.
-int wallet_fw_just_updated(void);
+// Sim only. A desktop build has no flash and no signing key, so every screen
+// past "cannot be checked" is unreachable without this -- and a screen the walk
+// cannot reach is a screen no gate has ever measured, in any locale. Same shape
+// as platform_sd's test hooks, and there for the same reason.
+//
+// set_available forces what wallet_fw_available() answers; set_install forces
+// what wallet_fw_install() returns, after reporting `steps` progress ticks.
+void wallet_fw_test_set_available(int rc);
+void wallet_fw_test_set_install(int rc, int steps);
