@@ -10,6 +10,7 @@
 #include "i18n.h"
 #include "wallet_crypto.h"
 #include "wallet_info.h"
+#include "wallet_fw_ui.h"   // the firmware pill opens it
 #include "wallet_seed.h"
 #include "wallet_setup.h"
 #include "wallet_duress.h"
@@ -289,6 +290,19 @@ static void settings_reopen(void)
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wallet_settings_open(parent);
+}
+
+// The firmware screens own the display while they are up and hand it back the
+// same way the duress screens do, by rebuilding Settings underneath.
+static void fw_open_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    // Same reset settings_reopen does. The row pointers outlive the screen they
+    // point into otherwise, and restyle() walks them.
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_fw_ui_open(parent, settings_reopen);
 }
 
 // ---- wallet storage: explicit current mode + transactional migration ----
