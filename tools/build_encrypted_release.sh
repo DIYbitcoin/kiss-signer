@@ -209,9 +209,33 @@ python3 tools/check_flash_budget.py \
 # hashed here, printed inside the flash recipes below: the flash is one way,
 # so the compare against the reproducible build CI output has to happen with
 # the hash and the command in the same place
-SHA_BOOT=$(shasum -a 256 "$BUILD_DIR/bootloader/bootloader.bin" | cut -d' ' -f1)
-SHA_PT=$(shasum -a 256 "$BUILD_DIR/partition_table/partition-table.bin" | cut -d' ' -f1)
-SHA_APP=$(shasum -a 256 "$BUILD_DIR/guition_kiss_bringup.bin" | cut -d' ' -f1)
+# The write-flash argument list and its hashes, read out of the build rather
+# than typed into the recipes below. They used to be three files named by hand,
+# and enabling rollback added an otadata partition this table already carried a
+# slot for -- so the recipes were about to send someone to erase a board, flash
+# three of the four files it needs, and find out on a chip that has already
+# encrypted itself one way. Whatever the build says it writes is what the
+# recipe says to write.
+FLASH_LINES=$(BUILD_DIR="$BUILD_DIR" python3 - <<'PY'
+import json, os
+b = os.environ["BUILD_DIR"]
+d = json.load(open(f"{b}/flasher_args.json"))["flash_files"]
+items = sorted(d.items(), key=lambda kv: int(kv[0], 16))
+for i, (off, f) in enumerate(items):
+    tail = "" if i == len(items) - 1 else " \\\\"
+    print(f"     {off:<8}{b}/{f}{tail}")
+PY
+)
+SHA_LINES=$(BUILD_DIR="$BUILD_DIR" python3 - <<'PY'
+import hashlib, json, os
+b = os.environ["BUILD_DIR"]
+d = json.load(open(f"{b}/flasher_args.json"))["flash_files"]
+for off, f in sorted(d.items(), key=lambda kv: int(kv[0], 16)):
+    h = hashlib.sha256(open(f"{b}/{f}", "rb").read()).hexdigest()
+    print(f"     {h}  {f.rsplit('/', 1)[-1]}")
+PY
+)
+N_FILES=$(printf '%s\n' "$FLASH_LINES" | wc -l | tr -d ' ')
 
 if [ "$RECIPE" = rehearsal ]; then
 cat <<EOF
@@ -237,14 +261,10 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
 2. flash (same shifted offsets and --no-stub as the release build):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
-     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
-     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
-     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+$FLASH_LINES
 
-   sha256 of those three files (compare with the reproducible build run in CI):
-     $SHA_BOOT  bootloader.bin
-     $SHA_PT  partition-table.bin
-     $SHA_APP  guition_kiss_bringup.bin
+   sha256 of those $N_FILES files (compare with the reproducible build run in CI):
+$SHA_LINES
 
 3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
    create, lock, unlock, sign, wipe. Reflash and repeat as needed.
@@ -284,15 +304,11 @@ encrypted release build OK: $BUILD_DIR/
    --no-stub, which flash-encrypted builds require):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
-     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
-     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
-     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+$FLASH_LINES
 
-   sha256 of those three files. The flash is one way, so hold them against
+   sha256 of those $N_FILES files. The flash is one way, so hold them against
    the reproducible build run in CI BEFORE step 2, not after:
-     $SHA_BOOT  bootloader.bin
-     $SHA_PT  partition-table.bin
-     $SHA_APP  guition_kiss_bringup.bin
+$SHA_LINES
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
    When Settings shows "flash encryption: ENABLED" (calm, not amber),
