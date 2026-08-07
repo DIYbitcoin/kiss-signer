@@ -83,9 +83,12 @@ static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 static char s_prefix[12];       // restore: letters typed for the current word
 static lv_obj_t *s_word_lbl, *s_sug[3];
 
-// cards mode (MY OWN WORDS): 11 or 23 words drawn from paper cards on the
-// restore keyboard, then a last word picked from the checksum valid
-// candidates. No machine randomness enters the seed.
+// cards mode (BLIND DRAW): 11 or 23 words drawn blind from a physical copy of
+// the BIP39 list and typed on the restore keyboard, then a last word picked
+// from the checksum valid candidates. No machine randomness enters the seed.
+// The identifiers still say "cards" because that was the first medium; the
+// copy deliberately does not, since the list can equally be 3D printed as
+// tiles and shaken in a bag.
 static bool s_cards;
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
@@ -1058,8 +1061,9 @@ static lv_obj_t *s_ent_capture;
 static lv_obj_t *s_ent_c1, *s_ent_c2, *s_ent_c3, *s_ent_cr;
 
 // One source card: caption, bit count right aligned, a bar, and a note. Returns
-// the bar so the caller can drive it.
-static lv_obj_t *ent_card(int y, int cap, int note, bool full)
+// the bar so the caller can drive it, and hands back the card itself through
+// out_card for the one caller that has to strike the whole card through.
+static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_card)
 {
     lv_obj_t *card = lv_obj_create(s_scr);
     lv_obj_remove_style_all(card);
@@ -1110,6 +1114,7 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full)
     lv_obj_t *n = wt_lbl(card, tr(note), 14, 52, wt_font14(), MUT_COL);
     lv_obj_set_width(n, ENT_COL_W - 28);
     lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
+    if (out_card) *out_card = card;
     return fill;
 }
 
@@ -1956,9 +1961,11 @@ static void entropy_screen(void)
     lv_label_set_long_mode(s_ent_state, LV_LABEL_LONG_WRAP);
 
     // Right: the two sources, then the equation.
-    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE, false);
+    lv_obj_t *card1 = NULL;
+    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE,
+                          false, &card1);
     s_ent_bar2 = ent_card(ENT_CAM_Y + ENT_CARD_H + 8, STR_W_ENT_SRC2_CAP,
-                          STR_W_ENT_SRC2_NOTE, true);
+                          STR_W_ENT_SRC2_NOTE, true, NULL);
 
     // 1 + 2 + 3 -> 12 WORDS, in a CARD, with the "?" in that card's own top
     // right corner. Both halves of that matter. The chips used to float on the
@@ -1991,7 +1998,7 @@ static void entropy_screen(void)
     // Every chip is built inert and lit by ent_ui_sync, so no state is painted
     // here that the screen has not actually reached.
     s_ent_c1 = wt_chip(row, "1", false);
-    wt_diagram_op(row, "+");
+    lv_obj_t *op1 = wt_diagram_op(row, "+");
     s_ent_c2 = wt_chip(row, "2", false);
     wt_diagram_op(row, "+");
     s_ent_c3 = wt_chip(row, "3", false);
@@ -2003,6 +2010,7 @@ static void entropy_screen(void)
     // it. It sits in the action row instead, between the action and the way
     // out; the overlay keeps its pill, where the doubt is actually named.
 #ifdef SIMULATOR
+    (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
@@ -2027,12 +2035,33 @@ static void entropy_screen(void)
         ent_audit_pill();
         ent_ui_sync(0, camera_entropy_reason());
     } else {
-        // The camera failed. The two cards above still tell the truth about the
-        // chip, so they stay; the preview column carries the error instead.
+        // The camera failed. The preview column carries the error.
         mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
                wt_font23(), STOP_COL);
         mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
                wt_font14(), MUT_COL);
+
+        // And the rest of the screen stops promising a source it will not
+        // deliver. This screen used to leave all of it standing: SOURCE 1 still
+        // offering "leaves, gravel, a shuffled deck" over a bar that could
+        // never fill, the equation still reading 1 + 2 + 3, and -- worst of the
+        // three -- the readiness line still telling the owner to point at
+        // something busier, directly under the words CAMERA UNAVAILABLE. An
+        // owner who had just been shown WHY THREE SOURCES was left to work out
+        // on their own that they were down to two.
+        //
+        // Said with marks rather than a sentence, which is also what keeps it
+        // free: striking the card and dropping the chip needs no new string, so
+        // no locale gains a glyph over it. The equation reads 2 + 3 -> 12 WORDS,
+        // which is the whole message and is already the screen's own idiom.
+        if (card1) lv_obj_set_style_opa(card1, LV_OPA_40, 0);
+        if (s_ent_c1) { lv_obj_delete(s_ent_c1); s_ent_c1 = NULL; }
+        if (op1) lv_obj_delete(op1);
+        // Readiness belongs to a meter that will never move. The dot and its
+        // line go together: half of a cue is a rendering fault, not a cue.
+        if (s_ent_state) { lv_obj_delete(s_ent_state); s_ent_state = NULL; }
+        if (s_ent_dot)   { lv_obj_delete(s_ent_dot);   s_ent_dot   = NULL; }
+
         // A dead camera must not be a dead device: sources 2 and 3 are still
         // there, so the seed loses a source rather than the device losing its
         // only path to a wallet. CAPTURE goes straight to the taps.
@@ -2151,9 +2180,10 @@ static void restore_screen(void)
     restore_refresh();
 }
 
-// ---- cards (MY OWN WORDS): the owner's words, the device's checksum ----
+// ---- cards (BLIND DRAW): the owner's words, the device's checksum ----
 // The creation mode with no machine randomness in the seed: 11 or 23 words
-// drawn from paper cards, typed on the restore keyboard above, then a last
+// drawn blind from a physical BIP39 list, typed on the restore keyboard
+// above, then a last
 // word picked from the checksum valid candidates. The picked word joins s_w
 // and the flow rejoins words_screen -> quiz -> store like every other mode.
 // See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
