@@ -16,6 +16,23 @@ CONFIG_LV_MEM_SIZE_KILOBYTES=128
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
+# --- SD firmware update ---
+# Rollback is what makes writing firmware on a signer survivable. The freshly
+# written slot boots PENDING_VERIFY; main.c calls
+# esp_ota_mark_app_valid_cancel_rollback() once the home screen is up, and any
+# path that reboots before that -- a crash, a hang the watchdog kills, a power
+# cut -- hands the device back to the slot that was working. Needs no key and
+# costs nothing, so it is on in every lane including dev builds.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# The image being installed is verified against the running app's own signature
+# block before esp_ota_end will accept it. That verification is deliberately NOT
+# turned on here: CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT requires a signing
+# key at build time, and putting it in the defaults means a plain `idf.py build`
+# fails on any machine that does not hold the release private key. It belongs to
+# the release lane, where the key exists -- see docs/installer/SIGNING.md. A
+# build without it still runs the update flow, and wallet_fw_available() refuses
+# to install, saying so on screen, rather than accepting an unsigned image.
+
 # --- camera (step 2 spike): OV02C10 over MIPI-CSI (the sensor Guition actually
 # ships on this board's ribbon; SCCB addr 0x36 on the shared touch I2C bus),
 # RAW10 1920x1080 2-lane, ISP -> RGB565 ---

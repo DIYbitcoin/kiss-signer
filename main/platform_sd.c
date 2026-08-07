@@ -265,9 +265,98 @@ int platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total)
     return n;
 }
 
+int platform_sd_list_firmware(char names[][SD_NAME_LEN], int max, int *total)
+{
+    DIR *d = opendir(SD_BASE);
+    if (!d)
+        return -1;
+    int n = 0, all = 0;
+    struct dirent *e;
+    // Same insertion sort over the WHOLE directory as list_psbt, for the same
+    // reason: stopping at max would cap the list in FAT creation order, so which
+    // image a full card offered would have nothing to do with the one on screen.
+    while ((e = readdir(d)) != NULL) {
+        const char *nm = e->d_name;
+        size_t l = strlen(nm);
+        if (nm[0] == '.')
+            continue;
+        if (l < 5 || l >= SD_NAME_LEN || strcasecmp(nm + l - 4, ".bin") != 0)
+            continue;
+        all++;
+        int at = 0;
+        while (at < n && strcasecmp(names[at], nm) <= 0)
+            at++;
+        if (at >= max)
+            continue;
+        for (int i = (n < max ? n : max - 1); i > at; i--)
+            memcpy(names[i], names[i - 1], SD_NAME_LEN);
+        snprintf(names[at], SD_NAME_LEN, "%s", nm);
+        if (n < max)
+            n++;
+    }
+    closedir(d);
+    if (total)
+        *total = all;
+    return n;
+}
+
 static void full_path(char *dst, size_t dstsz, const char *name)
 {
     snprintf(dst, dstsz, "%s/%s", SD_BASE, name);
+}
+
+// The handle is just a FILE* and a sticky error flag. The flag exists because
+// a caller loops on read_chunk and a card pulled mid loop must not look like a
+// clean end of file: without it, ferror after a yank returns a short read, then
+// zero, and a truncated image reads as a complete one.
+struct platform_sd_file {
+    FILE *f;
+    int   failed;
+};
+
+platform_sd_file *platform_sd_open(const char *name, size_t *len)
+{
+    if (!name_ok(name))
+        return NULL;
+    char p[SD_NAME_LEN + 16];
+    full_path(p, sizeof p, name);
+    FILE *f = fopen(p, "rb");
+    if (!f)
+        return NULL;
+    if (len) {
+        *len = 0;
+        // Size up front, so an image too big for the slot is refused before the
+        // erase rather than halfway through it.
+        if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
+        long end = ftell(f);
+        if (end < 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return NULL; }
+        *len = (size_t)end;
+    }
+    platform_sd_file *h = calloc(1, sizeof *h);
+    if (!h) { fclose(f); return NULL; }
+    h->f = f;
+    return h;
+}
+
+int platform_sd_read_chunk(platform_sd_file *h, uint8_t *buf, size_t max, size_t *got)
+{
+    if (!h || !h->f || !buf || !got || max == 0) return -3;
+    *got = 0;
+    if (h->failed) return -3;
+#ifndef ESP_PLATFORM
+    if (test_fail(PLATFORM_SD_TEST_FAIL_READ)) { h->failed = 1; return -3; }
+#endif
+    size_t n = fread(buf, 1, max, h->f);
+    if (ferror(h->f)) { h->failed = 1; return -3; }
+    *got = n;
+    return 0;
+}
+
+void platform_sd_close(platform_sd_file *h)
+{
+    if (!h) return;
+    if (h->f) fclose(h->f);
+    free(h);
 }
 
 static void side_path(char *dst, size_t dstsz, const char *name, const char *suffix)
