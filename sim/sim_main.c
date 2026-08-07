@@ -2042,9 +2042,12 @@ int main(void) {
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
 
   // The hold is 1500ms and pump is 16ms a frame, so 100 frames clears it with
-  // room to spare. Landing on the writing screen and then the result in one
-  // go is correct: the install runs inside the hold's completion.
-  touch(213, 431); pump(100); release(); pump(20);
+  // room to spare. The write is deferred one LVGL tick behind the screen that
+  // announces it, so there is a frame here that WRITING owns by itself -- one
+  // pump lands on it, and the rest carry the install through to the result.
+  touch(213, 431); pump(100); release(); pump(1);
+  save("/tmp/sim_fw_writing.ppm");                  // percent card + keep powered
+  pump(20);
   save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
 
   // 3. the refusal that matters most, on the same route: a signature that did
