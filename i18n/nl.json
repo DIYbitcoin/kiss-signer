@@ -563,7 +563,6 @@
   "G_FW_T": "FIRMWARE",
   "G_FW_RUNNING_FMT": "draait %s",
   "G_FW_ON_CARD": "OP DE KAART",
-  "G_FW_ROW_FILE": "Bestand",
   "G_FW_ROW_SIZE": "Grootte",
   "G_FW_ROW_SIG": "Handtekening",
   "G_FW_ROW_VER": "Versie",

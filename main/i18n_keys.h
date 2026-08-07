@@ -566,7 +566,6 @@ enum {
     STR_G_FW_T,
     STR_G_FW_RUNNING_FMT,
     STR_G_FW_ON_CARD,
-    STR_G_FW_ROW_FILE,
     STR_G_FW_ROW_SIZE,
     STR_G_FW_ROW_SIG,
     STR_G_FW_ROW_VER,
