@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "nothing was saved.\n\ntry the stroke again, or go back\nand pick a different one.",
   "GD_SKIP": "NOT NOW",
   "GD_DONE_T": "BOTH WAYS IN ARE SET",
-  "GD_DONE_B": "the stroke is not a key: the real wallet still asks for your passphrase.\n\nchange this later from SETTINGS, inside your real wallet.",
+  "GD_DONE_B": "the stroke is not a key: the real wallet still asks for your passphrase.",
   "GD_SET_BTN": "WAYS IN",
   "GD_SET_NOTE": "which stroke opens which wallet.",
   "GD_OFF": "NOT SET",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NOT INSTALLED",
   "G_FW_FAIL_SIG_B": "the signature did not check out.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "the card stopped responding partway through.\n\nnothing was made bootable and the device still runs the firmware it had.",
-  "G_FW_FAIL_WRITE_B": "the write did not finish.\n\nnothing was made bootable and the device still runs the firmware it had."
+  "G_FW_FAIL_WRITE_B": "the write did not finish.\n\nnothing was made bootable and the device still runs the firmware it had.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

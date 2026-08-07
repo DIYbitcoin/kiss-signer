@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "hiçbir şey kaydedilmedi.\n\nçizgiyi tekrar deneyin ya da geri\ndönüp başka birini seçin.",
   "GD_SKIP": "ŞIMDI DEĞIL",
   "GD_DONE_T": "IKI GIRIŞ DE AYARLANDI",
-  "GD_DONE_B": "çizgi bir anahtar değildir: gerçek cüzdan yine de Passphrase'inizi sorar.\n\nbunu sonra gerçek cüzdanınızdaki AYARLAR'dan değiştirebilirsiniz.",
+  "GD_DONE_B": "çizgi bir anahtar değildir: gerçek cüzdan yine de Passphrase'inizi sorar.",
   "GD_SET_BTN": "GIRIŞ YOLLARI",
   "GD_SET_NOTE": "hangi çizgi hangi cüzdanı açar.",
   "GD_OFF": "AYARLANMADI",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "KURULMADI",
   "G_FW_FAIL_SIG_B": "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "G_FW_FAIL_CARD_B": "kart yarıda yanıt vermeyi bıraktı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
-  "G_FW_FAIL_WRITE_B": "yazma tamamlanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor."
+  "G_FW_FAIL_WRITE_B": "yazma tamamlanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

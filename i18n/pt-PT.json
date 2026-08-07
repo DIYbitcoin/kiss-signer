@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "não foi guardado nada.\n\ntente o traço outra vez, ou volte\natrás e escolha outro.",
   "GD_SKIP": "AGORA NÃO",
   "GD_DONE_T": "AS DUAS ENTRADAS ESTÃO PRONTAS",
-  "GD_DONE_B": "o traço não é uma chave: a carteira verdadeira continua a pedir a passphrase.\n\npode mudar isto mais tarde em DEFINIÇÕES, dentro da carteira verdadeira.",
+  "GD_DONE_B": "o traço não é uma chave: a carteira verdadeira continua a pedir a passphrase.",
   "GD_SET_BTN": "FORMAS DE ENTRAR",
   "GD_SET_NOTE": "que traço abre que carteira.",
   "GD_OFF": "POR DEFINIR",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NÃO INSTALADO",
   "G_FW_FAIL_SIG_B": "a assinatura não era válida.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
   "G_FW_FAIL_CARD_B": "o cartão deixou de responder a meio.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
-  "G_FW_FAIL_WRITE_B": "a escrita não terminou.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware."
+  "G_FW_FAIL_WRITE_B": "a escrita não terminou.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

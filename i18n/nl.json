@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "er is niets opgeslagen.\n\nprobeer de streek opnieuw, of ga\nterug en kies een andere.",
   "GD_SKIP": "NU NIET",
   "GD_DONE_T": "BEIDE MANIEREN STAAN INGESTELD",
-  "GD_DONE_B": "de streek is geen sleutel: je echte wallet vraagt nog steeds om je passphrase.\n\nje kunt dit later aanpassen via INSTELLINGEN, in je echte wallet.",
+  "GD_DONE_B": "de streek is geen sleutel: je echte wallet vraagt nog steeds om je passphrase.",
   "GD_SET_BTN": "MANIEREN NAAR BINNEN",
   "GD_SET_NOTE": "welke streek welke wallet opent.",
   "GD_OFF": "NIET INGESTELD",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NIET GEÏNSTALLEERD",
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_CARD_B": "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
-  "G_FW_FAIL_WRITE_B": "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware."
+  "G_FW_FAIL_WRITE_B": "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "chưa lưu gì cả.\n\nvẽ lại nét đó, hoặc quay lại\nchọn nét khác.",
   "GD_SKIP": "ĐỂ SAU",
   "GD_DONE_T": "CẢ HAI LỐI VÀO ĐÃ ĐẶT XONG",
-  "GD_DONE_B": "nét vẽ không phải chìa khóa: ví thật vẫn hỏi cụm mật khẩu của bạn.\n\nbạn có thể đổi sau trong CÀI ĐẶT, bên trong ví thật.",
+  "GD_DONE_B": "nét vẽ không phải chìa khóa: ví thật vẫn hỏi cụm mật khẩu của bạn.",
   "GD_SET_BTN": "LỐI VÀO",
   "GD_SET_NOTE": "nét nào mở ví nào.",
   "GD_OFF": "CHƯA ĐẶT",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "CHƯA CÀI ĐẶT",
   "G_FW_FAIL_SIG_B": "chữ ký không hợp lệ.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "G_FW_FAIL_CARD_B": "thẻ ngừng phản hồi giữa chừng.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
-  "G_FW_FAIL_WRITE_B": "việc ghi chưa hoàn tất.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ."
+  "G_FW_FAIL_WRITE_B": "việc ghi chưa hoàn tất.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }
