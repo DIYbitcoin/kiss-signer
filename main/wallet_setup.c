@@ -691,14 +691,20 @@ static void tap_done_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
     uint8_t cam[32], trng[32], taps[32], seed[32];
-    // A camera that never captured leaves cam all-zero and gets a fresh TRNG
-    // read here, so a dead lens costs a source, not the wallet: a hash is as
-    // strong as its best input.
+    // A dead lens costs a source, not the wallet. What stands in for it has to
+    // be a source the camera's absence does not already imply: reading the chip
+    // twice would put both halves on one circuit, and that circuit going quiet
+    // is the exact failure the three-way fold exists to survive. Timing jitter
+    // is the one physical source on this board outside it (wallet_crypto.h),
+    // and needs nobody present, which is why the SD device key already uses it.
+    // If even that fails, cam stays zero and the seed is chip + taps -- the old
+    // behaviour, not a worse one.
     if (s_cam_have) {
         memcpy(cam, s_cam_chain, 32);
         memcpy(trng, s_cam_trng, 32);
     } else {
-        memset(cam, 0, 32);
+        if (wallet_jitter(cam) != 0)
+            memset(cam, 0, 32);
         tap_fill_trng(trng, 32);
     }
     int ok = wallet_tapent_take(taps) == 0 &&
