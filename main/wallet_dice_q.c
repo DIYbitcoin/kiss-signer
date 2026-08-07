@@ -75,6 +75,11 @@ static unsigned wd_period(const char *d, unsigned n)
     return 0;
 }
 
+int wallet_dice_blocked(int verdict)
+{
+    return verdict == WD_Q_UNEVEN || verdict == WD_Q_PATTERN;
+}
+
 void wallet_dice_judge(const char *digits, unsigned n, unsigned len,
                        wallet_dice_q_t *out)
 {
