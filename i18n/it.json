@@ -561,7 +561,6 @@
   "G_FW_T": "FIRMWARE",
   "G_FW_RUNNING_FMT": "in uso %s",
   "G_FW_ON_CARD": "SULLA SCHEDA",
-  "G_FW_ROW_FILE": "File",
   "G_FW_ROW_SIZE": "Dimensione",
   "G_FW_ROW_SIG": "Firma",
   "G_FW_ROW_VER": "Versione",

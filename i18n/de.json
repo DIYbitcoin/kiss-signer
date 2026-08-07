@@ -561,7 +561,6 @@
   "G_FW_T": "FIRMWARE",
   "G_FW_RUNNING_FMT": "läuft %s",
   "G_FW_ON_CARD": "AUF DER KARTE",
-  "G_FW_ROW_FILE": "Datei",
   "G_FW_ROW_SIZE": "Größe",
   "G_FW_ROW_SIG": "Signatur",
   "G_FW_ROW_VER": "Version",
