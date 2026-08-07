@@ -243,6 +243,17 @@ int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
 const char *wallet_lastword_word(uint16_t i) {
   return i < 2048 ? SIM_WORDS[i % 24] : NULL;
 }
+// The walk's 24 fake words stand in for the 2048 word list, so their INDICES
+// have to spread the way real ones do: 83 apart is far wider than WC_NEAR, so
+// an ordinary typed set judges clean and the flagged shapes stay exactly where
+// the walk puts them on purpose. index() and word() are deliberately NOT
+// inverses here -- nothing in the flow round trips them, the judge only reads
+// index() and the picker only reads word() -- and kisstest owns the real pair.
+int wallet_lastword_index(const char *w) {
+  for (int i = 0; i < 24; i++)
+    if (strcmp(SIM_WORDS[i], w) == 0) return i * 83;
+  return -1;
+}
 int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
@@ -1567,8 +1578,14 @@ int main(void) {
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
-  for (int i = 0; i < 11; i++) restore_word("a");   // 11 x first suggestion
-  save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK
+  // Eleven DISTINCT, non monotone words. The cards judge links real, so the old
+  // "a" eleven times is now the block screen -- see CARDS_BLOCK below, where
+  // that shape is typed on purpose. Under the index stub these sit 83 or more
+  // apart, far outside WC_NEAR, so an ordinary draw judges clean.
+  static const char *CARDS_OK11[11] = {
+      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy" };
+  for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
+  save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
   touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
   touch(590, 430); pump(3); release(); pump(4);     // NEXT -> page 2
@@ -1585,12 +1602,55 @@ int main(void) {
   touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
   touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
-  for (int i = 0; i < 23; i++) restore_word("a");   // 23 x first suggestion
+  static const char *CARDS_OK23[23] = {
+      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m", "fil",
+      "fol", "st", "fea", "stab", "na", "fen", "ab", "abi", "abl", "abo" };
+  for (int i = 0; i < 23; i++) restore_word(CARDS_OK23[i]);
   touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick24.ppm");          // 8 pills, no pager
   touch(128, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards cancel (24) left storage mode staged\n");
+    return 1;
+  }
+
+  // The refused draw. The judge links REAL here, so typing one word eleven
+  // times IS the block, rendered rather than described -- the same argument the
+  // dice ramp below makes, and the only way any gate ever sees this screen.
+  // Two pill row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
+  save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 pills
+  touch(587, 431); pump(3); release(); pump(4);     // START OVER -> empty keyboard
+  save("/tmp/sim_setup_cards_retype.ppm");          // "1/11 _": the draw really is gone
+  for (int i = 0; i < 11; i++) restore_word("g");   // back to the block
+  touch(213, 431); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards block cancel left storage mode staged\n");
+    return 1;
+  }
+
+  // The warned draw, and the chip that has to survive USE ANYWAY. Ascending
+  // index order gives sorted = +1 with no near pairs, so the verdict is SORTED
+  // and the chip reads IN ORDER.
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
+  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  static const char *CARDS_SORTED11[11] = {
+      "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
+  for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
+  save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
+  touch(213, 431); pump(3); release(); pump(4);     // USE ANYWAY -> the checksum card
+  save("/tmp/sim_setup_cards_cksum_warn.ppm");      // the amber IN ORDER chip, kept
+  touch(680, 430); pump(3); release(); pump(4);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
   }
 
@@ -1614,8 +1674,13 @@ int main(void) {
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
   touch(430, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
-  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 3 pills
-  touch(394, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
+  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
+  // ROLL MORE is the way through a refusal, and it keeps every banked roll --
+  // the whole argument for DICE_MAX = 180, which no gate rendered until now.
+  touch(587, 431); pump(3); release(); pump(4);     // ROLL MORE -> the keypad
+  save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
+  touch(430, 425); pump(3); release(); pump(6);     // DONE -> refused again
+  touch(213, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
   // The healthy run: a fixed string that reads as rolled, checked in and
   // asserted OK by kisstest. face bits 128.62 (floor 102.50), step bits 126.61
   // (floor 100.45), counts 10/7/9/9/7/8, no repeating block.
