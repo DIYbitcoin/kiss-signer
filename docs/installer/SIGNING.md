@@ -90,6 +90,47 @@ minisign -Vm kiss-signer-<version>.bin -p kiss_signer.pub
 Cross-check the key fingerprint against a second channel (repo history,
 release notes, maintainer profile) before trusting it.
 
+## The device side: SD firmware updates
+
+Everything above is checked on a computer, before the firmware reaches the
+device. An SD update is checked **by the device**, so it needs its own key.
+
+That is a second key, and it is a different kind of key. The GPG key signs a
+manifest a person reads; this one signs the image itself, in the format the
+ESP32 bootloader understands (`espsecure.py sign_data`, Secure Boot V2 scheme).
+The device holds the matching public key inside its own signature block and
+`esp_ota_end` refuses an image that does not check out, so nothing unsigned
+ever becomes bootable.
+
+```sh
+# one time, kept offline exactly like the GPG key
+espsecure.py generate_signing_key --version 2 --scheme ecdsa256 kiss_ota.pem
+espsecure.py extract_public_key --version 2 --keyfile kiss_ota.pem \
+    docs/installer/kiss_ota_pub.pem     # commit this, publish its sha256
+```
+
+The release lane turns the check on. It is **not** in `sdkconfig.defaults`,
+because `CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT` needs the private key at
+build time and a plain `idf.py build` would fail on any machine that does not
+hold it. In the release build:
+
+```
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_SIGNING_KEY="kiss_ota.pem"
+```
+
+A build made without it still shows the update screen and still refuses to
+install: `wallet_fw_available()` answers "cannot be checked" and the screen says
+so in those words, rather than accepting an image it has no way to judge.
+
+Users verify a firmware `.bin` for SD exactly like any other artifact, since it
+is listed in `SHA256SUMS`. The device's own check is the second gate, not a
+replacement for the first.
+
+**Publish both fingerprints.** A release carries two signatures now, and a user
+who checks one and assumes the other is a user who has checked half of it.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which
@@ -98,3 +139,9 @@ release notes, maintainer profile) before trusting it.
   **secure boot**, a separate hardware feature handled in the flash-encryption
   hardening pass (one-way eFuse burn). Release signatures protect the
   download; secure boot protects the device.
+
+  The SD update check above sits between the two: it is the same signature
+  secure boot will later enforce in hardware, verified in software today. It
+  stops a bad image being *installed*; it cannot stop one written past it, with
+  a programmer, straight to flash. Burning the eFuse is what closes that, and
+  the update path is already in the shape that pass needs.
