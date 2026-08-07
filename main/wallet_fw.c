@@ -139,6 +139,21 @@ const char *wallet_fw_running_version(void)
 #endif
 }
 
+#ifndef ESP_PLATFORM
+// Sim seams. See wallet_fw.h. They default to the honest desktop answer, so a
+// test that forgets to set them gets "cannot be checked" rather than a pretend
+// install that proves nothing.
+static int s_test_avail = WFW_ERR_UNSIGNED;
+static int s_test_install = WFW_ERR_UNSIGNED;
+static int s_test_steps;
+void wallet_fw_test_set_available(int rc) { s_test_avail = rc; }
+void wallet_fw_test_set_install(int rc, int steps)
+{
+    s_test_install = rc;
+    s_test_steps = steps;
+}
+#endif
+
 int wallet_fw_available(void)
 {
     // The public key an update is checked against lives in the running app's
@@ -150,7 +165,7 @@ int wallet_fw_available(void)
 #elif defined(ESP_PLATFORM) && defined(CONFIG_SECURE_BOOT)
     return WFW_OK;
 #else
-    return WFW_ERR_UNSIGNED;
+    return s_test_avail;
 #endif
 }
 
@@ -227,8 +242,12 @@ int wallet_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     if (avail != WFW_OK) return avail;
 
 #ifndef ESP_PLATFORM
-    (void)cb; (void)ud;
-    return WFW_ERR_UNSIGNED;      // no flash to write and no key to check with
+    // No flash to write and no key to check with, so the outcome is whatever
+    // the test asked for. The progress ticks are real calls: the writing screen
+    // redraws from them, and that redraw is what the screen walk measures.
+    for (int i = 1; cb && i <= s_test_steps; i++)
+        cb((int)((long)i * 100 / s_test_steps), ud);
+    return s_test_install;
 #else
     const esp_partition_t *dst = esp_ota_get_next_update_partition(NULL);
     if (!dst) return WFW_ERR_WRITE;
@@ -301,26 +320,16 @@ int wallet_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
 
 // ---- rollback --------------------------------------------------------------
 
-static int s_just_updated = -1;      // -1 = not looked yet
-
 void wallet_fw_mark_valid(void)
 {
 #ifdef ESP_PLATFORM
+    // Only a slot actually on trial gets marked. Calling this unconditionally
+    // would be harmless today, but reading the state is what makes the intent
+    // legible: this confirms an update, it is not a ritual every boot performs.
     const esp_partition_t *run = esp_ota_get_running_partition();
     esp_ota_img_states_t st;
     if (run && esp_ota_get_state_partition(run, &st) == ESP_OK &&
-        st == ESP_OTA_IMG_PENDING_VERIFY) {
-        s_just_updated = 1;
+        st == ESP_OTA_IMG_PENDING_VERIFY)
         esp_ota_mark_app_valid_cancel_rollback();
-        return;
-    }
 #endif
-    if (s_just_updated < 0) s_just_updated = 0;
-}
-
-int wallet_fw_just_updated(void)
-{
-    int v = s_just_updated > 0;
-    s_just_updated = 0;
-    return v;
 }
