@@ -2302,18 +2302,9 @@ static void cards_block_screen(void)
     cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL, true);
 }
 
-// A warn twin of the accent chip: same shape, opposite verdict.
-static void cards_chip_warn(lv_obj_t *chip)
-{
-    lv_obj_set_style_border_width(chip, 2, 0);
-    lv_obj_set_style_border_color(chip, WARN_COL, 0);
-    lv_obj_set_style_text_color(lv_obj_get_child(chip, 0), WARN_COL, 0);
-}
-
 // The checksum explainer: why the last word is picked from a list. Two
-// equations, identical but for the mark on the last word; that mark flipping
-// the verdict IS the checksum, told in symbols before the blocks say it in
-// words.
+// equations: a word IS a number, and the numbers have to land right. Symbols
+// first, so the blocks below are confirming something already shown.
 static void cards_cksum_screen(void)
 {
     mk_screen(tr(STR_W_CKSUM_T), tr(STR_W_CKSUM_S));
@@ -2330,10 +2321,26 @@ static void cards_cksum_screen(void)
     lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
-    char n1[16], okw[16], badw[16];   // 16: device gcc sizes %d for a full int
+    char n1[16], okw[16];   // 16: device gcc sizes %d for a full int
     snprintf(n1, sizeof n1, "%d", s_count - 1);
     snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
-    snprintf(badw, sizeof badw, "%s 1", LV_SYMBOL_CLOSE);
+
+    // Both blocks below say "the numbers behind your words" and until this row
+    // nothing in the flow had ever shown one. Here is the owner's own first
+    // word beside the number printed on the card they drew it from -- their
+    // number, checkable against the deck in their hand, in the one notation
+    // that needs no translation. It stands where a mirrored "wrong last word"
+    // equation used to: that row said what the WARN block directly beneath it
+    // already says in full, while this premise was said nowhere at all.
+    int i0 = wallet_lastword_index(s_w[0]);
+    if (i0 >= 0) {
+        char num[16];
+        snprintf(num, sizeof num, "%d", i0);
+        lv_obj_t *r0 = wt_diagram_row(col);
+        wt_chip(r0, s_w[0], false);
+        wt_diagram_op(r0, "=");
+        wt_chip(r0, num, false);
+    }
 
     lv_obj_t *r1 = wt_diagram_row(col);
     wt_chip(r1, n1, false);
@@ -2341,13 +2348,6 @@ static void cards_cksum_screen(void)
     wt_chip(r1, okw, true);
     wt_diagram_op(r1, LV_SYMBOL_RIGHT);
     wt_chip(r1, LV_SYMBOL_OK, true);
-
-    lv_obj_t *r2 = wt_diagram_row(col);
-    wt_chip(r2, n1, false);
-    wt_diagram_op(r2, "+");
-    cards_chip_warn(wt_chip(r2, badw, false));
-    wt_diagram_op(r2, LV_SYMBOL_RIGHT);
-    cards_chip_warn(wt_chip(r2, LV_SYMBOL_CLOSE, false));
 
     // The verdict, kept where the flow can still see it. This screen is reached
     // clean or through USE ANYWAY, and a warning that vanishes on the next tap
