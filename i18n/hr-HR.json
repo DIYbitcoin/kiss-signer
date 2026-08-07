@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_CARD_B": "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_WRITE_B": "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "potez nakon riječi traži kodnu frazu"
 }

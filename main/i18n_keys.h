@@ -603,6 +603,7 @@ enum {
     STR_G_FW_FAIL_SIG_B,
     STR_G_FW_FAIL_CARD_B,
     STR_G_FW_FAIL_WRITE_B,
+    STR_H_WAYS_IN_HINT,
     STR_N
 };
 

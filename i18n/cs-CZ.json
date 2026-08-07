@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_CARD_B": "karta v půlce přestala odpovídat.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_WRITE_B": "zápis se nedokončil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "tah po slovu vyžádá přístupovou frázi"
 }

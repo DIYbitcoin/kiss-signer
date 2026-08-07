@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_CARD_B": "kortet sluttet å svare underveis.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_WRITE_B": "skrivingen ble ikke ferdig.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "en strek etter ordet ber om passordfrasen"
 }

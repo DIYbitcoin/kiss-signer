@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_CARD_B": "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_WRITE_B": "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "een streek na het woord vraagt om de passphrase"
 }

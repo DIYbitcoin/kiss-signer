@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_CARD_B": "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_WRITE_B": "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "un trait après le mot demande la phrase secrète"
 }

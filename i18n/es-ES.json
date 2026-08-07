@@ -600,5 +600,5 @@
   "G_FW_FAIL_SIG_B": "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_CARD_B": "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_WRITE_B": "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
-  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
+  "H_WAYS_IN_HINT": "un trazo tras la palabra pide la passphrase"
 }
