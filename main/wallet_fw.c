@@ -164,6 +164,16 @@ int wallet_fw_available(void)
     return WFW_OK;
 #elif defined(ESP_PLATFORM) && defined(CONFIG_SECURE_BOOT)
     return WFW_OK;
+#elif defined(ESP_PLATFORM)
+    // A device build with neither signing option configured, which is the
+    // shipped release lane today. s_test_avail is a HOST seam and does not
+    // exist here, so this used to be a compile error the desktop gates could
+    // never see: every one of them builds the #else.
+    //
+    // WFW_ERR_UNSIGNED is also the honest answer, and the one SIGNING.md
+    // already promises: a build with no key of its own cannot judge an image,
+    // so it says "cannot be checked" rather than installing what it is handed.
+    return WFW_ERR_UNSIGNED;
 #else
     return s_test_avail;
 #endif
