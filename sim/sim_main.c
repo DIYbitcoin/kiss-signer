@@ -1584,13 +1584,13 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
 
-  // The CARDS detour (MY OWN WORDS): both lengths, to the picker and back out.
+  // The CARDS detour (BLIND DRAW): both lengths, to the picker and back out.
   // The candidate math is stubbed above (first N indices over SIM_WORDS);
   // these stops prove layout in 21 locales, kisstest owns correctness. Method
   // row 2 is 300..396, so 346 is its middle.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS (row 2)
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW (row 2)
   save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
@@ -1617,7 +1617,7 @@ int main(void) {
   // the 24 word draw: 23 typed, a single page of 8 candidates, no pager
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   static const char *CARDS_OK23[23] = {
@@ -1638,7 +1638,7 @@ int main(void) {
   // Two pill row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
@@ -1657,7 +1657,7 @@ int main(void) {
   // and the chip reads IN ORDER.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   static const char *CARDS_SORTED11[11] = {
