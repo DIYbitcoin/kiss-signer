@@ -811,12 +811,24 @@ static void must_show(const char *what, const char *needle) {
   }
   g_walk_fails++;
 }
+
+// The inverse, and the routing test needs it: the property being pinned is that
+// a passphrase keyboard is ABSENT, which is the whole deniability claim.
+static void must_not_show(const char *what, const char *needle) {
+  if (!find_label_text(lv_screen_active(), needle)) return;
+  printf("FAIL: %s: screen shows \"%s\" and must not\n", what, needle);
+  g_walk_fails++;
+}
 static void release(void) { g_pressed = false; }
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
 // storage hot-plug coverage added at the end, so that test does not invent a
 // second approximation of the gesture recognizer's real input.
-static void draw_kiss(void)
+// The word ALONE, no settling wait. Split out of draw_kiss so a modifier stroke
+// can still arrive: main.c holds a bare word for KISS_OPEN_DELAY_MS precisely
+// so the stroke after it is classified against the same draw, and draw_kiss's
+// trailing pump(40) is 140ms past that window.
+static void draw_kiss_word(void)
 {
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
   release(); pump(2);
@@ -834,6 +846,11 @@ static void draw_kiss(void)
   touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1);
   touch(462, 272); pump(1); release();
+}
+
+static void draw_kiss(void)
+{
+  draw_kiss_word();
   // 40 frames, not 4. Whichever door this call ends up taking, main.c may hold
   // it for KISS_OPEN_DELAY_MS so the real wallet and the decoy cannot be told
   // apart by how fast the screen arrives. At 16ms a frame this is 640ms of
@@ -841,6 +858,32 @@ static void draw_kiss(void)
   // amnesic loader open immediately and do not need it; the slack costs them
   // nothing and stops this helper breaking if a caller changes door.
   pump(40);
+}
+
+// The word, then one wide flat stroke under it: the shape sim/test_duress.c
+// pins as WDG_UNDERLINE, drawn through the real touch layer so the whole path
+// runs -- detect_KISS, wallet_duress_classify, unlock_kind -- and not only the
+// classifier the unit test reaches on its own.
+static void draw_kiss_underlined(void)
+{
+  draw_kiss_word();
+  pump(2);
+  for (int i = 0; i <= 20; i++) { touch(150 + i * 20, 315); pump(1); }
+  release();
+  pump(40);
+}
+
+// wallet_lock() sets s_gest_swallow so the rest of the closing tap cannot
+// become the first stroke of a word, and it clears on the next lift. Without a
+// throwaway lift the K's spine is eaten and the word never completes. The
+// corner is chosen because the menu's "tap to play" would start the game, and
+// the gesture collector is skipped entirely while ST_PLAY.
+static void lock_to_menu(void)
+{
+  extern void wallet_wiped_lock(void);   // = wallet_lock(); it wipes nothing
+  wallet_wiped_lock();
+  pump(30);
+  touch(6, 470); pump(2); release(); pump(6);
 }
 
 // Type a short prefix on wallet_setup.c's recovery-word keyboard, then choose
@@ -1084,6 +1127,71 @@ int main(void) {
   save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
   pump(120);                                        // more drift
   save("/tmp/sim_home_idle2.ppm");                  // motes should have moved further up
+
+
+  // ---- unlock routing: one answer, whatever is configured ----
+  //
+  // The property both duress findings came down to. The device used to fork on
+  // wallet_duress_real(): a configured device opened the decoy on a bare word,
+  // an unconfigured one showed a passphrase keyboard. Drawing the word ONCE
+  // told an attacker holding the device which kind it was. The byte in flash
+  // was never the leak; the behaviour was.
+  //
+  // wallet_duress_route is unit tested in sim/test_duress.c, but that proves
+  // the rule in isolation. This drives the whole path through the real touch
+  // layer, because unlock_kind lives in main.c and no test binary links it --
+  // which is exactly how the fork survived long enough to become a finding.
+  //
+  // HERE, and not at the end of the walk, because wallet_lock() returns early
+  // unless s_wallet_on. By the tail a login screen sits on top with the wallet
+  // already closed, so the menu never comes forward, the touches land on the
+  // keyboard and not one point of ink reaches the collector. This is the last
+  // point where the home is genuinely open. The block restores the session it
+  // borrows, so every frame after it is unaffected.
+  {
+    extern int g_last_unlock_kind;
+    const int cfgs[] = { WDG_UNDERLINE, WDG_NONE };
+    for (unsigned c = 0; c < 2; c++) {
+      wallet_duress_set(cfgs[c]);
+      const char *tag = cfgs[c] == WDG_NONE ? "routing/no-stroke"
+                                            : "routing/stroke-set";
+
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_kiss();
+      if (g_last_unlock_kind != WDR_DECOY) {
+        printf("FAIL: %s: word alone routed %d, expected WDR_DECOY (%d)\n",
+               tag, g_last_unlock_kind, WDR_DECOY);
+        g_walk_fails++;
+      }
+      must_not_show(tag, tr(STR_L_TYPE_PROMPT));
+
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_kiss_underlined();
+      if (g_last_unlock_kind != WDR_REAL) {
+        printf("FAIL: %s: word + stroke routed %d, expected WDR_REAL (%d)\n",
+               tag, g_last_unlock_kind, WDR_REAL);
+        g_walk_fails++;
+      }
+
+      // The REAL route left the passphrase keyboard up, and lock_to_menu is a
+      // no-op while it is (wallet_lock returns early unless s_wallet_on). So
+      // finish the same login the walk used to get here -- 'a', OK, TAP TO OPEN
+      // -- and every pass, including the last, ends on the open home.
+      touch(46, 278);  pump(3); release(); pump(3);
+      touch(725, 430); pump(3); release(); pump(25);
+      touch(622, 430); pump(3); release(); pump(12);
+      pump(120);
+    }
+    wallet_duress_set(WDG_NONE);
+    // Identical expectations for both configurations is the whole test: if
+    // either arm ever needs a different one, the fork is back.
+    printf("ok: unlock routing identical with and without a stroke configured\n");
+
+    // No restore needed after the loop: each pass ends on the open home the
+    // walk expects, because the login completion sits inside it.
+  }
 
   // preview the SD-insert indicator (device polls this; sim just sets the text)
   sim_home_status("SD card ready");

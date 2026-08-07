@@ -1603,6 +1603,15 @@ static void wallet_open_decoy(void) {
 // the bottom, and that was the leak the audit found: a device with a stroke
 // configured answered a bare word with the decoy, one without answered with a
 // passphrase keyboard, so one gesture separated them.
+// The last answer unlock_kind gave, for the scripted walk to assert on. The
+// walk cannot reliably assert on WHICH SCREEN follows -- that depends on
+// storage mode, card presence and where in the walk it stands -- but the
+// routing decision is the property the audit findings were about, and it is
+// exactly one value.
+#ifdef SIMULATOR
+int g_last_unlock_kind = -2;
+#endif
+
 static int unlock_kind(void) {
   if (s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
@@ -1618,14 +1627,23 @@ static int unlock_kind(void) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
       int stroke = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
-      if (stroke != WDG_NONE)
-        return wallet_duress_route(true, stroke);
+      if (stroke != WDG_NONE) {
+        int k = wallet_duress_route(true, stroke);
+#ifdef SIMULATOR
+        g_last_unlock_kind = k;
+#endif
+        return k;
+      }
       // an unrecognized final scribble is not a modifier: fall through to the
       // plain-word test below, which lands on the decoy. A scribble must never
       // be the thing that surfaces a passphrase prompt.
     }
   }
-  return wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+  int k = wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+#ifdef SIMULATOR
+  if (k != WDR_NONE) g_last_unlock_kind = k;   // a non-word is not an answer
+#endif
+  return k;
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
