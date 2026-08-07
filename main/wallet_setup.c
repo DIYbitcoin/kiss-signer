@@ -707,7 +707,25 @@ static void tap_done_cb(lv_timer_t *t)
             memset(cam, 0, 32);
         tap_fill_trng(trng, 32);
     }
-    int ok = wallet_tapent_take(taps) == 0 &&
+    // Source 2 has to prove where it came from, and this is the only check that
+    // can: esp_fill_random hands back bytes and reports success whether or not
+    // a noise source is behind it, so quality is unmeasurable and provenance is
+    // the whole question (wallet_crypto.h). wallet_seed_sd.c has refused on this
+    // since the device key existed; the seed -- the one piece of key material
+    // the owner cannot rotate -- was the one path still taking it on trust.
+    //
+    // One check covers both reads of the chip, the one at capture
+    // (camera_spike.c) and tap_fill_trng's above, because the flag is a latch
+    // set once at boot and never cleared: false here means false there too. The
+    // fills above it are wiped unread, since && stops before mix3 sees them.
+    //
+    // A refusal, not a warning, and deliberately not softened into "two sources
+    // instead of three". A dead lens loses a source the fold was built to
+    // survive. A chip whose noise was never switched on is a source that looks
+    // exactly like a live one all the way to the words screen, and folding it
+    // with the taps would hand back a seed every later check calls valid.
+    int ok = wallet_trng_live() &&
+             wallet_tapent_take(taps) == 0 &&
              wallet_entropy_mix3(cam, trng, taps, seed) == 0;
     // Every one of these is dead-store territory: last read is the line above,
     // so memset is elidable and wally_bzero is not. Same reasoning as
@@ -722,9 +740,18 @@ static void tap_done_cb(lv_timer_t *t)
     if (ok) {
         wallet_setup_entropy(seed, 32);
     } else {
-        // Can't happen after a full 64-tap gate (take succeeds, mix3 only fails
-        // on NULL), but if it ever does, say so plainly instead of leaving the
-        // owner on a full bar that does nothing. TRY AGAIN restarts collection.
+        // Reachable one way now: the chip's noise source is not running. The
+        // other two legs still cannot fail after a full 64-tap gate (take
+        // succeeds, mix3 only fails on NULL). Either way the owner is told
+        // plainly rather than left on a full bar that does nothing.
+        //
+        // TRY AGAIN restarts collection, which will not revive a chip that
+        // never came up -- and that is the honest outcome. A device that cannot
+        // prove where its randomness came from has no business minting a seed,
+        // and no wording on this screen should imply otherwise. It stays one
+        // screen rather than two because boot switches the source on before any
+        // screen the owner can reach (main.c), so this is a guard against a
+        // future reorder, and a guard does not earn 21 locales of its own copy.
         mk_screen(tr(STR_W_ENT_FAIL_T), NULL);
         mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
         mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
