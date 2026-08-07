@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "nichts wurde gespeichert.\n\nversuch den Strich noch einmal oder\ngeh zurück und wähle einen anderen.",
   "GD_SKIP": "JETZT NICHT",
   "GD_DONE_T": "BEIDE WEGE SIND GESETZT",
-  "GD_DONE_B": "der Strich ist kein Schlüssel: die echte Wallet fragt weiter nach deiner Passphrase.\n\ndu kannst das später in den EINSTELLUNGEN deiner echten Wallet ändern.",
+  "GD_DONE_B": "der Strich ist kein Schlüssel: die echte Wallet fragt weiter nach deiner Passphrase.",
   "GD_SET_BTN": "WEGE HINEIN",
   "GD_SET_NOTE": "welcher Strich welche Wallet öffnet.",
   "GD_OFF": "NICHT GESETZT",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NICHT INSTALLIERT",
   "G_FW_FAIL_SIG_B": "die Signatur stimmte nicht.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
   "G_FW_FAIL_CARD_B": "die Karte antwortete mittendrin nicht mehr.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
-  "G_FW_FAIL_WRITE_B": "das Schreiben wurde nicht fertig.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher."
+  "G_FW_FAIL_WRITE_B": "das Schreiben wurde nicht fertig.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

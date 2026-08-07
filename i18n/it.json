@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "non è stato salvato nulla.\n\nriprova il tratto, oppure torna\nindietro e scegline un altro.",
   "GD_SKIP": "NON ORA",
   "GD_DONE_T": "ENTRAMBI I MODI SONO IMPOSTATI",
-  "GD_DONE_B": "il tratto non è una chiave: il wallet vero chiede sempre la tua passphrase.\n\npuoi cambiarlo dopo da IMPOSTAZIONI, dentro il tuo wallet vero.",
+  "GD_DONE_B": "il tratto non è una chiave: il wallet vero chiede sempre la tua passphrase.",
   "GD_SET_BTN": "MODI PER ENTRARE",
   "GD_SET_NOTE": "quale tratto apre quale wallet.",
   "GD_OFF": "NON IMPOSTATO",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NON INSTALLATO",
   "G_FW_FAIL_SIG_B": "la firma non era valida.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
   "G_FW_FAIL_CARD_B": "la scheda ha smesso di rispondere a metà.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
-  "G_FW_FAIL_WRITE_B": "la scrittura non è finita.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware."
+  "G_FW_FAIL_WRITE_B": "la scrittura non è finita.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

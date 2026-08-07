@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "no se guardó nada.\n\nintenta el trazo otra vez, o regresa\ny elige uno distinto.",
   "GD_SKIP": "AHORA NO",
   "GD_DONE_T": "LAS DOS ENTRADAS QUEDARON LISTAS",
-  "GD_DONE_B": "el trazo no es una llave: la billetera de verdad sigue pidiendo tu passphrase.\n\npuedes cambiarlo después en AJUSTES, dentro de tu billetera de verdad.",
+  "GD_DONE_B": "el trazo no es una llave: la billetera de verdad sigue pidiendo tu passphrase.",
   "GD_SET_BTN": "MANERAS DE ENTRAR",
   "GD_SET_NOTE": "qué trazo abre qué billetera.",
   "GD_OFF": "SIN DEFINIR",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NO INSTALADO",
   "G_FW_FAIL_SIG_B": "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_CARD_B": "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
-  "G_FW_FAIL_WRITE_B": "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware."
+  "G_FW_FAIL_WRITE_B": "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

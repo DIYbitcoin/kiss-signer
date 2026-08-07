@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "rien n'a été enregistré.\n\nréessayez le trait, ou revenez\nen arrière et choisissez-en un autre.",
   "GD_SKIP": "PLUS TARD",
   "GD_DONE_T": "LES DEUX ENTRÉES SONT RÉGLÉES",
-  "GD_DONE_B": "le trait n'est pas une clé : le vrai portefeuille demande toujours votre phrase secrète.\n\nvous pouvez changer cela plus tard dans RÉGLAGES, dans votre vrai portefeuille.",
+  "GD_DONE_B": "le trait n'est pas une clé : le vrai portefeuille demande toujours votre phrase secrète.",
   "GD_SET_BTN": "FAÇONS D'ENTRER",
   "GD_SET_NOTE": "quel trait ouvre quel portefeuille.",
   "GD_OFF": "NON RÉGLÉ",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "NON INSTALLÉ",
   "G_FW_FAIL_SIG_B": "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_CARD_B": "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
-  "G_FW_FAIL_WRITE_B": "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel."
+  "G_FW_FAIL_WRITE_B": "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }

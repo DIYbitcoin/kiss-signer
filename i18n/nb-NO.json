@@ -483,7 +483,7 @@
   "GD_DRAW_BAD_B": "ingenting ble lagret.\n\nprøv strøket igjen, eller gå\ntilbake og velg et annet.",
   "GD_SKIP": "IKKE NÅ",
   "GD_DONE_T": "BEGGE VEIENE INN ER SATT",
-  "GD_DONE_B": "strøket er ingen nøkkel: den ekte lommeboken spør fortsatt etter passordfrasen.\n\ndu kan endre dette senere under INNSTILLINGER i den ekte lommeboken.",
+  "GD_DONE_B": "strøket er ingen nøkkel: den ekte lommeboken spør fortsatt etter passordfrasen.",
   "GD_SET_BTN": "VEIER INN",
   "GD_SET_NOTE": "hvilket strøk som åpner hvilken lommebok.",
   "GD_OFF": "IKKE SATT",
@@ -599,5 +599,6 @@
   "G_FW_FAIL_T": "IKKE INSTALLERT",
   "G_FW_FAIL_SIG_B": "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_CARD_B": "kortet sluttet å svare underveis.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
-  "G_FW_FAIL_WRITE_B": "skrivingen ble ikke ferdig.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare."
+  "G_FW_FAIL_WRITE_B": "skrivingen ble ikke ferdig.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
+  "H_WAYS_IN_HINT": "a stroke after the word asks for a passphrase"
 }
