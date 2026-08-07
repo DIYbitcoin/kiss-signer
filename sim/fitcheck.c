@@ -203,6 +203,19 @@ static const slot_t SLOTS[] = {
     { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
     { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
     { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
+    // the two verdict screens: five subtitles (one per rule) and five bodies.
+    // No may_be_small on the bodies -- the why-block pair shares one font, so a
+    // fall to font14 here is a gate failure, not a graceful degrade.
+    { "sub/cards-same",   STR_W_CARDS_SAME_S,   704, 30, 0 },
+    { "sub/cards-period", STR_W_CARDS_PERIOD_S, 704, 30, 0 },
+    { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  704, 30, 0 },
+    { "sub/cards-sorted", STR_W_CARDS_SORTED_S, 704, 30, 0 },
+    { "sub/cards-dup",    STR_W_CARDS_DUP_S,    704, 30, 0 },
+    { "setup/cards-block",  STR_W_CARDS_BLOCK_B,  330, 112 },
+    { "setup/cards-clustb", STR_W_CARDS_CLUST_B,  330, 112 },
+    { "setup/cards-sortb",  STR_W_CARDS_SORTED_B, 330, 112 },
+    { "setup/cards-dupb",   STR_W_CARDS_DUP_B,    330, 112 },
+    { "setup/cards-fix",    STR_W_CARDS_FIX_B,    330, 112 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
@@ -585,13 +598,14 @@ static const pill_t PILLS[] = {
     { "login/use-anyway", STR_L_USE_ANYWAY,   314, 56, 1, 1 },
     // The dice verdict row: all three are key_action, because a holder who
     // cannot read them cannot tell which press keeps the flagged rolls.
-    { "setup/dice-more",  STR_W_DICE_MORE,    216, 66, 0, 1 },
+    { "setup/dice-more",  STR_W_DICE_MORE,    330, 66, 0, 1 },
     // cards mode: the two primary pills that advance the flow. TYPE MY WORDS
     // also serves the backup-check intro at the same 300 width.
     { "setup/cards-type", STR_W_TYPE_MY_WORDS, 300, 66, 1, 1 },
     { "setup/cksum-go",   STR_W_CKSUM_GO,      300, 66, 1, 1 },
-    { "setup/dice-over",  STR_W_START_OVER,   216, 66, 0, 1 },
-    { "setup/dice-use",   STR_L_USE_ANYWAY,   216, 66, 1, 1 },
+    { "setup/dice-over",  STR_W_START_OVER,   330, 66, 0, 1 },
+    { "setup/cards-use",  STR_L_USE_ANYWAY,   330, 66, 1, 1 },
+    { "setup/cards-cxl",  STR_C_CANCEL,       330, 66, 0, 1 },
     { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
 };
 #define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))

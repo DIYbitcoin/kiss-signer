@@ -665,13 +665,20 @@ static void words_warn_screen(lv_event_t *e)
     // and this is the screen someone opens to copy words onto paper, which is
     // the last moment redoing the seed is still cheap.
     //
-    // Reuses the string the dice warning screen already wears, so this costs no
+    // Reuses the string the warning screen already wears, so this costs no
     // new key in 21 locales, and the same mark: glyph AND colour, per
     // ADDENDUM-02, because an amber chip alone says nothing in some themes.
-    if (wallet_seed_entropy_note() != 0) {
+    //
+    // Which warning screen depends on which path made the seed. Dice can no
+    // longer produce a note at all -- it refuses instead -- so a dice title
+    // here only ever comes from a seed made before that changed.
+    int note = wallet_seed_entropy_note();
+    if (note != 0) {
         lv_obj_t *ent = wt_state_chip(s_scr,
                                       tr_sym(LV_SYMBOL_WARNING,
-                                             STR_W_DICE_WARN_T),
+                                             WSEED_ENTQ_IS_CARDS(note)
+                                                 ? STR_W_CARDS_WARN_T
+                                                 : STR_W_DICE_WARN_T),
                                       WT_WARN);
         lv_obj_update_layout(ent);
         // Side by side when the locale leaves room, stacked when it does not.

@@ -21,6 +21,7 @@
 #include "wallet_tapent.h"   // source 3: the timing of the user's own taps
 #include "wallet_dice.h"     // alternate path: verifiable off-device dice rolls
 #include "wallet_lastword.h" // cards path: the checksum valid last words
+#include "wallet_cards_q.h"  // and whether those words were drawn or chosen
 #include "wallet_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
 #include "platform_sd.h"     // the proof needs a card before it can start
 #include "wallet_theme.h"
@@ -88,6 +89,10 @@ static lv_obj_t *s_word_lbl, *s_sug[3];
 static bool s_cards;
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
+// The typed words as wordlist indices, and what the judge made of them. Only
+// ever filled on the cards path; see cards_cksum_open.
+static uint16_t s_cidx[24];
+static wallet_cards_q_t s_cq;
 
 static void choose_screen(void);
 static void count_screen(void);
@@ -111,6 +116,9 @@ static void quiz_screen(void);
 static void restore_screen(void);
 static void cards_intro_screen(void);
 static void cards_cksum_open(void);
+static void cards_cksum_screen(void);
+static void cards_warn_screen(void);
+static void cards_block_screen(void);
 static void cards_pick_screen(void);
 static void verify_finish(void);
 static void verify_finish_exit(void);
@@ -139,6 +147,9 @@ static void wipe_state(void)
     memset(s_cand, 0, sizeof s_cand);
     s_ncand = 0;
     s_cpage = 0;
+    // Same argument: the indices ARE the typed words, in a smaller container.
+    memset(s_cidx, 0, sizeof s_cidx);
+    s_cq = (wallet_cards_q_t){0};
 }
 
 static void close_all(void)
@@ -253,6 +264,22 @@ static void store_and_finish(void)
     // ritual (setup login commits it). Abandoning that leaves no half-made wallet.
     int rc = wallet_seed_stage(words);
     wz_bzero(words, sizeof words);
+    if (rc == 0) {
+        // Every path that stages a NEW seed says what it made of the draw, so a
+        // clean rebuild clears the previous one. Camera and dice write theirs
+        // through wallet_setup_entropy before words exist; cards has no entropy
+        // call at all, and a restore is somebody else's draw with nothing to
+        // say about it. WC_Q_OK packs to a nonzero byte, so it is written as 0
+        // instead: the reader's "!= 0" has to keep meaning "there is something
+        // to say".
+        if (s_cards)
+            wallet_seed_set_entropy_note(
+                s_cq.verdict == WC_Q_OK || s_cq.verdict == WC_Q_SHORT
+                    ? WSEED_ENTQ_NONE
+                    : WSEED_ENTQ_CARDS | (unsigned)s_cq.verdict);
+        else if (s_restore)
+            wallet_seed_set_entropy_note(WSEED_ENTQ_NONE);
+    }
     if (rc != 0) {                          // restore path: checksum failed
         mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
         mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
@@ -1706,11 +1733,11 @@ static void dice_commit(void)
         // Judge the digits one last time, BEFORE reset() drops them. This is
         // the only moment the raw rolls and the decision to keep them exist
         // together, and after the hash nothing can ever tell.
-        wallet_dice_q_t q;
-        wallet_dice_judge(wallet_dice_digits(), wallet_dice_count(),
-                          dice_need(), &q);
-        wallet_setup_entropy_note(q.verdict == WD_Q_UNEVEN ||
-                                  q.verdict == WD_Q_PATTERN ? q.verdict : 0);
+        // A flagged run can no longer reach here: DONE refuses it and ROLL MORE
+        // is the way through. So the note this path writes is always "nothing
+        // to say", and writing it is still what CLEARS a previous device's
+        // verdict when a seed is rebuilt.
+        wallet_setup_entropy_note(0);
         wallet_dice_reset();
         wallet_setup_entropy(entropy, need);
     } else {
@@ -1721,8 +1748,6 @@ static void dice_commit(void)
     }
     wz_bzero(entropy, sizeof entropy);
 }
-
-static void dice_force_cb(lv_event_t *e) { (void)e; dice_commit(); }
 
 static void dice_screen_build(void);
 // ROLL MORE: back to the keypad WITH the rolls banked. This pill is the whole
@@ -1754,29 +1779,39 @@ static void dice_warn_screen(int verdict)
     wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
                  408, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
 
-    // USE ANYWAY farthest from the thumb's resting corner, the fix nearest it.
-    // A plain pill, not a hold: the weak passphrase warning is a plain USE
-    // ANYWAY, and extra ceremony here would teach people to stop reading both.
-    lv_obj_t *p[3];
-    p[0] = wt_pillh(s_scr, tr(STR_L_USE_ANYWAY), 48, WT_ACTION_Y_TALL, 216, 66,
-                    dice_force_cb, NULL);
-    p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 286, WT_ACTION_Y_TALL, 216, 66,
+    // No USE ANYWAY. ROLL MORE keeps the right hand slot it already had, so the
+    // muscle memory survives the pill count dropping to two, and it is primary
+    // because it is the way through: the rolls are all still banked, which is
+    // the whole reason DICE_MAX is 180.
+    lv_obj_t *p[2];
+    p[0] = wt_pillh(s_scr, tr(STR_W_START_OVER), 48, WT_ACTION_Y_TALL, 330, 66,
                     method_dice_cb, NULL);
-    p[2] = wt_pillh(s_scr, tr(STR_W_DICE_MORE), 524, WT_ACTION_Y_TALL, 216, 66,
+    p[1] = wt_pillh(s_scr, tr(STR_W_DICE_MORE), 422, WT_ACTION_Y_TALL, 330, 66,
                     dice_keep_cb, NULL);
-    wt_pill_row(p, 3);
+    wt_pill_row(p, 2);
+    wt_pill_primary(p[1]);
 }
 
 static void dice_done_cb(lv_event_t *e)
 {
     (void)e;
-    // Judge the raw digits, warn, and honour the owner's choice. Never a hard
-    // stop: the camera meter refusing at zero is the device distrusting its
-    // OWN source, while dice entropy is the owner's — a device that overrides
-    // it has taken back the trust root this whole path exists to hand over.
+    // A run this judge does not believe was rolled does not become a seed.
+    //
+    // This used to warn and then honour a USE ANYWAY, on the argument that dice
+    // entropy is the owner's and a device overriding it takes back the trust
+    // root the path exists to hand over. The owner still owns it — ROLL MORE is
+    // how they exercise that, and it keeps every roll already banked, so a
+    // refusal is never a dead end for anyone actually rolling a die. What the
+    // old shape really offered was one tap between a shape nobody rolled and a
+    // wallet, at the one moment in the ritual an owner is least inclined to
+    // read.
+    //
+    // The line stays at WD_RATE = 2050 and must not move to the promised 128
+    // bits: the plug-in estimator reads ~3.6 bits low at fifty rolls, so a
+    // 126 bit gate refuses about half of honest sessions. See wallet_dice_q.c.
     wallet_dice_q_t q;
     wallet_dice_judge(wallet_dice_digits(), wallet_dice_count(), dice_need(), &q);
-    if (q.verdict == WD_Q_UNEVEN || q.verdict == WD_Q_PATTERN) {
+    if (wallet_dice_blocked(q.verdict)) {
         dice_warn_screen(q.verdict);
         return;
     }
@@ -2145,6 +2180,128 @@ static void cards_intro_screen(void)
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_count_cb, NULL);
 }
 
+// ---- the draw, drawn ----
+// One bar per typed word, height from where that word sits in the 2048 word
+// list. A blind draw is a jagged skyline, a sorted draw climbs, and a deck
+// nobody shuffled draws a flat line. Same argument as the dice histogram: show
+// the shape being questioned rather than describing it, which is also what
+// clears the BARE gate on both screens below.
+//
+// No text at all, so it is identical in all 21 locales. A photograph of it
+// narrows each index to about six bits, which is strictly less than the same
+// observer gets three taps later on words_screen, where every word is spelled
+// out — so this is not a new exposure class and carries no mitigation.
+#define CARDS_BAR_W  14
+#define CARDS_BAR_H  64
+static void cards_bars_make(lv_obj_t *card, lv_color_t col)
+{
+    if (s_nw < 2) return;
+    int usable = 704 - 36 - CARDS_BAR_W;
+    int pitch = usable / (s_nw - 1);
+    for (int i = 0; i < s_nw; i++) {
+        lv_obj_t *b = lv_obj_create(card);
+        lv_obj_remove_style_all(b);
+        // +4 so index 0 still draws a visible stub rather than nothing.
+        int h = 4 + (int)((uint32_t)s_cidx[i] * (CARDS_BAR_H - 4) / 2047);
+        lv_obj_set_pos(b, 18 + i * pitch, 14 + (CARDS_BAR_H - h));
+        lv_obj_set_size(b, CARDS_BAR_W, h);
+        lv_obj_set_style_bg_color(b, col, 0);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    }
+    // The midline, drawn last so it crosses the bars: half the list. A draw
+    // that never crosses it came off one end of the deck.
+    lv_obj_t *tick = lv_obj_create(card);
+    lv_obj_remove_style_all(tick);
+    lv_obj_set_pos(tick, 18, 14 + CARDS_BAR_H / 2);
+    lv_obj_set_size(tick, usable + CARDS_BAR_W, 1);
+    lv_obj_set_style_bg_color(tick, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
+}
+
+// The subtitle and the "why it matters" body both turn on which rule fired.
+static int cards_sub_key(void)
+{
+    switch (s_cq.verdict) {
+        case WC_Q_SAME:    return STR_W_CARDS_SAME_S;
+        case WC_Q_PERIOD:  return STR_W_CARDS_PERIOD_S;
+        case WC_Q_CLUSTER: return STR_W_CARDS_CLUST_S;
+        case WC_Q_SORTED:  return STR_W_CARDS_SORTED_S;
+        default:           return STR_W_CARDS_DUP_S;
+    }
+}
+
+static int cards_why_key(void)
+{
+    switch (s_cq.verdict) {
+        case WC_Q_CLUSTER: return STR_W_CARDS_CLUST_B;
+        case WC_Q_SORTED:  return STR_W_CARDS_SORTED_B;
+        case WC_Q_DUP:     return STR_W_CARDS_DUP_B;
+        default:           return STR_W_CARDS_BLOCK_B;   // SAME and PERIOD
+    }
+}
+
+// USE ANYWAY on a warn: straight to the picker, verdict intact so the chip on
+// the checksum card can still say what it said.
+static void cards_force_cb(lv_event_t *e) { (void)e; cards_cksum_screen(); }
+
+// A retype is a fresh draw, not an edit, so the old words go before the
+// keyboard opens and a half finished retype cannot leave a stale word behind
+// s_nw. wipe_state() is the wrong tool here: it clears s_cards and would drop
+// the flow out of cards mode entirely.
+static void cards_retype_cb(lv_event_t *e)
+{
+    (void)e;
+    memset(s_w, 0, sizeof s_w);
+    memset(s_cidx, 0, sizeof s_cidx);
+    memset(s_prefix, 0, sizeof s_prefix);
+    s_nw = 0;
+    s_cq = (wallet_cards_q_t){0};
+    restore_screen();
+}
+
+// The two verdict screens. Same geometry, one difference that is the whole
+// point: the warn has a way past and the block does not.
+static void cards_verdict_screen(int title, lv_color_t col, bool blocked)
+{
+    mk_screen(tr(title), tr(cards_sub_key()));
+
+    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+    cards_bars_make(card, col);
+
+    const char *b1 = tr(cards_why_key()), *b2 = tr(STR_W_CARDS_FIX_B);
+    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+    const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - 46 - 8);
+    // Reusing the dice pair's headings: already parallel, already translated,
+    // and wallet_info.c reuses a dice title off the dice path for the same
+    // reason. The rule colour is the verdict's, the fix is always the accent.
+    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), b1,  48, BY, BW, BH, f, col);
+    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), b2, 408, BY, BW, BH, f, wt_accent());
+
+    // Two pills, 48/422 at 330 wide: margins 48 and 48, gap 44. Symmetric,
+    // unlike the three pill row this replaces. The way forward is on the right,
+    // farthest from nothing and nearest the thumb.
+    lv_obj_t *p[2];
+    p[0] = wt_pillh(s_scr, tr(blocked ? STR_C_CANCEL : STR_L_USE_ANYWAY),
+                    48, WT_ACTION_Y_TALL, 330, 66,
+                    blocked ? cards_cancel_cb : cards_force_cb, NULL);
+    p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 422, WT_ACTION_Y_TALL, 330, 66,
+                    cards_retype_cb, NULL);
+    wt_pill_row(p, 2);
+    wt_pill_primary(p[1]);
+}
+
+static void cards_warn_screen(void)
+{
+    cards_verdict_screen(STR_W_CARDS_WARN_T, WARN_COL, false);
+}
+
+static void cards_block_screen(void)
+{
+    cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL, true);
+}
+
 // A warn twin of the accent chip: same shape, opposite verdict.
 static void cards_chip_warn(lv_obj_t *chip)
 {
@@ -2192,6 +2349,32 @@ static void cards_cksum_screen(void)
     wt_diagram_op(r2, LV_SYMBOL_RIGHT);
     cards_chip_warn(wt_chip(r2, LV_SYMBOL_CLOSE, false));
 
+    // The verdict, kept where the flow can still see it. This screen is reached
+    // clean or through USE ANYWAY, and a warning that vanishes on the next tap
+    // is a warning the product forgot on the owner's behalf. Same place and
+    // shape as the dice keypad's chip: TOP_RIGHT of the card, clear of the two
+    // rows, which are numerals and glyphs and so the same width in every
+    // locale. It cannot go in the row at y=210 -- the card bottoms at 204 and
+    // the why blocks start at the mandated 232, leaving 28px for a 30px chip.
+    //
+    // A block never reaches this screen, so only the three warn verdicts have a
+    // word here. OK is the bare mark: the green accent is byte identical to
+    // WT_OK, so a word beside it would be saying the colour twice.
+    {
+        char b[64];
+        bool clean = s_cq.verdict == WC_Q_OK || s_cq.verdict == WC_Q_SHORT;
+        if (clean) {
+            snprintf(b, sizeof b, "%s", LV_SYMBOL_OK);
+        } else {
+            int k = s_cq.verdict == WC_Q_CLUSTER ? STR_W_CARDS_Q_CLUSTER
+                  : s_cq.verdict == WC_Q_SORTED  ? STR_W_CARDS_Q_SORTED
+                                                 : STR_W_CARDS_Q_DUP;
+            snprintf(b, sizeof b, "%s %s", LV_SYMBOL_WARNING, tr(k));
+        }
+        lv_obj_t *vchip = wt_state_chip(card, b, clean ? OK_COL : WARN_COL);
+        lv_obj_align(vchip, LV_ALIGN_TOP_RIGHT, -14, 10);
+    }
+
     // The one concrete number: how many of the 2048 list words fit these.
     char fit[96];
     snprintf(fit, sizeof fit, tr(STR_W_CKSUM_FIT_FMT), s_ncand);
@@ -2228,6 +2411,30 @@ static void cards_cksum_open(void)
         mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
         mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
         mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
+        return;
+    }
+
+    // Judge the owner's own words HERE, before the checksum word joins them and
+    // makes every set look finished. This is the cards analogue of judging the
+    // raw dice digits before SHA256 whitens them.
+    //
+    // This function is the cards path's alone -- restore_accept_cb reaches it
+    // under if (s_cards) and nothing else calls it -- which is why the check
+    // lives here and not on the keyboard the restore, verify and amnesic load
+    // flows all share. A pre-existing wallet whose words happen to repeat one
+    // must still restore, and by construction it cannot reach this line.
+    {
+        unsigned n = 0;
+        for (int i = 0; i < s_nw && n < 24; i++) {
+            int k = wallet_lastword_index(s_w[i]);
+            if (k < 0) { n = 0; break; }   // unreachable: every word came off a pill
+            s_cidx[n++] = (uint16_t)k;
+        }
+        wallet_cards_judge(s_cidx, n, &s_cq);
+    }
+    if (wallet_cards_blocked(&s_cq)) { cards_block_screen(); return; }
+    if (s_cq.verdict != WC_Q_OK && s_cq.verdict != WC_Q_SHORT) {
+        cards_warn_screen();
         return;
     }
     cards_cksum_screen();
