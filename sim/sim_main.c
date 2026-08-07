@@ -264,6 +264,20 @@ int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i]);
   return 0;
 }
+// Stands in for the camera on the dead-lens path, so the walk has to link it.
+// The real one measures two clocks against each other and kisstest exercises
+// that; a scripted walk has no clocks worth measuring, so this only has to be
+// non-constant and succeed. Nothing here is entropy and nothing here claims to
+// be -- the walk never keeps a seed.
+int wallet_jitter(uint8_t out[32]) {
+  if (!out) return -1;
+  static uint32_t s = 0x2545F491u;
+  for (int i = 0; i < 32; i++) {
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+    out[i] = (uint8_t)(s & 0xFF);
+  }
+  return 0;
+}
 
 // storage mode: the real logic + its edge cases live in wallet_seed.c and are
 // covered by kisstest. Here it only has to steer the screens -- but it has to
