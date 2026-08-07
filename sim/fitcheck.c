@@ -191,7 +191,7 @@ static const slot_t SLOTS[] = {
     { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
     { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
-    // cards mode (MY OWN WORDS): subtitles, the method-row note, both why
+    // cards mode (BLIND DRAW): subtitles, the method-row note, both why
     // pairs and the checksum page's one number line. The candidate pills are
     // dynamic English BIP39 words and are deliberately not rows here.
     { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },

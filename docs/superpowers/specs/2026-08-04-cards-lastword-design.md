@@ -1,11 +1,14 @@
-# MY OWN WORDS — cards entropy with a computed last word
+# BLIND DRAW — hand drawn entropy with a computed last word
 
-Date: 2026-08-04. Status: approved.
+Date: 2026-08-04. Status: approved. Renamed 2026-08-07: the mode shipped as
+MY OWN WORDS, which reads to a beginner as *words I get to choose* — the one
+mistake wallet_cards_q exists to block — and its copy named paper, which is
+only one medium: the list can equally be 3D printed as tiles and shaken.
 
 ## Problem
 
-The DIY paper seed: the owner cuts the BIP39 list into cards, shuffles, draws
-blind, and wants a wallet made of those words. The last word of a BIP39
+The DIY hand drawn seed: the owner makes a physical copy of the BIP39 list,
+mixes it, draws blind, and wants a wallet made of those words. The last word of a BIP39
 mnemonic is part checksum, so after 11 or 23 drawn words the final word cannot
 be drawn — it must be computed. Krux and SeedSigner ship this; KISS Signer's
 answer must not add machine randomness to the seed.
