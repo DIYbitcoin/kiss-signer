@@ -249,8 +249,10 @@ const char *wallet_lastword_word(uint16_t i) {
 // have to spread the way real ones do: 83 apart is far wider than WC_NEAR, so
 // an ordinary typed set judges clean and the flagged shapes stay exactly where
 // the walk puts them on purpose. index() and word() are deliberately NOT
-// inverses here -- nothing in the flow round trips them, the judge only reads
-// index() and the picker only reads word() -- and kisstest owns the real pair.
+// inverses here -- nothing in the flow round trips them, the judge and the
+// checksum card only read index(), the picker only reads word() -- and
+// kisstest owns the real pair. i*83 runs to four digits too, so the widest
+// number chip the card can draw is the one the walk already draws.
 int wallet_lastword_index(const char *w) {
   for (int i = 0; i < 24; i++)
     if (strcmp(SIM_WORDS[i], w) == 0) return i * 83;
