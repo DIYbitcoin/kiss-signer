@@ -85,8 +85,19 @@ int art_unpack_all(void)
     if (failed)
         ESP_LOGE(TAG, "%d images FAILED to unpack -- art will be missing", failed);
 #else
-    if (failed)
-        fprintf(stderr, "art: %d images failed to unpack\n", failed);
+    // On the host a failure is fatal, and that is the point: nothing else
+    // checks the baked blobs. The device tolerates a missing image because a
+    // board short of PSRAM should still be a wallet, but on the host the only
+    // way to fail is a blob that does not decompress to its declared length --
+    // which is a corrupt or mis-baked asset, and a gate that shrugged at it
+    // would let one ship. Every sim build runs this, so the screen walk is
+    // also a 41 image integrity check.
+    if (failed) {
+        fprintf(stderr, "art: %d of %d images failed to unpack -- corrupt or "
+                        "mis-baked asset, run tools/bake_art.py\n",
+                failed, failed + done);
+        abort();
+    }
 #endif
     return failed;
 }
