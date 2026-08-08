@@ -184,7 +184,7 @@
   "I_SEC_PATH": "ĐƯỜNG DẪN SUY XUẤT",
   "I_H_PATH_B": "m/... là nơi các khóa sinh ra.\nứng dụng dùng nó để tìm địa chỉ.",
   "I_H_PAIR_T": "VÍ ĐIỀU PHỐI",
-  "I_H_PAIR_B": "THEO DÕI: số dư của bạn, và tạo giao dịch.\nKHÔNG THỂ TIÊU: việc ký diễn ra ở đây, trên thiết bị này.",
+  "I_H_PAIR_B": "THEO DÕI: số dư của bạn, và tạo giao dịch.\nKHÔNG THỂ TIÊU: việc ký diễn ra ở đây, trên thiết bị này.\nBITCOIN CỦA BẠN: trên mạng lưới, không ở trong cái nào.",
   "I_H_ADDR_B": "địa chỉ đầu tiên giúp nhận ra ví này.\nví điều phối cũng phải hiện đúng địa chỉ đó.\n\nchia sẻ địa chỉ này để nhận tiền.\ndùng địa chỉ mới cho khoản tiếp theo.\ndùng lại sẽ công khai liên kết các khoản nhận.",
   "I_PAIR_T": "GHÉP APP ĐIỀU PHỐI",
   "I_PAIR_S": "đưa QR này cho app sẽ theo dõi ví",

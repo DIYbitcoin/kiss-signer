@@ -184,7 +184,7 @@
   "I_SEC_PATH": "HÄRLEDNINGSVÄG",
   "I_H_PATH_B": "m/... är varifrån nycklarna kommer.\nappen hittar dem med den.",
   "I_H_PAIR_T": "KOORDINATORPLÅNBOKEN",
-  "I_H_PAIR_B": "BEVAKAR: ditt saldo, och bygger transaktioner.\nKAN INTE SPENDERA: signering sker här, på denna enhet.",
+  "I_H_PAIR_B": "BEVAKAR: ditt saldo, och bygger transaktioner.\nKAN INTE SPENDERA: signering sker här, på denna enhet.\nDINA BITCOIN: på nätverket, aldrig i någon av dem.",
   "I_H_ADDR_B": "din första adress identifierar plånboken.\nkoordinatorplånboken ska visa samma.\n\ndela den för att ta emot.\nanvänd en ny vid nästa betalning.\nåteranvändning kopplar betalningar offentligt.",
   "I_PAIR_T": "PARKOPPLA KOORDINATOR",
   "I_PAIR_S": "visa denna QR-kod för appen som bevakar",
