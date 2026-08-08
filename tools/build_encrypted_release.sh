@@ -105,6 +105,23 @@ force = {
     "CONFIG_ESPTOOLPY_AFTER_RESET":                 None,
     "CONFIG_ESPTOOLPY_AFTER_NORESET":               "y",
     "CONFIG_ESPTOOLPY_AFTER":                       '"no-reset"',
+    # SD firmware update: verify the signature on an incoming image. The plain
+    # release lane has set these since it gained the update path; this lane,
+    # the one that runs on boards holding funds, did not - so on an encrypted
+    # build wallet_fw_available() answered WFW_ERR_UNSIGNED and the device
+    # refused every update, including ours. The partition table here has
+    # carried two app slots and an otadata since the SD update work landed, so
+    # the layout always said updatable while the app said frozen.
+    #
+    # NO_SECURE_BOOT is the honest name: this verifies an image before it is
+    # written, using the public key in the running app's own signature block.
+    # It does NOT verify the bootloader and it does NOT stop a downgrade to an
+    # older SIGNED build - CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK stays off, and
+    # secure boot is the later pass this script already asserts is absent.
+    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y",
+    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y",
+    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
+    "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
 }
 out, seen = [], set()
 for l in open("sdkconfig").read().splitlines():
@@ -120,8 +137,16 @@ for l in open("sdkconfig").read().splitlines():
     else:
         out.append(l)
 for key, v in force.items():
-    if key not in seen and v is not None:
-        out.append(f"{key}={v}")
+    if key in seen:
+        continue
+    # A forced None has to write the explicit "is not set" line even when the
+    # base sdkconfig never mentioned the symbol. Skipping it leaves the symbol
+    # absent, and an absent symbol takes its Kconfig default: turning signed
+    # apps on brought SECURE_BOOT_BUILD_SIGNED_BINARIES back as y, which then
+    # demanded a signing key inside the build container. The key does not go in
+    # a container - images are signed outside it, same as the plain release
+    # lane - so this has to say off out loud.
+    out.append(f"# {key} is not set" if v is None else f"{key}={v}")
 open(os.environ["SDKCFG"], "w").write("\n".join(out) + "\n")
 print("wrote %s (flash enc %s + NVS enc, logs WARN)"
       % (os.environ["SDKCFG"], "DEVELOPMENT" if rehearsal else "RELEASE"))
@@ -169,12 +194,29 @@ checks += [
     (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
     (on("CONFIG_ESPTOOLPY_NO_STUB"),                    "esptool no-stub mode (required with flash encryption)"),
     (on("CONFIG_APP_REPRODUCIBLE_BUILD"),               "reproducible build (no compile date embedded)"),
+    # An update lane is only allowed to exist if the images it accepts are
+    # checked. These two assert the answer this lane gives to "updatable or
+    # frozen": updatable, and only for an image signed with our key.
+    (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT"),
+     "SD update images are signature verified"),
+    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME"),   "signature scheme ECDSA v2"),
+    # Deliberately NOT asserted on: anti rollback burns an eFuse and cannot be
+    # undone, and doing that before secure boot lands would freeze the fleet on
+    # an unfinished security model. An older SIGNED build is installable today;
+    # that is a known, accepted gap and it goes away with the secure boot pass.
 ]
 
 pt = open(f"{bdir}/partition_table/partition-table.bin", "rb").read()
+# This lane used to assert a factory partition, i.e. one frozen image and no
+# update path at all. The SD update work replaced that with two app slots and
+# an otadata, and the assert kept demanding the old shape - so the check failed
+# on a perfectly good build and no encrypted release could be cut. It now
+# asserts the layout the table actually has, and the app actually uses.
 checks += [
     (b"nvs_key" in pt, "nvs_key (NVS XTS key) partition present"),
-    (b"factory" in pt, "factory app partition present"),
+    (b"ota_0" in pt and b"ota_1" in pt, "two app slots present (SD update lane)"),
+    (b"otadata" in pt, "otadata present (rollback needs it)"),
+    (b"factory" not in pt, "no factory partition (slots are the boot path)"),
 ]
 
 # no-wireless gate: the board's C6 radio chip is held in reset and nothing
