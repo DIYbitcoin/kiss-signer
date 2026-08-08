@@ -14,6 +14,7 @@
 #include "wallet_setup.h"
 #include "wallet_duress.h"
 #include "wallet_duress_ui.h"
+#include "wallet_fw_ui.h"   // SD firmware update: the screens this page opens
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
 #include "wallet_usage.h"   // clear the receive-index history on wipe
@@ -62,6 +63,7 @@ static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
+static lv_obj_t *s_fw_pill;     // header row beside it: the device's own controls
 static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl, *s_type_name;
 static lv_obj_t *s_storage_pill;  // STORAGE over the explicit current mode
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
@@ -863,6 +865,29 @@ static void lang_open_cb(lv_event_t *e)
     wallet_lang_picker_open(s_scr, settings_lang_picked);
 }
 
+// ---- firmware ----
+// wallet_fw_ui owns its own screens and hands control back through this. It is
+// the same shape as the language picker's return: settings screens are
+// create-on-open, so the way back is to build a new one.
+static void fw_done(void)
+{
+    lv_obj_t *parent = s_parent;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_settings_open(parent);
+}
+
+static void fw_open_cb(lv_event_t *e)
+{
+    (void)e;
+    // The firmware screens take the whole page, so settings goes away first
+    // rather than sitting underneath: an update that succeeds ends in a
+    // restart, and a settings screen kept alive behind it would be a screen
+    // built from the version that is being replaced.
+    lv_obj_t *parent = s_parent;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_fw_ui_open(parent, fw_done);
+}
+
 void wallet_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
 {
     s_lang_picked_cb = picked_cb;
@@ -912,6 +937,7 @@ void wallet_settings_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    s_fw_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
     // The top right belongs to the LANGUAGE pill now; see the block that builds
@@ -1328,11 +1354,32 @@ void wallet_settings_open(lv_obj_t *parent)
         s_lang_pill = mk_pillh(shortname, 752 - LANG_PILL_W, 18,
                                LANG_PILL_W, 44, lang_open_cb, NULL);
         wt_pill_row(&s_lang_pill, 1);
-        // The title had the whole 704 lane and now shares it with a 170px pill.
+
+        // FIRMWARE, immediately left of it. The header is where the two
+        // controls that belong to the DEVICE live rather than to this wallet:
+        // language changes how every other word on the page reads, firmware
+        // changes what draws them. Neither belongs in a column headed THIS
+        // WALLET, and firmware in particular must not sit under NO UNDO beside
+        // ERASE, where the two most consequential taps on the device would be
+        // neighbours.
+        //
+        // Same y and height as LANGUAGE so they read as one header row, with
+        // 12px of daylight between them. 232 is not a taste: the fit gate was
+        // asked, and it is the narrowest width at which every locale's word for
+        // firmware still renders at full size -- MICROLOGICIEL needs 204px of
+        // it. A narrower pill would put the only route to a firmware update in
+        // the smallest type on the page.
+#define FW_PILL_W 232
+        s_fw_pill = mk_pillh(tr(STR_G_FW_PILL),
+                             752 - LANG_PILL_W - 12 - FW_PILL_W, 18,
+                             FW_PILL_W, 44, fw_open_cb, NULL);
+        wt_pill_row(&s_fw_pill, 1);
+
+        // The title had the whole 704 lane and now shares it with two pills.
         // Nothing else would catch this: the overlap gate measures text against
         // text, a pill is not text, and a long locale's title would simply run
-        // underneath it. 518 = 704 - 170 - 16 of gap.
-        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - 48);
+        // underneath them.
+        wt_title_fit(s_scr, 752 - LANG_PILL_W - 12 - FW_PILL_W - 16 - 48);
     }
 
     {
