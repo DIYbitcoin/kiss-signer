@@ -163,6 +163,60 @@ docker run --rm \
   idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
   -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
 
+# ---- sign the app, outside the container ----
+# Same key and same step as the plain release lane, and for the same reason
+# stated there: esp_ota_end verifies an incoming image against the public key
+# carried in the RUNNING app's own signature block. An app with no block has no
+# key, so it can never accept an update -- and on the release recipe the board
+# has burned its fuses and cannot be serially reflashed either, which makes an
+# unsigned encrypted release a funded board that can never be fixed. This lane
+# had no signing step at all. Hence a hard stop rather than a warning.
+#
+# Before the checks below, not after: signing appends a block, so the size the
+# flash budget measures and the hashes the recipe prints have to be the ones
+# from the file that actually gets flashed.
+KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+if [ ! -f "$KISS_OTA_KEY" ]; then
+  echo
+  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
+  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "      Without it this board can never accept an SD firmware update, and"
+  echo "      the release recipe burns the fuses that would let you reflash it."
+  exit 1
+fi
+echo "signing app with $KISS_OTA_KEY"
+uvx --from esptool espsecure sign-data \
+  --version 2 --keyfile "$KISS_OTA_KEY" \
+  --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
+  "$BUILD_DIR/guition_kiss_bringup.bin"
+mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
+   "$BUILD_DIR/guition_kiss_bringup.bin"
+
+# The public half in the repo has to be the half that just signed, or a
+# verifier checks this build against a key the firmware does not carry.
+uvx --from esptool espsecure extract-public-key \
+  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
+if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
+  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+  rm -f /tmp/kiss_ota_pub_enc_check.pem
+  exit 1
+fi
+echo "PASS: published public key matches the signing key"
+rm -f /tmp/kiss_ota_pub_enc_check.pem
+
+# Prove the shipped file verifies against the PUBLISHED key, not just that the
+# two halves match. This is the check a stranger can repeat, and it is the one
+# that fails if signing was skipped, applied to the wrong file, or undone by a
+# later step that rewrites the binary.
+if ! uvx --from esptool espsecure verify-signature \
+     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+     "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
+  echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
+  echo "      docs/installer/kiss_ota_pub.pem"
+  exit 1
+fi
+echo "PASS: signed app verifies against the published public key"
+
 # ---- verify: binary contents AND the security config that actually built ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
 import os, sys
