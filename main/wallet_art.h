@@ -21,6 +21,7 @@
 #pragma once
 #include <stdint.h>
 #include "lvgl.h"
+#include "wallet_art_rle.h"   // art_rle_decompress, LVGL free so tests can link it
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,15 +35,6 @@ typedef struct {
     uint32_t        raw_len;  // decompressed size, and an exact requirement
     uint8_t         blk;      // RLE block size in bytes, chosen per image
 } art_entry_t;
-
-// LVGL's RLE format (managed_components/lvgl__lvgl/src/libs/rle/lv_rle.c): a
-// control byte with the high bit set copies N blocks straight through, with it
-// clear repeats the next block N times, N at most 127 either way. Returns the
-// number of bytes written, which the caller must check equals what it asked
-// for -- a short read means the input was truncated, not that it should be
-// used. Never writes past out_len.
-uint32_t art_rle_decompress(const uint8_t *in, uint32_t in_len,
-                            uint8_t *out, uint32_t out_len, uint8_t blk);
 
 // Unpack every baked image. Call once, before the first screen is built.
 // Returns the number that FAILED, so 0 is success.

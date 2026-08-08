@@ -25,6 +25,7 @@
 #endif
 #include "lvgl.h"
 #include "sprites.h"
+#include "wallet_art.h"
 #include "menu_img.h"
 #include "menu_logo.h"
 #include "gameover_img.h"
@@ -2082,6 +2083,17 @@ static void storage_locked_screen(lv_obj_t *root,
 }
 
 void build_game(void) {  // non-static: the simulator harness calls this too
+  // The baked art lives in flash as RLE and its descriptors start empty, so
+  // this has to run before the first lv_image_set_src below (wallet_art.h says
+  // why the art is compressed at all). It is free where it stands: nothing is
+  // painted until the lv_timer_handler loop in app_main, so this only delays
+  // first paint on a screen that is still black.
+  //
+  // A failure count is logged inside and deliberately not fatal -- an image
+  // that could not be unpacked stays NULL and simply does not draw, which
+  // costs the decoy its looks and costs the wallet nothing.
+  art_unpack_all();
+
   wallet_settings_load_status_t settings_status = wallet_settings_load();
   lv_obj_t *scr = lv_screen_active();
   if (settings_status != WSETTINGS_LOAD_OK) {
