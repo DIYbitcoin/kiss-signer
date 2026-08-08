@@ -1605,10 +1605,18 @@ static unsigned dice_need(void) { return s_count == 24 ? 32 : 16; }
 // on the device; unlike the entropy screen's there is no camera to stop and
 // restart, so it is a plain overlay with no teardown. First glyph is the LIST
 // mark method_screen already puts on the DICE row, so the marks agree.
+// A fourth row, and it is the one a newcomer actually needed: the card used to
+// explain the CHECKER and never the point. Dice exist on a signer so the owner
+// does not have to take this device's word for its own randomness, and nothing
+// on the screen said so -- the SHA256 sat under the tally with no reason
+// attached. That line cannot live on the note itself: DICE_NOTE_Y 210 to
+// DICE_FP_Y 250 is 40px, two font14 lines, and a longer locale would land on
+// the fingerprint. The card has the room, so the reason goes here.
 static const char *const DICE_HELP_ICONS[] = {
     LV_SYMBOL_LIST,
     LV_SYMBOL_LOOP,
     LV_SYMBOL_WARNING,
+    LV_SYMBOL_OK,
 };
 
 static void dice_help_cb(lv_event_t *e)
