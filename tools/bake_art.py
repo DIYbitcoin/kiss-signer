@@ -238,7 +238,6 @@ def bake_file(path, check):
     out = txt
     # 1. maps -> compressed maps
     for name, (blk, payload, raw_len) in enc.items():
-        old = MAP_RE.search(out)
         pat = re.compile(r'static const uint8_t %s\[\]\s*=\s*\{.*?\};' % re.escape(name), re.S)
         new = ("static const uint8_t %s_rle[] = {\n%s\n};"
                % (name, c_bytes(payload)))

@@ -36,6 +36,8 @@ int test_duress(void);
 int test_passedit(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
 int test_tapent(void);
+// sim/test_art.c — the baked-art RLE decoder, cross-checked against the baker
+int test_art(void);
 // sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
 int test_dice(void);
 
@@ -648,6 +650,7 @@ int main(int argc, char **argv) {
     fails += test_duress();
     fails += test_passedit();
     fails += test_tapent();
+    fails += test_art();
     fails += test_dice();
     fails += test_lastword();
     fails += test_cards_q();
