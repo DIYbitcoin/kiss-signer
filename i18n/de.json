@@ -184,7 +184,7 @@
   "I_SEC_PATH": "ABLEITUNGSPFAD",
   "I_H_PATH_B": "m/... sagt, woher die Schlüssel kommen.\ndeine App findet sie damit.",
   "I_H_PAIR_T": "DIE KOORDINATOR-WALLET",
-  "I_H_PAIR_B": "BEOBACHTET: dein Guthaben, und baut Transaktionen.\nKANN NICHT AUSGEBEN: signiert wird hier, auf diesem Gerät.",
+  "I_H_PAIR_B": "BEOBACHTET: dein Guthaben, und baut Transaktionen.\nKANN NICHT AUSGEBEN: signiert wird hier, auf diesem Gerät.\nDEIN BITCOIN: im Netzwerk, nie in einem von beiden.",
   "I_H_ADDR_B": "deine erste Adresse kennzeichnet diese Wallet.\ndeine Koordinator-Wallet sollte sie auch zeigen.\n\nteile diese Adresse zum Empfangen.\nfür die nächste Zahlung eine neue verwenden.\nWiederverwendung verknüpft Zahlungen öffentlich.",
   "I_PAIR_T": "KOORDINATOR KOPPELN",
   "I_PAIR_S": "zeige diesen QR der App, die zuschaut",

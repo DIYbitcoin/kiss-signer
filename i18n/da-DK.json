@@ -184,7 +184,7 @@
   "I_SEC_PATH": "AFLEDNINGSSTI",
   "I_H_PATH_B": "m/... er hvor nøglerne kommer fra.\ndin app finder dem med den.",
   "I_H_PAIR_T": "KOORDINATORTEGNEBOGEN",
-  "I_H_PAIR_B": "OVERVÅGER: din saldo, og bygger transaktioner.\nKAN IKKE BRUGE PENGE: signering sker her, på denne enhed.",
+  "I_H_PAIR_B": "OVERVÅGER: din saldo, og bygger transaktioner.\nKAN IKKE BRUGE PENGE: signering sker her, på denne enhed.\nDINE BITCOIN: på netværket, aldrig i nogen af dem.",
   "I_H_ADDR_B": "din første adresse kendetegner tegnebogen.\nkoordinatortegnebogen skal vise den samme.\n\ndel denne adresse for at modtage.\nbrug en ny ved næste betaling.\ngenbrug forbinder betalinger offentligt.",
   "I_PAIR_T": "PAR KOORDINATOR",
   "I_PAIR_S": "vis denne QR-kode til appen, der følger med",

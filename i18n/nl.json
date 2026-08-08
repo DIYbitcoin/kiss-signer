@@ -184,7 +184,7 @@
   "I_SEC_PATH": "AFLEIDINGSPAD",
   "I_H_PATH_B": "m/... is waar de sleutels vandaan komen.\nje app vindt ze daarmee.",
   "I_H_PAIR_T": "DE COÖRDINATOR-WALLET",
-  "I_H_PAIR_B": "BEKIJKT: je saldo, en maakt transacties.\nKAN NIET UITGEVEN: ondertekenen gebeurt hier, op dit apparaat.",
+  "I_H_PAIR_B": "BEKIJKT: je saldo, en maakt transacties.\nKAN NIET UITGEVEN: ondertekenen gebeurt hier, op dit apparaat.\nJE BITCOIN: op het netwerk, in geen van beide.",
   "I_H_ADDR_B": "aan je eerste adres herken je deze wallet.\nde coördinator-wallet moet dit ook tonen.\n\ndeel dit adres om te ontvangen.\ngebruik voor de volgende betaling een nieuw adres.\nhergebruik koppelt betalingen openbaar.",
   "I_PAIR_T": "KOPPEL COÖRDINATOR",
   "I_PAIR_S": "toon deze QR aan de app die volgt",

@@ -184,7 +184,7 @@
   "I_SEC_PATH": "PERCORSO DI DERIVAZIONE",
   "I_H_PATH_B": "m/... dice da dove arrivano le chiavi.\nla tua app le trova con quello.",
   "I_H_PAIR_T": "IL PORTAFOGLIO COORDINATORE",
-  "I_H_PAIR_B": "OSSERVA: il tuo saldo, e prepara le transazioni.\nNON PUÒ SPENDERE: si firma qui, su questo dispositivo.",
+  "I_H_PAIR_B": "OSSERVA: il tuo saldo, e prepara le transazioni.\nNON PUÒ SPENDERE: si firma qui, su questo dispositivo.\nI TUOI BITCOIN: sulla rete, mai in nessuno dei due.",
   "I_H_ADDR_B": "il primo indirizzo identifica questo portafoglio.\nil portafoglio coordinatore deve mostrarlo anch'esso.\n\ncondividilo per ricevere.\nusane uno nuovo per il prossimo pagamento.\nriutilizzarlo collega pubblicamente i pagamenti.",
   "I_PAIR_T": "ABBINA COORDINATORE",
   "I_PAIR_S": "mostra questo QR all'app che osserverà",
