@@ -1431,6 +1431,17 @@ int main(void) {
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
 
+  // FIRMWARE, the other header pill: 232x44 at x=338, so its middle is (454,40).
+  // The fw screens themselves are walked further down by calling
+  // wallet_fw_ui_open directly with the seams set; what this proves is the
+  // ROUTE, which nothing exercised until settings grew a way in. Settings tears
+  // itself down before handing over, so a leak here shows up as the fw screen
+  // drawn on top of a live settings page.
+  touch(454, 40); pump(3); release(); pump(8);      // FIRMWARE -> the update screen
+  save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
+  touch(WT_BACK_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
+  save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
+
   touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
