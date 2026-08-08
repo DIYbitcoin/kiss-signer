@@ -62,7 +62,7 @@ static void wipe_card(void)
     // platform_sd's sim base. Remove only what these tests create.
     static const char *const junk[] = {
         "fw-new.bin", "fw-old.bin", "fw-same.bin", "aaa-notimage.bin",
-        "huge.bin", "short.bin", NULL
+        "huge.bin", "short.bin", "0-old.bin", "z-new.bin", NULL
     };
     for (int i = 0; junk[i]; i++) {
         char p[128];
@@ -178,6 +178,46 @@ int test_fw(void)
     mk_image_head(big, sizeof big, 0xABCD5432u, wallet_fw_running_version(), "kiss");
     put("fw-same.bin", big, sizeof big);
     ok("same version reported same", wallet_fw_scan(&got) == WFW_ERR_SAME && got.cmp == 0);
+
+    // Two real images on one card. Sort order is not an opinion about which one
+    // the owner wants, and it used to be the only thing consulted: the scan
+    // returned on the first name that parsed. That offers you last month's
+    // release for keeping it on the card, and it lets anyone who can write to
+    // the card drop a genuine, correctly signed OLD build under a name that
+    // sorts first and have the device offer it as the update.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    put("0-old.bin", big, sizeof big);
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    put("z-new.bin", big, sizeof big);
+    rc = wallet_fw_scan(&got);
+    ok("newest image wins, not the first name",
+       rc == WFW_OK && strcmp(got.name, "z-new.bin") == 0 &&
+       strcmp(got.version, "99.0.0") == 0);
+
+    // ...and the same the other way round, so the answer is the version and not
+    // some new fixed preference for the last name instead of the first.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    put("0-old.bin", big, sizeof big);
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    put("z-new.bin", big, sizeof big);
+    rc = wallet_fw_scan(&got);
+    ok("newest image wins whichever name it has",
+       rc == WFW_OK && strcmp(got.name, "0-old.bin") == 0 &&
+       strcmp(got.version, "99.0.0") == 0);
+
+    // A decoy that does not parse must not beat a real image, and a real image
+    // must not be skipped because something unparsable sorted ahead of it.
+    wipe_card();
+    put("aaa-notimage.bin", junk, sizeof junk);
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    put("fw-old.bin", big, sizeof big);
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    put("fw-new.bin", big, sizeof big);
+    rc = wallet_fw_scan(&got);
+    ok("junk on the card changes nothing",
+       rc == WFW_OK && strcmp(got.name, "fw-new.bin") == 0);
 
     // Too big outranks the version: it is a fact about this device.
     wipe_card();
