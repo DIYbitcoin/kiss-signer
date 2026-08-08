@@ -184,7 +184,7 @@
   "I_SEC_PATH": "PUT IZVOĐENJA",
   "I_H_PATH_B": "m/... govori odakle dolaze ključevi.\naplikacija ih po tome pronalazi.",
   "I_H_PAIR_T": "KOORDINACIJSKI NOVČANIK",
-  "I_H_PAIR_B": "PRATI: vaše stanje, i slaže transakcije.\nNE MOŽE TROŠITI: potpisivanje je ovdje, na ovom uređaju.",
+  "I_H_PAIR_B": "PRATI: vaše stanje, i slaže transakcije.\nNE MOŽE TROŠITI: potpisivanje je ovdje, na ovom uređaju.\nVAŠ BITCOIN: na mreži, nikad ni u jednom od njih.",
   "I_H_ADDR_B": "po prvoj adresi prepoznaješ ovaj novčanik.\nkoordinacijski novčanik mora pokazati istu.\n\npodijeli ovu adresu za primanje.\nza sljedeću uplatu upotrijebi novu.\nponovna uporaba javno povezuje uplate.",
   "I_PAIR_T": "UPARI KOORDINATOR",
   "I_PAIR_S": "pokažite ovaj QR aplikaciji koja prati",

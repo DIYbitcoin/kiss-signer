@@ -184,7 +184,7 @@
   "I_SEC_PATH": "ŚCIEŻKA POCHODZENIA",
   "I_H_PATH_B": "m/... mówi, skąd biorą się klucze.\naplikacja znajduje je po tej ścieżce.",
   "I_H_PAIR_T": "PORTFEL KOORDYNATORA",
-  "I_H_PAIR_B": "OBSERWUJE: twoje saldo, i tworzy transakcje.\nNIE MOŻE WYDAĆ: podpis powstaje tutaj, na tym urządzeniu.",
+  "I_H_PAIR_B": "OBSERWUJE: twoje saldo, i tworzy transakcje.\nNIE MOŻE WYDAĆ: podpis powstaje tutaj, na tym urządzeniu.\nTWÓJ BITCOIN: w sieci, nigdy w żadnym z nich.",
   "I_H_ADDR_B": "pierwszy adres identyfikuje ten portfel.\nportfel koordynatora powinien też go pokazać.\n\nudostępnij go, aby otrzymywać wpłaty.\ndo następnej płatności użyj nowego.\nponowne użycie publicznie łączy płatności.",
   "I_PAIR_T": "SPARUJ KOORDYNATORA",
   "I_PAIR_S": "pokaż ten QR apce, która obserwuje",

@@ -184,7 +184,7 @@
   "I_SEC_PATH": "RUTA DE DERIVACIÓN",
   "I_H_PATH_B": "m/... indica de dónde salen las claves.\ntu app las encuentra con eso.",
   "I_H_PAIR_T": "LA CARTERA COORDINADORA",
-  "I_H_PAIR_B": "OBSERVA: tu saldo, y prepara transacciones.\nNO PUEDE GASTAR: se firma aquí, en este dispositivo.",
+  "I_H_PAIR_B": "OBSERVA: tu saldo, y prepara transacciones.\nNO PUEDE GASTAR: se firma aquí, en este dispositivo.\nTUS BITCOIN: en la red, nunca en ninguno de los dos.",
   "I_H_ADDR_B": "tu primera dirección identifica esta cartera.\nla cartera coordinadora también debe mostrarla.\n\ncompártela para recibir.\nusa otra nueva para el próximo pago.\nreutilizarla vincula tus pagos públicamente.",
   "I_PAIR_T": "EMPAREJAR COORDINADOR",
   "I_PAIR_S": "muestra este QR a la app que observará",

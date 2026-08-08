@@ -184,7 +184,7 @@
   "I_SEC_PATH": "DERIVATION PATH",
   "I_H_PATH_B": "m/... is where the keys come from.\nyour coordinator wallet uses it to find them.",
   "I_H_PAIR_T": "THE COORDINATOR WALLET",
-  "I_H_PAIR_B": "WATCHES: your balance, and builds transactions.\nCANNOT SPEND: signing happens here, on this device.",
+  "I_H_PAIR_B": "WATCHES: your balance, and builds transactions.\nCANNOT SPEND: signing happens here, on this device.\nYOUR BITCOIN: on the network, never in either one.",
   "I_H_ADDR_B": "your first address identifies this wallet.\nyour coordinator wallet should show it too.\n\nshare this address to receive.\nuse a new one for the next payment.\nreuse publicly links payments.",
   "I_PAIR_T": "PAIR COORDINATOR",
   "I_PAIR_S": "show this QR to your coordinator wallet",

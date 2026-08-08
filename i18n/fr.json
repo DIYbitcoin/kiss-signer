@@ -184,7 +184,7 @@
   "I_SEC_PATH": "CHEMIN DE DÉRIVATION",
   "I_H_PATH_B": "m/... indique d'où viennent les clés.\nvotre app s'en sert pour les retrouver.",
   "I_H_PAIR_T": "LE PORTEFEUILLE COORDINATEUR",
-  "I_H_PAIR_B": "OBSERVE: votre solde, et prépare les transactions.\nDÉPENSE IMPOSSIBLE: la signature se fait ici, sur cet appareil.",
+  "I_H_PAIR_B": "OBSERVE: votre solde, et prépare les transactions.\nDÉPENSE IMPOSSIBLE: la signature se fait ici, sur cet appareil.\nVOS BITCOIN: sur le réseau, dans aucun des deux.",
   "I_H_ADDR_B": "votre première adresse identifie ce portefeuille.\nle portefeuille coordinateur doit aussi l'afficher.\n\npartagez-la pour recevoir.\nutilisez-en une nouvelle au prochain paiement.\nla réutiliser relie publiquement vos paiements.",
   "I_PAIR_T": "ASSOCIER LE COORDINATEUR",
   "I_PAIR_S": "montre ce QR à l'app qui observera",

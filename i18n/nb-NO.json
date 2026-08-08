@@ -184,7 +184,7 @@
   "I_SEC_PATH": "DERIVASJONSSTI",
   "I_H_PATH_B": "m/... er hvor nøklene kommer fra.\nappen din finner dem med den.",
   "I_H_PAIR_T": "KOORDINATORLOMMEBOKEN",
-  "I_H_PAIR_B": "OVERVÅKER: saldoen din, og bygger transaksjoner.\nKAN IKKE BRUKE PENGER: signering skjer her, på denne enheten.",
+  "I_H_PAIR_B": "OVERVÅKER: saldoen din, og bygger transaksjoner.\nKAN IKKE BRUKE PENGER: signering skjer her, på denne enheten.\nBITCOINEN DIN: på nettverket, aldri i noen av dem.",
   "I_H_ADDR_B": "din første adresse kjennetegner lommeboken.\nkoordinatorlommeboken skal vise den samme.\n\ndel denne adressen for å motta.\nbruk en ny ved neste betaling.\ngjenbruk kobler betalinger offentlig.",
   "I_PAIR_T": "PAR KOORDINATOR",
   "I_PAIR_S": "vis denne QR-koden til appen som følger",

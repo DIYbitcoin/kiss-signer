@@ -184,7 +184,7 @@
   "I_SEC_PATH": "TÜRETME YOLU",
   "I_H_PATH_B": "m/... anahtarların nereden geldiği.\nuygulaman onları böyle bulur.",
   "I_H_PAIR_T": "KOORDİNATÖR CÜZDAN",
-  "I_H_PAIR_B": "İZLER: bakiyenizi görür, işlemleri hazırlar.\nHARCAYAMAZ: imza burada, bu cihazda atılır.",
+  "I_H_PAIR_B": "İZLER: bakiyenizi görür, işlemleri hazırlar.\nHARCAYAMAZ: imza burada, bu cihazda atılır.\nBİTCOİNİNİZ: ağda durur, ikisinde de değil.",
   "I_H_ADDR_B": "ilk adres bu cüzdanı tanıtır.\nkoordinatör cüzdan da aynısını göstermeli.\n\nalmak için bu adresi paylaşın.\nsonraki ödeme için yenisini kullanın.\ntekrar kullanım ödemeleri herkese açık biçimde bağlar.",
   "I_PAIR_T": "KOORDİNATÖR EŞLEŞTİR",
   "I_PAIR_S": "bu QR'ı, izleyecek uygulamaya gösterin",
