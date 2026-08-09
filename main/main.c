@@ -373,12 +373,21 @@ void kiss_backlight_set(int on)
 // This is only watchable if the panel is showing black while it starves,
 // which is what kiss_panel_black is for. Brightening a torn framebuffer would
 // reveal the tearing instead of hiding it.
+// The ramp is gamma corrected, and that is not a polish detail. LED luminance
+// is near enough linear in PWM duty, but perceived brightness goes as roughly
+// the 0.43 power of luminance, so a linear duty ramp is SEEN as racing to
+// almost-full in the first third and then crawling. On a progress indicator
+// that is not a cosmetic complaint, it is the light telling the owner the
+// write is nearly done when a quarter of it has landed, and then appearing to
+// stall for twenty seconds. Squaring pct undoes most of that and costs one
+// multiply.
 #define BL_FLOOR 80          // ~8%, awake but clearly not finished
 void kiss_backlight_level(int pct)
 {
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
-  uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * pct / 100);
+  uint32_t shaped = (uint32_t)pct * (uint32_t)pct;        // 0..10000
+  uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * shaped / 10000);
   ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
   ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
