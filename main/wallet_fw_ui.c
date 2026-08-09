@@ -132,11 +132,14 @@ static void progress_cb(int pct, void *ud)
     // Shrinking the dirty rectangle was not enough, because the tearing is not
     // about how much gets repainted. The DPI framebuffers live in PSRAM and
     // are read through the cache that every esp_ota_write disables, so the
-    // panel is starved whether or not anything changed. install_now therefore
-    // takes the backlight down for the whole write, and a refresh against a
-    // dark panel is repainting nothing while fighting the flash for the cache
-    // to do it. The value above is still set, so the last percent reached is
-    // what the screen holds when the light comes back.
+    // panel is starved whether or not anything changed. So there is no refresh
+    // here: install_now blacked the framebuffers and took the light down, and
+    // repainting a dark panel would only fight the flash for the cache.
+    //
+    // The light is the indicator instead. This runs BETWEEN esp_ota_write
+    // calls, when the cache is back, so a PWM duty change costs nothing and
+    // reaches the one part of the display that a flash write cannot starve.
+    kiss_backlight_level(pct);
 }
 
 // The write itself, one LVGL tick after the screen that announces it.
@@ -152,17 +155,23 @@ static void progress_cb(int pct, void *ud)
 static void install_now(lv_timer_t *t)
 {
     lv_timer_delete(t);
-    // Dark for the length of the write, then back. The WRITING screen is
-    // already painted and stays painted underneath; only the light goes.
+    // The write cannot be drawn, so the light is the whole indicator.
     //
-    // The light comes back on every path out of the install, including the
-    // failures, because result_screen has to be readable. Restoring it before
-    // the result is built also means a fault inside result_screen leaves a lit
-    // device rather than one an owner would read as dead.
-    kiss_backlight_set(0);
+    // Black both framebuffers first: the DMA still starves for every
+    // esp_ota_write, and this is what it starves ON. Black where the panel
+    // expected black is the difference between a torn screen and a dark one.
+    // Then the backlight climbs from a floor to full as the bytes land, and a
+    // slab that comes back to light IS the progress bar.
+    //
+    // Order on the way out matters. Build the result and paint it while the
+    // panel is still dim, THEN raise the light, or the owner gets a full
+    // brightness flash of the black we just wrote.
+    kiss_panel_black();
+    kiss_backlight_level(0);
     int rc = wallet_fw_install(&s_img, progress_cb, NULL);
-    kiss_backlight_set(1);
     result_screen(rc);
+    lv_refr_now(NULL);
+    kiss_backlight_set(1);
 }
 
 static void writing_apply(void *ud)

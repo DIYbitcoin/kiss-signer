@@ -361,7 +361,40 @@ void kiss_backlight_set(int on)
   ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
+// Brightness as the only progress indicator an update can honestly show.
+//
+// The panel cannot be redrawn while the write holds the cache, but the
+// backlight is a PWM peripheral and does not care: progress_cb runs BETWEEN
+// esp_ota_write calls, when the cache is back, so setting a duty there is
+// free and safe. The device starts at a floor rather than at nothing, because
+// a signer that is rewriting itself should read as awake, and climbs to full
+// as the write completes.
+//
+// This is only watchable if the panel is showing black while it starves,
+// which is what kiss_panel_black is for. Brightening a torn framebuffer would
+// reveal the tearing instead of hiding it.
+#define BL_FLOOR 80          // ~8%, awake but clearly not finished
+void kiss_backlight_level(int pct)
+{
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * pct / 100);
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
 static uint16_t *s_fb;       // native 480x800 panel framebuffer (used only to clear it once)
+static void *s_fb2;          // the second one, kept for kiss_panel_black()
+
+// Both DPI framebuffers to black, so that when the DMA starves mid write the
+// panel is fed black where it expected black. The tearing does not stop, it
+// stops being visible -- which is the only version of "stops" available while
+// the framebuffers live in PSRAM behind the cache a flash write disables.
+void kiss_panel_black(void)
+{
+  if (s_fb)  memset(s_fb,  0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+  if (s_fb2) memset(s_fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+}
 static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
 static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
 
@@ -480,6 +513,7 @@ static lv_display_t *display_start(void) {
   // and register the DMA-done callback so flush_ready fires when each blit completes.
   void *fb2 = NULL;
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(s_panel, 2, (void **)&s_fb, &fb2));
+  s_fb2 = fb2;                 // kept, so the update can black both out again
   memset(s_fb, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
   memset(fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
   camera_spike_set_panel(s_panel, s_fb, fb2);
@@ -533,6 +567,8 @@ static void touch_start(void) {
 // and the screen walk still reaches the WRITING stop with the same code path
 // the device runs.
 void kiss_backlight_set(int on) { (void)on; }
+void kiss_backlight_level(int pct) { (void)pct; }
+void kiss_panel_black(void) { }
 #endif  // !SIMULATOR
 
 // ---------------- entities ----------------
