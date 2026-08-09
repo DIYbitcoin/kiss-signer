@@ -24,6 +24,7 @@
 // to recall under stress.
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 
 // The extra stroke drawn AFTER the word. Geometry only -- no recorded
 // templates, nothing to match against, nothing that can drift out of tune with
@@ -122,6 +123,43 @@ int wallet_duress_classify_free(const int *xs, const int *ys, int n);
 
 // Display name key for a free-mark id. Returns -1 if invalid.
 int wallet_duress_free_label_key(int mark);
+
+// ---- the word: what the owner draws to reach either signer ----------------
+//
+// KISS by default, and KISS is what a device that has never been changed
+// answers to. An owner who sets their own word replaces it outright: KISS then
+// opens nothing at all, which is the point. A locked device shows Fruit Island
+// and the KISS branding only exists past the unlock, so a device that does not
+// answer to the word has the honest cover story of not being a signer.
+//
+// The word is an ordered run of WDF_* marks. Four is what the UI offers; the
+// storage takes up to WDW_MAX so a longer one costs no migration.
+//
+// This is NOT a key and must not be treated as one. The passphrase is the key.
+// A wrong sequence opens nothing and reports nothing -- there is no counter, no
+// lockout and no oracle -- so the sequence only has to be beyond casual, which
+// 256 is. What it must be instead is REPRODUCIBLE: the owner has to draw it the
+// same way on a cold morning, months later, or their coins are paper-only.
+#define WDW_MAX 8
+
+// How many marks the configured word has. 0 means none is set, so KISS stands.
+int wallet_duress_word_len(void);
+
+// Copy the configured word out. Returns its length (0 when unset); out may be
+// NULL to ask only for the length.
+int wallet_duress_word_get(uint8_t out[WDW_MAX]);
+
+// Persist a word. n == 0 clears it and puts KISS back. Every mark must be a
+// real WDF_* id. Returns 0 only once the write is committed.
+int wallet_duress_word_set(const uint8_t *marks, int n);
+
+// Does this run of marks BEGIN with the configured word? Returns the number of
+// marks consumed (the word's length) on a match, 0 otherwise.
+//
+// Prefix rather than equality, because the mark AFTER the word is what picks
+// the door -- exactly as one stroke after KISS does today. The caller compares
+// what is left over, and wallet_duress_route still decides.
+int wallet_duress_word_match(const uint8_t *marks, int n);
 
 // Display name key for a modifier id (an STR_* index from i18n_keys.h), so the
 // picker and the confirm screens name them identically. Returns -1 if invalid.
