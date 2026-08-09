@@ -250,8 +250,10 @@ const char *wallet_lastword_word(uint16_t i) {
 // have to spread the way real ones do: 83 apart is far wider than WC_NEAR, so
 // an ordinary typed set judges clean and the flagged shapes stay exactly where
 // the walk puts them on purpose. index() and word() are deliberately NOT
-// inverses here -- nothing in the flow round trips them, the judge only reads
-// index() and the picker only reads word() -- and kisstest owns the real pair.
+// inverses here -- nothing in the flow round trips them, the judge and the
+// checksum card only read index(), the picker only reads word() -- and
+// kisstest owns the real pair. i*83 runs to four digits too, so the widest
+// number chip the card can draw is the one the walk already draws.
 int wallet_lastword_index(const char *w) {
   for (int i = 0; i < 24; i++)
     if (strcmp(SIM_WORDS[i], w) == 0) return i * 83;
@@ -261,6 +263,20 @@ int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i]);
+  return 0;
+}
+// Stands in for the camera on the dead-lens path, so the walk has to link it.
+// The real one measures two clocks against each other and kisstest exercises
+// that; a scripted walk has no clocks worth measuring, so this only has to be
+// non-constant and succeed. Nothing here is entropy and nothing here claims to
+// be -- the walk never keeps a seed.
+int wallet_jitter(uint8_t out[32]) {
+  if (!out) return -1;
+  static uint32_t s = 0x2545F491u;
+  for (int i = 0; i < 32; i++) {
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+    out[i] = (uint8_t)(s & 0xFF);
+  }
   return 0;
 }
 
@@ -1651,6 +1667,17 @@ int main(void) {
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
 
+  // FIRMWARE, the other header pill: 232x44 at x=338, so its middle is (454,40).
+  // The fw screens themselves are walked further down by calling
+  // wallet_fw_ui_open directly with the seams set; what this proves is the
+  // ROUTE, which nothing exercised until settings grew a way in. Settings tears
+  // itself down before handing over, so a leak here shows up as the fw screen
+  // drawn on top of a live settings page.
+  touch(454, 40); pump(3); release(); pump(8);      // FIRMWARE -> the update screen
+  save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
+  touch(WT_BACK_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
+  save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
+
   touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
@@ -1804,13 +1831,13 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
   touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
 
-  // The CARDS detour (MY OWN WORDS): both lengths, to the picker and back out.
+  // The CARDS detour (BLIND DRAW): both lengths, to the picker and back out.
   // The candidate math is stubbed above (first N indices over SIM_WORDS);
   // these stops prove layout in 21 locales, kisstest owns correctness. Method
   // row 2 is 300..396, so 346 is its middle.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS (row 2)
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW (row 2)
   save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
@@ -1843,7 +1870,7 @@ int main(void) {
   // the 24 word draw: 23 typed, a single page of 8 candidates, no pager
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   static const char *CARDS_OK23[23] = {
@@ -1864,7 +1891,7 @@ int main(void) {
   // Two pill row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
@@ -1883,7 +1910,7 @@ int main(void) {
   // and the chip reads IN ORDER.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // MY OWN WORDS
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
   touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   static const char *CARDS_SORTED11[11] = {
@@ -2296,10 +2323,17 @@ int main(void) {
   touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
 
-  // The hold is 1500ms and pump is 16ms a frame, so 100 frames clears it with
-  // room to spare. Landing on the writing screen and then the result in one
-  // go is correct: the install runs inside the hold's completion.
-  touch(213, 431); pump(100); release(); pump(20);
+  // 95, not 100. The hold is 1500ms and pump is 16ms a frame, so it completes
+  // on frame 94; the write is deferred 30ms behind the screen that announces
+  // it, which is another two frames. At 100 the hold finished with six frames
+  // to spare, install_now fired inside the same pump call, and the frame saved
+  // as WRITING was already FIRMWARE REPLACED. Held to 95, released, one pump:
+  // that frame belongs to WRITING alone, and the rest carry the install to the
+  // result. Without this the write happens behind the last frame of the
+  // confirm screen and no gate sees the screen that says keep it powered.
+  touch(213, 431); pump(95); release(); pump(1);
+  save("/tmp/sim_fw_writing.ppm");                  // percent card + keep powered
+  pump(20);
   save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
 
   // 3. the refusal that matters most, on the same route: a signature that did

@@ -129,6 +129,23 @@ static void progress_cb(int pct, void *ud)
     lv_refr_now(NULL);
 }
 
+// The write itself, one LVGL tick after the screen that announces it.
+//
+// Deferred rather than called inline, for two reasons that happen to be the
+// same reason. On the device, an inline call blocks the LVGL task from the
+// moment the hold completes, so the writing screen would only appear because
+// lv_refr_now forces it out mid erase -- the screen would be painted by the
+// work rather than before it. And the screen walk saves a frame between
+// pump() calls, so a screen that is drawn and replaced inside one callback is
+// a screen no gate can ever measure: WRITING was the one stop overlapcheck
+// could not reach.
+static void install_now(lv_timer_t *t)
+{
+    lv_timer_delete(t);
+    int rc = wallet_fw_install(&s_img, progress_cb, NULL);
+    result_screen(rc);
+}
+
 static void writing_apply(void *ud)
 {
     (void)ud;
@@ -139,10 +156,9 @@ static void writing_apply(void *ud)
     s_pct_card = wt_value_card(s_scr, tr(STR_G_FW_PCT), "0%", 250, 170, 300, true);
     wt_why_block(s_scr, NULL, tr(STR_G_FW_RISK_B), BLK_L_X, 300, 704,
                  WT_CONTENT_BOTTOM - 300, NULL, WT_WARN);
-    lv_refr_now(NULL);
 
-    int rc = wallet_fw_install(&s_img, progress_cb, NULL);
-    result_screen(rc);
+    lv_timer_t *t = lv_timer_create(install_now, 30, NULL);
+    lv_timer_set_repeat_count(t, 1);
 }
 
 // ---- 2. confirm ------------------------------------------------------------

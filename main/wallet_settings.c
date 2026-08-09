@@ -15,6 +15,7 @@
 #include "wallet_setup.h"
 #include "wallet_duress.h"
 #include "wallet_duress_ui.h"
+#include "wallet_fw_ui.h"   // SD firmware update: the screens this page opens
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
 #include "wallet_usage.h"   // clear the receive-index history on wipe
@@ -62,6 +63,7 @@ static lv_obj_t *s_state_lbl;                // the network row's sub-line
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
+static lv_obj_t *s_fw_pill;     // header row beside it: the device's own controls
 static lv_obj_t *s_type_pill, *s_type_pfx, *s_type_expl, *s_type_name;
 static lv_obj_t *s_storage_pill;  // STORAGE over the explicit current mode
 static lv_obj_t *s_parent;      // language change rebuilds the screen here
@@ -1012,6 +1014,7 @@ void wallet_settings_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    s_fw_pill = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
     // The top right belongs to the LANGUAGE pill now; see the block that builds

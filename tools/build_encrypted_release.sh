@@ -105,6 +105,23 @@ force = {
     "CONFIG_ESPTOOLPY_AFTER_RESET":                 None,
     "CONFIG_ESPTOOLPY_AFTER_NORESET":               "y",
     "CONFIG_ESPTOOLPY_AFTER":                       '"no-reset"',
+    # SD firmware update: verify the signature on an incoming image. The plain
+    # release lane has set these since it gained the update path; this lane,
+    # the one that runs on boards holding funds, did not - so on an encrypted
+    # build wallet_fw_available() answered WFW_ERR_UNSIGNED and the device
+    # refused every update, including ours. The partition table here has
+    # carried two app slots and an otadata since the SD update work landed, so
+    # the layout always said updatable while the app said frozen.
+    #
+    # NO_SECURE_BOOT is the honest name: this verifies an image before it is
+    # written, using the public key in the running app's own signature block.
+    # It does NOT verify the bootloader and it does NOT stop a downgrade to an
+    # older SIGNED build - CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK stays off, and
+    # secure boot is the later pass this script already asserts is absent.
+    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y",
+    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y",
+    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
+    "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
 }
 out, seen = [], set()
 for l in open("sdkconfig").read().splitlines():
@@ -120,8 +137,16 @@ for l in open("sdkconfig").read().splitlines():
     else:
         out.append(l)
 for key, v in force.items():
-    if key not in seen and v is not None:
-        out.append(f"{key}={v}")
+    if key in seen:
+        continue
+    # A forced None has to write the explicit "is not set" line even when the
+    # base sdkconfig never mentioned the symbol. Skipping it leaves the symbol
+    # absent, and an absent symbol takes its Kconfig default: turning signed
+    # apps on brought SECURE_BOOT_BUILD_SIGNED_BINARIES back as y, which then
+    # demanded a signing key inside the build container. The key does not go in
+    # a container - images are signed outside it, same as the plain release
+    # lane - so this has to say off out loud.
+    out.append(f"# {key} is not set" if v is None else f"{key}={v}")
 open(os.environ["SDKCFG"], "w").write("\n".join(out) + "\n")
 print("wrote %s (flash enc %s + NVS enc, logs WARN)"
       % (os.environ["SDKCFG"], "DEVELOPMENT" if rehearsal else "RELEASE"))
@@ -137,6 +162,60 @@ docker run --rm \
   -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
   idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
   -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
+
+# ---- sign the app, outside the container ----
+# Same key and same step as the plain release lane, and for the same reason
+# stated there: esp_ota_end verifies an incoming image against the public key
+# carried in the RUNNING app's own signature block. An app with no block has no
+# key, so it can never accept an update -- and on the release recipe the board
+# has burned its fuses and cannot be serially reflashed either, which makes an
+# unsigned encrypted release a funded board that can never be fixed. This lane
+# had no signing step at all. Hence a hard stop rather than a warning.
+#
+# Before the checks below, not after: signing appends a block, so the size the
+# flash budget measures and the hashes the recipe prints have to be the ones
+# from the file that actually gets flashed.
+KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+if [ ! -f "$KISS_OTA_KEY" ]; then
+  echo
+  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
+  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "      Without it this board can never accept an SD firmware update, and"
+  echo "      the release recipe burns the fuses that would let you reflash it."
+  exit 1
+fi
+echo "signing app with $KISS_OTA_KEY"
+uvx --from esptool espsecure sign-data \
+  --version 2 --keyfile "$KISS_OTA_KEY" \
+  --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
+  "$BUILD_DIR/guition_kiss_bringup.bin"
+mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
+   "$BUILD_DIR/guition_kiss_bringup.bin"
+
+# The public half in the repo has to be the half that just signed, or a
+# verifier checks this build against a key the firmware does not carry.
+uvx --from esptool espsecure extract-public-key \
+  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
+if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
+  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+  rm -f /tmp/kiss_ota_pub_enc_check.pem
+  exit 1
+fi
+echo "PASS: published public key matches the signing key"
+rm -f /tmp/kiss_ota_pub_enc_check.pem
+
+# Prove the shipped file verifies against the PUBLISHED key, not just that the
+# two halves match. This is the check a stranger can repeat, and it is the one
+# that fails if signing was skipped, applied to the wrong file, or undone by a
+# later step that rewrites the binary.
+if ! uvx --from esptool espsecure verify-signature \
+     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+     "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
+  echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
+  echo "      docs/installer/kiss_ota_pub.pem"
+  exit 1
+fi
+echo "PASS: signed app verifies against the published public key"
 
 # ---- verify: binary contents AND the security config that actually built ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
@@ -169,12 +248,29 @@ checks += [
     (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
     (on("CONFIG_ESPTOOLPY_NO_STUB"),                    "esptool no-stub mode (required with flash encryption)"),
     (on("CONFIG_APP_REPRODUCIBLE_BUILD"),               "reproducible build (no compile date embedded)"),
+    # An update lane is only allowed to exist if the images it accepts are
+    # checked. These two assert the answer this lane gives to "updatable or
+    # frozen": updatable, and only for an image signed with our key.
+    (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT"),
+     "SD update images are signature verified"),
+    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME"),   "signature scheme ECDSA v2"),
+    # Deliberately NOT asserted on: anti rollback burns an eFuse and cannot be
+    # undone, and doing that before secure boot lands would freeze the fleet on
+    # an unfinished security model. An older SIGNED build is installable today;
+    # that is a known, accepted gap and it goes away with the secure boot pass.
 ]
 
 pt = open(f"{bdir}/partition_table/partition-table.bin", "rb").read()
+# This lane used to assert a factory partition, i.e. one frozen image and no
+# update path at all. The SD update work replaced that with two app slots and
+# an otadata, and the assert kept demanding the old shape - so the check failed
+# on a perfectly good build and no encrypted release could be cut. It now
+# asserts the layout the table actually has, and the app actually uses.
 checks += [
     (b"nvs_key" in pt, "nvs_key (NVS XTS key) partition present"),
-    (b"factory" in pt, "factory app partition present"),
+    (b"ota_0" in pt and b"ota_1" in pt, "two app slots present (SD update lane)"),
+    (b"otadata" in pt, "otadata present (rollback needs it)"),
+    (b"factory" not in pt, "no factory partition (slots are the boot path)"),
 ]
 
 # no-wireless gate: the board's C6 radio chip is held in reset and nothing
@@ -209,9 +305,33 @@ python3 tools/check_flash_budget.py \
 # hashed here, printed inside the flash recipes below: the flash is one way,
 # so the compare against the reproducible build CI output has to happen with
 # the hash and the command in the same place
-SHA_BOOT=$(shasum -a 256 "$BUILD_DIR/bootloader/bootloader.bin" | cut -d' ' -f1)
-SHA_PT=$(shasum -a 256 "$BUILD_DIR/partition_table/partition-table.bin" | cut -d' ' -f1)
-SHA_APP=$(shasum -a 256 "$BUILD_DIR/guition_kiss_bringup.bin" | cut -d' ' -f1)
+# The write-flash argument list and its hashes, read out of the build rather
+# than typed into the recipes below. They used to be three files named by hand,
+# and enabling rollback added an otadata partition this table already carried a
+# slot for -- so the recipes were about to send someone to erase a board, flash
+# three of the four files it needs, and find out on a chip that has already
+# encrypted itself one way. Whatever the build says it writes is what the
+# recipe says to write.
+FLASH_LINES=$(BUILD_DIR="$BUILD_DIR" python3 - <<'PY'
+import json, os
+b = os.environ["BUILD_DIR"]
+d = json.load(open(f"{b}/flasher_args.json"))["flash_files"]
+items = sorted(d.items(), key=lambda kv: int(kv[0], 16))
+for i, (off, f) in enumerate(items):
+    tail = "" if i == len(items) - 1 else " \\\\"
+    print(f"     {off:<8}{b}/{f}{tail}")
+PY
+)
+SHA_LINES=$(BUILD_DIR="$BUILD_DIR" python3 - <<'PY'
+import hashlib, json, os
+b = os.environ["BUILD_DIR"]
+d = json.load(open(f"{b}/flasher_args.json"))["flash_files"]
+for off, f in sorted(d.items(), key=lambda kv: int(kv[0], 16)):
+    h = hashlib.sha256(open(f"{b}/{f}", "rb").read()).hexdigest()
+    print(f"     {h}  {f.rsplit('/', 1)[-1]}")
+PY
+)
+N_FILES=$(printf '%s\n' "$FLASH_LINES" | wc -l | tr -d ' ')
 
 if [ "$RECIPE" = rehearsal ]; then
 cat <<EOF
@@ -237,14 +357,10 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
 2. flash (same shifted offsets and --no-stub as the release build):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
-     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
-     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
-     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+$FLASH_LINES
 
-   sha256 of those three files (compare with the reproducible build run in CI):
-     $SHA_BOOT  bootloader.bin
-     $SHA_PT  partition-table.bin
-     $SHA_APP  guition_kiss_bringup.bin
+   sha256 of those $N_FILES files (compare with the reproducible build run in CI):
+$SHA_LINES
 
 3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
    create, lock, unlock, sign, wipe. Reflash and repeat as needed.
@@ -284,15 +400,11 @@ encrypted release build OK: $BUILD_DIR/
    --no-stub, which flash-encrypted builds require):
    uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
-     0x2000  $BUILD_DIR/bootloader/bootloader.bin \\
-     0x10000 $BUILD_DIR/partition_table/partition-table.bin \\
-     0x20000 $BUILD_DIR/guition_kiss_bringup.bin
+$FLASH_LINES
 
-   sha256 of those three files. The flash is one way, so hold them against
+   sha256 of those $N_FILES files. The flash is one way, so hold them against
    the reproducible build run in CI BEFORE step 2, not after:
-     $SHA_BOOT  bootloader.bin
-     $SHA_PT  partition-table.bin
-     $SHA_APP  guition_kiss_bringup.bin
+$SHA_LINES
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
    When Settings shows "flash encryption: ENABLED" (calm, not amber),

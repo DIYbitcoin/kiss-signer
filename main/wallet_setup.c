@@ -83,12 +83,13 @@ static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 static char s_prefix[12];       // restore: letters typed for the current word
 static lv_obj_t *s_word_lbl, *s_sug[3];
 
-// cards mode (MY OWN WORDS): 11 or 23 words picked off the cut up word list
-// and typed on the restore keyboard, then a last word picked from the checksum
-// valid candidates. No machine randomness enters the seed.
+// cards mode (BLIND DRAW): 11 or 23 words drawn blind from the cut up BIP39
+// word list and typed on the restore keyboard, then a last word picked from the
+// checksum valid candidates. No machine randomness enters the seed.
 //
-// The identifiers still say "cards" because the owner-facing copy is what had
-// to change: it described the list as a deck and was read as playing cards.
+// The identifiers still say "cards" because that was the first medium; the
+// owner-facing copy deliberately does not, since the list can equally be 3D
+// printed as tiles and shaken in a bag, and "deck" was read as playing cards.
 static bool s_cards;
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
@@ -694,17 +695,41 @@ static void tap_done_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
     uint8_t cam[32], trng[32], taps[32], seed[32];
-    // A camera that never captured leaves cam all-zero and gets a fresh TRNG
-    // read here, so a dead lens costs a source, not the wallet: a hash is as
-    // strong as its best input.
+    // A dead lens costs a source, not the wallet. What stands in for it has to
+    // be a source the camera's absence does not already imply: reading the chip
+    // twice would put both halves on one circuit, and that circuit going quiet
+    // is the exact failure the three-way fold exists to survive. Timing jitter
+    // is the one physical source on this board outside it (wallet_crypto.h),
+    // and needs nobody present, which is why the SD device key already uses it.
+    // If even that fails, cam stays zero and the seed is chip + taps -- the old
+    // behaviour, not a worse one.
     if (s_cam_have) {
         memcpy(cam, s_cam_chain, 32);
         memcpy(trng, s_cam_trng, 32);
     } else {
-        memset(cam, 0, 32);
+        if (wallet_jitter(cam) != 0)
+            memset(cam, 0, 32);
         tap_fill_trng(trng, 32);
     }
-    int ok = wallet_tapent_take(taps) == 0 &&
+    // Source 2 has to prove where it came from, and this is the only check that
+    // can: esp_fill_random hands back bytes and reports success whether or not
+    // a noise source is behind it, so quality is unmeasurable and provenance is
+    // the whole question (wallet_crypto.h). wallet_seed_sd.c has refused on this
+    // since the device key existed; the seed -- the one piece of key material
+    // the owner cannot rotate -- was the one path still taking it on trust.
+    //
+    // One check covers both reads of the chip, the one at capture
+    // (camera_spike.c) and tap_fill_trng's above, because the flag is a latch
+    // set once at boot and never cleared: false here means false there too. The
+    // fills above it are wiped unread, since && stops before mix3 sees them.
+    //
+    // A refusal, not a warning, and deliberately not softened into "two sources
+    // instead of three". A dead lens loses a source the fold was built to
+    // survive. A chip whose noise was never switched on is a source that looks
+    // exactly like a live one all the way to the words screen, and folding it
+    // with the taps would hand back a seed every later check calls valid.
+    int ok = wallet_trng_live() &&
+             wallet_tapent_take(taps) == 0 &&
              wallet_entropy_mix3(cam, trng, taps, seed) == 0;
     // Every one of these is dead-store territory: last read is the line above,
     // so memset is elidable and wally_bzero is not. Same reasoning as
@@ -719,9 +744,18 @@ static void tap_done_cb(lv_timer_t *t)
     if (ok) {
         wallet_setup_entropy(seed, 32);
     } else {
-        // Can't happen after a full 64-tap gate (take succeeds, mix3 only fails
-        // on NULL), but if it ever does, say so plainly instead of leaving the
-        // owner on a full bar that does nothing. TRY AGAIN restarts collection.
+        // Reachable one way now: the chip's noise source is not running. The
+        // other two legs still cannot fail after a full 64-tap gate (take
+        // succeeds, mix3 only fails on NULL). Either way the owner is told
+        // plainly rather than left on a full bar that does nothing.
+        //
+        // TRY AGAIN restarts collection, which will not revive a chip that
+        // never came up -- and that is the honest outcome. A device that cannot
+        // prove where its randomness came from has no business minting a seed,
+        // and no wording on this screen should imply otherwise. It stays one
+        // screen rather than two because boot switches the source on before any
+        // screen the owner can reach (main.c), so this is a guard against a
+        // future reorder, and a guard does not earn 21 locales of its own copy.
         mk_screen(tr(STR_W_ENT_FAIL_T), NULL);
         mk_body(tr(STR_W_ENT_FAIL_B), 48, 118, 704, 260, INK_COL);
         mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
@@ -1028,8 +1062,9 @@ static lv_obj_t *s_ent_capture;
 static lv_obj_t *s_ent_c1, *s_ent_c2, *s_ent_c3, *s_ent_cr;
 
 // One source card: caption, bit count right aligned, a bar, and a note. Returns
-// the bar so the caller can drive it.
-static lv_obj_t *ent_card(int y, int cap, int note, bool full)
+// the bar so the caller can drive it, and hands back the card itself through
+// out_card for the one caller that has to strike the whole card through.
+static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_card)
 {
     lv_obj_t *card = lv_obj_create(s_scr);
     lv_obj_remove_style_all(card);
@@ -1080,6 +1115,7 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full)
     lv_obj_t *n = wt_lbl(card, tr(note), 14, 52, wt_font14(), MUT_COL);
     lv_obj_set_width(n, ENT_COL_W - 28);
     lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
+    if (out_card) *out_card = card;
     return fill;
 }
 
@@ -1574,10 +1610,18 @@ static unsigned dice_need(void) { return s_count == 24 ? 32 : 16; }
 // on the device; unlike the entropy screen's there is no camera to stop and
 // restart, so it is a plain overlay with no teardown. First glyph is the LIST
 // mark method_screen already puts on the DICE row, so the marks agree.
+// A fourth row, and it is the one a newcomer actually needed: the card used to
+// explain the CHECKER and never the point. Dice exist on a signer so the owner
+// does not have to take this device's word for its own randomness, and nothing
+// on the screen said so -- the SHA256 sat under the tally with no reason
+// attached. That line cannot live on the note itself: DICE_NOTE_Y 210 to
+// DICE_FP_Y 250 is 40px, two font14 lines, and a longer locale would land on
+// the fingerprint. The card has the room, so the reason goes here.
 static const char *const DICE_HELP_ICONS[] = {
     LV_SYMBOL_LIST,
     LV_SYMBOL_LOOP,
     LV_SYMBOL_WARNING,
+    LV_SYMBOL_OK,
 };
 
 static void dice_help_cb(lv_event_t *e)
@@ -1930,9 +1974,11 @@ static void entropy_screen(void)
     lv_label_set_long_mode(s_ent_state, LV_LABEL_LONG_WRAP);
 
     // Right: the two sources, then the equation.
-    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE, false);
+    lv_obj_t *card1 = NULL;
+    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE,
+                          false, &card1);
     s_ent_bar2 = ent_card(ENT_CAM_Y + ENT_CARD_H + 8, STR_W_ENT_SRC2_CAP,
-                          STR_W_ENT_SRC2_NOTE, true);
+                          STR_W_ENT_SRC2_NOTE, true, NULL);
 
     // 1 + 2 + 3 -> 12 WORDS, in a CARD, with the "?" in that card's own top
     // right corner. Both halves of that matter. The chips used to float on the
@@ -1965,7 +2011,7 @@ static void entropy_screen(void)
     // Every chip is built inert and lit by ent_ui_sync, so no state is painted
     // here that the screen has not actually reached.
     s_ent_c1 = wt_chip(row, "1", false);
-    wt_diagram_op(row, "+");
+    lv_obj_t *op1 = wt_diagram_op(row, "+");
     s_ent_c2 = wt_chip(row, "2", false);
     wt_diagram_op(row, "+");
     s_ent_c3 = wt_chip(row, "3", false);
@@ -1977,6 +2023,7 @@ static void entropy_screen(void)
     // it. It sits in the action row instead, between the action and the way
     // out; the overlay keeps its pill, where the doubt is actually named.
 #ifdef SIMULATOR
+    (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 48, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
@@ -2001,12 +2048,33 @@ static void entropy_screen(void)
         ent_audit_pill();
         ent_ui_sync(0, camera_entropy_reason());
     } else {
-        // The camera failed. The two cards above still tell the truth about the
-        // chip, so they stay; the preview column carries the error instead.
+        // The camera failed. The preview column carries the error.
         mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
                wt_font23(), STOP_COL);
         mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
                wt_font14(), MUT_COL);
+
+        // And the rest of the screen stops promising a source it will not
+        // deliver. This screen used to leave all of it standing: SOURCE 1 still
+        // offering "leaves, gravel, a shuffled deck" over a bar that could
+        // never fill, the equation still reading 1 + 2 + 3, and -- worst of the
+        // three -- the readiness line still telling the owner to point at
+        // something busier, directly under the words CAMERA UNAVAILABLE. An
+        // owner who had just been shown WHY THREE SOURCES was left to work out
+        // on their own that they were down to two.
+        //
+        // Said with marks rather than a sentence, which is also what keeps it
+        // free: striking the card and dropping the chip needs no new string, so
+        // no locale gains a glyph over it. The equation reads 2 + 3 -> 12 WORDS,
+        // which is the whole message and is already the screen's own idiom.
+        if (card1) lv_obj_set_style_opa(card1, LV_OPA_40, 0);
+        if (s_ent_c1) { lv_obj_delete(s_ent_c1); s_ent_c1 = NULL; }
+        if (op1) lv_obj_delete(op1);
+        // Readiness belongs to a meter that will never move. The dot and its
+        // line go together: half of a cue is a rendering fault, not a cue.
+        if (s_ent_state) { lv_obj_delete(s_ent_state); s_ent_state = NULL; }
+        if (s_ent_dot)   { lv_obj_delete(s_ent_dot);   s_ent_dot   = NULL; }
+
         // A dead camera must not be a dead device: sources 2 and 3 are still
         // there, so the seed loses a source rather than the device losing its
         // only path to a wallet. CAPTURE goes straight to the taps.
@@ -2125,10 +2193,10 @@ static void restore_screen(void)
     restore_refresh();
 }
 
-// ---- cards (MY OWN WORDS): the owner's words, the device's checksum ----
+// ---- cards (BLIND DRAW): the owner's words, the device's checksum ----
 // The creation mode with no machine randomness in the seed: 11 or 23 words
-// picked off the cut up word list, typed on the restore keyboard above, then a
-// last word picked from the checksum valid candidates. The picked word joins s_w
+// drawn blind from the cut up word list, typed on the restore keyboard above,
+// then a last word picked from the checksum valid candidates. That word joins s_w
 // and the flow rejoins words_screen -> quiz -> store like every other mode.
 // See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
 
@@ -2348,18 +2416,9 @@ static void cards_block_screen(void)
     cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL, true);
 }
 
-// A warn twin of the accent chip: same shape, opposite verdict.
-static void cards_chip_warn(lv_obj_t *chip)
-{
-    lv_obj_set_style_border_width(chip, 2, 0);
-    lv_obj_set_style_border_color(chip, WARN_COL, 0);
-    lv_obj_set_style_text_color(lv_obj_get_child(chip, 0), WARN_COL, 0);
-}
-
 // The checksum explainer: why the last word is picked from a list. Two
-// equations, identical but for the mark on the last word; that mark flipping
-// the verdict IS the checksum, told in symbols before the blocks say it in
-// words.
+// equations: a word IS a number, and the numbers have to land right. Symbols
+// first, so the blocks below are confirming something already shown.
 static void cards_cksum_screen(void)
 {
     mk_screen(tr(STR_W_CKSUM_T), tr(STR_W_CKSUM_S));
@@ -2376,10 +2435,26 @@ static void cards_cksum_screen(void)
     lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
-    char n1[16], okw[16], badw[16];   // 16: device gcc sizes %d for a full int
+    char n1[16], okw[16];   // 16: device gcc sizes %d for a full int
     snprintf(n1, sizeof n1, "%d", s_count - 1);
     snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
-    snprintf(badw, sizeof badw, "%s 1", LV_SYMBOL_CLOSE);
+
+    // Both blocks below say "the numbers behind your words" and until this row
+    // nothing in the flow had ever shown one. Here is the owner's own first
+    // word beside the number printed on the card they drew it from -- their
+    // number, checkable against the deck in their hand, in the one notation
+    // that needs no translation. It stands where a mirrored "wrong last word"
+    // equation used to: that row said what the WARN block directly beneath it
+    // already says in full, while this premise was said nowhere at all.
+    int i0 = wallet_lastword_index(s_w[0]);
+    if (i0 >= 0) {
+        char num[16];
+        snprintf(num, sizeof num, "%d", i0);
+        lv_obj_t *r0 = wt_diagram_row(col);
+        wt_chip(r0, s_w[0], false);
+        wt_diagram_op(r0, "=");
+        wt_chip(r0, num, false);
+    }
 
     lv_obj_t *r1 = wt_diagram_row(col);
     wt_chip(r1, n1, false);
@@ -2387,13 +2462,6 @@ static void cards_cksum_screen(void)
     wt_chip(r1, okw, true);
     wt_diagram_op(r1, LV_SYMBOL_RIGHT);
     wt_chip(r1, LV_SYMBOL_OK, true);
-
-    lv_obj_t *r2 = wt_diagram_row(col);
-    wt_chip(r2, n1, false);
-    wt_diagram_op(r2, "+");
-    cards_chip_warn(wt_chip(r2, badw, false));
-    wt_diagram_op(r2, LV_SYMBOL_RIGHT);
-    cards_chip_warn(wt_chip(r2, LV_SYMBOL_CLOSE, false));
 
     // The verdict, kept where the flow can still see it. This screen is reached
     // clean or through USE ANYWAY, and a warning that vanishes on the next tap
