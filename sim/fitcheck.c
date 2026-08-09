@@ -328,7 +328,7 @@ static const row_t ROWS[] = {
     { "set/type",     STR_I_ROW_TYPE,    -1, "m/n...", 365 },
     { "set/storage",  STR_I_ROW_STORAGE, STR_W_AMNESIC_BTN, NULL, 365 },
     // Full width under both columns now: SG_FULL_W, not SG_L_W.
-    { "set/duress",   STR_I_ROW_DURESS,  -1, NULL, 752, DURESS_VALS },
+    { "set/duress",   STR_I_ROW_WAYSIN,  -1, NULL, 752, DURESS_VALS },
     // right column, SG_R_W = 365. None of these carry a value.
     { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
     { "set/endwords", STR_I_ROW_ENDWORDS, -1, NULL, 365 },
@@ -407,7 +407,10 @@ typedef struct {
 } sub_t;
 static const sub_t SUBROWS[] = {
     // wallet_settings.c:1176 -- sits against GD_OFF, same as its label.
-    { "set/duress",  STR_GD_SET_SUB, NULL, NULL },
+    // The row's OWN sub. This measured STR_GD_SET_SUB, which is the WAYS IN
+    // button's caption on another screen -- so the one row the backlog calls
+    // its worst offender was never the string being measured.
+    { "set/duress",  STR_I_ROW_WAYSIN_SUB, NULL, NULL },
     // wallet_settings.c:1195-1207 -- both branches prefix a mark and two
     // spaces, and the checked one interpolates the 8 hex digits of a
     // fingerprint. Measured with a real one, because "%s" is two characters
