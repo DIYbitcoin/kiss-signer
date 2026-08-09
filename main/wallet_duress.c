@@ -116,6 +116,99 @@ int wallet_duress_classify(const int *xs, const int *ys, int n,
     return WDG_NONE;
 }
 
+// ---- free marks -----------------------------------------------------------
+//
+// Same geometry, one thing removed: there is no word to measure against, so
+// nothing here can ask "is this below it" or "is this half its width". Scale
+// comes from an absolute floor instead. 80px on an 800x480 panel is a tenth of
+// the screen -- big enough that a wobble, a tap or the tail of a swipe cannot
+// reach it, small enough that a mark drawn casually still does.
+//
+// The tests are ordered exactly as the framed ones are, and for the same
+// reason: a loop is wide and tall enough to look like several other things if
+// you only measure its box, so it is asked first.
+#define WDF_MIN_SPAN 80
+
+int wallet_duress_classify_free(const int *xs, const int *ys, int n)
+{
+    if (!xs || !ys || n < 3)
+        return WDF_NONE;
+
+    int sx0 = xs[0], sx1 = xs[0], sy0 = ys[0], sy1 = ys[0];
+    long path = 0;
+    for (int i = 1; i < n; i++) {
+        if (xs[i] < sx0) sx0 = xs[i];
+        if (xs[i] > sx1) sx1 = xs[i];
+        if (ys[i] < sy0) sy0 = ys[i];
+        if (ys[i] > sy1) sy1 = ys[i];
+        path += dist_i(xs[i - 1], ys[i - 1], xs[i], ys[i]);
+    }
+    const int sw = sx1 - sx0, sh = sy1 - sy0;
+    const int span = sw > sh ? sw : sh;      // the mark's own size...
+    const int lo   = sw < sh ? sw : sh;      // ...and how square it is
+    const int ends = dist_i(xs[0], ys[0], xs[n - 1], ys[n - 1]);
+
+    if (span < WDF_MIN_SPAN)
+        return WDF_NONE;                     // a wobble, not a mark
+
+    // A loop: substantial on BOTH axes and finishing near where it began. The
+    // closing rule is the generous one the framed circle already had to learn
+    // -- hand-drawn loops close worst when they are big and quick, and asking
+    // for precision is how a board ends up drawing tiny circles to be
+    // understood at all.
+    int close = span / 2;
+    if (close < 60) close = 60;
+    if (lo * 10 >= span * 6 && ends <= close)
+        return WDF_CIRCLE;
+
+    // Everything below is one deliberate line, so the ink has to stay close to
+    // the straight run between its ends. This is what stops the three-sided
+    // remains of an abandoned loop from reading as a diagonal.
+    const bool straight = path * 100 <= 145L * ends;
+
+    // Flat: the ink stays inside 30% of its own width. A VERTICAL stroke is
+    // deliberately not a fifth shape. It is the same gesture at 90 degrees, and
+    // a hand that draws one quickly draws the other by accident; two shapes
+    // that differ only by the angle of the wrist is how a sequence stops being
+    // reproducible on a cold morning.
+    if (straight && sh * 10 <= sw * 3)
+        return WDF_LINE;
+
+    // A diagonal spends itself on both axes.
+    if (straight && lo * 2 >= span)
+        return WDF_SLASH;
+
+    // A tick: down-and-right to a vertex, then up-and-right well past it. The
+    // vertex must be INTERIOR, which is the whole difference between a tick and
+    // one descending stroke that happened to curve.
+    if (lo * 5 >= span) {
+        int vi = 0;
+        for (int i = 1; i < n; i++)
+            if (ys[i] > ys[vi]) vi = i;
+        if (vi > 0 && vi < n - 1 &&
+            xs[vi] > xs[0] && xs[n - 1] > xs[vi] &&
+            (ys[vi] - ys[n - 1]) * 100 >= 35 * sh &&
+            (ys[vi] - ys[0]) * 100 >= 20 * sh)
+            return WDF_CHECK;
+    }
+
+    return WDF_NONE;
+}
+
+int wallet_duress_free_label_key(int mark)
+{
+    switch (mark) {
+    // A free LINE reuses the strike label rather than the underline one: with
+    // no word under it, "line through" is the name that does not promise a
+    // position the mark no longer has.
+    case WDF_LINE:   return STR_GD_STRIKE;
+    case WDF_SLASH:  return STR_GD_SLASH;
+    case WDF_CIRCLE: return STR_GD_CIRCLE;
+    case WDF_CHECK:  return STR_GD_CHECK;
+    default:         return -1;
+    }
+}
+
 int wallet_duress_label_key(int gesture)
 {
     switch (gesture) {
