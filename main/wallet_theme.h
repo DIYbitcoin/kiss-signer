@@ -571,3 +571,8 @@ void wt_fmt_btc(uint64_t sats, char *out, size_t out_len);     // 61000 -> 0.000
 // desktop. See the comment there for why a flash write and this panel cannot
 // both have the cache.
 void kiss_backlight_set(int on);
+
+// Brightness 0..100 as a progress indicator, for the one window where nothing
+// can be drawn. Blacks both framebuffers first or the light reveals tearing.
+void kiss_backlight_level(int pct);
+void kiss_panel_black(void);
