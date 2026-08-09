@@ -565,3 +565,9 @@ lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int 
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567
 void wt_fmt_btc(uint64_t sats, char *out, size_t out_len);     // 61000 -> 0.00061000
+
+// The backlight, so a screen that cannot be drawn is dark rather than torn.
+// Implemented in main.c on both sides: real PWM on device, a no-op on the
+// desktop. See the comment there for why a flash write and this panel cannot
+// both have the cache.
+void kiss_backlight_set(int on);
