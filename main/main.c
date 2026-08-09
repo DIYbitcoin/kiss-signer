@@ -2326,12 +2326,18 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   //
   // It sat at (48, 398), stacked directly above the version line, which put two
   // unrelated facts in one corner and left the whole middle of the bottom edge
-  // empty. Home's build line is a single row ending around x=380, so 410 clears
-  // it and the theme cluster does not begin until ~710.
+  // empty. It then sat at a hardcoded 410, on a comment that said the build
+  // line "ends around x=380". That is true of a dev build. A RELEASE build
+  // prints the commit rather than "dev (local)", which is wider, and this
+  // badge came down on the last letter of "encryption: OFF" -- reported off a
+  // real board, invisible to every gate, because the sim never builds RELEASE.
+  //
+  // So it asks. The position is set below, once the build id exists to measure
+  // -- the theme cluster does not start until ~710, so a badge of two glyphs
+  // has room wherever the version leaves it.
   s_sd_badge = lv_label_create(s_wallet);
   lv_label_set_text(s_sd_badge, "");
   lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
-  lv_obj_set_pos(s_sd_badge, 410, 424);
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
 
   // TESTNET badge — top-center, between the baked "KISS" logo (left) and the
@@ -2359,29 +2365,25 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // a row of buttons; this edge is empty, so the signature runs along it and
   // stays the quiet thing it is meant to be.
   s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
+  // Now the row has a measured width, the badge can stand clear of it.
+  lv_obj_set_pos(s_sd_badge, wallet_build_id_right() + 28, 424);
 
-  // The other way in, stated where every owner can read it.
+  // NOTHING here says how to reach the other wallet.
   //
-  // It exists because unlock routing is now uniform: a word alone opens this
-  // wallet on EVERY device, so an owner who never configured a stroke would
-  // otherwise land here, see a wallet that is not theirs, and conclude the
-  // device lost it. There is deliberately no error to show them, so the way on
-  // has to be written where they will already be standing.
+  // The line that used to sit at y=372 read "a stroke after the word asks for
+  // a passphrase". The argument for it was sound as far as it went: routing is
+  // uniform, so a word alone opens this wallet on every device, and an owner
+  // who configured a passphrase and then forgot the stroke would land here and
+  // conclude the device lost their coins. The line was shown in every session
+  // precisely so its presence could not single anybody out.
   //
-  // Shown in every session, decoy included, and that is what makes it safe: a
-  // line that appeared only for some owners would be the tell this whole change
-  // removes. It describes the product, not this device, and is equally true on
-  // one that has never been configured and one whose owner has no passphrase.
-  //
-  // ABOVE the build id rather than beside it: that row is two measured labels
-  // (version, then encryption at x + width(version) + gap), so its right edge
-  // follows the version string, and a neighbour pinned at a constant x would
-  // collide the first time the version grew.
-  // y=372, not 396. At 396 an 18px line ran to 414: seventeen past
-  // WT_CONTENT_BOTTOM (398), and straight into the theme label that starts at
-  // 406. The chrome below that floor -- theme, build id -- is exempt from the
-  // rule by being chrome. A content line is not, and this is one.
-  wt_note(s_wallet, tr(STR_H_WAYS_IN_HINT), 48, 372, 704, 22);
+  // It is still off. Whoever is holding the device is reading this screen, and
+  // a permanent caption naming the second door tells them the exact next thing
+  // to demand. "Every device says it" answers the question of which OWNER is
+  // hiding something; it does not answer why the screen should teach the
+  // question at all. The way in belongs in docs/walkthrough.md and in the
+  // wizard that configures it, not standing under the tiles of a wallet
+  // somebody may have been made to open.
 
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
