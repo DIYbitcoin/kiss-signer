@@ -191,7 +191,7 @@ static const slot_t SLOTS[] = {
     { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
     { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
-    // cards mode (MY OWN WORDS): subtitles, the method-row note, both why
+    // cards mode (BLIND DRAW): subtitles, the method-row note, both why
     // pairs and the checksum page's one number line. The candidate pills are
     // dynamic English BIP39 words and are deliberately not rows here.
     { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
@@ -545,6 +545,13 @@ static const pill_t PILLS[] = {
     { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
     { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
+    // The settings header row. FIRMWARE is 150x44 and carries no flag, sitting
+    // 12px left of the 170px LANGUAGE pill; between them they take 332 of the
+    // title's lane, so both are worth measuring rather than assuming. It is the
+    // only way into the SD firmware update, and a locale that has to shrink it
+    // to font14 is a locale where the most consequential control on the device
+    // is also the quietest, so key_action.
+    { "set/firmware",     STR_G_FW_PILL,      232, 44, 1, 1 },
     // wallet_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
     // key_action, and not arguably: these two pills are the flow's only
     // statement of WHICH wallet the next screen configures, and reading them
@@ -938,6 +945,51 @@ int main(int argc, char **argv)
              "the last words are the ones saying whether you keep a wallet.\n"
              "Shorten that locale's sub-line.");
         return 1;
+    }
+
+    // ---- screen titles against the lane they actually get ----
+    // wt_title_fit walks 34 -> 28 -> 23 and takes the first that fits UNWRAPPED,
+    // silently, with no floor. Nothing measured that until now: a header pill
+    // added beside a title takes width away from it, and the only symptom is a
+    // title two sizes smaller in the locales with the longest word for it. The
+    // overlap gate cannot see it either -- a smaller title overlaps nothing.
+    //
+    // Settings is the screen with pills in its header, so it is the one with a
+    // budget worth pinning: LANGUAGE (170) and FIRMWARE (232) with 12 between
+    // them, off the 752 right margin, less the 16 gap and the 48 left margin.
+    // font23 fails. 34 -> 28 is the accommodation this ladder exists for; 23 is
+    // a title that has stopped looking like one.
+    {
+        const int lane = 752 - 170 - 12 - 232 - 16 - 48;
+        static const int space[3] = { 3, 2, 2 };
+        int title_small = 0;
+        for (int l = 0; l < I18N_LANG_N; l++) {
+            i18n_set_lang(l);
+            const lv_font_t *f[3] = { wt_font34(), wt_font28(), wt_font23() };
+            const char *txt = tr(STR_G_T);
+            int pick = 2, px = 0;
+            for (int i = 0; i < 3; i++) {
+                lv_point_t sz;
+                lv_text_get_size(&sz, txt, f[i], space[i], 0, LV_COORD_MAX,
+                                 LV_TEXT_FLAG_NONE);
+                if (i == 0) px = sz.x;
+                if (sz.x <= lane) { pick = i; break; }
+            }
+            if (pick == 2) {
+                printf("  title set/main   %-6s font23  %dpx / %dpx  FAIL\n",
+                       i18n_lang_info(l)->code, px, lane);
+                title_small++;
+            }
+        }
+        printf("screen titles: settings lane %dpx, %d locale(s) at font23\n",
+               lane, title_small);
+        if (title_small) {
+            puts("\nFAIL: a settings header pill has squeezed the title to its\n"
+                 "smallest size. Narrow or drop a header pill, or shorten that\n"
+                 "locale's title. A title that reads at font23 is a title the\n"
+                 "owner no longer uses to know which screen they are on.");
+            return 1;
+        }
     }
 
     if (total_small) {

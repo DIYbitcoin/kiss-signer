@@ -1,0 +1,50 @@
+# The dev firmware build, on every pull request.
+#
+# reproducible-build.yml already compiles firmware, but it cannot see a break
+# like the one that prompted this file, for two reasons:
+#
+#   1. it runs on push to main only, so a branch merges before anything has
+#      compiled it for the device at all, and
+#   2. it builds the release profile, which tools/build_release.sh writes with
+#      CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y. Code behind the arms
+#      that config selects is the code the release lane compiles; the arms it
+#      does not select are never touched. wallet_fw_available() shipped an
+#      unsigned-build arm that referenced a sim-only variable, and both lanes
+#      of CI stayed green while the plain `idf.py build` this repo's sdkconfig
+#      produces failed outright.
+#
+# So this job is deliberately the dumbest possible thing: the committed
+# sdkconfig, the same Docker toolchain a contributor uses, compile only. It
+# proves the tree builds for the board. It cannot prove the board runs it --
+# that is what the device test verdict on every PR is for.
+name: firmware build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dev-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # GIT_CONFIG_* marks /project safe: the checkout is owned by the runner
+      # user, the container builds as another, and idf.py reads git for the
+      # version it bakes in.
+      - name: Build firmware (Docker ESP-IDF v6.0.1, committed sdkconfig)
+        run: |
+          docker run --rm \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/project \
+            -v "$PWD":/project -w /project \
+            espressif/idf:v6.0.1 \
+            idf.py -B build -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
+
+      - name: Image size
+        run: |
+          ls -l build/guition_kiss_bringup.bin
+          sha256sum build/guition_kiss_bringup.bin

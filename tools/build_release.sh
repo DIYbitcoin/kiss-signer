@@ -48,8 +48,25 @@ for l in lines:
         out.append("CONFIG_ESPTOOLPY_AFTER=\"no-reset\"")
     else:
         out.append(l)
+
+# SD firmware update: the release lane REQUIRES signed images, so a card cannot
+# hand this device anything the project key did not sign. Appended rather than
+# substituted because the dev sdkconfig has no line for any of them.
+#
+# BUILD_SIGNED_BINARIES stays OFF and the signing happens on the host below.
+# The private key lives outside the repo and the container only ever sees the
+# repo, so signing inside the container would mean mounting the key into it.
+# The key does not go in a container.
+out += [
+    "",
+    "# --- SD firmware update: signed images (tools/build_release.sh) ---",
+    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y",
+    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y",
+    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y",
+    "# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set",
+]
 open("sdkconfig.release", "w").write("\n".join(out) + "\n")
-print("wrote sdkconfig.release (logs: WARN)")
+print("wrote sdkconfig.release (logs: WARN, signed-app verification ON)")
 PY
 
 # short commit from the HOST's git (the container can't read the bind-mounted
@@ -69,6 +86,41 @@ docker run --rm \
   -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
   idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 \
   -DKISS_COMMIT="$GIT_REV" build
+
+# ---- sign the app, on the HOST ----
+# The signature block appended here is what the device checks an SD update
+# against: esp_ota_end verifies the incoming image using the public key inside
+# the RUNNING app's own block, so an unsigned release is a device that can
+# never accept an update -- and an unsigned release that ships is a device that
+# has to be recovered over USB to fix it. Hence the hard stop rather than a
+# warning.
+KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+if [ ! -f "$KISS_OTA_KEY" ]; then
+  echo
+  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
+  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "      Without it this build cannot accept SD firmware updates, ever."
+  exit 1
+fi
+echo "signing app with $KISS_OTA_KEY"
+uvx --from esptool espsecure sign-data \
+  --version 2 --keyfile "$KISS_OTA_KEY" \
+  --output build-release/guition_kiss_bringup-signed.bin \
+  build-release/guition_kiss_bringup.bin
+mv build-release/guition_kiss_bringup-signed.bin \
+   build-release/guition_kiss_bringup.bin
+
+# The public half in the repo has to be the half that just signed, or users
+# verify against a key the firmware does not carry. Cheap to check, and the
+# failure it prevents is silent.
+uvx --from esptool espsecure extract-public-key \
+  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_check.pem
+if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
+  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+  exit 1
+fi
+echo "PASS: published public key matches the signing key"
+rm -f /tmp/kiss_ota_pub_check.pem
 
 # ---- verify the release binary ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
@@ -138,18 +190,39 @@ echo
 echo "ESP-IDF app-only reflash:"
 echo "  idf.py -B build-release -p <port> app-flash"
 echo
+# Read out of flasher_args.json, never typed here. This block used to claim it
+# came from flash_args and did not: enabling rollback added an ota_data
+# partition at 0x10000 and moved the app to 0x20000, and these lines still said
+# 0x10000 for the app. Anyone following them would have written the app over
+# the slot the bootloader reads to decide which app to run, and got a board
+# that does not come back.
+APP_LINE=$(python3 - <<'PY'
+import json
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+off = next(o for o, f in d.items() if f.endswith("guition_kiss_bringup.bin"))
+print(f"    {off} build-release/guition_kiss_bringup.bin")
+PY
+)
+ALL_LINES=$(python3 - <<'PY'
+import json
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+items = sorted(d.items(), key=lambda kv: int(kv[0], 16))
+for i, (off, f) in enumerate(items):
+    tail = "" if i == len(items) - 1 else " \\"
+    print(f"    {off:<8}build-release/{f}{tail}")
+PY
+)
+
 echo "direct esptool fallback - app-only reflash:"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
-echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo "$APP_LINE"
 echo
 echo "direct esptool fallback - full flash (fresh board, or whenever bootloader/partitions changed;"
-echo "offsets from build-release/flash_args - the encrypted-release lane will"
-echo "need this full set):"
+echo "offsets from build-release/flasher_args.json - the encrypted-release lane"
+echo "will need this full set):"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
-echo "    0x2000  build-release/bootloader/bootloader.bin \\"
-echo "    0x8000  build-release/partition_table/partition-table.bin \\"
-echo "    0x10000 build-release/guition_kiss_bringup.bin"
+echo "$ALL_LINES"
 echo
 echo "then: unplug -> ~3s -> replug (v1.3 sample never boots off a USB reset)"

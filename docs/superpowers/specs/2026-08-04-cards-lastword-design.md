@@ -1,6 +1,9 @@
-# MY OWN WORDS — cards entropy with a computed last word
+# BLIND DRAW — hand drawn entropy with a computed last word
 
-Date: 2026-08-04. Status: approved.
+Date: 2026-08-04. Status: approved. Renamed 2026-08-07: the mode shipped as
+MY OWN WORDS, which reads to a beginner as *words I get to choose* — the one
+mistake wallet_cards_q exists to block — and its copy named paper, which is
+only one medium: the list can equally be 3D printed as tiles and shaken.
 
 > **Superseded on the copy, not the design (2026-08-07).** Everything below
 > still describes what shipped. The owner-facing wording does not: this document
@@ -11,8 +14,8 @@ Date: 2026-08-04. Status: approved.
 
 ## Problem
 
-The DIY paper seed: the owner cuts the BIP39 list into cards, shuffles, draws
-blind, and wants a wallet made of those words. The last word of a BIP39
+The DIY hand drawn seed: the owner makes a physical copy of the BIP39 list,
+mixes it, draws blind, and wants a wallet made of those words. The last word of a BIP39
 mnemonic is part checksum, so after 11 or 23 drawn words the final word cannot
 be drawn — it must be computed. Krux and SeedSigner ship this; KISS Signer's
 answer must not add machine randomness to the seed.
@@ -22,9 +25,13 @@ answer must not add machine randomness to the seed.
 - Both 12 and 24 word seeds (11 + 1 and 23 + 1).
 - The device computes ALL checksum valid last words (128 for 12, 8 for 24)
   and the owner picks one. No TRNG bits enter the seed.
-- A full page checksum explainer sits between word entry and the picker:
-  marks before words (✓ / ✗ diagram rows), one concrete number
-  ("8 of 2048 words fit yours"), two why blocks.
+- A full page checksum explainer sits between word entry and the picker: two
+  diagram rows, one concrete number ("8 of 2048 words fit yours"), two why
+  blocks. The rows are the owner's own first word beside its wordlist number,
+  then `11 + ✓1 → ✓`. An early draft mirrored that second row into a ✗ twin
+  instead of showing the number; it was cut because the WARN why block directly
+  below already told the wrong-word story in full, while nothing anywhere told
+  the owner that a word IS a number, which is the premise the page rests on.
 
 ## Shape
 
