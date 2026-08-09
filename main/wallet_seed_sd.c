@@ -1,5 +1,6 @@
-// Sealed seed blob for the SD card. See wallet_seed_sd.h for the layout and
-// for why the key never leaves this device.
+// Sealed seed blob, for the SD card and for internal flash. See
+// wallet_seed_sd.h for the layout, the two domains, and for why the key never
+// leaves this device.
 #include "wallet_seed_sd.h"
 
 #include <stdio.h>
@@ -18,13 +19,20 @@
 #include <errno.h>
 #include <stdlib.h>
 #define DKEY_FILE "/tmp/kiss_device_key.bin"
+#define NKEY_FILE "/tmp/kiss_flash_key.bin"
 #endif
 
 // Two independent subkeys from the one device key, so the cipher and the MAC
 // never share bytes. Domain strings carry the version: a future format can
 // derive different subkeys from the same stored device key.
+//
+// The card strings are frozen. Changing them makes every card ever written by
+// every device unopenable, and the device key is the only thing that could
+// have opened them.
 #define ENC_INFO "kiss-sd-enc-v1"
 #define MAC_INFO "kiss-sd-mac-v1"
+#define NVS_ENC_INFO "kiss-nvs-enc-v1"
+#define NVS_MAC_INFO "kiss-nvs-mac-v1"
 
 static void sd_bzero(void *ptr, size_t len)
 {
@@ -84,12 +92,13 @@ static int fill_random(uint8_t *out, size_t len)
     return rc;
 }
 
-static void subkeys(const uint8_t key32[32], uint8_t enc[32], uint8_t mac[32])
+static void subkeys(sdseed_domain_t dom, const uint8_t key32[32],
+                    uint8_t enc[32], uint8_t mac[32])
 {
-    wally_hmac_sha256(key32, 32, (const uint8_t *)ENC_INFO, sizeof ENC_INFO - 1,
-                      enc, 32);
-    wally_hmac_sha256(key32, 32, (const uint8_t *)MAC_INFO, sizeof MAC_INFO - 1,
-                      mac, 32);
+    const char *ei = dom == SDSEED_DOM_NVS ? NVS_ENC_INFO : ENC_INFO;
+    const char *mi = dom == SDSEED_DOM_NVS ? NVS_MAC_INFO : MAC_INFO;
+    wally_hmac_sha256(key32, 32, (const uint8_t *)ei, strlen(ei), enc, 32);
+    wally_hmac_sha256(key32, 32, (const uint8_t *)mi, strlen(mi), mac, 32);
 }
 
 // ---- the device key ----------------------------------------------------
@@ -97,15 +106,16 @@ static void subkeys(const uint8_t key32[32], uint8_t enc[32], uint8_t mac[32])
 // encrypted (tools/build_encrypted_release.sh), so a flash dump does not
 // yield it; on a dev build it is plaintext, which is exactly why the storage
 // screen must not present the three options as equally safe.
-int sd_seed_device_key(uint8_t key32[32])
+int sd_seed_domain_key(sdseed_domain_t dom, uint8_t key32[32])
 {
     if (!key32) return -1;
 #ifdef ESP_PLATFORM
+    const char *slot = dom == SDSEED_DOM_NVS ? "nkey" : "dkey";
     nvs_handle_t h;
     size_t n = 32;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return -1;
-    esp_err_t err = nvs_get_blob(h, "dkey", key32, &n);
+    esp_err_t err = nvs_get_blob(h, slot, key32, &n);
     if (err == ESP_OK && n == 32) {
         nvs_close(h);
         return 0;
@@ -118,7 +128,7 @@ int sd_seed_device_key(uint8_t key32[32])
         nvs_close(h);
         return -1;
     }
-    int rc = nvs_set_blob(h, "dkey", key32, 32) == ESP_OK &&
+    int rc = nvs_set_blob(h, slot, key32, 32) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
     if (rc != 0) {
@@ -127,7 +137,8 @@ int sd_seed_device_key(uint8_t key32[32])
     }
     return 0;
 #else
-    FILE *f = fopen(DKEY_FILE, "rb");
+    const char *slot = dom == SDSEED_DOM_NVS ? NKEY_FILE : DKEY_FILE;
+    FILE *f = fopen(slot, "rb");
     if (f) {
         size_t n = fread(key32, 1, 32, f);
         fclose(f);
@@ -135,7 +146,7 @@ int sd_seed_device_key(uint8_t key32[32])
     }
     if (fill_random(key32, 32) != 0)
         return -1;
-    f = fopen(DKEY_FILE, "wb");
+    f = fopen(slot, "wb");
     if (!f) { sd_bzero(key32, 32); return -1; }
     int rc = fwrite(key32, 1, 32, f) == 32 ? 0 : -1;
     if (fclose(f) != 0) rc = -1;
@@ -144,13 +155,22 @@ int sd_seed_device_key(uint8_t key32[32])
 #endif
 }
 
-int sd_seed_forget_device_key(void)
+int sd_seed_device_key(uint8_t key32[32])
+{
+    return sd_seed_domain_key(SDSEED_DOM_CARD, key32);
+}
+
+// Forgetting one domain's key never touches the other's. See the header: the
+// card key dies when a card must be invalidated, the flash key only when the
+// seed in flash is going away too.
+static int forget_key(sdseed_domain_t dom)
 {
 #ifdef ESP_PLATFORM
+    const char *slot = dom == SDSEED_DOM_NVS ? "nkey" : "dkey";
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return -1;
-    esp_err_t err = nvs_erase_key(h, "dkey");
+    esp_err_t err = nvs_erase_key(h, slot);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
         nvs_close(h);
         return -1;
@@ -159,9 +179,13 @@ int sd_seed_forget_device_key(void)
     nvs_close(h);
     return rc;
 #else
-    return remove(DKEY_FILE) == 0 || errno == ENOENT ? 0 : -1;
+    const char *slot = dom == SDSEED_DOM_NVS ? NKEY_FILE : DKEY_FILE;
+    return remove(slot) == 0 || errno == ENOENT ? 0 : -1;
 #endif
 }
+
+int sd_seed_forget_device_key(void) { return forget_key(SDSEED_DOM_CARD); }
+int sd_seed_forget_flash_key(void)  { return forget_key(SDSEED_DOM_NVS); }
 
 // ---- seal / open -------------------------------------------------------
 static void put_le32(uint8_t *p, uint32_t v)
@@ -176,8 +200,9 @@ static uint32_t get_le32(const uint8_t *p)
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-int sd_seed_seal(const uint8_t key32[32], const char *mnemonic,
-                 uint8_t *out, size_t out_cap, size_t *out_len)
+int sd_seed_seal_in(sdseed_domain_t dom, const uint8_t key32[32],
+                    const char *mnemonic, uint8_t *out, size_t out_cap,
+                    size_t *out_len)
 {
     uint8_t enc[32], mac[32];
     size_t written = 0;
@@ -194,7 +219,7 @@ int sd_seed_seal(const uint8_t key32[32], const char *mnemonic,
     size_t ct_max = ((m_len / AES_BLOCK_LEN) + 1) * AES_BLOCK_LEN;
     if (out_cap < SDSEED_HDR_LEN + ct_max + SDSEED_TAG_LEN) return -1;
 
-    subkeys(key32, enc, mac);
+    subkeys(dom, key32, enc, mac);
     memcpy(out, SDSEED_MAGIC, SDSEED_MAGIC_LEN);
     if (fill_random(out + SDSEED_MAGIC_LEN, SDSEED_IV_LEN) != 0) goto out;
 
@@ -221,8 +246,9 @@ out:
     return ret;
 }
 
-int sd_seed_open(const uint8_t key32[32], const uint8_t *blob, size_t blob_len,
-                 char *out, size_t out_cap)
+int sd_seed_open_in(sdseed_domain_t dom, const uint8_t key32[32],
+                    const uint8_t *blob, size_t blob_len,
+                    char *out, size_t out_cap)
 {
     uint8_t enc[32], mac[32], tag[SDSEED_TAG_LEN];
     uint8_t plain[WSEED_SD_MAX_PLAIN + AES_BLOCK_LEN];
@@ -243,10 +269,11 @@ int sd_seed_open(const uint8_t key32[32], const uint8_t *blob, size_t blob_len,
     if (ct_len > sizeof plain) return -1;
     if ((size_t)SDSEED_HDR_LEN + ct_len + SDSEED_TAG_LEN != blob_len) return -1;
 
-    subkeys(key32, enc, mac);
+    subkeys(dom, key32, enc, mac);
 
-    // Verify BEFORE decrypting: a wrong device key or a tampered card is a
-    // MAC failure, and the cipher never sees attacker-chosen bytes.
+    // Verify BEFORE decrypting: a wrong device key, a tampered card or a blob
+    // that belongs to the other domain is a MAC failure, and the cipher never
+    // sees attacker-chosen bytes.
     if (wally_hmac_sha256(mac, 32, blob, SDSEED_HDR_LEN + ct_len,
                           tag, sizeof tag) != WALLY_OK)
         goto out;
@@ -269,4 +296,20 @@ out:
     sd_bzero(plain, sizeof plain);
     if (ret != 0) sd_bzero(out, out_cap);
     return ret;
+}
+
+// The card. These were the whole interface before internal flash needed the
+// same tag, and every existing call site still means the card when it says
+// seal or open.
+int sd_seed_seal(const uint8_t key32[32], const char *mnemonic,
+                 uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    return sd_seed_seal_in(SDSEED_DOM_CARD, key32, mnemonic, out, out_cap,
+                           out_len);
+}
+
+int sd_seed_open(const uint8_t key32[32], const uint8_t *blob, size_t blob_len,
+                 char *out, size_t out_cap)
+{
+    return sd_seed_open_in(SDSEED_DOM_CARD, key32, blob, blob_len, out, out_cap);
 }

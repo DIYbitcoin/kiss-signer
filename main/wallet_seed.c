@@ -38,26 +38,103 @@ static int seed_test_fail(unsigned flag)
 #endif
 
 // ---- storage backends ----
+//
+// KEEP holds a sealed blob (wallet_seed_sd.h, NVS domain). The tag is the
+// point: flash encryption is XTS and carries none, so without it an altered or
+// half-written seed decrypts to garbage that the device cannot tell apart from
+// a hardware fault. The ciphertext around it buys no secrecy here -- the key
+// lives in the same partition -- and no screen may claim it does.
+//
+// Three outcomes, not two. A seed that fails its tag is NOT an empty slot: a
+// device that confuses the two offers to make a new wallet over a seed it just
+// refused to load, which is the worst possible reading of a bad byte.
+#define KEEP_OK      0
+#define KEEP_ABSENT  (-1)
+#define KEEP_BAD     (-2)
+
+// Set when the last read found the pre-tag plaintext format, so the caller can
+// migrate it. Read paths must stay side effect free: they run inside
+// verify-after-write, and a partition erase in there would be a disaster.
+static int s_keep_legacy;
+
+static int keep_unseal(const uint8_t *blob, size_t blob_len,
+                       char *out, size_t out_len)
+{
+    uint8_t key[32];
+    if (sd_seed_domain_key(SDSEED_DOM_NVS, key) != 0)
+        return KEEP_BAD;                // the key is gone; the words are not readable
+    int rc = sd_seed_open_in(SDSEED_DOM_NVS, key, blob, blob_len, out, out_len)
+           == 0 ? KEEP_OK : KEEP_BAD;
+    wally_bzero(key, sizeof key);
+    return rc;
+}
+
 static int storage_read_keep(char *out, size_t out_len)
 {
+    s_keep_legacy = 0;
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
-        return -1;
+        return KEEP_ABSENT;
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t blen = sizeof blob;
+    esp_err_t err = nvs_get_blob(h, "wblob", blob, &blen);
+    if (err == ESP_OK) {
+        nvs_close(h);
+        int rc = keep_unseal(blob, blen, out, out_len);
+        wally_bzero(blob, sizeof blob);
+        return rc;
+    }
+    wally_bzero(blob, sizeof blob);
+    if (err != ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(h);
+        return KEEP_BAD;                // a real read failure, not an empty slot
+    }
+    // Pre-tag devices. The words are still theirs; wallet_seed_load migrates.
     size_t len = out_len;
-    int rc = nvs_get_str(h, "words", out, &len) == ESP_OK ? 0 : -1;
+    int rc = nvs_get_str(h, "words", out, &len) == ESP_OK
+           ? KEEP_OK : KEEP_ABSENT;
     nvs_close(h);
+    if (rc == KEEP_OK && wallet_seed_validate(out) != 0) {
+        wally_bzero(out, out_len);
+        return KEEP_BAD;
+    }
+    if (rc == KEEP_OK) s_keep_legacy = 1;
     return rc;
 #else
-    FILE *f = fopen(SEED_FILE, "r");
+    FILE *f = fopen(SEED_FILE, "rb");
     if (!f)
-        return -1;
-    size_t n = fread(out, 1, out_len - 1, f);
+        return KEEP_ABSENT;
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t n = fread(blob, 1, sizeof blob, f);
     fclose(f);
     if (n == 0)
-        return -1;
+        return KEEP_ABSENT;
+    // The magic discriminates the two formats on host, where both live in one
+    // file. A sealed blob always starts with it; a mnemonic never can.
+    if (n > SDSEED_MAGIC_LEN &&
+        memcmp(blob, SDSEED_MAGIC, SDSEED_MAGIC_LEN) == 0) {
+        int rc = keep_unseal(blob, n, out, out_len);
+        wally_bzero(blob, sizeof blob);
+        return rc;
+    }
+    if (n >= out_len) {
+        wally_bzero(blob, sizeof blob);
+        return KEEP_BAD;
+    }
+    memcpy(out, blob, n);
     out[n] = 0;
-    return 0;
+    wally_bzero(blob, sizeof blob);
+    // The magic chose this branch, so damage that lands in the first eight
+    // bytes arrives here looking like the pre-tag format. Only something that
+    // is actually a mnemonic may be treated as one; anything else is damage,
+    // and saying so is the difference between a refusal and garbage words.
+    if (wallet_seed_validate(out) != 0) {
+        wally_bzero(out, out_len);
+        return KEEP_BAD;
+    }
+    s_keep_legacy = 1;
+    return KEEP_OK;
 #endif
 }
 
@@ -65,37 +142,56 @@ static int storage_mode_read_checked(int *out_mode);
 static int storage_mode_read(void);
 static int storage_mode_write(int mode);
 
+static int keep_seal(const char *words, uint8_t *blob, size_t *blen)
+{
+    uint8_t key[32];
+    if (sd_seed_domain_key(SDSEED_DOM_NVS, key) != 0)
+        return -1;
+    int rc = sd_seed_seal_in(SDSEED_DOM_NVS, key, words, blob, SDSEED_MAX_BLOB,
+                             blen);
+    wally_bzero(key, sizeof key);
+    return rc;
+}
+
 // KEEP mode's words and mode flag are one NVS commit on-device. A power loss
 // must never leave a newly persisted seed paired with AMNESIC UI state.
 static int storage_write_keep(const char *words)
 {
     int old_mode = storage_mode_read();
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t blen = 0;
+    if (keep_seal(words, blob, &blen) != 0) {
+        wally_bzero(blob, sizeof blob);
+        return WSEED_ERR_SD_IO;
+    }
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
-    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK) {
+        wally_bzero(blob, sizeof blob);
         return WSEED_ERR_SD_IO;
+    }
     int rc;
     if (old_mode == WSEED_MODE_SD) {
         // NVS commit is not a multi-key transaction. Persist and verify the
         // destination words while SD remains authoritative, then flip mode.
-        rc = nvs_set_str(h, "words", words) == ESP_OK &&
+        rc = nvs_set_blob(h, "wblob", blob, blen) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? WSEED_OK : WSEED_ERR_SD_IO;
         if (rc == WSEED_OK) {
             char verify[WSEED_MAX_MNEMONIC];
-            rc = storage_read_keep(verify, sizeof verify) == 0 &&
+            rc = storage_read_keep(verify, sizeof verify) == KEEP_OK &&
                  strcmp(verify, words) == 0 ? WSEED_OK : WSEED_ERR_VERIFY;
             wally_bzero(verify, sizeof verify);
         }
         if (rc == WSEED_OK &&
             (nvs_set_u8(h, "smode", WSEED_MODE_KEEP) != ESP_OK ||
              nvs_commit(h) != ESP_OK)) {
-            esp_err_t er = nvs_erase_key(h, "words");
+            esp_err_t er = nvs_erase_key(h, "wblob");
             rc = (er == ESP_OK || er == ESP_ERR_NVS_NOT_FOUND) &&
                  nvs_commit(h) == ESP_OK
                ? WSEED_ERR_SD_IO : WSEED_ERR_ROLLBACK;
         }
     } else {
-        rc = nvs_set_str(h, "words", words) == ESP_OK &&
+        rc = nvs_set_blob(h, "wblob", blob, blen) == ESP_OK &&
              nvs_set_u8(h, "smode", WSEED_MODE_KEEP) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? WSEED_OK : WSEED_ERR_SD_IO;
     }
@@ -103,15 +199,18 @@ static int storage_write_keep(const char *words)
 #else
     // Build the host destination in a temp first. It is promoted in the order
     // appropriate to its source, with rollback on every injected failure.
-    FILE *f = fopen(SEED_TMP, "w");
-    if (!f)
+    FILE *f = fopen(SEED_TMP, "wb");
+    if (!f) {
+        wally_bzero(blob, sizeof blob);
         return WSEED_ERR_SD_IO;
-    int rc = fputs(words, f) >= 0 ? WSEED_OK : WSEED_ERR_SD_IO;
+    }
+    int rc = fwrite(blob, 1, blen, f) == blen ? WSEED_OK : WSEED_ERR_SD_IO;
     if (rc == WSEED_OK && fflush(f) != 0) rc = WSEED_ERR_SD_IO;
     if (rc == WSEED_OK && fsync(fileno(f)) != 0) rc = WSEED_ERR_SD_IO;
     if (fclose(f) != 0) rc = WSEED_ERR_SD_IO;
     if (rc != WSEED_OK) {
         (void)remove(SEED_TMP);
+        wally_bzero(blob, sizeof blob);
         return rc;
     }
 
@@ -146,12 +245,16 @@ static int storage_write_keep(const char *words)
         }
     }
 #endif
+    wally_bzero(blob, sizeof blob);
     if (rc != WSEED_OK)
         return rc;
 
+    // Verify through the full public read path, tag included, the way SD
+    // already does. A blob that cannot be opened must never be published as a
+    // wallet, whatever the write layer reported.
     char verify[WSEED_MAX_MNEMONIC];
     int mode = -1;
-    rc = storage_read_keep(verify, sizeof verify) == 0 &&
+    rc = storage_read_keep(verify, sizeof verify) == KEEP_OK &&
          strcmp(verify, words) == 0 &&
          storage_mode_read_checked(&mode) == 0 &&
          mode == WSEED_MODE_KEEP ? WSEED_OK : WSEED_ERR_VERIFY;
@@ -228,6 +331,11 @@ static int storage_erase(int mode_after)
 #endif
     if (rc != 0)
         return -1;
+    // The partition erase above already took the flash key on device. Say so
+    // explicitly so the host build ends in the same state and the tests can
+    // see the seed become unreadable rather than merely absent.
+    if (sd_seed_forget_flash_key() != 0)
+        return -1;
     int verify = -1;
     return storage_mode_read_checked(&verify) == 0 && verify == mode_after
          ? 0 : -1;
@@ -280,20 +388,30 @@ static int storage_scrub_keep(const char *words)
     // Past this point the words exist only in the caller's buffer. Retry once:
     // a fresh partition has every reason to accept a write, and the cost of
     // giving up here is a device with no wallet on it.
+    //
+    // Seal before the handle is opened, not inside the loop. The erase took
+    // the device key with it, so this mints a fresh one through its own NVS
+    // handle, and doing that under a handle we already hold is the kind of
+    // nesting that differs between IDF versions.
     int rc = -1;
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t blen = 0;
     for (int attempt = 0; attempt < 2 && rc != 0; attempt++) {
+        if (keep_seal(words, blob, &blen) != 0)
+            continue;
         if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
             continue;
         rc = 0;
         for (size_t i = 0; i < N_KEEP; i++)
             if (have[i] && nvs_set_u8(h, KEEP_KEYS[i], keep[i]) != ESP_OK)
                 rc = -1;
-        if (nvs_set_str(h, "words", words) != ESP_OK ||
+        if (nvs_set_blob(h, "wblob", blob, blen) != ESP_OK ||
             nvs_set_u8(h, "smode", WSEED_MODE_KEEP) != ESP_OK ||
             nvs_commit(h) != ESP_OK)
             rc = -1;
         nvs_close(h);
     }
+    wally_bzero(blob, sizeof blob);
     if (rc != 0)
         return -1;
 #else
@@ -303,13 +421,22 @@ static int storage_scrub_keep(const char *words)
     // device branch has to keep.
     if (remove(SEED_FILE) != 0 && errno != ENOENT)
         return 0;
-    FILE *f = fopen(SEED_FILE, "w");
-    if (!f)
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t blen = 0;
+    if (keep_seal(words, blob, &blen) != 0) {
+        wally_bzero(blob, sizeof blob);
         return -1;
-    int rc = fputs(words, f) >= 0 ? 0 : -1;
+    }
+    FILE *f = fopen(SEED_FILE, "wb");
+    if (!f) {
+        wally_bzero(blob, sizeof blob);
+        return -1;
+    }
+    int rc = fwrite(blob, 1, blen, f) == blen ? 0 : -1;
     if (rc == 0 && fflush(f) != 0) rc = -1;
     if (rc == 0 && fsync(fileno(f)) != 0) rc = -1;
     if (fclose(f) != 0) rc = -1;
+    wally_bzero(blob, sizeof blob);
     if (rc != 0)
         return -1;
     if (storage_mode_write(WSEED_MODE_KEEP) != 0)
@@ -317,12 +444,91 @@ static int storage_scrub_keep(const char *words)
 #endif
     char verify[WSEED_MAX_MNEMONIC];
     int mode = -1;
-    int ok = storage_read_keep(verify, sizeof verify) == 0 &&
+    int ok = storage_read_keep(verify, sizeof verify) == KEEP_OK &&
              strcmp(verify, words) == 0 &&
              storage_mode_read_checked(&mode) == 0 &&
              mode == WSEED_MODE_KEEP ? 0 : -1;
     wally_bzero(verify, sizeof verify);
     return ok;
+}
+
+// One-time upgrade from the pre-tag plaintext format, run from
+// wallet_seed_load and nowhere else. Every other reader of KEEP is a
+// verify-after-write, and side effects in there would fire mid commit.
+//
+// Deliberately NOT storage_scrub_keep, though the residue argument points that
+// way. That function erases the whole partition and restores four preference
+// keys; the duress gesture, the paper backup record and the usage counters are
+// not among them. Erasing them is right when the owner walks away from a
+// wallet and wrong when the only thing changing is the byte format of a wallet
+// they are keeping. Losing the stroke that opens the real wallet is a worse
+// outcome than the residue below.
+//
+// So the legacy plaintext stays on its page until a wipe or a new wallet takes
+// the sector path. That is the same trade storage_publish_sd already records,
+// and it ends for good on the encrypted lane, where the residue is ciphertext.
+//
+// Failure is never fatal: the words are already in the caller's buffer and
+// correct, and the legacy copy is only dropped after the sealed one has been
+// read back through the public path. A device that cannot upgrade still opens
+// its wallet and tries again next load.
+static int storage_migrate_keep(const char *words)
+{
+    if (!words || wallet_seed_validate(words) != 0)
+        return -1;
+
+    uint8_t blob[SDSEED_MAX_BLOB];
+    size_t blen = 0;
+    if (keep_seal(words, blob, &blen) != 0) {
+        wally_bzero(blob, sizeof blob);
+        return -1;
+    }
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK) {
+        wally_bzero(blob, sizeof blob);
+        return -1;
+    }
+    int rc = nvs_set_blob(h, "wblob", blob, blen) == ESP_OK &&
+             nvs_commit(h) == ESP_OK ? 0 : -1;
+    nvs_close(h);
+#else
+    FILE *f = fopen(SEED_TMP, "wb");
+    if (!f) {
+        wally_bzero(blob, sizeof blob);
+        return -1;
+    }
+    int rc = fwrite(blob, 1, blen, f) == blen ? 0 : -1;
+    if (rc == 0 && fflush(f) != 0) rc = -1;
+    if (rc == 0 && fsync(fileno(f)) != 0) rc = -1;
+    if (fclose(f) != 0) rc = -1;
+    // Host has no second key to read first, so the rename IS the switch: the
+    // file holds one format or the other and never both.
+    if (rc == 0 && rename(SEED_TMP, SEED_FILE) != 0) rc = -1;
+    if (rc != 0) (void)remove(SEED_TMP);
+#endif
+    wally_bzero(blob, sizeof blob);
+    if (rc != 0)
+        return -1;
+
+    // storage_read_keep prefers the sealed copy, so this reads what was just
+    // written, tag and all. Only a clean readback may retire the plaintext.
+    char verify[WSEED_MAX_MNEMONIC];
+    rc = storage_read_keep(verify, sizeof verify) == KEEP_OK &&
+         strcmp(verify, words) == 0 ? 0 : -1;
+    wally_bzero(verify, sizeof verify);
+    if (rc != 0)
+        return -1;
+
+#ifdef ESP_PLATFORM
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return -1;
+    esp_err_t er = nvs_erase_key(h, "words");
+    rc = (er == ESP_OK || er == ESP_ERR_NVS_NOT_FOUND) &&
+         nvs_commit(h) == ESP_OK ? 0 : -1;
+    nvs_close(h);
+#endif
+    return rc;
 }
 
 // ---- storage mode (see wallet_seed.h) ----
@@ -755,7 +961,9 @@ int wallet_seed_commit(void)
     bool had_prior_words = false;
     if (prior_mode == WSEED_MODE_KEEP) {
         char prev[WSEED_MAX_MNEMONIC];
-        had_prior_words = storage_read_keep(prev, sizeof prev) == 0;
+        // A prior seed that fails its tag is still residue on the page, so it
+        // still has to be scrubbed. Only an empty slot means nothing to erase.
+        had_prior_words = storage_read_keep(prev, sizeof prev) != KEEP_ABSENT;
         wally_bzero(prev, sizeof prev);
     }
     int rc = storage_write_keep(s_pending);
@@ -832,8 +1040,11 @@ int wallet_seed_exists(void)
         return s_has_active_ram ? 1 : 0;
     if (mode != WSEED_MODE_KEEP)
         return 0;
+    // Same reasoning as the SD case above: a seed whose tag fails is a wallet
+    // this device cannot currently open, not an empty device. Answering 0 here
+    // would drop the owner into first-time setup on top of it.
     char tmp[WSEED_MAX_MNEMONIC];
-    int rc = storage_read_keep(tmp, sizeof tmp) == 0 ? 1 : 0;
+    int rc = storage_read_keep(tmp, sizeof tmp) != KEEP_ABSENT ? 1 : 0;
     wally_bzero(tmp, sizeof tmp);
     return rc;
 }
@@ -874,8 +1085,14 @@ int wallet_seed_load(char *out, size_t out_len)
         return WSEED_ERR_VERIFY;
     if (mode != WSEED_MODE_KEEP)
         return WSEED_ERR_NO_SEED;
-    return storage_read_keep(out, out_len) == 0
-         ? WSEED_OK : WSEED_ERR_NO_SEED;
+    int rc = storage_read_keep(out, out_len);
+    if (rc == KEEP_BAD)
+        return WSEED_ERR_SD_CORRUPT;    // altered or half written, not missing
+    if (rc != KEEP_OK)
+        return WSEED_ERR_NO_SEED;
+    if (s_keep_legacy)
+        (void)storage_migrate_keep(out);
+    return WSEED_OK;
 }
 
 int wallet_seed_wipe(void)
@@ -947,13 +1164,13 @@ int wallet_seed_move_to(int mode)
             // failure. Inspect and verify before deciding which source owns it.
             if (rc != WSEED_ERR_CLEANUP ||
                 storage_mode_read() != WSEED_MODE_KEEP ||
-                storage_read_keep(verify, sizeof verify) != 0 ||
+                storage_read_keep(verify, sizeof verify) != KEEP_OK ||
                 strcmp(verify, words) != 0)
                 goto out;
             wally_bzero(verify, sizeof verify);
         }
         int committed_with_cleanup = rc == WSEED_ERR_CLEANUP;
-        rc = storage_read_keep(verify, sizeof verify) == 0 &&
+        rc = storage_read_keep(verify, sizeof verify) == KEEP_OK &&
              strcmp(verify, words) == 0 ? WSEED_OK : WSEED_ERR_VERIFY;
         wally_bzero(verify, sizeof verify);
         if (rc != WSEED_OK) goto out;
