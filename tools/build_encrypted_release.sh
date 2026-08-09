@@ -122,6 +122,22 @@ force = {
     "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y",
     "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
     "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
+
+    # The bootloader's own logs, quieted here for ROOM rather than for quiet.
+    # It is flashed at 0x2000 with the partition table at 0x8000, so its
+    # ceiling is a hard 24576 bytes and the dev build sits at 23200 of them.
+    # Secure boot is the pass this script already asserts is absent, and its
+    # signature verification does not fit in the 1344 bytes left. INFO to WARN
+    # measures 23200 -> 20656: 6% free becomes 16%.
+    #
+    # The shared sdkconfig keeps INFO. Bootloader INFO lines are how a boot
+    # failure on this board is read -- the Boya auto-suspend brick was found
+    # through them -- and the budget only binds the lanes that will carry
+    # secure boot. Moving the partition table to widen it is not an option:
+    # nvs sits directly above it at 0x9000, holding the seed.
+    "CONFIG_BOOTLOADER_LOG_LEVEL_INFO":             None,
+    "CONFIG_BOOTLOADER_LOG_LEVEL_WARN":             "y",
+    "CONFIG_BOOTLOADER_LOG_LEVEL":                  "2",
 }
 out, seen = [], set()
 for l in open("sdkconfig").read().splitlines():
