@@ -331,8 +331,7 @@ static const row_t ROWS[] = {
     { "set/duress",   STR_I_ROW_DURESS,  -1, NULL, 752, DURESS_VALS },
     // right column, SG_R_W = 365. None of these carry a value.
     { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
-    { "set/replace",  STR_I_ROW_REPLACE, -1, NULL, 365 },
-    { "set/erase",    STR_I_ROW_ERASE,   -1, NULL, 365 },
+    { "set/endwords", STR_I_ROW_ENDWORDS, -1, NULL, 365 },
 };
 #define NROW ((int)(sizeof ROWS / sizeof ROWS[0]))
 
@@ -353,14 +352,16 @@ static const row_t ROWS[] = {
 // The note here said fixing it meant shorter labels in ten locales OR a wider
 // column; the row went full width under both columns instead, so all thirteen
 // came off. That is the shrink this backlog exists to record.
+//
+// "it / set/erase" came off the same way: it was Italian's "Cancella questo
+// portafoglio" overshooting by seven pixels, and the two NO UNDO rows have
+// since merged into one, so the label it named is gone.
 static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
     { "de",    "set/storage" },
     { "es-ES", "set/storage" },
     { "es-MX", "set/storage" },
     { "fr",    "set/storage" },
     { "it",    "set/storage" },
-    // 324px against a 317px budget: seven pixels, on the row that erases.
-    { "it",    "set/erase"  },
     { "nl",    "set/storage" },
     { "pt-BR", "set/storage" },
     { "pt-PT", "set/storage" },
@@ -413,10 +414,10 @@ static const sub_t SUBROWS[] = {
     // wide and the thing the screen draws is eight.
     { "set/words",   STR_I_WORDS_VERIFIED_FMT, LV_SYMBOL_OK "  ", "A1B2C3D4" },
     { "set/words",   STR_I_WORDS_UNVERIFIED, LV_SYMBOL_WARNING "  ", NULL },
-    // The NO UNDO pair. These two say which of the rows leaves you a wallet,
-    // which is the one thing the titles alone could not carry.
-    { "set/replace", STR_I_ROW_REPLACE_SUB, NULL, NULL },
-    { "set/erase",   STR_I_ROW_ERASE_SUB, NULL, NULL },
+    // NO UNDO. One row now, and its sub-line is the whole reason there is only
+    // one: whichever door you pick, the words go. That claim has to survive the
+    // narrowest locale or the merge just hides the cost again.
+    { "set/endwords", STR_I_ROW_ENDWORDS_SUB, NULL, NULL },
 };
 #define NSUBROW ((int)(sizeof SUBROWS / sizeof SUBROWS[0]))
 
@@ -424,9 +425,10 @@ static const sub_t SUBROWS[] = {
 // Shrink only, exactly like ROW_BACKLOG above: delete a line when the copy is
 // fixed, never add one.
 //
-// Twenty eight entries, and not one of them is set/replace or set/erase -- the
-// NO UNDO pair was reworded in the same commit that added this check and fits
-// in all 21 locales, which is the whole reason the check could be turned on.
+// Twenty eight entries, and not one of them is set/endwords -- NO UNDO was
+// reworded in the same commit that added this check and fits in all 21
+// locales, which is the whole reason the check could be turned on. It stayed
+// clean through the merge that made those two rows one.
 //
 // The two rows here are the two rows ROW_BACKLOG already names, for the same
 // reason: DURESS sits against a translated value ("NOT SET" becomes
