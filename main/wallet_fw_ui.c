@@ -114,31 +114,30 @@ static void result_screen(int rc)
 
 // ---- 3. writing ------------------------------------------------------------
 
+// How long WRITING stays lit before the panel goes dark. One hold length, so
+// the screen announcing the dark is on the glass for about as long as the hold
+// that asked for it.
+#define FW_LIT_MS 1200
+
+// The write has exactly one channel out, and it is not this screen.
+//
+// This used to set a percent card and force a refresh for it. Neither did
+// anything an owner could see: install_now blacks the framebuffers and then
+// blocks inside wallet_fw_install for the whole write, so the card is dark
+// from the first chunk to the last. Only the simulator, which writes no flash
+// and has no framebuffer to starve, ever watched it count.
+//
+// The card is still built by writing_apply because it is the only framed
+// element on that screen, and taking it out would leave a wide paragraph and
+// nothing else. It goes when the DARK -> DONE band replaces it, which needs
+// two strings and therefore 21 locales.
+//
+// What is left runs BETWEEN esp_ota_write calls, with the cache back, and
+// touches a PWM register. Keeping this function to exactly that makes it
+// structurally impossible for LVGL work to land inside a cache off window.
 static void progress_cb(int pct, void *ud)
 {
     (void)ud;
-    if (!s_pct_card) return;
-
-    // Set the value, do not rebuild the card. This used to delete and recreate
-    // it on every percent, so a write dirtied a 300x90 rectangle a hundred
-    // times while the LVGL task was already blocked by flash erase -- reported
-    // from the bench as the screen flashing and looking like shit, and no gate
-    // can see it because the simulator writes no flash and the desktop
-    // display has no framebuffer to starve.
-    char v[16];
-    snprintf(v, sizeof v, "%d%%", pct);
-    wt_value_card_set(s_pct_card, v);
-
-    // Shrinking the dirty rectangle was not enough, because the tearing is not
-    // about how much gets repainted. The DPI framebuffers live in PSRAM and
-    // are read through the cache that every esp_ota_write disables, so the
-    // panel is starved whether or not anything changed. So there is no refresh
-    // here: install_now blacked the framebuffers and took the light down, and
-    // repainting a dark panel would only fight the flash for the cache.
-    //
-    // The light is the indicator instead. This runs BETWEEN esp_ota_write
-    // calls, when the cache is back, so a PWM duty change costs nothing and
-    // reaches the one part of the display that a flash write cannot starve.
     kiss_backlight_level(pct);
 }
 
@@ -177,7 +176,10 @@ static void install_now(lv_timer_t *t)
 static void writing_apply(void *ud)
 {
     (void)ud;
-    fresh(tr(STR_G_FW_WRITING_T), NULL);
+    // The version, because this is the last screen before the device is not
+    // this version any more, and it costs no string: the subtitle slot is
+    // already there and s_img.version is already parsed.
+    fresh(tr(STR_G_FW_WRITING_T), s_img.version);
     // No BACK and no CANCEL: past this point the receiving slot is being erased,
     // and the honest options are finish or lose power, neither of which is a
     // button.
@@ -185,7 +187,11 @@ static void writing_apply(void *ud)
     wt_why_block(s_scr, NULL, tr(STR_G_FW_RISK_B), BLK_L_X, 300, 704,
                  WT_CONTENT_BOTTOM - 300, NULL, WT_WARN);
 
-    lv_timer_t *t = lv_timer_create(install_now, 30, NULL);
+    // Lit long enough to be read, then dark. This was 30 ms, which is two
+    // frames: the screen that tells an owner the panel is about to go dark was
+    // itself never on the panel long enough to see. One hold length is the
+    // right unit, since a hold is what they just did to get here.
+    lv_timer_t *t = lv_timer_create(install_now, FW_LIT_MS, NULL);
     lv_timer_set_repeat_count(t, 1);
 }
 
