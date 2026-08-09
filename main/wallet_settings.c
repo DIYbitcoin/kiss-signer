@@ -1299,9 +1299,21 @@ void wallet_settings_open(lv_obj_t *parent)
     // absence was the confession. Showing it is safe only because the unlock no
     // longer forks on wallet_duress_real() either -- there is nothing left for
     // its presence to corroborate.
+    // "Duress wallet ... LINE THROUGH" read as "the line through opens the
+    // duress wallet". It is the opposite: the value is wallet_duress_real(),
+    // the mark that reaches the REAL signer. Reported off the bench, and the
+    // owner had it backwards for exactly as long as the row existed.
+    //
+    // The shape is gone from the value too, because the row was implying a
+    // check the device does not make. wallet_duress_route asks whether there
+    // was a recognised mark, never WHICH -- any of the six opens the real
+    // login, on any device, configured or not. The six exist to tell a
+    // deliberate mark from a slip, not to be a secret; the passphrase is the
+    // secret. So the row reports whether a way in has been rehearsed, and the
+    // screen behind it is where the shape is chosen and taught.
     const int g = wallet_duress_real();
-    wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
-           g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+    wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
+           g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_SET_BTN),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
            duress_cb, NULL);
 
