@@ -101,6 +101,34 @@ What this changes per storage mode:
   the case where someone holds the device *and* the card.
 - **AMNESIC** is unaffected. Nothing is written anywhere.
 
+### Secrecy is not integrity
+
+**Still to add, on top of the burn.** Flash encryption is XTS-AES. It hides the
+bytes and says nothing about whether they are the bytes we wrote. There is no
+tag, so an edited ciphertext block decrypts to garbage rather than to a detected
+error. Confidentiality against a flash dump is the whole of what it buys, and
+claiming more from it would be the same overstatement as the scrub sentence
+below.
+
+The SD path already goes further. `sd_seed_seal` in `main/wallet_seed_sd.c`
+writes AES-CBC under one subkey and an HMAC-SHA256 tag over the header and the
+ciphertext under a second, encrypt then MAC, compared in constant time. A card
+whose file was altered fails to open and says which problem it hit, the
+`W_SD_CORRUPT_B` screen.
+
+The words in NVS should carry the same tag, from the same code. Without it an
+owner whose flash was tampered with sees a wallet that quietly does not derive,
+which looks identical to a bad write and to a hardware fault. With it the device
+can say the file was changed. That distinction is the whole reason the SD path
+has a tag, and there is no argument for the other storage mode having less.
+
+One consequence of the key choice is worth stating here rather than leaving it
+to be discovered. The device key is random, minted once and held in NVS. It is
+not derived from the seed and cannot reproduce it. So a sealed card opens on
+exactly one device, and knowing the recovery words does not open it. There is no
+decrypt tool and there is deliberately not going to be one; the card is not a
+backup, paper is, and `G_STORAGE_CONFIRM_SD_B` says so before the move happens.
+
 **Moving FLASH to SD CARD does not scrub the old words on a beta device.** The
 screen says the old copy was removed, and the NVS entry is indeed deleted, but
 NVS is log structured: deletion is logical, and the bytes stay on their flash

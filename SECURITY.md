@@ -51,8 +51,8 @@ Anything that breaks the wallet's promises is in scope, especially:
 - key material leaving the device, or reaching the display, logs, SD card or QR
   output when it should not
 - signing a transaction that differs from what the screen showed
-- the game to wallet gesture, the PIN, the passphrase or the duress path
-  failing to gate access
+- the game to wallet gesture, the passphrase or the decoy path failing to gate
+  access
 - PSBT, descriptor or QR parsing that can be driven into memory corruption
 - weak or repeated nonces, bad entropy, broken derivation
 - the C6 radio leaving reset, or any path that could feed it data
