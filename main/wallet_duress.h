@@ -88,6 +88,41 @@ void wallet_duress_forget(void);
 int wallet_duress_classify(const int *xs, const int *ys, int n,
                            int bx0, int by0, int bx1, int by1);
 
+// ---- free marks: a stroke with nothing underneath it ----------------------
+//
+// The six ids above are meaningful only RELATIVE TO A WORD. An underline, a
+// strike and an overline are the same flat stroke and differ solely by where
+// they sit in the word's box. Take the word away and those three collapse into
+// one, so a mark drawn on its own has FOUR shapes, not six. Saying that in a
+// separate enum rather than reusing WDG_* keeps the two ideas from being
+// silently interchangeable: a WDG_UNDERLINE means "below the word", and there
+// is no below when there is no word.
+//
+// This is what a custom way in is built from -- an ordered sequence of these,
+// replacing KISS on a device whose owner chose their own. 4 shapes over 4
+// positions is 256 sequences, and that is the right order of magnitude: this
+// is a door, not a key. The passphrase is the key, and a wrong sequence opens
+// nothing and says nothing, so there is no oracle to grind against.
+enum {
+    WDF_NONE = 0,
+    WDF_LINE,     // one flat stroke
+    WDF_SLASH,    // one diagonal
+    WDF_CIRCLE,   // a closed loop
+    WDF_CHECK,    // a tick: down-right to a vertex, then up-right past it
+    WDF_N
+};
+
+// Classify ONE free mark. No bounding box, because there is nothing to measure
+// against: scale comes from an absolute floor instead, since a mark drawn on
+// the game screen either takes a deliberate amount of room or is a wobble.
+//
+// Same refusal discipline as the framed classifier: anything ambiguous returns
+// WDF_NONE rather than the nearest guess.
+int wallet_duress_classify_free(const int *xs, const int *ys, int n);
+
+// Display name key for a free-mark id. Returns -1 if invalid.
+int wallet_duress_free_label_key(int mark);
+
 // Display name key for a modifier id (an STR_* index from i18n_keys.h), so the
 // picker and the confirm screens name them identically. Returns -1 if invalid.
 int wallet_duress_label_key(int gesture);

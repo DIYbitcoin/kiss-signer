@@ -52,6 +52,11 @@ static int classify(void) {
     return wallet_duress_classify(g_xs, g_ys, g_n, BX0, BY0, BX1, BY1);
 }
 
+// The same ink, with no box to measure it against.
+static int freeclassify(void) {
+    return wallet_duress_classify_free(g_xs, g_ys, g_n);
+}
+
 int test_duress(void) {
     // ---- the six modifiers, drawn where a hand would put them ----
     stroke_start(); stroke_to(150, 312); stroke_to(552, 318);
@@ -197,6 +202,94 @@ int test_duress(void) {
         dchk("routing is identical whatever stroke is configured", stable);
     }
     wallet_duress_set(WDG_NONE);
+
+    // ---- free marks: the same shapes with no word under them --------------
+    //
+    // A custom way in is a sequence of these, so they are drawn ANYWHERE on
+    // the game screen rather than over a word. Coordinates below are picked
+    // well away from the KISS box on purpose: a free mark that only classifies
+    // where the word used to be is a mark that works in the wizard and fails
+    // on the panel.
+    {
+        stroke_start(); stroke_to(600, 400); stroke_to(760, 404);
+        dchk("free: flat stroke is a line", freeclassify() == WDF_LINE);
+
+        // The three framed ids collapse here, and that is the design. Draw the
+        // same stroke high, middle and low: all three must answer LINE, because
+        // "above" and "below" are properties of a word that is not there.
+        int collapsed = 1;
+        stroke_start(); stroke_to(200,  60); stroke_to(400,  62);
+        if (freeclassify() != WDF_LINE) collapsed = 0;
+        stroke_start(); stroke_to(200, 240); stroke_to(400, 242);
+        if (freeclassify() != WDF_LINE) collapsed = 0;
+        stroke_start(); stroke_to(200, 440); stroke_to(400, 442);
+        if (freeclassify() != WDF_LINE) collapsed = 0;
+        dchk("free: height on screen changes nothing", collapsed);
+
+        stroke_start(); stroke_to(180, 120); stroke_to(360, 300);
+        dchk("free: diagonal down-right", freeclassify() == WDF_SLASH);
+        stroke_start(); stroke_to(360, 120); stroke_to(180, 300);
+        dchk("free: diagonal down-left", freeclassify() == WDF_SLASH);
+
+        stroke_start();
+        stroke_to(300, 140); stroke_to(420, 200); stroke_to(420, 300);
+        stroke_to(300, 360); stroke_to(180, 300); stroke_to(180, 200);
+        stroke_to(298, 143);
+        dchk("free: a loop is a circle", freeclassify() == WDF_CIRCLE);
+
+        stroke_start();
+        stroke_to(300, 200); stroke_to(340, 280); stroke_to(430, 130);
+        dchk("free: a tick", freeclassify() == WDF_CHECK);
+
+        // ---- the negatives, which are the ones that matter ----
+        //
+        // A free mark has no word to be measured against, so the ONLY thing
+        // standing between an idle finger and a valid mark is the size floor
+        // and the refusal to guess. Every one of these is something a hand
+        // does on a game screen without meaning anything by it.
+        stroke_start(); stroke_to(400, 240); stroke_to(404, 243);
+        dchk("free: a tap is nothing", freeclassify() == WDF_NONE);
+
+        stroke_start(); stroke_to(400, 240); stroke_to(460, 246);
+        dchk("free: a 60px nudge is under the floor",
+             freeclassify() == WDF_NONE);
+
+        stroke_start(); stroke_to(400, 120); stroke_to(404, 300);
+        dchk("free: a vertical bar is not a shape", freeclassify() == WDF_NONE);
+
+        // Three sides of a loop the finger abandoned. Wide, tall, and NOT
+        // closed -- the framed classifier learned this one the hard way and
+        // the free one inherits the lesson rather than the bug.
+        stroke_start();
+        stroke_to(300, 140); stroke_to(420, 200); stroke_to(420, 300);
+        stroke_to(300, 360);
+        dchk("free: an abandoned loop is nothing", freeclassify() == WDF_NONE);
+
+        // The K of KISS, stroke by stroke. The game screen is where people
+        // draw this word, so its own strokes are the most likely accidental
+        // input a sequence reader will ever see.
+        stroke_start(); stroke_to(140, 120); stroke_to(140, 300);
+        dchk("free: the K spine is nothing", freeclassify() == WDF_NONE);
+
+        // A slice across the fruit: fast, flat, and exactly what this screen is
+        // for. It IS a line, and that is correct and safe -- one mark is not a
+        // way in, four in the right order is, and the game swallows strokes
+        // that are not building a sequence.
+        stroke_start(); stroke_to(120, 260); stroke_to(700, 250);
+        dchk("free: a fruit slice reads as a line", freeclassify() == WDF_LINE);
+
+        // Every shape has a name to put on a pill, and no shape shares one.
+        int named = 1, distinct = 1;
+        for (int m = WDF_NONE + 1; m < WDF_N; m++) {
+            if (wallet_duress_free_label_key(m) < 0) named = 0;
+            for (int o = m + 1; o < WDF_N; o++)
+                if (wallet_duress_free_label_key(m) ==
+                    wallet_duress_free_label_key(o)) distinct = 0;
+        }
+        dchk("free: every mark has a distinct label", named && distinct);
+        dchk("free: WDF_NONE has no label",
+             wallet_duress_free_label_key(WDF_NONE) < 0);
+    }
 
     return dfails;
 }
