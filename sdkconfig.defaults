@@ -15,6 +15,12 @@ CONFIG_LV_FONT_MONTSERRAT_48=y
 CONFIG_LV_MEM_SIZE_KILOBYTES=128
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# The bootloader is loaded into 0x2000..<table>, so the table offset IS its
+# size budget. At the stock 0x8000 that is 24576 bytes and a flash-encryption
+# bootloader is ~34880, so the ceiling was not survivable. 0x10000 gives it
+# 57344 and matches partitions_encrypted.csv, which had already moved for the
+# same reason -- one layout, so nvs is at one offset. See partitions.csv.
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
 
 # --- SD firmware update ---
 # Rollback is what makes writing firmware on a signer survivable. The freshly
