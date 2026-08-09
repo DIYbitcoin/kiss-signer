@@ -57,3 +57,16 @@ CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n
 CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=n
 CONFIG_LV_USE_QRCODE=y
 CONFIG_FATFS_LFN_HEAP=y
+
+# The screen during an SD firmware update. A flash program makes IDF disable
+# the cache, and the DSI panel DMAs its framebuffer out of PSRAM through that
+# cache, so each esp_ota_write starves the panel. The write loop in wallet_fw.c
+# runs thousands of them, so the display flashes for the whole update and stops
+# exactly when the last chunk lands.
+#
+# Auto suspend lets the program operation be interrupted so cache reads keep
+# being served. XIP keeps PSRAM reachable while flash is busy, and carries the
+# fix on any flash chip whose suspend/resume commands auto suspend cannot use.
+# No desktop gate can see either one.
+CONFIG_SPI_FLASH_AUTO_SUSPEND=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y

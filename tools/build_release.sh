@@ -64,6 +64,20 @@ out += [
     "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y",
     "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y",
     "# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set",
+
+    # The screen during an SD update. Writing flash makes IDF disable the
+    # cache, and the DSI panel DMAs its framebuffer out of PSRAM through that
+    # cache, so every esp_ota_write starves the panel. The write loop runs
+    # thousands of them back to back and the display flashes for the whole
+    # update, stopping exactly when the last chunk lands.
+    #
+    # Auto suspend lets a program operation be interrupted so cache reads keep
+    # being served; XIP keeps PSRAM reachable while flash is busy. Neither is
+    # visible to any desktop gate, by construction.
+    "",
+    "# --- display during flash writes (tools/build_release.sh) ---",
+    "CONFIG_SPI_FLASH_AUTO_SUSPEND=y",
+    "CONFIG_SPIRAM_XIP_FROM_PSRAM=y",
 ]
 open("sdkconfig.release", "w").write("\n".join(out) + "\n")
 print("wrote sdkconfig.release (logs: WARN, signed-app verification ON)")
