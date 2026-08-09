@@ -32,6 +32,7 @@ draw. The strokes are traced onto this picture so you can see where they go.</su
 [Report a vulnerability](SECURITY.md) &nbsp;·&nbsp;
 [Verify a release](docs/verify-release.html) &nbsp;·&nbsp;
 [Walkthrough](docs/walkthrough.md) &nbsp;·&nbsp;
+[Blind draw](docs/blind-draw.md) &nbsp;·&nbsp;
 [Contributing](CONTRIBUTING.md) &nbsp;·&nbsp;
 [Changelog](CHANGELOG.md) &nbsp;·&nbsp;
 [Telegram](https://t.me/KISS_signer)

@@ -1,4 +1,5 @@
-// Source: BIP39 words the owner drew off paper cards and typed in by hand.
+// Source: BIP39 words the owner drew blind from a physical copy of the list
+// (cut cards, printed tiles, whatever shuffles) and typed in by hand.
 // This judges the draw BEFORE the checksum word joins it and makes every set
 // look finished. Mirrors wallet_dice_q: pure, no UI, host-testable.
 //

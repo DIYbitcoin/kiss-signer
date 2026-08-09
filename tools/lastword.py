@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Every valid last word for a drawn BIP39 phrase, computed off the device.
 
-The MY OWN WORDS flow asks the owner to pick 11 or 23 words off the word list
-and then picks the final word from the list this prints. Run it on a computer
-the signer has never touched: if the screen offers a word this does not, the
-firmware is lying. The device shows 128 candidates for a 12 word seed and 8
-for a 24 word one, and so does this.
+The BLIND DRAW flow asks the owner to draw 11 or 23 words blind from a physical
+copy of the BIP39 list, then picks the final word from the list this prints.
+Run it on a computer the signer has never touched: if the screen offers a word
+this does not, the firmware is lying. The device shows 128 candidates for a 12
+word seed and 8 for a 24 word one, and so does this.
 
     python3 tools/lastword.py word1 word2 ... word11
     python3 tools/lastword.py --check          # canonical BIP39 vectors

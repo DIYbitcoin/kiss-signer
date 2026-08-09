@@ -17,6 +17,7 @@
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
+#include "esp_secure_boot.h"   // signature blocks of the RUNNING app
 #endif
 
 // The app descriptor sits after the image header (24) and the first segment
@@ -161,8 +162,29 @@ int wallet_fw_available(void)
     // check against. Refusing here is the difference between "this build cannot
     // update" and "this build installs anything it is handed".
 #if defined(ESP_PLATFORM) && defined(CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT)
+    // Without secure boot the trust anchor is not an eFuse: IDF reads the
+    // public key digests out of the RUNNING app's own appended signature
+    // block. So the Kconfig symbol only promises that verification will be
+    // ATTEMPTED, and says nothing about whether it can succeed. An app that
+    // was built with this on but never signed carries no key, and every
+    // incoming image then fails with "no signatures found for the running
+    // app" -- after the idle slot has been erased and 7 MB written, and the
+    // screen blames the card and the signer's key rather than this board.
+    //
+    // Nothing unsafe installs either way; esp_ota_set_boot_partition is never
+    // reached. The damage is that the device is permanently unable to update
+    // and says so in the wrong words, and on the flash encryption release
+    // recipe there is no serial reflash left to recover with.
+    //
+    // The header promises this function answers at runtime. Ask at runtime.
+    esp_image_sig_public_key_digests_t digests = {0};
+    if (esp_secure_boot_get_signature_blocks_for_running_app(true, &digests)
+            != ESP_OK || digests.num_digests == 0)
+        return WFW_ERR_UNSIGNED;
     return WFW_OK;
 #elif defined(ESP_PLATFORM) && defined(CONFIG_SECURE_BOOT)
+    // Anchored in eFuse, not in the app's own block, so the running app's
+    // block is the wrong thing to test here.
     return WFW_OK;
 #elif defined(ESP_PLATFORM)
     // A device build with neither signing option configured, which is the
@@ -205,9 +227,28 @@ int wallet_fw_scan(wfw_image_t *out)
     if (n <= 0)
         return out->status = WFW_ERR_NO_FILE;
 
-    // First readable app image in sort order wins. Reading the descriptor is
-    // what picks it, not the name: a card holding a photo called firmware.bin
-    // and the real image called z.bin has to land on the real image.
+    // EVERY readable app image is examined and the NEWEST wins. Reading the
+    // descriptor is what picks it, not the name: a card holding a photo called
+    // firmware.bin and the real image called z.bin has to land on the real
+    // image.
+    //
+    // This used to return on the first name that parsed, which quietly made
+    // sort order the decision. Two harms, one of them deliberate: an owner who
+    // keeps last month's release on the card gets offered last month's
+    // release, and anyone who can write to the card can drop a GENUINE,
+    // correctly signed older build under a name that sorts first and have the
+    // device present it as the update. The signature check cannot see that --
+    // the image really is ours -- so choosing correctly here is the only place
+    // it gets caught. Sort order survives as the tie break, so two images
+    // claiming the same version always resolve the same way.
+    //
+    // Newest wins even when it does not fit: an image too big for the slot is
+    // reported as too big, rather than silently falling back to an older one
+    // that does fit. A downgrade the owner did not ask for is worse than a
+    // refusal they can read.
+    int best = -1;
+    size_t blen = 0;
+    char bver[WFW_VER_LEN] = {0}, bproj[WFW_VER_LEN] = {0};
     for (int i = 0; i < n; i++) {
         size_t len = 0;
         platform_sd_file *f = platform_sd_open(names[i], &len);
@@ -222,32 +263,41 @@ int wallet_fw_scan(wfw_image_t *out)
         if (wallet_fw_desc_parse(hdr, got, ver, sizeof ver, proj, sizeof proj) != 0)
             continue;
 
-        // %.*s, not %s. A card name is SD_NAME_LEN and this field is 64, so the
-        // copy has always truncated; plain %s left the compiler to work that
-        // out and -Werror=format-truncation refused the build for it. Stating
-        // the bound says the cut is the intent, not an oversight: the name is
-        // shown to the owner and only ever compared as a whole path elsewhere.
-        // The simulator never sees this -- its build does not carry -Werror.
-        snprintf(out->name, sizeof out->name, "%.*s",
-                 (int)(sizeof out->name - 1), names[i]);
-        snprintf(out->version, sizeof out->version, "%s", ver);
-        snprintf(out->project, sizeof out->project, "%s", proj);
-        out->size = len;
-        out->cmp = wallet_fw_version_cmp(ver, wallet_fw_running_version());
+        if (best >= 0 && wallet_fw_version_cmp(ver, bver) <= 0)
+            continue;
 
-        // Order matters. Too big is a fact about this device and outranks what
-        // the version says; same and older are offers the screen presents
-        // differently, not failures to parse.
-        if (out->slot && len > out->slot) out->status = WFW_ERR_TOO_BIG;
-        else if (out->cmp == 0)           out->status = WFW_ERR_SAME;
-        else if (out->cmp < 0)            out->status = WFW_ERR_OLDER;
-        else                              out->status = WFW_OK;
-        return out->status;
+        best = i;
+        blen = len;
+        snprintf(bver,  sizeof bver,  "%s", ver);
+        snprintf(bproj, sizeof bproj, "%s", proj);
     }
 
     // Files were there, none of them an app image.
-    snprintf(out->name, sizeof out->name, "%s", names[0]);
-    return out->status = WFW_ERR_UNREADABLE;
+    if (best < 0) {
+        snprintf(out->name, sizeof out->name, "%.*s",
+                 (int)(sizeof out->name - 1), names[0]);
+        return out->status = WFW_ERR_UNREADABLE;
+    }
+
+    // A card can carry a name far longer than the row that shows it, and
+    // cutting it is the right answer: the descriptor already decided this is
+    // the image. The precision says that out loud, because the device compiler
+    // treats a bare %s that might not fit as an error.
+    snprintf(out->name, sizeof out->name, "%.*s",
+             (int)(sizeof out->name - 1), names[best]);
+    snprintf(out->version, sizeof out->version, "%s", bver);
+    snprintf(out->project, sizeof out->project, "%s", bproj);
+    out->size = blen;
+    out->cmp = wallet_fw_version_cmp(bver, wallet_fw_running_version());
+
+    // Order matters. Too big is a fact about this device and outranks what the
+    // version says; same and older are offers the screen presents differently,
+    // not failures to parse.
+    if (out->slot && blen > out->slot) out->status = WFW_ERR_TOO_BIG;
+    else if (out->cmp == 0)            out->status = WFW_ERR_SAME;
+    else if (out->cmp < 0)             out->status = WFW_ERR_OLDER;
+    else                               out->status = WFW_OK;
+    return out->status;
 }
 
 // ---- install ---------------------------------------------------------------
@@ -279,23 +329,45 @@ int wallet_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // that is about to be written.
     if (len != img->size) { platform_sd_close(f); return WFW_ERR_CARD_GONE; }
 
+    uint8_t *buf = malloc(FW_CHUNK);
+    if (!buf) { platform_sd_close(f); return WFW_ERR_WRITE; }
+
+    // The version the owner approved has to be the version about to be written,
+    // and matching byte lengths does not say that. A card swapped during the
+    // hold -- or an SD emulator that serves different content on the second
+    // open -- can hand back a DIFFERENT image of the same size, correctly
+    // signed, an older release with a fixed bug in it. The signature check
+    // downstream cannot object, because that image really is ours.
+    //
+    // So the descriptor is re-read from the handle that is about to be written
+    // and compared to what the screen showed. Before esp_ota_begin, so a card
+    // that changed under us costs nothing: the slot is not erased and the
+    // firmware in it is still there. platform_sd cannot seek, so the first
+    // chunk is kept and written below rather than read twice.
+    size_t first = 0;
+    if (platform_sd_read_chunk(f, buf, FW_CHUNK, &first) != 0 ||
+        first < WFW_DESC_MIN) {
+        free(buf); platform_sd_close(f); return WFW_ERR_CARD_GONE;
+    }
+    {
+        char ver[WFW_VER_LEN], proj[WFW_VER_LEN];
+        if (wallet_fw_desc_parse(buf, first, ver, sizeof ver,
+                                 proj, sizeof proj) != 0 ||
+            strcmp(ver, img->version) != 0 || strcmp(proj, img->project) != 0) {
+            free(buf); platform_sd_close(f); return WFW_ERR_CARD_GONE;
+        }
+    }
+
     esp_ota_handle_t h = 0;
     if (esp_ota_begin(dst, len, &h) != ESP_OK) {
+        free(buf);
         platform_sd_close(f);
         return WFW_ERR_WRITE;
     }
 
-    uint8_t *buf = malloc(FW_CHUNK);
-    if (!buf) { esp_ota_abort(h); platform_sd_close(f); return WFW_ERR_WRITE; }
-
-    size_t done = 0;
+    size_t done = 0, got = first;
     int last_pct = -1, rc = WFW_OK;
     for (;;) {
-        size_t got = 0;
-        if (platform_sd_read_chunk(f, buf, FW_CHUNK, &got) != 0) {
-            rc = WFW_ERR_CARD_GONE;
-            break;
-        }
         if (got == 0)
             break;
         if (esp_ota_write(h, buf, got) != ESP_OK) {
@@ -306,6 +378,11 @@ int wallet_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
         if (cb) {
             int pct = (int)((done * 100) / len);
             if (pct != last_pct) { last_pct = pct; cb(pct, ud); }
+        }
+        got = 0;
+        if (platform_sd_read_chunk(f, buf, FW_CHUNK, &got) != 0) {
+            rc = WFW_ERR_CARD_GONE;
+            break;
         }
     }
     free(buf);
