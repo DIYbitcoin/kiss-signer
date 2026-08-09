@@ -161,6 +161,11 @@ int wallet_duress_word_set(const uint8_t *marks, int n);
 // what is left over, and wallet_duress_route still decides.
 int wallet_duress_word_match(const uint8_t *marks, int n);
 
+// Which signer a custom word opens. `marked` is whether a mark followed it.
+// The same rule as wallet_duress_route and implemented on top of it, so a WDF_*
+// id never has to be passed into a WDG_* parameter.
+int wallet_duress_route_marked(bool word_ok, bool marked);
+
 // Display name key for a modifier id (an STR_* index from i18n_keys.h), so the
 // picker and the confirm screens name them identically. Returns -1 if invalid.
 int wallet_duress_label_key(int gesture);

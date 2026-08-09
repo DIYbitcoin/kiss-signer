@@ -844,6 +844,28 @@ static void release(void) { g_pressed = false; }
 // can still arrive: main.c holds a bare word for KISS_OPEN_DELAY_MS precisely
 // so the stroke after it is classified against the same draw, and draw_kiss's
 // trailing pump(40) is 140ms past that window.
+// ---- free marks, drawn as a hand would ------------------------------------
+// Sampled coarser than 10px so the touch layer's decimation keeps them, and
+// sized past WDF_MIN_SPAN. Positions are arbitrary on purpose: a free mark has
+// no word to sit on, so anywhere on the panel has to work.
+static void mark_line(void)  { for (int i = 0; i <= 10; i++) { touch(200 + i * 20, 400); pump(1); } release(); pump(2); }
+static void mark_slash(void) { for (int i = 0; i <= 10; i++) { touch(180 + i * 18, 120 + i * 18); pump(1); } release(); pump(2); }
+static void mark_check(void) {
+  for (int i = 0; i <= 4; i++) { touch(300 + i * 10, 200 + i * 20); pump(1); }
+  for (int i = 1; i <= 6; i++) { touch(340 + i * 15, 280 - i * 25); pump(1); }
+  release(); pump(2);
+}
+static void mark_circle(void) {
+  static const int cx[] = {300,420,420,300,180,180,298};
+  static const int cy[] = {140,200,300,360,300,200,143};
+  for (unsigned i = 0; i < sizeof cx / sizeof cx[0]; i++) {
+    // walk the edge so the ink is a loop, not seven far-apart samples
+    int fx = i ? cx[i-1] : cx[0], fy = i ? cy[i-1] : cy[0];
+    for (int t = 1; t <= 6; t++) { touch(fx + (cx[i]-fx)*t/6, fy + (cy[i]-fy)*t/6); pump(1); }
+  }
+  release(); pump(2);
+}
+
 static void draw_kiss_word(void)
 {
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
@@ -1218,6 +1240,76 @@ int main(void) {
       pump(120);
     }
     wallet_duress_set(WDG_NONE);
+
+    // ---- a custom word replaces KISS outright ----
+    //
+    // The whole point of the feature, driven through the real touch layer:
+    // main.c splits the draw into strokes, reads each as a free mark and
+    // compares the run. Nothing here is reachable from a unit test, because
+    // unlock_kind lives in main.c and no test binary links it -- the same gap
+    // that let the routing fork survive.
+    {
+      const uint8_t word[4] = { WDF_LINE, WDF_SLASH, WDF_CIRCLE, WDF_CHECK };
+      wallet_duress_word_set(word, 4);
+
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      mark_line(); mark_slash(); mark_circle(); mark_check();
+      pump(40);
+      if (g_last_unlock_kind != WDR_DECOY) {
+        printf("FAIL: custom word: the word alone routed %d, expected WDR_DECOY (%d)\n",
+               g_last_unlock_kind, WDR_DECOY);
+        g_walk_fails++;
+      }
+      must_not_show("custom/word-alone", tr(STR_L_TYPE_PROMPT));
+
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      mark_line(); mark_slash(); mark_circle(); mark_check(); mark_slash();
+      pump(40);
+      if (g_last_unlock_kind != WDR_REAL) {
+        printf("FAIL: custom word: word plus a mark routed %d, expected WDR_REAL (%d)\n",
+               g_last_unlock_kind, WDR_REAL);
+        g_walk_fails++;
+      }
+      // The real route left the passphrase keyboard up. Finish the same login
+      // the walk uses everywhere else so the next step starts on a home.
+      touch(46, 278);  pump(3); release(); pump(3);
+      touch(725, 430); pump(3); release(); pump(25);
+      touch(622, 430); pump(3); release(); pump(12);
+      pump(120);
+
+      // And the sentence this feature exists to make true: on a device with a
+      // word of its own, KISS opens NOTHING. Anyone who knows the product
+      // draws it, gets a fruit game, and has no way to tell that from a device
+      // that was never a signer.
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_kiss();
+      if (g_last_unlock_kind != -2) {
+        printf("FAIL: custom word: KISS still routed %d\n", g_last_unlock_kind);
+        g_walk_fails++;
+      }
+      must_not_show("custom/kiss-is-dead", tr(STR_L_TYPE_PROMPT));
+
+      // Put it back, and hand the walk the session it expects.
+      //
+      // NOT lock_to_menu() here: nothing is open, so wallet_lock returns early,
+      // its throwaway tap is not swallowed, and a tap on the menu starts a
+      // GAME. The walk then spent the next forty steps sending taps into Fruit
+      // Island and failed on a file list. The draw above was refused, so what
+      // has to clear is the collector, and the 3s idle clear is exactly the
+      // thing that does it -- 200 frames is 3.2s.
+      wallet_duress_word_set(NULL, 0);
+      pump(200);
+      draw_kiss_underlined();
+      touch(46, 278);  pump(3); release(); pump(3);
+      touch(725, 430); pump(3); release(); pump(25);
+      touch(622, 430); pump(3); release(); pump(12);
+      pump(120);
+      printf("ok: a custom word replaces KISS, and KISS then opens nothing\n");
+    }
+
     // Identical expectations for both configurations is the whole test: if
     // either arm ever needs a different one, the fork is back.
     printf("ok: unlock routing identical with and without a stroke configured\n");

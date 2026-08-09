@@ -230,6 +230,21 @@ int wallet_duress_label_key(int gesture)
 //
 // Outside the ESP_PLATFORM split below on purpose: there is one rule, and the
 // device and the host must not be able to drift apart on it.
+// The same rule, stated for a word made of FREE marks. `marked` is simply
+// whether a mark followed the word.
+//
+// Routed through wallet_duress_route rather than repeating its body, so there
+// stays exactly one place in this firmware that decides which signer a draw
+// opens. The WDG id handed over is a stand-in for "yes, there was one", which
+// is the only thing route reads -- and it is written here rather than at the
+// call site so that a WDF_* id is never passed into a WDG_* parameter. Those
+// two sets share numbers and mean different things; letting them meet would be
+// the bug the separate enum exists to prevent.
+int wallet_duress_route_marked(bool word_ok, bool marked)
+{
+    return wallet_duress_route(word_ok, marked ? WDG_STRIKE : WDG_NONE);
+}
+
 int wallet_duress_route(bool word_ok, int stroke)
 {
     if (!word_ok)
