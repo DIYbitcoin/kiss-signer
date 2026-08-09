@@ -48,4 +48,7 @@ void wallet_ui_drop_indev_for_test(void);   // put the process back to power-on
 // which is what the home corner wants: two facts along an empty bottom edge.
 lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
                                bool stacked);
+// Right edge of the row the call above drew. The version string grows between
+// build profiles, so anything placed beside it measures rather than guesses.
+int wallet_build_id_right(void);
 void wallet_build_id_restyle(lv_obj_t *version_label);

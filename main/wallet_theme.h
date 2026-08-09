@@ -468,6 +468,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // underneath.
 lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
                         int x, int y, int w, bool big);
+void      wt_value_card_set(lv_obj_t *card, const char *val);  // value only, no rebuild
 
 // A note with a coloured rule down its left edge: optional heading in WT_INK,
 // body in WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how
