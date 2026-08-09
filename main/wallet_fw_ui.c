@@ -118,18 +118,25 @@ static void progress_cb(int pct, void *ud)
 {
     (void)ud;
     if (!s_pct_card) return;
-    char v[16];
-    snprintf(v, sizeof v, "%d%%", pct);
+
     // Set the value, do not rebuild the card. This used to delete and recreate
     // it on every percent, so a write dirtied a 300x90 rectangle a hundred
     // times while the LVGL task was already blocked by flash erase -- reported
     // from the bench as the screen flashing and looking like shit, and no gate
     // can see it because the simulator writes no flash and the desktop
     // display has no framebuffer to starve.
+    char v[16];
+    snprintf(v, sizeof v, "%d%%", pct);
     wt_value_card_set(s_pct_card, v);
-    // The write blocks this task, so nothing else will pump LVGL. Without this
-    // the bar would jump from 0 to 100 when the whole thing finished.
-    lv_refr_now(NULL);
+
+    // Shrinking the dirty rectangle was not enough, because the tearing is not
+    // about how much gets repainted. The DPI framebuffers live in PSRAM and
+    // are read through the cache that every esp_ota_write disables, so the
+    // panel is starved whether or not anything changed. install_now therefore
+    // takes the backlight down for the whole write, and a refresh against a
+    // dark panel is repainting nothing while fighting the flash for the cache
+    // to do it. The value above is still set, so the last percent reached is
+    // what the screen holds when the light comes back.
 }
 
 // The write itself, one LVGL tick after the screen that announces it.
@@ -145,7 +152,16 @@ static void progress_cb(int pct, void *ud)
 static void install_now(lv_timer_t *t)
 {
     lv_timer_delete(t);
+    // Dark for the length of the write, then back. The WRITING screen is
+    // already painted and stays painted underneath; only the light goes.
+    //
+    // The light comes back on every path out of the install, including the
+    // failures, because result_screen has to be readable. Restoring it before
+    // the result is built also means a fault inside result_screen leaves a lit
+    // device rather than one an owner would read as dead.
+    kiss_backlight_set(0);
     int rc = wallet_fw_install(&s_img, progress_cb, NULL);
+    kiss_backlight_set(1);
     result_screen(rc);
 }
 

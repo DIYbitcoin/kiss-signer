@@ -339,6 +339,28 @@ static void backlight_on(void) {
   ESP_ERROR_CHECK(ledc_channel_config(&c));
 }
 
+// The panel while flash is being written. Every esp_ota_write disables the
+// cache, and both things that keep this screen alive sit on the wrong side of
+// that: the two DPI framebuffers live in PSRAM and are reached through the
+// cache, and the LVGL refresh the progress callback forces runs from flash. So
+// the panel is fed garbage for the whole update and the owner watches their
+// signer strobe while it rewrites itself.
+//
+// Two config routes were tried on the board and both are dead ends.
+// CONFIG_SPI_FLASH_AUTO_SUSPEND asserts at init on this board's Boya flash
+// chip; CONFIG_SPIRAM_XIP_FROM_PSRAM takes a store access fault in early
+// init. Both produced a boot loop and a black screen, so the answer is not a
+// Kconfig symbol, it is not driving the panel while the cache is gone.
+//
+// Dark for the length of the write. Deliberate dark reads as "it is working";
+// a strobing screen reads as "it is broken", and on a device rewriting its own
+// firmware that is the difference between waiting and pulling the power.
+void kiss_backlight_set(int on)
+{
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, on ? 1023 : 0);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
 static uint16_t *s_fb;       // native 480x800 panel framebuffer (used only to clear it once)
 static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
 static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
@@ -505,6 +527,12 @@ static void touch_start(void) {
   }
   ESP_LOGI(TAG, "GT911 ready");
 }
+#else   // SIMULATOR
+// No panel to starve and no flash to write, so the desktop keeps the symbol
+// and does nothing with it. wallet_fw_ui.c then has ONE shape on both sides,
+// and the screen walk still reaches the WRITING stop with the same code path
+// the device runs.
+void kiss_backlight_set(int on) { (void)on; }
 #endif  // !SIMULATOR
 
 // ---------------- entities ----------------
