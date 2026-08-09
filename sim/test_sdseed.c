@@ -180,6 +180,161 @@ static int test_sd_signed_scan(void) {
     return 0;
 }
 
+// The words in internal flash carry the same tag as the card, under their own
+// domain. Three things have to hold and none of them is the round trip: a
+// wallet whose tag fails must not read as an empty device, a blob lifted off a
+// card must not open as the flash copy, and a pre-tag plaintext device must
+// come forward without losing the wallet or the state around it.
+#define KEEP_FILE "/tmp/kiss_seed.txt"
+
+static size_t keep_bytes(uint8_t *buf, size_t cap) {
+    FILE *f = fopen(KEEP_FILE, "rb");
+    if (!f) return 0;
+    size_t n = fread(buf, 1, cap, f);
+    fclose(f);
+    return n;
+}
+
+static int keep_put(const uint8_t *buf, size_t n) {
+    FILE *f = fopen(KEEP_FILE, "wb");
+    if (!f) return -1;
+    int ok = fwrite(buf, 1, n, f) == n ? 0 : -1;
+    if (fclose(f) != 0) ok = -1;
+    return ok;
+}
+
+static void test_keep_tag(void) {
+    uint8_t blob[SDSEED_MAX_BLOB], key[32];
+    char got[WSEED_MAX_MNEMONIC];
+    size_t n;
+
+    dchk("keep: clean slate", wallet_seed_wipe() == WSEED_OK);
+    dchk("keep: store words", wallet_seed_store(SD_WORDS) == WSEED_OK);
+    dchk("keep: mode is KEEP", wallet_seed_mode() == WSEED_MODE_KEEP);
+    dchk("keep: words round-trip", seed_loads_as(SD_WORDS));
+
+    // ---- what is actually on the page ----
+    n = keep_bytes(blob, sizeof blob);
+    dchk("keep: stored form is a sealed blob",
+         n > SDSEED_MAGIC_LEN &&
+         memcmp(blob, SDSEED_MAGIC, SDSEED_MAGIC_LEN) == 0);
+    dchk("keep: the mnemonic is not sitting in it in clear",
+         n >= 12 && !memmem(blob, n, "abandon", 7));
+
+    // ---- a flipped byte anywhere is caught, and reads as damage ----
+    {
+        int bad = 0, absent = 0;
+        for (size_t i = 0; i < n; i++) {
+            uint8_t save = blob[i];
+            blob[i] ^= 0x01;
+            if (keep_put(blob, n) != 0) { bad++; blob[i] = save; continue; }
+            memset(got, 'x', sizeof got);
+            int rc = wallet_seed_load(got, sizeof got);
+            if (rc != WSEED_ERR_SD_CORRUPT) bad++;
+            if (!all_zero(got, sizeof got)) bad++;
+            // The one that matters: damage must never read as "no wallet",
+            // or setup offers to make a new one on top of this seed.
+            if (wallet_seed_exists() != 1) absent++;
+            blob[i] = save;
+        }
+        (void)keep_put(blob, n);
+        dchk("keep: every single-byte flip is refused", bad == 0);
+        dchk("keep: damaged words still count as a wallet", absent == 0);
+        dchk("keep: the intact blob still opens", seed_loads_as(SD_WORDS));
+    }
+
+    // ---- truncation ----
+    {
+        int bad = 0;
+        for (size_t cut = 1; cut < n; cut++) {
+            if (keep_put(blob, cut) != 0) { bad++; continue; }
+            memset(got, 'x', sizeof got);
+            if (wallet_seed_load(got, sizeof got) == WSEED_OK) bad++;
+            if (!all_zero(got, sizeof got)) bad++;
+        }
+        (void)keep_put(blob, n);
+        dchk("keep: every truncation is refused", bad == 0);
+    }
+
+    // ---- domain separation: a card blob is not a flash blob ----
+    {
+        uint8_t card[SDSEED_MAX_BLOB];
+        size_t clen = 0;
+        dchk("keep: seal the same words for the card",
+             sd_seed_device_key(key) == 0 &&
+             sd_seed_seal(key, SD_WORDS, card, sizeof card, &clen) == 0);
+        dchk("keep: a card blob does not open as flash",
+             keep_put(card, clen) == 0 &&
+             wallet_seed_load(got, sizeof got) == WSEED_ERR_SD_CORRUPT);
+        (void)keep_put(blob, n);
+
+        // The domain alone, with the key held constant, so neither assertion
+        // can be passing for the boring reason that the keys differ.
+        uint8_t fkey[32], round[SDSEED_MAX_BLOB];
+        size_t rlen = 0;
+        dchk("keep: flash has its own key",
+             sd_seed_domain_key(SDSEED_DOM_NVS, fkey) == 0 &&
+             memcmp(fkey, key, 32) != 0);
+        dchk("keep: one key, card domain, seals",
+             sd_seed_seal_in(SDSEED_DOM_CARD, fkey, SD_WORDS, round,
+                             sizeof round, &rlen) == 0);
+        dchk("keep: and the flash domain will not open it",
+             sd_seed_open_in(SDSEED_DOM_NVS, fkey, round, rlen,
+                             got, sizeof got) != 0);
+        dchk("keep: while its own domain does",
+             sd_seed_open_in(SDSEED_DOM_CARD, fkey, round, rlen,
+                             got, sizeof got) == 0 &&
+             strcmp(got, SD_WORDS) == 0);
+        memset(card, 0, sizeof card);
+        memset(round, 0, sizeof round);
+        memset(fkey, 0, sizeof fkey);
+    }
+
+    // ---- the pre-tag format comes forward ----
+    {
+        dchk("keep: plant a plaintext device",
+             keep_put((const uint8_t *)SD_WORDS, strlen(SD_WORDS)) == 0);
+        dchk("keep: a plaintext device still counts as a wallet",
+             wallet_seed_exists() == 1);
+        dchk("keep: plaintext words load", seed_loads_as(SD_WORDS));
+        n = keep_bytes(blob, sizeof blob);
+        dchk("keep: loading migrated it to a sealed blob",
+             n > SDSEED_MAGIC_LEN &&
+             memcmp(blob, SDSEED_MAGIC, SDSEED_MAGIC_LEN) == 0);
+        dchk("keep: the migrated blob opens to the same words",
+             seed_loads_as(SD_WORDS));
+        dchk("keep: migration left the mode alone",
+             wallet_seed_mode() == WSEED_MODE_KEEP);
+        // A second load must not migrate again or disturb anything.
+        dchk("keep: a migrated device is stable", seed_loads_as(SD_WORDS));
+    }
+
+    // ---- the two keys are destroyed at different moments ----
+    //
+    // Moving SD -> FLASH forgets the card key on purpose, to invalidate the
+    // card left behind. If flash shared that key the destination would be
+    // unreadable the instant it became authoritative, so this is the assertion
+    // that keeps the two apart.
+    {
+        dchk("keep: forget the card key", sd_seed_forget_device_key() == 0);
+        dchk("keep: flash words survive it", seed_loads_as(SD_WORDS));
+    }
+
+    // ---- a lost flash key is damage, not an empty device ----
+    {
+        dchk("keep: forget the flash key", sd_seed_forget_flash_key() == 0);
+        memset(got, 'x', sizeof got);
+        dchk("keep: sealed words without their key are refused",
+             wallet_seed_load(got, sizeof got) == WSEED_ERR_SD_CORRUPT);
+        dchk("keep: and leak nothing", all_zero(got, sizeof got));
+        dchk("keep: and still count as a wallet", wallet_seed_exists() == 1);
+    }
+
+    memset(blob, 0, sizeof blob);
+    memset(key, 0, sizeof key);
+    dchk("keep: leave a clean device", wallet_seed_wipe() == WSEED_OK);
+}
+
 int test_sdseed_layer(void) {
     test_sd_list();
     test_sd_signed_scan();
@@ -537,6 +692,8 @@ int test_sdseed_layer(void) {
     dchk("storage: corrupt card still counts configured",
          wallet_seed_exists() == 1);
     dchk("storage: corrupt-card load clears output", all_zero(got, sizeof got));
+
+    test_keep_tag();
 
     // Leave the suite's canonical development mnemonic in KEEP.
     dchk("storage: final wipe", wallet_seed_wipe() == WSEED_OK);
