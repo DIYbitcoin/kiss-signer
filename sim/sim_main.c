@@ -1052,23 +1052,33 @@ int main(void) {
   touch(682, 57); pump(3); release(); pump(120);    // MENU pill -> menu (full re-intro settles)
   save("/tmp/sim_menu_back.ppm");
 
-  // draw the word "KISS" -> the hidden wallet appears (K spine+arms, I, S, S)
+  // draw the word "KISS" -> the SPARE signer appears (K spine+arms, I, S, S)
+  //
+  // The bare word opens the spare and nothing else, on every device, configured
+  // or not: that is wallet_duress_route, and the routing block a hundred lines
+  // below asserts it directly. This frame used to be saved as sim_login.ppm
+  // with a comment claiming a passphrase keyboard. It has been a wallet home
+  // ever since the routing fork was closed, so the fifteen taps that followed
+  // were landing on home tiles and SIGN screens while still being saved under
+  // sim_login_* names -- 46,278 is the left edge of the Sign card, which is why
+  // "hold 'a'" photographed the SIGN screen. check_sim_taps only caught the two
+  // pairs where the stray taps happened to change nothing.
   //
   // Recorded as well as captured: see save_seq(). A beat on the untouched menu
-  // first, so the GIF opens on the thing everyone else sees.
+  // first, so the GIF opens on the thing everyone else sees. The GIF stays on
+  // the bare word on purpose -- it is the demo, and the modifier stroke is not
+  // a thing to teach in a loop anyone can watch.
   g_seq_on = 1; pump(8);
-  for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);      // K spine
-  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);  // K upper arm
-  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);  // K lower arm
-  for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); } release(); pump(2);       // I
-  touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
-  touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);  // S
-  touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
-  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);  // S
-  // 45, not 16. The door is held for KISS_OPEN_DELAY_MS now, so 19 frames of
-  // total slack (304ms) stopped short of the reveal this is here to record.
-  pump(45); g_seq_on = 0;                           // hold on the reveal, then stop recording
-  save("/tmp/sim_login.ppm");                       // KISS now lands on the passphrase login
+  draw_kiss();                                      // = the word; helper waits out KISS_OPEN_DELAY_MS
+  pump(5); g_seq_on = 0;                            // hold on the reveal, then stop recording
+  save("/tmp/sim_spare_home.ppm");                  // the spare, opened by the word alone
+
+  // The passphrase keyboard takes the word AND the modifier stroke. Nothing
+  // else reaches it, so everything below has to come in that way.
+  lock_to_menu();
+  draw_kiss_underlined();
+  pump(10);
+  save("/tmp/sim_login.ppm");                       // the passphrase keyboard
 
   // type "abc" on the QWERTY (kb y0=158, 4 rows ~76px: centers 202/278/354/430)
   touch(46, 278); pump(3); release(); pump(3);      // 'a' (row 2, col 0)
@@ -1107,7 +1117,14 @@ int main(void) {
   save("/tmp/sim_login_hold_a.ppm");                // counter must read 6 characters
   touch(753, 353); pump(80); release(); pump(3);    // hold backspace ~1.3s -> wipes all
   save("/tmp/sim_login_hold_bs.ppm");               // counter must read 0
-  for (int i = 0; i < 44; i++) { touch(46, 278); pump(3); release(); pump(3); } // 44 chars
+  // 6, not 3. Repeated taps on the SAME key need a press long enough for the
+  // indev to sample it as its own click: at pump(3) this loop entered 22 of its
+  // 44 characters and at pump(4) it entered 30, so the frame below was labelled
+  // "44 chars, 14pt" while photographing 22 at font23. Measured, not guessed --
+  // 5 is where all 44 arrive and 6 keeps a frame of slack. Nothing here says
+  // anything about the device: it is how fast this harness can inject a press,
+  // and a real controller reports continuously while a finger is down.
+  for (int i = 0; i < 44; i++) { touch(46, 278); pump(6); release(); pump(6); } // 44 chars
   pump(70);                                         // all masked
   save("/tmp/sim_login_long.ppm");                  // 14pt now, tail visible, no clip
   touch(753, 353); pump(640); release(); pump(3);   // hold backspace: wipe all 44
