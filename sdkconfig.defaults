@@ -64,9 +64,10 @@ CONFIG_FATFS_LFN_HEAP=y
 # runs thousands of them, so the display flashes for the whole update and stops
 # exactly when the last chunk lands.
 #
-# Auto suspend lets the program operation be interrupted so cache reads keep
-# being served. XIP keeps PSRAM reachable while flash is busy, and carries the
-# fix on any flash chip whose suspend/resume commands auto suspend cannot use.
-# No desktop gate can see either one.
-CONFIG_SPI_FLASH_AUTO_SUSPEND=y
+# XIP keeps PSRAM reachable while flash is busy. No desktop gate can see it.
+#
+# CONFIG_SPI_FLASH_AUTO_SUSPEND belongs here on paper and must NOT be set. The
+# v1.3 sample's Boya flash chip has no IDF suspend support, and the driver
+# asserts at init instead of falling back: panic, reboot, forever, before the
+# display ever comes up. Verified the hard way on 2026-08-09.
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y

@@ -71,12 +71,17 @@ out += [
     # thousands of them back to back and the display flashes for the whole
     # update, stopping exactly when the last chunk lands.
     #
-    # Auto suspend lets a program operation be interrupted so cache reads keep
-    # being served; XIP keeps PSRAM reachable while flash is busy. Neither is
-    # visible to any desktop gate, by construction.
+    # XIP keeps PSRAM reachable while flash is busy. Not visible to any
+    # desktop gate, by construction.
+    #
+    # CONFIG_SPI_FLASH_AUTO_SUSPEND is NOT here and must not come back on this
+    # board. The v1.3 sample carries a Boya flash chip, IDF has no suspend
+    # support for it, and esp_flash_spi_init.c:665 asserts at init rather than
+    # degrading: "Suspend and resume may not supported for this flash model
+    # yet", panic, reboot, forever, before display init. A black brick that
+    # only serial can diagnose.
     "",
     "# --- display during flash writes (tools/build_release.sh) ---",
-    "CONFIG_SPI_FLASH_AUTO_SUSPEND=y",
     "CONFIG_SPIRAM_XIP_FROM_PSRAM=y",
 ]
 open("sdkconfig.release", "w").write("\n".join(out) + "\n")
