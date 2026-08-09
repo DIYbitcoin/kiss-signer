@@ -9,6 +9,8 @@
 // linkable into /tmp/kisstest without dragging LVGL in behind it.
 #include "wallet_duress.h"
 
+#include <string.h>
+
 #include "i18n_keys.h"
 
 // ---- classifier ----------------------------------------------------------
@@ -242,6 +244,39 @@ static int valid_gesture(int g)
     return g == WDG_NONE || (g > WDG_NONE && g < WDG_N);   // WDG_NONE = off
 }
 
+// ---- the word ------------------------------------------------------------
+//
+// Validation and matching sit ABOVE the storage split, like wallet_duress_route
+// does and for the same reason: there is one rule about what a word is, and the
+// device and the host must not be able to drift apart on it.
+
+static int valid_word(const uint8_t *marks, int n)
+{
+    if (n < 0 || n > WDW_MAX)
+        return 0;
+    for (int i = 0; i < n; i++)
+        if (marks[i] <= WDF_NONE || marks[i] >= WDF_N)
+            return 0;
+    return 1;
+}
+
+int wallet_duress_word_len(void) { return wallet_duress_word_get(NULL); }
+
+int wallet_duress_word_match(const uint8_t *marks, int n)
+{
+    uint8_t word[WDW_MAX];
+    int wn = wallet_duress_word_get(word);
+    // No word set is not a match against an empty prefix. It means KISS is
+    // still the word and this function has no opinion; answering 0 sends the
+    // caller to detect_KISS, which is where that device belongs.
+    if (wn <= 0 || !marks || n < wn)
+        return 0;
+    for (int i = 0; i < wn; i++)
+        if (marks[i] != word[i])
+            return 0;
+    return wn;
+}
+
 #ifdef ESP_PLATFORM
 #include "nvs.h"
 
@@ -277,7 +312,50 @@ int wallet_duress_set(int gesture)
     return rc;
 }
 
-void wallet_duress_forget(void) { (void)wallet_duress_set(WDG_NONE); }
+// The word: one blob, because the marks are only meaningful in order and a
+// half-written word is worse than none. K_WORD absent = KISS.
+#define K_WORD  "gword"
+
+int wallet_duress_word_get(uint8_t out[WDW_MAX])
+{
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
+        return 0;
+    uint8_t buf[WDW_MAX];
+    size_t len = sizeof buf;
+    int n = 0;
+    if (nvs_get_blob(h, K_WORD, buf, &len) == ESP_OK && valid_word(buf, (int)len)) {
+        n = (int)len;
+        if (out) memcpy(out, buf, len);
+    }
+    nvs_close(h);
+    return n;
+}
+
+int wallet_duress_word_set(const uint8_t *marks, int n)
+{
+    if (!valid_word(marks, n) || (n > 0 && !marks))
+        return -1;
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return -1;
+    esp_err_t e = n == 0 ? nvs_erase_key(h, K_WORD)
+                         : nvs_set_blob(h, K_WORD, marks, (size_t)n);
+    // Erasing a key that was never written is not a failure: it is the state
+    // the caller asked for.
+    if (e == ESP_ERR_NVS_NOT_FOUND) e = ESP_OK;
+    int rc = (e == ESP_OK && nvs_commit(h) == ESP_OK) ? 0 : -1;
+    nvs_close(h);
+    return rc;
+}
+
+// The word goes with the gesture, and for the same reason: a wiped device must
+// not answer to the previous owner's way in.
+void wallet_duress_forget(void)
+{
+    (void)wallet_duress_set(WDG_NONE);
+    (void)wallet_duress_word_set(NULL, 0);
+}
 
 #else   // host (sim + desktop tests)
 
@@ -293,6 +371,28 @@ int wallet_duress_set(int gesture)
     return 0;
 }
 
-void wallet_duress_forget(void) { s_real = WDG_NONE; }
+static uint8_t s_word[WDW_MAX];
+static int     s_word_n;
+
+int wallet_duress_word_get(uint8_t out[WDW_MAX])
+{
+    if (out && s_word_n > 0) memcpy(out, s_word, (size_t)s_word_n);
+    return s_word_n;
+}
+
+int wallet_duress_word_set(const uint8_t *marks, int n)
+{
+    if (!valid_word(marks, n) || (n > 0 && !marks))
+        return -1;
+    if (n > 0) memcpy(s_word, marks, (size_t)n);
+    s_word_n = n;
+    return 0;
+}
+
+void wallet_duress_forget(void)
+{
+    s_real = WDG_NONE;
+    s_word_n = 0;
+}
 
 #endif
