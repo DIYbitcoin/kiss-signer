@@ -1575,6 +1575,20 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     return card;
 }
 
+// Change the value on a card that is already up, without rebuilding it.
+//
+// The firmware WRITING screen used to delete and recreate its card on every
+// percent, which invalidates the card's whole rectangle a hundred times during
+// a write that already has the LVGL task blocked. Setting the text dirties
+// only the glyphs that changed. The caption and the geometry are the card's
+// and do not move: a percent is the same width at 9% and 99% in the mono font
+// this draws in.
+void wt_value_card_set(lv_obj_t *card, const char *val)
+{
+    if (!card || lv_obj_get_child_count(card) < 2) return;
+    lv_label_set_text(lv_obj_get_child(card, 1), val);
+}
+
 
 // The body font for a PAIR of blocks that must share one size. Taking the
 // smaller of the two rungs, because they render side by side and the taller

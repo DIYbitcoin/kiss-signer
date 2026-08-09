@@ -120,10 +120,13 @@ static void progress_cb(int pct, void *ud)
     if (!s_pct_card) return;
     char v[16];
     snprintf(v, sizeof v, "%d%%", pct);
-    // Rebuild the card rather than reach into it: wt_value_card owns its own
-    // layout, and the percent is the only thing on the screen that moves.
-    lv_obj_delete(s_pct_card);
-    s_pct_card = wt_value_card(s_scr, tr(STR_G_FW_PCT), v, 250, 170, 300, true);
+    // Set the value, do not rebuild the card. This used to delete and recreate
+    // it on every percent, so a write dirtied a 300x90 rectangle a hundred
+    // times while the LVGL task was already blocked by flash erase -- reported
+    // from the bench as the screen flashing and looking like shit, and no gate
+    // can see it because the simulator writes no flash and the desktop
+    // display has no framebuffer to starve.
+    wt_value_card_set(s_pct_card, v);
     // The write blocks this task, so nothing else will pump LVGL. Without this
     // the bar would jump from 0 to 100 when the whole thing finished.
     lv_refr_now(NULL);

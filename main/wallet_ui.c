@@ -1614,6 +1614,8 @@ void wallet_build_id_restyle(lv_obj_t *version_label)
 // of air is what keeps two rows reading as a block rather than as one
 // squashed paragraph. Both rows together are 41px, which fits inside the
 // action bar (398..480) with room above and below.
+static int s_build_id_right;   // measured right edge, see wallet_build_id_right
+
 #define BUILD_ID_ROW 22
 
 // Gap between version and encryption when they share ONE row. Wider than a
@@ -1731,5 +1733,27 @@ lv_obj_t *wallet_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     (void)radio_held;
   }
 
+  // Where this block actually ENDS, measured, for whatever sits beside it.
+  //
+  // The home's SD badge was pinned at a constant x=410 with a comment saying
+  // the build line "ends around x=380". It does, in a dev build: "KISS 0.1.0
+  // -beta7 dev (local)" plus "encryption: OFF" lands at 382. A RELEASE build
+  // prints the commit instead -- "KISS 0.1.0-beta7 (58ae53d-dirty)" -- which
+  // is four characters wider, and the badge came down on the F of OFF. The
+  // version is the field that grows; anything to its right has to ask.
+  lv_obj_update_layout(w);
+  s_build_id_right = lv_obj_get_x(w) + lv_obj_get_width(w);
+  if (stacked) {
+    // Stacked, row one is the version and row two is the widest of the facts,
+    // so the block's right edge is whichever of the two won.
+    lv_obj_update_layout(v);
+    int vr = lv_obj_get_x(v) + lv_obj_get_width(v);
+    if (vr > s_build_id_right) s_build_id_right = vr;
+  }
+
   return v;
 }
+
+// The right edge of the row wallet_build_id_make last drew. Read it straight
+// after building, before anything else lays out beside it.
+int wallet_build_id_right(void) { return s_build_id_right; }
