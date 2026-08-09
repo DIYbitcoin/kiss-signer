@@ -38,6 +38,14 @@ It does **not** defend against:
 - **Supply chain compromise of the device itself.**
 - **An attacker who has both your recovery words and your passphrase.**
 
+**One key is one key.** Everything above assumes the wallet lives behind this
+device alone. A signer can prove its randomness, pin its nonces and re-derive
+every output, and none of that saves an owner from a lost paper backup or a
+firmware image nobody caught. That is the limit of the shape, not a bug to fix
+here. If losing the amount would hurt, hold it behind more than one key, a
+multisig across vendors or a timelocked policy, so that no single device and no
+single mistake is the whole story. KISS is built to be one good key in that set.
+
 ## Deniability, stated in the right direction
 
 This is easy to describe backwards, so it is spelled out.
