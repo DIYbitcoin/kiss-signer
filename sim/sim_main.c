@@ -1563,6 +1563,15 @@ int main(void) {
   touch(213, 425); pump(105); release(); pump(8);
   touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
 
+  // NO UNDO in its OTHER state. The paper has not been verified yet at this
+  // point in the walk, so the chooser carries the amber qualifier over two
+  // blocks that both promise the paper still opens this wallet. By step 9 the
+  // walk has verified and that branch is unreachable, which is exactly how the
+  // backup row's own unchecked frame went uncaptured for so long.
+  touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
+  save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
+  touch(680, 430); pump(3); release(); pump(8);     // BACK -> Settings
+
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
   touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning
@@ -2124,8 +2133,21 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  // the WIPE pill is wallet_settings.c's mk_pillh(430, 310, 340, 52)
-  touch(580, 356); pump(4); release(); pump(8);     // Erase this wallet -> confirm screen
+  // 220, not 356. This tap was written when the right column ended in two rows
+  // and NO UNDO's second card sat at y=260..324; 356 was already past both of
+  // them, and once the duress row went full width at SG_FULL_Y=331 it started
+  // landing on THAT. Every frame below then walked the duress screens while
+  // still being called sim_wipe_*: "sim_wiped.ppm" was PUT A LITTLE IN THE
+  // SPARE. check_sim_taps.py could not see it, because each of those taps did
+  // change the screen -- just not to the screen the name claims.
+  //
+  // The right column is SG_R_X 412 + SG_R_W 365, and NO UNDO is now ONE card at
+  // y = SG_TOP + SG_HEAD + SG_PITCH + SG_HEAD = 189, 64 tall. Centre of it.
+  touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
+  lv_refr_now(NULL); pump(2);
+  save("/tmp/sim_endwords.ppm");                    // two why blocks, three pills
+  // ERASE is the middle pill: wt_pill(360, WT_ACTION_Y, 240) = 360..600.
+  touch(480, 430); pump(4); release(); pump(8);     // -> the hold confirm
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen
