@@ -36,6 +36,28 @@ for l in lines:
         out.append("CONFIG_LOG_DEFAULT_LEVEL=2")
     elif l.startswith("CONFIG_LOG_MAXIMUM_LEVEL="):
         out.append("CONFIG_LOG_MAXIMUM_LEVEL=2")
+    # The BOOTLOADER's own logs, quieted in the release lane ONLY.
+    #
+    # Not taste, and not really about noise: the bootloader is flashed at
+    # 0x2000 and the partition table at 0x8000, so it has a hard 24576 byte
+    # ceiling and the dev build sits at 23200 of it -- 1344 bytes spare. Secure
+    # boot is the next hardening step after flash encryption and its signature
+    # verification does not fit in 1344 bytes. Dropping INFO to WARN here
+    # measures 23200 -> 20656, which is 6% free becoming 16%.
+    #
+    # The shared sdkconfig keeps INFO on purpose. Bootloader INFO lines are
+    # exactly what a boot failure on this board is read through -- the Boya
+    # flash auto-suspend brick was found that way -- and taking them off the
+    # dev build to buy room in the release build would be paying the wrong
+    # lane. Widening the budget instead is not available: nvs sits directly
+    # above the partition table at 0x9000 and holds the seed.
+    elif l == "CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y":
+        out.append("# CONFIG_BOOTLOADER_LOG_LEVEL_INFO is not set")
+        out.append("CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y")
+    elif l == "# CONFIG_BOOTLOADER_LOG_LEVEL_WARN is not set":
+        continue                       # replaced above
+    elif l.startswith("CONFIG_BOOTLOADER_LOG_LEVEL="):
+        out.append("CONFIG_BOOTLOADER_LOG_LEVEL=2")
     elif l == "# CONFIG_APP_REPRODUCIBLE_BUILD is not set":
         out.append("CONFIG_APP_REPRODUCIBLE_BUILD=y")   # same commit = same bytes
     elif l == "CONFIG_APP_COMPILE_TIME_DATE=y":
