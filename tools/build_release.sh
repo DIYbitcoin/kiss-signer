@@ -39,11 +39,12 @@ for l in lines:
     # The BOOTLOADER's own logs, quieted in the release lane ONLY.
     #
     # Not taste, and not really about noise: the bootloader is flashed at
-    # 0x2000 and the partition table at 0x8000, so it has a hard 24576 byte
-    # ceiling and the dev build sits at 23200 of it -- 1344 bytes spare. Secure
-    # boot is the next hardening step after flash encryption and its signature
-    # verification does not fit in 1344 bytes. Dropping INFO to WARN here
-    # measures 23200 -> 20656, which is 6% free becoming 16%.
+    # 0x2000 and the partition table at CONFIG_PARTITION_TABLE_OFFSET, so that
+    # offset IS its budget. It was 0x8000 -- 24576 bytes, with the build using
+    # 23200 -- until partitions.csv moved the table to 0x10000 for flash
+    # encryption's sake. There is room now, and this stays anyway: a release
+    # build has nobody reading its boot log, and the 2544 bytes it saves are
+    # 2544 bytes secure boot does not have to find later.
     #
     # The shared sdkconfig keeps INFO on purpose. Bootloader INFO lines are
     # exactly what a boot failure on this board is read through -- the Boya

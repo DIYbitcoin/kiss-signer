@@ -12,15 +12,36 @@
 # failure rather than a surprise on the bench. The reserve, if one is ever
 # needed, is the game art in menu_img.c/gameover_img.c/sprites.c.
 #
-# otadata records which slot boots and whether it is still on trial. It sits
-# under the app alignment line with phy_init and nvs, where the 0x12000..0x20000
-# gap is alignment padding rather than anything spendable.
+# ---- why everything below ota_0 sits where it does ----
+#
+# The table used to live at the stock 0x8000, which gave the bootloader the
+# 0x2000..0x8000 it is loaded into: 24576 bytes. It was using 23200 of them.
+#
+# That ceiling is not survivable. A flash-encryption bootloader is about 0x8840
+# bytes -- 34880, half as much again as the whole budget -- and secure boot adds
+# signature verification on top of that. partitions_encrypted.csv had already
+# worked around it by moving its own table to 0x10000, which left this project
+# with TWO layouts and nvs at a different offset in each: 0x9000 here, 0x11000
+# there. A device flashed from one lane and later crossed to the other would
+# not have lost its seed so much as stopped looking where it was kept.
+#
+# So this table now matches that one exactly, minus the nvs_key partition that
+# only NVS encryption needs. One layout, and the bootloader gets 0x2000..0x10000
+# -- 57344 bytes, room for flash encryption with the secure boot pass still to
+# come.
+#
+# It costs nothing in app space. The 0x1a000..0x20000 that is left over is the
+# same alignment padding that used to sit at 0x12000..0x20000; ota_0 and ota_1
+# have not moved a byte.
 #
 # Changing this table is the one thing an SD update cannot do to itself: an
-# existing device needs a final USB flash to cross over. Release notes say so.
+# existing device needs a final USB flash to cross over, and because nvs moves
+# with it, that flash also takes the seed. Which is the argument for doing it
+# NOW, while the boards holding seeds are test boards -- the same step on a
+# funded device is a restore from paper. Release notes say so.
 # Name,   Type, SubType, Offset,   Size
-nvs,      data, nvs,     0x9000,   0x6000
-phy_init, data, phy,     0xf000,   0x1000
-otadata,  data, ota,     0x10000,  0x2000
+nvs,      data, nvs,     0x11000,  0x6000
+phy_init, data, phy,     0x17000,  0x1000
+otadata,  data, ota,     0x18000,  0x2000
 ota_0,    app,  ota_0,   0x20000,  0x7F0000
 ota_1,    app,  ota_1,   0x810000, 0x7F0000
