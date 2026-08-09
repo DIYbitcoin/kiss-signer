@@ -59,7 +59,6 @@ static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_acc_name;            // live name under the dots
 static lv_obj_t *s_main_pill, *s_test_pill;   // the two network segments
 static lv_obj_t *s_state_lbl;                // the network row's sub-line
-static lv_obj_t *s_replace_pill;
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
@@ -834,6 +833,93 @@ static void wipe_cb(lv_event_t *e)
     wt_pill(ovl, tr(STR_C_CANCEL), 585, 372, 165, wipe_cancel_cb, ovl);
 }
 
+// ---- NO UNDO: one door, two destinations -------------------------------
+// These used to be two rows side by side, and the page was lying about the
+// difference. Both end at the SAME whole partition erase: wipe_cb reaches it
+// through wallet_seed_wipe, replace_cb through wallet_seed_commit ->
+// storage_scrub_keep (wallet_seed.c:273 and :201). Replace simply gets there at
+// the end of the wizard instead of the start.
+//
+// Only one of the two rows admitted it. "back to being only a game" states its
+// consequence; "new words, you keep signing" promised continuity on the control
+// that ends the current wallet, so the friendlier sounding row was the one that
+// hid the cost. The owner who asked for this merge misread that sub-line
+// himself, which is as good a bug report as the copy is going to get.
+//
+// Coldcard groups its two equivalents (Lock Down Seed, Destroy Seed) under one
+// Seed Functions menu rather than as peers; Trezor, Ledger and Jade have a
+// single destructive entry at all. So: one row, and the choice moves onto a
+// screen that can state the shared consequence once and then ask the only
+// question left, which is what you want to be holding afterwards.
+//
+// Neither gate changes. replace_cb still walks the wizard, wipe_cb still wants
+// its 2000ms hold. This is routing, not a new confirmation.
+static void endwords_new_cb(lv_event_t *e)   { (void)e; replace_cb(NULL); }
+static void endwords_erase_cb(lv_event_t *e) { (void)e; wipe_cb(NULL); }
+static void endwords_back_cb(lv_event_t *e)  { (void)e; settings_reopen(); }
+
+static void endwords_screen(void)
+{
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_ENDWORDS),
+                      tr(STR_I_ROW_ENDWORDS_SUB));
+
+    // The wallet this page is about to end, named. Every route into Settings
+    // has an open session behind it, so wallet_ui_last_fp is THIS signer's
+    // fingerprint rather than a stale one, and the owner can hold it against
+    // the card in their hand before touching either pill. That is the one check
+    // neither confirmation screen can do on their behalf, and the band between
+    // the subtitle and the blocks was empty anyway.
+    {
+        uint8_t fp[4];
+        wallet_ui_last_fp(fp);
+        char id[16];
+        snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+        wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id, 228, 108, 344, false);
+
+        // Both blocks below promise the paper still opens this wallet. The
+        // device knows when that has never been proven -- Settings says so on
+        // an amber card three rows up -- so it says so here too rather than
+        // letting an unchecked promise carry an erase. Existing string, so the
+        // qualifier arrives in all 21 locales without a translation round.
+        if (!wallet_ui_backup_checked()) {
+            char warn[96];
+            snprintf(warn, sizeof warn, "%s  %s", LV_SYMBOL_WARNING,
+                     tr(STR_I_WORDS_UNVERIFIED));
+            lv_obj_t *l = wt_lbl(s_scr, warn, 0, 0, wt_font14(), WT_WARN);
+            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 200);
+        }
+    }
+
+    // The proven pair geometry (fingerprint reveal, passphrase intro, backup
+    // check). Accent on the half that leaves a working signer, WARN on the half
+    // that does not, so the difference reads before either heading does.
+    {
+        const char *b1 = tr(STR_G_REPLACEC_B), *b2 = tr(STR_G_WIPEC_B);
+        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+        const int HEAD_ROOM = 46;
+        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        wt_why_block(s_scr, tr(STR_G_REPLACEC_GO), b1,  48, BY, BW, BH, f,
+                     wt_accent());
+        wt_why_block(s_scr, tr(STR_G_WIPE),        b2, 408, BY, BW, BH, f,
+                     WARN_COL);
+    }
+
+    // Same width, both of them. 300/240 was the first cut and it drew the erase
+    // in a smaller font than the replace, which is the page's own argument
+    // running backwards: these two end the same words, so neither pill gets to
+    // look like the quieter option.
+    wt_pill(s_scr, tr(STR_G_REPLACEC_GO), 48, WT_ACTION_Y, 270,
+            endwords_new_cb, NULL);
+    wt_pill(s_scr, tr(STR_G_WIPE), 330, WT_ACTION_Y, 270,
+            endwords_erase_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            endwords_back_cb, NULL);
+}
+
+static void endwords_cb(lv_event_t *e) { (void)e; endwords_screen(); }
+
 static lv_obj_t *mk_pillh(const char *txt, int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
 {
     return wt_pillh(s_scr, txt, x, y, w, h, cb, ud);
@@ -1297,25 +1383,27 @@ void wallet_settings_open(lv_obj_t *parent)
         lv_obj_remove_flag(rule, LV_OBJ_FLAG_CLICKABLE);
         if (SG_R_X + SG_R_W - rx < 40) lv_obj_delete(rule);
 
-        s_replace_pill = wt_row(s_scr, tr(STR_I_ROW_REPLACE),
-                                tr(STR_I_ROW_REPLACE_SUB), NULL, WT_INK,
-                                SG_R_X, y + SG_HEAD, SG_R_W, replace_cb, NULL);
-        s_wipe_pill = wt_row(s_scr, tr(STR_I_ROW_ERASE), tr(STR_I_ROW_ERASE_SUB), NULL,
-                             WT_INK, SG_R_X, y + SG_HEAD + SG_PITCH, SG_R_W,
-                             wipe_cb, NULL);
-        // Red CARDS and red LABELS, so both read as destructive before either is
+        // ONE row where there were two. Both of the old ones ended at the same
+        // erase (see endwords_screen), so a second row bought the page nothing
+        // but a chance to tap the wrong one. The row that is left says what they
+        // share; the screen behind it asks which way.
+        //
+        // The freed SG_PITCH slot stays empty on purpose. NO UNDO is the last
+        // group in this column and an empty slot reads as the end of a column,
+        // which is the same reasoning the duress row's hidden case already uses.
+        s_wipe_pill = wt_row(s_scr, tr(STR_I_ROW_ENDWORDS),
+                             tr(STR_I_ROW_ENDWORDS_SUB), NULL, WT_INK,
+                             SG_R_X, y + SG_HEAD, SG_R_W, endwords_cb, NULL);
+        // Red CARD and red LABEL, so it reads as destructive before it is
         // tapped; a hold on the confirmation is what actually erases. The label
         // takes WT_STOP_INK rather than WT_STOP: full stop red on a stop-tinted
         // card is the one pairing on this page that vibrates.
-        lv_obj_t *pair[2] = { s_replace_pill, s_wipe_pill };
-        for (int p = 0; p < 2; p++) {
-            wt_row_sev(pair[p], WT_SEV_STOP);
-            uint32_t n = lv_obj_get_child_count(pair[p]);
-            for (uint32_t i = 0; i < n; i++) {
-                lv_obj_t *c = lv_obj_get_child(pair[p], i);
-                if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
-                    lv_obj_set_style_text_color(c, WT_STOP_INK, 0);
-            }
+        wt_row_sev(s_wipe_pill, WT_SEV_STOP);
+        uint32_t n = lv_obj_get_child_count(s_wipe_pill);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *c = lv_obj_get_child(s_wipe_pill, i);
+            if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
+                lv_obj_set_style_text_color(c, WT_STOP_INK, 0);
         }
     }
 
