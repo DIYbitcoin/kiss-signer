@@ -1677,7 +1677,56 @@ static void wallet_open_decoy(void) {
 int g_last_unlock_kind = -2;
 #endif
 
+// Read the draw as a run of FREE marks: one mark per stroke, in order.
+//
+// Returns how many marks were read, or -1 the moment a stroke refuses to
+// classify. Refusing the whole draw on one bad stroke is deliberate. A word is
+// an ordered run, so a stroke the reader could not name is a hole in it, and
+// skipping the hole would quietly turn a four mark word into whatever three
+// marks happened to survive.
+static int free_marks(uint8_t *out, int max)
+{
+    int n = 0, i = 0;
+    while (i < s_gn) {
+        int j = i;
+        while (j < s_gn && s_gid[j] == s_gid[i]) j++;   // this stroke's points
+        if (n >= max) return -1;                        // longer than any word
+        int m = 0;
+        for (int k = i; k < j; k++) { s_mx[m] = s_gpt[k].x; s_my[m] = s_gpt[k].y; m++; }
+        int mark = wallet_duress_classify_free(s_mx, s_my, m);
+        if (mark == WDF_NONE) return -1;
+        out[n++] = (uint8_t)mark;
+        i = j;
+    }
+    return n;
+}
+
 static int unlock_kind(void) {
+  // An owner who set their own word replaces KISS OUTRIGHT. detect_KISS is not
+  // consulted below, and that is the feature: a locked device shows Fruit
+  // Island, the branding only exists past the unlock, and a device that does
+  // not answer to the word has the honest cover story of not being a signer.
+  //
+  // Same two doors, same rule. The word alone opens the spare; the word plus
+  // one more mark asks for the passphrase. wallet_duress_route still decides,
+  // through route_marked, so the property the audit closed holds here too --
+  // the door is picked by whether there was an extra mark, never by which one.
+  if (wallet_duress_word_len() > 0) {
+    uint8_t marks[WDW_MAX + 1];
+    int n = free_marks(marks, (int)(sizeof marks));
+    int used = n > 0 ? wallet_duress_word_match(marks, n) : 0;
+    // used == 0 covers both a miss and an unreadable stroke, and answers the
+    // same way a wrong draw always has: nothing happens and nothing is said.
+    // n - used > 1 is trailing junk after a correct word, which is not a way
+    // in either -- a door is the word and at most one mark, never a paragraph.
+    int k = WDR_NONE;
+    if (used > 0 && n - used <= 1)
+      k = wallet_duress_route_marked(true, n - used == 1);
+#ifdef SIMULATOR
+    if (k != WDR_NONE) g_last_unlock_kind = k;
+#endif
+    return k;
+  }
   if (s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
     for (int i = 1; i < s_stroke_n0; i++) {          // bbox of the WORD only
@@ -1981,7 +2030,16 @@ static void game_tick(lv_timer_t *t) {
           // begins at the LEFT edge of the word it modifies, which is exactly
           // what this heuristic reads as "starting a fresh K". It threw the
           // whole draw away and the configured stroke could never land.
-          if (s_gn > 0 && !s_kiss_pending) {            // drop a stale prior attempt if this stroke
+          //
+          // And NOT when the owner has a word of their own. This heuristic is
+          // built on KISS being written left to right; free marks are drawn
+          // wherever there is room, so a second mark to the left of the first
+          // is ordinary rather than a restart. It threw away every custom word
+          // whose marks were not in left-to-right order, which is most of them.
+          // What still catches a genuinely abandoned attempt on those devices
+          // is the same thing that always did: the idle clear.
+          if (s_gn > 0 && !s_kiss_pending &&
+              wallet_duress_word_len() == 0) {         // drop a stale prior attempt if this stroke
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
               if (s_gpt[i].x > mx) mx = s_gpt[i].x;     // RESTART (a fresh K) begins far to the left.
