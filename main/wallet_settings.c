@@ -949,8 +949,9 @@ static void endwords_screen(void)
     {
         const char *b1 = tr(STR_G_REPLACEC_B), *b2 = tr(STR_G_WIPEC_B);
         const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const int HEAD_ROOM = 46;
-        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        const lv_font_t *f = wt_body_font2_head(tr(STR_G_REPLACEC_GO), b1,
+                                               tr(STR_G_WIPE), b2,
+                                               BW - 14, BH);
         wt_why_block(s_scr, tr(STR_G_REPLACEC_GO), b1,  48, BY, BW, BH, f,
                      wt_accent());
         wt_why_block(s_scr, tr(STR_G_WIPE),        b2, 408, BY, BW, BH, f,
@@ -1105,7 +1106,11 @@ void wallet_settings_open(lv_obj_t *parent)
     // and 260 is the standard 7px gap under it -- exactly the slot NO UNDO
     // freed when its two rows became one.
     lv_obj_t *th = wt_card(s_scr, SG_R_X, 260, SG_R_W, WT_ROW_H);
-    wt_lbl(th, tr(STR_H_THEME), 16, 10, wt_font23(), WT_INK);
+    // I_ROW_THEME, not H_THEME. Same word, different job: H_THEME is the lower
+    // case CAPTION on the home screen, set beside "fingerprint" and cased to
+    // match it. Here it is a row label standing in a column with Network,
+    // Storage and Duress, and it has to be cased like them.
+    wt_lbl(th, tr(STR_I_ROW_THEME), 16, 10, wt_font23(), WT_INK);
     s_acc_name = lv_label_create(th);          // names the dressed colour
     lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
     lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);

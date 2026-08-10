@@ -493,6 +493,11 @@ void      wt_value_card_set(lv_obj_t *card, const char *val);  // value only, no
 // One shared size for a PAIR of blocks: the smaller of the two rungs, since
 // the taller half decides whether either fits. Never pick by strlen.
 const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h);
+// Same, for a pair of why-blocks WITH headings. Measures the headings rather
+// than charging the caller a constant for the worst case they might reach.
+const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
+                                    const char *h2, const char *b2,
+                                    int w, int max_h);
 
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
                        int x, int y, int w, int max_h, const lv_font_t *f,

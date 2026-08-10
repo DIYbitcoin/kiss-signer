@@ -1693,6 +1693,36 @@ const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
     return fa;
 }
 
+// The same, for a pair of why-blocks that HAVE headings: measure the headings
+// instead of guessing at them.
+//
+// Callers were subtracting a constant 46 -- a heading wrapped to two lines --
+// plus another 8, from a 166px budget. That is 54px, a third of the room,
+// surrendered in every one of 21 locales because one of them MIGHT wrap. On
+// the passphrase intro it cost a whole rung: two short English headings that
+// occupy 20px were charged 54, and the bodies came out at font23 in a box that
+// had room for font28.
+//
+// wt_why_block already measures its own heading and offsets the body by it, so
+// the guess was never load bearing -- it only ever made the font smaller than
+// the block would have allowed. This measures the same thing the same way, at
+// the same font, so the two agree by construction.
+const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
+                                    const char *h2, const char *b2,
+                                    int w, int max_h)
+{
+    lv_point_t s1 = {0, 0}, s2 = {0, 0};
+    if (h1 && *h1)
+        lv_text_get_size(&s1, h1, wt_font14(), 0, 0, w, LV_TEXT_FLAG_NONE);
+    if (h2 && *h2)
+        lv_text_get_size(&s2, h2, wt_font14(), 0, 0, w, LV_TEXT_FLAG_NONE);
+    int head = s1.y > s2.y ? s1.y : s2.y;
+    if (head) head += 6;                  // wt_why_block's own heading gap
+    int room = max_h - head;
+    if (room < 40) room = 40;
+    return wt_body_font2(b1, b2, w, room);
+}
+
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
                        int x, int y, int w, int max_h, const lv_font_t *f,
                        lv_color_t col)
@@ -2382,7 +2412,12 @@ void wt_diagram_verify(lv_obj_t *parent)
     lv_obj_t *row = wt_diagram_row(parent);
     wt_chip_icon(row, LV_SYMBOL_LIST, tr(STR_D_WORDS), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip_icon(row, LV_SYMBOL_OK, tr(STR_I_T), true);
+    // D_KEYS, not I_T. This chip used to borrow the WALLET page's title because
+    // that title was the localised word for a key set. It is not any more -- it
+    // named the box for a while and now it says KEYS -- and a diagram that
+    // depends on a page title is one rename away from claiming that recovery
+    // words rebuild a signer. They rebuild keys, which is what D_KEYS is for.
+    wt_chip_icon(row, LV_SYMBOL_OK, tr(STR_D_KEYS), true);
 }
 
 void wt_diagram_pair(lv_obj_t *parent)

@@ -1867,6 +1867,20 @@ int main(void) {
   pump(15);                                          // let the K-draw reveal transition settle
                                                      // before the first tap, or it lands dead
 
+  // The seed explainer, through its FIRST door -- the help card on this screen.
+  // It had exactly one stop and that stop was on the count screen, which no
+  // creation path reaches any more, so removing it left W_WHATSEED_T NEVER
+  // OPENED. That is the state this very screen was in for its entire life, and
+  // the reason it shipped as a wall of text: no walk stop, so no gate had an
+  // opinion. check_screen_coverage.py caught it within a minute here, which is
+  // the whole argument for that gate existing.
+  //
+  // Card at (42, 306) 716x76, so its centre is (400, 344). BACK returns to the
+  // chooser because s_whatseed_ret was set by this door.
+  touch(400, 344); pump(3); release(); pump(6);     // new here? what a seed phrase is
+  save("/tmp/sim_setup_whatseed.ppm");               // YOUR SEED PHRASE
+  touch(680, 425); pump(3); release(); pump(6);     // BACK -> the chooser
+
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC

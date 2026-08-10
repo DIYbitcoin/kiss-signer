@@ -995,6 +995,8 @@ static void show_fingerprint(void) {
   {
     const char *b1 = tr(nopass ? STR_L_FP_NOTE_NOPASS  : STR_L_FP_NOTE);
     const char *b2 = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2);
+    // 232, not the 204 its siblings moved to: the FP reveal's code box is 190,96 118 tall, so it ends at 214,
+    // so there is nothing to reclaim above this pair.
     const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
     // Measured against BH - 8, not BH. wt_body_font answers for the text alone
     // and wt_why_block wraps it in a box whose own metrics cost a couple of
@@ -1460,7 +1462,7 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   //
   // 128..212, the same rhythm the fingerprint reveal uses (card ends 214, blocks
   // start 232), so the two setup screens share a skeleton.
-  lv_obj_t *card = wt_card(scr, 48, 128, 704, 84);
+  lv_obj_t *card = wt_card(scr, 48, 128, 704, 64);
   lv_obj_t *col = lv_obj_create(card);
   lv_obj_remove_style_all(col);
   lv_obj_set_pos(col, 0, 0);
@@ -1478,14 +1480,15 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   // already knows which side is the warning.
   {
     const char *b1 = tr(STR_L_PPINTRO_W1_B), *b2 = tr(STR_L_PPINTRO_W2_B);
-    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+    const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
     // The shared font is measured against the room LEFT BY THE HEADING, which
     // wt_why_block adds above the body at font14. Budgeting for two heading
     // lines costs a rung in the locales whose heading fits on one, and that is
     // the safe direction: the alternative is a heading that wraps in Norwegian
     // and pushes the body through WT_CONTENT_BOTTOM into the pill.
-    const int HEAD_ROOM = 46;
-    const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+    const lv_font_t *f = wt_body_font2_head(tr(STR_L_PPINTRO_W1_H), b1,
+                                           tr(STR_L_PPINTRO_W2_H), b2,
+                                           BW - 14, BH);
     wt_why_block(scr, tr(STR_L_PPINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
     wt_why_block(scr, tr(STR_L_PPINTRO_W2_H), b2, 408, BY, BW, BH, f, WT_WARN);
   }
