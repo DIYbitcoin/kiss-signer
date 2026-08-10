@@ -615,12 +615,15 @@ static void duress_cb(lv_event_t *e)
         lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 150);
     }
 
-    wt_pill(s_scr, tr(STR_GD_SET_BTN), 48, WT_ACTION_Y, 270,
-            waysin_stroke_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
-            waysin_word_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+    // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
+    // 12px gaps is exactly the 704 lane, which is why this row runs tighter
+    // than the 22px the roomier rows get.
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
             waysin_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_SET_BTN), 200, WT_ACTION_Y, 270,
+            waysin_stroke_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 482, WT_ACTION_Y, 270,
+            waysin_word_cb, NULL);
 }
 
 static void theme_pick_cb(lv_event_t *e)
@@ -958,12 +961,17 @@ static void endwords_screen(void)
     // in a smaller font than the replace, which is the page's own argument
     // running backwards: these two end the same words, so neither pill gets to
     // look like the quieter option.
-    wt_pill(s_scr, tr(STR_G_REPLACEC_GO), 48, WT_ACTION_Y, 270,
-            endwords_new_cb, NULL);
-    wt_pill(s_scr, tr(STR_G_WIPE), 330, WT_ACTION_Y, 270,
-            endwords_erase_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+    // BACK leftmost with the rest of the device, the two ends of these words
+    // right aligned after it, read in the order the page argues them. That puts
+    // ERASE in the corner a thumb rests in, which is only survivable because
+    // erase is the one control here that a tap cannot fire: wipe_cb wants a
+    // 2000ms hold, and that gate is untouched by this move.
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
             endwords_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_G_REPLACEC_GO), 200, WT_ACTION_Y, 270,
+            endwords_new_cb, NULL);
+    wt_pill(s_scr, tr(STR_G_WIPE), 482, WT_ACTION_Y, 270,
+            endwords_erase_cb, NULL);
 }
 
 static void endwords_cb(lv_event_t *e) { (void)e; endwords_screen(); }

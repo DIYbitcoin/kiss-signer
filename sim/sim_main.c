@@ -1338,11 +1338,11 @@ int main(void) {
   touch(763, 35); pump(3); release(); pump(6);      // close zoom, exact state preserved
   touch(520, 166); pump(3); release(); pump(6);     // folded address itself -> full
   save("/tmp/sim_recv_sp_full.ppm");
-  touch(188, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
+  touch(612, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
+  touch(118, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
   touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> the list
   save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
@@ -1409,14 +1409,14 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   // Page two: the import steps plus the address proof. It is the page the
   // owner actually follows, so it gets walked and rendered like any other.
-  touch(118, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
+  touch(682, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> the QR page
   // SCAN KEY is no longer buried in the pair screen: it is a top-level ROW in
   // the WALLET screen's COORDINATOR column, so back out of pairing first. It was
   // moved because hiding a separate PRIVATE-key export one tap inside the
   // descriptor flow implied the two were the same action.
-  touch(680, 430); pump(3); release(); pump(6);     // BACK (WT_BACK_X pill) -> WALLET
+  touch(118, 430); pump(3); release(); pump(6);     // BACK (leftmost pill) -> WALLET
   touch(748, 262); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
   save("/tmp/sim_sp_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
@@ -1696,7 +1696,7 @@ int main(void) {
   // backup row's own unchecked frame went uncaptured for so long.
   touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
-  touch(680, 430); pump(3); release(); pump(8);     // BACK -> Settings
+  touch(118, 430); pump(3); release(); pump(8);     // BACK (leftmost now) -> Settings
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
@@ -1704,7 +1704,7 @@ int main(void) {
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  touch(420, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  touch(370, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_verify_intro.ppm");
   touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
@@ -1833,7 +1833,7 @@ int main(void) {
   touch(730, 50); pump(3); release(); pump(30);     // ? -> tsp1/tb1p explanation
   save("/tmp/sim_recv_sp_help_tn.ppm");
   touch(400, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(680, 430); pump(3); release(); pump(6);     // BACK from SP -> detail
+  touch(118, 430); pump(3); release(); pump(6);     // BACK from SP (leftmost) -> detail
   touch(100, 430); pump(3); release(); pump(4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD
@@ -2023,6 +2023,14 @@ int main(void) {
 
   touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> how many words
   save("/tmp/sim_setup_dice_count.ppm");            // 12 or 24, and dice honours both
+  // The seed explainer's second door. W_WHATSEED_S is "12 or 24 ordered words,
+  // called a BIP39 mnemonic", which is this screen's question, so the card the
+  // first setup screen carries sits here too -- 42..758 at y=306, centre
+  // (400, 344). The BACK afterwards is the point: it has to land back HERE and
+  // not at the start, which is what s_whatseed_ret exists for.
+  touch(400, 344); pump(3); release(); pump(4);     // new here? what a seed phrase is
+  save("/tmp/sim_setup_whatseed_count.ppm");        // YOUR SEED PHRASE
+  touch(680, 425); pump(3); release(); pump(4);     // BACK -> the count screen
   // The 24 word branch, as an excursion: DICE_FLOOR_256 has been written,
   // reasoned and pinned by kisstest since the dice module landed, and no screen
   // could reach it. Roll three and the tally reads 3 / 99, which is the whole
@@ -2312,8 +2320,8 @@ int main(void) {
   touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_endwords.ppm");                    // two why blocks, three pills
-  // ERASE is the middle pill: wt_pill(360, WT_ACTION_Y, 240) = 360..600.
-  touch(480, 430); pump(4); release(); pump(8);     // -> the hold confirm
+  // ERASE is the RIGHTMOST pill now: wt_pill(482, WT_ACTION_Y, 270) = 482..752.
+  touch(617, 430); pump(4); release(); pump(8);     // -> the hold confirm
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen

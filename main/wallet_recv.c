@@ -630,10 +630,10 @@ static void sp_addr_open(lv_obj_t *parent) {
                         wallet_testnet() ? 1 : 0,
                         wallet_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
                            sp_back_cb, NULL);
   s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
-                             48, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
+                             472, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);

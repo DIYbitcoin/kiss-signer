@@ -1336,9 +1336,9 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   lv_obj_move_foreground(scr);
   wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 48, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 452, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
   wt_pill_primary(go);
-  wt_pill(scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
+  wt_pill(scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {
