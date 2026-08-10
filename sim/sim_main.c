@@ -1735,7 +1735,7 @@ int main(void) {
   save("/tmp/sim_settings_checked.ppm");            // green, with the wallet ID
 
   touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning again
-  touch(168, 430); pump(3); release(); pump(6);     // SHOW THE WORDS
+  touch(632, 430); pump(3); release(); pump(6);     // SHOW THE WORDS (rightmost now)
   save("/tmp/sim_words.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
 
@@ -1750,7 +1750,7 @@ int main(void) {
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     touch(580, 122); pump(3); release(); pump(6);   // Recovery words row -> warning
-    touch(168, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
+    touch(632, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     touch(278, 430); pump(3); release(); pump(6);   // NEXT
     save("/tmp/sim_words24_p2.ppm");                // 13-24 / 24, BACK but no NEXT
@@ -2365,7 +2365,7 @@ int main(void) {
   // a passphrase can come from a QR too, behind one warning screen
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
-  touch(198, 430); pump(3); release(); pump(6);     // SCAN IT -> camera
+  touch(602, 430); pump(3); release(); pump(6);     // SCAN IT (rightmost now) -> camera
   wallet_scan_inject("correct horse battery staple correct horse battery "
                      "staple correct horse battery staple xyz", 90);
   pump(6);
