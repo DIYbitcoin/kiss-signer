@@ -684,6 +684,9 @@ static bool write_ppm(const char *path) {
 static void save(const char *path) {
   char lp[160];
   lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
+  // Every stop is a screen the gates get to question, so this is the one place
+  // that can honestly say a screen was covered. See wt_sim_uncaptured.
+  wt_sim_capture();
 #ifdef OVERLAPCHECK
   // The overlap gate reuses this walk rather than keeping a second copy that
   // would drift from it. Every stop the walk saves is a settled screen, which
@@ -2039,8 +2042,15 @@ int main(void) {
   touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS -> the keypad
   for (int i = 0; i < 3; i++) { touch(160 + i * 94, 146); pump(4); release(); pump(4); }
   save("/tmp/sim_setup_dice_99.ppm");               // 3 / 99, no verdict chip yet
-  touch(680, 425); pump(3); release(); pump(4);     // CANCEL -> chooser, rolls dropped
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  // The keypad's only ways out are DONE, disabled at three rolls, and CANCEL,
+  // and CANCEL is cancel_cb -> close_all, which deletes the wizard screen and
+  // leaves the MENU underneath -- not the chooser. So the word has to be drawn
+  // again to get back in. Writing this the obvious way instead cost the rest of
+  // the walk: every stop after this point photographed the game, and the gates
+  // reported clean on all 21 locales while doing it.
+  touch(680, 425); pump(3); release(); pump(4);     // CANCEL -> the menu
+  draw_kiss(); pump(15);                            // the word reveals the chooser
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE A NEW WALLET
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 240); pump(3); release(); pump(4);     // DICE again
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS -> the keypad
@@ -2066,7 +2076,12 @@ int main(void) {
   touch(587, 431); pump(3); release(); pump(4);     // ROLL MORE -> the keypad
   save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
   touch(430, 425); pump(3); release(); pump(6);     // DONE -> refused again
-  touch(213, 431); pump(3); release(); pump(4);     // START OVER -> empty keypad
+  // START OVER is method_dice_cb, which now asks the count before the keypad,
+  // so the length has to be picked again. Without this line the first roll
+  // below landed on the count screen instead, quietly leaving 49 rolls in a run
+  // the comment underneath says is 50.
+  touch(213, 431); pump(3); release(); pump(4);     // START OVER -> how many words
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS -> empty keypad
   // The healthy run: a fixed string that reads as rolled, checked in and
   // asserted OK by kisstest. face bits 128.62 (floor 102.50), step bits 126.61
   // (floor 100.45), counts 10/7/9/9/7/8, no repeating block.
@@ -2519,6 +2534,41 @@ int main(void) {
     printf("FAIL: %d missing fact(s) on a verify screen\n", g_walk_fails);
     return 1;
   }
+  // The coverage gate's own proof. A count of zero says nothing unless the
+  // check can still fire, which is the argument oc_selftest already makes for
+  // WALL and ROLE. On request, build a screen and deliberately never save it;
+  // the report below must then name it. C_OK is the title on purpose: it is a
+  // pill label everywhere else on the device, so no real stop can ever have
+  // captured it and the self test cannot be satisfied by accident.
+  if (getenv("SCREENCOVER_SELFTEST")) {
+    wt_screen(lv_screen_active(), tr(STR_C_OK), NULL);
+    lv_refr_now(NULL);        // built, drawn, and no save() follows it
+  }
+
+  // ---- screen coverage ----
+  // Which screens this walk BUILT and never captured. Those are the ones every
+  // layout gate has been silently skipping: overlapcheck asks its seven
+  // questions per STOP, so a screen with no stop is a screen nobody has ever
+  // asked about. Reported, not fatal, and the number is meant to go to zero.
+  {
+    int un[64];
+    int n = wt_sim_uncaptured(un, (int)(sizeof un / sizeof un[0]));
+    int shown = n < (int)(sizeof un / sizeof un[0]) ? n : (int)(sizeof un / sizeof un[0]);
+    printf("\nscreen coverage: %d built and never captured\n", n);
+    for (int i = 0; i < shown; i++)
+      printf("  UNCHECKED  \"%s\"\n", wt_sim_title_key(un[i]));
+    if (n > shown) printf("  ... and %d more\n", n - shown);
+
+    // The machine readable half, for tools/check_screen_coverage.py: which
+    // titles were built AT ALL. A screen the walk never opens is invisible to
+    // the count above, and that is the state whatseed was in.
+    if (getenv("SCREENCOVER_LIST")) {
+      int b[STR_N];
+      int m = wt_sim_built(b, (int)(sizeof b / sizeof b[0]));
+      for (int i = 0; i < m; i++) printf("BUILT\t%s\n", wt_sim_title_key(b[i]));
+    }
+  }
+
   printf("sim done\n");
 #ifdef OVERLAPCHECK
   return oc_report();
