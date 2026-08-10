@@ -1319,9 +1319,42 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     return sg;
 }
 
+// Section eyebrows carry the ACCENT. They were WT_MUT, which made the theme
+// almost invisible outside the page title and one selected dot -- the owner
+// could change it and struggle to tell.
+//
+// An eyebrow is the safest place on the device to spend the accent, and that
+// matters because GREEN is byte identical to WT_OK and ORANGE is a near match
+// for WT_WARN. Anywhere those can be confused, the accent has to stand aside:
+// a green bordered ERASE reads as safe. An eyebrow names a GROUP, never a
+// state, so it can never be mistaken for one -- and the one eyebrow that IS a
+// state, NO UNDO, overrides this colour to STOP_COL right after the call and
+// keeps doing so.
+// Repaint everything wearing the accent under scr. The theme can be changed
+// while a screen is up, and eyebrows and chevrons are built by shared helpers
+// scattered across six files -- keeping a static list of them in every screen
+// that has some is how they get missed. A flag on the object and one walk finds
+// them wherever they were made.
+//
+// Colour only. The chevron's opacity is set once when it is built and has to
+// survive this, or every theme change makes the arrows a little louder.
+static void accent_walk(lv_obj_t *o)
+{
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT))
+        lv_obj_set_style_text_color(o, wt_accent(), 0);
+    uint32_t n = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < n; i++) accent_walk(lv_obj_get_child(o, i));
+}
+
+void wt_accent_restyle(lv_obj_t *scr)
+{
+    if (scr) accent_walk(scr);
+}
+
 lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w)
 {
-    lv_obj_t *h = wt_lbl(scr, txt, x, y, wt_font14(), WT_MUT);
+    lv_obj_t *h = wt_lbl(scr, txt, x, y, wt_font14(), wt_accent());
+    lv_obj_add_flag(h, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(h, 2, 0);
     lv_obj_set_width(h, w);
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
@@ -1410,10 +1443,22 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
         lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -10, 0);
         right = w - 10 - lv_obj_get_width(ok) - 10;
     } else if (cb) {
-        // WT_DIM, not WT_MUT: the drawing's chevrons are rgb(76,86,102), a rung
-        // dimmer than its sub-lines. A chevron is an affordance, not content, so
-        // it should be the quietest ink on the card.
-        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), WT_DIM);
+        // The accent, at 150 opacity. It was WT_DIM on the argument that a
+        // chevron is an affordance rather than content and should be the
+        // quietest ink on the card. The first half of that is exactly why it
+        // should be TINTED: the accent is the device's "this is yours to touch"
+        // colour, and the chevron is the mark that says a row is touchable.
+        //
+        // The opacity is what keeps the second half true. At full strength a
+        // page of six rows becomes six bright arrows and the accent stops
+        // meaning anything; at 150 it reads as a tint at arm's length and as a
+        // colour up close, which is the job.
+        //
+        // Safe from the status collision for the same reason the eyebrows are:
+        // a chevron says a row OPENS, never how it is doing.
+        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), wt_accent());
+        lv_obj_set_style_text_opa(ch, 150, 0);
+        lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_update_layout(ch);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -10, 0);
         right = w - 10 - lv_obj_get_width(ch) - 10;

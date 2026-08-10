@@ -347,6 +347,13 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // A section eyebrow above a group of rows: font14, WT_MUT, tracked. Redraw 05
 // groups Settings under THIS WALLET / YOUR BACKUP / NO UNDO instead of leaving
 // eleven controls in one undifferentiated grid.
+// Objects that wear the accent and must be repainted when it changes. A user
+// flag rather than a list, because eyebrows and chevrons are built by shared
+// helpers in six files and any list of them is a list that goes stale.
+#define WT_FLAG_ACCENT LV_OBJ_FLAG_USER_1
+// Repaint every WT_FLAG_ACCENT object under scr. Call after wt_accent_set.
+void wt_accent_restyle(lv_obj_t *scr);
+
 lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 
 // One row of that list: `label` in WT_INK at font23, `sub` under it in WT_MUT at
