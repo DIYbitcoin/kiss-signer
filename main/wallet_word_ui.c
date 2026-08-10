@@ -223,11 +223,17 @@ static void write_screen(bool again)
     // DONE, because a written word has no other end. One mark ends when the
     // finger lifts; a word of several letters does not, and guessing at it with
     // a timer would either cut people off mid-word or make them wait.
-    wt_pill(s_scr, tr(STR_GD_WORD_DONE), 48, WT_ACTION_Y, 260, done_cb, NULL);
-    if (!again && gw_stored_any())
-        wt_pill(s_scr, tr(STR_GD_WORD_BACK_T), 330, WT_ACTION_Y, 260,
+    // CANCEL leftmost with every other way out on the device, DONE in the
+    // corner because it is what this screen is for. BACK TO KISS is optional,
+    // so DONE right aligns to 752 either way rather than sliding when the third
+    // pill is absent: a control that moves under the finger between visits is
+    // the thing this whole pass is removing.
+    const bool back_to_kiss = (!again && gw_stored_any());
+    wt_pill(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y, 140, cancel_cb, NULL);
+    if (back_to_kiss)
+        wt_pill(s_scr, tr(STR_GD_WORD_BACK_T), 210, WT_ACTION_Y, 260,
                 back_to_kiss_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cancel_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_WORD_DONE), 492, WT_ACTION_Y, 260, done_cb, NULL);
     draw_reset();
 }
 

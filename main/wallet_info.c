@@ -401,13 +401,17 @@ static void pair_screen(void)
     // readable here and repeated with the proof step on the static NEXT page.
     s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
 
-    // This BACK escapes pairing altogether, so it takes the corner and NEXT
-    // moves to the left. The pairing QR page one step further in keeps ITS back
-    // on the left, because that one only steps back to this page: same word,
-    // different job, and WT_BACK_X says which job earns the corner.
-    wt_pill(s_scr, tr(STR_R_NEXT), 48, WT_ACTION_Y, 140,
+    // This BACK used to take the corner on the theory that an escape from the
+    // whole flow earns it while a step back to one page does not. That rule was
+    // real and written down, but it was one of two rules the product held at
+    // once: seven screens put the way out in the corner and seven put the
+    // action there, so the corner meant "leave" on one screen and "do it" on
+    // the next. A distinction nobody can see is not a distinction. The corner
+    // now always belongs to the action, and BACK is always leftmost, whether it
+    // steps back one page or drops the flow.
+    wt_pill(s_scr, tr(STR_R_NEXT), 612, WT_ACTION_Y, 140,
             pair_instructions_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_back_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -695,15 +699,18 @@ static void words_warn_screen(lv_event_t *e)
 
     wt_why_body(s_scr, tr(STR_I_WARN_B), below + 12, WT_WARN, true);
 
-    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 240, words_show_cb, NULL);
+    // BACK leftmost, the two actions right aligned to the lane's edge, primary
+    // in the corner. The order they are READ in is unchanged; only where the
+    // row sits is.
+    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 512, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
     // The unchecked chip names the gap; this is the button that closes it, so
     // it wears the same amber until it has been used (as the setup warning
     // screen's VERIFY FULL BACKUP does).
-    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 300, WT_ACTION_Y, 240,
+    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 250, WT_ACTION_Y, 240,
                            verify_copy_cb, NULL);
     if (!ok) lv_obj_set_style_border_color(vp, WT_WARN, 0);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----
