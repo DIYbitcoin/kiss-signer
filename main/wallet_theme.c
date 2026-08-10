@@ -2321,6 +2321,16 @@ static void wt_chip_icon(lv_obj_t *row, const char *icon, const char *txt,
     wt_chip(row, buf, accent);
 }
 
+// What words and a passphrase MAKE. The outcome used to be FINGERPRINT, and
+// that was true and useless: a newcomer meeting this on the seed explainer, the
+// passphrase intro and the fingerprint help card learned that two things they
+// had just been told to protect add up to an eight character code, which is not
+// what they add up to. They add up to KEYS. The code is what those keys are
+// CALLED, which is a different sentence and now has its own diagram below.
+//
+// Not "YOUR SIGNER" either, though it was asked for: the signer is this box and
+// it does not change when a different passphrase is typed. Teaching that would
+// have to be untaught the first time the owner read anything else about bitcoin.
 void wt_diagram_fp(lv_obj_t *parent)
 {
     lv_obj_t *row = wt_diagram_row(parent);
@@ -2328,7 +2338,27 @@ void wt_diagram_fp(lv_obj_t *parent)
     wt_diagram_op(row, "+");
     wt_chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
+    wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_KEYS), true);
+}
+
+// The fingerprint explainer's OWN picture, and the reason it exists: the "?" on
+// the fingerprint screen used to open a card drawing wt_diagram_fp, which is the
+// diagram already on the screen behind it. Tapping for help repeated the answer
+// the reader had just decided was not enough.
+//
+// Two chips, so unlike wt_diagram_fp (about 600px in English, wider in half the
+// locales -- see the note in wallet_ui.c's show_fingerprint) this one fits a 344
+// column and can go anywhere the pair geometry goes.
+//
+// The code is passed in rather than read from a seam, because the same card is
+// opened for the live wallet from three places and for nothing at all before
+// setup. Empty falls back to the word, which is what the title does too.
+void wt_diagram_fpid(lv_obj_t *parent, const char *code)
+{
+    lv_obj_t *row = wt_diagram_row(parent);
+    wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_KEYS), false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, code && code[0] ? code : tr(STR_D_FINGERPRINT), true);
 }
 
 // What a backup check actually claims: RECOVERY WORDS -> THIS WALLET. Two chips

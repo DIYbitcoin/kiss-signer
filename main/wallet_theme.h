@@ -308,6 +308,9 @@ lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
 lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
 // the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
 void wt_diagram_fp(lv_obj_t *parent);
+// RECOVERY WORDS + PASSPHRASE -> YOUR KEYS is what wt_diagram_fp says; this one
+// says YOUR KEYS -> <code>, for the card that has to explain the code itself.
+void wt_diagram_fpid(lv_obj_t *parent, const char *code);
 // the backup check's claim: RECOVERY WORDS -> THIS WALLET (accent = the match).
 void wt_diagram_verify(lv_obj_t *parent);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
