@@ -208,7 +208,9 @@ static void writing_apply(void *ud)
     // one 704 wide paragraph under a percent card that never counted.
     const char *lb = tr(STR_G_FW_DARK_B);
     const char *rb = tr(STR_G_FW_RISK_B);
-    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
+    const lv_font_t *f = wt_body_font2_head(tr(STR_G_FW_DARK_H), lb,
+                                            tr(STR_G_FW_RISK_H), rb,
+                                            BLK_W - 14, BLK_H);
     wt_why_block(s_scr, tr(STR_G_FW_DARK_H), lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
                  wt_accent());
     wt_why_block(s_scr, tr(STR_G_FW_RISK_H), rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f,
@@ -255,7 +257,7 @@ static void confirm_screen(void)
     // against the full BLK_W picked a size for a wider box than the text
     // actually gets, so it wrapped to an extra line and ran 7px past
     // WT_CONTENT_BOTTOM in Japanese and Swedish.
-    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
+    const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, BLK_W - 14, BLK_H);
     wt_why_block(s_scr, lh, lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
                  down ? WT_WARN : wt_accent());
     wt_why_block(s_scr, rh, rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f, WT_WARN);
@@ -294,7 +296,7 @@ static void nothing_to_install(int rc)
     }
     const char *rh = tr(STR_G_FW_WHERE_H);
     const char *rb = tr(STR_G_FW_WHERE_B);
-    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
+    const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, BLK_W - 14, BLK_H);
     wt_why_block(s_scr, lh, lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
                  rc == WFW_ERR_SAME ? wt_accent() : WT_WARN);
     wt_why_block(s_scr, rh, rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f, wt_accent());
