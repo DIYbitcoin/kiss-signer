@@ -215,6 +215,10 @@ static void restyle(void)
     int tn = wallet_testnet();
     // accent follows the picked theme everywhere it appears on this screen
     lv_obj_set_style_text_color(wt_screen_title(s_scr), wt_accent(), 0);
+    // Eyebrows and chevrons, wherever they were built. They wear the accent
+    // now, and they are made by shared helpers rather than held in statics
+    // here, so the flag walk is what finds them.
+    wt_accent_restyle(s_scr);
     wallet_build_id_restyle(s_build_id);
     for (int i = 0; i < WT_ACC_N; i++)
         if (s_acc_dot[i]) {
@@ -1468,6 +1472,10 @@ void wallet_settings_open(lv_obj_t *parent)
         int y = SG_TOP + SG_HEAD + SG_PITCH;
         lv_obj_t *h = wt_row_head(s_scr, tr(STR_I_SEC_NO_UNDO), SG_R_X, y, SG_R_W);
         lv_obj_set_style_text_color(h, STOP_COL, 0);
+        // ...and it must STAY stop red through a theme change. The flag is
+        // what wt_accent_restyle repaints, so this eyebrow gives it up: it
+        // names a consequence, not a group, and that is never the accent's.
+        lv_obj_remove_flag(h, WT_FLAG_ACCENT);
         // The rule starts one em past the WORDS and runs to the column's right
         // edge, so a longer translation simply shortens it instead of striking
         // through itself. Below 40px it is not a rule any more, so it goes.
