@@ -1796,12 +1796,15 @@ int main(void) {
   // misroute visible.
   touch(218, 198); pump(3); release(); pump(6);     // Address card -> reopen the chooser
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
-  touch(533, 426); pump(3); release(); pump(4);     // theme dot in the action bar: CYPHERPINK
+  // Theme moved out of the action bar into the right column under NO UNDO.
+  // Card at (412,260), dots card relative at 250 + i*27 on an 18px circle, so
+  // absolute centres are 671, 698, 725, 752 at y=292. CYPHERPINK is i=2.
+  touch(725, 292); pump(3); release(); pump(4);     // theme dot: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
   touch(680, 430); pump(3); release(); pump(6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(479, 426); pump(3); release(); pump(4);     // theme dot in the action bar: back to MONO
+  touch(671, 292); pump(3); release(); pump(4);     // theme dot: back to MONO (i=0)
   // The Network row is a SEGMENTED control now, so a tap on the row itself
   // does nothing -- you pick a side. TESTNET is the right lozenge: the card
   // starts at y=95, the track is centred in its 64 height and the lozenges sit
