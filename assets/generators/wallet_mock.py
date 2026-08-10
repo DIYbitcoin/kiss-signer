@@ -102,7 +102,7 @@ def icon_settings(d, cx, cy, s, A):
 
 
 ICONS = [("Sign", "a transaction", icon_sign), ("Receive", "an address", icon_receive),
-         ("Wallet", "keys & export", icon_key), ("Settings", "device & theme", icon_settings)]
+         ("Keys", "keys & export", icon_key), ("Settings", "device & theme", icon_settings)]
 
 # Kiss-mark logo next to the KISS wordmark: real Twemoji artwork (CC-BY 4.0,
 # see assets/twemoji/README.md). Hand-drawn line-art lips were rejected — they
