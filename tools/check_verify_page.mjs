@@ -40,6 +40,25 @@ if (hex !== VEC_HASH) fail(`sha256 mismatch\n  got  ${hex}\n  want ${VEC_HASH}`)
 const words = ctx.bip39Words(hash).join(" ");
 if (words !== VEC_WORDS) fail(`words mismatch\n  got  ${words}\n  want ${VEC_WORDS}`);
 
+// The tiles the page draws are bip39Slices, so the bits a reader is shown have
+// to spell the word printed beside them. Nothing on screen can reveal a slice
+// that disagrees with its own word, and only this check says so.
+const slices = ctx.bip39Slices(hash);
+if (slices.length !== 24) fail(`bip39Slices returned ${slices.length} slices`);
+let csBits = 0;
+slices.forEach((s, i) => {
+  if (s.bits.length !== 11) fail(`slice ${i} has ${s.bits.length} bits`);
+  const spelled = s.bits.reduce((acc, b) => (acc << 1) | (b.on ? 1 : 0), 0);
+  if (spelled !== s.index) fail(`slice ${i} bits spell ${spelled}, index says ${s.index}`);
+  if (ctx.WORDS[s.index] !== s.word) fail(`slice ${i} word is not index ${s.index}`);
+  if (s.word !== VEC_WORDS.split(" ")[i]) fail(`slice ${i} disagrees with bip39Words`);
+  s.bits.forEach((b, j) => {
+    if (b.cs !== (i * 11 + j >= 256)) fail(`slice ${i} bit ${j} mislabels its source`);
+    if (b.cs) csBits++;
+  });
+});
+if (csBits !== 8) fail(`${csBits} bits marked checksum, want 8`);
+
 if (ctx.claimedHash("#h=" + VEC_HASH.toUpperCase()) !== VEC_HASH)
   fail("claimedHash does not normalize case");
 if (ctx.claimedHash("#h=" + VEC_HASH.slice(1)) !== null)

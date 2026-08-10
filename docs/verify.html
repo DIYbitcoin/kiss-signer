@@ -62,19 +62,50 @@
         list-style: none;
         counter-reset: w;
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 6px 18px;
+        grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+        gap: 8px;
         padding: 0;
         margin: 10px 0 0;
       }
-      ol.words li { counter-increment: w; }
+      /* One tile per word, and the tile shows its own derivation: the eleven
+         bits that chose it, then the index those bits spell, then the word.
+         The list a reader compares against the device screen is still a
+         numbered list of words; the bits ride along beside it. */
+      ol.words li {
+        counter-increment: w;
+        display: grid;
+        grid-template-columns: 1.9em 1fr auto;
+        grid-template-areas: "n bits idx" "n word word";
+        align-items: center;
+        column-gap: 9px;
+        border: 1px solid #1e2531;
+        border-radius: 8px;
+        background: #070a10;
+        padding: 8px 11px 9px;
+      }
       ol.words li::before {
+        grid-area: n;
         content: counter(w);
-        display: inline-block;
-        width: 2em;
         color: #7a869c;
         font-size: .85rem;
+        text-align: right;
       }
+      .bits { grid-area: bits; display: flex; gap: 2px; }
+      .bit {
+        display: inline-block;
+        width: 7px;
+        height: 15px;
+        border-radius: 1px;
+        background: #1a2130;
+      }
+      .bit.on { background: #35d07f; }
+      .bit.cs { background: #2a2418; }
+      .bit.cs.on { background: #f2b84b; }
+      .idx { grid-area: idx; color: #7a869c; font-size: .8rem; }
+      .wd { grid-area: word; font-size: 1.05rem; margin-top: 2px; }
+      .legend { font-size: .85rem; margin: 10px 0 0; }
+      .legend .bit { vertical-align: -3px; margin-right: 5px; }
+      .legend .bit + span { margin-right: 16px; }
       #burn { display: none; border-color: #ff4d5e; }
       #burn strong { color: #ff4d5e; }
       pre {
@@ -121,6 +152,10 @@
         <h2>SHA256 of the file</h2>
         <div id="hash" class="mono"></div>
         <h2 style="margin-top:18px">24 words from that hash</h2>
+        <p class="mut legend">
+          <span class="bit on"></span><span>bit of the hash</span>
+          <span class="bit cs on"></span><span>checksum bit</span>
+        </p>
         <ol class="words mono" id="words"></ol>
       </div>
 
@@ -216,22 +251,38 @@ words    = 24 x 11 bit slices of entropy + checksum, standard English list</pre>
         return out;
       }
 
-      // entropy(32) + 1 checksum byte -> 24 words of 11 bits each.
-      function bip39Words(hash32) {
+      // entropy(32) + 1 checksum byte -> 264 bits, read eleven at a time. Each
+      // slice IS the word: the eleven bits spell an index into the standard
+      // list. Bit 256 and up came from the checksum rather than the hash, which
+      // is why the last word is three bits of the file and eight bits of a
+      // check on it -- the one part of "hash goes in, words come out" that a
+      // reader cannot get from a list of words alone.
+      //
+      // Returned as data rather than drawn here: the page renders it, and the
+      // Node vector check runs this same function with no DOM.
+      function bip39Slices(hash32) {
         var cs = sha256(hash32)[0];
         var bytes = new Uint8Array(33);
         bytes.set(hash32);
         bytes[32] = cs;
-        var words = [];
+        var out = [];
         for (var i = 0; i < 24; i++) {
-          var bit = i * 11, idx = 0;
+          var bit = i * 11, idx = 0, bits = [];
           for (var j = 0; j < 11; j++) {
             var b = bit + j;
-            idx = (idx << 1) | ((bytes[b >> 3] >> (7 - (b & 7))) & 1);
+            var v = (bytes[b >> 3] >> (7 - (b & 7))) & 1;
+            idx = (idx << 1) | v;
+            bits.push({ on: v === 1, cs: b >= 256 });
           }
-          words.push(WORDS[idx]);
+          out.push({ bits: bits, index: idx, word: WORDS[idx] });
         }
-        return words;
+        return out;
+      }
+
+      // The words alone, in order. One code path with the drawing above, so a
+      // tile can never show bits that spell something other than its word.
+      function bip39Words(hash32) {
+        return bip39Slices(hash32).map(function (s) { return s.word; });
       }
 
       function toHex(bytes) {
@@ -301,9 +352,24 @@ words    = 24 x 11 bit slices of entropy + checksum, standard English list</pre>
             $("hash").textContent = hexGrouped(computedHex);
             var ol = $("words");
             ol.textContent = "";
-            bip39Words(hash).forEach(function (wd) {
+            bip39Slices(hash).forEach(function (s) {
               var li = document.createElement("li");
-              li.textContent = wd;
+              var bits = document.createElement("span");
+              bits.className = "bits";
+              s.bits.forEach(function (b) {
+                var cell = document.createElement("i");
+                cell.className = "bit" + (b.cs ? " cs" : "") + (b.on ? " on" : "");
+                bits.appendChild(cell);
+              });
+              var idx = document.createElement("span");
+              idx.className = "idx";
+              idx.textContent = s.index;
+              var wd = document.createElement("span");
+              wd.className = "wd";
+              wd.textContent = s.word;
+              li.appendChild(bits);
+              li.appendChild(idx);
+              li.appendChild(wd);
               ol.appendChild(li);
             });
             $("result").style.display = "block";
