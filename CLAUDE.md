@@ -70,7 +70,30 @@ today. WALL fires on a shape the product no longer contains, so
 it — a clean sweep means nothing without that, which is why `run_overlapcheck.sh`
 runs the self test first and refuses to continue if it fails.
 
+## Show the screen
+
+Every change to a screen ships with a **picture**, in the same reply, without
+being asked. A gate says "nothing overlaps"; only a rendered frame says whether
+the thing is too busy, the font landed too small, or a label wraps badly.
+
+```bash
+bash sim/build_sim.sh && /tmp/fruitsim
+sips -s format png /tmp/sim_<stop>.ppm --out /tmp/x.png
+```
+
+If the change has no walk stop, add one to `sim/sim_main.c` first. That is the
+same edit that makes the 21-locale gate see it, so there is no version of this
+worth skipping.
+
+Never hand back a draft of strings, copy or translations to be reviewed. Do the
+work and show the result.
+
 ## i18n
+
+Prefer reusing a key that already ships in 21 locales over adding one. Most
+lessons this device needs to teach are already written and translated, and
+locked to a single path — check before authoring. Adding a key is a real cost
+and it is paid 21 times.
 
 Strings live in `i18n/*.json` (21 locales) and are generated into
 `main/i18n_keys.h` + `main/i18n_tables.c` by `python3 tools/gen_i18n.py`. CI has
