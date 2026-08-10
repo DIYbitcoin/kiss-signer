@@ -597,6 +597,52 @@ static void cksum_diagram(lv_obj_t *col)
     wt_chip(r1, okw, true);
     wt_diagram_op(r1, LV_SYMBOL_RIGHT);
     wt_chip(r1, LV_SYMBOL_OK, true);
+
+    // The check itself, drawn in the only notation that needs no translation:
+    // the LAST word's eleven bits, with the ones that are the check in WARN.
+    //
+    // Every word is eleven bits of a single number, and the last word is where
+    // the seam is: seven bits of the owner's own randomness and four bits that
+    // are arithmetic over the other eleven words (eight over twenty three).
+    // That is the whole claim of this card -- "your last word is math, not
+    // chance" -- and until now it was only ever asserted. A reader can count
+    // the amber cells.
+    //
+    // It costs nothing to show. The words are already on the screen behind this
+    // card; the bits of one of them reveal nothing the reader is not looking
+    // at. The offline checker page draws the same figure for all 24 words
+    // (docs/verify.html), so a doubter who opens it meets a picture they have
+    // already seen here.
+    int last = wallet_lastword_index(s_w[s_count - 1]);
+    if (last >= 0) {
+        const int cs = s_count == 24 ? 8 : 4;   // 264 - 256, or 132 - 128
+        lv_obj_t *r2 = wt_diagram_row(col);
+        lv_obj_t *cells = lv_obj_create(r2);
+        lv_obj_remove_style_all(cells);
+        lv_obj_set_size(cells, 11 * 9 - 2, 15);
+        lv_obj_remove_flag(cells, LV_OBJ_FLAG_SCROLLABLE);
+        for (int b = 0; b < 11; b++) {
+            bool on = (last >> (10 - b)) & 1;
+            bool ck = b >= 11 - cs;
+            lv_obj_t *c = lv_obj_create(cells);
+            lv_obj_remove_style_all(c);
+            lv_obj_set_pos(c, b * 9, 0);
+            lv_obj_set_size(c, 7, 15);
+            lv_obj_set_style_radius(c, 1, 0);
+            // An UNSET check bit still has to read as a check bit, or the
+            // group only appears when its bits happen to be ones -- here that
+            // is one cell in four, which says nothing. Dim amber for off,
+            // exactly the pair docs/verify.html uses (#2a2418 against
+            // #1a2130), so the seam is visible whatever the number is.
+            lv_color_t col_on  = ck ? WT_WARN : wt_accent();
+            lv_color_t col_off = ck ? lv_color_hex(0x2A2418) : WT_DIV;
+            lv_obj_set_style_bg_color(c, on ? col_on : col_off, 0);
+            lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+        }
+        wt_diagram_op(r2, "=");
+        wt_chip(r2, s_w[s_count - 1], false);
+    }
 }
 
 static int aside_cksum(lv_obj_t *p, int x, int y, int w)
