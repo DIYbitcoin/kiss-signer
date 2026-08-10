@@ -2068,8 +2068,17 @@ int main(void) {
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
   touch(598, 226); pump(3); release(); pump(4);     // round 2: pill 1
   touch(218, 306); pump(3); release(); pump(6);     // round 3: pill 2 -> stored
-  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER (what a passphrase is)
-  touch(188, 430); pump(3); release(); pump(6);     // CREATE PASSPHRASE -> keyboard
+  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER, now a two pill row
+  // The NO PASSPHRASE branch, taken as an excursion rather than a commit: it
+  // renders the fingerprint screen wearing its no-passphrase notes, which no
+  // stop had ever shown, and then BACK returns to the keyboard the walk was
+  // heading for anyway. That BACK is the claim being tested -- the pill hands
+  // the owner a wallet with no passphrase, and one tap has to be enough to
+  // change their mind before anything is committed.
+  // Pills are 330 wide from 48 and 422, so centres are 213 and 587.
+  touch(213, 430); pump(3); release(); pump(8);     // NO PASSPHRASE -> fingerprint
+  save("/tmp/sim_setup_fp_nopass.ppm");             // no passphrase: your words alone open it
+  touch(118, 430); pump(3); release(); pump(6);     // BACK (48..188) -> the keyboard
   save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
 
   // shift semantics. Row 3 is [shift z x c v b n m BKSP] at y=355; shift
