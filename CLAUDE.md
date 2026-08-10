@@ -52,7 +52,25 @@ bash sim/build_fitcheck.sh && /tmp/kissfit         # 21-locale text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme     # accent vs status colour
 bash sim/build_osdcheck.sh && /tmp/kissosd         # on-video overlay text
 bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locales
+bash sim/build_sim.sh && python3 tools/check_screen_coverage.py  # screens no gate sees
 ```
+
+`check_screen_coverage.py` answers the question the others cannot: **which
+screens has nothing ever looked at.** overlapcheck asks seven questions per
+STOP, so a screen with no stop is a screen with no opinion attached. It reports
+two kinds:
+
+- **built but never captured** — the walk opens it and never photographs it.
+- **NEVER OPENED** — the walk does not reach it, so the check above is blind too.
+
+Both are real. `whatseed` was BARE — a wall of text on the screen a newcomer
+opens to learn what a seed is — for its entire life, with every gate green,
+because no stop rendered it. And a walk can silently derail: if a tap misses,
+every later `save()` photographs whatever is on screen instead, and 21 locales
+come back clean having checked the game. The first number catches exactly that.
+
+It self tests before reporting (`SCREENCOVER_SELFTEST=1` builds a screen and
+never saves it) and refuses to report if the check no longer fires.
 
 `overlapcheck` asks seven questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
 ROLE, **BARE** and **WALL**. Both of the last two are rule 1 above, enforced:

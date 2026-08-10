@@ -4,6 +4,7 @@
 #include "wallet_theme.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "i18n.h"
@@ -378,6 +379,87 @@ static void screen_card(lv_obj_t *scr)
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 }
 
+#ifdef SIMULATOR
+// ---- screen coverage, simulator only ----
+//
+// A layout gate that never draws a screen cannot have an opinion about it.
+// whatseed_open was a title, a subtitle and one 704x232 paragraph -- BARE by
+// rule 1, on the screen a newcomer opens to find out what a seed is -- for its
+// entire life, and every gate reported clean the whole time, because no walk
+// stop ever rendered it. It was found by accident, the day it got a stop.
+//
+// So the walk records both halves: which screen titles it BUILT, and which of
+// those a save() actually captured for the gate to question. The difference is
+// the list of screens nothing has ever checked. Titles are the key because
+// they are what wt_screen already has and what identifies a screen to a
+// reader; a screen with no translated title is skipped rather than guessed at.
+static uint8_t s_wt_built[STR_N];
+static uint8_t s_wt_captured[STR_N];
+static int     s_wt_cur = -1;
+
+// Pointer identity, not strcmp: tr() hands back the table entry itself, so the
+// match is exact and costs no string compares. English is checked second
+// because tr() falls back to it for a key a locale has not filled in.
+static int wt_title_id(const char *title)
+{
+    if (!title || !*title) return -1;
+    const char *const *tbl = i18n_tables[i18n_get_lang()];
+    for (int i = 0; i < STR_N; i++) if (tbl[i] == title) return i;
+    const char *const *en = i18n_tables[I18N_EN];
+    for (int i = 0; i < STR_N; i++) if (en[i] == title) return i;
+    return -1;   // a literal title: nothing to name it by, so not tracked
+}
+
+// Called by the walk's save(). The active screen is the most recently built
+// one -- mk_screen deletes its predecessor -- and an overlay saved on top of a
+// screen still means that screen was on the panel, which is what is being
+// claimed.
+void wt_sim_capture(void)
+{
+    if (s_wt_cur >= 0) s_wt_captured[s_wt_cur] = 1;
+}
+
+// The English title, which names the screen to a reader better than a key
+// would. The generated header carries no key-name table and this needs no new
+// one: the title IS how anyone refers to the screen.
+const char *wt_sim_title_key(int id)
+{
+    if (id < 0 || id >= STR_N) return "?";
+    const char *s = i18n_tables[I18N_EN][id];
+    return s ? s : "?";
+}
+
+// Fills `out` with the ids of screens built but never captured. Returns how
+// many there were, which may exceed max.
+int wt_sim_uncaptured(int *out, int max)
+{
+    int n = 0;
+    for (int i = 0; i < STR_N; i++) {
+        if (s_wt_built[i] && !s_wt_captured[i]) {
+            if (n < max) out[n] = i;
+            n++;
+        }
+    }
+    return n;
+}
+
+// Every title the walk built at all. This is the other half of the question:
+// "built but never captured" cannot see a screen the walk never opens, and
+// that is exactly the state whatseed was in. tools/check_screen_coverage.py
+// diffs this against the title keys in the source.
+int wt_sim_built(int *out, int max)
+{
+    int n = 0;
+    for (int i = 0; i < STR_N; i++) {
+        if (s_wt_built[i]) {
+            if (n < max) out[n] = i;
+            n++;
+        }
+    }
+    return n;
+}
+#endif
+
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
     lv_obj_t *scr = lv_obj_create(parent);
@@ -388,6 +470,10 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_foreground(scr);
     screen_card(scr);
+#ifdef SIMULATOR
+    s_wt_cur = wt_title_id(title);
+    if (s_wt_cur >= 0) s_wt_built[s_wt_cur] = 1;
+#endif
 
     // The page title is the one label on every screen, so it sets the tone for
     // how big the device "feels". wt_font34 gives Latin/Cyrillic a real 34px
