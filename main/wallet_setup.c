@@ -1624,6 +1624,44 @@ static const char *const DICE_HELP_ICONS[] = {
     LV_SYMBOL_OK,
 };
 
+// The arrow the dice screen never drew. YOURS TO CHECK tells the owner to
+// recompute the SHA256 offline, and stops there -- so a reader who does it is
+// left holding a number with nothing said about what it is FOR. It is the
+// words: feed that hash to any BIP39 tool and the same list comes back. Two
+// chips say so in the space a sentence would need, and unlike a sentence they
+// are the same two marks the reader already met on the screen behind the card.
+//
+// Deliberately costs no translation. SHA256 is a literal everywhere, and the
+// word count reuses the strings the count screen already ships in 21 locales,
+// so this row can never be the thing that fails a fit check.
+static int aside_dice_flow(lv_obj_t *p, int x, int y, int w)
+{
+    lv_obj_t *col = lv_obj_create(p);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, x, y);
+    lv_obj_set_width(col, w);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+    char buf[WT_ICON_TEXT_MAX];
+    lv_obj_t *row = wt_diagram_row(col);
+    snprintf(buf, sizeof buf, "%s SHA256", LV_SYMBOL_SHUFFLE);
+    wt_chip(row, buf, false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    // s_count is pinned to 12 on the way in (method_dice_cb), but dice_need
+    // already refuses to assume that, and a chip that disagrees with the words
+    // the owner is about to be shown is worse than the branch costs.
+    snprintf(buf, sizeof buf, "%s %s", LV_SYMBOL_LIST,
+             tr(s_count == 24 ? STR_W_24 : STR_W_12));
+    wt_chip(row, buf, true);
+
+    lv_obj_update_layout(col);
+    return lv_obj_get_height(col);
+}
+
 static void dice_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -1634,6 +1672,7 @@ static void dice_help_cb(lv_event_t *e)
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = DICE_HELP_ICONS,
+        .aside  = aside_dice_flow,
     };
     wt_explain_open(s_scr, &x);
 }
