@@ -46,6 +46,7 @@
 #include "wallet_theme.h"
 #include "wallet_duress.h"
 #include "wallet_gword.h"
+#include "wallet_kissword.h"
 #include "wallet_duress_ui.h"
 // platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
 // SD-storage badge probes it outside any device-only block, so its header is
@@ -238,7 +239,6 @@ static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB prob
 #define GEST_MAX 384               // accumulated points across the strokes of the unlock draw
 static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
-static lv_point_t s_gsub[GEST_MAX]; // scratch: the left-letter subset, for the K check
 static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for wallet_duress
 static uint8_t s_msid[GEST_MAX];    // ...and its stroke ids, for wallet_gword
 static int s_gn;
@@ -1194,99 +1194,19 @@ static void saver_hide(void) {
   else if (s_state == ST_OVER) lv_obj_clear_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
 }
 
-// Secret unlock: recognise a one-stroke "K" — a left vertical spine, an upper-right
-// arm, a lower-right arm, and a mid-left waist. Forgiving on size/position; silent.
-static bool detect_K(const lv_point_t *p, int n) {
-  if (n < 8) return false;
-  int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
-  for (int i = 1; i < n; i++) {
-    if (p[i].x < minx) minx = p[i].x;
-    if (p[i].x > maxx) maxx = p[i].x;
-    if (p[i].y < miny) miny = p[i].y;
-    if (p[i].y > maxy) maxy = p[i].y;
-  }
-  int w = maxx - minx, h = maxy - miny;
-  if (w < 40 || h < 50) return false;        // needs a bit of size, but easy to meet
-  int spine_top = 0, spine_bot = 0;
-  bool arm = false;
-  for (int i = 0; i < n; i++) {
-    float nx = (float)(p[i].x - minx) / w, ny = (float)(p[i].y - miny) / h;
-    if (nx < 0.50f) { if (ny < 0.5f) spine_top++; else spine_bot++; }   // a vertical-ish left stroke
-    if (nx > 0.45f) arm = true;                                         // ...that reaches to the right
-  }
-  // Deliberately LENIENT (this is cover, not the lock): a left vertical spine plus anything
-  // reaching to the right counts as a "K". Easy to draw; a plain tap or flat swipe still won't match.
-  return spine_top >= 1 && spine_bot >= 1 && arm;
-}
-
-// The secret unlock is the word "KISS": a wide, multi-stroke drawing whose LEFT letter is a
-// K and which extends well to the right. Lenient on the I/S/S shapes (it's cover, not the lock).
+// The word recogniser moved to main/wallet_kissword.c. It went there because
+// it could not be tested here: main.c links into no test binary, so "KIS"
+// opened the decoy for months with every gate green. See sim/test_kissword.c.
+//
+// This adapter is the whole cost of the move -- the collector stores
+// lv_point_t and the module takes plain int arrays, for the same reason
+// wallet_gword.c does: no LVGL type crosses into code the desktop runner has
+// to build.
 static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
-  // Deliberateness comes from PEN LIFTS, not x-gaps: writing K I S S means at
-  // least four separate strokes (K may take two or three). Stroke count is
-  // immune to fat-finger blur, so it can be strict where the x-clustering
-  // below stays forgiving -- one wide stroke or a casual zigzag never fires.
-  if (strokes < 4) return false;
-  if (n < 10) return false;
-  int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
-  for (int i = 1; i < n; i++) {
-    if (p[i].x < minx) minx = p[i].x;
-    if (p[i].x > maxx) maxx = p[i].x;
-    if (p[i].y < miny) miny = p[i].y;
-    if (p[i].y > maxy) maxy = p[i].y;
-  }
-  int w = maxx - minx, h = maxy - miny;
-  // LOOSENED, and the reason is worth writing down: this used to be the gate in
-  // front of the passphrase keyboard, so a false positive was a tell and
-  // strictness was cheap. It now opens the DECOY, so a fumbled shape costs
-  // nothing at all -- someone lands in a spare wallet. Punishing ordinary
-  // handwriting bought safety that no longer needs buying, and the two S's
-  // merging under a fingertip was making the word genuinely hard to draw.
-  //
-  // What stays strict is what tells a WORD from a smudge: four pen lifts and
-  // three letter clusters, checked below. A tap or one flat swipe still cannot
-  // fire this.
-  if (w < 120 || h < 35) return false;                // still a word, just a smaller one
-  if (w < h) return false;                             // wider than tall; no aspect margin
-  // Require FOUR letter clusters along x (K-I-S-S) so "KIS" (3) won't unlock — both S's must be
-  // drawn. Letters are continuous in x; a >=2-bin empty gap marks a letter break. Only the K
-  // (leftmost cluster) is shape-checked; I/S/S just need to be there and separated.
-  // Bins are filled along same-stroke segments (not just at touch samples): fast strokes leave
-  // >1-bin gaps between samples, which used to split one letter into two phantom clusters and
-  // let a fast "KIS" count as 4. Pen-lifts still separate letters.
-  enum { KB = 40 };
-  bool occ[KB];
-  for (int b = 0; b < KB; b++) occ[b] = false;
-  for (int i = 0; i < n; i++) {
-    int b1 = (p[i].x - minx) * KB / (w + 1);
-    occ[b1] = true;
-    if (i > 0 && s_gid[i] == s_gid[i - 1]) {
-      int b0 = (p[i - 1].x - minx) * KB / (w + 1);
-      for (int b = b0 < b1 ? b0 : b1; b <= (b0 < b1 ? b1 : b0); b++) occ[b] = true;
-    }
-  }
-  int clusters = 0, gap = 0, k_hi = 0; bool in = false;
-  for (int b = 0; b < KB; b++) {
-    if (occ[b]) {
-      if (!in) { clusters++; in = true; }
-      if (clusters == 1) k_hi = b;                     // right edge of the leftmost letter (the K)
-      gap = 0;
-    } else if (in && ++gap >= 1) {
-      // 1-bin gaps are trustworthy letter breaks now that bins are segment-filled
-      // (no phantom splits); 2 bins (~w/20 px) was too strict for fat-finger drawing,
-      // which blurs the letters together and forced people to draw with a fingernail
-      in = false;
-    }
-  }
-  // 3+ letter blobs, not 4: on the real panel a finger-drawn "SS" usually merges
-  // into one blob in x, and demanding a clean gap made the unlock miserably hard
-  // (device finding). The strokes>=4 gate above supplies the missing strictness.
-  if (clusters < 3) return false;
-  int kcut = minx + (k_hi + 1) * (w + 1) / KB;         // isolate the leftmost letter
-  int ln = 0;
-  for (int i = 0; i < n; i++)
-    if (p[i].x <= kcut && ln < GEST_MAX) s_gsub[ln++] = p[i];
-  return detect_K(s_gsub, ln);                         // ...which must be a (lenient) K
+  if (n > GEST_MAX) n = GEST_MAX;
+  static int kx[GEST_MAX], ky[GEST_MAX];
+  for (int i = 0; i < n; i++) { kx[i] = p[i].x; ky[i] = p[i].y; }
+  return kw_is_kiss(kx, ky, s_gid, n, strokes);
 }
 
 // center the code + caption on the baked chip frame (566..760 x 39..86 in wallet_mock.py)
