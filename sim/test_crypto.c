@@ -33,6 +33,7 @@ int test_sdseed_layer(void);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
 int test_gword(void);
+int test_kissword(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
@@ -650,6 +651,7 @@ int main(int argc, char **argv) {
     fails += test_sdseed_layer();
     fails += test_duress();
     fails += test_gword();
+    fails += test_kissword();
     fails += test_passedit();
     fails += test_tapent();
     fails += test_art();

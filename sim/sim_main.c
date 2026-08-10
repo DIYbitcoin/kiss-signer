@@ -1852,15 +1852,14 @@ int main(void) {
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
   wallet_seed_wipe();                               // pretend a factory-fresh device
-  for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
-  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
-  for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);
-  for (int i = 0; i <= 8; i++) { touch(285, 130 + i * 21); pump(1); } release(); pump(2);
-  touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
-  touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
-  // The K reveals as soon as the "K I S" strokes satisfy the recogniser (see
-  // detect_KISS); a fourth "S" stroke would land as a tap on the now-revealed
-  // chooser (hitting CREATE NEW -> storage). Stop at the reveal.
+  // The whole word, via the same helper every other unlock in this walk uses.
+  //
+  // This used to be five strokes inline -- K, I and ONE S -- under a comment
+  // saying the recogniser reveals as soon as "K I S" satisfies it. It did, and
+  // that was the bug: three letters opened the device. The walk had been
+  // written around the defect, which is why no gate ever saw it. Drawing the
+  // real word here is what makes this stop mean anything.
+  draw_kiss_word(); release(); pump(20);
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
   pump(15);                                          // let the K-draw reveal transition settle
                                                      // before the first tap, or it lands dead
