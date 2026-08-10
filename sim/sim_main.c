@@ -2057,6 +2057,12 @@ int main(void) {
   save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live
   touch(430, 425); pump(3); release(); pump(4);     // DONE -> words
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
+  // The checksum card, and the only stop that renders it outside the BLIND
+  // DRAW path. Chip is 30px at (722, 24), so its centre is (737, 39); 40 pumps
+  // is the staggered card intro settled, same as the dice explainer above.
+  touch(737, 39); pump(3); release(); pump(40);
+  save("/tmp/sim_setup_words_cksum.ppm");           // THE BUILT IN CHECK, equation + 2 marks
+  touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
   touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct

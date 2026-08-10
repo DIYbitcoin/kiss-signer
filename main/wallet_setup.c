@@ -539,6 +539,104 @@ static void words_page_cb(lv_event_t *e)
     words_screen();
 }
 
+// The centred column an explainer's aside band draws into. Two asides want the
+// identical scaffold, and wallet_info.c already keeps its own copy of it; a
+// third hand placed one is how the shapes start disagreeing.
+static lv_obj_t *aside_col(lv_obj_t *p, int x, int y, int w)
+{
+    lv_obj_t *col = lv_obj_create(p);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, x, y);
+    lv_obj_set_width(col, w);
+    lv_obj_set_height(col, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 8, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    return col;
+}
+
+// The checksum, drawn: the owner's own first word beside the number the list
+// gives it, then the arithmetic that decides the last one. Shared by the cards
+// path's full screen and the words screen's "?" card, because two copies of an
+// equation is how a product ends up telling two stories about the same rule.
+//
+// Numerals and glyphs, so it is the same width in every locale and needs no
+// translation at all.
+static void cksum_diagram(lv_obj_t *col)
+{
+    char n1[16], okw[16];   // 16: device gcc sizes %d for a full int
+    snprintf(n1, sizeof n1, "%d", s_count - 1);
+    snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
+
+    // The premise, and until this row nothing in any flow had shown one: the
+    // words ARE numbers. On the cards path it is checkable against the deck in
+    // the owner's hand; on a generated seed it is the same claim about a word
+    // they are looking at.
+    int i0 = wallet_lastword_index(s_w[0]);
+    if (i0 >= 0) {
+        char num[16];
+        snprintf(num, sizeof num, "%d", i0);
+        lv_obj_t *r0 = wt_diagram_row(col);
+        wt_chip(r0, s_w[0], false);
+        wt_diagram_op(r0, "=");
+        wt_chip(r0, num, false);
+    }
+
+    lv_obj_t *r1 = wt_diagram_row(col);
+    wt_chip(r1, n1, false);
+    wt_diagram_op(r1, "+");
+    wt_chip(r1, okw, true);
+    wt_diagram_op(r1, LV_SYMBOL_RIGHT);
+    wt_chip(r1, LV_SYMBOL_OK, true);
+}
+
+static int aside_cksum(lv_obj_t *p, int x, int y, int w)
+{
+    lv_obj_t *col = aside_col(p, x, y, w);
+    cksum_diagram(col);
+    lv_obj_update_layout(col);
+    return lv_obj_get_height(col);
+}
+
+// One mark per claim: the check passing, and the check failing.
+static const char *const CKSUM_ICONS[] = { LV_SYMBOL_OK, LV_SYMBOL_WARNING };
+
+// The "?" on the words screen. A newcomer copying twelve words has no reason to
+// believe a miscopied one will ever be noticed, and that belief is what decides
+// how carefully they write. The last word is a check on the other eleven, so a
+// typo cannot silently open a different wallet -- and the whole lesson was
+// already written, translated into 21 locales and shown to nobody outside the
+// BLIND DRAW path, which is the one path a newcomer never takes.
+//
+// An overlay rather than a step in the flow: the words screen bottoms its grid
+// at 344 against a paper warning at 352, so there is no band to put this in,
+// and a screen between the words and the quiz would interrupt the copying it
+// exists to improve.
+static void words_help_cb(lv_event_t *e)
+{
+    (void)e;
+    // Composed rather than a new string: WT_GRID_ICONS reads `TERM: definition`
+    // per line, and the four keys it needs already ship in every locale. 768
+    // matches the other composed body on the device (wallet_info.c).
+    char body[768];
+    snprintf(body, sizeof body, "%s: %s\n%s: %s",
+             tr(STR_W_CKSUM_W1_H), tr(STR_W_CKSUM_W1_B),
+             tr(STR_W_CKSUM_W2_H), tr(STR_W_CKSUM_W2_B));
+    wt_explain_t x = {
+        .title  = tr(STR_W_CKSUM_T),
+        .sub    = tr(STR_W_CKSUM_S),
+        .icon   = LV_SYMBOL_OK,
+        .body   = body,
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_GRID_ICONS,
+        .icons  = CKSUM_ICONS,
+        .aside  = aside_cksum,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 static void words_screen(void)
 {
     const int pages = (s_count + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE;
@@ -546,6 +644,12 @@ static void words_screen(void)
     if (s_wpage >= pages) s_wpage = pages - 1;
 
     mk_screen(tr(STR_W_WRITE_T), tr(STR_W_WRITE_S));
+    // The "?" takes the right end of the title's own row, so the title gets 650
+    // rather than the full 704 -- the same arrangement the quiz uses for its
+    // round counter, and for the same reason: without it the longer titles run
+    // straight through the chip.
+    wt_title_fit(s_scr, 650);
+    wt_help_chip(s_scr, 722, 24, MUT_COL, words_help_cb, NULL);
 
     const int first = s_wpage * WORDS_PER_PAGE;
     int on = s_count - first;
@@ -1636,15 +1740,7 @@ static const char *const DICE_HELP_ICONS[] = {
 // so this row can never be the thing that fails a fit check.
 static int aside_dice_flow(lv_obj_t *p, int x, int y, int w)
 {
-    lv_obj_t *col = lv_obj_create(p);
-    lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, x, y);
-    lv_obj_set_width(col, w);
-    lv_obj_set_height(col, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *col = aside_col(p, x, y, w);
 
     char buf[WT_ICON_TEXT_MAX];
     lv_obj_t *row = wt_diagram_row(col);
@@ -2474,33 +2570,11 @@ static void cards_cksum_screen(void)
     lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
-    char n1[16], okw[16];   // 16: device gcc sizes %d for a full int
-    snprintf(n1, sizeof n1, "%d", s_count - 1);
-    snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
-
-    // Both blocks below say "the numbers behind your words" and until this row
-    // nothing in the flow had ever shown one. Here is the owner's own first
-    // word beside the number printed on the card they drew it from -- their
-    // number, checkable against the deck in their hand, in the one notation
-    // that needs no translation. It stands where a mirrored "wrong last word"
-    // equation used to: that row said what the WARN block directly beneath it
-    // already says in full, while this premise was said nowhere at all.
-    int i0 = wallet_lastword_index(s_w[0]);
-    if (i0 >= 0) {
-        char num[16];
-        snprintf(num, sizeof num, "%d", i0);
-        lv_obj_t *r0 = wt_diagram_row(col);
-        wt_chip(r0, s_w[0], false);
-        wt_diagram_op(r0, "=");
-        wt_chip(r0, num, false);
-    }
-
-    lv_obj_t *r1 = wt_diagram_row(col);
-    wt_chip(r1, n1, false);
-    wt_diagram_op(r1, "+");
-    wt_chip(r1, okw, true);
-    wt_diagram_op(r1, LV_SYMBOL_RIGHT);
-    wt_chip(r1, LV_SYMBOL_OK, true);
+    // Both blocks below say "the numbers behind your words", and the diagram is
+    // where one gets shown. It moved out to cksum_diagram when the words screen
+    // grew a "?" carrying the same lesson: the equation is the lesson, so the
+    // two places that teach it draw from one builder or they drift.
+    cksum_diagram(col);
 
     // The verdict, kept where the flow can still see it. This screen is reached
     // clean or through USE ANYWAY, and a warning that vanishes on the next tap
