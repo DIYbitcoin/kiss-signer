@@ -2431,7 +2431,7 @@ int main(void) {
   // result. Without this the write happens behind the last frame of the
   // confirm screen and no gate sees the screen that says keep it powered.
   touch(213, 431); pump(95); release(); pump(1);
-  save("/tmp/sim_fw_writing.ppm");                  // percent card + keep powered
+  save("/tmp/sim_fw_writing.ppm");                  // the DARK -> DONE band + the pair
   // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
   // the screen that announces it, so the panel can go dark on purpose rather
   // than mid-paint. It used to be one LVGL tick, and 20 frames cleared that

@@ -23,7 +23,6 @@ static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
 static void (*s_done)(void);
 static wfw_image_t s_img;
-static lv_obj_t *s_pct_card;
 
 // The pair geometry from the project rules, shared with the fingerprint reveal,
 // the passphrase intro and the backup check. Not re-derived here.
@@ -42,14 +41,12 @@ static void close_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_pct_card = NULL;
     if (s_done) s_done();
 }
 
 static void fresh(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_pct_card = NULL;
     s_scr = wt_screen(s_parent, title, sub);
 }
 
@@ -59,6 +56,30 @@ static void size_str(char *out, size_t n, size_t bytes)
 {
     unsigned mb10 = (unsigned)((bytes * 10 + 524288) / 1048576);
     snprintf(out, n, "%u.%u MB", mb10 / 10, mb10 % 10);
+}
+
+// What the panel is about to do, drawn, on both screens that need it.
+//
+// A firmware write starves the DSI panel's framebuffer read, so install_now
+// blacks the glass and drives the backlight instead: a dark slab whose light
+// climbs back to full as the bytes land. That is the right behaviour and it
+// looks exactly like a device that died. This row is the difference. The owner
+// meets it on CONFIRM, where they have a hold's worth of time to read it, and
+// again on WRITING as the last thing lit before the dark it describes.
+//
+// Costs one string. DONE is C_DONE, already shipped in 21 locales, because a
+// second key for a word the product already translates is a locale to keep in
+// step for nothing.
+static void fw_light_band(int y)
+{
+    char buf[WT_ICON_TEXT_MAX];
+    lv_obj_t *row = wt_diagram_row(s_scr);
+    snprintf(buf, sizeof buf, "%s %s", LV_SYMBOL_EYE_CLOSE, tr(STR_G_FW_CH_DARK));
+    wt_chip(row, buf, false);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    snprintf(buf, sizeof buf, "%s %s", LV_SYMBOL_OK, tr(STR_C_DONE));
+    wt_chip(row, buf, true);
+    lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
 }
 
 // ---- 4. result -------------------------------------------------------------
@@ -123,14 +144,10 @@ static void result_screen(int rc)
 //
 // This used to set a percent card and force a refresh for it. Neither did
 // anything an owner could see: install_now blacks the framebuffers and then
-// blocks inside wallet_fw_install for the whole write, so the card is dark
+// blocks inside wallet_fw_install for the whole write, so the card was dark
 // from the first chunk to the last. Only the simulator, which writes no flash
-// and has no framebuffer to starve, ever watched it count.
-//
-// The card is still built by writing_apply because it is the only framed
-// element on that screen, and taking it out would leave a wide paragraph and
-// nothing else. It goes when the DARK -> DONE band replaces it, which needs
-// two strings and therefore 21 locales.
+// and has no framebuffer to starve, ever watched it count. The card is gone;
+// fw_light_band says what the light is going to do instead.
 //
 // What is left runs BETWEEN esp_ota_write calls, with the cache back, and
 // touches a PWM register. Keeping this function to exactly that makes it
@@ -183,9 +200,19 @@ static void writing_apply(void *ud)
     // No BACK and no CANCEL: past this point the receiving slot is being erased,
     // and the honest options are finish or lose power, neither of which is a
     // button.
-    s_pct_card = wt_value_card(s_scr, tr(STR_G_FW_PCT), "0%", 250, 170, 300, true);
-    wt_why_block(s_scr, NULL, tr(STR_G_FW_RISK_B), BLK_L_X, 300, 704,
-                 WT_CONTENT_BOTTOM - 300, NULL, WT_WARN);
+    fw_light_band(150);
+
+    // The pair, measured exactly as confirm_screen measures its own, so the two
+    // screens either side of the hold carry the same shape: how it works in the
+    // accent on the left, where it goes wrong in WT_WARN on the right. This was
+    // one 704 wide paragraph under a percent card that never counted.
+    const char *lb = tr(STR_G_FW_DARK_B);
+    const char *rb = tr(STR_G_FW_RISK_B);
+    const lv_font_t *f = wt_body_font2(lb, rb, BLK_W - 14, BLK_H - WT_FW_HEAD_ROOM - 8);
+    wt_why_block(s_scr, tr(STR_G_FW_DARK_H), lb, BLK_L_X, BLK_Y, BLK_W, BLK_H, f,
+                 wt_accent());
+    wt_why_block(s_scr, tr(STR_G_FW_RISK_H), rb, BLK_R_X, BLK_Y, BLK_W, BLK_H, f,
+                 WT_WARN);
 
     // Lit long enough to be read, then dark. This was 30 ms, which is two
     // frames: the screen that tells an owner the panel is about to go dark was
@@ -207,6 +234,11 @@ static void confirm_screen(void)
 {
     bool down = s_img.cmp < 0;
     fresh(tr(STR_G_FW_CONFIRM_T), s_img.version);
+
+    // Above the pair, because the dark is the part of this that looks like a
+    // fault, and the screen it happens on is lit for one hold. Here there is
+    // time to read it.
+    fw_light_band(150);
 
     // Two claims, not one paragraph: how it works on the left in the accent,
     // where it goes wrong on the right in WT_WARN. A downgrade swaps the left
