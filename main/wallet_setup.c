@@ -122,6 +122,7 @@ static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
 static void cards_intro_screen(void);
+static void goto_method_cb(lv_event_t *e);
 static void cards_cksum_open(void);
 static void cards_cksum_screen(void);
 static void cards_warn_screen(void);
@@ -1349,8 +1350,24 @@ static void ent_ui_sync(int pct, int reason)
 // still what the count screen lists first; the choice is no longer made for
 // them by a callback.
 static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_dice = false; s_count = 12; entropy_screen(); }
-static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_dice = true;  count_screen(); }
-static void method_cards_cb(lv_event_t *e) { (void)e; s_cards = true; s_dice = false; count_screen(); }
+// Dice goes STRAIGHT to the keypad now, at 12, the same as the camera beside
+// it. It went through the count screen so the 99 roll floor was reachable, and
+// that floor is what this gives up.
+//
+// The owner's call, and the argument is the one already written a few hundred
+// lines down: 128 bits is not brute forceable by anything, so the extra 128
+// buys margin against nothing. What it did buy was a screen asking a newcomer
+// to choose between two numbers neither of which they can evaluate, on the way
+// to making the only key they will ever have. Restore still offers both, where
+// the count is not a choice but a fact about the paper in the owner's hand.
+static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_dice = true;  s_count = 12; dice_screen(); }
+// Cards goes to 12 as well, so all three creation paths now make the same
+// thing. It had the best case for keeping the choice -- the count decides how
+// many cards the OWNER physically draws, which is their cost and not the
+// device's -- and it still loses, because a newcomer meeting the question at
+// all has to answer it, and the honest answer is that it does not matter.
+// 23 hand drawn cards instead of 11 buys margin against nothing.
+static void method_cards_cb(lv_event_t *e) { (void)e; s_cards = true; s_dice = false; s_count = 12; cards_intro_screen(); }
 
 static void method_screen(void)
 {
@@ -2447,7 +2464,9 @@ static void cards_intro_screen(void)
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, WT_ACTION_Y, 300,
                           cards_start_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_count_cb, NULL);
+    // Back to the METHOD chooser, not the count screen: cards makes 12 and no
+    // longer passes through it.
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_method_cb, NULL);
 }
 
 // ---- the draw, drawn ----
@@ -2758,8 +2777,11 @@ static void count_pick_cb(lv_event_t *e)
 {
     s_count = (int)(intptr_t)lv_event_get_user_data(e);
     if (s_cards) { cards_intro_screen(); return; }
-    // The keypad reads the count back through dice_need(), so the floor under
-    // the tally becomes 99 here without this callback saying so.
+    // Dice no longer reaches this screen (method_dice_cb goes straight to the
+    // keypad at 12). The branch stays because dice_need() still reads s_count
+    // for the floor under the tally: if a future change puts the choice back,
+    // this is the line that has to work, and a dead branch is cheaper than
+    // rediscovering why the floor was 50.
     if (s_dice)  { dice_screen(); return; }
     if (s_restore) restore_screen();
     else entropy_screen();
@@ -2769,11 +2791,20 @@ static void goto_method_cb(lv_event_t *e) { (void)e; method_screen(); }
 
 static void count_screen(void)
 {
-    // Reached while RESTORING, or from the two creation paths whose cost is
-    // paid by the owner rather than the device: cards, where the count decides
-    // how many cards get drawn, and dice, where it decides whether the floor
-    // under the tally is 50 rolls or 99. Camera never arrives here -- it makes
-    // 12 and its screens are built around that.
+    // Reached while RESTORING, where the count is not a choice at all -- it is
+    // a fact about the paper already in the owner's hand, and getting it wrong
+    // is the difference between finding your wallet and not.
+    //
+    // No creation path arrives here any more. Camera, dice and BLIND DRAW all
+    // make 12 and go straight to their own screens. This page used to ask a
+    // newcomer to pick between two numbers neither of which they could
+    // evaluate, immediately before making the only key they will ever have,
+    // and the honest answer to the question was that it does not matter:
+    // 128 bits is not brute forceable by anything.
+    //
+    // s_restore is therefore always true here. The ternary stays because the
+    // screen still reads better with the branch visible than with a comment
+    // explaining why a title is unconditional.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     // Rows, on the chooser grid the storage and create-or-restore screens use.
     // Three pills each trailing a note in a column 380px away was the last
@@ -2797,21 +2828,27 @@ static void count_screen(void)
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
     else {
-        // Creating, so row 2 is free and 306..382 is the same slot the first
-        // setup screen puts this exact card in. Someone RESTORING already owns
-        // a seed and is reading it off paper; someone CREATING is being asked
-        // to choose a length, and W_WHATSEED_S answers that question by name.
-        // Same card, same lane, same mark, so it is recognised rather than met.
+        // UNREACHABLE, and left standing on purpose for one release.
+        //
+        // This was the seed explainer's second door: creating, row 2 was free,
+        // and 306..382 is the slot the first setup screen puts the same card
+        // in. It is dead now because no creation path reaches this screen --
+        // camera, dice and BLIND DRAW all make 12 and go straight on.
+        //
+        // The door itself was right, and the argument for it still holds:
+        // someone RESTORING owns a seed already, someone CREATING does not. If
+        // a length choice ever comes back to a creation path, this is the block
+        // that belongs with it. check_screen_coverage.py will name it as built
+        // and never captured, which is the correct report -- it is built by a
+        // branch nothing takes.
         lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, 306, WT_CHOICE_W, 76);
         wt_note(hc, tr(STR_W_SEED_HELP), 16, 22, WT_CHOICE_W - 32 - 34, 34);
         wt_help_chip(hc, WT_CHOICE_W - 44, 23, MUT_COL, whatseed_count_cb, NULL);
-        // The sentence is the target, not the punctuation: the same argument
-        // choose_screen makes, and the same reason the whole card is clickable.
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_count_cb, LV_EVENT_CLICKED, NULL);
     }
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            (s_cards || s_dice) ? goto_method_cb : goto_choose_cb, NULL);
+    // Restore is the only way in now, so BACK has one destination again.
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----

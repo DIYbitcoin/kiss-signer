@@ -1157,10 +1157,15 @@ void wallet_settings_open(lv_obj_t *parent)
 // setting, and at SG_L_W its label ellipsised to "Duress w..." while the value
 // took the rest -- which reads as a struck through label, not as a narrow row.
 #define SG_FULL_W (SG_R_X + SG_R_W - SG_L_X)
-// 331, not a multiple of SG_PITCH. This row answers to the page edge rather
-// than to either column's grid: it clears the deepest column (NO UNDO ends on
-// 324) by the standard 7px gap and ends on 395, inside WT_CONTENT_BOTTOM.
-#define SG_FULL_Y 331
+// 308: the standard 7px gap under the LEFT column, which is the column this row
+// actually continues. It was 331, measured against the right column's deepest
+// point -- but that point is a RESERVED EMPTY SLOT (260..324), not a card. NO
+// UNDO's last card ends on 253. So 331 was clearing nothing and left a 30px
+// band of dead page above a full width row, which is what it looked like.
+//
+// The empty slot's job was to read as the end of a column. A full width row
+// under both columns does that better, and does it without the gap.
+#define SG_FULL_Y 308
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: the one row on this page whose control IS the choice, so redraw 05
@@ -1365,9 +1370,14 @@ void wallet_settings_open(lv_obj_t *parent)
     // deliberate mark from a slip, not to be a secret; the passphrase is the
     // secret. So the row reports whether a way in has been rehearsed, and the
     // screen behind it is where the shape is chosen and taught.
+    // SET / NOT SET, not the button's name. With the label back to "Duress" the
+    // value has to be a STATE or the row reads as a struck through label again,
+    // which is the exact fault 324ef09 renamed the row to escape. It reports
+    // whether a way in has been rehearsed and nothing else -- never WHICH mark,
+    // which is the reason the label could come back at all.
     const int g = wallet_duress_real();
     wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
-           g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_SET_BTN),
+           g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_ON),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
            duress_cb, NULL);
 

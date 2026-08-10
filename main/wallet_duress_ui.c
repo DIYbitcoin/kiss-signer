@@ -357,11 +357,16 @@ static void stage_build(int stage)
     case ST_FUND: {
         s_scr = wt_screen(s_parent, tr(STR_GD_FUND_T), NULL);
         // The spare has an identity of its own, which is the half of this
-        // screen that is a fact rather than an instruction.
+        // screen that is a fact rather than an instruction -- and the diagram
+        // now says SO. It drew SPARE -> FINGERPRINT, which reads as though the
+        // spare produced THE fingerprint, the one the owner already wrote down.
+        // It does not: it is a different keyset with a different code, and a
+        // reader who misses that will compare the spare against their paper and
+        // conclude the device is broken.
         lv_obj_t *row = wt_diagram_row(diagram_box(112));
         chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
-        chip_icon(row, WT_ICON_KEY, tr(STR_D_FINGERPRINT), true);
+        chip_icon(row, WT_ICON_KEY, tr(STR_D_OWN_FP), true);
         // Two claims, two columns: it really works, and an empty one is a tell.
         wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole

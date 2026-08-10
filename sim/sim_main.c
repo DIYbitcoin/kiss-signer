@@ -1932,9 +1932,9 @@ int main(void) {
   // row 2 is 300..396, so 346 is its middle.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW (row 2)
-  save("/tmp/sim_setup_cards_count.ppm");           // 12 / 24, and no QR row
-  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS (row 0)
+  // Straight to the intro at 12: BLIND DRAW no longer asks for a length either,
+  // so sim_setup_cards_count is gone with the screen it photographed.
+  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW (row 2) -> intro, at 12
   save("/tmp/sim_setup_cards_intro.ppm");           // 11 + 1 -> 12, two why blocks
   // The "?" in the equation card's corner: card at x=48,y=128 plus (704-44,12)
   // puts the 30px chip at 708,140, so its centre is 723,155. 40 = the staggered
@@ -1962,23 +1962,12 @@ int main(void) {
     fprintf(stderr, "cards cancel left storage mode staged\n");
     return 1;
   }
-  // the 24 word draw: 23 typed, a single page of 8 candidates, no pager
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS (row 1)
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
-  static const char *CARDS_OK23[23] = {
-      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m", "fil",
-      "fol", "st", "fea", "stab", "na", "fen", "ab", "abi", "abl", "abo" };
-  for (int i = 0; i < 23; i++) restore_word(CARDS_OK23[i]);
-  touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
-  save("/tmp/sim_setup_cards_pick24.ppm");          // 8 pills, no pager
-  touch(128, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
-  if (s_sim_pending_mode != -1) {
-    fprintf(stderr, "cards cancel (24) left storage mode staged\n");
-    return 1;
-  }
+  // The 23 word draw and its single page of 8 candidates are GONE, with the
+  // length choice that reached them. Creating makes 12, so the picker is always
+  // 128 candidates over 8 pages and sim_setup_cards_pick24 photographs a shape
+  // the product no longer builds. wallet_lastword still computes the 8 for a 23
+  // word prefix and kisstest still pins it -- restoring a 24 word phrase is
+  // untouched. What went is the screen, not the arithmetic.
 
   // The refused draw. The judge links REAL here, so typing one word eleven
   // times IS the block, rendered rather than described -- the same argument the
@@ -2023,36 +2012,21 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED again
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
 
-  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> how many words
-  save("/tmp/sim_setup_dice_count.ppm");            // 12 or 24, and dice honours both
-  // The seed explainer's second door. W_WHATSEED_S is "12 or 24 ordered words,
-  // called a BIP39 mnemonic", which is this screen's question, so the card the
-  // first setup screen carries sits here too -- 42..758 at y=306, centre
-  // (400, 344). The BACK afterwards is the point: it has to land back HERE and
-  // not at the start, which is what s_whatseed_ret exists for.
-  touch(400, 344); pump(3); release(); pump(4);     // new here? what a seed phrase is
-  save("/tmp/sim_setup_whatseed_count.ppm");        // YOUR SEED PHRASE
-  touch(680, 425); pump(3); release(); pump(4);     // BACK -> the count screen
-  // The 24 word branch, as an excursion: DICE_FLOOR_256 has been written,
-  // reasoned and pinned by kisstest since the dice module landed, and no screen
-  // could reach it. Roll three and the tally reads 3 / 99, which is the whole
-  // claim -- that picking 24 moves the floor. Rows sit on the chooser grid:
-  // WT_CHOICE_Y(0) = 96 and (1) = 198, both 96 tall, so centres are 144 and 246.
-  touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS -> the keypad
-  for (int i = 0; i < 3; i++) { touch(160 + i * 94, 146); pump(4); release(); pump(4); }
-  save("/tmp/sim_setup_dice_99.ppm");               // 3 / 99, no verdict chip yet
-  // The keypad's only ways out are DONE, disabled at three rolls, and CANCEL,
-  // and CANCEL is cancel_cb -> close_all, which deletes the wizard screen and
-  // leaves the MENU underneath -- not the chooser. So the word has to be drawn
-  // again to get back in. Writing this the obvious way instead cost the rest of
-  // the walk: every stop after this point photographed the game, and the gates
-  // reported clean on all 21 locales while doing it.
-  touch(680, 425); pump(3); release(); pump(4);     // CANCEL -> the menu
-  draw_kiss(); pump(15);                            // the word reveals the chooser
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE A NEW WALLET
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 240); pump(3); release(); pump(4);     // DICE again
-  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS -> the keypad
+  // DICE lands on the KEYPAD, not on a count screen. Every creation path makes
+  // 12 now, so there is no length to choose and nothing between the method row
+  // and the rolling.
+  //
+  // Two stops died with that screen and are not replaced here, deliberately:
+  //
+  //   sim_setup_dice_count   -- the screen is gone from this path
+  //   sim_setup_whatseed_count -- the seed explainer's SECOND door lived on it.
+  //       The door is still built (count_screen's create branch) but nothing
+  //       reaches it; check_screen_coverage.py naming it as built-and-never-
+  //       captured is the correct report, not a regression to chase.
+  //   sim_setup_dice_99      -- the 24 word branch reached DICE_FLOOR_256 and
+  //       there is no longer a way to ask for 24 while creating. kisstest still
+  //       pins the floor arithmetic; what is gone is the SCREEN that showed it.
+  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> the keypad, at 12
   save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
   // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
   // real judge this loop is a textbook ramp — so instead of dodging that, it
