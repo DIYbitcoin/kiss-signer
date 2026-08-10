@@ -19,7 +19,8 @@
 #include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "wallet_fw.h"          // the SD firmware seams: no flash here, no key
 #include "wallet_fw_ui.h"       // its screens, opened directly like the above
-#include "wallet_duress.h"      // WDG_* , to reach ST_INTRO's configured state
+#include "wallet_duress.h"
+#include "wallet_gword.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
@@ -1241,73 +1242,73 @@ int main(void) {
     }
     wallet_duress_set(WDG_NONE);
 
-    // ---- a custom word replaces KISS outright ----
+    // ---- a written word replaces KISS outright ----
     //
     // The whole point of the feature, driven through the real touch layer:
-    // main.c splits the draw into strokes, reads each as a free mark and
-    // compares the run. Nothing here is reachable from a unit test, because
-    // unlock_kind lives in main.c and no test binary links it -- the same gap
-    // that let the routing fork survive.
+    // main.c slices the draw by stroke, rebuilds a template from the first
+    // strokes and compares it to the stored one. None of this is reachable
+    // from a unit test, because unlock_kind lives in main.c and no test binary
+    // links it -- the same gap that let the routing fork survive.
     {
-      const uint8_t word[4] = { WDF_LINE, WDF_SLASH, WDF_CIRCLE, WDF_CHECK };
-      wallet_duress_word_set(word, 4);
+      // Teach it the word by the same route the enrolment screen uses: build a
+      // template from a real draw rather than hand-filling the struct, so the
+      // walk exercises gw_make on the panel's own decimated ink.
+      extern int sim_capture_word(gw_template_t *out);
+      lock_to_menu();
+      draw_kiss_word();                 // the letters KISS, as any word would be
+      pump(4);
+      gw_template_t t;
+      if (sim_capture_word(&t) != 0 || gw_stored_set(&t) != 0) {
+        printf("FAIL: written word: could not teach the device a word\n");
+        g_walk_fails++;
+      }
+      pump(200);                        // let the collector's idle clear run
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      mark_line(); mark_slash(); mark_circle(); mark_check();
-      pump(40);
+      draw_kiss();                      // the same word, no mark after it
       if (g_last_unlock_kind != WDR_DECOY) {
-        printf("FAIL: custom word: the word alone routed %d, expected WDR_DECOY (%d)\n",
+        printf("FAIL: written word: the word alone routed %d, expected WDR_DECOY (%d)\n",
                g_last_unlock_kind, WDR_DECOY);
         g_walk_fails++;
       }
-      must_not_show("custom/word-alone", tr(STR_L_TYPE_PROMPT));
+      must_not_show("written/word-alone", tr(STR_L_TYPE_PROMPT));
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      mark_line(); mark_slash(); mark_circle(); mark_check(); mark_slash();
-      pump(40);
+      draw_kiss_underlined();           // the word plus one mark
       if (g_last_unlock_kind != WDR_REAL) {
-        printf("FAIL: custom word: word plus a mark routed %d, expected WDR_REAL (%d)\n",
+        printf("FAIL: written word: word plus a mark routed %d, expected WDR_REAL (%d)\n",
                g_last_unlock_kind, WDR_REAL);
         g_walk_fails++;
       }
-      // The real route left the passphrase keyboard up. Finish the same login
-      // the walk uses everywhere else so the next step starts on a home.
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
       touch(622, 430); pump(3); release(); pump(12);
       pump(120);
 
-      // And the sentence this feature exists to make true: on a device with a
-      // word of its own, KISS opens NOTHING. Anyone who knows the product
-      // draws it, gets a fruit game, and has no way to tell that from a device
-      // that was never a signer.
+      // And the sentence the feature exists to make true: with a word stored,
+      // a DIFFERENT draw opens nothing at all. Two plain strokes here, nothing
+      // like the stored shape and nowhere near its stroke count.
       lock_to_menu();
       g_last_unlock_kind = -2;
-      draw_kiss();
+      mark_line(); mark_slash();
+      pump(40);
       if (g_last_unlock_kind != -2) {
-        printf("FAIL: custom word: KISS still routed %d\n", g_last_unlock_kind);
+        printf("FAIL: written word: a wrong draw routed %d\n", g_last_unlock_kind);
         g_walk_fails++;
       }
-      must_not_show("custom/kiss-is-dead", tr(STR_L_TYPE_PROMPT));
+      must_not_show("written/wrong-word", tr(STR_L_TYPE_PROMPT));
 
       // Put it back, and hand the walk the session it expects.
-      //
-      // NOT lock_to_menu() here: nothing is open, so wallet_lock returns early,
-      // its throwaway tap is not swallowed, and a tap on the menu starts a
-      // GAME. The walk then spent the next forty steps sending taps into Fruit
-      // Island and failed on a file list. The draw above was refused, so what
-      // has to clear is the collector, and the 3s idle clear is exactly the
-      // thing that does it -- 200 frames is 3.2s.
-      wallet_duress_word_set(NULL, 0);
+      gw_stored_set(NULL);
       pump(200);
       draw_kiss_underlined();
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
       touch(622, 430); pump(3); release(); pump(12);
       pump(120);
-      printf("ok: a custom word replaces KISS, and KISS then opens nothing\n");
+      printf("ok: a written word replaces KISS, and a wrong draw opens nothing\n");
     }
 
     // Identical expectations for both configurations is the whole test: if
@@ -2425,7 +2426,12 @@ int main(void) {
   // confirm screen and no gate sees the screen that says keep it powered.
   touch(213, 431); pump(95); release(); pump(1);
   save("/tmp/sim_fw_writing.ppm");                  // percent card + keep powered
-  pump(20);
+  // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
+  // the screen that announces it, so the panel can go dark on purpose rather
+  // than mid-paint. It used to be one LVGL tick, and 20 frames cleared that
+  // easily; at 75 the walk was still on WRITING when it saved the frame it
+  // calls sim_fw_done, and check_sim_taps rightly called the two identical.
+  pump(100);
   save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
 
   // 3. the refusal that matters most, on the same route: a signature that did

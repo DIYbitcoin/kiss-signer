@@ -45,6 +45,7 @@
 #include "wallet_crypto.h"
 #include "wallet_theme.h"
 #include "wallet_duress.h"
+#include "wallet_gword.h"
 #include "wallet_duress_ui.h"
 // platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
 // SD-storage badge probes it outside any device-only block, so its header is
@@ -239,6 +240,7 @@ static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
 static lv_point_t s_gsub[GEST_MAX]; // scratch: the left-letter subset, for the K check
 static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for wallet_duress
+static uint8_t s_msid[GEST_MAX];    // ...and its stroke ids, for wallet_gword
 static int s_gn;
 static int s_strokes;              // number of strokes in the current draw (KISS is many)
 static int s_stroke_n0;            // index where the current stroke began (tap vs draw test)
@@ -1686,6 +1688,31 @@ static void wallet_open_decoy(void) {
 int g_last_unlock_kind = -2;
 #endif
 
+// Match the draw against the owner's own written word.
+//
+// Returns how many STROKES the word consumed, or 0 if the draw does not begin
+// with it. The word's own stroke count is what says where it ends, which is the
+// one measurement that survives a shaky hand: the template stores it, and
+// gw_distance refuses to compare across a different one anyway.
+//
+// Prefix, not equality, for the same reason KISS is: whatever strokes are left
+// over are the mark that picks the door.
+static int written_word_match(const gw_template_t *stored)
+{
+    if (!stored || !stored->set || s_strokes < stored->strokes)
+        return 0;
+    // Points belonging to the first `stored->strokes` strokes. s_gid is 1 based
+    // (the collector increments s_strokes before stamping), so the word is
+    // every point whose id is <= the stored count.
+    int n = 0;
+    for (int i = 0; i < s_gn; i++)
+        if (s_gid[i] <= stored->strokes) { s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; s_msid[n] = s_gid[i]; n++; }
+    gw_template_t t;
+    if (gw_make(s_mx, s_my, s_msid, n, &t) != 0)
+        return 0;
+    return gw_matches(stored, &t) ? stored->strokes : 0;
+}
+
 // Read the draw as a run of FREE marks: one mark per stroke, in order.
 //
 // Returns how many marks were read, or -1 the moment a stroke refuses to
@@ -1710,6 +1737,21 @@ static int free_marks(uint8_t *out, int max)
     return n;
 }
 
+#ifdef SIMULATOR
+// Build a template from whatever the collector is holding, so the walk can
+// teach the device a word through the same ink the game reads rather than by
+// hand-filling the struct. Exists only here: nothing on the device needs it,
+// and the enrolment screen has its own capture.
+int sim_capture_word(gw_template_t *out)
+{
+    int n = 0;
+    for (int i = 0; i < s_gn; i++) {
+        s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; s_msid[n] = s_gid[i]; n++;
+    }
+    return gw_make(s_mx, s_my, s_msid, n, out);
+}
+#endif
+
 static int unlock_kind(void) {
   // An owner who set their own word replaces KISS OUTRIGHT. detect_KISS is not
   // consulted below, and that is the feature: a locked device shows Fruit
@@ -1720,10 +1762,10 @@ static int unlock_kind(void) {
   // one more mark asks for the passphrase. wallet_duress_route still decides,
   // through route_marked, so the property the audit closed holds here too --
   // the door is picked by whether there was an extra mark, never by which one.
-  if (wallet_duress_word_len() > 0) {
-    uint8_t marks[WDW_MAX + 1];
-    int n = free_marks(marks, (int)(sizeof marks));
-    int used = n > 0 ? wallet_duress_word_match(marks, n) : 0;
+  gw_template_t stored;
+  if (gw_stored_get(&stored)) {
+    int used = written_word_match(&stored);
+    int n = used ? s_strokes : 0;
     // used == 0 covers both a miss and an unreadable stroke, and answers the
     // same way a wrong draw always has: nothing happens and nothing is said.
     // n - used > 1 is trailing junk after a correct word, which is not a way
@@ -2048,7 +2090,7 @@ static void game_tick(lv_timer_t *t) {
           // What still catches a genuinely abandoned attempt on those devices
           // is the same thing that always did: the idle clear.
           if (s_gn > 0 && !s_kiss_pending &&
-              wallet_duress_word_len() == 0) {         // drop a stale prior attempt if this stroke
+              !gw_stored_any()) {                      // drop a stale prior attempt if this stroke
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
               if (s_gpt[i].x > mx) mx = s_gpt[i].x;     // RESTART (a fresh K) begins far to the left.

@@ -15,6 +15,8 @@
 #include "wallet_setup.h"
 #include "wallet_duress.h"
 #include "wallet_duress_ui.h"
+#include "wallet_word_ui.h"
+#include "wallet_gword.h"
 #include "wallet_fw_ui.h"   // SD firmware update: the screens this page opens
 #include "wallet_theme.h"
 #include "wallet_ui.h"   // wallet_build_id_apply: the shared build-identity line
@@ -564,9 +566,8 @@ static void type_open_cb(lv_event_t *e)
 }
 
 // The stroke chooser takes over the screen and hands control back here.
-static void duress_cb(lv_event_t *e)
+static void duress_open(void)
 {
-    (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     // No passphrase on this session means this wallet IS the spare: both ways
     // in reach it, so configuring a stroke would only let someone believe
@@ -575,6 +576,51 @@ static void duress_cb(lv_event_t *e)
         wallet_duress_ui_open_nopass(s_parent, settings_reopen);
     else
         wallet_duress_ui_open(s_parent, settings_reopen);
+}
+
+// Two destinations behind one row, because they are two halves of one question.
+// The stroke decides WHICH signer a draw opens; the word decides what has to be
+// drawn at all. Splitting them into two Settings rows would put the rarer and
+// more consequential of the two -- the one that can make a device unopenable --
+// in the same list as the address type.
+static void waysin_stroke_cb(lv_event_t *e) { (void)e; duress_open(); }
+
+static void waysin_word_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    wallet_word_ui_open(s_parent, settings_reopen);
+}
+
+static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
+
+static void duress_cb(lv_event_t *e)
+{
+    (void)e;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
+
+    // What is set today, as chips, so the page answers the question before
+    // either pill is tapped: which mark reaches the real signer, and whether
+    // this device still answers to KISS at all.
+    {
+        lv_obj_t *row = wt_diagram_row(s_scr);
+        const int g = wallet_duress_real();
+        wt_chip(row, g == WDG_NONE ? tr(STR_GD_OFF)
+                                   : tr(wallet_duress_label_key(g)),
+                g != WDG_NONE);
+        wt_chip(row, gw_stored_any() ? tr(STR_GD_WORD_T) : "KISS",
+                gw_stored_any());
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 150);
+    }
+
+    wt_pill(s_scr, tr(STR_GD_SET_BTN), 48, WT_ACTION_Y, 270,
+            waysin_stroke_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
+            waysin_word_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            waysin_back_cb, NULL);
 }
 
 static void theme_pick_cb(lv_event_t *e)
