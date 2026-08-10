@@ -151,8 +151,14 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_update_layout(col);
     return lv_obj_get_height(col);
 }
+// The code the fingerprint card is currently explaining. A static, because the
+// aside callback wt_explain_open takes has no user data and this is the only
+// diagram on the device that needs to draw a live value.
+static char s_fp_code[16];
+static void diagram_fpid(lv_obj_t *col) { wt_diagram_fpid(col, s_fp_code); }
+
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
-{ return aside_col(p, x, y, w, wt_diagram_fp); }
+{ return aside_col(p, x, y, w, diagram_fpid); }
 static int aside_pair(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_pair); }
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
@@ -213,6 +219,7 @@ lv_obj_t *wallet_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
 {
     char title[64];
     const bool has_code = fingerprint && fingerprint[0];
+    snprintf(s_fp_code, sizeof s_fp_code, "%s", has_code ? fingerprint : "");
     if (has_code)
         snprintf(title, sizeof title, tr(STR_H_FP_CARD_FMT), fingerprint);
     else
