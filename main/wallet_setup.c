@@ -92,6 +92,7 @@ static lv_obj_t *s_word_lbl, *s_sug[3];
 // printed as tiles and shaken in a bag, and "deck" was read as playing cards.
 static bool s_cards;
 static bool s_dice;                     // the count screen is on the way to the keypad
+static void (*s_whatseed_ret)(void);    // where the seed explainer's BACK returns
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
 // The typed words as wordlist indices, and what the judge made of them. Only
@@ -101,6 +102,7 @@ static wallet_cards_q_t s_cq;
 
 static void choose_screen(void);
 static void count_screen(void);
+static void whatseed_count_cb(lv_event_t *e);   // the seed explainer, count screen door
 // SeedQR was only reachable from the amnesic per-session load, so someone
 // restoring a wallet during setup had to type words they were holding as a QR.
 // Same decoder, same staging; only the way back differs.
@@ -150,6 +152,7 @@ static void wipe_state(void)
     // a seed the owner may still finish elsewhere, so it wipes with the words.
     s_cards = false;
     s_dice = false;
+    s_whatseed_ret = NULL;
     memset(s_cand, 0, sizeof s_cand);
     s_ncand = 0;
     s_cpage = 0;
@@ -1186,12 +1189,17 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
 
     lv_obj_t *c = wt_lbl(card, tr(cap), 14, 12, wt_font14(), MUT_COL);
     lv_obj_set_style_text_letter_space(c, 1, 0);
-    // The bit count is the number W_12_NOTE already taught ("128 bits of
-    // entropy"), put next to the thing it describes. WT_OK on both cards: this
-    // is a quantity that is present, not a status that varies.
-    lv_obj_t *b = wt_lbl(card, tr(STR_W_ENT_BITS), 0, 12, wt_font14(), OK_COL);
-    lv_obj_update_layout(b);
-    lv_obj_set_pos(b, ENT_COL_W - 14 - lv_obj_get_width(b), 12);
+    // No bit count here, deliberately. Both source cards used to carry "128
+    // bits" in this corner and the tap screen budgets its 64 taps at 128 too,
+    // with the equation below joining them 1 + 2 + 3. Three 128s and two plus
+    // signs read as 384 bits, and the answer is 128: mix3 is
+    // SHA256(cam || trng || taps) and wallet_setup_entropy keeps 16 bytes of
+    // it. Mixing buys independence, not width -- which is exactly what the
+    // subtitle already claims ("no single one decides your wallet") and what
+    // the numbers were quietly contradicting.
+    //
+    // The figure itself is not lost: it is on the word count screen, where it
+    // describes the mnemonic's capacity and is true.
 
     // Track, then the fill on top of it. Two plain objects rather than a slider:
     // nothing here is draggable and a slider brings knob styling to suppress.
@@ -2788,6 +2796,20 @@ static void count_screen(void)
                  tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
+    else {
+        // Creating, so row 2 is free and 306..382 is the same slot the first
+        // setup screen puts this exact card in. Someone RESTORING already owns
+        // a seed and is reading it off paper; someone CREATING is being asked
+        // to choose a length, and W_WHATSEED_S answers that question by name.
+        // Same card, same lane, same mark, so it is recognised rather than met.
+        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, 306, WT_CHOICE_W, 76);
+        wt_note(hc, tr(STR_W_SEED_HELP), 16, 22, WT_CHOICE_W - 32 - 34, 34);
+        wt_help_chip(hc, WT_CHOICE_W - 44, 23, MUT_COL, whatseed_count_cb, NULL);
+        // The sentence is the target, not the punctuation: the same argument
+        // choose_screen makes, and the same reason the whole card is clickable.
+        lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(hc, whatseed_count_cb, LV_EVENT_CLICKED, NULL);
+    }
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
             (s_cards || s_dice) ? goto_method_cb : goto_choose_cb, NULL);
 }
@@ -2895,15 +2917,63 @@ static void setup_lang_cb(lv_event_t *e)
 // mnemonic, they plus the passphrase are the wallet, and any compatible BIP39
 // signer can rebuild it from them. It is reachable before either choice is
 // made, because that is when the question is actually being asked.
-static void whatseed_back_cb(lv_event_t *e) { (void)e; choose_screen(); }
-
-static void whatseed_cb(lv_event_t *e)
+// It is a full SCREEN, not an overlay, so BACK has to be told where it came
+// from (s_whatseed_ret). It used to go to choose_screen unconditionally, which
+// was right while the first screen was the only door -- and would have thrown
+// away a storage mode and a method the moment a second one opened.
+static void whatseed_back_cb(lv_event_t *e)
 {
     (void)e;
+    void (*ret)(void) = s_whatseed_ret;
+    s_whatseed_ret = NULL;
+    if (ret) ret(); else choose_screen();
+}
+
+static void whatseed_open(void (*ret)(void))
+{
+    s_whatseed_ret = ret;
     mk_screen(tr(STR_W_WHATSEED_T), tr(STR_W_WHATSEED_S));
-    mk_body(tr(STR_W_WHATSEED_B), 48, 118, 704, 260, INK_COL);
+
+    // This was a title, a subtitle and one 704x232 paragraph -- the exact shape
+    // rule 1 forbids, on the one screen a newcomer opens to find out what any
+    // of this is. It survived because no walk had ever rendered it; the moment
+    // the count screen gave it a second door and a stop, BARE fired in all 21
+    // locales.
+    //
+    // The diagram is not decoration here, it is the first sentence: "those
+    // words plus your passphrase are what make your wallet, not this device" IS
+    // wt_diagram_fp. Same card geometry as the passphrase intro (128..212, then
+    // the body from 232), because that screen makes the same claim and the two
+    // should share a skeleton rather than invent a third.
+    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *col = lv_obj_create(card);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 0, 0);
+    lv_obj_set_size(col, 704, 84);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    wt_diagram_fp(col);
+
+    // The body is three paragraphs in every locale, so it deals into two
+    // columns and picks its own font, exactly as every other multi paragraph
+    // screen on the device does. No new string, and the sentence the diagram
+    // already draws still reads underneath it as the words it is made of.
+    wt_why_body(s_scr, tr(STR_W_WHATSEED_B), 232, wt_accent(), true);
+
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, whatseed_back_cb, NULL);
 }
+
+static void whatseed_cb(lv_event_t *e) { (void)e; whatseed_open(choose_screen); }
+
+// The second door, and the better one for anyone who got past the first
+// without reading it: W_WHATSEED_S is literally "12 or 24 ordered words,
+// called a BIP39 mnemonic", which is the count screen's whole question. The
+// first screen asks whether you have a seed; this one is where a newcomer is
+// first asked to DECIDE something about it.
+static void whatseed_count_cb(lv_event_t *e) { (void)e; whatseed_open(count_screen); }
 
 static void choose_screen(void)
 {
