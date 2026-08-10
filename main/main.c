@@ -543,7 +543,30 @@ static lv_display_t *display_start(void) {
   size_t bufsz = (size_t)SCREEN_W * 48 * 2;                  // 48-line partial buffers
   void *b1 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   void *b2 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  s_rotbuf = heap_caps_malloc(bufsz, MALLOC_CAP_DMA);   // DMA source for the rotated region
+  // DMA source for the rotated region. This is the THIRD 75KB allocation in a
+  // row -- b1, b2, then this -- out of roughly 340KB of internal RAM, and it
+  // was unchecked. When it finally came back NULL the first flush stored to
+  // NULL + 94 and the device panicked in rot_flush before it had drawn a
+  // single frame: "Store access fault, MTVAL 0x5e", three seconds after boot,
+  // forever. Nothing in the gate suite can reach this. rot_flush does not run
+  // in the simulator at all, and a build that never allocates cannot fail to.
+  //
+  // Internal first, because the blitter is fastest reading internal RAM. PSRAM
+  // second, because on the P4 the DPI panel reads it perfectly well and 75KB
+  // of headroom is worth more than the margin: this buffer is written once per
+  // band and read once by DMA. And then a hard check, so the next time the
+  // internal heap gets tight this says so on the console instead of storing
+  // through a null pointer.
+  s_rotbuf = heap_caps_malloc(bufsz, MALLOC_CAP_DMA);
+  if (!s_rotbuf) {
+    ESP_LOGW(TAG, "rotbuf: no internal DMA heap for %u bytes, using PSRAM",
+             (unsigned)bufsz);
+    s_rotbuf = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+  }
+  if (!s_rotbuf) {
+    ESP_LOGE(TAG, "rotbuf: %u bytes unavailable in any heap", (unsigned)bufsz);
+    abort();
+  }
   lv_display_set_buffers(disp, b1, b2, bufsz, LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(disp, rot_flush);
   s_disp = disp;
