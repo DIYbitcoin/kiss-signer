@@ -832,6 +832,21 @@ static void recv_list_open(void) {
   // of five gives every gap 22px and hands BACK the standard 140 it has
   // everywhere else, so the one screen that had to squeeze to 110 no longer
   // does.
+  // BACK is LEFTMOST here, and it was not. This list and the address page one
+  // tap away are the same errand, and BACK used to sit at 610 on the list and
+  // at 48 on the page: the way out swapped corners under the finger while the
+  // owner was doing one thing. The page has the rule the right way round (see
+  // its action bar below) and the list is what moves.
+  //
+  // The far right goes to the pager, which is what this screen is FOR. Its job
+  // is choosing WHICH address, > is how the choosing happens, and > outermost
+  // puts forward motion in the corner a thumb reaches for. < sits inboard of it
+  // so the pair still reads as one control in reading order.
+  //
+  // Gaps stay 22px and BACK keeps the standard 140 it has everywhere else, so
+  // this is the same row re-ordered, not a re-crammed one. Right edge is still
+  // 750. row[] indices below are load bearing: page_arrow_dim addresses the two
+  // arrows by index, so < stays [1] and > stays [2] no matter where they sit.
   lv_obj_t *row[4];
   // STR_R_SP_BTN, not STR_S_SP_BADGE. The badge is a descriptor: it names a
   // kind of address, and it is right in lower case as a screen title and as an
@@ -839,10 +854,10 @@ static void recv_list_open(void) {
   // two arrows and BACK, and the only lower case button on the device reads as
   // a bug rather than as a distinction. One string cannot be both, so there are
   // two, and each locale's button is its own badge cased for a button.
-  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), 48, WT_ACTION_Y, 220, sp_open_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), 210, WT_ACTION_Y, 220, sp_open_cb, NULL);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 616, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 694, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
                    back_to_detail_cb, NULL);
   wt_pill_row(row, 4);
 
