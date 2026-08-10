@@ -1063,6 +1063,17 @@ void wallet_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     }
 }
 
+// The two column grid every card on this page sits on. Hoisted above the
+// function because the THEME card is built early -- it lives in the right
+// column now, not the action bar -- and needs the same numbers.
+#define SG_L_X    25
+#define SG_L_W   365
+#define SG_R_X   412
+#define SG_R_W   365
+#define SG_TOP    72
+#define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
+#define SG_PITCH 71    // 64 tall card + 7 gap
+
 void wallet_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
@@ -1077,33 +1088,50 @@ void wallet_settings_open(lv_obj_t *parent)
     // changes nothing about the wallet, and then briefly the wallet fingerprint,
     // which moved to the home screen with every other copy of it.
 
-    // THEME, in the action bar: an 11px eyebrow and four 18px dots. Same four
-    // accents, same picker callback, a third the diameter of the originals.
-    // The whole block sits 40px left of where the drawing put it, because BACK
-    // has taken the right corner: the fourth dot's 15px ext click area used to
-    // reach 624 and BACK's pill starts at 610, so they would have been fighting
-    // over the same taps. Ending the dots at 557 leaves 53px of daylight.
-    s_acc_name = lv_label_create(s_scr);       // names the dressed colour
+    // THEME, in the RIGHT COLUMN under NO UNDO, in the slot NO UNDO freed when
+    // its two rows became one. It lived in the action bar, floating between the
+    // build id and BACK, and that was always the wrong room: the theme is a
+    // SETTING, and every other setting on this page is a card in a column under
+    // an eyebrow. Sitting in the bar it was neither a control nor chrome, and it
+    // put a colour picker directly under a line of status text -- which is what
+    // finally made it untenable, because the build id's third fact reads as a
+    // caption under the dots no matter which of them moves first.
+    //
+    // Card, not wt_row: a row's value is a label, and this one's value is four
+    // tappable circles. Same 365x64 box on the same grid, same 23-over-14 pair
+    // for label and sub, so it reads as a row without pretending to be one.
+    // 260, not the left column's third slot at 237: the RIGHT column carries a
+    // second eyebrow, so its rhythm is offset. Replace or erase runs 189..253,
+    // and 260 is the standard 7px gap under it -- exactly the slot NO UNDO
+    // freed when its two rows became one.
+    lv_obj_t *th = wt_card(s_scr, SG_R_X, 260, SG_R_W, WT_ROW_H);
+    wt_lbl(th, tr(STR_H_THEME), 16, 10, wt_font23(), WT_INK);
+    s_acc_name = lv_label_create(th);          // names the dressed colour
     lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
     lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
-    // RIGHT aligned, ending 10px short of the first dot at x=470. Not placed by
-    // its left edge: this label is the live accent NAME, so it is "MONO" in one
-    // theme and "CYPHERPINK" in another, and a fixed left edge put the long one
-    // straight through the dots. The text overlap gate cannot catch that -- a
-    // dot is not text -- so the geometry has to make it impossible instead.
-    lv_obj_set_width(s_acc_name, 120);
-    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(s_acc_name, 340, WT_ACTION_Y + 8);
+    // The card's sub-line, where every other card on this page puts its second
+    // line: left edge at 16, under the label. It is the live accent NAME, so it
+    // is "MONO" in one theme and "CYPHERPINK" in another, and the dots start at
+    // 250 -- the width cap is what keeps the long one out of them. A dot is not
+    // text, so the overlap gate cannot catch that collision and the geometry
+    // has to make it impossible instead.
+    lv_obj_set_width(s_acc_name, 220);
+    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_pos(s_acc_name, 16, 38);
     for (int i = 0; i < WT_ACC_N; i++) {
         int save = wt_accent_get();
         wt_accent_set(i);                     // borrow the accent table for the dot fill
         lv_color_t c = wt_accent();
         wt_accent_set(save);
-        lv_obj_t *d = lv_obj_create(s_scr);
+        lv_obj_t *d = lv_obj_create(th);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 18, 18);
-        lv_obj_set_pos(d, 470 + i * 27, WT_ACTION_Y + 13);
+        // Card relative. Four dots on a 27 pitch are 99 wide, right edge 16
+        // short of the card's own edge at 365, so the run starts at 250 and the
+        // name's 220px cap ends at 236 -- 14px of daylight that no translation
+        // can close. Vertically centred in the 64 tall card.
+        lv_obj_set_pos(d, 250 + i * 27, (WT_ROW_H - 18) / 2);
         lv_obj_set_style_radius(d, 9, 0);
         lv_obj_set_style_bg_color(d, c, 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
@@ -1145,27 +1173,21 @@ void wallet_settings_open(lv_obj_t *parent)
     //
     // MAINNET and TESTNET stay a real pair of pills: they are two values of one
     // setting and the only control here where the choice itself is the widget.
-#define SG_L_X    25
-#define SG_L_W   365
-#define SG_R_X   412
-#define SG_R_W   365
-#define SG_TOP    72
-#define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
-#define SG_PITCH 71    // 64 tall card + 7 gap
 // The ways in row runs under BOTH columns and the gutter between them: 752.
 // It is the only row on this page that is about a mapping rather than a
 // setting, and at SG_L_W its label ellipsised to "Duress w..." while the value
 // took the rest -- which reads as a struck through label, not as a narrow row.
 #define SG_FULL_W (SG_R_X + SG_R_W - SG_L_X)
-// 308: the standard 7px gap under the LEFT column, which is the column this row
-// actually continues. It was 331, measured against the right column's deepest
-// point -- but that point is a RESERVED EMPTY SLOT (260..324), not a card. NO
-// UNDO's last card ends on 253. So 331 was clearing nothing and left a 30px
-// band of dead page above a full width row, which is what it looked like.
+// 331: the standard 7px gap under the RIGHT column, which is now the deeper of
+// the two. It was briefly 308, on the reasoning that 331 cleared nothing but a
+// reserved EMPTY slot at 260..324 and left a band of dead page above a full
+// width row -- which was true while the slot was empty.
 //
-// The empty slot's job was to read as the end of a column. A full width row
-// under both columns does that better, and does it without the gap.
-#define SG_FULL_Y 308
+// The theme card fills it now, so 331 clears a real card again and the dead
+// band is gone for the right reason: something is standing in it. The left
+// column ends 30px higher at 301 because it carries one card fewer, and a row
+// spanning both has to answer to the deeper one.
+#define SG_FULL_Y 331
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: the one row on this page whose control IS the choice, so redraw 05
