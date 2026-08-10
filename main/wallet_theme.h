@@ -211,6 +211,15 @@ void wt_tap_feedback(lv_obj_t *obj);
 // the owner is meant to look at: silencing a check is the whole cost.
 void wt_mark_decor(lv_obj_t *o);
 bool wt_is_decor(const lv_obj_t *o);
+#ifdef SIMULATOR
+// Screen coverage. The walk calls wt_sim_capture() from every save(), and asks
+// wt_sim_uncaptured() at the end which screens it BUILT and never captured --
+// the ones no gate has ever been able to question. See wallet_theme.c.
+void wt_sim_capture(void);
+int  wt_sim_uncaptured(int *out, int max);
+int  wt_sim_built(int *out, int max);
+const char *wt_sim_title_key(int id);
+#endif
 // One visual language for anonymous "?" affordances: a 30px circle with a
 // 54px effective hit target. `color` carries warning semantics when needed;
 // size, border and press feedback remain identical everywhere.
