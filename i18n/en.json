@@ -72,7 +72,6 @@
   "W_ENT_SRC1_NOTE": "leaves, gravel, a shuffled deck. never a blank wall.",
   "W_ENT_SRC2_CAP": "SOURCE 2   THE CHIP ITSELF",
   "W_ENT_SRC2_NOTE": "hardware noise, always running. nothing to aim.",
-  "W_ENT_BITS": "128 bits",
   "W_ENT_LOW": "too dark or too plain. point somewhere busier.",
   "W_ENT_STILL": "the view is frozen. move the camera.",
   "W_ENT_GOING": "good. keep it there.",
