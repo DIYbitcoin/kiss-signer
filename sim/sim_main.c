@@ -2021,7 +2021,21 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED again
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
 
-  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1)
+  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> how many words
+  save("/tmp/sim_setup_dice_count.ppm");            // 12 or 24, and dice honours both
+  // The 24 word branch, as an excursion: DICE_FLOOR_256 has been written,
+  // reasoned and pinned by kisstest since the dice module landed, and no screen
+  // could reach it. Roll three and the tally reads 3 / 99, which is the whole
+  // claim -- that picking 24 moves the floor. Rows sit on the chooser grid:
+  // WT_CHOICE_Y(0) = 96 and (1) = 198, both 96 tall, so centres are 144 and 246.
+  touch(218, 246); pump(3); release(); pump(4);     // 24 WORDS -> the keypad
+  for (int i = 0; i < 3; i++) { touch(160 + i * 94, 146); pump(4); release(); pump(4); }
+  save("/tmp/sim_setup_dice_99.ppm");               // 3 / 99, no verdict chip yet
+  touch(680, 425); pump(3); release(); pump(4);     // CANCEL -> chooser, rolls dropped
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 240); pump(3); release(); pump(4);     // DICE again
+  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS -> the keypad
   save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
   // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
   // real judge this loop is a textbook ramp — so instead of dodging that, it

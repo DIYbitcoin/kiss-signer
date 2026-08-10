@@ -91,6 +91,7 @@ static lv_obj_t *s_word_lbl, *s_sug[3];
 // owner-facing copy deliberately does not, since the list can equally be 3D
 // printed as tiles and shaken in a bag, and "deck" was read as playing cards.
 static bool s_cards;
+static bool s_dice;                     // the count screen is on the way to the keypad
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
 // The typed words as wordlist indices, and what the judge made of them. Only
@@ -148,6 +149,7 @@ static void wipe_state(void)
     // The candidate set narrows the last word to 128 (or 8) possibilities for
     // a seed the owner may still finish elsewhere, so it wipes with the words.
     s_cards = false;
+    s_dice = false;
     memset(s_cand, 0, sizeof s_cand);
     s_ncand = 0;
     s_cpage = 0;
@@ -1325,11 +1327,22 @@ static void ent_ui_sync(int pct, int reason)
 // single-source but recomputable off-device; cards is the owner's own words
 // with no machine randomness at all.
 //
-// Camera and dice restore the creation invariant (12 words) because a BACK
-// out of the cards count screen can arrive here carrying s_count = 24.
-static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_count = 12; entropy_screen(); }
-static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_count = 12; dice_screen(); }
-static void method_cards_cb(lv_event_t *e) { (void)e; s_cards = true; count_screen(); }
+// Camera restores the creation default (12 words) because a BACK out of a
+// count screen can arrive here carrying s_count = 24. Its three source story
+// and its result chip are both built around one length, and nothing in that
+// path can be recomputed off the device anyway, so the extra 128 bits would be
+// margin the owner has to take on trust.
+//
+// Dice asks. It is the one creation path whose entropy the owner supplies and
+// can recompute on any computer, which makes it the path where somebody wants
+// 256 bits badly enough to roll for them -- and the floor for that was written,
+// reasoned and tested from the start (DICE_FLOOR_256 = 99, 99 x log2 6 ~ 256)
+// while no screen could reach it. 12 is still what most owners should pick and
+// still what the count screen lists first; the choice is no longer made for
+// them by a callback.
+static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_dice = false; s_count = 12; entropy_screen(); }
+static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_dice = true;  count_screen(); }
+static void method_cards_cb(lv_event_t *e) { (void)e; s_cards = true; s_dice = false; count_screen(); }
 
 static void method_screen(void)
 {
@@ -2737,6 +2750,9 @@ static void count_pick_cb(lv_event_t *e)
 {
     s_count = (int)(intptr_t)lv_event_get_user_data(e);
     if (s_cards) { cards_intro_screen(); return; }
+    // The keypad reads the count back through dice_need(), so the floor under
+    // the tally becomes 99 here without this callback saying so.
+    if (s_dice)  { dice_screen(); return; }
     if (s_restore) restore_screen();
     else entropy_screen();
 }
@@ -2745,9 +2761,11 @@ static void goto_method_cb(lv_event_t *e) { (void)e; method_screen(); }
 
 static void count_screen(void)
 {
-    // Reached while RESTORING or in cards mode; camera and dice always make 12.
-    // Cards gets the choice because its cost lives in the draw, not here: the
-    // owner has already decided how many words to pick.
+    // Reached while RESTORING, or from the two creation paths whose cost is
+    // paid by the owner rather than the device: cards, where the count decides
+    // how many cards get drawn, and dice, where it decides whether the floor
+    // under the tally is 50 rolls or 99. Camera never arrives here -- it makes
+    // 12 and its screens are built around that.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     // Rows, on the chooser grid the storage and create-or-restore screens use.
     // Three pills each trailing a note in a column 380px away was the last
@@ -2771,7 +2789,7 @@ static void count_screen(void)
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            s_cards ? goto_method_cb : goto_choose_cb, NULL);
+            (s_cards || s_dice) ? goto_method_cb : goto_choose_cb, NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
@@ -2786,12 +2804,14 @@ static void storage_pick_cb(lv_event_t *e)
         count_screen();          // restoring: the paper decides, 12 or 24
         return;
     }
-    // CREATING: always 12. 128 bits of entropy is not brute-forceable by
-    // anything, so the extra 128 buys margin against nothing that can happen,
-    // while 24 words doubles the length of the ONE step where a real mistake
-    // is likely -- copying them onto paper by hand and reading them back. The
-    // 24-word path stays fully supported for RESTORE, because seeds made on
-    // other signers arrive at whatever length they arrive.
+    // CREATING: 12 is the DEFAULT, and it is the right one. 128 bits is not
+    // brute-forceable by anything, so the extra 128 buys margin against nothing
+    // that can happen, while 24 words doubles the length of the ONE step where
+    // a real mistake is likely -- copying them onto paper by hand and reading
+    // them back. Camera keeps it outright; cards and dice offer the choice and
+    // list 12 first, because on those two paths the owner is the one paying for
+    // the extra length and can see what it costs. RESTORE takes whatever length
+    // arrives, since seeds made on other signers are not ours to argue with.
     s_count = 12;
     method_screen();
 }
