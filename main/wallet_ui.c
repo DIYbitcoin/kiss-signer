@@ -1403,6 +1403,39 @@ static void pp_intro_go_cb(lv_event_t *e) {
   wallet_login_open(s_setup_next_cb);
 }
 
+// The other half of the choice, and it was missing. A wallet with no passphrase
+// is not an edge case here: it has its own warning screen (L_WARN_T_NOPASS),
+// its own fingerprint notes, and the duress chooser deliberately refuses to
+// appear for it (setup_warn_ok_cb) -- all of it written and translated. The
+// only thing the device never had was a way to CHOOSE it. Reaching it meant
+// pressing OK on an empty keyboard and then overriding a card that says a
+// short passphrase is easier to guess, which is the wrong warning for a
+// passphrase that does not exist and frames a legitimate choice as a mistake.
+//
+// CREATE PASSPHRASE keeps the primary slot, so the default still steers the way
+// it always did. This pill only stops the device lying about the alternative.
+static void pp_intro_nopass_cb(lv_event_t *e) {
+  (void)e;
+  lv_obj_delete_async(s_pp_intro);
+  s_pp_intro = NULL;
+  wallet_login_open(s_setup_next_cb);
+  // Empty is the whole point, so state the emptiness rather than inheriting it:
+  // every other entry to this screen has been through wipe_and_close, but a
+  // buffer this one never wrote is not a promise, and show_fingerprint derives
+  // from s_plen.
+  memset(s_pass, 0, sizeof s_pass);
+  s_plen = 0;
+  s_caret = 0;
+  // No weak card on the way past: that card exists to question a guessable
+  // secret and there is no secret here to question. The accurate warning is
+  // setup_warn_screen's, and it still runs before the wallet opens.
+  //
+  // The keyboard is built and then hidden by show_fingerprint, which is what
+  // makes BACK work: it uncovers a keyboard that is already there, so "actually,
+  // set one" costs a single tap rather than restarting setup.
+  show_fingerprint();
+}
+
 void wallet_login_open_setup(void (*unlocked_cb)(void)) {
   s_setup_mode = true;
   s_first_done = false;
@@ -1457,8 +1490,18 @@ void wallet_login_open_setup(void (*unlocked_cb)(void)) {
     wt_why_block(scr, tr(STR_L_PPINTRO_W2_H), b2, 408, BY, BW, BH, f, WT_WARN);
   }
 
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 280, pp_intro_go_cb, NULL);
-  wt_pill_primary(go);
+  // Both ways forward, in the row's usual arrangement: the plainer choice
+  // leftmost, the one the product steers toward primary on the right. 330 wide
+  // each, the two pill geometry the dice refusal screen already proves in 21
+  // locales -- and this row needs it, because KEINE PASSPHRASE and БЕЗ КОДОВОЙ
+  // ФРАЗЫ are both a good deal longer than the English.
+  lv_obj_t *p[2];
+  p[0] = wt_pill(scr, tr(STR_L_NO_PASSPHRASE), 48, WT_ACTION_Y, 330,
+                 pp_intro_nopass_cb, NULL);
+  p[1] = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 422, WT_ACTION_Y, 330,
+                 pp_intro_go_cb, NULL);
+  wt_pill_row(p, 2);
+  wt_pill_primary(p[1]);
 }
 
 // A label whose text swaps at runtime (SHOW <-> HIDE) has to be sized for BOTH
