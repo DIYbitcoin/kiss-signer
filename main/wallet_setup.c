@@ -400,7 +400,7 @@ static void verify_intro_screen(void)
     //
     // 128..212, matching the passphrase intro and the fingerprint reveal, so the
     // setup flow keeps one skeleton from screen to screen.
-    lv_obj_t *vcard = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *vcard = wt_card(s_scr, 48, 128, 704, 64);
     lv_obj_t *vcol = lv_obj_create(vcard);
     lv_obj_remove_style_all(vcol);
     lv_obj_set_pos(vcol, 0, 0);
@@ -418,9 +418,10 @@ static void verify_intro_screen(void)
     // above the body; see the identical note on the passphrase intro.
     {
         const char *b1 = tr(STR_W_VINTRO_W1_B), *b2 = tr(STR_W_VINTRO_W2_B);
-        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const int HEAD_ROOM = 46;
-        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
+        const lv_font_t *f = wt_body_font2_head(tr(STR_W_VINTRO_W1_H), b1,
+                                               tr(STR_W_VINTRO_W2_H), b2,
+                                               BW - 14, BH);
         wt_why_block(s_scr, tr(STR_W_VINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
         wt_why_block(s_scr, tr(STR_W_VINTRO_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
     }
@@ -1780,9 +1781,19 @@ static int aside_dice_flow(lv_obj_t *p, int x, int y, int w)
 {
     lv_obj_t *col = aside_col(p, x, y, w);
 
+    // YOUR ROLLS, not SHA256. The acronym was the left hand chip, with nothing
+    // on the screen behind the card to say what it was -- so the diagram opened
+    // on a term the reader had never met and ended on one they had, which is
+    // the wrong way round. It also skipped the only part they DID: their own
+    // rolls, entered by hand, one at a time.
+    //
+    // SHA256 has not been hidden. It is in the body of this same card, under
+    // YOURS TO CHECK, where it is defined in the sentence that tells the owner
+    // to recompute it offline -- a term with a definition beside it rather than
+    // a chip standing on its own.
     char buf[WT_ICON_TEXT_MAX];
     lv_obj_t *row = wt_diagram_row(col);
-    snprintf(buf, sizeof buf, "%s SHA256", LV_SYMBOL_SHUFFLE);
+    snprintf(buf, sizeof buf, "%s %s", LV_SYMBOL_REFRESH, tr(STR_D_ROLLS));
     wt_chip(row, buf, false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     // s_count is pinned to 12 on the way in (method_dice_cb), but dice_need
@@ -2423,7 +2434,7 @@ static void cards_intro_screen(void)
     // The draw as an equation: 11 + 1 -> 12. Numerals, so the card reads in
     // every locale; the accent sits on the 1 the device contributes. Same
     // 128..212 band as the backup check and passphrase intros.
-    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 64);
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
@@ -2454,9 +2465,10 @@ static void cards_intro_screen(void)
 
     {
         const char *b1 = tr(STR_W_CARDS_W1_B), *b2 = tr(STR_W_CARDS_W2_B);
-        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const int HEAD_ROOM = 46;
-        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
+        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CARDS_W1_H), b1,
+                                               tr(STR_W_CARDS_W2_H), b2,
+                                               BW - 14, BH);
         wt_why_block(s_scr, tr(STR_W_CARDS_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
         wt_why_block(s_scr, tr(STR_W_CARDS_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
     }
@@ -2560,7 +2572,7 @@ static void cards_verdict_screen(int title, lv_color_t col, bool blocked)
     cards_bars_make(card, col);
 
     const char *b1 = tr(cards_why_key()), *b2 = tr(STR_W_CARDS_FIX_B);
-    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
+    const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
     const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - 46 - 8);
     // Reusing the dice pair's headings: already parallel, already translated,
     // and wallet_info.c reuses a dice title off the dice path for the same
@@ -2651,9 +2663,12 @@ static void cards_cksum_screen(void)
 
     {
         const char *b1 = tr(STR_W_CKSUM_W1_B), *b2 = tr(STR_W_CKSUM_W2_B);
+        // 232, not the 204 its siblings moved to: the checksum screen hangs a centred fit line under its card,
+        // so there is nothing to reclaim above this pair.
         const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const int HEAD_ROOM = 46;
-        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - HEAD_ROOM - 8);
+        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CKSUM_W1_H), b1,
+                                               tr(STR_W_CKSUM_W2_H), b2,
+                                               BW - 14, BH);
         wt_why_block(s_scr, tr(STR_W_CKSUM_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
         wt_why_block(s_scr, tr(STR_W_CKSUM_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
     }
@@ -2982,7 +2997,7 @@ static void whatseed_open(void (*ret)(void))
     // wt_diagram_fp. Same card geometry as the passphrase intro (128..212, then
     // the body from 232), because that screen makes the same claim and the two
     // should share a skeleton rather than invent a third.
-    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 84);
+    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 64);
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
@@ -2998,7 +3013,7 @@ static void whatseed_open(void (*ret)(void))
     // columns and picks its own font, exactly as every other multi paragraph
     // screen on the device does. No new string, and the sentence the diagram
     // already draws still reads underneath it as the words it is made of.
-    wt_why_body(s_scr, tr(STR_W_WHATSEED_B), 232, wt_accent(), true);
+    wt_why_body(s_scr, tr(STR_W_WHATSEED_B), 204, wt_accent(), true);
 
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, whatseed_back_cb, NULL);
 }
