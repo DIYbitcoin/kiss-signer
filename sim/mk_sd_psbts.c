@@ -241,6 +241,95 @@ static int emit_nin(const char *dir, const char *name, int n_in, uint64_t per,
     return 0;
 }
 
+// ---- the many-recipient fixture: the one the scroll gate needs ---------------
+// Every other fixture here is 2-out -- one recipient and change -- and varies
+// the INPUTS. So none of them can reach the gate that holds HOLD TO SIGN inert
+// until the recipient list has been read to its end, because with one recipient
+// there is nothing below the fold and kiss_sign.c marks the list seen on sight.
+// The gate shipped with no fixture that exercises it.
+//
+// n_out external destinations at `per` sats each, all distinct: the last byte
+// of the witness program counts up, so every row is a different address and the
+// list cannot be collapsed or mistaken for one recipient repeated.
+//
+// Amounts stay clear of every caution rule on purpose, so the screen under test
+// is the plain READY one and a caution row cannot be mistaken for the gate:
+// 8 x 10000 out of a 100000 input leaves 15000 of change and 5000 of fee, which
+// is under the tenth-of-the-send high-fee bar, far above the 294 sat dust floor,
+// and one input raises neither the linked-coins nor the unproven-amount row.
+static size_t mk_multiout_psbt(int n_out, uint64_t per, uint64_t change,
+                               uint32_t coin, uint8_t *out, size_t cap) {
+    const uint32_t purpose = 84;
+    struct ext_key kin, kchg;
+    derive5(purpose, coin, 0, 0, &kin);
+    derive5(purpose, coin, 1, 0, &kchg);
+    uint8_t in_spk[25], chg_spk[25];
+    size_t in_len = 0, chg_len = 0;
+    build_spk(WSCRIPT_NATIVE, kin.pub_key, in_spk, &in_len);
+    build_spk(WSCRIPT_NATIVE, kchg.pub_key, chg_spk, &chg_len);
+
+    uint8_t txid[32]; memset(txid, 0xAA, 32);
+
+    struct wally_tx *tx = NULL;
+    wally_tx_init_alloc(2, 0, 1, (size_t)n_out + 1, &tx);
+    wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
+    for (int i = 0; i < n_out; i++) {
+        uint8_t ext_spk[22] = {0x00, 0x14};
+        memset(ext_spk + 2, 0x11, 20);
+        ext_spk[21] = (uint8_t)(0x20 + i);   // a different destination per row
+        wally_tx_add_raw_output(tx, per, ext_spk, 22, 0);
+    }
+    wally_tx_add_raw_output(tx, change, chg_spk, chg_len, 0);
+
+    struct wally_psbt *p = NULL;
+    wally_psbt_init_alloc(0, 1, (size_t)n_out + 1, 1, 0, &p);
+    wally_psbt_set_global_tx(p, tx);
+
+    struct wally_tx_output *u = NULL;
+    wally_tx_output_init_alloc(100000, in_spk, in_len, &u);
+    wally_psbt_set_input_witness_utxo(p, 0, u);
+    wally_tx_output_free(u);
+
+    const uint32_t pin[5]  = {H + purpose, H + coin, H, 0, 0};
+    const uint32_t pchg[5] = {H + purpose, H + coin, H, 1, 0};
+    struct wally_map *m = NULL;
+    wally_map_keypath_public_key_init_alloc(1, &m);
+    wally_map_keypath_add(m, kin.pub_key, 33, t_fp, 4, pin, 5);
+    wally_psbt_set_input_keypaths(p, 0, m);
+    wally_map_free(m); m = NULL;
+    // Only the LAST output carries our keypath, so the device re-derives exactly
+    // one change address and counts the other n_out as destinations.
+    wally_map_keypath_public_key_init_alloc(1, &m);
+    wally_map_keypath_add(m, kchg.pub_key, 33, t_fp, 4, pchg, 5);
+    wally_psbt_set_output_keypaths(p, (size_t)n_out, m);
+    wally_map_free(m);
+
+    size_t wr = 0;
+    wally_psbt_to_bytes(p, 0, out, cap, &wr);
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+    wally_bzero(&kin, sizeof kin);
+    wally_bzero(&kchg, sizeof kchg);
+    return wr;
+}
+
+static int emit_multiout(const char *dir, const char *name, int n_out,
+                         uint64_t per, uint64_t change, uint32_t coin,
+                         const char *note) {
+    uint8_t buf[8192];
+    size_t n = mk_multiout_psbt(n_out, per, change, coin, buf, sizeof buf);
+    if (n == 0) { fprintf(stderr, "FAIL build %s\n", name); return 1; }
+    char path[1024];
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    FILE *f = fopen(path, "wb");
+    if (!f) { fprintf(stderr, "FAIL open %s\n", path); return 1; }
+    fwrite(buf, 1, n, f);
+    fclose(f);
+    printf("wrote %-22s %4zu bytes  (%d out, coin %uh)  %s\n",
+           name, n, n_out, coin, note);
+    return 0;
+}
+
 static int emit(const char *dir, const char *name, int script, uint32_t purpose,
                 uint32_t coin, uint64_t send, uint64_t change) {
     uint8_t buf[4096];
@@ -305,6 +394,15 @@ int main(int argc, char **argv) {
     // (4800 of fee against a 10000 send is well over the tenth-of-the-send bar).
     rc |= emit_nin(d, "9-caution-five.psbt", 5, 3000, 10000, 200, 1,
                    NIN_CLAIM, "CAUTION x5: every row at once");
+
+    // Eight destinations, so the recipient list runs off the bottom of the panel
+    // and HOLD TO SIGN stays inert until it has been scrolled to the end. Eight
+    // rather than the two or three that would just about overflow in English:
+    // the gate measures the fold rather than counting outputs, and the fold
+    // moves with the locale, so a fixture that only overflows in one language
+    // is a fixture that tests nothing in the other twenty.
+    rc |= emit_multiout(d, "10-many-recipients.psbt", 8, 10000, 15000, 1,
+                        "READY: 8 destinations, list must be scrolled");
 
     wally_cleanup(0);
     return rc;
