@@ -12,6 +12,8 @@
 #include "types/psbt.h"      // crypto-psbt CBOR wrap for crafting
 #include "fountain_decoder.h"  // hostile headers, below the bytewords layer
 #include "fountain_utils.h"    // the PRNG that picks fragment indexes
+#include "k_quirc_internal.h"  // quirc_version_db: the block tables
+int k_quirc_alpha_char(int v);  // k_quirc_decode.c, split out to be testable
 
 #ifndef KISS_ROOT
 #define KISS_ROOT "."
@@ -128,6 +130,51 @@ static void qr_test_prng_range(void) {
           prng_scale_double(0.0, 0, 9) == 0 &&
           prng_scale_double(0.5, 0, 9) == 5 &&
           prng_scale_double(0.999, 0, 9) == 9);
+}
+
+
+// The alphanumeric alphabet has 45 entries and BOTH fields that index it are
+// wider: a pair is 11 bits, so d/45 reaches 45 (the NUL), and a lone character
+// is 6 bits, so it reaches 63 -- up to 17 bytes past the end of a 46 byte
+// literal, copied straight into the decoded payload. This is the first code in
+// the signer to touch bytes off a QR code held up to the camera.
+static void qr_test_alpha_bounds(void) {
+    static const char *ALPHA = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+    int ok = 1;
+    for (int v = 0; v < 45; v++)
+        if (k_quirc_alpha_char(v) != (int)(unsigned char)ALPHA[v]) ok = 0;
+    qchkb("qr alpha map is unchanged for every valid value", ok);
+
+    int refused = 1;
+    for (int v = 45; v < 64; v++)          // 6-bit field reaches 63
+        if (k_quirc_alpha_char(v) != -1) refused = 0;
+    qchkb("qr alpha map refuses 45..63 instead of reading past the end", refused);
+    qchkb("qr alpha map refuses the 11-bit pair overflow", k_quirc_alpha_char(45) == -1);
+    qchkb("qr alpha map refuses a negative index", k_quirc_alpha_char(-1) == -1);
+}
+
+// read_data derives the long-block count from data_bytes, so every row of the
+// version database has to satisfy ns*bs + lb*(bs+1) == data_bytes exactly, with
+// lb a whole number. A row that does not is a version+ECC combination that can
+// never decode however clean the scan is -- v25-Q shipped that way, at ns=3
+// where only 7 closes it. This checks the invariant the decoder actually uses,
+// so it needs no copy of the spec tables to be right.
+static void qr_test_version_tables(void) {
+    int bad = 0;
+    for (int v = 1; v <= QUIRC_MAX_VERSION; v++) {
+        const struct quirc_version_info *info = &quirc_version_db[v];
+        for (int e = 0; e < 4; e++) {
+            const struct quirc_rs_params *p = &info->ecc[e];
+            if (!p->bs || !p->ns) { bad++; continue; }
+            int rest = info->data_bytes - p->bs * p->ns;
+            if (rest < 0 || rest % (p->bs + 1) != 0) {
+                printf("  version %d ecc[%d]: bs=%d ns=%d does not tile %d bytes\n",
+                       v, e, p->bs, p->ns, info->data_bytes);
+                bad++;
+            }
+        }
+    }
+    qchkb("qr every version/ecc row tiles its data_bytes exactly", bad == 0);
 }
 
 int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
@@ -344,6 +391,8 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
         qrt_encoder_free(e);
     }
 
+    qr_test_alpha_bounds();
+    qr_test_version_tables();
     qr_test_hostile_header();
     qr_test_prng_range();
 
