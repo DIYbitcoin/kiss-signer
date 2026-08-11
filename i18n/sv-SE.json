@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINATORN SÄNDER UT TRANSAKTIONEN",
   "W_WHATSEED_T": "DIN ÅTERSTÄLLNINGSFRAS",
   "W_WHATSEED_S": "12 eller 24 ord i bestämd ordning, ett BIP39-mnemonic",
-  "W_WHATSEED_B": "de orden och din lösenfras är det som utgör plånboken. inte den här enheten.\n\nskriv ner båda, så kan vilken kompatibel BIP39-signer som helst bygga upp den igen, även om enheten försvinner.\n\norden ensamma bygger en annan plånbok: den utan lösenfras.",
+  "W_WHATSEED_B": "dina ord plus din lösenfras utgör dina nycklar, inte den här enheten.\n\nskriv ner båda. varje kompatibel BIP39-signer bygger upp dem igen. orden ensamma öppnar andra nycklar: de utan lösenfras.",
   "GD_UNDERLINE": "STRECK UNDER",
   "GD_OVERLINE": "STRECK ÖVER",
   "GD_STRIKE": "STRECK IGENOM",

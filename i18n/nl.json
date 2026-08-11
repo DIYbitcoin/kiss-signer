@@ -466,7 +466,7 @@
   "S_FLOW_3": "COÖRDINATOR ZENDT DE TRANSACTIE UIT",
   "W_WHATSEED_T": "JE HERSTELZIN",
   "W_WHATSEED_S": "12 of 24 woorden op volgorde, een BIP39-mnemonic",
-  "W_WHATSEED_B": "die woorden en je passphrase vormen samen je wallet. niet dit apparaat.\n\nschrijf beide op, dan kan elke compatibele BIP39-signer hem terugbouwen, ook als dit apparaat verloren gaat.\n\nde woorden alleen bouwen een andere wallet: die zonder passphrase.",
+  "W_WHATSEED_B": "je woorden plus je passphrase vormen je sleutels, niet dit apparaat.\n\nschrijf beide op. elke compatibele BIP39-signer bouwt ze terug. de woorden alleen openen andere sleutels: die zonder passphrase.",
   "GD_UNDERLINE": "ONDERSTREEP",
   "GD_OVERLINE": "STREEP BOVEN",
   "GD_STRIKE": "STREEP DOOR",

@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINÁTOR ODEŠLE TRANSAKCI",
   "W_WHATSEED_T": "VAŠE OBNOVOVACÍ FRÁZE",
   "W_WHATSEED_S": "12 nebo 24 slov v pevném pořadí, mnemonika BIP39",
-  "W_WHATSEED_B": "ta slova a vaše přístupová fráze jsou to, co tvoří peněženku. ne tohle zařízení.\n\nzapište si obojí a kterýkoli kompatibilní signer BIP39 ji dokáže obnovit, i když tohle zařízení ztratíte.\n\nsamotná slova obnoví jinou peněženku: tu bez přístupové fráze.",
+  "W_WHATSEED_B": "vaše slova a přístupová fráze tvoří vaše klíče, ne toto zařízení.\n\nzapište si obojí. kterýkoli kompatibilní signer BIP39 je obnoví. samotná slova otevřou jiné klíče: ty bez přístupové fráze.",
   "GD_UNDERLINE": "PODTRHNOUT",
   "GD_OVERLINE": "ČÁRA NAHOŘE",
   "GD_STRIKE": "PŘEŠKRTNOUT",

@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINATOR SENDET DIE TRANSAKTION",
   "W_WHATSEED_T": "DEINE SEED-PHRASE",
   "W_WHATSEED_S": "12 oder 24 Wörter in fester Reihenfolge, ein BIP39-Mnemonic",
-  "W_WHATSEED_B": "diese Wörter und deine Passphrase ergeben deine Wallet. nicht dieses Gerät.\n\nschreib beides auf, dann kann jeder kompatible BIP39-Signer oder jede Wallet-App sie neu aufbauen, auch wenn dieses Gerät verloren geht.\n\ndie Wörter allein bauen eine andere Wallet auf: die ohne Passphrase.",
+  "W_WHATSEED_B": "deine Wörter plus Passphrase ergeben deine Schlüssel, nicht dieses Gerät.\n\nschreib beides auf. jeder kompatible BIP39-Signer baut sie neu auf. die Wörter allein öffnen andere Schlüssel: die ohne Passphrase.",
   "GD_UNDERLINE": "UNTERSTRICH",
   "GD_OVERLINE": "STRICH OBEN",
   "GD_STRIKE": "DURCHSTRICH",

@@ -466,7 +466,7 @@
   "S_FLOW_3": "O COORDENADOR TRANSMITE A TRANSAÇÃO",
   "W_WHATSEED_T": "SUA FRASE DE RECUPERAÇÃO",
   "W_WHATSEED_S": "12 ou 24 palavras em ordem, um mnemônico BIP39",
-  "W_WHATSEED_B": "essas palavras e sua passphrase são o que formam sua carteira. não este aparelho.\n\nanote as duas coisas e qualquer signer BIP39 compatível consegue reconstruí-la, mesmo se este aparelho se perder.\n\nas palavras sozinhas reconstroem outra carteira: a que não tem passphrase.",
+  "W_WHATSEED_B": "suas palavras mais sua passphrase formam suas chaves, não este aparelho.\n\nanote as duas. qualquer signer BIP39 compatível as reconstrói. as palavras sozinhas abrem outras chaves: as que não têm passphrase.",
   "GD_UNDERLINE": "SUBLINHAR",
   "GD_OVERLINE": "TRAÇO ACIMA",
   "GD_STRIKE": "TRAÇO NO MEIO",
