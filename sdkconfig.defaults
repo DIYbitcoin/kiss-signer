@@ -3,6 +3,15 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
 CONFIG_ESP32P4_REV_MIN_100=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
+# Stack canaries. IDF defaults this to NONE, which is a decision nobody in this
+# repo made and one that reads as deliberate once it is committed in four
+# sdkconfigs. The code that parses attacker-supplied bytes -- PSBTs off an SD
+# card, UR frames off the camera, firmware descriptors -- is all in main/, and
+# main/ was the part compiling without canaries while the vendored libwally
+# opts into them. STRONG rather than ALL: it covers every function with a local
+# array or an address-taken local, which is the shape of every parser here,
+# without the size and speed cost of instrumenting arithmetic-only leaves.
+CONFIG_COMPILER_STACK_CHECK_MODE_STRONG=y
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=20480
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
 CONFIG_FREERTOS_HZ=1000

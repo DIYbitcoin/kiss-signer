@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kiss_crypto.h"
+#include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
@@ -670,6 +671,35 @@ static void test_boot_sign_selftest(void) {
          memcmp(sig, BSV_SCHNORR, sizeof sig) != 0);
 }
 
+// Blinding. secp256k1 multiplies the secret by a random scalar and divides it
+// back out, so the power and timing traces of a signature stop being a
+// function of the key alone. It costs one call and neither context had ever
+// had it: libwally's global, and the separate one kiss_sp builds for BIP340.
+//
+// The whole risk of turning it on is that a signature stops being reproducible,
+// which on this device would be a worse bug than the one being fixed -- so the
+// test is not "does randomize return 0", it is "sign the same thing either side
+// of a re-randomize and get the same bytes". Both signing paths, because they
+// hold different contexts.
+static void test_secp_randomize(void) {
+    chki("secp randomize rc", kiss_secp_randomize(), 0);
+    chki("secp randomize again rc", kiss_secp_randomize(), 0);
+
+    // libwally's context: the boot selftest re-signs golden ECDSA + BIP340
+    chki("boot sign selftest survives randomize", kiss_sign_selftest(), 0);
+
+    // kiss_sp's context: BIP340 over a fixed key, message and aux
+    uint8_t d[32], msg[32], aux[32], sig1[64], sig2[64];
+    memset(d, 0x11, sizeof d);
+    memset(msg, 0x22, sizeof msg);
+    memset(aux, 0x33, sizeof aux);
+    int ok1 = sp_schnorr_sign(d, msg, aux, sig1) == 0;
+    chki("secp randomize between signings", kiss_secp_randomize(), 0);
+    int ok2 = sp_schnorr_sign(d, msg, aux, sig2) == 0;
+    chkb("schnorr is identical either side of a randomize",
+         ok1 && ok2 && memcmp(sig1, sig2, sizeof sig1) == 0);
+}
+
 // A selftest whose failure changes nothing is decoration. Force it to fail and
 // prove the signer refuses: the same shape as OVERLAPCHECK_SELFTEST, which
 // exists because a clean sweep means nothing without proof the gate can fire.
@@ -711,6 +741,7 @@ int main(int argc, char **argv) {
     fails += test_fw();
 
     test_boot_sign_selftest();
+    test_secp_randomize();
 
     uint8_t fp[4] = {0};
     int rc = kiss_selftest(fp);
