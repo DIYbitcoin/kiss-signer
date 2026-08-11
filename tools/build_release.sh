@@ -118,14 +118,37 @@ docker run --rm \
 # never accept an update -- and an unsigned release that ships is a device that
 # has to be recovered over USB to fix it. Hence the hard stop rather than a
 # warning.
+#
+# KISS_UNSIGNED=1 stops before the signature and is the ONLY thing a machine
+# without the key can do. It exists because the signature is what makes this
+# build unreproducible: espsecure sign-data is ECDSA, so signing identical
+# input twice gives different valid bytes, and the appended block lands in the
+# very file the reproducible-build workflow publishes a hash of. Comparing
+# hashes of signed images is not a weaker check, it is a meaningless one.
+#
+# So the two questions get separated. "Did this commit produce these bytes" is
+# answered here, unsigned, by anyone. "Is this the firmware KISS published" is
+# answered by the signature, made on a machine that holds the key, and by the
+# signed hashes in SHA256SUMS beside the release.
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
-if [ ! -f "$KISS_OTA_KEY" ]; then
+if [ -n "${KISS_UNSIGNED:-}" ]; then
+  # A marker beside the image, not just a line of log nobody re-reads. Anything
+  # that publishes or flashes from this directory can test for it.
+  : > build-release/UNSIGNED
+  echo
+  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
+  echo "      This image carries no signature block, so a device will refuse it"
+  echo "      as an SD update and it must never be published as a release."
+  echo "      Wrote build-release/UNSIGNED to say so."
+elif [ ! -f "$KISS_OTA_KEY" ]; then
   echo
   echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
   echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
   echo "      Without it this build cannot accept SD firmware updates, ever."
+  echo "      For a reproducibility check on a machine with no key, set"
+  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
-fi
+else
 echo "signing app with $KISS_OTA_KEY"
 uvx --from esptool espsecure sign-data \
   --version 2 --keyfile "$KISS_OTA_KEY" \
@@ -145,6 +168,7 @@ if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
 fi
 echo "PASS: published public key matches the signing key"
 rm -f /tmp/kiss_ota_pub_check.pem
+fi
 
 # ---- verify the release binary ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
