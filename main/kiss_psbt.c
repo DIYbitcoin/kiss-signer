@@ -674,8 +674,14 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     const struct wally_tx *tx = psbt_tx();
     s->locktime = tx->locktime;
 
-    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs)
+    // Terminal, like the other structural refusals here: the output loop below
+    // bounds s_psbt->outputs[j] by tx->num_outputs, so a refused count must not
+    // keep walking.
+    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs) {
         stop(s, "malformed: tx/psbt count mismatch");
+        s_status = s->status;
+        return 0;
+    }
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
