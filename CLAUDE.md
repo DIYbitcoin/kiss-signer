@@ -103,6 +103,26 @@ come back clean having checked the game. The first number catches exactly that.
 It self tests before reporting (`SCREENCOVER_SELFTEST=1` builds a screen and
 never saves it) and refuses to report if the check no longer fires.
 
+**NEVER OPENED means untested, not merely unphotographed.** The count reached
+zero for the first time by adding stops for six screens, and two of the six
+were broken:
+
+- **A screen that takes a drag must be added to the touch owner gate in
+  `main.c`.** The condition reading `wallet_ui_active() || wallet_setup_active()
+  || wallet_duress_ui_active() || wallet_word_ui_active()` is what stops the
+  game's own sampler from reading the same finger. `wallet_word_ui_active` was
+  missing, so writing your own letters was sampled twice and the recogniser
+  opened whatever tile sat under the stroke — *underneath* a write screen that
+  still looked correct. Nothing had ever drawn on that screen.
+- **`wt_screen` is not scrollable**, deliberately. LVGL hands a press to the
+  nearest scrollable ancestor once the finger moves, so a scrollable page eats
+  every stroke a few pixels in.
+
+Two harness numbers, both measured, neither about the device: a drag needs
+`pump(3)` per point (the indev reads every ~30ms) and `pump(8)` after each
+`release()`. At `pump(4)` the lift is seen but the next press is folded into
+it, so strokes merge and fall through.
+
 `overlapcheck` asks seven questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
 ROLE, **BARE** and **WALL**. Both of the last two are rule 1 above, enforced:
 

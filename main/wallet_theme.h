@@ -113,35 +113,43 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
 
-// BACK is always the bottom RIGHT pill, on every screen that has one. A thumb
-// arrives at that corner at an angle and lands short, which is why Settings put
-// it there first and gave it 10px of ext click area; the rest of the app then
-// hand typed 48 on fourteen screens and 330 on two more, so the escape hatch
-// moved depending on which screen you were escaping from.
+// THE BOTTOM RIGHT CORNER ALWAYS DOES THE SCREEN'S JOB. If the screen has a
+// real action, that action ends at 752. If its only job is to be left, the exit
+// ends at 752 instead. One question answers where every pill in the bar goes:
+// what is this screen FOR?
 //
-// This said "one number, one corner, no exceptions" for a while and it was not
-// true, which is worse than a rule nobody follows. The real rule turns on WHAT
-// ELSE IS IN THE BAR:
+//   the bar holds nothing but the exit  -> the exit takes the corner
+//             (WT_BACK_X). Settings, Wallet, Details, the file chooser, the
+//             pairing screens. There is no other control for the corner to keep
+//             away from a reflex tap, so the exit sits where the eye already
+//             looks for it.
+//   the bar holds the screen's real action too -> the exit goes to WT_EXIT_X
+//             and the corner is reserved for the action. Sign's verify row,
+//             Receive's four pill row, and redraws 01, 02, 03 and 05.
 //
-//   the bar holds nothing but the exit  -> it takes this corner. Settings,
-//             Wallet, Details, the file chooser, the pairing screens. There is
-//             no consequential control for the corner to keep away from the
-//             reflex tap, so consistency wins and the exit sits where the eye
-//             already looks for it.
-//   the bar holds the screen's real action too -> the exit goes LEFTMOST and
-//             the far right is reserved for the action, because THAT is the
-//             safety property: nothing that spends money should sit under the
-//             thumb's resting corner. Sign's verify row and Receive's four-pill
-//             row are the cases, and redraws 01, 02, 03 and 05 all draw them
-//             this way.
+// The justification here used to say the corner was "the thumb's resting
+// corner" AND that the action belonged in it, in the same sentence, which is
+// self contradicting -- and the app split on it. Two destructive controls
+// disagreed in writing: ERASE THE WORDS took the corner while REMOVE SIGNED
+// sat at 48 with a comment saying the corner was exactly where it must not go.
+// A reader could not tell which screen they were on from the shape of the bar.
+//
+// The ergonomic claim is dropped rather than picked, because it was never
+// measured on the panel and neither half of it was ever true of both hands.
+// What replaces it is a claim that can be checked by looking: THE CORNER DOES
+// THE SCREEN'S JOB. What that costs is a consequential control landing in the
+// corner on some screens, and the product already pays that safely -- every
+// such action is a hold (ERASE, REMOVE ALL, SHOW THE SCAN KEY, SIGN) or opens a
+// confirm before it does anything (REMOVE SIGNED, INSTALL). That is the
+// invariant to keep: a tap in the corner may never be irreversible.
 //
 // THE RULE IS ABOUT ESCAPING A SCREEN, NOT ABOUT THE WORD "BACK". STR_C_BACK
 // does two unrelated jobs in this app and only one of them belongs here:
 //
 //   escape  - leaves for the level above (close_cb, files_back_cb, sp_back_cb,
 //             the sign details page returning to verify). If a screen's escape
-//             is called DONE instead, DONE takes the corner: the corner belongs
-//             to the exit, whatever it is labelled.
+//             is called DONE instead, DONE is what moves: the two positions
+//             belong to the exit and the action, whatever they are labelled.
 //   paging  - steps within the screen you are already on, and always has a
 //             NEXT beside it (the recovery words pages, the pairing QR page).
 //             That pair stays adjacent on the LEFT, because splitting BACK and
@@ -149,6 +157,9 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 //             the one thing a paged sequence needs, which is that its two
 //             halves look like one control.
 #define WT_BACK_X          610   // BACK's left edge, for the standard 140px pill
+#define WT_EXIT_X           48   // the exit's left edge when the bar also holds
+                                 // the screen's action. Named so a grep finds
+                                 // both halves of the rule, not just one.
 
 // The action bar is the floor the row stands on: full width, WT_BAR fill, one
 // WT_HAIR line along its top. It is not a call you make. wt_pillh builds it the

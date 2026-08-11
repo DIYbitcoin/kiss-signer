@@ -124,12 +124,15 @@ static void result_screen(int rc)
     // rather than sitting grey under a green or red heading.
     wt_why_body(s_scr, body, 136, col, true);
 
+    // One pill, so it takes the corner: 552..752. Centred at 300 was a third
+    // convention on top of the two this pass merges, and the only screen using
+    // it was the one the owner reaches after a firmware write.
     if (rc == WFW_OK) {
-        lv_obj_t *p = wt_pill(s_scr, tr(STR_G_FW_RESTART), 300, WT_ACTION_Y, 200,
+        lv_obj_t *p = wt_pill(s_scr, tr(STR_G_FW_RESTART), 552, WT_ACTION_Y, 200,
                               restart_cb, NULL);
         wt_pill_primary(p);
     } else {
-        wt_pill(s_scr, tr(STR_C_OK), 300, WT_ACTION_Y, 200, result_back_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, result_back_cb, NULL);
     }
 }
 
@@ -264,11 +267,12 @@ static void confirm_screen(void)
 
     // The tall row, 1500 ms, matching the storage move exactly. CANCEL takes the
     // tall geometry too, because a row whose pills differ in height stops
-    // looking like a row.
-    wt_hold_pill(s_scr, tr(STR_G_FW_HOLD), 48, WT_ACTION_Y_TALL, 330,
-                 WT_ACTION_H_TALL, 1500, writing_apply, NULL);
-    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), 585, WT_ACTION_Y_TALL,
+    // looking like a row. The hold takes the corner (422..752) and CANCEL the
+    // way out, which is the same shape as the storage move it matches.
+    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y_TALL,
                                 165, WT_ACTION_H_TALL, confirm_cancel_cb, NULL);
+    wt_hold_pill(s_scr, tr(STR_G_FW_HOLD), 422, WT_ACTION_Y_TALL, 330,
+                 WT_ACTION_H_TALL, 1500, writing_apply, NULL);
     lv_obj_set_ext_click_area(cancel, 10);
 }
 
@@ -360,7 +364,7 @@ static void fw_screen(void)
         if (s_img.cmp < 0) wt_row_sev(v, WT_SEV_WARN);
 
         lv_obj_t *p = wt_pill_icon(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_INSTALL),
-                                   48, WT_ACTION_Y, 240, WT_ACTION_H,
+                                   512, WT_ACTION_Y, 240, WT_ACTION_H,
                                    install_cb, NULL);
         if (rc == WFW_OK) wt_pill_primary(p);
     } else {
@@ -370,7 +374,13 @@ static void fw_screen(void)
         nothing_to_install(rc);
     }
 
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
+    // WT_EXIT_X in BOTH branches, though the second bar holds nothing else.
+    // Whether there is an image on the card is not something the owner decides
+    // on the way in, so a BACK that took the corner when the card was empty
+    // would move between visits to the same screen -- which is the fault this
+    // whole pass removes, and it outranks the exit-only half of the rule.
+    // INSTALL is safe in the corner because install_cb only opens the confirm.
+    wt_pill(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, close_cb, NULL);
 }
 
 void wallet_fw_ui_open(lv_obj_t *parent, void (*done_cb)(void))
