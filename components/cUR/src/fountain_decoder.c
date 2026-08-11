@@ -195,7 +195,7 @@ static bool hash_set_add(hash_set_t *set, uint32_t hash) {
 
   // Expand if needed (but respect MAX_DUPLICATE_TRACKING limit)
   if (set->count >= set->capacity) {
-    size_t new_capacity = set->capacity * 2;
+    size_t new_capacity = set->capacity ? set->capacity * 2 : HASH_MIN_CAPACITY;
     if (new_capacity > MAX_DUPLICATE_TRACKING) {
       new_capacity = MAX_DUPLICATE_TRACKING;
     }
@@ -810,7 +810,8 @@ static void reduce_mixed_by(fountain_decoder_t *const decoder,
 
       free(entry->value.indexes.indexes);
       entry->value.indexes = (part_indexes_t){0};
-      part_indexes_copy(&new_indexes, &entry->value.indexes);
+      if (!part_indexes_copy(&new_indexes, &entry->value.indexes))
+        return;   // rather than leave the entry half rewritten
 
       if (is_simple_part(&entry->value)) {
 #ifdef DEBUG_STATS

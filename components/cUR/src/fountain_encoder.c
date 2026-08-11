@@ -449,7 +449,10 @@ bool fountain_encoder_next_part(fountain_encoder_t *encoder,
   encoder->last_part_indexes.count = 0;
   encoder->last_part_indexes.capacity = 0;
 
-  part_indexes_copy(indexes, &encoder->last_part_indexes);
+  // Checked: on failure dst is left partly built, and last_part_indexes is
+  // what the next part is generated against.
+  if (!part_indexes_copy(indexes, &encoder->last_part_indexes))
+    return false;
 
   // Fill part structure
   part->seq_num = encoder->seq_num;

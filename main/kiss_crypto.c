@@ -2,6 +2,7 @@
 // No hand-rolled crypto: everything below is libwally calls.
 #include "kiss_crypto.h"
 #include "kiss_sp.h"
+#include "kiss_psbt.h"   // kiss_psbt_free: a lock drops the loaded transaction
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -310,6 +311,17 @@ int kiss_session_open(const char *passphrase)
 // in kiss_seed's RAM copy, so it has to leave with the derived key.
 void kiss_session_close(void)
 {
+    // Everything the session was working on goes with it, not just the key.
+    // Nothing dropped the loaded PSBT on lock, so the last transaction --
+    // every address and amount in it -- stayed parsed in RAM until something
+    // happened to load another. kiss_psbt_load itself returns -1 before
+    // reaching its own free() when there is no session, so locking and then
+    // opening a file was exactly the sequence that kept it alive.
+    //
+    // Here rather than in main.c's lock path, so it holds for every way a
+    // session ends: the autolock, Settings, and the storage change that closes
+    // the session to prove the key left RAM.
+    kiss_psbt_free();
     kiss_session_discard_prepared();
     wally_bzero(&s_master, sizeof(s_master));
     account_forget();
