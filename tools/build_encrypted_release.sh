@@ -79,6 +79,11 @@ force = {
     "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE":  None if rehearsal else "y",
     "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT": "y" if rehearsal else None,
     "CONFIG_NVS_ENCRYPTION":                        "y",
+    # XTS key size: AES-128, chosen deliberately. It is not weak, the size is
+    # fixed by the first boot's eFuse burn, and AES-256 waits for the later
+    # pass with secure boot. Stated here so no IDF default can make it.
+    "CONFIG_SECURE_FLASH_ENCRYPTION_AES128":        "y",
+    "CONFIG_SECURE_FLASH_ENCRYPTION_AES256":        None,
     # P4 defaults the NVS key-protection choice to the HMAC scheme (needs a
     # pre-burned eFuse key block); we want the flash-encryption scheme: XTS
     # keys auto-generated on first use into the nvs_key partition
@@ -284,6 +289,8 @@ checks += [
     (on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT") is rehearsal,
      "release mode off" if rehearsal else "development mode off"),
     (on("CONFIG_NVS_ENCRYPTION"),                       "NVS encryption enabled"),
+    (on("CONFIG_SECURE_FLASH_ENCRYPTION_AES128") and
+     not on("CONFIG_SECURE_FLASH_ENCRYPTION_AES256"),   "XTS AES-128, deliberate (256 waits for the later pass)"),
     (on("CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC"),  "NVS keys via flash-enc scheme (nvs_key partition)"),
     (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
     (on("CONFIG_ESPTOOLPY_NO_STUB"),                    "esptool no-stub mode (required with flash encryption)"),
