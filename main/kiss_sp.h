@@ -54,6 +54,10 @@ int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[3
 int sp_schnorr_sign(const uint8_t d32[32], const uint8_t msg32[32],
                     const uint8_t aux32[32], uint8_t sig64[64]);
 
+// Blind this file's secp context against side channels. Separate from
+// libwally's, hence its own entry point; kiss_secp_randomize calls both.
+int sp_ctx_randomize(const uint8_t seed32[32]);
+
 // BIP340 verify: sig64 over msg32 under x-only pubkey xonly32. 0 = valid.
 int sp_schnorr_verify(const uint8_t xonly32[32], const uint8_t msg32[32],
                       const uint8_t sig64[64]);

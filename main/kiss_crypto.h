@@ -90,6 +90,12 @@ bool kiss_trng_live(void);
 // itself. Returns 0 on success.
 int kiss_jitter(uint8_t out[32]);
 
+// Blind both secp256k1 contexts (libwally's and kiss_sp's) against power and
+// timing analysis. Call once per session open. Signatures are unchanged --
+// blinding touches the internal scalar representation, not the output.
+// Returns 0 on success.
+int kiss_secp_randomize(void);
+
 // ---- network (mainnet / testnet) ----
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
 // descriptor xpub/tpub serialization. The master key itself is network-free,
