@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "CONTINUER",
   "L_DISCARD": "ABANDONNER",
   "L_FAIL_SETUP_T": "CONFIGURATION DU SIGNATAIRE IMPOSSIBLE",
+  "L_RECOVER_T": "PAS ENCORE SUR CET APPAREIL",
+  "L_RECOVER_B": "vos mots sont seulement en mémoire et nulle part ailleurs. écrivez les sur papier avant toute autre chose.\n\nréessayez ensuite. si l'enregistrement échoue encore, restaurez depuis ce papier sur un signataire de confiance.",
   "L_FAIL_OPEN_T": "OUVERTURE DES CLÉS IMPOSSIBLE",
   "L_FAIL_SETUP_B": "rien n'a été enregistré. recommence depuis le menu.",
   "L_FAIL_OPEN_B": "quelque chose a échoué. réessaie depuis le menu.",

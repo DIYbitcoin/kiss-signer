@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "KEEP GOING",
   "L_DISCARD": "DISCARD",
   "L_FAIL_SETUP_T": "COULDN'T SET UP THIS SIGNER",
+  "L_RECOVER_T": "NOT ON THIS DEVICE YET",
+  "L_RECOVER_B": "your words are still in memory and nowhere else. write them on paper before you do anything else.\n\nthen try again. if saving keeps failing, restore from that paper on a signer you trust.",
   "L_FAIL_OPEN_T": "COULDN'T OPEN YOUR KEYS",
   "L_FAIL_SETUP_B": "nothing was saved. start again from the menu.",
   "L_FAIL_OPEN_B": "something went wrong. try again from the menu.",
