@@ -667,8 +667,22 @@ static void fp_tap_cb(lv_event_t *e) {
   if (s_shown_fp_valid) {
     memcpy(s_last_fp, s_shown_fp, sizeof s_last_fp);
   }
-  // the passphrase dies here (deniability); the derived session key lives in RAM
-  // until wallet lock so Receive/Sign can derive without re-typing
+  // The passphrase dies HERE, which is what this comment always claimed and
+  // what only one of the two branches below actually did. Setup returns to a
+  // warning screen first, and every wipe was on the far side of it: OK reached
+  // wipe_and_close, VERIFY reached setup_warn_words_done, and an owner who set
+  // the device down on that screen reached neither. Setup is also exempt from
+  // the idle auto-lock -- deliberately, because writing words down takes
+  // minutes -- so the plaintext sat in RAM with nothing coming to clear it.
+  //
+  // Nothing past this point reads it. The derived session is what Receive and
+  // Sign use, and both exits below already wiped exactly this set, so doing it
+  // here changes when rather than what. Returning to the keyboard re-types it,
+  // which is what setup_warn_words_done was already relying on.
+  memset(s_pass, 0, sizeof s_pass);
+  memset(s_first, 0, sizeof s_first);
+  s_plen = 0;
+  s_caret = 0;
   if (s_setup_mode) {          // one last screen: what the passphrase really is
     setup_warn_screen();       // (its OK button finishes the unlock)
     return;
