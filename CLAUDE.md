@@ -1,5 +1,11 @@
 # KISS Signer — working rules
 
+## Replies
+
+Short. A few sentences, and the picture when a screen changed. No summaries of
+what was just done, no lists of what is left, no restating the commit message
+back — it is all in the commit and the code. Detail only when asked for it.
+
 ## Screen chrome
 
 A content screen is **not** a title, a paragraph and a button. That shape has
