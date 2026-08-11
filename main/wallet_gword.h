@@ -42,6 +42,24 @@ typedef struct {
 // unlock and the tests cannot drift apart on it.
 #define GW_MATCH_MAX 26
 
+// The shape of a raw draw, for the same reason and after they drifted anyway.
+// GW_MATCH_MAX was exposed here and the two numbers that decide what a draw
+// even IS were left one in each collector: enrolment took 512 points and folded
+// every stroke past its twelfth into the twelfth, unlock took 384 and kept
+// every boundary. A word between 385 and 512 points, or of more than twelve
+// strokes, could be written twice, confirmed, saved -- and then never open the
+// device, because `strokes` is matched exactly (see gw_template_t) and the
+// points beyond 384 were never sampled. The owner's only symptom is a signer
+// that stopped answering to them.
+//
+// 384 is unlock's budget and therefore the real one: it is what the panel can
+// hand gw_make, and nothing that cannot be reproduced there is worth storing
+// here. It covers the word AND the mark that follows it, so a word using all of
+// it leaves nothing for the modifier -- which is the honest reason to keep a
+// word short rather than a limit to raise.
+#define GW_MAX_PTS     384
+#define GW_MAX_STROKES 12
+
 // Build a template from a raw draw. `sid` is the stroke id per point, as the
 // game's collector already keeps. Returns 0, or -1 when the draw is too small
 // or too short to be anybody's word.
