@@ -703,8 +703,20 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     const struct wally_tx *tx = psbt_tx();
     s->locktime = tx->locktime;
 
-    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs)
+    // TERMINAL, not a flag on the way past. This used to stop() and carry on
+    // building the summary, and the output loop below is bounded by
+    // tx->num_outputs while indexing s_psbt->outputs[j] -- so the very
+    // disagreement being reported was what let j run past the shorter array.
+    //
+    // Nothing signable came of it (status is STOP and the sign gate reads it),
+    // but the summary was assembled from a transaction whose two halves do not
+    // describe the same thing, which is not a summary of anything. There is
+    // nothing to show, so it returns.
+    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs) {
         stop(s, "malformed: tx/psbt count mismatch");
+        s_status = s->status;
+        return 0;
+    }
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
@@ -868,7 +880,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // the user can't approve, and skipping it would corrupt the fee math.
     if (tx->num_outputs > WPSBT_MAX_OUTS)
         stop(s, "too many outputs to verify safely");
-    for (size_t j = 0; j < tx->num_outputs && j < WPSBT_MAX_OUTS; j++) {
+    // Bounded by BOTH sides even though the mismatch above now returns: this
+    // loop reads tx->outputs[j] and s_psbt->outputs[j] (the keypath lookup
+    // further down), and a bound naming only one of them is one edit away from
+    // the over-read again.
+    for (size_t j = 0; j < tx->num_outputs && j < s_psbt->num_outputs &&
+                       j < WPSBT_MAX_OUTS; j++) {
         const struct wally_tx_output *o = &tx->outputs[j];
         wpsbt_out_t *so = &s->outs[j];
         so->sats = o->satoshi;
