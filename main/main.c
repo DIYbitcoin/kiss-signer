@@ -1779,6 +1779,45 @@ static void fp_card_open(void) {
     lv_obj_add_event_cb(s_fp_card, fp_card_deleted_cb, LV_EVENT_DELETE, NULL);
 }
 
+// ---- the screen registry ---------------------------------------------------
+//
+// One row per screen that can be over the wallet, because keeping the same
+// facts in three hand-maintained lists is what has now failed twice. The
+// firmware screen was in NEITHER the auto-lock list nor the touch owner list,
+// which is how the idle lock left it lit with RECOVERY WORDS two taps away.
+// wallet_word_ui was missing from the touch owner list before it, so the game's
+// sampler read the same strokes the writing canvas did and opened tiles
+// underneath a screen that still looked correct.
+//
+// Neither was hard to fix and neither was ever going to be noticed: adding a
+// screen meant editing code that does not mention the screen. A row here is the
+// whole registration.
+//
+// ORDER IS PART OF THE DATA. Scan closes first so the camera stops before
+// anything else runs, and firmware closes before settings because its close
+// deliberately does not hand control back the way its BACK does.
+static const struct {
+  bool (*active)(void);
+  void (*close)(void);       // NULL: nothing to tear down, only to notice
+  bool owns_touch;           // LVGL buttons; the game must not read the same finger
+  bool holds_lock_off;       // exempt from the idle auto-lock, on purpose
+} SCREENS[] = {
+  // Wizards and login. They own the touch AND hold the clock off: writing
+  // twelve words onto paper takes minutes of a screen nobody is touching.
+  { wallet_ui_active,        NULL,                  true,  true  },
+  { wallet_setup_active,     NULL,                  true,  true  },
+  { wallet_duress_ui_active, NULL,                  true,  true  },
+  { wallet_word_ui_active,   NULL,                  true,  true  },
+  // Wallet sub-screens. They own the touch and the lock takes them away.
+  { wallet_scan_active,      wallet_scan_close,     true,  false },
+  { wallet_sign_active,      wallet_sign_close,     true,  false },
+  { wallet_recv_active,      wallet_recv_close,     true,  false },
+  { wallet_info_active,      wallet_info_close,     true,  false },
+  { wallet_fw_ui_active,     wallet_fw_ui_close,    true,  false },
+  { wallet_settings_active,  wallet_settings_close, true,  false },
+};
+#define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
+
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -1819,8 +1858,10 @@ static void game_tick(lv_timer_t *t) {
   // caught it opening Receive and the Sign chooser UNDERNEATH a write screen
   // that still looked correct. Nothing had ever drawn on that screen: it had no
   // walk stop, which is the only reason a bug this loud survived.
-  if (wallet_ui_active() || wallet_setup_active() ||
-      wallet_duress_ui_active() || wallet_word_ui_active()) {  // login/wizard own the touch
+  bool lock_held_off = false;
+  for (size_t i = 0; i < N_SCREENS; i++)
+    if (SCREENS[i].holds_lock_off && SCREENS[i].active()) { lock_held_off = true; break; }
+  if (lock_held_off) {                                        // login/wizard own the touch
     // The menu is buried; its fruit must stop drifting. This is the hook and not
     // the menu panel's hidden flag because the wizard opens OVER the menu with
     // the panel still visible, which is how the drift reached the camera preview
@@ -1860,17 +1901,13 @@ static void game_tick(lv_timer_t *t) {
     }
     if (pressed) s_wallet_act_t = lv_tick_get();  // any touch anywhere resets the clock
     else if (lv_tick_elaps(s_wallet_act_t) > WALLET_AUTOLOCK_MS) {
-      if (wallet_scan_active())     wallet_scan_close();      // camera off first
-      if (wallet_sign_active())     wallet_sign_close();      // drops any loaded PSBT
-      if (wallet_recv_active())     wallet_recv_close();
-      if (wallet_info_active())     wallet_info_close();
-      // Before Settings, and not optional. The firmware screen hangs off the
-      // active screen rather than the wallet container this lock hides, so a
-      // lock that skipped it left it lit on top of a locked device with a BACK
-      // that rebuilds Settings -- and RECOVERY WORDS one row into that, reading
-      // a seed the device key still opens after the session is gone.
-      if (wallet_fw_ui_active())    wallet_fw_ui_close();
-      if (wallet_settings_active()) wallet_settings_close();
+      // Everything the registry says the lock owns, in the order it lists them:
+      // the camera stops first, and firmware goes before settings because its
+      // close deliberately does not hand control back the way its BACK does. A
+      // screen is torn down here by having a row, which is the point of the row.
+      for (size_t i = 0; i < N_SCREENS; i++)
+        if (SCREENS[i].close && SCREENS[i].active())
+          SCREENS[i].close();
       wallet_lock();                              // session key leaves RAM
       s_prev_press = pressed;
       return;
@@ -1897,14 +1934,15 @@ static void game_tick(lv_timer_t *t) {
     // the CANCEL pill is LVGL and the live camera paints over LVGL, so on a real
     // board that pill can be dead and this is the only escape. Below: the wallet
     // home, which has no BACK to reach for.
-    // wallet_fw_ui_active was missing here for the same reason it was missing
-    // from the lock above: this screen was never on either list. Without it the
-    // game's own sampler reads the finger that is holding INSTALL, and its
-    // recogniser opens whatever sits under the stroke -- the failure the write
-    // screen comment describes, on the one screen that rewrites the firmware.
-    if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
-        wallet_scan_active() || wallet_info_active() || wallet_settings_active() ||
-        wallet_fw_ui_active()) {
+    // Same table, the other question it answers. The firmware screen was absent
+    // here as well as from the lock, so the game's own sampler read the finger
+    // holding INSTALL and its recogniser opened whatever sat under the stroke.
+    // s_fp_card is not a screen module -- it is a card built inline on the home
+    // -- so it keeps its own test.
+    bool owned = s_fp_card;
+    for (size_t i = 0; !owned && i < N_SCREENS; i++)
+      if (SCREENS[i].owns_touch && SCREENS[i].active()) owned = true;
+    if (owned) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
       return;
     }
