@@ -372,6 +372,14 @@ static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home o
     lv_timer_delete(t);
     close_cb(NULL);
 }
+// This screen's lane is 24..776, not the page's 48..752, because its panels are
+// drawn at sg_panel(24, y, 752). So its corner is 776 and its exits are pinned
+// against that, not against WT_BACK_X.
+#define SG_BACK_X    672   // 672..776, the 104px exit on the verify row
+#define SG_BACK_X140 636   // 636..776, the standard 140px exit
+#define SG_DETAILS_X 366   // 366..516
+#define SG_HOLD_X     48   // 48..358, off the corner: it signs the transaction
+
 
 // The ? explainer: what the SIGNATURE code is for. Same pattern as the entropy
 // screen's WHY THREE SOURCES. BACK rebuilds the SD signed screen from the saved
@@ -495,7 +503,7 @@ static void done_screen(const char *outname)
     // page under it; it does not need to be the small type.
     lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 300, 704, 90);
     lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
-    mk_pill(tr(STR_C_DONE), 330, WT_ACTION_Y, 140, close_cb);
+    mk_pill(tr(STR_C_DONE), SG_BACK_X140, WT_ACTION_Y, 140, close_cb);
     // nothing needs to stay on screen (the file is saved), so drift back to home
     s_done_tmr = lv_timer_create(auto_home_cb, 6000, NULL);
     lv_timer_set_repeat_count(s_done_tmr, 1);
@@ -792,9 +800,6 @@ static void recip_scroll_cb(lv_event_t *e)
 // hard coordinates: it never moves, never changes width and never changes label
 // between the normal and caution screens, so a tap learned on one lands on the
 // same pill on the other.
-#define SG_BACK_X     48   // 48..152, leftmost
-#define SG_DETAILS_X 160   // 160..310
-#define SG_HOLD_X    466   // 466..776, flush with the panels' right edge
 #define SG_ARC_DX      8   // the hold arc's inset from HOLD TO SIGN's left edge
 
 // A caution row carries its own acknowledgement now, so the answer to "I read
@@ -1011,7 +1016,7 @@ static void cautions_screen(void)
         y += SG_ROW_H + 4;
     }
 
-    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X140, WT_ACTION_Y, 140, WT_ACTION_H,
              cautions_back_cb, NULL);
 }
 
@@ -1146,8 +1151,8 @@ static void verify_screen(lv_obj_t *parent)
                              wt_font23(), STOP_COL);
         lv_obj_set_width(r, 752 - 2 * SG_PAD);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        // Same 752 lane as the panel it just drew, so the same BACK as verify.
-        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+        // Same 776 lane as the panel it just drew, so the same exit as verify.
+        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X140, WT_ACTION_Y, 140, WT_ACTION_H,
                  s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
         return;
     }
@@ -1984,7 +1989,7 @@ static void qr_out_screen(size_t sw)
     wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
     s_ez_pill = wt_pill(s_scr, tr(STR_S_EASY_SCAN), 430, 244, 200, qr_ez_cb, NULL);
     wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
-    mk_pill(tr(STR_C_DONE), 610, WT_ACTION_Y, 140, close_cb);
+    mk_pill(tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
 }
@@ -2163,7 +2168,7 @@ static void rm_screen(void)
     // BACK moves to WT_EXIT_X. Safe there only because REMOVE ALL is a 1500ms
     // hold: the corner invariant is that a TAP there is never irreversible.
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, rm_back_cb);
-    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), 452, WT_ACTION_Y, 300, WT_ACTION_H,
+    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), WT_ACT_X, WT_ACTION_Y, 300, WT_ACTION_H,
                  1500, rm_all, NULL);
 }
 
@@ -2278,7 +2283,7 @@ static void sd_open(lv_obj_t *parent)
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, choose_back_cb);
     if (s_nsig > 0) {
         lv_obj_t *rm = wt_pill_icon(s_scr, LV_SYMBOL_TRASH, tr(STR_S_RM_SIGNED),
-                                    412, WT_ACTION_Y, 340, WT_ACTION_H,
+                                    WT_ACT_X, WT_ACTION_Y, 340, WT_ACTION_H,
                                     rm_open_cb, NULL);
         lv_obj_set_style_border_color(rm, WARN_COL, 0);
         lv_obj_t *rl = lv_obj_get_child(rm, 0);

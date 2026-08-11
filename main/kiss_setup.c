@@ -384,7 +384,7 @@ static void verify_finish(void)
         wt_why_body(s_scr, tr(STR_W_VBAD_B), 206, STOP_COL, true);
         // Typing them again is what this screen is for; DONE is the way out.
         mk_pill(tr(STR_C_DONE), WT_EXIT_X, WT_ACTION_Y, 140, verify_exit_cb, NULL);
-        lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), 452, WT_ACTION_Y, 300, verify_retry_cb, NULL);
+        lv_obj_t *p = mk_pill(tr(STR_W_TYPE_AGAIN_BTN), WT_ACT_X, WT_ACTION_Y, 300, verify_retry_cb, NULL);
         wt_pill_primary(p);
     }
 }
@@ -430,7 +430,7 @@ static void verify_intro_screen(void)
     }
 
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, verify_exit_cb, NULL);
-    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 452, WT_ACTION_Y, 300, verify_start_cb, NULL);
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), WT_ACT_X, WT_ACTION_Y, 300, verify_start_cb, NULL);
     wt_pill_primary(p);
 }
 
@@ -988,7 +988,7 @@ static void ent_fail_screen(void)
     // 212..398: the body has one sentence and no longer needs 260px of room.
     mk_body(tr(STR_W_ENT_FAIL_B), 48, 212, 704, WT_CONTENT_BOTTOM - 212, INK_COL);
     // One pill, and it is the screen's job, so it takes the corner either way.
-    mk_pill(tr(STR_C_TRY_AGAIN), WT_BACK_X, WT_ACTION_Y, 160, ent_retry_cb, NULL);
+    mk_pill(tr(STR_C_TRY_AGAIN), 592, WT_ACTION_Y, 160, ent_retry_cb, NULL);
 }
 
 static void tap_screen(void)
@@ -1046,7 +1046,7 @@ static void tap_screen(void)
 
     // CANCEL only. Same rule the words screen documents: no screen without an
     // exit. Nothing is staged here, because the seed does not exist yet.
-    mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 160, cancel_cb, NULL);
+    mk_pill(tr(STR_C_CANCEL), 592, WT_ACTION_Y, 160, cancel_cb, NULL);
 }
 
 #ifdef SIMULATOR
@@ -1161,9 +1161,10 @@ static void ent_audit_cb(lv_event_t *e)
 static void ent_audit_pill(void)
 {
     // Between the way out at 48 and CAPTURE in the corner: 140 + 224 + 300 in
-    // the 704 lane leaves 20px gaps, so 48..188, 208..432, 452..752.
+    // 20px gaps in the 704 lane, mirrored: CAPTURE 48..348, PROVE IT 368..592,
+    // the exit 612..752.
     wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_BTN),
-                 208, WT_ACTION_Y, 224, WT_ACTION_H, ent_audit_cb, NULL);
+                 368, WT_ACTION_Y, 224, WT_ACTION_H, ent_audit_cb, NULL);
 }
 
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
@@ -1556,7 +1557,7 @@ static void pf_gate_screen(const char *label, int body_key)
              false, WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, pf_back_cb, NULL);
-    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 512, WT_ACTION_Y, 240,
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
                           pf_retry_cb, NULL);
     wt_pill_primary(p);
 }
@@ -1671,7 +1672,7 @@ static void proof_screen(void)
              132, NULL, NULL);
 
 #ifdef SIMULATOR
-    s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), 452, WT_ACTION_Y, 300,
+    s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), WT_ACT_X, WT_ACTION_Y, 300,
                         pf_sim_capture_cb, NULL);
     wt_pill_primary(s_pf_shot);
 #else
@@ -1679,7 +1680,7 @@ static void proof_screen(void)
     // one framebuffer from the first frame.
     camera_spike_set_preview_rect(ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
     if (camera_proof_start()) {
-        s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), 452, WT_ACTION_Y, 300,
+        s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), WT_ACT_X, WT_ACTION_Y, 300,
                             pf_capture_cb, NULL);
         wt_pill_primary(s_pf_shot);
         if (!s_pf_tmr) s_pf_tmr = lv_timer_create(pf_poll_cb, 80, NULL);
@@ -1750,7 +1751,7 @@ static void proof_result_screen(void)
                  408, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
 
     mk_pill(tr(STR_C_DONE), WT_EXIT_X, WT_ACTION_Y, 140, pf_done_cb, NULL);
-    lv_obj_t *sw = mk_pill(tr(STR_W_PROOF_WORDS_BTN), 452, WT_ACTION_Y, 300,
+    lv_obj_t *sw = mk_pill(tr(STR_W_PROOF_WORDS_BTN), WT_ACT_X, WT_ACTION_Y, 300,
                            pf_words_cb, NULL);
     wt_pill_primary(sw);
 }
@@ -2197,13 +2198,21 @@ static void dice_screen_build(void)
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
 
-    // action row (WT_ACTION_Y): CANCEL out at WT_EXIT_X, UNDO in the middle,
-    // DONE (disabled until the floor is met) in the corner, because finishing
-    // the roll is what this screen is for. 160 + 200 + 200 = 560 in the 704
-    // lane, so the two gaps are 72 each: 48..208, 280..480, 552..752.
+    // action row (WT_ACTION_Y): CANCEL out on the left, UNDO in the middle,
+    // DONE (disabled until the floor is met) in the corner. 160 + 200 + 200 =
+    // 560 in the 704 lane, so the two gaps are 72 each: 48..208, 280..480,
+    // 552..752.
+    //
+    // This row did NOT mirror when every other bar did. The corner is the way
+    // out everywhere else, and here the way out is a one tap unconfirmed
+    // discard of a hand rolled set -- the exact thing the corner rule exists to
+    // keep out of a reflex tap. DONE keeps it instead: it is floor gated and
+    // judge gated, so a stray tap there does nothing until the roll is real.
     // UNDO is 200, not the 140 it wore unmeasured: DESHACER, DESFAZER and
     // HOÀN TÁC all fell to font14 at 140, and the row has the slack.
-    mk_pill(tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
+    // 48, not the corner: dice_cancel_cb throws the whole roll set away on one
+    // tap with no confirm. See the exemption in kiss_theme.h.
+    mk_pill(tr(STR_C_CANCEL), 48, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
     mk_pill(tr(STR_W_DICE_UNDO), 280, WT_ACTION_Y, 200, dice_undo_cb, NULL);
     s_dice_done = mk_pill(tr(STR_C_DONE), 552, WT_ACTION_Y, 200, dice_done_cb, NULL);
     dice_refresh();
@@ -2302,7 +2311,7 @@ static void entropy_screen(void)
     (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
     ent_audit_pill();
-    s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 452, WT_ACTION_Y, 300,
+    s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
     // The sim has no camera and no meter, so the walk would see a permanently
@@ -2318,7 +2327,7 @@ static void entropy_screen(void)
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
         if (!s_ent_tmr) s_ent_tmr = lv_timer_create(ent_poll_cb, 80, NULL);
-        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 452, WT_ACTION_Y, 300,
+        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                                 ent_tap_cb, NULL);
         wt_pill_primary(s_ent_capture);
         ent_audit_pill();
@@ -2354,7 +2363,7 @@ static void entropy_screen(void)
         // A dead camera must not be a dead device: sources 2 and 3 are still
         // there, so the seed loses a source rather than the device losing its
         // only path to a wallet. CAPTURE goes straight to the taps.
-        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), 452, WT_ACTION_Y, 300,
+        s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                                 tap_only_cb, NULL);
         wt_pill_primary(s_ent_capture);
     }
@@ -2568,7 +2577,7 @@ static void cards_intro_screen(void)
     // Back to the METHOD chooser, not the count screen: cards makes 12 and no
     // longer passes through it.
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, goto_method_cb, NULL);
-    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 452, WT_ACTION_Y, 300,
+    lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), WT_ACT_X, WT_ACTION_Y, 300,
                           cards_start_cb, NULL);
     wt_pill_primary(p);
 }
@@ -2765,7 +2774,8 @@ static void cards_cksum_screen(void)
         wt_why_block(s_scr, tr(STR_W_CKSUM_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
     }
 
-    mk_pill(tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cards_cancel_cb, NULL);
+    // 48, not the corner: cards_cancel_cb discards the typed words on one tap.
+    mk_pill(tr(STR_C_CANCEL), 48, WT_ACTION_Y, 140, cards_cancel_cb, NULL);
     lv_obj_t *p = mk_pill(tr(STR_W_CKSUM_GO), 452, WT_ACTION_Y, 300,
                           cards_pick_go_cb, NULL);
     wt_pill_primary(p);
@@ -3180,7 +3190,7 @@ static void choose_screen(void)
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_cb, LV_EVENT_CLICKED, NULL);
     }
-    mk_pill(tr(STR_C_CANCEL), 610, WT_ACTION_Y, 140, cancel_cb, NULL);
+    mk_pill(tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -3234,7 +3244,7 @@ static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
     wt_why_body(s_scr, tr(STR_W_QRBAD_B), 140, STOP_COL, true);
-    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 48, WT_ACTION_Y, 300,
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 452, WT_ACTION_Y, 300,
                           s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
     wt_pill_primary(p);
 }
@@ -3338,7 +3348,7 @@ static void sd_problem_screen(int rc)
     // 48..188, TRY AGAIN at 210..450, and the recovery path ending at 752.
     lv_obj_t *back = mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140,
                              sd_problem_back_cb, NULL);
-    lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), 210, WT_ACTION_Y, 240,
+    lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
                               sd_retry_cb, NULL);
     wt_pill_primary(retry);
     lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 472, WT_ACTION_Y, 280,

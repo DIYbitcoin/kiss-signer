@@ -281,11 +281,14 @@ static void confirm_screen(void)
 
     // The tall row, 1500 ms, matching the storage move exactly. CANCEL takes the
     // tall geometry too, because a row whose pills differ in height stops
-    // looking like a row. The hold takes the corner (422..752) and CANCEL the
-    // way out, which is the same shape as the storage move it matches.
-    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y_TALL,
+    // looking like a row. CANCEL takes the corner and the hold takes the left:
+    // 1500ms of finger is what guards the flash write, not its position, and the
+    // corner is where a reflex tap lands.
+    //
+    // 587, not WT_EXIT_X: this pill is 165 wide, so 752-165 is what puts it flush.
+    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), 587, WT_ACTION_Y_TALL,
                                 165, WT_ACTION_H_TALL, confirm_cancel_cb, NULL);
-    wt_hold_pill(s_scr, tr(STR_G_FW_HOLD), 422, WT_ACTION_Y_TALL, 330,
+    wt_hold_pill(s_scr, tr(STR_G_FW_HOLD), WT_ACT_X, WT_ACTION_Y_TALL, 330,
                  WT_ACTION_H_TALL, 1500, writing_apply, NULL);
     lv_obj_set_ext_click_area(cancel, 10);
 }
@@ -396,7 +399,7 @@ static void fw_screen(void)
         if (s_img.cmp < 0) wt_row_sev(v, WT_SEV_WARN);
 
         lv_obj_t *p = wt_pill_icon(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_INSTALL),
-                                   512, WT_ACTION_Y, 240, WT_ACTION_H,
+                                   WT_ACT_X, WT_ACTION_Y, 240, WT_ACTION_H,
                                    install_cb, NULL);
         if (rc == WFW_OK) wt_pill_primary(p);
     } else {
