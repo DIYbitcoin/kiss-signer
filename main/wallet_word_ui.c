@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "wallet_crypto.h"   // wallet_session_decoy: is there a passphrase at all
 #include "wallet_gword.h"
 #include "wallet_theme.h"
 #include "i18n.h"
@@ -270,6 +271,43 @@ static void confirm_screen(void)
 static void done_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_GD_WORD_OK_T), NULL);
+
+    // No passphrase on this session means there is no second wallet for the
+    // mark to route to: the letters alone open the funded one. The two rows
+    // below would show them a SPARE they do not have, which is the promise an
+    // owner would repeat to whoever is standing over them. The stroke wizard
+    // already refuses to describe this signer that way (ST_NOPASS); this is the
+    // same refusal on the other half of the same question.
+    //
+    // The letters still WORK -- that is what the title says and why this flow
+    // is not blocked the way the stroke's is. Only the spare-and-real split is
+    // untrue here, so the passphrase is named as the thing that is missing,
+    // borrowing the chips and the body the stroke's own screen ships.
+    if (wallet_session_decoy()) {
+        // wt_diagram_row carries no position of its own, so it needs a placed
+        // parent or it lands at 0,0 and sits on the title. Same column the
+        // stroke's ST_NOPASS builds, at the same y, so the two screens an owner
+        // meets from one Settings row are the same screen twice.
+        lv_obj_t *col = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_pos(col, 48, 112);
+        lv_obj_set_width(col, 704);
+        lv_obj_set_height(col, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t *row = wt_diagram_row(col);
+        char nb[WT_ICON_TEXT_MAX];
+        wt_icon_text(nb, sizeof nb, WT_ICON_LOCK, tr(STR_D_PASSPHRASE));
+        wt_chip(row, nb, false);
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        wt_chip(row, tr(STR_GD_OFF), false);
+        wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
+        wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
+        return;
+    }
 
     // The rows sit in a card, not loose on the page. Two chip rows are chrome
     // to a reader and were not to the BARE gate: oc_is_frame wants 100x30 and a

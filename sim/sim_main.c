@@ -2483,6 +2483,35 @@ int main(void) {
   pump(40);
   save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
 
+  // The other half of the same question, and the half that was still lying.
+  // YOUR LETTERS ARE SET drew "letters -> SPARE" and "letters + mark -> REAL"
+  // on every wallet, including one with no passphrase, where the letters alone
+  // open the funded wallet and there is no spare to reach. The stroke wizard
+  // has refused to describe this signer that way since ST_NOPASS existed; the
+  // word wizard never had the guard, so an owner could be told to hand over a
+  // word that opens everything.
+  //
+  // A decoy session is what makes the difference visible: wallet_session_decoy
+  // is the same predicate Settings uses to pick between the two stroke
+  // wizards. NULL, not "", is what marks a session as the decoy.
+  {
+    (void)wallet_session_open(NULL);                // no passphrase = the decoy
+    wallet_word_ui_open(lv_screen_active(), NULL);
+    pump(20);
+    draw_own_letters();
+    touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+    draw_own_letters();
+    touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
+    touch(587, 430); pump(140); release(); pump(8); // HOLD TO CHANGE
+    save("/tmp/sim_gword_done_nopass.ppm");         // PASSPHRASE -> NOT SET, no SPARE
+    touch(652, 430); pump(3); release(); pump(8);   // OK
+    // Put KISS back and drop the session, for the reason the walk restores it
+    // after the passphrase run: letters left stored here would silently break
+    // every gesture drawn after this point.
+    (void)gw_stored_set(NULL);
+    wallet_session_close();
+  }
+
   // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
   // Settings on a wallet that already has a stroke, this screen grows a THIRD
   // pill -- TURN THIS OFF, the only way back to plain behaviour -- and the
