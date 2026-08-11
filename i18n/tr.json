@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "DEVAM ET",
   "L_DISCARD": "VAZGEÇ",
   "L_FAIL_SETUP_T": "BU SIGNER KURULAMADI",
+  "L_RECOVER_T": "HENÜZ BU CİHAZDA DEĞİL",
+  "L_RECOVER_B": "kelimeleriniz yalnızca bellekte, başka hiçbir yerde değil. başka bir şey yapmadan önce kâğıda yazın.\n\nsonra yeniden deneyin. kaydetme yine başarısız olursa, o kâğıttan güvendiğiniz bir imzalayıcıda geri yükleyin.",
   "L_FAIL_OPEN_T": "ANAHTARLARINIZ AÇILAMADI",
   "L_FAIL_SETUP_B": "hiçbir şey kaydedilmedi. menüden baştan başlayın.",
   "L_FAIL_OPEN_B": "bir şeyler ters gitti. menüden tekrar deneyin.",

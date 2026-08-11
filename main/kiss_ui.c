@@ -583,6 +583,110 @@ static void show_weak_confirm(void) {
 
 // ---- fingerprint reveal ----
 static void setup_fail_screen(void);
+static void recover_screen(void);
+static void fp_tap_cb(lv_event_t *e);
+
+// The commit that could not finish, and the only screen on this device whose
+// job is to keep an owner from throwing something away.
+//
+// It is reached when a KEEP wallet was replacing another and the replacement
+// may have taken the old one with it -- the residue scrub erased and could not
+// write back, or the new blob committed over the old one and then failed its
+// readback. Either way flash holds nothing usable and the staged copy in RAM is
+// the last one in existence.
+//
+// The generic setup STOP used to be shown here, and its body reads "nothing was
+// saved. start again from the menu." Every word of that is wrong: something was
+// most certainly lost, and starting again is the one action that destroys what
+// is left. This screen says the opposite, and gives the two things that are
+// actually worth doing -- read the words onto paper, and try the write again.
+static lv_obj_t *s_recovscr;
+
+static void recover_close(void)
+{
+    if (s_recovscr) { lv_obj_delete_async(s_recovscr); s_recovscr = NULL; }
+}
+
+// Straight back to the same commit and the same continuation. The passphrase is
+// still in s_pass -- fp_tap_cb returns on RECOVER before the wipe below it, so a
+// retry derives the identical session and finishes setup exactly as a first
+// attempt would have. A scrub or readback that failed once on a transient flash
+// error is worth one more press before an owner is sent to their paper.
+// Deferred, for the reason the duress and word wizards defer their stages:
+// never build a screen inside the event callback that asked for it. Re-entering
+// fp_tap_cb synchronously from the pill's own CLICKED handler wedged the walk
+// outright -- the retry runs the whole commit and builds the next screen while
+// LVGL is still dispatching the press that started it.
+static void recover_retry_async(void *ud)
+{
+    (void)ud;
+#ifdef SIMULATOR
+#endif
+    fp_tap_cb(NULL);
+}
+
+static void recover_retry_cb(lv_event_t *e)
+{
+    (void)e;
+    recover_close();
+    lv_async_call(recover_retry_async, NULL);
+}
+
+static void recover_words_done(void) { recover_screen(); }
+
+static void recover_words_cb(lv_event_t *e)
+{
+    (void)e;
+    recover_close();
+    // kiss_seed_load answers from the staging while it is held, so this is the
+    // ordinary words screen reading the copy that has not reached flash.
+    kiss_info_open_words(lv_screen_active(), recover_words_done);
+}
+
+#ifndef ESP_PLATFORM
+// Opened directly by the walk, like the duress and firmware leaves. Driving it
+// through a real failed commit mid-setup wedged the walk: setup does not
+// complete, so every tap after it lands on the wrong screen.
+void kiss_ui_test_recover_screen(void);
+#endif
+
+static void recover_screen(void)
+{
+#ifdef SIMULATOR
+#endif
+    if (s_login)  { lv_obj_delete_async(s_login);  s_login = NULL; }
+    if (s_fpscr)  { lv_obj_delete_async(s_fpscr);  s_fpscr = NULL; }
+    recover_close();
+
+    s_recovscr = wt_screen(lv_screen_active(), tr(STR_L_RECOVER_T), NULL);
+
+    // The subject, framed, above the actions: what the device is holding and
+    // where it is. WT_ICON_SECRET is the words' own mark everywhere else.
+    {
+        lv_obj_t *col = lv_obj_create(s_recovscr);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_pos(col, 48, 112);
+        lv_obj_set_width(col, 704);
+        lv_obj_set_height(col, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t *row = wt_diagram_row(col);
+        char b[WT_ICON_TEXT_MAX];
+        wt_icon_text(b, sizeof b, WT_ICON_SECRET, tr(STR_D_WORDS));
+        wt_chip(row, b, true);
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        wt_chip(row, tr(STR_GD_OFF), false);   // NOT SET: nowhere on this device
+    }
+    wt_why_body(s_recovscr, tr(STR_L_RECOVER_B), 190, WT_WARN, true);
+
+    wt_pill(s_recovscr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 300,
+            recover_words_cb, NULL);
+    wt_pill_primary(wt_pill(s_recovscr, tr(STR_C_TRY_AGAIN), 452, WT_ACTION_Y,
+                            300, recover_retry_cb, NULL));
+}
 static void setup_warn_screen(void);
 
 // dismiss the STOP screen back to the game; nothing was saved
@@ -666,7 +770,9 @@ static void fp_tap_cb(lv_event_t *e) {
   if (s_setup_mode) {
     int crc = kiss_seed_commit();
     if (crc == WSEED_ERR_RECOVER) {
-      setup_fail_screen();                 // keep the staging: it may be all of it
+      // Its own screen, not the generic STOP. The staging is kept, and the
+      // owner is told to read it onto paper rather than to start again.
+      recover_screen();
       return;
     }
     if (crc != WSEED_OK && crc != WSEED_ERR_CLEANUP) {
@@ -1842,3 +1948,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
 // The right edge of the row kiss_build_id_make last drew. Read it straight
 // after building, before anything else lays out beside it.
 int kiss_build_id_right(void) { return s_build_id_right; }
+
+#ifndef ESP_PLATFORM
+void kiss_ui_test_recover_screen(void) { recover_screen(); }
+#endif
