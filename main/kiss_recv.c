@@ -386,7 +386,7 @@ static void vfy_result(const char *txt, size_t len) {
 
   lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, WT_ACTION_Y, 220, vfy_scan, NULL);
   wt_pill_primary(again);
-  wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, vfy_done_cb, NULL);
+  wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, vfy_done_cb, NULL);
 }
 
 static void vfy_cancel(void) {
@@ -630,10 +630,10 @@ static void sp_addr_open(lv_obj_t *parent) {
                         kiss_testnet() ? 1 : 0,
                         kiss_testnet() ? tr(STR_R_ON_TESTNET) : "");
 
-  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
+  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                            sp_back_cb, NULL);
   s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
-                             472, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
+                             WT_ACT_X, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
@@ -854,10 +854,12 @@ static void recv_list_open(void) {
   // two arrows and BACK, and the only lower case button on the device reads as
   // a bug rather than as a distinction. One string cannot be both, so there are
   // two, and each locale's button is its own badge cased for a button.
-  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), 210, WT_ACTION_Y, 220, sp_open_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 616, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 694, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
+  // The arrow pair moves off the corner but stays adjacent to itself: two
+  // arrows split across the bar stop reading as one control.
+  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), WT_ACT_X, WT_ACTION_Y, 220, sp_open_cb, NULL);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                    back_to_detail_cb, NULL);
   wt_pill_row(row, 4);
 
@@ -984,11 +986,11 @@ static void recv_detail_open(void) {
   // nothing to stand on. Three controls in 704 instead of four gives each one
   // room and puts the two that change something next to each other.
   lv_obj_t *row[3];
-  row[0] = wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                    close_cb, NULL);
   row[1] = wt_pill(s_scr, tr_sym(LV_SYMBOL_REFRESH, STR_R_NEXT), 240,
                    WT_ACTION_Y, 250, next_cb, NULL);
-  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), 612, WT_ACTION_Y, 140,
+  row[2] = wt_pill(s_scr, tr(STR_R_VERIFY), WT_ACT_X, WT_ACTION_Y, 140,
                    vfy_scan, NULL);
   wt_pill_row(row, 3);
   wt_pill_primary(row[2]);

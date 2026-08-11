@@ -388,7 +388,8 @@ static void storage_result_screen(int rc, int target)
     // The rule colour carries the outcome, so the block agrees with the title
     // above it instead of being grey under a green or red heading.
     wt_why_body(s_scr, body, 136, title_col, true);
-    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 300, WT_ACTION_Y, 200,
+    // 552..752: a lone acknowledge is still the way off the screen.
+    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200,
                            storage_result_ack_cb, NULL);
     if (rc == WSEED_OK) wt_pill_primary(ok);
 }
@@ -639,11 +640,11 @@ static void duress_cb(lv_event_t *e)
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
     // than the 22px the roomier rows get.
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
             waysin_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_SET_BTN), 200, WT_ACTION_Y, 270,
+    wt_pill(s_scr, tr(STR_GD_SET_BTN), WT_ACT_X, WT_ACTION_Y, 270,
             waysin_stroke_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 482, WT_ACTION_Y, 270,
+    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
             waysin_word_cb, NULL);
 }
 
@@ -988,11 +989,11 @@ static void endwords_screen(void)
     // ERASE in the corner a thumb rests in, which is only survivable because
     // erase is the one control here that a tap cannot fire: wipe_cb wants a
     // 2000ms hold, and that gate is untouched by this move.
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140,
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
             endwords_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_G_REPLACEC_GO), 200, WT_ACTION_Y, 270,
+    wt_pill(s_scr, tr(STR_G_REPLACEC_GO), WT_ACT_X, WT_ACTION_Y, 270,
             endwords_new_cb, NULL);
-    wt_pill(s_scr, tr(STR_G_WIPE), 482, WT_ACTION_Y, 270,
+    wt_pill(s_scr, tr(STR_G_WIPE), 330, WT_ACTION_Y, 270,
             endwords_erase_cb, NULL);
 }
 

@@ -406,7 +406,7 @@ static void stage_build(int stage)
         // configure a stroke before this case was handled.
         if (kiss_duress_real() != WDG_NONE)
             wt_pill(s_scr, tr(STR_GD_TURN_OFF), 48, WT_ACTION_Y, 260, turn_off_cb, NULL);
-        wt_pill(s_scr, tr(STR_C_OK), 610, WT_ACTION_Y, 140, skip_cb, NULL);
+        wt_pill(s_scr, tr(STR_C_OK), WT_BACK_X, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }
     default: {
@@ -416,7 +416,8 @@ static void stage_build(int stage)
         // unlock, and this is the last screen in the flow that says so.
         diagram_two_ways();
         wt_why_body(s_scr, tr(STR_GD_DONE_B), 250, WT_OK, true);
-        wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 200, save_cb, NULL);
+        // 552..752: 200 wide, so it cannot use WT_BACK_X and still sit flush.
+        wt_pill(s_scr, tr(STR_C_DONE), 552, WT_ACTION_Y, 200, save_cb, NULL);
         break;
     }
     }

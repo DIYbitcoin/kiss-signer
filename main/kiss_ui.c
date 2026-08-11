@@ -1169,9 +1169,11 @@ static void show_fingerprint(void) {
 
   // The action bar every other screen has. This one holds the screen's real
   // action, so it is the second case in WT_BACK_X's rule: the way out goes
-  // leftmost and the far right corner is reserved for TAP TO OPEN.
-  wt_pill(s_fpscr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, fp_back_cb, NULL);
-  wt_pill_primary(wt_pill(s_fpscr, tr(STR_L_TAP_TO_OPEN), 492, WT_ACTION_Y,
+  // corner, and TAP TO OPEN takes the left. TAP TO OPEN commits the staged
+  // seed on a PLAIN TAP, with no hold and no confirm in front of it, so the
+  // corner is exactly where it must not be.
+  wt_pill(s_fpscr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, fp_back_cb, NULL);
+  wt_pill_primary(wt_pill(s_fpscr, tr(STR_L_TAP_TO_OPEN), WT_ACT_X, WT_ACTION_Y,
                           260, fp_tap_cb, NULL));
 
   lv_obj_add_flag(s_login, LV_OBJ_FLAG_HIDDEN);
@@ -1497,9 +1499,9 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   lv_obj_move_foreground(scr);
   wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), 452, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
+  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), WT_ACT_X, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
   wt_pill_primary(go);
-  wt_pill(scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
+  wt_pill(scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {

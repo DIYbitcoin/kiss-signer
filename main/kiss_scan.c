@@ -463,8 +463,9 @@ static void scan_open_common(lv_obj_t *parent)
     // person struggling to scan does not know they have another option, because
     // that choice was two screens ago. Muted text, not a button, because it is
     // not reachable from here without cancelling first.
-    wt_pill(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y, 200, cancel_btn_cb, NULL);
-    wt_lbl(s_scr, tr(STR_N_OR_SD), 268, WT_ACTION_Y + 16, wt_font14(), MUT_COL);
+    // 552..752 rather than 612: this pill is 200 wide, not the standard 140.
+    wt_pill(s_scr, tr(STR_C_CANCEL), 552, WT_ACTION_Y, 200, cancel_btn_cb, NULL);
+    wt_lbl(s_scr, tr(STR_N_OR_SD), 48, WT_ACTION_Y + 16, wt_font14(), MUT_COL);
 
     s_tmr = lv_timer_create(poll_cb, 80, NULL);
 
