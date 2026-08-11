@@ -75,6 +75,11 @@ static void wipe_buffers(k_quirc_t *q) {
   // data_scratch. Wiping only the destination left the mnemonic in the same
   // struct twice over.
   memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
+  // And code_scratch, which is the raw module grid the decode ran on. It is
+  // not text, so it does not look like a secret in a memory dump -- it is the
+  // QR itself, and anyone who can read a QR can read a mnemonic straight back
+  // out of it. Three fields, three copies, one wipe.
+  memset(&q->code_scratch, 0, sizeof q->code_scratch);
 }
 
 void k_quirc_destroy(k_quirc_t *q) {
