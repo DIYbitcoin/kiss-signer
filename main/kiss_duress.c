@@ -283,7 +283,7 @@ int kiss_duress_word_match(const uint8_t *marks, int n)
     int wn = kiss_duress_word_get(word);
     // No word set is not a match against an empty prefix. It means KISS is
     // still the word and this function has no opinion; answering 0 sends the
-    // caller to detect_KISS, which is where that device belongs.
+    // caller to detect_cover_word, which is where that device belongs.
     if (wn <= 0 || !marks || n < wn)
         return 0;
     for (int i = 0; i < wn; i++)
