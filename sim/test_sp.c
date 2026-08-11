@@ -878,6 +878,75 @@ static void sp_test_sign(void) {
     kiss_set_network(0);
 }
 
+// A silent-payment input's amount is covered by the BIP341 sighash and by
+// nothing else: it carries no keypath, so the load loop proves ownership from
+// the tweak and takes the number from the witness_utxo. The details page used
+// to re-derive that number instead of reading what load decided, and its rule
+// was "a prev tx is here, so the amount is proven" -- a rule whose ONE
+// justification is the txid check load runs, which the SP branch never reaches.
+//
+// So a coordinator could staple any transaction to an SP input and the one
+// screen whose job is saying which amounts are proven would show its number
+// under a green tick, disagreeing with the total the same load computed.
+static void sp_test_spend_stapled_prevtx(void) {
+    struct wally_psbt *p = NULL;
+    struct wally_tx *fake = NULL;
+    struct wally_tx_output *o = NULL;
+    char *b64 = NULL;
+    // the coin the fixture really spends: 100000 sats to this P2TR key
+    const uint64_t real_sats = 100000;
+    const uint8_t spk[34] = {
+        0x51, 0x20, 0x83, 0x2e, 0xac, 0x66, 0xec, 0xbc, 0xfc, 0x00, 0x75, 0x8a,
+        0x69, 0xb1, 0x7f, 0x25, 0xd4, 0x82, 0xe6, 0xc4, 0xff, 0x4a, 0x55, 0xb4,
+        0xac, 0xfc, 0x83, 0x1c, 0x15, 0x8f, 0x90, 0xe5, 0x7a, 0x25 };
+    const uint64_t lie_sats = 100000000000ULL;   // 1000 BTC, absurd on purpose
+    uint8_t dummy[32];
+    memset(dummy, 0x77, sizeof dummy);
+
+    // A transaction that has nothing to do with this outpoint (the fixture
+    // spends cd..cd:0), carrying the input's own scriptPubKey so that only the
+    // NUMBER differs. An output-only tx will not serialize, hence the input.
+    if (wally_tx_init_alloc(2, 0, 1, 1, &fake) != WALLY_OK ||
+        wally_tx_add_raw_input(fake, dummy, sizeof dummy, 0, 0xffffffff,
+                               NULL, 0, NULL, 0) != WALLY_OK ||
+        wally_tx_output_init_alloc(lie_sats, spk, sizeof spk, &o) != WALLY_OK ||
+        wally_tx_add_output(fake, o) != WALLY_OK ||
+        wally_psbt_from_base64(SPV_SPEND_EVEN_B64, 0, &p) != WALLY_OK ||
+        wally_psbt_set_input_utxo(p, 0, fake) != WALLY_OK ||
+        wally_psbt_to_base64(p, 0, &b64) != WALLY_OK) {
+        spchk("stapled-prevtx fixture builds", 0);
+        goto done;
+    }
+    spchk("stapled-prevtx fixture builds", 1);
+
+    wpsbt_summary_t sum;
+    wpsbt_details_t det;
+    kiss_set_network(1);
+    int rc = kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    // The stapled tx does not hash to the outpoint, so it proves nothing. Load
+    // may refuse it or ignore it, but it must never become a number on screen.
+    if (rc == 0 && sum.status == WPSBT_READY) {
+        spchk("stapled prev tx is not counted in the total",
+              sum.in_sats == real_sats);
+        spchk("stapled prev tx leaves the input unproven",
+              kiss_psbt_details(&det) == 0 && det.n_in == 1 &&
+              !det.ins[0].proven && det.ins[0].sats == real_sats);
+    } else {
+        spchk("stapled prev tx is not counted in the total",
+              rc == 0 && sum.status == WPSBT_STOP);
+        spchk("stapled prev tx leaves the input unproven",
+              kiss_psbt_details(&det) != 0);
+    }
+    kiss_psbt_free();
+    kiss_set_network(0);
+
+done:
+    if (b64) wally_free_string(b64);
+    if (p) wally_psbt_free(p);
+    if (o) wally_tx_output_free(o);
+    if (fake) wally_tx_free(fake);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
@@ -894,5 +963,6 @@ int test_sp(void) {
     sp_test_spend();
     sp_test_sparrow_spend();
     sp_test_spend_explicit_sighash();
+    sp_test_spend_stapled_prevtx();
     return sp_fails;
 }

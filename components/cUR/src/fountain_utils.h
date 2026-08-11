@@ -45,6 +45,17 @@ void prng_init_from_bytes(prng_state_t *prng, const uint8_t *seed,
 uint32_t prng_next_int(prng_state_t *prng, uint32_t min, uint32_t max);
 
 /**
+ * Scale a [0.0, 1.0] draw onto [min, max]. Split out of prng_next_int because
+ * the interesting input is the one the PRNG produces rarely, and this is where
+ * it can be handed in directly.
+ * @param rand_val Draw from prng_next_double
+ * @param min Minimum value (inclusive)
+ * @param max Maximum value (inclusive)
+ * @return Value in [min, max]
+ */
+uint32_t prng_scale_double(double rand_val, uint32_t min, uint32_t max);
+
+/**
  * Generate next random double in range [0.0, 1.0)
  * @param prng PRNG state
  * @return Random double

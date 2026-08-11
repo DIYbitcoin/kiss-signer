@@ -591,7 +591,6 @@ enum {
     STR_G_FW_ROW_SIZE,
     STR_G_FW_ROW_SIG,
     STR_G_FW_ROW_VER,
-    STR_G_FW_SIG_OK,
     STR_G_FW_NEWER,
     STR_G_FW_OLDER,
     STR_G_FW_INSTALL,

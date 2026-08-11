@@ -1287,21 +1287,41 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
         return wt_lbl(par, addr, 0, 0, f, WT_MUT);
 
     // bech32 opens with a constant prefix through the first data character:
-    // bc1q/tb1q for SegWit and sp1q/tsp1q for silent payments. Skip it and
-    // light the four AFTER it. Base58 has no such constant, so its first four
-    // are the lit ones.
+    // bc1q/tb1q for SegWit and sp1q/tsp1q for silent payments. It is shown as
+    // its own block so the address still reads as one, but it is not marked and
+    // neither is the block after it.
+    //
+    // This line used to light the four after the prefix AND the last four,
+    // while wt_addr_spans -- the full address, directly above it on the verify
+    // and receive screens -- lights the last EIGHT. Two renderings of one
+    // address, marking two different runs, under a caption that says "compare
+    // these 8". The runs overlapped in only their final four, so an owner who
+    // learned this line's rule was checking characters the line above left
+    // grey, and vice versa.
+    //
+    // The last eight wins, for the reason written at ADDR_TAIL_CHARS: the tail
+    // carries real entropy and the bech32 checksum, so any altered address
+    // differs there, while a mark near the front is the part an attacker gets
+    // to match cheaply. It is also the only rule that can be taught on a
+    // MULTI-recipient panel, which draws no elided line at all -- so choosing
+    // the other one would leave the rule unavailable exactly where there are
+    // most addresses to get wrong.
+    //
+    // The rendered string is unchanged, character for character. Only which
+    // span carries the accent moved.
     int pre = !strncmp(addr, "tsp1", 4) ? 5
             : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
                !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, last[8] = {0};
+    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, tail[16] = {0};
     lv_memcpy(head, addr, (size_t)pre);
     lv_memcpy(key, addr + pre, 4);
     // Twelve from the end, in three blocks of four. Chunking from the RIGHT is
     // the point: 42 characters do not divide by four, so grouping from the left
-    // would leave the final block short and the lit four would straddle a gap.
+    // would leave the final block short and the lit run would straddle a gap.
+    // The first of the three stays grey; the last two ARE the eight.
     const char *t = addr + n - 12;
-    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s %.4s ", t, t + 4);
-    lv_memcpy(last, t + 8, 4);
+    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", t);
+    snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
 
     lv_obj_t *sg = lv_spangroup_create(par);
     addr_spans_no_click(sg);
@@ -1312,14 +1332,15 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
         snprintf(pfx, sizeof pfx, "%s ", head);
         addr_span(sg, pfx, false);
     }
-    addr_span(sg, key, true);
+    addr_span(sg, key, false);
     addr_span(sg, mid, false);
-    addr_span(sg, last, true);
+    addr_span(sg, tail, true);
     lv_spangroup_refresh(sg);
     return sg;
 }
 
-lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
+static lv_obj_t *addr_spans(lv_obj_t *par, const char *grouped, int w,
+                            const lv_font_t *f, bool lift)
 {
     int len = (int)strlen(grouped);
     int t = 0, raw = 0;
@@ -1330,7 +1351,18 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     // fixed 8-character tail starts mid-group and the highlight breaks a block
     // in half -- which then wraps, orphaning two characters on their own line.
     // Whole groups only: still "the last few", but always readable as blocks.
-    while (t > 0 && grouped[t - 1] != ' ') t--;
+    //
+    // ONLY when there ARE groups. Every caller passed a wt_group4 string until
+    // the verify screen passed a raw address -- deliberately, because grouped it
+    // measures 437px against a 438px box and wraps onto the line the comparison
+    // belongs on. With no space to stop at, this walk ran t down to 0: the muted
+    // head became empty and the accent span became the WHOLE address, so the one
+    // screen that asks you to compare the last eight characters drew all
+    // forty-two in one flat colour with nothing marked at all. Inverted, not
+    // missing -- and with two or more recipients there is no second lit line
+    // under it to fall back on.
+    if (strchr(grouped, ' '))
+        while (t > 0 && grouped[t - 1] != ' ') t--;
     char head[256];           // fits a grouped silent-payment addr (~146 chars)
     snprintf(head, sizeof head, "%.*s", t, grouped);
 
@@ -1345,21 +1377,51 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
     lv_style_set_text_color(lv_span_get_style(s2), wt_accent());   // brightness, no underline
-    // The tail is the part you are actually asked to compare, so when the body
+    // The tail is the part you are actually asked to compare, so where the body
     // is too small to compare comfortably the tail renders one rung ABOVE it.
     // Blowing up the whole string instead would push the other outputs off a
-    // scrolling list -- this buys the legibility where it counts for one extra
-    // line of height.
+    // scrolling list -- this buys the legibility where it counts for 7px.
     //
-    // The bump only applies to font14, because it only exists to rescue font14.
-    // At 23 and 28 the body is already readable at arm's length and the accent
-    // colour alone marks the tail: that is what the main receive screen has
-    // always done at 28, and a 23 that jumped to 28 would cost two more lines
-    // on a 117-character silent-payment address for no gain.
-    lv_style_set_text_font(lv_span_get_style(s2),
-                           f == wt_font14() ? wt_font23() : f);
+    // Only at the 14 rung: at 23 and 28 the body already reads at arm's length
+    // and the accent alone marks the tail, which is what the receive screen has
+    // always done at 28.
+    //
+    // This used to test `f == wt_font14()` -- the PROPORTIONAL face -- while all
+    // four callers pass a mono one, so the branch could not be taken by anything
+    // and the tail never grew. Measured both ways at mono14: +7px, and the tail
+    // stays on the same line in every box it is drawn in (438 and 722, a 42
+    // character bech32 and a 117 character silent payment). It costs height, not
+    // a wrap.
+    //
+    // And it is the CALLER's call, not a rule the font can carry. Whether the
+    // tail must carry legibility on its own depends on what else is on the
+    // screen: the single-recipient verify panel draws the compared runs again
+    // beneath, blocked and at mono23, so lifting the body tail there renders the
+    // same eight characters at the same size twice and pushed that panel into a
+    // scrollbar with the caption at the fold. A multi-recipient list draws no
+    // such line, so the body tail is the only marking there is, and at 14 it was
+    // being carried by colour alone.
+    if (lift) {
+        if (f == wt_font_mono14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font_mono23());
+        else if (f == wt_font14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font23());
+    }
     lv_spangroup_refresh(sg);
     return sg;
+}
+
+// The tail is marked by colour, at the body's own size. Use this wherever a
+// larger copy of the compared run is drawn elsewhere on the screen.
+lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
+{
+    return addr_spans(par, grouped, w, f, false);
+}
+
+// The tail is ALSO lifted a rung, for the screens where this line is the only
+// place the compared run appears. A no-op above the 14 rung.
+lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
+                             const lv_font_t *f)
+{
+    return addr_spans(par, grouped, w, f, true);
 }
 
 // Section eyebrows carry the ACCENT. They were WT_MUT, which made the theme
@@ -2517,11 +2579,30 @@ void wt_diagram_pair(lv_obj_t *parent)
     wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
 }
 
+// Reserve exactly what this iteration writes, which is a character and, only
+// on a group boundary, a space before it.
+//
+// The old guard reserved two every time, so a caller whose buffer was sized to
+// the exact answer lost its final character. That is not a hypothetical: a
+// txid is 64 hex characters, blocks to 79, and gt[80] on the DETAILS page is
+// 79 plus the NUL -- correct, and the one size the over-reservation bit. The
+// id rendered 63 characters long with no ellipsis and no gap, its last block
+// three wide instead of four, which is what plenty of honest addresses look
+// like. An owner comparing it against a coordinator matched every leading
+// block and had nothing to tell them the end was missing; an owner who copied
+// it down to look the transaction up later wrote down an id that matches
+// nothing on chain.
+//
+// Every other caller had slack and is unaffected, byte for byte. fitcheck
+// keeps it that way.
 void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;
-    for (size_t i = 0; in[i] && o + 2 < out_len; i++) {
-        if (i && i % 4 == 0) out[o++] = ' ';
+    if (!out || !out_len) return;
+    for (size_t i = 0; in[i]; i++) {
+        size_t need = (i && i % 4 == 0) ? 2u : 1u;
+        if (o + need + 1 > out_len) break;          // +1 keeps room for the NUL
+        if (need == 2) out[o++] = ' ';
         out[o++] = in[i];
     }
     out[o] = 0;

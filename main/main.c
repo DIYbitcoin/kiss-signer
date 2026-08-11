@@ -1560,6 +1560,7 @@ static void kiss_lock(void) {            // back to the game cover (tap the KISS
   s_real_pending = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
   kiss_session_close();                  // locked: no key material stays in RAM
+  kiss_ui_forget_fp();                   // and no memory of WHICH keys they were
   motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   s_state = ST_MENU;
@@ -1606,9 +1607,11 @@ static void kiss_open_decoy(void) {
     kiss_login_open(kiss_start);      // fall back to the ordinary way in
     return;
   }
+  // Set it either way. A failed derivation used to leave whatever the last
+  // session put here, which on a decoy is the real keys' fingerprint.
   uint8_t fp[4] = {0};
-  if (kiss_fingerprint(NULL, fp) == 0)  // same empty passphrase = the decoy's own
-    kiss_ui_set_last_fp(fp);
+  (void)kiss_fingerprint(NULL, fp);     // same empty passphrase = the decoy's own
+  kiss_ui_set_last_fp(fp);
   gesture_swallow();                      // the finger may still be mid-word
   kiss_start();
 }
