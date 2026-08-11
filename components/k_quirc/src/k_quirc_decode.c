@@ -584,6 +584,25 @@ static k_quirc_error_t decode_numeric(struct quirc_data *data,
 
 static const char *alpha_map = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 
+// The alphanumeric alphabet has 45 entries, and the field that indexes it is
+// wider than that in BOTH paths below: a pair is 11 bits (0..2047, so d/45
+// reaches 45 -- the NUL) and a lone character is 6 bits (0..63, so it indexes
+// up to 17 bytes PAST the end of the literal and copies whatever rodata sits
+// there straight into the decoded payload).
+//
+// Neither is reachable from a conforming symbol -- a real encoder never emits a
+// value outside the alphabet -- but this is the first code in the signer to
+// touch bytes off a QR code held up to the camera, and nothing upstream masks
+// the value to the alphabet's size.
+//
+// Split out so the boundary is testable directly: reaching it through a decode
+// means hand-building a grid that survives Reed-Solomon, while what actually
+// needs proving is that 45..63 are refused and 0..44 still map exactly.
+// Returns the character, or -1 for a value the alphabet does not contain.
+int k_quirc_alpha_char(int v) {
+  return (v >= 0 && v < 45) ? (int)(unsigned char)alpha_map[v] : -1;
+}
+
 static k_quirc_error_t decode_alpha(struct quirc_data *data,
                                     struct datastream *ds) {
   int bits = 13;
@@ -605,8 +624,11 @@ static k_quirc_error_t decode_alpha(struct quirc_data *data,
       return K_QUIRC_ERROR_DATA_UNDERFLOW;
 
     d = take_bits(ds, 11);
-    data->payload[data->payload_len++] = alpha_map[d / 45];
-    data->payload[data->payload_len++] = alpha_map[d % 45];
+    int hi = k_quirc_alpha_char(d / 45), lo = k_quirc_alpha_char(d % 45);
+    if (hi < 0 || lo < 0)
+      return K_QUIRC_ERROR_DATA_ECC;   // corrected data is still not alphanumeric
+    data->payload[data->payload_len++] = (uint8_t)hi;
+    data->payload[data->payload_len++] = (uint8_t)lo;
     count -= 2;
   }
 
@@ -617,7 +639,10 @@ static k_quirc_error_t decode_alpha(struct quirc_data *data,
       return K_QUIRC_ERROR_DATA_UNDERFLOW;
 
     d = take_bits(ds, 6);
-    data->payload[data->payload_len++] = alpha_map[d];
+    int ch = k_quirc_alpha_char(d);
+    if (ch < 0)
+      return K_QUIRC_ERROR_DATA_ECC;
+    data->payload[data->payload_len++] = (uint8_t)ch;
   }
 
   return K_QUIRC_SUCCESS;

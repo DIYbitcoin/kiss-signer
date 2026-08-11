@@ -181,5 +181,11 @@ const struct quirc_version_info quirc_version_db[QUIRC_MAX_VERSION + 1] = {
      .ecc = {{.bs = 75, .dw = 47, .ns = 8},
              {.bs = 132, .dw = 106, .ns = 8},
              {.bs = 45, .dw = 15, .ns = 22},
-             {.bs = 54, .dw = 24, .ns = 3}}},
+             /* ns was 3. The decoder derives the long-block count from
+              * data_bytes (k_quirc_decode.c read_data), so every row here has
+              * to satisfy ns*bs + lb*(bs+1) == data_bytes exactly. With ns=3
+              * that is 1537 against 1588 and the block layout is wrong, so a
+              * version 25-Q symbol could never decode. 7 is the only value in
+              * range that closes it: 7*54 + 22*55 == 1588. */
+             {.bs = 54, .dw = 24, .ns = 7}}},
 };
