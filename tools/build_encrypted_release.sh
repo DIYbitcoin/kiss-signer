@@ -196,15 +196,33 @@ docker run --rm \
 # Before the checks below, not after: signing appends a block, so the size the
 # flash budget measures and the hashes the recipe prints have to be the ones
 # from the file that actually gets flashed.
+#
+# KISS_UNSIGNED=1 stops before the signature, and is the only thing a machine
+# without the key can do. The signature is what makes this build unreproducible:
+# espsecure sign-data is ECDSA, so signing identical input twice gives different
+# valid bytes, in the very file a reproducibility check hashes. See the longer
+# note in tools/build_release.sh.
+#
+# On this lane it also means the fuse recipe below is describing an image no
+# board should ever be burned with, so the recipe is suppressed too.
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
-if [ ! -f "$KISS_OTA_KEY" ]; then
+if [ -n "${KISS_UNSIGNED:-}" ]; then
+  : > "$BUILD_DIR/UNSIGNED"
+  echo
+  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
+  echo "      No signature block, so this image must never be flashed to a board"
+  echo "      whose fuses this recipe burns -- it could never be updated after."
+  echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
+elif [ ! -f "$KISS_OTA_KEY" ]; then
   echo
   echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
   echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
   echo "      Without it this board can never accept an SD firmware update, and"
   echo "      the release recipe burns the fuses that would let you reflash it."
+  echo "      For a reproducibility check on a machine with no key, set"
+  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
-fi
+else
 echo "signing app with $KISS_OTA_KEY"
 uvx --from esptool espsecure sign-data \
   --version 2 --keyfile "$KISS_OTA_KEY" \
@@ -237,6 +255,7 @@ if ! uvx --from esptool espsecure verify-signature \
   exit 1
 fi
 echo "PASS: signed app verifies against the published public key"
+fi
 
 # ---- verify: binary contents AND the security config that actually built ----
 GIT_REV="$GIT_REV" python3 - <<'PY'
