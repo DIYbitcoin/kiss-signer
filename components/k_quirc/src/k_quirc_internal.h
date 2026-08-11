@@ -70,6 +70,13 @@ static inline void *k_malloc_fast(size_t size) {
 #define QUIRC_MAX_VERSION 25
 #define QUIRC_MAX_ALIGNMENT 7
 #define QUIRC_FLOOD_FILL_STACK 8192
+// The allocation is QUIRC_FLOOD_FILL_STACK * sizeof(xylf_t). It was written as
+// a bare "* 8", which is exactly that size and not a magic safety factor --
+// worth naming, because "* 8" reads like slack somebody guessed at. The entry
+// type moved here from k_quirc_identify.c so the allocation can say so.
+typedef struct {
+  int16_t x, y, l, r;
+} xylf_t;
 #define K_QUIRC_MAX_IMAGE_DIM 1280
 #define K_QUIRC_THRESHOLD_OFFSET_DEFAULT 10
 #define K_QUIRC_THRESHOLD_OFFSET_MAX 20
