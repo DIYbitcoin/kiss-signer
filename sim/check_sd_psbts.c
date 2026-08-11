@@ -41,6 +41,12 @@ int main(int argc, char **argv){
         {"9-caution-five.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
              WPSBT_C_UNPROVEN_IN | WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
              WPSBT_C_MERGE_INS   | WPSBT_C_DUST_CHANGE},
+        // READY and no flags is the POINT of this one. It exists to fill the
+        // recipient list past the fold, and what is being looked at on device is
+        // whether HOLD TO SIGN stays inert until that list has been read to its
+        // end. A caution row here would put a second gate in front of the first
+        // and neither would be the thing under test.
+        {"10-many-recipients.psbt",  WSCRIPT_NATIVE, WPSBT_READY,   0},
     };
     int fails=0;
     // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
