@@ -29,6 +29,11 @@ bool kiss_ui_backup_checked(void);
 // this: it opens with an empty passphrase and never draws the keyboard.
 void kiss_ui_set_last_fp(const uint8_t fp[4]);
 
+// Forget which keys were open. Call wherever the session closes: the
+// fingerprint outlives kiss_session_close otherwise, and a decoy session that
+// cannot derive its own would show the previous keys' fingerprint.
+void kiss_ui_forget_fp(void);
+
 // Register the LVGL pointer indev if not yet present (the setup wizard can run
 // before the first login and needs touch too).
 void kiss_ui_ensure_indev(void);

@@ -846,6 +846,26 @@ void kiss_ui_set_last_fp(const uint8_t fp[4])
   memcpy(s_last_fp, fp, 4);
 }
 
+// Locking must forget WHICH KEYS were open, not only the key material itself.
+// s_last_fp is the fingerprint of the keys last unlocked, and it survived
+// kiss_session_close: nothing ever cleared it. Two ways that showed:
+//
+//   * The decoy opens with no login screen, so main.c sets the fingerprint
+//     directly from the session it just opened. If that derivation failed it
+//     set nothing, and the decoy then rendered the fingerprint of the REAL
+//     keys from the previous session -- on the one screen whose whole purpose
+//     is that it must not admit those keys exist.
+//   * A second derivation can fail after a session opened cleanly, and the
+//     fallback was whatever was left here.
+//
+// Zero is the "no keys open" value; the chip and the backup lookup both key
+// off a real fingerprint, so a zeroed one shows nothing rather than the wrong
+// thing.
+void kiss_ui_forget_fp(void)
+{
+  memset(s_last_fp, 0, sizeof s_last_fp);
+}
+
 // Post-setup, pre-home: recovery words + passphrase rederive this wallet.
 // Exposed words permit offline passphrase guessing, and nothing can recover a
 // lost passphrase. Session is open + seed committed; OK finishes the unlock.
