@@ -26,14 +26,22 @@ Rules:
    Accent rule on how it works, `WT_WARN` on where it goes wrong. This geometry
    is proven on the fingerprint reveal, the passphrase intro and the backup
    check — copy it rather than inventing a third layout.
-   When the blocks have headings, measure the shared body font against
-   `max_h - 46 - 8`: `wt_why_block` draws the heading above the body at font14,
-   and 46 covers a heading that wraps to two lines.
-3. **Marks before words.** Every chip and row label carries an icon.
-4. **Only glyphs already in `SYMS`** (`tools/fonts/gen_fonts.sh`). Anything else
+   When the blocks have headings, size the shared body with
+   `wt_body_font2_head(h1, b1, h2, b2, w, max_h)`. It measures the headings.
+   Callers used to subtract a constant 46 for a heading that *might* wrap to two
+   lines, plus 8 — 54px of a 166px budget, given away in all 21 locales.
+3. **A blank line costs a whole line of type.** `exp_height` puts one full
+   `lv_font_get_line_height` between paragraphs, so at font28 each blank line is
+   ~38px. A three paragraph body pays it twice. **When a screen renders smaller
+   than it should, count its paragraphs before you cut words**: merging two is
+   usually worth more than any rewrite, and it is what finally moved the seed
+   explainer off font14. Instrument the ladder in `wt_why_body` rather than
+   estimating — every hand estimate in this file's history has been wrong.
+4. **Marks before words.** Every chip and row label carries an icon.
+5. **Only glyphs already in `SYMS`** (`tools/fonts/gen_fonts.sh`). Anything else
    forces a font rebuild across four scripts. Available at every size: all
    `LV_SYMBOL_*` plus `WT_ICON_QR/KEY/SECRET/SD/LOCK/REPLACE`.
-5. **Nothing crosses `WT_CONTENT_BOTTOM` (398).**
+6. **Nothing crosses `WT_CONTENT_BOTTOM` (398).**
 
 ## Vocabulary
 
@@ -146,12 +154,20 @@ After generating, check no glyph was **gained**:
 python3 -c "
 import subprocess,glob
 for f in sorted(glob.glob('tools/fonts/glyphs_*.txt')):
+    if 'tile' in f: continue        # vestigial; see below
     old=subprocess.run(['git','show','HEAD:'+f],capture_output=True,text=True).stdout.strip()
     g=[c for c in open(f,encoding='utf-8').read().strip() if c not in old]
     print(f, 'gained', ''.join(g) or 'none')"
 ```
 
 A gained CJK glyph means a font rebuild across four scripts. **Reword instead.**
+
+**`glyphs_tile_*.txt` do not count and the filter above skips them.**
+`gen_fonts.sh` does not read them — it stopped when 23px became a body rung and
+the CJK 23px faces took the full `glyphs_$L.txt` instead. They are still written
+out, so an unfiltered glob reports gains that force nothing: renaming the home
+tile to "Signer" showed `末端` and `器` gained while the real sets gained
+nothing, and no rebuild was needed. Check the four real sets, not all seven.
 
 ## Device test verdict
 
