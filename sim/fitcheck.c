@@ -748,6 +748,62 @@ static int check_addr_marks(void)
     return bad;
 }
 
+// The compared tail is what the owner is asked to check, so where nothing else
+// on the screen shows it larger it renders one rung above the body. That rule
+// was written for font14 and tested `f == wt_font14()` -- the PROPORTIONAL face
+// -- while all four callers pass a mono one, so it could never fire and the
+// tail never grew. This pins both halves: lifted where asked, and NOT lifted
+// otherwise, because the single-recipient verify panel has 7px of slack and
+// spends it on the caption.
+static int check_addr_lift(void)
+{
+    static const char *A =
+        "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz";
+    static const char *SP =
+        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
+        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna";
+    lv_obj_t *scr = lv_obj_create(NULL);
+    int bad = 0;
+    struct { const char *name; const char *addr; int w; } cases[] = {
+        { "bech32 in the change lane", A,  438 },
+        { "bech32 in the full lane",   A,  722 },
+        { "silent payment, change",    SP, 438 },
+        { "silent payment, full",      SP, 722 },
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        lv_obj_t *flat = wt_addr_spans(scr, cases[i].addr, cases[i].w,
+                                       wt_font_mono14());
+        lv_obj_t *lift = wt_addr_spans_lift(scr, cases[i].addr, cases[i].w,
+                                            wt_font_mono14());
+        lv_obj_update_layout(flat);
+        lv_obj_update_layout(lift);
+        int hf = (int)lv_obj_get_height(flat), hl = (int)lv_obj_get_height(lift);
+        // lifted must actually be taller (the bug was that it was not) ...
+        if (hl <= hf) {
+            printf("  %-28s lift did nothing (%dpx both)\n", cases[i].name, hf);
+            bad++;
+        }
+        // ... and must not buy that with a whole extra line of address
+        if (hl - hf > 8) {
+            printf("  %-28s lift cost %dpx, a wrapped line\n",
+                   cases[i].name, hl - hf);
+            bad++;
+        }
+    }
+    // Above the 14 rung the accent alone marks the tail: lifting is a no-op.
+    lv_obj_t *a23 = wt_addr_spans(scr, A, 722, wt_font_mono23());
+    lv_obj_t *b23 = wt_addr_spans_lift(scr, A, 722, wt_font_mono23());
+    lv_obj_update_layout(a23);
+    lv_obj_update_layout(b23);
+    if (lv_obj_get_height(a23) != lv_obj_get_height(b23)) {
+        puts("  mono23                       lift changed a body that already reads");
+        bad++;
+    }
+    lv_obj_delete(scr);
+    printf("address tail lift: %d problem(s)\n", bad);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -1098,6 +1154,15 @@ int main(int argc, char **argv)
                  "owner no longer uses to know which screen they are on.");
             return 1;
         }
+    }
+
+    if (check_addr_lift()) {
+        puts("\nFAIL: the compared tail does not size the way its callers ask.\n"
+             "wt_addr_spans_lift exists because a tail at font14 marked only by\n"
+             "colour is the whole of what a multi-recipient list shows about an\n"
+             "address; wt_addr_spans exists because the single-recipient panel\n"
+             "draws that run again, larger, and has no room to do it twice.");
+        return 1;
     }
 
     if (check_addr_marks()) {

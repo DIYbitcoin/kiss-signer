@@ -1324,8 +1324,14 @@ static void verify_screen(lv_obj_t *parent)
             // at FOURTEEN; the 23 belongs to the two compared runs on their own
             // line beneath. At 23 the whole address is about 580px and wraps
             // again, which is the thing ungrouping was meant to prevent.
-            wt_addr_spans(list, s_sum.outs[i].addr, rw - 2 * SG_PAD,
-                          wt_font_mono14());
+            // Lifted ONLY when this line is the whole marking. Below, a single
+            // recipient gets the compared runs again at mono23, blocked, on
+            // their own line -- lifting here too would draw the same eight
+            // characters at the same size twice and cost the panel a scrollbar,
+            // with "compare these 8" at the fold. A list of recipients has no
+            // such line, so at mono14 the tail was carried by colour alone.
+            (recipient_n > 1 ? wt_addr_spans_lift : wt_addr_spans)
+                (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
             // The compared runs again, large, on their own line. This is the
             // part of the screen doing security work: the body above is there
             // to be scanned, this is the pair the caption asks you to check

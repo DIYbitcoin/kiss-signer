@@ -1339,7 +1339,8 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     return sg;
 }
 
-lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
+static lv_obj_t *addr_spans(lv_obj_t *par, const char *grouped, int w,
+                            const lv_font_t *f, bool lift)
 {
     int len = (int)strlen(grouped);
     int t = 0, raw = 0;
@@ -1376,21 +1377,51 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     lv_span_t *s2 = lv_spangroup_new_span(sg);
     lv_span_set_text(s2, grouped + t);
     lv_style_set_text_color(lv_span_get_style(s2), wt_accent());   // brightness, no underline
-    // The tail is the part you are actually asked to compare, so when the body
+    // The tail is the part you are actually asked to compare, so where the body
     // is too small to compare comfortably the tail renders one rung ABOVE it.
     // Blowing up the whole string instead would push the other outputs off a
-    // scrolling list -- this buys the legibility where it counts for one extra
-    // line of height.
+    // scrolling list -- this buys the legibility where it counts for 7px.
     //
-    // The bump only applies to font14, because it only exists to rescue font14.
-    // At 23 and 28 the body is already readable at arm's length and the accent
-    // colour alone marks the tail: that is what the main receive screen has
-    // always done at 28, and a 23 that jumped to 28 would cost two more lines
-    // on a 117-character silent-payment address for no gain.
-    lv_style_set_text_font(lv_span_get_style(s2),
-                           f == wt_font14() ? wt_font23() : f);
+    // Only at the 14 rung: at 23 and 28 the body already reads at arm's length
+    // and the accent alone marks the tail, which is what the receive screen has
+    // always done at 28.
+    //
+    // This used to test `f == wt_font14()` -- the PROPORTIONAL face -- while all
+    // four callers pass a mono one, so the branch could not be taken by anything
+    // and the tail never grew. Measured both ways at mono14: +7px, and the tail
+    // stays on the same line in every box it is drawn in (438 and 722, a 42
+    // character bech32 and a 117 character silent payment). It costs height, not
+    // a wrap.
+    //
+    // And it is the CALLER's call, not a rule the font can carry. Whether the
+    // tail must carry legibility on its own depends on what else is on the
+    // screen: the single-recipient verify panel draws the compared runs again
+    // beneath, blocked and at mono23, so lifting the body tail there renders the
+    // same eight characters at the same size twice and pushed that panel into a
+    // scrollbar with the caption at the fold. A multi-recipient list draws no
+    // such line, so the body tail is the only marking there is, and at 14 it was
+    // being carried by colour alone.
+    if (lift) {
+        if (f == wt_font_mono14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font_mono23());
+        else if (f == wt_font14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font23());
+    }
     lv_spangroup_refresh(sg);
     return sg;
+}
+
+// The tail is marked by colour, at the body's own size. Use this wherever a
+// larger copy of the compared run is drawn elsewhere on the screen.
+lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f)
+{
+    return addr_spans(par, grouped, w, f, false);
+}
+
+// The tail is ALSO lifted a rung, for the screens where this line is the only
+// place the compared run appears. A no-op above the 14 rung.
+lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
+                             const lv_font_t *f)
+{
+    return addr_spans(par, grouped, w, f, true);
 }
 
 // Section eyebrows carry the ACCENT. They were WT_MUT, which made the theme
