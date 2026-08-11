@@ -11,7 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "wallet_fw.h"
+#include "kiss_fw.h"
 #include "platform_sd.h"
 
 static int ffails;
@@ -23,7 +23,7 @@ static void ok(const char *n, int c)
 
 static void cmp_is(const char *a, const char *b, int want)
 {
-    int got = wallet_fw_version_cmp(a, b);
+    int got = kiss_fw_version_cmp(a, b);
     int norm = got < 0 ? -1 : got > 0 ? 1 : 0;
     char nm[96];
     snprintf(nm, sizeof nm, "cmp(%s, %s) %s", a, b,
@@ -33,7 +33,7 @@ static void cmp_is(const char *a, const char *b, int want)
     ok(nm, norm == want);
     // Antisymmetry, every time: a comparator that says both are newer than the
     // other passes half a test suite and sorts nothing.
-    int rev = wallet_fw_version_cmp(b, a);
+    int rev = kiss_fw_version_cmp(b, a);
     int rnorm = rev < 0 ? -1 : rev > 0 ? 1 : 0;
     if (rnorm != -want) {
         printf("FAIL: cmp(%s, %s) not antisymmetric (%d vs %d)\n", a, b, norm, rnorm);
@@ -42,7 +42,7 @@ static void cmp_is(const char *a, const char *b, int want)
 }
 
 // A minimal but real ESP app image head: 32 bytes of image + segment header,
-// then the descriptor. Only the fields wallet_fw reads are filled.
+// then the descriptor. Only the fields kiss_fw reads are filled.
 #define DESC_OFF 32
 static void mk_image_head(uint8_t *buf, size_t len, uint32_t magic,
                           const char *ver, const char *proj)
@@ -103,7 +103,7 @@ int test_fw(void)
     cmp_is("0.2.0-beta1", "0.1.0", 1);
     // Absurd input must not wrap into something small and read as older.
     cmp_is("99999999999.0.0", "1.0.0", 1);
-    ok("cmp survives null", wallet_fw_version_cmp(NULL, NULL) == 0);
+    ok("cmp survives null", kiss_fw_version_cmp(NULL, NULL) == 0);
 
     // ---- descriptor parsing ----
     uint8_t img[WFW_DESC_MIN];
@@ -111,24 +111,24 @@ int test_fw(void)
 
     mk_image_head(img, sizeof img, 0xABCD5432u, "0.9.9-beta2", "kiss");
     ok("descriptor parses",
-       wallet_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj) == 0 &&
+       kiss_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj) == 0 &&
        strcmp(ver, "0.9.9-beta2") == 0 && strcmp(proj, "kiss") == 0);
 
     mk_image_head(img, sizeof img, 0xDEADBEEFu, "0.9.9", "kiss");
     ok("wrong magic refused",
-       wallet_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj)
+       kiss_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj)
            == WFW_ERR_UNREADABLE);
 
     // Right magic, empty version: refused rather than treated as version "",
     // which would sort below everything and read as a downgrade.
     mk_image_head(img, sizeof img, 0xABCD5432u, NULL, "kiss");
     ok("empty version refused",
-       wallet_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj)
+       kiss_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj)
            == WFW_ERR_UNREADABLE);
 
     mk_image_head(img, sizeof img, 0xABCD5432u, "0.9.9", "kiss");
     ok("short buffer refused",
-       wallet_fw_desc_parse(img, 8, ver, sizeof ver, proj, sizeof proj)
+       kiss_fw_desc_parse(img, 8, ver, sizeof ver, proj, sizeof proj)
            == WFW_ERR_UNREADABLE);
 
     // A version field with no terminator must not run off the end of its 32
@@ -136,7 +136,7 @@ int test_fw(void)
     mk_image_head(img, sizeof img, 0xABCD5432u, NULL, "kiss");
     memset(img + DESC_OFF + 16, '9', 32);
     ok("unterminated version stays in its field",
-       wallet_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj) == 0 &&
+       kiss_fw_desc_parse(img, sizeof img, ver, sizeof ver, proj, sizeof proj) == 0 &&
        strlen(ver) == 31);
 
     // ---- scan over the sim card ----
@@ -148,20 +148,20 @@ int test_fw(void)
     wipe_card();
 
     wfw_image_t got;
-    ok("empty card reports no file", wallet_fw_scan(&got) == WFW_ERR_NO_FILE);
+    ok("empty card reports no file", kiss_fw_scan(&got) == WFW_ERR_NO_FILE);
 
     // A .bin that is not an app image is skipped, not offered.
     uint8_t junk[WFW_DESC_MIN];
     memset(junk, 0x5A, sizeof junk);
     put("aaa-notimage.bin", junk, sizeof junk);
-    ok("non image .bin is refused", wallet_fw_scan(&got) == WFW_ERR_UNREADABLE);
+    ok("non image .bin is refused", kiss_fw_scan(&got) == WFW_ERR_UNREADABLE);
 
     // Sorting puts aaa-notimage.bin first, so finding the real image proves the
     // descriptor picks the file rather than the name.
     static uint8_t big[WFW_DESC_MIN * 4];
     mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
     put("fw-new.bin", big, sizeof big);
-    int rc = wallet_fw_scan(&got);
+    int rc = kiss_fw_scan(&got);
     ok("newer image found past a decoy",
        rc == WFW_OK && strcmp(got.name, "fw-new.bin") == 0 &&
        strcmp(got.version, "99.0.0") == 0 && got.cmp > 0);
@@ -172,12 +172,12 @@ int test_fw(void)
     wipe_card();
     mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
     put("fw-old.bin", big, sizeof big);
-    ok("older image reported older", wallet_fw_scan(&got) == WFW_ERR_OLDER && got.cmp < 0);
+    ok("older image reported older", kiss_fw_scan(&got) == WFW_ERR_OLDER && got.cmp < 0);
 
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, wallet_fw_running_version(), "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, kiss_fw_running_version(), "kiss");
     put("fw-same.bin", big, sizeof big);
-    ok("same version reported same", wallet_fw_scan(&got) == WFW_ERR_SAME && got.cmp == 0);
+    ok("same version reported same", kiss_fw_scan(&got) == WFW_ERR_SAME && got.cmp == 0);
 
     // Two real images on one card. Sort order is not an opinion about which one
     // the owner wants, and it used to be the only thing consulted: the scan
@@ -190,7 +190,7 @@ int test_fw(void)
     put("0-old.bin", big, sizeof big);
     mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
     put("z-new.bin", big, sizeof big);
-    rc = wallet_fw_scan(&got);
+    rc = kiss_fw_scan(&got);
     ok("newest image wins, not the first name",
        rc == WFW_OK && strcmp(got.name, "z-new.bin") == 0 &&
        strcmp(got.version, "99.0.0") == 0);
@@ -202,7 +202,7 @@ int test_fw(void)
     put("0-old.bin", big, sizeof big);
     mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
     put("z-new.bin", big, sizeof big);
-    rc = wallet_fw_scan(&got);
+    rc = kiss_fw_scan(&got);
     ok("newest image wins whichever name it has",
        rc == WFW_OK && strcmp(got.name, "0-old.bin") == 0 &&
        strcmp(got.version, "99.0.0") == 0);
@@ -215,7 +215,7 @@ int test_fw(void)
     put("fw-old.bin", big, sizeof big);
     mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
     put("fw-new.bin", big, sizeof big);
-    rc = wallet_fw_scan(&got);
+    rc = kiss_fw_scan(&got);
     ok("junk on the card changes nothing",
        rc == WFW_OK && strcmp(got.name, "fw-new.bin") == 0);
 
@@ -229,7 +229,7 @@ int test_fw(void)
             put("huge.bin", hb, huge);
             free(hb);
             ok("oversized image refused before any write",
-               wallet_fw_scan(&got) == WFW_ERR_TOO_BIG && got.cmp > 0);
+               kiss_fw_scan(&got) == WFW_ERR_TOO_BIG && got.cmp > 0);
         } else {
             printf("SKIP: oversized image (no memory)\n");
         }
@@ -238,7 +238,7 @@ int test_fw(void)
     // A card that is not there is its own answer, distinct from an empty one.
     wipe_card();
     platform_sd_test_set_present(0);
-    ok("absent card reports no card", wallet_fw_scan(&got) == WFW_ERR_NO_CARD);
+    ok("absent card reports no card", kiss_fw_scan(&got) == WFW_ERR_NO_CARD);
     platform_sd_test_set_present(1);
 
     // A read that fails mid file must not look like a clean end of file.
@@ -266,10 +266,10 @@ int test_fw(void)
     wipe_card();
     mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
     put("fw-new.bin", big, sizeof big);
-    wallet_fw_scan(&got);
+    kiss_fw_scan(&got);
     ok("install refuses without a verifying build",
-       wallet_fw_install(&got, NULL, NULL) == WFW_ERR_UNSIGNED);
-    ok("availability agrees", wallet_fw_available() == WFW_ERR_UNSIGNED);
+       kiss_fw_install(&got, NULL, NULL) == WFW_ERR_UNSIGNED);
+    ok("availability agrees", kiss_fw_available() == WFW_ERR_UNSIGNED);
 
     wipe_card();
     return ffails;

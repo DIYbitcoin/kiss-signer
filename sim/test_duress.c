@@ -1,4 +1,4 @@
-// Desktop tests for main/wallet_duress.c -- the duress unlock modifier.
+// Desktop tests for main/kiss_duress.c -- the duress unlock modifier.
 //
 // This suite exists because of one asymmetry. A modifier that fails to be
 // recognized is an annoyance: you draw it again. A modifier recognized when
@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "wallet_duress.h"
+#include "kiss_duress.h"
 
 static int dfails;
 
@@ -49,12 +49,12 @@ static void stroke_to(int x, int y) {
 }
 
 static int classify(void) {
-    return wallet_duress_classify(g_xs, g_ys, g_n, BX0, BY0, BX1, BY1);
+    return kiss_duress_classify(g_xs, g_ys, g_n, BX0, BY0, BX1, BY1);
 }
 
 // The same ink, with no box to measure it against.
 static int freeclassify(void) {
-    return wallet_duress_classify_free(g_xs, g_ys, g_n);
+    return kiss_duress_classify_free(g_xs, g_ys, g_n);
 }
 
 int test_duress(void) {
@@ -137,54 +137,54 @@ int test_duress(void) {
     stroke_start(); stroke_to(300, 200);
     dchk("single point is not a modifier", classify() == WDG_NONE);
     dchk("empty stroke is not a modifier",
-         wallet_duress_classify(g_xs, g_ys, 0, BX0, BY0, BX1, BY1) == WDG_NONE);
+         kiss_duress_classify(g_xs, g_ys, 0, BX0, BY0, BX1, BY1) == WDG_NONE);
     dchk("degenerate bbox is refused",
-         wallet_duress_classify(g_xs, g_ys, g_n, 100, 100, 100, 100) == WDG_NONE);
+         kiss_duress_classify(g_xs, g_ys, g_n, 100, 100, 100, 100) == WDG_NONE);
 
     // ---- configuration ----
     // One stroke, the owner's. Plain KISS opens the decoy and always will, so a
     // second configurable stroke for it would only be another way to reach
     // something already reachable with no stroke at all.
-    wallet_duress_forget();
-    dchk("unset", wallet_duress_real() == WDG_NONE);
+    kiss_duress_forget();
+    dchk("unset", kiss_duress_real() == WDG_NONE);
 
-    dchk("set", wallet_duress_set(WDG_UNDERLINE) == 0);
-    dchk("reads back", wallet_duress_real() == WDG_UNDERLINE);
+    dchk("set", kiss_duress_set(WDG_UNDERLINE) == 0);
+    dchk("reads back", kiss_duress_real() == WDG_UNDERLINE);
 
-    dchk("out-of-range refused", wallet_duress_set(WDG_N) != 0);
-    dchk("negative refused", wallet_duress_set(-1) != 0);
-    dchk("refused writes changed nothing", wallet_duress_real() == WDG_UNDERLINE);
+    dchk("out-of-range refused", kiss_duress_set(WDG_N) != 0);
+    dchk("negative refused", kiss_duress_set(-1) != 0);
+    dchk("refused writes changed nothing", kiss_duress_real() == WDG_UNDERLINE);
 
     {
         int ok = 1;
         for (int g = WDG_UNDERLINE; g < WDG_N; g++)
-            if (wallet_duress_set(g) != 0 || wallet_duress_real() != g) ok = 0;
+            if (kiss_duress_set(g) != 0 || kiss_duress_real() != g) ok = 0;
         dchk("every modifier is settable", ok);
     }
 
-    dchk("turning it off is allowed", wallet_duress_set(WDG_NONE) == 0);
-    dchk("off means unset", wallet_duress_real() == WDG_NONE);
+    dchk("turning it off is allowed", kiss_duress_set(WDG_NONE) == 0);
+    dchk("off means unset", kiss_duress_real() == WDG_NONE);
 
     // every modifier has a name the picker can show
     {
         int named = 1;
         for (int g = WDG_UNDERLINE; g < WDG_N; g++)
-            if (wallet_duress_label_key(g) < 0) named = 0;
+            if (kiss_duress_label_key(g) < 0) named = 0;
         dchk("every modifier has a label", named);
-        dchk("WDG_NONE has no label", wallet_duress_label_key(WDG_NONE) < 0);
+        dchk("WDG_NONE has no label", kiss_duress_label_key(WDG_NONE) < 0);
     }
 
     // ---- routing policy (uniform: the stored stroke must not change it) ----
     dchk("no word at all opens nothing",
-         wallet_duress_route(false, WDG_NONE) == WDR_NONE);
+         kiss_duress_route(false, WDG_NONE) == WDR_NONE);
     dchk("a scribble with a stroke still opens nothing",
-         wallet_duress_route(false, WDG_CIRCLE) == WDR_NONE);
+         kiss_duress_route(false, WDG_CIRCLE) == WDR_NONE);
     dchk("word alone opens the decoy",
-         wallet_duress_route(true, WDG_NONE) == WDR_DECOY);
+         kiss_duress_route(true, WDG_NONE) == WDR_DECOY);
     {
         int all_real = 1;
         for (int g = WDG_NONE + 1; g < WDG_N; g++)
-            if (wallet_duress_route(true, g) != WDR_REAL) all_real = 0;
+            if (kiss_duress_route(true, g) != WDR_REAL) all_real = 0;
         dchk("word plus any stroke reaches the passphrase", all_real);
     }
 
@@ -195,13 +195,13 @@ int test_duress(void) {
     {
         int stable = 1;
         for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
-            wallet_duress_set(cfg);
-            if (wallet_duress_route(true, WDG_NONE) != WDR_DECOY) stable = 0;
-            if (wallet_duress_route(true, WDG_UNDERLINE) != WDR_REAL) stable = 0;
+            kiss_duress_set(cfg);
+            if (kiss_duress_route(true, WDG_NONE) != WDR_DECOY) stable = 0;
+            if (kiss_duress_route(true, WDG_UNDERLINE) != WDR_REAL) stable = 0;
         }
         dchk("routing is identical whatever stroke is configured", stable);
     }
-    wallet_duress_set(WDG_NONE);
+    kiss_duress_set(WDG_NONE);
 
     // ---- free marks: the same shapes with no word under them --------------
     //
@@ -281,42 +281,42 @@ int test_duress(void) {
         // Every shape has a name to put on a pill, and no shape shares one.
         int named = 1, distinct = 1;
         for (int m = WDF_NONE + 1; m < WDF_N; m++) {
-            if (wallet_duress_free_label_key(m) < 0) named = 0;
+            if (kiss_duress_free_label_key(m) < 0) named = 0;
             for (int o = m + 1; o < WDF_N; o++)
-                if (wallet_duress_free_label_key(m) ==
-                    wallet_duress_free_label_key(o)) distinct = 0;
+                if (kiss_duress_free_label_key(m) ==
+                    kiss_duress_free_label_key(o)) distinct = 0;
         }
         dchk("free: every mark has a distinct label", named && distinct);
         dchk("free: WDF_NONE has no label",
-             wallet_duress_free_label_key(WDF_NONE) < 0);
+             kiss_duress_free_label_key(WDF_NONE) < 0);
     }
 
     // ---- the word ---------------------------------------------------------
     //
     // An owner's own way in, replacing KISS. The matcher is a PREFIX test, so
     // the mark after the word is left for the caller exactly as one stroke
-    // after KISS is today, and wallet_duress_route still decides the door.
+    // after KISS is today, and kiss_duress_route still decides the door.
     {
         const uint8_t w[4]  = { WDF_LINE, WDF_SLASH, WDF_CIRCLE, WDF_CHECK };
         const uint8_t alt[4]= { WDF_LINE, WDF_SLASH, WDF_CIRCLE, WDF_CIRCLE };
         uint8_t got[WDW_MAX];
 
-        wallet_duress_forget();
-        dchk("word: none set by default", wallet_duress_word_len() == 0);
+        kiss_duress_forget();
+        dchk("word: none set by default", kiss_duress_word_len() == 0);
         // Unset is NOT an empty word that everything begins with. It means
         // KISS still stands, and the caller has to be sent to detect_KISS.
-        dchk("word: unset matches nothing", wallet_duress_word_match(w, 4) == 0);
+        dchk("word: unset matches nothing", kiss_duress_word_match(w, 4) == 0);
 
-        dchk("word: set", wallet_duress_word_set(w, 4) == 0);
-        dchk("word: length reads back", wallet_duress_word_len() == 4);
+        dchk("word: set", kiss_duress_word_set(w, 4) == 0);
+        dchk("word: length reads back", kiss_duress_word_len() == 4);
         dchk("word: marks read back",
-             wallet_duress_word_get(got) == 4 && memcmp(got, w, 4) == 0);
+             kiss_duress_word_get(got) == 4 && memcmp(got, w, 4) == 0);
 
-        dchk("word: exact run matches", wallet_duress_word_match(w, 4) == 4);
+        dchk("word: exact run matches", kiss_duress_word_match(w, 4) == 4);
         dchk("word: one mark wrong does not",
-             wallet_duress_word_match(alt, 4) == 0);
+             kiss_duress_word_match(alt, 4) == 0);
         dchk("word: a short run does not",
-             wallet_duress_word_match(w, 3) == 0);
+             kiss_duress_word_match(w, 3) == 0);
 
         // The whole point of a prefix: the word, then the mark that picks the
         // door. Five marks in, four consumed, one left over for the caller.
@@ -324,7 +324,7 @@ int test_duress(void) {
             uint8_t plus[5] = { WDF_LINE, WDF_SLASH, WDF_CIRCLE, WDF_CHECK,
                                 WDF_SLASH };
             dchk("word: trailing mark is left for the caller",
-                 wallet_duress_word_match(plus, 5) == 4);
+                 kiss_duress_word_match(plus, 5) == 4);
         }
         // ...and a WRONG word with a trailing mark is still nothing. A mark
         // after a miss must not rescue it.
@@ -332,7 +332,7 @@ int test_duress(void) {
             uint8_t bad[5] = { WDF_CHECK, WDF_SLASH, WDF_CIRCLE, WDF_CHECK,
                                WDF_SLASH };
             dchk("word: a trailing mark does not rescue a miss",
-                 wallet_duress_word_match(bad, 5) == 0);
+                 kiss_duress_word_match(bad, 5) == 0);
         }
 
         // Nothing invalid is storable. A word containing WDF_NONE would be a
@@ -343,28 +343,28 @@ int test_duress(void) {
             uint8_t oob[2]  = { WDF_LINE, WDF_N };
             uint8_t big[WDW_MAX + 1];
             for (unsigned i = 0; i < sizeof big; i++) big[i] = WDF_LINE;
-            dchk("word: a hole is refused", wallet_duress_word_set(hole, 3) < 0);
+            dchk("word: a hole is refused", kiss_duress_word_set(hole, 3) < 0);
             dchk("word: an out of range mark is refused",
-                 wallet_duress_word_set(oob, 2) < 0);
+                 kiss_duress_word_set(oob, 2) < 0);
             dchk("word: longer than WDW_MAX is refused",
-                 wallet_duress_word_set(big, WDW_MAX + 1) < 0);
+                 kiss_duress_word_set(big, WDW_MAX + 1) < 0);
             dchk("word: a refused set changes nothing",
-                 wallet_duress_word_len() == 4);
+                 kiss_duress_word_len() == 4);
         }
 
         dchk("word: clearing puts KISS back",
-             wallet_duress_word_set(NULL, 0) == 0 &&
-             wallet_duress_word_len() == 0);
+             kiss_duress_word_set(NULL, 0) == 0 &&
+             kiss_duress_word_len() == 0);
 
         // A wipe must take the way in with it, or the next owner of an erased
         // device inherits a door into a seed that is gone. Same reasoning that
-        // keeps the gesture out of wallet_seed.c's KEEP_KEYS.
-        wallet_duress_word_set(w, 4);
-        wallet_duress_set(WDG_CIRCLE);
-        wallet_duress_forget();
-        dchk("word: a wipe forgets the word",  wallet_duress_word_len() == 0);
+        // keeps the gesture out of kiss_seed.c's KEEP_KEYS.
+        kiss_duress_word_set(w, 4);
+        kiss_duress_set(WDG_CIRCLE);
+        kiss_duress_forget();
+        dchk("word: a wipe forgets the word",  kiss_duress_word_len() == 0);
         dchk("word: a wipe forgets the mark",
-             wallet_duress_real() == WDG_NONE);
+             kiss_duress_real() == WDG_NONE);
     }
 
     return dfails;

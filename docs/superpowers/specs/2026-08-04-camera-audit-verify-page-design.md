@@ -86,7 +86,7 @@ printed for the record.
 ### The card copy
 
 `tools/gen_verify_page.py` embeds `docs/verify.html` as `main/verify_page.c/.h`
-(committed, CI drift gated, like the i18n tables). `wallet_proof_run` writes it
+(committed, CI drift gated, like the i18n tables). `kiss_proof_run` writes it
 as `kiss-verify.html` via the same atomic write as the frame, after the frame:
 the frame is the artifact, the page is the courtesy. If the page write fails
 the run deletes the frame (best effort) and reports the existing SD failure —

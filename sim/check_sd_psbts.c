@@ -8,9 +8,9 @@
 // for from a signer that stopped flagging what it should.
 #include <stdio.h>
 #include <string.h>
-#include "wallet_crypto.h"
-#include "wallet_psbt.h"
-#include "wallet_seed.h"
+#include "kiss_crypto.h"
+#include "kiss_psbt.h"
+#include "kiss_seed.h"
 
 static const char *st(int s){ return s==WPSBT_READY?"READY":s==WPSBT_CAUTION?"CAUTION":"STOP"; }
 
@@ -22,10 +22,10 @@ static size_t slurp(const char *dir, const char *name, unsigned char *buf, size_
 
 int main(int argc, char **argv){
     if(argc<2){ fprintf(stderr,"usage: %s <dir>\n",argv[0]); return 2; }
-    wallet_seed_store("abandon abandon abandon abandon abandon abandon "
+    kiss_seed_store("abandon abandon abandon abandon abandon abandon "
                       "abandon abandon abandon abandon abandon about");
-    wallet_set_network(1);                         // testnet
-    if(wallet_session_open("")!=0){ printf("session open failed\n"); return 1; }
+    kiss_set_network(1);                         // testnet
+    if(kiss_session_open("")!=0){ printf("session open failed\n"); return 1; }
     // want_flags is checked EXACTLY, not as a subset: a fixture built for one
     // row on the screen that quietly starts raising two is a fixture that no
     // longer shows what the tester was told to look at.
@@ -50,15 +50,15 @@ int main(int argc, char **argv){
         unsigned char buf[8192];
         size_t n=slurp(argv[1],t[i].f,buf,sizeof buf);
         if(!n){ printf("FAIL missing %s\n",t[i].f); fails++; continue; }
-        wallet_set_script(t[i].sc);
+        kiss_set_script(t[i].sc);
         wpsbt_summary_t sum; memset(&sum,0,sizeof sum);
-        int rc=wallet_psbt_load(buf,n,&sum);
+        int rc=kiss_psbt_load(buf,n,&sum);
         int ok=(rc==0 && sum.status==t[i].want && sum.caution_flags==t[i].flags);
         printf("%s %-26s rc=%d status=%-7s flags=0x%02X (want %s 0x%02X)\n",
                ok?"PASS":"FAIL", t[i].f, rc, st(sum.status),
                sum.caution_flags, st(t[i].want), t[i].flags);
         if(!ok) fails++;
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
 
     // THE pair. 6 and 7 spend the same two coins in the same transaction and
@@ -73,14 +73,14 @@ int main(int argc, char **argv){
         const char *pair[2]={"6-unproven-2in.psbt","7-proven-2in.psbt"};
         char *out[2]={fa,fb};
         int ok=1;
-        wallet_set_script(WSCRIPT_NATIVE);
+        kiss_set_script(WSCRIPT_NATIVE);
         for(int i=0;i<2;i++){
             size_t n=slurp(argv[1],pair[i],pb,sizeof pb), w=0;
             wpsbt_summary_t sum; memset(&sum,0,sizeof sum);
-            if(!n || wallet_psbt_load(pb,n,&sum)!=0 ||
-               wallet_psbt_sign(sb,sizeof sb,&w)!=0 ||
-               wallet_psbt_sig_fingerprint(sb,w,out[i])!=0) ok=0;
-            wallet_psbt_free();
+            if(!n || kiss_psbt_load(pb,n,&sum)!=0 ||
+               kiss_psbt_sign(sb,sizeof sb,&w)!=0 ||
+               kiss_psbt_sig_fingerprint(sb,w,out[i])!=0) ok=0;
+            kiss_psbt_free();
         }
         ok = ok && strcmp(fa,fb)==0;
         printf("%s proof does not change the signature   %s vs %s\n",
@@ -90,7 +90,7 @@ int main(int argc, char **argv){
                fa[0]?fa:"?");
     }
 
-    wallet_session_close();
+    kiss_session_close();
     printf(fails?"\n%d FAIL\n":"\nALL PASS\n", fails);
     return fails?1:0;
 }

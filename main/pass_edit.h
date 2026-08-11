@@ -1,6 +1,6 @@
 // Passphrase buffer edits at a caret.
 //
-// Split out of wallet_ui.c and kept free of LVGL and of globals so the
+// Split out of kiss_ui.c and kept free of LVGL and of globals so the
 // arithmetic that decides what a passphrase actually CONTAINS can be tested on
 // its own (sim/test_passedit.c). Everything else about the entry screen is a
 // display concern; this is not. An off-by-one here shows nothing on screen,

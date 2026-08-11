@@ -65,7 +65,7 @@ if (ctx.claimedHash("#h=" + VEC_HASH.slice(1)) !== null)
   fail("claimedHash accepted 63 hex chars");
 if (ctx.claimedHash("") !== null) fail("claimedHash accepted an empty fragment");
 
-// The slot wallet_proof.c writes over for the card's self verifying copy.
+// The slot kiss_proof.c writes over for the card's self verifying copy.
 if (ctx.KISS_CLAIM !== "-".repeat(64))
   fail("the shipped page does not carry an empty 64 dash claim slot");
 if (ctx.bakedClaim(ctx.KISS_CLAIM) !== null)

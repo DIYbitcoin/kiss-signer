@@ -22,11 +22,11 @@ is bound by the same three constraints as the firmware:
    of the screen it sits on, because the app has no single lane: measured off
    the frames, Settings' right column ends at 770, Receive's at about 751, and
    Sign's panels at 776. `WT_BACK_X 610` ends at 750, which is the 48px page
-   margin `main/wallet_theme.c:373` declares and what most screens are drawn
+   margin `main/kiss_theme.c:373` declares and what most screens are drawn
    to, so it stays the default. Sign is the exception and carries its own
    `SG_BACK_X 636`.
 
-Colours are the `main/wallet_theme.h` macros. Never a new one.
+Colours are the `main/kiss_theme.h` macros. Never a new one.
 
 Every file is self contained: fonts are subset from the repo's own originals
 and inlined, so a drawing renders identically offline, with no network, no CDN
@@ -42,7 +42,7 @@ human reading a mockup cannot see either.
 
 | File | Screens | Source |
 |---|---|---|
-| `sign-screens-buildable.html` | Sign normal, Sign cautions, and the zero cost fallback | `main/wallet_sign.c` |
+| `sign-screens-buildable.html` | Sign normal, Sign cautions, and the zero cost fallback | `main/kiss_sign.c` |
 
 ## Fonts these drawings embed
 

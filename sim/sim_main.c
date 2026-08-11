@@ -11,22 +11,22 @@
 #include <dirent.h>
 #include <unistd.h>
 #include "i18n.h"
-#include "wallet_crypto.h"
-#include "wallet_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
+#include "kiss_crypto.h"
+#include "kiss_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "verify_page.h"    // ...and the real checker page beside it
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
-#include "wallet_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
-#include "wallet_fw.h"          // the SD firmware seams: no flash here, no key
-#include "wallet_fw_ui.h"       // its screens, opened directly like the above
-#include "wallet_duress.h"
-#include "wallet_gword.h"      // WDG_* , to reach ST_INTRO's configured state
-#include "wallet_info.h"
-#include "wallet_recv.h"    // sim-only hook for the derivation path "?"
-#include "wallet_settings.h"
-#include "wallet_word_ui.h"
-#include "wallet_theme.h"   // SIM_ACCENT picks the theme the walk renders in
-#include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
+#include "kiss_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
+#include "kiss_fw.h"          // the SD firmware seams: no flash here, no key
+#include "kiss_fw_ui.h"       // its screens, opened directly like the above
+#include "kiss_duress.h"
+#include "kiss_gword.h"      // WDG_* , to reach ST_INTRO's configured state
+#include "kiss_info.h"
+#include "kiss_recv.h"    // sim-only hook for the derivation path "?"
+#include "kiss_settings.h"
+#include "kiss_word_ui.h"
+#include "kiss_theme.h"   // SIM_ACCENT picks the theme the walk renders in
+#include "kiss_ui.h"      // kiss_ui_drop_indev_for_test: cold-boot the decoy
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
 // (the device reaches it via a one-time panel rotation at boot).
@@ -55,27 +55,27 @@ bool platform_read_touch(int *x, int *y) {
 
 // crypto seam: the sim has no libwally; fake a passphrase-dependent fingerprint
 // (empty passphrase yields the real dev-seed value so screens match the device)
-int wallet_fingerprint(const char *passphrase, unsigned char out[4]) {
+int kiss_fingerprint(const char *passphrase, unsigned char out[4]) {
   unsigned char h = 0;
   for (const char *p = passphrase ? passphrase : ""; *p; p++) h = (h * 31) ^ *p;
   out[0] = 0x73 ^ h; out[1] = 0xC5 ^ h; out[2] = 0xDA ^ h; out[3] = 0x0A ^ h;
   return 0;
 }
 
-// Entropy source seam. On the device wallet_trng_start switches the SAR ADC
+// Entropy source seam. On the device kiss_trng_start switches the SAR ADC
 // noise source on and the flag records that it happened; on the host the
 // callers reach /dev/urandom, which needs no switch, so the flag is the whole
 // implementation. It is still a flag rather than a constant true, because the
 // Settings footer reports it and the walk should render the state a booted
 // device is in, not the state of a process that skipped boot.
 static bool s_sim_trng;
-void wallet_trng_start(void) { s_sim_trng = true; }
-bool wallet_trng_live(void) { return s_sim_trng; }
+void kiss_trng_start(void) { s_sim_trng = true; }
+bool kiss_trng_live(void) { return s_sim_trng; }
 
 // step-7 seams: the seed store is a RAM flag. A fresh sim run starts SEEDED so
 // the legacy script flows unchanged; the wizard test at the end wipes first.
 #include <string.h>
-#include "wallet_seed.h"
+#include "kiss_seed.h"
 static char s_sim_seed[256] =
     "abandon abandon abandon abandon abandon abandon "
     "abandon abandon abandon abandon abandon about";
@@ -85,13 +85,13 @@ static int s_sim_has_pending;
 static int s_sim_mode;
 static int s_sim_pending_mode = -1;   // staged wizard answer, -1 = none
 static int s_sim_sd_present = 1;      // hot-plug state for the unlock gate
-int wallet_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
-int wallet_seed_store(const char *m) {
+int kiss_seed_exists(void) { return s_sim_has_seed || s_sim_has_pending; }
+int kiss_seed_store(const char *m) {
   snprintf(s_sim_seed, sizeof s_sim_seed, "%s", m);
   s_sim_has_seed = 1;
   return 0;
 }
-int wallet_seed_load(char *out, size_t n) {
+int kiss_seed_load(char *out, size_t n) {
   if (s_sim_has_pending) { snprintf(out, n, "%s", s_sim_pending); return 0; }
   if (s_sim_mode == WSEED_MODE_SD && !s_sim_sd_present)
     return WSEED_ERR_SD_MISSING;
@@ -99,18 +99,18 @@ int wallet_seed_load(char *out, size_t n) {
   snprintf(out, n, "%s", s_sim_seed);
   return 0;
 }
-int wallet_seed_wipe(void) {
+int kiss_seed_wipe(void) {
   s_sim_has_seed = 0;
   s_sim_has_pending = 0;
   return 0;
 }
-int wallet_seed_validate(const char *m) { (void)m; return 0; }
-int wallet_seed_stage(const char *m) {
+int kiss_seed_validate(const char *m) { (void)m; return 0; }
+int kiss_seed_stage(const char *m) {
   snprintf(s_sim_pending, sizeof s_sim_pending, "%s", m);
   s_sim_has_pending = 1;
   return 0;
 }
-int wallet_seed_commit(void) {
+int kiss_seed_commit(void) {
   if (!s_sim_has_pending) return -1;
   if (s_sim_pending_mode >= 0) s_sim_mode = s_sim_pending_mode;
   s_sim_pending_mode = -1;
@@ -125,13 +125,13 @@ int wallet_seed_commit(void) {
   s_sim_has_pending = 0;
   return 0;
 }
-void wallet_seed_discard(void) { s_sim_has_pending = 0; s_sim_pending_mode = -1; }
+void kiss_seed_discard(void) { s_sim_has_pending = 0; s_sim_pending_mode = -1; }
 static const char *SIM_WORDS[] = {
   "gravity", "machine", "north", "sort", "system", "female", "filter",
   "attitude", "volume", "fold", "club", "stay", "feature", "office",
   "ecology", "stable", "narrow", "fence", "abandon", "ability", "able",
   "about", "zone", "zoo"};
-int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) {
+int kiss_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) {
   (void)e;
   int count = len == 32 ? 24 : 12;
   size_t o = 0;
@@ -139,14 +139,14 @@ int wallet_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) 
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
 }
-// PROVE IT (main/wallet_proof.c wants wally SHA256; the sim links no wally).
+// PROVE IT (main/kiss_proof.c wants wally SHA256; the sim links no wally).
 // The stub writes a SMALL real file AND the real checker page through the real
 // platform_sd so the walk's SD gate and the host directory stay honest, and
 // hashes the junk with cUR's already-linked SHA256 -- still deterministic, but
 // now dropping /tmp/simsd/kiss-proof.bin on the page (or scanning the sim's
 // QR) shows MATCH instead of a confusing MISMATCH. Words stay the fixed
 // SIM_WORDS; kisstest runs the real pipeline against a pinned vector.
-int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
+int kiss_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
                      char *words_out, size_t words_len) {
   (void)frame; (void)len;
   uint8_t junk[64];
@@ -171,60 +171,60 @@ int wallet_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
                                      verify_page_html_len);
   free(page);
   if (prc < 0) return WPROOF_ERR_SD;
-  return wallet_seed_from_entropy(hash_out, 32, words_out, words_len);
+  return kiss_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
-// Source 3 (taps) + the three-way mix. The real fold lives in wallet_tapent.c
-// and wallet_crypto.c and needs wally's SHA256; the sim links no crypto, same
+// Source 3 (taps) + the three-way mix. The real fold lives in kiss_tapent.c
+// and kiss_crypto.c and needs wally's SHA256; the sim links no crypto, same
 // reason as the seed stub above. Here they only have to let the tap screen
 // advance and complete. kisstest exercises the real versions. 64 == WTAP_TARGET.
 static unsigned s_sim_taps;
-void wallet_tapent_reset(void) { s_sim_taps = 0; }
-int wallet_tapent_tap(uint64_t us, uint32_t cyc, int16_t x, int16_t y) {
+void kiss_tapent_reset(void) { s_sim_taps = 0; }
+int kiss_tapent_tap(uint64_t us, uint32_t cyc, int16_t x, int16_t y) {
   (void)us; (void)cyc; (void)x; (void)y;
   if (s_sim_taps >= 64) return 0;
   s_sim_taps++;
   return 1;
 }
-unsigned wallet_tapent_count(void) { return s_sim_taps; }
-int wallet_tapent_take(uint8_t out[32]) {
+unsigned kiss_tapent_count(void) { return s_sim_taps; }
+int kiss_tapent_take(uint8_t out[32]) {
   if (s_sim_taps < 64) return -1;
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i * 7);
   return 0;
 }
-// Dice source (verifiable path). Real logic + SHA256 live in wallet_dice.c and
+// Dice source (verifiable path). Real logic + SHA256 live in kiss_dice.c and
 // are exercised by kisstest; the sim links no crypto, so this stub only has to
 // let the dice screen advance and complete. The QUALITY judge is not stubbed:
-// wallet_dice_q.c needs no crypto and links for real, so the walk renders true
+// kiss_dice_q.c needs no crypto and links for real, so the walk renders true
 // verdicts against this buffer — a fake WD_Q_OK would leave the warning screen
 // unrendered by every gate, which is exactly the drift this walk exists to
 // catch. Constants come from the header so a raised DICE_MAX cannot silently
 // cap the sim under the screen it is walking.
-#include "wallet_dice.h"
+#include "kiss_dice.h"
 static char     s_sim_dice[DICE_MAX + 1];
 static unsigned s_sim_dn;
-void wallet_dice_reset(void) { s_sim_dn = 0; s_sim_dice[0] = 0; }
-int wallet_dice_roll(int face) {
+void kiss_dice_reset(void) { s_sim_dn = 0; s_sim_dice[0] = 0; }
+int kiss_dice_roll(int face) {
   if (face < 1 || face > 6) return 0;
   if (s_sim_dn >= DICE_MAX) return 0;
   s_sim_dice[s_sim_dn++] = (char)('0' + face);
   s_sim_dice[s_sim_dn] = 0;
   return 1;
 }
-int wallet_dice_undo(void) {
+int kiss_dice_undo(void) {
   if (s_sim_dn == 0) return 0;
   s_sim_dice[--s_sim_dn] = 0;
   return 1;
 }
-unsigned wallet_dice_count(void) { return s_sim_dn; }
-const char *wallet_dice_digits(void) { return s_sim_dice; }
-int wallet_dice_take(uint8_t *out, unsigned len) {
+unsigned kiss_dice_count(void) { return s_sim_dn; }
+const char *kiss_dice_digits(void) { return s_sim_dice; }
+int kiss_dice_take(uint8_t *out, unsigned len) {
   if (!out || (len != 16 && len != 32)) return -1;
   unsigned floor = (len == 32) ? DICE_FLOOR_256 : DICE_FLOOR_128;
   if (s_sim_dn < floor) return -1;
   for (unsigned i = 0; i < len; i++) out[i] = (uint8_t)(i * 3 + 1);
   return 0;
 }
-int wallet_dice_peek(uint8_t out[32]) {
+int kiss_dice_peek(uint8_t out[32]) {
   if (!out) return -1;
   // no real SHA in the sim: a value that visibly moves as rolls are added, so
   // the fingerprint label can be walked and shot for the docs.
@@ -234,8 +234,8 @@ int wallet_dice_peek(uint8_t out[32]) {
 // Last word source (cards path). The real enumeration needs wally's BIP39
 // validator and is exercised by kisstest; the walk only needs the right SHAPE:
 // 8 candidates after a 23 word prefix, 128 after 11, real-looking labels.
-#include "wallet_lastword.h"
-int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
+#include "kiss_lastword.h"
+int kiss_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
   if (!partial) return -1;
   int words = 1;
   for (const char *p = partial; *p; p++)
@@ -245,7 +245,7 @@ int wallet_lastword_candidates(const char *partial, uint16_t out[WLAST_MAX]) {
   for (int i = 0; i < n; i++) out[i] = (uint16_t)i;
   return n;
 }
-const char *wallet_lastword_word(uint16_t i) {
+const char *kiss_lastword_word(uint16_t i) {
   return i < 2048 ? SIM_WORDS[i % 24] : NULL;
 }
 // The walk's 24 fake words stand in for the 2048 word list, so their INDICES
@@ -256,12 +256,12 @@ const char *wallet_lastword_word(uint16_t i) {
 // checksum card only read index(), the picker only reads word() -- and
 // kisstest owns the real pair. i*83 runs to four digits too, so the widest
 // number chip the card can draw is the one the walk already draws.
-int wallet_lastword_index(const char *w) {
+int kiss_lastword_index(const char *w) {
   for (int i = 0; i < 24; i++)
     if (strcmp(SIM_WORDS[i], w) == 0) return i * 83;
   return -1;
 }
-int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]) {
   if (!a || !b || !c || !out) return -1;
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i]);
@@ -272,7 +272,7 @@ int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
 // that; a scripted walk has no clocks worth measuring, so this only has to be
 // non-constant and succeed. Nothing here is entropy and nothing here claims to
 // be -- the walk never keeps a seed.
-int wallet_jitter(uint8_t out[32]) {
+int kiss_jitter(uint8_t out[32]) {
   if (!out) return -1;
   static uint32_t s = 0x2545F491u;
   for (int i = 0; i < 32; i++) {
@@ -282,18 +282,18 @@ int wallet_jitter(uint8_t out[32]) {
   return 0;
 }
 
-// storage mode: the real logic + its edge cases live in wallet_seed.c and are
+// storage mode: the real logic + its edge cases live in kiss_seed.c and are
 // covered by kisstest. Here it only has to steer the screens -- but it has to
 // steer them the same way, so the staged-vs-applied split is mirrored: the
 // wizard stages, commit applies, and only an explicit set_mode erases now.
-int wallet_seed_mode(void) {
+int kiss_seed_mode(void) {
   return s_sim_pending_mode >= 0 ? s_sim_pending_mode : s_sim_mode;
 }
-void wallet_seed_stage_mode(int m) {
+void kiss_seed_stage_mode(int m) {
   s_sim_pending_mode = (m == WSEED_MODE_AMNESIC || m == WSEED_MODE_SD)
                      ? m : WSEED_MODE_KEEP;
 }
-int wallet_seed_set_mode(int m) {
+int kiss_seed_set_mode(int m) {
   s_sim_pending_mode = -1;
   s_sim_mode = (m == WSEED_MODE_AMNESIC || m == WSEED_MODE_SD)
              ? m : WSEED_MODE_KEEP;
@@ -305,8 +305,8 @@ int wallet_seed_set_mode(int m) {
 // beta device.
 //
 // The screen-walk sim always runs the beta lane. The settable version of this
-// lives in main/wallet_seed.c, which is what the unit test binary links.
-int wallet_seed_flash_encrypted(void) { return 0; }
+// lives in main/kiss_seed.c, which is what the unit test binary links.
+int kiss_seed_flash_encrypted(void) { return 0; }
 
 // The screen walk creates seeds through the same funnel the device uses, so it
 // reaches the entropy note. RAM here: the walk is one process and there is no
@@ -316,15 +316,15 @@ int wallet_seed_flash_encrypted(void) { return 0; }
 // it the walk creates clean seeds and the widest version of that chip line --
 // two self sizing chips beside each other, in 21 locales -- is never measured.
 static int s_sim_ent_note = -1;
-void wallet_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
-int wallet_seed_entropy_note(void) {
+void kiss_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
+int kiss_seed_entropy_note(void) {
   if (s_sim_ent_note < 0) {
     const char *e = getenv("SIM_ENT_NOTE");
     s_sim_ent_note = (e && *e && *e != '0') ? 2 /* WD_Q_UNEVEN */ : 0;
   }
   return s_sim_ent_note;
 }
-int wallet_seed_move_to(int m) {
+int kiss_seed_move_to(int m) {
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
     return WSEED_ERR_INVALID;
@@ -350,12 +350,12 @@ int wallet_seed_move_to(int m) {
   s_sim_mode = m;
   return WSEED_OK;
 }
-void wallet_seed_forget(void) {
+void kiss_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
 }
 // Enough of the real parser to drive the walk: the numeric SeedQR shape and a
 // plain mnemonic are accepted, anything else is the "NOT A SEED" path.
-int wallet_seed_from_qr(const char *data, size_t len, char *out, size_t n) {
+int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t n) {
   if (out && n) out[0] = 0;
   if (!data || !out || len == 0) return -1;
   if (len == 48 || len == 96) {
@@ -377,19 +377,19 @@ text:
   }
   return -1;
 }
-int wallet_seed_word(int i, const char **out) {
+int kiss_seed_word(int i, const char **out) {
   *out = SIM_WORDS[i % 24];
   return 0;
 }
-int wallet_seed_suggest(const char *prefix, const char *out[], int n) {
+int kiss_seed_suggest(const char *prefix, const char *out[], int n) {
   int found = 0;
   for (int i = 0; i < 24 && found < n; i++)
     if (strncmp(SIM_WORDS[i], prefix, strlen(prefix)) == 0)
       out[found++] = SIM_WORDS[i];
   return found;
 }
-// mirrors main/wallet_seed.c (the shipped, unit-tested one)
-int wallet_seed_diff_word(const char *typed, const char *stored) {
+// mirrors main/kiss_seed.c (the shipped, unit-tested one)
+int kiss_seed_diff_word(const char *typed, const char *stored) {
   const char *a = typed, *b = stored;
   while (*a == ' ') a++; while (*b == ' ') b++;
   for (int idx = 0;; idx++) {
@@ -402,37 +402,37 @@ int wallet_seed_diff_word(const char *typed, const char *stored) {
   }
 }
 
-// network seam: wallet_settings + the verify screen read it (no wallet_crypto.c
+// network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
 static int s_sim_testnet;
-void wallet_set_network(int testnet) { s_sim_testnet = testnet; }
-int wallet_testnet(void) { return s_sim_testnet; }
+void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
+int kiss_testnet(void) { return s_sim_testnet; }
 static int s_sim_script;
-void wallet_set_script(int s) { s_sim_script = s; }
-int wallet_script(void) { return s_sim_script; }
+void kiss_set_script(int s) { s_sim_script = s; }
+int kiss_script(void) { return s_sim_script; }
 
 // step-4 session seams: plausible-looking fakes so the Receive/Export screens render
 static int s_sim_decoy;
 static int s_sim_prepared_decoy;
-int wallet_session_prepare(const char *passphrase) {
+int kiss_session_prepare(const char *passphrase) {
   s_sim_prepared_decoy = !(passphrase && passphrase[0]);
   return 0;
 }
-int wallet_session_activate_prepared(void) {
+int kiss_session_activate_prepared(void) {
   s_sim_decoy = s_sim_prepared_decoy;
   return 0;
 }
-void wallet_session_discard_prepared(void) { s_sim_prepared_decoy = 0; }
-int wallet_session_open(const char *passphrase) {
-  int rc = wallet_session_prepare(passphrase);
-  return rc == 0 ? wallet_session_activate_prepared() : rc;
+void kiss_session_discard_prepared(void) { s_sim_prepared_decoy = 0; }
+int kiss_session_open(const char *passphrase) {
+  int rc = kiss_session_prepare(passphrase);
+  return rc == 0 ? kiss_session_activate_prepared() : rc;
 }
-void wallet_session_close(void) {
+void kiss_session_close(void) {
   s_sim_decoy = 0;
-  wallet_seed_forget();          // real wallet_crypto.c does the same on lock
+  kiss_seed_forget();          // real kiss_crypto.c does the same on lock
 }
-int wallet_session_decoy(void) { return s_sim_decoy; }
-int wallet_session_address(int change, unsigned int index, char *out, unsigned long len) {
+int kiss_session_decoy(void) { return s_sim_decoy; }
+int kiss_session_address(int change, unsigned int index, char *out, unsigned long len) {
   if (s_sim_script == 2)                 // legacy 1.../m...
     snprintf(out, len, "%c%s%02u", s_sim_testnet ? 'm' : '1',
              "K3n7xPq2wDeRfGh9jLmNoPqRsTuV", (change * 50 + index) % 100u);
@@ -444,7 +444,7 @@ int wallet_session_address(int change, unsigned int index, char *out, unsigned l
              s_sim_testnet ? "tb" : "bc", change ? 'c' : 'q', index % 100u);
   return 0;
 }
-int wallet_address_validate(const char *addr) {
+int kiss_address_validate(const char *addr) {
   if (!addr || !*addr) return WADDR_INVALID;
   size_t alen = strlen(addr);
   int base58_len = alen >= 26 && alen <= 35;
@@ -456,7 +456,7 @@ int wallet_address_validate(const char *addr) {
   return (test_addr == !!s_sim_testnet) ? WADDR_CURRENT_NETWORK
                                         : WADDR_WRONG_NETWORK;
 }
-int wallet_session_sp_address(char *out, unsigned long len) {
+int kiss_session_sp_address(char *out, unsigned long len) {
   snprintf(out, len, "%s", s_sim_testnet
     ? "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n"
     : "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g");
@@ -464,19 +464,19 @@ int wallet_session_sp_address(char *out, unsigned long len) {
 }
 // Stage B scan-key export: the real strings kisstest pins against embit
 // (sp_test_scan_export), so the sim lays out exactly what the device shows.
-int wallet_session_sp_scan_export(char *out, unsigned long len) {
+int kiss_session_sp_scan_export(char *out, unsigned long len) {
   snprintf(out, len, "%s", s_sim_testnet
     ? "sp([73c5da0a/352h/1h/0h]tspscan1q8pjcdy7qzlzxl44chw2tsanvzg7dtwhkqf3nsvzmdavls2ekl8qq9qesshy6w9knddr825kqp442302zuwddh6vtqk7zqvgszace9aczgnuqn3)"
     : "sp([73c5da0a/352h/0h/0h]spscan1q0rnl6lft0gkpg4nsn528qgdpytfdej40atdqgrxpqqsg8c5r8vys973ppv7y5c9cphgkzm6g4efmhhcdkazt87ggxwz3pruphc9vkkxxhtvyag)");
   return 0;
 }
-int wallet_session_bw_export(char *out, unsigned long len) {
+int kiss_session_bw_export(char *out, unsigned long len) {
   snprintf(out, len, "[73c5da0a/84'/%d'/0']zpub6rFR7y4Q2AijBEqTUquhVz398htDFrt"
                      "ymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31"
                      "mGDtKsAYz2oz2AGutZYs", s_sim_testnet ? 1 : 0);
   return 0;
 }
-int wallet_session_descriptor(char *out, unsigned long len) {
+int kiss_session_descriptor(char *out, unsigned long len) {
   snprintf(out, len, "wpkh([73c5da0a/84h/0h/0h]xpub6CatWdiZiodmUeTDp8LT5or8nmbKNcuy"
                      "vz7WyksVFkKB4RHwCD3XyuvPEbvqAQY3rAPshWcMLoP2fMFMKHPJ4ZeZXYVUhL"
                      "v1VMrjPC7PW6V/<0;1>/*)");
@@ -487,12 +487,12 @@ int wallet_session_descriptor(char *out, unsigned long len) {
 // numbers the desktop test fixture uses. A file whose content contains "STOP"
 // renders the blocked verify screen (so the sim can show both states).
 // (step 6's qr_transport + cUR are REAL in the sim — only the camera is faked,
-// by injecting decoded strings via wallet_scan_inject.)
-#include "wallet_psbt.h"
-#include "wallet_scan.h"
+// by injecting decoded strings via kiss_scan_inject.)
+#include "kiss_psbt.h"
+#include "kiss_scan.h"
 #include "qr_transport.h"
 #include <string.h>
-int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
+int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
   s->purpose = s_sim_script == 2 ? 44 : s_sim_script == 1 ? 49 : 84;
@@ -509,7 +509,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input amount unverifiable");
   } else if (len >= 3 && memmem(bytes, len, "FEE", 3)) {
-    // mirrors wallet_psbt.c's high-fee caution so the sim can show it
+    // mirrors kiss_psbt.c's high-fee caution so the sim can show it
     s->send_sats = 4000; s->fee_sats = 57000; s->outs[0].sats = 4000;
     s->fee_rate_x10 = 4042;
     s->status = WPSBT_CAUTION;
@@ -551,7 +551,7 @@ int wallet_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   return 0;
 }
-int wallet_psbt_details(wpsbt_details_t *d) {
+int kiss_psbt_details(wpsbt_details_t *d) {
   memset(d, 0, sizeof *d);
   // n_total > n_in exercises the many-inputs header (S_D_MANYIN_FMT) with a
   // 2-digit count: the longest formatted line in the whole sign flow (ja is
@@ -572,7 +572,7 @@ int wallet_psbt_details(wpsbt_details_t *d) {
   }
   return 0;
 }
-int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
+int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
   size_t n = out_len < 220 ? out_len : 220;
   memset(out, 0xAB, n); *written = n;
   return 0;
@@ -580,7 +580,7 @@ int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
 // The real fingerprint (sha256 over the signature bytes) needs wally; the sim
 // links none, same as the sign stub above. A tiny deterministic hash gives the
 // walk a stable, plausible code to render. kisstest covers the real function.
-int wallet_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
+int kiss_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
   if (!b || !out) return -1;
   unsigned long h = 2166136261UL;
   for (size_t i = 0; i < len; i++) { h ^= b[i]; h *= 16777619UL; }
@@ -589,7 +589,7 @@ int wallet_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
   out[8] = 0;
   return 0;
 }
-void wallet_psbt_free(void) {}
+void kiss_psbt_free(void) {}
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
   long a = (long)(area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1);
@@ -962,7 +962,7 @@ static void draw_kiss(void)
 
 // The word, then one wide flat stroke under it: the shape sim/test_duress.c
 // pins as WDG_UNDERLINE, drawn through the real touch layer so the whole path
-// runs -- detect_KISS, wallet_duress_classify, unlock_kind -- and not only the
+// runs -- detect_KISS, kiss_duress_classify, unlock_kind -- and not only the
 // classifier the unit test reaches on its own.
 static void draw_kiss_underlined(void)
 {
@@ -973,20 +973,20 @@ static void draw_kiss_underlined(void)
   pump(40);
 }
 
-// wallet_lock() sets s_gest_swallow so the rest of the closing tap cannot
+// kiss_lock() sets s_gest_swallow so the rest of the closing tap cannot
 // become the first stroke of a word, and it clears on the next lift. Without a
 // throwaway lift the K's spine is eaten and the word never completes. The
 // corner is chosen because the menu's "tap to play" would start the game, and
 // the gesture collector is skipped entirely while ST_PLAY.
 static void lock_to_menu(void)
 {
-  extern void wallet_wiped_lock(void);   // = wallet_lock(); it wipes nothing
-  wallet_wiped_lock();
+  extern void kiss_wiped_lock(void);   // = kiss_lock(); it wipes nothing
+  kiss_wiped_lock();
   pump(30);
   touch(6, 470); pump(2); release(); pump(6);
 }
 
-// Type a short prefix on wallet_setup.c's recovery-word keyboard, then choose
+// Type a short prefix on kiss_setup.c's recovery-word keyboard, then choose
 // its first suggestion.  Keeping this as a real touch walk means the optional
 // recovery rehearsal is tested through the exact UI a person uses.
 static void restore_word(const char *prefix)
@@ -1024,7 +1024,7 @@ static void restore_word(const char *prefix)
 //
 // Nothing outside a run depends on what a previous run left. kiss-proof.bin
 // and kiss-verify.html are written DURING the walk by the proof flow, and
-// sim/test_proof.c makes its own copies through wallet_proof_run before it
+// sim/test_proof.c makes its own copies through kiss_proof_run before it
 // reads them back, so it never needs the walk's.
 //
 // NOT a fix for run-to-run flakiness. The walk has been seen to give different
@@ -1055,7 +1055,7 @@ static void sim_fixture_reset(void) {
   for (int i = 0; i < n; i++) remove(doomed[i]);
 
   // The six the sign walk taps, and the content each one's verify screen is
-  // built from (sim_main.c's wallet_psbt_load stub branches on these words).
+  // built from (sim_main.c's kiss_psbt_load stub branches on these words).
   // The names are chosen so a plain sort puts them in the order the walk taps:
   // payment-01, risky-STOP, silly-FEE, warn-COMBO, zsp-SPAY, zzz-UNPRV.
   static const struct { const char *name, *body; } FIXTURES[] = {
@@ -1073,7 +1073,7 @@ static void sim_fixture_reset(void) {
     if (f) { fputs(FIXTURES[i].body, f); fclose(f); }
   }
 
-  // wallet_seed.c and wallet_seed_sd.c persist to these on the host build.
+  // kiss_seed.c and kiss_seed_sd.c persist to these on the host build.
   static const char *const STATE[] = {
     "/tmp/kiss_seed.txt",      "/tmp/kiss_seed.txt.tmp",
     "/tmp/kiss_seed_mode.txt", "/tmp/kiss_seed_mode.txt.tmp",
@@ -1099,7 +1099,7 @@ int main(void) {
   // app_main does this right after the display comes up, and the Settings
   // footer reports it ("noise source"). Without it the walk would render an
   // amber OFF on a state that only means "the sim skipped boot".
-  wallet_trng_start();
+  kiss_trng_start();
 
   lv_init();
   lv_display_t *d = lv_display_create(HRES, VRES);
@@ -1155,7 +1155,7 @@ int main(void) {
   // draw the word "KISS" -> the SPARE signer appears (K spine+arms, I, S, S)
   //
   // The bare word opens the spare and nothing else, on every device, configured
-  // or not: that is wallet_duress_route, and the routing block a hundred lines
+  // or not: that is kiss_duress_route, and the routing block a hundred lines
   // below asserts it directly. This frame used to be saved as sim_login.ppm
   // with a comment claiming a passphrase keyboard. It has been a wallet home
   // ever since the routing fork was closed, so the fifteen taps that followed
@@ -1249,17 +1249,17 @@ int main(void) {
   // ---- unlock routing: one answer, whatever is configured ----
   //
   // The property both duress findings came down to. The device used to fork on
-  // wallet_duress_real(): a configured device opened the decoy on a bare word,
+  // kiss_duress_real(): a configured device opened the decoy on a bare word,
   // an unconfigured one showed a passphrase keyboard. Drawing the word ONCE
   // told an attacker holding the device which kind it was. The byte in flash
   // was never the leak; the behaviour was.
   //
-  // wallet_duress_route is unit tested in sim/test_duress.c, but that proves
+  // kiss_duress_route is unit tested in sim/test_duress.c, but that proves
   // the rule in isolation. This drives the whole path through the real touch
   // layer, because unlock_kind lives in main.c and no test binary links it --
   // which is exactly how the fork survived long enough to become a finding.
   //
-  // HERE, and not at the end of the walk, because wallet_lock() returns early
+  // HERE, and not at the end of the walk, because kiss_lock() returns early
   // unless s_wallet_on. By the tail a login screen sits on top with the wallet
   // already closed, so the menu never comes forward, the touches land on the
   // keyboard and not one point of ink reaches the collector. This is the last
@@ -1269,7 +1269,7 @@ int main(void) {
     extern int g_last_unlock_kind;
     const int cfgs[] = { WDG_UNDERLINE, WDG_NONE };
     for (unsigned c = 0; c < 2; c++) {
-      wallet_duress_set(cfgs[c]);
+      kiss_duress_set(cfgs[c]);
       const char *tag = cfgs[c] == WDG_NONE ? "routing/no-stroke"
                                             : "routing/stroke-set";
 
@@ -1293,7 +1293,7 @@ int main(void) {
       }
 
       // The REAL route left the passphrase keyboard up, and lock_to_menu is a
-      // no-op while it is (wallet_lock returns early unless s_wallet_on). So
+      // no-op while it is (kiss_lock returns early unless s_wallet_on). So
       // finish the same login the walk used to get here -- 'a', OK, TAP TO OPEN
       // -- and every pass, including the last, ends on the open home.
       touch(46, 278);  pump(3); release(); pump(3);
@@ -1301,7 +1301,7 @@ int main(void) {
       touch(622, 430); pump(3); release(); pump(12);
       pump(120);
     }
-    wallet_duress_set(WDG_NONE);
+    kiss_duress_set(WDG_NONE);
 
     // ---- a written word replaces KISS outright ----
     //
@@ -1384,7 +1384,7 @@ int main(void) {
     // its twelfth INTO the twelfth and unlock kept the boundary, so the owner
     // wrote their word twice, confirmed it, held to save, and owned a signer
     // that had stopped answering to them. Both collectors take their limits
-    // from wallet_gword.h now and the excess is dropped rather than folded.
+    // from kiss_gword.h now and the excess is dropped rather than folded.
     //
     // Twelve strokes are stored and thirteen are drawn, so main.c reads the
     // extra one as the mark that picks the wallet -- hence WDR_REAL and the
@@ -1396,7 +1396,7 @@ int main(void) {
     {
       gw_stored_set(NULL);                            // no BACK TO KISS pill
       pump(20);
-      wallet_word_ui_open(lv_screen_active(), NULL);
+      kiss_word_ui_open(lv_screen_active(), NULL);
       pump(20);
       draw_thirteen_strokes();
       touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
@@ -1480,25 +1480,25 @@ int main(void) {
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     touch(680, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
-    wallet_scan_inject(good, strlen(good)); pump(6);
+    kiss_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
     touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
     const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
-    wallet_scan_inject(bad, strlen(bad)); pump(6);
+    kiss_scan_inject(bad, strlen(bad)); pump(6);
     save("/tmp/sim_vfy_no.ppm");
     touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
     const char *wrong_net = "tb1qwrongnetworkwrongnetworkwrongnetwork00";
-    wallet_scan_inject(wrong_net, strlen(wrong_net)); pump(6);
+    kiss_scan_inject(wrong_net, strlen(wrong_net)); pump(6);
     save("/tmp/sim_vfy_wrong_net.ppm");
     touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
     const char *invalid = "not-an-address";
-    wallet_scan_inject(invalid, strlen(invalid)); pump(6);
+    kiss_scan_inject(invalid, strlen(invalid)); pump(6);
     save("/tmp/sim_vfy_invalid.ppm");
     touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
     // our OWN silent-payment address: 117 chars, longer than any bc1/tb1
     const char *sp = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xq"
                      "h6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
-    wallet_scan_inject(sp, strlen(sp)); pump(6);
+    kiss_scan_inject(sp, strlen(sp)); pump(6);
     save("/tmp/sim_vfy_sp.ppm");
     touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
   }
@@ -1508,10 +1508,10 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
-  wallet_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
+  kiss_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
   save("/tmp/sim_winfo_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  wallet_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
+  kiss_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
   save("/tmp/sim_winfo_type_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
   touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
@@ -1558,7 +1558,7 @@ int main(void) {
   touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
   save("/tmp/sim_sign_help.ppm");
   touch(400, 430); pump(3); release(); pump(6);     // OK closes the card
-  // Pill tap feedback (pill_tap_feedback in wallet_theme.c). The device has
+  // Pill tap feedback (pill_tap_feedback in kiss_theme.c). The device has
   // no haptics, so a press is answered optically or not at all, and "not at
   // all" is the kind of thing a refactor takes away in silence. This is the
   // walk's ordinary FROM SD CARD tap, just photographed twice on the way
@@ -1575,7 +1575,7 @@ int main(void) {
   save("/tmp/sim_sign_files.ppm");
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");
-  // the RBF "?" is wallet_sign.c's 30px chip, pinned at (738, SG_FOOT_Y-6) for
+  // the RBF "?" is kiss_sign.c's 30px chip, pinned at (738, SG_FOOT_Y-6) for
   // BOTH the replaceable and final wordings. It used to sit right after the
   // text, so its x moved with the translation; it is fixed now. The redraw
   // moved the footer rule to 288 and the cells to 300, taking the chip with
@@ -1596,7 +1596,7 @@ int main(void) {
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
   save("/tmp/sim_sign_done.ppm");
-  // The chip trails the measured mono23 code now (wallet_sign.c draw_sig_fp),
+  // The chip trails the measured mono23 code now (kiss_sign.c draw_sig_fp),
   // so its centre moved right when the code grew from mono14. The old tap at
   // (508,262) landed in the gap between code and chip, silently captured the
   // signed screen under this stop's name, and nothing failed: a wrong tap that
@@ -1734,13 +1734,13 @@ int main(void) {
     qrt_encoder_t *enc = qrt_encoder_new(QRT_FMT_UR, fake, sizeof fake);
     char part[600];
     if (enc && qrt_encoder_next(enc, part, sizeof part) == 0) {
-      wallet_scan_inject(part, strlen(part));       // one part in: progress shows
+      kiss_scan_inject(part, strlen(part));       // one part in: progress shows
       pump(3);
     }
     save("/tmp/sim_qr_scan_part.ppm");
-    for (int i = 0; i < 32 && wallet_scan_active(); i++) {
+    for (int i = 0; i < 32 && kiss_scan_active(); i++) {
       if (enc && qrt_encoder_next(enc, part, sizeof part) == 0)
-        wallet_scan_inject(part, strlen(part));
+        kiss_scan_inject(part, strlen(part));
       pump(2);
     }
     qrt_encoder_free(enc);
@@ -1879,7 +1879,7 @@ int main(void) {
 
   // FIRMWARE, the other header pill: 232x44 at x=338, so its middle is (454,40).
   // The fw screens themselves are walked further down by calling
-  // wallet_fw_ui_open directly with the seams set; what this proves is the
+  // kiss_fw_ui_open directly with the seams set; what this proves is the
   // ROUTE, which nothing exercised until settings grew a way in. Settings tears
   // itself down before handing over, so a leak here shows up as the fw screen
   // drawn on top of a live settings page.
@@ -1891,7 +1891,7 @@ int main(void) {
   touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
-    int li = wallet_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
+    int li = kiss_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
     touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
@@ -1968,7 +1968,7 @@ int main(void) {
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
-  wallet_seed_wipe();                               // pretend a factory-fresh device
+  kiss_seed_wipe();                               // pretend a factory-fresh device
   // The whole word, via the same helper every other unlock in this walk uses.
   //
   // This used to be five strokes inline -- K, I and ONE S -- under a comment
@@ -2118,7 +2118,7 @@ int main(void) {
   // The 23 word draw and its single page of 8 candidates are GONE, with the
   // length choice that reached them. Creating makes 12, so the picker is always
   // 128 candidates over 8 pages and sim_setup_cards_pick24 photographs a shape
-  // the product no longer builds. wallet_lastword still computes the 8 for a 23
+  // the product no longer builds. kiss_lastword still computes the 8 for a 23
   // word prefix and kisstest still pins it -- restoring a 24 word phrase is
   // untouched. What went is the screen, not the arithmetic.
 
@@ -2346,10 +2346,10 @@ int main(void) {
   touch(590, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
 
   // The LAST step of setup: the ONE stroke that reaches the real signer
-  // (wallet_duress_ui.c). Plain KISS opens the spare and always will, so there
+  // (kiss_duress_ui.c). Plain KISS opens the spare and always will, so there
   // is nothing to configure for it. The stroke is drawn against the printed
   // reference word at (250,170)-(550,268), which is the same box that
-  // wallet_duress_classify measures in the game.
+  // kiss_duress_classify measures in the game.
   save("/tmp/sim_duress_intro.ppm");                // two ways in
   touch(148, 430); pump(3); release(); pump(40);    // OK -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
@@ -2366,10 +2366,10 @@ int main(void) {
   touch(148, 430); pump(3); release(); pump(140);   // DONE -> saves, home settles
   save("/tmp/sim_setup_home.ppm");
 
-  // step 8: idle auto-lock — WALLET_AUTOLOCK_MS untouched on the home must
+  // step 8: idle auto-lock — KISS_AUTOLOCK_MS untouched on the home must
   // close the session and land back on the game menu.
   //
-  // Keep this ahead of WALLET_AUTOLOCK_MS in main.c (300000ms today). When
+  // Keep this ahead of KISS_AUTOLOCK_MS in main.c (300000ms today). When
   // that went from 2min to 5min in efb60bc this pump stayed at 7700 frames
   // (123s), so the lock never fired, the KISS gesture below was drawn onto
   // the still-open home screen, and every frame from here to the end of the
@@ -2383,7 +2383,7 @@ int main(void) {
   // a live session, Settings opened from the home, Firmware opened from
   // Settings, and nothing touched until the lock fires on its own. The screen
   // used to survive it -- it hangs off the active screen rather than the wallet
-  // container wallet_lock() hides, and it was on neither of main.c's lists --
+  // container kiss_lock() hides, and it was on neither of main.c's lists --
   // so BACK from here rebuilt Settings on a locked device with RECOVERY WORDS
   // one row in, reading a seed the device key still opens.
   //
@@ -2393,16 +2393,16 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   touch(454, 40);  pump(3); release(); pump(8);     // FIRMWARE
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
-  if (!wallet_fw_ui_active()) {
+  if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
     return 1;
   }
   pump(20000);                                      // 320s > 300s, untouched
-  if (wallet_fw_ui_active()) {
+  if (kiss_fw_ui_active()) {
     printf("FAIL: firmware screen survived the idle auto-lock\n");
     return 1;
   }
-  if (wallet_settings_active()) {
+  if (kiss_settings_active()) {
     printf("FAIL: settings left open under a locked device\n");
     return 1;
   }
@@ -2423,7 +2423,7 @@ int main(void) {
   // never cold by the time it got here. The taps after this line are the test:
   // check_sim_taps.py fails on an interaction that does not change the screen,
   // which is precisely what a wallet with no indev produces.
-  wallet_ui_drop_indev_for_test();
+  kiss_ui_drop_indev_for_test();
 
   // THE point of the whole feature: with strokes configured, drawing KISS on
   // its own opens the DECOY straight from the game. No keyboard, no passphrase
@@ -2537,7 +2537,7 @@ int main(void) {
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
   // LOAD YOUR WALLET instead of the wizard, and a seed QR is a valid way in.
   // the wipe above already left us locked on the game cover with no seed
-  wallet_seed_set_mode(WSEED_MODE_AMNESIC);
+  kiss_seed_set_mode(WSEED_MODE_AMNESIC);
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 - i * 13); pump(1); } release(); pump(2);
   for (int i = 0; i <= 6; i++) { touch(140 + i * 15, 210 + i * 15); pump(1); } release(); pump(2);
@@ -2549,13 +2549,13 @@ int main(void) {
   save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WALLET
 
   touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR (pill at 264)
-  wallet_scan_inject("not a seed qr at all", 20); pump(6);
+  kiss_scan_inject("not a seed qr at all", 20); pump(6);
   save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
   touch(198, 430); pump(3); release(); pump(6);     // TRY AGAIN -> load screen
   touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR again
   {   // a numeric SeedQR: 12 indices, four digits each
     const char *sq = "000000000000000000000000000000000000000000000003";
-    wallet_scan_inject(sq, 48);
+    kiss_scan_inject(sq, 48);
   }
   pump(8);
   save("/tmp/sim_amnesic_pass.ppm");                // straight to the passphrase
@@ -2564,7 +2564,7 @@ int main(void) {
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
   touch(602, 430); pump(3); release(); pump(6);     // SCAN IT (rightmost now) -> camera
-  wallet_scan_inject("correct horse battery staple correct horse battery "
+  kiss_scan_inject("correct horse battery staple correct horse battery "
                      "staple correct horse battery staple xyz", 90);
   pump(6);
   touch(696, 38); pump(3); release(); pump(4);      // SHOW
@@ -2578,7 +2578,7 @@ int main(void) {
   // Move the live RAM wallet to SD, lock, then remove the card. KISS must land
   // on INSERT WALLET SD CARD -- never on first-boot setup. A failed retry stays
   // there; reinserting the card advances to the ordinary passphrase screen.
-  wallet_seed_move_to(WSEED_MODE_SD);
+  kiss_seed_move_to(WSEED_MODE_SD);
   s_sim_sd_present = 0;
   touch(44, 44); pump(3); release(); pump(20);      // explicit lock -> game
   draw_kiss();
@@ -2594,7 +2594,7 @@ int main(void) {
   // this walk builds has one, so the screen was rebuilt in this tree with no
   // gate looking at it. Opened directly here, as the last stop: it is a leaf
   // with nothing after it, so it needs no way back and disturbs no state.
-  wallet_duress_ui_open_nopass(lv_screen_active(), NULL);
+  kiss_duress_ui_open_nopass(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
 
@@ -2606,12 +2606,12 @@ int main(void) {
   // word wizard never had the guard, so an owner could be told to hand over a
   // word that opens everything.
   //
-  // A decoy session is what makes the difference visible: wallet_session_decoy
+  // A decoy session is what makes the difference visible: kiss_session_decoy
   // is the same predicate Settings uses to pick between the two stroke
   // wizards. NULL, not "", is what marks a session as the decoy.
   {
-    (void)wallet_session_open(NULL);                // no passphrase = the decoy
-    wallet_word_ui_open(lv_screen_active(), NULL);
+    (void)kiss_session_open(NULL);                // no passphrase = the decoy
+    kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
     touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
@@ -2624,7 +2624,7 @@ int main(void) {
     // after the passphrase run: letters left stored here would silently break
     // every gesture drawn after this point.
     (void)gw_stored_set(NULL);
-    wallet_session_close();
+    kiss_session_close();
   }
 
   // The write that does not take. Both callers threw gw_stored_set's result
@@ -2637,7 +2637,7 @@ int main(void) {
   // walk cannot reach is a screen no locale was ever measured in.
   {
     gw_test_fail_next_set();
-    wallet_word_ui_open(lv_screen_active(), NULL);
+    kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
     touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
@@ -2662,8 +2662,8 @@ int main(void) {
   // long as it did: no stop had ever contained all three pills at once.
   //
   // A leaf, like the nopass stop above it: opened directly, nothing after it.
-  (void)wallet_duress_set(WDG_UNDERLINE);
-  wallet_duress_ui_open(lv_screen_active(), NULL);
+  (void)kiss_duress_set(WDG_UNDERLINE);
+  kiss_duress_ui_open(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_intro_set.ppm");            // three pills, one TALL row
 
@@ -2672,7 +2672,7 @@ int main(void) {
   // route in is a pill in the Settings action bar and every screen past the
   // first needs state a desktop build does not have.
   //
-  // Without wallet_fw_test_* the sim can only ever reach "cannot be checked":
+  // Without kiss_fw_test_* the sim can only ever reach "cannot be checked":
   // there is no flash and no signing key here, so the value card, the four
   // fact rows, the hold and the writing screen would be shapes no gate had
   // ever measured, in any locale. That is exactly the hole BARE and WALL exist
@@ -2692,15 +2692,15 @@ int main(void) {
   }
 
   // 1. the state a build without the release key reaches: two blocks, no rows.
-  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);
-  wallet_fw_ui_open(lv_screen_active(), NULL);
+  kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
+  kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   save("/tmp/sim_fw_unsigned.ppm");                 // cannot be checked + where it goes
 
   // 2. the ordinary one: version card, four marked rows, INSTALL primary.
-  wallet_fw_test_set_available(WFW_OK);
-  wallet_fw_test_set_install(WFW_OK, 4);
-  wallet_fw_ui_open(lv_screen_active(), NULL);
+  kiss_fw_test_set_available(WFW_OK);
+  kiss_fw_test_set_install(WFW_OK, 4);
+  kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
 
@@ -2727,8 +2727,8 @@ int main(void) {
 
   // 3. the refusal that matters most, on the same route: a signature that did
   // not check out has to read as "nothing was written", not as a vague error.
-  wallet_fw_test_set_install(WFW_ERR_REJECTED, 2);
-  wallet_fw_ui_open(lv_screen_active(), NULL);
+  kiss_fw_test_set_install(WFW_ERR_REJECTED, 2);
+  kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   touch(632, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
   touch(587, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
@@ -2737,11 +2737,11 @@ int main(void) {
   // 4. no card at all: the same two block shape, different left hand claim.
   unlink("/tmp/simsd/kiss-signer-99.0.0.bin");
   platform_sd_test_set_present(0);
-  wallet_fw_ui_open(lv_screen_active(), NULL);
+  kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   save("/tmp/sim_fw_nocard.ppm");
   platform_sd_test_set_present(1);
-  wallet_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
+  kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
 
   // LVGL heap watermark: the pool is only 128K (matches the device), and a
   // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
@@ -2758,9 +2758,9 @@ int main(void) {
   // its replacement, invisible, until a BACK peels the top one off and drops
   // the owner back on a transaction they already left. No saved frame shows it
   // -- the walk's own diff between a good build and a leaking one was byte
-  // identical across all 177 frames -- so wallet_sign.c counts it instead and
+  // identical across all 177 frames -- so kiss_sign.c counts it instead and
   // this is where the count is answered.
-  // The firmware screen and the idle auto-lock. Before wallet_fw_ui_close
+  // The firmware screen and the idle auto-lock. Before kiss_fw_ui_close
   // existed, main.c's lock had no handle on this screen at all: it is parented
   // to the active screen rather than the wallet container the lock hides, so it
   // stayed lit on top of a locked device, and its BACK rebuilt Settings with
@@ -2774,17 +2774,17 @@ int main(void) {
     // this block's own pump and rebuilt the screen through result_screen, which
     // reads exactly like the leak this is looking for. Settle before measuring.
     pump(200);
-    wallet_fw_test_set_available(WFW_ERR_UNSIGNED);
+    kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
     g_fw_done_fired = 0;
-    wallet_fw_ui_open(lv_screen_active(), sim_fw_done_cb);
+    kiss_fw_ui_open(lv_screen_active(), sim_fw_done_cb);
     pump(20);
-    if (!wallet_fw_ui_active()) {
+    if (!kiss_fw_ui_active()) {
       printf("FAIL: fw screen not reported active while open\n");
       return 1;
     }
-    wallet_fw_ui_close();                     // what the auto-lock branch calls
+    kiss_fw_ui_close();                     // what the auto-lock branch calls
     pump(20);
-    if (wallet_fw_ui_active()) {
+    if (kiss_fw_ui_active()) {
       printf("FAIL: fw screen survived the auto-lock teardown\n");
       return 1;
     }

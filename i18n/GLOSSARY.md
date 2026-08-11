@@ -19,7 +19,7 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   device, in `docs/`, in the walkthrough, and on the site.
 - **Never the bare word "seed"** on its own in a user-facing string. It is
   fine in code, comments and filenames, where `kiss-seed.enc` and
-  `wallet_seed.c` already use it.
+  `kiss_seed.c` already use it.
 - One interim exception, tracked and not permanent: the Settings destroy
   family still says bare `SEED` in `G_CREATE_NEW`, `G_CREATE_NOTE`, `G_WIPE`,
   `G_WIPEC_T`, `G_ERASED_T`. Those strings are safety copy that has already

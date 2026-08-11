@@ -4,9 +4,9 @@
 // checked against the vectors published in BIP84 itself (dev mnemonic, no passphrase).
 #include <stdio.h>
 #include <string.h>
-#include "wallet_crypto.h"
-#include "wallet_psbt.h"
-#include "wallet_usage.h"
+#include "kiss_crypto.h"
+#include "kiss_psbt.h"
+#include "kiss_usage.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
 #include "boot_sign_vectors.h"  // the two the device re-signs at boot
 
@@ -34,7 +34,7 @@ int test_sdseed_layer(void);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
 int test_gword(void);
-int test_kissword(void);
+int test_coverword(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
@@ -526,14 +526,14 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
                             const char *prefix, const char *wrapper,
                             const char *bwpre) {
     char nm[64], addr[92];
-    wallet_set_network(0);
-    wallet_set_script(script);
+    kiss_set_network(0);
+    kiss_set_script(script);
     snprintf(nm, sizeof nm, "%s script reads back", label);
-    chki(nm, wallet_script(), script);
+    chki(nm, kiss_script(), script);
 
     // receive address: right prefix AND equal to an independent derivation
     snprintf(nm, sizeof nm, "%s addr rc", label);
-    chki(nm, wallet_session_address(0, 0, addr, sizeof addr), 0);
+    chki(nm, kiss_session_address(0, 0, addr, sizeof addr), 0);
     snprintf(nm, sizeof nm, "%s addr prefix %s", label, prefix);
     chkb(nm, strncmp(addr, prefix, strlen(prefix)) == 0);
     {
@@ -552,7 +552,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
     // descriptor: right wrapper + purpose
     {
         char desc[256];
-        chki("descriptor rc", wallet_session_descriptor(desc, sizeof desc), 0);
+        chki("descriptor rc", kiss_session_descriptor(desc, sizeof desc), 0);
         snprintf(nm, sizeof nm, "%s descriptor wrapper", label);
         chkb(nm, strncmp(desc, wrapper, strlen(wrapper)) == 0);
         char want[16]; snprintf(want, sizeof want, "/%uh/0h/0h]", purpose);
@@ -565,7 +565,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
     {
         char bw[192], worig[24];
         snprintf(nm, sizeof nm, "%s bw export rc", label);
-        chki(nm, wallet_session_bw_export(bw, sizeof bw), 0);
+        chki(nm, kiss_session_bw_export(bw, sizeof bw), 0);
         snprintf(worig, sizeof worig, "[73c5da0a/%u'/0'/0']", purpose);
         snprintf(nm, sizeof nm, "%s bw export origin", label);
         chkb(nm, strncmp(bw, worig, strlen(worig)) == 0);
@@ -579,7 +579,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
         wpsbt_summary_t sum;
         size_t pl = mk_typed_psbt(script, purpose, pb, sizeof pb);
         snprintf(nm, sizeof nm, "%s psbt load rc", label);
-        chki(nm, wallet_psbt_load(pb, pl, &sum), 0);
+        chki(nm, kiss_psbt_load(pb, pl, &sum), 0);
         snprintf(nm, sizeof nm, "%s psbt READY", label);
         chki(nm, sum.status, WPSBT_READY);
         snprintf(nm, sizeof nm, "%s change re-derived", label);
@@ -588,7 +588,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
         chkb(nm, sum.in_sats == 100000 && sum.send_sats == 60000 &&
                  sum.change_sats == 39000 && sum.fee_sats == 1000);
         snprintf(nm, sizeof nm, "%s sign rc", label);
-        chki(nm, wallet_psbt_sign(sb, sizeof sb, &sw), 0);
+        chki(nm, kiss_psbt_sign(sb, sizeof sb, &sw), 0);
         struct wally_psbt *sp = NULL;
         snprintf(nm, sizeof nm, "%s signed parses", label);
         chkb(nm, wally_psbt_from_bytes(sb, sw, 0, &sp) == WALLY_OK);
@@ -618,13 +618,13 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
             if (stx) wally_tx_free(stx);
             wally_psbt_free(sp);
         }
-        wallet_psbt_free();
+        kiss_psbt_free();
         if (strcmp(label, "native") == 0) {
             // Signature fingerprint: sha256 of the input's signature bytes, first
             // 4 bytes. Computed independently from SV_ECDSA_NATIVE:
             //   python3 -c "import hashlib;print(hashlib.sha256(bytes.fromhex('<native sig>')).hexdigest()[:8])"
             char fp[9] = {0};
-            chki("sig fingerprint rc", wallet_psbt_sig_fingerprint(sb, sw, fp), 0);
+            chki("sig fingerprint rc", kiss_psbt_sig_fingerprint(sb, sw, fp), 0);
             chk("sig fingerprint is the golden code", fp, "a1e0d4c5");
 
             // Determinism localizer: the same PSBT signs to the same bytes every
@@ -632,25 +632,25 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
             // vector might still match by luck. Reload, re-sign, require identical
             // bytes AND an identical fingerprint.
             wpsbt_summary_t s2; uint8_t sb2[4096]; size_t sw2 = 0;
-            wallet_psbt_load(pb, pl, &s2);
-            chki("native re-sign rc", wallet_psbt_sign(sb2, sizeof sb2, &sw2), 0);
+            kiss_psbt_load(pb, pl, &s2);
+            chki("native re-sign rc", kiss_psbt_sign(sb2, sizeof sb2, &sw2), 0);
             chkb("native signing is deterministic (byte-identical)",
                  sw2 == sw && memcmp(sb2, sb, sw) == 0);
             char fp2[9] = {0};
-            wallet_psbt_sig_fingerprint(sb2, sw2, fp2);
+            kiss_psbt_sig_fingerprint(sb2, sw2, fp2);
             chkb("sig fingerprint stable across re-sign", strcmp(fp, fp2) == 0);
-            wallet_psbt_free();
+            kiss_psbt_free();
         }
     }
-    wallet_set_script(WSCRIPT_NATIVE);
+    kiss_set_script(WSCRIPT_NATIVE);
 }
 
-// The boot signing selftest (wallet_sign_selftest) reproduces two golden
+// The boot signing selftest (kiss_sign_selftest) reproduces two golden
 // signatures with the frozen rules. Here we check that it passes AND that the
 // vectors it pins actually discriminate: a golden vector a weaker rule also
 // satisfies would sit in the binary proving nothing.
 static void test_boot_sign_selftest(void) {
-    chki("boot sign selftest rc", wallet_sign_selftest(), 0);
+    chki("boot sign selftest rc", kiss_sign_selftest(), 0);
 
     uint8_t sig[64];
     // Discrimination 1: drop the low-R grinding. BSV_MSG was chosen so the
@@ -678,19 +678,19 @@ static void test_sign_refused_when_selftest_fails(const uint8_t *psbt, size_t le
     uint8_t out[4096];
     size_t written = 0;
 
-    wallet_sign_selftest_force_fail(1);
-    chki("selftest reports the forced failure", wallet_sign_selftest(), 99);
-    chki("psbt load still works", wallet_psbt_load(psbt, len, &sum), 0);
+    kiss_sign_selftest_force_fail(1);
+    chki("selftest reports the forced failure", kiss_sign_selftest(), 99);
+    chki("psbt load still works", kiss_psbt_load(psbt, len, &sum), 0);
     chkb("signing is REFUSED while the selftest fails",
-         wallet_psbt_sign(out, sizeof out, &written) != 0);
+         kiss_psbt_sign(out, sizeof out, &written) != 0);
     chki("nothing was written", (long long)written, 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
-    wallet_sign_selftest_force_fail(0);
-    chki("selftest passes again once un-forced", wallet_sign_selftest(), 0);
-    chki("psbt load works", wallet_psbt_load(psbt, len, &sum), 0);
-    chki("signing works again", wallet_psbt_sign(out, sizeof out, &written), 0);
-    wallet_psbt_free();
+    kiss_sign_selftest_force_fail(0);
+    chki("selftest passes again once un-forced", kiss_sign_selftest(), 0);
+    chki("psbt load works", kiss_psbt_load(psbt, len, &sum), 0);
+    chki("signing works again", kiss_psbt_sign(out, sizeof out, &written), 0);
+    kiss_psbt_free();
 }
 
 int main(int argc, char **argv) {
@@ -700,7 +700,7 @@ int main(int argc, char **argv) {
     fails += test_sdseed_layer();
     fails += test_duress();
     fails += test_gword();
-    fails += test_kissword();
+    fails += test_coverword();
     fails += test_passedit();
     fails += test_tapent();
     fails += test_art();
@@ -713,10 +713,10 @@ int main(int argc, char **argv) {
     test_boot_sign_selftest();
 
     uint8_t fp[4] = {0};
-    int rc = wallet_selftest(fp);
+    int rc = kiss_selftest(fp);
     printf("fingerprint: %02X%02X%02X%02X\n", fp[0], fp[1], fp[2], fp[3]);
     if (rc != 0) {
-        printf("FAIL: wallet_selftest stage %d\n", rc);
+        printf("FAIL: kiss_selftest stage %d\n", rc);
         return 1;
     }
     printf("PASS: BIP39 test vector -> 73C5DA0A\n");
@@ -726,27 +726,27 @@ int main(int argc, char **argv) {
     {
         uint8_t a[32], b[32], c[32], m1[32], m2[32], m3[32], want[32], cat[64];
         memset(a, 0xAA, 32); memset(b, 0xBB, 32); memset(c, 0xCC, 32);
-        chki("entropy mix rc", wallet_entropy_mix(a, b, m1), 0);
+        chki("entropy mix rc", kiss_entropy_mix(a, b, m1), 0);
         memcpy(cat, a, 32); memcpy(cat + 32, b, 32);
         chkb("entropy mix is SHA256(a||b)",
              wally_sha256(cat, 64, want, 32) == WALLY_OK && memcmp(m1, want, 32) == 0);
         chkb("entropy mix != camera hash alone", memcmp(m1, a, 32) != 0);
-        wallet_entropy_mix(a, c, m2);
+        kiss_entropy_mix(a, c, m2);
         chkb("TRNG bytes change the result", memcmp(m1, m2, 32) != 0);
-        wallet_entropy_mix(c, b, m3);
+        kiss_entropy_mix(c, b, m3);
         chkb("camera bytes change the result", memcmp(m1, m3, 32) != 0);
     }
 
     // ---- step 4: session + BIP84 (vectors straight from the BIP84 document) ----
-    if (wallet_session_open(NULL) != 0) { printf("FAIL: wallet_session_open\n"); return 1; }
+    if (kiss_session_open(NULL) != 0) { printf("FAIL: kiss_session_open\n"); return 1; }
 
     char addr[91];
-    if (wallet_session_address(0, 0, addr, sizeof addr) != 0) { printf("FAIL: address 0/0 rc\n"); return 1; }
+    if (kiss_session_address(0, 0, addr, sizeof addr) != 0) { printf("FAIL: address 0/0 rc\n"); return 1; }
     chk("m/84h/0h/0h/0/0", addr, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
-    if (wallet_session_address(0, 1, addr, sizeof addr) == 0)
+    if (kiss_session_address(0, 1, addr, sizeof addr) == 0)
         chk("m/84h/0h/0h/0/1", addr, "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g");
     else { printf("FAIL: address 0/1 rc\n"); fails++; }
-    if (wallet_session_address(1, 0, addr, sizeof addr) == 0)
+    if (kiss_session_address(1, 0, addr, sizeof addr) == 0)
         chk("m/84h/0h/0h/1/0", addr, "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     else { printf("FAIL: address 1/0 rc\n"); fails++; }
 
@@ -757,25 +757,25 @@ int main(int argc, char **argv) {
     {
         const char *tb = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl";
         chki("mainnet address validates for mainnet",
-             wallet_address_validate(
+             kiss_address_validate(
                  "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"),
              WADDR_CURRENT_NETWORK);
         chki("testnet address is wrong while on mainnet",
-             wallet_address_validate(tb), WADDR_WRONG_NETWORK);
+             kiss_address_validate(tb), WADDR_WRONG_NETWORK);
         chki("malformed address is invalid",
-             wallet_address_validate("not-an-address"), WADDR_INVALID);
-        wallet_set_network(1);
+             kiss_address_validate("not-an-address"), WADDR_INVALID);
+        kiss_set_network(1);
         chki("testnet address validates for testnet",
-             wallet_address_validate(tb), WADDR_CURRENT_NETWORK);
+             kiss_address_validate(tb), WADDR_CURRENT_NETWORK);
         chki("mainnet address is wrong while on testnet",
-             wallet_address_validate(
+             kiss_address_validate(
                  "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"),
              WADDR_WRONG_NETWORK);
-        wallet_set_network(0);
+        kiss_set_network(0);
     }
 
     char desc[256];
-    if (wallet_session_descriptor(desc, sizeof desc) != 0) { printf("FAIL: descriptor rc\n"); return 1; }
+    if (kiss_session_descriptor(desc, sizeof desc) != 0) { printf("FAIL: descriptor rc\n"); return 1; }
     printf("descriptor: %s\n", desc);
     if (strncmp(desc, "wpkh([73c5da0a/84h/0h/0h]xpub", 29) == 0 &&
         strcmp(desc + strlen(desc) - 9, "/<0;1>/*)") == 0) {
@@ -813,7 +813,7 @@ int main(int argc, char **argv) {
     // BIP84 document's own account-0 vector, so this proves the whole encode.
     {
         char bw[192];
-        if (wallet_session_bw_export(bw, sizeof bw) != 0) {
+        if (kiss_session_bw_export(bw, sizeof bw) != 0) {
             printf("FAIL: bw export rc\n"); fails++;
         } else {
             chk("bw export = origin + BIP84 vector zpub", bw,
@@ -822,14 +822,14 @@ int main(int argc, char **argv) {
                 "ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs");
         }
         // testnet: vpub prefix (no published vector; prefix + origin checked)
-        wallet_set_network(1);
-        if (wallet_session_bw_export(bw, sizeof bw) != 0) {
+        kiss_set_network(1);
+        if (kiss_session_bw_export(bw, sizeof bw) != 0) {
             printf("FAIL: bw export testnet rc\n"); fails++;
         } else {
             chkb("bw export testnet origin+vpub",
                  strncmp(bw, "[73c5da0a/84'/1'/0']vpub", 24) == 0);
         }
-        wallet_set_network(0);
+        kiss_set_network(0);
     }
 
     // ---- step 5: PSBT parse / verify / sign ----
@@ -845,7 +845,7 @@ int main(int argc, char **argv) {
 
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
     chkb("psbt fixture serializes", pl > 100);
-    chki("psbt load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("psbt load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("psbt status READY", sum.status, WPSBT_READY);
     chki("psbt n_in", sum.n_in, 1);
     chki("psbt n_out", sum.n_out, 2);
@@ -864,7 +864,7 @@ int main(int argc, char **argv) {
 
     {   // DETAILS accessor: per-input facts + the unsigned txid (final for segwit)
         wpsbt_details_t det;
-        chki("psbt details rc", wallet_psbt_details(&det), 0);
+        chki("psbt details rc", kiss_psbt_details(&det), 0);
         chki("details version", det.version, 2);
         chki("details locktime", det.locktime, 0);
         chki("details n_in", det.n_in, 1);
@@ -885,13 +885,13 @@ int main(int argc, char **argv) {
         uint8_t sb2[1024];
         size_t sl2 = mk_psbt(MUT_NO_UTXO, sb2, sizeof sb2);
         wpsbt_summary_t stopsum;
-        chki("details stop-load rc", wallet_psbt_load(sb2, sl2, &stopsum), 0);
+        chki("details stop-load rc", kiss_psbt_load(sb2, sl2, &stopsum), 0);
         chki("details stop status", stopsum.status, WPSBT_STOP);
-        chkb("details refused on STOP", wallet_psbt_details(&det) != 0);
-        chki("details reload rc", wallet_psbt_load(pb, pl, &sum), 0);  // restore READY
+        chkb("details refused on STOP", kiss_psbt_details(&det) != 0);
+        chki("details reload rc", kiss_psbt_load(pb, pl, &sum), 0);  // restore READY
     }
 
-    chki("psbt sign rc", wallet_psbt_sign(sb, sizeof sb, &sw), 0);
+    chki("psbt sign rc", kiss_psbt_sign(sb, sizeof sb, &sw), 0);
     chkb("psbt signed bigger", sw > pl);
     {   // the signed PSBT must finalize + extract to a real tx with a 2-item witness
         struct wally_psbt *sp = NULL;
@@ -912,140 +912,140 @@ int main(int argc, char **argv) {
         }
         if (sp) wally_psbt_free(sp);
     }
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     {   // coordinators hand users base64 as often as binary — loader must sniff it
         char *b64 = NULL;
         pl = mk_psbt(MUT_NONE, pb, sizeof pb);
         chkb("fixture base64-encodes", wally_base64_from_bytes(pb, pl, 0, &b64) == WALLY_OK);
         if (b64) {
-            chki("base64 psbt load rc", wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum), 0);
+            chki("base64 psbt load rc", kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum), 0);
             chki("base64 psbt READY", sum.status, WPSBT_READY);
             chki("base64 psbt fee", (long long)sum.fee_sats, 1000);
             wally_free_string(b64);
         }
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
 
     pl = mk_psbt(MUT_NO_UTXO, pb, sizeof pb);
-    chki("no-utxo load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("no-utxo load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("no-utxo STOP", sum.status, WPSBT_STOP);
     chkb("no-utxo reason says amount", strstr(sum.reason, "amount") != NULL);
-    chkb("no-utxo sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("no-utxo sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     pl = mk_psbt(MUT_FAKE_CHG, pb, sizeof pb);
-    chki("fake-change load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("fake-change load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("fake-change STOP", sum.status, WPSBT_STOP);
     chkb("fake-change reason says change", strstr(sum.reason, "change") != NULL);
-    chkb("fake-change sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("fake-change sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     pl = mk_psbt(MUT_SIGHASH, pb, sizeof pb);
-    chki("sighash load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("sighash load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("sighash STOP", sum.status, WPSBT_STOP);
     chkb("sighash reason says sighash", strstr(sum.reason, "sighash") != NULL);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     pl = mk_psbt(MUT_UNKNOWN, pb, sizeof pb);
-    chki("unknown load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("unknown load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("unknown STOP", sum.status, WPSBT_STOP);              // don't sign past unknowns
     chki("unknown count", sum.n_unknown, 1);
     chkb("unknown reason says unknown", strstr(sum.reason, "unknown") != NULL);
-    chkb("unknown sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("unknown sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     pl = mk_psbt(MUT_HIGH_FEE, pb, sizeof pb);
-    chki("high-fee load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("high-fee load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("high-fee CAUTION", sum.status, WPSBT_CAUTION);
     chkb("high-fee reason says fee", strstr(sum.reason, "fee") != NULL);
     chkb("high-fee flag set", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // ---- dust / privacy warnings (CAUTION, never STOP; several can stack) ----
     // clean spend: normal input, normal change, moderate fee -> no cautions
     pl = mk_val_psbt(100000, 60000, 38000, 1, pb, sizeof pb);
-    chki("clean load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("clean load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("clean READY", sum.status, WPSBT_READY);
     chki("clean no caution flags", sum.caution_flags, 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // spending a tiny KISS-owned coin: dust-input privacy warn, still signable
     pl = mk_val_psbt(3000, 2700, 0, 0, pb, sizeof pb);
-    chki("dust-input load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("dust-input load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("dust-input CAUTION", sum.status, WPSBT_CAUTION);
     chkb("dust-input flag set", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
-    chkb("dust-input not STOP-signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
-    wallet_psbt_free();
+    chkb("dust-input not STOP-signable", kiss_psbt_sign(sb, sizeof sb, &sw) == 0);
+    kiss_psbt_free();
 
     // small (but above dust) change: privacy warn, not the loud dust-change flag
     pl = mk_val_psbt(100000, 90000, 4000, 1, pb, sizeof pb);
-    chki("small-change load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("small-change load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chkb("small-change flag set", (sum.caution_flags & WPSBT_C_SMALL_CHANGE) != 0);
     chkb("small-change not dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) == 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // change below the standardness dust floor (<294 segwit): loud dust-change
     pl = mk_val_psbt(100000, 99500, 200, 1, pb, sizeof pb);
-    chki("dust-change load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("dust-change load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chkb("dust-change flag set", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
     chkb("dust-change not small-change", (sum.caution_flags & WPSBT_C_SMALL_CHANGE) == 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // fee-rate backstop (~300 sat/vB): a big send at a fat-finger rate trips the
     // rate check even though the fee is a small SHARE of the send
     pl = mk_val_psbt(2000000, 1900000, 40000, 1, pb, sizeof pb);   // fee 60000 -> ~425 sat/vB
-    chki("high-rate load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("high-rate load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("high-rate CAUTION", sum.status, WPSBT_CAUTION);
     chkb("high-rate flags high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
     chkb("high-rate share is small", sum.fee_sats * 10 < sum.send_sats);   // not the % check
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // an elevated-but-normal rate below the backstop stays clean (no congestion
     // fatigue): ~140 sat/vB, well under the 300 bar and a small share
     pl = mk_val_psbt(2000000, 1900000, 80000, 1, pb, sizeof pb);   // fee 20000 -> ~140 sat/vB
-    chki("moderate-rate load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("moderate-rate load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("moderate-rate READY", sum.status, WPSBT_READY);
     chki("moderate-rate no cautions", sum.caution_flags, 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // combo: tiny input + tiny change + high fee -> all three flags coexist
     pl = mk_val_psbt(4000, 3000, 200, 1, pb, sizeof pb);
-    chki("combo load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("combo load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("combo CAUTION", sum.status, WPSBT_CAUTION);
     chkb("combo has high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
     chkb("combo has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
     chkb("combo has dust-change", (sum.caution_flags & WPSBT_C_DUST_CHANGE) != 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // ---- merging coins: the bar sits above everyday coin selection ----
     // one under the bar: four ordinary coins is still a wallet picking inputs,
     // and warning there would be the fatigue the threshold exists to avoid
     pl = mk_nin_psbt(WPSBT_MERGE_INS - 1, 100000, 8000, pb, sizeof pb);
-    chki("under-merge load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("under-merge load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("under-merge input count", (int)sum.n_in, WPSBT_MERGE_INS - 1);
     chki("under-merge READY", sum.status, WPSBT_READY);
     chki("under-merge no cautions", sum.caution_flags, 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // at the bar: flagged, still signable, and no other flag rides along (the
     // coins are ordinary and the fee is moderate, so this is the merge alone)
     pl = mk_nin_psbt(WPSBT_MERGE_INS, 100000, 10000, pb, sizeof pb);
-    chki("merge load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("merge load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("merge input count", (int)sum.n_in, WPSBT_MERGE_INS);
     chki("merge CAUTION", sum.status, WPSBT_CAUTION);
     chki("merge flag alone", sum.caution_flags, WPSBT_C_MERGE_INS);
     chkb("merge reason says merging", strstr(sum.reason, "merging") != NULL);
-    chkb("merge still signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
-    wallet_psbt_free();
+    chkb("merge still signable", kiss_psbt_sign(sb, sizeof sb, &sw) == 0);
+    kiss_psbt_free();
 
     // a sweep of tiny coins stacks the merge flag on the dust-input one: they
     // answer different questions (how many are tied together vs who sent them)
     pl = mk_nin_psbt(WPSBT_MERGE_INS + 2, 3000, 2000, pb, sizeof pb);
-    chki("merge-dust load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("merge-dust load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chkb("merge-dust has merge", (sum.caution_flags & WPSBT_C_MERGE_INS) != 0);
     chkb("merge-dust has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // ---- amounts declared vs amounts proven --------------------------------
     // BIP143 signs the amount of the input being signed and nothing else, so a
@@ -1058,32 +1058,32 @@ int main(int argc, char **argv) {
     // one input: the lie lands in that input's own sighash and breaks it, so a
     // bare witness_utxo is enough and there is nothing to warn about
     pl = mk_nin_psbt_ex(1, 100000, 1000, NIN_CLAIM, pb, sizeof pb);
-    chki("1-in unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("1-in unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("1-in unproven READY", sum.status, WPSBT_READY);
     chki("1-in unproven no cautions", sum.caution_flags, 0);
     chki("1-in unproven count", (int)sum.n_unproven_in, 1);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // two inputs, amounts claimed and not proven: the case krux warns on
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
-    chki("2-in unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("2-in unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("2-in unproven CAUTION", sum.status, WPSBT_CAUTION);
     chki("2-in unproven flag alone", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
     chki("2-in unproven count", (int)sum.n_unproven_in, 2);
     chkb("2-in unproven reason", strstr(sum.reason, "not proven") != NULL);
-    chkb("2-in unproven still signable", wallet_psbt_sign(sb, sizeof sb, &sw) == 0);
-    wallet_psbt_free();
+    chkb("2-in unproven still signable", kiss_psbt_sign(sb, sizeof sb, &sw) == 0);
+    kiss_psbt_free();
 
     // the same two coins with their previous transactions attached: nothing left
     // to lie about, so the warning goes away. This is the escape hatch, and it
     // is what keeps the caution from being permanent noise.
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
     chkb("2-in proven builds", pl > 0);
-    chki("2-in proven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("2-in proven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("2-in proven READY", sum.status, WPSBT_READY);
     chki("2-in proven no cautions", sum.caution_flags, 0);
     chki("2-in proven count zero", (int)sum.n_unproven_in, 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // proving costs bytes, and that is the whole reason a coordinator skips it
     {
@@ -1098,11 +1098,11 @@ int main(int argc, char **argv) {
     // and note the amount reading LOW is the theft direction, so the one sat
     // difference here is not a rounding question.
     pl = mk_nin_psbt_ex(1, 100000, 1000, NIN_LIE, pb, sizeof pb);
-    chki("contradiction load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("contradiction load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("contradiction STOP", sum.status, WPSBT_STOP);
     chkb("contradiction reason", strstr(sum.reason, "previous transaction") != NULL);
-    chkb("contradiction refuses to sign", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("contradiction refuses to sign", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     // THE regression for the precedence flip: PROVE and OMIT are the same
     // transaction spending the same outpoint for the same amount, differing
@@ -1114,62 +1114,62 @@ int main(int argc, char **argv) {
         uint8_t sa[4096], sbb[4096];
         size_t wa = 0, wb = 0;
         pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_OMIT, pb, sizeof pb);
-        chki("omit load rc", wallet_psbt_load(pb, pl, &sum), 0);
+        chki("omit load rc", kiss_psbt_load(pb, pl, &sum), 0);
         chki("omit is the unproven one", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
-        chki("omit sign rc", wallet_psbt_sign(sa, sizeof sa, &wa), 0);
-        wallet_psbt_free();
+        chki("omit sign rc", kiss_psbt_sign(sa, sizeof sa, &wa), 0);
+        kiss_psbt_free();
 
         pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
-        chki("prove load rc", wallet_psbt_load(pb, pl, &sum), 0);
-        chki("prove sign rc", wallet_psbt_sign(sbb, sizeof sbb, &wb), 0);
-        wallet_psbt_free();
+        chki("prove load rc", kiss_psbt_load(pb, pl, &sum), 0);
+        chki("prove sign rc", kiss_psbt_sign(sbb, sizeof sbb, &wb), 0);
+        kiss_psbt_free();
 
         // the serialized PSBTs differ (one carries the previous transactions),
         // so compare the thing that must not move: the signatures themselves
         char fa[9], fb[9];
-        chki("omit sig fingerprint rc", wallet_psbt_sig_fingerprint(sa, wa, fa), 0);
-        chki("prove sig fingerprint rc", wallet_psbt_sig_fingerprint(sbb, wb, fb), 0);
+        chki("omit sig fingerprint rc", kiss_psbt_sig_fingerprint(sa, wa, fa), 0);
+        chki("prove sig fingerprint rc", kiss_psbt_sig_fingerprint(sbb, wb, fb), 0);
         chk("proof does not change the signature", fa, fb);
     }
 
     // DETAILS says WHICH coin: the per-input mark the verify row cannot carry
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
-    chki("details unproven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("details unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     {
         wpsbt_details_t dt;
-        chki("details unproven rc", wallet_psbt_details(&dt), 0);
+        chki("details unproven rc", kiss_psbt_details(&dt), 0);
         chki("details unproven n_in", dt.n_in, 2);
         chkb("details in0 not proven", !dt.ins[0].proven);
         chkb("details in1 not proven", !dt.ins[1].proven);
     }
-    wallet_psbt_free();
+    kiss_psbt_free();
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
-    chki("details proven load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("details proven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     {
         wpsbt_details_t dt;
-        chki("details proven rc", wallet_psbt_details(&dt), 0);
+        chki("details proven rc", kiss_psbt_details(&dt), 0);
         chkb("details in0 proven", dt.ins[0].proven);
         chkb("details in1 proven", dt.ins[1].proven);
     }
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // ---- amount sanity: consensus cap + no unsigned wraparound ----
     // outputs > inputs must STOP with fee_sats untouched (display safety: the
     // verify screen renders send+fee, which stays sane on this path)
     pl = mk_val_psbt(50000, 60000, 10000, 1, pb, sizeof pb);
-    chki("exceed load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("exceed load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("exceed STOP", sum.status, WPSBT_STOP);
     chkb("exceed reason", strstr(sum.reason, "exceed") != NULL);
     chkb("exceed fee zero", sum.fee_sats == 0);
     chkb("exceed display no underflow", sum.send_sats + sum.fee_sats == 60000);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // absurd per-amount values (> 21M BTC): wally's own builders AND parser
     // refuse them (verified: from_bytes rc=-2 on a patched amount), so such a
     // PSBT must never reach the verifier — otherwise send+change could wrap
     // uint64 and sneak past the outputs-exceed-inputs check. Patch a valid
     // PSBT's LE64 amount to near-2^64 and require load to reject the bytes.
-    // (wallet_psbt.c ALSO caps per-amount at MAX_MONEY as defense-in-depth.)
+    // (kiss_psbt.c ALSO caps per-amount at MAX_MONEY as defense-in-depth.)
     pl = mk_val_psbt(100000, 60000, 38000, 1, pb, sizeof pb);
     {
         const uint8_t old[8] = {0x60, 0xEA, 0, 0, 0, 0, 0, 0};        // 60000 LE
@@ -1178,37 +1178,37 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i + 8 <= pl; i++)
             if (memcmp(pb + i, old, 8) == 0) { memcpy(pb + i, evil, 8); patched = 1; break; }
         chkb("absurd-out amount patched", patched);
-        chkb("absurd-out bytes rejected", wallet_psbt_load(pb, pl, &sum) != 0);
+        chkb("absurd-out bytes rejected", kiss_psbt_load(pb, pl, &sum) != 0);
     }
-    wallet_psbt_free();
+    kiss_psbt_free();
 
-    // ---- receive reuse guard (wallet_usage) ----
+    // ---- receive reuse guard (kiss_usage) ----
     {
         uint8_t fp[4] = {0xEC, 0x5A, 0x45, 0x95};
-        wallet_usage_wipe();
-        chki("usage fresh -> -1", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
-        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 3);
-        chki("usage marks 3", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
-        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 1);         // lower: ignored
-        chki("usage monotonic", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
-        wallet_usage_mark(fp, 0, WSCRIPT_NATIVE, 7);
-        chki("usage advances to 7", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), 7);
-        chki("usage isolates network", wallet_usage_high(fp, 1, WSCRIPT_NATIVE), -1);
-        chki("usage isolates type", wallet_usage_high(fp, 0, WSCRIPT_LEGACY), -1);
+        kiss_usage_wipe();
+        chki("usage fresh -> -1", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
+        kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 3);
+        chki("usage marks 3", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
+        kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 1);         // lower: ignored
+        chki("usage monotonic", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), 3);
+        kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 7);
+        chki("usage advances to 7", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), 7);
+        chki("usage isolates network", kiss_usage_high(fp, 1, WSCRIPT_NATIVE), -1);
+        chki("usage isolates type", kiss_usage_high(fp, 0, WSCRIPT_LEGACY), -1);
         uint8_t fp2[4] = {0x11, 0x22, 0x33, 0x44};
-        chki("usage isolates wallet", wallet_usage_high(fp2, 0, WSCRIPT_NATIVE), -1);
-        wallet_usage_wipe();
-        chki("usage wipe clears", wallet_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
+        chki("usage isolates wallet", kiss_usage_high(fp2, 0, WSCRIPT_NATIVE), -1);
+        kiss_usage_wipe();
+        chki("usage wipe clears", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
     }
 
     // an output the device can't render as an address = a destination the user
     // can't verify = refuse to sign (STOP, not caution)
     pl = mk_psbt(MUT_OPRETURN, pb, sizeof pb);
-    chki("opreturn load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("opreturn load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("nonstandard output STOP", sum.status, WPSBT_STOP);
     chkb("nonstandard reason says nonstandard", strstr(sum.reason, "nonstandard") != NULL);
-    chkb("nonstandard sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("nonstandard sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     // A hardened change index. The key is genuinely this wallet's and derives
     // from the private master without complaint, so re-derivation alone cannot
@@ -1216,50 +1216,50 @@ int main(int argc, char **argv) {
     // xpub can ever derive a hardened child. Change sent there is provably ours
     // and permanently invisible to every watch-only wallet the owner has.
     pl = mk_psbt(MUT_HARD_IDX, pb, sizeof pb);
-    chki("hardened change index load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("hardened change index load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("hardened change index STOP", sum.status, WPSBT_STOP);
     chkb("hardened change index sign refused",
-         wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+         kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     // Self-consolidation: every output is change, so send_sats is 0. The
     // fee-share test used to be skipped outright in that case, leaving a 35%
     // fee judged only by its sat/vB rate -- which at this size passes. The
     // share is measured against the coins being consolidated now.
     pl = mk_psbt(MUT_CONSOLID, pb, sizeof pb);
-    chki("consolidation load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("consolidation load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("consolidation has no send", (int)sum.send_sats, 0);
     chkb("consolidation rate alone would not have fired",
          sum.fee_rate_x10 <= WPSBT_HIGH_RATE_X10);
     chki("consolidation high fee CAUTION", sum.status, WPSBT_CAUTION);
     chkb("consolidation flags the fee",
          (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
-    chkb("garbage refuses to load", wallet_psbt_load((const uint8_t *)"nope", 4, &sum) != 0);
-    wallet_psbt_free();
+    chkb("garbage refuses to load", kiss_psbt_load((const uint8_t *)"nope", 4, &sum) != 0);
+    kiss_psbt_free();
 
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
     test_sign_refused_when_selftest_fails(pb, pl);
 
-    wallet_session_close();
-    if (wallet_session_address(0, 0, addr, sizeof addr) != 0) {
+    kiss_session_close();
+    if (kiss_session_address(0, 0, addr, sizeof addr) != 0) {
         printf("PASS: closed session refuses to derive\n");
     } else {
         printf("FAIL: session still derives after close\n");
         fails++;
     }
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
-    chkb("closed session refuses PSBT", wallet_psbt_load(pb, pl, &sum) != 0);
+    chkb("closed session refuses PSBT", kiss_psbt_load(pb, pl, &sum) != 0);
 
     // step 6: QR transport (pure data layer, session not needed)
     fails += test_qr_transport(pb, pl);
 
     // ---- testnet mode: same seed, coin 1h, tb1, tpub, wrong-network STOP ----
-    wallet_set_network(1);
-    chki("testnet mode reads back", wallet_testnet(), 1);
-    chki("testnet session open", wallet_session_open(""), 0);
-    chki("testnet addr rc", wallet_session_address(0, 0, addr, sizeof addr), 0);
+    kiss_set_network(1);
+    chki("testnet mode reads back", kiss_testnet(), 1);
+    chki("testnet session open", kiss_session_open(""), 0);
+    chki("testnet addr rc", kiss_session_address(0, 0, addr, sizeof addr), 0);
     // independent derivation (fixture keys, coin 1h) must agree with the wallet
     {
         char *ta = NULL;
@@ -1271,44 +1271,44 @@ int main(int argc, char **argv) {
         "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl");
     {
         char desc[240];
-        chki("testnet descriptor rc", wallet_session_descriptor(desc, sizeof desc), 0);
+        chki("testnet descriptor rc", kiss_session_descriptor(desc, sizeof desc), 0);
         chkb("testnet descriptor path 84h/1h/0h", strstr(desc, "/84h/1h/0h]") != NULL);
         chkb("testnet descriptor tpub", strstr(desc, "]tpub") != NULL);
     }
 
     // a mainnet PSBT must be blocked while in testnet mode, loudly
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
-    chki("mainnet psbt on testnet load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("mainnet psbt on testnet load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("mainnet psbt on testnet STOP", sum.status, WPSBT_STOP);
     chkb("wrong-network reason", strstr(sum.reason, "network") != NULL);
     chkb("summary flags testnet", sum.testnet);
-    chkb("wrong-network sign refused", wallet_psbt_sign(sb, sizeof sb, &sw) != 0);
-    wallet_psbt_free();
+    chkb("wrong-network sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
 
     // a native testnet PSBT verifies READY with tb1 addresses and signs
     pl = mk_psbt(MUT_TESTNET, pb, sizeof pb);
-    chki("testnet psbt load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("testnet psbt load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("testnet psbt READY", sum.status, WPSBT_READY);
     chkb("testnet out0 addr is tb1", strncmp(sum.outs[0].addr, "tb1", 3) == 0);
     chkb("testnet change re-derived", sum.outs[1].is_change);
     chkb("testnet change addr is tb1", strncmp(sum.outs[1].addr, "tb1", 3) == 0);
-    chki("testnet sign rc", wallet_psbt_sign(sb, sizeof sb, &sw), 0);
-    wallet_psbt_free();
+    chki("testnet sign rc", kiss_psbt_sign(sb, sizeof sb, &sw), 0);
+    kiss_psbt_free();
 
     // and the testnet PSBT is blocked back on mainnet (no state leaks either way)
-    wallet_set_network(0);
-    chki("mainnet mode reads back", wallet_testnet(), 0);
-    chki("mainnet addr again rc", wallet_session_address(0, 0, addr, sizeof addr), 0);
+    kiss_set_network(0);
+    chki("mainnet mode reads back", kiss_testnet(), 0);
+    chki("mainnet addr again rc", kiss_session_address(0, 0, addr, sizeof addr), 0);
     chk("m/84h/0h/0h/0/0 again", addr, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     pl = mk_psbt(MUT_TESTNET, pb, sizeof pb);
-    chki("testnet psbt on mainnet load rc", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("testnet psbt on mainnet load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("testnet psbt on mainnet STOP", sum.status, WPSBT_STOP);
     chkb("wrong-network reason (mainnet side)", strstr(sum.reason, "network") != NULL);
-    wallet_psbt_free();
+    kiss_psbt_free();
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
-    chki("mainnet psbt READY again", wallet_psbt_load(pb, pl, &sum), 0);
+    chki("mainnet psbt READY again", kiss_psbt_load(pb, pl, &sum), 0);
     chki("mainnet psbt status again", sum.status, WPSBT_READY);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // step 8: silent payments (needs the open session; flips network itself
     // and returns in mainnet mode, matching the sweep below)
@@ -1327,25 +1327,25 @@ int main(int argc, char **argv) {
             {WSCRIPT_NATIVE, 84, "native"}, {WSCRIPT_NESTED, 49, "nested"}, {WSCRIPT_LEGACY, 44, "legacy"},
         };
         uint8_t pb2[4096]; wpsbt_summary_t sm; char nm[80];
-        wallet_set_network(0);
+        kiss_set_network(0);
         for (int a = 0; a < 3; a++)          // a = the PSBT's actual input type
           for (int b = 0; b < 3; b++) {      // b = the (possibly different) selected type
             size_t pl2 = mk_typed_psbt(cs[a].script, cs[a].purpose, pb2, sizeof pb2);
-            wallet_set_script(cs[b].script);
+            kiss_set_script(cs[b].script);
             snprintf(nm, sizeof nm, "%s psbt signs while %s selected", cs[a].name, cs[b].name);
-            chki(nm, wallet_psbt_load(pb2, pl2, &sm), 0);
+            chki(nm, kiss_psbt_load(pb2, pl2, &sm), 0);
             chki(nm, sm.status, WPSBT_READY);
             snprintf(nm, sizeof nm, "%s psbt detected purpose %u", cs[a].name, cs[a].purpose);
             chki(nm, sm.purpose, cs[a].purpose);   // UI shows the PSBT's own type
-            wallet_psbt_free();
+            kiss_psbt_free();
         }
         // network guard still holds: a mainnet-coin PSBT is refused on testnet
         size_t pl3 = mk_typed_psbt(WSCRIPT_NATIVE, 84, pb2, sizeof pb2);  // coin 0h
-        wallet_set_network(1);
-        chki("mainnet psbt loads on testnet", wallet_psbt_load(pb2, pl3, &sm), 0);
+        kiss_set_network(1);
+        chki("mainnet psbt loads on testnet", kiss_psbt_load(pb2, pl3, &sm), 0);
         chki("mainnet psbt STOPs on testnet (wrong network)", sm.status, WPSBT_STOP);
-        wallet_psbt_free();
-        wallet_set_network(0);
+        kiss_psbt_free();
+        kiss_set_network(0);
 
         // LEGACY input carrying only a witness_utxo: the legacy sighash does
         // NOT commit to amounts, so a witness_utxo amount is exactly the
@@ -1390,11 +1390,11 @@ int main(int argc, char **argv) {
             wally_bzero(&kin2, sizeof kin2);
             wally_bzero(&kchg2, sizeof kchg2);
             chkb("legacy witness-only builds", wl2 > 0);
-            chki("legacy witness-only load rc", wallet_psbt_load(pb2, wl2, &sm), 0);
+            chki("legacy witness-only load rc", kiss_psbt_load(pb2, wl2, &sm), 0);
             chki("legacy witness-only STOP", sm.status, WPSBT_STOP);
             chkb("legacy witness-only reason says previous",
                  strstr(sm.reason, "previous") != NULL);
-            wallet_psbt_free();
+            kiss_psbt_free();
         }
 
         // MIXED input types (1 native + 1 legacy) in one PSBT: legit (e.g. a
@@ -1402,7 +1402,7 @@ int main(int argc, char **argv) {
         // fee estimate must count each input at its own type's weight
         size_t plm = mk_mixed_psbt(pb2, sizeof pb2);
         chkb("mixed psbt builds", plm > 0);
-        chki("mixed psbt load rc", wallet_psbt_load(pb2, plm, &sm), 0);
+        chki("mixed psbt load rc", kiss_psbt_load(pb2, plm, &sm), 0);
         // CAUTION, not READY: the legacy input carries its previous transaction
         // and is proven, the native one carries only a witness_utxo and is not,
         // and two inputs is where the two-session amount lie becomes possible.
@@ -1415,11 +1415,11 @@ int main(int argc, char **argv) {
         // must be well ABOVE an all-native guess and below an all-legacy one
         chkb("mixed fee estimate counts per type",
              sm.est_vsize > 200 && sm.est_vsize < 400);
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
     // native 0/0 still equals the published BIP84 vector (no leakage)
-    wallet_set_script(WSCRIPT_NATIVE);
-    chki("native addr after type sweep rc", wallet_session_address(0, 0, addr, sizeof addr), 0);
+    kiss_set_script(WSCRIPT_NATIVE);
+    chki("native addr after type sweep rc", kiss_session_address(0, 0, addr, sizeof addr), 0);
     chk("m/84h/0h/0h/0/0 after sweep", addr, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
 
     // ---- the account key is cached between derivations, so prove the cache
@@ -1429,27 +1429,27 @@ int main(int argc, char **argv) {
     // the deniability property silently inverted. The script and network
     // sweeps above already cover the other two things it keys on.
     {
-        wallet_set_network(0);
-        wallet_set_script(WSCRIPT_NATIVE);
+        kiss_set_network(0);
+        kiss_set_script(WSCRIPT_NATIVE);
         char a_plain[92], a_pass[92], a_again[92];
-        chki("cache: decoy session opens", wallet_session_open(NULL), 0);
+        chki("cache: decoy session opens", kiss_session_open(NULL), 0);
         chki("cache: decoy addr rc",
-             wallet_session_address(0, 0, a_plain, sizeof a_plain), 0);
-        chki("cache: passphrase session opens", wallet_session_open("kiss"), 0);
+             kiss_session_address(0, 0, a_plain, sizeof a_plain), 0);
+        chki("cache: passphrase session opens", kiss_session_open("kiss"), 0);
         chki("cache: passphrase addr rc",
-             wallet_session_address(0, 0, a_pass, sizeof a_pass), 0);
+             kiss_session_address(0, 0, a_pass, sizeof a_pass), 0);
         chkb("cache: passphrase gives a DIFFERENT address",
              strcmp(a_plain, a_pass) != 0);
-        chki("cache: decoy session reopens", wallet_session_open(NULL), 0);
+        chki("cache: decoy session reopens", kiss_session_open(NULL), 0);
         chki("cache: decoy addr rc again",
-             wallet_session_address(0, 0, a_again, sizeof a_again), 0);
+             kiss_session_address(0, 0, a_again, sizeof a_again), 0);
         chk("cache: same passphrase, same address", a_again, a_plain);
-        wallet_session_close();
+        kiss_session_close();
         chkb("cache: closed session derives nothing",
-             wallet_session_address(0, 0, addr, sizeof addr) != 0);
-        chki("cache: reopen after close", wallet_session_open(NULL), 0);
+             kiss_session_address(0, 0, addr, sizeof addr) != 0);
+        chki("cache: reopen after close", kiss_session_open(NULL), 0);
         chki("cache: addr rc after close+reopen",
-             wallet_session_address(0, 0, addr, sizeof addr), 0);
+             kiss_session_address(0, 0, addr, sizeof addr), 0);
         chk("m/84h/0h/0h/0/0 after close+reopen", addr,
             "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     }

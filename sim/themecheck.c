@@ -35,7 +35,7 @@
 #include <string.h>
 
 #include "lvgl.h"
-#include "wallet_theme.h"
+#include "kiss_theme.h"
 #include "colour_de.h"
 
 typedef struct { const char *name; uint32_t hex; } named_t;
@@ -55,7 +55,7 @@ static const struct {
 } DECLARED[] = {
     { "GREEN", "WT_OK",
       "byte identical by design. Every screen carrying WT_OK gives the accent's "
-      "job to WT_INK instead (wallet_info.c sp_permissions), so the two never "
+      "job to WT_INK instead (kiss_info.c sp_permissions), so the two never "
       "share a screen region." },
 };
 #define NDECL ((int)(sizeof DECLARED / sizeof DECLARED[0]))

@@ -28,7 +28,7 @@ OUT=../../main
 # must match LAT_RANGES in tools/gen_i18n.py (the hang-prevention check)
 LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490-0x491,0x2018-0x201D,0x2022,0x2026"
 # The LV_SYMBOL_* codepoints from LVGL's built_in_font_gen.py, PLUS three icons
-# LVGL has no symbol macro for. They are named in wallet_theme.h as WT_ICON_*
+# LVGL has no symbol macro for. They are named in kiss_theme.h as WT_ICON_*
 # and must stay in lockstep with it: a codepoint referenced by a label but
 # missing from the font draws a blank box the width of half a line, which on
 # an icon pill means a button with nothing on it.

@@ -4,7 +4,7 @@
 
 **Goal:** After signing, show a short `SIGNATURE` fingerprint of the signature bytes on both signed screens, so two independently trusted units are compared by eye instead of by diffing files.
 
-**Architecture:** A pure host-testable function in `wallet_psbt.c` hashes the signed PSBT's signature bytes to 8 hex. `do_sign_cb` computes it once; the SD and QR signed screens render it, with a `?` help chip opening a short explainer — the same pattern the entropy screen uses.
+**Architecture:** A pure host-testable function in `kiss_psbt.c` hashes the signed PSBT's signature bytes to 8 hex. `do_sign_cb` computes it once; the SD and QR signed screens render it, with a `?` help chip opening a short explainer — the same pattern the entropy screen uses.
 
 **Spec:** `docs/specs/signature-fingerprint.md`
 
@@ -14,18 +14,18 @@
 
 | File | Change |
 |---|---|
-| `main/wallet_psbt.h` / `.c` | Add `wallet_psbt_sig_fingerprint()`. |
+| `main/kiss_psbt.h` / `.c` | Add `kiss_psbt_sig_fingerprint()`. |
 | `sim/test_crypto.c` | Host tests: golden fingerprint, stable, differs per tx. |
 | `main/i18n_keys.h`, `main/i18n_tables.c` | 3 English-only keys (hand-added, ADDENDUM pattern). |
-| `main/wallet_sign.c` | Compute in `do_sign_cb`; render on `done_screen` + `qr_out_screen`; `?` explainer. |
+| `main/kiss_sign.c` | Compute in `do_sign_cb`; render on `done_screen` + `qr_out_screen`; `?` explainer. |
 
-Reused as-is: `wt_help_chip` (`wallet_theme.h:199`), `mk_screen`/`mk_pill`/`mk_lbl`/`wt_note` (`wallet_sign.c:201-236`), the sig accessors — ECDSA `input->signatures` map (`test_crypto.c:473`), taproot `psbt_fields` key `0x13` (`test_sp.c:418-425`).
+Reused as-is: `wt_help_chip` (`kiss_theme.h:199`), `mk_screen`/`mk_pill`/`mk_lbl`/`wt_note` (`kiss_sign.c:201-236`), the sig accessors — ECDSA `input->signatures` map (`test_crypto.c:473`), taproot `psbt_fields` key `0x13` (`test_sp.c:418-425`).
 
 ---
 
-## Task 1: `wallet_psbt_sig_fingerprint`
+## Task 1: `kiss_psbt_sig_fingerprint`
 
-**Files:** `main/wallet_psbt.h`, `main/wallet_psbt.c`, `sim/test_crypto.c`
+**Files:** `main/kiss_psbt.h`, `main/kiss_psbt.c`, `sim/test_crypto.c`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -34,7 +34,7 @@ In `sim/test_crypto.c`, inside the per-type sign roundtrip, after the golden-vec
 ```c
 if (strcmp(label, "native") == 0) {
     char fp[9] = {0};
-    chki("sig fingerprint rc", wallet_psbt_sig_fingerprint(sb, sw, fp), 0);
+    chki("sig fingerprint rc", kiss_psbt_sig_fingerprint(sb, sw, fp), 0);
     // sha256(native input signature bytes)[:4], computed independently:
     //   python3 -c "import hashlib;print(hashlib.sha256(bytes.fromhex('<SV_ECDSA_NATIVE>')).hexdigest()[:8])"
     chk("sig fingerprint is the golden code", fp, "a1e0d4c5");
@@ -44,11 +44,11 @@ if (strcmp(label, "native") == 0) {
 - [ ] **Step 2: Run, verify it fails**
 
 Run: `sim/build_test.sh && /tmp/kisstest`
-Expected: build fails, `wallet_psbt_sig_fingerprint` undeclared.
+Expected: build fails, `kiss_psbt_sig_fingerprint` undeclared.
 
 - [ ] **Step 3: Declare it**
 
-In `main/wallet_psbt.h`, after `wallet_psbt_sign` (line 107):
+In `main/kiss_psbt.h`, after `kiss_psbt_sign` (line 107):
 
 ```c
 // First 8 lower-case hex of sha256 over every input's signature bytes,
@@ -57,16 +57,16 @@ In `main/wallet_psbt.h`, after `wallet_psbt_sign` (line 107):
 // Signatures only, so it is transport- and PSBT-framing-independent: any
 // signer that produced the same signatures yields the same fingerprint.
 // Nonzero on a parse failure or a PSBT with no signatures.
-int wallet_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
+int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
                                 char out[9]);
 ```
 
 - [ ] **Step 4: Implement it**
 
-In `main/wallet_psbt.c` (it already includes `wally_psbt_members.h`, `wally_crypto.h`, `wally_map.h`). Add near the other public functions:
+In `main/kiss_psbt.c` (it already includes `wally_psbt_members.h`, `wally_crypto.h`, `wally_map.h`). Add near the other public functions:
 
 ```c
-int wallet_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
+int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
                                 char out[9])
 {
     if (!signed_psbt || !out)
@@ -124,11 +124,11 @@ In the same native block:
     // stable across a re-sign (determinism), and different for a different tx
     char fp2[9] = {0};
     wpsbt_summary_t sd; uint8_t rb[4096]; size_t rw = 0;
-    wallet_psbt_load(pb, pl, &sd);
-    wallet_psbt_sign(rb, sizeof rb, &rw);
-    wallet_psbt_sig_fingerprint(rb, rw, fp2);
+    kiss_psbt_load(pb, pl, &sd);
+    kiss_psbt_sign(rb, sizeof rb, &rw);
+    kiss_psbt_sig_fingerprint(rb, rw, fp2);
     chkb("sig fingerprint stable across re-sign", strcmp(fp, fp2) == 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 ```
 
 The "differs per tx" case is covered for free: the legacy/nested/native rounds each assert their own golden code, and `a1e0d4c5` (native) ≠ `18d8626c` (legacy).
@@ -138,7 +138,7 @@ The "differs per tx" case is covered for free: the legacy/nested/native rounds e
 Run: `sim/build_test.sh && /tmp/kisstest` (0 FAIL)
 
 ```bash
-git add main/wallet_psbt.h main/wallet_psbt.c sim/test_crypto.c
+git add main/kiss_psbt.h main/kiss_psbt.c sim/test_crypto.c
 git commit -m "a fingerprint of the signatures, hashed where they are made"
 ```
 
@@ -188,11 +188,11 @@ git commit -m "the signed screen names its signature, and explains it once behin
 
 ## Task 3: compute the fingerprint in the sign flow
 
-**Files:** `main/wallet_sign.c`
+**Files:** `main/kiss_sign.c`
 
 - [ ] **Step 1: add state**
 
-Near the other file-scope statics (around `wallet_sign.c:106-116`):
+Near the other file-scope statics (around `kiss_sign.c:106-116`):
 
 ```c
 static char s_sig_fp[9];               // fingerprint of the just-signed PSBT
@@ -200,10 +200,10 @@ static char s_sig_fp[9];               // fingerprint of the just-signed PSBT
 
 - [ ] **Step 2: compute before the exit branch**
 
-In `do_sign_cb` (`wallet_sign.c:367`), right after a successful `wallet_psbt_sign` and before `mark_used_receives()`:
+In `do_sign_cb` (`kiss_sign.c:367`), right after a successful `kiss_psbt_sign` and before `mark_used_receives()`:
 
 ```c
-    if (wallet_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
+    if (kiss_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
         s_sig_fp[0] = 0;               // absent aid, still a correct screen
 ```
 
@@ -214,7 +214,7 @@ Run: `sim/build_sim.sh` — compiles clean (value not shown yet).
 - [ ] **Step 4: commit**
 
 ```bash
-git add main/wallet_sign.c
+git add main/kiss_sign.c
 git commit -m "the signature gets its fingerprint the moment it exists"
 ```
 
@@ -222,11 +222,11 @@ git commit -m "the signature gets its fingerprint the moment it exists"
 
 ## Task 4: render on the SD screen + the ? explainer
 
-**Files:** `main/wallet_sign.c`
+**Files:** `main/kiss_sign.c`
 
 - [ ] **Step 1: the explainer callback**
 
-Above `done_screen` (`wallet_sign.c:313`):
+Above `done_screen` (`kiss_sign.c:313`):
 
 ```c
 static void sig_help_back_cb(lv_event_t *e);   // fwd: rebuilds nothing, just closes the panel
@@ -246,7 +246,7 @@ Because leaving the panel must return to the signed screen (the PSBT is signed a
 
 - [ ] **Step 2: render the line on `done_screen`**
 
-In `done_screen` (`wallet_sign.c:313`), after the filename label (y=230) and before the note (y=284), add:
+In `done_screen` (`kiss_sign.c:313`), after the filename label (y=230) and before the note (y=284), add:
 
 ```c
     if (s_sig_fp[0]) {
@@ -292,7 +292,7 @@ Expected: clean; adjust the x offsets / y until the caption, code and `?` do not
 - [ ] **Step 5: commit**
 
 ```bash
-git add main/wallet_sign.c
+git add main/kiss_sign.c
 git commit -m "the SD signed screen shows the code, with the why one tap away"
 ```
 
@@ -300,9 +300,9 @@ git commit -m "the SD signed screen shows the code, with the why one tap away"
 
 ## Task 5: render on the QR screen
 
-**Files:** `main/wallet_sign.c`
+**Files:** `main/kiss_sign.c`
 
-The right column of `qr_out_screen` (`wallet_sign.c:1409`) is dense: part counter y=124, notes y=168 and y=201, EASY SCAN pill y=244, its note y=304, DONE in the action bar. The fingerprint needs one 14px line without pushing anything into the action band (the mistake the comment at line 1423 records).
+The right column of `qr_out_screen` (`kiss_sign.c:1409`) is dense: part counter y=124, notes y=168 and y=201, EASY SCAN pill y=244, its note y=304, DONE in the action bar. The fingerprint needs one 14px line without pushing anything into the action band (the mistake the comment at line 1423 records).
 
 - [ ] **Step 1: place the line**
 
@@ -332,7 +332,7 @@ Expected: the QR signed screen shows the code; the QR card and every pill still 
 - [ ] **Step 3: commit**
 
 ```bash
-git add main/wallet_sign.c
+git add main/kiss_sign.c
 git commit -m "the QR signed screen carries the same code as the card it hands back"
 ```
 

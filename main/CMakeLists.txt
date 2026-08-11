@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "sprites.c" "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "wallet_img.c" "wallet_art.c" "wallet_art_rle.c" "wallet_crypto.c" "wallet_psbt.c" "wallet_sp.c" "wallet_ui.c" "wallet_theme.c" "wallet_info.c" "wallet_recv.c" "wallet_sign.c" "wallet_scan.c" "wallet_settings.c" "wallet_fw.c" "wallet_fw_ui.c" "wallet_setup.c" "wallet_duress.c" "wallet_gword.c" "wallet_kissword.c" "wallet_duress_ui.c" "wallet_word_ui.c" "wallet_seed.c" "wallet_seed_sd.c" "wallet_usage.c" "wallet_backup.c" "wallet_tapent.c" "wallet_dice.c" "wallet_dice_q.c" "wallet_cards_q.c" "wallet_lastword.c" "wallet_proof.c" "verify_page.c" "i18n.c" "i18n_tables.c" "font_kiss_lat14.c" "font_kiss_lat23.c" "font_kiss_lat28.c" "font_kiss_lat34.c" "font_kiss_mono14.c" "font_kiss_mono23.c" "font_kiss_mono28.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c"
+    SRCS "main.c" "sprites.c" "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c" "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_psbt.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_usage.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_proof.c" "verify_page.c" "i18n.c" "i18n_tables.c" "font_kiss_lat14.c" "font_kiss_lat23.c" "font_kiss_lat28.c" "font_kiss_lat34.c" "font_kiss_mono14.c" "font_kiss_mono23.c" "font_kiss_mono28.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c"
     INCLUDE_DIRS "."
     REQUIRES esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_touch esp_lcd_touch_gt911 esp_lvgl_port esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc nvs_flash bootloader_support efuse
 )
@@ -28,7 +28,7 @@ endif()
 # hex on the serial console so it can be parsed with tools/psbt_fields.py.
 # Deliberately opt-in per build -- an unsigned PSBT is not a secret, but it is
 # amounts, addresses and counterparties, which must never reach a log by
-# default. See the guard comment in wallet_sign.c.
+# default. See the guard comment in kiss_sign.c.
 if(KISS_PSBT_DUMP)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_PSBT_DUMP=1)
 endif()

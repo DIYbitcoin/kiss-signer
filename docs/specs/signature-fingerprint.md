@@ -26,12 +26,12 @@ result. They must not be confused, so this one carries its own label,
 
 ## The hash: signatures only
 
-A new pure function in `main/wallet_psbt.c`:
+A new pure function in `main/kiss_psbt.c`:
 
     // First 8 lower-case hex of sha256 over every input's signature bytes,
     // concatenated in input order. Writes 8 chars + NUL. Nonzero on a parse
     // failure or a PSBT carrying no signatures.
-    int wallet_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
+    int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
                                     char out[9]);
 
 It parses the signed PSBT and walks inputs in index order. For each input it
@@ -56,13 +56,13 @@ framing-independent: anything that signed the same way, KISS or not, agrees.
 is deterministic: the same PSBT and seed always yield the same code. That is
 exactly the property being surfaced.
 
-The function lives in `wallet_psbt.c`, beside the signing it summarizes, so it
+The function lives in `kiss_psbt.c`, beside the signing it summarizes, so it
 is exercised on the host by `sim/test_crypto.c` rather than being reachable only
 through the UI.
 
 ## Where it is computed and shown
 
-`do_sign_cb` in `main/wallet_sign.c` (around line 367) already holds the signed
+`do_sign_cb` in `main/kiss_sign.c` (around line 367) already holds the signed
 PSBT in `s_out`/`sw` before it branches to the QR or SD exit. It computes the
 fingerprint there once, into a file-scope `static char s_sig_fp[9]`, and both
 exit screens read it:
@@ -78,12 +78,12 @@ exit screens read it:
   not push any element into the action band, the mistake the comment at
   line 1423 records fixing once already.
 
-If `wallet_psbt_sig_fingerprint` fails (it should not, on a PSBT KISS just
+If `kiss_psbt_sig_fingerprint` fails (it should not, on a PSBT KISS just
 produced), the line is simply omitted -- the screen is still correct, it just
 loses an aid.
 
 **The `?` help chip.** Beside the `SIGNATURE` line sits a `wt_help_chip`, the
-same control the entropy screen uses at `wallet_setup.c` (`ent_mix_help_cb`) to
+same control the entropy screen uses at `kiss_setup.c` (`ent_mix_help_cb`) to
 explain WHY THREE SOURCES. Tapping it opens a short explainer panel
 (`mk_screen` title + `mk_body`, a BACK pill returning to the signed screen).
 This is where the meaning lives on the device: a curious user learns what the
@@ -117,7 +117,7 @@ translation. The explainer body is the only prose, and it lives behind the `?`.
 
 **Host**, in `sim/test_crypto.c`, on the fixed dev seed:
 
-- `wallet_psbt_sig_fingerprint` over the native signed PSBT equals a value
+- `kiss_psbt_sig_fingerprint` over the native signed PSBT equals a value
   computed independently (SHA-256 of the native input's signature bytes, first
   four bytes as hex -- the signature is already the golden `SV_ECDSA_NATIVE`,
   so the expected fingerprint is derivable from it without KISS's own function).

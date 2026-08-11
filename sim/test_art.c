@@ -1,4 +1,4 @@
-// Host tests for the baked-art RLE decoder (main/wallet_art_rle.c).
+// Host tests for the baked-art RLE decoder (main/kiss_art_rle.c).
 // Build: sim/build_test.sh -> /tmp/kisstest
 //
 // The decoder is the only thing between a 3.1 MB flash saving and a screen
@@ -8,7 +8,7 @@
 // fails here rather than shipping art nothing can read.
 #include <stdio.h>
 #include <string.h>
-#include "wallet_art_rle.h"
+#include "kiss_art_rle.h"
 
 static int fails;
 

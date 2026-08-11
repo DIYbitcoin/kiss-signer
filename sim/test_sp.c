@@ -19,9 +19,9 @@
 #include "sp_test_vectors.h"
 #include "sp_spend_vectors.h"
 #include "sign_vectors.h"   // SV_SCHNORR_SP_*: golden Schnorr sigs (BIP340 ref)
-#include "wallet_sp.h"
-#include "wallet_psbt.h"
-#include "wallet_crypto.h"
+#include "kiss_sp.h"
+#include "kiss_psbt.h"
+#include "kiss_crypto.h"
 
 static int sp_fails;
 
@@ -147,17 +147,17 @@ static void sp_test_address(void) {
     spchk("silent-payment wrong length rejected",
           sp_address_network(corrupt) == 0);
 
-    wallet_set_network(0);
+    kiss_set_network(0);
     spchk("address validator accepts current-network sp1",
-          wallet_address_validate(main_addr) == WADDR_CURRENT_NETWORK);
+          kiss_address_validate(main_addr) == WADDR_CURRENT_NETWORK);
     spchk("address validator marks tsp1 as wrong network",
-          wallet_address_validate(test_addr) == WADDR_WRONG_NETWORK);
-    wallet_set_network(1);
+          kiss_address_validate(test_addr) == WADDR_WRONG_NETWORK);
+    kiss_set_network(1);
     spchk("address validator accepts current-network tsp1",
-          wallet_address_validate(test_addr) == WADDR_CURRENT_NETWORK);
+          kiss_address_validate(test_addr) == WADDR_CURRENT_NETWORK);
     spchk("address validator marks sp1 as wrong network",
-          wallet_address_validate(main_addr) == WADDR_WRONG_NETWORK);
-    wallet_set_network(0);
+          kiss_address_validate(main_addr) == WADDR_WRONG_NETWORK);
+    kiss_set_network(0);
 }
 
 // Replicates create_outputs' recipient handling: walk recipients in order,
@@ -339,7 +339,7 @@ static void sp_test_receive(void) {
     static const char *SP1_MAIN  = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
     static const char *TSP1_TEST = "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n";
 
-    const struct ext_key *m = wallet_session_master();
+    const struct ext_key *m = kiss_session_master();
     if (!m) { spchk("receive: session master available", 0); return; }
 
     uint8_t scan[33], spend[33];
@@ -356,20 +356,20 @@ static void sp_test_receive(void) {
     {
         char sess[128];
         int slen;
-        wallet_set_network(0);
-        spchk("session sp address mainnet rc", wallet_session_sp_address(sess, sizeof sess) == 0);
+        kiss_set_network(0);
+        spchk("session sp address mainnet rc", kiss_session_sp_address(sess, sizeof sess) == 0);
         slen = (int)strlen(sess);
         if (strcmp(sess, SP1_MAIN) != 0) printf("  got  %s\n  want %s\n", sess, SP1_MAIN);
         spchk("session sp address mainnet full + correct",
               slen == 116 && strcmp(sess, SP1_MAIN) == 0);
-        wallet_set_network(1);
-        spchk("session sp address testnet rc", wallet_session_sp_address(sess, sizeof sess) == 0);
+        kiss_set_network(1);
+        spchk("session sp address testnet rc", kiss_session_sp_address(sess, sizeof sess) == 0);
         slen = (int)strlen(sess);
         if (strcmp(sess, TSP1_TEST) != 0) printf("  got  %s (%d)\n  want %s (%d)\n",
                                                  sess, slen, TSP1_TEST, (int)strlen(TSP1_TEST));
         spchk("session sp address testnet full + correct",
               slen == 117 && strcmp(sess, TSP1_TEST) == 0);
-        wallet_set_network(0);
+        kiss_set_network(0);
     }
 
     spchk("receive keys testnet rc", sp_receive_keys(m, true, scan, spend) == 0);
@@ -386,18 +386,18 @@ static void sp_test_receive(void) {
 static void sp_test_scan_export(void) {
     char out[200];
 
-    wallet_set_network(0);
-    spchk("scan export mainnet rc", wallet_session_sp_scan_export(out, sizeof out) == 0);
+    kiss_set_network(0);
+    spchk("scan export mainnet rc", kiss_session_sp_scan_export(out, sizeof out) == 0);
     spchk("scan export mainnet matches embit sp(spscan)",
           strcmp(out, SPV_SPSCAN_MAIN) == 0);
 
-    wallet_set_network(1);
-    spchk("scan export testnet rc", wallet_session_sp_scan_export(out, sizeof out) == 0);
+    kiss_set_network(1);
+    spchk("scan export testnet rc", kiss_session_sp_scan_export(out, sizeof out) == 0);
     spchk("scan export testnet matches embit sp(tspscan)",
           strcmp(out, SPV_SPSCAN_TEST) == 0);
 
     // low-level encoder: hrp + version-0 + convertbits(scan_priv||spend_pub)
-    const struct ext_key *m = wallet_session_master();
+    const struct ext_key *m = kiss_session_master();
     uint8_t scan_priv[32], spend_pub[33];
     char key[120];
     spchk("scan export keys testnet rc", sp_scan_export_keys(m, true, scan_priv, spend_pub) == 0);
@@ -408,7 +408,7 @@ static void sp_test_scan_export(void) {
     char tiny[64];
     spchk("sp_scan_encode refuses short buffer",
           sp_scan_encode(scan_priv, spend_pub, true, tiny, sizeof tiny) != 0);
-    wallet_set_network(0);
+    kiss_set_network(0);
 }
 
 // Read a PSBT input's taproot key-path signature (PSBT_IN_TAP_KEY_SIG = 0x13,
@@ -437,9 +437,9 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     wpsbt_summary_t sum;
     uint8_t out1[4096], out2[4096];
     size_t w1 = 0, w2 = 0;
-    wallet_set_network(1);
+    kiss_set_network(1);
 
-    int rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    int rc = kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
     snprintf(name, sizeof name, "%s loads READY", tag);
     if (rc == 0 && sum.status != WPSBT_READY)
         printf("  status=%d reason=%s\n", sum.status, sum.reason);
@@ -450,8 +450,8 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     spchk(name, sum.in_sats == 100000 && sum.send_sats == 95000 && sum.fee_sats == 5000);
 
     snprintf(name, sizeof name, "%s sign rc", tag);
-    spchk(name, wallet_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
-    wallet_psbt_free();
+    spchk(name, kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
+    kiss_psbt_free();
 
     struct wally_psbt *p = NULL;
     snprintf(name, sizeof name, "%s signed psbt strict-parses", tag);
@@ -482,13 +482,13 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     }
 
     // determinism: identical load+sign yields identical bytes
-    rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    rc = kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
     spchk(rc == 0 ? "spend re-load READY" : "spend re-load", rc == 0 && sum.status == WPSBT_READY);
-    spchk("spend re-sign rc", wallet_psbt_sign(out2, sizeof out2, &w2) == 0);
+    spchk("spend re-sign rc", kiss_psbt_sign(out2, sizeof out2, &w2) == 0);
     snprintf(name, sizeof name, "%s sign is deterministic", tag);
     spchk(name, w1 == w2 && memcmp(out1, out2, w1) == 0);
-    wallet_psbt_free();
-    wallet_set_network(0);
+    kiss_psbt_free();
+    kiss_set_network(0);
 }
 
 // BIP341: a taproot signature is 64 bytes ONLY for SIGHASH_DEFAULT. With any
@@ -515,12 +515,12 @@ static void sp_test_spend_explicit_sighash(void) {
     wally_psbt_free(p);
     p = NULL;
 
-    wallet_set_network(1);
-    int rc = wallet_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    kiss_set_network(1);
+    int rc = kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
     spchk("explicit SIGHASH_ALL loads READY", rc == 0 && sum.status == WPSBT_READY);
     spchk("explicit SIGHASH_ALL signs",
-          wallet_psbt_sign(out, sizeof out, &w) == 0 && w > 0);
-    wallet_psbt_free();
+          kiss_psbt_sign(out, sizeof out, &w) == 0 && w > 0);
+    kiss_psbt_free();
 
     if (wally_psbt_from_bytes(out, w, 0, &p) == WALLY_OK) {
         uint8_t sig[65];
@@ -540,7 +540,7 @@ static void sp_test_spend_explicit_sighash(void) {
         spchk("explicit-sighash signed psbt strict-parses", 0);
     }
     wally_free_string(b64);
-    wallet_set_network(0);
+    kiss_set_network(0);
 }
 
 static void sp_test_spend(void) {
@@ -554,13 +554,13 @@ static void sp_test_spend(void) {
     // foreign tweak: the PSBT's tweak does NOT reproduce the on-chain P2TR key.
     // The signer MUST refuse (BIP376 anti-theft), never emit a signature.
     wpsbt_summary_t sum;
-    wallet_set_network(1);
-    int rc = wallet_psbt_load((const uint8_t *)SPV_SPEND_FOREIGN_B64,
+    kiss_set_network(1);
+    int rc = kiss_psbt_load((const uint8_t *)SPV_SPEND_FOREIGN_B64,
                               strlen(SPV_SPEND_FOREIGN_B64), &sum);
     spchk("foreign-tweak spend stops",
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "not this wallet"));
-    wallet_psbt_free();
-    wallet_set_network(0);
+    kiss_psbt_free();
+    kiss_set_network(0);
 }
 
 // change/self detection: the expected spend key for a labeled SP output is
@@ -691,9 +691,9 @@ static void sp_test_sparrow_spend(void) {
         }
 
         wpsbt_summary_t orphan;
-        wallet_set_network(1);
+        kiss_set_network(1);
         int orphan_rc = removed
-            ? wallet_psbt_load(raw, raw_len, &orphan) : -1;
+            ? kiss_psbt_load(raw, raw_len, &orphan) : -1;
         if (!(orphan_rc == 0 && orphan.status == WPSBT_STOP &&
               strstr(orphan.reason, "label without output info") != NULL))
             printf("  orphan probe: decoded=%d removed=%d len=%zu rc=%d "
@@ -703,12 +703,12 @@ static void sp_test_sparrow_spend(void) {
         spchk("sparrow: orphan SP output label rejected",
               orphan_rc == 0 && orphan.status == WPSBT_STOP &&
               strstr(orphan.reason, "label without output info") != NULL);
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
 
     wpsbt_summary_t sum;
-    wallet_set_network(1);
-    int rc = wallet_psbt_load((const uint8_t *)SPARROW_SPEND_B64,
+    kiss_set_network(1);
+    int rc = kiss_psbt_load((const uint8_t *)SPARROW_SPEND_B64,
                               strlen(SPARROW_SPEND_B64), &sum);
     spchk("sparrow: loads", rc == 0);
     if (rc != 0) { printf("  load rc=%d\n", rc); return; }
@@ -726,9 +726,9 @@ static void sp_test_sparrow_spend(void) {
 // is already open from the earlier suites; fixtures are testnet.
 static void sp_test_load(void) {
     wpsbt_summary_t sum;
-    wallet_set_network(1);
+    kiss_set_network(1);
 
-    int rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+    int rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_B64,
                               strlen(SPV_PSBT_B64), &sum);
     spchk("SP fixture load rc", rc == 0);
     if (rc != 0) printf("  load rc=%d\n", rc);
@@ -741,7 +741,7 @@ static void sp_test_load(void) {
           sum.outs[1].is_change && sum.change_sats == 20000);
     spchk("v2 fee math", sum.send_sats == 95000 && sum.fee_sats == 5000);
     spchk("no unknown-field stop for SP fields", sum.n_unknown == 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // Finding #2: a PSBTv2 that ALSO smuggles a global unsigned tx (0x00) is a
     // substitution trap - display reads the embedded tx, signing builds from the
@@ -776,49 +776,49 @@ static void sp_test_load(void) {
     printf("  [hybrid probe] libwally loose rc=%d version=%d has_tx=%d\n",
            hrc, hp ? (int)hp->version : -1, hp ? (hp->tx != NULL) : -1);
     if (hp) wally_psbt_free(hp);
-    rc = wallet_psbt_load(hybrid, sizeof hybrid, &sum);
+    rc = kiss_psbt_load(hybrid, sizeof hybrid, &sum);
     spchk("v2 + embedded global tx hybrid refused",
           !(rc == 0 && sum.status == WPSBT_READY));
-    if (rc == 0) wallet_psbt_free();
+    if (rc == 0) kiss_psbt_free();
 
     // coordinator-supplied per-input shares get wiped, load stays READY
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_FOREIGN_SHARE_B64,
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_FOREIGN_SHARE_B64,
                           strlen(SPV_PSBT_FOREIGN_SHARE_B64), &sum);
     spchk("foreign-share fixture still READY",
           rc == 0 && sum.status == WPSBT_READY && sum.n_sp == 1);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // SP info inside a v0 PSBT -> STOP
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_V0_SP_B64,
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_V0_SP_B64,
                           strlen(SPV_PSBT_V0_SP_B64), &sum);
     spchk("v0 + SP info stops",
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "PSBTv2"));
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // sighash SINGLE with an SP output -> STOP (existing ALL-only gate)
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_SIGHASH_B64,
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_SIGHASH_B64,
                           strlen(SPV_PSBT_SIGHASH_B64), &sum);
     spchk("SP sighash SINGLE stops",
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "sighash"));
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // A BIP376 SP tweak (0x20) on a NON-taproot input is malformed/hostile: SP
     // spend fields only apply to a received P2TR coin, so the signer must refuse
     // (this fixture bolts a tweak onto a P2WPKH input). Real P2TR BIP376 spends
     // are exercised by sp_test_spend against embit-built fixtures.
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_BIP376_B64,
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_BIP376_B64,
                           strlen(SPV_PSBT_BIP376_B64), &sum);
     spchk("SP tweak on a non-taproot input stops",
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "taproot"));
-    wallet_psbt_free();
+    kiss_psbt_free();
 
     // same fixture on MAINNET -> wrong-network STOP (input path is 84h/1h)
-    wallet_set_network(0);
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+    kiss_set_network(0);
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_B64,
                           strlen(SPV_PSBT_B64), &sum);
     spchk("SP fixture on mainnet stops as wrong network",
           rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, "network"));
-    wallet_psbt_free();
+    kiss_psbt_free();
 }
 
 // Sign path: the loader already derived + filled everything, so signing is the
@@ -830,13 +830,13 @@ static void sp_test_sign(void) {
     wpsbt_summary_t sum;
     uint8_t out1[4096], out2[4096];
     size_t w1 = 0, w2 = 0;
-    wallet_set_network(1);
+    kiss_set_network(1);
 
-    int rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+    int rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_B64,
                               strlen(SPV_PSBT_B64), &sum);
     spchk("sign: fixture loads READY", rc == 0 && sum.status == WPSBT_READY);
-    spchk("sign rc", wallet_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
-    wallet_psbt_free();
+    spchk("sign rc", kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
+    kiss_psbt_free();
 
     struct wally_psbt *p = NULL;
     spchk("signed psbt strict-parses",
@@ -868,14 +868,14 @@ static void sp_test_sign(void) {
     }
 
     // determinism: an identical load+sign yields identical bytes
-    rc = wallet_psbt_load((const uint8_t *)SPV_PSBT_B64,
+    rc = kiss_psbt_load((const uint8_t *)SPV_PSBT_B64,
                           strlen(SPV_PSBT_B64), &sum);
     spchk("re-load READY", rc == 0 && sum.status == WPSBT_READY);
-    spchk("re-sign rc", wallet_psbt_sign(out2, sizeof out2, &w2) == 0);
+    spchk("re-sign rc", kiss_psbt_sign(out2, sizeof out2, &w2) == 0);
     spchk("sign is deterministic", w1 == w2 && memcmp(out1, out2, w1) == 0);
-    wallet_psbt_free();
+    kiss_psbt_free();
 
-    wallet_set_network(0);
+    kiss_set_network(0);
 }
 
 int test_sp(void) {

@@ -74,8 +74,8 @@ void camera_spike_set_bus(void *i2c_bus);
 bool camera_entropy_start(void);
 void camera_entropy_tap(void);
 // Sources 1 and 2, SEPARATELY: chain_out = the fold over sampled frames,
-// trng_out = the chip read taken at capture. NEITHER is a seed. wallet_setup
-// folds both with the tap chain (wallet_entropy_mix3) before any mnemonic
+// trng_out = the chip read taken at capture. NEITHER is a seed. kiss_setup
+// folds both with the tap chain (kiss_entropy_mix3) before any mnemonic
 // exists, so the call that makes a wallet names all three inputs. Both buffers
 // are wiped here as they are handed over, which is why this is one call and
 // not two.
@@ -95,7 +95,7 @@ int camera_entropy_progress(void);
 enum { ENT_R_OK = 0, ENT_R_DARK, ENT_R_STILL };
 int camera_entropy_reason(void);
 
-// ---- proof mode: CAMERA AUDIT (wallet_proof.h). One whole raw frame, frozen on
+// ---- proof mode: CAMERA AUDIT (kiss_proof.h). One whole raw frame, frozen on
 // the preview and copied out for the SD write + SHA256. No meter and no gates:
 // any frame proves the machinery. The full-frame PSRAM copy is allocated at
 // start so failure happens there, never at the owner's tap.

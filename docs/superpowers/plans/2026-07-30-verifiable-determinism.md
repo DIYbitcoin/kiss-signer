@@ -8,8 +8,8 @@
 Dark Skippy is a signing-time attack: malicious firmware chooses signature
 nonces that leak the master seed across two signatures. KISS already signs
 deterministically on both curves (ECDSA `EC_FLAG_GRIND_R` at
-`main/wallet_psbt.c:986`; Schnorr with `aux = sha256(spend_priv || psbt_hash)`
-at `main/wallet_psbt.c:938`), so the nonce is not free. This work turns that
+`main/kiss_psbt.c:986`; Schnorr with `aux = sha256(spend_priv || psbt_hash)`
+at `main/kiss_psbt.c:938`), so the nonce is not free. This work turns that
 latent property into a guaranteed, tested one, so a firmware that varies the
 nonce to leak the seed is detectable. It adds no signing code and does not
 change signing behavior; it pins the existing behavior and documents how to
@@ -51,7 +51,7 @@ The one real risk is the ECDSA low-R grind: KISS's bytes only reproduce
 independently if the reference replicates libwally's exact RFC6979 + low-R
 counter mechanism. Resolve this first with a throwaway spike.
 
-- Sign one fixed native-segwit PSBT with KISS (`wallet_psbt_sign`), print the
+- Sign one fixed native-segwit PSBT with KISS (`kiss_psbt_sign`), print the
   DER/compact signature hex.
 - Independently reproduce those exact bytes. Try, in order, until one matches
   byte-for-byte: (a) embit's ECDSA sign if it exposes low-R grinding; (b) a
@@ -82,7 +82,7 @@ method; the generator in Task 2 uses it.
 ## Task 3: golden-vector assertions
 
 - **ECDSA**, in `sim/test_crypto.c`'s per-type sign roundtrip
-  (`sim/test_crypto.c:440-469`): after `wallet_psbt_sign`, extract the input
+  (`sim/test_crypto.c:440-469`): after `kiss_psbt_sign`, extract the input
   signature from the signed PSBT, hex-encode it, and assert it equals
   `SV_SIGN_<TYPE>` from `sim/sign_vectors.h`. Reuse the existing `chk(name,
   got, want)` string comparator.

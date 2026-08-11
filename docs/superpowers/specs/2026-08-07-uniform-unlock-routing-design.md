@@ -35,7 +35,7 @@ be caught by an attacker who knows where to look.
 **The rule.** Plain word opens the decoy. Word plus any recognised modifier
 stroke opens the passphrase keyboard. On every device, configured or not.
 
-**What changes.** The `real == WDG_NONE` fork goes. `wallet_duress_classify`
+**What changes.** The `real == WDG_NONE` fork goes. `kiss_duress_classify`
 stops being asked "is this THE configured stroke" and is asked only "is this a
 deliberate modifier stroke at all". `greal` no longer routes; it stays in NVS
 as a preference for Stage 2 and for the Settings rehearsal screen, and its
@@ -57,9 +57,9 @@ describes the product, not this device. An attacker reading it learns what the
 manual already says.
 
 **Files.** `main/main.c` (the fork and the gesture routing),
-`main/wallet_duress.c` / `.h` (classify contract),
-`main/wallet_settings.c:1194` (the row, made unconditional), plus the decoy
-home line in `main/wallet_ui.c`.
+`main/kiss_duress.c` / `.h` (classify contract),
+`main/kiss_settings.c:1194` (the row, made unconditional), plus the decoy
+home line in `main/kiss_ui.c`.
 
 **Strings.** One new key for the decoy line, which means 21 locales. Check
 whether an existing string already says this before adding one; the passphrase

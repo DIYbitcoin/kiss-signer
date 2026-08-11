@@ -4,7 +4,7 @@
 
 **Goal:** Make a configured device and a factory fresh one answer every unlock gesture identically, so the device stops disclosing that a hidden wallet exists.
 
-**Architecture:** The routing decision moves out of `main/main.c` (which no test binary links) into a pure function in `main/wallet_duress.c` (which every test binary links). The new rule ignores the stored stroke entirely: a recognised word opens the decoy, a recognised word plus any modifier stroke opens the passphrase keyboard. `greal` stays in NVS but stops deciding anything observable.
+**Architecture:** The routing decision moves out of `main/main.c` (which no test binary links) into a pure function in `main/kiss_duress.c` (which every test binary links). The new rule ignores the stored stroke entirely: a recognised word opens the decoy, a recognised word plus any modifier stroke opens the passphrase keyboard. `greal` stays in NVS but stops deciding anything observable.
 
 **Tech Stack:** C99, ESP-IDF on device, the desktop simulator for tests, LVGL for the two UI touches.
 
@@ -14,14 +14,14 @@
 
 `unlock_kind()` lives in `main/main.c`. `sim/build_test.sh` links eighteen files from `main/` and `main.c` is not one of them, because it pulls in LVGL, the game and the whole ESP-IDF surface. A routing rule left there cannot be tested on the host at all, which is exactly how the current fork survived.
 
-`main/wallet_duress.c` is already linked into `/tmp/kisstest` and is already pure and host testable, the same way `wallet_tapent.c` and `wallet_dice_q.c` are. The policy belongs there.
+`main/kiss_duress.c` is already linked into `/tmp/kisstest` and is already pure and host testable, the same way `kiss_tapent.c` and `kiss_dice_q.c` are. The policy belongs there.
 
 ## File structure
 
-- **Modify** `main/wallet_duress.h` — add the `WDR_*` outcomes and the `wallet_duress_route` declaration.
-- **Modify** `main/wallet_duress.c` — implement `wallet_duress_route`, outside the `ESP_PLATFORM` guard so both builds get one copy.
-- **Modify** `main/main.c:1598-1624` — `unlock_kind` classifies the word and the stroke, then asks `wallet_duress_route` for the answer.
-- **Modify** `main/wallet_settings.c:1193-1200` — drop the `wallet_session_decoy()` condition around the duress row.
+- **Modify** `main/kiss_duress.h` — add the `WDR_*` outcomes and the `kiss_duress_route` declaration.
+- **Modify** `main/kiss_duress.c` — implement `kiss_duress_route`, outside the `ESP_PLATFORM` guard so both builds get one copy.
+- **Modify** `main/main.c:1598-1624` — `unlock_kind` classifies the word and the stroke, then asks `kiss_duress_route` for the answer.
+- **Modify** `main/kiss_settings.c:1193-1200` — drop the `kiss_session_decoy()` condition around the duress row.
 - **Modify** `main/main.c:2326` area — the quiet home line, in the same band and register as the build id.
 - **Modify** `i18n/en.json` and the twenty other locales — one new key, one corrected key.
 - **Modify** `sim/test_duress.c` — the tests that pin the new rule.
@@ -31,8 +31,8 @@
 ### Task 1: The routing policy, as a pure function
 
 **Files:**
-- Modify: `main/wallet_duress.h`
-- Modify: `main/wallet_duress.c`
+- Modify: `main/kiss_duress.h`
+- Modify: `main/kiss_duress.c`
 - Test: `sim/test_duress.c`
 
 - [ ] **Step 1: Write the failing tests**
@@ -42,27 +42,27 @@ Append inside `test_duress_layer()` in `sim/test_duress.c`, just before its `ret
 ```c
     // ---- routing policy (uniform: the stored stroke must not change it) ----
     dchk("no word at all opens nothing",
-         wallet_duress_route(false, WDG_NONE) == WDR_NONE);
+         kiss_duress_route(false, WDG_NONE) == WDR_NONE);
     dchk("a scribble with a stroke still opens nothing",
-         wallet_duress_route(false, WDG_CIRCLE) == WDR_NONE);
+         kiss_duress_route(false, WDG_CIRCLE) == WDR_NONE);
     dchk("word alone opens the decoy",
-         wallet_duress_route(true, WDG_NONE) == WDR_DECOY);
+         kiss_duress_route(true, WDG_NONE) == WDR_DECOY);
     for (int g = WDG_NONE + 1; g < WDG_N; g++)
         dchk("word plus any stroke reaches the passphrase",
-             wallet_duress_route(true, g) == WDR_REAL);
+             kiss_duress_route(true, g) == WDR_REAL);
 
     // The property the whole change exists for: the answer must not depend on
     // what is stored. Before this, drawing the word once told an attacker
     // whether a stroke was configured, because the device either prompted or
     // did not.
     for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
-        wallet_duress_set(cfg);
+        kiss_duress_set(cfg);
         dchk("word alone opens the decoy whatever is configured",
-             wallet_duress_route(true, WDG_NONE) == WDR_DECOY);
+             kiss_duress_route(true, WDG_NONE) == WDR_DECOY);
         dchk("word plus a stroke reaches the passphrase whatever is configured",
-             wallet_duress_route(true, WDG_UNDERLINE) == WDR_REAL);
+             kiss_duress_route(true, WDG_UNDERLINE) == WDR_REAL);
     }
-    wallet_duress_set(WDG_NONE);
+    kiss_duress_set(WDG_NONE);
 ```
 
 - [ ] **Step 2: Run the tests and watch them fail to build**
@@ -71,11 +71,11 @@ Append inside `test_duress_layer()` in `sim/test_duress.c`, just before its `ret
 bash sim/build_test.sh
 ```
 
-Expected: the build fails with `implicit declaration of function 'wallet_duress_route'` and `'WDR_NONE' undeclared`.
+Expected: the build fails with `implicit declaration of function 'kiss_duress_route'` and `'WDR_NONE' undeclared`.
 
 - [ ] **Step 3: Declare the contract**
 
-In `main/wallet_duress.h`, after the `WDG_*` enum:
+In `main/kiss_duress.h`, after the `WDG_*` enum:
 
 ```c
 // ---- unlock routing ----
@@ -90,16 +90,16 @@ enum {
 // word_ok: the drawing before the final stroke read as the opening word.
 // stroke:  WDG_* for the final stroke, WDG_NONE when there was not one.
 //
-// Deliberately does NOT consult wallet_duress_real(). It used to, and that was
+// Deliberately does NOT consult kiss_duress_real(). It used to, and that was
 // the whole leak: a device with a stroke configured opened the decoy on the
 // bare word while a device without one showed a passphrase keyboard, so one
 // gesture told an attacker which kind of device they were holding. Any
 // recognised stroke now reaches the passphrase on every device, which costs
 // nothing -- the stroke was never the secret, the passphrase is.
-int wallet_duress_route(bool word_ok, int stroke);
+int kiss_duress_route(bool word_ok, int stroke);
 ```
 
-`main/wallet_duress.h` currently has **no includes at all**, so this is required, immediately after `#pragma once`:
+`main/kiss_duress.h` currently has **no includes at all**, so this is required, immediately after `#pragma once`:
 
 ```c
 #include <stdbool.h>
@@ -107,10 +107,10 @@ int wallet_duress_route(bool word_ok, int stroke);
 
 - [ ] **Step 4: Implement it**
 
-In `main/wallet_duress.c`, outside and above the `#ifdef ESP_PLATFORM` storage block so both builds compile one copy:
+In `main/kiss_duress.c`, outside and above the `#ifdef ESP_PLATFORM` storage block so both builds compile one copy:
 
 ```c
-int wallet_duress_route(bool word_ok, int stroke)
+int kiss_duress_route(bool word_ok, int stroke)
 {
     if (!word_ok)
         return WDR_NONE;
@@ -129,7 +129,7 @@ Expected: no `FAIL` lines, and the new `PASS:` lines for the routing checks appe
 - [ ] **Step 6: Commit**
 
 ```bash
-git add main/wallet_duress.h main/wallet_duress.c sim/test_duress.c
+git add main/kiss_duress.h main/kiss_duress.c sim/test_duress.c
 git commit -m "the routing answer stops depending on what is stored"
 ```
 
@@ -162,18 +162,18 @@ static int unlock_kind(void) {
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
-      int stroke = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+      int stroke = kiss_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
       if (stroke != WDG_NONE)
-        return wallet_duress_route(true, stroke);
+        return kiss_duress_route(true, stroke);
       // an unrecognised final scribble is not a modifier: fall through to the
       // plain-word test, which lands on the decoy
     }
   }
-  return wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+  return kiss_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
 }
 ```
 
-Note what left: the `const int real = wallet_duress_real();` line, the `real != WDG_NONE &&` guard on the modifier branch, the `== real` comparison, and the `real == WDG_NONE ? 1 : 0` fork.
+Note what left: the `const int real = kiss_duress_real();` line, the `real != WDG_NONE &&` guard on the modifier branch, the `== real` comparison, and the `real == WDG_NONE ? 1 : 0` fork.
 
 - [ ] **Step 2: Fix the stale comment on the caller**
 
@@ -195,7 +195,7 @@ Replace that comment, because "or no stroke set" is the behaviour being removed:
 bash sim/build_sim.sh
 ```
 
-Expected: `built /tmp/fruitsim`, no warnings about `wallet_duress_real` being unused (it is still used by Settings).
+Expected: `built /tmp/fruitsim`, no warnings about `kiss_duress_real` being unused (it is still used by Settings).
 
 - [ ] **Step 4: Commit**
 
@@ -209,17 +209,17 @@ git commit -m "one gesture, one answer, on every device"
 ### Task 3: The Settings row, unconditional
 
 **Files:**
-- Modify: `main/wallet_settings.c:1193-1200`
+- Modify: `main/kiss_settings.c:1193-1200`
 
 - [ ] **Step 1: Drop the condition**
 
 Replace:
 
 ```c
-    const int g = wallet_duress_real();
-    if (!(wallet_session_decoy() && g != WDG_NONE)) {
+    const int g = kiss_duress_real();
+    if (!(kiss_session_decoy() && g != WDG_NONE)) {
         wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
-               g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+               g == WDG_NONE ? tr(STR_GD_OFF) : tr(kiss_duress_label_key(g)),
                WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
                duress_cb, NULL);
     }
@@ -233,17 +233,17 @@ with:
     // where to look could catch a coerced owner handing over the spare. It is
     // safe to show now only because Task 2 removed the behavioural fork: there
     // is no longer anything for the row's presence to corroborate.
-    const int g = wallet_duress_real();
+    const int g = kiss_duress_real();
     wt_row(s_scr, tr(STR_I_ROW_DURESS), tr(STR_GD_SET_NOTE),
-           g == WDG_NONE ? tr(STR_GD_OFF) : tr(wallet_duress_label_key(g)),
+           g == WDG_NONE ? tr(STR_GD_OFF) : tr(kiss_duress_label_key(g)),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
            duress_cb, NULL);
 ```
 
-- [ ] **Step 2: Check whether `wallet_session_decoy` is now unused in this file**
+- [ ] **Step 2: Check whether `kiss_session_decoy` is now unused in this file**
 
 ```bash
-grep -n "wallet_session_decoy" main/wallet_settings.c
+grep -n "kiss_session_decoy" main/kiss_settings.c
 ```
 
 If there are no remaining hits, remove the include that provided it only for this use. If there are other hits, leave the include alone.
@@ -259,7 +259,7 @@ Expected: `text overlap gate: 0 findings across 21 locales`. The row now renders
 - [ ] **Step 4: Commit**
 
 ```bash
-git add main/wallet_settings.c
+git add main/kiss_settings.c
 git commit -m "the row that proves nothing can be shown to everyone"
 ```
 
@@ -363,7 +363,7 @@ git commit -m "the copy stops naming which wallet the row lives in"
 `main/main.c:2326` builds the small build id line:
 
 ```c
-  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
+  s_home_build_id = kiss_build_id_make(s_wallet, 48, 424, false, false);
 ```
 
 Add the hint beside it, in the same quiet register, right after that line:
@@ -379,7 +379,7 @@ Add the hint beside it, in the same quiet register, right after that line:
 - [ ] **Step 2: Verify the geometry against the theme kit**
 
 ```bash
-grep -n "define WT_NOTE\|lv_obj_t \*wt_note" main/wallet_theme.h main/wallet_theme.c | head
+grep -n "define WT_NOTE\|lv_obj_t \*wt_note" main/kiss_theme.h main/kiss_theme.c | head
 ```
 
 Confirm `wt_note(parent, text, x, y, w, h)` matches that call. If the signature differs, use the one in the header rather than the call above.

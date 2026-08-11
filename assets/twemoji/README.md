@@ -4,7 +4,7 @@
 (https://github.com/twitter/twemoji), copyright 2020 Twitter, Inc and other
 contributors. Graphics licensed CC-BY 4.0
 (https://creativecommons.org/licenses/by/4.0/). Used as the KISS wordmark logo
-on the wallet home screen (baked via assets/generators/wallet_mock.py).
+on the wallet home screen (baked via assets/generators/kiss_mock.py).
 
 ## flags/
 Language-picker flags (20 regional-indicator emoji, 72x72), same source and

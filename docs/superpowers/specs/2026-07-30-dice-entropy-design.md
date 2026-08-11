@@ -63,14 +63,14 @@ Goals
   12 words (with a strong passphrase as the quantum lever); 24 stays available for restore.
 
 Non-goals (YAGNI)
-- d20 support. d6 only for v1. (`wallet_dice` leaves room to add it later.)
+- d20 support. d6 only for v1. (`kiss_dice` leaves room to add it later.)
 - Folding dice with the on-device sources (breaks verifiability — the whole point).
 
 Reversed non-goal (2026-08-01): this spec originally waved bias checking away
 with "SHA256 whitens; the floor is conservative". That reasoning was backwards.
 Whitening is exactly why the rolls must be judged raw: 50 presses of one key
 hash into words that look as good as anyone's, and nothing downstream can ever
-notice. `wallet_dice_q.c` now judges the digit string before the hash — face
+notice. `kiss_dice_q.c` now judges the digit string before the hash — face
 entropy, step entropy (the same statistic on consecutive differences, which is
 a bijection for fair rolls, so one threshold serves both) and a repeated-block
 scan. The bar `WD_RATE = 2050` milli-bits per roll sits between log2(4) and
@@ -92,7 +92,7 @@ because dice entropy is the owner's trust root, not the device's.
 4. Entropy fed to BIP39:
    - **24 words:** `entropy = H` (all 32 bytes).
    - **12 words:** `entropy = H[0..16]` (first 16 bytes).
-5. `mnemonic = BIP39(entropy)` via the existing `wallet_setup_entropy(entropy, need)`,
+5. `mnemonic = BIP39(entropy)` via the existing `kiss_setup_entropy(entropy, need)`,
    where `need = s_count == 24 ? 32 : 16`.
 
 There is deliberately nothing kiss-specific in steps 3–5. Verification anchor:
@@ -115,48 +115,48 @@ floor is enforced on **roll count**, not output width. Below the floor: no seed.
 
 ## 5. Components
 
-### `wallet_dice` — pure, host-testable module (mirrors `wallet_tapent`)
+### `kiss_dice` — pure, host-testable module (mirrors `kiss_tapent`)
 State: the digit string and a count. No UI, no clock, no globals beyond the buffer.
 
 ```c
-void         wallet_dice_reset(void);
+void         kiss_dice_reset(void);
 // Append one face (1..6). Returns 1 if accepted, 0 if invalid or the buffer is full.
-int          wallet_dice_roll(int face);
+int          kiss_dice_roll(int face);
 // Remove the last accepted roll. Returns 1 if one was removed, 0 if empty. (Undo.)
-int          wallet_dice_undo(void);
+int          kiss_dice_undo(void);
 // Rolls accepted so far.
-unsigned     wallet_dice_count(void);
+unsigned     kiss_dice_count(void);
 // Read-only view of the digit string, for the verification display. NUL-terminated.
-const char  *wallet_dice_digits(void);
+const char  *kiss_dice_digits(void);
 // SHA256 the digits and copy the first `len` bytes (16 or 32) to `out`.
 // Returns 0 on success; -1 if len is not 16/32, or count is below the floor for len.
-int          wallet_dice_take(uint8_t *out, unsigned len);
+int          kiss_dice_take(uint8_t *out, unsigned len);
 ```
 
 - Floor check inside `take`: `len==32 ⇒ count ≥ 99`; `len==16 ⇒ count ≥ 50`.
 - `reset` and `take` wipe the digit buffer with `wally_bzero` — the roll string is seed
-  material and must not linger (same discipline as `wallet_tapent`/`tap_done_cb`).
+  material and must not linger (same discipline as `kiss_tapent`/`tap_done_cb`).
 - Buffer size `DICE_MAX` ≥ 120 (comfortably above 99).
 
-### `dice_screen` — UI in `wallet_setup.c`
+### `dice_screen` — UI in `kiss_setup.c`
 - Entered as a new method from the setup choice (see §6).
-- A d6 keypad: six buttons `1`–`6`. Each press calls `wallet_dice_roll` and updates a
+- A d6 keypad: six buttons `1`–`6`. Each press calls `kiss_dice_roll` and updates a
   tally readout `NN / <floor>` (floor is 50 or 99 per `s_count`), styled like the tap
   segment counter.
-- An **undo** control (backspace) → `wallet_dice_undo`.
-- The "done" affordance is disabled until `wallet_dice_count() ≥ floor`.
-- On done: `wallet_dice_take(entropy, need)`; on success →
-  `wallet_setup_entropy(entropy, need)` → the existing words / spot-check / write-down
+- An **undo** control (backspace) → `kiss_dice_undo`.
+- The "done" affordance is disabled until `kiss_dice_count() ≥ floor`.
+- On done: `kiss_dice_take(entropy, need)`; on success →
+  `kiss_setup_entropy(entropy, need)` → the existing words / spot-check / write-down
   flow. Wipe `entropy` immediately after.
 - **Verification card** before "done" commits: show the SHA256 hex of the current digit
   string and a one-line note — "verify: SHA256 of your rolls, offline." (Full 64-hex is
   scrollable; the digit string is viewable so the owner can confirm what was hashed.)
-- **CANCEL** wipes the buffer (`wallet_dice_reset`) and returns — no screen without an
+- **CANCEL** wipes the buffer (`kiss_dice_reset`) and returns — no screen without an
   exit, matching the tap screen rule.
 
 ### Failure path
 Reuse the existing `NO SEED MADE` card + `TRY AGAIN` (`STR_W_ENT_FAIL_T/B`,
-`ent_retry_cb`). `wallet_dice_take` failing after the floor is met cannot happen in
+`ent_retry_cb`). `kiss_dice_take` failing after the floor is met cannot happen in
 practice (count ≥ floor, len ∈ {16,32}), but if it ever does, the owner sees the card
 instead of a dead button — same defensive posture as `tap_done_cb`.
 
@@ -175,20 +175,20 @@ Change: after the owner picks *create new* and a word count, present a **method 
 - **Camera + taps** → existing `entropy_screen` (Path 1, unchanged).
 - **Dice** → `dice_screen` (Path 2, this spec).
 
-Both converge on `wallet_setup_entropy(entropy, need)`, so the words / spot-check /
+Both converge on `kiss_setup_entropy(entropy, need)`, so the words / spot-check /
 write-down / storage flow downstream is shared and untouched. The method choice is the
 only new branch in the setup wizard.
 
 ## 7. Testing (`sim/test_dice.c`, host)
 
 Known-answer vectors are the proof of verifiability and live in CI:
-1. **KAT:** a fixed roll string → assert `wallet_dice_take` output equals the hex from
+1. **KAT:** a fixed roll string → assert `kiss_dice_take` output equals the hex from
    `printf '<string>' | sha256sum` (and its first 16 bytes for the 12-word case).
 2. **BIP39 cross-check:** that entropy → assert the mnemonic equals the output of an
    independent reference BIP39 implementation (documented in the test).
 3. **Floor enforcement:** `take` returns -1 at 49 rolls / 98 rolls; 0 at 50 / 99.
 4. **Undo:** roll N, undo, count decrements, digit string shortens correctly.
-5. **Invalid face:** `wallet_dice_roll(0)` / `roll(7)` rejected, count unchanged.
+5. **Invalid face:** `kiss_dice_roll(0)` / `roll(7)` rejected, count unchanged.
 6. **Wipe:** after `reset`/`take`, the buffer is zeroed.
 
 Sim build (`build_sim.sh`) and the full host suite (`build_test.sh`) must stay green.

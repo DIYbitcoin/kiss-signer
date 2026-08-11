@@ -32,7 +32,7 @@
 #include "i18n_keys.h"
 #include "osd_strips.h"
 #include "osd_text.h"
-#include "wallet_theme.h"
+#include "kiss_theme.h"
 
 #define CANVAS_W 1000
 #define CANVAS_H 96

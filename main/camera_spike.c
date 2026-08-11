@@ -37,13 +37,13 @@
 #include <wally_crypto.h>
 
 #include "esp_random.h"
-#include "wallet_crypto.h"   // wallet_entropy_mix: camera hash + TRNG -> seed
-#include "wallet_proof.h"    // WPROOF_FRAME_BYTES: the one size a proof names
+#include "kiss_crypto.h"   // kiss_entropy_mix: camera hash + TRNG -> seed
+#include "kiss_proof.h"    // WPROOF_FRAME_BYTES: the one size a proof names
 
 #include "k_quirc.h"
 #include "i18n.h"
 #include "osd_strips.h"
-#include "wallet_theme.h"   // wt_lock_565: the reticle's acquire colour
+#include "kiss_theme.h"   // wt_lock_565: the reticle's acquire colour
 
 static const char *TAG = "camspike";
 
@@ -244,7 +244,7 @@ void camera_scan_progress(int seen, int total) {
 // unpredictability that one frame cannot, and dilutes the fixed pattern
 // described below rather than counting it once per attempt.
 //
-// The refusal bought nothing. wallet_setup folds this chain together with
+// The refusal bought nothing. kiss_setup folds this chain together with
 // esp_fill_random AND the user's tap timing, so a wholly predictable scene
 // still leaves the seed no worse than the other two.
 //
@@ -410,7 +410,7 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
       uint8_t d[32];
       if (wally_sha256((const unsigned char *)s_ent_sub, k * sizeof s_ent_sub[0],
                        d, sizeof d) == WALLY_OK &&
-          wallet_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
+          kiss_entropy_mix(s_ent_chain, d, s_ent_chain) == 0) {
         if (s_ent_accum < ENT_TARGET_X10) s_ent_accum += add;
       }
       wally_bzero(d, sizeof d);
