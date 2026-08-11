@@ -598,6 +598,23 @@ static void waysin_word_cb(lv_event_t *e)
 
 static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
+// What this device is willing to admit about its duress mark.
+//
+// On a decoy session the answer is always "nothing configured", and that is the
+// feature rather than a hole in it. The spare is what an owner hands over under
+// coercion; a row reading SET tells whoever is standing over them that a second
+// wallet exists and was rehearsed, which is the one fact the spare exists to
+// withhold. The sub page was worse than the row: its chip named WHICH mark.
+//
+// The feature stays visible, because a row that disappears is its own tell and
+// the six marks were never the secret -- the passphrase is. What is hidden is
+// this device's state. A real session sees the truth, which is where the owner
+// is when they need it.
+static int duress_shown(void)
+{
+    return kiss_session_decoy() ? WDG_NONE : kiss_duress_real();
+}
+
 static void duress_cb(lv_event_t *e)
 {
     (void)e;
@@ -610,7 +627,7 @@ static void duress_cb(lv_event_t *e)
     // this device still answers to KISS at all.
     {
         lv_obj_t *row = wt_diagram_row(s_scr);
-        const int g = kiss_duress_real();
+        const int g = duress_shown();
         wt_chip(row, g == WDG_NONE ? tr(STR_GD_OFF)
                                    : tr(kiss_duress_label_key(g)),
                 g != WDG_NONE);
@@ -1406,7 +1423,7 @@ void kiss_settings_open(lv_obj_t *parent)
     // which is the exact fault 324ef09 renamed the row to escape. It reports
     // whether a way in has been rehearsed and nothing else -- never WHICH mark,
     // which is the reason the label could come back at all.
-    const int g = kiss_duress_real();
+    const int g = duress_shown();
     wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
            g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_ON),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
