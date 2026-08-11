@@ -648,6 +648,40 @@ int test_sdseed_layer(void) {
          kiss_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
     dchk("storage: AMNESIC -> SD words", seed_loads_as(SD_WORDS));
 
+    // ---- commit outcomes that mean opposite things ----
+    //
+    // kiss_seed_commit's callers used to read it as "nonzero is failure, throw
+    // the staging away". Two of its results do not mean that, and one of them
+    // meant the opposite: the staged RAM copy was the only one left.
+    //
+    // Get to a KEEP wallet first, so the replacement below has a prior wallet
+    // to scrub -- which is the only transition that runs the scrub at all.
+    dchk("storage: to KEEP for the commit-outcome cases",
+         kiss_seed_move_to(WSEED_MODE_KEEP) == WSEED_OK &&
+         kiss_seed_mode() == WSEED_MODE_KEEP);
+
+    // The erased-and-could-not-restore case, reproduced rather than described.
+    dchk("storage: stage a replacement KEEP wallet",
+         kiss_seed_stage(SD_WORDS_ALT) == WSEED_OK);
+    kiss_seed_test_fail_next(WSEED_TEST_FAIL_SCRUB);
+    dchk("storage: a scrub that erased and could not restore says RECOVER",
+         kiss_seed_commit() == WSEED_ERR_RECOVER);
+    // The point of the distinct code: it is the one result whose staging must
+    // survive, because at that instant nothing else holds the words.
+    dchk("storage: the staged words are still readable after RECOVER",
+         seed_loads_as(SD_WORDS_ALT));
+    dchk("storage: RECOVER is not any other failure",
+         WSEED_ERR_RECOVER != WSEED_ERR_SD_IO &&
+         WSEED_ERR_RECOVER != WSEED_ERR_CLEANUP);
+    kiss_seed_discard();
+
+    // Hand the file back the state it had before this block: an SD wallet with
+    // its card present, which is what the wipe cases below start from.
+    dchk("storage: restore the SD wallet after the RECOVER case",
+         kiss_seed_store(SD_WORDS) == WSEED_OK &&
+         kiss_seed_move_to(WSEED_MODE_SD) == WSEED_OK &&
+         seed_loads_as(SD_WORDS));
+
     // WIPE is complete once the only device key is destroyed, even if deleting
     // the now-useless ciphertext fails. Prove that first with a present card.
     size_t old_blob_len = 0;
