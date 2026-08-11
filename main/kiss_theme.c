@@ -2528,11 +2528,30 @@ void wt_diagram_pair(lv_obj_t *parent)
     wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
 }
 
+// Reserve exactly what this iteration writes, which is a character and, only
+// on a group boundary, a space before it.
+//
+// The old guard reserved two every time, so a caller whose buffer was sized to
+// the exact answer lost its final character. That is not a hypothetical: a
+// txid is 64 hex characters, blocks to 79, and gt[80] on the DETAILS page is
+// 79 plus the NUL -- correct, and the one size the over-reservation bit. The
+// id rendered 63 characters long with no ellipsis and no gap, its last block
+// three wide instead of four, which is what plenty of honest addresses look
+// like. An owner comparing it against a coordinator matched every leading
+// block and had nothing to tell them the end was missing; an owner who copied
+// it down to look the transaction up later wrote down an id that matches
+// nothing on chain.
+//
+// Every other caller had slack and is unaffected, byte for byte. fitcheck
+// keeps it that way.
 void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;
-    for (size_t i = 0; in[i] && o + 2 < out_len; i++) {
-        if (i && i % 4 == 0) out[o++] = ' ';
+    if (!out || !out_len) return;
+    for (size_t i = 0; in[i]; i++) {
+        size_t need = (i && i % 4 == 0) ? 2u : 1u;
+        if (o + need + 1 > out_len) break;          // +1 keeps room for the NUL
+        if (need == 2) out[o++] = ' ';
         out[o++] = in[i];
     }
     out[o] = 0;
