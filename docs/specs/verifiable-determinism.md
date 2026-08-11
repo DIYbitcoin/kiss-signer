@@ -84,6 +84,46 @@ The existing sign tests already assert signatures verify and finalize; they do
 not assert the exact bytes, so a nonce change slips through today. The golden
 vectors close that.
 
+## Part 1b: the same check, on the chip that signs
+
+Added 2026-08-11. Part 1 pins the bytes in kisstest, which runs on the host.
+The claim below in this spec's first device-test verdict — that the host build
+"compiles the same libwally amalgamation and the same secp256k1 as the device,
+so the host vectors are authoritative" — is true of the *source* and false of
+the *arithmetic*. secp256k1 selects its field implementation from the compiler:
+`field_5x52.h` where `__SIZEOF_INT128__` exists, `field_10x26.h` otherwise
+(`src/util.h`). A 64-bit host takes the first, riscv32 takes the second. The
+limb code the ESP32-P4 actually runs is code kisstest never compiles.
+
+So `wallet_sign_selftest` (wallet_crypto.c) re-signs two golden vectors on the
+device at boot and compares exact bytes:
+
+- ECDSA over a fixed test key and message, `EC_FLAG_ECDSA | EC_FLAG_GRIND_R`;
+- Schnorr over the same key with a fixed explicit aux, the shape
+  `sp_schnorr_sign` uses.
+
+Both are in `main/boot_sign_vectors.h`, computed by
+`tools/sign_fixtures/gen_boot_vectors.py` — pure Python, hashlib only, no
+libwally, no libsecp256k1, no embit. The ECDSA message is chosen so the
+RFC6979 counter-0 nonce yields a *high* R and the grind loop must run five
+rounds; a vector reachable at counter 0 would be satisfied by plain RFC6979 and
+would pin only half the rule. The generator asserts this, and kisstest asserts
+the discrimination directly: signing the same fixture without `EC_FLAG_GRIND_R`
+must not match, and BIP340 with a zero aux must not match.
+
+Failure is not advisory. `wallet_psbt_sign` calls the selftest (cached after
+the first run) and returns -6 if it did not pass, so a unit whose curve code
+has drifted signs nothing rather than emitting a signature whose nonce nobody
+has checked. `wallet_sign_selftest_force_fail`, non-release only, exists so the
+suite watches that refusal fire — the same reasoning as `OVERLAPCHECK_SELFTEST`.
+
+This runs in release. It carries no mnemonic: the test key is derived from an
+ASCII label, controls nothing, and is meant to be in the binary.
+
+What it does not do: stop malice. Firmware willing to grind a nonce is willing
+to delete this function. It catches a broken or substituted curve
+implementation on real hardware, which is the gap part 1 could not see.
+
 ## Part 2: cross-signer verification, the actual Dark Skippy check
 
 Golden vectors catch an honest codebase drifting. They cannot catch malice: a
@@ -166,6 +206,8 @@ then, publishing the rule precisely (above) is enough for a KISS-aware checker.
 
 ## Device test verdict
 
+**Superseded for part 1b — see the note at the end of this section.**
+
 **DEVICE TEST: NOT REQUIRED** for the cryptography.
 
 The deterministic signing path takes no hardware entropy and no timing input by
@@ -185,3 +227,16 @@ One caveat, documented rather than gating: the part 2 workflow is a user
 procedure, so it should be walked once end to end on real hardware (sign a PSBT
 on device, sign it on a second signer, confirm the bytes match) to prove the
 instructions are correct. That validates the documentation, not the crypto.
+
+**Correction, 2026-08-11 (part 1b).** The paragraph above is wrong about one
+thing: host and device do not run the same field arithmetic. secp256k1 picks
+`field_5x52` on a 64-bit host and `field_10x26` on riscv32, so kisstest never
+executes the limb code the P4 signs with, and the host vectors are authoritative
+only for the source, not for the build. Part 1b's boot selftest exists for that
+gap. It must be seen passing on real hardware once:
+
+**DEVICE TEST: REQUIRED** for part 1b. Flash and boot a P4 unit and confirm the
+log line `signing selftest: PASS (stage 0)`, then sign one PSBT to confirm the
+new gate in `wallet_psbt_sign` does not block a healthy unit. Nothing else in
+the flow changes. Passing kisstest is not this verdict: kisstest cannot compile
+the 32-bit field backend at all.
