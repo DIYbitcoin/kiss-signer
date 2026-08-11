@@ -1119,6 +1119,39 @@ static void verify_screen(lv_obj_t *parent)
     // same corner the badge used, and drawing both put "CAUTION" on top of the
     // count that says the same thing.
 
+    // ---- STOP: the verdict is the screen, nothing else is ----------------
+    // Above the hero, which is what makes that sentence true. It used to sit
+    // below, so a refused transaction still got TOTAL LEAVING in 48px type
+    // over the refusal -- a number the verifier had just declined to stand
+    // behind, printed larger than the reason it declined.
+    //
+    // Worse on the STOPs that fire early. The summary is zeroed before the
+    // parse, and a refusal like "too many outputs" returns before any output
+    // is summed, so the biggest thing on the screen read 0 sats: the signer
+    // asserting a refused transaction moves nothing. And "input amount
+    // unverifiable" is precisely the case where a confident total is the one
+    // claim the screen has no business making.
+    //
+    // Nothing was at risk -- signing is gated on status and the branch returns
+    // before HOLD TO SIGN exists -- but this screen's whole job is not saying
+    // things it cannot support.
+    if (s_sum.status == WPSBT_STOP) {
+        // Up into the band the hero used to hold, rather than leaving 86px of
+        // nothing under the title where a number used to be. The reason is the
+        // only content this screen has, so it begins where the eye lands. Same
+        // left edge and lane as the hero it replaces; the extra height goes to
+        // the reason, which is translated and is the longest string here.
+        lv_obj_t *p = sg_panel(24, 84, 752, SG_PANEL_H + 52, STOP_COL);
+        lv_obj_t *r = sg_lbl(p, tr_reason(s_sum.reason), SG_PAD, SG_PAD,
+                             wt_font23(), STOP_COL);
+        lv_obj_set_width(r, 752 - 2 * SG_PAD);
+        lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
+        // Same 752 lane as the panel it just drew, so the same BACK as verify.
+        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
+                 s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
+        return;
+    }
+
     // ---- the hero -------------------------------------------------------
     // One number, not two. The old screen showed RECIPIENT GETS and TOTAL
     // LEAVING at the same rung and left the owner to work out which one they
@@ -1158,19 +1191,6 @@ static void verify_screen(lv_obj_t *parent)
         lv_label_set_text(btc, buf);
         lv_obj_set_style_text_font(btc, wt_font_mono14(), 0);
         lv_obj_set_style_text_color(btc, MUT_COL, 0);
-    }
-
-    // ---- STOP: the verdict is the screen, nothing else is ----------------
-    if (s_sum.status == WPSBT_STOP) {
-        lv_obj_t *p = sg_panel(24, SG_PANEL_Y, 752, SG_PANEL_H, STOP_COL);
-        lv_obj_t *r = sg_lbl(p, tr_reason(s_sum.reason), SG_PAD, SG_PAD,
-                             wt_font23(), STOP_COL);
-        lv_obj_set_width(r, 752 - 2 * SG_PAD);
-        lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        // Same 752 lane as the panel it just drew, so the same BACK as verify.
-        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 140, WT_ACTION_H,
-                 s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
-        return;
     }
 
     // ---- the caution bar -------------------------------------------------
@@ -1227,6 +1247,39 @@ static void verify_screen(lv_obj_t *parent)
                                SG_PAD, 12, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
+        // The single recipient's amount, on the caption row.
+        //
+        // It was not drawn AT ALL, which is the defect: the hero is TOTAL
+        // LEAVING (send plus fee) and the change panel states change, so with
+        // one recipient the one figure this screen never printed was how much
+        // arrives at the address printed directly beneath it. An owner had to
+        // subtract a fee off a total to learn the thing they were agreeing to,
+        // on the screen whose whole job is where the coins go and how much.
+        // "One number, not two" governs the HERO and still does; this is the
+        // per-output line every other recipient already had.
+        //
+        // Here rather than in the list because the list row costs 34px and 34px
+        // is exactly what decides whether this panel overflows. Measured with
+        // lv_obj_get_scroll_bottom: as a list row the ordinary one-recipient
+        // panel went 27px over clean and 18px over cautioned, which turns the
+        // scrollbar on and holds HOLD TO SIGN inert until the owner scrolls a
+        // panel whose every line is already visible. That is the dead-button
+        // case the gate below is written to avoid, bought for a number that
+        // fits on a row already on the glass.
+        if (recipient_n == 1) {
+            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+                if (s_sum.outs[i].is_change) continue;
+                fmt_sats(s_sum.outs[i].sats, a, sizeof a);
+                snprintf(buf, sizeof buf, "%s sats", a);
+                lv_obj_t *amt = lv_label_create(rp);
+                lv_label_set_text(amt, buf);
+                lv_obj_set_style_text_font(amt, wt_font_mono23(), 0);
+                lv_obj_set_style_text_color(amt, INK_COL, 0);
+                lv_obj_align(amt, LV_ALIGN_TOP_RIGHT, -SG_PAD, 6);
+                break;
+            }
+        }
+
         // Every output is still shown. One recipient is the common case and
         // gets the panel to itself; more than one scrolls inside it, because
         // nothing the owner is asked to sign may be hidden.
@@ -1248,6 +1301,9 @@ static void verify_screen(lv_obj_t *parent)
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
             if (s_sum.outs[i].is_change) continue;
             char ga[200];
+            // Every recipient carries its number. Several of them are a list and
+            // each takes a row of its own; the single recipient's rides the
+            // caption row above, where it costs no height. See the header.
             if (recipient_n > 1) {
                 fmt_sats(s_sum.outs[i].sats, a, sizeof a);
                 snprintf(buf, sizeof buf, "%s sats", a);
@@ -1268,8 +1324,14 @@ static void verify_screen(lv_obj_t *parent)
             // at FOURTEEN; the 23 belongs to the two compared runs on their own
             // line beneath. At 23 the whole address is about 580px and wraps
             // again, which is the thing ungrouping was meant to prevent.
-            wt_addr_spans(list, s_sum.outs[i].addr, rw - 2 * SG_PAD,
-                          wt_font_mono14());
+            // Lifted ONLY when this line is the whole marking. Below, a single
+            // recipient gets the compared runs again at mono23, blocked, on
+            // their own line -- lifting here too would draw the same eight
+            // characters at the same size twice and cost the panel a scrollbar,
+            // with "compare these 8" at the fold. A list of recipients has no
+            // such line, so at mono14 the tail was carried by colour alone.
+            (recipient_n > 1 ? wt_addr_spans_lift : wt_addr_spans)
+                (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
             // The compared runs again, large, on their own line. This is the
             // part of the screen doing security work: the body above is there
             // to be scanned, this is the pair the caption asks you to check

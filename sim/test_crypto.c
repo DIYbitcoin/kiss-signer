@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kiss_crypto.h"
+#include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
@@ -670,6 +671,66 @@ static void test_boot_sign_selftest(void) {
          memcmp(sig, BSV_SCHNORR, sizeof sig) != 0);
 }
 
+// Blinding. secp256k1 multiplies the secret by a random scalar and divides it
+// back out, so the power and timing traces of a signature stop being a
+// function of the key alone. It costs one call and neither context had ever
+// had it: libwally's global, and the separate one kiss_sp builds for BIP340.
+//
+// The whole risk of turning it on is that a signature stops being reproducible,
+// which on this device would be a worse bug than the one being fixed -- so the
+// test is not "does randomize return 0", it is "sign the same thing either side
+// of a re-randomize and get the same bytes". Both signing paths, because they
+// hold different contexts.
+static void test_secp_randomize(void) {
+    chki("secp randomize rc", kiss_secp_randomize(), 0);
+    chki("secp randomize again rc", kiss_secp_randomize(), 0);
+
+    // libwally's context: the boot selftest re-signs golden ECDSA + BIP340
+    chki("boot sign selftest survives randomize", kiss_sign_selftest(), 0);
+
+    // kiss_sp's context: BIP340 over a fixed key, message and aux
+    uint8_t d[32], msg[32], aux[32], sig1[64], sig2[64];
+    memset(d, 0x11, sizeof d);
+    memset(msg, 0x22, sizeof msg);
+    memset(aux, 0x33, sizeof aux);
+    int ok1 = sp_schnorr_sign(d, msg, aux, sig1) == 0;
+    chki("secp randomize between signings", kiss_secp_randomize(), 0);
+    int ok2 = sp_schnorr_sign(d, msg, aux, sig2) == 0;
+    chkb("schnorr is identical either side of a randomize",
+         ok1 && ok2 && memcmp(sig1, sig2, sizeof sig1) == 0);
+}
+
+// Locking drops the transaction, not just the key. kiss_psbt_load returns -1
+// before reaching its own free() when there is no session, so lock-then-open
+// was the sequence that kept the last PSBT parsed in RAM -- every address and
+// amount in it -- until something happened to load another.
+static void test_lock_drops_psbt(const uint8_t *psbt, size_t len)
+{
+    wpsbt_summary_t sum;
+    wpsbt_details_t det;
+
+    chki("lock: psbt loads READY first",
+         kiss_psbt_load(psbt, len, &sum) == 0 && sum.status == WPSBT_READY ? 0 : 1, 0);
+    chkb("lock: details are available while open", kiss_psbt_details(&det) == 0);
+
+    chkb("lock: a transaction is held while open", kiss_psbt_held());
+
+    kiss_session_close();
+    // The readers already refused without a session, so nothing could be shown.
+    // Refusing to SHOW it and not HOLDING it are different claims, and this is
+    // the second one: the parsed transaction -- every address and amount in it
+    // -- must not still be in RAM after the device locks.
+    chkb("lock: no transaction is held after the lock", !kiss_psbt_held());
+    chkb("lock: and no reader offers one", kiss_psbt_details(&det) != 0);
+
+    // and a load attempted with no session must not resurrect the old one
+    chkb("lock: a load with no session is refused",
+         kiss_psbt_load(psbt, len, &sum) != 0);
+    chkb("lock: the refused load resurrected nothing", !kiss_psbt_held());
+
+    chki("lock: reopen for the rest of the suite", kiss_session_open(NULL), 0);
+}
+
 // A selftest whose failure changes nothing is decoration. Force it to fail and
 // prove the signer refuses: the same shape as OVERLAPCHECK_SELFTEST, which
 // exists because a clean sweep means nothing without proof the gate can fire.
@@ -711,6 +772,7 @@ int main(int argc, char **argv) {
     fails += test_fw();
 
     test_boot_sign_selftest();
+    test_secp_randomize();
 
     uint8_t fp[4] = {0};
     int rc = kiss_selftest(fp);
@@ -1241,6 +1303,7 @@ int main(int argc, char **argv) {
 
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
     test_sign_refused_when_selftest_fails(pb, pl);
+    test_lock_drops_psbt(pb, pl);
 
     kiss_session_close();
     if (kiss_session_address(0, 0, addr, sizeof addr) != 0) {

@@ -218,16 +218,23 @@
         </p>
 <pre><code>gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
-# expect: "Good signature from KISS Signer releases"
 
 shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
 sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <p>
-          The signature must come from this fingerprint, and the fingerprint is only
-          as trustworthy as the place you read it. Cross-check it from more than one
-          channel:
+          One line of that output matters. The fingerprint must read exactly:
         </p>
         <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
+        <p>
+          Two lines look alarming and are not. The key is named
+          <code>KISS Wallet releases</code>, an older name, and a name on a key is
+          free text anyway. And <code>WARNING: This key is not certified</code>
+          appears for every key you have not personally signed.
+        </p>
+        <p>
+          A fingerprint is only as good as where you read it. Cross-check this one
+          somewhere other than this page.
+        </p>
         <h3>Windows</h3>
         <p>
           Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>

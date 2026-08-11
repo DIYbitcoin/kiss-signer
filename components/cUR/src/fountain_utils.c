@@ -58,15 +58,36 @@ static uint64_t prng_next_uint64(prng_state_t *prng) {
   return result;
 }
 
+uint32_t prng_scale_double(double rand_val, uint32_t min, uint32_t max) {
+  if (min > max)
+    return min;
+
+  double range = (double)(max - min + 1);
+  uint64_t result = (uint64_t)(rand_val * range + min);
+
+  // prng_next_double is documented [0.0, 1.0) and is not: its divisor is
+  // (double)UINT64_MAX + 1.0, and BOTH halves of that round to 2**64, so the
+  // top few hundred PRNG outputs divide to exactly 1.0 and land here as
+  // max + 1. The caller in choose_fragments indexes an array of exactly
+  // (max + 1) elements with it.
+  //
+  // Clamping rather than correcting the divisor is deliberate. These values
+  // decide WHICH fragments a fountain part mixes, and every other UR
+  // implementation derives them from the same double division -- change the
+  // arithmetic and this signer decodes a different message than the wallet
+  // that encoded it. The clamp only moves the case that was already a memory
+  // error, and leaves every value an encoder can agree with untouched.
+  if (result > max)
+    result = max;
+
+  return (uint32_t)(result & 0xFFFFFFFFULL);
+}
+
 uint32_t prng_next_int(prng_state_t *prng, uint32_t min, uint32_t max) {
   if (!prng || min > max)
     return min;
 
-  double range = (double)(max - min + 1);
-  double rand_val = prng_next_double(prng);
-  uint64_t result = (uint64_t)(rand_val * range + min);
-
-  return (uint32_t)(result & 0xFFFFFFFFULL);
+  return prng_scale_double(prng_next_double(prng), min, max);
 }
 
 double prng_next_double(prng_state_t *prng) {

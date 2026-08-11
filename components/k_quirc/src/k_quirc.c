@@ -62,6 +62,24 @@ static void wipe_buffers(k_quirc_t *q) {
   if (q->owns_pixels && q->pixels &&
       image_allocation_size(q->w, q->h, sizeof(quirc_pixel_t), &n) == 0)
     memset(q->pixels, 0, n);
+  // The DECODED text, not just the picture of it. data_scratch is where
+  // decode() assembles the payload before it is copied to the caller, so after
+  // a SeedQR it holds a BIP39 mnemonic and after a passphrase QR it holds the
+  // passphrase -- in the middle of the struct that k_quirc_destroy hands back
+  // to the allocator. Wiping the image and leaving this behind cleaned up the
+  // photograph and kept the transcript.
+  memset(&q->data_scratch, 0, sizeof q->data_scratch);
+  // And ds_scratch, which is not one copy but two: struct datastream carries
+  // raw[K_QUIRC_MAX_PAYLOAD] (the error-corrected codewords) and
+  // data[K_QUIRC_MAX_PAYLOAD] (the assembled bytes) before either reaches
+  // data_scratch. Wiping only the destination left the mnemonic in the same
+  // struct twice over.
+  memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
+  // And code_scratch, which is the raw module grid the decode ran on. It is
+  // not text, so it does not look like a secret in a memory dump -- it is the
+  // QR itself, and anyone who can read a QR can read a mnemonic straight back
+  // out of it. Three fields, three copies, one wipe.
+  memset(&q->code_scratch, 0, sizeof q->code_scratch);
 }
 
 void k_quirc_destroy(k_quirc_t *q) {
@@ -104,7 +122,7 @@ int k_quirc_resize(k_quirc_t *q, int w, int h) {
   }
 
   if (!q->flood_fill_stack) {
-    new_stack = K_MALLOC_SCRATCH(QUIRC_FLOOD_FILL_STACK * 8);
+    new_stack = K_MALLOC_SCRATCH(QUIRC_FLOOD_FILL_STACK * sizeof(xylf_t));
     if (!new_stack) {
       if (new_pixels)
         K_FREE(new_pixels);

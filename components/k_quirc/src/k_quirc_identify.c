@@ -11,10 +11,6 @@
  * LIFO (stack) for flood-fill — uses persistent buffer from struct k_quirc
  */
 typedef struct {
-  int16_t x, y, l, r;
-} xylf_t;
-
-typedef struct {
   xylf_t *data;
   size_t len;
   size_t capacity;
@@ -359,8 +355,21 @@ static void threshold(struct k_quirc *q, bool inverted) {
   int sample_start_y = mid_y - half_h;
   int sample_end_y = mid_y + half_h;
 
-  uint32_t hist_tl[256] = {0}, hist_tr[256] = {0};
-  uint32_t hist_bl[256] = {0}, hist_br[256] = {0};
+  // STATIC, not automatic. Four 256-entry uint32 histograms are 4096 bytes,
+  // and the only caller runs on the "camspike" task, created with a 6144 byte
+  // stack (main/camera_spike.c). Two thirds of that stack in one frame, under
+  // everything else the decode path pushes on top, on the one code path no
+  // simulator here compiles. Same reasoning that already keeps the 2.6KB
+  // k_quirc_result_t off that stack at camera_spike.c:1139.
+  //
+  // Safe because the decode is single threaded: one task owns k_quirc and
+  // these are dead the moment the thresholds below are computed. They are
+  // zeroed explicitly each call, which the initialiser used to do.
+  static uint32_t hist_tl[256], hist_tr[256], hist_bl[256], hist_br[256];
+  memset(hist_tl, 0, sizeof hist_tl);
+  memset(hist_tr, 0, sizeof hist_tr);
+  memset(hist_bl, 0, sizeof hist_bl);
+  memset(hist_br, 0, sizeof hist_br);
 
   for (int y = sample_start_y; y < sample_end_y; y++) {
     quirc_pixel_t *row = pixels + y * w;
@@ -718,7 +727,20 @@ static void find_alignment_pattern(struct k_quirc *q, int index) {
 
   size_estimate = abs((a.x - b.x) * -(c.y - b.y) + (a.y - b.y) * (c.x - b.x));
 
-  while (step_size * step_size < size_estimate * 100) {
+  // The spiral walks outward from the estimated alignment centre until it
+  // finds a region of about the right size. size_estimate comes from a cross
+  // product of perspective-mapped capstone corners -- attacker geometry -- so
+  // a crafted image can make it enormous, and the loop then runs on the order
+  // of size_estimate*100 iterations with NO yield anywhere in it (the only
+  // vTaskDelay on this path is in the inverted-retry branch, far above). That
+  // is not corruption, it is the task watchdog rebooting the signer in the
+  // middle of a scan.
+  //
+  // An alignment pattern is inside the image or it is not there at all, so the
+  // walk is capped at the image diagonal. Past that b is off-frame, region_code
+  // returns -1 for every remaining step, and the loop is only burning time.
+  const int max_step = (q->w > q->h ? q->w : q->h) + 1;
+  while (step_size * step_size < size_estimate * 100 && step_size <= max_step) {
     static const int dx_map[] = {1, 0, -1, 0};
     static const int dy_map[] = {0, -1, 0, 1};
 
