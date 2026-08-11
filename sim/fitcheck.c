@@ -686,6 +686,68 @@ static int check_group4(void)
     return bad;
 }
 
+// The accent on an address means exactly one thing: THESE are the characters to
+// compare against your coordinator. So the two renderings of an address have to
+// mark the same ones, or the screen teaches two rules and the caption under
+// them ("compare these 8") is true of at most one.
+//
+// wt_addr_spans shows the whole address and lights the last eight. wt_addr_short
+// elides the middle and lit a different eight -- the four after the prefix plus
+// the last four -- so the only characters the two agreed on were the final four.
+// And the elided line is drawn only for a single recipient, so an owner who
+// learned to check the head four found no head marking at all on a
+// multi-recipient transaction, where there are more addresses to get wrong.
+static void lit_chars(lv_obj_t *sg, char *out, size_t cap)
+{
+    size_t o = 0;
+    lv_color_t accent = wt_accent();
+    uint32_t n = lv_spangroup_get_span_count(sg);
+    for (uint32_t i = 0; i < n && o + 1 < cap; i++) {
+        lv_span_t *sp = lv_spangroup_get_child(sg, (int32_t)i);
+        if (!sp) continue;
+        lv_style_value_t v;
+        if (lv_style_get_prop(lv_span_get_style(sp), LV_STYLE_TEXT_COLOR, &v)
+            != LV_STYLE_RES_FOUND)
+            continue;
+        if (v.color.red != accent.red || v.color.green != accent.green ||
+            v.color.blue != accent.blue)
+            continue;
+        const char *t = lv_span_get_text(sp);
+        for (; t && *t && o + 1 < cap; t++)
+            if (*t != ' ') out[o++] = *t;   // spaces are grouping, not content
+    }
+    out[o] = 0;
+}
+
+static int check_addr_marks(void)
+{
+    static const char *ADDRS[] = {
+        "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // mainnet segwit
+        "tb1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // testnet segwit
+        "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",           // base58: no prefix skip
+        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
+        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna",
+    };
+    lv_obj_t *scr = lv_obj_create(NULL);
+    int bad = 0;
+    for (size_t i = 0; i < sizeof ADDRS / sizeof ADDRS[0]; i++) {
+        char body[80], elided[80];
+        lit_chars(wt_addr_spans(scr, ADDRS[i], 700, wt_font_mono14()),
+                  body, sizeof body);
+        lit_chars(wt_addr_short(scr, ADDRS[i], wt_font_mono23()),
+                  elided, sizeof elided);
+        if (strcmp(body, elided) != 0) {
+            printf("  %.14s... body lights \"%s\", elided lights \"%s\"\n",
+                   ADDRS[i], body, elided);
+            bad++;
+        }
+    }
+    lv_obj_delete(scr);
+    printf("address marks: %d of %zu addresses mark two different runs\n",
+           bad, sizeof ADDRS / sizeof ADDRS[0]);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -1036,6 +1098,15 @@ int main(int argc, char **argv)
                  "owner no longer uses to know which screen they are on.");
             return 1;
         }
+    }
+
+    if (check_addr_marks()) {
+        puts("\nFAIL: the two renderings of an address light different\n"
+             "characters. The accent is this screen's instruction about what to\n"
+             "compare, and two instructions is none: an owner who learns one is\n"
+             "misled by the other, and the elided line is not even drawn on a\n"
+             "multi-recipient transaction. Mark the same run in both.");
+        return 1;
     }
 
     if (check_group4()) {
