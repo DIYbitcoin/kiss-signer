@@ -901,6 +901,33 @@ static void draw_own_letters(void)
   release(); pump(8);
 }
 
+// Thirteen strokes: one past GW_MAX_STROKES, which is the number that used to
+// enrol twice, confirm, save, and then never open the device again. Same
+// coordinates work on the enrolment canvas (y 110..350) and on the game screen,
+// which is the whole point -- the owner draws the same thing in both places.
+// Twelve strokes and then a thirteenth SHAPED UNLIKE THEM.
+//
+// The shape matters and the first version of this test proved it: thirteen
+// identical verticals passed with the folding bug still in, because folding the
+// last one into the twelfth barely moves a row of verticals once it is
+// normalised -- distance 26 against a threshold of 26. sim/test_gword.c found
+// the same floor. The failure needs a tail the body does not predict, which is
+// what a crossbar, an underline or a flourish is, and what most people's
+// handwriting ends in.
+//
+// Everything stays inside y 110..350: that is the enrolment canvas, and a
+// stroke outside it is simply not captured there, which would make this test
+// pass for the wrong reason.
+static void draw_thirteen_strokes(void)
+{
+  for (int s = 0; s < 12; s++) {
+    for (int i = 0; i <= 3; i++) { touch(120 + s * 40, 150 + i * 43); pump(3); }
+    release(); pump(8);
+  }
+  for (int i = 0; i <= 11; i++) { touch(120 + i * 40, 330); pump(3); }
+  release(); pump(8);
+}
+
 static void draw_kiss_word(void)
 {
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
@@ -1349,6 +1376,62 @@ int main(void) {
     // either arm ever needs a different one, the fork is back.
     printf("ok: unlock routing identical with and without a stroke configured\n");
 
+    // ---- a word with MORE strokes than the budget, end to end ----
+    //
+    // sim/test_gword.c pins this at the template layer; this is the version
+    // that drives both halves through their own real code, which is the only
+    // way the drift was ever going to show. Enrolment folded every stroke past
+    // its twelfth INTO the twelfth and unlock kept the boundary, so the owner
+    // wrote their word twice, confirmed it, held to save, and owned a signer
+    // that had stopped answering to them. Both collectors take their limits
+    // from wallet_gword.h now and the excess is dropped rather than folded.
+    //
+    // Twelve strokes are stored and thirteen are drawn, so main.c reads the
+    // extra one as the mark that picks the wallet -- hence WDR_REAL and the
+    // login below. What was broken is that it routed NOWHERE.
+    //
+    // Inside this block on purpose, for the reason its own header gives: this
+    // is the last point in the walk where the home is genuinely open, and
+    // lock_to_menu is a no-op anywhere after it.
+    {
+      gw_stored_set(NULL);                            // no BACK TO KISS pill
+      pump(20);
+      wallet_word_ui_open(lv_screen_active(), NULL);
+      pump(20);
+      draw_thirteen_strokes();
+      touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+      draw_thirteen_strokes();
+      touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
+      touch(587, 430); pump(140); release(); pump(8); // HOLD TO CHANGE -> saved
+      save("/tmp/sim_gword_manystroke.ppm");          // YOUR LETTERS ARE SET
+      touch(652, 430); pump(3); release(); pump(8);   // OK -> back to the home
+      if (!gw_stored_any()) {
+        printf("FAIL: a thirteen stroke word did not enrol\n");
+        g_walk_fails++;
+      }
+
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_thirteen_strokes();
+      pump(40);
+      if (g_last_unlock_kind != WDR_REAL) {
+        printf("FAIL: a thirteen stroke word enrolled and then routed %d, "
+               "expected WDR_REAL (%d)\n", g_last_unlock_kind, WDR_REAL);
+        g_walk_fails++;
+      }
+
+      // Finish the login it just asked for, so the walk gets its home back.
+      touch(46, 278);  pump(3); release(); pump(3);
+      touch(725, 430); pump(3); release(); pump(25);
+      touch(622, 430); pump(3); release(); pump(12);
+      pump(120);
+      gw_stored_set(NULL);
+      pump(200);
+      printf("ok: a word past the stroke budget enrols and still opens it\n");
+    }
+
+    // Identical expectations for both configurations is the whole test: if
+    // either arm ever needs a different one, the fork is back.
     // No restore needed after the loop: each pass ends on the open home the
     // walk expects, because the login completion sits inside it.
   }
@@ -2294,6 +2377,38 @@ int main(void) {
   // amnesic-mode steps were dead for four commits and still "passed".
   // tools/check_sim_taps.py is what catches that now; this margin is what
   // stops it happening in the first place.
+  // ...and the same clock, run down with the FIRMWARE screen on the glass.
+  //
+  // This is the real path rather than the contract test at the end of the walk:
+  // a live session, Settings opened from the home, Firmware opened from
+  // Settings, and nothing touched until the lock fires on its own. The screen
+  // used to survive it -- it hangs off the active screen rather than the wallet
+  // container wallet_lock() hides, and it was on neither of main.c's lists --
+  // so BACK from here rebuilt Settings on a locked device with RECOVERY WORDS
+  // one row in, reading a seed the device key still opens.
+  //
+  // Worth the second 20000 frames. This is the one flow where a gate can stand
+  // in for the hardware: nothing here is display, timing or IO, it is only
+  // which screens the lock can see.
+  touch(670, 240); pump(3); release(); pump(8);     // Settings tile
+  touch(454, 40);  pump(3); release(); pump(8);     // FIRMWARE
+  save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
+  if (!wallet_fw_ui_active()) {
+    printf("FAIL: firmware screen not open before the auto-lock test\n");
+    return 1;
+  }
+  pump(20000);                                      // 320s > 300s, untouched
+  if (wallet_fw_ui_active()) {
+    printf("FAIL: firmware screen survived the idle auto-lock\n");
+    return 1;
+  }
+  if (wallet_settings_active()) {
+    printf("FAIL: settings left open under a locked device\n");
+    return 1;
+  }
+  printf("ok: auto-lock closes the firmware screen and settings under it\n");
+  save("/tmp/sim_autolock_fw.ppm");                 // the game MENU, nothing over it
+
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
@@ -2537,6 +2652,7 @@ int main(void) {
     }
     printf("ok: a refused write says so and stores nothing\n");
   }
+
 
   // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
   // Settings on a wallet that already has a stroke, this screen grows a THIRD
