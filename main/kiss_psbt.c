@@ -1161,6 +1161,14 @@ int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
     return 0;
 }
 
+// Is a transaction still parsed in RAM? The accessors above all refuse without
+// a session, so nothing on screen could show it -- but refusing to SHOW it and
+// not HOLDING it are different claims, and only the second one survives a lock.
+bool kiss_psbt_held(void)
+{
+    return s_psbt != NULL;
+}
+
 void kiss_psbt_free(void)
 {
     if (s_psbt) {
