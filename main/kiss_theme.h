@@ -113,35 +113,32 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
 
-// THE BOTTOM RIGHT CORNER ALWAYS DOES THE SCREEN'S JOB. If the screen has a
-// real action, that action ends at 752. If its only job is to be left, the exit
-// ends at 752 instead. One question answers where every pill in the bar goes:
-// what is this screen FOR?
+// THE BOTTOM RIGHT CORNER IS ALWAYS THE WAY OUT. Every screen, whether or not
+// its bar holds anything else. The exit ends at 752; the screen's action starts
+// at 48. There is no question to ask about a given screen, which is the point.
 //
-//   the bar holds nothing but the exit  -> the exit takes the corner
-//             (WT_BACK_X). Settings, Wallet, Details, the file chooser, the
-//             pairing screens. There is no other control for the corner to keep
-//             away from a reflex tap, so the exit sits where the eye already
-//             looks for it.
-//   the bar holds the screen's real action too -> the exit goes to WT_EXIT_X
-//             and the corner is reserved for the action. Sign's verify row,
-//             Receive's four pill row, and redraws 01, 02, 03 and 05.
+//   the bar holds nothing but the exit -> WT_BACK_X.
+//   the bar holds the screen's action too -> the exit stays at WT_EXIT_X, which
+//             is the SAME corner, and the action takes WT_ACT_X on the left.
 //
-// The justification here used to say the corner was "the thumb's resting
-// corner" AND that the action belonged in it, in the same sentence, which is
-// self contradicting -- and the app split on it. Two destructive controls
-// disagreed in writing: ERASE THE WORDS took the corner while REMOVE SIGNED
-// sat at 48 with a comment saying the corner was exactly where it must not go.
-// A reader could not tell which screen they were on from the shape of the bar.
+// It used to be the reverse -- the corner did the screen's JOB, so the exit was
+// pushed left the moment a screen gained an action. Two things were wrong with
+// it. The way out moved depending on what else happened to be on the bar, so
+// the one control every screen has was the one control with no fixed home. And
+// it put the app's heaviest controls in the easiest place on the panel to hit
+// without looking: HOLD TO SIGN, INSTALL, ERASE, REMOVE ALL, SHOW WORDS and
+// TAP TO OPEN were all in that corner, and the invariant "a tap in the corner
+// may never be irreversible" had to be defended one screen at a time, by making
+// each of them a hold or putting a confirm in front of it.
 //
-// The ergonomic claim is dropped rather than picked, because it was never
-// measured on the panel and neither half of it was ever true of both hands.
-// What replaces it is a claim that can be checked by looking: THE CORNER DOES
-// THE SCREEN'S JOB. What that costs is a consequential control landing in the
-// corner on some screens, and the product already pays that safely -- every
-// such action is a hold (ERASE, REMOVE ALL, SHOW THE SCAN KEY, SIGN) or opens a
-// confirm before it does anything (REMOVE SIGNED, INSTALL). That is the
-// invariant to keep: a tap in the corner may never be irreversible.
+// Reversed, that invariant holds by construction: the corner contains the exit,
+// and an exit is the one control that undoes nothing. The holds and confirms
+// stay -- they were right on their own merits -- but they are no longer what
+// keeps the corner safe.
+//
+// This also settles the disagreement the old note complained about: ERASE THE
+// WORDS took the corner while REMOVE SIGNED sat at 48 insisting the corner was
+// exactly where it must not go. REMOVE SIGNED was right. Both are at 48 now.
 //
 // THE RULE IS ABOUT ESCAPING A SCREEN, NOT ABOUT THE WORD "BACK". STR_C_BACK
 // does two unrelated jobs in this app and only one of them belongs here:
@@ -156,10 +153,27 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 //             NEXT across the full width to satisfy a corner rule would break
 //             the one thing a paged sequence needs, which is that its two
 //             halves look like one control.
-#define WT_BACK_X          610   // BACK's left edge, for the standard 140px pill
-#define WT_EXIT_X           48   // the exit's left edge when the bar also holds
-                                 // the screen's action. Named so a grep finds
-                                 // both halves of the rule, not just one.
+//
+// One more exemption, and it is the sharp edge of the reversal. Where the exit
+// itself DESTROYS work on a single unconfirmed tap, it does not get the corner:
+// the dice screen's CANCEL throws away a hand-rolled roll set, and the cards
+// CANCEL throws away typed words. Putting those in the reflex corner is the
+// exact harm the reversal exists to remove, so they keep their old left slot and
+// the corner on those two screens stays empty. Give one of them a confirm and it
+// can move like everything else.
+#define WT_BACK_X          612   // the exit's left edge, for the standard 140px
+                                 // pill: 612+140 = 752, the lane edge. It was
+                                 // 610 while the corner held the ACTION and the
+                                 // 2px sat on whichever pill happened to be
+                                 // there; now one pill is in that corner on
+                                 // every screen and the gap would be the most
+                                 // looked at 2px on the device.
+#define WT_EXIT_X          612   // the exit's left edge when the bar ALSO holds
+                                 // the screen's action. Same corner: the way out
+                                 // does not move when a screen gains an action.
+                                 // Kept as a separate name so a grep finds both
+                                 // halves of the rule, not just one.
+#define WT_ACT_X            48   // and the screen's action takes the left.
 
 // The action bar is the floor the row stands on: full width, WT_BAR fill, one
 // WT_HAIR line along its top. It is not a call you make. wt_pillh builds it the

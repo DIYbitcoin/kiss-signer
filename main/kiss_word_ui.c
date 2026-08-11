@@ -265,11 +265,11 @@ static void write_screen(bool again)
     // pill is absent: a control that moves under the finger between visits is
     // the thing this whole pass is removing.
     const bool back_to_cover = (!again && gw_stored_any());
-    wt_pill(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y, 140, cancel_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cancel_cb, NULL);
     if (back_to_cover)
-        wt_pill(s_scr, tr(STR_GD_WORD_BACK_T), 210, WT_ACTION_Y, 260,
+        wt_pill(s_scr, tr(STR_GD_WORD_BACK_T), 330, WT_ACTION_Y, 260,
                 back_to_cover_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_WORD_DONE), 492, WT_ACTION_Y, 260, done_cb, NULL);
+    wt_pill(s_scr, tr(STR_GD_WORD_DONE), WT_ACT_X, WT_ACTION_Y, 260, done_cb, NULL);
     draw_reset();
 }
 
@@ -289,7 +289,7 @@ static void confirm_screen(void)
                      WT_WARN);
     }
     wt_pill(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cancel_cb, NULL);
-    wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), 422, WT_ACTION_Y, 330,
+    wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), WT_ACT_X, WT_ACTION_Y, 330,
                  WT_ACTION_H, 2000, save_cb, NULL);
 }
 

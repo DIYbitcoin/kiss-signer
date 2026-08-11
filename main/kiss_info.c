@@ -360,7 +360,7 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
     wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_qr_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
@@ -414,11 +414,13 @@ static void pair_screen(void)
     // once: seven screens put the way out in the corner and seven put the
     // action there, so the corner meant "leave" on one screen and "do it" on
     // the next. A distinction nobody can see is not a distinction. The corner
-    // now always belongs to the action, and BACK is always leftmost, whether it
-    // steps back one page or drops the flow.
-    wt_pill(s_scr, tr(STR_R_NEXT), 612, WT_ACTION_Y, 140,
+    // now always belongs to the way out, and the step-forward takes the left.
+    // Neither pairing bar holds a pager PAIR -- page 1 has only NEXT and page 2
+    // only its page-back -- so the adjacency exemption has nothing to protect
+    // here, and both pages agree on where the exit is.
+    wt_pill(s_scr, tr(STR_R_NEXT), WT_ACT_X, WT_ACTION_Y, 140,
             pair_instructions_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -464,7 +466,8 @@ static void sp_key_show(void *ud)
     // 250 down to the DONE pill at 404 is 154px, so this reads at 23.
     wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, 360, 140);
 
-    wt_pill(s_scr, tr(STR_C_DONE), 48, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
+    // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
+    wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e)
@@ -497,7 +500,7 @@ static void sp_key_warn_cb(lv_event_t *e)
     // A short hold is deliberate without adding the friction of signing.
     wt_pillh(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              sp_key_back_cb, NULL);
-    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 422, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
+    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), WT_ACT_X, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
                  900, sp_key_show, NULL);
 }
 
@@ -605,7 +608,7 @@ static void words_render_page(int page)
                     (void *)(intptr_t)1);
         wt_lbl(s_scr, cnt, 380, 416, wt_font23(), WT_MUT);
     }
-    wt_pill(s_scr, tr(STR_C_DONE), 610, WT_ACTION_Y, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 static void words_show_cb(lv_event_t *e)
@@ -706,18 +709,19 @@ static void words_warn_screen(lv_event_t *e)
 
     wt_why_body(s_scr, tr(STR_I_WARN_B), below + 12, WT_WARN, true);
 
-    // BACK leftmost, the two actions right aligned to the lane's edge, primary
-    // in the corner. The order they are READ in is unchanged; only where the
-    // row sits is.
-    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 512, WT_ACTION_Y, 240, words_show_cb, NULL);
+    // The exit takes the corner; the two actions run left to right from 48.
+    // SHOW WORDS puts the live mnemonic on the glass with a plain tap, which is
+    // the reason it does not get the corner. The order they are READ in is
+    // unchanged; only where the row sits is.
+    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 310, WT_ACTION_Y, 240, words_show_cb, NULL);
     wt_pill_primary(sp);
     // The unchecked chip names the gap; this is the button that closes it, so
     // it wears the same amber until it has been used (as the setup warning
     // screen's VERIFY FULL BACKUP does).
-    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), 250, WT_ACTION_Y, 240,
+    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), WT_ACT_X, WT_ACTION_Y, 240,
                            verify_copy_cb, NULL);
     if (!ok) lv_obj_set_style_border_color(vp, WT_WARN, 0);
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, words_back_cb, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----

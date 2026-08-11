@@ -2346,7 +2346,10 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         }
     }
 
-    lv_obj_t *ok = wt_pill(ovl, e->ok_txt, 300, WT_ACTION_Y, 200,
+    // 552..752: the corner, like every other way off a screen. It was centred
+    // at 300, which matched neither the old rule nor the new one -- and this is
+    // the most opened bar in the app, behind all ten explainers and every "?".
+    lv_obj_t *ok = wt_pill(ovl, e->ok_txt, 552, WT_ACTION_Y, 200,
                            explain_close_cb, ovl);
     lv_obj_remove_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
     wt_card_intro(ovl);
