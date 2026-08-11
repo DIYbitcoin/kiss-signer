@@ -26,7 +26,7 @@ static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
 static void (*s_done)(void);
 
-enum { ST_WRITE = 0, ST_AGAIN, ST_CONFIRM, ST_DONE };
+enum { ST_WRITE = 0, ST_AGAIN, ST_CONFIRM, ST_DONE, ST_FAIL };
 static int s_stage;
 
 static gw_template_t s_first;     // what they wrote the first time
@@ -153,10 +153,33 @@ static void finish(void)
 
 static void cancel_cb(lv_event_t *e) { (void)e; finish(); }
 
+// Write it, then READ IT BACK. gw_stored_set returns 0 only once the write is
+// committed, and both callers here threw that away: a full NVS partition, a bad
+// sector or a cut between set and commit ended on a screen saying the change had
+// been made. That is the one failure an owner cannot see for themselves -- the
+// device keeps working, on the OLD word, until the day they need the new one.
+//
+// The read-back is what makes this worth doing. A return code says the write was
+// accepted; only reading the slot says what is in it.
+static bool store_word(const gw_template_t *t)
+{
+    if (gw_stored_set(t) != 0)
+        return false;
+    if (!t)
+        return !gw_stored_any();
+    gw_template_t back;
+    return gw_stored_get(&back) && memcmp(&back, t, sizeof back) == 0;
+}
+
 static void back_to_kiss_cb(lv_event_t *e)
 {
     (void)e;
-    (void)gw_stored_set(NULL);
+    // A clear that failed leaves the owner's letters opening the device while
+    // they walk away believing KISS is back. Say so instead of finishing.
+    if (!store_word(NULL)) {
+        stage_show(ST_FAIL);
+        return;
+    }
     finish();
 }
 
@@ -200,8 +223,7 @@ static void save_cb(void *ud)
     (void)ud;
     // Only here, with the word written twice and matched, does anything
     // persist. Everything before this is undone by walking away.
-    (void)gw_stored_set(&s_first);
-    stage_show(ST_DONE);
+    stage_show(store_word(&s_first) ? ST_DONE : ST_FAIL);
 }
 
 static void write_screen(bool again)
@@ -269,6 +291,26 @@ static void confirm_screen(void)
     wt_pill(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cancel_cb, NULL);
     wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), 422, WT_ACTION_Y, 330,
                  WT_ACTION_H, 2000, save_cb, NULL);
+}
+
+// The write did not take.
+//
+// The obvious borrow was the stroke wizard's rejection -- THAT WAS NOT IT, "try
+// the stroke again, or go back and pick a different one" -- and rendering it
+// killed it. Every word of that blames the owner for a draw they made
+// correctly, on a screen that exists because the DEVICE refused a write. The
+// storage failure's copy is the honest one: it names no culprit and its whole
+// content is the fact that matters, which is that nothing changed.
+//
+// Reached from two places with opposite meanings -- a word that would not
+// store, and a word that would not clear -- so the body has to be true of both.
+// "nothing moved" is, for both. No new key: this is a rare hardware fault, and
+// a screen an owner may never see is a poor reason to spend 21 locales.
+static void fail_screen(void)
+{
+    s_scr = wt_screen(s_parent, tr(STR_C_TRY_AGAIN), NULL);
+    wt_why_body(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150, WT_WARN, true);
+    wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
 }
 
 // The two ways in, redrawn with the owner's own letters where KISS used to be.
@@ -368,6 +410,7 @@ static void stage_build(int stage)
     case ST_AGAIN:   write_screen(true);  break;
     case ST_CONFIRM: confirm_screen();    break;
     case ST_DONE:    done_screen();       break;
+    case ST_FAIL:    fail_screen();       break;
     }
 }
 
