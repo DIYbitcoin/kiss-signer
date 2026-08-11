@@ -42,6 +42,13 @@ died=""
 total=0
 summary=""
 for l in "${langs[@]}"; do
+    # Each locale starts on a fresh card. The walk WRITES to /tmp/simsd -- it
+    # signs files, and it exercises REMOVE ALL -- so 21 runs in a row hand each
+    # other a card the next one did not expect. It only started mattering when
+    # the walk began tapping pills by label: the coordinate taps had been
+    # missing REMOVE ALL in some locales and silently doing nothing, which read
+    # as "stable" and was really "not pressing the button".
+    rm -rf /tmp/simsd
     out=$(SIM_LANG="$l" /tmp/kissoverlap 2>&1)
     rc=$?
     n=$(printf '%s\n' "$out" | sed -n 's/.*, \([0-9]*\) distinct findings/\1/p' | tail -1)
