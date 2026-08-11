@@ -643,6 +643,49 @@ static void compose_why(char *out, size_t cap)
              tr(STR_S_WHY_TINYCH), tr(STR_S_WHY_FOOT));
 }
 
+// wt_group4 blocks a string in fours for comparison against a coordinator, so
+// a character it drops is a character the owner compares against nothing. It
+// writes no ellipsis and leaves no gap: a truncated run just ends in a short
+// group, which is what the last group of a real address often looks like
+// anyway. Nothing on the glass can tell you it happened.
+//
+// The txid on DETAILS is the case that matters and the case that was broken:
+// 64 hex characters block to 79, gt[80] holds exactly that plus the NUL, and
+// the owner is invited to compare the result against their coordinator or copy
+// it down to look the transaction up later.
+//
+// Checked here because fitcheck is the gate that links the theme, and this is
+// the same question fitcheck exists to ask -- does the text survive the box --
+// asked one layer below the renderer.
+static int check_group4(void)
+{
+    struct { const char *name; int in_len; size_t cap; } cases[] = {
+        // a txid, in the buffer the sign screen actually gives it
+        { "txid into gt[80]", 64, 80 },
+        // the proof hash and the receive addresses, which have slack
+        { "hash into grp[96]", 64, 96 },
+        { "bech32 into grouped[120]", 62, 120 },
+        { "silent payment into grouped[200]", 117, 200 },
+    };
+    int bad = 0;
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        char in[256], out[256];
+        for (int i = 0; i < cases[c].in_len; i++) in[i] = "0123456789abcdef"[i % 16];
+        in[cases[c].in_len] = 0;
+        wt_group4(in, out, cases[c].cap);
+        int kept = 0;
+        for (size_t i = 0; out[i]; i++) if (out[i] != ' ') kept++;
+        if (kept != cases[c].in_len) {
+            printf("  %-34s kept %d of %d characters\n",
+                   cases[c].name, kept, cases[c].in_len);
+            bad++;
+        }
+    }
+    printf("group4: %d of %zu buffers drop a character\n",
+           bad, sizeof cases / sizeof cases[0]);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -993,6 +1036,14 @@ int main(int argc, char **argv)
                  "owner no longer uses to know which screen they are on.");
             return 1;
         }
+    }
+
+    if (check_group4()) {
+        puts("\nFAIL: wt_group4 dropped a character. A grouped string is shown\n"
+             "to be compared character by character against a coordinator, and\n"
+             "a silently short one is compared against nothing. Give the caller\n"
+             "the room, or stop the helper reserving space it does not use.");
+        return 1;
     }
 
     if (total_small) {
