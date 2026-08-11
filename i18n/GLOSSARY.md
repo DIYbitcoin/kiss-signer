@@ -122,6 +122,35 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
 - The native equivalent should be the ordinary word for a small electronic
   device, not the word for a circuit board.
 
+## Signer, wallet, keys
+
+Three words for three different things, and the product got them tangled once
+already. Mirror what Bitcoin wallets and signers already say; do not invent a
+house vocabulary a reader has to unlearn the first time they read anything
+else.
+
+- A **signer** is this box. It holds keys and signs with them, offline. It is
+  the whole device, never one screen and never one button on its own menu.
+  "Hardware wallet" is the common alias and is not wrong, but this product
+  calls itself a signer and says so on its own home screen.
+- A **wallet** is a set of keys and the coins they control. It is what a
+  coordinator like Sparrow watches, and it is what recovery words plus a
+  passphrase rebuild. A wallet is not a device: the same signer opens a
+  different wallet when a different passphrase is typed, which is the entire
+  point of the passphrase and the duress feature.
+- **Keys** is the plain word for what the signer holds and what the fingerprint
+  identifies. Use it where "wallet" would be ambiguous about device versus key
+  set, and on the home tile, which names what is behind it.
+
+So: recovery words plus a passphrase make **keys**, the fingerprint is what
+those keys are **called**, the **signer** is the box they live on, and the
+**wallet** is what a coordinator sees. A sentence that says an empty wallet
+sits on a signer is describing two different things and needs rewriting.
+
+Do not use "signer" where the sentence means the key set, and do not use
+"wallet" where it means the device. The destroy family stays away from both
+(see Recovery vocabulary).
+
 ## Mechanical rules
 
 - Never translate: MAINNET, TESTNET, RBF, PSBT, QR, SD, BTC, sats, sat/vB,
@@ -147,6 +176,8 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
 | term | de | es | fr | it | nl | pl | pt | ru | tr | vi | ja | ko | zh-CN |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | wallet | Wallet | billetera/cartera | portefeuille | portafoglio | wallet | portfel | carteira | кошелек | cüzdan | ví | ウォレット | 지갑 | 钱包 |
+| signer (the device) | Signer | Signer | Signataire | Signer | Signer | Signer | Signer | Signer | Signer | Máy ký | 署名端末 | 서명 기기 | 签名器 |
+| keys (what it holds) | Schlüssel | claves/llaves | clés | chiavi | sleutels | klucze | chaves | ключи | anahtarlar | khóa | 鍵 | 키 | 密钥 |
 | recovery words | Wiederherstellungswörter | palabras de recuperación | mots de récupération | parole di recupero | herstelwoorden | słowa odzyskiwania | palavras de recuperação | сид-фраза | kurtarma kelimeleri | cụm từ khôi phục | リカバリーフレーズ | 복구 문구 | 助记词 |
 | common alias | Seed-Wörter | frase semilla | seed phrase | seed phrase | seed phrase | fraza seed | frase-semente | фраза восстановления | seed phrase | seed phrase | シードフレーズ | 시드 문구 | 助记词 |
 | passphrase | Passphrase | passphrase | phrase secrète | passphrase | passphrase | fraza dostępu | passphrase | кодовая фраза | Passphrase | cụm mật khẩu | パスフレーズ | 패스프레이즈 | 密码短语 |
@@ -177,6 +208,8 @@ zh-CN keep the period.
 | term | nb-NO | sv-SE | da-DK | cs-CZ | hr-HR |
 |---|---|---|---|---|---|
 | wallet | lommebok | plånbok | tegnebog | peněženka | novčanik |
+| signer (the device) | Signeren | Signern | Signeren | Signer | Signer |
+| keys (what it holds) | nøkler | nycklar | nøgler | klíče | ključevi |
 | recovery words | gjenopprettingsord | återställningsord | gendannelsesord | slova seedu | riječi za oporavak |
 | common alias | seed phrase | seed phrase | seed-frase | seed fráze | seed fraza |
 | passphrase | passordfrase | lösenfras | adgangsfrase | přístupová fráze | kodna fraza |
