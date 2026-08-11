@@ -188,6 +188,17 @@ static secp256k1_context *sp_ctx(void)
     return ctx;
 }
 
+// This file holds its OWN secp context, separate from the one inside libwally,
+// so blinding it is a second call rather than a side effect of the first. See
+// kiss_secp_randomize in kiss_crypto.c, which is the only caller.
+int sp_ctx_randomize(const uint8_t seed32[32])
+{
+    secp256k1_context *ctx = sp_ctx();
+    if (!ctx || !seed32)
+        return -1;
+    return secp256k1_context_randomize(ctx, seed32) ? 0 : -1;
+}
+
 // tagged_hash(tag, msg) = sha256(sha256(tag) || sha256(tag) || msg)
 static void sp_tagged_hash(const char *tag, const uint8_t *msg, size_t msg_len,
                            uint8_t out32[32])
