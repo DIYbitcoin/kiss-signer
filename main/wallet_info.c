@@ -495,10 +495,10 @@ static void sp_key_warn_cb(lv_event_t *e)
     sp_permission_model(col);
     // Revealing a reusable private scan key should not be one stray tap away.
     // A short hold is deliberate without adding the friction of signing.
-    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
-                 900, sp_key_show, NULL);
-    wt_pillh(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
+    wt_pillh(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
              sp_key_back_cb, NULL);
+    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), 422, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
+                 900, sp_key_show, NULL);
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----

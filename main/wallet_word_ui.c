@@ -252,16 +252,60 @@ static void confirm_screen(void)
         wt_why_block(s_scr, tr(STR_GD_WORD_C_W2_H), b2, 408, BY, BW, BH, f,
                      WT_WARN);
     }
-    wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), 48, WT_ACTION_Y, 330,
+    wt_pill(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cancel_cb, NULL);
+    wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), 422, WT_ACTION_Y, 330,
                  WT_ACTION_H, 2000, save_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cancel_cb, NULL);
 }
 
+// The two ways in, redrawn with the owner's own letters where KISS used to be.
+// This screen was a title over a 704px paragraph -- BARE, and never rendered by
+// anything: no walk stop reached it, so no gate ever had an opinion on it. The
+// body says which gesture opens which wallet, and a gesture mapping is a
+// picture. It is deliberately the same two rows wallet_duress_ui.c draws on the
+// intro, so the fact the owner learned there survives the change of letters.
+//
+// The pencil, not a word, for what they just wrote: their letters are a shape,
+// not a string this device can print, and the screen title is the antecedent.
+// Costs no locale a single character.
 static void done_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_GD_WORD_OK_T), NULL);
-    wt_wraph(s_scr, tr(STR_GD_WORD_OK_B), 48, 180, 704, WT_CONTENT_BOTTOM - 180);
-    wt_pill(s_scr, tr(STR_C_OK), 300, WT_ACTION_Y, 200, cancel_cb, NULL);
+
+    // The rows sit in a card, not loose on the page. Two chip rows are chrome
+    // to a reader and were not to the BARE gate: oc_is_frame wants 100x30 and a
+    // chip is about 40x28, so English passed only because its body wrapped to
+    // two lines and never became a wall. de, fr, pl and ru wrapped to three and
+    // the screen was reported bare with the diagram right there on it.
+    lv_obj_t *card = wt_card(s_scr, 48, 118, 704, 96);
+    lv_obj_t *box = lv_obj_create(card);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, 0, 0);
+    lv_obj_set_size(box, 704, 96);
+    lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(box, 10, 0);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+    char buf[WT_ICON_TEXT_MAX];
+    lv_obj_t *r1 = wt_diagram_row(box);
+    wt_chip(r1, LV_SYMBOL_EDIT, false);
+    wt_diagram_op(r1, LV_SYMBOL_RIGHT);
+    wt_icon_text(buf, sizeof buf, WT_ICON_SECRET, tr(STR_D_SPARE));
+    wt_chip(r1, buf, false);
+
+    lv_obj_t *r2 = wt_diagram_row(box);
+    wt_chip(r2, LV_SYMBOL_EDIT, false);
+    wt_diagram_op(r2, "+");
+    wt_chip(r2, tr(STR_GD_PICK_REAL_T), false);
+    wt_diagram_op(r2, LV_SYMBOL_RIGHT);
+    wt_icon_text(buf, sizeof buf, WT_ICON_KEY, tr(STR_D_REAL));
+    wt_chip(r2, buf, true);
+
+    wt_wraph(s_scr, tr(STR_GD_WORD_OK_B), 48, 228, 704, WT_CONTENT_BOTTOM - 228);
+    // The corner, not centred at 300: one pill, and it is the way out.
+    wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
 }
 
 static void stage_build(int stage)

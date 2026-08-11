@@ -468,6 +468,19 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_style_bg_color(scr, WT_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
+    // NOT scrollable, which lv_obj_create makes it by default. No page in this
+    // app scrolls -- every screen is laid out absolutely and overlapcheck fails
+    // anything below WT_CONTENT_BOTTOM, so a scroll offset can only ever be
+    // damage. What it actually cost: LVGL hands a press to the nearest
+    // SCROLLABLE ancestor as soon as the finger moves past its scroll limit,
+    // and sends PRESS_LOST to whatever was under it. Both screens where the
+    // owner DRAWS -- the duress stroke and their own letters -- are a
+    // transparent catcher on a wt_screen, so every stroke was being stolen a
+    // few pixels in and the ink stopped following the finger. Neither screen
+    // had a walk stop, so no gate had ever drawn on either of them.
+    // Scrolling lists (wallet_recv.c's address list) set the flag on their own
+    // container and are untouched by this.
+    lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_move_foreground(scr);
     screen_card(scr);
 #ifdef SIMULATOR

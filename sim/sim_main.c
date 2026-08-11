@@ -24,6 +24,7 @@
 #include "wallet_info.h"
 #include "wallet_recv.h"    // sim-only hook for the derivation path "?"
 #include "wallet_settings.h"
+#include "wallet_word_ui.h"
 #include "wallet_theme.h"   // SIM_ACCENT picks the theme the walk renders in
 #include "wallet_ui.h"      // wallet_ui_drop_indev_for_test: cold-boot the decoy
 
@@ -870,6 +871,29 @@ static void mark_circle(void) {
   release(); pump(2);
 }
 
+// Three strokes inside the writing field (y 110..350), drawn the same way
+// twice so gw_matches accepts them. Deliberately not KISS: the whole point of
+// the screen is that the letters are the owner's own.
+static void draw_own_letters(void)
+{
+  // Three strokes, and every number here is measured rather than guessed.
+  // pump(3) per point: the indev reads about every 30ms, so the pump(1) that
+  // draw_kiss_word gets away with lands roughly a third of its samples.
+  // pump(8) after each release: at pump(4) the lift was seen but the NEXT
+  // press, starting where the last one ended, was folded into it -- strokes 2
+  // and 3 delivered nothing to the canvas and fell through to the home screen
+  // behind, which opened Sign and then SCAN under a write screen that still
+  // looked right. Each stroke also starts somewhere new for the same reason.
+  // None of this says anything about the device; it is how fast this harness
+  // can inject a press, the same finding the 44-character login loop records.
+  for (int i = 0; i <= 10; i++) { touch(240, 150 + i * 15); pump(3); }
+  release(); pump(8);
+  for (int i = 0; i <= 10; i++) { touch(300 + i * 22, 320); pump(3); }
+  release(); pump(8);
+  for (int i = 0; i <= 10; i++) { touch(560, 150 + i * 15); pump(3); }
+  release(); pump(8);
+}
+
 static void draw_kiss_word(void)
 {
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
@@ -1425,9 +1449,9 @@ int main(void) {
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent warning
   save("/tmp/sim_sp_warn.ppm");
-  touch(198, 430); pump(25); release(); pump(6);    // early release: key stays hidden
+  touch(587, 430); pump(25); release(); pump(6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
-  touch(198, 430); pump(65); release(); pump(8);    // full hold -> export
+  touch(587, 430); pump(65); release(); pump(8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
   save("/tmp/sim_sp_key_zoom.ppm");
@@ -1510,7 +1534,7 @@ int main(void) {
   must_show("file list after signing", tr(STR_S_SIGNED_ALREADY));
   must_show("file list after signing", tr(STR_S_RM_SIGNED));
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
-  touch(218, 430); pump(3); release(); pump(8);
+  touch(582, 430); pump(3); release(); pump(8);
   save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
   // Row 0's own hold pill: rows start at y=132, 64 tall, pill at local (543,12)
   // 170x40, so 567..737 x 144..184. A tap is NOT enough.
@@ -1521,7 +1545,7 @@ int main(void) {
   save("/tmp/sim_sign_rm_holding.ppm");
   release(); pump(6);                               // let go early -> nothing happened
   save("/tmp/sim_sign_rm_letgo.ppm");               // still the list, unchanged
-  touch(680, 430); pump(3); release(); pump(8);     // BACK, keep the fixtures
+  touch(118, 430); pump(3); release(); pump(8);     // BACK, keep the fixtures
   save("/tmp/sim_sign_rm_back.ppm");                // back to the file list
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
@@ -1574,7 +1598,7 @@ int main(void) {
   save("/tmp/sim_sign_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
   save("/tmp/sim_sign_back_choose.ppm");
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
@@ -1605,7 +1629,7 @@ int main(void) {
   save("/tmp/sim_sign_unproven_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
@@ -1709,7 +1733,7 @@ int main(void) {
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   touch(370, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_verify_intro.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  touch(602, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
   for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
     touch(44, 314); pump(3); release(); pump(3);    // a
@@ -1718,7 +1742,7 @@ int main(void) {
   }
   pump(4);
   save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
+  touch(602, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
   for (int i = 0; i < 11; i++) {                    // 11x abandon
     touch(44, 314); pump(3); release(); pump(3);
     touch(450, 374); pump(3); release(); pump(3);
@@ -1729,7 +1753,7 @@ int main(void) {
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
   touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
   save("/tmp/sim_verify_ok.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // DONE -> Settings
+  touch(602, 430); pump(3); release(); pump(6);     // DONE -> Settings
   // The backup row in its OTHER state. The walk has always come back through
   // here and never looked: while "Paper checked" was a second card the amber
   // one was captured and the green one never was, and now that the two cards
@@ -1771,7 +1795,7 @@ int main(void) {
   // drawn on top of a live settings page.
   touch(454, 40); pump(3); release(); pump(8);      // FIRMWARE -> the update screen
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
-  touch(WT_BACK_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
+  touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
 
   touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
@@ -1846,7 +1870,7 @@ int main(void) {
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> the chooser
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
@@ -1928,9 +1952,9 @@ int main(void) {
   // (small) kiss-proof.bin into /tmp/simsd.
   touch(158, 430); pump(3); release(); pump(6);     // PROVE IT -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
-  touch(198, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
+  touch(602, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
   save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
-  touch(198, 430); pump(3); release(); pump(6);     // SHOW WORDS
+  touch(602, 430); pump(3); release(); pump(6);     // SHOW WORDS
   save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
   touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
@@ -1938,10 +1962,32 @@ int main(void) {
   // ...and again through the action row's own AUDIT pill, the route that does
   // not require doubting the camera first. Straight back out: the screens it
   // reaches are the ones already walked above.
-  touch(480, 430); pump(3); release(); pump(6);     // AUDIT pill -> capture
+  touch(320, 430); pump(3); release(); pump(6);     // AUDIT pill -> capture
   save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
-  touch(680, 430); pump(3); release(); pump(4);     // BACK -> choose
+  touch(118, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
+
+  // TAP TO ADD RANDOMNESS, and the refusal behind it. Both were NEVER OPENED:
+  // the walk stopped at the entropy screen and backed out, so source 3 -- the
+  // one screen on this path the owner actually interacts with -- had no gate
+  // looking at it in any locale. sim_entropy_cb stands in for the camera.
+  touch(602, 430); pump(3); release(); pump(6);     // ADD YOUR TAPS -> the card
+  save("/tmp/sim_setup_ent_tap.ppm");               // SOURCE 3, 64 empty segments
+  // The chip's noise source never came up. This is the ONLY way to reach the
+  // refusal -- the other two legs cannot fail after a full 64-tap gate -- and
+  // it is why the screen has to be forced rather than walked into. It was a
+  // title over a 704px paragraph until something finally rendered it.
+  s_sim_trng = false;
+  // 100, not 64: the counter caps at WTAP_TARGET and a press that shares a
+  // frame with its release never raises CLICKED, so a tight loop lands about
+  // a third of its taps. Overshooting is free; undershooting leaves the walk
+  // on a half-filled bar photographing it as the refusal.
+  for (int i = 0; i < 100; i++) { touch(400, 260); pump(3); release(); pump(3); }
+  pump(40);                                         // tap_done_cb holds the full
+                                                    // bar 400ms before folding
+  save("/tmp/sim_setup_ent_fail.ppm");              // 1 + 2 + 3 -> x, in STOP
+  s_sim_trng = true;                                // put the chip back
+  touch(680, 430); pump(3); release(); pump(6);     // TRY AGAIN -> entropy screen
+  touch(118, 430); pump(3); release(); pump(4);     // BACK -> choose
 
   // The CARDS detour (BLIND DRAW): both lengths, to the picker and back out.
   // The candidate math is stubbed above (first N indices over SIM_WORDS);
@@ -1959,7 +2005,7 @@ int main(void) {
   touch(723, 155); pump(3); release(); pump(40);
   save("/tmp/sim_setup_cards_why.ppm");             // THE 2048 WORD LIST, icon grid
   touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  touch(602, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
   // Eleven DISTINCT, non monotone words. The cards judge links real, so the old
   // "a" eleven times is now the block screen -- see CARDS_BLOCK below, where
@@ -1969,7 +2015,7 @@ int main(void) {
       "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
   save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
-  touch(198, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
+  touch(602, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
   touch(590, 430); pump(3); release(); pump(4);     // NEXT -> page 2
   save("/tmp/sim_setup_cards_pick2.ppm");           // BACK owns the left slot now
@@ -1993,8 +2039,7 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  touch(602, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
   save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 pills
   touch(587, 431); pump(3); release(); pump(4);     // START OVER -> empty keyboard
@@ -2012,15 +2057,14 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  touch(602, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
   static const char *CARDS_SORTED11[11] = {
       "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
   save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
   touch(213, 431); pump(3); release(); pump(4);     // USE ANYWAY -> the checksum card
   save("/tmp/sim_setup_cards_cksum_warn.ppm");      // the amber IN ORDER chip, kept
-  touch(680, 430); pump(3); release(); pump(4);     // CANCEL -> chooser
+  touch(118, 430); pump(3); release(); pump(4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
@@ -2059,13 +2103,13 @@ int main(void) {
                                                     // the card intro settled
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   touch(400, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
-  touch(430, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
+  touch(652, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
   save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
   // ROLL MORE is the way through a refusal, and it keeps every banked roll --
   // the whole argument for DICE_MAX = 180, which no gate rendered until now.
   touch(587, 431); pump(3); release(); pump(4);     // ROLL MORE -> the keypad
   save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
-  touch(430, 425); pump(3); release(); pump(6);     // DONE -> refused again
+  touch(652, 425); pump(3); release(); pump(6);     // DONE -> refused again
   // START OVER is method_dice_cb, which now asks the count before the keypad,
   // so the length has to be picked again. Without this line the first roll
   // below landed on the count screen instead, quietly leaving 49 rolls in a run
@@ -2082,7 +2126,7 @@ int main(void) {
     touch(kx, 146); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live
-  touch(430, 425); pump(3); release(); pump(4);     // DONE -> words
+  touch(652, 425); pump(3); release(); pump(4);     // DONE -> words
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   // The checksum card, and the only stop that renders it outside the BLIND
   // DRAW path. Chip is 30px at (722, 24), so its centre is (737, 39); 40 pumps
@@ -2183,7 +2227,7 @@ int main(void) {
   // passphrase. Prefixes below uniquely put each expected word in suggestion 0.
   touch(198, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_setup_rehearse_intro.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  touch(602, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
   static const char *verify_prefixes[] = {
     "g", "m", "no", "so", "sy", "fem",
     "fi", "at", "v", "fo", "c", "stay"
@@ -2191,7 +2235,7 @@ int main(void) {
   for (size_t i = 0; i < sizeof verify_prefixes / sizeof verify_prefixes[0]; i++)
     restore_word(verify_prefixes[i]);
   pump(4);                                          // all words -> VERIFIED
-  touch(198, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
+  touch(602, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
   touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
   // The rehearsal above completes again now that creating makes 12 words: the
@@ -2312,6 +2356,33 @@ int main(void) {
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
+
+  // FOUR more screens nothing had ever opened: the duress page itself and all
+  // three custom-letter screens behind it. check_screen_coverage.py was the
+  // only thing that knew, because a screen with no walk stop is a screen no
+  // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
+  // exactly that reason. The duress row is full width at SG_FULL_Y 331.
+  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
+  save("/tmp/sim_settings_duress.ppm");             // stroke + KISS chips, 3 pills
+  touch(617, 430); pump(3); release(); pump(8);     // USE YOUR OWN LETTERS (482..752)
+  save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
+  draw_own_letters();
+  touch(622, 430); pump(3); release(); pump(8);     // DONE (492..752) -> once more
+  save("/tmp/sim_gword_again.ppm");                 // ONCE MORE, field cleared
+  draw_own_letters();
+  touch(622, 430); pump(3); release(); pump(8);     // DONE -> the stop screen
+  save("/tmp/sim_gword_confirm.ppm");               // KISS WILL STOP WORKING
+  touch(587, 430); pump(140); release(); pump(8);   // HOLD TO CHANGE (422..752)
+  save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
+  touch(652, 430); pump(3); release(); pump(8);     // OK (552..752) -> Settings
+  touch(400, 355); pump(3); release(); pump(8);     // Duress again
+  save("/tmp/sim_settings_duress_set.ppm");         // the chip now reads LETTERS
+  // Put KISS back before anything else in this walk draws it. gw_stored_set
+  // is what BACK TO KISS calls, and leaving the owner's letters in place here
+  // would make every later gesture in the walk stop working -- silently, on a
+  // screen that still looks right.
+  touch(617, 430); pump(3); release(); pump(8);     // USE YOUR OWN LETTERS
+  touch(340, 430); pump(3); release(); pump(8);     // BACK TO KISS (210..470)
   // 220, not 356. This tap was written when the right column ended in two rows
   // and NO UNDO's second card sat at y=260..324; 356 was already past both of
   // them, and once the duress row went full width at SG_FULL_Y=331 it started
@@ -2455,7 +2526,7 @@ int main(void) {
   pump(20);
   save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
 
-  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  touch(632, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
 
   // 95, not 100. The hold is 1500ms and pump is 16ms a frame, so it completes
@@ -2466,7 +2537,7 @@ int main(void) {
   // that frame belongs to WRITING alone, and the rest carry the install to the
   // result. Without this the write happens behind the last frame of the
   // confirm screen and no gate sees the screen that says keep it powered.
-  touch(213, 431); pump(95); release(); pump(1);
+  touch(587, 431); pump(95); release(); pump(1);
   save("/tmp/sim_fw_writing.ppm");                  // the DARK -> DONE band + the pair
   // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
   // the screen that announces it, so the panel can go dark on purpose rather
@@ -2481,8 +2552,8 @@ int main(void) {
   wallet_fw_test_set_install(WFW_ERR_REJECTED, 2);
   wallet_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
-  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
-  touch(213, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
+  touch(632, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  touch(587, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
   save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
 
   // 4. no card at all: the same two block shape, different left hand claim.
