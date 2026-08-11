@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "WEITERMACHEN",
   "L_DISCARD": "VERWERFEN",
   "L_FAIL_SETUP_T": "SIGNER-EINRICHTUNG FEHLGESCHLAGEN",
+  "L_RECOVER_T": "NOCH NICHT AUF DIESEM GERÄT",
+  "L_RECOVER_B": "ihre wörter liegen nur im speicher und sonst nirgends. schreiben sie sie auf papier, bevor sie etwas anderes tun.\n\nversuchen sie es dann erneut. wenn das speichern weiter fehlschlägt, stellen sie von diesem papier auf einem signer wieder her, dem sie vertrauen.",
   "L_FAIL_OPEN_T": "SCHLÜSSEL LIESSEN SICH NICHT ÖFFNEN",
   "L_FAIL_SETUP_B": "nichts wurde gespeichert. beginne im Menü von vorn.",
   "L_FAIL_OPEN_B": "etwas ist schiefgelaufen. versuche es im Menü erneut.",

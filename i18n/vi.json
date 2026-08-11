@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "TIẾP TỤC",
   "L_DISCARD": "BỎ ĐI",
   "L_FAIL_SETUP_T": "KHÔNG THIẾT LẬP ĐƯỢC MÁY KÝ NÀY",
+  "L_RECOVER_T": "CHƯA CÓ TRÊN THIẾT BỊ NÀY",
+  "L_RECOVER_B": "các từ của bạn chỉ nằm trong bộ nhớ và không ở đâu khác. hãy chép ra giấy trước khi làm bất cứ việc gì khác.\n\nsau đó thử lại. nếu vẫn không lưu được, hãy khôi phục từ tờ giấy đó trên một thiết bị ký mà bạn tin tưởng.",
   "L_FAIL_OPEN_T": "KHÔNG MỞ ĐƯỢC KHÓA CỦA BẠN",
   "L_FAIL_SETUP_B": "chưa lưu gì cả. hãy bắt đầu lại từ menu.",
   "L_FAIL_OPEN_B": "có lỗi xảy ra. thử lại từ menu.",
