@@ -809,6 +809,13 @@ static void dump_labels(lv_obj_t *o, int depth, int *budget) {
 }
 
 static int g_walk_fails;
+
+// The firmware screen's done_cb rebuilds Settings. The auto-lock teardown must
+// NOT fire it: Settings rebuilt under a locked device is the whole of the
+// recovery-words leak. Counted, not screenshotted, because what leaked was a
+// live object and every frame of it looked correct.
+static int g_fw_done_fired;
+static void sim_fw_done_cb(void) { g_fw_done_fired++; }
 static void must_show(const char *what, const char *needle) {
   if (find_label_text(lv_screen_active(), needle)) return;
   printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
@@ -2582,6 +2589,42 @@ int main(void) {
   // -- the walk's own diff between a good build and a leaking one was byte
   // identical across all 177 frames -- so wallet_sign.c counts it instead and
   // this is where the count is answered.
+  // The firmware screen and the idle auto-lock. Before wallet_fw_ui_close
+  // existed, main.c's lock had no handle on this screen at all: it is parented
+  // to the active screen rather than the wallet container the lock hides, so it
+  // stayed lit on top of a locked device, and its BACK rebuilt Settings with
+  // RECOVERY WORDS one row in -- words that unseal with the DEVICE key in KEEP
+  // and SD modes, which locking does not wipe. Two facts, both required:
+  // closing must drop the screen, and it must not hand control back the way
+  // BACK does.
+  {
+    // Drain first. The hold on the rejected-install step above arms install_now
+    // FW_LIT_MS later, and that timer was still pending here -- it fired inside
+    // this block's own pump and rebuilt the screen through result_screen, which
+    // reads exactly like the leak this is looking for. Settle before measuring.
+    pump(200);
+    wallet_fw_test_set_available(WFW_ERR_UNSIGNED);
+    g_fw_done_fired = 0;
+    wallet_fw_ui_open(lv_screen_active(), sim_fw_done_cb);
+    pump(20);
+    if (!wallet_fw_ui_active()) {
+      printf("FAIL: fw screen not reported active while open\n");
+      return 1;
+    }
+    wallet_fw_ui_close();                     // what the auto-lock branch calls
+    pump(20);
+    if (wallet_fw_ui_active()) {
+      printf("FAIL: fw screen survived the auto-lock teardown\n");
+      return 1;
+    }
+    if (g_fw_done_fired) {
+      printf("FAIL: auto-lock teardown rebuilt Settings (done_cb fired %d)\n",
+             g_fw_done_fired);
+      return 1;
+    }
+    printf("ok: fw screen closes on lock without reopening settings\n");
+  }
+
   {
     extern int g_sign_orphaned_screens;
     if (g_sign_orphaned_screens) {

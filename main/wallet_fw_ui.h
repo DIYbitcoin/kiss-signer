@@ -12,3 +12,14 @@
 // Nothing is written until the hold on the confirm screen completes, and
 // nothing becomes bootable unless its signature checked out.
 void wallet_fw_ui_open(lv_obj_t *parent, void (*done_cb)(void));
+
+// The idle auto-lock path, and the touch owner check that goes with it.
+//
+// This screen is a child of the active screen, not of the wallet container the
+// lock hides, so without these it stays lit and on top of a device that has
+// locked underneath it -- and its BACK rebuilds Settings, where RECOVERY WORDS
+// is one row away and nothing on that path asks whether a session is still
+// open. In KEEP and SD modes the words unseal with the device key, which the
+// lock does not wipe, so they render for whoever is holding the box.
+bool wallet_fw_ui_active(void);
+void wallet_fw_ui_close(void);   // idle auto-lock: drop the screen, no done_cb

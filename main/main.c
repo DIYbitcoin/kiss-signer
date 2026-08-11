@@ -38,6 +38,7 @@
 #include "wallet_sign.h"
 #include "wallet_scan.h"
 #include "wallet_settings.h"
+#include "wallet_fw_ui.h"
 #include "wallet_fw.h"   // wallet_fw_mark_valid: release the previous slot
 #include "wallet_info.h"
 #include "wallet_setup.h"
@@ -1876,6 +1877,12 @@ static void game_tick(lv_timer_t *t) {
       if (wallet_sign_active())     wallet_sign_close();      // drops any loaded PSBT
       if (wallet_recv_active())     wallet_recv_close();
       if (wallet_info_active())     wallet_info_close();
+      // Before Settings, and not optional. The firmware screen hangs off the
+      // active screen rather than the wallet container this lock hides, so a
+      // lock that skipped it left it lit on top of a locked device with a BACK
+      // that rebuilds Settings -- and RECOVERY WORDS one row into that, reading
+      // a seed the device key still opens after the session is gone.
+      if (wallet_fw_ui_active())    wallet_fw_ui_close();
       if (wallet_settings_active()) wallet_settings_close();
       wallet_lock();                              // session key leaves RAM
       s_prev_press = pressed;
@@ -1903,8 +1910,14 @@ static void game_tick(lv_timer_t *t) {
     // the CANCEL pill is LVGL and the live camera paints over LVGL, so on a real
     // board that pill can be dead and this is the only escape. Below: the wallet
     // home, which has no BACK to reach for.
+    // wallet_fw_ui_active was missing here for the same reason it was missing
+    // from the lock above: this screen was never on either list. Without it the
+    // game's own sampler reads the finger that is holding INSTALL, and its
+    // recogniser opens whatever sits under the stroke -- the failure the write
+    // screen comment describes, on the one screen that rewrites the firmware.
     if (s_fp_card || wallet_recv_active() || wallet_sign_active() ||
-        wallet_scan_active() || wallet_info_active() || wallet_settings_active()) {
+        wallet_scan_active() || wallet_info_active() || wallet_settings_active() ||
+        wallet_fw_ui_active()) {
       s_prev_press = pressed;            // wallet sub-screens own the touch (LVGL buttons)
       return;
     }
