@@ -13,6 +13,7 @@
 
 #include "kiss_fw.h"
 #include "kiss_theme.h"
+#include "kiss_panel.h"
 #include "i18n.h"
 
 #ifndef SIMULATOR
