@@ -251,7 +251,7 @@ static int s_strokes;              // number of strokes in the current draw (KIS
 static int s_stroke_n0;            // index where the current stroke began (tap vs draw test)
 static uint32_t s_gest_idle;       // ms since the last gesture activity (abandon timeout)
 static bool s_gest_swallow;        // ignore the touch that just woke the screensaver
-// The decoy opens with NO login screen in between, and detect_KISS fires as
+// The decoy opens with NO login screen in between, and detect_cover_word fires as
 // soon as the word is recognizable -- which can be before the finger has
 // finished the last S. Without this the remaining ink lands on the freshly
 // revealed home and taps whatever tile is under it. The passphrase path never
@@ -274,8 +274,8 @@ static bool s_wallet_swallow;      // ignore the rest of the gesture that opened
 // never had to cover drawing the modifier itself, which is what made 900 too
 // generous. Do not cut it much further: too short and the configured stroke
 // starts being missed, which is the bug this whole mechanism exists to fix.
-#define KISS_OPEN_DELAY_MS 500
-static bool s_kiss_pending;
+#define COVER_OPEN_DELAY_MS 500
+static bool s_cover_pending;
 
 // The owner's stroke landed. Points are already cleared, so this is not
 // awaiting anything: it is holding the real wallet back to the same beat the
@@ -1207,11 +1207,11 @@ static void saver_hide(void) {
 // lv_point_t and the module takes plain int arrays, for the same reason
 // kiss_gword.c does: no LVGL type crosses into code the desktop runner has
 // to build.
-static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
+static bool detect_cover_word(const lv_point_t *p, int n, int strokes) {
   if (n > GEST_MAX) n = GEST_MAX;
   static int kx[GEST_MAX], ky[GEST_MAX];
   for (int i = 0; i < n; i++) { kx[i] = p[i].x; ky[i] = p[i].y; }
-  return kw_is_kiss(kx, ky, s_gid, n, strokes);
+  return cw_match(kx, ky, s_gid, n, strokes);
 }
 
 // center the code + caption on the baked chip frame (566..760 x 39..86 in kiss_mock.py)
@@ -1617,7 +1617,7 @@ static void kiss_open_decoy(void) {
 //
 // The modifier has to be classified SEPARATELY from the word, because it
 // changes the word's shape. An underline is wide and low, and it merges the
-// letters' x-clusters into one blob -- detect_KISS needs >=3 and would reject
+// letters' x-clusters into one blob -- detect_cover_word needs >=3 and would reject
 // the very draw the owner meant. So the word is matched against everything
 // BEFORE the final stroke, and the final stroke goes to the classifier alone.
 //
@@ -1685,7 +1685,7 @@ int sim_capture_word(gw_template_t *out)
 #endif
 
 static int unlock_kind(void) {
-  // An owner who set their own word replaces KISS OUTRIGHT. detect_KISS is not
+  // An owner who set their own word replaces KISS OUTRIGHT. detect_cover_word is not
   // consulted below, and that is the feature: a locked device shows Fruit
   // Island, the branding only exists past the unlock, and a device that does
   // not answer to the word has the honest cover story of not being a signer.
@@ -1718,7 +1718,7 @@ static int unlock_kind(void) {
       if (s_gpt[i].y < by0) by0 = s_gpt[i].y;
       if (s_gpt[i].y > by1) by1 = s_gpt[i].y;
     }
-    if (detect_KISS(s_gpt, s_stroke_n0, s_strokes - 1)) {
+    if (detect_cover_word(s_gpt, s_stroke_n0, s_strokes - 1)) {
       int n = 0;
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
@@ -1736,7 +1736,7 @@ static int unlock_kind(void) {
       // be the thing that surfaces a passphrase prompt.
     }
   }
-  int k = kiss_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+  int k = kiss_duress_route(detect_cover_word(s_gpt, s_gn, s_strokes), WDG_NONE);
 #ifdef SIMULATOR
   if (k != WDR_NONE) g_last_unlock_kind = k;   // a non-word is not an answer
 #endif
@@ -1878,7 +1878,7 @@ static void game_tick(lv_timer_t *t) {
   // it opens: the points are gone, so a tap landing in here would otherwise
   // reach the menu's "tap to play" branch and start a game under the login.
   if (s_real_pending) {
-    if (lv_tick_elaps(s_real_at) >= KISS_OPEN_DELAY_MS) {
+    if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS) {
       s_real_pending = false;
       s_gest_idle = 0;
       kiss_login_open(kiss_start);
@@ -2062,7 +2062,7 @@ static void game_tick(lv_timer_t *t) {
 
   if (s_state != ST_PLAY) {
     if (pressed) {
-      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; s_kiss_pending = false; }  // wake saver
+      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; s_cover_pending = false; }  // wake saver
       else if (!s_gest_swallow) {
         if (!s_prev_press) {                            // a new stroke begins
           // ...but NOT while the word is already matched and waiting for a
@@ -2078,7 +2078,7 @@ static void game_tick(lv_timer_t *t) {
           // whose marks were not in left-to-right order, which is most of them.
           // What still catches a genuinely abandoned attempt on those devices
           // is the same thing that always did: the idle clear.
-          if (s_gn > 0 && !s_kiss_pending &&
+          if (s_gn > 0 && !s_cover_pending &&
               !gw_stored_any()) {                      // drop a stale prior attempt if this stroke
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
@@ -2104,7 +2104,7 @@ static void game_tick(lv_timer_t *t) {
     } else {
       if (s_prev_press) {                                    // a touch just lifted
         if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0;
-                                s_kiss_pending = false; s_real_pending = false; }
+                                s_cover_pending = false; s_real_pending = false; }
         else {
           int x0 = 9999, x1 = -9999, y0 = 9999, y1 = -9999;  // bbox of THIS stroke
           for (int i = s_stroke_n0; i < s_gn; i++) {
@@ -2141,7 +2141,7 @@ static void game_tick(lv_timer_t *t) {
                   kiss_setup_open_sd_missing(lv_screen_active(), sd_rc,
                                                stored_seed_ready);
                   gesture_swallow();
-                  s_kiss_pending = false;
+                  s_cover_pending = false;
                   s_gn = 0; s_strokes = 0;
                   sd_blocked = true;
                 }
@@ -2154,12 +2154,12 @@ static void game_tick(lv_timer_t *t) {
                   kiss_setup_open_load(lv_screen_active(), stored_seed_ready);
                 else kiss_setup_open(lv_screen_active(), setup_done_login);
                 gesture_swallow();           // the finger is still on the panel
-                s_kiss_pending = false;
+                s_cover_pending = false;
                 s_gn = 0; s_strokes = 0;
               }
               else if (kind == 1) {          // a modifier stroke: ask for the passphrase
-                s_kiss_pending = false;
-                s_real_pending = true;       // same beat as the decoy: see KISS_OPEN_DELAY_MS
+                s_cover_pending = false;
+                s_real_pending = true;       // same beat as the decoy: see COVER_OPEN_DELAY_MS
                 s_real_at = lv_tick_get();
                 gesture_swallow();
                 s_gn = 0; s_strokes = 0;
@@ -2168,9 +2168,9 @@ static void game_tick(lv_timer_t *t) {
                 // Bare KISS on a signer that HAS a stroke configured. Do not
                 // open anything yet -- the modifier may still be coming. The
                 // idle branch below opens the decoy once the panel has been
-                // quiet for KISS_OPEN_DELAY_MS, and the points are kept meanwhile so
+                // quiet for COVER_OPEN_DELAY_MS, and the points are kept meanwhile so
                 // the next stroke can still be classified against the word.
-                s_kiss_pending = true;
+                s_cover_pending = true;
               }
             }
           }                                                  // else: keep, await more strokes (3s clears)
@@ -2178,12 +2178,12 @@ static void game_tick(lv_timer_t *t) {
         s_gest_idle = 0;
       } else if (s_gn > 0) {                                 // mid-draw, finger up
         s_gest_idle += TICK_MS;
-        if (s_kiss_pending && s_gest_idle >= KISS_OPEN_DELAY_MS) {
-          s_kiss_pending = false;                            // no modifier came: the spare
+        if (s_cover_pending && s_gest_idle >= COVER_OPEN_DELAY_MS) {
+          s_cover_pending = false;                            // no modifier came: the spare
           kiss_open_decoy();
           s_gn = 0; s_strokes = 0; s_gest_idle = 0;
         } else if (s_gest_idle >= 3000) {
-          s_gn = 0; s_strokes = 0; s_kiss_pending = false;   // gave up -> clear (never starts game)
+          s_gn = 0; s_strokes = 0; s_cover_pending = false;   // gave up -> clear (never starts game)
         }
       } else {
         s_idle_ms += TICK_MS;

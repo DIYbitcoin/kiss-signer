@@ -12,7 +12,7 @@ adversarial verifier refuted it, and the refutation is correct: `main/main.c`
 forks on whether a stroke is configured.
 
 ```c
-if (detect_KISS(s_gpt, s_gn, s_strokes))
+if (detect_cover_word(s_gpt, s_gn, s_strokes))
     return real == WDG_NONE ? 1 : 0;   // never configured: word -> passphrase, as before
 ```
 
@@ -69,7 +69,7 @@ intro screens may already carry usable copy.
 
 Scoped here, specified separately.
 
-`detect_KISS` is four pen lifts, a size and aspect gate, three or more letter
+`detect_cover_word` is four pen lifts, a size and aspect gate, three or more letter
 clusters along x, and `detect_K` on the leftmost cluster. The I, S and S are
 counted, never identified. A custom word follows the same shape: **identify the
 first character, count the rest.**

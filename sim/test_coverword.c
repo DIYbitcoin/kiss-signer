@@ -4,7 +4,7 @@
 // recogniser asked for four pen lifts and THREE letter clusters while its own
 // comment claimed four clusters, and a K costs two or three lifts -- so "KIS"
 // cleared both gates and opened the decoy. It shipped that way, with every gate
-// green, because detect_KISS lived in main.c and main.c links into no test
+// green, because detect_cover_word lived in main.c and main.c links into no test
 // binary. Nothing on the host could draw a shape at it and ask what it said.
 //
 // The asymmetry here is the mirror of test_gword.c's. A false NEGATIVE costs an
@@ -58,7 +58,7 @@ static void s_move(int x, int y) {
     if (k_n < MAXP) { k_xs[k_n] = x; k_ys[k_n] = y; k_sid[k_n] = (uint8_t)k_stroke; k_n++; }
 }
 
-static bool ask(void) { return kw_is_kiss(k_xs, k_ys, k_sid, k_n, k_stroke + 1); }
+static bool ask(void) { return cw_match(k_xs, k_ys, k_sid, k_n, k_stroke + 1); }
 
 // ---- the letters, each starting its own stroke ----
 
@@ -152,7 +152,7 @@ int test_coverword(void) {
     kchk("a six stroke zigzag -> refused", !ask());
 
     // ---- the shape the simulator actually draws ----
-    // sim/sim_main.c draw_kiss_word() is the walk's idea of the word. If it
+    // sim/sim_main.c draw_cover_word() is the walk's idea of the word. If it
     // and the recogniser ever disagree, the walk proves nothing about the
     // unlock -- which is exactly how the KIS bug survived. Same coordinates.
     s_start();
@@ -164,7 +164,7 @@ int test_coverword(void) {
     s_to(422, 250); s_to(362, 286); s_to(342, 272);
     s_move(540, 140); s_to(480, 152); s_to(465, 188); s_to(520, 212);
     s_to(542, 250); s_to(482, 286); s_to(462, 272);
-    kchk("the exact stroke stream draw_kiss_word() emits", ask());
+    kchk("the exact stroke stream draw_cover_word() emits", ask());
 
     // And the same stream with the last S left off, which is what a hand that
     // pauses mid word produces.

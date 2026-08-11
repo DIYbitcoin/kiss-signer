@@ -304,7 +304,7 @@ int test_duress(void) {
         kiss_duress_forget();
         dchk("word: none set by default", kiss_duress_word_len() == 0);
         // Unset is NOT an empty word that everything begins with. It means
-        // KISS still stands, and the caller has to be sent to detect_KISS.
+        // KISS still stands, and the caller has to be sent to detect_cover_word.
         dchk("word: unset matches nothing", kiss_duress_word_match(w, 4) == 0);
 
         dchk("word: set", kiss_duress_word_set(w, 4) == 0);

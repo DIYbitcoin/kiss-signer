@@ -4,7 +4,7 @@
 // Recognise a "K": a left vertical spine, and anything reaching to the right.
 // Deliberately LENIENT -- this is cover, not the lock. A plain tap or a flat
 // swipe still will not match, which is all it has to refuse.
-static bool kw_is_k(const int *xs, const int *ys, int n)
+static bool cw_is_k(const int *xs, const int *ys, int n)
 {
     if (n < 8) return false;
     int minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
@@ -29,7 +29,7 @@ static bool kw_is_k(const int *xs, const int *ys, int n)
     return spine_top >= 1 && spine_bot >= 1 && arm;
 }
 
-bool kw_is_kiss(const int *xs, const int *ys, const uint8_t *sid,
+bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
                 int n, int strokes)
 {
     if (!xs || !ys || !sid) return false;
@@ -39,7 +39,7 @@ bool kw_is_kiss(const int *xs, const int *ys, const uint8_t *sid,
     // below stays forgiving -- one wide stroke or a casual zigzag never fires.
     if (strokes < 4) return false;
     if (n < 10) return false;
-    if (n > KW_MAX_PTS) n = KW_MAX_PTS;
+    if (n > CW_MAX_PTS) n = CW_MAX_PTS;
 
     int minx = xs[0], maxx = xs[0], miny = ys[0], maxy = ys[0];
     for (int i = 1; i < n; i++) {
@@ -111,9 +111,9 @@ bool kw_is_kiss(const int *xs, const int *ys, const uint8_t *sid,
     if (clusters < 4 && right_strokes < 3) return false;
 
     // ...and the leftmost letter must be a (lenient) K.
-    int lx[KW_MAX_PTS], ly[KW_MAX_PTS];
+    int lx[CW_MAX_PTS], ly[CW_MAX_PTS];
     int ln = 0;
-    for (int i = 0; i < n && ln < KW_MAX_PTS; i++)
+    for (int i = 0; i < n && ln < CW_MAX_PTS; i++)
         if (xs[i] <= kcut) { lx[ln] = xs[i]; ly[ln] = ys[i]; ln++; }
-    return kw_is_k(lx, ly, ln);
+    return cw_is_k(lx, ly, ln);
 }

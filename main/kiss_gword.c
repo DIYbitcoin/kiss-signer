@@ -20,7 +20,7 @@
 
 #include <string.h>
 
-// A word is a written thing, not a flick. Same floor detect_KISS uses for the
+// A word is a written thing, not a flick. Same floor detect_cover_word uses for the
 // draw it recognises, for the same reason: below this it is a gesture at the
 // panel, and the owner did not mean anything by it.
 #define GW_MIN_SPAN 120
@@ -122,7 +122,7 @@ int gw_distance(const gw_template_t *a, const gw_template_t *b)
     if (!a || !b || !a->set || !b->set)
         return INT16_MAX;
     // Pen lifts are matched EXACTLY. They are the one feature of a draw that
-    // survives a shaky hand unchanged -- detect_KISS leans on the same fact --
+    // survives a shaky hand unchanged -- detect_cover_word leans on the same fact --
     // so two draws with different lift counts are different words however
     // similar their outlines, and saying so here is cheaper and stricter than
     // letting the point distance argue about it.

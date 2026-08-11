@@ -869,9 +869,9 @@ static void release(void) { g_pressed = false; }
 // The unlock word as used throughout the scripted walk. Kept as a helper for
 // storage hot-plug coverage added at the end, so that test does not invent a
 // second approximation of the gesture recognizer's real input.
-// The word ALONE, no settling wait. Split out of draw_kiss so a modifier stroke
-// can still arrive: main.c holds a bare word for KISS_OPEN_DELAY_MS precisely
-// so the stroke after it is classified against the same draw, and draw_kiss's
+// The word ALONE, no settling wait. Split out of draw_cover so a modifier stroke
+// can still arrive: main.c holds a bare word for COVER_OPEN_DELAY_MS precisely
+// so the stroke after it is classified against the same draw, and draw_cover's
 // trailing pump(40) is 140ms past that window.
 // ---- free marks, drawn as a hand would ------------------------------------
 // Sampled coarser than 10px so the touch layer's decimation keeps them, and
@@ -902,7 +902,7 @@ static void draw_own_letters(void)
 {
   // Three strokes, and every number here is measured rather than guessed.
   // pump(3) per point: the indev reads about every 30ms, so the pump(1) that
-  // draw_kiss_word gets away with lands roughly a third of its samples.
+  // draw_cover_word gets away with lands roughly a third of its samples.
   // pump(8) after each release: at pump(4) the lift was seen but the NEXT
   // press, starting where the last one ended, was folded into it -- strokes 2
   // and 3 delivered nothing to the canvas and fell through to the home screen
@@ -945,7 +945,7 @@ static void draw_thirteen_strokes(void)
   release(); pump(8);
 }
 
-static void draw_kiss_word(void)
+static void draw_cover_word(void)
 {
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); }
   release(); pump(2);
@@ -965,11 +965,11 @@ static void draw_kiss_word(void)
   touch(462, 272); pump(1); release();
 }
 
-static void draw_kiss(void)
+static void draw_cover(void)
 {
-  draw_kiss_word();
+  draw_cover_word();
   // 40 frames, not 4. Whichever door this call ends up taking, main.c may hold
-  // it for KISS_OPEN_DELAY_MS so the real wallet and the decoy cannot be told
+  // it for COVER_OPEN_DELAY_MS so the real wallet and the decoy cannot be told
   // apart by how fast the screen arrives. At 16ms a frame this is 640ms of
   // slack over a 500ms wait. Callers that land on the setup wizard or the
   // amnesic loader open immediately and do not need it; the slack costs them
@@ -979,11 +979,11 @@ static void draw_kiss(void)
 
 // The word, then one wide flat stroke under it: the shape sim/test_duress.c
 // pins as WDG_UNDERLINE, drawn through the real touch layer so the whole path
-// runs -- detect_KISS, kiss_duress_classify, unlock_kind -- and not only the
+// runs -- detect_cover_word, kiss_duress_classify, unlock_kind -- and not only the
 // classifier the unit test reaches on its own.
-static void draw_kiss_underlined(void)
+static void draw_cover_underlined(void)
 {
-  draw_kiss_word();
+  draw_cover_word();
   pump(2);
   for (int i = 0; i <= 20; i++) { touch(150 + i * 20, 315); pump(1); }
   release();
@@ -1189,14 +1189,14 @@ int main(void) {
   // the bare word on purpose -- it is the demo, and the modifier stroke is not
   // a thing to teach in a loop anyone can watch.
   g_seq_on = 1; pump(8);
-  draw_kiss();                                      // = the word; helper waits out KISS_OPEN_DELAY_MS
+  draw_cover();                                      // = the word; helper waits out COVER_OPEN_DELAY_MS
   pump(5); g_seq_on = 0;                            // hold on the reveal, then stop recording
   save("/tmp/sim_spare_home.ppm");                  // the spare, opened by the word alone
 
   // The passphrase keyboard takes the word AND the modifier stroke. Nothing
   // else reaches it, so everything below has to come in that way.
   lock_to_menu();
-  draw_kiss_underlined();
+  draw_cover_underlined();
   pump(10);
   save("/tmp/sim_login.ppm");                       // the passphrase keyboard
 
@@ -1295,7 +1295,7 @@ int main(void) {
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      draw_kiss();
+      draw_cover();
       if (g_last_unlock_kind != WDR_DECOY) {
         printf("FAIL: %s: word alone routed %d, expected WDR_DECOY (%d)\n",
                tag, g_last_unlock_kind, WDR_DECOY);
@@ -1305,7 +1305,7 @@ int main(void) {
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      draw_kiss_underlined();
+      draw_cover_underlined();
       if (g_last_unlock_kind != WDR_REAL) {
         printf("FAIL: %s: word + stroke routed %d, expected WDR_REAL (%d)\n",
                tag, g_last_unlock_kind, WDR_REAL);
@@ -1336,7 +1336,7 @@ int main(void) {
       // walk exercises gw_make on the panel's own decimated ink.
       extern int sim_capture_word(gw_template_t *out);
       lock_to_menu();
-      draw_kiss_word();                 // the letters KISS, as any word would be
+      draw_cover_word();                 // the letters KISS, as any word would be
       pump(4);
       gw_template_t t;
       if (sim_capture_word(&t) != 0 || gw_stored_set(&t) != 0) {
@@ -1347,7 +1347,7 @@ int main(void) {
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      draw_kiss();                      // the same word, no mark after it
+      draw_cover();                      // the same word, no mark after it
       if (g_last_unlock_kind != WDR_DECOY) {
         printf("FAIL: written word: the word alone routed %d, expected WDR_DECOY (%d)\n",
                g_last_unlock_kind, WDR_DECOY);
@@ -1357,7 +1357,7 @@ int main(void) {
 
       lock_to_menu();
       g_last_unlock_kind = -2;
-      draw_kiss_underlined();           // the word plus one mark
+      draw_cover_underlined();           // the word plus one mark
       if (g_last_unlock_kind != WDR_REAL) {
         printf("FAIL: written word: word plus a mark routed %d, expected WDR_REAL (%d)\n",
                g_last_unlock_kind, WDR_REAL);
@@ -1384,7 +1384,7 @@ int main(void) {
       // Put it back, and hand the walk the session it expects.
       gw_stored_set(NULL);
       pump(200);
-      draw_kiss_underlined();
+      draw_cover_underlined();
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
       touch(622, 430); pump(3); release(); pump(12);
@@ -2028,7 +2028,7 @@ int main(void) {
   // that was the bug: three letters opened the device. The walk had been
   // written around the defect, which is why no gate ever saw it. Drawing the
   // real word here is what makes this stop mean anything.
-  draw_kiss_word(); release(); pump(20);
+  draw_cover_word(); release(); pump(20);
   save("/tmp/sim_setup_choose.ppm");                // NEW / RESTORE chooser
   pump(15);                                          // let the K-draw reveal transition settle
                                                      // before the first tap, or it lands dead
@@ -2501,7 +2501,7 @@ int main(void) {
 
   // KISS **plus the configured stroke** must reach the PASSPHRASE login, not the
   // spare. This is the case that shipped broken and that nothing here covered:
-  // detect_KISS fired on the LIFT OF THE LAST S, so the decoy opened before the
+  // detect_cover_word fired on the LIFT OF THE LAST S, so the decoy opened before the
   // modifier could be drawn and the owner's stroke was unreachable. The chooser
   // screens never caught it because they capture strokes themselves rather than
   // going through the game's recognizer.
@@ -2514,10 +2514,10 @@ int main(void) {
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(3);
   // the UNDERLINE the wizard configured, under the word, well inside the
-  // KISS_OPEN_DELAY_MS the word waits out before settling for the spare
+  // COVER_OPEN_DELAY_MS the word waits out before settling for the spare
   for (int i = 0; i <= 30; i++) { touch(152 + i * 13, 336); pump(1); }
   // 45 frames, not 20. The owner's door no longer opens on the lift of the
-  // modifier stroke: main.c holds it for KISS_OPEN_DELAY_MS so it cannot be
+  // modifier stroke: main.c holds it for COVER_OPEN_DELAY_MS so it cannot be
   // told apart from the decoy by how fast the screen arrives. 20 frames is
   // 320ms, which is inside that wait, so this shot used to catch the menu and
   // every step after it shifted by one. That surfaces as dozens of overlap
@@ -2633,7 +2633,7 @@ int main(void) {
   kiss_seed_move_to(WSEED_MODE_SD);
   s_sim_sd_present = 0;
   touch(44, 44); pump(3); release(); pump(20);      // explicit lock -> game
-  draw_kiss();
+  draw_cover();
   save("/tmp/sim_sd_missing.ppm");
   touch(168, 430); pump(3); release(); pump(8);      // TRY AGAIN, still absent
   save("/tmp/sim_sd_missing_retry.ppm");            // still the missing-card gate
