@@ -84,13 +84,39 @@ def titles_in_source():
     return found, murky
 
 
-def titles_built():
-    """English titles the walk actually opened, from the sim itself."""
+def drive_sim(**extra_env):
+    """Run the walk once and hand back its stdout, or die saying why not.
+
+    The return code and the walk's own end marker are BOTH checked, and the
+    reason is the failure this script exists to prevent, one level up. A sim
+    that dies halfway prints no BUILT lines, and a caller that only reads
+    stdout cannot tell that from a walk that opened nothing -- so the report
+    became "every screen is uncovered", 40 rows of it, with no hint that the
+    binary never ran. Under STRICT that is a red build nobody can read.
+
+    It happens for dull reasons: a concurrent build_sim.sh rewriting the binary
+    mid-run, or the shared /tmp state kisstest and the walk both own. Neither
+    is a screen with no stop, and neither should be reported as one.
+    """
     if not SIM.exists():
         sys.exit(f"{SIM} is missing: run bash sim/build_sim.sh first")
-    env = dict(os.environ, SCREENCOVER_LIST="1")
-    run = subprocess.run([str(SIM)], capture_output=True, text=True, env=env)
-    return {l.split("\t", 1)[1] for l in run.stdout.splitlines() if l.startswith("BUILT\t")}
+    run = subprocess.run([str(SIM)], capture_output=True, text=True,
+                         env=dict(os.environ, **extra_env))
+    if run.returncode != 0 or "sim done" not in run.stdout:
+        how = (f"exit {run.returncode}" if run.returncode
+               else "exited 0 without reaching the end of the walk")
+        sys.exit(f"FAILED: {SIM} {how} with {' '.join(extra_env)} set. The walk "
+                 f"did not finish, so its screen list means nothing.\n"
+                 f"--- last 20 lines of the walk ---\n"
+                 + "\n".join(run.stdout.splitlines()[-20:])
+                 + ("\n--- stderr ---\n" + run.stderr[-2000:] if run.stderr else ""))
+    return run.stdout
+
+
+def titles_built():
+    """English titles the walk actually opened, from the sim itself."""
+    out = drive_sim(SCREENCOVER_LIST="1")
+    return {l.split("\t", 1)[1] for l in out.splitlines() if l.startswith("BUILT\t")}
 
 
 def selftest():
@@ -100,9 +126,8 @@ def selftest():
     means nothing unless the check still reports something when it should. The
     sim builds a screen titled OK and never saves it; that must come back.
     """
-    env = dict(os.environ, SCREENCOVER_SELFTEST="1")
-    run = subprocess.run([str(SIM)], capture_output=True, text=True, env=env)
-    return any(l.startswith("  UNCHECKED") and '"OK"' in l for l in run.stdout.splitlines())
+    out = drive_sim(SCREENCOVER_SELFTEST="1")
+    return any(l.startswith("  UNCHECKED") and '"OK"' in l for l in out.splitlines())
 
 
 def main():
