@@ -1237,10 +1237,10 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(list, 6, 0);
         lv_obj_set_scroll_dir(list, LV_DIR_VER);
-        // MODE_ON, not AUTO: a list with more below the fold must not look
-        // identical to one that ends there.
-        lv_obj_set_scrollbar_mode(list, recipient_n > 1 ? LV_SCROLLBAR_MODE_ON
-                                                        : LV_SCROLLBAR_MODE_OFF);
+        // Mode is decided AFTER the rows are built, from whether this panel
+        // actually overflows -- see the measurement below. recipient_n > 1 was
+        // the wrong question: one silent payment address is 117 characters and
+        // wraps past the fold on its own, with the scrollbar explicitly OFF.
         lv_obj_set_style_width(list, 5, LV_PART_SCROLLBAR);
         lv_obj_set_style_bg_color(list, MUT_COL, LV_PART_SCROLLBAR);
         lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
@@ -1319,7 +1319,19 @@ static void verify_screen(lv_obj_t *parent)
         // can answer -- one long bech32m address wrapping in de is a scroll and
         // three short ones may not be.
         lv_obj_update_layout(list);
-        if (lv_obj_get_scroll_bottom(list) <= 0)
+        const bool overflows = lv_obj_get_scroll_bottom(list) > 0;
+        // The bar and the gate answer the same question or the screen lies. Tied
+        // to recipient_n the two disagreed on the one-recipient silent payment:
+        // the panel scrolled, the gate held HOLD TO SIGN inert, and MODE_OFF
+        // left no scrollbar to say why or hint at what to do. A dead button with
+        // no affordance beside it is worse than the hidden recipient this gate
+        // exists to prevent -- an owner cannot sign a transaction that is fine.
+        //
+        // MODE_ON, not AUTO: a list with more below the fold must not look
+        // identical to one that ends there.
+        lv_obj_set_scrollbar_mode(list, overflows ? LV_SCROLLBAR_MODE_ON
+                                                  : LV_SCROLLBAR_MODE_OFF);
+        if (!overflows)
             s_recip_seen = true;            // nothing hidden: nothing to demand
         else if (!s_recip_seen)
             lv_obj_add_event_cb(list, recip_scroll_cb, LV_EVENT_SCROLL, NULL);
