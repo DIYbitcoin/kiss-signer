@@ -333,6 +333,11 @@ void wt_diagram_pair(lv_obj_t *parent);
 // The tail carries real entropy and the bech32 checksum, so a swapped address
 // always differs there.
 lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font_t *f);
+// Same, but the compared tail is lifted one rung (14 -> 23) so it can carry
+// legibility on its own. For screens that draw the compared run NOWHERE else;
+// where a blocked mono23 copy sits beneath, use wt_addr_spans. No-op above 14.
+lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
+                             const lv_font_t *f);
 
 // One-line address for a list row: prefix and middle muted, with the four
 // characters AFTER the prefix and the final four lit. Those eight are the ones
