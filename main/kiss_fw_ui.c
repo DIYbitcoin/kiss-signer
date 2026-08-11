@@ -362,11 +362,29 @@ static void fw_screen(void)
         wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_ROW_SIZE), NULL, NULL,
                  sz, NULL, WT_INK, false,
                  WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, WT_ROW_H, NULL, NULL);
-        lv_obj_t *sig = wt_row_x(s_scr, LV_SYMBOL_OK, tr(STR_G_FW_ROW_SIG),
-                                 NULL, NULL, tr(STR_G_FW_SIG_OK), NULL, WT_INK,
-                                 false, WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W,
-                                 WT_ROW_H, NULL, NULL);
-        wt_row_sev(sig, WT_SEV_OK);
+        // A PROMISE, not a verdict, because at this point nothing has checked
+        // anything. rc comes from kiss_fw_scan, which reads the descriptor --
+        // version, size, name -- and from kiss_fw_available, which asks only
+        // whether this BUILD holds a key at all. The image's own signature is
+        // checked by esp_ota_end at WRITE time, a screen and a hold-to-install
+        // later, and the code for "it did not check out" is WFW_ERR_REJECTED,
+        // which cannot exist yet at this point in the flow.
+        //
+        // It used to read "Signature: checked here" under a tick in WT_SEV_OK
+        // green, and every translator took that for a completed pass:
+        // "vérifié ici", "verificado aqui", and Japanese 確認済み, which is
+        // explicitly "already verified". Twenty-one locales asserting a check
+        // that had not run, on the screen where the owner decides whether to
+        // replace the firmware that holds their keys.
+        //
+        // It now borrows the confirm screen's own heading, which is already
+        // exactly this promise in all 21 locales and costs no new key. The
+        // label IS the claim, so there is no value beside it, no severity
+        // colour, and a lock rather than a tick -- a tick is a result.
+        wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_FW_WHY_H),
+                 NULL, NULL, NULL, NULL, WT_INK,
+                 false, WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W,
+                 WT_ROW_H, NULL, NULL);
 
         // The direction sits under the card it describes, coloured by what it
         // means: forward is ordinary, backward is not.
