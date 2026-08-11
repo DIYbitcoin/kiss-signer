@@ -48,6 +48,10 @@ def render(version: str) -> str:
     sha256 = browser.get("sha256", "unknown")
 
     offline = f"kiss-signer-{version}-offline.zip"
+    # The card image. NOT the merged one: the device looks for the app
+    # descriptor 32 bytes in, and a merged image has the bootloader there, so
+    # the FIRMWARE screen reports "nothing to install" for it every time.
+    update = f"kiss-signer-{version}-update.bin"
 
     verify_cmds = code_block(
         "sh",
@@ -72,7 +76,8 @@ Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
 Download these assets from this release into one folder:
 
-- `{filename}`: merged firmware image
+- `{filename}`: merged firmware image, for flashing over USB
+- `{update}`: the same firmware as an SD card update (see FIRMWARE below)
 - `SHA256SUMS`: firmware hashes
 - `SHA256SUMS.asc`: GPG signature for `SHA256SUMS`
 - `kiss_signer_pgp.asc`: KISS release public key
@@ -123,10 +128,14 @@ paper, check them against the device before you unplug it, and expect to restore
 from that paper once the new firmware is running. If the signer holds coins and
 you cannot find the words, do not flash.
 
-After this, Settings has a FIRMWARE button. Put a signed `.bin` on a card, hold
-to install, and the device checks the signature against the key built into it
-before anything is written. If the new firmware fails to start, the device goes
-back to this one on its own.
+After this, Settings has a FIRMWARE button. Put `{update}` in the root of an SD
+card, hold to install, and the device checks the signature against the key built
+into it before anything is written. If the new firmware fails to start, the
+device goes back to this one on its own.
+
+Use that file and not the merged image: the merged one starts with the
+bootloader, and the device looks for the application header instead, so it
+reports nothing to install.
 
 ## Changelog
 
