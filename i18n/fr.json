@@ -466,7 +466,7 @@
   "S_FLOW_3": "LE COORDINATEUR DIFFUSE LA TRANSACTION",
   "W_WHATSEED_T": "VOTRE PHRASE DE RÉCUPÉRATION",
   "W_WHATSEED_S": "12 ou 24 mots ordonnés, appelés mnémonique BIP39",
-  "W_WHATSEED_B": "ces mots et votre phrase secrète sont ce qui fait votre portefeuille. pas cet appareil.\n\nnotez les deux et tout signataire BIP39 compatible pourra le reconstruire, même si cet appareil est perdu.\n\nles mots seuls reconstruisent un autre portefeuille : celui sans phrase secrète.",
+  "W_WHATSEED_B": "vos mots plus votre phrase secrète font vos clés, pas cet appareil.\n\nnotez les deux. tout signataire BIP39 compatible les reconstruit. les mots seuls ouvrent d'autres clés : celles sans phrase secrète.",
   "GD_UNDERLINE": "SOULIGNER",
   "GD_OVERLINE": "TRAIT AU-DESSUS",
   "GD_STRIKE": "BARRER",

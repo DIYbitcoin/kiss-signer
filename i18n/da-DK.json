@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINATOR UDSENDER TRANSAKTIONEN",
   "W_WHATSEED_T": "DIN GENDANNELSESSÆTNING",
   "W_WHATSEED_S": "12 eller 24 ord i fast rækkefølge, et BIP39-mnemonic",
-  "W_WHATSEED_B": "de ord og din adgangsfrase er det, der udgør tegnebogen. ikke denne enhed.\n\nskriv begge dele ned, så kan enhver kompatibel BIP39-signer bygge den op igen, også hvis denne enhed går tabt.\n\nordene alene bygger en anden tegnebog: den uden adgangsfrase.",
+  "W_WHATSEED_B": "dine ord plus din adgangsfrase udgør dine nøgler, ikke denne enhed.\n\nskriv begge ned. enhver kompatibel BIP39-signer kan bygge dem igen. ordene alene åbner andre nøgler: dem uden adgangsfrase.",
   "GD_UNDERLINE": "STREG UNDER",
   "GD_OVERLINE": "STREG OVER",
   "GD_STRIKE": "STREG IGENNEM",

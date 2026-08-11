@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINATOR KRINGKASTER TRANSAKSJONEN",
   "W_WHATSEED_T": "GJENOPPRETTINGSFRASEN DIN",
   "W_WHATSEED_S": "12 eller 24 ord i fast rekkefølge, et BIP39-mnemonic",
-  "W_WHATSEED_B": "de ordene og passordfrasen din er det som utgjør lommeboken. ikke denne enheten.\n\nskriv ned begge, så kan enhver kompatibel BIP39-signer bygge den opp igjen, selv om denne enheten blir borte.\n\nordene alene bygger en annen lommebok: den uten passordfrase.",
+  "W_WHATSEED_B": "ordene dine pluss passordfrasen utgjør nøklene dine, ikke denne enheten.\n\nskriv ned begge. enhver kompatibel BIP39-signer bygger dem opp igjen. ordene alene åpner andre nøkler: de uten passordfrase.",
   "GD_UNDERLINE": "STREK UNDER",
   "GD_OVERLINE": "STREK OVER",
   "GD_STRIKE": "STREK GJENNOM",

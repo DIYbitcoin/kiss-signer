@@ -466,7 +466,7 @@
   "S_FLOW_3": "APP ĐIỀU PHỐI PHÁT GIAO DỊCH",
   "W_WHATSEED_T": "CỤM TỪ KHÔI PHỤC CỦA BẠN",
   "W_WHATSEED_S": "12 hoặc 24 từ theo thứ tự, gọi là mnemonic BIP39",
-  "W_WHATSEED_B": "những từ đó cùng cụm mật khẩu của bạn mới là ví. không phải thiết bị này.\n\nchép lại cả hai thì bất kỳ signer BIP39 tương thích nào cũng dựng lại được ví, dù thiết bị này có mất.\n\nchỉ riêng các từ sẽ dựng lại một ví khác: ví không có cụm mật khẩu.",
+  "W_WHATSEED_B": "các từ cùng cụm mật khẩu tạo ra khóa của bạn, không phải thiết bị này.\n\nchép lại cả hai. mọi signer BIP39 tương thích đều dựng lại được chúng. chỉ riêng các từ mở khóa khác: khóa không có cụm mật khẩu.",
   "GD_UNDERLINE": "GẠCH DƯỚI",
   "GD_OVERLINE": "GẠCH PHÍA TRÊN",
   "GD_STRIKE": "GẠCH NGANG GIỮA",
