@@ -17,6 +17,7 @@
 #include "boot_sign_vectors.h"   // golden bytes kiss_sign_selftest re-signs
 
 #ifdef ESP_PLATFORM
+#include "esp_random.h"          // esp_fill_random: no longer pulled in by esp_system.h
 #include "bootloader_random.h"   // bootloader_random_enable: see kiss_crypto.h
 #include "esp_cpu.h"             // esp_cpu_get_cycle_count: the jitter source
 #include "esp_timer.h"           // esp_timer_get_time: the clock it is read against
