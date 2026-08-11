@@ -970,16 +970,22 @@ int kiss_psbt_details(wpsbt_details_t *d)
         wpsbt_in_t *di = &d->ins[d->n_in++];
         txid_hex(tx->inputs[i].txhash, di->txid);
         di->vout = tx->inputs[i].index;
+        bool is_sp = i < WPSBT_MAX_INS && s_sp_in.present[i];
         // Same precedence as load, for the same reason: the prev tx is the only
-        // source that proves the number. Load already checked it hashes to this
-        // outpoint, so there is nothing to re-check here.
-        if (in->utxo && di->vout < in->utxo->num_outputs) {
+        // source that proves the number, and load already checked it hashes to
+        // this outpoint -- for the inputs it checked. It reaches that check by
+        // way of a keypath, so a SILENT-PAYMENT input never gets there: its
+        // branch proves ownership from the tweak, takes the amount from the
+        // witness_utxo (BIP341 is what covers it) and continues. Reading
+        // in->utxo here would therefore read a transaction NOTHING has looked
+        // at, and stamp the one word this screen exists to say on it.
+        if (!is_sp && in->utxo && di->vout < in->utxo->num_outputs) {
             di->sats = in->utxo->outputs[di->vout].satoshi;
             di->proven = true;
         } else if (in->witness_utxo) {
             di->sats = in->witness_utxo->satoshi;
         }
-        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+        if (is_sp) {
             di->is_sp = true;          // BIP376: spends a received silent payment
             di->purpose = 352;         // taproot key-path; signing can't change the txid
         } else {
