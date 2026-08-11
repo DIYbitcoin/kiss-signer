@@ -1,13 +1,34 @@
-# Reproducible release builds: every push to main rebuilds BOTH release
-# lanes (normal release + the encrypted final-board release, which is what
-# funded firmware actually runs) in the same Docker ESP-IDF toolchain a
-# verifier would use, re-runs each lane's safety checks (dev seed absent,
-# version + commit present, encryption config, C6 radio-hold code present,
-# zero radio/network objects in the linker map - the build scripts fail the
-# job if any check fails), and publishes the firmware hashes + artifacts.
-# Because both profiles build with CONFIG_APP_REPRODUCIBLE_BUILD (no
-# compile date embedded), the same commit must always produce the same
-# bytes - so anyone can rebuild locally and compare hashes against CI.
+# Reproducible release builds: every push to main rebuilds BOTH release lanes
+# (normal release + the encrypted final-board release, which is what funded
+# firmware actually runs) in the same Docker ESP-IDF toolchain a verifier would
+# use, re-runs each lane's safety checks (dev seed absent, version + commit
+# present, encryption config, C6 radio-hold code present, zero radio/network
+# objects in the linker map - the build scripts fail the job if any check
+# fails), and publishes the firmware hashes + artifacts.
+#
+# UNSIGNED, on purpose, and this job had never once succeeded without it.
+#
+# Both build scripts hard-exit when ~/.kiss-signer/kiss_ota.pem is absent, and
+# no runner has that key or should. So every run of this workflow failed at the
+# signing step while the header above claimed anyone could rebuild and compare.
+#
+# Handing CI the key would not have fixed it either. espsecure sign-data is
+# ECDSA: signing identical input twice produces different valid bytes, and the
+# block is appended to the very file whose hash is published here. Comparing
+# hashes of signed images is not a weaker check, it is a meaningless one.
+#
+# So the two questions are answered separately, which is the only way either
+# can be answered honestly:
+#
+#   "did this commit produce these bytes"  -> here, unsigned, by anyone
+#   "is this the firmware KISS published"  -> the signature, made on a machine
+#                                             that holds the key, and the signed
+#                                             hashes in SHA256SUMS beside the
+#                                             release
+#
+# The unsigned app is NOT installable: a device checks the signature before it
+# writes an SD update, so it refuses these images. build-*/UNSIGNED is written
+# beside them to say so, and it is uploaded with the artifact deliberately.
 name: reproducible release build
 
 on:
@@ -15,16 +36,31 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  # Read by tools/build_release.sh and tools/build_encrypted_release.sh.
+  KISS_UNSIGNED: "1"
+
 jobs:
   release-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build verified release (Docker ESP-IDF v6.0.1)
+      - name: Build verified release, unsigned (Docker ESP-IDF v6.0.1)
         run: tools/build_release.sh
 
-      - name: Firmware hashes
+      - name: Refuse to publish a hash of a signed image
+        run: |
+          # The whole point of the job. If a key ever reaches this runner the
+          # signing step would silently make the hashes below unreproducible,
+          # and nothing else would notice.
+          test -f build-release/UNSIGNED || {
+            echo "FAIL: build-release/UNSIGNED is missing, so this app was signed."
+            echo "      Its hash is not reproducible and must not be published here."
+            exit 1
+          }
+
+      - name: Firmware hashes (unsigned)
         run: |
           sha256sum \
             build-release/guition_kiss_bringup.bin \
@@ -32,21 +68,29 @@ jobs:
             build-release/partition_table/partition-table.bin \
             | tee SHA256SUMS-ci.txt
           {
-            echo "### Release firmware SHA256 (commit ${GITHUB_SHA::7})"
+            echo "### Release firmware SHA256, UNSIGNED (commit ${GITHUB_SHA::7})"
             echo '```'
             cat SHA256SUMS-ci.txt
             echo '```'
-            echo "Rebuild locally with \`tools/build_release.sh\` and compare."
+            echo "Rebuild and compare:"
+            echo '```'
+            echo "KISS_UNSIGNED=1 tools/build_release.sh"
+            echo '```'
+            echo "These are the bytes the commit produces. The signed image"
+            echo "published as a release differs by an appended ECDSA block,"
+            echo "which is not byte-reproducible; check that one against"
+            echo "SHA256SUMS in the release."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kiss-signer-release-${{ github.sha }}
+          name: kiss-signer-release-unsigned-${{ github.sha }}
           path: |
             build-release/guition_kiss_bringup.bin
             build-release/bootloader/bootloader.bin
             build-release/partition_table/partition-table.bin
+            build-release/UNSIGNED
             SHA256SUMS-ci.txt
             LICENSE
             THIRD_PARTY_NOTICES.md
@@ -56,10 +100,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build encrypted release (Docker ESP-IDF v6.0.1)
+      - name: Build encrypted release, unsigned (Docker ESP-IDF v6.0.1)
         run: tools/build_encrypted_release.sh
 
-      - name: Firmware hashes
+      - name: Refuse to publish a hash of a signed image
+        run: |
+          test -f build-encrypted-release/UNSIGNED || {
+            echo "FAIL: build-encrypted-release/UNSIGNED is missing, so this app"
+            echo "      was signed. Its hash is not reproducible and must not be"
+            echo "      published here."
+            exit 1
+          }
+
+      - name: Firmware hashes (unsigned)
         run: |
           sha256sum \
             build-encrypted-release/guition_kiss_bringup.bin \
@@ -67,21 +120,27 @@ jobs:
             build-encrypted-release/partition_table/partition-table.bin \
             | tee SHA256SUMS-encrypted-ci.txt
           {
-            echo "### Encrypted-release firmware SHA256 (commit ${GITHUB_SHA::7})"
+            echo "### Encrypted-release firmware SHA256, UNSIGNED (commit ${GITHUB_SHA::7})"
             echo '```'
             cat SHA256SUMS-encrypted-ci.txt
             echo '```'
-            echo "Rebuild locally with \`tools/build_encrypted_release.sh\` and compare."
+            echo "Rebuild and compare:"
+            echo '```'
+            echo "KISS_UNSIGNED=1 tools/build_encrypted_release.sh"
+            echo '```'
+            echo "NEVER flash this image to a board this recipe burns fuses on:"
+            echo "it carries no signature, so that board could never be updated."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kiss-signer-encrypted-release-${{ github.sha }}
+          name: kiss-signer-encrypted-release-unsigned-${{ github.sha }}
           path: |
             build-encrypted-release/guition_kiss_bringup.bin
             build-encrypted-release/bootloader/bootloader.bin
             build-encrypted-release/partition_table/partition-table.bin
+            build-encrypted-release/UNSIGNED
             SHA256SUMS-encrypted-ci.txt
             LICENSE
             THIRD_PARTY_NOTICES.md
