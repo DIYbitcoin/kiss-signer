@@ -218,16 +218,41 @@
         </p>
 <pre><code>gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
-# expect: "Good signature from KISS Signer releases"
 
 shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
 sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <p>
-          The signature must come from this fingerprint, and the fingerprint is only
-          as trustworthy as the place you read it. Cross-check it from more than one
-          channel:
+          The verify step prints roughly this. Two of those lines surprise people
+          every time, and neither one means something is wrong:
+        </p>
+<pre><code>gpg: Good signature from "KISS Wallet releases &lt;diybitcoin@protonmail.com&gt;"
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 166A CBF3 7786 FCEA A694  96DE 886F 1BFE B84E F1C0</code></pre>
+        <p>
+          <strong>The name says Wallet.</strong> That key was cut before this
+          project was renamed to KISS Signer. It is the right key, and it is not
+          what you are checking anyway: the name on a key is free text, and anyone
+          can put any name on any key they generate. A matching name proves nothing.
+        </p>
+        <p>
+          <strong>The WARNING is normal.</strong> You will see it every time, on
+          every key you have not personally signed. It means gpg has no opinion
+          about who owns this key, not that the signature failed.
+          <code>Good signature</code> on the line above is the part that passed.
+        </p>
+        <p>
+          What you are checking is the last line. The fingerprint is the key's
+          identity, it cannot be moved onto a different key, and it is the only
+          part of that output an attacker cannot choose for themselves. It must
+          read exactly:
         </p>
         <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
+        <p>
+          And a fingerprint is only as trustworthy as the place you read it. Taken
+          from this page alone, you are trusting whoever served you this page.
+          Cross-check it from another channel before you rely on it.
+        </p>
         <h3>Windows</h3>
         <p>
           Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>
