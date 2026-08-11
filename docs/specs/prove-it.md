@@ -33,7 +33,7 @@ checks, on any computer they trust, any of three ways:
 
 If both hold, the device's SHA256 and its BIP39 wordlist and checksum are
 honest for camera bytes, end to end — the proof path calls the same
-`wallet_seed_from_entropy` the real wizard calls, so a device that passes the
+`kiss_seed_from_entropy` the real wizard calls, so a device that passes the
 proof and lies about a real seed has to be lying somewhere else.
 
 ## What it does not prove

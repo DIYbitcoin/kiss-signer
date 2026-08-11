@@ -31,12 +31,12 @@ This spec takes the other road, the one KISS is already most of the way down.
 
 KISS signs deterministically on both curves:
 
-- ECDSA: `wally_psbt_sign_bip32(..., EC_FLAG_GRIND_R)` at wallet_psbt.c:986.
+- ECDSA: `wally_psbt_sign_bip32(..., EC_FLAG_GRIND_R)` at kiss_psbt.c:986.
   The nonce is RFC6979 and the counter is ground until R is low, which is
   exactly what Bitcoin Core does, so a Core signer with the same key produces
   the same signature.
-- Schnorr: `sp_schnorr_sign` at wallet_sp.c:614 with a non-null aux, derived at
-  wallet_psbt.c:938 as `aux = sha256(spend_priv || psbt_hash)`. Deterministic,
+- Schnorr: `sp_schnorr_sign` at kiss_sp.c:614 with a non-null aux, derived at
+  kiss_psbt.c:938 as `aux = sha256(spend_priv || psbt_hash)`. Deterministic,
   and bound to both the wallet and the whole transaction.
 
 Determinism is the lever. If a signature is a fixed function of (key, message),
@@ -68,10 +68,10 @@ asserts the exact bytes. Coverage:
 - legacy (P2PKH), nested (P2SH-P2WPKH), native (P2WPKH) ECDSA inputs;
 - a silent-payment spend, which is the only Schnorr signing path KISS has
   (there is no BIP86 key-path signer: taproot appears only as silent-payment
-  P2TR spends, wallet_psbt.c:670);
+  P2TR spends, kiss_psbt.c:670);
 - both the SIGHASH_DEFAULT (64-byte) and explicit SIGHASH_ALL (65-byte) forms
   of that Schnorr spend, since the hash-type byte is appended by hand at
-  wallet_psbt.c:964 and is exactly the kind of detail a golden vector pins.
+  kiss_psbt.c:964 and is exactly the kind of detail a golden vector pins.
 
 The vectors are computed once, independently (a short reference script using
 python-bitcoinlib or bare secp256k1, checked into sim/ beside the test that
@@ -95,7 +95,7 @@ the *arithmetic*. secp256k1 selects its field implementation from the compiler:
 (`src/util.h`). A 64-bit host takes the first, riscv32 takes the second. The
 limb code the ESP32-P4 actually runs is code kisstest never compiles.
 
-So `wallet_sign_selftest` (wallet_crypto.c) re-signs two golden vectors on the
+So `kiss_sign_selftest` (kiss_crypto.c) re-signs two golden vectors on the
 device at boot and compares exact bytes:
 
 - ECDSA over a fixed test key and message, `EC_FLAG_ECDSA | EC_FLAG_GRIND_R`;
@@ -111,10 +111,10 @@ would pin only half the rule. The generator asserts this, and kisstest asserts
 the discrimination directly: signing the same fixture without `EC_FLAG_GRIND_R`
 must not match, and BIP340 with a zero aux must not match.
 
-Failure is not advisory. `wallet_psbt_sign` calls the selftest (cached after
+Failure is not advisory. `kiss_psbt_sign` calls the selftest (cached after
 the first run) and returns -6 if it did not pass, so a unit whose curve code
 has drifted signs nothing rather than emitting a signature whose nonce nobody
-has checked. `wallet_sign_selftest_force_fail`, non-release only, exists so the
+has checked. `kiss_sign_selftest_force_fail`, non-release only, exists so the
 suite watches that refusal fire — the same reasoning as `OVERLAPCHECK_SELFTEST`.
 
 This runs in release. It carries no mnemonic: the test key is derived from an
@@ -237,6 +237,6 @@ gap. It must be seen passing on real hardware once:
 
 **DEVICE TEST: REQUIRED** for part 1b. Flash and boot a P4 unit and confirm the
 log line `signing selftest: PASS (stage 0)`, then sign one PSBT to confirm the
-new gate in `wallet_psbt_sign` does not block a healthy unit. Nothing else in
+new gate in `kiss_psbt_sign` does not block a healthy unit. Nothing else in
 the flow changes. Passing kisstest is not this verdict: kisstest cannot compile
 the 32-bit field backend at all.

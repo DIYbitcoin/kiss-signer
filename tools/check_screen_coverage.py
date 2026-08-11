@@ -66,7 +66,7 @@ def titles_in_source():
     """{key: [files]} for every screen title, plus a list of unresolvable sites."""
     found, murky = {}, []
     for path in sorted((ROOT / "main").glob("*.c")):
-        if path.name in ("wallet_theme.c", "i18n_tables.c"):
+        if path.name in ("kiss_theme.c", "i18n_tables.c"):
             continue          # the definition itself, and the generated table
         src = path.read_text(encoding="utf-8", errors="replace")
         for pattern, argno in CALLS:

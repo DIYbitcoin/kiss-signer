@@ -121,7 +121,7 @@ CONFIG_SECURE_BOOT_SIGNING_KEY="kiss_ota.pem"
 ```
 
 A build made without it still shows the update screen and still refuses to
-install: `wallet_fw_available()` answers "cannot be checked" and the screen says
+install: `kiss_fw_available()` answers "cannot be checked" and the screen says
 so in those words, rather than accepting an image it has no way to judge.
 
 Users verify a firmware `.bin` for SD exactly like any other artifact, since it

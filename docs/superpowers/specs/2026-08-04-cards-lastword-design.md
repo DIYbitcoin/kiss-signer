@@ -2,7 +2,7 @@
 
 Date: 2026-08-04. Status: approved. Renamed 2026-08-07: the mode shipped as
 MY OWN WORDS, which reads to a beginner as *words I get to choose* — the one
-mistake wallet_cards_q exists to block — and its copy named paper, which is
+mistake kiss_cards_q exists to block — and its copy named paper, which is
 only one medium: the list can equally be 3D printed as tiles and shaken.
 
 > **Superseded on the copy, not the design (2026-08-07).** Everything below
@@ -40,7 +40,7 @@ never from your head) → reused RESTORE keyboard for 11/23 words → checksum
 explainer → candidate picker (paged grid, 16 per page) → the normal
 reveal → quiz → store path.
 
-Crypto is one pure module, `main/wallet_lastword.c`, mirroring `wallet_dice.c`:
+Crypto is one pure module, `main/kiss_lastword.c`, mirroring `kiss_dice.c`:
 try each of the 2048 list words in the last slot, keep those
 `bip39_mnemonic_validate` accepts. 2048 SHA256s, run once on picker entry.
 `s_count` stays 12/24 the whole flow; a helper (`entry_target()`) is the only

@@ -14,7 +14,7 @@
 
 #include "lvgl.h"
 #include "i18n.h"
-#include "wallet_theme.h"
+#include "kiss_theme.h"
 
 // Every wt_body_font() call site in the UI: the copy it measures and the
 // (width, height) box it has to live inside. Keep in sync with the sources
@@ -27,26 +27,26 @@ typedef struct {
 } slot_t;
 
 static const slot_t SLOTS[] = {
-    // wallet_setup.c:279 — amber line under the word grid
+    // kiss_setup.c:279 — amber line under the word grid
     { "setup/paper-only", STR_W_PAPER_ONLY, 700,  40 },
-    // wallet_info.c — "?" cards (155 with a diagram, 225 without; the
+    // kiss_info.c — "?" cards (155 with a diagram, 225 without; the
     // scan-key warning below pairs a short body with three visual facts)
     { "wallet/?fp",       STR_I_H_FP_B,     720, 155 },
     { "wallet/?type",     STR_I_H_TYPE_B,   720, 225 },
     { "wallet/?pair",     STR_I_H_PAIR_B,   720, 155 },
     { "wallet/?addr",     STR_I_H_ADDR_B,   720, 225 },
-    // wallet_info.c:263,326 — full-screen warnings
+    // kiss_info.c:263,326 — full-screen warnings
     { "wallet/sp-warn",   STR_R_SP_WARN_B,  700, 145 },
     { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
     { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, 482, 29 },
     { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  482, 29 },
     { "wallet/words-warn",STR_I_WARN_B,     700, 270 },
-    // wallet_sign.c:355,394,966
+    // kiss_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
     { "sign/rbf-on",      STR_S_RBF_B_ON,   720, 230 },
     { "sign/rbf-off",     STR_S_RBF_B_OFF,  720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
-    // wallet_ui.c:469,769 — login warning + passphrase intro
+    // kiss_ui.c:469,769 — login warning + passphrase intro
     { "login/warn",       STR_L_WARN_B,     740, 204 },
     // The passphrase intro and the backup check both went from one 704px
     // paragraph to a PAIR of wt_why_blocks, so each body is measured in the
@@ -58,14 +58,14 @@ static const slot_t SLOTS[] = {
     { "login/pp-w2",      STR_L_PPINTRO_W2_B, 330, 112 },
     { "setup/verify-w1",  STR_W_VINTRO_W1_B,  330, 112 },
     { "setup/verify-w2",  STR_W_VINTRO_W2_B,  330, 112 },
-    // wallet_setup.c — wizard explainers
+    // kiss_setup.c — wizard explainers
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
     // Three-mode storage appears in both setup and Settings with the same
     // side-by-side geometry, so all four notes are measured at the same box.
     // The SD note used to carry a line about the mode being unavailable in
-    // normal builds. It is not: wallet_seed_sd_supported() returns true on
+    // normal builds. It is not: kiss_seed_sd_supported() returns true on
     // every build, and the unreachable disabled path was deleted, so the note
     // is now ordinary copy with nothing special about it.
     { "storage/flash",    STR_W_KEEP_NOTE,        420, 87 },
@@ -85,13 +85,13 @@ static const slot_t SLOTS[] = {
     { "storage/sd-missing",STR_W_SD_MISSING_B,         704, 226 },
     { "storage/sd-corrupt",STR_W_SD_CORRUPT_B,         704, 226 },
     { "storage/sd-io",    STR_W_SD_IO_B,              704, 226 },
-    // wallet_settings.c: the two wipe overlays
+    // kiss_settings.c: the two wipe overlays
     { "wipe/confirm",     STR_G_WIPEC_B,    704, 190 },
     { "wipe/erased",      STR_G_ERASED_B,   704, 160 },
     { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
     // amnesic mode: seed-QR import + passphrase-from-QR
     { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
-    // wallet_sign.c: the screens BEFORE and AFTER the detail page. The detail
+    // kiss_sign.c: the screens BEFORE and AFTER the detail page. The detail
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at
     // font14 -- on the flow that moves money.
@@ -103,12 +103,12 @@ static const slot_t SLOTS[] = {
     { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
     { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
-    // wallet_sign.c sd_open — the one hint line at y=98, drawn at font14 by
+    // kiss_sign.c sd_open — the one hint line at y=98, drawn at font14 by
     // design (may_be_small), one line wide as the whole content lane. The %d
     // pair expands to at most 2 digits each, no wider than the specifiers.
     { "sign/files-more",  STR_S_FILES_MORE_FMT, 704, 29, 1 },
     { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
-    // wallet_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
+    // kiss_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
     // 704x294 overlay. Registered at 232, not the 294 the screen allows: eight
     // lines at font23 is exactly 8 x 29, so the box IS the no-wrap condition
     // and one wrapped definition (261) fails here. Written that way because
@@ -121,7 +121,7 @@ static const slot_t SLOTS[] = {
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
-    // wallet_settings.c — the notes under each chooser. These sit in gaps
+    // kiss_settings.c — the notes under each chooser. These sit in gaps
     // between controls, so 23 (not 28) is the realistic top rung; what matters
     // is that none of them falls to 14.
     { "set/net-main",     STR_G_MAINNET_NOTE, 340, 50 },
@@ -129,7 +129,7 @@ static const slot_t SLOTS[] = {
     // ADDRESS TYPE is a full-width subpage now, not three pills crammed into a
     // 360px column, so these notes stopped being 82px-wide fragments that had
     // no rung above 14 to reach. They get the 664x29 the subpage actually draws
-    // (wallet_settings.c type_open_cb) and no may_be_small: what the user is
+    // (kiss_settings.c type_open_cb) and no may_be_small: what the user is
     // choosing between must be readable.
     { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 664, 29 },
     { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 664, 29 },
@@ -141,10 +141,10 @@ static const slot_t SLOTS[] = {
     // three rows above already say. Neither box has a string to measure now.
     { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
     { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
-    // wallet_duress_ui.c ST_DONE: wt_why_body at y=250 under the two-ways
+    // kiss_duress_ui.c ST_DONE: wt_why_body at y=250 under the two-ways
     // diagram, so the body has WT_CONTENT_BOTTOM - 250 = 148 to live in.
     { "duress/done",      STR_GD_DONE_B,      700, 148, 0 },
-    // wallet_recv.c / wallet_info.c — instructions the user has to act on
+    // kiss_recv.c / kiss_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
     { "sub/receive",      STR_R_S,            704, 30, 0 },
     { "sub/wallet",       STR_I_S,            340, 58, 0 },
@@ -159,7 +159,7 @@ static const slot_t SLOTS[] = {
     { "sub/words",        STR_I_WORDS_S,      704, 30, 0 },
     { "sub/setup",        STR_W_SETUP_S,      704, 30, 0 },
     { "sub/write",        STR_W_WRITE_S,      704, 30, 0 },
-    // These two draw their own subtitle (mk_screen2 in wallet_setup.c) because
+    // These two draw their own subtitle (mk_screen2 in kiss_setup.c) because
     // their first content sits well below the y=96 line, so they get the two
     // lines their copy was written for.
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
@@ -252,7 +252,7 @@ static const slot_t SLOTS[] = {
     { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
-    // wallet_info.c — the note under each action pill
+    // kiss_info.c — the note under each action pill
     // Raised out of a hardcoded font14 in the readability sweep. Listed here
     // so the boxes they were given are checked against every translation, not
     // just the English they were measured with.
@@ -269,7 +269,7 @@ static const slot_t SLOTS[] = {
     { "login/fp-note",    STR_L_FP_NOTE,        700,  58 },
     { "login/fp-note2",   STR_L_FP_NOTE2,       700,  58 },
     { "scan/sub",         STR_N_S,              530,  29 },
-    // wallet_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
+    // kiss_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
     // with the raw "%s" in place, which is ~2px narrower per prefix than the
     // 3 to 4 characters that get substituted, so this reads slightly optimistic.
     { "recv/sp-why",      STR_R_SP_WHY_B,       720, 238 },
@@ -323,7 +323,7 @@ static const int DURESS_VALS[] = {
 };
 
 static const row_t ROWS[] = {
-    // wallet_settings.c, left column at SG_L_W = 365
+    // kiss_settings.c, left column at SG_L_W = 365
     { "set/network",  STR_I_ROW_NETWORK, -1, NULL,    365 - 176 },  // segmented track
     { "set/type",     STR_I_ROW_TYPE,    -1, "m/n...", 365 },
     { "set/storage",  STR_I_ROW_STORAGE, STR_W_AMNESIC_BTN, NULL, 365 },
@@ -383,7 +383,7 @@ static bool row_backlogged(const char *lang, const char *surface)
 // and kept it one release longer.
 //
 // A standard row's sub is drawn at font14, one line, LV_LABEL_LONG_DOT
-// (wallet_theme.c, the `else` branch of wt_row_x's sub block). Same failure as
+// (kiss_theme.c, the `else` branch of wt_row_x's sub block). Same failure as
 // the label: it does not shrink, it does not wrap, it loses its last words and
 // looks deliberate. The check above measured the label and stopped there, so
 // "die jetzigen Wörter gelten dann nicht mehr" under START A NEW WALLET was
@@ -406,12 +406,12 @@ typedef struct {
     const char *arg;       // the %s a _FMT sub is given, or NULL
 } sub_t;
 static const sub_t SUBROWS[] = {
-    // wallet_settings.c:1176 -- sits against GD_OFF, same as its label.
+    // kiss_settings.c:1176 -- sits against GD_OFF, same as its label.
     // The row's OWN sub. This measured STR_GD_SET_SUB, which is the WAYS IN
     // button's caption on another screen -- so the one row the backlog calls
     // its worst offender was never the string being measured.
     { "set/duress",  STR_I_ROW_WAYSIN_SUB, NULL, NULL },
-    // wallet_settings.c:1195-1207 -- both branches prefix a mark and two
+    // kiss_settings.c:1195-1207 -- both branches prefix a mark and two
     // spaces, and the checked one interpolates the 8 hex digits of a
     // fingerprint. Measured with a real one, because "%s" is two characters
     // wide and the thing the screen draws is eight.
@@ -555,7 +555,7 @@ static const pill_t PILLS[] = {
     // to font14 is a locale where the most consequential control on the device
     // is also the quietest, so key_action.
     { "set/firmware",     STR_G_FW_PILL,      232, 44, 1, 1 },
-    // wallet_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
+    // kiss_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
     // key_action, and not arguably: these two pills are the flow's only
     // statement of WHICH wallet the next screen configures, and reading them
     // as the same button is the exact mistake that sent the owner looking for
@@ -585,7 +585,7 @@ static const pill_t PILLS[] = {
     { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
     { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
-    // wallet_sign.c coord_step(): a 580px label at a FIXED font23 with
+    // kiss_sign.c coord_step(): a 580px label at a FIXED font23 with
     // LONG_CLIP. There is no font fallback here, so an over-long translation
     // is silently cut off mid-word rather than shrinking. Registered as
     // 580+28 so the reported budget is the real 580.
@@ -880,7 +880,7 @@ int main(int argc, char **argv)
     // out there, so name the locales it happens in. Same measurement
     // pill_sub_line makes, against the same box.
     static const struct { const char *surface; int key, w, row_h; } SUBS[] = {
-        // wallet_info.c: the badge under SCAN KEY, the only thing on that
+        // kiss_info.c: the badge under SCAN KEY, the only thing on that
         // screen naming which kind of address the key belongs to.
         { "wallet/sp-badge", STR_S_SP_BADGE, 340, 35 },
     };

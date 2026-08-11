@@ -1,4 +1,4 @@
-// Host tests for main/wallet_proof.c: the CAMERA AUDIT pipeline.
+// Host tests for main/kiss_proof.c: the CAMERA AUDIT pipeline.
 //
 // The feature's whole claim is "the file, the hash and the words agree, and
 // anyone can check that off the device". So the tests pin all three against
@@ -12,7 +12,7 @@
 
 #include "platform_sd.h"
 #include "verify_page.h"
-#include "wallet_proof.h"
+#include "kiss_proof.h"
 
 static int fails;
 
@@ -60,7 +60,7 @@ static void test_vector_and_file(void)
     uint8_t hash[32] = {0};
     char words[512] = {0};
     ok("proof run returns OK",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_OK);
 
     char got[65]; hex32(hash, got);
@@ -116,7 +116,7 @@ static void test_vector_and_file(void)
     // Same frame, same answers: the proof is a function of the bytes alone.
     uint8_t hash2[32] = {0};
     char words2[512] = {0};
-    wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash2, words2, sizeof words2);
+    kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash2, words2, sizeof words2);
     ok("proof is deterministic",
        memcmp(hash, hash2, 32) == 0 && strcmp(words, words2) == 0);
 
@@ -137,7 +137,7 @@ static void test_faults(void)
     platform_sd_delete(WPROOF_PAGE_NAME);
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
     ok("write fault surfaces as SD error",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
     FILE *f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("write fault leaves no proof file", f == NULL);
@@ -148,7 +148,7 @@ static void test_faults(void)
 
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_RENAME);
     ok("rename fault surfaces as SD error",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
     f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("rename fault leaves no proof file", f == NULL);
@@ -160,7 +160,7 @@ static void test_faults(void)
     platform_sd_test_fail_skip(1);
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
     ok("page write fault surfaces as SD error",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
     f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("page write fault deletes the committed frame", f == NULL);
@@ -172,18 +172,18 @@ static void test_faults(void)
     // No card, no proof.
     platform_sd_test_set_present(0);
     ok("absent card surfaces as SD error",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
     platform_sd_test_set_present(1);
 
     // A stale sidecar after a committed, verified write is success: the
     // header's CLEANUP contract, exercised end to end.
     ok("proof run succeeds again after faults",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_OK);
     platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_BAK_DELETE);
     ok("stale sidecar cleanup is still success",
-       wallet_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_OK);
 
     free(frame);
@@ -195,12 +195,12 @@ static void test_args(void)
     uint8_t byte = 0;
 
     ok("NULL frame is refused",
-       wallet_proof_run(NULL, WPROOF_FRAME_BYTES, hash, words, sizeof words)
+       kiss_proof_run(NULL, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_ARG);
     ok("short frame is refused: the recipe names one exact size",
-       wallet_proof_run(&byte, 1, hash, words, sizeof words) == WPROOF_ERR_ARG);
+       kiss_proof_run(&byte, 1, hash, words, sizeof words) == WPROOF_ERR_ARG);
     ok("zero length is refused",
-       wallet_proof_run(&byte, 0, hash, words, sizeof words) == WPROOF_ERR_ARG);
+       kiss_proof_run(&byte, 0, hash, words, sizeof words) == WPROOF_ERR_ARG);
 }
 
 int test_proof(void)

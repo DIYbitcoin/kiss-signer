@@ -2,7 +2,7 @@
 // Build: sim/build_test.sh -> /tmp/kisstest
 #include <stdio.h>
 #include <string.h>
-#include "wallet_crypto.h"
+#include "kiss_crypto.h"
 
 static int fails;
 
@@ -28,7 +28,7 @@ static void test_mix3(void)
     uint8_t a[32], b[32], c[32], out[32], out2[32];
     memset(a, 0x00, 32); memset(b, 0x11, 32); memset(c, 0x22, 32);
 
-    ok("mix3 returns 0", wallet_entropy_mix3(a, b, c, out) == 0);
+    ok("mix3 returns 0", kiss_entropy_mix3(a, b, c, out) == 0);
 
     char got[65]; hex32(out, got);
     ok("mix3 matches the independent vector", strcmp(got, MIX3_ABC) == 0);
@@ -36,18 +36,18 @@ static void test_mix3(void)
 
     // order matters: a hash that ignored ordering would let whoever controls
     // one source decide which of the three dominates
-    wallet_entropy_mix3(c, b, a, out2);
+    kiss_entropy_mix3(c, b, a, out2);
     ok("mix3 is order sensitive", memcmp(out, out2, 32) != 0);
 
     // every input reaches the digest
-    a[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    a[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on a", memcmp(out, out2, 32) != 0);
-    a[31] ^= 1; b[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    a[31] ^= 1; b[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on b", memcmp(out, out2, 32) != 0);
-    b[31] ^= 1; c[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    b[31] ^= 1; c[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on c", memcmp(out, out2, 32) != 0);
 
-    ok("mix3 rejects NULL", wallet_entropy_mix3(NULL, b, c, out) != 0);
+    ok("mix3 rejects NULL", kiss_entropy_mix3(NULL, b, c, out) != 0);
 }
 
 // The jitter source has no test vector and cannot have one: a fixed answer
@@ -60,10 +60,10 @@ static void test_jitter(void)
     uint8_t j[8][32];
     int zero = 1;
 
-    ok("jitter rejects NULL", wallet_jitter(NULL) != 0);
+    ok("jitter rejects NULL", kiss_jitter(NULL) != 0);
 
     for (int i = 0; i < 8; i++)
-        ok("jitter returns 0", wallet_jitter(j[i]) == 0);
+        ok("jitter returns 0", kiss_jitter(j[i]) == 0);
 
     for (int i = 0; i < 32; i++)
         if (j[0][i]) zero = 0;
@@ -74,32 +74,32 @@ static void test_jitter(void)
             ok("back to back jitter reads differ", memcmp(j[i], j[k], 32) != 0);
 }
 
-#include "wallet_tapent.h"
+#include "kiss_tapent.h"
 
 static void test_debounce(void)
 {
     uint8_t chain[32];
-    wallet_tapent_reset();
-    ok("starts at zero", wallet_tapent_count() == 0);
+    kiss_tapent_reset();
+    ok("starts at zero", kiss_tapent_count() == 0);
 
     // first tap always counts: there is no predecessor to be too close to
-    ok("first tap counts", wallet_tapent_tap(1000000, 5000, 100, 200) == 1);
-    ok("count is 1", wallet_tapent_count() == 1);
+    ok("first tap counts", kiss_tapent_tap(1000000, 5000, 100, 200) == 1);
+    ok("count is 1", kiss_tapent_count() == 1);
 
     // 29ms later: below WTAP_DEBOUNCE_US, a panel artifact rather than a hand
-    ok("29ms is rejected", wallet_tapent_tap(1029000, 5001, 100, 200) == 0);
-    ok("count still 1", wallet_tapent_count() == 1);
+    ok("29ms is rejected", kiss_tapent_tap(1029000, 5001, 100, 200) == 0);
+    ok("count still 1", kiss_tapent_count() == 1);
 
     // 31ms later: a real tap
-    ok("31ms is accepted", wallet_tapent_tap(1060000, 5002, 101, 201) == 1);
-    ok("count is 2", wallet_tapent_count() == 2);
+    ok("31ms is accepted", kiss_tapent_tap(1060000, 5002, 101, 201) == 1);
+    ok("count is 2", kiss_tapent_count() == 2);
 
     // a rejected tap must not become the new predecessor, or a fast drag would
     // ratchet the window forward and let the next artifact through
     ok("30ms after a REJECTED tap is measured from the accepted one",
-       wallet_tapent_tap(1080000, 5003, 102, 202) == 0);
+       kiss_tapent_tap(1080000, 5003, 102, 202) == 0);
 
-    ok("not done at 2 taps", wallet_tapent_take(chain) != 0);
+    ok("not done at 2 taps", kiss_tapent_take(chain) != 0);
 }
 
 static void test_fold(void)
@@ -107,32 +107,32 @@ static void test_fold(void)
     uint8_t chain_a[32], chain_b[32];
 
     // 64 taps at a fixed cadence completes
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
-    ok("64 taps reach the target", wallet_tapent_count() == WTAP_TARGET);
-    ok("take succeeds at the target", wallet_tapent_take(chain_a) == 0);
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
+    ok("64 taps reach the target", kiss_tapent_count() == WTAP_TARGET);
+    ok("take succeeds at the target", kiss_tapent_take(chain_a) == 0);
 
     // 63 taps does not
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET - 1; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
-    ok("63 taps do not", wallet_tapent_take(chain_b) != 0);
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
+    ok("63 taps do not", kiss_tapent_take(chain_b) != 0);
 
     // identical timing but one differing cycle count must change the chain:
     // this is the property the whole feature rests on
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000,
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000,
                           (uint32_t)(i == 7 ? 999999 : i), 10, 10);
-    wallet_tapent_take(chain_b);
+    kiss_tapent_take(chain_b);
     ok("one differing cycle count changes the chain",
        memcmp(chain_a, chain_b, 32) != 0);
 
     // reset must not leave the previous session's chain behind
-    wallet_tapent_reset();
-    ok("reset clears the count", wallet_tapent_count() == 0);
-    ok("reset clears doneness", wallet_tapent_take(chain_b) != 0);
+    kiss_tapent_reset();
+    ok("reset clears the count", kiss_tapent_count() == 0);
+    ok("reset clears doneness", kiss_tapent_take(chain_b) != 0);
 }
 
 int test_tapent(void)

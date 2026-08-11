@@ -21,9 +21,9 @@ clang -O1 -w \
   -I"$WALLY/upstream/src/secp256k1/include" \
   -Imain \
   "$WALLY/upstream/src/amalgamation/combined.c" \
-  main/wallet_crypto.c main/wallet_psbt.c main/wallet_sp.c \
-  main/wallet_seed.c main/wallet_seed_sd.c main/platform_sd.c \
-  main/wallet_usage.c main/wallet_backup.c main/wallet_duress.c \
+  main/kiss_crypto.c main/kiss_psbt.c main/kiss_sp.c \
+  main/kiss_seed.c main/kiss_seed_sd.c main/platform_sd.c \
+  main/kiss_usage.c main/kiss_backup.c main/kiss_duress.c \
   sim/check_sd_psbts.c \
   -o /tmp/check_sd_psbts
 /tmp/check_sd_psbts "$DIR"

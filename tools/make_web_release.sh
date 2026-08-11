@@ -167,7 +167,7 @@ PY
 # 2.2 the SD update image.
 #
 # The merged image above is the ONLY thing this script published, and the device
-# cannot use it. wallet_fw_desc_parse looks for the esp_app_desc magic 32 bytes
+# cannot use it. kiss_fw_desc_parse looks for the esp_app_desc magic 32 bytes
 # into the file, which is where it sits in an APPLICATION image; a merged
 # offset-0 image has the bootloader there, so the card was scanned, the magic
 # did not match, and every published build was reported as "nothing to install".
@@ -180,7 +180,7 @@ UPDATE_NAME="kiss-signer-${VERSION}-update.bin"
 cp build-release/guition_kiss_bringup.bin "$OUT/firmware/$UPDATE_NAME"
 
 # The descriptor the device will look for, checked HERE rather than discovered
-# on a card. Same offset and magic as main/wallet_fw.c; a build that stops
+# on a card. Same offset and magic as main/kiss_fw.c; a build that stops
 # matching it must fail the release, not ship an image the FIRMWARE screen
 # silently refuses.
 UPDATE="$OUT/firmware/$UPDATE_NAME" "$PY" - <<'PY'
@@ -195,7 +195,7 @@ if magic != 0xABCD5432:
              f"(got {magic:#010x}) - the SD updater would refuse it")
 ver = hdr[48:80].split(b"\0")[0].decode("ascii", "replace")
 if not ver:
-    sys.exit(f"FAIL: {p} has an empty version string; wallet_fw_desc_parse "
+    sys.exit(f"FAIL: {p} has an empty version string; kiss_fw_desc_parse "
              "refuses that rather than ordering it below everything")
 print(f"PASS: {os.path.basename(p)} carries app descriptor v{ver}")
 PY

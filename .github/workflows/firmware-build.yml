@@ -8,7 +8,7 @@
 #   2. it builds the release profile, which tools/build_release.sh writes with
 #      CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y. Code behind the arms
 #      that config selects is the code the release lane compiles; the arms it
-#      does not select are never touched. wallet_fw_available() shipped an
+#      does not select are never touched. kiss_fw_available() shipped an
 #      unsigned-build arm that referenced a sim-only variable, and both lanes
 #      of CI stayed green while the plain `idf.py build` this repo's sdkconfig
 #      produces failed outright.

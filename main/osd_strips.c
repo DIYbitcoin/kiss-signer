@@ -4,7 +4,7 @@
 
 #include "i18n.h"
 #include "i18n_keys.h"
-#include "wallet_theme.h"
+#include "kiss_theme.h"
 
 // OSD_CLOSE is a corner hint, not a caption, so it takes the subtitle ladder.
 // Everything else is a title with an optional second line under it.
