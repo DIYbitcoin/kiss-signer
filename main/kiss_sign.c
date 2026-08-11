@@ -115,6 +115,17 @@ static wpsbt_summary_t s_sum;
 static bool s_ack;                      // every caution acknowledged? (gates hold-to-sign)
 static uint16_t s_ack_flags;            // WHICH ones, so each row answers for itself
 static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
+// Has the recipient list been read to its end? Only ever consulted when the
+// list actually has something below the fold; set true immediately when it
+// does not, so the common single-recipient transaction gates on nothing.
+static bool s_recip_seen;
+#ifndef ESP_PLATFORM
+// Walk only. The difference between an armed HOLD TO SIGN and an inert one is
+// a colour, and the walk cannot read a colour -- so without this the gate
+// below could be deleted and every frame would still compare equal.
+static bool s_armed;
+bool kiss_sign_test_armed(void) { return s_armed; }
+#endif
 static uint8_t s_in[4096], s_out[4680];
 static lv_obj_t *s_parent;             // where this flow's screens are built
 static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came from
@@ -690,6 +701,18 @@ static void repaint_verify(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     verify_screen(s_parent);
+}
+
+// The recipient list reached its end. Once only: scroll events arrive on every
+// frame of the drag, and the repaint that lights HOLD TO SIGN rebuilds the very
+// object this is attached to.
+static void recip_scroll_cb(lv_event_t *e)
+{
+    if (s_recip_seen) return;
+    if (lv_obj_get_scroll_bottom(lv_event_get_target(e)) > 0)
+        return;                             // still more under the fold
+    s_recip_seen = true;
+    repaint_verify();
 }
 
 // ---- verify screen (the heart of the safety model) ----
@@ -1283,6 +1306,24 @@ static void verify_screen(lv_obj_t *parent)
             }
         }
 
+        // "Every output is still shown" was true of the list and not of the
+        // owner. A recipient below the fold was present, scrollable and never
+        // looked at, and HOLD TO SIGN was live the whole time -- so a PSBT with
+        // one honest destination on top and a second one under it signed both
+        // on a glance. The cap of 16 bounds how much can hide, not whether it
+        // can, and TOTAL LEAVING sums destinations without naming them.
+        //
+        // So the list has to be read to the end before the signature is
+        // available. Measured, not counted: what matters is whether anything is
+        // BELOW THE FOLD on this panel in this locale, which no output count
+        // can answer -- one long bech32m address wrapping in de is a scroll and
+        // three short ones may not be.
+        lv_obj_update_layout(list);
+        if (lv_obj_get_scroll_bottom(list) <= 0)
+            s_recip_seen = true;            // nothing hidden: nothing to demand
+        else if (!s_recip_seen)
+            lv_obj_add_event_cb(list, recip_scroll_cb, LV_EVENT_SCROLL, NULL);
+
         if (change_n) {
             // WT_OK is a status here, not decoration: it means re-derived and
             // verified on this device. Per ADDENDUM-02 the accent never lands
@@ -1396,7 +1437,14 @@ static void verify_screen(lv_obj_t *parent)
                            310, WT_ACTION_H, NULL, NULL);
     wt_pill_label_max(p);          // the most consequential button in the app
     s_sign_lbl = lv_obj_get_child(p, 0);
-    if (np && !s_ack) {
+    // One expression, read twice. Writing the condition out again for the test
+    // seam let the seam keep reporting "inert" after the gate itself had been
+    // deleted -- the self test passed against a build with no gate in it.
+    const bool armed = !((np && !s_ack) || !s_recip_seen);
+#ifndef ESP_PLATFORM
+    s_armed = armed;
+#endif
+    if (!armed) {
         // Present, in place, and visibly inert. Disabled ink rather than a
         // hidden or moved button, so the owner can see what acknowledging the
         // rows above is going to unlock. No accent here on purpose: the accent
@@ -1893,6 +1941,7 @@ static void file_tap_cb(lv_event_t *e)
     int lrc = kiss_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
+    s_recip_seen = false;                  // ...and read its destinations again
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = opened_signed;
@@ -2211,6 +2260,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     int lrc = kiss_psbt_load(s_in, len, &s_sum);
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
+    s_recip_seen = false;                  // ...and read its destinations again
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = false;
