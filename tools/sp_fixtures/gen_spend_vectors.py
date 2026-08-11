@@ -22,7 +22,7 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[2] / "main" / "sp_spend_vectors.h"
 
-# Same dev seed the whole suite (and wallet_crypto selftest) is anchored to.
+# Same dev seed the whole suite (and kiss_crypto selftest) is anchored to.
 TEST_MNEMONIC = (
     "abandon abandon abandon abandon abandon abandon abandon abandon "
     "abandon abandon abandon about"

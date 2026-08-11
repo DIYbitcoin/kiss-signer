@@ -14,7 +14,7 @@ encryption, which was backwards: the card already holds the words as a blob
 sealed to a device key, so a lost card is inert without any help from flash
 encryption, while FLASH mode stored the words in the CLEAR on the same firmware.
 Gating the safer option while shipping the weaker one made no sense, so
-`wallet_seed_sd_supported()` became unconditionally true in `a9303d0`.
+`kiss_seed_sd_supported()` became unconditionally true in `a9303d0`.
 
 What the encrypted lane adds on top is protection of the device key at rest,
 which closes the remaining case: someone holding BOTH the device and the card.
@@ -81,7 +81,7 @@ use. In the simulator it is a file beside the other sim state.
 - `storage_read` / `storage_write_keep` / `storage_erase` gain an SD backend and
   dispatch on the current mode. The NVS and simulator file backends are
   unchanged.
-- `wallet_seed_move_to(int mode)` is the Settings entry point that migrates an
+- `kiss_seed_move_to(int mode)` is the Settings entry point that migrates an
   existing wallet.
 - The setup wizard stages the selected mode and commits it only after the
   complete setup ritual succeeds.

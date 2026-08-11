@@ -63,7 +63,7 @@
 :root {
   color-scheme: dark;
 
-  /* Reconciled with main/wallet_theme.h, every value here is a WT_* token.
+  /* Reconciled with main/kiss_theme.h, every value here is a WT_* token.
      Do not add colours that the firmware does not have. */
   --bg: #070a10;        /* WT_BG   */
   --ink: #e8eef7;       /* WT_INK  */

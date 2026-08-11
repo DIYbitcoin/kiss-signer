@@ -159,10 +159,10 @@ translation, but it stays a key so a language that reorders numerals can.
 
 ## Mixing
 
-`wallet_entropy_mix()` takes exactly two 32 byte inputs. Add a sibling in
-`wallet_crypto.c`:
+`kiss_entropy_mix()` takes exactly two 32 byte inputs. Add a sibling in
+`kiss_crypto.c`:
 
-    int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+    int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                             const uint8_t c[32], uint8_t out[32]);
     // out = SHA256(a ‖ b ‖ c)
 
@@ -176,7 +176,7 @@ Ordering is fixed as camera, chip, taps, matching the source numbers on screen.
 
 The mix runs on the tap screen, on the 64th tap. The camera hands its chain
 across instead of finishing the seed itself, so `camera_spike.c:351` stops
-calling `wallet_entropy_mix` and exposes the accumulated chain to the caller.
+calling `kiss_entropy_mix` and exposes the accumulated chain to the caller.
 Both intermediate chains are zeroed with `wally_bzero` once the mix returns.
 
 ## Camera failure
@@ -188,7 +188,7 @@ independent sources instead of one.
 
 ## Testing
 
-**Unit, on host.** `wallet_entropy_mix3` against a known answer vector computed
+**Unit, on host.** `kiss_entropy_mix3` against a known answer vector computed
 independently. Same fixed inputs must produce the same output; changing any one
 input byte must change the output. Ordering must matter: `mix3(a,b,c)` and
 `mix3(c,b,a)` must differ.

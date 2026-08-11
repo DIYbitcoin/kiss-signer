@@ -10,7 +10,7 @@ idf_component_register(SRCS
                        "upstream/src/amalgamation/combined.c"
                        INCLUDE_DIRS
                        "upstream/include"
-                       # public: wallet_sp.c calls the embedded secp256k1
+                       # public: kiss_sp.c calls the embedded secp256k1
                        # directly for the BIP352/374 point math
                        "upstream/src/secp256k1/include"
                        PRIV_INCLUDE_DIRS

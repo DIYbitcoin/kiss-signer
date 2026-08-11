@@ -56,7 +56,7 @@
 #include <string.h>
 
 #include "lvgl.h"
-#include "wallet_theme.h"
+#include "kiss_theme.h"
 #include "colour_de.h"
 
 // A hairline of shared area is not a bug. Label bounding boxes carry the full

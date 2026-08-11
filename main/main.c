@@ -25,38 +25,38 @@
 #endif
 #include "lvgl.h"
 #include "sprites.h"
-#include "wallet_art.h"
+#include "kiss_art.h"
 #include "menu_img.h"
 #include "menu_logo.h"
 #include "gameover_img.h"
 #include "game_bg.h"
-#include "wallet_img.h"
+#include "kiss_img.h"
 #include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
 #include "i18n.h"
-#include "wallet_ui.h"
-#include "wallet_recv.h"
-#include "wallet_sign.h"
-#include "wallet_scan.h"
-#include "wallet_settings.h"
-#include "wallet_fw_ui.h"
-#include "wallet_fw.h"   // wallet_fw_mark_valid: release the previous slot
-#include "wallet_info.h"
-#include "wallet_setup.h"
-#include "wallet_seed.h"
-#include "wallet_crypto.h"
-#include "wallet_theme.h"
-#include "wallet_duress.h"
-#include "wallet_gword.h"
-#include "wallet_kissword.h"
-#include "wallet_duress_ui.h"
-#include "wallet_word_ui.h"
+#include "kiss_ui.h"
+#include "kiss_recv.h"
+#include "kiss_sign.h"
+#include "kiss_scan.h"
+#include "kiss_settings.h"
+#include "kiss_fw_ui.h"
+#include "kiss_fw.h"   // kiss_fw_mark_valid: release the previous slot
+#include "kiss_info.h"
+#include "kiss_setup.h"
+#include "kiss_seed.h"
+#include "kiss_crypto.h"
+#include "kiss_theme.h"
+#include "kiss_duress.h"
+#include "kiss_gword.h"
+#include "kiss_coverword.h"
+#include "kiss_duress_ui.h"
+#include "kiss_word_ui.h"
 // platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
 // SD-storage badge probes it outside any device-only block, so its header is
-// platform-agnostic here. wallet_crypto/camera_spike stay device-only: they
+// platform-agnostic here. kiss_crypto/camera_spike stay device-only: they
 // pull in ESP headers the sim cannot compile.
 #include "platform_sd.h"
 #ifndef SIMULATOR
-#include "wallet_crypto.h"
+#include "kiss_crypto.h"
 #include "camera_spike.h"
 #endif
 
@@ -239,13 +239,13 @@ static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB prob
 // exactly the modifier stroke the unlock now depends on, so it failed silently
 // for the people who draw big.
 // Was a 384 written here while enrolment wrote 512 of its own. Same number,
-// one place: wallet_gword.h owns it now, beside the threshold that was already
+// one place: kiss_gword.h owns it now, beside the threshold that was already
 // shared for exactly this reason.
 #define GEST_MAX GW_MAX_PTS        // accumulated points across the strokes of the unlock draw
 static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
-static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for wallet_duress
-static uint8_t s_msid[GEST_MAX];    // ...and its stroke ids, for wallet_gword
+static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for kiss_duress
+static uint8_t s_msid[GEST_MAX];    // ...and its stroke ids, for kiss_gword
 static int s_gn;
 static int s_strokes;              // number of strokes in the current draw (KISS is many)
 static int s_stroke_n0;            // index where the current stroke began (tap vs draw test)
@@ -287,7 +287,7 @@ static uint32_t s_wallet_swallow_t;  // last tick that gesture was still touchin
 
 // ---- idle attract-mode screensaver ----
 #define IDLE_MS 300000             // show the screensaver after 5min with no touch (menu/game-over).
-                                   // Cosmetic only. WALLET_AUTOLOCK_MS is the security timeout; the
+                                   // Cosmetic only. KISS_AUTOLOCK_MS is the security timeout; the
                                    // two are the same 5 min today, so change one deliberately, not
                                    // by assuming this one is the longer of the pair.
 #define SAVER_N 6
@@ -585,7 +585,7 @@ static void touch_start(void) {
   i2c_master_bus_handle_t bus = NULL;
   if (i2c_new_master_bus(&i2c_cfg, &bus) != ESP_OK) { ESP_LOGE(TAG, "i2c failed"); return; }
   s_i2c_bus = bus;
-  wallet_scan_set_bus(bus);              // step 6: QR scanner shares the camera bus
+  kiss_scan_set_bus(bus);              // step 6: QR scanner shares the camera bus
   camera_spike_set_bus(bus);             // step 7: entropy page starts the camera too
   esp_lcd_panel_io_i2c_config_t tp_io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
   esp_lcd_panel_io_handle_t tp_io = NULL;
@@ -602,7 +602,7 @@ static void touch_start(void) {
 }
 #else   // SIMULATOR
 // No panel to starve and no flash to write, so the desktop keeps the symbol
-// and does nothing with it. wallet_fw_ui.c then has ONE shape on both sides,
+// and does nothing with it. kiss_fw_ui.c then has ONE shape on both sides,
 // and the screen walk still reaches the WRITING stop with the same code path
 // the device runs.
 void kiss_backlight_set(int on) { (void)on; }
@@ -1199,13 +1199,13 @@ static void saver_hide(void) {
   else if (s_state == ST_OVER) lv_obj_clear_flag(s_over_panel, LV_OBJ_FLAG_HIDDEN);
 }
 
-// The word recogniser moved to main/wallet_kissword.c. It went there because
+// The word recogniser moved to main/kiss_coverword.c. It went there because
 // it could not be tested here: main.c links into no test binary, so "KIS"
-// opened the decoy for months with every gate green. See sim/test_kissword.c.
+// opened the decoy for months with every gate green. See sim/test_coverword.c.
 //
 // This adapter is the whole cost of the move -- the collector stores
 // lv_point_t and the module takes plain int arrays, for the same reason
-// wallet_gword.c does: no LVGL type crosses into code the desktop runner has
+// kiss_gword.c does: no LVGL type crosses into code the desktop runner has
 // to build.
 static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
   if (n > GEST_MAX) n = GEST_MAX;
@@ -1214,7 +1214,7 @@ static bool detect_KISS(const lv_point_t *p, int n, int strokes) {
   return kw_is_kiss(kx, ky, s_gid, n, strokes);
 }
 
-// center the code + caption on the baked chip frame (566..760 x 39..86 in wallet_mock.py)
+// center the code + caption on the baked chip frame (566..760 x 39..86 in kiss_mock.py)
 static void fp_chip_place(void) {
   lv_obj_update_layout(s_fp_chip);
   lv_obj_set_pos(s_fp_chip, 663 - lv_obj_get_width(s_fp_chip) / 2, 46);
@@ -1303,7 +1303,7 @@ static void fp_fly_start(void) {
   lv_obj_set_style_text_font(s_fp_fly, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_letter_space(s_fp_fly, 4, 0);
   lv_obj_update_layout(s_fp_fly);
-  // start where the reveal card showed the code (box center 400,163 in wallet_ui.c)
+  // start where the reveal card showed the code (box center 400,163 in kiss_ui.c)
   lv_obj_set_pos(s_fp_fly, 400 - lv_obj_get_width(s_fp_fly) / 2,
                  163 - lv_obj_get_height(s_fp_fly) / 2);
   lv_obj_set_style_opa(s_fp_chip, 0, 0);      // chip appears only when the glide lands
@@ -1315,31 +1315,31 @@ static void fp_fly_start(void) {
   s_fp_scr_tmr = lv_timer_create(fp_scramble_cb, 45, NULL);  // ~540ms decrypt, then glide
 }
 
-static void wallet_start(void);
+static void kiss_start(void);
 static void setup_done_login(void) {       // wizard stored the seed: first login,
-  wallet_login_open_setup(wallet_start);   // passphrase typed twice (safety net)
+  kiss_login_open_setup(kiss_start);   // passphrase typed twice (safety net)
 }
 
 // A seed already owned by the user is ready, either loaded into an AMNESIC
 // session or verified on the configured SD card. This is an ordinary unlock,
 // not the type-twice ritual used for a newly created/restored wallet.
 static void stored_seed_ready(void) {
-  wallet_login_open(wallet_start);
+  kiss_login_open(kiss_start);
 }
 
 // Settings -> "REPLACE WALLET": run the wizard on demand (not just first boot).
 // Completing it overwrites the stored seed; cancelling leaves it untouched.
-void wallet_begin_setup(void) {
-  wallet_setup_open(lv_screen_active(), setup_done_login);
+void kiss_begin_setup(void) {
+  kiss_setup_open(lv_screen_active(), setup_done_login);
 }
 
 // Sync the home TESTNET badge to the current network. Called on unlock and by
 // Settings when it closes, so flipping the network updates the home immediately.
-static void wallet_home_restyle(void) {
+static void kiss_home_restyle(void) {
   if (!s_wallet) return;
   lv_color_t ac = wt_accent();
   if (s_fp_chip) lv_obj_set_style_text_color(s_fp_chip, ac, 0);
-  wallet_build_id_restyle(s_home_build_id);
+  kiss_build_id_restyle(s_home_build_id);
   if (s_fp_fly)  lv_obj_set_style_text_color(s_fp_fly, ac, 0);
   if (s_cam_lbl) {
     const char *msg = lv_label_get_text(s_cam_lbl);
@@ -1347,7 +1347,7 @@ static void wallet_home_restyle(void) {
   }
   // labels keep their fixed white/grey (the CARD wears the theme, not the
   // text); re-set the TEXT though: a language switch lands here via
-  // wallet_home_refresh(), and the home is built once per boot
+  // kiss_home_refresh(), and the home is built once per boot
   for (int i = 0; i < 4; i++)
     if (s_tile_ttl[i]) {
       // These objects survive a Settings language change. Refresh the font as
@@ -1402,7 +1402,7 @@ static void wallet_home_restyle(void) {
 static void sd_badge_sync(bool present) {
   if (!s_sd_badge) return;
   s_sd_badge_live = false;
-  if (wallet_seed_mode() == WSEED_MODE_SD) {
+  if (kiss_seed_mode() == WSEED_MODE_SD) {
     lv_obj_clear_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(s_sd_badge,
                       present ? LV_SYMBOL_SD_CARD "  " LV_SYMBOL_OK
@@ -1415,11 +1415,11 @@ static void sd_badge_sync(bool present) {
   }
 }
 
-void wallet_home_refresh(void) {
-  wallet_home_restyle();
+void kiss_home_refresh(void) {
+  kiss_home_restyle();
   sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
-  if (wallet_testnet()) lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+  if (kiss_testnet()) lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
   else                  lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -1504,7 +1504,7 @@ static void motes_stop(void) {
   }
 }
 
-static void wallet_start(void) {           // unlocked via login -> reveal the wallet home
+static void kiss_start(void) {           // unlocked via login -> reveal the wallet home
   if (s_wallet_on) return;
   // The LVGL pointer indev is created lazily, and until this release the ONLY
   // things that created it were the login screen and the setup wizard -- every
@@ -1517,20 +1517,20 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   // CLOSE all drew perfectly and ignored every touch -- a screen that looks
   // alive and is deaf, with the UI task still running and nothing in the log.
   //
-  // It belongs here rather than in wallet_open_decoy: this is the one point
+  // It belongs here rather than in kiss_open_decoy: this is the one point
   // every way in passes through, so no future entry path can miss it again.
-  wallet_ui_ensure_indev();
+  kiss_ui_ensure_indev();
   s_wallet_on = true;
   {  // the home chip shows the fingerprint of the wallet that was just unlocked
     uint8_t fp[4];
-    wallet_ui_last_fp(fp);
+    kiss_ui_last_fp(fp);
     snprintf(s_fp_hex, sizeof(s_fp_hex), "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
     if (s_fp_chip) {
       lv_label_set_text(s_fp_chip, s_fp_hex);
       fp_chip_place();
       lv_obj_add_flag(s_fp_chip, LV_OBJ_FLAG_HIDDEN);  // revealed when the flight lands
       lv_obj_add_flag(s_fp_cap, LV_OBJ_FLAG_HIDDEN);
-      wallet_home_restyle();
+      kiss_home_restyle();
       fp_fly_start();
     }
   }
@@ -1542,11 +1542,11 @@ static void wallet_start(void) {           // unlocked via login -> reveal the w
   lv_obj_move_foreground(s_wallet);
   tiles_settle();                          // labels drop in, staggered
   motes_start();                           // ambient idle drift
-  wallet_home_refresh();                   // show/hide the TESTNET badge for this session
+  kiss_home_refresh();                   // show/hide the TESTNET badge for this session
   s_wallet_act_t = lv_tick_get();          // fresh idle clock for this session
 }
 
-static void wallet_lock(void) {            // back to the game cover (tap the KISS logo)
+static void kiss_lock(void) {            // back to the game cover (tap the KISS logo)
   if (!s_wallet_on) return;
 #ifndef SIMULATOR
   if (camera_spike_is_on()) {              // never leave the camera running behind the game
@@ -1558,7 +1558,7 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
   s_wallet_swallow = false;
   s_real_pending = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
-  wallet_session_close();                  // locked: no key material stays in RAM
+  kiss_session_close();                  // locked: no key material stays in RAM
   motes_stop();
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
   s_state = ST_MENU;
@@ -1567,8 +1567,8 @@ static void wallet_lock(void) {            // back to the game cover (tap the KI
   menu_intro();
 }
 
-// wallet_settings.c: seed already wiped + session closed; just drop to the game.
-void wallet_wiped_lock(void) { wallet_lock(); }
+// kiss_settings.c: seed already wiped + session closed; just drop to the game.
+void kiss_wiped_lock(void) { kiss_lock(); }
 
 // The decoy signer opens STRAIGHT from the game: empty BIP39 passphrase, no
 // keyboard, nothing on screen suggesting there is another way in. It is a real
@@ -1600,16 +1600,16 @@ static void gesture_swallow(void) {
   s_wallet_swallow_t = lv_tick_get();
 }
 
-static void wallet_open_decoy(void) {
-  if (wallet_session_open(NULL) != 0) {   // no seed, or derivation failed
-    wallet_login_open(wallet_start);      // fall back to the ordinary way in
+static void kiss_open_decoy(void) {
+  if (kiss_session_open(NULL) != 0) {   // no seed, or derivation failed
+    kiss_login_open(kiss_start);      // fall back to the ordinary way in
     return;
   }
   uint8_t fp[4] = {0};
-  if (wallet_fingerprint(NULL, fp) == 0)  // same empty passphrase = the decoy's own
-    wallet_ui_set_last_fp(fp);
+  if (kiss_fingerprint(NULL, fp) == 0)  // same empty passphrase = the decoy's own
+    kiss_ui_set_last_fp(fp);
   gesture_swallow();                      // the finger may still be mid-word
-  wallet_start();
+  kiss_start();
 }
 
 // Which signer the draw that just finished opens: 1 = the real one (ask for the
@@ -1622,8 +1622,8 @@ static void wallet_open_decoy(void) {
 // BEFORE the final stroke, and the final stroke goes to the classifier alone.
 //
 // This function recognises shapes; it does not decide anything. The decision is
-// wallet_duress_route, which lives in wallet_duress.c because nothing here is
-// linked into a test binary. It used to consult wallet_duress_real() right at
+// kiss_duress_route, which lives in kiss_duress.c because nothing here is
+// linked into a test binary. It used to consult kiss_duress_real() right at
 // the bottom, and that was the leak the audit found: a device with a stroke
 // configured answered a bare word with the decoy, one without answered with a
 // passphrase keyboard, so one gesture separated them.
@@ -1666,7 +1666,7 @@ static int written_word_match(const gw_template_t *stored)
 // (written_word_match above), which asks whether the draw LOOKS like the one it
 // was taught rather than trying to name each stroke, and nothing has called
 // free_marks since. It stayed as a -Wunused-function warning on every device
-// build. wallet_duress_classify_free, the classifier it used, is still the
+// build. kiss_duress_classify_free, the classifier it used, is still the
 // modifier reader and still under test in sim/test_duress.c.
 
 #ifdef SIMULATOR
@@ -1691,7 +1691,7 @@ static int unlock_kind(void) {
   // not answer to the word has the honest cover story of not being a signer.
   //
   // Same two doors, same rule. The word alone opens the spare; the word plus
-  // one more mark asks for the passphrase. wallet_duress_route still decides,
+  // one more mark asks for the passphrase. kiss_duress_route still decides,
   // through route_marked, so the property the audit closed holds here too --
   // the door is picked by whether there was an extra mark, never by which one.
   gw_template_t stored;
@@ -1704,7 +1704,7 @@ static int unlock_kind(void) {
     // in either -- a door is the word and at most one mark, never a paragraph.
     int k = WDR_NONE;
     if (used > 0 && n - used <= 1)
-      k = wallet_duress_route_marked(true, n - used == 1);
+      k = kiss_duress_route_marked(true, n - used == 1);
 #ifdef SIMULATOR
     if (k != WDR_NONE) g_last_unlock_kind = k;
 #endif
@@ -1723,9 +1723,9 @@ static int unlock_kind(void) {
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
       }
-      int stroke = wallet_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+      int stroke = kiss_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
       if (stroke != WDG_NONE) {
-        int k = wallet_duress_route(true, stroke);
+        int k = kiss_duress_route(true, stroke);
 #ifdef SIMULATOR
         g_last_unlock_kind = k;
 #endif
@@ -1736,7 +1736,7 @@ static int unlock_kind(void) {
       // be the thing that surfaces a passphrase prompt.
     }
   }
-  int k = wallet_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+  int k = kiss_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
 #ifdef SIMULATOR
   if (k != WDR_NONE) g_last_unlock_kind = k;   // a non-word is not an answer
 #endif
@@ -1749,7 +1749,7 @@ static int unlock_kind(void) {
 // hit: reading a warning screen or checking an address against a phone takes
 // longer than that, and being thrown back to the game mid-read reads as a bug.
 // This is the SECURITY timeout, not the screensaver -- it drops the session key.
-#define WALLET_AUTOLOCK_MS 300000
+#define KISS_AUTOLOCK_MS 300000
 
 // The four home tiles answer a press with NOTHING drawn.
 //
@@ -1774,7 +1774,7 @@ static void fp_card_deleted_cb(lv_event_t *e) {
 
 static void fp_card_open(void) {
   if (s_fp_card) return;
-  s_fp_card = wallet_info_fp_card_open(s_wallet, s_fp_hex, true);
+  s_fp_card = kiss_info_fp_card_open(s_wallet, s_fp_hex, true);
   if (s_fp_card)
     lv_obj_add_event_cb(s_fp_card, fp_card_deleted_cb, LV_EVENT_DELETE, NULL);
 }
@@ -1785,7 +1785,7 @@ static void fp_card_open(void) {
 // facts in three hand-maintained lists is what has now failed twice. The
 // firmware screen was in NEITHER the auto-lock list nor the touch owner list,
 // which is how the idle lock left it lit with RECOVERY WORDS two taps away.
-// wallet_word_ui was missing from the touch owner list before it, so the game's
+// kiss_word_ui was missing from the touch owner list before it, so the game's
 // sampler read the same strokes the writing canvas did and opened tiles
 // underneath a screen that still looked correct.
 //
@@ -1804,17 +1804,17 @@ static const struct {
 } SCREENS[] = {
   // Wizards and login. They own the touch AND hold the clock off: writing
   // twelve words onto paper takes minutes of a screen nobody is touching.
-  { wallet_ui_active,        NULL,                  true,  true  },
-  { wallet_setup_active,     NULL,                  true,  true  },
-  { wallet_duress_ui_active, NULL,                  true,  true  },
-  { wallet_word_ui_active,   NULL,                  true,  true  },
+  { kiss_ui_active,        NULL,                  true,  true  },
+  { kiss_setup_active,     NULL,                  true,  true  },
+  { kiss_duress_ui_active, NULL,                  true,  true  },
+  { kiss_word_ui_active,   NULL,                  true,  true  },
   // Wallet sub-screens. They own the touch and the lock takes them away.
-  { wallet_scan_active,      wallet_scan_close,     true,  false },
-  { wallet_sign_active,      wallet_sign_close,     true,  false },
-  { wallet_recv_active,      wallet_recv_close,     true,  false },
-  { wallet_info_active,      wallet_info_close,     true,  false },
-  { wallet_fw_ui_active,     wallet_fw_ui_close,    true,  false },
-  { wallet_settings_active,  wallet_settings_close, true,  false },
+  { kiss_scan_active,      kiss_scan_close,     true,  false },
+  { kiss_sign_active,      kiss_sign_close,     true,  false },
+  { kiss_recv_active,      kiss_recv_close,     true,  false },
+  { kiss_info_active,      kiss_info_close,     true,  false },
+  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false },
+  { kiss_settings_active,  kiss_settings_close, true,  false },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
@@ -1851,7 +1851,7 @@ static void game_tick(lv_timer_t *t) {
     }
   }
 
-  // wallet_word_ui_active was MISSING here, and it is the one screen on the
+  // kiss_word_ui_active was MISSING here, and it is the one screen on the
   // device where the owner drags a finger across the panel on purpose. Without
   // it the game's sampler read the same strokes the writing canvas was reading,
   // and its own recogniser then opened whatever was under them -- the walk
@@ -1881,7 +1881,7 @@ static void game_tick(lv_timer_t *t) {
     if (lv_tick_elaps(s_real_at) >= KISS_OPEN_DELAY_MS) {
       s_real_pending = false;
       s_gest_idle = 0;
-      wallet_login_open(wallet_start);
+      kiss_login_open(kiss_start);
     }
     s_prev_press = pressed;
     return;
@@ -1900,7 +1900,7 @@ static void game_tick(lv_timer_t *t) {
       return;
     }
     if (pressed) s_wallet_act_t = lv_tick_get();  // any touch anywhere resets the clock
-    else if (lv_tick_elaps(s_wallet_act_t) > WALLET_AUTOLOCK_MS) {
+    else if (lv_tick_elaps(s_wallet_act_t) > KISS_AUTOLOCK_MS) {
       // Everything the registry says the lock owns, in the order it lists them:
       // the camera stops first, and firmware goes before settings because its
       // close deliberately does not hand control back the way its BACK does. A
@@ -1908,7 +1908,7 @@ static void game_tick(lv_timer_t *t) {
       for (size_t i = 0; i < N_SCREENS; i++)
         if (SCREENS[i].close && SCREENS[i].active())
           SCREENS[i].close();
-      wallet_lock();                              // session key leaves RAM
+      kiss_lock();                              // session key leaves RAM
       s_prev_press = pressed;
       return;
     }
@@ -1918,8 +1918,8 @@ static void game_tick(lv_timer_t *t) {
     // and the only way out was pulling the power. This handler reads the same
     // touch the unlock gesture reads, so it is on a path known to work here.
     // Same top-left corner as the pill, so nothing new has to be learned.
-    if (wallet_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
-      wallet_scan_cancel();
+    if (kiss_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
+      kiss_scan_cancel();
       s_prev_press = pressed;
       return;
     }
@@ -1989,7 +1989,7 @@ static void game_tick(lv_timer_t *t) {
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
     if (!cam_on && pressed && !s_prev_press && tx < 88 && ty < 88) {
-      wallet_lock();
+      kiss_lock();
     } else if (cam_on) {
       bool zoom_zone = (tx >= 680 || tx <= 120) && ty > 120;
       if (pressed && (s_zoom_drag || zoom_zone)) {            // edge drag = zoom
@@ -2026,14 +2026,14 @@ static void game_tick(lv_timer_t *t) {
     } else if (!pressed && s_prev_press && s_tile_pend) {          // finger lifted: open
       int t = s_tile_pend;
       s_tile_pend = 0;
-      if (t == 1) wallet_sign_open(lv_screen_active());
-      else if (t == 2) wallet_recv_open(lv_screen_active());
-      else if (t == 3) wallet_info_open(lv_screen_active());
-      else wallet_settings_open(lv_screen_active());
+      if (t == 1) kiss_sign_open(lv_screen_active());
+      else if (t == 2) kiss_recv_open(lv_screen_active());
+      else if (t == 3) kiss_info_open(lv_screen_active());
+      else kiss_settings_open(lv_screen_active());
     }
     if (!pressed) s_zoom_drag = false;
 #else
-    if (pressed && !s_prev_press && tx < 88 && ty < 88) wallet_lock();
+    if (pressed && !s_prev_press && tx < 88 && ty < 88) kiss_lock();
     else if (pressed && !s_prev_press && tx >= 566 && ty < 110)
       s_fp_pend = true;                  // fingerprint chip: open the card on release
     else if (pressed && !s_prev_press && tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340)
@@ -2050,10 +2050,10 @@ static void game_tick(lv_timer_t *t) {
     } else if (!pressed && s_prev_press && s_tile_pend) {
       int t = s_tile_pend;
       s_tile_pend = 0;
-      if (t == 1) wallet_sign_open(lv_screen_active());
-      else if (t == 2) wallet_recv_open(lv_screen_active());
-      else if (t == 3) wallet_info_open(lv_screen_active());
-      else wallet_settings_open(lv_screen_active());
+      if (t == 1) kiss_sign_open(lv_screen_active());
+      else if (t == 2) kiss_recv_open(lv_screen_active());
+      else if (t == 3) kiss_info_open(lv_screen_active());
+      else kiss_settings_open(lv_screen_active());
     }
 #endif
     s_prev_press = pressed;
@@ -2129,16 +2129,16 @@ static void game_tick(lv_timer_t *t) {
             // needs the whole setup wizard. Neither has a decoy to open.
             int kind = unlock_kind();
             if (kind >= 0) {
-              int seed_mode = wallet_seed_mode();
+              int seed_mode = kiss_seed_mode();
               bool sd_blocked = false;
               if (seed_mode == WSEED_MODE_SD) {
                 // An SD wallet with its card removed/corrupt is still a
                 // configured wallet. Check it BEFORE generic seed existence;
                 // never mistake removable storage for a factory-fresh device
                 // and silently offer to create over it.
-                int sd_rc = wallet_setup_sd_status();
+                int sd_rc = kiss_setup_sd_status();
                 if (sd_rc != WSEED_OK) {
-                  wallet_setup_open_sd_missing(lv_screen_active(), sd_rc,
+                  kiss_setup_open_sd_missing(lv_screen_active(), sd_rc,
                                                stored_seed_ready);
                   gesture_swallow();
                   s_kiss_pending = false;
@@ -2149,10 +2149,10 @@ static void game_tick(lv_timer_t *t) {
               if (sd_blocked) {
                 // The retry/recovery screen owns the hand-off from here.
               }
-              else if (!wallet_seed_exists()) {
+              else if (!kiss_seed_exists()) {
                 if (seed_mode == WSEED_MODE_AMNESIC)
-                  wallet_setup_open_load(lv_screen_active(), stored_seed_ready);
-                else wallet_setup_open(lv_screen_active(), setup_done_login);
+                  kiss_setup_open_load(lv_screen_active(), stored_seed_ready);
+                else kiss_setup_open(lv_screen_active(), setup_done_login);
                 gesture_swallow();           // the finger is still on the panel
                 s_kiss_pending = false;
                 s_gn = 0; s_strokes = 0;
@@ -2180,7 +2180,7 @@ static void game_tick(lv_timer_t *t) {
         s_gest_idle += TICK_MS;
         if (s_kiss_pending && s_gest_idle >= KISS_OPEN_DELAY_MS) {
           s_kiss_pending = false;                            // no modifier came: the spare
-          wallet_open_decoy();
+          kiss_open_decoy();
           s_gn = 0; s_strokes = 0; s_gest_idle = 0;
         } else if (s_gest_idle >= 3000) {
           s_gn = 0; s_strokes = 0; s_kiss_pending = false;   // gave up -> clear (never starts game)
@@ -2238,7 +2238,7 @@ static void spawn_tick(lv_timer_t *t) {
 }
 
 static void storage_locked_screen(lv_obj_t *root,
-                                  wallet_settings_load_status_t status) {
+                                  kiss_settings_load_status_t status) {
   static const char *BODY =
       "Wallet storage could not be opened. Existing wallet data and any "
       "SD-card device key may still be intact.\n\n"
@@ -2247,8 +2247,8 @@ static void storage_locked_screen(lv_obj_t *root,
       "only if recovery is required.";
   char cause[112];
   snprintf(cause, sizeof cause, "CAUSE: %s  (code 0x%X)",
-           wallet_settings_load_status_name(status),
-           (unsigned)wallet_settings_load_error_code());
+           kiss_settings_load_status_name(status),
+           (unsigned)kiss_settings_load_error_code());
 
   // Nothing behind this page is built: no game touch timer, setup wizard,
   // wallet home, or erase action exists on a failed-storage boot.
@@ -2268,7 +2268,7 @@ static void storage_locked_screen(lv_obj_t *root,
 
 void build_game(void) {  // non-static: the simulator harness calls this too
   // The baked art lives in flash as RLE and its descriptors start empty, so
-  // this has to run before the first lv_image_set_src below (wallet_art.h says
+  // this has to run before the first lv_image_set_src below (kiss_art.h says
   // why the art is compressed at all). It is free where it stands: nothing is
   // painted until the lv_timer_handler loop in app_main, so this only delays
   // first paint on a screen that is still black.
@@ -2278,13 +2278,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // costs the decoy its looks and costs the wallet nothing.
   art_unpack_all();
 
-  wallet_settings_load_status_t settings_status = wallet_settings_load();
+  kiss_settings_load_status_t settings_status = kiss_settings_load();
   lv_obj_t *scr = lv_screen_active();
   if (settings_status != WSETTINGS_LOAD_OK) {
 #ifndef SIMULATOR
     ESP_LOGE(TAG, "wallet storage blocked: %s (0x%x)",
-             wallet_settings_load_status_name(settings_status),
-             (unsigned)wallet_settings_load_error_code());
+             kiss_settings_load_status_name(settings_status),
+             (unsigned)kiss_settings_load_error_code());
 #endif
     storage_locked_screen(scr, settings_status);
     return;
@@ -2382,8 +2382,8 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_add_flag(s_wallet, LV_OBJ_FLAG_HIDDEN);
 
   // Live accent chrome — the baked art carries only a DIM skeleton of these
-  // (wallet_mock.py live_frames): card frames + wash, corner brackets, title
-  // underline, chip frame, theme tag. wallet_home_restyle() paints them in the
+  // (kiss_mock.py live_frames): card frames + wash, corner brackets, title
+  // underline, chip frame, theme tag. kiss_home_restyle() paints them in the
   // active accent, so switching themes recolors the home with zero re-bake.
   //
   // ONE weight for all four tiles. This was a two-tier treatment per HANDOFF-05:
@@ -2459,7 +2459,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_pos(s_theme_lbl, 704, 428);
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
-  // content); live labels own it. Coords from assets/generators/wallet_mock.py.
+  // content); live labels own it. Coords from assets/generators/kiss_mock.py.
   // Step-1 proof: shows the boot-selftest fingerprint of the dev seed.
   s_fp_chip = lv_label_create(s_wallet);
   lv_label_set_text(s_fp_chip, s_fp_hex);
@@ -2504,7 +2504,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
 
   // TESTNET badge — top-center, between the baked "KISS" logo (left) and the
   // fingerprint chip (right). Amber pill, shown ONLY on testnet so mainnet stays
-  // clean; kept in sync by wallet_home_refresh() (unlock + return from Settings).
+  // clean; kept in sync by kiss_home_refresh() (unlock + return from Settings).
   s_net_lbl = lv_label_create(s_wallet);
   lv_label_set_text(s_net_lbl, "TESTNET");
   lv_obj_set_style_text_color(s_net_lbl, lv_color_hex(0xF2B84B), 0);
@@ -2526,9 +2526,9 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // ONE line here. Settings stacks because it has to share its bottom edge with
   // a row of buttons; this edge is empty, so the signature runs along it and
   // stays the quiet thing it is meant to be.
-  s_home_build_id = wallet_build_id_make(s_wallet, 48, 424, false, false);
+  s_home_build_id = kiss_build_id_make(s_wallet, 48, 424, false, false);
   // Now the row has a measured width, the badge can stand clear of it.
-  lv_obj_set_pos(s_sd_badge, wallet_build_id_right() + 28, 424);
+  lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + 28, 424);
 
   // NOTHING here says how to reach the other wallet.
   //
@@ -2559,7 +2559,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 22);
   }
 
-  wallet_home_restyle();
+  kiss_home_restyle();
 
   // idle motes: small dim dots (started/stopped with the session)
   for (int i = 0; i < N_MOTES; i++) {
@@ -2641,7 +2641,7 @@ void app_main(void) {
 #ifndef KISS_RELEASE
   {  // step 1 of the wallet build order: prove the crypto stack (libwally)
     uint8_t fp[4];
-    int rc = wallet_selftest(fp);
+    int rc = kiss_selftest(fp);
     ESP_LOGI(TAG, "wallet crypto selftest: %s (stage %d) fingerprint %02X%02X%02X%02X",
              rc == 0 ? "PASS" : "FAIL", rc, fp[0], fp[1], fp[2], fp[3]);
     if (rc == 0)
@@ -2651,20 +2651,20 @@ void app_main(void) {
       snprintf(s_fp_hex, sizeof(s_fp_hex), "FAIL %d", rc);
   }
 #else
-  wallet_selftest(NULL);   // release: just wally_init; the chip stays blank
+  kiss_selftest(NULL);   // release: just wally_init; the chip stays blank
 #endif
   // Signing determinism, on the chip that will actually sign. The host test
   // suite proves this against a 64-bit secp256k1 field backend; a riscv32
   // device compiles field_10x26 instead, so these bytes have never been
   // checked here. Two signatures, ~ms, every boot including release.
-  // A failure here is not only logged: wallet_psbt_sign refuses to sign at
+  // A failure here is not only logged: kiss_psbt_sign refuses to sign at
   // all, so a unit whose curve code has drifted cannot produce a signature
   // rather than producing a quietly wrong one.
   //
   // Hoisted out of its block because the rollback decision below needs it. A
   // signer that cannot sign is exactly the image rollback exists to undo, and
   // confirming it anyway made the refusal permanent instead of temporary.
-  int src = wallet_sign_selftest();
+  int src = kiss_sign_selftest();
   ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
   display_start();
   backlight_on();
@@ -2673,7 +2673,7 @@ void app_main(void) {
   // ADC1 and the analog i2c clock, and the panel's LDO comes up through the
   // same analog block. Nothing needs randomness before a screen exists, so
   // this costs nothing and keeps boot order boring.
-  wallet_trng_start();
+  kiss_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
 
@@ -2700,7 +2700,7 @@ void app_main(void) {
   // whether the PREVIOUS firmware gets to come back, which is the only thing
   // that can save a unit whose new image cannot draw or cannot sign.
   if (src == 0) {
-    wallet_fw_mark_valid();
+    kiss_fw_mark_valid();
   } else {
     ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
                   "trial so a reboot returns the firmware that worked", src);

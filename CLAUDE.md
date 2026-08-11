@@ -4,7 +4,7 @@
 
 A content screen is **not** a title, a paragraph and a button. That shape has
 shipped more than once and it is the thing being corrected. Every screen the
-owner reads is built from the kit in `main/wallet_theme.c`; nothing here needs
+owner reads is built from the kit in `main/kiss_theme.c`; nothing here needs
 inventing.
 
 | What the screen needs | Use |
@@ -108,9 +108,9 @@ zero for the first time by adding stops for six screens, and two of the six
 were broken:
 
 - **A screen that takes a drag must be added to the touch owner gate in
-  `main.c`.** The condition reading `wallet_ui_active() || wallet_setup_active()
-  || wallet_duress_ui_active() || wallet_word_ui_active()` is what stops the
-  game's own sampler from reading the same finger. `wallet_word_ui_active` was
+  `main.c`.** The condition reading `kiss_ui_active() || kiss_setup_active()
+  || kiss_duress_ui_active() || kiss_word_ui_active()` is what stops the
+  game's own sampler from reading the same finger. `kiss_word_ui_active` was
   missing, so writing your own letters was sampled twice and the recogniser
   opened whatever tile sat under the stroke — *underneath* a write screen that
   still looked correct. Nothing had ever drawn on that screen.

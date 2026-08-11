@@ -20,7 +20,7 @@
 #include <wally_script.h>
 #include <wally_transaction.h>
 
-#include "wallet_crypto.h"   // WSCRIPT_* enum
+#include "kiss_crypto.h"   // WSCRIPT_* enum
 
 #define H 0x80000000u
 
@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
     // The CAUTION case, which had no fixture at all: three READY and one STOP
     // meant the acknowledgement gate, the one screen on this device with a
     // second confirm in front of it, could not be reached on hardware without
-    // hand building a PSBT. wallet_psbt.c raises WPSBT_C_HIGHFEE when the fee
+    // hand building a PSBT. kiss_psbt.c raises WPSBT_C_HIGHFEE when the fee
     // is a tenth of the send or more; 8000 out of a 100000 input leaves 10000
     // of fee against an 8000 send, which is over that line and nowhere near
     // the dust rules, so exactly one flag fires and the screen is predictable.

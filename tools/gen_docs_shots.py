@@ -418,12 +418,12 @@ REVEAL_HOLD = 200                                # ~2s parked on the signer
 
 
 def theme_colour(name):
-    """A hex colour from main/wallet_theme.h. Never invent one, never copy one."""
-    with open(os.path.join(ROOT, "main", "wallet_theme.h")) as fh:
+    """A hex colour from main/kiss_theme.h. Never invent one, never copy one."""
+    with open(os.path.join(ROOT, "main", "kiss_theme.h")) as fh:
         m = re.search(r"#define\s+%s\s+lv_color_hex\(0x([0-9A-Fa-f]{6})\)" % name,
                       fh.read())
     if not m:
-        raise ValueError("no %s in main/wallet_theme.h" % name)
+        raise ValueError("no %s in main/kiss_theme.h" % name)
     v = int(m.group(1), 16)
     return (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF
 

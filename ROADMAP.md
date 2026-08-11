@@ -56,7 +56,7 @@ passphrase prompt at all. The owner's real wallet lives behind KISS plus one
 extra configured stroke, and only that path reaches the passphrase keyboard.
 This is deliberate. A passphrase field on screen is itself a tell, and a
 KISS-branded device where drawing KISS does nothing is more suspicious than one
-that opens a modest wallet. See `main/wallet_duress.h`.
+that opens a modest wallet. See `main/kiss_duress.h`.
 
 ## Platform and security
 

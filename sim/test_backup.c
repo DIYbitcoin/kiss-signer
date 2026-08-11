@@ -1,4 +1,4 @@
-// Desktop tests for main/wallet_backup.c: "has this wallet's paper ever been
+// Desktop tests for main/kiss_backup.c: "has this wallet's paper ever been
 // proven against this device".
 //
 // The fact this module holds used to be a session flag that reset on every
@@ -9,12 +9,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "wallet_backup.h"
-#include "wallet_seed.h"
+#include "kiss_backup.h"
+#include "kiss_seed.h"
 
 // sim_main.c: the paper check record carries a master fingerprint, so it is
 // only written when flash encryption is under it. Tests drive both lanes.
-void wallet_seed_test_set_flash_encrypted(int on);
+void kiss_seed_test_set_flash_encrypted(int on);
 
 static int bfails;
 
@@ -33,50 +33,50 @@ int test_backup_layer(void) {
     // Flash encryption ON for this block: the record carries a master
     // fingerprint, so a plaintext lane deliberately keeps it in session RAM and
     // writes nothing. The unencrypted lane is tested at the end.
-    wallet_seed_test_set_flash_encrypted(1);
+    kiss_seed_test_set_flash_encrypted(1);
     bchk("backup: KEEP mode for the persisting tests",
-         wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
-    wallet_backup_forget();
+         kiss_seed_set_mode(WSEED_MODE_KEEP) == 0);
+    kiss_backup_forget();
 
-    bchk("backup: nothing checked to begin with", !wallet_backup_checked(fp_a));
+    bchk("backup: nothing checked to begin with", !kiss_backup_checked(fp_a));
 
-    wallet_backup_mark(fp_a);
-    bchk("backup: marked wallet reads checked", wallet_backup_checked(fp_a));
+    kiss_backup_mark(fp_a);
+    bchk("backup: marked wallet reads checked", kiss_backup_checked(fp_a));
 
     // The whole point of keying on the fingerprint: a decoy or second
     // passphrase wallet answers for its own paper, not for wallet A's.
     bchk("backup: a different wallet is still unchecked",
-         !wallet_backup_checked(fp_b));
-    wallet_backup_mark(fp_b);
+         !kiss_backup_checked(fp_b));
+    kiss_backup_mark(fp_b);
     bchk("backup: second wallet marks independently",
-         wallet_backup_checked(fp_b));
+         kiss_backup_checked(fp_b));
     bchk("backup: marking the second did not disturb the first",
-         wallet_backup_checked(fp_a));
+         kiss_backup_checked(fp_a));
 
-    // An all-zero fingerprint is what wallet_ui reports before any unlock. It
+    // An all-zero fingerprint is what kiss_ui reports before any unlock. It
     // must not accidentally share a slot with a real wallet.
     bchk("backup: the empty fingerprint is unchecked",
-         !wallet_backup_checked(fp_zero));
+         !kiss_backup_checked(fp_zero));
 
     bchk("backup: marking is idempotent",
-         (wallet_backup_mark(fp_a), wallet_backup_checked(fp_a)));
+         (kiss_backup_mark(fp_a), kiss_backup_checked(fp_a)));
 
-    wallet_backup_forget();
-    bchk("backup: forget clears wallet A", !wallet_backup_checked(fp_a));
-    bchk("backup: forget clears wallet B", !wallet_backup_checked(fp_b));
+    kiss_backup_forget();
+    bchk("backup: forget clears wallet A", !kiss_backup_checked(fp_a));
+    bchk("backup: forget clears wallet B", !kiss_backup_checked(fp_b));
 
     // AMNESIC promises a device that gets searched holds no wallet metadata, so
     // the mark lives in session RAM only and dies with the mode change, exactly
-    // as wallet_usage does.
-    bchk("backup: switch to AMNESIC", wallet_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
-    wallet_backup_mark(fp_a);
+    // as kiss_usage does.
+    bchk("backup: switch to AMNESIC", kiss_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
+    kiss_backup_mark(fp_a);
     bchk("backup: amnesic still answers within the session",
-         wallet_backup_checked(fp_a));
-    bchk("backup: back to KEEP", wallet_seed_set_mode(WSEED_MODE_KEEP) == 0);
+         kiss_backup_checked(fp_a));
+    bchk("backup: back to KEEP", kiss_seed_set_mode(WSEED_MODE_KEEP) == 0);
     bchk("backup: the amnesic mark never reached storage",
-         !wallet_backup_checked(fp_a));
+         !kiss_backup_checked(fp_a));
 
-    wallet_backup_forget();
+    kiss_backup_forget();
 
     // The unencrypted lane, which is what a beta device actually runs. A record
     // keyed by master fingerprint proves which wallet was used, and a second
@@ -88,14 +88,14 @@ int test_backup_layer(void) {
     // deliberately answers from session RAM, which would say yes no matter what
     // storage held. So mark with encryption off, then turn it on and read. That
     // sends the reader to NVS, and a false there is proof nothing was written.
-    wallet_seed_test_set_flash_encrypted(0);
+    kiss_seed_test_set_flash_encrypted(0);
     bchk("backup: unencrypted KEEP still answers within the session",
-         (wallet_backup_mark(fp_a), wallet_backup_checked(fp_a)));
-    wallet_seed_test_set_flash_encrypted(1);
+         (kiss_backup_mark(fp_a), kiss_backup_checked(fp_a)));
+    kiss_seed_test_set_flash_encrypted(1);
     bchk("backup: unencrypted mark wrote nothing to storage",
-         !wallet_backup_checked(fp_a));
+         !kiss_backup_checked(fp_a));
 
-    wallet_backup_forget();
-    wallet_seed_test_set_flash_encrypted(0);   // leave the sim on the beta lane
+    kiss_backup_forget();
+    kiss_seed_test_set_flash_encrypted(0);   // leave the sim on the beta lane
     return bfails;
 }

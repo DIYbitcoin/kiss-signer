@@ -4,7 +4,7 @@
 
 **Goal:** Make every new wallet's seed depend on a third entropy source — the timing of the user's own taps — so that no single manufacturer's RNG can determine a wallet.
 
-**Architecture:** A new host-testable module (`main/wallet_tapent.c`) accumulates tap records into a SHA256 chain, with the clock injected so the fold and debounce can be tested off device. `camera_spike.c` stops finishing the seed and instead hands its accumulated chain out. A new `wallet_crypto.c` helper hashes all three chains flat. A new LVGL screen in `wallet_setup.c` drives the taps and runs the final mix.
+**Architecture:** A new host-testable module (`main/kiss_tapent.c`) accumulates tap records into a SHA256 chain, with the clock injected so the fold and debounce can be tested off device. `camera_spike.c` stops finishing the seed and instead hands its accumulated chain out. A new `kiss_crypto.c` helper hashes all three chains flat. A new LVGL screen in `kiss_setup.c` drives the taps and runs the final mix.
 
 **Tech Stack:** ESP-IDF, LVGL 9, libwally-core (vendored), C99. Host tests build via `sim/build_test.sh` into a single `/tmp/kisstest` binary.
 
@@ -16,25 +16,25 @@
 
 | File | Responsibility |
 |---|---|
-| `main/wallet_tapent.h` (create) | Public interface: reset, offer a tap, read progress, take the chain. |
-| `main/wallet_tapent.c` (create) | Debounce + fold. Injected clock, no LVGL, no ESP headers. Host testable. |
-| `main/wallet_crypto.h` / `.c` (modify) | Add `wallet_entropy_mix3`. |
+| `main/kiss_tapent.h` (create) | Public interface: reset, offer a tap, read progress, take the chain. |
+| `main/kiss_tapent.c` (create) | Debounce + fold. Injected clock, no LVGL, no ESP headers. Host testable. |
+| `main/kiss_crypto.h` / `.c` (modify) | Add `kiss_entropy_mix3`. |
 | `main/camera_spike.h` / `.c` (modify) | Stop mixing at capture; expose the camera chain. |
-| `main/wallet_setup.c` (modify) | Randomness screen copy/equation; new tap screen; final mix. |
+| `main/kiss_setup.c` (modify) | Randomness screen copy/equation; new tap screen; final mix. |
 | `i18n/*.json` (modify, 21 files) | Four new UI strings. |
 | `sim/test_tapent.c` (create) | Host tests for the fold, the debounce and `mix3`. |
 | `sim/build_test.sh` (modify) | Compile the two new files into the runner. |
 | `sim/test_crypto.c` (modify) | Call the new suite from `main`, add its fails to the total. |
 
-`wallet_tapent.c` is deliberately free of ESP and LVGL headers. Every security-relevant decision (what gets hashed, what counts as a tap) lives there and is exercised on the host; the screen only supplies timestamps and paints a bar.
+`kiss_tapent.c` is deliberately free of ESP and LVGL headers. Every security-relevant decision (what gets hashed, what counts as a tap) lives there and is exercised on the host; the screen only supplies timestamps and paints a bar.
 
 ---
 
-## Task 1: `wallet_entropy_mix3`
+## Task 1: `kiss_entropy_mix3`
 
 **Files:**
-- Modify: `main/wallet_crypto.h:20`
-- Modify: `main/wallet_crypto.c:62-72`
+- Modify: `main/kiss_crypto.h:20`
+- Modify: `main/kiss_crypto.c:62-72`
 - Create: `sim/test_tapent.c`
 - Modify: `sim/build_test.sh:24-25`
 - Modify: `sim/test_crypto.c:26-33`
@@ -48,7 +48,7 @@ Create `sim/test_tapent.c`:
 // Build: sim/build_test.sh -> /tmp/kisstest
 #include <stdio.h>
 #include <string.h>
-#include "wallet_crypto.h"
+#include "kiss_crypto.h"
 
 static int fails;
 
@@ -73,7 +73,7 @@ static void test_mix3(void)
     uint8_t a[32], b[32], c[32], out[32], out2[32];
     memset(a, 0x00, 32); memset(b, 0x11, 32); memset(c, 0x22, 32);
 
-    ok("mix3 returns 0", wallet_entropy_mix3(a, b, c, out) == 0);
+    ok("mix3 returns 0", kiss_entropy_mix3(a, b, c, out) == 0);
 
     char got[65]; hex32(out, got);
     ok("mix3 matches the independent vector", strcmp(got, MIX3_ABC) == 0);
@@ -81,18 +81,18 @@ static void test_mix3(void)
 
     // order matters: a hash that ignored ordering would let a coordinator of
     // sources swap which one dominates
-    wallet_entropy_mix3(c, b, a, out2);
+    kiss_entropy_mix3(c, b, a, out2);
     ok("mix3 is order sensitive", memcmp(out, out2, 32) != 0);
 
     // every input reaches the digest
-    a[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    a[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on a", memcmp(out, out2, 32) != 0);
-    a[31] ^= 1; b[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    a[31] ^= 1; b[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on b", memcmp(out, out2, 32) != 0);
-    b[31] ^= 1; c[31] ^= 1; wallet_entropy_mix3(a, b, c, out2);
+    b[31] ^= 1; c[31] ^= 1; kiss_entropy_mix3(a, b, c, out2);
     ok("mix3 depends on c", memcmp(out, out2, 32) != 0);
 
-    ok("mix3 rejects NULL", wallet_entropy_mix3(NULL, b, c, out) != 0);
+    ok("mix3 rejects NULL", kiss_entropy_mix3(NULL, b, c, out) != 0);
 }
 
 int test_tapent(void)
@@ -118,11 +118,11 @@ Replace the `MIX3_ABC` literal with that output.
 
 - [ ] **Step 3: Wire the suite into the runner**
 
-In `sim/build_test.sh`, add `sim/test_tapent.c` to the source list (the line beginning `sim/test_crypto.c sim/test_qr.c`), and add `main/wallet_tapent.c` to the `main/...` source line. `wallet_tapent.c` does not exist yet — create it as an empty stub now so the build links:
+In `sim/build_test.sh`, add `sim/test_tapent.c` to the source list (the line beginning `sim/test_crypto.c sim/test_qr.c`), and add `main/kiss_tapent.c` to the `main/...` source line. `kiss_tapent.c` does not exist yet — create it as an empty stub now so the build links:
 
 ```bash
-printf '// tap entropy: see wallet_tapent.h\n#include "wallet_tapent.h"\n' > main/wallet_tapent.c
-printf '#pragma once\n' > main/wallet_tapent.h
+printf '// tap entropy: see kiss_tapent.h\n#include "kiss_tapent.h"\n' > main/kiss_tapent.c
+printf '#pragma once\n' > main/kiss_tapent.h
 ```
 
 In `sim/test_crypto.c`, beside the other suite declarations near line 26, add:
@@ -144,25 +144,25 @@ and in `main`, next to the other `fails += test_*()` calls, add:
 sim/build_test.sh && /tmp/kisstest
 ```
 
-Expected: the build fails with `implicit declaration of function 'wallet_entropy_mix3'`.
+Expected: the build fails with `implicit declaration of function 'kiss_entropy_mix3'`.
 
-- [ ] **Step 5: Implement `wallet_entropy_mix3`**
+- [ ] **Step 5: Implement `kiss_entropy_mix3`**
 
-In `main/wallet_crypto.h`, directly under the existing `wallet_entropy_mix` declaration at line 20:
+In `main/kiss_crypto.h`, directly under the existing `kiss_entropy_mix` declaration at line 20:
 
 ```c
 // Flat three-input fold: out = SHA256(a ‖ b ‖ c). Camera, chip TRNG, taps —
 // in that order, matching the source numbers the setup screens show. Flat
 // rather than nested mix() calls so the one question that matters (what went
 // into this seed) is answerable by reading one line.
-int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]);
 ```
 
-In `main/wallet_crypto.c`, directly after `wallet_entropy_mix` (which ends at line 72):
+In `main/kiss_crypto.c`, directly after `kiss_entropy_mix` (which ends at line 72):
 
 ```c
-int wallet_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
+int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32])
 {
     if (!a || !b || !c || !out)
@@ -188,7 +188,7 @@ Expected: seven `PASS:` lines under `-- tap entropy --`, and the runner's final 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add main/wallet_crypto.c main/wallet_crypto.h main/wallet_tapent.c main/wallet_tapent.h sim/test_tapent.c sim/build_test.sh sim/test_crypto.c
+git add main/kiss_crypto.c main/kiss_crypto.h main/kiss_tapent.c main/kiss_tapent.h sim/test_tapent.c sim/build_test.sh sim/test_crypto.c
 git commit -m "three sources need a three input hash, not a nested pair"
 ```
 
@@ -197,8 +197,8 @@ git commit -m "three sources need a three input hash, not a nested pair"
 ## Task 2: The tap fold and its debounce
 
 **Files:**
-- Modify: `main/wallet_tapent.h` (replace the stub)
-- Modify: `main/wallet_tapent.c` (replace the stub)
+- Modify: `main/kiss_tapent.h` (replace the stub)
+- Modify: `main/kiss_tapent.c` (replace the stub)
 - Modify: `sim/test_tapent.c`
 
 - [ ] **Step 1: Write the failing tests**
@@ -206,32 +206,32 @@ git commit -m "three sources need a three input hash, not a nested pair"
 Append to `sim/test_tapent.c`, above `int test_tapent(void)`:
 
 ```c
-#include "wallet_tapent.h"
+#include "kiss_tapent.h"
 
 static void test_debounce(void)
 {
     uint8_t chain[32];
-    wallet_tapent_reset();
-    ok("starts at zero", wallet_tapent_count() == 0);
+    kiss_tapent_reset();
+    ok("starts at zero", kiss_tapent_count() == 0);
 
     // first tap always counts: there is no predecessor to be too close to
-    ok("first tap counts", wallet_tapent_tap(1000000, 5000, 100, 200) == 1);
-    ok("count is 1", wallet_tapent_count() == 1);
+    ok("first tap counts", kiss_tapent_tap(1000000, 5000, 100, 200) == 1);
+    ok("count is 1", kiss_tapent_count() == 1);
 
     // 29ms later: below WTAP_DEBOUNCE_US, a panel artifact rather than a hand
-    ok("29ms is rejected", wallet_tapent_tap(1029000, 5001, 100, 200) == 0);
-    ok("count still 1", wallet_tapent_count() == 1);
+    ok("29ms is rejected", kiss_tapent_tap(1029000, 5001, 100, 200) == 0);
+    ok("count still 1", kiss_tapent_count() == 1);
 
     // 31ms later: a real tap
-    ok("31ms is accepted", wallet_tapent_tap(1060000, 5002, 101, 201) == 1);
-    ok("count is 2", wallet_tapent_count() == 2);
+    ok("31ms is accepted", kiss_tapent_tap(1060000, 5002, 101, 201) == 1);
+    ok("count is 2", kiss_tapent_count() == 2);
 
     // a rejected tap must not become the new predecessor, or a fast drag would
     // ratchet the window forward and let the next artifact through
     ok("30ms after a REJECTED tap is measured from the accepted one",
-       wallet_tapent_tap(1080000, 5003, 102, 202) == 0);
+       kiss_tapent_tap(1080000, 5003, 102, 202) == 0);
 
-    ok("not done at 2 taps", wallet_tapent_take(chain) != 0);
+    ok("not done at 2 taps", kiss_tapent_take(chain) != 0);
 }
 
 static void test_fold(void)
@@ -239,32 +239,32 @@ static void test_fold(void)
     uint8_t chain_a[32], chain_b[32];
 
     // 64 taps at a fixed cadence completes
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
-    ok("64 taps reach the target", wallet_tapent_count() == WTAP_TARGET);
-    ok("take succeeds at the target", wallet_tapent_take(chain_a) == 0);
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
+    ok("64 taps reach the target", kiss_tapent_count() == WTAP_TARGET);
+    ok("take succeeds at the target", kiss_tapent_take(chain_a) == 0);
 
     // 63 taps does not
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET - 1; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
-    ok("63 taps do not", wallet_tapent_take(chain_b) != 0);
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000, (uint32_t)i, 10, 10);
+    ok("63 taps do not", kiss_tapent_take(chain_b) != 0);
 
     // identical timing but one differing cycle count must change the chain:
     // this is the property the whole feature rests on
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     for (int i = 0; i < WTAP_TARGET; i++)
-        wallet_tapent_tap(1000000 + (uint64_t)i * 50000,
+        kiss_tapent_tap(1000000 + (uint64_t)i * 50000,
                           (uint32_t)(i == 7 ? 999999 : i), 10, 10);
-    wallet_tapent_take(chain_b);
+    kiss_tapent_take(chain_b);
     ok("one differing cycle count changes the chain",
        memcmp(chain_a, chain_b, 32) != 0);
 
     // reset must not leave the previous session's chain behind
-    wallet_tapent_reset();
-    ok("reset clears the count", wallet_tapent_count() == 0);
-    ok("reset clears doneness", wallet_tapent_take(chain_b) != 0);
+    kiss_tapent_reset();
+    ok("reset clears the count", kiss_tapent_count() == 0);
+    ok("reset clears doneness", kiss_tapent_take(chain_b) != 0);
 }
 ```
 
@@ -281,11 +281,11 @@ and inside `test_tapent`, after `test_mix3();`:
 sim/build_test.sh && /tmp/kisstest
 ```
 
-Expected: build fails on `WTAP_TARGET` and `wallet_tapent_reset` being undeclared.
+Expected: build fails on `WTAP_TARGET` and `kiss_tapent_reset` being undeclared.
 
 - [ ] **Step 3: Write the header**
 
-Replace `main/wallet_tapent.h` entirely:
+Replace `main/kiss_tapent.h` entirely:
 
 ```c
 // Source 3: the timing of the user's own taps.
@@ -310,27 +310,27 @@ Replace `main/wallet_tapent.h` entirely:
 #define WTAP_DEBOUNCE_US  30000
 
 // Begin a session. Zeroes the chain, the count and the debounce clock.
-void wallet_tapent_reset(void);
+void kiss_tapent_reset(void);
 
 // Offer one tap. `us` is a microsecond timestamp, `cycles` the CPU cycle
 // counter, `x`/`y` the touch point. Returns 1 if it counted, 0 if debounced.
 // Counting folds the record straight into the chain: taps are never buffered.
-int wallet_tapent_tap(uint64_t us, uint32_t cycles, int16_t x, int16_t y);
+int kiss_tapent_tap(uint64_t us, uint32_t cycles, int16_t x, int16_t y);
 
 // Taps accepted so far, capped at WTAP_TARGET.
-unsigned wallet_tapent_count(void);
+unsigned kiss_tapent_count(void);
 
 // Copy the finished chain into out[32]. Returns 0 only once the target is
 // reached, nonzero otherwise — a partial chain is never handed out.
-int wallet_tapent_take(uint8_t out[32]);
+int kiss_tapent_take(uint8_t out[32]);
 ```
 
 - [ ] **Step 4: Write the implementation**
 
-Replace `main/wallet_tapent.c` entirely:
+Replace `main/kiss_tapent.c` entirely:
 
 ```c
-#include "wallet_tapent.h"
+#include "kiss_tapent.h"
 
 #include <string.h>
 
@@ -342,7 +342,7 @@ static unsigned s_count;
 static uint64_t s_last_us;
 static int      s_started;
 
-void wallet_tapent_reset(void)
+void kiss_tapent_reset(void)
 {
     wally_bzero(s_chain, sizeof s_chain);
     s_count = 0;
@@ -350,7 +350,7 @@ void wallet_tapent_reset(void)
     s_started = 0;
 }
 
-int wallet_tapent_tap(uint64_t us, uint32_t cycles, int16_t x, int16_t y)
+int kiss_tapent_tap(uint64_t us, uint32_t cycles, int16_t x, int16_t y)
 {
     if (s_count >= WTAP_TARGET)
         return 0;
@@ -387,12 +387,12 @@ int wallet_tapent_tap(uint64_t us, uint32_t cycles, int16_t x, int16_t y)
     return 1;
 }
 
-unsigned wallet_tapent_count(void)
+unsigned kiss_tapent_count(void)
 {
     return s_count;
 }
 
-int wallet_tapent_take(uint8_t out[32])
+int kiss_tapent_take(uint8_t out[32])
 {
     if (!out || s_count < WTAP_TARGET)
         return -1;
@@ -412,7 +412,7 @@ Expected: every line under `-- tap entropy --` reads `PASS:`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add main/wallet_tapent.c main/wallet_tapent.h sim/test_tapent.c
+git add main/kiss_tapent.c main/kiss_tapent.h sim/test_tapent.c
 git commit -m "taps fold as they land, and a panel bounce is not a decision"
 ```
 
@@ -424,15 +424,15 @@ git commit -m "taps fold as they land, and a panel bounce is not a decision"
 - Modify: `main/camera_spike.c:343-356`
 - Modify: `main/camera_spike.h`
 
-Today `camera_spike.c:351` calls `wallet_entropy_mix(s_ent_chain, trng, s_ent_hash)` and the seed is done. It must instead stop at `SHA256(frames ‖ trng)` and let the tap screen perform the final fold. The value it produces is unchanged in shape — a 32-byte chain — so the existing "ready" plumbing keeps working.
+Today `camera_spike.c:351` calls `kiss_entropy_mix(s_ent_chain, trng, s_ent_hash)` and the seed is done. It must instead stop at `SHA256(frames ‖ trng)` and let the tap screen perform the final fold. The value it produces is unchanged in shape — a 32-byte chain — so the existing "ready" plumbing keeps working.
 
 - [ ] **Step 1: Rename the result so no caller mistakes it for a seed**
 
-In `main/camera_spike.h`, find the accessor that hands out the entropy result (the one `wallet_setup.c` polls after capture) and rename it from its current seed-flavoured name to `camera_entropy_chain`, keeping the same signature. Update its comment to:
+In `main/camera_spike.h`, find the accessor that hands out the entropy result (the one `kiss_setup.c` polls after capture) and rename it from its current seed-flavoured name to `camera_entropy_chain`, keeping the same signature. Update its comment to:
 
 ```c
 // The camera stage's contribution: SHA256(sampled frames ‖ chip TRNG). NOT a
-// seed. wallet_setup.c folds this with the tap chain (wallet_entropy_mix3)
+// seed. kiss_setup.c folds this with the tap chain (kiss_entropy_mix3)
 // before any mnemonic exists.
 ```
 
@@ -447,7 +447,7 @@ In `main/camera_spike.c`, replace the comment above the `esp_fill_random` call (
       // is deliberately NOT the seed.
 ```
 
-The code below it is unchanged: `wallet_entropy_mix(s_ent_chain, trng, s_ent_hash)` still produces the right value.
+The code below it is unchanged: `kiss_entropy_mix(s_ent_chain, trng, s_ent_hash)` still produces the right value.
 
 - [ ] **Step 3: Update every caller**
 
@@ -455,7 +455,7 @@ The code below it is unchanged: `wallet_entropy_mix(s_ent_chain, trng, s_ent_has
 grep -rn "camera_entropy_chain\|s_ent_hash" main/ | grep -v camera_spike
 ```
 
-Fix each hit in `main/wallet_setup.c` to the new name. There should be exactly one call site, in the capture poll.
+Fix each hit in `main/kiss_setup.c` to the new name. There should be exactly one call site, in the capture poll.
 
 - [ ] **Step 4: Build for the device**
 
@@ -468,7 +468,7 @@ Expected: compiles clean. No behaviour change yet — capture still leads straig
 - [ ] **Step 5: Commit**
 
 ```bash
-git add main/camera_spike.c main/camera_spike.h main/wallet_setup.c
+git add main/camera_spike.c main/camera_spike.h main/kiss_setup.c
 git commit -m "the camera stops calling its half a seed"
 ```
 
@@ -567,11 +567,11 @@ git commit -m "a third source needs a third caption, and no locale may still say
 ## Task 5: The tap screen
 
 **Files:**
-- Modify: `main/wallet_setup.c` (new screen; `entropy_screen` at line 679; `ent_card` at ~line 600)
+- Modify: `main/kiss_setup.c` (new screen; `entropy_screen` at line 679; `ent_card` at ~line 600)
 
 - [ ] **Step 1: Add the screen's state and geometry**
 
-Near the other `ENT_*` geometry defines at `main/wallet_setup.c:587-593`, add:
+Near the other `ENT_*` geometry defines at `main/kiss_setup.c:587-593`, add:
 
 ```c
 // The tap screen. One card, centred in the 800x480 landscape UI, sized so the
@@ -593,7 +593,7 @@ static lv_obj_t *s_tap_count;               // "31 / 64"
 static lv_obj_t *s_tap_card;                // the target, flashed on each tap
 ```
 
-Add `#include "wallet_tapent.h"` beside the other `main/` includes at the top of the file.
+Add `#include "kiss_tapent.h"` beside the other `main/` includes at the top of the file.
 
 - [ ] **Step 2: Write the tap handler**
 
@@ -610,12 +610,12 @@ static void tap_hit_cb(lv_event_t *e)
     lv_indev_t *indev = lv_indev_active();
     if (indev) lv_indev_get_point(indev, &p);
 
-    if (!wallet_tapent_tap((uint64_t)esp_timer_get_time(),
+    if (!kiss_tapent_tap((uint64_t)esp_timer_get_time(),
                            esp_cpu_get_cycle_count(),
                            (int16_t)p.x, (int16_t)p.y))
         return;                                  // debounced: no light, no count
 
-    unsigned n = wallet_tapent_count();
+    unsigned n = kiss_tapent_count();
     if (n >= 1 && n <= WTAP_TARGET && s_tap_segs[n - 1])
         lv_obj_set_style_bg_color(s_tap_segs[n - 1], OK_COL, 0);
     if (s_tap_count) {
@@ -648,14 +648,14 @@ static void tap_done_cb(lv_timer_t *t)
     lv_timer_delete(t);
     uint8_t cam[32], taps[32], seed[32];
     int ok = camera_entropy_chain(cam) == 0 &&
-             wallet_tapent_take(taps) == 0 &&
-             wallet_entropy_mix3(cam, cam, taps, seed) == 0;
+             kiss_tapent_take(taps) == 0 &&
+             kiss_entropy_mix3(cam, cam, taps, seed) == 0;
     wally_bzero(cam, sizeof cam);
     wally_bzero(taps, sizeof taps);
     if (ok)
-        wallet_setup_entropy(seed, 32);
+        kiss_setup_entropy(seed, 32);
     wally_bzero(seed, sizeof seed);
-    wallet_tapent_reset();
+    kiss_tapent_reset();
 }
 ```
 
@@ -666,7 +666,7 @@ static void tap_done_cb(lv_timer_t *t)
 ```c
 static void tap_screen(void)
 {
-    wallet_tapent_reset();
+    kiss_tapent_reset();
     memset(s_tap_segs, 0, sizeof s_tap_segs);
     s_tap_count = NULL;
     mk_screen2(tr(STR_W_ENT_TAP_T), tr(STR_W_ENT_TAP_S));
@@ -722,7 +722,7 @@ static void tap_screen(void)
 
 - [ ] **Step 5: Route capture into it**
 
-In `entropy_screen`'s capture poll, replace the call that currently hands the camera result to `wallet_setup_entropy` with `tap_screen();`. Capture no longer generates.
+In `entropy_screen`'s capture poll, replace the call that currently hands the camera result to `kiss_setup_entropy` with `tap_screen();`. Capture no longer generates.
 
 - [ ] **Step 6: Give the camera-failure branch a way through**
 
@@ -754,7 +754,7 @@ Walk: new wallet, 12 words, CAPTURE, then click the card 64 times. Expected: seg
 - [ ] **Step 7: Commit**
 
 ```bash
-git add main/wallet_setup.c
+git add main/kiss_setup.c
 git commit -m "a card that is its own target, and sixty four things that happened"
 ```
 
@@ -763,7 +763,7 @@ git commit -m "a card that is its own target, and sixty four things that happene
 ## Task 6: Make the call site tell the truth
 
 **Files:**
-- Modify: `main/wallet_setup.c` (`tap_done_cb` from Task 5)
+- Modify: `main/kiss_setup.c` (`tap_done_cb` from Task 5)
 - Modify: `main/camera_spike.c`, `main/camera_spike.h`
 
 Task 5 left `mix3(cam, cam, taps)`. It produces a fine seed and reads as a lie: the whole reason `mix3` is flat is so a reader can see the three sources, and passing one of them twice defeats exactly that. Split the camera stage's two sources apart.
@@ -789,7 +789,7 @@ In `main/camera_spike.h`, beside `camera_entropy_chain`:
 
 ```c
 // Source 2 on its own: the chip TRNG read taken at the moment of capture.
-// Separate from the frame chain so wallet_setup's mix names three inputs.
+// Separate from the frame chain so kiss_setup's mix names three inputs.
 int camera_entropy_trng(uint8_t out[32]);
 ```
 
@@ -797,7 +797,7 @@ and implement it in `camera_spike.c` alongside `camera_entropy_chain`, returning
 
 - [ ] **Step 3: Fix the call site**
 
-In `main/wallet_setup.c`, replace the body of `tap_done_cb`:
+In `main/kiss_setup.c`, replace the body of `tap_done_cb`:
 
 ```c
 static void tap_done_cb(lv_timer_t *t)
@@ -813,22 +813,22 @@ static void tap_done_cb(lv_timer_t *t)
         memset(cam, 0, sizeof cam);
     if (camera_entropy_trng(trng) != 0)
         esp_fill_random(trng, sizeof trng);
-    int ok = wallet_tapent_take(taps) == 0 &&
-             wallet_entropy_mix3(cam, trng, taps, seed) == 0;
+    int ok = kiss_tapent_take(taps) == 0 &&
+             kiss_entropy_mix3(cam, trng, taps, seed) == 0;
     wally_bzero(cam, sizeof cam);
     wally_bzero(trng, sizeof trng);
     wally_bzero(taps, sizeof taps);
     if (ok)
-        wallet_setup_entropy(seed, 32);
+        kiss_setup_entropy(seed, 32);
     wally_bzero(seed, sizeof seed);
-    wallet_tapent_reset();
+    kiss_tapent_reset();
 }
 ```
 
 - [ ] **Step 4: Verify no caller still mixes two**
 
 ```bash
-grep -n "wallet_entropy_mix(" main/*.c
+grep -n "kiss_entropy_mix(" main/*.c
 ```
 
 Expected: exactly one hit, the per-frame fold in `camera_spike.c` (which genuinely takes two inputs). If the capture-time call still appears, step 1 was not applied.
@@ -844,7 +844,7 @@ Expected: both compile clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add main/wallet_setup.c main/camera_spike.c main/camera_spike.h
+git add main/kiss_setup.c main/camera_spike.c main/camera_spike.h
 git commit -m "three inputs named at the only call site that makes a wallet"
 ```
 
@@ -853,7 +853,7 @@ git commit -m "three inputs named at the only call site that makes a wallet"
 ## Task 7: The randomness screen promises the third source
 
 **Files:**
-- Modify: `main/wallet_setup.c:713-727` (the equation block in `entropy_screen`)
+- Modify: `main/kiss_setup.c:713-727` (the equation block in `entropy_screen`)
 
 - [ ] **Step 1: Add the dim third chip**
 
@@ -874,7 +874,7 @@ In `entropy_screen`, in the diagram row currently reading `1 + 2 -> 12 WORDS`, i
     wt_chip(row, tr(STR_W_ENT_RESULT), true);
 ```
 
-`wt_chip` already returns `lv_obj_t *` (`main/wallet_theme.h:280`), so no theme change is needed.
+`wt_chip` already returns `lv_obj_t *` (`main/kiss_theme.h:280`), so no theme change is needed.
 
 - [ ] **Step 2: Check it still fits**
 
@@ -895,7 +895,7 @@ Expected: clean for both the randomness screen and the new tap screen.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add main/wallet_setup.c main/wallet_theme.h
+git add main/kiss_setup.c main/kiss_theme.h
 git commit -m "the equation counts to three before the screen that gets there"
 ```
 

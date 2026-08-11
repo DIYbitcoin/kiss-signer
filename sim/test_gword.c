@@ -1,4 +1,4 @@
-// Desktop tests for main/wallet_gword.c -- a word the owner writes, matched by
+// Desktop tests for main/kiss_gword.c -- a word the owner writes, matched by
 // shape.
 //
 // The asymmetry that shapes this suite is the opposite of test_duress.c's. A
@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "wallet_gword.h"
+#include "kiss_gword.h"
 
 static int gfails;
 
@@ -169,12 +169,12 @@ int test_gword(void) {
     // a word of thirteen strokes could be written twice, confirmed, saved, and
     // then never open the device again -- with no error anywhere, because both
     // halves believed they had done their job. Both numbers live in
-    // wallet_gword.h now, and the excess is DROPPED rather than folded.
+    // kiss_gword.h now, and the excess is DROPPED rather than folded.
     {
         const int EXTRA = 2;                       // a 14 stroke draw
         gw_template_t enrolled, seen, merged;
 
-        // What wallet_word_ui stores: the strokes past the budget never happen.
+        // What kiss_word_ui stores: the strokes past the budget never happen.
         w_start();
         for (int s = 0; s < GW_MAX_STROKES + EXTRA; s++) {
             if (s) w_lift();

@@ -5,17 +5,17 @@
 //
 // Attack surfaces, matching what a hostile coordinator, a printed QR from a
 // stranger, or whoever holds the SD card can reach:
-//   1. wallet_psbt_load on pure-random bytes      -> must reject or STOP
-//   2. wallet_psbt_load on truncated/bit-flipped
+//   1. kiss_psbt_load on pure-random bytes      -> must reject or STOP
+//   2. kiss_psbt_load on truncated/bit-flipped
 //      REAL psbts                                  -> may parse, must not crash;
 //                                                     status stays well-formed
 //   3. qrt_parser_feed on random text + corrupted
 //      UR parts                                    -> must not crash or complete
-//   4. wallet_psbt_load on base64 TEXT ("cHNidP")  -> the branch random binary
+//   4. kiss_psbt_load on base64 TEXT ("cHNidP")  -> the branch random binary
 //      never reaches; junk never READY, whitespace in real b64 still loads
-//   5. wallet_seed_from_qr on junk/digits/entropy  -> returns 0 only for a
+//   5. kiss_seed_from_qr on junk/digits/entropy  -> returns 0 only for a
 //      mnemonic that validates; degenerate entropy refused
-//   6. wallet_address_validate on junk + flipped
+//   6. kiss_address_validate on junk + flipped
 //      real addresses                              -> always a defined verdict,
 //                                                     never a false network claim
 //   7. sd_seed_open on random/multi-flipped blobs  -> never a mnemonic that is
@@ -25,10 +25,10 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "wallet_crypto.h"
-#include "wallet_psbt.h"
-#include "wallet_seed.h"
-#include "wallet_seed_sd.h"
+#include "kiss_crypto.h"
+#include "kiss_psbt.h"
+#include "kiss_seed.h"
+#include "kiss_seed_sd.h"
 #include "qr_transport.h"
 #include "bytewords.h"
 
@@ -155,11 +155,11 @@ static int mk_ur_part(char *out, size_t outsz, uint32_t seq_num, uint32_t seq_le
 int main(void)
 {
     s_rng = 0xC0FFEE01u;
-    wallet_seed_store("abandon abandon abandon abandon abandon abandon "
+    kiss_seed_store("abandon abandon abandon abandon abandon abandon "
                       "abandon abandon abandon abandon abandon about");
-    wallet_set_network(0);
-    wallet_set_script(WSCRIPT_NATIVE);
-    if (wallet_session_open(NULL) != 0) { printf("FAIL: session open\n"); return 1; }
+    kiss_set_network(0);
+    kiss_set_script(WSCRIPT_NATIVE);
+    if (kiss_session_open(NULL) != 0) { printf("FAIL: session open\n"); return 1; }
 
     static uint8_t valid[4096], buf[4096], sig[4096];
     size_t vlen = mk_valid_psbt(valid, sizeof valid);
@@ -168,8 +168,8 @@ int main(void)
 
     // the fixture itself must be READY (so the mutations below start from good)
     chkb("fixture loads READY",
-         wallet_psbt_load(valid, vlen, &sum) == 0 && sum.status == WPSBT_READY);
-    wallet_psbt_free();
+         kiss_psbt_load(valid, vlen, &sum) == 0 && sum.status == WPSBT_READY);
+    kiss_psbt_free();
 
     // ---- 1. pure random bytes: must never come out READY ----
     for (int i = 0; i < 2000; i++) {
@@ -179,18 +179,18 @@ int main(void)
             memcpy(buf + j, &r, (n - j) < 4 ? (n - j) : 4);
         }
         memset(&sum, 0, sizeof sum);
-        int rc = wallet_psbt_load(buf, n, &sum);
+        int rc = kiss_psbt_load(buf, n, &sum);
         if (rc == 0 && sum.status == WPSBT_READY) {
             printf("FAIL: random junk parsed READY (iter %d len %zu)\n", i, n);
             fails++;
         }
         // a rejected load must also refuse to sign
         size_t sw = 0;
-        if (rc != 0 && wallet_psbt_sign(sig, sizeof sig, &sw) == 0) {
+        if (rc != 0 && kiss_psbt_sign(sig, sizeof sig, &sw) == 0) {
             printf("FAIL: sign succeeded after rejected load (iter %d)\n", i);
             fails++;
         }
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
     printf("PASS: 2000 random-junk PSBTs never READY, never signable\n");
 
@@ -198,12 +198,12 @@ int main(void)
     for (size_t n = 0; n < vlen; n++) {
         memcpy(buf, valid, n);
         memset(&sum, 0, sizeof sum);
-        int rc = wallet_psbt_load(buf, n, &sum);
+        int rc = kiss_psbt_load(buf, n, &sum);
         if (rc == 0 && sum.status == WPSBT_READY) {
             printf("FAIL: truncated PSBT (%zu of %zu bytes) READY\n", n, vlen);
             fails++;
         }
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
     printf("PASS: all %zu truncations never READY\n", vlen);
 
@@ -216,13 +216,13 @@ int main(void)
         for (int f = 0; f < flips; f++)
             buf[rnd() % vlen] ^= (uint8_t)(1u << (rnd() % 8));
         memset(&sum, 0, sizeof sum);
-        int rc = wallet_psbt_load(buf, vlen, &sum);
+        int rc = kiss_psbt_load(buf, vlen, &sum);
         if (rc == 0 && sum.status != WPSBT_READY && sum.status != WPSBT_CAUTION &&
             sum.status != WPSBT_STOP) {
             printf("FAIL: bit-flip produced undefined status %d (iter %d)\n", sum.status, i);
             fails++;
         }
-        wallet_psbt_free();
+        kiss_psbt_free();
     }
     printf("PASS: 4000 bit-flipped PSBTs, no crash, status always defined\n");
 
@@ -332,9 +332,9 @@ int main(void)
 
         memset(&sum, 0, sizeof sum);
         chkb("real base64 loads READY",
-             wallet_psbt_load((const uint8_t *)b64, blen, &sum) == 0 &&
+             kiss_psbt_load((const uint8_t *)b64, blen, &sum) == 0 &&
              sum.status == WPSBT_READY);
-        wallet_psbt_free();
+        kiss_psbt_free();
 
         // coordinators wrap lines and pad; the strip must survive that
         static char ws[6000];
@@ -347,9 +347,9 @@ int main(void)
         ws[wo] = 0;
         memset(&sum, 0, sizeof sum);
         chkb("whitespace-injected base64 still READY",
-             wallet_psbt_load((const uint8_t *)ws, wo, &sum) == 0 &&
+             kiss_psbt_load((const uint8_t *)ws, wo, &sum) == 0 &&
              sum.status == WPSBT_READY);
-        wallet_psbt_free();
+        kiss_psbt_free();
 
         static const char B64C[] =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -361,17 +361,17 @@ int main(void)
             size_t n = 6 + rnd() % 1200;
             for (size_t j = 6; j < n; j++) tb[j] = B64C[rnd() % 64];
             memset(&sum, 0, sizeof sum);
-            int rc = wallet_psbt_load((const uint8_t *)tb, n, &sum);
+            int rc = kiss_psbt_load((const uint8_t *)tb, n, &sum);
             if (rc == 0 && sum.status == WPSBT_READY) {
                 printf("FAIL: b64 junk parsed READY (iter %d)\n", i);
                 fails++;
             }
             size_t sw = 0;
-            if (rc != 0 && wallet_psbt_sign(sig, sizeof sig, &sw) == 0) {
+            if (rc != 0 && kiss_psbt_sign(sig, sizeof sig, &sw) == 0) {
                 printf("FAIL: sign succeeded after rejected b64 (iter %d)\n", i);
                 fails++;
             }
-            wallet_psbt_free();
+            kiss_psbt_free();
         }
 
         // valid base64 of NON-psbt bytes: decode succeeds, parse must not
@@ -383,12 +383,12 @@ int main(void)
             if (wally_base64_from_bytes(buf, n, 0, &jb) != WALLY_OK || !jb)
                 continue;
             memset(&sum, 0, sizeof sum);
-            if (wallet_psbt_load((const uint8_t *)jb, strlen(jb), &sum) == 0 &&
+            if (kiss_psbt_load((const uint8_t *)jb, strlen(jb), &sum) == 0 &&
                 sum.status == WPSBT_READY) {
                 printf("FAIL: b64 of junk bytes READY (iter %d)\n", i);
                 fails++;
             }
-            wallet_psbt_free();
+            kiss_psbt_free();
             wally_free_string(jb);
         }
 
@@ -399,20 +399,20 @@ int main(void)
             int muts = 1 + rnd() % 8;
             for (int m = 0; m < muts; m++) tb[rnd() % blen] = B64C[rnd() % 64];
             memset(&sum, 0, sizeof sum);
-            if (wallet_psbt_load((const uint8_t *)tb, blen, &sum) == 0 &&
+            if (kiss_psbt_load((const uint8_t *)tb, blen, &sum) == 0 &&
                 sum.status != WPSBT_READY && sum.status != WPSBT_CAUTION &&
                 sum.status != WPSBT_STOP) {
                 printf("FAIL: mutated b64 undefined status %d (iter %d)\n",
                        sum.status, i);
                 fails++;
             }
-            wallet_psbt_free();
+            kiss_psbt_free();
         }
         wally_free_string(b64);
     }
     printf("PASS: base64 PSBTs: junk never READY, whitespace survives, no crash\n");
 
-    // ---- 5. wallet_seed_from_qr: a printed QR becomes a wallet ----
+    // ---- 5. kiss_seed_from_qr: a printed QR becomes a wallet ----
     // Three parse paths (numeric SeedQR, CompactSeedQR entropy, plain text).
     // The one invariant across all of them: returning 0 means `out` holds a
     // mnemonic that validates. Junk may fail, it must never half-succeed.
@@ -423,48 +423,48 @@ int main(void)
         char so[512];
 
         chkb("qr: real mnemonic accepted",
-             wallet_seed_from_qr(MN, strlen(MN), so, sizeof so) == 0 &&
+             kiss_seed_from_qr(MN, strlen(MN), so, sizeof so) == 0 &&
              strcmp(so, MN) == 0);
 
         char pad[600];
         int pn = snprintf(pad, sizeof pad, "  %s\r\n", MN);
         chkb("qr: padded mnemonic accepted and trimmed",
-             wallet_seed_from_qr(pad, (size_t)pn, so, sizeof so) == 0 &&
+             kiss_seed_from_qr(pad, (size_t)pn, so, sizeof so) == 0 &&
              strcmp(so, MN) == 0);
 
         // numeric SeedQR of the same words: 4 digits per index, about = 0003
         static const char NUM[] =
             "000000000000000000000000000000000000000000000003";
         chkb("qr: numeric SeedQR decodes to the same wallet",
-             wallet_seed_from_qr(NUM, 48, so, sizeof so) == 0 &&
+             kiss_seed_from_qr(NUM, 48, so, sizeof so) == 0 &&
              strcmp(so, MN) == 0);
 
         chkb("qr: junk word refused",
-             wallet_seed_from_qr("abandon abandon abandon abandon abandon abandon "
+             kiss_seed_from_qr("abandon abandon abandon abandon abandon abandon "
                                  "abandon abandon abandon abandon abandon zzzzzz",
                                  95, so, sizeof so) != 0);
         chkb("qr: eleven words refused",
-             wallet_seed_from_qr(MN, strlen(MN) - 6, so, sizeof so) != 0);
+             kiss_seed_from_qr(MN, strlen(MN) - 6, so, sizeof so) != 0);
         chkb("qr: tiny out buffer refused",
-             wallet_seed_from_qr(MN, strlen(MN), so, 10) != 0);
+             kiss_seed_from_qr(MN, strlen(MN), so, 10) != 0);
 
         // degenerate CompactSeedQR entropy: the shapes a blank or hand-drawn
         // QR produces, all must be refused
         uint8_t ent[32];
         memset(ent, 0x00, 32);
         chkb("qr: all-zero 16B entropy refused",
-             wallet_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
+             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
         chkb("qr: all-zero 32B entropy refused",
-             wallet_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
+             kiss_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
         memset(ent, 0xFF, 32);
         chkb("qr: all-ones entropy refused",
-             wallet_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
+             kiss_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
         memset(ent, 0xAA, 16);
         chkb("qr: single repeated byte refused",
-             wallet_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
+             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
         memset(ent, 0x00, 16); ent[7] = 0x01;      // one bit in 128
         chkb("qr: near-empty entropy refused",
-             wallet_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
+             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
 
         // random junk at every shape: bytes, printable, digit strings at the
         // numeric lengths. Success is only legal with a validating mnemonic
@@ -481,8 +481,8 @@ int main(void)
             }
             if (mode == 2 && rnd() % 2) n = rnd() % 2 ? 48 : 96;
             memset(so, 0x5A, sizeof so);
-            int rc = wallet_seed_from_qr(jb, n, so, sizeof so);
-            if (rc == 0 && wallet_seed_validate(so) != 0) {
+            int rc = kiss_seed_from_qr(jb, n, so, sizeof so);
+            if (rc == 0 && kiss_seed_validate(so) != 0) {
                 printf("FAIL: qr junk accepted without a valid mnemonic (iter %d)\n", i);
                 fails++;
             }
@@ -494,7 +494,7 @@ int main(void)
     }
     printf("PASS: seed QR: junk never yields an invalid mnemonic, rejections wipe\n");
 
-    // ---- 6. wallet_address_validate: a stranger's address string ----
+    // ---- 6. kiss_address_validate: a stranger's address string ----
     // Reaches bech32/bech32m decode, base58check decode and the SP prefix
     // check. Junk must be INVALID; one flipped character in a real address
     // must never keep a network verdict (both encodings checksum a single
@@ -520,15 +520,15 @@ int main(void)
                  WALLY_ADDRESS_VERSION_P2PKH_TESTNET, &a_p2pkh_t) == WALLY_OK);
 
         chkb("addr: mainnet bech32 is CURRENT (session is mainnet)",
-             wallet_address_validate(a_bc) == WADDR_CURRENT_NETWORK);
+             kiss_address_validate(a_bc) == WADDR_CURRENT_NETWORK);
         chkb("addr: testnet bech32 is WRONG",
-             wallet_address_validate(a_tb) == WADDR_WRONG_NETWORK);
+             kiss_address_validate(a_tb) == WADDR_WRONG_NETWORK);
         chkb("addr: mainnet p2pkh is CURRENT",
-             wallet_address_validate(a_p2pkh) == WADDR_CURRENT_NETWORK);
+             kiss_address_validate(a_p2pkh) == WADDR_CURRENT_NETWORK);
         chkb("addr: testnet p2pkh is WRONG",
-             wallet_address_validate(a_p2pkh_t) == WADDR_WRONG_NETWORK);
-        chkb("addr: NULL is INVALID", wallet_address_validate(NULL) == WADDR_INVALID);
-        chkb("addr: empty is INVALID", wallet_address_validate("") == WADDR_INVALID);
+             kiss_address_validate(a_p2pkh_t) == WADDR_WRONG_NETWORK);
+        chkb("addr: NULL is INVALID", kiss_address_validate(NULL) == WADDR_INVALID);
+        chkb("addr: empty is INVALID", kiss_address_validate("") == WADDR_INVALID);
 
         static const char B32C[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
         static const char B58C[] =
@@ -544,7 +544,7 @@ int main(void)
                 char c;
                 do { c = cs[rnd() % csn]; } while (c == m[pos]);
                 m[pos] = c;
-                if (wallet_address_validate(m) != WADDR_INVALID) {
+                if (kiss_address_validate(m) != WADDR_INVALID) {
                     printf("FAIL: flipped addr kept a verdict (fix %d iter %d: %s)\n",
                            f, i, m);
                     fails++;
@@ -565,7 +565,7 @@ int main(void)
                 memcpy(jb, pf, pl < n ? pl : n);
             }
             jb[n] = 0;
-            if (wallet_address_validate(jb) != WADDR_INVALID) {
+            if (kiss_address_validate(jb) != WADDR_INVALID) {
                 printf("FAIL: junk addr got a verdict (iter %d: %s)\n", i, jb);
                 fails++;
             }
@@ -639,7 +639,7 @@ int main(void)
     }
     printf("PASS: sd blobs: random damage never yields a different mnemonic\n");
 
-    wallet_session_close();
+    kiss_session_close();
     printf(fails ? "\n%d FUZZ FAIL\n" : "\nALL FUZZ PASS\n", fails);
     return fails ? 1 : 0;
 }

@@ -43,7 +43,7 @@ def main():
         if needle not in text:
             die(f"docs/verify.html lost the string {needle!r}")
 
-    # wallet_proof.c finds this placeholder by value and writes the run's hash
+    # kiss_proof.c finds this placeholder by value and writes the run's hash
     # over it. Two of them, or none, and the card's copy stops self verifying
     # while every other check stays green.
     slot = "-" * 64

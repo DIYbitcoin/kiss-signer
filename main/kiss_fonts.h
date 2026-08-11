@@ -4,7 +4,7 @@
 //   font_kiss_{ja,ko,zh}14/28  Source Han Sans subsets: exactly the glyphs the
 //                       matching i18n/*.json uses
 // The generated files retain a broad fallback chain for standalone use.
-// wallet_theme.c builds locale-specific composites so shared Han codepoints
+// kiss_theme.c builds locale-specific composites so shared Han codepoints
 // resolve through JP for Japanese and SC for Simplified Chinese.
 // NEVER render text with glyphs outside these fonts: a fully-missing-glyph
 // label hard-hangs the LVGL renderer (tools/gen_i18n.py enforces coverage).

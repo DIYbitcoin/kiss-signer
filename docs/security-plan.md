@@ -110,7 +110,7 @@ error. Confidentiality against a flash dump is the whole of what it buys, and
 claiming more from it would be the same overstatement as the scrub sentence
 below.
 
-The SD path already goes further. `sd_seed_seal` in `main/wallet_seed_sd.c`
+The SD path already goes further. `sd_seed_seal` in `main/kiss_seed_sd.c`
 writes AES-CBC under one subkey and an HMAC-SHA256 tag over the header and the
 ciphertext under a second, encrypt then MAC, compared in constant time. A card
 whose file was altered fails to open and says which problem it hit, the
@@ -140,7 +140,7 @@ ciphertext and the sentence on screen becomes true as written.
 The obvious fix, erasing the whole NVS partition on the move, is deliberately
 not taken. The SD device key lives in that partition, and a power cut between
 the erase and its restore would leave a card no device can open. That trade is
-recorded at `main/wallet_seed.c`'s `storage_publish_sd`. The durable fix is the
+recorded at `main/kiss_seed.c`'s `storage_publish_sd`. The durable fix is the
 eFuse backed device key, which removes the key from the set that has to survive
 an erase; until then the honest statement is this paragraph rather than a
 migration that can lose a wallet.

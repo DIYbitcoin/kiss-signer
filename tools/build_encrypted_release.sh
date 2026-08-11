@@ -113,7 +113,7 @@ force = {
     # SD firmware update: verify the signature on an incoming image. The plain
     # release lane has set these since it gained the update path; this lane,
     # the one that runs on boards holding funds, did not - so on an encrypted
-    # build wallet_fw_available() answered WFW_ERR_UNSIGNED and the device
+    # build kiss_fw_available() answered WFW_ERR_UNSIGNED and the device
     # refused every update, including ours. The partition table here has
     # carried two app slots and an otadata since the SD update work landed, so
     # the layout always said updatable while the app said frozen.

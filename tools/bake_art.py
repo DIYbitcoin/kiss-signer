@@ -10,10 +10,10 @@ What this does, per file:
 
   * `static const uint8_t NAME[] = {...}`  ->  `static const uint8_t NAME_rle[]`
   * every descriptor that pointed at NAME gets `.data = NULL, .data_size = 0`
-  * the descriptor loses `const`, because wallet_art.c fills `.data` in at boot
+  * the descriptor loses `const`, because kiss_art.c fills `.data` in at boot
   * an `art_entry_t` table is appended, naming every descriptor in the file
 
-The pixels come back at boot in art_unpack_all() (main/wallet_art.c), into
+The pixels come back at boot in art_unpack_all() (main/kiss_art.c), into
 PSRAM. After that LVGL sees ordinary uncompressed images exactly as before --
 no LVGL config is touched, no decoder is wired, nothing decompresses twice.
 
@@ -43,7 +43,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FILES = [
     "main/menu_img.c",
     "main/gameover_img.c",
-    "main/wallet_img.c",
+    "main/kiss_img.c",
     "main/sprites.c",
     "main/menu_logo.c",
 ]
@@ -51,7 +51,7 @@ FILES = [
 HEADERS = [
     "main/menu_img.h",
     "main/gameover_img.h",
-    "main/wallet_img.h",
+    "main/kiss_img.h",
     "main/sprites.h",
     "main/menu_logo.h",
 ]
@@ -102,7 +102,7 @@ def rle_compress(data, blk):
 
 
 def rle_decompress(inp, out_len, blk):
-    """Byte for byte what main/wallet_art.c does, so the round trip below
+    """Byte for byte what main/kiss_art.c does, so the round trip below
     tests the shipped decoder's contract and not just this file's arithmetic."""
     out = bytearray()
     i = 0
@@ -264,7 +264,7 @@ def bake_file(path, check):
     table = "\n".join([
         "",
         MARK,
-        '#include "wallet_art.h"',
+        '#include "kiss_art.h"',
         "const art_entry_t %s_art[] = {" % stem,
         "\n".join(rows),
         "};",
@@ -287,7 +287,7 @@ def bake_header(path, stem, check):
     out = re.sub(r'\bextern\s+const\s+(lv_image_dsc_t)\b', r'extern \1', txt)
     out = out.rstrip() + "\n\n" + "\n".join([
         MARK,
-        '#include "wallet_art.h"',
+        '#include "kiss_art.h"',
         "extern const art_entry_t %s_art[];" % stem,
         "extern const int %s_art_n;" % stem,
         "",
