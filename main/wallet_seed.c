@@ -759,38 +759,80 @@ static int storage_delete_sd(void)
          ? WSEED_OK : WSEED_ERR_SD_IO;
 }
 
-// Publish SD only after its sealed file has been written and verified. On the
-// device this ONE encrypted-NVS transaction removes words and changes smode
-// while retaining dkey. A whole-partition erase here would introduce a power
-// cut window in which the card survives but its only key does not.
+// Take the internal copy away once the card is authoritative.
+//
+// This erased "words" and nothing else for as long as "words" WAS the internal
+// copy. The tag migration made "wblob" the representation storage_read_keep
+// actually reads, and this was not moved with it: after a move to SD the device
+// still held the whole sealed seed and the nkey that opens it, while the screen
+// said the internal copy was gone. The card stopped being a second factor at
+// that point -- a device seized without it opened the wallet on its own.
+//
+// nkey goes FIRST, and it is the part that does the work. nvs_erase_key is a
+// logical delete (see the note above storage_erase), so the blob stays on its
+// page until a compaction that may never come; killing the key first means a
+// power cut anywhere after it leaves dead ciphertext rather than live. dkey is
+// deliberately left alone -- it is the only thing that can read the card this
+// wallet now lives on, which is also why a whole-partition erase is wrong here.
+static int storage_drop_keep_copy(void)
+{
+#ifdef ESP_PLATFORM
+    if (sd_seed_forget_flash_key() != 0)
+        return WSEED_ERR_CLEANUP;
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return WSEED_ERR_CLEANUP;
+    int rc = WSEED_OK;
+    // "words" is the pre-tag representation and may still be here on a device
+    // that never opened its wallet after the migration; "wblob" is today's.
+    // Absent is success for both: this is a promise about what is left, not
+    // about what was found.
+    static const char *const GONE[] = { "wblob", "words" };
+    for (size_t i = 0; i < sizeof GONE / sizeof GONE[0]; i++) {
+        esp_err_t er = nvs_erase_key(h, GONE[i]);
+        if (er != ESP_OK && er != ESP_ERR_NVS_NOT_FOUND)
+            rc = WSEED_ERR_CLEANUP;
+    }
+    if (rc == WSEED_OK && nvs_commit(h) != ESP_OK)
+        rc = WSEED_ERR_CLEANUP;
+    nvs_close(h);
+    return rc;
+#else
+    // The host keeps the same two acts in the same order, so the tests walk
+    // this path rather than a shortcut: the emulated flash key, then the
+    // emulated blob. Deleting only the seed file is what let this ship.
+    if (sd_seed_forget_flash_key() != 0)
+        return WSEED_ERR_CLEANUP;
+    if (seed_test_fail(WSEED_TEST_FAIL_SEED_REMOVE) ||
+        (remove(SEED_FILE) != 0 && errno != ENOENT))
+        return WSEED_ERR_CLEANUP;
+    return WSEED_OK;
+#endif
+}
+
+// Publish SD only after its sealed file has been written and verified. Mode
+// first (its card is already verified), then the internal copy: NVS set/erase
+// calls are individually durable and commit is not a transaction, so a cut
+// between them leaves two copies, never zero.
 static int storage_publish_sd(void)
 {
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
         return WSEED_ERR_SD_IO;
-    // NVS set/erase calls are individually durable; commit is not a
-    // transaction. Publish SD mode first (its card is already verified), then
-    // clean the now-old words. A cut between them leaves two copies, never zero.
     int rc = nvs_set_u8(h, "smode", WSEED_MODE_SD) == ESP_OK &&
              nvs_commit(h) == ESP_OK ? WSEED_OK : WSEED_ERR_SD_IO;
-    if (rc == WSEED_OK) {
-        esp_err_t er = nvs_erase_key(h, "words");
-        if (!((er == ESP_OK || er == ESP_ERR_NVS_NOT_FOUND) &&
-              nvs_commit(h) == ESP_OK))
-            rc = WSEED_ERR_CLEANUP;
-    }
     nvs_close(h);
+    if (rc == WSEED_OK)
+        rc = storage_drop_keep_copy();
 #else
-    // Host state uses two files rather than NVS. Publish the verified SD mode
-    // first; a power cut before deleting the emulated flash seed leaves two
-    // copies, never zero, and SD remains the authoritative one.
+    // Host state uses files rather than NVS. Publish the verified SD mode
+    // first; a power cut before dropping the emulated copy leaves two copies,
+    // never zero, and SD remains the authoritative one.
     int rc = storage_mode_write(WSEED_MODE_SD) == 0
            ? WSEED_OK : WSEED_ERR_SD_IO;
-    if (rc == WSEED_OK &&
-        (seed_test_fail(WSEED_TEST_FAIL_SEED_REMOVE) ||
-         (remove(SEED_FILE) != 0 && errno != ENOENT)))
-        rc = WSEED_ERR_CLEANUP;
+    if (rc == WSEED_OK)
+        rc = storage_drop_keep_copy();
     (void)remove(SEED_TMP);
 #endif
     int verify = -1;
