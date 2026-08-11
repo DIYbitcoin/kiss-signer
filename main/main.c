@@ -48,6 +48,7 @@
 #include "wallet_gword.h"
 #include "wallet_kissword.h"
 #include "wallet_duress_ui.h"
+#include "wallet_word_ui.h"
 // platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
 // SD-storage badge probes it outside any device-only block, so its header is
 // platform-agnostic here. wallet_crypto/camera_spike stay device-only: they
@@ -1823,8 +1824,15 @@ static void game_tick(lv_timer_t *t) {
     }
   }
 
+  // wallet_word_ui_active was MISSING here, and it is the one screen on the
+  // device where the owner drags a finger across the panel on purpose. Without
+  // it the game's sampler read the same strokes the writing canvas was reading,
+  // and its own recogniser then opened whatever was under them -- the walk
+  // caught it opening Receive and the Sign chooser UNDERNEATH a write screen
+  // that still looked correct. Nothing had ever drawn on that screen: it had no
+  // walk stop, which is the only reason a bug this loud survived.
   if (wallet_ui_active() || wallet_setup_active() ||
-      wallet_duress_ui_active()) {                     // login/wizard own the touch
+      wallet_duress_ui_active() || wallet_word_ui_active()) {  // login/wizard own the touch
     // The menu is buried; its fruit must stop drifting. This is the hook and not
     // the menu panel's hidden flag because the wizard opens OVER the menu with
     // the panel still visible, which is how the drift reached the camera preview

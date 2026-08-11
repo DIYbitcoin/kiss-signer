@@ -2036,11 +2036,12 @@ static void rm_screen(void)
         mk_lbl(more, 48, 108, wt_font14(), WARN_COL);
     }
 
-    // REMOVE ALL is a hold too, and it is the one the sweep lives on. It sits
-    // left, away from BACK in the corner.
-    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), 48, WT_ACTION_Y, 300, WT_ACTION_H,
+    // Sweeping the card is what this screen is for, so it takes the corner and
+    // BACK moves to WT_EXIT_X. Safe there only because REMOVE ALL is a 1500ms
+    // hold: the corner invariant is that a TAP there is never irreversible.
+    mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, rm_back_cb);
+    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), 452, WT_ACTION_Y, 300, WT_ACTION_H,
                  1500, rm_all, NULL);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, rm_back_cb);
 }
 
 static void rm_open_cb(lv_event_t *e)
@@ -2141,19 +2142,25 @@ static void sd_open(lv_obj_t *parent)
         // filename ellipsising instead of running under the tag.
         lv_obj_set_width(row, lv_pct(100));
     }
-    // BACK keeps the corner where the thumb rests; the destructive control does
-    // not go there. 48..388 against BACK's 610..750 leaves 222px of clear air.
+    // This used to read "BACK keeps the corner where the thumb rests; the
+    // destructive control does not go there" -- while replace-or-erase put
+    // ERASE THE WORDS in that same corner. Two destructive controls, opposite
+    // rules, both written down. The corner now does the screen's job
+    // everywhere; see wallet_theme.h.
+    //
     // A tap in WT_WARN, not a hold in WT_STOP, because this only opens a
-    // confirm -- the project's rule is that the hold belongs to the act itself.
+    // confirm -- the project's rule is that the hold belongs to the act itself,
+    // and it is also what makes this safe in the corner. 412..752 against the
+    // way out at 48..188 leaves 224px of clear air.
+    mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, choose_back_cb);
     if (s_nsig > 0) {
         lv_obj_t *rm = wt_pill_icon(s_scr, LV_SYMBOL_TRASH, tr(STR_S_RM_SIGNED),
-                                    48, WT_ACTION_Y, 340, WT_ACTION_H,
+                                    412, WT_ACTION_Y, 340, WT_ACTION_H,
                                     rm_open_cb, NULL);
         lv_obj_set_style_border_color(rm, WARN_COL, 0);
         lv_obj_t *rl = lv_obj_get_child(rm, 0);
         if (rl) lv_obj_set_style_text_color(rl, WARN_COL, 0);
     }
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
 }
 
 // What the device concluded about a PSBT, in one serial line.
