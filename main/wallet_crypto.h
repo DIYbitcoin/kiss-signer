@@ -9,6 +9,21 @@
 // out_fingerprint (optional, 4 bytes) receives the computed fingerprint.
 int wallet_selftest(uint8_t out_fingerprint[4]);
 
+// Re-signs the two golden vectors in boot_sign_vectors.h with the frozen rules
+// (RFC6979 + low-R grinding for ECDSA, BIP340 with an explicit aux for Schnorr)
+// and compares the exact bytes. Runs on the DEVICE, where secp256k1 uses the
+// 32-bit field backend the host test suite never compiles. Ships in release:
+// the key is a published test value, not a seed.
+// Returns 0 on pass; nonzero identifies the failing stage.
+int wallet_sign_selftest(void);
+
+#ifndef KISS_RELEASE
+// Fault injection, non-release only: make wallet_sign_selftest report stage 99
+// so the suite can prove wallet_psbt_sign actually refuses. Same reasoning as
+// OVERLAPCHECK_SELFTEST -- a gate nobody has watched fire is not a gate.
+void wallet_sign_selftest_force_fail(int on);
+#endif
+
 // Master fingerprint of the DEV seed with the given BIP39 passphrase
 // (NULL/empty = no passphrase). Returns 0 on success.
 // The fruitsim build provides a fake stub (no libwally on the sim).

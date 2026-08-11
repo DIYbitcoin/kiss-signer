@@ -1065,6 +1065,12 @@ int wallet_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     const struct ext_key *master = wallet_session_master();
     if (!s_psbt || !master || s_status == WPSBT_STOP)
         return -1;
+    // The curve code must have reproduced the golden vectors on THIS chip
+    // before it is trusted with a real key. Cached after the first run, so the
+    // cost is the boot call; a unit that fails signs nothing at all rather
+    // than emitting a signature whose nonce nobody has ever checked.
+    if (wallet_sign_selftest() != 0)
+        return -6;
     if (wally_psbt_sign_bip32(s_psbt, master, EC_FLAG_GRIND_R) != WALLY_OK)
         return -2;
     if (sign_sp_spends(master) != 0)

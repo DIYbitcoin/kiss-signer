@@ -8,6 +8,7 @@
 #include "wallet_psbt.h"
 #include "wallet_usage.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
+#include "boot_sign_vectors.h"  // the two the device re-signs at boot
 
 #include <wally_bip32.h>
 #include <wally_bip39.h>
@@ -644,6 +645,54 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
     wallet_set_script(WSCRIPT_NATIVE);
 }
 
+// The boot signing selftest (wallet_sign_selftest) reproduces two golden
+// signatures with the frozen rules. Here we check that it passes AND that the
+// vectors it pins actually discriminate: a golden vector a weaker rule also
+// satisfies would sit in the binary proving nothing.
+static void test_boot_sign_selftest(void) {
+    chki("boot sign selftest rc", wallet_sign_selftest(), 0);
+
+    uint8_t sig[64];
+    // Discrimination 1: drop the low-R grinding. BSV_MSG was chosen so the
+    // counter-0 RFC6979 nonce gives a high R, so plain ECDSA must differ.
+    chkb("ECDSA vector is unreachable without grind-R",
+         wally_ec_sig_from_bytes(BSV_KEY, 32, BSV_MSG, 32,
+                                 EC_FLAG_ECDSA, sig, sizeof sig) == WALLY_OK &&
+         memcmp(sig, BSV_ECDSA, sizeof sig) != 0);
+
+    // Discrimination 2: BIP340 with the default all-zero aux is a different
+    // signature, so the vector pins our aux rule and not merely "some BIP340".
+    uint8_t zero_aux[32] = {0};
+    chkb("Schnorr vector is unreachable with a zero aux",
+         wally_ec_sig_from_bytes_aux(BSV_KEY, 32, BSV_MSG, 32,
+                                     zero_aux, sizeof zero_aux,
+                                     EC_FLAG_SCHNORR, sig, sizeof sig) == WALLY_OK &&
+         memcmp(sig, BSV_SCHNORR, sizeof sig) != 0);
+}
+
+// A selftest whose failure changes nothing is decoration. Force it to fail and
+// prove the signer refuses: the same shape as OVERLAPCHECK_SELFTEST, which
+// exists because a clean sweep means nothing without proof the gate can fire.
+static void test_sign_refused_when_selftest_fails(const uint8_t *psbt, size_t len) {
+    wpsbt_summary_t sum;
+    uint8_t out[4096];
+    size_t written = 0;
+
+    wallet_sign_selftest_force_fail(1);
+    chki("selftest reports the forced failure", wallet_sign_selftest(), 99);
+    chki("psbt load still works", wallet_psbt_load(psbt, len, &sum), 0);
+    chkb("signing is REFUSED while the selftest fails",
+         wallet_psbt_sign(out, sizeof out, &written) != 0);
+    chki("nothing was written", (long long)written, 0);
+    wallet_psbt_free();
+
+    wallet_sign_selftest_force_fail(0);
+    chki("selftest passes again once un-forced", wallet_sign_selftest(), 0);
+    chki("psbt load works", wallet_psbt_load(psbt, len, &sum), 0);
+    chki("signing works again", wallet_psbt_sign(out, sizeof out, &written), 0);
+    wallet_psbt_free();
+}
+
 int main(int argc, char **argv) {
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
@@ -660,6 +709,8 @@ int main(int argc, char **argv) {
     fails += test_cards_q();
     fails += test_proof();
     fails += test_fw();
+
+    test_boot_sign_selftest();
 
     uint8_t fp[4] = {0};
     int rc = wallet_selftest(fp);
@@ -1187,6 +1238,9 @@ int main(int argc, char **argv) {
 
     chkb("garbage refuses to load", wallet_psbt_load((const uint8_t *)"nope", 4, &sum) != 0);
     wallet_psbt_free();
+
+    pl = mk_psbt(MUT_NONE, pb, sizeof pb);
+    test_sign_refused_when_selftest_fails(pb, pl);
 
     wallet_session_close();
     if (wallet_session_address(0, 0, addr, sizeof addr) != 0) {
