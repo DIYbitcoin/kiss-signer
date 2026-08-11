@@ -110,7 +110,7 @@ Both browser routes, the hosted page and this zip, need Chrome, Brave or Edge on
 
 After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 
-### Coming from beta7 or earlier: this one erases the wallet
+### Coming from beta7 or earlier: this one erases your keys
 
 This release splits the flash into two firmware slots, which is what lets every
 release after it arrive on an SD card instead of a USB cable. A partition table
@@ -121,11 +121,11 @@ done over USB, once.
 from `0x9000` to `0x11000` in the new layout, so the crossing takes them with
 it. The browser and offline routes erase the whole chip; flashing the pieces by
 hand leaves the old words at an address this firmware no longer reads. Either
-way the wallet does not come back on its own.
+way the keys are gone from this signer until you restore them.
 
 So treat it as a restore, not an update. Have the recovery words in your hand on
 paper, check them against the device before you unplug it, and expect to restore
-from that paper once the new firmware is running. If the signer holds coins and
+from that paper once the new firmware is running. If those keys control coins and
 you cannot find the words, do not flash.
 
 After this, Settings has a FIRMWARE button. Put `{update}` in the root of an SD

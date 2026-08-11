@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "FORTSETT",
   "L_DISCARD": "FORKAST",
   "L_FAIL_SETUP_T": "KUNNE IKKE SETTE OPP SIGNEREN",
+  "L_RECOVER_T": "IKKE PÅ DENNE ENHETEN ENNÅ",
+  "L_RECOVER_B": "ordene dine finnes bare i minnet og ingen andre steder. skriv dem ned på papir før du gjør noe annet.\n\nprøv så igjen. hvis lagringen fortsetter å feile, gjenopprett fra det papiret på en signer du stoler på.",
   "L_FAIL_OPEN_T": "KUNNE IKKE ÅPNE NØKLENE DINE",
   "L_FAIL_SETUP_B": "ingenting ble lagret. start på nytt fra menyen.",
   "L_FAIL_OPEN_B": "noe gikk galt. prøv igjen fra menyen.",

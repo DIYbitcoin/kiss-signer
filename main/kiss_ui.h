@@ -52,3 +52,11 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
 // build profiles, so anything placed beside it measures rather than guesses.
 int kiss_build_id_right(void);
 void kiss_build_id_restyle(lv_obj_t *version_label);
+
+#ifndef ESP_PLATFORM
+// Walk only: the screen shown when a commit may have taken the old wallet with
+// it and the staged copy is the last one. Unreachable by tapping -- it needs a
+// failed flash write -- so the walk opens it directly.
+void kiss_ui_test_recover_screen(void);
+#endif
+
