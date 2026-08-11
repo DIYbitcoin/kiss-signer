@@ -45,6 +45,7 @@
 #include "kiss_seed.h"
 #include "kiss_crypto.h"
 #include "kiss_theme.h"
+#include "kiss_panel.h"
 #include "kiss_duress.h"
 #include "kiss_gword.h"
 #include "kiss_coverword.h"
