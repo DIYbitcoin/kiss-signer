@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "POKRAČOVAT",
   "L_DISCARD": "ZAHODIT",
   "L_FAIL_SETUP_T": "SIGNER SE NEPODAŘILO NASTAVIT",
+  "L_RECOVER_T": "V TOMTO ZAŘÍZENÍ JEŠTĚ NE",
+  "L_RECOVER_B": "vaše slova jsou jen v paměti a nikde jinde. než uděláte cokoli dalšího, opište je na papír.\n\npotom to zkuste znovu. pokud ukládání stále selhává, obnovte je z toho papíru v podepisovači, kterému věříte.",
   "L_FAIL_OPEN_T": "VAŠE KLÍČE SE NEPODAŘILO OTEVŘÍT",
   "L_FAIL_SETUP_B": "nic nebylo uloženo. začněte znovu z nabídky.",
   "L_FAIL_OPEN_B": "něco se pokazilo. zkuste to znovu z nabídky.",

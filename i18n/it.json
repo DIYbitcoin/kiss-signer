@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "CONTINUA",
   "L_DISCARD": "SCARTA",
   "L_FAIL_SETUP_T": "CONFIGURAZIONE SIGNER NON RIUSCITA",
+  "L_RECOVER_T": "NON ANCORA SU QUESTO DISPOSITIVO",
+  "L_RECOVER_B": "le tue parole sono solo in memoria e da nessun'altra parte. scrivile su carta prima di fare qualsiasi altra cosa.\n\npoi riprova. se il salvataggio continua a fallire, ripristina da quella carta su un firmatario di cui ti fidi.",
   "L_FAIL_OPEN_T": "APERTURA DELLE CHIAVI NON RIUSCITA",
   "L_FAIL_SETUP_B": "non è stato salvato nulla. ricomincia dal menu.",
   "L_FAIL_OPEN_B": "qualcosa è andato storto. riprova dal menu.",

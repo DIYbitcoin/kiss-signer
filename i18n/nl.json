@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "DOORGAAN",
   "L_DISCARD": "WEGGOOIEN",
   "L_FAIL_SETUP_T": "SIGNER INSTELLEN MISLUKT",
+  "L_RECOVER_T": "NOG NIET OP DIT APPARAAT",
+  "L_RECOVER_B": "je woorden staan alleen in het geheugen en nergens anders. schrijf ze op papier voordat je iets anders doet.\n\nprobeer het daarna opnieuw. als opslaan blijft mislukken, herstel dan vanaf dat papier op een signer die je vertrouwt.",
   "L_FAIL_OPEN_T": "SLEUTELS OPENEN MISLUKT",
   "L_FAIL_SETUP_B": "er is niets opgeslagen. begin opnieuw vanuit het menu.",
   "L_FAIL_OPEN_B": "er ging iets mis. probeer het opnieuw vanuit het menu.",

@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "FORTSÆT",
   "L_DISCARD": "KASSÉR",
   "L_FAIL_SETUP_T": "KUNNE IKKE OPSÆTTE SIGNEREN",
+  "L_RECOVER_T": "IKKE PÅ DENNE ENHED ENDNU",
+  "L_RECOVER_B": "dine ord findes kun i hukommelsen og intet andet sted. skriv dem ned på papir, før du gør noget andet.\n\nprøv så igen. hvis det bliver ved med at fejle, så gendan fra det papir på en signer, du stoler på.",
   "L_FAIL_OPEN_T": "KUNNE IKKE ÅBNE DINE NØGLER",
   "L_FAIL_SETUP_B": "intet blev gemt. begynd forfra fra menuen.",
   "L_FAIL_OPEN_B": "noget gik galt. prøv igen fra menuen.",
