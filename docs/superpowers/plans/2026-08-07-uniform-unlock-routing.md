@@ -148,7 +148,7 @@ Replace the whole function body. The word and stroke classification stays exactl
 static int unlock_kind(void) {
   // A modifier stroke is classified SEPARATELY from the word, because it
   // changes the word's shape: an underline is wide and low and merges the
-  // letters' x-clusters into one blob, which detect_KISS would reject.
+  // letters' x-clusters into one blob, which detect_cover_word would reject.
   if (s_strokes >= 5 && s_stroke_n0 >= 12 && s_gn > s_stroke_n0) {
     int bx0 = s_gpt[0].x, bx1 = bx0, by0 = s_gpt[0].y, by1 = by0;
     for (int i = 1; i < s_stroke_n0; i++) {          // bbox of the WORD only
@@ -157,7 +157,7 @@ static int unlock_kind(void) {
       if (s_gpt[i].y < by0) by0 = s_gpt[i].y;
       if (s_gpt[i].y > by1) by1 = s_gpt[i].y;
     }
-    if (detect_KISS(s_gpt, s_stroke_n0, s_strokes - 1)) {
+    if (detect_cover_word(s_gpt, s_stroke_n0, s_strokes - 1)) {
       int n = 0;
       for (int i = s_stroke_n0; i < s_gn; i++) {
         s_mx[n] = s_gpt[i].x; s_my[n] = s_gpt[i].y; n++;
@@ -169,7 +169,7 @@ static int unlock_kind(void) {
       // plain-word test, which lands on the decoy
     }
   }
-  return kiss_duress_route(detect_KISS(s_gpt, s_gn, s_strokes), WDG_NONE);
+  return kiss_duress_route(detect_cover_word(s_gpt, s_gn, s_strokes), WDG_NONE);
 }
 ```
 

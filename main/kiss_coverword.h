@@ -8,15 +8,25 @@
 // Integer geometry only, no LVGL, for exactly the reason kiss_gword.h states
 // for itself: the desktop runner has to be able to hammer it with the shapes
 // this panel actually sees. See sim/test_coverword.c.
+//
+// Nothing in this path is called kiss_ or KISS_, deliberately. kiss_ is the
+// product namespace -- it is on 61 modules, the fonts, the NVS namespaces and
+// the build macros -- so a reviewer who greps for it to find the decoy opener
+// gets 1300 hits and no signal. cw_ and cover_ name this feature and nothing
+// else, which makes `grep -rn cover main/` the one search that finds every
+// line of the way in. The letters K-I-S-S the owner actually draws are still
+// KISS; they live in the comments and in the shapes, not in the symbols.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
 
 // Points accepted in one call. Matches GEST_MAX in main.c, which is the buffer
 // the collector fills.
-#define KW_MAX_PTS 384
+#define CW_MAX_PTS 384
 
-// Is this drawing the word KISS?
+// Does this drawing match the cover word? The built-in one is the letters
+// K-I-S-S; an owner who enrols their own goes through kiss_gword.c instead,
+// and main.c asks that one first.
 //
 // xs/ys are the accumulated points of the whole draw, sid[i] the stroke each
 // point belongs to (any monotone numbering; only changes matter), n the point
@@ -25,5 +35,5 @@
 // Lenient on the letter shapes and strict on what tells a WORD from a smudge:
 // this opens the DECOY, so a fumbled shape costs the owner nothing, while a
 // tap or one flat swipe must never fire it.
-bool kw_is_kiss(const int *xs, const int *ys, const uint8_t *sid,
+bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
                 int n, int strokes);

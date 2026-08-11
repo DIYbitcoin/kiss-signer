@@ -482,7 +482,7 @@ def build_reveal_gif():
             pts.append((n, x, y, bool(down)))
 
     # Where the signer appears, found by looking rather than by counting
-    # strokes. detect_KISS in main/main.c wants four pen lifts and a wide
+    # strokes. detect_cover_word in main/main.c wants four pen lifts and a wide
     # enough shape, and it is deliberately lenient because it opens the decoy
     # rather than the real wallet, so it fires partway through the last letter.
     # The walk keeps drawing after that, onto a passphrase keyboard, and a trace
