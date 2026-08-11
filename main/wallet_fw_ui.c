@@ -44,6 +44,19 @@ static void close_cb(lv_event_t *e)
     if (s_done) s_done();
 }
 
+bool wallet_fw_ui_active(void) { return s_scr != NULL; }
+
+// Deliberately NOT close_cb. That one hands control back to Settings, which is
+// the right answer for BACK and exactly the wrong one here: the lock is taking
+// the screen away, not returning from it, and rebuilding Settings under a
+// locked device is the whole bug. s_parent is left alone so a write already
+// committed can still draw its result.
+void wallet_fw_ui_close(void)
+{
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_done = NULL;
+}
+
 static void fresh(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
