@@ -11,26 +11,35 @@ walked back.
 
 ## The constraint everything else follows from
 
-`tools/build_encrypted_release.sh` says it in its own header:
+After the first boot, serial reflash is IMPOSSIBLE. The cable and the web
+installer never work on that board again.
 
-> after the first boot, serial reflash is IMPOSSIBLE (the table is
-> factory only, no OTA), so the firmware on that board is frozen
+**This section used to say more than that, and the extra part is no longer
+true.** It read: the table carries `nvs`, `phy_init`, `factory` and `nvs_key`,
+there is no OTA partition, so the board accepts no further firmware from anyone.
+`partitions_encrypted.csv` has carried `otadata`, `ota_0` and `ota_1` since the
+SD update work landed, there is no `factory` partition, and
+`build_encrypted_release.sh` asserts
+`CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT` precisely so the slots it does
+have only accept images signed with our key. The layout said updatable while
+this spec said frozen.
 
-`partitions_encrypted.csv` carries `nvs`, `phy_init`, `factory` and `nvs_key`.
-There is no OTA partition. So a board that boots the release lane once accepts
-no further firmware, from us or from anyone.
+So the constraint is narrower than it was written, and only one of the three
+consequences survives unchanged:
 
-Three things follow, and they are the whole plan:
-
-1. **Secure boot cannot be added later.** It requires flashing a signed
-   bootloader, and the board no longer takes a bootloader. Both burns happen in
-   one pass or the second one never happens.
-2. **A shipped encrypted device can never be updated.** Right for a final
-   signer, wrong for a beta that fixes bugs monthly. The encrypted lane is a
-   hardware validation target until the firmware is one we are willing to
-   freeze.
+1. **Secure boot cannot be added later.** Unchanged, and it is the real
+   constraint. Secure boot requires flashing a signed *bootloader*, and the
+   board no longer takes a bootloader. Both burns happen in one pass or the
+   second one never happens.
+2. **A shipped encrypted device can be updated, over SD, with a signed image.**
+   It cannot be reflashed over the cable and it cannot be downgraded below
+   whatever the secure boot pass eventually enforces, but today an older SIGNED
+   build installs: `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK` is deliberately off
+   until then. So the encrypted lane is no longer gated on "firmware we are
+   willing to freeze" -- it is gated on the signing key being one we can keep.
 3. **Every irreversible choice inside the profile has to be settled first**,
-   because the burn is where the argument ends.
+   because the burn is where the argument ends. Still true: the eFuse burn is
+   permanent even though the app on top of it is not.
 
 ## Stage 1, rehearsal lane, repeat as often as needed
 
