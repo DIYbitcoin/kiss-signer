@@ -1330,7 +1330,18 @@ lv_obj_t *wt_addr_spans(lv_obj_t *par, const char *grouped, int w, const lv_font
     // fixed 8-character tail starts mid-group and the highlight breaks a block
     // in half -- which then wraps, orphaning two characters on their own line.
     // Whole groups only: still "the last few", but always readable as blocks.
-    while (t > 0 && grouped[t - 1] != ' ') t--;
+    //
+    // ONLY when there ARE groups. Every caller passed a wt_group4 string until
+    // the verify screen passed a raw address -- deliberately, because grouped it
+    // measures 437px against a 438px box and wraps onto the line the comparison
+    // belongs on. With no space to stop at, this walk ran t down to 0: the muted
+    // head became empty and the accent span became the WHOLE address, so the one
+    // screen that asks you to compare the last eight characters drew all
+    // forty-two in one flat colour with nothing marked at all. Inverted, not
+    // missing -- and with two or more recipients there is no second lit line
+    // under it to fall back on.
+    if (strchr(grouped, ' '))
+        while (t > 0 && grouped[t - 1] != ' ') t--;
     char head[256];           // fits a grouped silent-payment addr (~146 chars)
     snprintf(head, sizeof head, "%.*s", t, grouped);
 

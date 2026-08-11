@@ -1227,6 +1227,39 @@ static void verify_screen(lv_obj_t *parent)
                                SG_PAD, 12, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
+        // The single recipient's amount, on the caption row.
+        //
+        // It was not drawn AT ALL, which is the defect: the hero is TOTAL
+        // LEAVING (send plus fee) and the change panel states change, so with
+        // one recipient the one figure this screen never printed was how much
+        // arrives at the address printed directly beneath it. An owner had to
+        // subtract a fee off a total to learn the thing they were agreeing to,
+        // on the screen whose whole job is where the coins go and how much.
+        // "One number, not two" governs the HERO and still does; this is the
+        // per-output line every other recipient already had.
+        //
+        // Here rather than in the list because the list row costs 34px and 34px
+        // is exactly what decides whether this panel overflows. Measured with
+        // lv_obj_get_scroll_bottom: as a list row the ordinary one-recipient
+        // panel went 27px over clean and 18px over cautioned, which turns the
+        // scrollbar on and holds HOLD TO SIGN inert until the owner scrolls a
+        // panel whose every line is already visible. That is the dead-button
+        // case the gate below is written to avoid, bought for a number that
+        // fits on a row already on the glass.
+        if (recipient_n == 1) {
+            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+                if (s_sum.outs[i].is_change) continue;
+                fmt_sats(s_sum.outs[i].sats, a, sizeof a);
+                snprintf(buf, sizeof buf, "%s sats", a);
+                lv_obj_t *amt = lv_label_create(rp);
+                lv_label_set_text(amt, buf);
+                lv_obj_set_style_text_font(amt, wt_font_mono23(), 0);
+                lv_obj_set_style_text_color(amt, INK_COL, 0);
+                lv_obj_align(amt, LV_ALIGN_TOP_RIGHT, -SG_PAD, 6);
+                break;
+            }
+        }
+
         // Every output is still shown. One recipient is the common case and
         // gets the panel to itself; more than one scrolls inside it, because
         // nothing the owner is asked to sign may be hidden.
@@ -1248,6 +1281,9 @@ static void verify_screen(lv_obj_t *parent)
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
             if (s_sum.outs[i].is_change) continue;
             char ga[200];
+            // Every recipient carries its number. Several of them are a list and
+            // each takes a row of its own; the single recipient's rides the
+            // caption row above, where it costs no height. See the header.
             if (recipient_n > 1) {
                 fmt_sats(s_sum.outs[i].sats, a, sizeof a);
                 snprintf(buf, sizeof buf, "%s sats", a);
