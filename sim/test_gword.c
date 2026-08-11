@@ -161,6 +161,77 @@ int test_gword(void) {
              same_worst <= GW_MATCH_MAX && diff_best > GW_MATCH_MAX);
     }
 
+    // ---- enrolment and unlock must read one draw the same way ----
+    //
+    // The two collectors owned their own limits and disagreed. Enrolment took
+    // 512 points and folded every stroke past its twelfth INTO the twelfth;
+    // unlock took 384 and kept every boundary. `strokes` is matched exactly, so
+    // a word of thirteen strokes could be written twice, confirmed, saved, and
+    // then never open the device again -- with no error anywhere, because both
+    // halves believed they had done their job. Both numbers live in
+    // wallet_gword.h now, and the excess is DROPPED rather than folded.
+    {
+        const int EXTRA = 2;                       // a 14 stroke draw
+        gw_template_t enrolled, seen, merged;
+
+        // What wallet_word_ui stores: the strokes past the budget never happen.
+        w_start();
+        for (int s = 0; s < GW_MAX_STROKES + EXTRA; s++) {
+            if (s) w_lift();
+            if (s >= GW_MAX_STROKES) continue;     // dropped whole, points and all
+            w_to(120 + s * 40, 130);
+            w_to(120 + s * 40, 300);
+        }
+        gchk("an over-long draw still makes a template", w_make(&enrolled) == 0);
+        gchk("enrolment stores exactly the stroke budget",
+             enrolled.strokes == GW_MAX_STROKES);
+
+        // What main.c's written_word_match sees: the whole draw arrives and the
+        // word is every point whose stroke id is below the stored count.
+        w_start();
+        for (int s = 0; s < GW_MAX_STROKES + EXTRA; s++) {
+            if (s) w_lift();
+            w_to(120 + s * 40, 130);
+            w_to(120 + s * 40, 300);
+        }
+        {
+            int xs[MAXP], ys[MAXP]; int n = 0; uint8_t sid[MAXP];
+            for (int i = 0; i < g_n; i++)
+                if (g_sid[i] < enrolled.strokes) {
+                    xs[n] = g_xs[i]; ys[n] = g_ys[i]; sid[n] = g_sid[i]; n++;
+                }
+            gchk("unlock rebuilds the word from the stored strokes",
+                 gw_make(xs, ys, sid, n, &seen) == 0);
+        }
+        gchk("what was enrolled is what unlock reads",
+             gw_matches(&enrolled, &seen));
+
+        // And the shape that shipped, kept as the thing this test is for: the
+        // excess folded INTO the twelfth stroke, so the stored template carries
+        // points unlock will never hand it.
+        //
+        // The thirteenth and fourteenth strokes here are an underline, not two
+        // more verticals. That is the point rather than a convenience: with the
+        // excess drawn like the rest of the word, the folded template still
+        // matched, which is precisely why this shipped and why no gate found it.
+        // The failure needs the tail to be SHAPED differently from the body --
+        // an underline, a crossbar, a flourish -- and that describes most of the
+        // words anyone would choose.
+        w_start();
+        for (int s = 0; s < GW_MAX_STROKES; s++) {
+            if (s) w_lift();
+            w_to(120 + s * 40, 130);
+            w_to(120 + s * 40, 300);
+        }
+        w_to(120, 390); w_to(560, 390);            // folded in, never lifted
+        gchk("the folded draw counts the same strokes",
+             w_make(&merged) == 0 && merged.strokes == GW_MAX_STROKES);
+        printf("      gword: folded vs unlock distance %d, threshold %d\n",
+               gw_distance(&merged, &seen), GW_MATCH_MAX);
+        gchk("folding the excess is what unlock could never reproduce",
+             !gw_matches(&merged, &seen));
+    }
+
     // ---- storage ----
     gw_stored_set(NULL);
     gchk("nothing stored by default", !gw_stored_any());

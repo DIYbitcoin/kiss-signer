@@ -238,7 +238,10 @@ static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB prob
 // that pair overflowed, and an overflow drops the TRAILING points -- which is
 // exactly the modifier stroke the unlock now depends on, so it failed silently
 // for the people who draw big.
-#define GEST_MAX 384               // accumulated points across the strokes of the unlock draw
+// Was a 384 written here while enrolment wrote 512 of its own. Same number,
+// one place: wallet_gword.h owns it now, beside the threshold that was already
+// shared for exactly this reason.
+#define GEST_MAX GW_MAX_PTS        // accumulated points across the strokes of the unlock draw
 static lv_point_t s_gpt[GEST_MAX];
 static uint8_t s_gid[GEST_MAX];     // stroke id per point (for same-stroke gap filling)
 static int s_mx[GEST_MAX], s_my[GEST_MAX];  // scratch: the final stroke, for wallet_duress

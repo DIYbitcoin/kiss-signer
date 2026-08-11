@@ -57,12 +57,16 @@ static void stage_show(int stage)
 // ---- capture ---------------------------------------------------------------
 // Decimated exactly like the game's sampler in main.c, because what is
 // rehearsed here has to be the same ink the game will read later.
-#define DPTS 512
-#define DSTROKES 12
-static int     s_dx[DPTS], s_dy[DPTS];
-static uint8_t s_did[DPTS];        // stroke id per point, as the game keeps
+// Both numbers come from wallet_gword.h now. They used to be written here, and
+// unlock's were written in main.c, and they did not agree: see the note beside
+// GW_MAX_PTS for the word that could be saved and could never open anything.
+#define DPTS     GW_MAX_PTS
+#define DSTROKES GW_MAX_STROKES
+static int     s_dx[GW_MAX_PTS], s_dy[GW_MAX_PTS];
+static uint8_t s_did[GW_MAX_PTS];  // stroke id per point, as the game keeps
 static int     s_dn;
-static int     s_strokes;
+static int     s_strokes;          // strokes STORED, never more than DSTROKES
+static int     s_strokes_seen;     // strokes DRAWN, including the ones dropped
 static bool    s_down;
 
 static lv_obj_t *s_canvas;
@@ -75,6 +79,7 @@ static void draw_reset(void)
 {
     s_dn = 0;
     s_strokes = 0;
+    s_strokes_seen = 0;
     s_down = false;
     for (int i = 0; i < DSTROKES; i++) {
         s_inkn[i] = 0;
@@ -106,8 +111,16 @@ static void press_cb(lv_event_t *e)
 
     if (!s_down) {                       // a new stroke begins
         s_down = true;
+        s_strokes_seen++;
         if (s_strokes < DSTROKES) s_strokes++;
     }
+    // Past the stroke budget the whole stroke is DROPPED, not folded into the
+    // last one. Unlock reads the word as "every point whose stroke id is <= the
+    // stored count" (written_word_match), so a thirteenth stroke merged into the
+    // twelfth here becomes points unlock will never include -- the templates
+    // differ and the word never opens the device again. Dropping it instead
+    // leaves both sides holding the same first twelve strokes.
+    if (s_strokes_seen > DSTROKES) return;
     if (s_dn >= DPTS) return;
     if (s_dn == 0 ||
         LV_ABS(p.x - s_dx[s_dn - 1]) >= 10 || LV_ABS(p.y - s_dy[s_dn - 1]) >= 10) {
