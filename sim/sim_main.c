@@ -19,6 +19,7 @@
 #include "kiss_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "kiss_fw.h"          // the SD firmware seams: no flash here, no key
 #include "kiss_fw_ui.h"       // its screens, opened directly like the above
+#include "kiss_sign.h"        // kiss_sign_test_armed: HOLD TO SIGN is a colour
 #include "kiss_duress.h"
 #include "kiss_gword.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "kiss_info.h"
@@ -524,6 +525,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->outs[0].sats = 60000;
     snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
              "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsqmpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna");
+  } else if (len >= 4 && memmem(bytes, len, "MANY", 4)) {
+    // Five recipients and a change: more than the panel can show at once, which
+    // is the only shape that exercises the read-to-the-end gate. Every stub
+    // above this one has exactly ONE recipient, so the gate was invisible to
+    // the walk and would have shipped as a no-op nobody could see.
+    s->n_out = 6;
+    s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000;
+    for (int i = 0; i < 5; i++) {
+      snprintf(s->outs[i].addr, sizeof s->outs[i].addr,
+               "bc1q%02dg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz", i);
+      s->outs[i].sats = 12000;
+      s->outs[i].is_change = false;
+    }
+    snprintf(s->outs[5].addr, sizeof s->outs[5].addr,
+             "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
+    s->outs[5].sats = 39000; s->outs[5].is_change = true;
   } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
     // The new caution on its own: a two-input spend whose amounts were declared
     // and not proved. One row, footer kept -- the ordinary shape of it.
@@ -1065,6 +1082,9 @@ static void sim_fixture_reset(void) {
     { "warn-COMBO.psbt", "COMBO" },
     { "zsp-SPAY.psbt",   "SPAY"  },
     { "zzz-UNPRV.psbt",  "UNPRV" },
+    // Sorts LAST on purpose: the walk taps rows by position, so a fixture
+    // inserted anywhere else would shift every tap after it.
+    { "zzzz-MANY.psbt",  "MANY"  },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -1719,6 +1739,38 @@ int main(void) {
   save("/tmp/sim_sign_unproven_why.ppm");
   touch(400, 438); pump(3); release(); pump(6);     // OK closes the card
   touch(100, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+
+  // Five recipients: more than the panel shows at once, and the only shape on
+  // this card that reaches the read-to-the-end gate. HOLD TO SIGN starts inert
+  // -- the same "present, in place, visibly inert" state an unacknowledged
+  // caution puts it in -- and lights when the list has been read to its end.
+  //
+  // Before the gate, a destination below the fold was present, scrollable and
+  // never looked at while HOLD TO SIGN was live the whole time. The 16-output
+  // cap bounds how much can hide, not whether it can, and TOTAL LEAVING sums
+  // destinations without naming them.
+  touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
+  save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
+  must_show("many recipients", "bc1q00g3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  if (kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
+    return 1;
+  }
+  // Drag the recipient panel up until it stops moving. The panel is at
+  // SG_RECIP_X..+SG_RECIP_W, so x=250 is inside it and clear of the change
+  // panel; each drag is one flick and the list settles between them.
+  for (int f = 0; f < 6; f++) {
+    for (int i = 0; i <= 8; i++) { touch(250, 300 - i * 20); pump(3); }
+    release(); pump(10);
+  }
+  save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
+  must_show("many recipients (end)", "bc1q04g3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  if (!kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN still inert after the list was read to its end\n");
+    return 1;
+  }
+  printf("ok: signing waits until every recipient has been on the glass\n");
+  touch(100, 430); pump(3); release(); pump(6);     // BACK -> the file list
   touch(118, 430); pump(3); release(); pump(6);     // BACK -> the chooser
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
 
