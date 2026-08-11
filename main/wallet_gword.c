@@ -184,6 +184,14 @@ int gw_stored_set(const gw_template_t *t)
 
 static gw_template_t s_stored;
 
+// One-shot write failure, host only. There is no way to make real NVS refuse a
+// write from a test, and a persistence failure the UI cannot be shown reaching
+// is a screen no gate has ever rendered -- which is how "saved" came to be
+// printed over a write that never happened.
+static bool s_fail_next_set;
+
+void gw_test_fail_next_set(void) { s_fail_next_set = true; }
+
 bool gw_stored_get(gw_template_t *out)
 {
     if (!s_stored.set) return false;
@@ -193,6 +201,7 @@ bool gw_stored_get(gw_template_t *out)
 
 int gw_stored_set(const gw_template_t *t)
 {
+    if (s_fail_next_set) { s_fail_next_set = false; return -1; }
     if (!t)        { memset(&s_stored, 0, sizeof s_stored); return 0; }
     if (!t->set)   return -1;
     s_stored = *t;
