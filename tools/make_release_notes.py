@@ -105,16 +105,23 @@ Both browser routes, the hosted page and this zip, need Chrome, Brave or Edge on
 
 After flashing, unplug the device, wait about 3 seconds, then plug it back in.
 
-### Coming from beta7 or earlier: this one needs the cable
+### Coming from beta7 or earlier: this one erases the wallet
 
 This release splits the flash into two firmware slots, which is what lets every
 release after it arrive on an SD card instead of a USB cable. A partition table
 cannot be replaced by the thing it defines, so the crossing itself has to be
 done over USB, once.
 
-Your recovery words are not touched: `nvs`, where they live, sits at the same
-address in both layouts. Back them up before flashing anyway, the way you would
-before any firmware change.
+**Your recovery words do not survive this flash.** `nvs`, where they live, moves
+from `0x9000` to `0x11000` in the new layout, so the crossing takes them with
+it. The browser and offline routes erase the whole chip; flashing the pieces by
+hand leaves the old words at an address this firmware no longer reads. Either
+way the wallet does not come back on its own.
+
+So treat it as a restore, not an update. Have the recovery words in your hand on
+paper, check them against the device before you unplug it, and expect to restore
+from that paper once the new firmware is running. If the signer holds coins and
+you cannot find the words, do not flash.
 
 After this, Settings has a FIRMWARE button. Put a signed `.bin` on a card, hold
 to install, and the device checks the signature against the key built into it
