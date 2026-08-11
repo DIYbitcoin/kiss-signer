@@ -10,6 +10,8 @@
 #include <wally_core.h>      // wally_base64_from_bytes (cross-check only)
 #include "ur_encoder.h"      // craft single-part UR input
 #include "types/psbt.h"      // crypto-psbt CBOR wrap for crafting
+#include "fountain_decoder.h"  // hostile headers, below the bytewords layer
+#include "fountain_utils.h"    // the PRNG that picks fragment indexes
 
 #ifndef KISS_ROOT
 #define KISS_ROOT "."
@@ -58,6 +60,74 @@ static int read_ur_lines(const char *path, char **out, int max) {
     }
     fclose(f);
     return n;
+}
+
+// A UR part's header declares how long the whole message is, and the decoder
+// believed it. seq_len fragments of data_len bytes can only ever carry
+// seq_len*data_len bytes, so a header claiming more describes a message the
+// frames cannot contain: the join allocates message_len UNINITIALISED, fills
+// what the fragments hold, and then CRCs -- and, on a checksum collision,
+// hands back -- whatever the heap happened to have in the rest.
+//
+// The cap is 256 KB, so one frame could ask for a quarter megabyte of it.
+// Nothing needs to be malformed at any layer below: the bytewords CRC is
+// good, the CBOR parses, the seq numbers agree with the URI path. Only the
+// three numbers read together are a lie, which is why this is tested here and
+// not at the parser.
+static void qr_test_hostile_header(void) {
+    const size_t body_len = 10;
+
+    struct { const char *name; size_t seq_len; size_t message_len; bool ok; } cases[] = {
+        // one 10-byte fragment cannot be a 256 KB message
+        { "message_len far past what the frames carry", 1, 256u * 1024u, false },
+        // nor one byte past
+        { "message_len one byte past the frames",       1, 11,           false },
+        // seq_len sized for a message that ended two fragments ago: fragment 3
+        // of 3 would be entirely padding, which no encoder produces
+        { "seq_len larger than the message needs",      3, 10,           false },
+        // the honest shapes still load
+        { "exact single fragment",                      1, 10,           true  },
+        { "final fragment part-full",                   3, 25,           true  },
+    };
+
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        fountain_decoder_t *d = fountain_decoder_new();
+        uint8_t *body = malloc(body_len);      // the decoder MOVES data out
+        if (!d || !body) { qchkb("hostile-header decoder allocs", 0); return; }
+        memset(body, 0xA5, body_len);
+        fountain_encoder_part_t part = {
+            .seq_num = 1,
+            .seq_len = cases[c].seq_len,
+            .message_len = cases[c].message_len,
+            .checksum = 0,
+            .data = body,
+            .data_len = body_len,
+        };
+        bool got = fountain_decoder_receive_part(d, &part);
+        char nm[96];
+        snprintf(nm, sizeof nm, "qr ur %s", cases[c].name);
+        qchkb(nm, got == cases[c].ok);
+        free(part.data);                       // NULL once the decoder took it
+        fountain_decoder_free(d);
+    }
+}
+
+// prng_next_double's divisor is (double)UINT64_MAX + 1.0, and both halves of
+// that round to 2**64 -- so the top handful of PRNG outputs come back as
+// EXACTLY 1.0. choose_fragments scales that onto [0, remaining_count-1] and
+// indexes an array of seq_len with the result: on the first draw
+// remaining_count is seq_len, and 1.0 lands one element past the end.
+//
+// Reaching it through the PRNG means solving xoshiro256** backwards, so the
+// scaling is tested where the pathological value enters it. That the value is
+// reachable is arithmetic, not luck.
+static void qr_test_prng_range(void) {
+    qchkb("qr ur prng scale keeps 1.0 inside the range",
+          prng_scale_double(1.0, 0, 9) == 9);
+    qchkb("qr ur prng scale keeps the ordinary values",
+          prng_scale_double(0.0, 0, 9) == 0 &&
+          prng_scale_double(0.5, 0, 9) == 5 &&
+          prng_scale_double(0.999, 0, 9) == 9);
 }
 
 int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
@@ -273,6 +343,9 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
         qchkb("qr static matches wally base64", strcmp(part, b64) == 0);
         qrt_encoder_free(e);
     }
+
+    qr_test_hostile_header();
+    qr_test_prng_range();
 
     wally_free_string(b64);
     return qfails;
