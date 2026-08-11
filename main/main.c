@@ -2615,6 +2615,16 @@ void app_main(void) {
 #else
   wallet_selftest(NULL);   // release: just wally_init; the chip stays blank
 #endif
+  {  // Signing determinism, on the chip that will actually sign. The host test
+     // suite proves this against a 64-bit secp256k1 field backend; a riscv32
+     // device compiles field_10x26 instead, so these bytes have never been
+     // checked here. Two signatures, ~ms, every boot including release.
+     // A failure here is not only logged: wallet_psbt_sign refuses to sign at
+     // all, so a unit whose curve code has drifted cannot produce a signature
+     // rather than producing a quietly wrong one.
+    int src = wallet_sign_selftest();
+    ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
+  }
   display_start();
   backlight_on();
   touch_start();

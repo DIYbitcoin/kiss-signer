@@ -13,6 +13,7 @@
 #include <wally_crypto.h>
 
 #include "wallet_seed.h"
+#include "boot_sign_vectors.h"   // golden bytes wallet_sign_selftest re-signs
 
 #ifdef ESP_PLATFORM
 #include "bootloader_random.h"   // bootloader_random_enable: see wallet_crypto.h
@@ -559,3 +560,50 @@ int wallet_selftest(uint8_t out_fingerprint[4])
     return memcmp(fp, EXPECTED_FP, 4) == 0 ? 0 : 6;
 }
 #endif  // KISS_RELEASE
+
+// Unlike wallet_selftest above, this one is NOT compiled out in release. It
+// carries no mnemonic: BSV_KEY is a published test value derived from an ASCII
+// label, so nothing seed-shaped enters the binary. Release is also the only
+// build that matters here — a field unit is the thing whose secp256k1 nobody
+// has ever watched sign. Cost is two signatures, once, at boot.
+// -1 = not run yet. Cached because wallet_psbt_sign consults it on every sign
+// and the answer cannot change within a boot.
+static int s_sign_selftest = -1;
+
+#ifndef KISS_RELEASE
+static int s_sign_force_fail;
+void wallet_sign_selftest_force_fail(int on)
+{
+    s_sign_force_fail = on ? 1 : 0;
+    s_sign_selftest = -1;   // the forced answer differs, so drop the cache
+}
+#endif
+
+int wallet_sign_selftest(void)
+{
+    uint8_t sig[64];
+    if (s_sign_selftest >= 0)
+        return s_sign_selftest;
+#ifndef KISS_RELEASE
+    if (s_sign_force_fail)
+        return s_sign_selftest = 99;
+#endif
+    if (wally_init(0) != WALLY_OK)
+        return s_sign_selftest = 1;
+    // ECDSA: RFC6979 + low-R grinding. BSV_MSG needs five grind rounds to
+    // reach this R, so plain RFC6979 cannot produce these bytes.
+    if (wally_ec_sig_from_bytes(BSV_KEY, sizeof BSV_KEY, BSV_MSG, sizeof BSV_MSG,
+                                EC_FLAG_ECDSA | EC_FLAG_GRIND_R,
+                                sig, sizeof sig) != WALLY_OK)
+        return s_sign_selftest = 2;
+    if (memcmp(sig, BSV_ECDSA, sizeof sig) != 0)
+        return s_sign_selftest = 3;
+    // Schnorr: BIP340 with an explicit aux, the shape sp_schnorr_sign uses.
+    if (wally_ec_sig_from_bytes_aux(BSV_KEY, sizeof BSV_KEY, BSV_MSG, sizeof BSV_MSG,
+                                    BSV_AUX, sizeof BSV_AUX,
+                                    EC_FLAG_SCHNORR, sig, sizeof sig) != WALLY_OK)
+        return s_sign_selftest = 4;
+    if (memcmp(sig, BSV_SCHNORR, sizeof sig) != 0)
+        return s_sign_selftest = 5;
+    return s_sign_selftest = 0;
+}
