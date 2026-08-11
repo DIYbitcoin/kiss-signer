@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDYNATOR ROZGŁASZA TRANSAKCJĘ",
   "W_WHATSEED_T": "TWOJA FRAZA ODZYSKIWANIA",
   "W_WHATSEED_S": "12 lub 24 słowa w kolejności, czyli mnemonik BIP39",
-  "W_WHATSEED_B": "te słowa i twoja fraza dostępu tworzą twój portfel. nie to urządzenie.\n\nzapisz jedno i drugie, a każdy zgodny signer BIP39 odtworzy portfel, nawet gdy to urządzenie przepadnie.\n\nsame słowa odtworzą inny portfel: ten bez frazy dostępu.",
+  "W_WHATSEED_B": "twoje słowa i fraza dostępu tworzą twoje klucze, nie to urządzenie.\n\nzapisz jedno i drugie. każdy zgodny signer BIP39 je odtworzy. same słowa otwierają inne klucze: te bez frazy dostępu.",
   "GD_UNDERLINE": "PODKREŚL",
   "GD_OVERLINE": "KRESKA NAD",
   "GD_STRIKE": "PRZEKREŚL",

@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDINATOR EMITIRA TRANSAKCIJU",
   "W_WHATSEED_T": "VAŠA FRAZA ZA OPORAVAK",
   "W_WHATSEED_S": "12 ili 24 riječi zadanim redom, BIP39 mnemonik",
-  "W_WHATSEED_B": "te riječi i vaša kodna fraza su ono što čini novčanik. ne ovaj uređaj.\n\nzapišite oboje i bilo koji kompatibilan BIP39 signer može ga obnoviti, čak i ako ovaj uređaj nestane.\n\nsame riječi obnavljaju drugi novčanik: onaj bez kodne fraze.",
+  "W_WHATSEED_B": "vaše riječi i kodna fraza čine vaše ključeve, ne ovaj uređaj.\n\nzapišite oboje. bilo koji kompatibilan BIP39 signer može ih obnoviti. same riječi otvaraju druge ključeve: one bez kodne fraze.",
   "GD_UNDERLINE": "PODCRTAJ",
   "GD_OVERLINE": "CRTA IZNAD",
   "GD_STRIKE": "PRECRTAJ",

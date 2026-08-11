@@ -466,7 +466,7 @@
   "S_FLOW_3": "IL COORDINATORE TRASMETTE",
   "W_WHATSEED_T": "LA TUA FRASE DI RECUPERO",
   "W_WHATSEED_S": "12 o 24 parole in ordine, dette mnemonic BIP39",
-  "W_WHATSEED_B": "quelle parole e la tua passphrase sono ciò che fa il tuo wallet. non questo dispositivo.\n\nannota entrambe e qualsiasi signer BIP39 compatibile potrà ricostruirlo, anche se questo dispositivo va perso.\n\nle parole da sole ricostruiscono un altro wallet: quello senza passphrase.",
+  "W_WHATSEED_B": "le tue parole più la passphrase fanno le tue chiavi, non questo dispositivo.\n\nannota entrambe. qualsiasi signer BIP39 compatibile le ricostruisce. le parole da sole aprono altre chiavi: quelle senza passphrase.",
   "GD_UNDERLINE": "SOTTOLINEA",
   "GD_OVERLINE": "LINEA SOPRA",
   "GD_STRIKE": "BARRA IN MEZZO",

@@ -466,7 +466,7 @@
   "S_FLOW_3": "COORDINATOR BROADCASTS THE TRANSACTION",
   "W_WHATSEED_T": "YOUR SEED PHRASE",
   "W_WHATSEED_S": "12 or 24 ordered words, called a BIP39 mnemonic",
-  "W_WHATSEED_B": "those words plus your passphrase are what make your wallet. not this device.\n\nwrite both down and any compatible BIP39 signer or wallet app can rebuild it, even if this device is lost.\n\nthe words alone rebuild a different wallet: the one with no passphrase.",
+  "W_WHATSEED_B": "your words plus your passphrase make your keys, not this device.\n\nwrite both down. any compatible BIP39 signer can rebuild them. words alone open different keys: the ones with no passphrase.",
   "GD_UNDERLINE": "UNDERLINE",
   "GD_OVERLINE": "LINE ABOVE",
   "GD_STRIKE": "LINE THROUGH",

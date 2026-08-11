@@ -466,7 +466,7 @@
   "S_FLOW_3": "KOORDİNATÖR İŞLEMİ YAYINLAR",
   "W_WHATSEED_T": "KURTARMA CÜMLENIZ",
   "W_WHATSEED_S": "sırayla 12 ya da 24 kelime, yani BIP39 anımsatıcısı",
-  "W_WHATSEED_B": "cüzdanınızı oluşturan şey bu kelimeler ve Passphrase'iniz. bu cihaz değil.\n\nikisini de yazın; uyumlu her BIP39 signer cüzdanı yeniden kurabilir, bu cihaz kaybolsa bile.\n\nkelimeler tek başına başka bir cüzdan kurar: Passphrase'i olmayanı.",
+  "W_WHATSEED_B": "anahtarlarınızı kelimeleriniz ve Passphrase'iniz oluşturur, bu cihaz değil.\n\nikisini de yazın. uyumlu her BIP39 signer onları yeniden kurar. kelimeler tek başına başka anahtarlar açar: Passphrase'siz olanları.",
   "GD_UNDERLINE": "ALTINI ÇIZ",
   "GD_OVERLINE": "ÜSTÜNE ÇIZGI",
   "GD_STRIKE": "ORTASINDAN ÇIZ",
