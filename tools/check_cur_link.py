@@ -77,10 +77,12 @@ def main() -> int:
 
         out = subprocess.run(["nm", "-u", str(merged)],
                              capture_output=True, text=True).stdout
-        unresolved = sorted({
-            ln.strip() for ln in out.splitlines()
-            if ln.strip() and not EXTERNAL.match(ln.strip())
-        })
+        # GNU nm prints "                 U symbol"; BSD/macOS nm prints the
+        # bare name. Take the last field either way -- stripping alone leaves
+        # the "U " on Linux and then nothing matches the allowlist, which is
+        # how this gate failed CI the first time it ran there.
+        names = {ln.split()[-1] for ln in out.splitlines() if ln.split()}
+        unresolved = sorted(n for n in names if not EXTERNAL.match(n))
         if unresolved:
             print("check_cur_link: the CMakeLists set calls what it does not "
                   "define, so the firmware link fails while kisstest stays green:")
