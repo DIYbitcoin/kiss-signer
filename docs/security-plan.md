@@ -167,9 +167,16 @@ cannot be downgraded. That is stronger than a version counter.
 **On a normal beta device, no counter would help yet.** ESP-IDF's anti rollback
 feature stores a security version in eFuse and has the bootloader refuse older
 images. Without secure boot the bootloader itself can be replaced, so the check
-is bypassed by the same person it is meant to stop. It is also an OTA feature,
-and KISS has no OTA: firmware only ever arrives over USB serial, deliberately.
-Shipping it before phase 2 would add a config flag and no security.
+is bypassed by the same person it is meant to stop. Shipping it before phase 2
+would add a config flag and no security.
+
+(This paragraph used to end "and KISS has no OTA: firmware only ever arrives
+over USB serial, deliberately." That stopped being true when the SD update path
+landed. Firmware now arrives two ways: the cable, and a signed image on a card
+checked against the key in the running app. The argument above is unaffected --
+without secure boot the bootloader can still be replaced, so an eFuse version
+counter still stops nobody -- but the reason is the bootloader, not the absence
+of an update path.)
 
 **What is worth doing: make a downgrade visible.** Record the highest firmware
 version this device has ever run in NVS. On boot, if the running version is

@@ -317,9 +317,12 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <ul>
             <li>The first boot <strong>burns eFuses. No undo.</strong></li>
             <li>
-              After that boot the device can <strong>never be reflashed</strong>: no
-              serial, no web installer, no OTA. The firmware is frozen forever,
-              which also locks out evil-maid reflashing. That is the point.
+              After that boot the device can <strong>never be reflashed over the
+              cable</strong>: no serial, no web installer. That locks out
+              evil-maid reflashing, which is the point. Firmware still updates
+              from an SD card, but only from an image
+              <strong>signed with the KISS key</strong>, checked before anything
+              is written.
             </li>
             <li>
               First boot encrypts ~6 MB in place and can sit on a black screen for

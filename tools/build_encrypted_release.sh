@@ -35,8 +35,13 @@
 #
 # What "release mode" means, so nobody is surprised later:
 #   * the encryption key is generated ON the device and is unreadable forever
-#   * after the first boot, serial reflash is IMPOSSIBLE (the table is
-#     factory-only, no OTA), so the firmware on that board is frozen
+#   * after the first boot, serial reflash is IMPOSSIBLE, so the web installer
+#     and the cable never work on that board again
+#   * firmware is NOT frozen: this table carries two app slots and an otadata,
+#     and the board takes signed SD updates checked against the key in the
+#     running app. The assertions below are what hold that to signed images
+#     only. (An older SIGNED build still installs: anti rollback is deliberately
+#     off until the secure boot pass.)
 #   * an attacker with the board can erase it (denial of service) but can
 #     never read the seed out of flash
 set -e
@@ -400,9 +405,12 @@ encrypted release build OK: $BUILD_DIR/
 #
 #  * FRESH / FINAL BOARD ONLY. Never the v1.3 engineering sample.
 #  * First boot burns the flash-encryption eFuse key: PERMANENT.
-#  * After first boot this board can NEVER be serial-reflashed again
-#    (factory-only partition table, no OTA). Firmware is frozen. The web
-#    installer will never work on this board again. That is the point.
+#  * After first boot this board can NEVER be serial-reflashed again. The web
+#    installer and the cable will never work on it again. That is the point.
+#  * Firmware is still UPDATABLE, over SD, for images signed with our key.
+#    This banner used to say frozen; the table has carried two app slots and an
+#    otadata since the SD update work landed, and this is the line an operator
+#    reads immediately before a burn they cannot undo.
 #  * First boot encrypts ~6MB of flash in place: it can take a few minutes
 #    on a black screen. DO NOT UNPLUG until the game menu appears.
 #    Losing power mid-encryption can brick the board.
