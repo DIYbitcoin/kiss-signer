@@ -666,13 +666,39 @@ int test_sdseed_layer(void) {
     kiss_seed_test_fail_next(WSEED_TEST_FAIL_SCRUB);
     dchk("storage: a scrub that erased and could not restore says RECOVER",
          kiss_seed_commit() == WSEED_ERR_RECOVER);
-    // The point of the distinct code: it is the one result whose staging must
-    // survive, because at that instant nothing else holds the words.
-    dchk("storage: the staged words are still readable after RECOVER",
-         seed_loads_as(SD_WORDS_ALT));
-    dchk("storage: RECOVER is not any other failure",
-         WSEED_ERR_RECOVER != WSEED_ERR_SD_IO &&
-         WSEED_ERR_RECOVER != WSEED_ERR_CLEANUP);
+    // The first version of this asserted seed_loads_as(SD_WORDS_ALT) here and
+    // proved nothing: kiss_seed_load returns the STAGED words whenever
+    // s_has_pending, so it was true the moment commit returned, whatever had
+    // happened to the flash. The property worth pinning is the opposite one --
+    // that discarding is a real loss, which is why the caller must not.
+    kiss_seed_discard();
+    memset(got, 'x', sizeof got);
+    dchk("storage: discarding after RECOVER is what loses the wallet",
+         kiss_seed_load(got, sizeof got) != WSEED_OK ||
+         strcmp(got, SD_WORDS_ALT) != 0);
+
+    // The OTHER way into RECOVER, and the one the first version of this commit
+    // missed: storage_write_keep commits the new blob over the old one BEFORE
+    // it reads back, so a readback failure on a replacement leaves neither
+    // readable. Answering that by discarding is a total loss.
+    dchk("storage: a KEEP wallet to replace",
+         kiss_seed_store(SD_WORDS) == WSEED_OK && seed_loads_as(SD_WORDS));
+    dchk("storage: stage the replacement",
+         kiss_seed_stage(SD_WORDS_ALT) == WSEED_OK);
+    kiss_seed_test_fail_next(WSEED_TEST_FAIL_VERIFY);
+    dchk("storage: a readback failure over a prior wallet says RECOVER",
+         kiss_seed_commit() == WSEED_ERR_RECOVER);
+    kiss_seed_discard();
+
+    // ...and with NO prior wallet the same failure is an ordinary one, because
+    // nothing was destroyed and the staging is safe to drop. Both directions,
+    // or the mapping is just a wider net.
+    dchk("storage: clear the store", kiss_seed_wipe() == WSEED_OK);
+    dchk("storage: stage onto an empty store",
+         kiss_seed_stage(SD_WORDS_ALT) == WSEED_OK);
+    kiss_seed_test_fail_next(WSEED_TEST_FAIL_VERIFY);
+    dchk("storage: the same failure with nothing to lose stays VERIFY",
+         kiss_seed_commit() == WSEED_ERR_VERIFY);
     kiss_seed_discard();
 
     // Hand the file back the state it had before this block: an SD wallet with
