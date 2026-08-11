@@ -3,6 +3,10 @@
 # Compiles the SAME vendored libwally amalgamation + config as the device component.
 set -e
 cd "$(dirname "$0")/.."
+# The link below globs components/cUR/src/types/*.c and never reads that
+# component's CMakeLists.txt, so a source dropped from the FIRMWARE build is
+# invisible here. Check the two agree before trusting a green kisstest.
+python3 tools/check_cur_link.py
 WALLY=components/libwally-core
 # Same single source as the device build and the UI sim: the firmware update
 # tests compare a candidate image against the version this build claims to be,
