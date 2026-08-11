@@ -69,6 +69,12 @@ static void wipe_buffers(k_quirc_t *q) {
   // to the allocator. Wiping the image and leaving this behind cleaned up the
   // photograph and kept the transcript.
   memset(&q->data_scratch, 0, sizeof q->data_scratch);
+  // And ds_scratch, which is not one copy but two: struct datastream carries
+  // raw[K_QUIRC_MAX_PAYLOAD] (the error-corrected codewords) and
+  // data[K_QUIRC_MAX_PAYLOAD] (the assembled bytes) before either reaches
+  // data_scratch. Wiping only the destination left the mnemonic in the same
+  // struct twice over.
+  memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
 }
 
 void k_quirc_destroy(k_quirc_t *q) {
