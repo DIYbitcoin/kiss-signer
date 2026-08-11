@@ -3344,14 +3344,14 @@ static void sd_problem_screen(int rc)
     mk_body(sd_problem_body(s_sd_problem), 48, 132, 704, 226,
             s_sd_problem == WSEED_ERR_SD_MISSING ? MUT_COL : WARN_COL);
 
-    // 140 + 240 + 280 = 660 in the 704 lane, so 22px gaps: the way out at
-    // 48..188, TRY AGAIN at 210..450, and the recovery path ending at 752.
+    // 240 + 280 + 140 = 660 in the 704 lane, so 22px gaps, mirrored: TRY AGAIN
+    // at 48..288, the recovery path at 310..590, the way out at 612..752.
     lv_obj_t *back = mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140,
                              sd_problem_back_cb, NULL);
     lv_obj_t *retry = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
                               sd_retry_cb, NULL);
     wt_pill_primary(retry);
-    lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 472, WT_ACTION_Y, 280,
+    lv_obj_t *recover = mk_pill(tr(STR_W_RESTORE_FROM_WORDS), 310, WT_ACTION_Y, 280,
                                 sd_recover_cb, NULL);
     lv_obj_t *row[3] = { retry, recover, back };
     wt_pill_row(row, 3);

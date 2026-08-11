@@ -874,6 +874,105 @@ static void must_not_show(const char *what, const char *needle) {
 }
 static void release(void) { g_pressed = false; }
 
+// ---- tapping a pill by WHAT IT SAYS, not where it is -------------------------
+//
+// The walk used to aim 179 hardcoded coordinates at the action row, and that
+// made every layout change a harness change: move a pill and the tap aimed at
+// it lands on background, the frame still saves, and the walk carries on
+// photographing whatever happens to be on screen. Moving the exit to the other
+// corner broke 69 taps in one commit, and each one had to be found by running
+// the whole walk again to see where it went wrong.
+//
+// So a tap names its target. The string ID rather than the English text,
+// because the same walk runs in ja and ru and the label is translated in both.
+//
+// Deliberately loud, and deliberately strict about AMBIGUITY: two visible pills
+// reading DONE mean the walk cannot say which one it meant, and quietly picking
+// one would be the same blind guess this exists to remove.
+static lv_obj_t *s_hit;
+static int       s_hits;
+static lv_obj_t *s_bar_hit;
+static int       s_bar_hits;
+
+static void find_pill(lv_obj_t *o, const char *txt)
+{
+    if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        size_t lt = t ? strlen(t) : 0, ln = strlen(txt);
+        // Exact, or the icon form wt_pill_icon builds: "<icon>  LABEL".
+        // The two spaces are load bearing. A bare suffix test matched CAMERA
+        // AUDIT when the walk asked for AUDIT, which reads as an ambiguity
+        // between two real pills and is really one wrong match.
+        const bool hit = t && lt >= ln && strcmp(t + (lt - ln), txt) == 0 &&
+                         (lt == ln || (lt >= ln + 2 &&
+                                       t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
+        if (hit) {
+            for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
+                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) {
+                    if (p != s_hit) { s_hit = p; s_hits++; }
+                    // A label often appears twice: once on a content row that
+                    // opens the thing, once on the pill in the action bar that
+                    // does it. Every converted tap aimed at the bar, so the bar
+                    // wins -- and only when it is unambiguous down there too.
+                    lv_area_t a; lv_obj_get_coords(p, &a);
+                    if ((a.y1 + a.y2) / 2 >= WT_CONTENT_BOTTOM && p != s_bar_hit) {
+                        // LAST wins: LVGL paints in tree order, so the last
+                        // match is the topmost, and the topmost is what a
+                        // finger would land on. An explainer overlay can carry
+                        // the same pill as the screen underneath it -- both are
+                        // real, and the one on top is the one being tapped.
+                        s_bar_hit = p; s_bar_hits++;
+                    }
+                    break;
+                }
+        }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        find_pill(lv_obj_get_child(o, i), txt);
+}
+
+static lv_obj_t *pill_for(int key, const char *how)
+{
+    const char *txt = tr(key);
+    s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
+    find_pill(lv_screen_active(), txt);
+    if (s_bar_hits >= 1) {
+        if (s_bar_hits > 1)
+            printf("note: %d pills say \"%s\"; taking the topmost\n", s_bar_hits, txt);
+        s_hit = s_bar_hit; s_hits = 1;
+    }
+    if (!s_hit || s_hits != 1) {
+        printf("FAIL: %s \"%s\": %s\n", how, txt,
+               !s_hit ? "no visible pill says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    return s_hit;
+}
+
+// Press the pill saying tr(key), hold for `hold` frames, release, settle for
+// `settle`. hold = 3 is an ordinary tap; a hold-to-confirm wants its duration.
+static void tap_str(int key, int hold, int settle)
+{
+    lv_obj_t *p = pill_for(key, "tap");
+    if (!p) return;
+    lv_area_t a; lv_obj_get_coords(p, &a);
+    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    pump(hold);
+    release();
+    pump(settle);
+}
+
+// The two-part form, for a hold the walk photographs partway through.
+static void press_str(int key)
+{
+    lv_obj_t *p = pill_for(key, "press");
+    if (!p) return;
+    lv_area_t a; lv_obj_get_coords(p, &a);
+    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+}
+
 // The unlock word as used throughout the scripted walk. Kept as a helper for
 // storage hot-plug coverage added at the end, so that test does not invent a
 // second approximation of the gesture recognizer's real input.
@@ -1262,7 +1361,7 @@ int main(void) {
 
   touch(725, 430); pump(3); release(); pump(25);    // OK; let the code card pop-in settle
   save("/tmp/sim_fp.ppm");                          // fingerprint reveal
-  touch(178, 430); pump(3); release(); pump(12);    // TAP TO OPEN -> hex noise decrypting
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);    // TAP TO OPEN -> hex noise decrypting
   save("/tmp/sim_fp_scramble.ppm");                 // mid-descramble, center of home screen
   pump(50);                                         // code locks; glide to the chip begins
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
@@ -1326,7 +1425,7 @@ int main(void) {
       // -- and every pass, including the last, ends on the open home.
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
-      touch(622, 430); pump(3); release(); pump(12);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
     }
     kiss_duress_set(WDG_NONE);
@@ -1373,7 +1472,7 @@ int main(void) {
       }
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
-      touch(622, 430); pump(3); release(); pump(12);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
 
       // And the sentence the feature exists to make true: with a word stored,
@@ -1395,7 +1494,7 @@ int main(void) {
       draw_cover_underlined();
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
-      touch(622, 430); pump(3); release(); pump(12);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
       printf("ok: a written word replaces KISS, and a wrong draw opens nothing\n");
     }
@@ -1427,12 +1526,12 @@ int main(void) {
       kiss_word_ui_open(lv_screen_active(), NULL);
       pump(20);
       draw_thirteen_strokes();
-      touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+      tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
       draw_thirteen_strokes();
-      touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
-      touch(587, 430); pump(140); release(); pump(8); // HOLD TO CHANGE -> saved
+      tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+      tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE -> saved
       save("/tmp/sim_gword_manystroke.ppm");          // YOUR LETTERS ARE SET
-      touch(652, 430); pump(3); release(); pump(8);   // OK -> back to the home
+      tap_str(STR_C_OK, 3, 8);   // OK -> back to the home
       if (!gw_stored_any()) {
         printf("FAIL: a thirteen stroke word did not enrol\n");
         g_walk_fails++;
@@ -1451,7 +1550,7 @@ int main(void) {
       // Finish the login it just asked for, so the walk gets its home back.
       touch(46, 278);  pump(3); release(); pump(3);
       touch(725, 430); pump(3); release(); pump(25);
-      touch(622, 430); pump(3); release(); pump(12);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
       gw_stored_set(NULL);
       pump(200);
@@ -1483,11 +1582,11 @@ int main(void) {
   touch(763, 35); pump(3); release(); pump(6);      // close zoom, exact state preserved
   touch(520, 166); pump(3); release(); pump(6);     // folded address itself -> full
   save("/tmp/sim_recv_sp_full.ppm");
-  touch(612, 430); pump(3); release(); pump(6);     // SHOW SHORT -> folded default
+  tap_str(STR_R_SP_SHOW_SHORT, 3, 6);     // SHOW SHORT -> folded default
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
-  touch(652, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(682, 430); pump(3); release(); pump(6);     // BACK from SP -> detail again
+  tap_str(STR_C_OK, 3, 6);     // OK closes the explanation
+  tap_str(STR_C_BACK, 3, 6);     // BACK from SP -> detail again
   touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> the list
   save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
   // Actually DRAG it. This is the first scrolling surface in the whole wallet
@@ -1503,45 +1602,45 @@ int main(void) {
   touch(167, 231); pump(3); release(); pump(6);     // QR card -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(365, 430); pump(3); release(); pump(4);     // NEXT ADDRESS pill -> next index
+  tap_str(STR_R_NEXT, 3, 4);     // NEXT ADDRESS pill -> next index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    touch(118, 430); pump(3); release(); pump(6);   // VERIFY pill -> raw scan screen
+    tap_str(STR_R_VERIFY, 3, 6);   // VERIFY pill -> raw scan screen
     const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
     kiss_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
-    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
     const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
     kiss_scan_inject(bad, strlen(bad)); pump(6);
     save("/tmp/sim_vfy_no.ppm");
-    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
     const char *wrong_net = "tb1qwrongnetworkwrongnetworkwrongnetwork00";
     kiss_scan_inject(wrong_net, strlen(wrong_net)); pump(6);
     save("/tmp/sim_vfy_wrong_net.ppm");
-    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
     const char *invalid = "not-an-address";
     kiss_scan_inject(invalid, strlen(invalid)); pump(6);
     save("/tmp/sim_vfy_invalid.ppm");
-    touch(158, 430); pump(3); release(); pump(6);   // SCAN ANOTHER
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
     // our OWN silent-payment address: 117 chars, longer than any bc1/tb1
     const char *sp = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xq"
                      "h6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
     kiss_scan_inject(sp, strlen(sp)); pump(6);
     save("/tmp/sim_vfy_sp.ppm");
-    touch(680, 430); pump(3); release(); pump(6);   // DONE -> Receive
+    tap_str(STR_C_DONE, 3, 6);   // DONE -> Receive
   }
-  touch(682, 430); pump(3); release(); pump(4);     // BACK (leftmost now) -> home
+  tap_str(STR_C_BACK, 3, 4);     // BACK (leftmost now) -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
-  touch(652, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
   kiss_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
   save("/tmp/sim_winfo_help.ppm");
-  touch(652, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   kiss_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
   save("/tmp/sim_winfo_type_help.ppm");
-  touch(652, 414); pump(3); release(); pump(6);     // OK closes the type card
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
   touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
@@ -1551,31 +1650,31 @@ int main(void) {
   save("/tmp/sim_pair_bw.ppm");
   touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
   save("/tmp/sim_pair_help.ppm");
-  touch(652, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   // Page two: the import steps plus the address proof. It is the page the
   // owner actually follows, so it gets walked and rendered like any other.
-  touch(682, 430); pump(3); release(); pump(6);     // NEXT -> HOW TO PAIR
+  tap_str(STR_R_NEXT, 3, 6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> the QR page
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the QR page
   // SCAN KEY is no longer buried in the pair screen: it is a top-level ROW in
   // the WALLET screen's COORDINATOR column, so back out of pairing first. It was
   // moved because hiding a separate PRIVATE-key export one tap inside the
   // descriptor flow implied the two were the same action.
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost pill) -> WALLET
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost pill) -> WALLET
   touch(748, 262); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
   save("/tmp/sim_sp_help.ppm");
-  touch(652, 414); pump(3); release(); pump(6);     // OK closes the card
+  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
   touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent warning
   save("/tmp/sim_sp_warn.ppm");
-  touch(198, 430); pump(25); release(); pump(6);    // early release: key stays hidden
+  tap_str(STR_R_SP_SHOW, 25, 6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
-  touch(198, 430); pump(65); release(); pump(8);    // full hold -> export
+  tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
   save("/tmp/sim_sp_key_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(128, 430); pump(3); release(); pump(6);     // DONE -> WALLET screen
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET screen
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
@@ -1585,7 +1684,7 @@ int main(void) {
   save("/tmp/sim_sign_choose.ppm");
   touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
   save("/tmp/sim_sign_help.ppm");
-  touch(652, 430); pump(3); release(); pump(6);     // OK closes the card
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
   // Pill tap feedback (pill_tap_feedback in kiss_theme.c). The device has
   // no haptics, so a press is answered optically or not at all, and "not at
   // all" is the kind of thing a refactor takes away in silence. This is the
@@ -1612,14 +1711,14 @@ int main(void) {
   save("/tmp/sim_sign_rbf_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_rbf.ppm");
-  touch(652, 426); pump(3); release(); pump(6);     // OK closes the card
-  touch(440, 430); pump(3); release(); pump(6);     // DETAILS -> raw facts page
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  tap_str(STR_S_DETAILS, 3, 6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
   touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
   save("/tmp/sim_sign_glossary.ppm");
-  touch(652, 430); pump(3); release(); pump(6);     // OK closes glossary
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> verify again
-  touch(200, 430); pump(40);                        // hold the sign pill: ring ~half full
+  tap_str(STR_C_OK, 3, 6);     // OK closes glossary
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
+  press_str(STR_S_HOLD_TO_SIGN); pump(40);          // ring ~half full
   save("/tmp/sim_sign_hold.ppm");
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
@@ -1631,8 +1730,8 @@ int main(void) {
   // opens nothing is invisible to every check but a person looking at the frame.
   touch(552, 276); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
   save("/tmp/sim_sign_sigcheck.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> signed screen again
-  touch(400, 430); pump(3); release(); pump(6);     // DONE -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
   touch(328, 216); pump(3); release(); pump(8);     // the STOP file -> blocked verify
@@ -1641,7 +1740,7 @@ int main(void) {
   // transaction came from, not to the home screen. The three files below are
   // opened one after another without ever leaving SIGN, which is the whole
   // point -- picking the wrong file used to cost the entire trip back in.
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   save("/tmp/sim_sign_back_files.ppm");
   // payment-01.psbt was signed a few taps ago, so its row must now read SIGNED
   // ALREADY in amber and REMOVE SIGNED must have appeared in the action row.
@@ -1652,7 +1751,7 @@ int main(void) {
   must_show("file list after signing", tr(STR_S_SIGNED_ALREADY));
   must_show("file list after signing", tr(STR_S_RM_SIGNED));
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
-  touch(582, 430); pump(3); release(); pump(8);
+  tap_str(STR_S_RM_SIGNED, 3, 8);
   save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
   // Row 0's own hold pill: rows start at y=132, 64 tall, pill at local (543,12)
   // 170x40, so 567..737 x 144..184. A tap is NOT enough.
@@ -1663,7 +1762,7 @@ int main(void) {
   save("/tmp/sim_sign_rm_holding.ppm");
   release(); pump(6);                               // let go early -> nothing happened
   save("/tmp/sim_sign_rm_letgo.ppm");               // still the list, unchanged
-  touch(682, 430); pump(3); release(); pump(8);     // BACK, keep the fixtures
+  tap_str(STR_C_BACK, 3, 8);     // BACK, keep the fixtures
   save("/tmp/sim_sign_rm_back.ppm");                // back to the file list
   touch(328, 282); pump(3); release(); pump(8);     // the FEE file -> amber caution
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
@@ -1680,7 +1779,7 @@ int main(void) {
   // repaint is the only thing in the app that ever replaced a live screen
   // without deleting it, so if the ack pill is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
   // THE regression. Five cautions used to replace the output panels outright,
@@ -1702,7 +1801,7 @@ int main(void) {
   // so it is 567..737 x 96..136. This is its centre.
   touch(652, 116); pump(3); release(); pump(8);     // -> row goes green, page repaints
   save("/tmp/sim_sign_cautions_ack.ppm");
-  touch(682, 430); pump(3); release(); pump(8);     // BACK -> verify, address still there
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> verify, address still there
   save("/tmp/sim_sign_combo_back.ppm");
   // The caution "?" used to be anchored to the top of the caution stack, so
   // its y moved with the number of cautions that fired. The bar is one row at
@@ -1714,11 +1813,11 @@ int main(void) {
   // looking at, so wait for the fade to finish before saving.
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
-  touch(652, 438); pump(3); release(); pump(6);     // OK closes the card
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> the SCAN/SD chooser
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the SCAN/SD chooser
   save("/tmp/sim_sign_back_choose.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
   // the list shows only the first 4 files, so clear the others (all frames above
   // are already saved) to leave zsp-SPAY in row 0 and zzz-UNPRV in row 1.
@@ -1730,7 +1829,7 @@ int main(void) {
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   // The unproven-amount caution on its own: one row, footer kept. It is the
   // shape an ordinary two-input spend from a coordinator that ships bare
   // witness_utxos now has, so it is worth a stop of its own rather than only
@@ -1745,8 +1844,8 @@ int main(void) {
   must_show("verify (1 caution)", "1 000 sats");
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
   save("/tmp/sim_sign_unproven_why.ppm");
-  touch(652, 438); pump(3); release(); pump(6);     // OK closes the card
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
 
   // Five recipients: more than the panel shows at once, and the only shape on
   // this card that reaches the read-to-the-end gate. HOLD TO SIGN starts inert
@@ -1778,9 +1877,9 @@ int main(void) {
     return 1;
   }
   printf("ok: signing waits until every recipient has been on the glass\n");
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> the file list
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> the chooser
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -1807,7 +1906,7 @@ int main(void) {
   }
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
-  touch(200, 430); pump(40);                        // hold to sign
+  press_str(STR_S_HOLD_TO_SIGN); pump(40);          // hold to sign
   pump(45); release(); pump(8);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
@@ -1817,7 +1916,7 @@ int main(void) {
   touch(763, 35); pump(3); release(); pump(6);      // close on latest frame
   touch(530, 270); pump(3); release(); pump(6);     // EASY SCAN: sparser, slower QR
   save("/tmp/sim_qr_out_ez.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // DONE -> home
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
 
   // Receive lands past the highest address used or shown. Every detail keeps
@@ -1831,11 +1930,11 @@ int main(void) {
   touch(530, 190); pump(3); release(); pump(6);     // address card -> full address
   save("/tmp/sim_recv_full.ppm");
   touch(530, 190); pump(3); release(); pump(6);     // and back to folded
-  touch(365, 430); pump(3); release(); pump(6);     // NEXT ADDRESS -> next index
+  tap_str(STR_R_NEXT, 3, 6);     // NEXT ADDRESS -> next index
   save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
-  touch(365, 430); pump(3); release(); pump(4);     // NEXT ADDRESS again
+  tap_str(STR_R_NEXT, 3, 4);     // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> home
 
   // settings: address-type chooser (all 3 visible, active highlighted) + the
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
@@ -1849,22 +1948,22 @@ int main(void) {
   save("/tmp/sim_storage_choose.ppm");               // all three selectable
   touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
-  touch(213, 425); pump(30); release(); pump(6);    // <1500ms: no migration
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
   save("/tmp/sim_storage_hold_noop.ppm");
-  touch(213, 425); pump(105); release(); pump(8);   // deliberate hold -> success
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);   // deliberate hold -> success
   save("/tmp/sim_storage_sd_ok.ppm");
-  touch(652, 430); pump(3); release(); pump(8);     // OK -> Settings
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings
   save("/tmp/sim_settings_sd.ppm");                 // current mode reads SD CARD
   // The home now carries the SD-storage badge (accent, breathing while the
   // card is in). Pop out to capture it, then return to Settings to migrate
   // back to FLASH.
-  touch(680, 430); pump(3); release(); pump(8);      // Settings BACK, right corner -> home
+  tap_str(STR_C_BACK, 3, 8);      // Settings BACK, right corner -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
   touch(174, 144); pump(3); release(); pump(6);     // FLASH
-  touch(213, 425); pump(105); release(); pump(8);
-  touch(400, 430); pump(3); release(); pump(8);     // back on FLASH
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  tap_str(STR_C_OK, 3, 8);     // back on FLASH
 
   // NO UNDO in its OTHER state. The paper has not been verified yet at this
   // point in the walk, so the chooser carries the amber qualifier over two
@@ -1873,7 +1972,7 @@ int main(void) {
   // backup row's own unchecked frame went uncaptured for so long.
   touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
-  touch(682, 430); pump(3); release(); pump(8);     // BACK (leftmost now) -> Settings
+  tap_str(STR_C_BACK, 3, 8);     // BACK (leftmost now) -> Settings
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
@@ -1881,9 +1980,9 @@ int main(void) {
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  touch(168, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  tap_str(STR_I_VERIFY_COPY, 3, 6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_verify_intro.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
   for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
     touch(44, 314); pump(3); release(); pump(3);    // a
@@ -1892,7 +1991,7 @@ int main(void) {
   }
   pump(4);
   save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
-  touch(602, 430); pump(3); release(); pump(6);     // TYPE AGAIN -> keypad
+  tap_str(STR_W_TYPE_AGAIN_BTN, 3, 6);     // TYPE AGAIN -> keypad
   for (int i = 0; i < 11; i++) {                    // 11x abandon
     touch(44, 314); pump(3); release(); pump(3);
     touch(450, 374); pump(3); release(); pump(3);
@@ -1903,7 +2002,7 @@ int main(void) {
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
   touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
   save("/tmp/sim_verify_ok.ppm");
-  touch(602, 430); pump(3); release(); pump(6);     // DONE -> Settings
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   // The backup row in its OTHER state. The walk has always come back through
   // here and never looked: while "Paper checked" was a second card the amber
   // one was captured and the green one never was, and now that the two cards
@@ -1912,9 +2011,9 @@ int main(void) {
   save("/tmp/sim_settings_checked.ppm");            // green, with the wallet ID
 
   touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning again
-  touch(632, 430); pump(3); release(); pump(6);     // SHOW THE WORDS (rightmost now)
+  tap_str(STR_I_SHOW_WORDS, 3, 6);     // SHOW THE WORDS (rightmost now)
   save("/tmp/sim_words.ppm");
-  touch(680, 430); pump(3); release(); pump(6);     // DONE -> Settings
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
 
   // A 24-word seed is the only case that paginates, and 12-word wallets are
   // what the rest of this walk uses -- so swap the stored mnemonic directly
@@ -1927,13 +2026,13 @@ int main(void) {
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     touch(580, 122); pump(3); release(); pump(6);   // Recovery words row -> warning
-    touch(632, 430); pump(3); release(); pump(6);   // SHOW THE WORDS
+    tap_str(STR_I_SHOW_WORDS, 3, 6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
-    touch(278, 430); pump(3); release(); pump(6);   // NEXT
+    tap_str(STR_R_NEXT, 3, 6);   // NEXT
     save("/tmp/sim_words24_p2.ppm");                // 13-24 / 24, BACK but no NEXT
-    touch(118, 430); pump(3); release(); pump(6);   // BACK -> page 1 again
+    tap_str(STR_C_BACK, 3, 6);   // BACK -> page 1 again
     save("/tmp/sim_words24_back.ppm");
-    touch(680, 430); pump(3); release(); pump(6);   // DONE -> Settings
+    tap_str(STR_C_DONE, 3, 6);   // DONE -> Settings
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
 
@@ -1975,7 +2074,7 @@ int main(void) {
   // absolute centres are 671, 698, 725, 752 at y=292. CYPHERPINK is i=2.
   touch(725, 292); pump(3); release(); pump(4);     // theme dot: CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
-  touch(680, 430); pump(3); release(); pump(6);      // BACK, right corner -> home still pink
+  tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(671, 292); pump(3); release(); pump(4);     // theme dot: back to MONO (i=0)
@@ -1985,7 +2084,7 @@ int main(void) {
   // 3px inside that, so 291..375 x 113..141. This is its centre.
   touch(333, 127); pump(3); release(); pump(4);     // TESTNET segment
   save("/tmp/sim_settings_tn.ppm");
-  touch(680, 430); pump(3); release(); pump(6);      // BACK, right corner -> home
+  tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
@@ -2012,19 +2111,19 @@ int main(void) {
   // Capture the longer one: it is the variant that would overflow first.
   touch(730, 50); pump(3); release(); pump(30);     // ? -> tsp1/tb1p explanation
   save("/tmp/sim_recv_sp_help_tn.ppm");
-  touch(652, 418); pump(3); release(); pump(6);     // OK closes the explanation
-  touch(682, 430); pump(3); release(); pump(6);     // BACK from SP (leftmost) -> detail
-  touch(682, 430); pump(3); release(); pump(4);     // BACK from detail (leftmost) -> home
+  tap_str(STR_C_OK, 3, 6);     // OK closes the explanation
+  tap_str(STR_C_BACK, 3, 6);     // BACK from SP (leftmost) -> detail
+  tap_str(STR_C_BACK, 3, 4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (leftmost) -> the file list
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> the chooser
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
-  touch(680, 430); pump(3); release(); pump(4);      // BACK, right corner -> home
+  tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu
@@ -2053,7 +2152,7 @@ int main(void) {
   // chooser because s_whatseed_ret was set by this door.
   touch(400, 344); pump(3); release(); pump(6);     // new here? what a seed phrase is
   save("/tmp/sim_setup_whatseed.ppm");               // YOUR SEED PHRASE
-  touch(680, 425); pump(3); release(); pump(6);     // BACK -> the chooser
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
 
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
@@ -2068,7 +2167,7 @@ int main(void) {
   touch(450, 374); pump(3); release(); pump(3);     // 'b'
   save("/tmp/sim_setup_sug.ppm");                   // suggestions visible
   touch(163, 182); pump(3); release(); pump(3);     // accept "abandon" -> word 2
-  touch(682, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
+  touch(160, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "setup cancel left storage mode staged\n");
     return 1;
@@ -2100,27 +2199,27 @@ int main(void) {
   // below; this path leaves through the pill instead, walks the whole burned
   // proof run, and lands back on the entropy screen. The stub writes a real
   // (small) kiss-proof.bin into /tmp/simsd.
-  touch(158, 430); pump(3); release(); pump(6);     // PROVE IT -> capture screen
+  tap_str(STR_W_PROOF_BTN, 3, 6);     // PROVE IT -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
-  touch(198, 430); pump(3); release(); pump(6);     // CAPTURE (stubbed, instant)
+  tap_str(STR_W_PROOF_SHOT, 3, 6);     // CAPTURE (stubbed, instant)
   save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
-  touch(602, 430); pump(3); release(); pump(6);     // SHOW WORDS
+  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);     // SHOW WORDS
   save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
-  touch(590, 430); pump(3); release(); pump(6);     // NEXT -> words 13-24
+  tap_str(STR_R_NEXT, 3, 6);     // NEXT -> words 13-24
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
-  touch(590, 430); pump(3); release(); pump(6);     // DONE -> entropy screen
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> entropy screen
   // ...and again through the action row's own AUDIT pill, the route that does
   // not require doubting the camera first. Straight back out: the screens it
   // reaches are the ones already walked above.
-  touch(320, 430); pump(3); release(); pump(6);     // AUDIT pill -> capture
+  tap_str(STR_W_PROOF_BTN, 3, 6);     // AUDIT pill -> capture
   save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
-  touch(682, 430); pump(3); release(); pump(6);     // BACK -> entropy screen
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> entropy screen
 
   // TAP TO ADD RANDOMNESS, and the refusal behind it. Both were NEVER OPENED:
   // the walk stopped at the entropy screen and backed out, so source 3 -- the
   // one screen on this path the owner actually interacts with -- had no gate
   // looking at it in any locale. sim_entropy_cb stands in for the camera.
-  touch(602, 430); pump(3); release(); pump(6);     // ADD YOUR TAPS -> the card
+  tap_str(STR_W_ENT_CAPTURE, 3, 6);     // ADD YOUR TAPS -> the card
   save("/tmp/sim_setup_ent_tap.ppm");               // SOURCE 3, 64 empty segments
   // The chip's noise source never came up. This is the ONLY way to reach the
   // refusal -- the other two legs cannot fail after a full 64-tap gate -- and
@@ -2136,8 +2235,8 @@ int main(void) {
                                                     // bar 400ms before folding
   save("/tmp/sim_setup_ent_fail.ppm");              // 1 + 2 + 3 -> x, in STOP
   s_sim_trng = true;                                // put the chip back
-  touch(680, 430); pump(3); release(); pump(6);     // TRY AGAIN -> entropy screen
-  touch(682, 430); pump(3); release(); pump(4);     // BACK -> choose
+  tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> entropy screen
+  tap_str(STR_C_BACK, 3, 4);     // BACK -> choose
 
   // The CARDS detour (BLIND DRAW): both lengths, to the picker and back out.
   // The candidate math is stubbed above (first N indices over SIM_WORDS);
@@ -2154,8 +2253,8 @@ int main(void) {
   // card intro fully settled, same as the dice and entropy explainer stops.
   touch(723, 155); pump(3); release(); pump(40);
   save("/tmp/sim_setup_cards_why.ppm");             // THE 2048 WORD LIST, icon grid
-  touch(652, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
   // Eleven DISTINCT, non monotone words. The cards judge links real, so the old
   // "a" eleven times is now the block screen -- see CARDS_BLOCK below, where
@@ -2165,12 +2264,12 @@ int main(void) {
       "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
   save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
-  touch(602, 430); pump(3); release(); pump(4);     // SHOW THE WORDS
+  tap_str(STR_W_CKSUM_GO, 3, 4);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
-  touch(590, 430); pump(3); release(); pump(4);     // NEXT -> page 2
+  tap_str(STR_R_NEXT, 3, 4);     // NEXT -> page 2
   save("/tmp/sim_setup_cards_pick2.ppm");           // BACK owns the left slot now
-  touch(128, 434); pump(3); release(); pump(4);     // BACK -> page 1
-  touch(682, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
+  tap_str(STR_C_BACK, 3, 4);     // BACK -> page 1
+  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards cancel left storage mode staged\n");
     return 1;
@@ -2189,13 +2288,13 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
   save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 pills
-  touch(587, 431); pump(3); release(); pump(4);     // START OVER -> empty keyboard
+  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
   save("/tmp/sim_setup_cards_retype.ppm");          // "1/11 _": the draw really is gone
   for (int i = 0; i < 11; i++) restore_word("g");   // back to the block
-  touch(213, 431); pump(3); release(); pump(4);     // CANCEL -> chooser
+  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards block cancel left storage mode staged\n");
     return 1;
@@ -2207,14 +2306,14 @@ int main(void) {
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  touch(198, 430); pump(3); release(); pump(4);     // TYPE MY WORDS
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
   static const char *CARDS_SORTED11[11] = {
       "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
   save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
-  touch(213, 431); pump(3); release(); pump(4);     // USE ANYWAY -> the checksum card
+  tap_str(STR_L_USE_ANYWAY, 3, 4);     // USE ANYWAY -> the checksum card
   save("/tmp/sim_setup_cards_cksum_warn.ppm");      // the amber IN ORDER chip, kept
-  touch(682, 430); pump(3); release(); pump(4);     // CANCEL -> chooser
+  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
@@ -2252,19 +2351,19 @@ int main(void) {
   touch(671, 277); pump(3); release(); pump(40);    // "?" beside the chip; 40 =
                                                     // the card intro settled
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
-  touch(652, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
-  touch(652, 425); pump(3); release(); pump(6);     // DONE -> the verdict screen
+  tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> the verdict screen
   save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
   // ROLL MORE is the way through a refusal, and it keeps every banked roll --
   // the whole argument for DICE_MAX = 180, which no gate rendered until now.
-  touch(587, 431); pump(3); release(); pump(4);     // ROLL MORE -> the keypad
+  tap_str(STR_W_DICE_MORE, 3, 4);     // ROLL MORE -> the keypad
   save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
-  touch(652, 425); pump(3); release(); pump(6);     // DONE -> refused again
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> refused again
   // START OVER is method_dice_cb, which now asks the count before the keypad,
   // so the length has to be picked again. Without this line the first roll
   // below landed on the count screen instead, quietly leaving 49 rolls in a run
   // the comment underneath says is 50.
-  touch(213, 431); pump(3); release(); pump(4);     // START OVER -> how many words
+  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> how many words
   touch(218, 144); pump(3); release(); pump(4);     // 12 WORDS -> empty keypad
   // The healthy run: a fixed string that reads as rolled, checked in and
   // asserted OK by kisstest. face bits 128.62 (floor 102.50), step bits 126.61
@@ -2276,15 +2375,15 @@ int main(void) {
     touch(kx, 146); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live
-  touch(652, 425); pump(3); release(); pump(4);     // DONE -> words
+  tap_str(STR_C_DONE, 3, 4);     // DONE -> words
   save("/tmp/sim_setup_words.ppm");                 // 12 words, one page, CANCEL + I WROTE THEM DOWN
   // The checksum card, and the only stop that renders it outside the BLIND
   // DRAW path. Chip is 30px at (722, 24), so its centre is (737, 39); 40 pumps
   // is the staggered card intro settled, same as the dice explainer above.
   touch(737, 39); pump(3); release(); pump(40);
   save("/tmp/sim_setup_words_cksum.ppm");           // THE BUILT IN CHECK, equation + 2 marks
-  touch(652, 430); pump(3); release(); pump(6);     // OK dismisses the explainer
-  touch(590, 430); pump(3); release(); pump(4);     // I WROTE THEM DOWN
+  tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
+  tap_str(STR_W_WROTE, 3, 4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
   touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
   touch(598, 226); pump(3); release(); pump(4);     // round 2: pill 1
@@ -2297,9 +2396,9 @@ int main(void) {
   // the owner a wallet with no passphrase, and one tap has to be enough to
   // change their mind before anything is committed.
   // Pills are 330 wide from 48 and 422, so centres are 213 and 587.
-  touch(213, 430); pump(3); release(); pump(8);     // NO PASSPHRASE -> fingerprint
+  tap_str(STR_L_NO_PASSPHRASE, 3, 8);     // NO PASSPHRASE -> fingerprint
   save("/tmp/sim_setup_fp_nopass.ppm");             // no passphrase: your words alone open it
-  touch(682, 430); pump(3); release(); pump(6);     // BACK (48..188) -> the keyboard
+  tap_str(STR_C_BACK, 3, 6);     // BACK (48..188) -> the keyboard
   save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
 
   // shift semantics. Row 3 is [shift z x c v b n m BKSP] at y=355; shift
@@ -2369,15 +2468,15 @@ int main(void) {
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(178, 430); pump(3); release(); pump(8);     // TAP TO OPEN -> passphrase warning
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> passphrase warning
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
 
   // Optional full recovery rehearsal: all generated words, then the exact
   // passphrase. Prefixes below uniquely put each expected word in suggestion 0.
-  touch(168, 430); pump(3); release(); pump(6);     // VERIFY MY COPY -> intro
+  tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_setup_rehearse_intro.ppm");
-  touch(198, 430); pump(3); release(); pump(6);     // TYPE MY WORDS -> keypad
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
   static const char *verify_prefixes[] = {
     "g", "m", "no", "so", "sy", "fem",
     "fi", "at", "v", "fo", "c", "stay"
@@ -2385,7 +2484,7 @@ int main(void) {
   for (size_t i = 0; i < sizeof verify_prefixes / sizeof verify_prefixes[0]; i++)
     restore_word(verify_prefixes[i]);
   pump(4);                                          // all words -> VERIFIED
-  touch(602, 430); pump(3); release(); pump(8);     // DONE -> fresh passphrase entry
+  tap_str(STR_C_DONE, 3, 8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
   touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
   // The rehearsal above completes again now that creating makes 12 words: the
@@ -2403,7 +2502,7 @@ int main(void) {
   // right corner now, which is where I UNDERSTAND is, so the same dead tap
   // became a live one and skipped the screen this frame exists to photograph.
   save("/tmp/sim_setup_verified.ppm");              // green full-backup state, at last
-  touch(590, 430); pump(3); release(); pump(30);    // I UNDERSTAND -> the stroke chooser
+  tap_str(STR_C_I_UNDERSTAND, 3, 30);    // I UNDERSTAND -> the stroke chooser
 
   // The LAST step of setup: the ONE stroke that reaches the real signer
   // (kiss_duress_ui.c). Plain KISS opens the spare and always will, so there
@@ -2411,9 +2510,9 @@ int main(void) {
   // reference word at (250,170)-(550,268), which is the same box that
   // kiss_duress_classify measures in the game.
   save("/tmp/sim_duress_intro.ppm");                // two ways in
-  touch(148, 430); pump(3); release(); pump(40);    // OK -> fund the spare
+  tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // OK -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
-  touch(148, 430); pump(3); release(); pump(40);    // OK -> pick your stroke
+  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // OK -> pick your stroke
   save("/tmp/sim_duress_pick_real.ppm");            // six strokes, two rows of three
   touch(158, 176); pump(3); release(); pump(40);    // UNDERLINE (first pill)
   save("/tmp/sim_duress_draw_real.ppm");            // draw it, over the reference word
@@ -2423,7 +2522,7 @@ int main(void) {
   for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 302); pump(1); }
   release(); pump(40);
   save("/tmp/sim_duress_done.ppm");                 // the one way in is set
-  touch(652, 430); pump(3); release(); pump(140);   // DONE (552..752) -> saves, home settles
+  tap_str(STR_C_DONE, 3, 140);   // DONE -> saves, home settles
   save("/tmp/sim_setup_home.ppm");
 
   // step 8: idle auto-lock — KISS_AUTOLOCK_MS untouched on the home must
@@ -2521,7 +2620,7 @@ int main(void) {
   // exists to avoid. The frame is what proves it.
   touch(670, 240); pump(3); release(); pump(20);    // SETTINGS tile
   save("/tmp/sim_decoy_settings.ppm");              // no WAYS IN row here
-  touch(680, 426); pump(3); release(); pump(20);    // BACK
+  tap_str(STR_C_BACK, 3, 20);    // BACK
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
 
   // KISS **plus the configured stroke** must reach the PASSPHRASE login, not the
@@ -2551,7 +2650,7 @@ int main(void) {
   save("/tmp/sim_real_login.ppm");                  // passphrase keyboard, NOT a wallet home
   touch(46, 278); pump(3); release(); pump(3);      // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(178, 430); pump(3); release(); pump(140);   // TAP TO OPEN -> home
+  tap_str(STR_L_TAP_TO_OPEN, 3, 140);   // TAP TO OPEN -> home
 
   // step 9: WIPE WALLET — arm (red), confirm, ERASED screen, OK -> game menu
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
@@ -2563,25 +2662,25 @@ int main(void) {
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // stroke + KISS chips, 3 pills
-  touch(450, 430); pump(3); release(); pump(8);     // USE YOUR OWN LETTERS (482..752)
+  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
-  touch(178, 430); pump(3); release(); pump(8);     // DONE (492..752) -> once more
+  tap_str(STR_C_DONE, 3, 8);     // DONE (492..752) -> once more
   save("/tmp/sim_gword_again.ppm");                 // ONCE MORE, field cleared
   draw_own_letters();
-  touch(622, 430); pump(3); release(); pump(8);     // DONE -> the stop screen
+  tap_str(STR_C_DONE, 3, 8);     // DONE -> the stop screen
   save("/tmp/sim_gword_confirm.ppm");               // KISS WILL STOP WORKING
-  touch(587, 430); pump(140); release(); pump(8);   // HOLD TO CHANGE (422..752)
+  tap_str(STR_GD_WORD_HOLD, 140, 8);   // HOLD TO CHANGE (422..752)
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
-  touch(652, 430); pump(3); release(); pump(8);     // OK (552..752) -> Settings
+  tap_str(STR_C_OK, 3, 8);     // OK (552..752) -> Settings
   touch(400, 355); pump(3); release(); pump(8);     // Duress again
   save("/tmp/sim_settings_duress_set.ppm");         // the chip now reads LETTERS
   // Put KISS back before anything else in this walk draws it. gw_stored_set
   // is what BACK TO KISS calls, and leaving the owner's letters in place here
   // would make every later gesture in the walk stop working -- silently, on a
   // screen that still looks right.
-  touch(450, 430); pump(3); release(); pump(8);     // USE YOUR OWN LETTERS
-  touch(340, 430); pump(3); release(); pump(8);     // BACK TO KISS (210..470)
+  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS
+  tap_str(STR_GD_WORD_BACK_T, 3, 8);     // BACK TO KISS (210..470)
   // 220, not 356. This tap was written when the right column ended in two rows
   // and NO UNDO's second card sat at y=260..324; 356 was already past both of
   // them, and once the duress row went full width at SG_FULL_Y=331 it started
@@ -2596,11 +2695,11 @@ int main(void) {
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_endwords.ppm");                    // two why blocks, three pills
   // ERASE is the RIGHTMOST pill now: wt_pill(482, WT_ACTION_Y, 270) = 482..752.
-  touch(617, 430); pump(4); release(); pump(8);     // -> the hold confirm
+  tap_str(STR_G_WIPE, 4, 8);     // -> the hold confirm
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
   // a tap is NOT enough: press, release early, nothing must happen
-  touch(208, 398); pump(2); release(); pump(4);
+  tap_str(STR_G_HOLD_WIPE, 2, 4);
   save("/tmp/sim_wipe_tap_noop.ppm");               // still the confirm screen
   // hold it: 2000ms at 16ms/frame is 125 frames, give it margin
   touch(208, 398); pump(60);                        // ~half way: the fill sweeps
@@ -2608,7 +2707,7 @@ int main(void) {
   save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
   pump(100); release(); pump(6);                    // hold through -> erased
   save("/tmp/sim_wiped.ppm");                       // WALLET ERASED confirmation
-  touch(652, 412); pump(3); release(); pump(130);   // OK (200x52 at y=386) -> menu
+  tap_str(STR_C_OK, 3, 130);   // OK (200x52 at y=386) -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
@@ -2628,7 +2727,7 @@ int main(void) {
   touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR (pill at 264)
   kiss_scan_inject("not a seed qr at all", 20); pump(6);
   save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
-  touch(198, 430); pump(3); release(); pump(6);     // TRY AGAIN -> load screen
+  tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
   touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR again
   {   // a numeric SeedQR: 12 indices, four digits each
     const char *sq = "000000000000000000000000000000000000000000000003";
@@ -2640,7 +2739,7 @@ int main(void) {
   // a passphrase can come from a QR too, behind one warning screen
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
-  touch(198, 430); pump(3); release(); pump(6);     // SCAN IT (rightmost now) -> camera
+  tap_str(STR_L_SCAN_GO, 3, 6);     // SCAN IT (rightmost now) -> camera
   kiss_scan_inject("correct horse battery staple correct horse battery "
                      "staple correct horse battery staple xyz", 90);
   pump(6);
@@ -2649,7 +2748,7 @@ int main(void) {
   for (int i = 0; i < 90; i++) { touch(752, 355); pump(1); release(); pump(1); }
   touch(46, 278);  pump(3); release(); pump(3);     // 'a'
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  touch(178, 430); pump(3); release(); pump(140);   // TAP TO OPEN -> home
+  tap_str(STR_L_TAP_TO_OPEN, 3, 140);   // TAP TO OPEN -> home
   save("/tmp/sim_amnesic_home.ppm");                // an amnesic wallet, unlocked
 
   // Move the live RAM wallet to SD, lock, then remove the card. KISS must land
@@ -2705,12 +2804,12 @@ int main(void) {
     kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
-    touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+    tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
-    touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
-    touch(587, 430); pump(140); release(); pump(8); // HOLD TO CHANGE
+    tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+    tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE
     save("/tmp/sim_gword_done_nopass.ppm");         // PASSPHRASE -> NOT SET, no SPARE
-    touch(652, 430); pump(3); release(); pump(8);   // OK
+    tap_str(STR_C_OK, 3, 8);   // OK
     // Put KISS back and drop the session, for the reason the walk restores it
     // after the passphrase run: letters left stored here would silently break
     // every gesture drawn after this point.
@@ -2731,12 +2830,12 @@ int main(void) {
     kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
-    touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+    tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
-    touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
-    touch(198, 430); pump(140); release(); pump(8); // HOLD -> the write fails
+    tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+    tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD -> the write fails
     save("/tmp/sim_gword_failed.ppm");              // THAT WAS NOT IT, nothing saved
-    touch(652, 430); pump(3); release(); pump(8);   // OK
+    tap_str(STR_C_OK, 3, 8);   // OK
     if (gw_stored_any()) {
       printf("FAIL: a refused write left a word stored\n");
       return 1;
@@ -2795,7 +2894,7 @@ int main(void) {
   pump(20);
   save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
 
-  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
+  tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
 
   // 95, not 100. The hold is 1500ms and pump is 16ms a frame, so it completes
@@ -2806,7 +2905,7 @@ int main(void) {
   // that frame belongs to WRITING alone, and the rest carry the install to the
   // result. Without this the write happens behind the last frame of the
   // confirm screen and no gate sees the screen that says keep it powered.
-  touch(587, 431); pump(95); release(); pump(1);
+  tap_str(STR_G_FW_HOLD, 95, 1);
   save("/tmp/sim_fw_writing.ppm");                  // the DARK -> DONE band + the pair
   // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
   // the screen that announces it, so the panel can go dark on purpose rather
@@ -2821,8 +2920,8 @@ int main(void) {
   kiss_fw_test_set_install(WFW_ERR_REJECTED, 2);
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
-  touch(168, 430); pump(3); release(); pump(20);    // INSTALL -> confirm
-  touch(198, 431); pump(100); release(); pump(20);  // hold -> writing -> refused
+  tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
+  tap_str(STR_G_FW_HOLD, 100, 20);  // hold -> writing -> refused
   save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
 
   // 4. no card at all: the same two block shape, different left hand claim.
