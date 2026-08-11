@@ -15,9 +15,11 @@
 
 #ifdef ESP_PLATFORM
 #include "esp_app_desc.h"
+#include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_secure_boot.h"   // signature blocks of the RUNNING app
+static const char *TAG = "kissfw";
 #endif
 
 // The app descriptor sits after the image header (24) and the first segment
@@ -423,7 +425,18 @@ void wallet_fw_mark_valid(void)
     const esp_partition_t *run = esp_ota_get_running_partition();
     esp_ota_img_states_t st;
     if (run && esp_ota_get_state_partition(run, &st) == ESP_OK &&
-        st == ESP_OTA_IMG_PENDING_VERIFY)
-        esp_ota_mark_app_valid_cancel_rollback();
+        st == ESP_OTA_IMG_PENDING_VERIFY) {
+        // The result was dropped here. It is the difference between "this image
+        // is now permanent" and "the bootloader will revert it on the next
+        // reboot", and a device is entitled to say which of those happened in
+        // its log rather than leaving it to be inferred from behaviour weeks
+        // later.
+        esp_err_t e = esp_ota_mark_app_valid_cancel_rollback();
+        if (e == ESP_OK)
+            ESP_LOGI(TAG, "slot confirmed: rollback cancelled");
+        else
+            ESP_LOGE(TAG, "could not confirm this slot (%s); the next reboot "
+                          "returns the previous firmware", esp_err_to_name(e));
+    }
 #endif
 }

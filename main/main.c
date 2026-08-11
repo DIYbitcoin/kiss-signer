@@ -1661,29 +1661,13 @@ static int written_word_match(const gw_template_t *stored)
     return gw_matches(stored, &t) ? stored->strokes : 0;
 }
 
-// Read the draw as a run of FREE marks: one mark per stroke, in order.
-//
-// Returns how many marks were read, or -1 the moment a stroke refuses to
-// classify. Refusing the whole draw on one bad stroke is deliberate. A word is
-// an ordered run, so a stroke the reader could not name is a hole in it, and
-// skipping the hole would quietly turn a four mark word into whatever three
-// marks happened to survive.
-static int free_marks(uint8_t *out, int max)
-{
-    int n = 0, i = 0;
-    while (i < s_gn) {
-        int j = i;
-        while (j < s_gn && s_gid[j] == s_gid[i]) j++;   // this stroke's points
-        if (n >= max) return -1;                        // longer than any word
-        int m = 0;
-        for (int k = i; k < j; k++) { s_mx[m] = s_gpt[k].x; s_my[m] = s_gpt[k].y; m++; }
-        int mark = wallet_duress_classify_free(s_mx, s_my, m);
-        if (mark == WDF_NONE) return -1;
-        out[n++] = (uint8_t)mark;
-        i = j;
-    }
-    return n;
-}
+// A word used to be read as a run of classified free marks, one per stroke;
+// free_marks lived here and did that. 1b24d57 replaced it with shape matching
+// (written_word_match above), which asks whether the draw LOOKS like the one it
+// was taught rather than trying to name each stroke, and nothing has called
+// free_marks since. It stayed as a -Wunused-function warning on every device
+// build. wallet_duress_classify_free, the classifier it used, is still the
+// modifier reader and still under test in sim/test_duress.c.
 
 #ifdef SIMULATOR
 // Build a template from whatever the collector is holding, so the walk can
@@ -2631,16 +2615,19 @@ void app_main(void) {
 #else
   wallet_selftest(NULL);   // release: just wally_init; the chip stays blank
 #endif
-  {  // Signing determinism, on the chip that will actually sign. The host test
-     // suite proves this against a 64-bit secp256k1 field backend; a riscv32
-     // device compiles field_10x26 instead, so these bytes have never been
-     // checked here. Two signatures, ~ms, every boot including release.
-     // A failure here is not only logged: wallet_psbt_sign refuses to sign at
-     // all, so a unit whose curve code has drifted cannot produce a signature
-     // rather than producing a quietly wrong one.
-    int src = wallet_sign_selftest();
-    ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
-  }
+  // Signing determinism, on the chip that will actually sign. The host test
+  // suite proves this against a 64-bit secp256k1 field backend; a riscv32
+  // device compiles field_10x26 instead, so these bytes have never been
+  // checked here. Two signatures, ~ms, every boot including release.
+  // A failure here is not only logged: wallet_psbt_sign refuses to sign at
+  // all, so a unit whose curve code has drifted cannot produce a signature
+  // rather than producing a quietly wrong one.
+  //
+  // Hoisted out of its block because the rollback decision below needs it. A
+  // signer that cannot sign is exactly the image rollback exists to undo, and
+  // confirming it anyway made the refusal permanent instead of temporary.
+  int src = wallet_sign_selftest();
+  ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
   display_start();
   backlight_on();
   touch_start();
@@ -2662,7 +2649,24 @@ void app_main(void) {
   // passphrase would silently revert a good update if they set the device down
   // first, and a wallet that unlocks is not the bar: a device that boots and
   // draws is.
-  wallet_fw_mark_valid();
+  //
+  // "Draws" is this line, and it used to be below the confirmation rather than
+  // above it. build_game builds an object tree; the pixels reach the panel from
+  // rot_flush, inside the handler loop under this comment. So the slot was
+  // released having proved everything EXCEPT the one path no gate on this
+  // project can reach -- the manual rotated flush, which the simulator does not
+  // compile and never runs. An image that panics on its first flush rebooted
+  // with rollback already cancelled, straight back into itself.
+  lv_refr_now(NULL);
+  // And the selftest is a gate now, not a log line. Both of these decide
+  // whether the PREVIOUS firmware gets to come back, which is the only thing
+  // that can save a unit whose new image cannot draw or cannot sign.
+  if (src == 0) {
+    wallet_fw_mark_valid();
+  } else {
+    ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
+                  "trial so a reboot returns the firmware that worked", src);
+  }
 
   while (1) {           // single-threaded LVGL loop (we own the display + flush)
     uint32_t next = lv_timer_handler();
