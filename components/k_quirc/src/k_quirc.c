@@ -62,6 +62,13 @@ static void wipe_buffers(k_quirc_t *q) {
   if (q->owns_pixels && q->pixels &&
       image_allocation_size(q->w, q->h, sizeof(quirc_pixel_t), &n) == 0)
     memset(q->pixels, 0, n);
+  // The DECODED text, not just the picture of it. data_scratch is where
+  // decode() assembles the payload before it is copied to the caller, so after
+  // a SeedQR it holds a BIP39 mnemonic and after a passphrase QR it holds the
+  // passphrase -- in the middle of the struct that k_quirc_destroy hands back
+  // to the allocator. Wiping the image and leaving this behind cleaned up the
+  // photograph and kept the transcript.
+  memset(&q->data_scratch, 0, sizeof q->data_scratch);
 }
 
 void k_quirc_destroy(k_quirc_t *q) {
