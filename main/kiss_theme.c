@@ -1287,21 +1287,41 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
         return wt_lbl(par, addr, 0, 0, f, WT_MUT);
 
     // bech32 opens with a constant prefix through the first data character:
-    // bc1q/tb1q for SegWit and sp1q/tsp1q for silent payments. Skip it and
-    // light the four AFTER it. Base58 has no such constant, so its first four
-    // are the lit ones.
+    // bc1q/tb1q for SegWit and sp1q/tsp1q for silent payments. It is shown as
+    // its own block so the address still reads as one, but it is not marked and
+    // neither is the block after it.
+    //
+    // This line used to light the four after the prefix AND the last four,
+    // while wt_addr_spans -- the full address, directly above it on the verify
+    // and receive screens -- lights the last EIGHT. Two renderings of one
+    // address, marking two different runs, under a caption that says "compare
+    // these 8". The runs overlapped in only their final four, so an owner who
+    // learned this line's rule was checking characters the line above left
+    // grey, and vice versa.
+    //
+    // The last eight wins, for the reason written at ADDR_TAIL_CHARS: the tail
+    // carries real entropy and the bech32 checksum, so any altered address
+    // differs there, while a mark near the front is the part an attacker gets
+    // to match cheaply. It is also the only rule that can be taught on a
+    // MULTI-recipient panel, which draws no elided line at all -- so choosing
+    // the other one would leave the rule unavailable exactly where there are
+    // most addresses to get wrong.
+    //
+    // The rendered string is unchanged, character for character. Only which
+    // span carries the accent moved.
     int pre = !strncmp(addr, "tsp1", 4) ? 5
             : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
                !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, last[8] = {0};
+    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, tail[16] = {0};
     lv_memcpy(head, addr, (size_t)pre);
     lv_memcpy(key, addr + pre, 4);
     // Twelve from the end, in three blocks of four. Chunking from the RIGHT is
     // the point: 42 characters do not divide by four, so grouping from the left
-    // would leave the final block short and the lit four would straddle a gap.
+    // would leave the final block short and the lit run would straddle a gap.
+    // The first of the three stays grey; the last two ARE the eight.
     const char *t = addr + n - 12;
-    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s %.4s ", t, t + 4);
-    lv_memcpy(last, t + 8, 4);
+    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", t);
+    snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
 
     lv_obj_t *sg = lv_spangroup_create(par);
     addr_spans_no_click(sg);
@@ -1312,9 +1332,9 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
         snprintf(pfx, sizeof pfx, "%s ", head);
         addr_span(sg, pfx, false);
     }
-    addr_span(sg, key, true);
+    addr_span(sg, key, false);
     addr_span(sg, mid, false);
-    addr_span(sg, last, true);
+    addr_span(sg, tail, true);
     lv_spangroup_refresh(sg);
     return sg;
 }
