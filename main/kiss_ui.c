@@ -651,10 +651,29 @@ static void fp_tap_cb(lv_event_t *e) {
   // the old unlocked session completely untouched until the replacement is
   // durable; otherwise BACK or a failed commit can leave the old home showing
   // while Receive/Sign secretly use the candidate wallet.
-  if (s_setup_mode && kiss_seed_commit() != 0) {
-    kiss_seed_discard();
-    setup_fail_screen();
-    return;
+  // Three outcomes, not two. "Nonzero is failure, discard the staging" was one
+  // rule covering results that mean opposite things.
+  //
+  //   CLEANUP  the destination is written, read back and byte-compared: this
+  //            wallet IS durable and only an old artifact survived. Reporting
+  //            it as a failed setup told the owner their wallet did not exist
+  //            while it sat on the flash they were about to walk away from.
+  //   RECOVER  the partition was erased and the write-back failed. Flash may
+  //            hold nothing, so the staged RAM copy is the last one there is
+  //            and discarding it IS the data loss, not the report of it.
+  //            setup_fail_dismiss_cb does not discard, so it survives the STOP.
+  //   others   the previous state is intact and staging is safe to drop.
+  if (s_setup_mode) {
+    int crc = kiss_seed_commit();
+    if (crc == WSEED_ERR_RECOVER) {
+      setup_fail_screen();                 // keep the staging: it may be all of it
+      return;
+    }
+    if (crc != WSEED_OK && crc != WSEED_ERR_CLEANUP) {
+      kiss_seed_discard();
+      setup_fail_screen();
+      return;
+    }
   }
   if (kiss_session_open(s_plen ? s_pass : NULL) != 0) {
     // A successful setup commit was verified before this second derivation.

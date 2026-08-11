@@ -362,6 +362,15 @@ static int storage_erase(int mode_after)
 // which is the one case where the caller must not report success.
 static int storage_scrub_keep(const char *words)
 {
+#ifndef ESP_PLATFORM
+    // Erased, and the words did not go back: the exact shape of the -1 below,
+    // reproduced rather than described, so the caller's handling of it is what
+    // the test actually exercises.
+    if (seed_test_fail(WSEED_TEST_FAIL_SCRUB)) {
+        (void)remove(SEED_FILE);
+        return -1;
+    }
+#endif
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
     uint8_t keep[N_KEEP];
@@ -1025,8 +1034,13 @@ int kiss_seed_commit(void)
         // is committed and verified either way, and returning anything nonzero
         // here would send fp_tap_cb into kiss_seed_discard() on a wallet that
         // is already durable.
+        // -1 from the scrub is its one narrow meaning: the partition WAS erased
+        // and the mnemonic could not be put back. Reported as SD_IO, which the
+        // setup login answers by discarding the staging -- and at that instant
+        // the staged copy is the only one left anywhere. The distinct code is
+        // what lets the caller keep it.
         if (storage_scrub_keep(s_pending) != 0)
-            return WSEED_ERR_SD_IO;
+            return WSEED_ERR_RECOVER;
         // On device the erase above was the whole NVS partition, so it already
         // took the receive-index history and the paper-check marks with it. Say
         // it explicitly so the host build ends up in the SAME state: otherwise

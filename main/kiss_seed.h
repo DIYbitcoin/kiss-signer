@@ -33,6 +33,15 @@
 #define WSEED_ERR_VERIFY         -6
 #define WSEED_ERR_CLEANUP        -7
 #define WSEED_ERR_ROLLBACK       -8
+// The one result a caller must NOT answer by discarding what it staged.
+//
+// It is returned from exactly one place: a KEEP wallet replacing another, where
+// the residue scrub erased the NVS partition and then could not write the new
+// mnemonic back. Flash may now hold no wallet at all, so the staged copy in RAM
+// is the last one in existence and throwing it away is the loss itself rather
+// than the report of one. Every other nonzero result here means the previous
+// state is intact and staging is safe to drop.
+#define WSEED_ERR_RECOVER        -9
 
 // Is the seed at rest actually encrypted (flash encryption burned in eFuse)?
 // Only the storage NOTES need this, to tell the truth about what a chip dump
@@ -127,6 +136,11 @@ int kiss_seed_diff_word(const char *typed, const char *stored);
 // Host-only persistence fault seam used by transition tests.
 #define WSEED_TEST_FAIL_MODE_WRITE  (1u << 0)
 #define WSEED_TEST_FAIL_SEED_REMOVE (1u << 1)
+// The residue scrub, failing the one way that matters: the store is erased and
+// the mnemonic cannot be put back. There is no way to provoke it through the
+// other seams -- storage_write_keep consumes the one-shot MODE_WRITE before the
+// scrub ever runs -- and it is the only path that returns WSEED_ERR_RECOVER.
+#define WSEED_TEST_FAIL_SCRUB       (1u << 2)
 void kiss_seed_test_fail_next(unsigned flags);
 #endif
 
