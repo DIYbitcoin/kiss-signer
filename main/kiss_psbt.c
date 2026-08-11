@@ -563,17 +563,36 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     s->status = WPSBT_STOP;
 
     // Coordinators hand out base64 as often as binary ("cHNidP" = b64("psbt")).
-    uint8_t b64buf[4096];
+    //
+    // STATIC, not automatic. These two are 4096 + 5462 = 9558 bytes in one
+    // frame, and this runs on the LVGL task, whose stack is 20480
+    // (CONFIG_ESP_MAIN_TASK_STACK_SIZE). Nearly half the stack, in the function
+    // that parses a file an attacker hands you on an SD card or over the
+    // camera, under whatever LVGL has already pushed to get here -- and the
+    // canaries this repo just turned on add to every frame in that chain
+    // rather than subtracting from this one.
+    //
+    // Safe because one task parses: kiss_psbt_load is called from the UI task
+    // and there is a single s_psbt behind it, so a second concurrent parse was
+    // never possible. Wiped rather than left sitting: a PSBT is not key
+    // material, but it is every address and amount the owner is about to sign,
+    // and .bss outlives the session that read it. Same reason camera_spike
+    // wipes its static decode result.
+    static uint8_t b64buf[4096];
     if (len >= 6 && memcmp(bytes, "cHNidP", 6) == 0) {
-        char txt[5462];                            // 4096 bytes of PSBT, padded
+        static char txt[5462];                     // 4096 bytes of PSBT, padded
         size_t tl = 0;
         for (size_t i = 0; i < len && tl + 1 < sizeof txt; i++)
             if (bytes[i] != '\r' && bytes[i] != '\n' && bytes[i] != ' ')
                 txt[tl++] = (char)bytes[i];
         txt[tl] = 0;
         size_t wr = 0;
-        if (wally_base64_to_bytes(txt, 0, b64buf, sizeof b64buf, &wr) != WALLY_OK || !wr)
+        int b64rc = wally_base64_to_bytes(txt, 0, b64buf, sizeof b64buf, &wr);
+        wally_bzero(txt, sizeof txt);              // done with it either way
+        if (b64rc != WALLY_OK || !wr) {
+            wally_bzero(b64buf, sizeof b64buf);
             return -2;
+        }
         bytes = b64buf;
         len = wr;
     }
@@ -587,6 +606,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         if (wally_psbt_from_bytes(bytes, len, WALLY_PSBT_PARSE_FLAG_LOOSE,
                                   &s_psbt) != WALLY_OK) {
             kiss_psbt_free();
+            wally_bzero(b64buf, sizeof b64buf);
             return -2;
         }
         loose = true;
@@ -605,6 +625,15 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     uint8_t psbt_hash[32];                         // deterministic-DLEQ / -sign seed
     wally_sha256(bytes, len, psbt_hash, 32);
     memcpy(s_psbt_hash, psbt_hash, 32);            // BIP376 sign-time aux uses it too
+    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
+    // points INTO it for a base64 PSBT, and the hash above is the seed for the
+    // deterministic signature. Wiping before this point silently reseeded every
+    // signature off 4096 zero bytes -- which is what the golden BIP340 vectors
+    // in sim/test_sp.c caught, and the only thing that would have.
+    //
+    // Every later return is an error path that would otherwise leave a whole
+    // PSBT in .bss for the rest of the boot.
+    wally_bzero(b64buf, sizeof b64buf);
 
     s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = kiss_testnet() != 0;
