@@ -365,13 +365,18 @@ static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool prim
 //
 // Not clickable and not scrollable, for the same reason the action bar is not:
 // a tap that misses a control must fall through to whatever is behind it.
+//
+// The radius is named because the action bar has to reproduce it: the bar fills
+// the bottom of this card, so anything that changes the curve here has to change
+// the curve there in the same edit or the boundary breaks at the two corners.
+#define WT_CARD_R 16
 static void screen_card(lv_obj_t *scr)
 {
     lv_obj_t *card = lv_obj_create(scr);
     lv_obj_remove_style_all(card);
     lv_obj_set_pos(card, 8, 8);
     lv_obj_set_size(card, 784, 464);
-    lv_obj_set_style_radius(card, 16, 0);
+    lv_obj_set_style_radius(card, WT_CARD_R, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, WT_EDGE, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_TRANSP, 0);
@@ -595,22 +600,47 @@ static void action_bar_ensure(lv_obj_t *scr)
     // Inset to the card screen_card draws, not the full panel width: the row is
     // the bottom of one surface, so its hairline has to stop where that surface
     // stops. 9 and 782 sit one pixel inside the card's 8..792 border, and 73
-    // takes the fill down to the card's inner bottom edge at 471 rather than
-    // painting over its rounded corners.
+    // takes the fill down to the card's inner bottom edge at 471.
+    //
+    // Rounded to WT_CARD_R - 1. The card's border is 1px, so the hole it encloses
+    // has radius 15 and its bottom corners curve from (9,455) to (24,470); a
+    // square fill covering that band paints a solid shoulder OVER the arc, which
+    // is why the screen border used to run down both sides, stop dead, and pick
+    // up again 11px along the bottom. The corner was never missing, it was
+    // buried. Matching the hole's radius exactly puts the fill inside the curve
+    // instead of across it.
     lv_obj_t *bar = lv_obj_create(scr);
     lv_obj_remove_style_all(bar);
     lv_obj_set_user_data(bar, (void *)WT_BAR_TAG);
     lv_obj_set_pos(bar, 9, WT_CONTENT_BOTTOM);
     lv_obj_set_size(bar, 782, 471 - WT_CONTENT_BOTTOM);
+    lv_obj_set_style_radius(bar, WT_CARD_R - 1, 0);
     lv_obj_set_style_bg_color(bar, WT_BAR, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(bar, WT_HAIR, 0);
-    lv_obj_set_style_border_width(bar, 1, 0);
-    lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_TOP, 0);
     // Not clickable and not scrollable: it is a surface, and a tap that misses a
     // button must fall through to whatever is behind rather than being eaten.
     lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+
+    // A radius rounds all four corners, and the bar's TOP corners are in open
+    // content, not on the card edge -- rounding them bites two notches of page
+    // background out of the band and bends the ends of its hairline. So the top
+    // rung of the fill is squared off by a second slab drawn over it, which also
+    // carries the hairline. Two flat objects rather than clip_corner on the card:
+    // clip_corner refreshes the children into an ARGB8888 layer 784px wide, and
+    // this panel's draw pool cannot hand out a buffer that size -- lv_draw_dispatch
+    // would retry the allocation forever, the same hang transform_scale causes.
+    lv_obj_t *top = lv_obj_create(scr);
+    lv_obj_remove_style_all(top);
+    lv_obj_set_pos(top, 9, WT_CONTENT_BOTTOM);
+    lv_obj_set_size(top, 782, WT_CARD_R - 1);
+    lv_obj_set_style_bg_color(top, WT_BAR, 0);
+    lv_obj_set_style_bg_opa(top, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(top, WT_HAIR, 0);
+    lv_obj_set_style_border_width(top, 1, 0);
+    lv_obj_set_style_border_side(top, LV_BORDER_SIDE_TOP, 0);
+    lv_obj_remove_flag(top, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(top, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 // ---- tap feedback ----
