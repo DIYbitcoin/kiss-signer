@@ -35,9 +35,9 @@ a border: it is ciphertext with no key on it.
 **Card plus device depends on the build.** A build made with
 `tools/build_encrypted_release.sh` has flash encryption RELEASE and NVS
 encryption, so the device key is protected there. A dev build keeps it in
-plaintext NVS, recoverable from a flash dump. Therefore the normal firmware
-does not merely warn about SD mode: it refuses to select it. Card presence must
-never bypass that gate.
+plaintext NVS, recoverable from a flash dump. Either way SD mode is selectable;
+the gate that used to refuse it was removed in `a9303d0` because the card is
+ciphertext and the weaker mode was the one it protected.
 
 No code to remember, ever. The card is a second factor, the way Specter-DIY
 does it, not a Krux style user chosen key. The price is portability: if the
@@ -135,10 +135,9 @@ Setup and Settings use the same names and explanations:
 - **SD CARD**: encrypted, device-bound card storage
 - **AMNESIC**: words live only for the current session
 
-Settings shows the current selection. On normal unencrypted firmware the SD
-row stays visible, disabled and explicitly says that encrypted firmware is
-required. Hiding it made the storage model undiscoverable; enabling it would be
-unsafe. The other two modes remain usable.
+Settings shows the current selection. All three modes are selectable on every
+build; the encrypted lane is about protecting the device key at rest, not about
+which modes exist.
 
 Changing mode is a security action, not a preference toggle. The destination
 must be written and verified before the source is removed, failures stay on the
@@ -162,7 +161,7 @@ missing key and the fit checker covers the three-choice screens.
   device key, with the device key itself unprotected at rest until the
   encrypted lane ships
 - missing-card SD boot prompts for insertion and retry, never setup
-- simulator exercises all three modes without weakening the device gate
+- simulator exercises all three modes and their migration paths
 
 Automated tests validate mechanics, not the eFuse/NVS security claim.
 
@@ -196,5 +195,6 @@ flash. Do not use the final RELEASE profile for this test.
 9. Dump flash/NVS from the rehearsal device and confirm neither the mnemonic nor
    the SD device key appears in plaintext.
 
-Only after every item passes may the encrypted firmware enable SD CARD on a
-real device. The normal unencrypted beta must continue to show it disabled.
+Only after every item passes is encrypted firmware ready to describe SD
+storage as safe for funded use. Until then the device-key-at-rest claim stays
+unproven.

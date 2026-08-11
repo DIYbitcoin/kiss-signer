@@ -2472,6 +2472,23 @@ int main(void) {
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
+  // Locking forgets the key material. It must also forget WHICH keys: the
+  // fingerprint of the last keys unlocked used to outlive kiss_session_close,
+  // and the decoy -- which opens with no login screen and sets the chip itself
+  // -- would fall back to it if its own derivation ever failed. That is the
+  // real keys' fingerprint, on the screen whose entire job is not admitting
+  // those keys exist. Counted, not photographed: the leak is a live value, and
+  // a frame of the menu looks correct either way.
+  {
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    if (fp[0] || fp[1] || fp[2] || fp[3]) {
+      printf("FAIL: lock left the last keys' fingerprint %02X%02X%02X%02X behind\n",
+             fp[0], fp[1], fp[2], fp[3]);
+      g_walk_fails++;
+    }
+  }
+
   // Drop the LVGL indev first, so what follows is a COLD open of the decoy:
   // the state a real device is in at power-on, and the one that shipped broken.
   // The indev is created lazily and the decoy is the only way in that does not

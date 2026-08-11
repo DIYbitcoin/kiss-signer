@@ -643,6 +643,167 @@ static void compose_why(char *out, size_t cap)
              tr(STR_S_WHY_TINYCH), tr(STR_S_WHY_FOOT));
 }
 
+// wt_group4 blocks a string in fours for comparison against a coordinator, so
+// a character it drops is a character the owner compares against nothing. It
+// writes no ellipsis and leaves no gap: a truncated run just ends in a short
+// group, which is what the last group of a real address often looks like
+// anyway. Nothing on the glass can tell you it happened.
+//
+// The txid on DETAILS is the case that matters and the case that was broken:
+// 64 hex characters block to 79, gt[80] holds exactly that plus the NUL, and
+// the owner is invited to compare the result against their coordinator or copy
+// it down to look the transaction up later.
+//
+// Checked here because fitcheck is the gate that links the theme, and this is
+// the same question fitcheck exists to ask -- does the text survive the box --
+// asked one layer below the renderer.
+static int check_group4(void)
+{
+    struct { const char *name; int in_len; size_t cap; } cases[] = {
+        // a txid, in the buffer the sign screen actually gives it
+        { "txid into gt[80]", 64, 80 },
+        // the proof hash and the receive addresses, which have slack
+        { "hash into grp[96]", 64, 96 },
+        { "bech32 into grouped[120]", 62, 120 },
+        { "silent payment into grouped[200]", 117, 200 },
+    };
+    int bad = 0;
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        char in[256], out[256];
+        for (int i = 0; i < cases[c].in_len; i++) in[i] = "0123456789abcdef"[i % 16];
+        in[cases[c].in_len] = 0;
+        wt_group4(in, out, cases[c].cap);
+        int kept = 0;
+        for (size_t i = 0; out[i]; i++) if (out[i] != ' ') kept++;
+        if (kept != cases[c].in_len) {
+            printf("  %-34s kept %d of %d characters\n",
+                   cases[c].name, kept, cases[c].in_len);
+            bad++;
+        }
+    }
+    printf("group4: %d of %zu buffers drop a character\n",
+           bad, sizeof cases / sizeof cases[0]);
+    return bad;
+}
+
+// The accent on an address means exactly one thing: THESE are the characters to
+// compare against your coordinator. So the two renderings of an address have to
+// mark the same ones, or the screen teaches two rules and the caption under
+// them ("compare these 8") is true of at most one.
+//
+// wt_addr_spans shows the whole address and lights the last eight. wt_addr_short
+// elides the middle and lit a different eight -- the four after the prefix plus
+// the last four -- so the only characters the two agreed on were the final four.
+// And the elided line is drawn only for a single recipient, so an owner who
+// learned to check the head four found no head marking at all on a
+// multi-recipient transaction, where there are more addresses to get wrong.
+static void lit_chars(lv_obj_t *sg, char *out, size_t cap)
+{
+    size_t o = 0;
+    lv_color_t accent = wt_accent();
+    uint32_t n = lv_spangroup_get_span_count(sg);
+    for (uint32_t i = 0; i < n && o + 1 < cap; i++) {
+        lv_span_t *sp = lv_spangroup_get_child(sg, (int32_t)i);
+        if (!sp) continue;
+        lv_style_value_t v;
+        if (lv_style_get_prop(lv_span_get_style(sp), LV_STYLE_TEXT_COLOR, &v)
+            != LV_STYLE_RES_FOUND)
+            continue;
+        if (v.color.red != accent.red || v.color.green != accent.green ||
+            v.color.blue != accent.blue)
+            continue;
+        const char *t = lv_span_get_text(sp);
+        for (; t && *t && o + 1 < cap; t++)
+            if (*t != ' ') out[o++] = *t;   // spaces are grouping, not content
+    }
+    out[o] = 0;
+}
+
+static int check_addr_marks(void)
+{
+    static const char *ADDRS[] = {
+        "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // mainnet segwit
+        "tb1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // testnet segwit
+        "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",           // base58: no prefix skip
+        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
+        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna",
+    };
+    lv_obj_t *scr = lv_obj_create(NULL);
+    int bad = 0;
+    for (size_t i = 0; i < sizeof ADDRS / sizeof ADDRS[0]; i++) {
+        char body[80], elided[80];
+        lit_chars(wt_addr_spans(scr, ADDRS[i], 700, wt_font_mono14()),
+                  body, sizeof body);
+        lit_chars(wt_addr_short(scr, ADDRS[i], wt_font_mono23()),
+                  elided, sizeof elided);
+        if (strcmp(body, elided) != 0) {
+            printf("  %.14s... body lights \"%s\", elided lights \"%s\"\n",
+                   ADDRS[i], body, elided);
+            bad++;
+        }
+    }
+    lv_obj_delete(scr);
+    printf("address marks: %d of %zu addresses mark two different runs\n",
+           bad, sizeof ADDRS / sizeof ADDRS[0]);
+    return bad;
+}
+
+// The compared tail is what the owner is asked to check, so where nothing else
+// on the screen shows it larger it renders one rung above the body. That rule
+// was written for font14 and tested `f == wt_font14()` -- the PROPORTIONAL face
+// -- while all four callers pass a mono one, so it could never fire and the
+// tail never grew. This pins both halves: lifted where asked, and NOT lifted
+// otherwise, because the single-recipient verify panel has 7px of slack and
+// spends it on the caption.
+static int check_addr_lift(void)
+{
+    static const char *A =
+        "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz";
+    static const char *SP =
+        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
+        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna";
+    lv_obj_t *scr = lv_obj_create(NULL);
+    int bad = 0;
+    struct { const char *name; const char *addr; int w; } cases[] = {
+        { "bech32 in the change lane", A,  438 },
+        { "bech32 in the full lane",   A,  722 },
+        { "silent payment, change",    SP, 438 },
+        { "silent payment, full",      SP, 722 },
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        lv_obj_t *flat = wt_addr_spans(scr, cases[i].addr, cases[i].w,
+                                       wt_font_mono14());
+        lv_obj_t *lift = wt_addr_spans_lift(scr, cases[i].addr, cases[i].w,
+                                            wt_font_mono14());
+        lv_obj_update_layout(flat);
+        lv_obj_update_layout(lift);
+        int hf = (int)lv_obj_get_height(flat), hl = (int)lv_obj_get_height(lift);
+        // lifted must actually be taller (the bug was that it was not) ...
+        if (hl <= hf) {
+            printf("  %-28s lift did nothing (%dpx both)\n", cases[i].name, hf);
+            bad++;
+        }
+        // ... and must not buy that with a whole extra line of address
+        if (hl - hf > 8) {
+            printf("  %-28s lift cost %dpx, a wrapped line\n",
+                   cases[i].name, hl - hf);
+            bad++;
+        }
+    }
+    // Above the 14 rung the accent alone marks the tail: lifting is a no-op.
+    lv_obj_t *a23 = wt_addr_spans(scr, A, 722, wt_font_mono23());
+    lv_obj_t *b23 = wt_addr_spans_lift(scr, A, 722, wt_font_mono23());
+    lv_obj_update_layout(a23);
+    lv_obj_update_layout(b23);
+    if (lv_obj_get_height(a23) != lv_obj_get_height(b23)) {
+        puts("  mono23                       lift changed a body that already reads");
+        bad++;
+    }
+    lv_obj_delete(scr);
+    printf("address tail lift: %d problem(s)\n", bad);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -993,6 +1154,32 @@ int main(int argc, char **argv)
                  "owner no longer uses to know which screen they are on.");
             return 1;
         }
+    }
+
+    if (check_addr_lift()) {
+        puts("\nFAIL: the compared tail does not size the way its callers ask.\n"
+             "wt_addr_spans_lift exists because a tail at font14 marked only by\n"
+             "colour is the whole of what a multi-recipient list shows about an\n"
+             "address; wt_addr_spans exists because the single-recipient panel\n"
+             "draws that run again, larger, and has no room to do it twice.");
+        return 1;
+    }
+
+    if (check_addr_marks()) {
+        puts("\nFAIL: the two renderings of an address light different\n"
+             "characters. The accent is this screen's instruction about what to\n"
+             "compare, and two instructions is none: an owner who learns one is\n"
+             "misled by the other, and the elided line is not even drawn on a\n"
+             "multi-recipient transaction. Mark the same run in both.");
+        return 1;
+    }
+
+    if (check_group4()) {
+        puts("\nFAIL: wt_group4 dropped a character. A grouped string is shown\n"
+             "to be compared character by character against a coordinator, and\n"
+             "a silently short one is compared against nothing. Give the caller\n"
+             "the room, or stop the helper reserving space it does not use.");
+        return 1;
     }
 
     if (total_small) {

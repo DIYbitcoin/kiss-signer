@@ -563,17 +563,36 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     s->status = WPSBT_STOP;
 
     // Coordinators hand out base64 as often as binary ("cHNidP" = b64("psbt")).
-    uint8_t b64buf[4096];
+    //
+    // STATIC, not automatic. These two are 4096 + 5462 = 9558 bytes in one
+    // frame, and this runs on the LVGL task, whose stack is 20480
+    // (CONFIG_ESP_MAIN_TASK_STACK_SIZE). Nearly half the stack, in the function
+    // that parses a file an attacker hands you on an SD card or over the
+    // camera, under whatever LVGL has already pushed to get here -- and the
+    // canaries this repo just turned on add to every frame in that chain
+    // rather than subtracting from this one.
+    //
+    // Safe because one task parses: kiss_psbt_load is called from the UI task
+    // and there is a single s_psbt behind it, so a second concurrent parse was
+    // never possible. Wiped rather than left sitting: a PSBT is not key
+    // material, but it is every address and amount the owner is about to sign,
+    // and .bss outlives the session that read it. Same reason camera_spike
+    // wipes its static decode result.
+    static uint8_t b64buf[4096];
     if (len >= 6 && memcmp(bytes, "cHNidP", 6) == 0) {
-        char txt[5462];                            // 4096 bytes of PSBT, padded
+        static char txt[5462];                     // 4096 bytes of PSBT, padded
         size_t tl = 0;
         for (size_t i = 0; i < len && tl + 1 < sizeof txt; i++)
             if (bytes[i] != '\r' && bytes[i] != '\n' && bytes[i] != ' ')
                 txt[tl++] = (char)bytes[i];
         txt[tl] = 0;
         size_t wr = 0;
-        if (wally_base64_to_bytes(txt, 0, b64buf, sizeof b64buf, &wr) != WALLY_OK || !wr)
+        int b64rc = wally_base64_to_bytes(txt, 0, b64buf, sizeof b64buf, &wr);
+        wally_bzero(txt, sizeof txt);              // done with it either way
+        if (b64rc != WALLY_OK || !wr) {
+            wally_bzero(b64buf, sizeof b64buf);
             return -2;
+        }
         bytes = b64buf;
         len = wr;
     }
@@ -587,6 +606,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         if (wally_psbt_from_bytes(bytes, len, WALLY_PSBT_PARSE_FLAG_LOOSE,
                                   &s_psbt) != WALLY_OK) {
             kiss_psbt_free();
+            wally_bzero(b64buf, sizeof b64buf);
             return -2;
         }
         loose = true;
@@ -605,6 +625,15 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     uint8_t psbt_hash[32];                         // deterministic-DLEQ / -sign seed
     wally_sha256(bytes, len, psbt_hash, 32);
     memcpy(s_psbt_hash, psbt_hash, 32);            // BIP376 sign-time aux uses it too
+    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
+    // points INTO it for a base64 PSBT, and the hash above is the seed for the
+    // deterministic signature. Wiping before this point silently reseeded every
+    // signature off 4096 zero bytes -- which is what the golden BIP340 vectors
+    // in sim/test_sp.c caught, and the only thing that would have.
+    //
+    // Every later return is an error path that would otherwise leave a whole
+    // PSBT in .bss for the rest of the boot.
+    wally_bzero(b64buf, sizeof b64buf);
 
     s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = kiss_testnet() != 0;
@@ -674,8 +703,20 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     const struct wally_tx *tx = psbt_tx();
     s->locktime = tx->locktime;
 
-    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs)
+    // TERMINAL, not a flag on the way past. This used to stop() and carry on
+    // building the summary, and the output loop below is bounded by
+    // tx->num_outputs while indexing s_psbt->outputs[j] -- so the very
+    // disagreement being reported was what let j run past the shorter array.
+    //
+    // Nothing signable came of it (status is STOP and the sign gate reads it),
+    // but the summary was assembled from a transaction whose two halves do not
+    // describe the same thing, which is not a summary of anything. There is
+    // nothing to show, so it returns.
+    if (tx->num_inputs != s_psbt->num_inputs || tx->num_outputs != s_psbt->num_outputs) {
         stop(s, "malformed: tx/psbt count mismatch");
+        s_status = s->status;
+        return 0;
+    }
 
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
@@ -839,7 +880,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // the user can't approve, and skipping it would corrupt the fee math.
     if (tx->num_outputs > WPSBT_MAX_OUTS)
         stop(s, "too many outputs to verify safely");
-    for (size_t j = 0; j < tx->num_outputs && j < WPSBT_MAX_OUTS; j++) {
+    // Bounded by BOTH sides even though the mismatch above now returns: this
+    // loop reads tx->outputs[j] and s_psbt->outputs[j] (the keypath lookup
+    // further down), and a bound naming only one of them is one edit away from
+    // the over-read again.
+    for (size_t j = 0; j < tx->num_outputs && j < s_psbt->num_outputs &&
+                       j < WPSBT_MAX_OUTS; j++) {
         const struct wally_tx_output *o = &tx->outputs[j];
         wpsbt_out_t *so = &s->outs[j];
         so->sats = o->satoshi;
@@ -970,16 +1016,22 @@ int kiss_psbt_details(wpsbt_details_t *d)
         wpsbt_in_t *di = &d->ins[d->n_in++];
         txid_hex(tx->inputs[i].txhash, di->txid);
         di->vout = tx->inputs[i].index;
+        bool is_sp = i < WPSBT_MAX_INS && s_sp_in.present[i];
         // Same precedence as load, for the same reason: the prev tx is the only
-        // source that proves the number. Load already checked it hashes to this
-        // outpoint, so there is nothing to re-check here.
-        if (in->utxo && di->vout < in->utxo->num_outputs) {
+        // source that proves the number, and load already checked it hashes to
+        // this outpoint -- for the inputs it checked. It reaches that check by
+        // way of a keypath, so a SILENT-PAYMENT input never gets there: its
+        // branch proves ownership from the tweak, takes the amount from the
+        // witness_utxo (BIP341 is what covers it) and continues. Reading
+        // in->utxo here would therefore read a transaction NOTHING has looked
+        // at, and stamp the one word this screen exists to say on it.
+        if (!is_sp && in->utxo && di->vout < in->utxo->num_outputs) {
             di->sats = in->utxo->outputs[di->vout].satoshi;
             di->proven = true;
         } else if (in->witness_utxo) {
             di->sats = in->witness_utxo->satoshi;
         }
-        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+        if (is_sp) {
             di->is_sp = true;          // BIP376: spends a received silent payment
             di->purpose = 352;         // taproot key-path; signing can't change the txid
         } else {
@@ -1124,6 +1176,14 @@ int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
     }
     out[8] = 0;
     return 0;
+}
+
+// Is a transaction still parsed in RAM? The accessors above all refuse without
+// a session, so nothing on screen could show it -- but refusing to SHOW it and
+// not HOLDING it are different claims, and only the second one survives a lock.
+bool kiss_psbt_held(void)
+{
+    return s_psbt != NULL;
 }
 
 void kiss_psbt_free(void)

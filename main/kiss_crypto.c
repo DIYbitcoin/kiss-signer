@@ -2,6 +2,7 @@
 // No hand-rolled crypto: everything below is libwally calls.
 #include "kiss_crypto.h"
 #include "kiss_sp.h"
+#include "kiss_psbt.h"   // kiss_psbt_free: a lock drops the loaded transaction
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,6 +17,7 @@
 #include "boot_sign_vectors.h"   // golden bytes kiss_sign_selftest re-signs
 
 #ifdef ESP_PLATFORM
+#include "esp_random.h"          // esp_fill_random: no longer pulled in by esp_system.h
 #include "bootloader_random.h"   // bootloader_random_enable: see kiss_crypto.h
 #include "esp_cpu.h"             // esp_cpu_get_cycle_count: the jitter source
 #include "esp_timer.h"           // esp_timer_get_time: the clock it is read against
@@ -170,6 +172,57 @@ int kiss_jitter(uint8_t out[32])
     return rc;
 }
 
+// ---- side-channel blinding ----
+// secp256k1 can multiply the secret by a random scalar and divide it back out,
+// so a power or timing trace of a signature stops being a function of the key
+// alone. It is one call per context and the library asks for it in writing;
+// neither context here had ever had it.
+//
+// TWO contexts, because there are two: libwally's global one does the ECDSA and
+// BIP340 signing for ordinary inputs, and kiss_sp.c builds a separate one for
+// silent payments. Blinding one and not the other would leave every SP
+// signature unprotected while looking done.
+//
+// Seeded from kiss_jitter, which works on the device and the host alike, XORed
+// with the chip TRNG where that is actually running. A blind does not need to
+// be as good as key material -- a weak one is no worse than the nothing that
+// was there before -- but it must never be a constant, which is why a failed
+// fold is a failure and not a zeroed seed.
+//
+// Determinism is untouched: blinding changes the internal scalar
+// representation, never the RFC6979 nonce or the signature bytes. kisstest
+// signs either side of a re-randomize and compares.
+int kiss_secp_randomize(void)
+{
+    uint8_t seed[32], sp_seed[32], tag[33];
+    int rc = -1;
+
+    if (kiss_jitter(seed) != 0)
+        return -1;
+#ifdef ESP_PLATFORM
+    if (kiss_trng_live()) {
+        uint8_t t[32];
+        esp_fill_random(t, sizeof t);
+        for (size_t i = 0; i < sizeof seed; i++)
+            seed[i] ^= t[i];
+        wally_bzero(t, sizeof t);
+    }
+#endif
+    // A separate blind per context out of one fold. Sharing the value would not
+    // be a weakness; splitting it costs one hash.
+    memcpy(tag, seed, 32);
+    tag[32] = 0x01;
+    if (wally_sha256(tag, sizeof tag, sp_seed, sizeof sp_seed) == WALLY_OK &&
+        wally_secp_randomize(seed, sizeof seed) == WALLY_OK &&
+        sp_ctx_randomize(sp_seed) == 0)
+        rc = 0;
+
+    wally_bzero(tag, sizeof tag);
+    wally_bzero(seed, sizeof seed);
+    wally_bzero(sp_seed, sizeof sp_seed);
+    return rc;
+}
+
 int kiss_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 {
     if (passphrase && !passphrase[0])
@@ -235,6 +288,12 @@ int kiss_session_activate_prepared(void)
     wally_bzero(&s_master, sizeof s_master);
     account_forget();                     // never serve the last wallet's account
     memcpy(&s_master, &s_prepared_master, sizeof s_master);
+    // Fresh blinding for the key that just came into RAM: a new secret is
+    // exactly when the scalar the traces would be measuring changes. Not fatal
+    // if it fails -- refusing an unlock because a hash failed would trade a
+    // hardening measure for a lockout -- and it cannot fail without wally_sha256
+    // failing first, which nothing else in this file survives either.
+    (void)kiss_secp_randomize();
     s_session = true;
     s_session_decoy = s_prepared_decoy;
     kiss_session_discard_prepared();
@@ -253,6 +312,17 @@ int kiss_session_open(const char *passphrase)
 // in kiss_seed's RAM copy, so it has to leave with the derived key.
 void kiss_session_close(void)
 {
+    // Everything the session was working on goes with it, not just the key.
+    // Nothing dropped the loaded PSBT on lock, so the last transaction --
+    // every address and amount in it -- stayed parsed in RAM until something
+    // happened to load another. kiss_psbt_load itself returns -1 before
+    // reaching its own free() when there is no session, so locking and then
+    // opening a file was exactly the sequence that kept it alive.
+    //
+    // Here rather than in main.c's lock path, so it holds for every way a
+    // session ends: the autolock, Settings, and the storage change that closes
+    // the session to prove the key left RAM.
+    kiss_psbt_free();
     kiss_session_discard_prepared();
     wally_bzero(&s_master, sizeof(s_master));
     account_forget();

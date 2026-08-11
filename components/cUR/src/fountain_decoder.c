@@ -195,7 +195,7 @@ static bool hash_set_add(hash_set_t *set, uint32_t hash) {
 
   // Expand if needed (but respect MAX_DUPLICATE_TRACKING limit)
   if (set->count >= set->capacity) {
-    size_t new_capacity = set->capacity * 2;
+    size_t new_capacity = set->capacity ? set->capacity * 2 : HASH_MIN_CAPACITY;
     if (new_capacity > MAX_DUPLICATE_TRACKING) {
       new_capacity = MAX_DUPLICATE_TRACKING;
     }
@@ -810,7 +810,8 @@ static void reduce_mixed_by(fountain_decoder_t *const decoder,
 
       free(entry->value.indexes.indexes);
       entry->value.indexes = (part_indexes_t){0};
-      part_indexes_copy(&new_indexes, &entry->value.indexes);
+      if (!part_indexes_copy(&new_indexes, &entry->value.indexes))
+        return;   // rather than leave the entry half rewritten
 
       if (is_simple_part(&entry->value)) {
 #ifdef DEBUG_STATS
@@ -1255,6 +1256,24 @@ bool fountain_decoder_receive_part(fountain_decoder_t *decoder,
   }
 
   if (decoder->expected_part_indexes == NULL) {
+    // The three numbers in the header have to agree with each other before any
+    // of them is believed, because the join below allocates message_len bytes
+    // UNINITIALISED and only fills what the fragments actually carry. A header
+    // claiming more than seq_len*data_len describes a message these frames
+    // cannot contain, and the remainder is whatever the heap last held -- CRCed
+    // as if it were the payload, and returned as the payload on a collision.
+    //
+    // The other side of it matters too: a seq_len larger than the message needs
+    // means a final fragment that is entirely padding, which no encoder
+    // produces, and it inflates every per-fragment allocation below.
+    if (part->data_len == 0 || part->seq_len == 0 || part->message_len == 0 ||
+        part->seq_len > SIZE_MAX / part->data_len)
+      return false;
+    size_t capacity = part->seq_len * part->data_len;
+    if (part->message_len > capacity ||
+        part->message_len <= capacity - part->data_len)
+      return false;
+
     decoder->expected_part_indexes = part_indexes_new();
     if (!decoder->expected_part_indexes)
       return false;

@@ -117,6 +117,10 @@ typedef struct {
 // held or the verifier said STOP (a refused tx gets no details page).
 int kiss_psbt_details(wpsbt_details_t *d);
 
+// True while a transaction is parsed in RAM. Every reader above refuses
+// without a session; this says whether the bytes are still there at all.
+bool kiss_psbt_held(void);
+
 // Parse + verify. Returns 0 and fills *s even when s->status == WPSBT_STOP
 // (the UI must say WHY); nonzero only if the bytes aren't a valid PSBT or no
 // session is open. Holds the parsed PSBT internally for kiss_psbt_sign.
