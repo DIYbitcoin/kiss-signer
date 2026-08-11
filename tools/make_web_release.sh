@@ -1,6 +1,7 @@
 #!/bin/bash
 # Build signed release artifacts into docs/installer/ for staging:
-#   * firmware/kiss-signer-<version>.bin                (merged, offset 0)
+#   * firmware/kiss-signer-<version>.bin                (merged, offset 0, USB)
+#   * firmware/kiss-signer-<version>-update.bin         (signed app, SD card)
 #   * SHA256SUMS + SHA256SUMS.asc                       (GPG, if a key exists)
 #   * firmware/kiss-signer-<version>.bin.minisig        (minisign, if key exists)
 #   * manifest.json / release.json                      (rewritten in place)
@@ -163,8 +164,45 @@ PY
   --flash-mode dio --flash-freq 80m --flash-size 16MB \
   $MERGE_PARTS
 
+# 2.2 the SD update image.
+#
+# The merged image above is the ONLY thing this script published, and the device
+# cannot use it. wallet_fw_desc_parse looks for the esp_app_desc magic 32 bytes
+# into the file, which is where it sits in an APPLICATION image; a merged
+# offset-0 image has the bootloader there, so the card was scanned, the magic
+# did not match, and every published build was reported as "nothing to install".
+# The FIRMWARE screen shipped with no artifact it could ever accept.
+#
+# This is the same signed app the SHA256SUMS below already hashed as
+# "application" -- build_release.sh signs it in place, so no second signing
+# happens here and none should.
+UPDATE_NAME="kiss-signer-${VERSION}-update.bin"
+cp build-release/guition_kiss_bringup.bin "$OUT/firmware/$UPDATE_NAME"
+
+# The descriptor the device will look for, checked HERE rather than discovered
+# on a card. Same offset and magic as main/wallet_fw.c; a build that stops
+# matching it must fail the release, not ship an image the FIRMWARE screen
+# silently refuses.
+UPDATE="$OUT/firmware/$UPDATE_NAME" "$PY" - <<'PY'
+import os, struct, sys
+p = os.environ["UPDATE"]
+hdr = open(p, "rb").read(80)
+if len(hdr) < 80:
+    sys.exit(f"FAIL: {p} is too short to hold an app descriptor")
+magic, = struct.unpack_from("<I", hdr, 32)
+if magic != 0xABCD5432:
+    sys.exit(f"FAIL: {p} has no esp_app_desc magic at offset 32 "
+             f"(got {magic:#010x}) - the SD updater would refuse it")
+ver = hdr[48:80].split(b"\0")[0].decode("ascii", "replace")
+if not ver:
+    sys.exit(f"FAIL: {p} has an empty version string; wallet_fw_desc_parse "
+             "refuses that rather than ordering it below everything")
+print(f"PASS: {os.path.basename(p)} carries app descriptor v{ver}")
+PY
+
 # drop stale firmware images so the served folder only holds this release
-find "$OUT/firmware" -name 'kiss-signer-*.bin*' ! -name "$NAME*" -delete
+find "$OUT/firmware" -name 'kiss-signer-*.bin*' \
+  ! -name "$NAME*" ! -name "$UPDATE_NAME*" -delete
 
 # 2.5 manifest.json, BEFORE SHA256SUMS so the signature can cover it.
 # esp-web-tools flashes every part of the matching build at its own offset, so
@@ -192,10 +230,10 @@ print(f"wrote {out}/manifest.json")
 PY
 
 # 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
-NAME="$NAME" "$PY" - <<'PY'
+NAME="$NAME" UPDATE_NAME="$UPDATE_NAME" "$PY" - <<'PY'
 import hashlib, os
 out = "docs/installer"
-name = os.environ["NAME"]
+name, update = os.environ["NAME"], os.environ["UPDATE_NAME"]
 def sha(p): return hashlib.sha256(open(p, "rb").read()).hexdigest()
 parts = [
     ("bootloader",      "build-release/bootloader/bootloader.bin"),
@@ -206,6 +244,10 @@ with open(f"{out}/SHA256SUMS", "w") as f:
     # GitHub Release users download the firmware asset beside SHA256SUMS, so
     # the signed manifest uses the asset filename, not the web-staging path.
     f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
+    # The SD update image, under the name it is published as. It is the same
+    # bytes as the "application" line below, but nobody downloading a card
+    # image should have to know that to check what they downloaded.
+    f.write(f"{sha(f'{out}/firmware/{update}')}  {update}  (SD update)\n")
     for label, p in parts:
         f.write(f"{sha(p)}  {p}  ({label})\n")
     # The flash list itself. Without this line the signature covers what gets
