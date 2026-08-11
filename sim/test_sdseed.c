@@ -548,12 +548,30 @@ int test_sdseed_layer(void) {
     // KEEP -> SD: encrypted destination verifies before one metadata publish.
     dchk("storage: capture key before KEEP -> SD",
          sd_seed_device_key(move_key) == 0);
+    // The flash key, captured the same way and for the opposite reason: dkey
+    // has to survive the move because it reads the card, and nkey has to NOT,
+    // because it is the only thing that opens the copy left in flash.
+    uint8_t nkey_before[32], nkey_after[32];
+    dchk("storage: capture flash key before KEEP -> SD",
+         sd_seed_domain_key(SDSEED_DOM_NVS, nkey_before) == 0);
     dchk("storage: KEEP -> SD", wallet_seed_move_to(WSEED_MODE_SD) == WSEED_OK);
     dchk("storage: mode reads SD", wallet_seed_mode() == WSEED_MODE_SD);
     dchk("storage: SD words round-trip", seed_loads_as(SD_WORDS));
     dchk("storage: dkey survives KEEP -> SD",
          sd_seed_device_key(same_key) == 0 &&
          memcmp(move_key, same_key, sizeof move_key) == 0);
+    // The move used to erase only the pre-tag "words" key, so the sealed blob
+    // and the nkey that opens it both stayed on the device while the screen
+    // said the internal copy was gone -- the card was not a second factor at
+    // all. sd_seed_domain_key mints a fresh key when there is none, so a key
+    // that comes back DIFFERENT is the proof the old one was destroyed.
+    dchk("storage: KEEP -> SD destroys the flash key",
+         sd_seed_domain_key(SDSEED_DOM_NVS, nkey_after) == 0 &&
+         memcmp(nkey_before, nkey_after, sizeof nkey_before) != 0);
+    // And the card is still the wallet afterwards: a scrub that took the
+    // destination with it would pass the line above and lose the coins.
+    dchk("storage: SD still authoritative after the scrub",
+         wallet_seed_mode() == WSEED_MODE_SD && seed_loads_as(SD_WORDS));
 
     // Missing/corrupt second factor is not factory-fresh and never falls back
     // to stale NVS words.
