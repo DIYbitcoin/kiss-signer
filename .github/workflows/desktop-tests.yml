@@ -89,6 +89,40 @@ jobs:
       - name: simulator taps still hit something
         run: python3 tools/check_sim_taps.py
 
+      # The step above asks whether a tap changed the screen. This asks the
+      # question none of the others can: which screens has nothing ever looked
+      # at. overlapcheck puts seven questions to every STOP, so a screen with no
+      # stop has no opinion attached to it -- whatseed_open was a wall of text on
+      # the screen a newcomer opens to learn what a seed is, for its entire life,
+      # with every gate green, because no stop rendered it. It was found by
+      # accident on the day it got one.
+      #
+      # It ran by hand only, which is the same failure one level up: a gate
+      # nobody runs is a gate that reports nothing. The count is zero today, so
+      # STRICT goes on now, while it costs nothing, rather than after the next
+      # screen lands without a stop. The script self tests before reporting and
+      # refuses to report if the check stops firing, so a green line here means
+      # the check ran, not merely that it found nothing.
+      - name: every screen has a walk stop
+        run: python3 tools/check_screen_coverage.py
+        env:
+          SCREENCOVER_STRICT: "1"
+
+      # The PSBT fixtures are the ones carried to the device on a card, and the
+      # verdict each one is built to produce (READY / CAUTION / STOP, and which
+      # caution flags) is the contract the verify screen renders. Emitting them
+      # and reading them back through the device's own kiss_psbt.c is a full
+      # round trip, and it also pins the signature the amount proof must not
+      # change -- ba46442b, the hash the device test is checked against.
+      #
+      # Its own directory, never /tmp/simsd: the unit tests and the screen walk
+      # share that one, and an interleaved run there invents a layout regression.
+      - name: SD PSBT fixtures still reach their verdicts
+        run: |
+          rm -rf /tmp/ci_sd_psbts && mkdir -p /tmp/ci_sd_psbts
+          bash sim/mk_sd_psbts.sh /tmp/ci_sd_psbts
+          bash sim/check_sd_psbts.sh /tmp/ci_sd_psbts
+
       # The walkthrough's screenshots are simulator frames, so a renamed or
       # deleted save() in sim_main.c silently orphans a picture in the docs.
       # This checks the manifest still resolves; it deliberately does not
