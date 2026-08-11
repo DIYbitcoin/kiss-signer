@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "CONTINUAR",
   "L_DISCARD": "DESCARTAR",
   "L_FAIL_SETUP_T": "NÃO DEU PARA CONFIGURAR ESTE SIGNER",
+  "L_RECOVER_T": "AINDA NÃO NESTE DISPOSITIVO",
+  "L_RECOVER_B": "suas palavras estão apenas na memória e em nenhum outro lugar. escreva no papel antes de fazer qualquer outra coisa.\n\ndepois tente de novo. se salvar continuar falhando, restaure a partir desse papel em um assinador de confiança.",
   "L_FAIL_OPEN_T": "NÃO DEU PARA ABRIR SUAS CHAVES",
   "L_FAIL_SETUP_B": "nada foi salvo. comece de novo pelo menu.",
   "L_FAIL_OPEN_B": "algo deu errado. tente de novo pelo menu.",

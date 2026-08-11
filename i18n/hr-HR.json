@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "NASTAVI",
   "L_DISCARD": "ODBACI",
   "L_FAIL_SETUP_T": "SIGNER NIJE MOGUĆE POSTAVITI",
+  "L_RECOVER_T": "JOŠ NE NA OVOM UREĐAJU",
+  "L_RECOVER_B": "vaše riječi su samo u memoriji i nigdje drugdje. prepišite ih na papir prije nego učinite bilo što drugo.\n\nzatim pokušajte ponovno. ako spremanje i dalje ne uspijeva, obnovite s tog papira na potpisniku kojem vjerujete.",
   "L_FAIL_OPEN_T": "KLJUČEVE NIJE MOGUĆE OTVORITI",
   "L_FAIL_SETUP_B": "ništa nije spremljeno. počnite ponovno iz izbornika.",
   "L_FAIL_OPEN_B": "nešto je pošlo po zlu. pokušajte ponovno iz izbornika.",

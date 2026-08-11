@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "KONTYNUUJ",
   "L_DISCARD": "PORZUĆ",
   "L_FAIL_SETUP_T": "NIE UDAŁO SIĘ USTAWIĆ SIGNERA",
+  "L_RECOVER_T": "JESZCZE NIE NA TYM URZĄDZENIU",
+  "L_RECOVER_B": "twoje słowa są tylko w pamięci i nigdzie indziej. przepisz je na papier, zanim zrobisz cokolwiek innego.\n\npotem spróbuj ponownie. jeśli zapis nadal się nie udaje, odtwórz je z tego papieru na zaufanym podpisywaczu.",
   "L_FAIL_OPEN_T": "NIE UDAŁO SIĘ OTWORZYĆ KLUCZY",
   "L_FAIL_SETUP_B": "nic nie zostało zapisane. zacznij od nowa z menu.",
   "L_FAIL_OPEN_B": "coś poszło nie tak. spróbuj ponownie z menu.",

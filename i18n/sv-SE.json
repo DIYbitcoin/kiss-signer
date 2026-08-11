@@ -27,6 +27,8 @@
   "L_KEEP_GOING": "FORTSÄTT",
   "L_DISCARD": "KASTA",
   "L_FAIL_SETUP_T": "KUNDE INTE STÄLLA IN SIGNERN",
+  "L_RECOVER_T": "INTE PÅ DEN HÄR ENHETEN ÄN",
+  "L_RECOVER_B": "dina ord finns bara i minnet och ingen annanstans. skriv ner dem på papper innan du gör något annat.\n\nförsök sedan igen. om det fortsätter att misslyckas, återställ från det pappret på en signer du litar på.",
   "L_FAIL_OPEN_T": "KUNDE INTE ÖPPNA DINA NYCKLAR",
   "L_FAIL_SETUP_B": "ingenting sparades. börja om från menyn.",
   "L_FAIL_OPEN_B": "något gick fel. försök igen från menyn.",

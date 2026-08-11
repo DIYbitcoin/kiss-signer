@@ -111,7 +111,15 @@ int kiss_seed_stage(const char *m) {
   s_sim_has_pending = 1;
   return 0;
 }
+// One-shot: the next commit reports the staged copy may be the only one left.
+// Real NVS cannot be told to lose a wallet, and without this the walk cannot
+// reach the recovery screen at all -- which is how the generic setup STOP came
+// to be shown there, telling an owner to start again over the last copy of
+// their words. Set from the walk, cleared as it fires.
+int g_sim_commit_recover;
+
 int kiss_seed_commit(void) {
+  if (g_sim_commit_recover) { g_sim_commit_recover = 0; return WSEED_ERR_RECOVER; }
   if (!s_sim_has_pending) return -1;
   if (s_sim_pending_mode >= 0) s_sim_mode = s_sim_pending_mode;
   s_sim_pending_mode = -1;
@@ -2649,6 +2657,20 @@ int main(void) {
   kiss_duress_ui_open_nopass(lv_screen_active(), NULL);
   pump(40);
   save("/tmp/sim_duress_nopass.ppm");               // NOTHING TO HIDE BEHIND
+
+  // The commit that could not finish. A KEEP wallet was replacing another and
+  // the replacement may have taken it, so the staged words in RAM are the last
+  // copy there is. fp_tap_cb used to answer that with the generic setup STOP,
+  // whose body reads "nothing was saved. start again from the menu" -- the one
+  // action that destroys what is left.
+  //
+  // A leaf, opened directly, like the two duress stops above it. Driving it
+  // through a real failed commit mid-setup wedged the walk: setup never
+  // completes, so every tap after it lands on the wrong screen.
+  kiss_ui_test_recover_screen();
+  pump(40);
+  save("/tmp/sim_ui_recover.ppm");                  // words held, paper first
+  must_show("recover", tr(STR_L_RECOVER_T));
 
   // The other half of the same question, and the half that was still lying.
   // YOUR LETTERS ARE SET drew "letters -> SPARE" and "letters + mark -> REAL"
