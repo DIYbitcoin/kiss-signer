@@ -258,6 +258,12 @@ static int storage_write_keep(const char *words)
          strcmp(verify, words) == 0 &&
          storage_mode_read_checked(&mode) == 0 &&
          mode == WSEED_MODE_KEEP ? WSEED_OK : WSEED_ERR_VERIFY;
+#ifndef ESP_PLATFORM
+    // After the write, deliberately: the point of this failure is that the new
+    // blob is already committed over the old one when it fires.
+    if (seed_test_fail(WSEED_TEST_FAIL_VERIFY))
+        rc = WSEED_ERR_VERIFY;
+#endif
     wally_bzero(verify, sizeof verify);
     return rc;
 }
@@ -1018,9 +1024,22 @@ int kiss_seed_commit(void)
         wally_bzero(prev, sizeof prev);
     }
     int rc = storage_write_keep(s_pending);
-    if (rc != WSEED_OK && rc != WSEED_ERR_CLEANUP)
+    if (rc != WSEED_OK && rc != WSEED_ERR_CLEANUP) {
+        // VERIFY on a REPLACEMENT is the same shape as a failed scrub and was
+        // missed. storage_write_keep sets "wblob" and commits BEFORE it reads
+        // back, so by the time the readback fails the previous wallet's blob
+        // has already been overwritten -- the old words are unreadable and the
+        // new ones exist only in staging. Answering that by discarding is a
+        // total loss, on exactly the shape RECOVER was added for.
+        //
+        // Only VERIFY, and only with a prior wallet. An earlier failure never
+        // reached the write, so the old wallet is intact and staging is safe to
+        // drop; and with no prior wallet nothing was destroyed.
+        if (rc == WSEED_ERR_VERIFY && had_prior_words)
+            return WSEED_ERR_RECOVER;
         return rc;   // still staged, but the caller decides: the setup login
                      // discards it rather than hold an unsaved mnemonic in RAM
+    }
     int result = rc;
     if (had_prior_words) {
         // One KEEP wallet just replaced another, so the previous mnemonic is
