@@ -35,12 +35,19 @@
 #define WSEED_ERR_ROLLBACK       -8
 // The one result a caller must NOT answer by discarding what it staged.
 //
-// It is returned from exactly one place: a KEEP wallet replacing another, where
-// the residue scrub erased the NVS partition and then could not write the new
-// mnemonic back. Flash may now hold no wallet at all, so the staged copy in RAM
-// is the last one in existence and throwing it away is the loss itself rather
-// than the report of one. Every other nonzero result here means the previous
-// state is intact and staging is safe to drop.
+// Returned when a KEEP wallet was replacing another and the replacement may
+// have taken the old one with it. Two ways in, both on that transition:
+//
+//   * the residue scrub erased the store and could not write the mnemonic back
+//   * storage_write_keep committed the new blob over the old one and then
+//     failed its readback (WSEED_ERR_VERIFY), so neither is readable
+//
+// Either way flash may now hold no usable wallet, the staged copy in RAM is the
+// last one in existence, and throwing it away is the loss itself rather than
+// the report of one.
+//
+// Every OTHER nonzero result means the write never reached the old wallet, or
+// there was no old wallet, so staging is safe to drop.
 #define WSEED_ERR_RECOVER        -9
 
 // Is the seed at rest actually encrypted (flash encryption burned in eFuse)?
@@ -141,6 +148,11 @@ int kiss_seed_diff_word(const char *typed, const char *stored);
 // other seams -- storage_write_keep consumes the one-shot MODE_WRITE before the
 // scrub ever runs -- and it is the only path that returns WSEED_ERR_RECOVER.
 #define WSEED_TEST_FAIL_SCRUB       (1u << 2)
+// storage_write_keep's readback, failing after the write committed. On a
+// REPLACEMENT that is a destroyed old wallet plus an unverifiable new one,
+// which is the second way into WSEED_ERR_RECOVER and had no way to be
+// reached from a test.
+#define WSEED_TEST_FAIL_VERIFY      (1u << 3)
 void kiss_seed_test_fail_next(unsigned flags);
 #endif
 
