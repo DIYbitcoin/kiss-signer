@@ -38,6 +38,7 @@ echo "text overlap gate: ${#langs[@]} locales"
 echo
 
 worst=0
+died=""
 total=0
 summary=""
 for l in "${langs[@]}"; do
@@ -47,6 +48,7 @@ for l in "${langs[@]}"; do
     [ -z "$n" ] && n=0
     total=$((total + n))
     [ "$rc" -gt "$worst" ] && worst=$rc
+    if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then died="$died SIM_LANG=$l(rc=$rc)"; fi
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
@@ -77,6 +79,7 @@ for a in GREEN CYPHERPINK ORANGE; do
     n=$(printf '%s\n' "$out" | grep -c '^  ROLE')
     roletotal=$((roletotal + n))
     [ "$rc" -gt "$worst" ] && worst=$rc
+    if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then died="$died SIM_ACCENT=$a(rc=$rc)"; fi
 
     if [ "$n" -gt 0 ]; then
         printf '%-12s %3d findings\n' "$a" "$n"
@@ -91,6 +94,21 @@ echo
 echo "theme role gate: $roletotal findings across 3 accents"
 total=$((total + roletotal))
 
+# Two different failures share this exit code and must not share a message.
+# kissoverlap returns non-zero in exactly one case of its own: findings, with
+# OVERLAPCHECK_STRICT set. So non-zero WITHOUT findings is the walk dying, and
+# it is the more dangerous of the two, because that run printed "clean" for
+# every locale it never reached. A gate is allowed to fail; it is not allowed
+# to say clean about a screen it never rendered.
+if [ -n "$died" ]; then
+    echo
+    echo "FAILED: the walk exited non-zero having reported nothing:$died"
+    echo "A dead walk prints 'clean' for every stop it never reached, so this"
+    echo "run proves nothing -- it is not a finding, and not a clean sweep."
+    echo "Re-run it on its own: /tmp/simsd and the /tmp frames are shared with"
+    echo "kisstest and the screen walk, and an interleaved run kills it."
+    exit 1
+fi
 if [ "$worst" -ne 0 ]; then
     echo
     echo "FAILED: OVERLAPCHECK_STRICT is set and the gate found something."
