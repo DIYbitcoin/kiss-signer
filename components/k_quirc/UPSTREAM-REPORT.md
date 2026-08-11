@@ -1,8 +1,18 @@
-# To report to odudex/k_quirc
+# Two fixes for odudex/k_quirc
 
-Two defects found auditing the vendored copy at `06549efae32a4378216b868b2fc2e93cbcdd9707`.
-Both are present in upstream at that commit, verified against the GitHub API, not
-introduced by our vendoring. Fixed locally; sending them back is the point of this file.
+Found auditing the copy vendored here at `06549efae32a4378216b868b2fc2e93cbcdd9707`.
+Both are still present at upstream HEAD (checked 2026-08-11, last commit 2026-07-29),
+so they were inherited, not introduced by our vendoring.
+
+**Send as a pull request, not a security report.** Krux's SECURITY.md asks for
+vulnerabilities "that could potentially affect the security of users' funds", and
+neither of these does. The out of bounds access is a READ of read only data that
+yields garbage characters in a decoded string: no write, no corruption, no key
+material, and not reachable from a conforming QR at all. The version table entry is
+plain incorrectness. Neither is exploitable for funds.
+
+Nor is this shipping Krux: `selfcustody/krux` only names k_quirc in its CHANGELOG.
+The submodule is pinned by `odudex/kern`, odudex's ESP32 firmware.
 
 Neither came from Daniel Beer's quirc or from OpenMV — both of those are correct.
 They were introduced when `alpha_tuple()` was inlined into `decode_alpha()`.
