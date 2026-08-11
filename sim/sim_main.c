@@ -2512,6 +2512,32 @@ int main(void) {
     wallet_session_close();
   }
 
+  // The write that does not take. Both callers threw gw_stored_set's result
+  // away and showed the success screen regardless, so an owner could hold to
+  // change their word, read YOUR LETTERS ARE SET, and still be opening the
+  // device with KISS -- the one failure they cannot see for themselves, because
+  // the device keeps working until the day the new word is needed.
+  //
+  // Needs the seam: real NVS cannot be told to refuse a write, and a screen the
+  // walk cannot reach is a screen no locale was ever measured in.
+  {
+    gw_test_fail_next_set();
+    wallet_word_ui_open(lv_screen_active(), NULL);
+    pump(20);
+    draw_own_letters();
+    touch(622, 430); pump(3); release(); pump(8);   // DONE -> once more
+    draw_own_letters();
+    touch(622, 430); pump(3); release(); pump(8);   // DONE -> the stop screen
+    touch(587, 430); pump(140); release(); pump(8); // HOLD -> the write fails
+    save("/tmp/sim_gword_failed.ppm");              // THAT WAS NOT IT, nothing saved
+    touch(652, 430); pump(3); release(); pump(8);   // OK
+    if (gw_stored_any()) {
+      printf("FAIL: a refused write left a word stored\n");
+      return 1;
+    }
+    printf("ok: a refused write says so and stores nothing\n");
+  }
+
   // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
   // Settings on a wallet that already has a stroke, this screen grows a THIRD
   // pill -- TURN THIS OFF, the only way back to plain behaviour -- and the

@@ -85,4 +85,14 @@ bool gw_stored_any(void);
 
 // Persist a word, or pass NULL to clear it and put KISS back. Returns 0 only
 // once the write is committed.
+//
+// Callers must READ IT BACK rather than trust the 0: see store_word in
+// wallet_word_ui.c. A device whose flash refuses the write keeps opening on the
+// old word, and that is invisible until the day the new one is needed.
 int gw_stored_set(const gw_template_t *t);
+
+#ifndef ESP_PLATFORM
+// Host only: make the NEXT gw_stored_set fail, so the screen that says nothing
+// was saved can actually be rendered by the walk and measured in 21 locales.
+void gw_test_fail_next_set(void);
+#endif
