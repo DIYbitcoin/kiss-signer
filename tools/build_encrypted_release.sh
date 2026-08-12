@@ -380,6 +380,17 @@ PY
 )
 N_FILES=$(printf '%s\n' "$FLASH_LINES" | wc -l | tr -d ' ')
 
+# The comment above the signing step promises the recipe is suppressed for an
+# unsigned build, and until now it was not: everything below describes flashing
+# and fuse-burning a board with an image no card can ever update. Stop here,
+# plainly, before either recipe prints.
+if [ -n "${KISS_UNSIGNED:-}" ]; then
+  echo
+  echo "unsigned build: no flash or eFuse recipe. This image is for hash"
+  echo "comparison only and must never be burned onto a board."
+  exit 0
+fi
+
 if [ "$RECIPE" = rehearsal ]; then
 cat <<EOF
 

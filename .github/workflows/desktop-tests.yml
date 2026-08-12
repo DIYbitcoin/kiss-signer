@@ -193,6 +193,41 @@ jobs:
             || { echo "FAIL  kiss_signer_pgp.asc is not $want"; exit 1; }
           echo "PASS: committed firmware matches release.json and the signed SHA256SUMS"
 
+      # Every SHA256SUMS line must VERIFY with the standard tool, run the way
+      # the README tells users to run it. The old annotated format parsed fine
+      # here and verified nothing: to sha256sum -c the annotation is part of
+      # the filename, and --ignore-missing skipped every such line with exit 0
+      # on every release since the format shipped. Files are staged flat, the
+      # way a release download folder looks, and the OK count closes the
+      # skipped-line hole. Annotated lines from the last pre-fix release are
+      # warned and excluded until the next release regenerates the file (its
+      # generator can no longer emit them, and make_web_release.sh hard-fails
+      # at release time if one ever comes back); bare lines get no mercy.
+      - name: SHA256SUMS verifies line for line
+        run: |
+          set -e
+          stage=$(mktemp -d)
+          bare=0
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            if [ "$(echo "$line" | awk '{print NF}')" -gt 2 ]; then
+              echo "WARN: legacy annotated line, unverifiable, excluded: $line"
+              continue
+            fi
+            file=$(echo "$line" | awk '{print $2}')
+            src=$(find docs/installer -name "$file" -type f | head -1)
+            [ -n "$src" ] || { echo "FAIL: SHA256SUMS lists $file but docs/installer has no such file"; exit 1; }
+            cp "$src" "$stage/"
+            echo "$line" >> "$stage/SHA256SUMS"
+            bare=$((bare + 1))
+          done < docs/installer/SHA256SUMS
+          [ "$bare" -gt 0 ] || { echo "FAIL: SHA256SUMS has no verifiable lines at all"; exit 1; }
+          cd "$stage"
+          sha256sum -c SHA256SUMS
+          ok=$(sha256sum -c SHA256SUMS | grep -c ': OK$')
+          [ "$ok" = "$bare" ] || { echo "FAIL: $bare verifiable lines, only $ok verified"; exit 1; }
+          echo "PASS: all $ok verifiable SHA256SUMS lines check out"
+
       # The offline installer zip is built at release time and never in CI, and
       # the page inside it is never loaded here, so a new <img> on docs/index.html
       # would ship a bundle with a hole in it and every other check would stay

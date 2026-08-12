@@ -160,9 +160,15 @@ files, and a flash dump check. See
 
 Worth being precise here, because the usual answer is misleading.
 
-**On an encrypted final device it comes for free.** Flash encryption in RELEASE
-mode disables serial reflashing outright. A device that cannot be reflashed
-cannot be downgraded. That is stronger than a version counter.
+**On an encrypted final device the serial path closes; the SD path stays.**
+Flash encryption in RELEASE mode disables serial reflashing outright. What it
+does not close is the SD updater, which deliberately offers OLDER signed
+images behind a warning (`WFW_ERR_OLDER` in `main/kiss_fw.h` -- a silent
+refusal that falls back to an old image would be worse than an offer the owner
+can read). So a downgrade on an encrypted device is possible, is gated by the
+owner's judgement rather than by hardware, and the SD updater is in fact the
+ONLY remaining firmware path on that device -- which makes the visibility work
+below more important there, not less.
 
 **On a normal beta device, no counter would help yet.** ESP-IDF's anti rollback
 feature stores a security version in eFuse and has the bootloader refuse older
