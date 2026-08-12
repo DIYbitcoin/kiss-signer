@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "nada é desenhado enquanto a flash é escrita. a luz a subir até ao máximo é o progresso.",
   "G_FW_OK_T": "FIRMWARE SUBSTITUÍDO",
   "G_FW_OK_B": "reinicia para o usar.\n\no antigo fica na outra metade até o novo arrancar uma vez.",
+  "G_TOUCH_DEAD": "o ecrã tátil não responde. desligue e volte a ligar.",
   "G_FW_RESTART": "REINICIAR",
   "G_FW_FAIL_T": "NÃO INSTALADO",
   "G_FW_FAIL_SIG_B": "a assinatura não era válida.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
