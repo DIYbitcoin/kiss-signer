@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "signera något utan dig",
   "N_NOTHING_SIGNED": "en osignerad transaktion kan inte flytta mynt. du kollar varje belopp nu, och din signatur är det som gör den giltig.",
   "N_OR_SD": "eller använd FRÅN SD KORT i stället",
+  "N_TOO_BIG": "för stor",
   "N_PSBT_T": "OSIGNERAD TRANSAKTION",
   "N_PSBT_B": "din app har byggt en bitcoin transaktion: vilka mynt som spenderas, vart de går, och avgiften. den har ingen signatur än, så nätverket tar inte emot den.\n\ndet fullständiga namnet är partially signed bitcoin transaction, eller PSBT. andra plånböcker använder samma ord.\n\nbara dina nycklar kan signera den, och de finns bara här. skanningen ger dig alltså en transaktion att läsa, och signeringen är ett eget beslut på nästa skärm.",
   "N_STARTING": "startar kameran...",
