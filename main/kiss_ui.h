@@ -40,6 +40,14 @@ void kiss_ui_set_last_fp(const uint8_t fp[4]);
 // cannot derive its own would show the previous keys' fingerprint.
 void kiss_ui_forget_fp(void);
 
+// The secret-idle deadline's action: wipe the typed passphrase, never the
+// flow. Setup mode, the staged seed and the screen stack survive; only the
+// entries and any screen DERIVED from them expire -- the fingerprint screen
+// drops back to the keyboard, because TAP TO OPEN there commits with
+// whatever s_pass holds, and after a wipe that is an empty passphrase under
+// a stale fingerprint.
+void kiss_ui_idle_wipe(void);
+
 // Register the LVGL pointer indev if not yet present (the setup wizard can run
 // before the first login and needs touch too).
 void kiss_ui_ensure_indev(void);
