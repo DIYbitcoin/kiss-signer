@@ -12,7 +12,7 @@ WALLY=components/libwally-core
 # tests compare a candidate image against the version this build claims to be,
 # so a placeholder here would test the placeholder.
 VER=$(head -1 VERSION)
-clang -O1 -w \
+clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations \
   -DNDEBUG=1 -DBUILD_MINIMAL=1 -DECMULT_WINDOW_SIZE=8 \
   -DKISS_ROOT="\"$PWD\"" \
   -DKISS_VERSION_STR="\"$VER\"" \

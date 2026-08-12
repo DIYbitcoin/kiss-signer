@@ -986,12 +986,16 @@ static void press_str(int key)
 // no word to sit on, so anywhere on the panel has to work.
 static void mark_line(void)  { for (int i = 0; i <= 10; i++) { touch(200 + i * 20, 400); pump(1); } release(); pump(2); }
 static void mark_slash(void) { for (int i = 0; i <= 10; i++) { touch(180 + i * 18, 120 + i * 18); pump(1); } release(); pump(2); }
-static void mark_check(void) {
+// Kept beside the two marks the walk draws: the free-mark vocabulary is the
+// set a duress stroke can be drawn from, and a stop that needs a different
+// shape should reach for one of these rather than invent a fourth. Unused
+// today, and said so out loud now that these builds carry -Wall -Wextra.
+__attribute__((unused)) static void mark_check(void) {
   for (int i = 0; i <= 4; i++) { touch(300 + i * 10, 200 + i * 20); pump(1); }
   for (int i = 1; i <= 6; i++) { touch(340 + i * 15, 280 - i * 25); pump(1); }
   release(); pump(2);
 }
-static void mark_circle(void) {
+__attribute__((unused)) static void mark_circle(void) {
   static const int cx[] = {300,420,420,300,180,180,298};
   static const int cy[] = {140,200,300,360,300,200,143};
   for (unsigned i = 0; i < sizeof cx / sizeof cx[0]; i++) {
@@ -2956,17 +2960,6 @@ int main(void) {
   platform_sd_test_set_present(1);
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
 
-  // LVGL heap watermark: the pool is only 128K (matches the device), and a
-  // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
-  // eye on max_used whenever screens/labels are added (the i18n picker was
-  // the first thing to blow the old 64K pool).
-  {
-    lv_mem_monitor_t mon;
-    lv_mem_monitor(&mon);
-    printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
-           (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
-           (unsigned)mon.max_used, (unsigned)mon.frag_pct);
-  }
   // A sign screen that was replaced without being deleted stays parented under
   // its replacement, invisible, until a BACK peels the top one off and drops
   // the owner back on a transaction they already left. No saved frame shows it
@@ -3055,6 +3048,24 @@ int main(void) {
       int m = wt_sim_built(b, (int)(sizeof b / sizeof b[0]));
       for (int i = 0; i < m; i++) printf("BUILT\t%s\n", wt_sim_title_key(b[i]));
     }
+  }
+
+  // LVGL heap watermark, at the END of the walk. The pool is 128K (matching
+  // the device), and a failed lv_malloc during rendering is an LVGL assert,
+  // which on the device is an infinite loop -- the i18n picker was the first
+  // thing to blow the old 64K pool. This sample used to sit mid-walk, before
+  // the firmware auto-lock teardown checks and the orphaned-screen count, so
+  // it under-reported the peak by every screen those built.
+  //
+  // max_used is a true high-water mark. frag_pct is NOT: it is computed at
+  // call time, so it says only how the pool looked at this instant, which is
+  // why run_overlapcheck.sh ratchets the first and ignores the second.
+  {
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
+           (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
+           (unsigned)mon.max_used, (unsigned)mon.frag_pct);
   }
 
   printf("sim done\n");
