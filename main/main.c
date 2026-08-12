@@ -547,10 +547,28 @@ static lv_display_t *display_start(void) {
   ESP_ERROR_CHECK(esp_timer_start_periodic(tick, 2000));   // 2 ms LVGL tick
 
   lv_display_t *disp = lv_display_create(SCREEN_W, SCREEN_H);
+  if (!disp) {
+    ESP_LOGE(TAG, "lv_display_create failed");
+    abort();                       // a panic reboots into last-known-good;
+  }                                // LVGL's own fallback is a silent while(1)
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
   size_t bufsz = (size_t)SCREEN_W * 48 * 2;                  // 48-line partial buffers
+  // Same treatment as s_rotbuf below, for the same reason: these are the FIRST
+  // two 75KB internal allocations of the three, and they were the unchecked
+  // ones -- LVGL asserts on a NULL buffer with logging compiled out, which on
+  // this board is a silent hang, and a hang on an update's first boot strands
+  // the user on the broken image where a panic would roll back. PSRAM is fine
+  // as a render target here: rot_flush copies into s_rotbuf before DMA, and
+  // 64-byte alignment satisfies lv_draw_buf_align.
   void *b1 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   void *b2 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!b1) b1 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
+  if (!b2) b2 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
+  if (!b1 || !b2) {
+    ESP_LOGE(TAG, "display buffers: %u bytes x2 unavailable in any heap",
+             (unsigned)bufsz);
+    abort();
+  }
   // DMA source for the rotated region. This is the THIRD 75KB allocation in a
   // row -- b1, b2, then this -- out of roughly 340KB of internal RAM, and it
   // was unchecked. When it finally came back NULL the first flush stored to
@@ -1789,6 +1807,37 @@ static void fp_card_open(void) {
 //
 // One row per screen that can be over the wallet, because keeping the same
 // facts in three hand-maintained lists is what has now failed twice. The
+// A dead touch panel is invisible: the screen draws perfectly and ignores
+// every finger, and nothing on it says so. Worn by the game cover in the
+// game's own voice -- a hardware complaint reveals nothing about what else
+// this box is -- with the one instruction that always applies here: replug
+// (this board never boots off a USB reset, so replug IS the restart). On an
+// update's first boot the withheld mark_valid turns that same replug into
+// the rollback that brings back the firmware whose touch worked.
+// Returns the label so the walk can photograph it and take it back down.
+// A chip, not a line of text: this sits on the game's artwork, where bare
+// amber words are unreadable and unframed (kit rule 1). wt_state_chip is the
+// same framed mark Settings and the words page wear for a status fact, and it
+// self sizes, so 21 locales need no geometry here.
+lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent)
+{
+  lv_obj_t *chip = wt_state_chip(parent,
+                                 tr_sym(LV_SYMBOL_WARNING, STR_G_TOUCH_DEAD),
+                                 WT_WARN);
+  // Opaque, unlike everywhere else the chip is used: those sit on a screen
+  // background, this sits on the game's artwork, and the kit's translucent
+  // fill let a palm tree through the middle of the sentence.
+  lv_obj_set_style_bg_color(chip, lv_color_hex(0x0B0D12), 0);
+  lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+  lv_obj_update_layout(chip);
+  // Bottom edge, not the top: the top is where the game's own title art is,
+  // and the fault does not get to cover the cover story.
+  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2,
+                 SCREEN_H - lv_obj_get_height(chip) - 12);
+  lv_obj_move_foreground(chip);
+  return chip;
+}
+
 // firmware screen was in NEITHER the auto-lock list nor the touch owner list,
 // which is how the idle lock left it lit with RECOVERY WORDS two taps away.
 // kiss_word_ui was missing from the touch owner list before it, so the game's
@@ -2737,6 +2786,9 @@ void app_main(void) {
   kiss_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+  // The one symptom of the GT911 not coming up is a device that ignores you;
+  // say it instead. s_menu_panel exists as of build_game.
+  if (!s_touch) kiss_touch_dead_banner(s_menu_panel);
 
   // Release the slot that was running before an SD update, now that this
   // firmware has proved the parts a bad image would take out: the crypto
@@ -2760,11 +2812,20 @@ void app_main(void) {
   // And the selftest is a gate now, not a log line. Both of these decide
   // whether the PREVIOUS firmware gets to come back, which is the only thing
   // that can save a unit whose new image cannot draw or cannot sign.
-  if (src == 0) {
+  // Touch is the third gate, beside drawing and signing. touch_start returns
+  // silently on a dead GT911 or a dead I2C bus, the screen keeps looking
+  // perfect, and a slot confirmed in that state is a signer nobody can ever
+  // drive -- with the rollback that would have undone it already cancelled.
+  // Init success only, deliberately NOT a touch event: waiting for a finger
+  // re-creates the walk-away revert the comment above rules out.
+  if (src == 0 && s_touch != NULL) {
     kiss_fw_mark_valid();
-  } else {
+  } else if (src != 0) {
     ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
                   "trial so a reboot returns the firmware that worked", src);
+  } else {
+    ESP_LOGE(TAG, "touch never came up: leaving this slot on trial so a "
+                  "reboot returns the firmware that worked");
   }
 
   while (1) {           // single-threaded LVGL loop (we own the display + flush)
