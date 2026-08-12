@@ -1555,7 +1555,7 @@ int main(void) {
       // Five untouched minutes of transcription must not tear it down: the
       // registered kiss_info close would delete the one screen naming the
       // words, and the lock would strand the last copy in silent RAM.
-      touch(198, 430); pump(3); release(); pump(12); // SHOW WORDS
+      tap_str(STR_I_SHOW_WORDS, 3, 12);              // SHOW WORDS
       if (!kiss_info_active()) {
         printf("FAIL: SHOW WORDS did not open the words screen\n");
         g_walk_fails++;
@@ -1566,13 +1566,37 @@ int main(void) {
                "recover; the staged copy is stranded\n");
         g_walk_fails++;
       } else {
-        touch(118, 430); pump(3); release(); pump(20); // BACK -> recover again
+        tap_str(STR_C_BACK, 3, 20);                    // BACK -> recover again
         must_show("recover/back", tr(STR_L_RECOVER_T));
       }
 
       kiss_ui_test_recover_close();
       pump(40);
       printf("ok: the recover screen owns the glass and the clock\n");
+    }
+
+    // ---- the deadline on an ordinary login, fingerprint screen up ----
+    //
+    // TAP TO OPEN commits with whatever s_pass holds. A wipe that left the
+    // fingerprint screen standing would let that tap open a wallet derived
+    // from an EMPTY passphrase under a fingerprint computed from the typed
+    // one -- so expiry has to drop the screen back to the keyboard, and the
+    // tap that would have opened lands on keys instead.
+    {
+      lock_to_menu();
+      pump(200);
+      draw_cover_underlined();
+      touch(46, 278);  pump(3); release(); pump(3);   // 'a'
+      touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
+      pump(8200);                                     // 131s; nobody confirms
+      must_not_show("idle-wipe/fp", tr(STR_L_TAP_TO_OPEN));
+      must_show("idle-wipe/fp-prompt", tr(STR_L_TYPE_PROMPT));
+      touch(46, 278);  pump(3); release(); pump(3);   // 'a', typed fresh
+      touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);              // TAP TO OPEN -> home
+      pump(120);
+      printf("ok: the idle deadline wipes the entry and drops the "
+             "fingerprint screen\n");
     }
 
     // ---- a word with MORE strokes than the budget, end to end ----
@@ -2538,6 +2562,17 @@ int main(void) {
   touch(725, 430); pump(3); release(); pump(4);     // OK -> the card again
   touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> confirm stage
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
+  // The secret-idle deadline, mid type-twice. TYPE IT AGAIN is holding entry
+  // #1 in RAM; two untouched minutes must wipe both entries and put the
+  // caption back to the first stage -- and must touch NOTHING else: the
+  // staged seed and setup mode survive, and the type-twice below commits the
+  // same wallet, which every stop after this one depends on.
+  pump(8200);                                       // 131s > 120s, untouched
+  must_show("idle-wipe/stage1", tr(STR_L_CREATE_YOUR_PASS));
+  must_show("idle-wipe/prompt", tr(STR_L_TYPE_PROMPT));
+  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1 again
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning again
+  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> passphrase warning

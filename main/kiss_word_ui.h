@@ -19,3 +19,7 @@ void kiss_word_ui_open(lv_obj_t *parent, void (*done_cb)(void));
 // game loop knows the touch panel is not its own. Same contract as
 // kiss_duress_ui_active.
 bool kiss_word_ui_active(void);
+
+// The lock's close: screen and pending done callback both dropped, nothing
+// handed back. For the idle deadline only -- BACK TO KISS keeps its own path.
+void kiss_word_ui_lock_close(void);

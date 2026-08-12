@@ -143,6 +143,17 @@ static void close_all(void)
     for (int i = 0; i < DSTROKES; i++) s_line[i] = NULL;
 }
 
+// The lock's close: the screen goes and the pending done callback goes with
+// it. Modeled on kiss_fw_ui_close -- an idle expiry is the lock taking the
+// screen away, not a return from it, and a done fired by a teardown is how a
+// locked device once rebuilt Settings with RECOVERY WORDS one row in.
+void kiss_word_ui_lock_close(void)
+{
+    s_done = NULL;
+    s_pending = -1;
+    close_all();
+}
+
 static void finish(void)
 {
     close_all();

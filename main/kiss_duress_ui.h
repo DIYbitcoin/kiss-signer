@@ -22,3 +22,7 @@ void kiss_duress_ui_open_nopass(lv_obj_t *parent, void (*done_cb)(void));
 
 // True while these screens own the touch input (the game must not also see it).
 bool kiss_duress_ui_active(void);
+
+// The lock's close: screen and pending done callback both dropped, nothing
+// handed back. For the idle deadline only.
+void kiss_duress_ui_lock_close(void);
