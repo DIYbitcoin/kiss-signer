@@ -4,14 +4,8 @@
 #include "kiss_sp.h"
 
 #include <string.h>
+#include "kiss_wipe.h"
 
-// Available in both the device and lightweight simulator builds. Volatile
-// stores keep the compiler from removing wipes of dead stack buffers.
-static void sp_bzero(void *ptr, size_t len)
-{
-    volatile uint8_t *p = (volatile uint8_t *)ptr;
-    while (len--) *p++ = 0;
-}
 
 // ---- bech32m (encode-only) -------------------------------------------------
 // libwally's bech32 is segwit-address shaped (90-char cap), while BIP352
@@ -125,8 +119,8 @@ int sp_receive_keys(const struct ext_key *master, bool testnet,
 out:
     wally_bzero(&k, sizeof k);
     if (ret != 0) {
-        sp_bzero(scan_pub33, 33);
-        sp_bzero(spend_pub33, 33);
+        kiss_wipe(scan_pub33, 33);
+        kiss_wipe(spend_pub33, 33);
     }
     return ret;
 }
@@ -153,8 +147,8 @@ int sp_scan_export_keys(const struct ext_key *master, bool testnet,
 out:
     wally_bzero(&k, sizeof k);
     if (ret != 0) {
-        sp_bzero(scan_priv32, 32);
-        sp_bzero(spend_pub33, 33);
+        kiss_wipe(scan_priv32, 32);
+        kiss_wipe(spend_pub33, 33);
     }
     return ret;
 }
@@ -176,7 +170,7 @@ int sp_spend_privkey(const struct ext_key *master, bool testnet,
 out:
     wally_bzero(&k, sizeof k);
     if (ret != 0)
-        sp_bzero(spend_priv32, 32);
+        kiss_wipe(spend_priv32, 32);
     return ret;
 }
 
@@ -206,9 +200,9 @@ static void sp_tagged_hash(const char *tag, const uint8_t *msg, size_t msg_len,
     // largest caller: the DLEQ challenge at 6*33+32 = 230 bytes
     uint8_t th[32], buf[64 + 256];
     if (msg_len > 256) {
-        sp_bzero(out32, 32);
-        sp_bzero(th, sizeof th);
-        sp_bzero(buf, sizeof buf);
+        kiss_wipe(out32, 32);
+        kiss_wipe(th, sizeof th);
+        kiss_wipe(buf, sizeof buf);
         return;
     }
     wally_sha256((const uint8_t *)tag, strlen(tag), th, 32);
@@ -216,8 +210,8 @@ static void sp_tagged_hash(const char *tag, const uint8_t *msg, size_t msg_len,
     memcpy(buf + 32, th, 32);
     memcpy(buf + 64, msg, msg_len);
     wally_sha256(buf, 64 + msg_len, out32, 32);
-    sp_bzero(th, sizeof th);
-    sp_bzero(buf, sizeof buf);
+    kiss_wipe(th, sizeof th);
+    kiss_wipe(buf, sizeof buf);
 }
 
 int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
@@ -251,7 +245,7 @@ int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
             // k is a verified scalar in [1, n), so the only way this fails is
             // sum + k == 0 (mod n). BIP352 permits an intermediate zero and
             // rejects only a zero FINAL sum, so carry the zero and continue.
-            sp_bzero(sum, sizeof sum);
+            kiss_wipe(sum, sizeof sum);
             sum_zero = true;
         }
     }
@@ -269,12 +263,12 @@ int sp_sum_privkeys(const uint8_t *privs32, const bool *is_xonly, size_t n,
     memcpy(a_sum32, sum, 32);
     ret = 0;
 out:
-    sp_bzero(sum, sizeof sum);
-    sp_bzero(k, sizeof k);
-    sp_bzero(ser, sizeof ser);
+    kiss_wipe(sum, sizeof sum);
+    kiss_wipe(k, sizeof k);
+    kiss_wipe(ser, sizeof ser);
     if (ret != 0) {
-        sp_bzero(a_sum32, 32);
-        sp_bzero(a_sum_pub33, 33);
+        kiss_wipe(a_sum32, 32);
+        kiss_wipe(a_sum_pub33, 33);
     }
     return ret;
 }
@@ -373,10 +367,10 @@ int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
     }
     ret = 0;
 out:
-    sp_bzero(adjusted, sizeof adjusted);
-    sp_bzero(msg, sizeof msg);
-    sp_bzero(t_k, sizeof t_k);
-    sp_bzero(ser, sizeof ser);
+    kiss_wipe(adjusted, sizeof adjusted);
+    kiss_wipe(msg, sizeof msg);
+    kiss_wipe(t_k, sizeof t_k);
+    kiss_wipe(ser, sizeof ser);
     return ret;
 }
 // ---- BIP374 DLEQ ----------------------------------------------------------
@@ -535,18 +529,18 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
     }
     ret = 0;
 out:
-    sp_bzero(A, sizeof A);
-    sp_bzero(C, sizeof C);
-    sp_bzero(aux_h, sizeof aux_h);
-    sp_bzero(t, sizeof t);
-    sp_bzero(nmsg, sizeof nmsg);
-    sp_bzero(k, sizeof k);
-    sp_bzero(R1, sizeof R1);
-    sp_bzero(R2, sizeof R2);
-    sp_bzero(e, sizeof e);
-    sp_bzero(s, sizeof s);
-    sp_bzero(ea, sizeof ea);
-    if (ret != 0) sp_bzero(proof64, 64);
+    kiss_wipe(A, sizeof A);
+    kiss_wipe(C, sizeof C);
+    kiss_wipe(aux_h, sizeof aux_h);
+    kiss_wipe(t, sizeof t);
+    kiss_wipe(nmsg, sizeof nmsg);
+    kiss_wipe(k, sizeof k);
+    kiss_wipe(R1, sizeof R1);
+    kiss_wipe(R2, sizeof R2);
+    kiss_wipe(e, sizeof e);
+    kiss_wipe(s, sizeof s);
+    kiss_wipe(ea, sizeof ea);
+    if (ret != 0) kiss_wipe(proof64, 64);
     return ret;
 }
 
@@ -616,9 +610,9 @@ int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[3
     memcpy(d_out32, d, 32);
     ret = 0;
 out:
-    sp_bzero(d, sizeof d);
+    kiss_wipe(d, sizeof d);
     if (ret != 0)
-        sp_bzero(d_out32, 32);
+        kiss_wipe(d_out32, 32);
     return ret;
 }
 
@@ -685,7 +679,7 @@ static int b32m_v0(const char *hrp, const uint8_t *payload, size_t plen,
 {
     uint8_t data[1 + 128];                       // 65B payload -> 104 groups
     if (1 + (plen * 8 + 4) / 5 > sizeof data) {
-        sp_bzero(data, sizeof data);
+        kiss_wipe(data, sizeof data);
         return -1;
     }
     size_t n = 0;
@@ -702,7 +696,7 @@ static int b32m_v0(const char *hrp, const uint8_t *payload, size_t plen,
     }
     if (bits) data[n++] = (acc << (5 - bits)) & 0x1f;
     int rc = b32m_encode(hrp, data, n, out, cap);
-    sp_bzero(data, sizeof data);
+    kiss_wipe(data, sizeof data);
     return rc;
 }
 
@@ -722,6 +716,6 @@ int sp_scan_encode(const uint8_t scan_priv32[32], const uint8_t spend_pub33[33],
     memcpy(payload, scan_priv32, 32);
     memcpy(payload + 32, spend_pub33, 33);
     int rc = b32m_v0(testnet ? "tspscan" : "spscan", payload, sizeof payload, out, cap);
-    sp_bzero(payload, sizeof payload);           // carries the scan private key
+    kiss_wipe(payload, sizeof payload);           // carries the scan private key
     return rc;
 }

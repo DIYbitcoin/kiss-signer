@@ -2682,6 +2682,12 @@ int main(void) {
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
+  // The ink itself, mid-enrolment and before DONE clears it. The strokes now
+  // share one point pool with a per-stroke offset instead of a 12x384
+  // rectangle, and a pool wired up wrong draws the right number of lines from
+  // the wrong slices -- which every later frame here would still call correct,
+  // because they photograph screens the ink is already gone from.
+  save("/tmp/sim_gword_ink.ppm");                  // multi-stroke ink, as drawn
   tap_str(STR_GD_WORD_DONE, 3, 8);     // DONE (492..752) -> once more
   save("/tmp/sim_gword_again.ppm");                 // ONCE MORE, field cleared
   draw_own_letters();
