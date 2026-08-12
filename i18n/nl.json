@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "iets ondertekenen zonder jou",
   "N_NOTHING_SIGNED": "een niet ondertekende transactie kan geen coins verplaatsen. je checkt zo elk bedrag, en pas jouw handtekening maakt hem geldig.",
   "N_OR_SD": "of gebruik VAN SD KAART",
+  "N_TOO_BIG": "te groot",
   "N_PSBT_T": "NIET ONDERTEKENDE TRANSACTIE",
   "N_PSBT_B": "je app heeft een bitcoin transactie gebouwd: welke coins uitgegeven worden, waar ze heen gaan, en de fee. hij heeft nog geen handtekening, dus het netwerk accepteert hem niet.\n\nde volledige naam is partially signed bitcoin transaction, of PSBT. andere wallets gebruiken hetzelfde woord.\n\nalleen jouw sleutels kunnen tekenen, en die staan alleen hier. scannen brengt je dus een transactie om te lezen, en tekenen is een aparte keuze op het volgende scherm.",
   "N_STARTING": "camera start...",

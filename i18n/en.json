@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "sign anything without you",
   "N_NOTHING_SIGNED": "an unsigned transaction cannot move coins. you check every amount next, and your signature is what makes it spendable.",
   "N_OR_SD": "or use FROM SD CARD instead",
+  "N_TOO_BIG": "too big",
   "N_PSBT_T": "UNSIGNED TRANSACTION",
   "N_PSBT_B": "your coordinator built a bitcoin transaction: which coins to spend, where they go, and the fee. it has no signature yet, so the network will not accept it.\n\nthe full name is a partially signed bitcoin transaction, or PSBT. other wallets use the same word.\n\nonly your keys can sign it, and they only live here. so scanning brings you a transaction to read, and signing is a separate decision you make on the next screen.",
   "N_STARTING": "starting camera...",

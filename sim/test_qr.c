@@ -76,6 +76,68 @@ static int read_ur_lines(const char *path, char **out, int max) {
 // good, the CBOR parses, the seq numbers agree with the URI path. Only the
 // three numbers read together are a lie, which is why this is tested here and
 // not at the parser.
+// A pMofN set is bounded by the BYTES it carries, not only by how many parts
+// it names. The parser counted parts alone, so 64 QRs of any size each were
+// each strndup'd into heap while the camera streamed, and the total was
+// refused only at assemble time -- after the memory had been spent. These
+// pin the refusal at feed time, and pin that a refused parser stays refused
+// until it is reset (its held parts belong to a set it will never finish).
+static void qr_test_pmofn_bounds(void) {
+    const size_t cap_b64 = (size_t)QRT_MAX_PSBT * 4 / 3 + 8;
+
+    {   // one part larger than the whole budget: refused on its own
+        qrt_parser_t *p = qrt_parser_new();
+        char *big = malloc(cap_b64 + 64);
+        if (!p || !big) { qchkb("pmofn bounds allocs", 0); free(big); qrt_parser_free(p); return; }
+        memset(big, 'A', cap_b64 + 63);
+        memcpy(big, "p1of4 ", 6);
+        big[cap_b64 + 63] = 0;
+        qchki("qr pMofN oversize part refused", qrt_parser_feed(p, big, strlen(big)),
+              QRT_FEED_TOO_BIG);
+        qchki("qr pMofN nothing kept", qrt_parser_seen(p), 0);
+        // and it stays refused: a later, perfectly ordinary part must not be
+        // folded into the set it half-holds
+        qchki("qr pMofN latched", qrt_parser_feed(p, "p2of4 QUJD", 10),
+              QRT_FEED_TOO_BIG);
+        qrt_parser_reset(p);
+        qchki("qr pMofN reset clears the latch", qrt_parser_feed(p, "p2of4 QUJD", 10), 0);
+        free(big);
+        qrt_parser_free(p);
+    }
+
+    {   // parts each well inside the budget, together past it
+        qrt_parser_t *p = qrt_parser_new();
+        size_t chunk = cap_b64 / 3;
+        char *part = malloc(chunk + 16);
+        if (!p || !part) { qchkb("pmofn sum allocs", 0); free(part); qrt_parser_free(p); return; }
+        int rc = 0, accepted = 0;
+        for (int i = 1; i <= 4 && rc == 0; i++) {
+            snprintf(part, 16, "p%dof4 ", i);
+            size_t hlen = strlen(part);
+            memset(part + hlen, 'A', chunk);
+            part[hlen + chunk] = 0;
+            rc = qrt_parser_feed(p, part, hlen + chunk);
+            if (rc == 0) accepted++;
+        }
+        qchki("qr pMofN sum refused before the set completes", rc, QRT_FEED_TOO_BIG);
+        qchkb("qr pMofN sum refused before assembly", accepted < 4);
+        free(part);
+        qrt_parser_free(p);
+    }
+
+    {   // a static binary PSBT past the cap answers TOO_BIG, not "unknown QR"
+        qrt_parser_t *p = qrt_parser_new();
+        size_t n = QRT_MAX_PSBT + 64;
+        char *raw = malloc(n);
+        if (!p || !raw) { qchkb("static bounds allocs", 0); free(raw); qrt_parser_free(p); return; }
+        memset(raw, 0x5A, n);
+        memcpy(raw, "psbt\xff", 5);
+        qchki("qr static oversize refused", qrt_parser_feed(p, raw, n), QRT_FEED_TOO_BIG);
+        free(raw);
+        qrt_parser_free(p);
+    }
+}
+
 static void qr_test_hostile_header(void) {
     const size_t body_len = 10;
 
@@ -394,6 +456,7 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     qr_test_alpha_bounds();
     qr_test_version_tables();
     qr_test_hostile_header();
+    qr_test_pmofn_bounds();
     qr_test_prng_range();
 
     wally_free_string(b64);

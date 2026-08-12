@@ -185,6 +185,19 @@ static void feed(const char *data, size_t len)
     if (!s_parser) return;
     int rc = qrt_parser_feed(s_parser, data, len);
     int seen = qrt_parser_seen(s_parser), total = qrt_parser_total(s_parser);
+    // Too large to hold is a fact about THIS transfer, not a stray QR in
+    // frame, and the difference is what the owner sees: an ignored code
+    // leaves the counter sitting there forever with no explanation, which is
+    // what a refused set used to look like. Say it, and drop the parts
+    // already held so nothing is kept from a set that will never finish.
+    // No hint: the way through is FROM SD CARD, and the action row under
+    // this box already says so.
+    if (rc == QRT_FEED_TOO_BIG) {
+        SCAN_LOG("REFUSED: transfer larger than %u bytes", (unsigned)QRT_MAX_PSBT);
+        qrt_parser_reset(s_parser);
+        if (s_prog) scan_status(tr(STR_N_TOO_BIG), "");
+        return;
+    }
     if (rc != 0) {                             // some other QR in view: ignore
 #ifdef ESP_PLATFORM
         // Rate-limited: an unrecognised code sits in frame at ~10 decodes a
