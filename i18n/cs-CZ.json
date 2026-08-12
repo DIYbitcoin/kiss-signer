@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "během zápisu do flash se nic nekreslí. světlo stoupající zpět na plnou je postup.",
   "G_FW_OK_T": "FIRMWARE VYMĚNĚN",
   "G_FW_OK_B": "restartuj pro spuštění.\n\nstarý zůstává v druhé polovině, dokud nový jednou nenastartuje.",
+  "G_TOUCH_DEAD": "dotyková obrazovka neodpovídá. odpojte a znovu připojte.",
   "G_FW_RESTART": "RESTARTOVAT",
   "G_FW_FAIL_T": "NENAINSTALOVÁNO",
   "G_FW_FAIL_SIG_B": "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",

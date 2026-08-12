@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "ingenting tegnes mens flashen skrives. lyset som klatrer tilbake til fullt er fremdriften.",
   "G_FW_OK_T": "FASTVARE BYTTET",
   "G_FW_OK_B": "start på nytt for å kjøre den.\n\nden gamle blir i den andre halvdelen til den nye har startet én gang.",
+  "G_TOUCH_DEAD": "berøringsskjermen svarer ikke. koble fra og koble til igjen.",
   "G_FW_RESTART": "START PÅ NYTT",
   "G_FW_FAIL_T": "IKKE INSTALLERT",
   "G_FW_FAIL_SIG_B": "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",

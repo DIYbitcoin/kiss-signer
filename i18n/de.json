@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "während der Flash beschrieben wird, wird nichts gezeichnet. das Licht, das wieder auf voll steigt, ist der Fortschritt.",
   "G_FW_OK_T": "FIRMWARE ERSETZT",
   "G_FW_OK_B": "neu starten zum Ausführen.\n\ndie alte Firmware bleibt in der anderen Hälfte, bis die neue einmal gestartet ist.",
+  "G_TOUCH_DEAD": "der touchscreen reagiert nicht. ausstecken und wieder einstecken.",
   "G_FW_RESTART": "NEU STARTEN",
   "G_FW_FAIL_T": "NICHT INSTALLIERT",
   "G_FW_FAIL_SIG_B": "die Signatur stimmte nicht.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",

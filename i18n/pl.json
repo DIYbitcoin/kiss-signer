@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "nic nie jest rysowane podczas zapisu pamięci flash. światło wracające do pełni to postęp.",
   "G_FW_OK_T": "FIRMWARE WYMIENIONY",
   "G_FW_OK_B": "uruchom ponownie, aby go użyć.\n\nstary zostaje w drugiej połowie, aż nowy raz wystartuje.",
+  "G_TOUCH_DEAD": "ekran dotykowy nie odpowiada. odłącz i podłącz ponownie.",
   "G_FW_RESTART": "URUCHOM PONOWNIE",
   "G_FW_FAIL_T": "NIE ZAINSTALOWANO",
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",

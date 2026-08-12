@@ -622,6 +622,7 @@ enum {
     STR_G_FW_DARK_B,
     STR_G_FW_OK_T,
     STR_G_FW_OK_B,
+    STR_G_TOUCH_DEAD,
     STR_G_FW_RESTART,
     STR_G_FW_FAIL_T,
     STR_G_FW_FAIL_SIG_B,

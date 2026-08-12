@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "er wordt niets getekend terwijl de flash wordt geschreven. het licht dat weer naar vol klimt is de voortgang.",
   "G_FW_OK_T": "FIRMWARE VERVANGEN",
   "G_FW_OK_B": "start opnieuw om het te draaien.\n\nde oude blijft in de andere helft tot de nieuwe één keer is gestart.",
+  "G_TOUCH_DEAD": "het touchscreen reageert niet. koppel los en sluit weer aan.",
   "G_FW_RESTART": "OPNIEUW STARTEN",
   "G_FW_FAIL_T": "NIET GEÏNSTALLEERD",
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
