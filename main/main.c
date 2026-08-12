@@ -231,6 +231,8 @@ static bool s_sd_badge_live;             // SD mode + card in: game_tick breathe
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
+static uint32_t s_secret_act_t;          // secret-idle deadline: last touch on a
+static uint32_t s_secret_rows;           // deadline row, and WHICH rows those were
 #ifndef SIMULATOR
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
 #endif
@@ -1805,25 +1807,39 @@ static const struct {
   void (*close)(void);       // NULL: nothing to tear down, only to notice
   bool owns_touch;           // LVGL buttons; the game must not read the same finger
   bool holds_lock_off;       // exempt from the idle auto-lock, on purpose
+  // "Exempt" must not mean "forever" when a SECRET is idling on the glass.
+  // secret_idle_ms is that screen's own deadline; 0 is exempt and contributes
+  // NOTHING to the countdown -- never an instant expiry, or the RECOVER row
+  // below strands the last copy of a wallet, which is the bug this registry
+  // exists to prevent. idle_expire wipes the secret or drops the screen; it
+  // never fires a done callback and never touches the seed staging.
+  // idle_needs_session: the same wizard runs inside setup (nothing to lock,
+  // the staged seed lives behind it) and from Settings (session key live);
+  // the deadline only counts in the second case.
+  uint32_t secret_idle_ms;
+  bool idle_needs_session;
+  void (*idle_expire)(void);
 } SCREENS[] = {
   // Wizards and login. They own the touch AND hold the clock off: writing
   // twelve words onto paper takes minutes of a screen nobody is touching.
-  { kiss_ui_active,        NULL,                  true,  true  },
-  { kiss_setup_active,     NULL,                  true,  true  },
-  { kiss_duress_ui_active, NULL,                  true,  true  },
-  { kiss_word_ui_active,   NULL,                  true,  true  },
+  // The login is the exception that proves it: a typed passphrase is not a
+  // thing to read slowly, so it alone gets a short deadline at every stage.
+  { kiss_ui_active,        NULL,                  true,  true,  120000, false, kiss_ui_idle_wipe },
+  { kiss_setup_active,     NULL,                  true,  true,  0,      false, NULL },
+  { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  kiss_duress_ui_lock_close },
+  { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  kiss_word_ui_lock_close },
   // The commit-failed RECOVER screen, and the words screen it opens. Same
   // two trues for the same reason, plus one of its own: the staged seed it
-  // names may be the last copy anywhere, so it registers no close -- the
-  // lock must neither fire under it nor take it away.
-  { kiss_ui_recover_active, NULL,                 true,  true  },
+  // names may be the last copy anywhere, so it registers no close and no
+  // deadline -- the lock must neither fire under it nor take it away.
+  { kiss_ui_recover_active, NULL,                 true,  true,  0,      false, NULL },
   // Wallet sub-screens. They own the touch and the lock takes them away.
-  { kiss_scan_active,      kiss_scan_close,     true,  false },
-  { kiss_sign_active,      kiss_sign_close,     true,  false },
-  { kiss_recv_active,      kiss_recv_close,     true,  false },
-  { kiss_info_active,      kiss_info_close,     true,  false },
-  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false },
-  { kiss_settings_active,  kiss_settings_close, true,  false },
+  { kiss_scan_active,      kiss_scan_close,     true,  false, 0, false, NULL },
+  { kiss_sign_active,      kiss_sign_close,     true,  false, 0, false, NULL },
+  { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, NULL },
+  { kiss_info_active,      kiss_info_close,     true,  false, 0, false, NULL },
+  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, NULL },
+  { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, NULL },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
@@ -1879,6 +1895,42 @@ static void game_tick(lv_timer_t *t) {
     // VERIFY BACKUP runs the setup module DURING a session; keep the idle clock
     // fresh so finishing a long word-entry doesn't insta-lock on return.
     if (s_wallet_on && pressed) s_wallet_act_t = lv_tick_get();
+
+    // The secret-idle deadline. Held-off rows are exempt from the auto-lock on
+    // purpose, but a typed passphrase or a half-enrolled unlock word is a
+    // secret sitting on powered glass, and its row carries its own deadline.
+    // Rows at 0 contribute nothing (exempt means exempt -- a min() over the
+    // zeros would expire the RECOVER screen instantly, stranding the last copy
+    // of a wallet). The clock resets on any touch and whenever the set of
+    // deadline rows changes, so a screen never inherits the previous screen's
+    // spent minutes. Expiry runs each due row's idle_expire -- wipe or drop,
+    // never a done callback -- and then locks only a session actually open,
+    // through the same close loop the auto-lock uses.
+    uint32_t deadline = 0, rows = 0;
+    for (size_t i = 0; i < N_SCREENS; i++) {
+      if (!SCREENS[i].secret_idle_ms || !SCREENS[i].active()) continue;
+      if (SCREENS[i].idle_needs_session && !s_wallet_on) continue;
+      rows |= 1u << i;
+      if (!deadline || SCREENS[i].secret_idle_ms < deadline)
+        deadline = SCREENS[i].secret_idle_ms;
+    }
+    if (rows != s_secret_rows || pressed) {
+      s_secret_rows = rows;
+      s_secret_act_t = lv_tick_get();
+    } else if (deadline && lv_tick_elaps(s_secret_act_t) > deadline) {
+      for (size_t i = 0; i < N_SCREENS; i++)
+        if ((rows & (1u << i)) &&
+            lv_tick_elaps(s_secret_act_t) > SCREENS[i].secret_idle_ms)
+          SCREENS[i].idle_expire();
+      if (s_wallet_on) {
+        for (size_t i = 0; i < N_SCREENS; i++)
+          if (SCREENS[i].close && SCREENS[i].active())
+            SCREENS[i].close();
+        kiss_lock();
+      }
+      s_secret_act_t = lv_tick_get();
+    }
+
     s_prev_press = pressed;          // (LVGL indev); the game must not also see it
     return;                          // (and are exempt from auto-lock: writing the
   }                                  //  backup words down takes minutes, untouched)

@@ -141,6 +141,16 @@ static void close_all(void)
     s_dn = 0;
 }
 
+// The lock's close, kiss_fw_ui_close's shape: drop the screen AND the done
+// callback. One caller of this wizard is the last step of setup, with the
+// staged seed live behind it -- a done fired by a teardown must never run.
+void kiss_duress_ui_lock_close(void)
+{
+    s_done = NULL;
+    s_pending = -1;
+    close_all();
+}
+
 static void finish(void)
 {
     void (*cb)(void) = s_done;

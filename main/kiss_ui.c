@@ -846,6 +846,40 @@ static void fp_back_cb(lv_event_t *e) {
   if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
 }
 
+// The idle deadline expired with a secret on the glass. Expire the SECRET and
+// nothing else: the flow stays where it was, at its entry stage, so the owner
+// who walked away comes back to a keyboard asking again -- not to a decision
+// half made. Deliberately NOT wipe_and_close: that path discards the staged
+// seed under s_setup_mode, and on the commit-failed branch the staging is the
+// last copy of the wallet anywhere. This wipes buffers a re-type can replace.
+void kiss_ui_idle_wipe(void) {
+  if (!kiss_ui_active()) return;
+  // The fingerprint screen is derived from the passphrase being wiped: TAP TO
+  // OPEN there commits with `s_plen ? s_pass : NULL`, so leaving it standing
+  // would commit the staged seed under an EMPTY passphrase beneath a stale
+  // fingerprint. BACK's own semantics, minus the kept passphrase.
+  if (s_fpscr) {
+    lv_obj_delete_async(s_fpscr); s_fpscr = NULL;
+    if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+  }
+  memset(s_pass, 0, sizeof s_pass);
+  memset(s_first, 0, sizeof s_first);
+  s_plen = 0;
+  s_caret = 0;
+  s_first_done = false;      // stage 2 described an entry that no longer exists
+  s_show = false;
+  s_flash = false;
+  // A weak-passphrase card is a question about the entry just wiped; the
+  // cancel confirm is a question about the SETUP and survives on purpose.
+  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
+  s_weak_ack = false;
+  // s_setup_mode and s_backup_verify_pass are the FLOW and stay. The caption
+  // walks back to the stage the wipe returned the owner to.
+  if (s_login && s_cap && s_setup_mode)
+    cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
+  if (s_login && s_entry) { entry_refresh_text(); caret_refresh(); }
+}
+
 void kiss_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 
 // "rehearsed during THIS setup", which is the question the setup warning screen
