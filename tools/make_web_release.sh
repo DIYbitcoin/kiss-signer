@@ -137,6 +137,18 @@ fi
 # 1. fresh verified release build
 tools/build_release.sh
 
+# Fail closed on an unsigned app. A device can never accept it as an SD
+# update, and everything below this line -- the hash manifest, the GPG
+# signature, the install page -- would dress it up as a release anyway.
+# build_release.sh clears the marker at its start and writes it only under
+# KISS_UNSIGNED=1, so here it can only describe the build just made.
+if [ -f build-release/UNSIGNED ]; then
+    echo "FAIL: build-release/UNSIGNED exists - this build carries no signature."
+    echo "      Publishing would GPG-sign and serve an image no device accepts"
+    echo "      as an update. Build with the signing key present, then rerun."
+    exit 1
+fi
+
 VERSION=$(cat VERSION)
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
 # Clean, beginner-readable filename: just the version. The exact commit lives
@@ -152,6 +164,32 @@ mkdir -p "$OUT/firmware"
 # it over the slot the bootloader reads to choose which app to run, and publish
 # that as the one click install. manifest.json flashes this merged image at
 # offset 0, so whatever is wrong here is wrong for every web installer user.
+# The install docs promise a DIRECT esptool part flash never writes the wallet
+# area: nvs must stay a gap in flasher_args.json, not a part. (The merged image
+# below is different -- merge-bin fills gaps, so flashing it at offset 0 does
+# erase the wallet, which is what the README's warning is about.) If a part
+# ever grows into the nvs range, that promise and this check both break here,
+# loudly, instead of in a user's wallet.
+"$PY" - <<'PY'
+import csv, json, os, sys
+nvs = None
+for row in csv.reader(open("partitions.csv")):
+    if row and row[0].strip() == "nvs":
+        nvs = (int(row[3].strip(), 16), int(row[4].strip(), 16))
+        break
+if not nvs:
+    sys.exit("FAIL: partitions.csv has no nvs row")
+lo, hi = nvs[0], nvs[0] + nvs[1]
+d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+for off, f in d.items():
+    start = int(off, 16)
+    end = start + os.path.getsize("build-release/" + f)
+    if start < hi and end > lo:
+        sys.exit(f"FAIL: flash part {f} at {off} overlaps nvs "
+                 f"[{lo:#x},{hi:#x}) - a direct flash would write the wallet area")
+print(f"PASS: no flash part touches nvs [{lo:#x},{hi:#x})")
+PY
+
 MERGE_PARTS=$("$PY" - <<'PY'
 import json
 d = json.load(open("build-release/flasher_args.json"))["flash_files"]
@@ -178,6 +216,18 @@ PY
 # happens here and none should.
 UPDATE_NAME="kiss-signer-${VERSION}-update.bin"
 cp build-release/guition_kiss_bringup.bin "$OUT/firmware/$UPDATE_NAME"
+
+# Verify the PUBLISHED copy, not its source: this is the file a card gets,
+# and this check fails if signing was skipped, the cp above ever gains a
+# transform, or a later step rewrites the file in place.
+if ! uvx --from esptool espsecure verify-signature \
+     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+     "$OUT/firmware/$UPDATE_NAME" >/dev/null 2>&1; then
+  echo "FAIL: $OUT/firmware/$UPDATE_NAME does not verify against"
+  echo "      docs/installer/kiss_ota_pub.pem"
+  exit 1
+fi
+echo "PASS: $UPDATE_NAME verifies against the published public key"
 
 # The descriptor the device will look for, checked HERE rather than discovered
 # on a card. Same offset and magic as main/kiss_fw.c; a build that stops
@@ -235,26 +285,47 @@ import hashlib, os
 out = "docs/installer"
 name, update = os.environ["NAME"], os.environ["UPDATE_NAME"]
 def sha(p): return hashlib.sha256(open(p, "rb").read()).hexdigest()
-parts = [
-    ("bootloader",      "build-release/bootloader/bootloader.bin"),
-    ("partition table", "build-release/partition_table/partition-table.bin"),
-    ("application",     "build-release/guition_kiss_bringup.bin"),
-]
 with open(f"{out}/SHA256SUMS", "w") as f:
-    # GitHub Release users download the firmware asset beside SHA256SUMS, so
-    # the signed manifest uses the asset filename, not the web-staging path.
+    # Canonical two-space lines and NOTHING else. Annotated lines used to
+    # ride along here ("hash  path  (bootloader)"), and to sha256sum -c the
+    # annotation is part of the filename: under --ignore-missing -- the exact
+    # command the README gives -- every annotated line was silently skipped,
+    # on every release since the format shipped. Only files a user downloads
+    # belong here, under the names they download them as (GitHub Release
+    # assets sit flat beside SHA256SUMS); build-tree provenance lives in
+    # release.json's sourceParts, which carries offsets and sizes as well.
     f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
-    # The SD update image, under the name it is published as. It is the same
-    # bytes as the "application" line below, but nobody downloading a card
+    # The SD update image, under the name it is published as. Same bytes as
+    # the app inside the merged image above, but nobody downloading a card
     # image should have to know that to check what they downloaded.
-    f.write(f"{sha(f'{out}/firmware/{update}')}  {update}  (SD update)\n")
-    for label, p in parts:
-        f.write(f"{sha(p)}  {p}  ({label})\n")
+    f.write(f"{sha(f'{out}/firmware/{update}')}  {update}\n")
     # The flash list itself. Without this line the signature covers what gets
     # flashed but not the instructions for flashing it.
-    f.write(f"{sha(f'{out}/manifest.json')}  manifest.json  (flash list)\n")
+    f.write(f"{sha(f'{out}/manifest.json')}  manifest.json\n")
 print(f"wrote {out}/SHA256SUMS")
 PY
+
+# Every line of SHA256SUMS must VERIFY, not merely parse: stage the listed
+# files flat, the way a release download folder looks, and let the standard
+# tool check them with no --ignore-missing to hide a skipped line. An OK
+# count ties it shut -- --ignore-missing style skips return exit 0, which is
+# how the annotated format stayed green for its whole life.
+SUMS_STAGE=$(mktemp -d)
+cp "$OUT/SHA256SUMS" "$SUMS_STAGE/"
+cp "$OUT/firmware/$NAME" "$OUT/firmware/$UPDATE_NAME" "$OUT/manifest.json" "$SUMS_STAGE/"
+(
+  cd "$SUMS_STAGE"
+  if command -v sha256sum >/dev/null 2>&1; then CHK="sha256sum"; else CHK="shasum -a 256"; fi
+  $CHK -c SHA256SUMS
+  ok=$($CHK -c SHA256SUMS 2>/dev/null | grep -c ': OK$' || true)
+  want=$(grep -c . SHA256SUMS)
+  if [ "$ok" != "$want" ]; then
+    echo "FAIL: SHA256SUMS has $want lines but only $ok verified"
+    exit 1
+  fi
+)
+rm -rf "$SUMS_STAGE"
+echo "PASS: every SHA256SUMS line verifies with the standard tool"
 
 # 4. signatures (each honest and optional)
 GPGSIGNED=0

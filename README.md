@@ -106,6 +106,12 @@ shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
 > Cross-check the fingerprint from more than one place. It is only as
 > trustworthy as this README.
 
+> [!WARNING]
+> This writes the whole chip, **including the wallet storage area**. A seed
+> already on the device is erased; in SD mode the device key is erased too, so
+> an existing `kiss-seed.enc` card becomes unopenable. Have your paper words
+> and passphrase in hand before flashing a device that holds a wallet.
+
 **3. Flash** (macOS / Linux / WSL / Git Bash. On plain Windows, put the
 `esptool` command on one line without the `\` continuations):
 
@@ -142,6 +148,11 @@ Unzip it, run `serve.command` (macOS), `serve.bat` (Windows) or `./serve.sh`
 (Linux), and open the address it prints in Chrome, Brave or Edge. It serves to
 that one computer only and reaches nothing else. `00-START-HERE.txt` inside says
 the same in more detail.
+
+> [!WARNING]
+> Same as step 3 above: installing writes the whole chip and **erases any
+> wallet already on the device** (and the device key an SD card seed depends
+> on). Paper words and passphrase in hand first.
 
 > [!NOTE]
 > This is the only way to flash from a browser with the network off. The page
@@ -319,7 +330,8 @@ read out of the chip.
 
 > [!WARNING]
 > The first boot **burns eFuses, with no undo**, and the device can **never be
-> reflashed** after it. Fresh final signer device only. Read the
+> reflashed over USB** after it (signed SD updates still work, and become the
+> only firmware path). Fresh final signer device only. Read the
 > [docs](docs/guide.html) twice before touching it.
 
 ## License
