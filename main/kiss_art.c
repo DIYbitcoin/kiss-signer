@@ -50,6 +50,7 @@ int art_unpack_all(void)
 {
     int failed = 0, done = 0;
     uint32_t bytes = 0;
+    (void)bytes;              // read only by the ESP_PLATFORM log below
 
     for (size_t t = 0; t < sizeof TABLES / sizeof TABLES[0]; t++) {
         const art_entry_t *tab = TABLES[t].e;
