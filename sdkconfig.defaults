@@ -73,3 +73,15 @@ CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=n
 CONFIG_LV_USE_QRCODE=y
 CONFIG_FATFS_LFN_HEAP=y
 
+
+# LVGL's bundled examples and demos, off. They compile on every build and link
+# nothing: no code in main/ references them, so this buys build time and a
+# smaller dependency surface, NOT firmware bytes -- worth stating plainly so
+# nobody records it as an attack-surface reduction it is not.
+#
+# Set here rather than in sdkconfig / sdkconfig.release / sdkconfig.encrypted:
+# those three are generated (the release lanes regenerate theirs from sdkconfig
+# on every build) and idf.py rewrites sdkconfig, so a value written there is a
+# value that comes back. Defaults is the only file that holds.
+CONFIG_LV_BUILD_EXAMPLES=n
+CONFIG_LV_BUILD_DEMOS=n

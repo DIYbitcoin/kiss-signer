@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "potpisati išta bez tebe",
   "N_NOTHING_SIGNED": "nepotpisana transakcija ne može premjestiti novčiće. odmah provjeravaš svaki iznos, a tek tvoj potpis je čini valjanom.",
   "N_OR_SD": "ili koristi S SD KARTICE",
+  "N_TOO_BIG": "prevelik",
   "N_PSBT_T": "NEPOTPISANA TRANSAKCIJA",
   "N_PSBT_B": "tvoja aplikacija složila je bitcoin transakciju: koje novčiće potrošiti, kamo idu, i naknadu. još nema potpis, pa je mreža neće prihvatiti.\n\npuni naziv je partially signed bitcoin transaction, ili PSBT. drugi novčanici koriste istu riječ.\n\nsamo je tvoji ključevi mogu potpisati, a oni žive samo ovdje. skeniranje ti dakle donosi transakciju za čitanje, a potpisivanje je zasebna odluka na sljedećem zaslonu.",
   "N_STARTING": "pokretanje kamere...",

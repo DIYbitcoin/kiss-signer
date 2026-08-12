@@ -19,6 +19,7 @@
 #include "kiss_seed.h"
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
 #include "kiss_theme.h"
+#include "kiss_wipe.h"
 #include "kiss_ui.h"   // kiss_ui_last_fp
 
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
@@ -592,7 +593,7 @@ static void words_render_page(int page)
         if (!col[c]) continue;                 // cannot happen: c is 0 or 1
         wt_lbl(col[c], buf, 14, 12 + r * WROW, wt_font28(), WT_INK);
     }
-    memset(words, 0, sizeof words);
+    kiss_wipe(words, sizeof words);
 
     if (pages > 1) {
         char cnt[40];

@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "assinar qualquer coisa sem você",
   "N_NOTHING_SIGNED": "uma transação sem assinatura não move moedas. você confere cada valor a seguir, e é a sua assinatura que a torna válida.",
   "N_OR_SD": "ou use DO CARTÃO SD",
+  "N_TOO_BIG": "grande demais",
   "N_PSBT_T": "TRANSAÇÃO SEM ASSINATURA",
   "N_PSBT_B": "a sua aplicação montou uma transação bitcoin: que moedas gastar, para onde vão, e a taxa. ainda não tem assinatura, por isso a rede não a aceita.\n\no nome completo é partially signed bitcoin transaction, ou PSBT. outras carteiras usam a mesma palavra.\n\nsó as suas chaves podem assinar, e vivem só aqui. digitalizar traz uma transação para ler, e assinar é uma decisão separada no ecrã seguinte.",
   "N_STARTING": "a iniciar a câmara...",
