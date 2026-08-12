@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "der tegnes intet mens flashen skrives. lyset der kravler tilbage til fuldt er fremdriften.",
   "G_FW_OK_T": "FIRMWARE UDSKIFTET",
   "G_FW_OK_B": "genstart for at køre den.\n\nden gamle bliver i den anden halvdel, indtil den nye er startet én gang.",
+  "G_TOUCH_DEAD": "touchskærmen svarer ikke. tag stikket ud og sæt det i igen.",
   "G_FW_RESTART": "GENSTART",
   "G_FW_FAIL_T": "IKKE INSTALLERET",
   "G_FW_FAIL_SIG_B": "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",

@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "flash yazılırken hiçbir şey çizilmez. tam parlaklığa geri tırmanan ışık ilerlemedir.",
   "G_FW_OK_T": "ÜRÜN YAZILIMI DEĞİŞTİ",
   "G_FW_OK_B": "çalıştırmak için yeniden başlat.\n\neski yazılım, yenisi bir kez açılana dek diğer yarıda kalır.",
+  "G_TOUCH_DEAD": "dokunmatik ekran yanıt vermiyor. fişi çekip yeniden takın.",
   "G_FW_RESTART": "YENİDEN BAŞLAT",
   "G_FW_FAIL_T": "KURULMADI",
   "G_FW_FAIL_SIG_B": "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
