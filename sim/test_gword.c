@@ -56,8 +56,13 @@ static int w_make(gw_template_t *t) {
 // it as a percentage, `j` is per-vertex jitter.
 static void write_word(int dx, int dy, int s, int j) {
     int k = 0;
-    #define P(X, Y) w_to(dx + (X) * s / 100 + ((k++ % 3) - 1) * j, \
-                         dy + (Y) * s / 100 + ((k   % 3) - 1) * j)
+    // k++ and k were read in two arguments of the same call, so which jitter
+    // each vertex got depended on the compiler's argument order -- undefined
+    // behaviour, in the helper that decides whether two drawings of a word
+    // are "the same word". Step k once, on its own line, then use it twice.
+    #define P(X, Y) do { int k_ = k++; \
+        w_to(dx + (X) * s / 100 + ((k_ % 3) - 1) * j, \
+             dy + (Y) * s / 100 + (((k_ + 1) % 3) - 1) * j); } while (0)
     w_start();
     P(140, 120); P(140, 300); w_lift();                 // K spine
     P(140, 210); P(215, 120); w_lift();                 // K upper arm
