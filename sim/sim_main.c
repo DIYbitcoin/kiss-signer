@@ -1503,6 +1503,78 @@ int main(void) {
     // either arm ever needs a different one, the fork is back.
     printf("ok: unlock routing identical with and without a stroke configured\n");
 
+    // ---- the RECOVER screen vs the lock, with a live session under it ----
+    //
+    // The screen that says the staged words in RAM are the last copy there is
+    // hangs off the active screen and was on neither of main.c's lists, so
+    // with a session open the game kept reading the glass underneath it: the
+    // corner tap locked instantly, the tile bands opened Sign or Settings
+    // under the words, and five untouched minutes of reading it ended in
+    // kiss_lock() -- the identical parenting bug the FIRMWARE screen already
+    // paid for, on the one screen whose job is to be read slowly.
+    //
+    // Here and not at the leaf near the end of the walk: the leaf runs
+    // post-lock, where s_wallet_on is already false and every assert below
+    // would pass on the broken code too. This is the last window where the
+    // home is genuinely open, same as the stroke-budget block that follows.
+    {
+      uint8_t fp0[4], fp1[4];
+      kiss_ui_test_recover_screen();
+      pump(40);
+
+      // A tap in the first tile band must not open the Sign chooser under it.
+      touch(130, 240); pump(3); release(); pump(12);
+      if (kiss_sign_active()) {
+        printf("FAIL: a tile opened the Sign chooser under the recover screen\n");
+        g_walk_fails++;
+        kiss_sign_close(); pump(20);
+      }
+
+      // Five untouched minutes must not lock. kiss_lock() and nothing else on
+      // this path zeroes the open session's fingerprint, so that is the probe:
+      // a frame of this screen looks correct locked or not.
+      kiss_ui_last_fp(fp0);
+      pump(20000);                                   // 320s > 300s, untouched
+      kiss_ui_last_fp(fp1);
+      if (!(fp0[0] || fp0[1] || fp0[2] || fp0[3]) ||
+          memcmp(fp0, fp1, sizeof fp0) != 0) {
+        printf("FAIL: idle auto-lock fired with the recover screen up\n");
+        g_walk_fails++;
+      }
+      must_show("recover/idle", tr(STR_L_RECOVER_T));
+
+      // The corner lock must not fire through it either.
+      touch(44, 44); pump(3); release(); pump(20);
+      kiss_ui_last_fp(fp1);
+      if (!(fp1[0] || fp1[1] || fp1[2] || fp1[3])) {
+        printf("FAIL: the corner tap locked through the recover screen\n");
+        g_walk_fails++;
+      }
+
+      // SHOW WORDS opens the ordinary words screen reading the staged copy.
+      // Five untouched minutes of transcription must not tear it down: the
+      // registered kiss_info close would delete the one screen naming the
+      // words, and the lock would strand the last copy in silent RAM.
+      touch(198, 430); pump(3); release(); pump(12); // SHOW WORDS
+      if (!kiss_info_active()) {
+        printf("FAIL: SHOW WORDS did not open the words screen\n");
+        g_walk_fails++;
+      }
+      pump(20000);                                   // untouched, mid-copy
+      if (!kiss_info_active()) {
+        printf("FAIL: auto-lock tore down the words screen opened from "
+               "recover; the staged copy is stranded\n");
+        g_walk_fails++;
+      } else {
+        touch(118, 430); pump(3); release(); pump(20); // BACK -> recover again
+        must_show("recover/back", tr(STR_L_RECOVER_T));
+      }
+
+      kiss_ui_test_recover_close();
+      pump(40);
+      printf("ok: the recover screen owns the glass and the clock\n");
+    }
+
     // ---- a word with MORE strokes than the budget, end to end ----
     //
     // sim/test_gword.c pins this at the template layer; this is the version
@@ -2787,6 +2859,11 @@ int main(void) {
   pump(40);
   save("/tmp/sim_ui_recover.ppm");                  // words held, paper first
   must_show("recover", tr(STR_L_RECOVER_T));
+  // No longer a leaf that never leaves: the screen has its own registry row
+  // now and holds the idle lock off, so left open it would hold it off for
+  // the teardown contract checks at the end of the walk too.
+  kiss_ui_test_recover_close();
+  pump(40);
 
   // The other half of the same question, and the half that was still lying.
   // YOUR LETTERS ARE SET drew "letters -> SPARE" and "letters + mark -> REAL"

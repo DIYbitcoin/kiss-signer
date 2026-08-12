@@ -1812,6 +1812,11 @@ static const struct {
   { kiss_setup_active,     NULL,                  true,  true  },
   { kiss_duress_ui_active, NULL,                  true,  true  },
   { kiss_word_ui_active,   NULL,                  true,  true  },
+  // The commit-failed RECOVER screen, and the words screen it opens. Same
+  // two trues for the same reason, plus one of its own: the staged seed it
+  // names may be the last copy anywhere, so it registers no close -- the
+  // lock must neither fire under it nor take it away.
+  { kiss_ui_recover_active, NULL,                 true,  true  },
   // Wallet sub-screens. They own the touch and the lock takes them away.
   { kiss_scan_active,      kiss_scan_close,     true,  false },
   { kiss_sign_active,      kiss_sign_close,     true,  false },

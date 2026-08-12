@@ -607,6 +607,25 @@ static void recover_close(void)
     if (s_recovscr) { lv_obj_delete_async(s_recovscr); s_recovscr = NULL; }
 }
 
+// The words screen opened from here reads the same staged copy, so the lock
+// exemption has to travel with it: s_recovscr is already gone while it is up,
+// and without the flag the idle lock's registered kiss_info close would
+// delete the one screen naming words that exist nowhere else.
+static bool s_words_from_recov;
+
+// The registry row in main.c's SCREENS[] for this state. It owns the touch --
+// the game must not read a corner tap or a tile band through the screen --
+// and it holds the idle clock off, for the reason the wizard rows give:
+// reading twelve words onto paper takes minutes of a screen nobody touches.
+// Its close stays NULL there, deliberately. The staged copy in RAM may be the
+// last one anywhere, and s_setup_mode surviving is what keeps the type-twice
+// login able to commit it; a teardown routed through wipe_and_close would
+// call kiss_seed_discard and destroy the wallet it exists to save.
+bool kiss_ui_recover_active(void)
+{
+    return s_recovscr != NULL || s_words_from_recov;
+}
+
 // Straight back to the same commit and the same continuation. The passphrase is
 // still in s_pass -- fp_tap_cb returns on RECOVER before the wipe below it, so a
 // retry derives the identical session and finishes setup exactly as a first
@@ -632,12 +651,17 @@ static void recover_retry_cb(lv_event_t *e)
     lv_async_call(recover_retry_async, NULL);
 }
 
-static void recover_words_done(void) { recover_screen(); }
+static void recover_words_done(void)
+{
+    s_words_from_recov = false;
+    recover_screen();
+}
 
 static void recover_words_cb(lv_event_t *e)
 {
     (void)e;
     recover_close();
+    s_words_from_recov = true;
     // kiss_seed_load answers from the staging while it is held, so this is the
     // ordinary words screen reading the copy that has not reached flash.
     kiss_info_open_words(lv_screen_active(), recover_words_done);
@@ -1973,4 +1997,9 @@ int kiss_build_id_right(void) { return s_build_id_right; }
 
 #ifndef ESP_PLATFORM
 void kiss_ui_test_recover_screen(void) { recover_screen(); }
+void kiss_ui_test_recover_close(void)
+{
+    s_words_from_recov = false;
+    recover_close();
+}
 #endif
