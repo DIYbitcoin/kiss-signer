@@ -13,6 +13,7 @@ sdkconfig.old
 # IDF component manager downloads these from idf_component.yml +
 # dependencies.lock (which IS tracked)
 managed_components/
+managed_components
 
 # local tooling / OS noise
 tools/fonts/node_modules/
