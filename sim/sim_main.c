@@ -2571,6 +2571,22 @@ int main(void) {
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
 
+  // The dead-touch banner, worn by the game cover when the GT911 never came
+  // up. Here because this is a locked device showing the menu, which is the
+  // state a board with dead touch actually boots into -- and unreachable by
+  // walking in the sim by definition, since there is no GT911 here to fail.
+  // Taken back down straight away: everything after this photographs its own
+  // screen, and a banner left on the active screen would ride all of them.
+  {
+    extern lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent);   // main.c
+    lv_obj_t *bl = kiss_touch_dead_banner(lv_screen_active());
+    pump(20);
+    save("/tmp/sim_touch_dead.ppm");                // amber line over the game
+    must_show("touch-dead", tr(STR_G_TOUCH_DEAD));
+    lv_obj_delete(bl);
+    pump(20);
+  }
+
   // Locking forgets the key material. It must also forget WHICH keys: the
   // fingerprint of the last keys unlocked used to outlive kiss_session_close,
   // and the decoy -- which opens with no login screen and sets the chip itself

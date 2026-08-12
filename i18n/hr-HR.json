@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "dok se piše u flash ništa se ne crta. svjetlo koje se vraća na punu jačinu je napredak.",
   "G_FW_OK_T": "FIRMWARE ZAMIJENJEN",
   "G_FW_OK_B": "ponovno pokreni za korištenje.\n\nstari ostaje u drugoj polovici dok se novi jednom ne pokrene.",
+  "G_TOUCH_DEAD": "dodirni zaslon ne odgovara. odspojite i ponovno spojite.",
   "G_FW_RESTART": "PONOVNO POKRENI",
   "G_FW_FAIL_T": "NIJE INSTALIRANO",
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",

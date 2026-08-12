@@ -619,6 +619,7 @@
   "G_FW_DARK_B": "ingenting ritas medan flashen skrivs. ljuset som klättrar tillbaka till fullt är förloppet.",
   "G_FW_OK_T": "FIRMWARE UTBYTT",
   "G_FW_OK_B": "starta om för att köra den.\n\nden gamla ligger kvar i andra halvan tills den nya har startat en gång.",
+  "G_TOUCH_DEAD": "pekskärmen svarar inte. koppla ur och koppla in igen.",
   "G_FW_RESTART": "STARTA OM",
   "G_FW_FAIL_T": "INTE INSTALLERAD",
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
