@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "ký bất cứ gì mà không có bạn",
   "N_NOTHING_SIGNED": "một giao dịch chưa ký không thể chuyển tiền. bạn sẽ kiểm tra từng số tiền ngay sau đây, và chữ ký của bạn mới làm nó có hiệu lực.",
   "N_OR_SD": "hoặc dùng TỪ THẺ SD",
+  "N_TOO_BIG": "quá lớn",
   "N_PSBT_T": "GIAO DỊCH CHƯA KÝ",
   "N_PSBT_B": "ứng dụng của bạn đã dựng một giao dịch bitcoin: dùng những đồng nào, chúng đi đâu, và phí. nó chưa có chữ ký, nên mạng lưới sẽ không chấp nhận.\n\ntên đầy đủ là partially signed bitcoin transaction, hay PSBT. các ví khác cũng dùng từ này.\n\nchỉ khóa của bạn mới ký được, và chúng chỉ nằm ở đây. vậy nên quét chỉ mang tới một giao dịch để đọc, còn ký là một quyết định riêng ở màn hình kế tiếp.",
   "N_STARTING": "đang bật camera...",
