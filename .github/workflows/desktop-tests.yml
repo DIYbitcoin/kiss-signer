@@ -115,8 +115,19 @@ jobs:
       # report it, and turn STRICT on in the commit that fixes the hang, not
       # before. A gate that goes red for reasons nobody can reproduce is how a
       # team learns to ignore a red gate.
-      - name: every screen has a walk stop (reporting only)
+      # STRICT is set NOW, continue-on-error stays. The two do different jobs
+      # and only one of them was ever the blocker: without STRICT the script
+      # exits 0 no matter what it finds, so dropping continue-on-error alone
+      # would have changed nothing at all -- the lever is here, and the log
+      # was the thing that had gone quiet. STRICT makes the step SAY FAILED
+      # and name the uncovered screens; continue-on-error keeps the
+      # unreproducible selftest hang from turning that into a red gate nobody
+      # trusts. Remove continue-on-error in the commit that fixes the hang,
+      # which is what the note above promised and could not deliver.
+      - name: every screen has a walk stop (strict, reported not enforced)
         continue-on-error: true
+        env:
+          SCREENCOVER_STRICT: "1"
         run: timeout 300 python3 tools/check_screen_coverage.py
 
       # The walkthrough's screenshots are simulator frames, so a renamed or

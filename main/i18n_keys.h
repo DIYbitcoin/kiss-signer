@@ -276,6 +276,7 @@ enum {
     STR_N_CANT_SIGN,
     STR_N_NOTHING_SIGNED,
     STR_N_OR_SD,
+    STR_N_TOO_BIG,
     STR_N_PSBT_T,
     STR_N_PSBT_B,
     STR_N_STARTING,

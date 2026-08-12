@@ -721,12 +721,18 @@ static void lit_chars(lv_obj_t *sg, char *out, size_t cap)
 
 static int check_addr_marks(void)
 {
+    // ONE silent-payment address, too long for a source line. Named rather
+    // than written as two adjacent literals inside the array: adjacent
+    // literals in an array initializer are exactly what a missing comma looks
+    // like, and -Wstring-concatenation is right to ask.
+    static const char SP_ADDR[] =
+        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
+        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna";
     static const char *ADDRS[] = {
         "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // mainnet segwit
         "tb1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // testnet segwit
         "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",           // base58: no prefix skip
-        "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
-        "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna",
+        SP_ADDR,
     };
     lv_obj_t *scr = lv_obj_create(NULL);
     int bad = 0;
