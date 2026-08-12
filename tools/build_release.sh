@@ -21,6 +21,13 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Build state starts clean, every run. A stale UNSIGNED marker from an earlier
+# reproducibility run would abort the publish gate on a freshly signed build --
+# and the inverse, a marker outliving the run that wrote it, is exactly the lie
+# the marker exists to prevent. The marker only, never the directory: a full
+# rebuild costs twenty minutes and buys nothing this delete does not.
+rm -f build-release/UNSIGNED
+
 # sdkconfig.release = the board's dev sdkconfig with quieter logs, regenerated
 # on every build so it can never drift from the real board config.
 python3 - <<'PY'
@@ -168,6 +175,20 @@ if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
 fi
 echo "PASS: published public key matches the signing key"
 rm -f /tmp/kiss_ota_pub_check.pem
+
+# Prove the shipped file verifies against the PUBLISHED key, not just that the
+# two halves match. This is the check a stranger can repeat, and it is the one
+# that fails if signing was skipped, applied to the wrong file, or undone by a
+# later step that rewrites the binary. The encrypted lane has run this since it
+# existed; this lane published without it.
+if ! uvx --from esptool espsecure verify-signature \
+     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+     build-release/guition_kiss_bringup.bin >/dev/null 2>&1; then
+  echo "FAIL: build-release/guition_kiss_bringup.bin does not verify against"
+  echo "      docs/installer/kiss_ota_pub.pem"
+  exit 1
+fi
+echo "PASS: signed app verifies against the published public key"
 fi
 
 # ---- verify the release binary ----
