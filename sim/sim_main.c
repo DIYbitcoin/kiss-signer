@@ -1526,9 +1526,9 @@ int main(void) {
       kiss_word_ui_open(lv_screen_active(), NULL);
       pump(20);
       draw_thirteen_strokes();
-      tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
+      tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
       draw_thirteen_strokes();
-      tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+      tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
       tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE -> saved
       save("/tmp/sim_gword_manystroke.ppm");          // YOUR LETTERS ARE SET
       tap_str(STR_C_OK, 3, 8);   // OK -> back to the home
@@ -2665,10 +2665,10 @@ int main(void) {
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
-  tap_str(STR_C_DONE, 3, 8);     // DONE (492..752) -> once more
+  tap_str(STR_GD_WORD_DONE, 3, 8);     // DONE (492..752) -> once more
   save("/tmp/sim_gword_again.ppm");                 // ONCE MORE, field cleared
   draw_own_letters();
-  tap_str(STR_C_DONE, 3, 8);     // DONE -> the stop screen
+  tap_str(STR_GD_WORD_DONE, 3, 8);     // DONE -> the stop screen
   save("/tmp/sim_gword_confirm.ppm");               // KISS WILL STOP WORKING
   tap_str(STR_GD_WORD_HOLD, 140, 8);   // HOLD TO CHANGE (422..752)
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
@@ -2804,9 +2804,9 @@ int main(void) {
     kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
-    tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
+    tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
-    tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+    tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
     tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE
     save("/tmp/sim_gword_done_nopass.ppm");         // PASSPHRASE -> NOT SET, no SPARE
     tap_str(STR_C_OK, 3, 8);   // OK
@@ -2830,9 +2830,9 @@ int main(void) {
     kiss_word_ui_open(lv_screen_active(), NULL);
     pump(20);
     draw_own_letters();
-    tap_str(STR_C_DONE, 3, 8);   // DONE -> once more
+    tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
-    tap_str(STR_C_DONE, 3, 8);   // DONE -> the stop screen
+    tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
     tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD -> the write fails
     save("/tmp/sim_gword_failed.ppm");              // THAT WAS NOT IT, nothing saved
     tap_str(STR_C_OK, 3, 8);   // OK
