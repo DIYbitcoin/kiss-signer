@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "podpisać czegoś bez ciebie",
   "N_NOTHING_SIGNED": "niepodpisana transakcja nie przeniesie monet. za chwilę sprawdzasz każdą kwotę, a dopiero twój podpis czyni ją ważną.",
   "N_OR_SD": "albo użyj Z KARTY SD",
+  "N_TOO_BIG": "za duże",
   "N_PSBT_T": "NIEPODPISANA TRANSAKCJA",
   "N_PSBT_B": "twoja aplikacja zbudowała transakcję bitcoin: które monety wydać, dokąd trafią, i opłatę. nie ma jeszcze podpisu, więc sieć jej nie przyjmie.\n\npełna nazwa to partially signed bitcoin transaction, czyli PSBT. inne portfele używają tego samego słowa.\n\ntylko twoje klucze mogą ją podpisać, a te są wyłącznie tutaj. skan przynosi więc transakcję do przeczytania, a podpis to osobna decyzja na następnym ekranie.",
   "N_STARTING": "uruchamianie kamery...",

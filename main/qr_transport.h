@@ -23,10 +23,24 @@ typedef struct qrt_parser qrt_parser_t;
 qrt_parser_t *qrt_parser_new(void);
 void qrt_parser_free(qrt_parser_t *p);
 
+// A transfer too large for QRT_MAX_PSBT, refused at feed time. Distinct from
+// -1 on purpose: -1 means "some other QR is in view", which the scan screen
+// ignores by design, and a size refusal reported that way is a scan that sits
+// on its part counter forever with nothing on screen saying why.
+#define QRT_FEED_TOO_BIG (-2)
+
 // Feed one scanned QR payload (may contain NULs for binary QRs).
 // 0 = accepted (including harmless duplicates), -1 = not usable for this scan
-// (unknown format, or a format different from the one already in progress).
+// (unknown format, or a format different from the one already in progress),
+// QRT_FEED_TOO_BIG = larger than this device can hold. Once a parser has
+// answered TOO_BIG it keeps answering it until reset: the parts it holds are
+// from a set it will never finish, and quietly accepting more assembles
+// nonsense out of them.
 int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len);
+
+// Back to what qrt_parser_new returns: no parts, no bytes, no format. Lets
+// the scan screen abandon a refused transfer without tearing the camera down.
+void qrt_parser_reset(qrt_parser_t *p);
 
 bool qrt_parser_complete(const qrt_parser_t *p);
 int qrt_parser_format(const qrt_parser_t *p);   // QRT_FMT_* (NONE until first feed)

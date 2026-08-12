@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "firmare qualcosa senza di te",
   "N_NOTHING_SIGNED": "una transazione non firmata non può spostare fondi. ora controlli ogni importo, ed è la tua firma a renderla valida.",
   "N_OR_SD": "oppure usa DA SCHEDA SD",
+  "N_TOO_BIG": "troppo grande",
   "N_PSBT_T": "TRANSAZIONE NON FIRMATA",
   "N_PSBT_B": "la tua app ha costruito una transazione bitcoin: quali fondi spendere, dove vanno, e la commissione. non ha ancora una firma, quindi la rete non la accetta.\n\nil nome completo è partially signed bitcoin transaction, o PSBT. altri portafogli usano la stessa parola.\n\nsolo le tue chiavi possono firmarla, e vivono solo qui. la scansione ti porta quindi una transazione da leggere, e firmare è una decisione separata nella schermata successiva.",
   "N_STARTING": "avvio fotocamera...",

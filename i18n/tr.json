@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "sensiz bir şey imzalamak",
   "N_NOTHING_SIGNED": "imzasız bir işlem coin taşıyamaz. birazdan her tutarı kontrol edersin, ve onu geçerli kılan senin imzandır.",
   "N_OR_SD": "ya da SD KARTTAN seçeneğini kullan",
+  "N_TOO_BIG": "çok büyük",
   "N_PSBT_T": "İMZASIZ İŞLEM",
   "N_PSBT_B": "uygulaman bir bitcoin işlemi kurdu: hangi coinlerin harcanacağı, nereye gidecekleri, ve ücret. henüz imzası yok, bu yüzden ağ kabul etmez.\n\ntam adı partially signed bitcoin transaction, kısaca PSBT. diğer cüzdanlar da aynı kelimeyi kullanır.\n\nonu sadece senin anahtarların imzalayabilir, ve onlar yalnızca burada. tarama sana okunacak bir işlem getirir, imzalamak ise sonraki ekranda ayrı bir karardır.",
   "N_STARTING": "kamera başlıyor...",

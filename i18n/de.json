@@ -273,6 +273,7 @@
   "N_CANT_SIGN": "ohne dich etwas signieren",
   "N_NOTHING_SIGNED": "eine unsignierte Transaktion kann keine Coins bewegen. du prüfst gleich jeden Betrag, und erst deine Signatur macht sie gültig.",
   "N_OR_SD": "oder nutze stattdessen VON SD KARTE",
+  "N_TOO_BIG": "zu groß",
   "N_PSBT_T": "UNSIGNIERTE TRANSAKTION",
   "N_PSBT_B": "deine App hat eine Bitcoin Transaktion gebaut: welche Coins ausgegeben werden, wohin sie gehen, und die Gebühr. sie hat noch keine Signatur, also nimmt das Netzwerk sie nicht an.\n\nder volle Name ist partially signed bitcoin transaction, kurz PSBT. andere Wallets nutzen dasselbe Wort.\n\nnur deine Schlüssel können signieren, und die liegen nur hier. das Scannen bringt dir also eine Transaktion zum Lesen, und das Signieren ist eine eigene Entscheidung auf dem nächsten Bildschirm.",
   "N_STARTING": "Kamera startet...",

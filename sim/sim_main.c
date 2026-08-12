@@ -1886,6 +1886,23 @@ int main(void) {
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
   touch(218, 190); pump(3); release(); pump(6);     // SCAN QR -> scan screen
   save("/tmp/sim_qr_scan.ppm");
+
+  // A pMofN set too large for this device, refused at the first part. The
+  // old parser measured only the NUMBER of parts, so a set like this was
+  // accepted a QR at a time -- tens of KB of heap taken while the camera
+  // streams -- and refused at assemble time, leaving the counter sitting on
+  // screen with nothing saying why. One oversize part is now enough.
+  {
+    char big[7000];
+    memset(big, 'A', sizeof big);
+    memcpy(big, "p1of4 ", 6);
+    big[sizeof big - 1] = 0;
+    kiss_scan_inject(big, strlen(big));
+    pump(6);
+    save("/tmp/sim_qr_too_big.ppm");                // refusal + the way through
+    must_show("scan/too-big", tr(STR_N_TOO_BIG));
+  }
+
   {
     uint8_t fake[300];
     memset(fake, 0x5A, sizeof fake);
