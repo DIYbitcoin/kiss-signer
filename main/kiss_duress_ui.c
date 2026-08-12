@@ -16,6 +16,7 @@
 #include "kiss_duress.h"
 #include "kiss_theme.h"
 #include "i18n.h"
+#include "kiss_wipe.h"
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
@@ -78,7 +79,15 @@ static void stage_show(int stage)
 static void draw_reset(void)
 {
     s_dn = 0;
-    if (s_ink_line) lv_obj_add_flag(s_ink_line, LV_OBJ_FLAG_HIDDEN);
+    if (s_ink_line) {
+        lv_line_set_points(s_ink_line, s_ink, 0);
+        lv_obj_add_flag(s_ink_line, LV_OBJ_FLAG_HIDDEN);
+    }
+    // The stroke that opens the spare wallet is a credential. Clearing the
+    // count left every coordinate in .bss until the next draw overwrote it.
+    kiss_wipe(s_ink, sizeof s_ink);
+    kiss_wipe(s_dx, sizeof s_dx);
+    kiss_wipe(s_dy, sizeof s_dy);
 }
 
 static void ink_update(void)
@@ -139,6 +148,9 @@ static void close_all(void)
     s_hint = NULL;
     s_ink_line = NULL;
     s_dn = 0;
+    kiss_wipe(s_ink, sizeof s_ink);
+    kiss_wipe(s_dx, sizeof s_dx);
+    kiss_wipe(s_dy, sizeof s_dy);
 }
 
 static void finish(void)

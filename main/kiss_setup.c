@@ -25,6 +25,7 @@
 #include "kiss_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
 #include "platform_sd.h"     // the proof needs a card before it can start
 #include "kiss_theme.h"
+#include "kiss_wipe.h"
 
 // memset can be optimized away once the compiler sees a buffer is dead, and
 // every wipe in this file is exactly that shape: the last read of the seed,
@@ -32,11 +33,6 @@
 // not linked into the simulator build of this translation unit, so this is the
 // same volatile store loop kiss_scan.c and kiss_seed_sd.c already carry
 // rather than a fourth spelling of the idea.
-static void wz_bzero(void *ptr, size_t len)
-{
-    volatile uint8_t *p = (volatile uint8_t *)ptr;
-    while (len--) *p++ = 0;
-}
 #include "kiss_ui.h"
 
 #ifndef SIMULATOR
@@ -274,7 +270,7 @@ static void store_and_finish(void)
     // STAGE only: the seed reaches flash after the passphrase-twice + fingerprint
     // ritual (setup login commits it). Abandoning that leaves no half-made wallet.
     int rc = kiss_seed_stage(words);
-    wz_bzero(words, sizeof words);
+    kiss_wipe(words, sizeof words);
     if (rc == 0) {
         // Every path that stages a NEW seed says what it made of the draw, so a
         // clean rebuild clears the previous one. Camera and dice write theirs
@@ -322,8 +318,8 @@ static void verify_finish(void)
     join_words(typed, sizeof typed);
     int mism = kiss_seed_load(stored, sizeof stored) == 0
              ? kiss_seed_diff_word(typed, stored) : 0;
-    memset(typed, 0, sizeof typed);
-    memset(stored, 0, sizeof stored);
+    kiss_wipe(typed, sizeof typed);
+    kiss_wipe(stored, sizeof stored);
     wipe_state();                       // the entered words never linger
 
     if (mism < 0) {
@@ -793,7 +789,7 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
     // wally_bzero, not memset: `words` is dead after this line, so a compiler
     // is free to drop a plain memset and leave a mnemonic on the stack. The rest
     // of this file already reaches for the same primitive.
-    wz_bzero(words, sizeof words);
+    kiss_wipe(words, sizeof words);
     s_wpage = 0;
     words_screen();
 }
@@ -894,11 +890,11 @@ static void tap_done_cb(lv_timer_t *t)
     // Every one of these is dead-store territory: last read is the line above,
     // so memset is elidable and wally_bzero is not. Same reasoning as
     // kiss_scan.c's scan_bzero and kiss_seed_sd.c's sd_bzero.
-    wz_bzero(cam, sizeof cam);
-    wz_bzero(trng, sizeof trng);
-    wz_bzero(taps, sizeof taps);
-    wz_bzero(s_cam_chain, sizeof s_cam_chain);
-    wz_bzero(s_cam_trng, sizeof s_cam_trng);
+    kiss_wipe(cam, sizeof cam);
+    kiss_wipe(trng, sizeof trng);
+    kiss_wipe(taps, sizeof taps);
+    kiss_wipe(s_cam_chain, sizeof s_cam_chain);
+    kiss_wipe(s_cam_trng, sizeof s_cam_trng);
     s_cam_have = false;
     kiss_tapent_reset();
     if (ok) {
@@ -918,7 +914,7 @@ static void tap_done_cb(lv_timer_t *t)
         // future reorder, and a guard does not earn 21 locales of its own copy.
         ent_fail_screen();
     }
-    wz_bzero(seed, sizeof seed);
+    kiss_wipe(seed, sizeof seed);
 }
 
 static void tap_hit_cb(lv_event_t *e)
@@ -1503,8 +1499,8 @@ static lv_timer_t *s_pf_tmr;
 
 static void pf_wipe(void)
 {
-    wz_bzero(s_pf_w, sizeof s_pf_w);
-    wz_bzero(s_pf_hash, sizeof s_pf_hash);
+    kiss_wipe(s_pf_w, sizeof s_pf_w);
+    kiss_wipe(s_pf_hash, sizeof s_pf_hash);
     s_pf_page = 0;
 }
 
@@ -1582,7 +1578,7 @@ static void pf_finish(void)
 #endif
     if (rc == WPROOF_OK) {
         pf_split(words);
-        wz_bzero(words, sizeof words);
+        kiss_wipe(words, sizeof words);
         s_pf_page = 0;
         proof_result_screen();
     } else {
@@ -2003,7 +1999,7 @@ static void dice_refresh(void)
             for (int i = 0; i < bytes; i++) snprintf(fp + i * 2, 3, "%02x", e[i]);
         }
         lv_label_set_text(s_dice_fp, fp);
-        memset(e, 0, sizeof e);
+        kiss_wipe(e, sizeof e);
     }
     if (s_dice_done) {
         // Disabled, not hidden: a control that pops into existence at roll 50
@@ -2072,7 +2068,7 @@ static void dice_commit(void)
         // Cannot happen once the floor is met, but never leave a dead button.
         ent_fail_screen();
     }
-    wz_bzero(entropy, sizeof entropy);
+    kiss_wipe(entropy, sizeof entropy);
 }
 
 static void dice_screen_build(void);
@@ -2786,7 +2782,7 @@ static void cards_cksum_open(void)
     char partial[WSEED_MAX_MNEMONIC];
     join_words(partial, sizeof partial);
     s_ncand = kiss_lastword_candidates(partial, s_cand);
-    wz_bzero(partial, sizeof partial);
+    kiss_wipe(partial, sizeof partial);
     s_cpage = 0;
     if (s_ncand <= 0) {
         // Unreachable by construction: every typed word came off the suggest
@@ -3256,7 +3252,7 @@ static void qr_text_cb(const char *txt, size_t len)
     int rc = kiss_seed_from_qr(txt, len, words, sizeof words);
     if (rc == 0)
         rc = kiss_seed_stage(words);
-    wz_bzero(words, sizeof words);           // a scanned mnemonic must not linger
+    kiss_wipe(words, sizeof words);           // a scanned mnemonic must not linger
     if (rc != 0) { qr_bad_screen(); return; }
     void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
     s_load = false;
@@ -3414,7 +3410,7 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
     }
     int n = 1;                                          // fix the entry length to the
     for (char *p = words; *p; p++) if (*p == ' ') n++;  // stored seed's word count
-    wz_bzero(words, sizeof words);
+    kiss_wipe(words, sizeof words);
     s_count = n;
     verify_intro_screen();
 }
