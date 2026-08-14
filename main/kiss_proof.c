@@ -19,34 +19,20 @@
 #include "platform_sd.h"
 #include "verify_page.h"
 #include "kiss_seed.h"
+#include "kiss_wipe.h"
 
-// The card's copy carries this run's hash, so the owner opens it, drops the
-// file and reads the verdict -- the QR and the URL fragment are for a copy
-// fetched from somewhere this device cannot reach. The page's placeholder is
-// overwritten in place: same length, and the claim lives inside the script
-// that reads it rather than trailing the document.
-static int write_claimed_page(const uint8_t h[32])
+// The checker page, written as-is every run. It used to carry this run's
+// hash baked over a placeholder, and that made the card hold TWO files that
+// had to agree: back out (or pull the card) between the frame write and the
+// page write and the pair is torn -- which is exactly the state one bench
+// test produced, a page swearing to a hash from a run before. The page is
+// stateless now: it computes hash and words from whatever file is dropped on
+// it, and the claim to compare against is the one on the device's screen.
+// Same bytes every run, so there is nothing to tear.
+static int write_page(void)
 {
-    const size_t slot_len = sizeof WPROOF_CLAIM_SLOT - 1;   // 64
-
-    size_t at = 0;
-    while (at + slot_len <= verify_page_html_len &&
-           memcmp(verify_page_html + at, WPROOF_CLAIM_SLOT, slot_len) != 0)
-        at++;
-    if (at + slot_len > verify_page_html_len) return -1;    // gate-checked, but
-
-    // Hex first, then a fixed 64 byte copy: writing the digits straight into
-    // the page would leave snprintf's NUL on the character after the slot.
-    char hex[65];
-    for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", h[i]);
-
-    uint8_t *buf = malloc(verify_page_html_len);
-    if (!buf) return -1;
-    memcpy(buf, verify_page_html, verify_page_html_len);
-    memcpy(buf + at, hex, slot_len);
-
-    int rc = platform_sd_write_atomic(WPROOF_PAGE_NAME, buf, verify_page_html_len);
-    free(buf);
+    int rc = platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
+                                      verify_page_html_len);
     return (rc == 0 || rc == PLATFORM_SD_ATOMIC_CLEANUP) ? 0 : -1;
 }
 
@@ -56,21 +42,41 @@ int kiss_proof_run(const uint8_t *frame, size_t len,
     if (!frame || len != WPROOF_FRAME_BYTES || !hash_out || !words_out)
         return WPROOF_ERR_ARG;
 
-    uint8_t h[32];
-    if (wally_sha256(frame, len, h, sizeof h) != WALLY_OK)
+    // Every second pixel of every second row, two bytes per pixel. The hash
+    // is of the FILE, computed after the copy, so what the screen claims and
+    // what a checker rederives are the same bytes by construction.
+    uint8_t *file = malloc(WPROOF_FILE_BYTES);
+    if (!file)
         return WPROOF_ERR_DERIVE;
+    for (size_t y = 0; y < WPROOF_FILE_H; y++) {
+        const uint8_t *src = frame + (y * 2) * (size_t)WPROOF_FRAME_W * 2;
+        uint8_t *dst = file + y * (size_t)WPROOF_FILE_W * 2;
+        for (size_t x = 0; x < WPROOF_FILE_W; x++) {
+            dst[x * 2]     = src[x * 4];
+            dst[x * 2 + 1] = src[x * 4 + 1];
+        }
+    }
+
+    uint8_t h[32];
+    int rc = wally_sha256(file, WPROOF_FILE_BYTES, h, sizeof h) == WALLY_OK
+               ? WPROOF_OK : WPROOF_ERR_DERIVE;
 
     // The UI gates on a present card, but a card can be pulled between that
     // screen and this write. Mount is idempotent and cheap when it is still
     // there, and turns "pulled at the worst moment" into a clean SD error.
-    if (platform_sd_mount() != 0)
-        return WPROOF_ERR_SD;
+    if (rc == WPROOF_OK && platform_sd_mount() != 0)
+        rc = WPROOF_ERR_SD;
+    if (rc == WPROOF_OK) {
+        int w = platform_sd_write_atomic(WPROOF_NAME, file, WPROOF_FILE_BYTES);
+        if (w != 0 && w != PLATFORM_SD_ATOMIC_CLEANUP)
+            rc = WPROOF_ERR_SD;
+    }
+    kiss_wipe(file, WPROOF_FILE_BYTES);   // these bytes derive a (burned) seed
+    free(file);
+    if (rc != WPROOF_OK)
+        return rc;
 
-    int rc = platform_sd_write_atomic(WPROOF_NAME, frame, len);
-    if (rc != 0 && rc != PLATFORM_SD_ATOMIC_CLEANUP)
-        return WPROOF_ERR_SD;
-
-    if (write_claimed_page(h) != 0) {
+    if (write_page() != 0) {
         (void)platform_sd_delete(WPROOF_NAME);
         return WPROOF_ERR_SD;
     }
