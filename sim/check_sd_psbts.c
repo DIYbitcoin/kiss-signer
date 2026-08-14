@@ -30,15 +30,15 @@ int main(int argc, char **argv){
     // row on the screen that quietly starts raising two is a fixture that no
     // longer shows what the tester was told to look at.
     struct { const char *f; int sc; int want; uint16_t flags; } t[] = {
-        {"1-native.psbt",            WSCRIPT_NATIVE, WPSBT_READY,   0},
-        {"2-nested.psbt",            WSCRIPT_NESTED, WPSBT_READY,   0},
-        {"3-legacy.psbt",            WSCRIPT_LEGACY, WPSBT_READY,   0},
-        {"4-stop-wrongnet.psbt",     WSCRIPT_NATIVE, WPSBT_STOP,    0},
-        {"5-caution-highfee.psbt",   WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_HIGHFEE},
-        {"6-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_UNPROVEN_IN},
-        {"7-proven-2in.psbt",        WSCRIPT_NATIVE, WPSBT_READY,   0},
-        {"8-stop-contradiction.psbt",WSCRIPT_NATIVE, WPSBT_STOP,    0},
-        {"9-caution-five.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
+        {"01-native.psbt",            WSCRIPT_NATIVE, WPSBT_READY,   0},
+        {"02-nested.psbt",            WSCRIPT_NESTED, WPSBT_READY,   0},
+        {"03-legacy.psbt",            WSCRIPT_LEGACY, WPSBT_READY,   0},
+        {"04-stop-wrongnet.psbt",     WSCRIPT_NATIVE, WPSBT_STOP,    0},
+        {"05-caution-highfee.psbt",   WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_HIGHFEE},
+        {"06-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_UNPROVEN_IN},
+        {"07-proven-2in.psbt",        WSCRIPT_NATIVE, WPSBT_READY,   0},
+        {"08-stop-contradiction.psbt",WSCRIPT_NATIVE, WPSBT_STOP,    0},
+        {"09-caution-five.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
              WPSBT_C_UNPROVEN_IN | WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
              WPSBT_C_MERGE_INS   | WPSBT_C_DUST_CHANGE},
         // READY and no flags is the POINT of this one. It exists to fill the
@@ -47,6 +47,16 @@ int main(int argc, char **argv){
         // end. A caution row here would put a second gate in front of the first
         // and neither would be the thing under test.
         {"10-many-recipients.psbt",  WSCRIPT_NATIVE, WPSBT_READY,   0},
+        // BIP-375 silent-payment send fixtures (tools/sp_fixtures/mk_sp_sd_fixtures.py).
+        // 10 testnet inputs at m/84'/1'/0'/0/i, one scriptless SP output (scan||spend)
+        // + change. READY with no flags is the POINT: for an SP send the unproven
+        // and merge cautions cannot apply (the format never carries the previous
+        // transactions, and these coins were already linked by the scan), so the
+        // owner reviews the recipient and the fee and signs.
+        {"11-sp-10in.psbt",          WSCRIPT_NATIVE, WPSBT_READY,   0},
+        // 20 inputs vs the SP stack's hard cap: WPSBT_MAX_INS is 16, so this one
+        // MUST STOP. It is the size ladder's top rung on device, not a signable tx.
+        {"12-sp-20in.psbt",          WSCRIPT_NATIVE, WPSBT_STOP,   0},
     };
     int fails=0;
     // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
@@ -76,7 +86,7 @@ int main(int argc, char **argv){
     {
         unsigned char pb[8192], sb[8192];
         char fa[9]="", fb[9]="";
-        const char *pair[2]={"6-unproven-2in.psbt","7-proven-2in.psbt"};
+        const char *pair[2]={"06-unproven-2in.psbt","07-proven-2in.psbt"};
         char *out[2]={fa,fb};
         int ok=1;
         kiss_set_script(WSCRIPT_NATIVE);
