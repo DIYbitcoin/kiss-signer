@@ -19,11 +19,11 @@ clang -O1 -w -Imain -Icomponents/cUR/src \
   components/cUR/src/sha256/sha256.c \
   main/qr_transport.c sim/mk_qr_parts.c -o /tmp/mk_qr_parts
 
-/tmp/mk_qr_parts "$OUT/1-native.psbt"        static > "$OUT/static-native.parts"
-/tmp/mk_qr_parts "$OUT/2-nested.psbt"        pmofn  > "$OUT/pmofn-nested.parts"
-/tmp/mk_qr_parts "$OUT/3-legacy.psbt"        ur     > "$OUT/ur-legacy.parts"
-/tmp/mk_qr_parts "$OUT/4-stop-wrongnet.psbt" static > "$OUT/static-wrongnet.parts"
-/tmp/mk_qr_parts "$OUT/5-caution-highfee.psbt" static > "$OUT/static-caution.parts"
+/tmp/mk_qr_parts "$OUT/01-native.psbt"        static > "$OUT/static-native.parts"
+/tmp/mk_qr_parts "$OUT/02-nested.psbt"        pmofn  > "$OUT/pmofn-nested.parts"
+/tmp/mk_qr_parts "$OUT/03-legacy.psbt"        ur     > "$OUT/ur-legacy.parts"
+/tmp/mk_qr_parts "$OUT/04-stop-wrongnet.psbt" static > "$OUT/static-wrongnet.parts"
+/tmp/mk_qr_parts "$OUT/05-caution-highfee.psbt" static > "$OUT/static-caution.parts"
 
 # 3. render the page
 "$PY" sim/mk_test_qrs.py "$OUT"
