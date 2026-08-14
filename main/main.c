@@ -7,6 +7,7 @@
 #ifndef SIMULATOR  // ESP-only hardware bring-up; the desktop simulator provides its own platform
 #include "esp_chip_info.h"
 #include "esp_flash.h"
+#include "esp_cache.h"
 #include "esp_log.h"
 #include "esp_ldo_regulator.h"
 #include "driver/ledc.h"
@@ -398,6 +399,14 @@ void kiss_backlight_level(int pct)
   if (pct > 100) pct = 100;
   uint32_t shaped = (uint32_t)pct * (uint32_t)pct;        // 0..10000
   uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * shaped / 10000);
+  // One write per meaningful change. The install path calls this from a
+  // tight progress loop, and a stream of same-or-nearly-same duty writes is
+  // jitter the eye reads as flicker on a light that is the only indicator.
+  static uint32_t last = UINT32_MAX;
+  if (last != UINT32_MAX && (duty > last ? duty - last : last - duty) < 8 &&
+      pct != 0 && pct != 100)
+    return;
+  last = duty;
   ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
   ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
@@ -411,8 +420,15 @@ static void *s_fb2;          // the second one, kept for kiss_panel_black()
 // the framebuffers live in PSRAM behind the cache a flash write disables.
 void kiss_panel_black(void)
 {
-  if (s_fb)  memset(s_fb,  0, (size_t)LCD_H_RES * LCD_V_RES * 2);
-  if (s_fb2) memset(s_fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+  // The msync is the fix for the rave. These framebuffers live in PSRAM
+  // behind the cache: a memset that stays in cache lines is black the CPU
+  // can see and garbage the DPI panel keeps scanning out -- and once the
+  // flash write disables the cache, nothing ever writes the black back.
+  // The camera code learned this first (camera_spike.c blank_fb); same
+  // C2M flush here, so the panel is fed the black we think we wrote.
+  const size_t n = (size_t)LCD_H_RES * LCD_V_RES * 2;
+  if (s_fb)  { memset(s_fb,  0, n); esp_cache_msync(s_fb,  n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
+  if (s_fb2) { memset(s_fb2, 0, n); esp_cache_msync(s_fb2, n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
 }
 static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
 static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
@@ -534,6 +550,8 @@ static lv_display_t *display_start(void) {
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(s_panel, 2, (void **)&s_fb, &fb2));
   s_fb2 = fb2;                 // kept, so the update can black both out again
   memset(s_fb, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+  esp_cache_msync(s_fb, (size_t)LCD_H_RES * LCD_V_RES * 2,
+                  ESP_CACHE_MSYNC_FLAG_DIR_C2M);
   memset(fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
   camera_spike_set_panel(s_panel, s_fb, fb2);
   esp_lcd_dpi_panel_event_callbacks_t dpi_cbs = {.on_color_trans_done = dpi_trans_done};
