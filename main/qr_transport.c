@@ -70,14 +70,24 @@ static int b64_encode(const uint8_t *in, size_t n, char *out, size_t cap) {
     return 0;
 }
 
+// Base64 of the largest PSBT this device can hold, and therefore what a whole
+// pMofN set is allowed to add up to. The only ceiling before this was the
+// array of 64 part POINTERS: nothing measured the parts, so a sender could
+// hand over 64 QRs of any size each and every byte was kept in heap -- 165KB+
+// of a ~340KB internal heap, allocated while the camera streams -- and the
+// total was refused at assemble time, after the memory had been spent.
+#define PMOFN_MAX_B64 ((size_t)QRT_MAX_PSBT * 4 / 3 + 8)
+
 // ---- parser ----
 struct qrt_parser {
     int fmt;
     bool complete;
+    bool too_big;             // refused once: every later feed refuses too
     uint8_t psbt[QRT_MAX_PSBT];
     size_t psbt_len;
     // pMofN state
     char *parts[PMOFN_MAX_PARTS];
+    size_t b64_held;          // running sum of the part payloads kept
     int total;
     int seen;
     // UR state
@@ -88,13 +98,39 @@ qrt_parser_t *qrt_parser_new(void) {
     return calloc(1, sizeof(qrt_parser_t));
 }
 
+// Parts hold base64 of a transaction. Wipe before free, the same reason the
+// assembled bytes below are wiped: this is the owner's transaction, and
+// freed heap is read by whatever allocates next.
+static void parts_release(qrt_parser_t *p) {
+    for (int i = 0; i < PMOFN_MAX_PARTS; i++) {
+        if (!p->parts[i]) continue;
+        memset(p->parts[i], 0, strlen(p->parts[i]));
+        free(p->parts[i]);
+        p->parts[i] = NULL;
+    }
+    p->b64_held = 0;
+}
+
 void qrt_parser_free(qrt_parser_t *p) {
     if (!p) return;
-    for (int i = 0; i < PMOFN_MAX_PARTS; i++) free(p->parts[i]);
+    parts_release(p);
     if (p->ur) ur_decoder_free(p->ur);
     // PSBT bytes passed through here; don't leave them in freed heap
     memset(p->psbt, 0, sizeof p->psbt);
     free(p);
+}
+
+void qrt_parser_reset(qrt_parser_t *p) {
+    if (!p) return;
+    parts_release(p);
+    if (p->ur) { ur_decoder_free(p->ur); p->ur = NULL; }
+    memset(p->psbt, 0, sizeof p->psbt);
+    p->psbt_len = 0;
+    p->fmt = QRT_FMT_NONE;
+    p->complete = false;
+    p->too_big = false;
+    p->total = 0;
+    p->seen = 0;
 }
 
 // Assemble a completed pMofN set: concatenated base64 -> psbt bytes.
@@ -131,8 +167,14 @@ static int feed_pmofn(qrt_parser_t *p, const char *data, size_t len) {
     if (p->total == 0) p->total = n;
     else if (p->total != n) return -1;
     if (p->parts[m - 1]) return 0;   // duplicate scan, harmless
+    // Before the allocation, not after the set completes. One oversized part
+    // is refused on its own, and so is a set whose parts are individually
+    // reasonable and collectively too large.
+    if (plen >= PMOFN_MAX_B64 || p->b64_held + plen >= PMOFN_MAX_B64)
+        return QRT_FEED_TOO_BIG;
     p->parts[m - 1] = strndup(sp + 1, plen);
     if (!p->parts[m - 1]) return -1;
+    p->b64_held += plen;
     p->seen++;
     if (p->seen == p->total && pmofn_assemble(p) != 0) return -1;
     return 0;
@@ -163,6 +205,7 @@ static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
 
 int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     if (!p || !data || len == 0) return -1;
+    if (p->too_big) return QRT_FEED_TOO_BIG;
 
     int kind;
     if (len >= 5 && memcmp(data, "psbt\xff", 5) == 0) kind = QRT_FMT_STATIC;
@@ -179,7 +222,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     case QRT_FMT_STATIC:
         if (p->complete) { rc = 0; break; }
         if (data[0] == 'p') {   // raw binary
-            if (len > sizeof p->psbt) break;
+            if (len > sizeof p->psbt) { rc = QRT_FEED_TOO_BIG; break; }
             memcpy(p->psbt, data, len);
             p->psbt_len = len;
             p->complete = true;
@@ -199,6 +242,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
         break;
     }
     if (rc == 0 && p->fmt == QRT_FMT_NONE) p->fmt = kind;
+    if (rc == QRT_FEED_TOO_BIG) p->too_big = true;
     return rc;
 }
 

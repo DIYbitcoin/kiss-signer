@@ -344,7 +344,7 @@ const struct ext_key *kiss_session_master(void)
 // ---- network. The master key is network-free; testnet only changes the coin
 // type (84h/1h), the address hrp (tb) and the tpub serialization, so it can be
 // flipped any time without re-opening the session.
-static bool s_testnet;
+static bool s_testnet = KISS_NET_DEFAULT_TESTNET;   // see kiss_crypto.h
 void kiss_set_network(int testnet) { s_testnet = testnet != 0; }
 int kiss_testnet(void) { return s_testnet; }
 

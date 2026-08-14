@@ -2,6 +2,7 @@
 // kiss_seed_sd.h for the layout, the two domains, and for why the key never
 // leaves this device.
 #include "kiss_seed_sd.h"
+#include "kiss_wipe.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -34,11 +35,6 @@
 #define NVS_ENC_INFO "kiss-nvs-enc-v1"
 #define NVS_MAC_INFO "kiss-nvs-mac-v1"
 
-static void sd_bzero(void *ptr, size_t len)
-{
-    volatile uint8_t *p = (volatile uint8_t *)ptr;
-    while (len--) *p++ = 0;
-}
 
 // Length-independent compare. A MAC check that returns early on the first
 // differing byte tells an attacker how much of a forged tag was right.
@@ -86,9 +82,9 @@ static int fill_random(uint8_t *out, size_t len)
     if (rc == 0) rc = kiss_entropy_mix(chip, jit, mixed);
     if (rc == 0) memcpy(out, mixed, len);
 
-    sd_bzero(chip, sizeof chip);
-    sd_bzero(jit, sizeof jit);
-    sd_bzero(mixed, sizeof mixed);
+    kiss_wipe(chip, sizeof chip);
+    kiss_wipe(jit, sizeof jit);
+    kiss_wipe(mixed, sizeof mixed);
     return rc;
 }
 
@@ -132,7 +128,7 @@ int sd_seed_domain_key(sdseed_domain_t dom, uint8_t key32[32])
              nvs_commit(h) == ESP_OK ? 0 : -1;
     nvs_close(h);
     if (rc != 0) {
-        sd_bzero(key32, 32);
+        kiss_wipe(key32, 32);
         return -1;
     }
     return 0;
@@ -147,10 +143,10 @@ int sd_seed_domain_key(sdseed_domain_t dom, uint8_t key32[32])
     if (fill_random(key32, 32) != 0)
         return -1;
     f = fopen(slot, "wb");
-    if (!f) { sd_bzero(key32, 32); return -1; }
+    if (!f) { kiss_wipe(key32, 32); return -1; }
     int rc = fwrite(key32, 1, 32, f) == 32 ? 0 : -1;
     if (fclose(f) != 0) rc = -1;
-    if (rc != 0) sd_bzero(key32, 32);
+    if (rc != 0) kiss_wipe(key32, 32);
     return rc;
 #endif
 }
@@ -237,10 +233,10 @@ int sd_seed_seal_in(sdseed_domain_t dom, const uint8_t key32[32],
     *out_len = SDSEED_HDR_LEN + written + SDSEED_TAG_LEN;
     ret = 0;
 out:
-    sd_bzero(enc, sizeof enc);
-    sd_bzero(mac, sizeof mac);
+    kiss_wipe(enc, sizeof enc);
+    kiss_wipe(mac, sizeof mac);
     if (ret != 0) {
-        sd_bzero(out, out_cap);
+        kiss_wipe(out, out_cap);
         *out_len = 0;
     }
     return ret;
@@ -256,7 +252,7 @@ int sd_seed_open_in(sdseed_domain_t dom, const uint8_t key32[32],
     int ret = -1;
 
     if (!out || !out_cap) return -1;
-    sd_bzero(out, out_cap);
+    kiss_wipe(out, out_cap);
     if (!key32 || !blob) return -1;
 
     // Header, magic, then the declared length: all three before the key is
@@ -290,11 +286,11 @@ int sd_seed_open_in(sdseed_domain_t dom, const uint8_t key32[32],
     out[written] = '\0';
     ret = 0;
 out:
-    sd_bzero(enc, sizeof enc);
-    sd_bzero(mac, sizeof mac);
-    sd_bzero(tag, sizeof tag);
-    sd_bzero(plain, sizeof plain);
-    if (ret != 0) sd_bzero(out, out_cap);
+    kiss_wipe(enc, sizeof enc);
+    kiss_wipe(mac, sizeof mac);
+    kiss_wipe(tag, sizeof tag);
+    kiss_wipe(plain, sizeof plain);
+    if (ret != 0) kiss_wipe(out, out_cap);
     return ret;
 }
 
