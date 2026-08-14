@@ -1930,13 +1930,17 @@ static void details_cb(lv_event_t *e)
     // muted line. It is a property of the transaction exactly like the three
     // below it, and STR_S_FEERATE_PCT_FMT is already a whole sentence, so it
     // takes the head slot with no note under it.
-    det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW, RFLOOR);
     // The strip's own "?": version, locktime and sighash never made it into
     // the glossary card, and their inline notes are font14 -- the smallest
     // type on the page for the three terms a reader is least likely to know.
     // One card, composed at runtime from the same head:tail strings the rows
-    // draw, so it costs no new key in 21 locales.
-    wt_help_chip(s_scr, RX + RW - 26, ry - 2, MUT_COL, det_terms_cb, NULL);
+    // draw, so it costs no new key in 21 locales. The chip shares the FEE
+    // row's line and that row's label lane is narrowed to match -- floated
+    // over the strip it collided with the version row's head in all 21
+    // locales, which the overlap gate caught before any bench did.
+    int chip_y = ry;
+    det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW - 34, RFLOOR);
+    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_terms_cb, NULL);
     det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW, RFLOOR);
     det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW, RFLOOR);
     // The same mark the RBF explainer wears, so the row and the card that
@@ -2184,7 +2188,11 @@ static void rm_screen(void)
     lv_obj_t *list = lv_obj_create(s_scr);
     lv_obj_remove_style_all(list);
     lv_obj_set_pos(list, 24, 132);
-    lv_obj_set_size(list, 752, 258);
+    // A whole number of rows, not 258px of them: the list can hold every
+    // .psbt on the card now, and a fourth row sliced mid-pill by the clip
+    // edge read as a rendering fault (the overlap gate flagged the sliver in
+    // all 21 locales). Row pitch is WT_ROW_H plus the 8px flex gap.
+    lv_obj_set_size(list, 752, 3 * (WT_ROW_H + 8) - 8);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(list, 8, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
