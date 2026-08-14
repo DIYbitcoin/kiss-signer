@@ -800,6 +800,11 @@ int main(int argc, char **argv) {
     }
 
     // ---- step 4: session + BIP84 (vectors straight from the BIP84 document) ----
+    // The BIP84 vectors are MAINNET addresses; the factory default is testnet
+    // now (KISS_NET_DEFAULT_TESTNET), so the network is pinned rather than
+    // inherited -- a vector test that depends on the product's default is a
+    // test that flips when the default does.
+    kiss_set_network(0);
     if (kiss_session_open(NULL) != 0) { printf("FAIL: kiss_session_open\n"); return 1; }
 
     char addr[91];
