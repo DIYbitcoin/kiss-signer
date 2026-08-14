@@ -849,6 +849,15 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                : (n84 && !n44 && !n49) ? 84 : 0;
 
     s->n_unproven_in = nunproven;
+    // BIP375 silent-payment sends remove two cautions that cannot apply.
+    // A BIP-376 SP PSBT never carries the previous transactions — proving the
+    // input amounts is a property of the format, not an omission of the
+    // coordinator — and the inputs being spent together are the coins this
+    // signer's own scan already linked, so "merging" adds no information.
+    // The owner's review on the screen is the recipient and the fee either
+    // way; for everything else (non-SP spends) both cautions stay exactly as
+    // they are.
+    const bool sp_send = (s_sp.n > 0 || s->n_sp_in > 0);
     // The fee on the screen is a subtraction, and every input amount is a term in
     // it. BIP143 commits only to the amount of the input being signed, so with
     // two or more inputs a coordinator can run two signing sessions, declare a
@@ -862,7 +871,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // invalidates it. Everything else is the owner's call, which is what a
     // CAUTION is for -- and a coordinator that attaches the previous transactions
     // clears it outright, because then there is nothing left to lie about.
-    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
+    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0 && !sp_send)
         caution(s, WPSBT_C_UNPROVEN_IN, "input amounts not proven - fee may be higher");
 
     // Merging coins is the one privacy loss a signer can see coming and the one
@@ -872,7 +881,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // about how many are being tied together, and a sweep of perfectly ordinary
     // coins does the same damage. Soft CAUTION: consolidating is often the right
     // call, and the signer has no UTXO set to propose a better selection with.
-    if (s->n_in >= WPSBT_MERGE_INS)
+    if (s->n_in >= WPSBT_MERGE_INS && !sp_send)
         caution(s, WPSBT_C_MERGE_INS, "merging many coins (privacy)");
 
     // ---- outputs: re-derive change ourselves; never trust "this is change" ----

@@ -356,10 +356,10 @@ int main(int argc, char **argv) {
     }
     const char *d = argv[1];
     int rc = 0;
-    rc |= emit(d, "1-native.psbt",       WSCRIPT_NATIVE, 84, 1, 60000, 39000);  // type = NATIVE
-    rc |= emit(d, "2-nested.psbt",       WSCRIPT_NESTED, 49, 1, 60000, 39000);  // type = NESTED
-    rc |= emit(d, "3-legacy.psbt",       WSCRIPT_LEGACY, 44, 1, 60000, 39000);  // type = LEGACY
-    rc |= emit(d, "4-stop-wrongnet.psbt", WSCRIPT_NATIVE, 84, 0, 60000, 39000); // mainnet coin -> STOP
+    rc |= emit(d, "01-native.psbt",       WSCRIPT_NATIVE, 84, 1, 60000, 39000);  // type = NATIVE
+    rc |= emit(d, "02-nested.psbt",       WSCRIPT_NESTED, 49, 1, 60000, 39000);  // type = NESTED
+    rc |= emit(d, "03-legacy.psbt",       WSCRIPT_LEGACY, 44, 1, 60000, 39000);  // type = LEGACY
+    rc |= emit(d, "04-stop-wrongnet.psbt", WSCRIPT_NATIVE, 84, 0, 60000, 39000); // mainnet coin -> STOP
     // The CAUTION case, which had no fixture at all: three READY and one STOP
     // meant the acknowledgement gate, the one screen on this device with a
     // second confirm in front of it, could not be reached on hardware without
@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
     // is a tenth of the send or more; 8000 out of a 100000 input leaves 10000
     // of fee against an 8000 send, which is over that line and nowhere near
     // the dust rules, so exactly one flag fires and the screen is predictable.
-    rc |= emit(d, "5-caution-highfee.psbt", WSCRIPT_NATIVE, 84, 1, 8000, 82000);
+    rc |= emit(d, "05-caution-highfee.psbt", WSCRIPT_NATIVE, 84, 1, 8000, 82000);
 
     // ---- the amount-proof pair. THE test: 6 and 7 are the same transaction
     // spending the same two coins for the same amounts, and differ only in
@@ -376,15 +376,15 @@ int main(int argc, char **argv) {
     // screen must read the same on both. If it does not, reading the amount
     // off the previous transaction changed what gets signed, which would break
     // co-signing with every other wallet.
-    rc |= emit_nin(d, "6-unproven-2in.psbt", 2, 100000, 150000, 48000, 1,
+    rc |= emit_nin(d, "06-unproven-2in.psbt", 2, 100000, 150000, 48000, 1,
                    NIN_OMIT,  "CAUTION: amounts not proven");
-    rc |= emit_nin(d, "7-proven-2in.psbt",   2, 100000, 150000, 48000, 1,
+    rc |= emit_nin(d, "07-proven-2in.psbt",   2, 100000, 150000, 48000, 1,
                    NIN_PROVE, "READY: same tx, proof attached");
 
     // A witness_utxo that overstates its own previous transaction by one sat.
     // The coordinator is contradicting itself about a coin, so the device
     // refuses rather than picking whichever number it read first.
-    rc |= emit_nin(d, "8-stop-contradiction.psbt", 1, 100000, 60000, 39000, 1,
+    rc |= emit_nin(d, "08-stop-contradiction.psbt", 1, 100000, 60000, 39000, 1,
                    NIN_LIE, "STOP: prev tx does not match");
 
     // All five caution rows at once, which is the layout that only exists since
@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
     // unproven (2+ claimed amounts) + coins linked (5 inputs) + dust attack
     // (3000 sat coins) + dust change (200 sats, under the 294 floor) + high fee
     // (4800 of fee against a 10000 send is well over the tenth-of-the-send bar).
-    rc |= emit_nin(d, "9-caution-five.psbt", 5, 3000, 10000, 200, 1,
+    rc |= emit_nin(d, "09-caution-five.psbt", 5, 3000, 10000, 200, 1,
                    NIN_CLAIM, "CAUTION x5: every row at once");
 
     // Eight destinations, so the recipient list runs off the bottom of the panel
