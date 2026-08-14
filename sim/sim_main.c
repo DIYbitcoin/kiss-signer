@@ -413,7 +413,7 @@ int kiss_seed_diff_word(const char *typed, const char *stored) {
 
 // network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
-static int s_sim_testnet;
+static int s_sim_testnet = 1;   // mirror KISS_NET_DEFAULT_TESTNET: fresh = testnet
 void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
 int kiss_testnet(void) { return s_sim_testnet; }
 static int s_sim_script;
@@ -2631,25 +2631,22 @@ int main(void) {
   save("/tmp/sim_setup_verified.ppm");              // green full-backup state, at last
   tap_str(STR_C_I_UNDERSTAND, 3, 30);    // I UNDERSTAND -> the stroke chooser
 
-  // The LAST step of setup: the ONE stroke that reaches the real signer
-  // (kiss_duress_ui.c). Plain KISS opens the spare and always will, so there
-  // is nothing to configure for it. The stroke is drawn against the printed
-  // reference word at (250,170)-(550,268), which is the same box that
-  // kiss_duress_classify measures in the game.
+  // The LAST step of setup: the two-signer idea and its rule
+  // (kiss_duress_ui.c). Plain KISS opens the spare and always will; one
+  // extra swipe -- any swipe -- asks for the passphrase that opens the real
+  // signer. Nothing is configured here any more; the wizard teaches.
   save("/tmp/sim_duress_intro.ppm");                // two ways in
-  tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // OK -> fund the spare
+  tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
-  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // OK -> pick your stroke
-  save("/tmp/sim_duress_pick_real.ppm");            // six strokes, two rows of three
-  touch(158, 176); pump(3); release(); pump(40);    // UNDERLINE (first pill)
-  save("/tmp/sim_duress_draw_real.ppm");            // draw it, over the reference word
-  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 300); pump(1); }
-  release(); pump(40);                              // an underline: wide, flat, low
-  save("/tmp/sim_duress_draw_real2.ppm");           // ...and once more to confirm
-  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 302); pump(1); }
-  release(); pump(40);
-  save("/tmp/sim_duress_done.ppm");                 // the one way in is set
-  tap_str(STR_C_DONE, 3, 140);   // DONE -> saves, home settles
+  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> the rule (the picker is gone)
+  // The picker and its two rehearsal screens no longer exist: the chosen
+  // stroke was never read on unlock, so the wizard now ends on the rule --
+  // one extra swipe, any swipe, asks for your passphrase. Assert the rule
+  // screen positively; a walk that only taps through would photograph
+  // whatever screen a regression left here and still look green.
+  save("/tmp/sim_duress_done.ppm");                 // drawing -> spare, +swipe -> real
+  must_show("duress/rule", tr(STR_GD_DONE_T));
+  tap_str(STR_C_DONE, 3, 140);   // DONE -> home settles
   save("/tmp/sim_setup_home.ppm");
 
   // step 8: idle auto-lock — KISS_AUTOLOCK_MS untouched on the home must

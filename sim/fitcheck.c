@@ -547,7 +547,17 @@ static const pill_t PILLS[] = {
     { "storage/hold-move",STR_G_STORAGE_HOLD_MOVE,330, 66, 0, 1 },
     { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
     { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
-    { "set/wipe",         STR_G_WIPE,         340, 52, 0, 1 },
+    // 270, not 340: the endwords action row draws both pills at 270
+    // (kiss_settings.c endwords_screen), and measuring the wrong width let a
+    // fitting label pass while the real pill ellipsised.
+    //
+    // NOT here yet, deliberately: slots for STR_G_REPLACEC_GO and the two
+    // why-block bodies at their real 330px geometry. The English copy now
+    // fits font23 there, but the other 20 locales still carry the pre-rewrite
+    // translations (frozen by the owner), and a slot measures every locale --
+    // it would hold stale text to a box it was never written for. Add both
+    // the moment the locales thaw.
+    { "set/wipe",         STR_G_WIPE,         270, 52, 0, 1 },
     // The settings header row. FIRMWARE is 150x44 and carries no flag, sitting
     // 12px left of the 170px LANGUAGE pill; between them they take 332 of the
     // title's lane, so both are worth measuring rather than assuming. It is the

@@ -180,7 +180,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
         return init_failure(err);
 
     nvs_handle_t h;
-    uint8_t tn = 0, sc = 0, ac = 0, lg = 0;
+    uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -935,7 +935,11 @@ static void endwords_screen(void)
 {
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_ENDWORDS),
+    // The row label is Sentence case (a row in a list); a SCREEN title is
+    // caps everywhere else on the device. NO UNDO is this section's own
+    // eyebrow, already caps, already in 21 locales -- and it is the one fact
+    // both pills share.
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_NO_UNDO),
                       tr(STR_I_ROW_ENDWORDS_SUB));
 
     // The wallet this page is about to end, named. Every route into Settings
@@ -949,7 +953,23 @@ static void endwords_screen(void)
         kiss_ui_last_fp(fp);
         char id[16];
         snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id, 228, 108, 344, false);
+        // Centered by measurement, not by constant: the card is 344 wide for
+        // a value that is eight hex digits, and the fingerprint sat in its
+        // left edge with 200px of dead lane after it. Size to the widest
+        // child (the caption is translated), clamp, and centre on the page.
+        lv_obj_t *fpc = wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id,
+                                      0, 108, 344, false);
+        lv_obj_update_layout(fpc);
+        int cw = 0;
+        for (uint32_t ci = 0; ci < lv_obj_get_child_count(fpc); ci++) {
+            int w = lv_obj_get_width(lv_obj_get_child(fpc, ci));
+            if (w > cw) cw = w;
+        }
+        cw += 32;
+        if (cw < 200) cw = 200;
+        if (cw > 344) cw = 344;
+        lv_obj_set_width(fpc, cw);
+        lv_obj_set_x(fpc, 400 - cw / 2);
 
         // Both blocks below promise the paper still opens this wallet. The
         // device knows when that has never been proven -- Settings says so on

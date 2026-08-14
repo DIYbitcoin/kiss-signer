@@ -108,14 +108,10 @@ SECTIONS = [
          ("02b-duress-fund", "sim_duress_fund",
           "Put a small amount in it. An empty wallet on a signer looks "
           "exactly like a wallet with something hidden behind it."),
-         ("02c-duress-pick", "sim_duress_pick_real",
-          "One extra stroke after the word decides which wallet opens. You "
-          "choose which stroke is yours, so reading this firmware does not "
-          "tell anyone what to draw."),
-         ("02d-duress-draw", "sim_duress_draw_real",
-          "Draw it over the printed word, twice, before anything is saved. "
-          "Plain KISS keeps working forever and always opens the spare, so "
-          "forgetting your stroke can never lock you out of the device."),
+         ("02c-duress-rule", "sim_duress_done",
+          "One extra swipe after your drawing asks for your passphrase, and "
+          "the passphrase opens your real signer. Any swipe works: there is "
+          "nothing to memorise and nothing to forget."),
      ]),
 
     ("Pairing with Sparrow",
