@@ -599,21 +599,15 @@ static void waysin_word_cb(lv_event_t *e)
 
 static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
-// What this device is willing to admit about its duress mark.
-//
-// On a decoy session the answer is always "nothing configured", and that is the
-// feature rather than a hole in it. The spare is what an owner hands over under
-// coercion; a row reading SET tells whoever is standing over them that a second
-// wallet exists and was rehearsed, which is the one fact the spare exists to
-// withhold. The sub page was worse than the row: its chip named WHICH mark.
-//
-// The feature stays visible, because a row that disappears is its own tell and
-// the six marks were never the secret -- the passphrase is. What is hidden is
-// this device's state. A real session sees the truth, which is where the owner
-// is when they need it.
-static int duress_shown(void)
+// The audit owns the display while it runs and hands back the same way the
+// firmware screens do, by rebuilding Settings underneath.
+static void audit_open_cb(lv_event_t *e)
 {
-    return kiss_session_decoy() ? WDG_NONE : kiss_duress_real();
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    kiss_setup_open_audit(parent, settings_reopen);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -623,19 +617,27 @@ static void duress_cb(lv_event_t *e)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
 
-    // What is set today, as chips, so the page answers the question before
-    // either pill is tapped: which mark reaches the real signer, and whether
-    // this device still answers to KISS at all.
+    // What is true today, as chips: what opens the spare (KISS, or the
+    // owner's drawing), and the fixed rule beside it. There is no chosen
+    // mark to report any more -- any one extra swipe asks for the
+    // passphrase -- so the page states the rule instead of a secret that
+    // never existed.
     {
         lv_obj_t *row = wt_diagram_row(s_scr);
-        const int g = duress_shown();
-        wt_chip(row, g == WDG_NONE ? tr(STR_GD_OFF)
-                                   : tr(kiss_duress_label_key(g)),
-                g != WDG_NONE);
         wt_chip(row, gw_stored_any() ? tr(STR_GD_WORD_T) : "KISS",
                 gw_stored_any());
-        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 150);
+        wt_diagram_op(row, "+");
+        wt_chip(row, tr(STR_GD_PICK_REAL_T), true);   // ONE SWIPE, the rule
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 128);
     }
+
+    // The camera audit, one row down. Advanced by placement -- this is the
+    // one Settings page with room, and both things here are for an owner who
+    // wants to check the device rather than use it. Opens the same flow the
+    // create wizard used to carry; it proves the derivation mechanism and
+    // never touches the seed.
+    wt_row(s_scr, tr(STR_W_PROOF_T), tr(STR_W_PROOF_CHECK_H), NULL, WT_INK,
+           48, 210, 704, audit_open_cb, NULL);
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
@@ -1444,9 +1446,10 @@ void kiss_settings_open(lv_obj_t *parent)
     // which is the exact fault 324ef09 renamed the row to escape. It reports
     // whether a way in has been rehearsed and nothing else -- never WHICH mark,
     // which is the reason the label could come back at all.
-    const int g = duress_shown();
+    // SET means "a custom drawing replaced KISS" -- the one configurable
+    // fact left on this page now that the swipe is a rule, not a choice.
     wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
-           g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_ON),
+           gw_stored_any() ? tr(STR_GD_ON) : tr(STR_GD_OFF),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
            duress_cb, NULL);
 

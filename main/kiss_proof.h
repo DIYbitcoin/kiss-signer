@@ -19,18 +19,21 @@
 // from the device being audited, so a doubter fetches the same page from the
 // repo or the site the page itself names, and checks with that copy instead.
 #define WPROOF_PAGE_NAME   "kiss-verify.html"
-// The page ships a 64 dash placeholder; the card's copy gets this run's hash
-// written over it, in place, so the file keeps its length and the claim sits
-// in the page's own script rather than after it.
-#define WPROOF_CLAIM_SLOT \
-    "----------------------------------------------------------------"
 
-// The whole negotiated sensor frame, raw RGB565. The pinned test vector and
-// the owner's recipe both depend on this exact size, so a frame of any other
-// length is refused rather than adapted to.
+// The whole negotiated sensor frame, raw RGB565. A frame of any other length
+// is refused rather than adapted to.
 #define WPROOF_FRAME_W     1288
 #define WPROOF_FRAME_H     728
 #define WPROOF_FRAME_BYTES ((size_t)WPROOF_FRAME_W * WPROOF_FRAME_H * 2)
+
+// What actually lands on the card: every second pixel of every second row.
+// Subsampled, not averaged, so anyone can reproduce the file from a raw
+// frame with one loop -- and a quarter the bytes writes in a quarter the
+// time, which is what made the audit feel broken on a real card. The hash,
+// the page and the pinned vectors are all over THESE bytes.
+#define WPROOF_FILE_W      (WPROOF_FRAME_W / 2)
+#define WPROOF_FILE_H      (WPROOF_FRAME_H / 2)
+#define WPROOF_FILE_BYTES  ((size_t)WPROOF_FILE_W * WPROOF_FILE_H * 2)
 
 enum {
     WPROOF_OK         = 0,
@@ -39,7 +42,7 @@ enum {
     WPROOF_ERR_DERIVE = -3,   // hash or BIP39 failed (never expected)
 };
 
-// SHA256 the frame, write those exact bytes to WPROOF_NAME (atomic form, so
+// Subsample the frame, SHA256 the subsampled bytes, write them to WPROOF_NAME (atomic form, so
 // the card copy is read back and byte compared before it gets the name), write
 // the embedded checker page plus this run's claim as WPROOF_PAGE_NAME the same
 // way, then derive the 24 words from the hash alone. hash_out and words_out are filled only on

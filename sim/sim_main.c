@@ -167,18 +167,10 @@ int kiss_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
   ur_bundled_sha256_init(&cx);
   ur_bundled_sha256_update(&cx, junk, sizeof junk);
   ur_bundled_sha256_final(&cx, hash_out);
-  // Same shape the device writes: the page with this run's hash over the claim
-  // slot, so the sim's card really does self verify when opened in a browser.
-  char hex[65];
-  for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", hash_out[i]);
-  uint8_t *page = malloc(verify_page_html_len);
-  if (!page) return WPROOF_ERR_SD;
-  memcpy(page, verify_page_html, verify_page_html_len);
-  uint8_t *slot = memmem(page, verify_page_html_len, WPROOF_CLAIM_SLOT, 64);
-  if (slot) memcpy(slot, hex, 64);
-  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, page,
+  // Same shape the device writes now: the page as-is, stateless. The claim
+  // lives on the (sim's) result screen; the page only computes.
+  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
                                      verify_page_html_len);
-  free(page);
   if (prc < 0) return WPROOF_ERR_SD;
   return kiss_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
@@ -2311,25 +2303,11 @@ int main(void) {
                                                     // 40 = the staggered card
                                                     // intro fully settled
   save("/tmp/sim_setup_ent_why.ppm");               // WHY THREE SOURCES, icon grid
-  // The PROVE IT detour. The explainer's own OK stays covered by the dice "?"
-  // below; this path leaves through the pill instead, walks the whole burned
-  // proof run, and lands back on the entropy screen. The stub writes a real
-  // (small) kiss-proof.bin into /tmp/simsd.
-  tap_str(STR_W_PROOF_BTN, 3, 6);     // PROVE IT -> capture screen
-  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
-  tap_str(STR_W_PROOF_SHOT, 3, 6);     // CAPTURE (stubbed, instant)
-  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
-  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);     // SHOW WORDS
-  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
-  tap_str(STR_R_NEXT, 3, 6);     // NEXT -> words 13-24
-  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
-  tap_str(STR_C_DONE, 3, 6);     // DONE -> entropy screen
-  // ...and again through the action row's own AUDIT pill, the route that does
-  // not require doubting the camera first. Straight back out: the screens it
-  // reaches are the ones already walked above.
-  tap_str(STR_W_PROOF_BTN, 3, 6);     // AUDIT pill -> capture
-  save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> entropy screen
+  // No PROVE IT detour here any more: the audit moved to Settings (its walk
+  // stops are on the WAYS IN page path), and the explainer card's text still
+  // names the doubt the audit answers. Close the card and carry on.
+  touch(400, 40); pump(3); release(); pump(20);     // tap anywhere -> closes
+  pump(20);                                         // entropy screen rebuilds
 
   // TAP TO ADD RANDOMNESS, and the refusal behind it. Both were NEVER OPENED:
   // the walk stopped at the entropy screen and backed out, so source 3 -- the
@@ -2801,7 +2779,22 @@ int main(void) {
   // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
-  save("/tmp/sim_settings_duress.ppm");             // stroke + KISS chips, 3 pills
+  save("/tmp/sim_settings_duress.ppm");             // drawing + ONE SWIPE chips
+
+  // The camera audit, from its new home on this page. The stub writes a real
+  // (small) kiss-proof.bin and the stateless checker page into /tmp/simsd;
+  // BACK out of the capture screen returns to Settings via the done cb, so
+  // the page is re-entered for the drawing enrolment below.
+  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT row -> capture screen
+  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
+  tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
+  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
+  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);   // SHOW WORDS
+  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, thrown-away line
+  tap_str(STR_R_NEXT, 3, 6);          // NEXT -> words 13-24
+  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
+  tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
+  touch(400, 355); pump(3); release(); pump(8);     // Duress again, for the word
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
