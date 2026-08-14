@@ -132,7 +132,6 @@ static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came f
 static int s_qr_fmt;                   // QRT_FMT_* the scan arrived in
 static qrt_encoder_t *s_qenc;          // QR-out encoder (animated signed PSBT)
 static lv_timer_t *s_qr_tmr;
-static lv_timer_t *s_done_tmr;   // SD sign: auto-return to home after the success screen
 static lv_obj_t *s_qr_img, *s_part_lbl;
 static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
@@ -142,6 +141,8 @@ static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8
 static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
 static void qr_out_screen(size_t sw);
+static size_t s_qr_sw;            // signed length, kept so help can rebuild the QR screen
+static bool s_help_from_qr;       // which signed screen the SIGNATURE panel returns to
 
 bool kiss_sign_active(void) { return s_scr != NULL; }
 
@@ -194,7 +195,6 @@ static void close_cb(lv_event_t *e)
     (void)e;
     hold_stop();
     s_arc = NULL; s_sign_lbl = NULL;
-    if (s_done_tmr) { lv_timer_delete(s_done_tmr); s_done_tmr = NULL; }
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
@@ -366,12 +366,6 @@ static const char *tr_reason(const char *r)
 #define fmt_sats wt_fmt_sats
 
 // ---- signing ----
-static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home on its own
-{
-    s_done_tmr = NULL;
-    lv_timer_delete(t);
-    close_cb(NULL);
-}
 // This screen's lane is 24..776, not the page's 48..752, because its panels are
 // drawn at sg_panel(24, y, 752). So its corner is 776 and its exits are pinned
 // against that, not against WT_BACK_X.
@@ -385,7 +379,12 @@ static void auto_home_cb(lv_timer_t *t)   // SD success screen returns to home o
 // screen's WHY THREE SOURCES. BACK rebuilds the SD signed screen from the saved
 // outname (the file is written; nothing is re-signed).
 static void done_screen(const char *outname);
-static void sig_help_back_cb(lv_event_t *e) { (void)e; done_screen(s_done_name); }
+static void sig_help_back_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_help_from_qr) qr_out_screen(s_qr_sw);
+    else                done_screen(s_done_name);
+}
 
 // A code chip for the comparison rows below: wt_chip with its label in mono.
 // Mono because the whole point of the code is digit for digit comparison, and
@@ -402,10 +401,24 @@ static lv_obj_t *sig_code_chip(lv_obj_t *row, const char *code)
 static void sig_fp_help_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_done_tmr) { lv_timer_delete(s_done_tmr); s_done_tmr = NULL; }  // don't drift home under the panel
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
+
+    // This device's own code first, real and big: the signed screens no
+    // longer carry it on their main surface (it is a check for the cautious,
+    // not a step for everyone), so this panel is where it lives now.
+    if (s_sig_fp[0]) {
+        char code[12];
+        snprintf(code, sizeof code, "%c%c%c%c %c%c%c%c",
+                 toupper((unsigned char)s_sig_fp[0]), toupper((unsigned char)s_sig_fp[1]),
+                 toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
+                 toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
+                 toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
+        lv_obj_t *own = mk_lbl(code, 0, 74, wt_font_mono23(), INK_COL);
+        lv_obj_update_layout(own);
+        lv_obj_set_x(own, (800 - lv_obj_get_width(own)) / 2);
+    }
 
     // The answer, drawn before it is said: the same transaction signed on two
     // signers either shows one code twice, or it does not. Two rows, two
@@ -439,47 +452,27 @@ static void sig_fp_help_cb(lv_event_t *e)
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, sig_help_back_cb);
 }
 
-// Caption + grouped mono code (+ optional ? chip), shared by the SD and QR
-// signed screens so the upper-casing lives in one place. Draws nothing when no
-// fingerprint was computed.
-static void draw_sig_fp(int cap_x, int val_x, int y, int chip_x)
+
+// The compact form the signed screens carry now: caption + "?" chip only.
+// The code itself moved into the panel the chip opens -- it is a check for
+// the cautious, not a step in everyone's flow, and at full size it was the
+// loudest thing on a screen whose real message is "take the card back".
+static void sig_fp_open_cb(lv_event_t *e)
+{
+    s_help_from_qr = lv_event_get_user_data(e) != NULL;
+    sig_fp_help_cb(NULL);
+}
+
+static void draw_sig_chip(int x, int y, bool from_qr)
 {
     if (!s_sig_fp[0]) return;
-    char code[12];
-    snprintf(code, sizeof code, "%c%c%c%c %c%c%c%c",
-             toupper((unsigned char)s_sig_fp[0]), toupper((unsigned char)s_sig_fp[1]),
-             toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
-             toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
-             toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
-    // val_x is a MINIMUM, not a position. The gap between caption and code was
-    // 90px at both call sites, which is "SIGNATURE" at font14 and nothing more:
-    // Dutch HANDTEKENING needs 116 and Portuguese ASSINATURA 92, so both ran
-    // into the code. Measuring the caption and pushing the code out by whatever
-    // it overruns fixes every locale at once, and leaves English pixel identical
-    // because English is what the two numbers were measured against.
-    //
-    // Pushed rather than re-centred: this pair is placed by its callers as part
-    // of a group that one of them centres under a filename, so moving the
-    // caption would move a layout that was already argued out.
-    // The code is at mono23 and the caption stays at 14, sat 5px down so the
-    // two centre on one line. mono14 made the ONE string this screen asks the
-    // owner to read back against another device the smallest text on it -- the
-    // caption is furniture, the code is the point, and the sizes said the
-    // opposite. On device, at arm's length, 14 was a squint.
-    lv_obj_t *cap = mk_lbl(tr(STR_S_SIG_FP_CAP), cap_x, y + 5, wt_font14(), MUT_COL);
-    lv_obj_update_layout(cap);
-    const int GAP = 12;
-    int need = cap_x + lv_obj_get_width(cap) + GAP;
-    int push = need > val_x ? need - val_x : 0;
-    lv_obj_t *val = mk_lbl(code, val_x + push, y, wt_font_mono23(), INK_COL);
-    if (chip_x >= 0) {
-        // Measured off the code label, not a hardcoded x: the chip trails the
-        // code at whatever width the mono face actually gives it, so a font
-        // change here is one change, not two.
-        lv_obj_update_layout(val);
-        wt_help_chip(s_scr, val_x + push + lv_obj_get_width(val) + GAP, y - 2,
-                     MUT_COL, sig_fp_help_cb, NULL);
-    }
+    // Chip FIRST, at a fixed x, caption trailing: the caption is translated
+    // and grows rightward harmlessly, while the one tappable thing on the
+    // pair sits at the same spot in every locale -- which is also what lets
+    // the walk tap it without measuring text.
+    wt_help_chip(s_scr, x, y, MUT_COL, sig_fp_open_cb,
+                 from_qr ? (void *)1 : NULL);
+    mk_lbl(tr(STR_S_SIG_FP_CAP), x + 40, y + 5, wt_font14(), MUT_COL);
 }
 
 static void done_screen(const char *outname)
@@ -497,16 +490,16 @@ static void done_screen(const char *outname)
     lv_obj_t *fn = mk_lbl(outname, 0, 230, wt_font28(), INK_COL);
     lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 230);
     // The signature fingerprint, centred under the filename, with its ? panel.
-    draw_sig_fp(296, 386, 262, 496);
-    // "take the card back to your coordinator" is the next thing to do, and
-    // this screen auto-returns home after 6s. It has 110px of empty width-704
-    // page under it; it does not need to be the small type.
+    draw_sig_chip(296, 262, false);
+    // "take the card back to your coordinator" is the next thing to do. It
+    // has 110px of empty width-704 page under it; not the small type.
     lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 300, 704, 90);
     lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
+    // No drift-home timer. This screen used to leave on its own after 6s,
+    // which read as a crash mid-test and stole a filename the owner was
+    // meant to read back to the coordinator. DONE is the only exit; the idle
+    // auto-lock still covers a walk-away (the registered close unmounts).
     mk_pill(tr(STR_C_DONE), SG_BACK_X140, WT_ACTION_Y, 140, close_cb);
-    // nothing needs to stay on screen (the file is saved), so drift back to home
-    s_done_tmr = lv_timer_create(auto_home_cb, 6000, NULL);
-    lv_timer_set_repeat_count(s_done_tmr, 1);
 }
 
 static void fail_screen(const char *why)
@@ -553,6 +546,7 @@ static void do_sign_cb(lv_timer_t *t)
         s_sig_fp[0] = 0;
     mark_used_receives();
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
+        s_qr_sw = sw;
         qr_out_screen(sw);
         return;
     }
@@ -1225,12 +1219,34 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(t, all_done ? MUT_COL : INK_COL, 0);
         wt_note_fit(t, buf, 491 - 16, 24);
 
-        if (np == 1 && !all_done)
+        if (np == 1 && !all_done) {
             wt_pillh(bar, tr(STR_C_I_UNDERSTAND), 543, 2, SG_ROW_PILL_W, 40,
                      row_ack_cb, (void *)(uintptr_t)bits[0]);
-        else
+        } else if (np == 1) {
+            // One caution, already acknowledged: the spent tick, not a
+            // REVIEW pill. REVIEW here opened a page whose only content was
+            // this same sentence with this same tick -- a whole screen to
+            // re-read one thing the owner had just read. The tick is the
+            // cautions page's own spent-state mark, drawn in place.
+            lv_obj_t *p = lv_obj_create(bar);
+            lv_obj_remove_style_all(p);
+            lv_obj_set_size(p, SG_ROW_PILL_W, 40);
+            lv_obj_set_style_border_width(p, 2, 0);
+            lv_obj_set_style_border_color(p, OK_COL, 0);
+            lv_obj_set_style_radius(p, 10, 0);
+            lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
+            lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_pos(p, 543, 2);
+            lv_obj_t *l = lv_label_create(p);
+            lv_label_set_text(l, LV_SYMBOL_OK);
+            lv_obj_set_style_text_font(l, wt_font23(), 0);
+            lv_obj_set_style_text_color(l, OK_COL, 0);
+        } else {
             wt_pillh(bar, tr(STR_S_C_REVIEW), 543, 2, SG_ROW_PILL_W, 40,
                      cautions_open_cb, NULL);
+        }
     }
 
     // ---- the two outputs -------------------------------------------------
@@ -1335,19 +1351,19 @@ static void verify_screen(lv_obj_t *parent)
             // characters at the same size twice and cost the panel a scrollbar,
             // with "compare these 8" at the fold. A list of recipients has no
             // such line, so at mono14 the tail was carried by colour alone.
-            (recipient_n > 1 ? wt_addr_spans_lift : wt_addr_spans)
+            // ONE render of the address, the FULL one, with the compared
+            // runs lifted inside it. There used to be a second, shortened
+            // line under this ("...abcd efgh" at mono23) and it was the
+            // wrong thing to feature: address poisoning is built to match
+            // the short ends, so the ritual this screen exists for is
+            // reading the WHOLE address, and the lift makes the compare
+            // runs big without ever letting them stand alone.
+            wt_addr_spans_lift
                 (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
-            // The compared runs again, large, on their own line. This is the
-            // part of the screen doing security work: the body above is there
-            // to be scanned, this is the pair the caption asks you to check
-            // against your coordinator. Fixed pitch matters here specifically,
-            // because both runs are four characters and so come out the same
-            // width, which a proportional face cannot do.
             if (recipient_n == 1) {
-                wt_addr_short(list, s_sum.outs[i].addr, wt_font_mono23());
                 // The hint below is the one thing the shorter cautioned panel
-                // gives up. The address and the two compared runs above it are
-                // drawn either way; only the sentence explaining them goes.
+                // gives up. The address and its lifted runs are drawn either
+                // way; only the sentence explaining them goes.
                 if (!np) {
                 // The caption HANDOFF-01 asks for, next line down. Without it
                 // the two lit runs are still there and still landing at the
@@ -1613,12 +1629,39 @@ static int det_h(lv_obj_t *o)
 // and the two that would spill are held to the lines they have left and
 // ellipsised. A clipped sentence is bad. A sentence drawn over the BACK pill,
 // on the page whose job is telling you what you are about to sign, is worse.
+// The flags-strip explainer: locktime, sighash and RBF at reading size.
+// Bodies are the exact strings the strip itself draws -- head kept with its
+// tail so each paragraph is "TERM: what it means" -- and the card splits
+// them into ruled claims by itself.
+static void det_terms_back_cb(lv_event_t *e);
+static void det_terms_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    lv_obj_delete(s_scr); s_scr = NULL;
+    mk_screen(parent, tr(STR_S_DETAILS), s_cur);
+    wpsbt_details_t det;
+    char body[512];
+    if (kiss_psbt_details(&det) == 0) {
+        snprintf(body, sizeof body, "%s\n\n%s\n\n%s",
+                 det.locktime ? tr(STR_S_D_LT_NONZERO) : tr(STR_S_D_LT_ZERO),
+                 tr(STR_S_D_SIGHASH),
+                 s_sum.rbf ? tr(STR_S_D_RBF_ON) : tr(STR_S_D_RBF_OFF));
+        wt_why_body(s_scr, body, 116, wt_accent(), true);
+    }
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, det_terms_back_cb);
+}
+static void det_terms_back_cb(lv_event_t *e) { details_cb(e); }
+
 static void det_flag_row(int x, int *y, const char *icon, const char *head,
                          const char *tail, int w, int floor_y)
 {
     const int IW = 26;              // icon column, generous enough for the widest
     if (*y + 18 > floor_y) return;
-    wt_lbl(s_scr, icon, x, *y + 2, wt_font14(), MUT_COL);
+    // Accent, not MUT: these four icons are the only marks on the page that
+    // are pure decoration (the input-row OK/eye-slash are STATUS and keep
+    // their verdict colours per ADDENDUM-02), and grey-on-grey hid them.
+    wt_lbl(s_scr, icon, x, *y + 2, wt_font14(), wt_accent());
 
     lv_obj_t *h = wt_lbl(s_scr, head, x + IW, *y, wt_font14(), INK_COL);
     lv_obj_set_style_text_letter_space(h, 1, 0);
@@ -1888,6 +1931,12 @@ static void details_cb(lv_event_t *e)
     // below it, and STR_S_FEERATE_PCT_FMT is already a whole sentence, so it
     // takes the head slot with no note under it.
     det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW, RFLOOR);
+    // The strip's own "?": version, locktime and sighash never made it into
+    // the glossary card, and their inline notes are font14 -- the smallest
+    // type on the page for the three terms a reader is least likely to know.
+    // One card, composed at runtime from the same head:tail strings the rows
+    // draw, so it costs no new key in 21 locales.
+    wt_help_chip(s_scr, RX + RW - 26, ry - 2, MUT_COL, det_terms_cb, NULL);
     det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW, RFLOOR);
     det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW, RFLOOR);
     // The same mark the RBF explainer wears, so the row and the card that
@@ -1976,7 +2025,7 @@ static void qr_out_screen(size_t sw)
     // 96 tops the column flush with the QR card beside it; the code at mono23
     // runs to 125, so the part counter drops to 130 and still clears the first
     // note at 168.
-    draw_sig_fp(430, 520, 96, -1);
+    draw_sig_chip(430, 96, true);
     s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 130,
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
@@ -2113,7 +2162,13 @@ static void rm_all(void *ud)
 static void rm_screen(void)
 {
     int total = 0;
-    s_rmn = platform_sd_list_signed(s_rmf, RM_MAX, &total);
+    // Every .psbt on the card, not only our own -signed outputs. The old
+    // signed-only list made this screen safe by construction and useless for
+    // the other half of the job: a card full of stale unsigned drafts had no
+    // way to be cleaned except a computer. Safety moved into the gesture --
+    // each row is its own 1200ms hold -- and REMOVE ALL below stays scoped
+    // to signed files, where a sweep cannot destroy unsigned work.
+    s_rmn = platform_sd_list_psbt(s_rmf, RM_MAX, &total);
     if (s_rmn <= 0) {                      // nothing left: the job is done
         files_back_cb(NULL);
         return;
@@ -2143,7 +2198,9 @@ static void rm_screen(void)
         lv_obj_t *row = sg_panel(0, 0, 752, WT_ROW_H, WT_EDGE);
         lv_obj_set_parent(row, list);
         lv_obj_set_width(row, lv_pct(100));
-        sg_lbl(row, LV_SYMBOL_FILE, SG_PAD, 20, wt_font23(), MUT_COL);
+        bool sgn = is_signed_name(s_rmf[i]);
+        sg_lbl(row, sgn ? LV_SYMBOL_OK : LV_SYMBOL_FILE, SG_PAD, 20,
+               wt_font23(), MUT_COL);
         lv_obj_t *nm = lv_label_create(row);
         lv_obj_set_pos(nm, 52, 22);
         lv_obj_set_style_text_font(nm, wt_font_mono14(), 0);
@@ -2281,7 +2338,7 @@ static void sd_open(lv_obj_t *parent)
     // and it is also what makes this safe in the corner. 412..752 against the
     // way out at 48..188 leaves 224px of clear air.
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, choose_back_cb);
-    if (s_nsig > 0) {
+    if (n > 0) {   // any file is deletable now, not only our signed outputs
         lv_obj_t *rm = wt_pill_icon(s_scr, LV_SYMBOL_TRASH, tr(STR_S_RM_SIGNED),
                                     WT_ACT_X, WT_ACTION_Y, 340, WT_ACTION_H,
                                     rm_open_cb, NULL);
