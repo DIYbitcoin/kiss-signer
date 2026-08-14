@@ -180,7 +180,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
         return init_failure(err);
 
     nvs_handle_t h;
-    uint8_t tn = 0, sc = 0, ac = 0, lg = 0;
+    uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -599,21 +599,15 @@ static void waysin_word_cb(lv_event_t *e)
 
 static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
-// What this device is willing to admit about its duress mark.
-//
-// On a decoy session the answer is always "nothing configured", and that is the
-// feature rather than a hole in it. The spare is what an owner hands over under
-// coercion; a row reading SET tells whoever is standing over them that a second
-// wallet exists and was rehearsed, which is the one fact the spare exists to
-// withhold. The sub page was worse than the row: its chip named WHICH mark.
-//
-// The feature stays visible, because a row that disappears is its own tell and
-// the six marks were never the secret -- the passphrase is. What is hidden is
-// this device's state. A real session sees the truth, which is where the owner
-// is when they need it.
-static int duress_shown(void)
+// The audit owns the display while it runs and hands back the same way the
+// firmware screens do, by rebuilding Settings underneath.
+static void audit_open_cb(lv_event_t *e)
 {
-    return kiss_session_decoy() ? WDG_NONE : kiss_duress_real();
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    kiss_setup_open_audit(parent, settings_reopen);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -623,19 +617,27 @@ static void duress_cb(lv_event_t *e)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
 
-    // What is set today, as chips, so the page answers the question before
-    // either pill is tapped: which mark reaches the real signer, and whether
-    // this device still answers to KISS at all.
+    // What is true today, as chips: what opens the spare (KISS, or the
+    // owner's drawing), and the fixed rule beside it. There is no chosen
+    // mark to report any more -- any one extra swipe asks for the
+    // passphrase -- so the page states the rule instead of a secret that
+    // never existed.
     {
         lv_obj_t *row = wt_diagram_row(s_scr);
-        const int g = duress_shown();
-        wt_chip(row, g == WDG_NONE ? tr(STR_GD_OFF)
-                                   : tr(kiss_duress_label_key(g)),
-                g != WDG_NONE);
         wt_chip(row, gw_stored_any() ? tr(STR_GD_WORD_T) : "KISS",
                 gw_stored_any());
-        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 150);
+        wt_diagram_op(row, "+");
+        wt_chip(row, tr(STR_GD_PICK_REAL_T), true);   // ONE SWIPE, the rule
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 128);
     }
+
+    // The camera audit, one row down. Advanced by placement -- this is the
+    // one Settings page with room, and both things here are for an owner who
+    // wants to check the device rather than use it. Opens the same flow the
+    // create wizard used to carry; it proves the derivation mechanism and
+    // never touches the seed.
+    wt_row(s_scr, tr(STR_W_PROOF_T), tr(STR_W_PROOF_CHECK_H), NULL, WT_INK,
+           48, 210, 704, audit_open_cb, NULL);
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
@@ -935,7 +937,11 @@ static void endwords_screen(void)
 {
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_ENDWORDS),
+    // The row label is Sentence case (a row in a list); a SCREEN title is
+    // caps everywhere else on the device. NO UNDO is this section's own
+    // eyebrow, already caps, already in 21 locales -- and it is the one fact
+    // both pills share.
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_NO_UNDO),
                       tr(STR_I_ROW_ENDWORDS_SUB));
 
     // The wallet this page is about to end, named. Every route into Settings
@@ -949,7 +955,23 @@ static void endwords_screen(void)
         kiss_ui_last_fp(fp);
         char id[16];
         snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id, 228, 108, 344, false);
+        // Centered by measurement, not by constant: the card is 344 wide for
+        // a value that is eight hex digits, and the fingerprint sat in its
+        // left edge with 200px of dead lane after it. Size to the widest
+        // child (the caption is translated), clamp, and centre on the page.
+        lv_obj_t *fpc = wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id,
+                                      0, 108, 344, false);
+        lv_obj_update_layout(fpc);
+        int cw = 0;
+        for (uint32_t ci = 0; ci < lv_obj_get_child_count(fpc); ci++) {
+            int w = lv_obj_get_width(lv_obj_get_child(fpc, ci));
+            if (w > cw) cw = w;
+        }
+        cw += 32;
+        if (cw < 200) cw = 200;
+        if (cw > 344) cw = 344;
+        lv_obj_set_width(fpc, cw);
+        lv_obj_set_x(fpc, 400 - cw / 2);
 
         // Both blocks below promise the paper still opens this wallet. The
         // device knows when that has never been proven -- Settings says so on
@@ -1424,9 +1446,10 @@ void kiss_settings_open(lv_obj_t *parent)
     // which is the exact fault 324ef09 renamed the row to escape. It reports
     // whether a way in has been rehearsed and nothing else -- never WHICH mark,
     // which is the reason the label could come back at all.
-    const int g = duress_shown();
+    // SET means "a custom drawing replaced KISS" -- the one configurable
+    // fact left on this page now that the swipe is a rule, not a choice.
     wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
-           g == WDG_NONE ? tr(STR_GD_OFF) : tr(STR_GD_ON),
+           gw_stored_any() ? tr(STR_GD_ON) : tr(STR_GD_OFF),
            WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
            duress_cb, NULL);
 

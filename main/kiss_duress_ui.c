@@ -16,38 +16,22 @@
 #include "kiss_duress.h"
 #include "kiss_theme.h"
 #include "i18n.h"
+#include "kiss_wipe.h"
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
 static void (*s_done)(void);
 
-// The reference word's box on the draw screens. The label is centred on this,
-// and it is what kiss_duress_classify measures the stroke against.
-#define REF_X0 250
-#define REF_Y0 170
-#define REF_X1 550
-#define REF_Y1 268
-
-// Stage machine. ST_PICK chooses the stroke, the two ST_DRAW stages rehearse
-// it; the second is the confirmation.
-enum { ST_INTRO = 0, ST_FUND, ST_PICK, ST_DRAW1, ST_DRAW2, ST_DONE, ST_NOPASS };
+// Stage machine. The stroke picker and its two rehearsal stages are GONE,
+// deliberately: the chosen stroke was never read on the unlock path -- any
+// single extra swipe after the word routed to the passphrase keyboard, and
+// the passphrase was always the real gate. A wizard that stores a choice
+// nothing consults is worse than no wizard: it teaches a secret that does
+// not exist and adds a lockout the device never imposed. What remains is
+// the truth: teach the two-signer idea, say to fund the spare, and state
+// the rule -- one extra swipe, any swipe, asks for your passphrase.
+enum { ST_INTRO = 0, ST_FUND, ST_DONE, ST_NOPASS };
 static int s_stage;
-static int s_pick;
-
-// ---- stroke capture ------------------------------------------------------
-// Same decimation rule as the game's unlock sampler in main.c: store a point
-// only once the finger has actually moved. Bounding the buffer by ink rather
-// than by time is what keeps a slow, careful draw from filling it before the
-// stroke is finished.
-#define DPTS 256
-static int s_dx[DPTS], s_dy[DPTS];
-static int s_dn;
-static lv_obj_t *s_canvas;        // full-screen catcher, owns the touch
-static lv_obj_t *s_hint;          // "that was not it" line, hidden until needed
-// Live ink. Drawing a gesture and seeing nothing happen is indistinguishable
-// from a dead touch panel, and this screen asks people to do it twice.
-static lv_obj_t *s_ink_line;
-static lv_point_precise_t s_ink[DPTS];
 
 static void stage_show(int stage);
 static void stage_build(int stage);
@@ -75,70 +59,21 @@ static void stage_show(int stage)
     lv_async_call(stage_async_cb, NULL);
 }
 
-static void draw_reset(void)
-{
-    s_dn = 0;
-    if (s_ink_line) lv_obj_add_flag(s_ink_line, LV_OBJ_FLAG_HIDDEN);
-}
-
-static void ink_update(void)
-{
-    if (!s_ink_line || s_dn < 2) return;
-    for (int i = 0; i < s_dn; i++) {
-        s_ink[i].x = s_dx[i];
-        s_ink[i].y = s_dy[i];
-    }
-    lv_line_set_points(s_ink_line, s_ink, s_dn);
-    lv_obj_clear_flag(s_ink_line, LV_OBJ_FLAG_HIDDEN);
-}
-
-static void draw_press_cb(lv_event_t *e)
-{
-    (void)e;
-    lv_indev_t *in = lv_indev_active();
-    if (!in) return;
-    lv_point_t p;
-    lv_indev_get_point(in, &p);
-    if (s_dn >= DPTS) return;
-    if (s_dn == 0 ||
-        LV_ABS(p.x - s_dx[s_dn - 1]) >= 10 || LV_ABS(p.y - s_dy[s_dn - 1]) >= 10) {
-        s_dx[s_dn] = p.x;
-        s_dy[s_dn] = p.y;
-        s_dn++;
-        ink_update();
-    }
-}
-
-static void draw_release_cb(lv_event_t *e)
-{
-    (void)e;
-    const int got = kiss_duress_classify(s_dx, s_dy, s_dn,
-                                           REF_X0, REF_Y0, REF_X1, REF_Y1);
-    draw_reset();
-
-    if (got == s_pick) {
-        stage_show(s_stage + 1);
-        return;
-    }
-    // Wrong, or not recognized at all. Say so and let them draw again on the
-    // same screen: sending them back to the picker on a wobble would teach
-    // people that the stroke they chose "does not work", when it does.
-    if (s_hint) {
-        lv_label_set_text(s_hint, tr(STR_GD_DRAW_BAD_T));
-        lv_obj_set_style_text_color(s_hint, WT_WARN, 0);
-        lv_obj_clear_flag(s_hint, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
 // ---- screens -------------------------------------------------------------
 
 static void close_all(void)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_canvas = NULL;
-    s_hint = NULL;
-    s_ink_line = NULL;
-    s_dn = 0;
+}
+
+// The lock's close, kiss_fw_ui_close's shape: drop the screen AND the done
+// callback. One caller of this wizard is the last step of setup, with the
+// staged seed live behind it -- a done fired by a teardown must never run.
+void kiss_duress_ui_lock_close(void)
+{
+    s_done = NULL;
+    s_pending = -1;
+    close_all();
 }
 
 static void finish(void)
@@ -155,9 +90,7 @@ static void skip_cb(lv_event_t *e) { (void)e; finish(); }
 static void save_cb(lv_event_t *e)
 {
     (void)e;
-    // Only now, with the stroke drawn twice and matched twice, does anything
-    // persist.
-    (void)kiss_duress_set(s_pick);
+    // Nothing persists: there is no chosen stroke any more, only the rule.
     finish();
 }
 
@@ -168,80 +101,7 @@ static void turn_off_cb(lv_event_t *e)
     finish();
 }
 
-static void pick_cb(lv_event_t *e)
-{
-    s_pick = (int)(intptr_t)lv_event_get_user_data(e);
-    stage_show(s_stage + 1);
-}
-
 static void next_cb(lv_event_t *e) { (void)e; stage_show(s_stage + 1); }
-
-// Six pills in two rows of three. Laid out on the 800x480 grid the rest of the
-// wallet uses, with the row heights the pill kit expects.
-static void pick_screen(void)
-{
-    s_scr = wt_screen(s_parent, tr(STR_GD_PICK_REAL_T), tr(STR_GD_PICK_REAL_S));
-    for (int g = WDG_UNDERLINE; g < WDG_N; g++) {
-        int slot = g - WDG_UNDERLINE, col = slot % 3, row = slot / 3;
-        wt_pill(s_scr, tr(kiss_duress_label_key(g)),
-                48 + col * 240, 150 + row * 104, 220, pick_cb, (void *)(intptr_t)g);
-    }
-    wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
-}
-
-static void draw_screen(bool again)
-{
-    s_scr = wt_screen(s_parent, tr(again ? STR_GD_DRAW_AGAIN_T : STR_GD_DRAW_T),
-                      tr(again ? STR_GD_DRAW_AGAIN_S : STR_GD_DRAW_S));
-
-    // the stroke being rehearsed, named, so a mis-tap on the picker is obvious
-    // here rather than two screens later
-    wt_lbl(s_scr, tr(kiss_duress_label_key(s_pick)), 48, 110, wt_font23(), wt_accent());
-
-    // The reference word sits inside a faint box, and the box is not decoration:
-    // it IS what kiss_duress_classify measures against, so "above" and "below"
-    // have to be visible or they are a guess.
-    lv_obj_t *box = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(box);
-    lv_obj_set_pos(box, REF_X0, REF_Y0);
-    lv_obj_set_size(box, REF_X1 - REF_X0, REF_Y1 - REF_Y0);
-    lv_obj_set_style_border_width(box, 1, 0);
-    lv_obj_set_style_border_color(box, WT_MUT, 0);
-    lv_obj_set_style_border_opa(box, 90, 0);
-    lv_obj_set_style_radius(box, 8, 0);
-    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *w = wt_lbl(s_scr, "KISS", 0, 0, wt_font34(), WT_INK);
-    lv_obj_update_layout(w);
-    lv_obj_set_pos(w, REF_X0 + (REF_X1 - REF_X0 - lv_obj_get_width(w)) / 2,
-                      REF_Y0 + (REF_Y1 - REF_Y0 - lv_obj_get_height(w)) / 2);
-
-    s_ink_line = lv_line_create(s_scr);
-    lv_obj_set_pos(s_ink_line, 0, 0);
-    lv_obj_set_style_line_color(s_ink_line, wt_accent(), 0);
-    lv_obj_set_style_line_width(s_ink_line, 5, 0);
-    lv_obj_set_style_line_rounded(s_ink_line, true, 0);
-    lv_obj_add_flag(s_ink_line, LV_OBJ_FLAG_HIDDEN);
-
-    s_hint = wt_lbl(s_scr, "", 48, 300, wt_font23(), WT_WARN);
-    lv_obj_add_flag(s_hint, LV_OBJ_FLAG_HIDDEN);
-
-    // A transparent catcher over the whole page collects the stroke. It is
-    // added LAST so it sits above the labels; the BACK pill below is added
-    // after it and therefore stays reachable.
-    s_canvas = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(s_canvas);
-    lv_obj_set_pos(s_canvas, 0, 96);
-    lv_obj_set_size(s_canvas, 800, 300);
-    lv_obj_add_flag(s_canvas, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_clear_flag(s_canvas, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(s_canvas, draw_press_cb, LV_EVENT_PRESSING, NULL);
-    lv_obj_add_event_cb(s_canvas, draw_release_cb, LV_EVENT_RELEASED, NULL);
-
-    wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
-    draw_reset();
-}
 
 // ---- the teaching diagrams ------------------------------------------------
 // A centred flex column to hang diagram rows off, because wt_diagram_row sizes
@@ -297,9 +157,6 @@ static void diagram_two_ways(void)
 static void stage_build(int stage)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_canvas = NULL;
-    s_hint = NULL;
-    s_ink_line = NULL;
     s_stage = stage;
 
     switch (stage) {
@@ -371,9 +228,8 @@ static void stage_build(int stage)
         wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
         // point of the pair. ST_INTRO's pill opens THIS screen, which is about
-        // the spare, so it says SPARE. This pill opens ST_PICK, where the
-        // stroke being chosen is the one that reaches the REAL wallet
-        // (kiss_duress_set stores it as kiss_duress_real). It said SET UP A
+        // the spare, so it says SPARE. This pill opens ST_DONE, which
+        // states the real signer's rule. It said SET UP A
         // SPARE for both, which put the word SPARE on the door to the real
         // wallet's only setting, and readers concluded the stroke belonged to
         // the decoy. The two CTAs name different wallets on purpose.
@@ -389,9 +245,6 @@ static void stage_build(int stage)
         wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
         break;
     }
-    case ST_PICK:  pick_screen();        break;
-    case ST_DRAW1: draw_screen(false);   break;
-    case ST_DRAW2: draw_screen(true);    break;
     case ST_NOPASS: {
         s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
         // Why there is nothing to hide behind, in two chips: the layer this
@@ -427,7 +280,6 @@ void kiss_duress_ui_open(lv_obj_t *parent, void (*done_cb)(void))
 {
     s_parent = parent ? parent : lv_screen_active();
     s_done = done_cb;
-    s_pick = WDG_NONE;
     s_pending = -1;
     stage_show(ST_INTRO);
 }
@@ -436,7 +288,6 @@ void kiss_duress_ui_open_nopass(lv_obj_t *parent, void (*done_cb)(void))
 {
     s_parent = parent ? parent : lv_screen_active();
     s_done = done_cb;
-    s_pick = WDG_NONE;
     s_pending = -1;
     stage_show(ST_NOPASS);
 }

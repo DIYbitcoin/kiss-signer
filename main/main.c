@@ -7,6 +7,7 @@
 #ifndef SIMULATOR  // ESP-only hardware bring-up; the desktop simulator provides its own platform
 #include "esp_chip_info.h"
 #include "esp_flash.h"
+#include "esp_cache.h"
 #include "esp_log.h"
 #include "esp_ldo_regulator.h"
 #include "driver/ledc.h"
@@ -231,6 +232,8 @@ static bool s_sd_badge_live;             // SD mode + card in: game_tick breathe
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
+static uint32_t s_secret_act_t;          // secret-idle deadline: last touch on a
+static uint32_t s_secret_rows;           // deadline row, and WHICH rows those were
 #ifndef SIMULATOR
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
 #endif
@@ -396,6 +399,14 @@ void kiss_backlight_level(int pct)
   if (pct > 100) pct = 100;
   uint32_t shaped = (uint32_t)pct * (uint32_t)pct;        // 0..10000
   uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * shaped / 10000);
+  // One write per meaningful change. The install path calls this from a
+  // tight progress loop, and a stream of same-or-nearly-same duty writes is
+  // jitter the eye reads as flicker on a light that is the only indicator.
+  static uint32_t last = UINT32_MAX;
+  if (last != UINT32_MAX && (duty > last ? duty - last : last - duty) < 8 &&
+      pct != 0 && pct != 100)
+    return;
+  last = duty;
   ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
   ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
@@ -409,8 +420,15 @@ static void *s_fb2;          // the second one, kept for kiss_panel_black()
 // the framebuffers live in PSRAM behind the cache a flash write disables.
 void kiss_panel_black(void)
 {
-  if (s_fb)  memset(s_fb,  0, (size_t)LCD_H_RES * LCD_V_RES * 2);
-  if (s_fb2) memset(s_fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+  // The msync is the fix for the rave. These framebuffers live in PSRAM
+  // behind the cache: a memset that stays in cache lines is black the CPU
+  // can see and garbage the DPI panel keeps scanning out -- and once the
+  // flash write disables the cache, nothing ever writes the black back.
+  // The camera code learned this first (camera_spike.c blank_fb); same
+  // C2M flush here, so the panel is fed the black we think we wrote.
+  const size_t n = (size_t)LCD_H_RES * LCD_V_RES * 2;
+  if (s_fb)  { memset(s_fb,  0, n); esp_cache_msync(s_fb,  n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
+  if (s_fb2) { memset(s_fb2, 0, n); esp_cache_msync(s_fb2, n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
 }
 static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
 static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
@@ -532,6 +550,8 @@ static lv_display_t *display_start(void) {
   ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(s_panel, 2, (void **)&s_fb, &fb2));
   s_fb2 = fb2;                 // kept, so the update can black both out again
   memset(s_fb, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
+  esp_cache_msync(s_fb, (size_t)LCD_H_RES * LCD_V_RES * 2,
+                  ESP_CACHE_MSYNC_FLAG_DIR_C2M);
   memset(fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
   camera_spike_set_panel(s_panel, s_fb, fb2);
   esp_lcd_dpi_panel_event_callbacks_t dpi_cbs = {.on_color_trans_done = dpi_trans_done};
@@ -545,10 +565,28 @@ static lv_display_t *display_start(void) {
   ESP_ERROR_CHECK(esp_timer_start_periodic(tick, 2000));   // 2 ms LVGL tick
 
   lv_display_t *disp = lv_display_create(SCREEN_W, SCREEN_H);
+  if (!disp) {
+    ESP_LOGE(TAG, "lv_display_create failed");
+    abort();                       // a panic reboots into last-known-good;
+  }                                // LVGL's own fallback is a silent while(1)
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
   size_t bufsz = (size_t)SCREEN_W * 48 * 2;                  // 48-line partial buffers
+  // Same treatment as s_rotbuf below, for the same reason: these are the FIRST
+  // two 75KB internal allocations of the three, and they were the unchecked
+  // ones -- LVGL asserts on a NULL buffer with logging compiled out, which on
+  // this board is a silent hang, and a hang on an update's first boot strands
+  // the user on the broken image where a panic would roll back. PSRAM is fine
+  // as a render target here: rot_flush copies into s_rotbuf before DMA, and
+  // 64-byte alignment satisfies lv_draw_buf_align.
   void *b1 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   void *b2 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!b1) b1 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
+  if (!b2) b2 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
+  if (!b1 || !b2) {
+    ESP_LOGE(TAG, "display buffers: %u bytes x2 unavailable in any heap",
+             (unsigned)bufsz);
+    abort();
+  }
   // DMA source for the rotated region. This is the THIRD 75KB allocation in a
   // row -- b1, b2, then this -- out of roughly 340KB of internal RAM, and it
   // was unchecked. When it finally came back NULL the first flush stored to
@@ -1787,6 +1825,37 @@ static void fp_card_open(void) {
 //
 // One row per screen that can be over the wallet, because keeping the same
 // facts in three hand-maintained lists is what has now failed twice. The
+// A dead touch panel is invisible: the screen draws perfectly and ignores
+// every finger, and nothing on it says so. Worn by the game cover in the
+// game's own voice -- a hardware complaint reveals nothing about what else
+// this box is -- with the one instruction that always applies here: replug
+// (this board never boots off a USB reset, so replug IS the restart). On an
+// update's first boot the withheld mark_valid turns that same replug into
+// the rollback that brings back the firmware whose touch worked.
+// Returns the label so the walk can photograph it and take it back down.
+// A chip, not a line of text: this sits on the game's artwork, where bare
+// amber words are unreadable and unframed (kit rule 1). wt_state_chip is the
+// same framed mark Settings and the words page wear for a status fact, and it
+// self sizes, so 21 locales need no geometry here.
+lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent)
+{
+  lv_obj_t *chip = wt_state_chip(parent,
+                                 tr_sym(LV_SYMBOL_WARNING, STR_G_TOUCH_DEAD),
+                                 WT_WARN);
+  // Opaque, unlike everywhere else the chip is used: those sit on a screen
+  // background, this sits on the game's artwork, and the kit's translucent
+  // fill let a palm tree through the middle of the sentence.
+  lv_obj_set_style_bg_color(chip, lv_color_hex(0x0B0D12), 0);
+  lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+  lv_obj_update_layout(chip);
+  // Bottom edge, not the top: the top is where the game's own title art is,
+  // and the fault does not get to cover the cover story.
+  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2,
+                 SCREEN_H - lv_obj_get_height(chip) - 12);
+  lv_obj_move_foreground(chip);
+  return chip;
+}
+
 // firmware screen was in NEITHER the auto-lock list nor the touch owner list,
 // which is how the idle lock left it lit with RECOVERY WORDS two taps away.
 // kiss_word_ui was missing from the touch owner list before it, so the game's
@@ -1805,20 +1874,39 @@ static const struct {
   void (*close)(void);       // NULL: nothing to tear down, only to notice
   bool owns_touch;           // LVGL buttons; the game must not read the same finger
   bool holds_lock_off;       // exempt from the idle auto-lock, on purpose
+  // "Exempt" must not mean "forever" when a SECRET is idling on the glass.
+  // secret_idle_ms is that screen's own deadline; 0 is exempt and contributes
+  // NOTHING to the countdown -- never an instant expiry, or the RECOVER row
+  // below strands the last copy of a wallet, which is the bug this registry
+  // exists to prevent. idle_expire wipes the secret or drops the screen; it
+  // never fires a done callback and never touches the seed staging.
+  // idle_needs_session: the same wizard runs inside setup (nothing to lock,
+  // the staged seed lives behind it) and from Settings (session key live);
+  // the deadline only counts in the second case.
+  uint32_t secret_idle_ms;
+  bool idle_needs_session;
+  void (*idle_expire)(void);
 } SCREENS[] = {
   // Wizards and login. They own the touch AND hold the clock off: writing
   // twelve words onto paper takes minutes of a screen nobody is touching.
-  { kiss_ui_active,        NULL,                  true,  true  },
-  { kiss_setup_active,     NULL,                  true,  true  },
-  { kiss_duress_ui_active, NULL,                  true,  true  },
-  { kiss_word_ui_active,   NULL,                  true,  true  },
+  // The login is the exception that proves it: a typed passphrase is not a
+  // thing to read slowly, so it alone gets a short deadline at every stage.
+  { kiss_ui_active,        NULL,                  true,  true,  120000, false, kiss_ui_idle_wipe },
+  { kiss_setup_active,     NULL,                  true,  true,  0,      false, NULL },
+  { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  kiss_duress_ui_lock_close },
+  { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  kiss_word_ui_lock_close },
+  // The commit-failed RECOVER screen, and the words screen it opens. Same
+  // two trues for the same reason, plus one of its own: the staged seed it
+  // names may be the last copy anywhere, so it registers no close and no
+  // deadline -- the lock must neither fire under it nor take it away.
+  { kiss_ui_recover_active, NULL,                 true,  true,  0,      false, NULL },
   // Wallet sub-screens. They own the touch and the lock takes them away.
-  { kiss_scan_active,      kiss_scan_close,     true,  false },
-  { kiss_sign_active,      kiss_sign_close,     true,  false },
-  { kiss_recv_active,      kiss_recv_close,     true,  false },
-  { kiss_info_active,      kiss_info_close,     true,  false },
-  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false },
-  { kiss_settings_active,  kiss_settings_close, true,  false },
+  { kiss_scan_active,      kiss_scan_close,     true,  false, 0, false, NULL },
+  { kiss_sign_active,      kiss_sign_close,     true,  false, 0, false, NULL },
+  { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, NULL },
+  { kiss_info_active,      kiss_info_close,     true,  false, 0, false, NULL },
+  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, NULL },
+  { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, NULL },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
@@ -1874,6 +1962,42 @@ static void game_tick(lv_timer_t *t) {
     // VERIFY BACKUP runs the setup module DURING a session; keep the idle clock
     // fresh so finishing a long word-entry doesn't insta-lock on return.
     if (s_wallet_on && pressed) s_wallet_act_t = lv_tick_get();
+
+    // The secret-idle deadline. Held-off rows are exempt from the auto-lock on
+    // purpose, but a typed passphrase or a half-enrolled unlock word is a
+    // secret sitting on powered glass, and its row carries its own deadline.
+    // Rows at 0 contribute nothing (exempt means exempt -- a min() over the
+    // zeros would expire the RECOVER screen instantly, stranding the last copy
+    // of a wallet). The clock resets on any touch and whenever the set of
+    // deadline rows changes, so a screen never inherits the previous screen's
+    // spent minutes. Expiry runs each due row's idle_expire -- wipe or drop,
+    // never a done callback -- and then locks only a session actually open,
+    // through the same close loop the auto-lock uses.
+    uint32_t deadline = 0, rows = 0;
+    for (size_t i = 0; i < N_SCREENS; i++) {
+      if (!SCREENS[i].secret_idle_ms || !SCREENS[i].active()) continue;
+      if (SCREENS[i].idle_needs_session && !s_wallet_on) continue;
+      rows |= 1u << i;
+      if (!deadline || SCREENS[i].secret_idle_ms < deadline)
+        deadline = SCREENS[i].secret_idle_ms;
+    }
+    if (rows != s_secret_rows || pressed) {
+      s_secret_rows = rows;
+      s_secret_act_t = lv_tick_get();
+    } else if (deadline && lv_tick_elaps(s_secret_act_t) > deadline) {
+      for (size_t i = 0; i < N_SCREENS; i++)
+        if ((rows & (1u << i)) &&
+            lv_tick_elaps(s_secret_act_t) > SCREENS[i].secret_idle_ms)
+          SCREENS[i].idle_expire();
+      if (s_wallet_on) {
+        for (size_t i = 0; i < N_SCREENS; i++)
+          if (SCREENS[i].close && SCREENS[i].active())
+            SCREENS[i].close();
+        kiss_lock();
+      }
+      s_secret_act_t = lv_tick_get();
+    }
+
     s_prev_press = pressed;          // (LVGL indev); the game must not also see it
     return;                          // (and are exempt from auto-lock: writing the
   }                                  //  backup words down takes minutes, untouched)
@@ -2680,6 +2804,9 @@ void app_main(void) {
   kiss_trng_start();
   build_game();
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+  // The one symptom of the GT911 not coming up is a device that ignores you;
+  // say it instead. s_menu_panel exists as of build_game.
+  if (!s_touch) kiss_touch_dead_banner(s_menu_panel);
 
   // Release the slot that was running before an SD update, now that this
   // firmware has proved the parts a bad image would take out: the crypto
@@ -2703,11 +2830,20 @@ void app_main(void) {
   // And the selftest is a gate now, not a log line. Both of these decide
   // whether the PREVIOUS firmware gets to come back, which is the only thing
   // that can save a unit whose new image cannot draw or cannot sign.
-  if (src == 0) {
+  // Touch is the third gate, beside drawing and signing. touch_start returns
+  // silently on a dead GT911 or a dead I2C bus, the screen keeps looking
+  // perfect, and a slot confirmed in that state is a signer nobody can ever
+  // drive -- with the rollback that would have undone it already cancelled.
+  // Init success only, deliberately NOT a touch event: waiting for a finger
+  // re-creates the walk-away revert the comment above rules out.
+  if (src == 0 && s_touch != NULL) {
     kiss_fw_mark_valid();
-  } else {
+  } else if (src != 0) {
     ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
                   "trial so a reboot returns the firmware that worked", src);
+  } else {
+    ESP_LOGE(TAG, "touch never came up: leaving this slot on trial so a "
+                  "reboot returns the firmware that worked");
   }
 
   while (1) {           // single-threaded LVGL loop (we own the display + flush)

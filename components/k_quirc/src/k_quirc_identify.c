@@ -330,7 +330,7 @@ static uint8_t otsu_threshold(uint32_t *histogram, uint32_t total) {
 static int default_threshold_offset = K_QUIRC_THRESHOLD_OFFSET_DEFAULT;
 #endif
 
-static inline int clamp_threshold(int t) {
+__attribute__((unused)) static inline int clamp_threshold(int t) {
   return (t < 0) ? 0 : (t > 255) ? 255 : t;
 }
 

@@ -14,6 +14,7 @@
 #include "i18n.h"
 #include "kiss_info.h"   // the one "?" card implementation lives there
 #include "kiss_theme.h"
+#include "kiss_wipe.h"
 
 // A QR that decodes cleanly but is not a transport format we know is dropped
 // on the floor below (rc != 0, "some other QR in view"). That rule is right --
@@ -60,15 +61,6 @@ static size_t s_pend_len;            // 0 = slot empty; atomic acquire/release o
 // beside the geometry; declared here because the decode path calls it.
 static void scan_status(const char *state, const char *hint);
 
-// memset can be optimized away once the compiler sees a buffer is dead.  This
-// volatile store loop is intentionally boring: scanner payloads and assembled
-// PSBTs must not remain in static RAM after the scan has finished.
-static void scan_bzero(void *ptr, size_t len)
-{
-    volatile uint8_t *p = (volatile uint8_t *)ptr;
-    while (len--) *p++ = 0;
-}
-
 bool kiss_scan_active(void) { return s_scr != NULL; }
 void kiss_scan_set_bus(void *bus) { s_bus = bus; }
 
@@ -81,7 +73,7 @@ static void scan_teardown(void)
     if (s_parser) { qrt_parser_free(s_parser); s_parser = NULL; }
     // camera_scan_stop() has ended the producer. Wipe before publishing the
     // slot as empty so no new decode can race with these stores.
-    scan_bzero(s_pend, sizeof s_pend);
+    kiss_wipe(s_pend, sizeof s_pend);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);
     s_on_text = NULL;                  // raw mode never survives a teardown
     s_prog = NULL; s_hint = NULL;
@@ -90,7 +82,7 @@ static void scan_teardown(void)
 void kiss_scan_close(void)   // idle auto-lock: no on_cancel (caller locks next)
 {
     scan_teardown();
-    scan_bzero(s_psbt, sizeof s_psbt);
+    kiss_wipe(s_psbt, sizeof s_psbt);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -98,7 +90,7 @@ static void cancel_now(void)
 {
     if (!s_scr) return;                // idempotent: two paths can reach here
     scan_teardown();
-    scan_bzero(s_psbt, sizeof s_psbt);
+    kiss_wipe(s_psbt, sizeof s_psbt);
     lv_obj_delete_async(s_scr); s_scr = NULL;
     if (s_on_cancel) s_on_cancel();
 }
@@ -179,12 +171,25 @@ static void feed(const char *data, size_t len)
         scan_teardown();
         if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
         cb(txt, len);
-        scan_bzero(txt, sizeof txt);
+        kiss_wipe(txt, sizeof txt);
         return;
     }
     if (!s_parser) return;
     int rc = qrt_parser_feed(s_parser, data, len);
     int seen = qrt_parser_seen(s_parser), total = qrt_parser_total(s_parser);
+    // Too large to hold is a fact about THIS transfer, not a stray QR in
+    // frame, and the difference is what the owner sees: an ignored code
+    // leaves the counter sitting there forever with no explanation, which is
+    // what a refused set used to look like. Say it, and drop the parts
+    // already held so nothing is kept from a set that will never finish.
+    // No hint: the way through is FROM SD CARD, and the action row under
+    // this box already says so.
+    if (rc == QRT_FEED_TOO_BIG) {
+        SCAN_LOG("REFUSED: transfer larger than %u bytes", (unsigned)QRT_MAX_PSBT);
+        qrt_parser_reset(s_parser);
+        if (s_prog) scan_status(tr(STR_N_TOO_BIG), "");
+        return;
+    }
     if (rc != 0) {                             // some other QR in view: ignore
 #ifdef ESP_PLATFORM
         // Rate-limited: an unrecognised code sits in frame at ~10 decodes a
@@ -229,7 +234,7 @@ static void feed(const char *data, size_t len)
                      rrc, (unsigned)sizeof s_psbt);
             if (s_on_cancel) s_on_cancel();
         }
-        scan_bzero(s_psbt, sizeof s_psbt);
+        kiss_wipe(s_psbt, sizeof s_psbt);
     }
 }
 
@@ -244,10 +249,10 @@ static void poll_cb(lv_timer_t *t)
         static char tmp[sizeof s_pend];        // feed() may tear the timer down
         memcpy(tmp, s_pend, n);
         // Keep the slot marked occupied until its contents are gone.
-        scan_bzero(s_pend, sizeof s_pend);
+        kiss_wipe(s_pend, sizeof s_pend);
         __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);  // free the slot
         feed(tmp, n);
-        scan_bzero(tmp, sizeof tmp);
+        kiss_wipe(tmp, sizeof tmp);
         return;
     }
     if (camera_spike_check_died() && s_prog) {
@@ -380,8 +385,8 @@ static void scan_psbt_help_cb(lv_event_t *e)
 
 static void scan_open_common(lv_obj_t *parent)
 {
-    scan_bzero(s_pend, sizeof s_pend);
-    scan_bzero(s_psbt, sizeof s_psbt);
+    kiss_wipe(s_pend, sizeof s_pend);
+    kiss_wipe(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
 
     // wt_screen, not a bare container: this screen used to build its own 800x480
