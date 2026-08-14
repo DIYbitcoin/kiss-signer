@@ -14,7 +14,7 @@ PY="${PY:-/tmp/spritevenv/bin/python}"
 sim/mk_sd_psbts.sh "$OUT"
 
 # 2. the device's QR encoder, desktop-built (qr_transport + cUR only, no wally)
-clang -O1 -w -Imain -Icomponents/cUR/src \
+clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -Imain -Icomponents/cUR/src \
   components/cUR/src/*.c components/cUR/src/types/*.c \
   components/cUR/src/sha256/sha256.c \
   main/qr_transport.c sim/mk_qr_parts.c -o /tmp/mk_qr_parts

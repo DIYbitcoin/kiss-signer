@@ -18,6 +18,9 @@
 
 #ifndef SIMULATOR
 #include "esp_system.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #endif
 
 static lv_obj_t *s_scr;
@@ -74,6 +77,28 @@ static void size_str(char *out, size_t n, size_t bytes)
 
 // What the panel is about to do, drawn, on both screens that need it.
 //
+// The signature row's "?": what "signature checked first" buys, in the two
+// paragraphs the confirm screen already carries in 21 locales. Composed at
+// runtime -- the explainer splits on the blank line and lays the pair out
+// itself -- so the card costs no new key.
+static void sig_row_help_cb(lv_event_t *e)
+{
+    (void)e;
+    char body[512];
+    snprintf(body, sizeof body, "%s\n\n%s",
+             tr(STR_G_FW_WHY_B), tr(STR_G_FW_RISK_B));
+    wt_explain_t x = {
+        .title  = tr(STR_G_FW_WHY_H),
+        .icon   = WT_ICON_LOCK,
+        .cap    = tr(STR_G_FW_ON_CARD),
+        .val    = s_img.version,
+        .body   = body,
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_BODY_PROSE,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 // A firmware write starves the DSI panel's framebuffer read, so install_now
 // blacks the glass and drives the backlight instead: a dark slab whose light
 // climbs back to full as the bytes land. That is the right behaviour and it
@@ -173,6 +198,16 @@ static void progress_cb(int pct, void *ud)
 {
     (void)ud;
     kiss_backlight_level(pct);
+#ifdef ESP_PLATFORM
+    // The light is the indicator the owner sees; this line is the indicator
+    // the bench sees. The task is blocked but the UART is not, so the next
+    // device test reports numbers instead of adjectives.
+    static int last_decade = -1;
+    if (pct / 10 != last_decade) {
+        last_decade = pct / 10;
+        ESP_LOGI("fw", "write %d%%", pct);
+    }
+#endif
 }
 
 // The write itself, one LVGL tick after the screen that announces it.
@@ -200,7 +235,17 @@ static void install_now(lv_timer_t *t)
     // panel is still dim, THEN raise the light, or the owner gets a full
     // brightness flash of the black we just wrote.
     kiss_panel_black();
+#ifdef ESP_PLATFORM
+    // Dim as one deliberate motion, not a cut to black: a screen that dies
+    // in a frame reads as a crash, a light that runs down reads as a start.
+    // ~200ms, blocking the LVGL task we own anyway.
+    for (int p = 100; p >= 0; p -= 5) {
+        kiss_backlight_level(p);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+#else
     kiss_backlight_level(0);
+#endif
     int rc = kiss_fw_install(&s_img, progress_cb, NULL);
     result_screen(rc);
     lv_refr_now(NULL);
@@ -384,10 +429,14 @@ static void fw_screen(void)
         // exactly this promise in all 21 locales and costs no new key. The
         // label IS the claim, so there is no value beside it, no severity
         // colour, and a lock rather than a tick -- a tick is a result.
+        // The "?" is the answer to the row's own question: a new user
+        // meeting "signature checked first" here has nowhere else to learn
+        // what a signature buys them, and the two paragraphs that explain it
+        // are already translated on the confirm screen.
         wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_FW_WHY_H),
                  NULL, NULL, NULL, NULL, WT_INK,
                  false, WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W,
-                 WT_ROW_H, NULL, NULL);
+                 WT_ROW_H, sig_row_help_cb, NULL);
 
         // The direction sits under the card it describes, coloured by what it
         // means: forward is ordinary, backward is not.

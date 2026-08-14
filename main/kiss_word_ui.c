@@ -19,6 +19,7 @@
 
 #include "kiss_crypto.h"   // kiss_session_decoy: is there a passphrase at all
 #include "kiss_gword.h"
+#include "kiss_wipe.h"
 #include "kiss_theme.h"
 #include "i18n.h"
 
@@ -72,8 +73,19 @@ static bool    s_down;
 static lv_obj_t *s_canvas;
 static lv_obj_t *s_hint;
 static lv_obj_t *s_line[DSTROKES];
-static lv_point_precise_t s_ink[DSTROKES][DPTS];
-static int s_inkn[DSTROKES];
+// One pool, not a rectangle. s_ink was [12][384] -- 36KB of static internal
+// SRAM permanently reserved so that every stroke could be the longest stroke,
+// on a device where the whole word is bounded by GW_MAX_PTS points anyway.
+// One pool of that size with a per-stroke offset holds exactly the same
+// drawings in 3KB.
+//
+// Safe with lv_line because points are only ever APPENDED to the current
+// (last) stroke: lv_line_set_points stores the POINTER, not a copy, and no
+// earlier stroke's slice ever moves. draw_reset is the one place that has to
+// be careful -- see the note there.
+static lv_point_precise_t s_ink[DPTS];
+static int s_inkoff[DSTROKES];     // where each stroke starts in the pool
+static int s_inkn[DSTROKES];       // and how many points it has
 
 static void draw_reset(void)
 {
@@ -83,20 +95,43 @@ static void draw_reset(void)
     s_down = false;
     for (int i = 0; i < DSTROKES; i++) {
         s_inkn[i] = 0;
-        if (s_line[i]) lv_obj_add_flag(s_line[i], LV_OBJ_FLAG_HIDDEN);
+        s_inkoff[i] = 0;
+        // Point the line at the pool with a count of zero, do not merely
+        // clear the counter. lv_line KEEPS the pointer it was given, and with
+        // one shared pool a stale pointer aims at bytes the next stroke is
+        // about to write -- a hidden line is not drawn, but anything that
+        // measures it (LV_SIZE_CONTENT self-sizing) reads another stroke's
+        // points. With the old per-stroke rows the stale pointer was
+        // harmless, which is exactly why this is easy to miss.
+        if (s_line[i]) {
+            lv_line_set_points(s_line[i], s_ink, 0);
+            lv_obj_add_flag(s_line[i], LV_OBJ_FLAG_HIDDEN);
+        }
     }
+    // The raw gesture is an unlock credential. It used to sit in .bss until
+    // the next word overwrote it, which on a device that enrols once is
+    // forever.
+    kiss_wipe(s_ink, sizeof s_ink);
+    kiss_wipe(s_dx, sizeof s_dx);
+    kiss_wipe(s_dy, sizeof s_dy);
+    kiss_wipe(s_did, sizeof s_did);
 }
 
 static void ink_add(int x, int y)
 {
     int s = s_strokes - 1;
     if (s < 0 || s >= DSTROKES || !s_line[s]) return;
-    if (s_inkn[s] >= DPTS) return;
-    s_ink[s][s_inkn[s]].x = x;
-    s_ink[s][s_inkn[s]].y = y;
+    // A new stroke starts where the previous one ended. Only the last stroke
+    // ever grows, so no earlier slice can be disturbed by this.
+    if (s_inkn[s] == 0)
+        s_inkoff[s] = s > 0 ? s_inkoff[s - 1] + s_inkn[s - 1] : 0;
+    int at = s_inkoff[s] + s_inkn[s];
+    if (at >= DPTS) return;              // the whole word's point budget
+    s_ink[at].x = x;
+    s_ink[at].y = y;
     s_inkn[s]++;
     if (s_inkn[s] >= 2) {
-        lv_line_set_points(s_line[s], s_ink[s], s_inkn[s]);
+        lv_line_set_points(s_line[s], &s_ink[s_inkoff[s]], s_inkn[s]);
         lv_obj_clear_flag(s_line[s], LV_OBJ_FLAG_HIDDEN);
     }
 }
@@ -141,6 +176,21 @@ static void close_all(void)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_canvas = s_hint = NULL;
     for (int i = 0; i < DSTROKES; i++) s_line[i] = NULL;
+    kiss_wipe(s_ink, sizeof s_ink);
+    kiss_wipe(s_dx, sizeof s_dx);
+    kiss_wipe(s_dy, sizeof s_dy);
+    kiss_wipe(s_did, sizeof s_did);
+}
+
+// The lock's close: the screen goes and the pending done callback goes with
+// it. Modeled on kiss_fw_ui_close -- an idle expiry is the lock taking the
+// screen away, not a return from it, and a done fired by a teardown is how a
+// locked device once rebuilt Settings with RECOVERY WORDS one row in.
+void kiss_word_ui_lock_close(void)
+{
+    s_done = NULL;
+    s_pending = -1;
+    close_all();
 }
 
 static void finish(void)

@@ -15,6 +15,12 @@ void kiss_login_open_setup(void (*unlocked_cb)(void));
 // True while any login screen is on top (game must ignore touch meanwhile).
 bool kiss_ui_active(void);
 
+// True while the commit-failed RECOVER screen -- or the words screen it
+// opens -- is up. Its own row in main.c's SCREENS[]: owns the touch, holds
+// the idle lock off, and registers no close. The staged seed it names may be
+// the last copy anywhere, so nothing is allowed to tear it down.
+bool kiss_ui_recover_active(void);
+
 // Fingerprint of the most recently unlocked wallet (4 bytes).
 void kiss_ui_last_fp(uint8_t out[4]);
 // True after the words + exact passphrase were rehearsed in THIS session
@@ -33,6 +39,14 @@ void kiss_ui_set_last_fp(const uint8_t fp[4]);
 // fingerprint outlives kiss_session_close otherwise, and a decoy session that
 // cannot derive its own would show the previous keys' fingerprint.
 void kiss_ui_forget_fp(void);
+
+// The secret-idle deadline's action: wipe the typed passphrase, never the
+// flow. Setup mode, the staged seed and the screen stack survive; only the
+// entries and any screen DERIVED from them expire -- the fingerprint screen
+// drops back to the keyboard, because TAP TO OPEN there commits with
+// whatever s_pass holds, and after a wipe that is an empty passphrase under
+// a stale fingerprint.
+void kiss_ui_idle_wipe(void);
 
 // Register the LVGL pointer indev if not yet present (the setup wizard can run
 // before the first login and needs touch too).
@@ -61,7 +75,10 @@ void kiss_build_id_restyle(lv_obj_t *version_label);
 #ifndef ESP_PLATFORM
 // Walk only: the screen shown when a commit may have taken the old wallet with
 // it and the staged copy is the last one. Unreachable by tapping -- it needs a
-// failed flash write -- so the walk opens it directly.
+// failed flash write -- so the walk opens it directly. The close undoes exactly
+// that open: the walk now visits mid-session (the lock tests need a live
+// session under the screen), so it can no longer be a leaf that never leaves.
 void kiss_ui_test_recover_screen(void);
+void kiss_ui_test_recover_close(void);
 #endif
 

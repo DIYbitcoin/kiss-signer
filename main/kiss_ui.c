@@ -607,6 +607,25 @@ static void recover_close(void)
     if (s_recovscr) { lv_obj_delete_async(s_recovscr); s_recovscr = NULL; }
 }
 
+// The words screen opened from here reads the same staged copy, so the lock
+// exemption has to travel with it: s_recovscr is already gone while it is up,
+// and without the flag the idle lock's registered kiss_info close would
+// delete the one screen naming words that exist nowhere else.
+static bool s_words_from_recov;
+
+// The registry row in main.c's SCREENS[] for this state. It owns the touch --
+// the game must not read a corner tap or a tile band through the screen --
+// and it holds the idle clock off, for the reason the wizard rows give:
+// reading twelve words onto paper takes minutes of a screen nobody touches.
+// Its close stays NULL there, deliberately. The staged copy in RAM may be the
+// last one anywhere, and s_setup_mode surviving is what keeps the type-twice
+// login able to commit it; a teardown routed through wipe_and_close would
+// call kiss_seed_discard and destroy the wallet it exists to save.
+bool kiss_ui_recover_active(void)
+{
+    return s_recovscr != NULL || s_words_from_recov;
+}
+
 // Straight back to the same commit and the same continuation. The passphrase is
 // still in s_pass -- fp_tap_cb returns on RECOVER before the wipe below it, so a
 // retry derives the identical session and finishes setup exactly as a first
@@ -632,12 +651,17 @@ static void recover_retry_cb(lv_event_t *e)
     lv_async_call(recover_retry_async, NULL);
 }
 
-static void recover_words_done(void) { recover_screen(); }
+static void recover_words_done(void)
+{
+    s_words_from_recov = false;
+    recover_screen();
+}
 
 static void recover_words_cb(lv_event_t *e)
 {
     (void)e;
     recover_close();
+    s_words_from_recov = true;
     // kiss_seed_load answers from the staging while it is held, so this is the
     // ordinary words screen reading the copy that has not reached flash.
     kiss_info_open_words(lv_screen_active(), recover_words_done);
@@ -820,6 +844,40 @@ static void fp_back_cb(lv_event_t *e) {
   (void)e;                                   // back to the keyboard, passphrase kept
   if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
   if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+}
+
+// The idle deadline expired with a secret on the glass. Expire the SECRET and
+// nothing else: the flow stays where it was, at its entry stage, so the owner
+// who walked away comes back to a keyboard asking again -- not to a decision
+// half made. Deliberately NOT wipe_and_close: that path discards the staged
+// seed under s_setup_mode, and on the commit-failed branch the staging is the
+// last copy of the wallet anywhere. This wipes buffers a re-type can replace.
+void kiss_ui_idle_wipe(void) {
+  if (!kiss_ui_active()) return;
+  // The fingerprint screen is derived from the passphrase being wiped: TAP TO
+  // OPEN there commits with `s_plen ? s_pass : NULL`, so leaving it standing
+  // would commit the staged seed under an EMPTY passphrase beneath a stale
+  // fingerprint. BACK's own semantics, minus the kept passphrase.
+  if (s_fpscr) {
+    lv_obj_delete_async(s_fpscr); s_fpscr = NULL;
+    if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+  }
+  memset(s_pass, 0, sizeof s_pass);
+  memset(s_first, 0, sizeof s_first);
+  s_plen = 0;
+  s_caret = 0;
+  s_first_done = false;      // stage 2 described an entry that no longer exists
+  s_show = false;
+  s_flash = false;
+  // A weak-passphrase card is a question about the entry just wiped; the
+  // cancel confirm is a question about the SETUP and survives on purpose.
+  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
+  s_weak_ack = false;
+  // s_setup_mode and s_backup_verify_pass are the FLOW and stay. The caption
+  // walks back to the stage the wipe returned the owner to.
+  if (s_login && s_cap && s_setup_mode)
+    cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
+  if (s_login && s_entry) { entry_refresh_text(); caret_refresh(); }
 }
 
 void kiss_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
@@ -1973,4 +2031,9 @@ int kiss_build_id_right(void) { return s_build_id_right; }
 
 #ifndef ESP_PLATFORM
 void kiss_ui_test_recover_screen(void) { recover_screen(); }
+void kiss_ui_test_recover_close(void)
+{
+    s_words_from_recov = false;
+    recover_close();
+}
 #endif

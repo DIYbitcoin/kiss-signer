@@ -167,18 +167,10 @@ int kiss_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
   ur_bundled_sha256_init(&cx);
   ur_bundled_sha256_update(&cx, junk, sizeof junk);
   ur_bundled_sha256_final(&cx, hash_out);
-  // Same shape the device writes: the page with this run's hash over the claim
-  // slot, so the sim's card really does self verify when opened in a browser.
-  char hex[65];
-  for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", hash_out[i]);
-  uint8_t *page = malloc(verify_page_html_len);
-  if (!page) return WPROOF_ERR_SD;
-  memcpy(page, verify_page_html, verify_page_html_len);
-  uint8_t *slot = memmem(page, verify_page_html_len, WPROOF_CLAIM_SLOT, 64);
-  if (slot) memcpy(slot, hex, 64);
-  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, page,
+  // Same shape the device writes now: the page as-is, stateless. The claim
+  // lives on the (sim's) result screen; the page only computes.
+  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
                                      verify_page_html_len);
-  free(page);
   if (prc < 0) return WPROOF_ERR_SD;
   return kiss_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
@@ -413,7 +405,7 @@ int kiss_seed_diff_word(const char *typed, const char *stored) {
 
 // network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
-static int s_sim_testnet;
+static int s_sim_testnet = 1;   // mirror KISS_NET_DEFAULT_TESTNET: fresh = testnet
 void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
 int kiss_testnet(void) { return s_sim_testnet; }
 static int s_sim_script;
@@ -986,12 +978,16 @@ static void press_str(int key)
 // no word to sit on, so anywhere on the panel has to work.
 static void mark_line(void)  { for (int i = 0; i <= 10; i++) { touch(200 + i * 20, 400); pump(1); } release(); pump(2); }
 static void mark_slash(void) { for (int i = 0; i <= 10; i++) { touch(180 + i * 18, 120 + i * 18); pump(1); } release(); pump(2); }
-static void mark_check(void) {
+// Kept beside the two marks the walk draws: the free-mark vocabulary is the
+// set a duress stroke can be drawn from, and a stop that needs a different
+// shape should reach for one of these rather than invent a fourth. Unused
+// today, and said so out loud now that these builds carry -Wall -Wextra.
+__attribute__((unused)) static void mark_check(void) {
   for (int i = 0; i <= 4; i++) { touch(300 + i * 10, 200 + i * 20); pump(1); }
   for (int i = 1; i <= 6; i++) { touch(340 + i * 15, 280 - i * 25); pump(1); }
   release(); pump(2);
 }
-static void mark_circle(void) {
+__attribute__((unused)) static void mark_circle(void) {
   static const int cx[] = {300,420,420,300,180,180,298};
   static const int cy[] = {140,200,300,360,300,200,143};
   for (unsigned i = 0; i < sizeof cx / sizeof cx[0]; i++) {
@@ -1503,6 +1499,102 @@ int main(void) {
     // either arm ever needs a different one, the fork is back.
     printf("ok: unlock routing identical with and without a stroke configured\n");
 
+    // ---- the RECOVER screen vs the lock, with a live session under it ----
+    //
+    // The screen that says the staged words in RAM are the last copy there is
+    // hangs off the active screen and was on neither of main.c's lists, so
+    // with a session open the game kept reading the glass underneath it: the
+    // corner tap locked instantly, the tile bands opened Sign or Settings
+    // under the words, and five untouched minutes of reading it ended in
+    // kiss_lock() -- the identical parenting bug the FIRMWARE screen already
+    // paid for, on the one screen whose job is to be read slowly.
+    //
+    // Here and not at the leaf near the end of the walk: the leaf runs
+    // post-lock, where s_wallet_on is already false and every assert below
+    // would pass on the broken code too. This is the last window where the
+    // home is genuinely open, same as the stroke-budget block that follows.
+    {
+      uint8_t fp0[4], fp1[4];
+      kiss_ui_test_recover_screen();
+      pump(40);
+
+      // A tap in the first tile band must not open the Sign chooser under it.
+      touch(130, 240); pump(3); release(); pump(12);
+      if (kiss_sign_active()) {
+        printf("FAIL: a tile opened the Sign chooser under the recover screen\n");
+        g_walk_fails++;
+        kiss_sign_close(); pump(20);
+      }
+
+      // Five untouched minutes must not lock. kiss_lock() and nothing else on
+      // this path zeroes the open session's fingerprint, so that is the probe:
+      // a frame of this screen looks correct locked or not.
+      kiss_ui_last_fp(fp0);
+      pump(20000);                                   // 320s > 300s, untouched
+      kiss_ui_last_fp(fp1);
+      if (!(fp0[0] || fp0[1] || fp0[2] || fp0[3]) ||
+          memcmp(fp0, fp1, sizeof fp0) != 0) {
+        printf("FAIL: idle auto-lock fired with the recover screen up\n");
+        g_walk_fails++;
+      }
+      must_show("recover/idle", tr(STR_L_RECOVER_T));
+
+      // The corner lock must not fire through it either.
+      touch(44, 44); pump(3); release(); pump(20);
+      kiss_ui_last_fp(fp1);
+      if (!(fp1[0] || fp1[1] || fp1[2] || fp1[3])) {
+        printf("FAIL: the corner tap locked through the recover screen\n");
+        g_walk_fails++;
+      }
+
+      // SHOW WORDS opens the ordinary words screen reading the staged copy.
+      // Five untouched minutes of transcription must not tear it down: the
+      // registered kiss_info close would delete the one screen naming the
+      // words, and the lock would strand the last copy in silent RAM.
+      tap_str(STR_I_SHOW_WORDS, 3, 12);              // SHOW WORDS
+      if (!kiss_info_active()) {
+        printf("FAIL: SHOW WORDS did not open the words screen\n");
+        g_walk_fails++;
+      }
+      pump(20000);                                   // untouched, mid-copy
+      if (!kiss_info_active()) {
+        printf("FAIL: auto-lock tore down the words screen opened from "
+               "recover; the staged copy is stranded\n");
+        g_walk_fails++;
+      } else {
+        tap_str(STR_C_BACK, 3, 20);                    // BACK -> recover again
+        must_show("recover/back", tr(STR_L_RECOVER_T));
+      }
+
+      kiss_ui_test_recover_close();
+      pump(40);
+      printf("ok: the recover screen owns the glass and the clock\n");
+    }
+
+    // ---- the deadline on an ordinary login, fingerprint screen up ----
+    //
+    // TAP TO OPEN commits with whatever s_pass holds. A wipe that left the
+    // fingerprint screen standing would let that tap open a wallet derived
+    // from an EMPTY passphrase under a fingerprint computed from the typed
+    // one -- so expiry has to drop the screen back to the keyboard, and the
+    // tap that would have opened lands on keys instead.
+    {
+      lock_to_menu();
+      pump(200);
+      draw_cover_underlined();
+      touch(46, 278);  pump(3); release(); pump(3);   // 'a'
+      touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
+      pump(8200);                                     // 131s; nobody confirms
+      must_not_show("idle-wipe/fp", tr(STR_L_TAP_TO_OPEN));
+      must_show("idle-wipe/fp-prompt", tr(STR_L_TYPE_PROMPT));
+      touch(46, 278);  pump(3); release(); pump(3);   // 'a', typed fresh
+      touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);              // TAP TO OPEN -> home
+      pump(120);
+      printf("ok: the idle deadline wipes the entry and drops the "
+             "fingerprint screen\n");
+    }
+
     // ---- a word with MORE strokes than the budget, end to end ----
     //
     // sim/test_gword.c pins this at the template layer; this is the version
@@ -1723,12 +1815,11 @@ int main(void) {
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
   save("/tmp/sim_sign_done.ppm");
-  // The chip trails the measured mono23 code now (kiss_sign.c draw_sig_fp),
-  // so its centre moved right when the code grew from mono14. The old tap at
-  // (508,262) landed in the gap between code and chip, silently captured the
-  // signed screen under this stop's name, and nothing failed: a wrong tap that
-  // opens nothing is invisible to every check but a person looking at the frame.
-  touch(552, 276); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
+  // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
+  // first, translated caption trailing, so this tap holds in all 21 locales.
+  // The code itself moved INTO the panel this opens -- the next frame must
+  // show it above the two example rows.
+  touch(308, 274); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
@@ -1886,6 +1977,23 @@ int main(void) {
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
   touch(218, 190); pump(3); release(); pump(6);     // SCAN QR -> scan screen
   save("/tmp/sim_qr_scan.ppm");
+
+  // A pMofN set too large for this device, refused at the first part. The
+  // old parser measured only the NUMBER of parts, so a set like this was
+  // accepted a QR at a time -- tens of KB of heap taken while the camera
+  // streams -- and refused at assemble time, leaving the counter sitting on
+  // screen with nothing saying why. One oversize part is now enough.
+  {
+    char big[7000];
+    memset(big, 'A', sizeof big);
+    memcpy(big, "p1of4 ", 6);
+    big[sizeof big - 1] = 0;
+    kiss_scan_inject(big, strlen(big));
+    pump(6);
+    save("/tmp/sim_qr_too_big.ppm");                // refusal + the way through
+    must_show("scan/too-big", tr(STR_N_TOO_BIG));
+  }
+
   {
     uint8_t fake[300];
     memset(fake, 0x5A, sizeof fake);
@@ -2195,25 +2303,11 @@ int main(void) {
                                                     // 40 = the staggered card
                                                     // intro fully settled
   save("/tmp/sim_setup_ent_why.ppm");               // WHY THREE SOURCES, icon grid
-  // The PROVE IT detour. The explainer's own OK stays covered by the dice "?"
-  // below; this path leaves through the pill instead, walks the whole burned
-  // proof run, and lands back on the entropy screen. The stub writes a real
-  // (small) kiss-proof.bin into /tmp/simsd.
-  tap_str(STR_W_PROOF_BTN, 3, 6);     // PROVE IT -> capture screen
-  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
-  tap_str(STR_W_PROOF_SHOT, 3, 6);     // CAPTURE (stubbed, instant)
-  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
-  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);     // SHOW WORDS
-  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, burned line
-  tap_str(STR_R_NEXT, 3, 6);     // NEXT -> words 13-24
-  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
-  tap_str(STR_C_DONE, 3, 6);     // DONE -> entropy screen
-  // ...and again through the action row's own AUDIT pill, the route that does
-  // not require doubting the camera first. Straight back out: the screens it
-  // reaches are the ones already walked above.
-  tap_str(STR_W_PROOF_BTN, 3, 6);     // AUDIT pill -> capture
-  save("/tmp/sim_setup_prove_pill.ppm");            // reached without the "?"
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> entropy screen
+  // No PROVE IT detour here any more: the audit moved to Settings (its walk
+  // stops are on the WAYS IN page path), and the explainer card's text still
+  // names the doubt the audit answers. Close the card and carry on.
+  touch(400, 40); pump(3); release(); pump(20);     // tap anywhere -> closes
+  pump(20);                                         // entropy screen rebuilds
 
   // TAP TO ADD RANDOMNESS, and the refusal behind it. Both were NEVER OPENED:
   // the walk stopped at the entropy screen and backed out, so source 3 -- the
@@ -2466,6 +2560,17 @@ int main(void) {
   touch(725, 430); pump(3); release(); pump(4);     // OK -> the card again
   touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> confirm stage
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
+  // The secret-idle deadline, mid type-twice. TYPE IT AGAIN is holding entry
+  // #1 in RAM; two untouched minutes must wipe both entries and put the
+  // caption back to the first stage -- and must touch NOTHING else: the
+  // staged seed and setup mode survive, and the type-twice below commits the
+  // same wallet, which every stop after this one depends on.
+  pump(8200);                                       // 131s > 120s, untouched
+  must_show("idle-wipe/stage1", tr(STR_L_CREATE_YOUR_PASS));
+  must_show("idle-wipe/prompt", tr(STR_L_TYPE_PROMPT));
+  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1 again
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning again
+  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> passphrase warning
@@ -2504,25 +2609,22 @@ int main(void) {
   save("/tmp/sim_setup_verified.ppm");              // green full-backup state, at last
   tap_str(STR_C_I_UNDERSTAND, 3, 30);    // I UNDERSTAND -> the stroke chooser
 
-  // The LAST step of setup: the ONE stroke that reaches the real signer
-  // (kiss_duress_ui.c). Plain KISS opens the spare and always will, so there
-  // is nothing to configure for it. The stroke is drawn against the printed
-  // reference word at (250,170)-(550,268), which is the same box that
-  // kiss_duress_classify measures in the game.
+  // The LAST step of setup: the two-signer idea and its rule
+  // (kiss_duress_ui.c). Plain KISS opens the spare and always will; one
+  // extra swipe -- any swipe -- asks for the passphrase that opens the real
+  // signer. Nothing is configured here any more; the wizard teaches.
   save("/tmp/sim_duress_intro.ppm");                // two ways in
-  tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // OK -> fund the spare
+  tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
-  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // OK -> pick your stroke
-  save("/tmp/sim_duress_pick_real.ppm");            // six strokes, two rows of three
-  touch(158, 176); pump(3); release(); pump(40);    // UNDERLINE (first pill)
-  save("/tmp/sim_duress_draw_real.ppm");            // draw it, over the reference word
-  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 300); pump(1); }
-  release(); pump(40);                              // an underline: wide, flat, low
-  save("/tmp/sim_duress_draw_real2.ppm");           // ...and once more to confirm
-  for (int i = 0; i <= 22; i++) { touch(262 + i * 12, 302); pump(1); }
-  release(); pump(40);
-  save("/tmp/sim_duress_done.ppm");                 // the one way in is set
-  tap_str(STR_C_DONE, 3, 140);   // DONE -> saves, home settles
+  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> the rule (the picker is gone)
+  // The picker and its two rehearsal screens no longer exist: the chosen
+  // stroke was never read on unlock, so the wizard now ends on the rule --
+  // one extra swipe, any swipe, asks for your passphrase. Assert the rule
+  // screen positively; a walk that only taps through would photograph
+  // whatever screen a regression left here and still look green.
+  save("/tmp/sim_duress_done.ppm");                 // drawing -> spare, +swipe -> real
+  must_show("duress/rule", tr(STR_GD_DONE_T));
+  tap_str(STR_C_DONE, 3, 140);   // DONE -> home settles
   save("/tmp/sim_setup_home.ppm");
 
   // step 8: idle auto-lock — KISS_AUTOLOCK_MS untouched on the home must
@@ -2570,6 +2672,22 @@ int main(void) {
 
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
+
+  // The dead-touch banner, worn by the game cover when the GT911 never came
+  // up. Here because this is a locked device showing the menu, which is the
+  // state a board with dead touch actually boots into -- and unreachable by
+  // walking in the sim by definition, since there is no GT911 here to fail.
+  // Taken back down straight away: everything after this photographs its own
+  // screen, and a banner left on the active screen would ride all of them.
+  {
+    extern lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent);   // main.c
+    lv_obj_t *bl = kiss_touch_dead_banner(lv_screen_active());
+    pump(20);
+    save("/tmp/sim_touch_dead.ppm");                // amber line over the game
+    must_show("touch-dead", tr(STR_G_TOUCH_DEAD));
+    lv_obj_delete(bl);
+    pump(20);
+  }
 
   // Locking forgets the key material. It must also forget WHICH keys: the
   // fingerprint of the last keys unlocked used to outlive kiss_session_close,
@@ -2661,10 +2779,31 @@ int main(void) {
   // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
-  save("/tmp/sim_settings_duress.ppm");             // stroke + KISS chips, 3 pills
+  save("/tmp/sim_settings_duress.ppm");             // drawing + ONE SWIPE chips
+
+  // The camera audit, from its new home on this page. The stub writes a real
+  // (small) kiss-proof.bin and the stateless checker page into /tmp/simsd;
+  // BACK out of the capture screen returns to Settings via the done cb, so
+  // the page is re-entered for the drawing enrolment below.
+  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT row -> capture screen
+  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
+  tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
+  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
+  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);   // SHOW WORDS
+  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, thrown-away line
+  tap_str(STR_R_NEXT, 3, 6);          // NEXT -> words 13-24
+  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
+  tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
+  touch(400, 355); pump(3); release(); pump(8);     // Duress again, for the word
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
+  // The ink itself, mid-enrolment and before DONE clears it. The strokes now
+  // share one point pool with a per-stroke offset instead of a 12x384
+  // rectangle, and a pool wired up wrong draws the right number of lines from
+  // the wrong slices -- which every later frame here would still call correct,
+  // because they photograph screens the ink is already gone from.
+  save("/tmp/sim_gword_ink.ppm");                  // multi-stroke ink, as drawn
   tap_str(STR_GD_WORD_DONE, 3, 8);     // DONE (492..752) -> once more
   save("/tmp/sim_gword_again.ppm");                 // ONCE MORE, field cleared
   draw_own_letters();
@@ -2787,6 +2926,11 @@ int main(void) {
   pump(40);
   save("/tmp/sim_ui_recover.ppm");                  // words held, paper first
   must_show("recover", tr(STR_L_RECOVER_T));
+  // No longer a leaf that never leaves: the screen has its own registry row
+  // now and holds the idle lock off, so left open it would hold it off for
+  // the teardown contract checks at the end of the walk too.
+  kiss_ui_test_recover_close();
+  pump(40);
 
   // The other half of the same question, and the half that was still lying.
   // YOUR LETTERS ARE SET drew "letters -> SPARE" and "letters + mark -> REAL"
@@ -2933,17 +3077,6 @@ int main(void) {
   platform_sd_test_set_present(1);
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
 
-  // LVGL heap watermark: the pool is only 128K (matches the device), and a
-  // failed lv_malloc during rendering = LVGL assert = infinite loop. Keep an
-  // eye on max_used whenever screens/labels are added (the i18n picker was
-  // the first thing to blow the old 64K pool).
-  {
-    lv_mem_monitor_t mon;
-    lv_mem_monitor(&mon);
-    printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
-           (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
-           (unsigned)mon.max_used, (unsigned)mon.frag_pct);
-  }
   // A sign screen that was replaced without being deleted stays parented under
   // its replacement, invisible, until a BACK peels the top one off and drops
   // the owner back on a transaction they already left. No saved frame shows it
@@ -3032,6 +3165,24 @@ int main(void) {
       int m = wt_sim_built(b, (int)(sizeof b / sizeof b[0]));
       for (int i = 0; i < m; i++) printf("BUILT\t%s\n", wt_sim_title_key(b[i]));
     }
+  }
+
+  // LVGL heap watermark, at the END of the walk. The pool is 128K (matching
+  // the device), and a failed lv_malloc during rendering is an LVGL assert,
+  // which on the device is an infinite loop -- the i18n picker was the first
+  // thing to blow the old 64K pool. This sample used to sit mid-walk, before
+  // the firmware auto-lock teardown checks and the orphaned-screen count, so
+  // it under-reported the peak by every screen those built.
+  //
+  // max_used is a true high-water mark. frag_pct is NOT: it is computed at
+  // call time, so it says only how the pool looked at this instant, which is
+  // why run_overlapcheck.sh ratchets the first and ignores the second.
+  {
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    printf("[lvheap] total %u used %u max_used %u frag %u%%\n",
+           (unsigned)mon.total_size, (unsigned)(mon.total_size - mon.free_size),
+           (unsigned)mon.max_used, (unsigned)mon.frag_pct);
   }
 
   printf("sim done\n");

@@ -81,6 +81,7 @@ int test_seed_layer(void) {
          fp[0] == 0x73 && fp[1] == 0xC5 && fp[2] == 0xDA && fp[3] == 0x0A);
 
     schk("session opens from stored seed", kiss_session_open("") == 0);
+    kiss_set_network(0);          // the dev vector is a mainnet address
     char addr[92];
     schk("address from stored seed rc", kiss_session_address(0, 0, addr, sizeof addr) == 0);
     schk("address matches dev vector",

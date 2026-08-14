@@ -100,6 +100,12 @@ int kiss_secp_randomize(void);
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
 // descriptor xpub/tpub serialization. The master key itself is network-free,
 // so this can be flipped any time — no session re-open needed. Default mainnet.
+// The factory-fresh default. Testnet, deliberately: a signer that boots into
+// mainnet invites the first experiment to be made with real coins, and every
+// flow the owner must learn -- pairing, receiving, signing -- is identical on
+// the network where a mistake costs nothing. A device that has ever picked a
+// network keeps its choice (the setting is in NVS and survives erase).
+#define KISS_NET_DEFAULT_TESTNET 1
 void kiss_set_network(int testnet);
 int kiss_testnet(void);
 

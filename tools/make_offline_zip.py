@@ -60,6 +60,7 @@ SITE_REQUIRED = [
     # with no network at all — which is exactly the situation someone who
     # unpacked this zip on an offline machine is in.
     "verify-release.html",
+    "verify.html",              # the camera-audit checker the device pages name
     "app.js",
     "styles.css",
     "assets/kiss-mark.svg",

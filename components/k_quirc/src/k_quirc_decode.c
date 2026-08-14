@@ -6,7 +6,7 @@
 #include "esp_log.h"
 #include "k_quirc_internal.h"
 
-static const char *TAG = "k_quirc";
+__attribute__((unused)) static const char *TAG = "k_quirc";
 
 #define MAX_POLY 64
 

@@ -108,11 +108,12 @@ def main() -> int:
             )
 
         # Shape, not just version. esp-web-tools flashes EVERY part of the
-        # matching build at its own offset, and manifest.json is not covered by
-        # SHA256SUMS, so an appended part is arbitrary bytes at an arbitrary
-        # offset that the signature still calls good. docs/app.js refuses this
-        # at flash time; this refuses it at review time, where a JSON hunk with
-        # no hash in it is easy to wave through.
+        # matching build at its own offset. manifest.json IS hashed by
+        # SHA256SUMS now, but the hash proves the bytes, not that the shape is
+        # sane -- a signed manifest with an appended part is still arbitrary
+        # bytes at an arbitrary offset. docs/app.js refuses this at flash
+        # time; this refuses it at review time, where a JSON hunk with no
+        # hash in it is easy to wave through.
         builds = manifest.get("builds")
         if not isinstance(builds, list) or len(builds) != 1:
             problems.append(

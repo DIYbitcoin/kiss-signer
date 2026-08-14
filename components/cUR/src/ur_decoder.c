@@ -24,8 +24,18 @@
 // drives the final reassembly buffer. Reject anything larger than what a
 // real Bitcoin UR would ever need, to keep a malicious QR from exhausting
 // embedded heap.
+//
+// MESSAGE_LEN was 256 KiB: "larger than any real Bitcoin UR", and about sixty
+// times what the only caller in this tree can hold -- qr_transport caps a
+// decoded PSBT at QRT_MAX_PSBT (4 KiB). A declared length between the two was
+// heap spent on a transfer that would be refused at the end. The cap has to
+// live here because the declared length is parsed in this file and never
+// surfaced to the caller. Overridable so a consumer with a genuinely larger
+// UR type does not have to patch a vendored component.
 #define UR_MAX_SEQ_LEN 1024u
-#define UR_MAX_MESSAGE_LEN (256u * 1024u)
+#ifndef UR_MAX_MESSAGE_LEN
+#define UR_MAX_MESSAGE_LEN (16u * 1024u)
+#endif
 
 static fountain_encoder_part_t *
 create_fountain_part_from_cbor(uint8_t *cbor_data, size_t cbor_len,

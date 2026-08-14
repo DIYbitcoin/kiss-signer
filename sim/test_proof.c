@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "platform_sd.h"
 #include "verify_page.h"
@@ -29,11 +30,11 @@ static void ok(const char *name, int cond)
 //   (32 bytes entropy ‖ first 8 bits of SHA256(entropy), 24 x 11-bit indices).
 //   tools/verify_proof.py runs the same recipe against a real proof file.
 static const char *VEC_HASH =
-    "628e71b5036701e7a509d4708178d88e2cb1f49af06c0b63cfd7a1e9759fb704";
+    "c6f9982e11f767f5e17fb8321323a2609c9d69dd787d9b69039612564ef097aa";
 static const char *VEC_WORDS =
-    "glad inform hood almost hybrid video neither dentist identify armed "
-    "curtain brisk slam where hint assault arena bunker vote duck nuclear "
-    "sound swing machine";
+    "shoulder smoke argue catalog island wife magnet warfare craft october "
+    "trigger scorpion six reject invest autumn opinion elite tortoise caution "
+    "gossip joke gadget execute";
 
 static void hex32(const uint8_t h[32], char out[65])
 {
@@ -70,23 +71,36 @@ static void test_vector_and_file(void)
     ok("words match the independent vector", strcmp(words, VEC_WORDS) == 0);
     if (strcmp(words, VEC_WORDS) != 0) printf("  got %s\n  want %s\n", words, VEC_WORDS);
 
-    // The file half of the property: the card's bytes are the input's bytes.
+    // The file half of the property: the card holds the SUBSAMPLED bytes --
+    // every second pixel of every second row -- and nothing else. Rebuilt
+    // here independently of kiss_proof.c, so the two loops agreeing is the
+    // test, not one loop trusted twice.
     FILE *f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
     ok("proof file exists", f != NULL);
     if (f) {
-        uint8_t *back = malloc(WPROOF_FRAME_BYTES + 1);
-        size_t rd = back ? fread(back, 1, WPROOF_FRAME_BYTES + 1, f) : 0;
-        ok("proof file is exactly the frame length", rd == WPROOF_FRAME_BYTES);
-        ok("proof file is byte identical to the frame",
-           back && rd == WPROOF_FRAME_BYTES &&
-           memcmp(back, frame, WPROOF_FRAME_BYTES) == 0);
+        uint8_t *back = malloc(WPROOF_FILE_BYTES + 1);
+        size_t rd = back ? fread(back, 1, WPROOF_FILE_BYTES + 1, f) : 0;
+        ok("proof file is exactly the subsampled length", rd == WPROOF_FILE_BYTES);
+        bool same = back && rd == WPROOF_FILE_BYTES;
+        if (same) {
+            for (size_t y = 0; y < WPROOF_FILE_H && same; y++)
+                for (size_t x = 0; x < WPROOF_FILE_W && same; x++) {
+                    const uint8_t *sp = frame + ((y * 2) * WPROOF_FRAME_W + x * 2) * 2;
+                    const uint8_t *dp = back + (y * WPROOF_FILE_W + x) * 2;
+                    if (sp[0] != dp[0] || sp[1] != dp[1]) same = false;
+                }
+        }
+        ok("proof file is the frame, every second pixel of every second row", same);
         free(back);
         fclose(f);
     }
 
-    // The courtesy half: the checker page landed beside the frame, carrying
-    // the embedded bytes unchanged plus this run's claim, so opening it from
-    // the card and dropping the file is the whole check.
+    // The courtesy half: the checker page landed beside the frame, byte
+    // identical to the embedded copy. STATELESS on purpose: the page used to
+    // carry this run's hash baked in, which meant two files that had to
+    // agree -- and a run interrupted between the two writes left a page
+    // swearing to a frame from a run before (found on a real card). The
+    // claim now lives on the device screen; the page only computes.
     f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
     ok("page file exists", f != NULL);
     if (f) {
@@ -94,18 +108,12 @@ static void test_vector_and_file(void)
         size_t rd = back ? fread(back, 1, verify_page_html_len + 1, f) : 0;
         if (back) back[rd < verify_page_html_len + 1 ? rd : 0] = 0;
         ok("page file is exactly the embedded length", rd == verify_page_html_len);
-        // The only difference from the embedded bytes is the claim slot, and
-        // it now holds this run's hash: that is what makes the card's copy
-        // verify itself when the file lands on it.
-        ok("the claim on the card is this run's hash",
+        ok("page file is byte identical to the embedded page",
            back && rd == verify_page_html_len &&
-           memmem(back, rd, VEC_HASH, 64) != NULL);
-        ok("no unwritten claim slot survives on the card",
-           back && rd == verify_page_html_len &&
-           memmem(back, rd, WPROOF_CLAIM_SLOT, 64) == NULL);
-        ok("the embedded page still ships the empty slot",
+           memcmp(back, verify_page_html, verify_page_html_len) == 0);
+        ok("no baked claim mechanism survives anywhere",
            memmem(verify_page_html, verify_page_html_len,
-                  WPROOF_CLAIM_SLOT, 64) != NULL);
+                  "KISS_CLAIM", 10) == NULL);
         ok("embedded page opens like a page",
            verify_page_html_len > 14 &&
            memcmp(verify_page_html, "<!doctype html", 14) == 0);
