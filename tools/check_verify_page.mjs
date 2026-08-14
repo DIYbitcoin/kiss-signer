@@ -23,15 +23,27 @@ vm.createContext(ctx);
 vm.runInContext(m[1], ctx, { filename: "verify.html <script>" });
 
 const VEC_HASH =
-  "628e71b5036701e7a509d4708178d88e2cb1f49af06c0b63cfd7a1e9759fb704";
+  "c6f9982e11f767f5e17fb8321323a2609c9d69dd787d9b69039612564ef097aa";
 const VEC_WORDS =
-  "glad inform hood almost hybrid video neither dentist identify armed " +
-  "curtain brisk slam where hint assault arena bunker vote duck nuclear " +
-  "sound swing machine";
+  "shoulder smoke argue catalog island wife magnet warfare craft october " +
+  "trigger scorpion six reject invest autumn opinion elite tortoise caution " +
+  "gossip joke gadget execute";
 
+// The page hashes the FILE the device writes: every second pixel of every
+// second row of the raw pattern frame, two bytes per pixel. Built here the
+// same way kiss_proof.c builds it, so the two vectors are one vector.
+const RAW_W = 1288, RAW_H = 728;
 const frame = new Uint8Array(ctx.FRAME_BYTES);
-if (frame.length !== 1875328) fail(`FRAME_BYTES is ${frame.length}`);
-for (let i = 0; i < frame.length; i++) frame[i] = (i * 31 + 7) & 0xff;
+if (frame.length !== 644 * 364 * 2) fail(`FRAME_BYTES is ${frame.length}`);
+let o = 0;
+for (let y = 0; y < 364; y++) {
+  const row = (y * 2) * RAW_W * 2;
+  for (let x = 0; x < 644; x++) {
+    const p = row + x * 4;
+    frame[o++] = (p * 31 + 7) & 0xff;
+    frame[o++] = ((p + 1) * 31 + 7) & 0xff;
+  }
+}
 
 const hash = ctx.sha256(frame);
 const hex = ctx.toHex(hash);
@@ -65,15 +77,11 @@ if (ctx.claimedHash("#h=" + VEC_HASH.slice(1)) !== null)
   fail("claimedHash accepted 63 hex chars");
 if (ctx.claimedHash("") !== null) fail("claimedHash accepted an empty fragment");
 
-// The slot kiss_proof.c writes over for the card's self verifying copy.
-if (ctx.KISS_CLAIM !== "-".repeat(64))
-  fail("the shipped page does not carry an empty 64 dash claim slot");
-if (ctx.bakedClaim(ctx.KISS_CLAIM) !== null)
-  fail("an unwritten slot must read as no claim");
-if (ctx.bakedClaim(VEC_HASH.toUpperCase()) !== VEC_HASH)
-  fail("bakedClaim does not accept the hash the device writes into the slot");
-if (ctx.bakedClaim(undefined) !== null || ctx.bakedClaim("nope") !== null)
-  fail("bakedClaim accepted a missing or malformed claim");
+// The page is stateless now: no baked claim, no slot, nothing per-run. A
+// claim mechanism coming back is how the torn-pair failure returns, so its
+// absence is asserted as hard as its presence used to be.
+if (typeof ctx.KISS_CLAIM !== "undefined" || typeof ctx.bakedClaim !== "undefined")
+  fail("the page grew a baked claim again; it must stay stateless");
 
 if (ctx.WORDS.length !== 2048 || ctx.WORDS[0] !== "abandon" || ctx.WORDS[2047] !== "zoo")
   fail("embedded wordlist is not the standard 2048");

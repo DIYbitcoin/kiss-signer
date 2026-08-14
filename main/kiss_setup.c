@@ -111,10 +111,12 @@ static void dice_screen(void);
 static void method_screen(void);
 // PROVE IT (docs/specs/prove-it.md): the burned proof run off the WHY overlay.
 static void proof_screen(void);
+// Set only by kiss_setup_open_audit: where the audit returns. (The create
+// wizard no longer runs the audit at all.)
+static void (*s_pf_done)(void);
 static void proof_result_screen(void);
 static void ent_fail_screen(void);
 static void proof_words_screen(void);
-static void ent_prove_cb(lv_event_t *e);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
@@ -139,6 +141,18 @@ static void goto_choose_cb(lv_event_t *e)
 static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 bool kiss_setup_active(void) { return s_scr != NULL; }
+
+// The camera audit, from Settings: photo -> hash -> words -> proof file on
+// the card. It proves the MECHANISM -- that this device derives words from
+// a photo and nothing else -- on a throwaway run; it never touches the real
+// seed, which is why it belongs in Settings and not inside seed creation,
+// where its 0.5MB card write held the wizard hostage.
+void kiss_setup_open_audit(lv_obj_t *parent, void (*done_cb)(void))
+{
+    s_parent = parent ? parent : lv_screen_active();
+    s_pf_done = done_cb;
+    proof_screen();
+}
 bool kiss_setup_verify_succeeded(void) { return s_verify_ok; }
 
 static void wipe_state(void)
@@ -1123,46 +1137,6 @@ static void ent_mix_closed_cb(lv_event_t *e)
 }
 #endif
 
-// PROVE IT leaves through the overlay's pill, not through its close. The
-// overlay's DELETE handler schedules an entropy_screen rebuild one tick out
-// (ent_mix_closed_cb), which would stomp the proof screen the moment it
-// appeared -- so the handler comes off before the navigation tears it down.
-static void ent_prove_cb(lv_event_t *e)
-{
-#ifndef SIMULATOR
-    lv_obj_t *ovl = lv_event_get_user_data(e);
-    if (ovl) lv_obj_remove_event_cb(ovl, ent_mix_closed_cb);
-#else
-    (void)e;
-#endif
-    proof_screen();
-}
-
-// The same detour from the entropy screen's own action row, where the camera
-// is still running: hand it over the way BACK does, or the proof screen opens
-// a second stream onto a framebuffer this one is still writing.
-static void ent_audit_cb(lv_event_t *e)
-{
-    (void)e;
-#ifndef SIMULATOR
-    if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
-    camera_entropy_stop();
-#endif
-    proof_screen();
-}
-
-// Between CAPTURE (48..348) and BACK (610..750). The mark is the frame the
-// audit is about, the same glyph the recipe diagram and the camera method row
-// already carry.
-static void ent_audit_pill(void)
-{
-    // Between the way out at 48 and CAPTURE in the corner: 140 + 224 + 300 in
-    // 20px gaps in the 704 lane, mirrored: CAPTURE 48..348, PROVE IT 368..592,
-    // the exit 612..752.
-    wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_BTN),
-                 368, WT_ACTION_Y, 224, WT_ACTION_H, ent_audit_cb, NULL);
-}
-
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
 // the dice the fourth line sends an unconvinced reader to (the same LIST glyph
 // method_screen puts on the DICE row, so the two marks agree).
@@ -1210,13 +1184,11 @@ static void ent_mix_help_cb(lv_event_t *e)
         .icons  = ENT_MIX_ICONS,
     };
     lv_obj_t *ovl = wt_explain_open(s_scr, &x);
-    // The doubt this card names is the doubt the proof answers: the pill sits
-    // exactly where the reader has just been told the camera cannot be
-    // checked. A tap on the pill stays on the pill (nothing here bubbles), so
-    // the overlay's close-on-tap-anywhere is not in play.
-    if (ovl)
-        wt_pill(ovl, tr(STR_W_PROOF_BTN), 48, WT_ACTION_Y, 220, ent_prove_cb,
-                ovl);
+    (void)ovl;                       // read only by the device branch below
+    // The AUDIT pill that sat here moved to Settings with the audit itself:
+    // the wizard is the wrong moment to hold a 0.5MB card write, and the
+    // audit proves the mechanism, not this seed. The card's text still names
+    // the doubt; Settings holds the answer.
 #ifndef SIMULATOR
     // The card is an OVERLAY, not a replacement screen, so the entropy screen
     // is still underneath with a stopped camera and no poll timer. Rebuild it
@@ -1521,12 +1493,20 @@ static void pf_split(const char *words)
     }
 }
 
-// Every proof exit lands back on the entropy screen, which restarts the
-// wizard's camera on a fresh meter -- the state BACK from the WHY overlay
-// would have produced anyway.
+// The audit lives in Settings now (its own opener below), so every exit
+// hands control back to whoever opened it -- the same shape as the verify
+// flow's exit. The entropy_screen fallback covers only a build where
+// something still opens the audit mid-wizard; nothing does.
 static void pf_exit(void)
 {
     pf_wipe();
+    if (s_pf_done) {
+        void (*cb)(void) = s_pf_done;
+        s_pf_done = NULL;
+        close_all();
+        if (cb) cb();
+        return;
+    }
     entropy_screen();
 }
 
@@ -1767,7 +1747,11 @@ static void proof_words_screen(void)
 {
     if (s_pf_page < 0) s_pf_page = 0;
     if (s_pf_page > 1) s_pf_page = 1;
-    mk_screen(tr(STR_W_24), NULL);
+    // AUDIT RESULT, not "24 WORDS": creation is 12 words now, and a title
+    // that counts these reads as a contradiction. The 24 here is correct (a
+    // 32-byte hash IS 24 words) but it is trivia, and the page number line
+    // still says /24 for anyone counting.
+    mk_screen(tr(STR_W_PROOF_R_T), NULL);
 
     const int first = s_pf_page * WORDS_PER_PAGE;
     const int rows = 6;
@@ -2299,14 +2283,10 @@ static void entropy_screen(void)
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     s_ent_cr = wt_chip(row, tr(STR_W_ENT_RESULT), false);
 
-    // The audit used to be reachable only through the "?" overlay, which meant
-    // the owner had to already doubt the camera to find out they could test
-    // it. It sits in the action row instead, between the action and the way
-    // out; the overlay keeps its pill, where the doubt is actually named.
+    // The audit lived in this action row once; it lives in Settings now.
 #ifdef SIMULATOR
     (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
-    ent_audit_pill();
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
@@ -2326,7 +2306,6 @@ static void entropy_screen(void)
         s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                                 ent_tap_cb, NULL);
         wt_pill_primary(s_ent_capture);
-        ent_audit_pill();
         ent_ui_sync(0, camera_entropy_reason());
     } else {
         // The camera failed. The preview column carries the error.

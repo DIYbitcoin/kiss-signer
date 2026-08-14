@@ -39,16 +39,17 @@ def main():
 
     if len(data) > SIZE_CAP:
         die(f"docs/verify.html is {len(data)} bytes, cap is {SIZE_CAP}")
-    for needle in ("#h=", "kiss-proof.bin", "KISS_CLAIM"):
+    for needle in ("#h=", "kiss-proof.bin"):
         if needle not in text:
             die(f"docs/verify.html lost the string {needle!r}")
 
-    # kiss_proof.c finds this placeholder by value and writes the run's hash
-    # over it. Two of them, or none, and the card's copy stops self verifying
-    # while every other check stays green.
-    slot = "-" * 64
-    if text.count(slot) != 1:
-        die(f"expected exactly one 64 dash claim slot, found {text.count(slot)}")
+    # The page is STATELESS on purpose: no baked claim, no per-run rewrite.
+    # A claim slot coming back would revive the torn-pair failure (a page
+    # sworn to one run beside a frame from another), so its absence is
+    # asserted as hard as its presence used to be.
+    if "KISS_CLAIM" in text or ("-" * 64) in text:
+        die("docs/verify.html grew a baked claim again; the page must stay "
+            "stateless (the claim lives on the device screen / #h=)")
 
     m = re.search(r'var WORDS = "([a-z ]+)"\.split\(" "\)', text)
     if not m:

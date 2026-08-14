@@ -13,6 +13,10 @@ bool kiss_setup_active(void);
 // keypad; never stages or alters the seed. done_cb fires on exit. (Reached from
 // the wallet's BACKUP screen, not first-boot.)
 void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void));
+
+// The camera audit (photo -> hash -> words -> proof file), from Settings.
+// Proves the derivation mechanism on a throwaway run; never touches the seed.
+void kiss_setup_open_audit(lv_obj_t *parent, void (*done_cb)(void));
 // Result of the most recently completed/cancelled open_verify flow. Reset to
 // false each time verification opens; true only after every word matched.
 bool kiss_setup_verify_succeeded(void);
