@@ -1823,12 +1823,11 @@ int main(void) {
   pump(45);                                         // past 1.2s: signs + writes SD
   release(); pump(8);
   save("/tmp/sim_sign_done.ppm");
-  // The chip trails the measured mono23 code now (kiss_sign.c draw_sig_fp),
-  // so its centre moved right when the code grew from mono14. The old tap at
-  // (508,262) landed in the gap between code and chip, silently captured the
-  // signed screen under this stop's name, and nothing failed: a wrong tap that
-  // opens nothing is invisible to every check but a person looking at the frame.
-  touch(552, 276); pump(3); release(); pump(6);     // ? beside SIGNATURE -> explainer
+  // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
+  // first, translated caption trailing, so this tap holds in all 21 locales.
+  // The code itself moved INTO the panel this opens -- the next frame must
+  // show it above the two example rows.
+  touch(308, 274); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
