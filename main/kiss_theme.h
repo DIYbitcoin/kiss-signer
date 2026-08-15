@@ -355,12 +355,14 @@ void wt_diagram_pair(lv_obj_t *parent);
 // families under all four accents including MONO, where the accent is ink.
 enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
 
-// Strands one side of the junction can hold. Five is what the elision leaves on
-// the input side at any coin count (first two, the group, last two); the output
-// side is capped by WPSBT_MAX_OUTS, and above the fold it scrolls rather than
-// growing. Eight gives both room without letting a caller size the block from
-// a PSBT field.
-#define WT_BUNDLE_MAX 8
+// Strands the graph can hold in total. Five is what the elision leaves on the
+// input side at any coin count (first two, the group, last two). The output
+// side is NOT elided at any count -- each output is a place your money goes,
+// and one folded into a group would be a destination visible nowhere -- so it
+// needs room for every output a PSBT may carry plus the note row a spend with
+// no change adds. 24 covers that with slack and is still a fixed bound: a
+// caller may not size this block from a field an attacker writes.
+#define WT_BUNDLE_MAX 24
 
 typedef struct {
     uint64_t    sats;
@@ -376,6 +378,13 @@ typedef struct {
     // notice an absence. Drawing a strand to it would be worse still -- a line
     // to a place the money does not go.
     bool        note_only;
+    // The destination this output pays, drawn under its amount with the
+    // compared runs lit. Set it when the graph is the ONLY place an address
+    // can appear -- more than one recipient, where a single line under the
+    // graph could name only the first and would leave every other destination
+    // readable nowhere. With one recipient the screen puts it below the graph
+    // at mono23 instead, which is the frame and the more legible of the two.
+    const char *addr;
 } wt_strand_t;
 
 // A strand's stroke, in px, linear on the largest strand in the transaction.
@@ -401,6 +410,12 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                     const wt_strand_t *in,  size_t n_in,
                     const wt_strand_t *out, size_t n_out,
                     uint64_t max_sats);
+
+// The graph's output column, which scrolls when its rows do not fit. Returned
+// so the sign screen can keep asking it the question it has always asked a
+// panel of destinations: is anything below the fold, and has it been read.
+// The graph owns the strands; the caller owns what the answer means.
+lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
