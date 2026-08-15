@@ -1870,8 +1870,15 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
   press_str(STR_S_HOLD_TO_SIGN); pump(40);          // ring ~half full
   save("/tmp/sim_sign_hold.ppm");
-  pump(45);                                         // past 1.2s: signs + writes SD
+  pump(45);                                         // past 1.2s: signs
   release(); pump(8);
+  // The reveal, and the reason the walk stops here rather than landing straight
+  // on the exit screen. The graph has spent the whole flow claiming a strand in
+  // the accent means a signature exists; this is the frame where that is
+  // discharged, all inputs together, because one libwally call signed all of
+  // them and there was never a per coin moment to show.
+  save("/tmp/sim_sign_reveal.ppm");
+  pump(50);                                         // past REVEAL_MS: writes SD
   save("/tmp/sim_sign_done.ppm");
   // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
   // first, translated caption trailing, so this tap holds in all 21 locales.
@@ -2149,7 +2156,9 @@ int main(void) {
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
   press_str(STR_S_HOLD_TO_SIGN); pump(40);          // hold to sign
-  pump(45); release(); pump(8);
+  // ...then past the reveal as well: the QR path takes a different exit but
+  // shares the signing state, so it waits the same beat before leaving.
+  pump(45); release(); pump(58);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part
