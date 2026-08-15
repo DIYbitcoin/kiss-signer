@@ -358,6 +358,7 @@ enum {
     STR_S_FAIL_T,
     STR_S_FAIL_SIGN,
     STR_S_FAIL_SD_WRITE,
+    STR_S_FAIL_SAFE_B,
     STR_S_QR_FAIL_ENC,
     STR_S_QR_SUB,
     STR_S_QR_PART_FMT,

@@ -355,6 +355,7 @@
   "S_FAIL_T": "SIGNIEREN FEHLGESCHLAGEN",
   "S_FAIL_SIGN": "die Transaktion konnte nicht signiert werden",
   "S_FAIL_SD_WRITE": "konnte nicht auf die SD-Karte schreiben",
+  "S_FAIL_SAFE_B": "keine Signatur hat dieses Gerät verlassen. deine Münzen sind unbewegt.",
   "S_QR_FAIL_ENC": "die signierte Transaktion ließ sich nicht kodieren",
   "S_QR_SUB": "diesen QR in Sparrow scannen und dann senden",
   "S_QR_PART_FMT": "%d/%d",

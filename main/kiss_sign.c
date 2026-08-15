@@ -580,13 +580,31 @@ static void done_screen(const char *outname)
     mk_pill(tr(STR_C_DONE), SG_BACK_X140, WT_ACTION_Y, 140, close_cb);
 }
 
+// Every refusal on this screen answers the same second question, and it is the
+// one the owner is actually asking: did anything get out. Nothing did on any of
+// the three paths -- the signing call returned nothing, or the atomic write
+// kept the file that was already there, or the encoder never produced a frame
+// -- so the claim is true wherever it is shown, and the screen becomes the
+// split pair the rest of the flow uses instead of one line under a title.
+static void fail_body(const char *why)
+{
+    // 174 is the cap a translated string is generated under, twice over plus
+    // the blank line. The caption buffer that shipped at 64 was caught by the
+    // compiler, not by a screen: a short buffer here would cut a translation
+    // mid codepoint at exactly the moment the owner needs to read it.
+    char body[384];
+    snprintf(body, sizeof body, "%s\n\n%s", why, tr(STR_S_FAIL_SAFE_B));
+    wt_why_body(s_scr, body, 136, STOP_COL, true);
+}
+
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
-    mk_screen(parent, tr(STR_S_FAIL_T), why);
+    mk_screen(parent, tr(STR_S_FAIL_T), NULL);
+    fail_body(why);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
 
@@ -2428,7 +2446,8 @@ static void qr_out_screen(size_t sw)
     s_qr_ez = false;
     s_out_len = sw;
     if (qr_enc_start() != 0) {
-        mk_screen(parent, tr(STR_S_FAIL_T), tr(STR_S_QR_FAIL_ENC));
+        mk_screen(parent, tr(STR_S_FAIL_T), NULL);
+        fail_body(tr(STR_S_QR_FAIL_ENC));
         mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
         return;
     }

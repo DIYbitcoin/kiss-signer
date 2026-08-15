@@ -355,6 +355,7 @@
   "S_FAIL_T": "PODPIS SELHAL",
   "S_FAIL_SIGN": "transakci se nepodařilo podepsat",
   "S_FAIL_SD_WRITE": "na SD kartu se nepodařilo zapisovat",
+  "S_FAIL_SAFE_B": "žádný podpis odsud neodešel. tvé mince se nepohnuly.",
   "S_QR_FAIL_ENC": "podepsanou transakci se nepodařilo zakódovat",
   "S_QR_SUB": "naskenujte QR v Sparrow a pak odešlete",
   "S_QR_PART_FMT": "%d/%d",

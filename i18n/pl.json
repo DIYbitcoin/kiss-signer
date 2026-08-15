@@ -355,6 +355,7 @@
   "S_FAIL_T": "PODPIS NIEUDANY",
   "S_FAIL_SIGN": "nie udało się podpisać transakcji",
   "S_FAIL_SD_WRITE": "nie udało się zapisać na kartę SD",
+  "S_FAIL_SAFE_B": "żaden podpis nie opuścił urządzenia. twoje monety się nie ruszyły.",
   "S_QR_FAIL_ENC": "nie udało się zakodować podpisanej transakcji",
   "S_QR_SUB": "zeskanuj ten QR w Sparrow, potem rozgłoś",
   "S_QR_PART_FMT": "%d/%d",

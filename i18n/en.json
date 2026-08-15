@@ -355,6 +355,7 @@
   "S_FAIL_T": "SIGN FAILED",
   "S_FAIL_SIGN": "the transaction could not be signed",
   "S_FAIL_SD_WRITE": "could not write to the SD card",
+  "S_FAIL_SAFE_B": "no signature left this signer. your coins have not moved.",
   "S_QR_FAIL_ENC": "could not encode the signed transaction",
   "S_QR_SUB": "scan this QR in Sparrow, then broadcast",
   "S_QR_PART_FMT": "%d/%d",

@@ -355,6 +355,7 @@
   "S_FAIL_T": "签名失败",
   "S_FAIL_SIGN": "无法为这笔交易签名",
   "S_FAIL_SD_WRITE": "无法写入 SD 卡",
+  "S_FAIL_SAFE_B": "什么都没有签名。你的资金没有变动。",
   "S_QR_FAIL_ENC": "无法编码已签名的交易",
   "S_QR_SUB": "在Sparrow中扫描此QR，然后广播",
   "S_QR_PART_FMT": "%d/%d",

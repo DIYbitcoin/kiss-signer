@@ -355,6 +355,7 @@
   "S_FAIL_T": "FALHA AO ASSINAR",
   "S_FAIL_SIGN": "não foi possível assinar a transação",
   "S_FAIL_SD_WRITE": "não foi possível gravar no cartão SD",
+  "S_FAIL_SAFE_B": "nenhuma assinatura saiu deste dispositivo. as suas moedas não se moveram.",
   "S_QR_FAIL_ENC": "não foi possível codificar a transação assinada",
   "S_QR_SUB": "leia este QR no Sparrow e depois transmita",
   "S_QR_PART_FMT": "%d/%d",

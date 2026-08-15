@@ -355,6 +355,7 @@
   "S_FAIL_T": "SIGNERINGEN MISSLYCKADES",
   "S_FAIL_SIGN": "transaktionen kunde inte signeras",
   "S_FAIL_SD_WRITE": "kunde inte skriva till SD-kortet",
+  "S_FAIL_SAFE_B": "ingen signatur lämnade enheten. dina mynt har inte flyttats.",
   "S_QR_FAIL_ENC": "kunde inte koda den signerade transaktionen",
   "S_QR_SUB": "skanna denna QR i Sparrow och sänd sedan",
   "S_QR_PART_FMT": "%d/%d",

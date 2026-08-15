@@ -355,6 +355,7 @@
   "S_FAIL_T": "KÝ THẤT BẠI",
   "S_FAIL_SIGN": "không ký được giao dịch",
   "S_FAIL_SD_WRITE": "không ghi được vào thẻ SD",
+  "S_FAIL_SAFE_B": "không có chữ ký nào rời khỏi thiết bị. tiền của bạn không hề chuyển đi.",
   "S_QR_FAIL_ENC": "không mã hóa được giao dịch đã ký",
   "S_QR_SUB": "quét QR này trong Sparrow rồi phát lên mạng",
   "S_QR_PART_FMT": "%d/%d",

@@ -325,11 +325,21 @@ int kiss_seed_entropy_note(void) {
   }
   return s_sim_ent_note;
 }
+// The two storage verdicts that are not success, forced one at a time. The
+// real transaction and its edge cases live in kiss_seed.c and are covered by
+// kisstest; what the screens need is the one distinction between them, which
+// is whether the destination became durable. A failure leaves the mode alone.
+// A cleanup completes the move and then reports the copy it could not remove,
+// so the screen must say "changed, with a warning" and never "not changed".
+static int s_sim_move_rc;
 int kiss_seed_move_to(int m) {
+  const int forced = s_sim_move_rc;
+  s_sim_move_rc = 0;
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
     return WSEED_ERR_INVALID;
   if (m == s_sim_mode) return WSEED_OK;
+  if (forced && forced != WSEED_ERR_CLEANUP) return forced;
   if ((m == WSEED_MODE_SD || s_sim_mode == WSEED_MODE_SD) &&
       !s_sim_sd_present)
     return WSEED_ERR_SD_MISSING;
@@ -349,7 +359,7 @@ int kiss_seed_move_to(int m) {
   }
   s_sim_pending_mode = -1;
   s_sim_mode = m;
-  return WSEED_OK;
+  return forced ? forced : WSEED_OK;
 }
 void kiss_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
@@ -639,7 +649,13 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   }
   return 0;
 }
+// One shot, so the walk can reach SIGN FAILED without a second fixture. The
+// real refusal is a libwally call returning nothing -- a key that does not own
+// an input, a sighash it will not produce -- and none of that can be staged
+// from a stub that has no wally behind it.
+static int s_sim_sign_fails;
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
+  if (s_sim_sign_fails) { s_sim_sign_fails = 0; return -1; }
   size_t n = out_len < 220 ? out_len : 220;
   memset(out, 0xAB, n); *written = n;
   return 0;
@@ -2378,9 +2394,17 @@ int main(void) {
   must_show("twenty coins, details", "20");   // the real count
   must_show("twenty coins, details", "16");   // ... and how many are listed
   tap_str(STR_C_BACK, 3, 8);     // BACK -> verify
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the file list
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+
+  // SIGN FAILED, on the one screen that can honestly produce it: a completed
+  // hold whose signing call returns nothing. The graph is left claiming no
+  // signature, because none was made. Nothing else in the walk opens this
+  // screen -- it was built, translated 21 times and never rendered.
+  s_sim_sign_fails = 1;
+  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs, or does not
+  release(); pump(10);
+  save("/tmp/sim_sign_failed.ppm");
+  must_show("sign failed", tr(STR_S_FAIL_SIGN));
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> home, the only way off a failure
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -2484,6 +2508,42 @@ int main(void) {
   touch(174, 144); pump(3); release(); pump(6);     // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
+
+  // The two verdicts that are not success. Both were built, translated 21
+  // times and never rendered, and they are the two the owner most needs to
+  // read correctly: one says the wallet did not move, the other says it did
+  // move and something was left behind. Nothing in this walk could tell them
+  // apart, because neither had ever been on screen.
+  //
+  // STORAGE NOT CHANGED: the destination never became durable, so the wallet
+  // is still exactly where it was. Mode write fails, nothing is published.
+  s_sim_move_rc = WSEED_ERR_SD_IO;
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  save("/tmp/sim_storage_fail.ppm");
+  // The title, not the body: wt_why_body splits a two paragraph string across
+  // labels, and it is the verdict in the heading that must be the right one.
+  must_show("storage fail", tr(STR_G_STORAGE_FAIL_T));
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings, still FLASH
+  must_show("storage unchanged", tr(STR_W_KEEP_BTN));
+
+  // STORAGE CHANGED WITH WARNING: the card is verified and published, and the
+  // old copy could not be removed. Two copies, never zero -- which is why this
+  // is amber and not the red above, and why it must never say "not changed".
+  s_sim_move_rc = WSEED_ERR_CLEANUP;
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  save("/tmp/sim_storage_cleanup.ppm");
+  must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
+  // ...and back to FLASH, which is what the rest of the walk is written for.
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 144); pump(3); release(); pump(6);     // FLASH
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  tap_str(STR_C_OK, 3, 8);
+  must_show("storage restored", tr(STR_W_KEEP_BTN));
 
   // NO UNDO in its OTHER state. The paper has not been verified yet at this
   // point in the walk, so the chooser carries the amber qualifier over two

@@ -355,6 +355,7 @@
   "S_FAIL_T": "ONDERTEKENEN MISLUKT",
   "S_FAIL_SIGN": "de transactie kon niet worden ondertekend",
   "S_FAIL_SD_WRITE": "kon niet naar de SD-kaart schrijven",
+  "S_FAIL_SAFE_B": "er is geen handtekening naar buiten gegaan. je munten zijn niet verplaatst.",
   "S_QR_FAIL_ENC": "kon de ondertekende transactie niet coderen",
   "S_QR_SUB": "scan deze QR in Sparrow en zend daarna uit",
   "S_QR_PART_FMT": "%d/%d",

@@ -355,6 +355,7 @@
   "S_FAIL_T": "서명 실패",
   "S_FAIL_SIGN": "거래에 서명하지 못했습니다",
   "S_FAIL_SD_WRITE": "SD 카드에 쓰지 못했습니다",
+  "S_FAIL_SAFE_B": "서명은 없습니다. 자산은 그대로입니다.",
   "S_QR_FAIL_ENC": "서명된 거래를 인코딩하지 못했습니다",
   "S_QR_SUB": "Sparrow에서 이 QR을 스캔한 뒤 전파하세요",
   "S_QR_PART_FMT": "%d/%d",

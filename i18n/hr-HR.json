@@ -355,6 +355,7 @@
   "S_FAIL_T": "POTPIS NIJE USPIO",
   "S_FAIL_SIGN": "transakciju nije moguće potpisati",
   "S_FAIL_SD_WRITE": "nije moguće pisati na SD karticu",
+  "S_FAIL_SAFE_B": "nijedan potpis nije izašao s uređaja. tvoji novčići se nisu pomaknuli.",
   "S_QR_FAIL_ENC": "nije moguće kodirati potpisanu transakciju",
   "S_QR_SUB": "skenirajte QR u Sparrowu i zatim objavite",
   "S_QR_PART_FMT": "%d/%d",

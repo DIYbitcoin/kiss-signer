@@ -355,6 +355,7 @@
   "S_FAIL_T": "İMZA BAŞARISIZ",
   "S_FAIL_SIGN": "işlem imzalanamadı",
   "S_FAIL_SD_WRITE": "SD karta yazılamadı",
+  "S_FAIL_SAFE_B": "bu cihazdan hiçbir imza çıkmadı. coinlerin yerinde duruyor.",
   "S_QR_FAIL_ENC": "imzalı işlem kodlanamadı",
   "S_QR_SUB": "bu QR'ı Sparrow'da tarayın ve yayınlayın",
   "S_QR_PART_FMT": "%d/%d",
