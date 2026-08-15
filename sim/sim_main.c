@@ -1003,6 +1003,46 @@ static lv_obj_t *pill_for(int key, const char *how)
     return s_hit;
 }
 
+// The nth "?" chip right of x>700, top to bottom. The DETAILS page's four term
+// chips sit in ONE column (x = RX+RW-26 = 714), and their y used to be hard
+// coded into the walk -- then each of the three flag rows lost its explainer
+// note and the column shrank, and a tap at the old y hit nothing. A walk that
+// taps nothing above an empty frame is exactly the silent derail the first
+// counter exists for, so the chips are found by their own marks and order
+// instead: they are the only "?" labels in the page's right hand column.
+static lv_obj_t *det_chip(int idx)
+{
+    lv_obj_t *found[8];
+    int n = 0;
+    // Chips sit ON the screen; each chip's "?" is a label INSIDE it, so the
+    // scan goes two levels: the screen's children, then their children.
+    uint32_t pc = lv_obj_get_child_count(lv_screen_active());
+    for (uint32_t i = 0; i < pc && n < 8; i++) {
+        lv_obj_t *c = lv_obj_get_child(lv_screen_active(), i);
+        uint32_t cc = lv_obj_get_child_count(c);
+        for (uint32_t j = 0; j < cc && n < 8; j++) {
+            lv_obj_t *l = lv_obj_get_child(c, j);
+            if (lv_obj_check_type(l, &lv_label_class)) {
+                const char *t = lv_label_get_text(l);
+                if (t && strcmp(t, "?") == 0 && lv_obj_get_x(l) >= 700)
+                    found[n++] = l;
+            }
+        }
+    }
+    for (int a = 0; a < n; a++)
+        for (int b = a + 1; b < n; b++)
+            if (lv_obj_get_y(found[b]) < lv_obj_get_y(found[a])) {
+                lv_obj_t *t = found[a]; found[a] = found[b]; found[b] = t;
+            }
+    if (idx < 0 || idx >= n) {
+        printf("FAIL: expected a %dth '?' chip in the details column, found %d\n",
+               idx, n);
+        g_walk_fails++;
+        return NULL;
+    }
+    return found[idx];
+}
+
 // Press the pill saying tr(key), hold for `hold` frames, release, settle for
 // `settle`. hold = 3 is an ordinary tap; a hold-to-confirm wants its duration.
 static void tap_str(int key, int hold, int settle)
@@ -1889,7 +1929,16 @@ int main(void) {
   // Each term answers for itself now. The sighash chip is the one worth
   // opening: it is the term a reader is least likely to know and the one whose
   // card used to be reachable only by tapping the question mark about the FEE.
-  touch(729, 315); pump(3); release(); pump(30);   // "?" beside sighash
+  // Found by mark and order, not by coordinate: the flag rows lost their
+  // explainer notes and the column's chips moved up with it.
+  {
+    lv_obj_t *chip = det_chip(2);              // fee, locktime, SIGHASH, rbf
+    if (chip) {
+      lv_obj_t *par = lv_obj_get_parent(chip);
+      touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
+      pump(3); release(); pump(30);
+    }
+  }
   save("/tmp/sim_sign_term_sighash.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
@@ -2069,7 +2118,9 @@ int main(void) {
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
-  save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
+  save("/tmp/sim_sign_sp.ppm");                      // SP output: the on-chain note
+                                                      // moved to DETAILS, so the
+                                                      // column fits and needs no scroll
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   // The unproven-amount caution on its own: one row, footer kept. It is the
   // shape an ordinary two-input spend from a coordinator that ships bare
