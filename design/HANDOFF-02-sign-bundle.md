@@ -379,7 +379,89 @@ and note it in `design/README.md`.
 
 ---
 
-## 11. Not in this handoff
+## 11. Addendum, the hold animation [R3]
+
+Frame `6a` in the drawing. This is additive to section 3 and changes nothing in it: the
+signature is still atomic and still revealed all at once. What this adds is motion during
+the **hold**, which is the one stretch of real time on this screen that belongs to the
+user rather than to libwally. `hold_tick` already runs it and already computes the
+number this needs.
+
+### 11.1 What happens, in order
+
+**On press** (`hold_start`), before any fill:
+
+- Output strands to `0x2A3346`, output rows to 28% opacity, padlock appears over the
+  output column. This is `WT_BUNDLE_SIGNING`'s output half, fired on press instead of on
+  release, because the destinations are settled the moment the user commits.
+- Left caption to `S_SIGNING`. `DETAILS` and `BACK` go inert.
+- Arc appears and spins.
+
+**During the hold**, on each `hold_tick`:
+
+- Each input strand draws an accent-coloured line over its resting `WT_MUT` strand,
+  from its coin row toward the junction, at `el / HOLD_MS` of the path.
+- The junction dot grows `r=4 -> r=7` and brightens `WT_DIM -> WT_INK` on the same value.
+- The pill's sweep advances on the same value. It already does this.
+
+**On release before `HOLD_MS`** (`hold_stop` from the release path): every one of those
+reverses to its resting state. The accent strands retract, the dot shrinks, the outputs
+come back up, the caption returns to `S_BUNDLE_IN_FMT`. Retracting is the point — it is
+the only place this screen says out loud that a hold can be abandoned.
+
+**On completion**: strands are at the junction, dot is at `r=7`. The sweep clears to the
+plain `ACC_BG` fill, the dot and every input strand flip to `wt_accent()`, and section
+3's reveal runs as specified. A 100ms `WT_INK` flash at 50% opacity over the pill marks
+the seam if you want it; it is optional and purely presentational.
+
+### 11.2 The one thing not to get wrong
+
+**The fill is the hold's progress, nothing else.** It is `el / HOLD_MS`, the same
+fraction `lv_arc_set_value` is already given two lines above. It is not per-coin, not a
+signing estimate, and not a timer that continues after the hold completes. All three
+strands fill together at the same rate and arrive together.
+
+Nothing here claims a signature exists before one does. The accent means "signed" only
+after `kiss_psbt_sign` returns, which is why the strands are drawn in the accent while
+filling but the **amount labels stay `WT_MUT` until section 3's reveal**. The strand is
+the commitment; the label is the signature.
+
+### 11.3 Implementation
+
+Extend the widget rather than reaching into it:
+
+```c
+// 0..255 of the hold. 0 retracts to rest, 255 is strands landed, not yet signed.
+void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress);
+```
+
+In `hold_tick`, beside the existing arc call:
+
+```c
+if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(el * 255 / HOLD_MS));
+```
+
+Inside, per input strand, LVGL has no dash-offset draw, so use the line's own point
+array: interpolate the endpoint along the strand's cubic at `progress/255` and call
+`lv_line_set_points` on an accent-coloured line object that sits above the resting one.
+The bezier control points are in section 9.2 and are already in `wt_bundle`. Sample the
+curve at build time into 16 points per strand and walk that table on tick, rather than
+evaluating a cubic every 16ms.
+
+If the point-array approach proves too heavy at 20 inputs, the acceptable fallback is a
+straight-line interpolation from the coin row to the junction, ignoring the curve. Do not
+fall back to fading the whole strand in — the direction of travel is the information.
+
+### 11.4 Do not copy the drawing's dash trick
+
+`6a` and `4a` use `pathLength="1"` with `stroke-dashoffset`, which is an SVG-only
+technique. It is in the drawing because the browser has no line-point API worth using,
+not because it is the shape of the firmware solution. Read the timings from the frames,
+not the mechanism.
+
+---
+
+## 12. Not in this handoff
 
 The caution-rows page (`WHY FLAGGED`) and the signed / QR-out screen are still on the old
 chrome. They should follow, so the flow reads as one piece end to end.
