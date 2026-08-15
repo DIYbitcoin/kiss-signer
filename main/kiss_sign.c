@@ -1181,7 +1181,10 @@ static void verify_screen(lv_obj_t *parent)
     // ever appear here and collide with the title or the filename. That is
     // defect 01 from the review, closed by deletion rather than by relocation.
     {
-        lv_obj_t *chip = sg_panel(540, 14, 236, 36, np ? WARN_COL : WT_EDGE);
+        lv_obj_t *chip = sg_panel(540, 14, 236, 36, np ? WARN_COL : wt_accent());
+        // Only when it is the SIGNING AS badge. With cautions it is a count in
+        // WT_WARN, and that is a status: the accent does not go near it.
+        if (!np) lv_obj_add_flag(chip, WT_FLAG_ACCENT_BORDER);
         lv_obj_set_style_radius(chip, 10, 0);   // was 18: half of 36, a lozenge
         lv_obj_set_style_bg_opa(chip, LV_OPA_TRANSP, 0);
         lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
@@ -1651,6 +1654,7 @@ static void verify_screen(lv_obj_t *parent)
     lv_obj_set_style_arc_width(s_arc, 5, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
     lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
+    lv_obj_add_flag(s_arc, WT_FLAG_ACCENT);   // the ring is ink, not text
 
     lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), SG_HOLD_X, WT_ACTION_Y,
                            310, WT_ACTION_H, NULL, NULL);

@@ -474,7 +474,24 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // flag rather than a list, because eyebrows and chevrons are built by shared
 // helpers in six files and any list of them is a list that goes stale.
 #define WT_FLAG_ACCENT LV_OBJ_FLAG_USER_1
-// Repaint every WT_FLAG_ACCENT object under scr. Call after wt_accent_set.
+// The accent is not always TEXT. A flag that only ever meant "repaint the text
+// colour" silently did nothing on the two objects that carry the accent without
+// any text in them -- a strand, which paints with LV_STYLE_LINE_COLOR, and a
+// pill's rim, which paints with LV_STYLE_BORDER_COLOR. Both went stale the
+// moment the accent changed with the screen up, and neither could be seen to,
+// because a flagged object with an unhandled property fails silently by
+// construction.
+//
+// So the flag says WHICH channel:
+//   WT_FLAG_ACCENT         the object's own ink -- text, or line, or arc.
+//   WT_FLAG_ACCENT_BORDER  its rim.
+//   WT_FLAG_ACCENT_BG      its fill, from wt_accent_bg(), and the pressed fill
+//                          with it, so a control does not answer a press in
+//                          last theme's colour.
+// They compose: the hold pill wears BORDER and BG together.
+#define WT_FLAG_ACCENT_BORDER LV_OBJ_FLAG_USER_2
+#define WT_FLAG_ACCENT_BG     LV_OBJ_FLAG_USER_3
+// Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 
 lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
