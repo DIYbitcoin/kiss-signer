@@ -622,6 +622,25 @@ int test_sdseed_layer(void) {
     dchk("storage: remove injected leftover",
          platform_sd_delete(SDSEED_FILENAME) == 0);
 
+    // A file of exactly the read buffer's size is the device's own PSBT
+    // ceiling and must load: a full read never sets feof, and the old "bigger
+    // than our buffer" test made every exact-size file look too big.
+    {
+        uint8_t exact[16] = {0x42, 0x13, 0x37, 0x9a, 0x55, 0x01, 0xde, 0xad,
+                             0xbe, 0xef, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+        uint8_t got16[16];
+        size_t n16 = 0;
+        dchk("sd: write exact-size file",
+             platform_sd_write("exact.psbt", exact, sizeof exact) == 0);
+        dchk("sd: exact-size file reads back",
+             platform_sd_read("exact.psbt", got16, sizeof got16, &n16) == 0 &&
+             n16 == sizeof exact && memcmp(got16, exact, sizeof exact) == 0);
+        dchk("sd: one byte of slack refuses a larger file",
+             platform_sd_read("exact.psbt", got16, sizeof got16 - 1, &n16) != 0);
+        dchk("sd: exact-size file cleaned up",
+             platform_sd_delete("exact.psbt") == 0);
+    }
+
     // KEEP -> AMNESIC -> KEEP. The destination is RAM until lock.
     dchk("storage: KEEP -> AMNESIC",
          kiss_seed_move_to(WSEED_MODE_AMNESIC) == WSEED_OK);

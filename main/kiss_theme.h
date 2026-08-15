@@ -341,6 +341,126 @@ void wt_diagram_verify(lv_obj_t *parent);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
 void wt_diagram_pair(lv_obj_t *parent);
 
+// ---- the sign screen's bundle graph ----
+// Coins on the left, a junction, where the money goes on the right, and every
+// strand as thick as its share of the value. It exists because the old verify
+// screen stated the same facts as text panels and left the reader to assemble
+// the SHAPE of the transaction in their head: which coin is big, how much of
+// the send the fee really is, whether anything comes back.
+//
+// Roles, not colours, because the caller must not be able to paint a strand
+// something the theme did not sanction. IN is WT_MUT until its signature
+// exists, SEND is WT_INK, FEE is WT_DIM, CHANGE is the accent -- and CHANGE is
+// the only accent text in the graph, so "arriving" and "leaving" stay two
+// families under all four accents including MONO, where the accent is ink.
+// WT_STRAND_LINKED is an input on a spend wide enough to raise the coins
+// linked caution. It is the same strand in WT_WARN, and it is the caution
+// DRAWN: the convergence on the junction is what the warning is describing, so
+// the screen can point at it instead of asking the reader to picture it.
+// Appended, never inserted -- these are stored in the widget by value.
+enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE,
+       WT_STRAND_LINKED };
+
+// Strands the graph can hold in total. Five is what the elision leaves on the
+// input side at any coin count (first two, the group, last two). The output
+// side is NOT elided at any count -- each output is a place your money goes,
+// and one folded into a group would be a destination visible nowhere -- so it
+// needs room for every output a PSBT may carry plus the note row a spend with
+// no change adds. 24 covers that with slack and is still a fixed bound: a
+// caller may not size this block from a field an attacker writes.
+#define WT_BUNDLE_MAX 24
+
+typedef struct {
+    uint64_t    sats;
+    const char *label;      // the words beside the amount; NULL for a bare input
+    uint8_t     role;       // WT_STRAND_*
+    bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
+    bool        is_group;   // the elided middle: dashed, and holds group_n coins
+    uint16_t    group_n;
+    // A row that reserves its place and its words but has no strand and no
+    // amount, because there is no output. "no change, this empties all 20" is
+    // the case: the row has to exist, or a spend that keeps nothing back is
+    // drawn as a spend with one fewer destination and the reader is left to
+    // notice an absence. Drawing a strand to it would be worse still -- a line
+    // to a place the money does not go.
+    bool        note_only;
+    // The destination this output pays, drawn under its amount with the
+    // compared runs lit. Set it when the graph is the ONLY place an address
+    // can appear -- more than one recipient, where a single line under the
+    // graph could name only the first and would leave every other destination
+    // readable nowhere. With one recipient the screen puts it below the graph
+    // at mono23 instead, which is the frame and the more legible of the two.
+    const char *addr;
+} wt_strand_t;
+
+// A strand's stroke, in px, linear on the largest strand in the transaction.
+//
+// The floor is not cosmetic. An 800 sat fee against a 4.2M send computes to
+// zero, and a fee that vanishes is the one number on this screen that must not:
+// 2px is the thinnest stroke that still reads as a line on this panel.
+int wt_strand_px(uint64_t sats, uint64_t max_sats);
+
+// Build the graph into (x, y, w, h) -- the box the drawing's path data is
+// expressed in, 1:1, so a page coordinate is the box origin plus a path
+// coordinate. Returns the container, which owns every strand, every label and
+// the point arrays LVGL refuses to copy (see the note on lv_line below).
+//
+// Callers draw the two captions themselves: they sit ABOVE this box and belong
+// to the screen, not to the graph.
+//
+// `max_sats` is passed in rather than taken from these arrays, so a graph
+// showing part of a scrolling output column still scales against the whole
+// transaction. Renormalising per screenful would make a strand's thickness mean
+// something different after a scroll, which is the one thing it may never do.
+lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
+                    const wt_strand_t *in,  size_t n_in,
+                    const wt_strand_t *out, size_t n_out,
+                    uint64_t max_sats);
+
+// The graph's output column, which scrolls when its rows do not fit. Returned
+// so the sign screen can keep asking it the question it has always asked a
+// panel of destinations: is anything below the fold, and has it been read.
+// The graph owns the strands; the caller owns what the answer means.
+lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
+
+// What the graph is doing.
+//
+//   LIVE     the transaction as verified, waiting for a decision.
+//   HOLDING  a finger is down: the outputs stand down exactly as they do below,
+//            because where the money goes was settled on the screen behind this
+//            one and holding the button is not a decision about it. The inputs
+//            are left at their resting mute ON PURPOSE -- wt_bundle_hold draws
+//            the accent OVER them, and a strand already at WT_INK gives it
+//            nothing to be drawn over. Brightening here made the fill invisible.
+//   SIGNING  the key is working: inputs go WT_INK at full strength, outputs go
+//            WT_EDGE. The screen stops being about where the money goes and
+//            starts being about the coins being signed, and the dimmed output
+//            side is what says the destinations are settled.
+//   SIGNED   every input strand and its amount in the accent, together.
+//
+// Together, and not one at a time. `kiss_psbt_sign` is a single libwally call
+// that signs every input inside it with no hook to count from, so a per coin
+// sequence here would be a timer inventing steps -- and the whole claim of this
+// screen is that a strand in the accent means a signature exists. It changes
+// when that becomes true of all of them, which is the moment the call returns.
+enum { WT_BUNDLE_LIVE = 0, WT_BUNDLE_HOLDING, WT_BUNDLE_SIGNING,
+       WT_BUNDLE_SIGNED };
+void wt_bundle_state(lv_obj_t *bundle, int state);
+
+// The hold, drawn on the graph. 0 is at rest, 255 is every input strand landed
+// at the junction and no signature yet. Call it on each tick of the hold with
+// the same fraction the ring is given.
+//
+// It is that fraction and nothing else: not a per coin position, not an
+// estimate of how long signing will take, and not a timer that keeps running
+// after the hold completes. All the strands fill at one rate and arrive
+// together, because one call is going to sign all of them.
+//
+// It moves strands, not numbers. The amount labels stay WT_MUT until
+// WT_BUNDLE_SIGNED, which is the moment a signature exists: the strand is the
+// commitment, the label is the signature.
+void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress);
+
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
 // highlighting the front invited people to compare a constant and feel checked.
@@ -381,7 +501,30 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // flag rather than a list, because eyebrows and chevrons are built by shared
 // helpers in six files and any list of them is a list that goes stale.
 #define WT_FLAG_ACCENT LV_OBJ_FLAG_USER_1
-// Repaint every WT_FLAG_ACCENT object under scr. Call after wt_accent_set.
+// The accent is not always TEXT. A flag that only ever meant "repaint the text
+// colour" silently did nothing on the two objects that carry the accent without
+// any text in them -- a strand, which paints with LV_STYLE_LINE_COLOR, and a
+// pill's rim, which paints with LV_STYLE_BORDER_COLOR. Both went stale the
+// moment the accent changed with the screen up, and neither could be seen to,
+// because a flagged object with an unhandled property fails silently by
+// construction.
+//
+// So the flag says WHICH channel:
+//   WT_FLAG_ACCENT         the object's own ink -- text, or line, or arc.
+//   WT_FLAG_ACCENT_BORDER  its rim.
+//   WT_FLAG_ACCENT_BG      its fill, from wt_accent_bg(), and the pressed fill
+//                          with it, so a control does not answer a press in
+//                          last theme's colour.
+//   WT_FLAG_ACCENT_FILL    its fill at full strength, from wt_accent(). BG is a
+//                          tint behind text and this is the object itself being
+//                          the mark -- the junction dot, where a stale colour
+//                          would read as a seam in the drawing rather than as a
+//                          control in the wrong theme.
+// They compose: the hold pill wears BORDER and BG together.
+#define WT_FLAG_ACCENT_BORDER LV_OBJ_FLAG_USER_2
+#define WT_FLAG_ACCENT_BG     LV_OBJ_FLAG_USER_3
+#define WT_FLAG_ACCENT_FILL   LV_OBJ_FLAG_USER_4
+// Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 
 lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);

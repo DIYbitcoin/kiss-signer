@@ -102,30 +102,18 @@ jobs:
       # reporting and refuses to report if the check stops firing, so a line
       # here means the check ran, not merely that it found nothing.
       #
-      # Reporting-only, bounded, and NOT strict yet, which is deliberate and
-      # temporary. The count of uncovered screens is zero today and STRICT was
-      # the intent -- but the walk's own self test path (SCREENCOVER_SELFTEST=1
-      # /tmp/fruitsim) hangs intermittently on the desktop: it completed a dozen
-      # times in a row and then stopped returning at all, with /tmp clean and no
-      # stray process holding it. That is a hang, not a failure, so a strict
-      # gate would burn the job's whole timeout with nothing printed, at random.
-      #
-      # The hang is not this script's and it is not new here -- the script only
-      # started SAYING so once it learned to check the return code. Bound it,
-      # report it, and turn STRICT on in the commit that fixes the hang, not
-      # before. A gate that goes red for reasons nobody can reproduce is how a
-      # team learns to ignore a red gate.
-      # STRICT is set NOW, continue-on-error stays. The two do different jobs
-      # and only one of them was ever the blocker: without STRICT the script
-      # exits 0 no matter what it finds, so dropping continue-on-error alone
-      # would have changed nothing at all -- the lever is here, and the log
-      # was the thing that had gone quiet. STRICT makes the step SAY FAILED
-      # and name the uncovered screens; continue-on-error keeps the
-      # unreproducible selftest hang from turning that into a red gate nobody
-      # trusts. Remove continue-on-error in the commit that fixes the hang,
-      # which is what the note above promised and could not deliver.
-      - name: every screen has a walk stop (strict, reported not enforced)
-        continue-on-error: true
+      # Strict AND blocking. Two things are reported: screens the walk never
+      # opens (NEVER OPENED), and screens it opens but never photographs
+      # (UNCHECKED, the walk's own "built and never captured" report). The
+      # second one has already caught a real miss -- a firmware-rejected stop
+      # saved its frame before the deferred result screen landed, so the walk
+      # reached the screen and no gate asked it anything. Both fail the job
+      # under SCREENCOVER_STRICT. The selftest path used to hang intermittently
+      # on the desktop, which is why this step was once non-blocking; a hung
+      # walk now fails the job by burning its timeout, which is the honest
+      # answer -- a run that cannot say it looked at everything is a run that
+      # looked at nothing.
+      - name: every screen has a walk stop (strict, enforced)
         env:
           SCREENCOVER_STRICT: "1"
         run: timeout 300 python3 tools/check_screen_coverage.py

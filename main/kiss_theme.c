@@ -892,6 +892,13 @@ void wt_pill_primary(lv_obj_t *pill)
     lv_obj_set_style_bg_color(pill, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(pill, wt_primary(), 0);
     lv_obj_set_style_border_width(pill, 2, 0);
+    // The rim and the fill are the accent, so they are flagged as the accent.
+    // wt_pill's ORDINARY border stays WT_MUT and is not flagged: the accent
+    // marks the suggested action, and if every pill wore it it would mark
+    // nothing -- ADDENDUM-02 rule 3, and docs/device-ux-test.md task 6 is the
+    // acceptance test for exactly that.
+    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BORDER);
+    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BG);
     // this marker is already "the one action this screen wants" everywhere it
     // is used, so it is also where the label earns the top rung
     wt_pill_label_max(pill);
@@ -1445,8 +1452,26 @@ lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
 // survive this, or every theme change makes the arrows a little louder.
 static void accent_walk(lv_obj_t *o)
 {
-    if (lv_obj_has_flag(o, WT_FLAG_ACCENT))
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT)) {
+        // Text first and unconditionally, which is what this flag has always
+        // done and what every label under it still needs. Then the two classes
+        // that carry their ink somewhere else: setting a text colour on a line
+        // is not wrong, it is simply invisible, and that is exactly how the
+        // change strand wore a stale accent with the flag correctly set.
         lv_obj_set_style_text_color(o, wt_accent(), 0);
+        if (lv_obj_check_type(o, &lv_line_class))
+            lv_obj_set_style_line_color(o, wt_accent(), 0);
+        else if (lv_obj_check_type(o, &lv_arc_class))
+            lv_obj_set_style_arc_color(o, wt_accent(), LV_PART_INDICATOR);
+    }
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BORDER))
+        lv_obj_set_style_border_color(o, wt_accent(), 0);
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BG)) {
+        lv_obj_set_style_bg_color(o, wt_accent_bg(), 0);
+        lv_obj_set_style_bg_color(o, wt_accent_pressed(), LV_STATE_PRESSED);
+    }
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_FILL))
+        lv_obj_set_style_bg_color(o, wt_accent(), 0);
     uint32_t n = lv_obj_get_child_count(o);
     for (uint32_t i = 0; i < n; i++) accent_walk(lv_obj_get_child(o, i));
 }
@@ -2202,8 +2227,14 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     }
     if (!n) return;
 
-    int rows = (n + GRID_COLS - 1) / GRID_COLS;
-    int cw   = (EXP_FULL_W - GRID_GUT) / GRID_COLS;      // 346
+    // Two columns is what a LIST needs. One entry is not a list, and putting it
+    // in a 346px lane leaves the right half of the card empty while wrapping
+    // one sentence over five short lines. A single caution is the common case
+    // on this card -- most flagged transactions trip exactly one -- and no walk
+    // stop ever opened it, so it drew that way for its whole life.
+    const int cols = (n == 1) ? 1 : GRID_COLS;
+    int rows = (n + cols - 1) / cols;
+    int cw   = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;   // 346 at two
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
     int pitch = room / rows;
 
@@ -2236,8 +2267,8 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         line[l] = 0;
         const char *def = wt_split_colon(line, head, sizeof head);
 
-        int cx = 48 + (i % GRID_COLS) * (cw + GRID_GUT);
-        int cy = y + (i / GRID_COLS) * pitch;
+        int cx = 48 + (i % cols) * (cw + GRID_GUT);
+        int cy = y + (i / cols) * pitch;
 
         if (e->icons && e->icons[i])
             grid_badge(ovl, e->icons[i], cx, cy, sev);
@@ -2580,6 +2611,637 @@ void wt_diagram_pair(lv_obj_t *parent)
     wt_chip(row, tr(STR_D_ONLINE_APP), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT " QR " LV_SYMBOL_LEFT);
     wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
+}
+
+// ---- the bundle graph ----------------------------------------------------
+//
+// Geometry, all of it, in box coordinates. The drawing's path data is written
+// in the same box at 1:1, so these ARE the numbers in the appendix rather than
+// a reading of them.
+//
+//   junction      (BJ_X, h/2)          2c h=118 -> 59, 3a h=110 -> 55, 3b h=90 -> 45
+//   outputs end   BO_X
+//   labels start  BL_X
+//   rows          evenly spaced from BMARG to h - BMARG
+//
+// The row rule is worth stating because one of its consequences is load
+// bearing. pitch = (h - 2*BMARG) / (n - 1) reproduces frame 2c exactly (three
+// rows at 12 / 59 / 106) and lands within 2px of 3a and 3b -- but the part that
+// matters is that with an ODD row count the middle row falls exactly on the
+// junction. The elided group strand is that middle row, it is therefore
+// perfectly horizontal, and LVGL's software renderer dashes horizontal and
+// vertical segments ONLY (draw_line_skew has no dash path at all). A group
+// strand one pixel off the junction is a group strand drawn solid, which reads
+// as one coin -- the exact thing the dash exists to deny.
+#define BMARG   12
+#define BJ_X   330
+#define BO_X   430
+#define BL_X   440
+#define BJ_R     5
+// The lane the input amounts are right aligned in, measured from the widest of
+// them and clamped. 104 is frame 2c's lane, 206 is frame 3a's, where the group
+// row carries a count and a total on one line.
+#define BLANE_MIN 104
+#define BLANE_MAX 206
+#define BLANE_GAP  16
+// Points per curve. The longest strand spans 210px, so 16 puts a vertex every
+// ~14px; with line_rounded the joins disappear at this stroke width.
+#define BSEG 16
+// The junction at rest and at the end of a hold. Rest is not this animation's
+// to move: the resting frame is drawn and approved, so growth is what carries
+// the hold and the accent that arrives afterwards means the signature.
+#define BJ_HOLD_R 8
+// Vertical slack around the box so a row's LABEL, which is centred on its
+// strand and therefore reaches above the top row, is not clipped by the
+// container. LVGL clips children to their parent.
+#define BPAD 16
+
+typedef struct {
+    lv_point_precise_t *pts;      // one block for every strand; lv_line borrows it
+    uint16_t            n_line;
+    lv_obj_t           *line[WT_BUNDLE_MAX];
+    lv_obj_t           *amount[WT_BUNDLE_MAX];
+    lv_obj_t           *note[WT_BUNDLE_MAX];
+    uint8_t             role[WT_BUNDLE_MAX];
+    // The hold overlay: one accent line per INPUT strand, drawn over its
+    // resting one and truncated to how far the hold has got. Its own point
+    // block, because the resting strand's is what the truncation is measured
+    // FROM and both are live at once.
+    lv_point_precise_t *hpts;
+    lv_obj_t           *hline[WT_BUNDLE_MAX];
+    uint8_t             nseg[WT_BUNDLE_MAX];  // 2 on a flat strand, BSEG on a curve
+    uint16_t            n_in;
+    lv_obj_t           *dot;      // the junction, which grows with the hold
+    // The output side, and what it takes to redraw its strands when it moves.
+    lv_obj_t           *col;      // the scrolling output column, NULL if fixed
+    lv_obj_t           *sbox;     // clips the output strands to the graph band
+    lv_obj_t           *row[WT_BUNDLE_MAX];   // one per output, in column order
+    uint16_t            n_out;
+    uint16_t            out0;     // index in line[] where the outputs start
+    int16_t             jy;       // the junction, in box coordinates
+} wt_bundle_t;
+
+// lv_line_set_points stores the POINTER, not a copy (see kiss_word_ui.c:82 for
+// the bug that taught this file the same lesson). The block outlives every
+// strand and dies with the container.
+static void bundle_delete_cb(lv_event_t *e)
+{
+    wt_bundle_t *b = lv_event_get_user_data(e);
+    if (!b) return;
+    lv_free(b->pts);
+    lv_free(b->hpts);
+    lv_free(b);
+}
+
+int wt_strand_px(uint64_t sats, uint64_t max_sats)
+{
+    if (!max_sats) return 2;
+    int px = (int)((sats * 11) / max_sats);       // 11px is the widest strand
+    return px < 2 ? 2 : px;                       // 2px floor, or dust vanishes
+}
+
+// A cubic sampled into `out`. Both control points share a y with the end they
+// belong to, which is what makes these read as one strand bending rather than
+// two lines meeting: the curve leaves its row horizontally and arrives at the
+// junction horizontally.
+static void bundle_curve(lv_point_precise_t *out, int x0, int y0, int x1, int y1,
+                         int c0_num, int c1_num)
+{
+    const int span = x1 - x0;
+    const int cx0 = x0 + (span * c0_num) / 100;
+    const int cx1 = x0 + (span * c1_num) / 100;
+    for (int i = 0; i < BSEG; i++) {
+        // Fixed point at 1/1024: this runs on a chip with no FPU worth using
+        // and the answer is rounded to a pixel either way.
+        const int32_t t  = (int32_t)i * 1024 / (BSEG - 1);
+        const int32_t it = 1024 - t;
+        const int64_t a = (int64_t)it * it * it;          // (1-t)^3
+        const int64_t b = 3LL * it * it * t;              // 3(1-t)^2 t
+        const int64_t c = 3LL * it * t * t;               // 3(1-t) t^2
+        const int64_t d = (int64_t)t * t * t;             // t^3
+        const int64_t den = 1024LL * 1024 * 1024;
+        out[i].x = (lv_value_precise_t)((a * x0 + b * cx0 + c * cx1 + d * x1) / den);
+        out[i].y = (lv_value_precise_t)((a * y0 + b * y0  + c * y1  + d * y1) / den);
+    }
+}
+
+static lv_color_t bundle_col(uint8_t role, bool signed_ok)
+{
+    if (signed_ok) return wt_accent();
+    switch (role) {
+    case WT_STRAND_SEND:   return WT_INK;
+    case WT_STRAND_FEE:    return WT_DIM;
+    case WT_STRAND_CHANGE: return wt_accent();
+    case WT_STRAND_LINKED: return WT_WARN;
+    default:               return WT_MUT;
+    }
+}
+
+static lv_obj_t *bundle_strand(lv_obj_t *par, const wt_strand_t *s,
+                               lv_point_precise_t *pts, int npts, int px)
+{
+    lv_obj_t *l = lv_line_create(par);
+    lv_obj_set_pos(l, 0, 0);
+    lv_line_set_points(l, pts, (uint32_t)npts);
+    lv_obj_set_style_line_width(l, px, 0);
+    lv_obj_set_style_line_color(l, bundle_col(s->role, s->signed_ok), 0);
+    lv_obj_set_style_line_rounded(l, true, 0);
+    if (s->is_group) {
+        // Many coins must never read as one coin. This is the only dashed line
+        // on the device, and it only renders because the row it sits on is the
+        // junction row -- see the geometry note above.
+        lv_obj_set_style_line_dash_width(l, 3, 0);
+        lv_obj_set_style_line_dash_gap(l, 5, 0);
+    }
+    if (s->role == WT_STRAND_CHANGE || s->signed_ok)
+        lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    return l;
+}
+
+// One row of text beside a strand, as a flex line so a label and an amount can
+// be two different faces on the same baseline: the group row is proportional
+// words plus a monospaced total, and the output rows are a monospaced amount
+// plus proportional words. `end` right aligns the row in its lane, which is
+// what the input side needs and the output side must not have.
+static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
+{
+    lv_obj_t *r = lv_obj_create(box);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, w, LV_SIZE_CONTENT);
+    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(r, end ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    // Content sized, so it never actually clips anything -- and saying so
+    // matters beyond drawing. A clip is what decides whether a cut off label is
+    // "below a fold the reader can scroll" or "text nobody can ever read", and
+    // the answer is taken from the nearest clipping ancestor. Left unsaid, a
+    // row that clips nothing still answers that question, with its own
+    // unscrollable self, for a column that scrolls perfectly well.
+    lv_obj_add_flag(r, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_style_pad_column(r, 8, 0);
+    lv_obj_set_pos(r, x, y);
+    return r;
+}
+
+static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
+                            lv_color_t col, bool accent)
+{
+    lv_obj_t *l = lv_label_create(row);
+    lv_label_set_text(l, s);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, col, 0);
+    if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    return l;
+}
+
+// Point every output strand at where its row actually IS, measured rather than
+// assumed, and let the box clip whatever leaves the band.
+//
+// This is the rule the scrolling column has to obey and the reason the strands
+// are recomputed instead of scrolled: the junction end is fixed and the row end
+// is not, so the two halves of one line move differently. Scrolling the strands
+// with the column would carry the junction off with them. Clamping the row end
+// to the edge would be worse than either -- the strand would appear to arrive
+// somewhere its row is not, which is the one thing a line between two facts may
+// never do. So it is drawn to the true position and cut where it leaves.
+static void bundle_relink(wt_bundle_t *b)
+{
+    if (!b->col) return;
+    const int sy = lv_obj_get_scroll_y(b->col);
+    // Row positions are box coordinates; the strands live in sbox, which is the
+    // graph BAND with no padding, so everything crossing over loses BPAD.
+    const int cy = lv_obj_get_y(b->col) - BPAD;
+    for (uint16_t i = 0; i < b->n_out; i++) {
+        lv_obj_t *ln = b->line[b->out0 + i];
+        lv_obj_t *rw = b->row[i];
+        if (!ln || !rw) continue;
+        const int ry = cy - sy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
+        lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
+        int npts = BSEG;
+        if (ry == b->jy) {
+            pp[0].x = BJ_X; pp[0].y = b->jy;
+            pp[1].x = BO_X; pp[1].y = ry;
+            npts = 2;
+        } else {
+            bundle_curve(pp, BJ_X, b->jy, BO_X, ry, 80, 20);
+        }
+        lv_line_set_points(ln, pp, (uint32_t)npts);
+    }
+}
+
+static void bundle_scroll_cb(lv_event_t *e)
+{
+    bundle_relink(lv_event_get_user_data(e));
+}
+
+lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
+                    const wt_strand_t *in,  size_t n_in,
+                    const wt_strand_t *out, size_t n_out,
+                    uint64_t max_sats)
+{
+    if (n_in > WT_BUNDLE_MAX)  n_in  = WT_BUNDLE_MAX;
+    if (n_out > WT_BUNDLE_MAX) n_out = WT_BUNDLE_MAX;
+
+    wt_bundle_t *b = lv_malloc(sizeof *b);
+    if (!b) return NULL;
+    lv_memzero(b, sizeof *b);
+    b->pts = lv_malloc(sizeof(lv_point_precise_t) * BSEG * (n_in + n_out));
+    if (!b->pts) { lv_free(b); return NULL; }
+    // Inputs only: the hold is about the coins being committed, and the output
+    // side is already standing down by the time any of this moves.
+    b->hpts = lv_malloc(sizeof(lv_point_precise_t) * BSEG * (n_in ? n_in : 1));
+    if (!b->hpts) { lv_free(b->pts); lv_free(b); return NULL; }
+
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, x, y - BPAD);
+    lv_obj_set_size(box, w, h + 2 * BPAD);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(box, bundle_delete_cb, LV_EVENT_DELETE, b);
+
+    const int jy = BPAD + h / 2;
+    char amt[32];
+
+    // The input lane, measured rather than assumed: the group row carries a
+    // count AND a total on one line, which is why frame 3a's lane is twice
+    // frame 2c's.
+    int lane = BLANE_MIN;
+    for (size_t i = 0; i < n_in; i++) {
+        lv_point_t ts;
+        int wid = 0;
+        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        lv_text_get_size(&ts, amt, wt_font_mono14(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        wid = ts.x;
+        if (in[i].label) {
+            lv_text_get_size(&ts, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            wid += ts.x + 8;                  // + bundle_row's pad_column
+        }
+        if (wid > lane) lane = wid;
+    }
+    if (lane > BLANE_MAX) lane = BLANE_MAX;
+    const int ix0 = lane + BLANE_GAP;
+
+    lv_point_precise_t *pp = b->pts;
+    const int in_lh  = lv_font_get_line_height(wt_font_mono14());
+    const int out_lh = lv_font_get_line_height(wt_font_mono23());
+
+    for (size_t i = 0; i < n_in; i++) {
+        const int ry = BPAD + (n_in < 2 ? h / 2
+                        : BMARG + (int)i * (h - 2 * BMARG) / (int)(n_in - 1));
+        int npts = BSEG;
+        if (ry == jy) {                       // flat: two points, so it dashes
+            pp[0].x = ix0;  pp[0].y = ry;
+            pp[1].x = BJ_X; pp[1].y = jy;
+            npts = 2;
+        } else {
+            bundle_curve(pp, ix0, ry, BJ_X, jy, 43, 62);
+        }
+        const int k = b->n_line;
+        const int px = wt_strand_px(in[i].sats, max_sats);
+        b->line[k] = bundle_strand(box, &in[i], pp, npts, px);
+        b->role[k] = in[i].role;
+        b->nseg[k] = (uint8_t)npts;
+        // The overlay, built now and hidden, so a tick allocates nothing and
+        // creates nothing. Same width and same dash as the strand underneath:
+        // a dashed strand means MANY COINS, and a solid accent line drawn over
+        // it during the hold would say one coin was committing.
+        b->hline[k] = bundle_strand(box, &in[i], pp, npts, px);
+        lv_obj_set_style_line_color(b->hline[k], wt_accent(), 0);
+        lv_obj_add_flag(b->hline[k], WT_FLAG_ACCENT);
+        lv_obj_add_flag(b->hline[k], LV_OBJ_FLAG_HIDDEN);
+        pp += BSEG;
+
+        const bool acc = in[i].signed_ok;
+        lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
+        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        if (in[i].label)                      // the group row: words, then the total
+            b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
+                                    acc ? wt_accent() : WT_MUT, acc);
+        b->amount[k] = bundle_txt(row, amt, wt_font_mono14(),
+                                  acc ? wt_accent() : WT_MUT, acc);
+        b->n_line++;
+    }
+
+    b->n_in = b->n_line;
+
+    // ---- the output column ----
+    //
+    // Outputs are NEVER elided, at any count. Bundling inputs is safe -- they
+    // are all yours and their total is the fact -- but each output is a place
+    // your money goes, and one folded into a group would be a destination
+    // visible nowhere. The column scrolls instead, exactly as the panel it
+    // replaces did, and the caller keeps its read-to-the-end gate.
+    //
+    // Rows are content-sized inside a flex column rather than placed at
+    // computed y's, because one of them may be a paragraph: a silent payment
+    // says a second thing about itself. Their real positions are read back
+    // after layout, which is also what makes the strands correct while
+    // scrolling.
+    const int row_h = out_lh;
+    int pitch = (n_out < 2) ? row_h : (h - 2 * BMARG) / (int)(n_out - 1);
+    if (pitch < row_h + 4) pitch = row_h + 4;      // uniform, and it will scroll
+    b->out0 = b->n_line;
+    b->n_out = (uint16_t)n_out;
+    b->jy    = (int16_t)(jy - BPAD);      // sbox coordinates
+
+    // The output strands get their own clip, and it is not the box. The box
+    // carries BPAD of slack top and bottom so a label centred on the first row
+    // is not cut in half -- but a strand aimed at a row that has scrolled out
+    // of view must stop at the GRAPH, not BPAD above it, or it runs through the
+    // caption sitting on that line. Same reason the strand is clipped rather
+    // than clamped: where it stops has to be a boundary of the drawing, not a
+    // number chosen to make it look tidy.
+    lv_obj_t *sbox = lv_obj_create(box);
+    lv_obj_remove_style_all(sbox);
+    lv_obj_set_pos(sbox, 0, BPAD);
+    lv_obj_set_size(sbox, w, h);
+    lv_obj_remove_flag(sbox, LV_OBJ_FLAG_SCROLLABLE);
+    b->sbox = sbox;
+
+    // The column's own box is the clip, and where it starts matters twice over.
+    //
+    // It may not reach the box's top edge: the box carries BPAD of slack, and a
+    // row scrolled to the top of a full column would rise into it and share
+    // pixels with the caption sitting on that line -- "WHERE IT GOES" and a
+    // recipient's amount, overlapping, on the screen that says where the money
+    // goes. And it may not end on the box's edge either: a row cut by the BOX
+    // is a row cut by something that does not scroll, which reads as text
+    // clipped rather than text below a fold, and the gate says so.
+    //
+    // So the column clips itself, strictly inside the box, and starts 2px above
+    // the first row's band so the rows still land on the spread the appendix
+    // draws rather than half a line height below it.
+    lv_obj_t *col = lv_obj_create(box);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, BL_X, BPAD + BMARG - row_h / 2);
+    lv_obj_set_size(col, w - BL_X, h + row_h - 2 * BMARG);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(col, pitch - row_h, 0);
+    lv_obj_set_scroll_dir(col, LV_DIR_VER);
+    lv_obj_set_style_width(col, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(col, WT_MUT, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(col, LV_OPA_50, LV_PART_SCROLLBAR);
+    b->col = col;
+
+    for (size_t i = 0; i < n_out; i++) {
+        const int k = b->n_line;
+        // Placed at the junction for now; bundle_relink puts every one of them
+        // on its row once the column has been laid out.
+        bundle_curve(pp, BJ_X, jy - BPAD, BO_X, jy - BPAD, 80, 20);
+        if (!out[i].note_only) {
+            b->line[k] = bundle_strand(sbox, &out[i], pp, BSEG,
+                                       wt_strand_px(out[i].sats, max_sats));
+            b->role[k] = out[i].role;
+        }
+        pp += BSEG;
+
+        // A COLUMN, because a row may be more than one line: an amount and its
+        // word, then the address it pays. The strand aims at the whole row's
+        // middle, so a row that grows stays joined to its line.
+        const int roww = w - BL_X - 8;             // 8 clear of the scrollbar
+        lv_obj_t *row = lv_obj_create(col);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, roww);
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(row, 2, 0);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_OVERFLOW_VISIBLE);   // see bundle_row
+        b->row[i] = row;
+
+        if (out[i].note_only) {           // words only: the row without an output
+            lv_obj_t *n = bundle_txt(row, out[i].label ? out[i].label : "",
+                                     wt_font14(), WT_MUT, false);
+            lv_obj_set_width(n, roww);
+            lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
+            b->note[k] = n;
+            b->n_line++;
+            continue;
+        }
+
+        lv_obj_t *line = lv_obj_create(row);
+        lv_obj_remove_style_all(line);
+        lv_obj_set_width(line, roww);
+        lv_obj_set_height(line, LV_SIZE_CONTENT);
+        lv_obj_remove_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END,
+                              LV_FLEX_ALIGN_END);
+        lv_obj_set_style_pad_column(line, 8, 0);
+        lv_obj_add_flag(line, LV_OBJ_FLAG_OVERFLOW_VISIBLE);  // see bundle_row
+
+        const bool acc = (out[i].role == WT_STRAND_CHANGE);
+        // The STRAND is DIM for a fee and INK for the send -- that is the
+        // thickness reading, and it is in the appendix. The AMOUNT is ink
+        // whatever the row, because WT_DIM is the colour of something present
+        // but inert, and a fee is neither: it is the number an owner is most
+        // likely to be checking. Only change takes the accent, and it is the
+        // only accent text in the graph.
+        const lv_color_t oc = acc ? wt_accent() : WT_INK;
+        wt_fmt_sats(out[i].sats, amt, sizeof amt);
+        b->amount[k] = bundle_txt(line, amt, wt_font_mono23(), oc, acc);
+        if (out[i].label)
+            b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
+                                    acc ? oc : WT_MUT, acc);
+        // The whole address, with the compared runs lit -- the same spans the
+        // panel drew, so the habit an owner has does not change with the count
+        // of destinations. NOT the lifted variant: the lift raises the compared
+        // tail to mono23, and in a 304px lane that puts the wrap immediately
+        // before it, so the eight characters worth reading land alone on a
+        // second line at a different size. One rung, wrapped evenly, reads.
+        if (out[i].addr)
+            wt_addr_spans(row, out[i].addr, roww, wt_font_mono14());
+        b->n_line++;
+    }
+
+    // Measured, not counted: whether this column overflows depends on the
+    // locale and on whether any row is a paragraph, which no output count can
+    // answer. MODE_ON rather than AUTO for the same reason the panel used it --
+    // a list with more below the fold must not look identical to one that ends
+    // there.
+    lv_obj_update_layout(col);
+    const bool overflows = lv_obj_get_scroll_bottom(col) > 0;
+    lv_obj_set_scrollbar_mode(col, overflows ? LV_SCROLLBAR_MODE_ON
+                                             : LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(col, bundle_scroll_cb, LV_EVENT_SCROLL, b);
+    bundle_relink(b);
+
+    // The junction, last, so it sits over every strand that reaches it. A dot
+    // rather than a joint: the strands genuinely meet here, and a gap where
+    // eleven pixels of stroke cross two of stroke reads as a rendering fault.
+    lv_obj_t *dot = lv_obj_create(box);
+    lv_obj_remove_style_all(dot);
+    lv_obj_set_size(dot, BJ_R * 2, BJ_R * 2);
+    lv_obj_set_pos(dot, BJ_X - BJ_R, jy - BJ_R);
+    lv_obj_set_style_radius(dot, BJ_R, 0);
+    lv_obj_set_style_bg_color(dot, WT_INK, 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    b->dot = dot;
+    return box;
+}
+
+// The state block is hung off the delete callback rather than user_data, which
+// wt_screen already spends on its own tag. Reading it back through the same
+// event is the one place that is not a layering violation.
+static wt_bundle_t *bundle_state(lv_obj_t *bundle)
+{
+    uint32_t n = lv_obj_get_event_count(bundle);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_event_dsc_t *d = lv_obj_get_event_dsc(bundle, i);
+        if (lv_event_dsc_get_cb(d) == bundle_delete_cb)
+            return lv_event_dsc_get_user_data(d);
+    }
+    return NULL;
+}
+
+static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
+                           lv_color_t txt_col, bool accent)
+{
+    if (b->line[k]) {
+        lv_obj_set_style_line_color(b->line[k], line_col, 0);
+        if (accent) lv_obj_add_flag(b->line[k], WT_FLAG_ACCENT);
+        else        lv_obj_remove_flag(b->line[k], WT_FLAG_ACCENT);
+    }
+    lv_obj_t *t[2] = { b->amount[k], b->note[k] };
+    for (int i = 0; i < 2; i++) {
+        if (!t[i]) continue;
+        lv_obj_set_style_text_color(t[i], txt_col, 0);
+        if (accent) lv_obj_add_flag(t[i], WT_FLAG_ACCENT);
+        else        lv_obj_remove_flag(t[i], WT_FLAG_ACCENT);
+    }
+}
+
+// The junction, sized and placed from one radius. Its centre never moves; only
+// the radius does, so the grow and the retract are the same line of arithmetic.
+static void bundle_dot_r(wt_bundle_t *b, int r)
+{
+    if (!b->dot) return;
+    lv_obj_set_size(b->dot, r * 2, r * 2);
+    lv_obj_set_pos(b->dot, BJ_X - r, b->jy + BPAD - r);
+    lv_obj_set_style_radius(b->dot, r, 0);
+}
+
+void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b) return;
+
+    for (uint16_t k = 0; k < b->n_in; k++) {
+        lv_obj_t *ov = b->hline[k];
+        if (!ov) continue;
+        if (!progress) { lv_obj_add_flag(ov, LV_OBJ_FLAG_HIDDEN); continue; }
+
+        // Walk the table the strand was already sampled into at build time.
+        // The cubic is not re-evaluated here: sixteen points per strand exist
+        // precisely so a tick every 30ms is a copy and one interpolation, not
+        // four multiplies per point on a chip with no FPU worth using.
+        //
+        // n is not always BSEG. An input whose row lands ON the junction row is
+        // written as two points so it can dash, and at twenty inputs that flat
+        // row is the grouped strand -- the common case, not the corner.
+        const int n = b->nseg[k];
+        const lv_point_precise_t *src = b->pts  + (size_t)k * BSEG;
+        lv_point_precise_t       *dst = b->hpts + (size_t)k * BSEG;
+        const int32_t t   = (int32_t)progress * (n - 1);
+        const int     q   = t / 255;
+        const int32_t rem = t - (int32_t)q * 255;
+        int npts = q + 1;
+        for (int i = 0; i <= q; i++) dst[i] = src[i];
+        if (q < n - 1) {
+            // The head of the line, between two sampled points. Without it the
+            // strand would advance a vertex at a time and read as sixteen steps
+            // rather than one continuous reach.
+            const int32_t ax = (int32_t)src[q].x,     ay = (int32_t)src[q].y;
+            const int32_t bx = (int32_t)src[q + 1].x, by = (int32_t)src[q + 1].y;
+            dst[q + 1].x = (lv_value_precise_t)(ax + (bx - ax) * rem / 255);
+            dst[q + 1].y = (lv_value_precise_t)(ay + (by - ay) * rem / 255);
+            npts = q + 2;
+        }
+        lv_line_set_points(ov, dst, (uint32_t)npts);
+        lv_obj_remove_flag(ov, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    bundle_dot_r(b, BJ_R + (BJ_HOLD_R - BJ_R) * progress / 255);
+}
+
+void wt_bundle_state(lv_obj_t *bundle, int state)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b) return;
+    // SIGNING keeps the overlay exactly where the hold left it -- full length,
+    // in the accent. Hiding it there would paint the inputs back down to INK
+    // for the few hundred milliseconds libwally is busy and then up to the
+    // accent again, and a strand that dims at the moment of commitment says the
+    // opposite of what happened. LIVE and SIGNED both take it away, and SIGNED
+    // does it in the same call that paints the strands underneath, so the
+    // pixels do not change.
+    if (state != WT_BUNDLE_SIGNING && state != WT_BUNDLE_HOLDING)
+        for (uint16_t k = 0; k < b->n_in; k++)
+            if (b->hline[k]) lv_obj_add_flag(b->hline[k], LV_OBJ_FLAG_HIDDEN);
+    if (state == WT_BUNDLE_LIVE) bundle_dot_r(b, BJ_R);
+    if (b->dot) {
+        // Every input strand arrives in the accent, so the thing they arrive AT
+        // wears it too. Eleven pixels of accent stroke ending on a white disc
+        // is the seam this dot exists to prevent, and it would appear at the
+        // one moment the drawing is being read hardest.
+        const bool acc = (state == WT_BUNDLE_SIGNED);
+        lv_obj_set_style_bg_color(b->dot, acc ? wt_accent() : WT_INK, 0);
+        if (acc) lv_obj_add_flag(b->dot, WT_FLAG_ACCENT_FILL);
+        else     lv_obj_remove_flag(b->dot, WT_FLAG_ACCENT_FILL);
+    }
+    for (int k = 0; k < (int)b->n_line; k++) {
+        const bool is_in = (k < (int)b->out0);
+        if (state == WT_BUNDLE_HOLDING) {
+            // Outputs stand down, and so does a LINKED input's warn colour --
+            // to the plain mute, not up to WT_INK. Both directions matter and
+            // for the same reason: the fill drawn over these is the accent, and
+            // it needs something to be visible against. WT_INK is too close to
+            // the accent in MONO, and WT_WARN's amber is too close to it in
+            // ORANGE -- on a merge, in that theme, the whole animation
+            // disappeared into a strand that was already orange.
+            //
+            // The caution is not being retracted: the bar below still says it,
+            // it has already been acknowledged to get here, and the strands
+            // wear it again the moment the hold is let go. What the screen is
+            // about for these 1200ms is the commitment, not the warning.
+            bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
+                           is_in ? WT_MUT : WT_EDGE, false);
+        } else if (state == WT_BUNDLE_SIGNING) {
+            // Inputs at full strength, outputs stood down. The note rows go with
+            // their side: a silent payment's claim is about an output, so it
+            // dims with the output it belongs to.
+            bundle_repaint(b, k, is_in ? WT_INK : WT_EDGE,
+                           is_in ? WT_INK : WT_EDGE, false);
+        } else if (state == WT_BUNDLE_SIGNED && is_in) {
+            bundle_repaint(b, k, wt_accent(), wt_accent(), true);
+        } else if (!is_in) {
+            // Back to what the row means, taken from its role rather than
+            // remembered: the destinations are readable again the moment there
+            // is a signature over them.
+            const bool acc = (b->role[k] == WT_STRAND_CHANGE);
+            bundle_repaint(b, k, bundle_col(b->role[k], false),
+                           acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
+                           acc);
+            if (b->note[k] && !acc)
+                lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
+        } else {
+            // An input at rest, taken from its role rather than assumed to be
+            // muted: a linked one wears WT_WARN and has to come back to it
+            // after a hold is let go. The LABEL stays muted either way -- the
+            // strand is what the caution is about, and an amount in WT_WARN
+            // would read as something wrong with that number.
+            bundle_repaint(b, k, bundle_col(b->role[k], false), WT_MUT, false);
+        }
+    }
+}
+
+lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    return b ? b->col : NULL;
 }
 
 // Reserve exactly what this iteration writes, which is a character and, only

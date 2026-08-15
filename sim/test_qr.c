@@ -12,6 +12,7 @@
 #include "types/psbt.h"      // crypto-psbt CBOR wrap for crafting
 #include "fountain_decoder.h"  // hostile headers, below the bytewords layer
 #include "fountain_utils.h"    // the PRNG that picks fragment indexes
+#include "utils.h"             // ur_alloc_arm / ur_alloc_hits: the injection
 #include "k_quirc_internal.h"  // quirc_version_db: the block tables
 int k_quirc_alpha_char(int v);  // k_quirc_decode.c, split out to be testable
 
@@ -239,6 +240,273 @@ static void qr_test_version_tables(void) {
     qchkb("qr every version/ecc row tiles its data_bytes exactly", bad == 0);
 }
 
+// Feed one part; count it against the test only while the decode is still
+// live -- once complete, refusals are the expected clean behavior. Returns
+// -1 on encoder failure, 0 while feeding continues, 1 once complete.
+static int cur_feed(fountain_decoder_t *d, fountain_encoder_t *e,
+                    fountain_encoder_part_t *p, size_t *fed, size_t *refused) {
+    if (!fountain_encoder_next_part(e, p)) return -1;
+    if (!fountain_decoder_receive_part(d, p) &&
+        !fountain_decoder_is_complete(d))
+        (*refused)++;
+    free(p->data);
+    (*fed)++;
+    return fountain_decoder_is_complete(d) ? 1 : 0;
+}
+
+// The mixed-part budget is the device's protection against a fragment feed
+// that would fill the heap: parts past MAX_MIXED_BYTES are refused, not kept.
+// The accounting behind that ceiling must charge what an entry actually holds
+// (payload, both duplicated index arrays, and the entry itself) and must
+// follow entries as they shrink and vanish during reduction. A counter that
+// only ever grew would drift past the ceiling on churn, then refuse parts of
+// a UR it could still decode -- on a session that had already spent the
+// memory. The assertions read the budget directly (peak bytes, refusal count,
+// via fountain_decoder_mixed_stats): the ceiling activates, the peak stays
+// under it, and the decode still completes afterwards.
+//
+// This is a LOW-LEVEL fountain stress test, not a product scenario: both
+// fixtures are well past the product's 16 KiB UR ceiling (the PSBT behind it
+// is 4 KiB), which is deliberate -- the mixed hash must hold its 96 KiB bound
+// even on a message bigger than anything the device accepts.
+//
+// first_seq_num selects where the encoder starts: 0 yields the raw fragments
+// (parts 1..seq_len), 60 skips past them into the deterministic redundant
+// parts, so "redundant first" and "raw fragments" come from separate
+// encoders. Encoder output is deterministic per message (choose_fragments
+// seeds from seq_num and the message checksum), so a second encoder with the
+// same start yields identical parts: the duplicates below are exact re-feeds,
+// and the churn is reproducible run to run.
+static void qr_test_fountain_cap_churn(void) {
+    // Churn fixture: 60 KiB of 1 KiB fragments. The working set stays under
+    // the ceiling and every feed is accepted while the decode is live.
+    const size_t frag = 1024, msg_len = 60 * 1024;
+    uint8_t *msg = malloc(msg_len);
+    if (!msg) { qchkb("fountain cap allocs", 0); return; }
+    for (size_t i = 0; i < msg_len; i++) msg[i] = (uint8_t)(i * 31 + 7);
+
+    fountain_encoder_t *e1 = fountain_encoder_new(msg, msg_len, frag, 60, frag);
+    fountain_encoder_t *e2 = fountain_encoder_new(msg, msg_len, frag, 60, frag);
+    fountain_encoder_t *e3 = fountain_encoder_new(msg, msg_len, frag, 0, frag);
+    if (!e1 || !e2 || !e3) { qchkb("fountain cap encoders", 0); goto done; }
+
+    qchki("fountain cap seq_len", fountain_encoder_seq_len(e1), msg_len / frag);
+
+    {   // churn: redundant parts first, then exact duplicates of some, then
+        // every raw fragment. No feed may be refused while the decode is
+        // still live, and the decode must complete with the exact message.
+        // Redundant degree-1 parts already mark fragments, so completion can
+        // legitimately land before the raw loop ends: feeding stops there.
+        fountain_decoder_t *d = fountain_decoder_new();
+        fountain_encoder_part_t p1 = {0}, p2 = {0}, p3 = {0};
+        size_t fed = 0, refused = 0;
+        int ok = 1, done = 0, r;
+        for (size_t i = 0; i < 90 && ok && !done; i++) {
+            r = cur_feed(d, e1, &p1, &fed, &refused);
+            if (r < 0) ok = 0; else if (r) done = 1;
+        }
+        for (size_t i = 0; i < 40 && ok && !done; i++) {   // dups of 61..100
+            r = cur_feed(d, e2, &p2, &fed, &refused);
+            if (r < 0) ok = 0; else if (r) done = 1;
+        }
+        for (size_t i = 0; i < 60 && ok && !done; i++) {   // raw fragments
+            r = cur_feed(d, e3, &p3, &fed, &refused);
+            if (r < 0) ok = 0; else if (r) done = 1;
+        }
+        qchkb("fountain cap no feed refused while live", ok && refused == 0);
+        qchkb("fountain cap completed under churn", ok && done);
+        qchkb("fountain cap bytes match",
+              ok && fountain_decoder_result_message_len(d) == msg_len &&
+              fountain_decoder_result_message(d) &&
+              memcmp(fountain_decoder_result_message(d), msg, msg_len) == 0);
+        {
+            size_t peak = 0, drops = 0;
+            fountain_decoder_mixed_stats(d, &peak, &drops);
+            qchkb("fountain cap peak under the 96 KiB ceiling",
+                  ok && peak <= 96 * 1024);
+            qchkb("fountain cap churn peak a real working set",
+                  ok && peak >= 64 * 1024);
+            qchkb("fountain cap churn refused nothing", ok && drops == 0);
+        }
+        if (ok) {   // a completed decoder refuses everything, cleanly
+            if (!fountain_encoder_next_part(e1, &p1)) ok = 0;
+            else {
+                qchkb("fountain cap feeds after completion refused",
+                      !fountain_decoder_receive_part(d, &p1));
+                free(p1.data);
+            }
+        }
+        qchkb("fountain cap churn run held together", ok);
+        fountain_decoder_free(d);
+    }
+
+    {   // the budget hammered: 4 KiB fragments over a 96 KiB message, so the
+        // mixed working set exceeds the 96 KiB ceiling before the fountain
+        // system completes. The budget must refuse mid-session (silently, by
+        // design), the decoder must not wedge, completion must still land,
+        // and once complete it must refuse every further feed cleanly.
+        const size_t hfrag = 4096, hlen = 96 * 1024;
+        uint8_t *hmsg = malloc(hlen);
+        if (!hmsg) { qchkb("fountain cap hammered allocs", 0); goto done; }
+        for (size_t i = 0; i < hlen; i++) hmsg[i] = (uint8_t)(i * 31 + 7);
+        fountain_encoder_t *he =
+            fountain_encoder_new(hmsg, hlen, hfrag, 60, hfrag);
+        if (!he) { qchkb("fountain cap hammered encoder", 0); free(hmsg); goto done; }
+        fountain_decoder_t *d = fountain_decoder_new();
+        fountain_encoder_part_t p1 = {0};
+        int ok = 1, done = 0;
+        for (size_t rep = 0; rep < 400; rep++) {
+            if (!fountain_encoder_next_part(he, &p1)) { ok = 0; break; }
+            fountain_decoder_receive_part(d, &p1);
+            free(p1.data);
+            if (fountain_decoder_is_complete(d)) { done = 1; break; }
+        }
+        qchkb("fountain cap hammered feed completes", ok && done);
+        {
+            size_t peak = 0, drops = 0;
+            fountain_decoder_mixed_stats(d, &peak, &drops);
+            qchkb("fountain cap peak under the 96 KiB ceiling",
+                  ok && peak <= 96 * 1024);
+            qchkb("fountain cap budget refused at least once", ok && drops >= 1);
+            qchkb("fountain cap peak near the ceiling",
+                  ok && peak > 90 * 1024);
+        }
+        for (size_t rep = 0; rep < 50 && ok; rep++) {
+            if (!fountain_encoder_next_part(he, &p1)) { ok = 0; break; }
+            if (fountain_decoder_receive_part(d, &p1)) ok = 0;   // must refuse
+            free(p1.data);
+        }
+        qchkb("fountain cap completed decoder refuses everything", ok && done);
+        qchkb("fountain cap hammered bytes match",
+              ok && fountain_decoder_result_message_len(d) == hlen &&
+              fountain_decoder_result_message(d) &&
+              memcmp(fountain_decoder_result_message(d), hmsg, hlen) == 0);
+        qchkb("fountain cap hammered run held together", ok);
+        fountain_decoder_free(d);
+        fountain_encoder_free(he);
+        free(hmsg);
+    }
+
+    {   // The public difference helper supports a populated output. A failed
+        // exact allocation leaves that output untouched; a successful retry
+        // replaces it without leaking the old buffer.
+        size_t ai[] = {1, 2, 4, 8}, bi[] = {2, 8};
+        part_indexes_t a = {.indexes = ai, .count = 4, .capacity = 4};
+        part_indexes_t b = {.indexes = bi, .count = 2, .capacity = 2};
+        part_indexes_t result = {0};
+        result.indexes = malloc(2 * sizeof(size_t));
+        if (!result.indexes) {
+            qchkb("fountain difference reuse alloc", 0);
+        } else {
+            result.count = result.capacity = 2;
+            result.indexes[0] = 77;
+            result.indexes[1] = 88;
+            size_t *old = result.indexes;
+            int prev = ur_site_enter(UR_SITE_DIFF);
+            ur_alloc_arm(UR_SITE_DIFF, 1);
+            bool failed = part_indexes_difference(&a, &b, &result);
+            ur_site_leave(prev);
+            qchkb("fountain difference failure preserves populated result",
+                  !failed && ur_alloc_hits() == 1 && result.indexes == old &&
+                  result.count == 2 && result.capacity == 2 &&
+                  result.indexes[0] == 77 && result.indexes[1] == 88);
+            ur_alloc_disarm();
+            qchkb("fountain difference populated result can be replaced",
+                  part_indexes_difference(&a, &b, &result) &&
+                  result.count == 2 && result.capacity == 2 &&
+                  result.indexes[0] == 1 && result.indexes[1] == 4);
+            free(result.indexes);
+        }
+    }
+
+    {   // Allocation-failure injection, aimed at reduce_mixed_by's OWN
+        // allocations. Every arm gets a fresh deterministic decoder, so a
+        // previous injection cannot complete the shared fixture and silently
+        // skip the next one. The site-tagged, fail-on-Nth hook proves the
+        // intended allocation was reached, then disarms; reconstruction work
+        // on the way into the reduction is deliberately outside the tag.
+        //
+        // DIFF/1 skips one reduction with no replacement allocated. COPY/1
+        // frees its newly calculated key and leaves the entry untouched.
+        // COPY/2 lets one entry commit, then fails the next entry's value-index
+        // copy: the old half-rewrite bug would corrupt that second entry after
+        // XOR/key mutation and the final bytes would no longer match.
+        static const struct { int site; int at; } arms[] = {
+            { UR_SITE_DIFF, 1 },
+            { UR_SITE_COPY, 1 },
+            { UR_SITE_COPY, 2 },
+        };
+        int all_ok = 1;
+        for (size_t a = 0; a < sizeof arms / sizeof arms[0]; a++) {
+            fountain_encoder_t *redundant =
+                fountain_encoder_new(msg, msg_len, frag, 60, frag);
+            fountain_encoder_t *raw =
+                fountain_encoder_new(msg, msg_len, frag, 0, frag);
+            fountain_decoder_t *d = fountain_decoder_new();
+            fountain_encoder_part_t p = {0};
+            int ok = redundant && raw && d;
+            int done = 0;
+
+            // Seed a mixed working set, but stay well short of this fixture's
+            // deterministic completion point so the armed allocation remains
+            // mandatory rather than becoming conditional on !done.
+            for (size_t i = 0; i < 16 && ok && !done; i++) {
+                if (!fountain_encoder_next_part(redundant, &p)) { ok = 0; break; }
+                fountain_decoder_receive_part(d, &p);
+                free(p.data);
+                if (fountain_decoder_is_complete(d)) done = 1;
+            }
+
+            ur_alloc_arm(arms[a].site, arms[a].at);
+            for (size_t i = 0; i < 120 && ok && !done &&
+                            ur_alloc_hits() < (unsigned)arms[a].at; i++) {
+                if (!fountain_encoder_next_part(redundant, &p)) { ok = 0; break; }
+                fountain_decoder_receive_part(d, &p);
+                free(p.data);
+                if (fountain_decoder_is_complete(d)) done = 1;
+            }
+            bool hit = ur_alloc_hits() >= (unsigned)arms[a].at;
+            qchkb("fountain cap injection reached its target allocation",
+                  ok && hit);
+            ur_alloc_disarm();
+            if (!hit) ok = 0;
+
+            for (size_t i = 0; i < 180 && ok && !done; i++) {
+                if (!fountain_encoder_next_part(redundant, &p)) { ok = 0; break; }
+                fountain_decoder_receive_part(d, &p);
+                free(p.data);
+                if (fountain_decoder_is_complete(d)) done = 1;
+            }
+            for (size_t i = 0; i < 60 && ok && !done; i++) {
+                if (!fountain_encoder_next_part(raw, &p)) { ok = 0; break; }
+                fountain_decoder_receive_part(d, &p);
+                free(p.data);
+                if (fountain_decoder_is_complete(d)) done = 1;
+            }
+
+            bool bytes_ok = ok && done &&
+                fountain_decoder_result_message_len(d) == msg_len &&
+                fountain_decoder_result_message(d) &&
+                memcmp(fountain_decoder_result_message(d), msg, msg_len) == 0;
+            qchkb("fountain cap injected decode completes", ok && done);
+            qchkb("fountain cap injected decode bytes match", bytes_ok);
+            if (!bytes_ok) all_ok = 0;
+
+            if (d) fountain_decoder_free(d);
+            if (raw) fountain_encoder_free(raw);
+            if (redundant) fountain_encoder_free(redundant);
+        }
+        ur_alloc_disarm();
+        qchkb("fountain cap all allocation-failure cases held together", all_ok);
+    }
+
+done:
+    if (e3) fountain_encoder_free(e3);
+    if (e2) fountain_encoder_free(e2);
+    if (e1) fountain_encoder_free(e1);
+    free(msg);
+}
+
 int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     uint8_t out[QRT_MAX_PSBT];
     size_t on = 0;
@@ -458,6 +726,7 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     qr_test_hostile_header();
     qr_test_pmofn_bounds();
     qr_test_prng_range();
+    qr_test_fountain_cap_churn();
 
     wally_free_string(b64);
     return qfails;

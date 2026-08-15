@@ -325,11 +325,21 @@ int kiss_seed_entropy_note(void) {
   }
   return s_sim_ent_note;
 }
+// The two storage verdicts that are not success, forced one at a time. The
+// real transaction and its edge cases live in kiss_seed.c and are covered by
+// kisstest; what the screens need is the one distinction between them, which
+// is whether the destination became durable. A failure leaves the mode alone.
+// A cleanup completes the move and then reports the copy it could not remove,
+// so the screen must say "changed, with a warning" and never "not changed".
+static int s_sim_move_rc;
 int kiss_seed_move_to(int m) {
+  const int forced = s_sim_move_rc;
+  s_sim_move_rc = 0;
   if (m != WSEED_MODE_KEEP && m != WSEED_MODE_SD &&
       m != WSEED_MODE_AMNESIC)
     return WSEED_ERR_INVALID;
   if (m == s_sim_mode) return WSEED_OK;
+  if (forced && forced != WSEED_ERR_CLEANUP) return forced;
   if ((m == WSEED_MODE_SD || s_sim_mode == WSEED_MODE_SD) &&
       !s_sim_sd_present)
     return WSEED_ERR_SD_MISSING;
@@ -349,7 +359,7 @@ int kiss_seed_move_to(int m) {
   }
   s_sim_pending_mode = -1;
   s_sim_mode = m;
-  return WSEED_OK;
+  return forced ? forced : WSEED_OK;
 }
 void kiss_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
@@ -406,6 +416,11 @@ int kiss_seed_diff_word(const char *typed, const char *stored) {
 // network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
 static int s_sim_testnet = 1;   // mirror KISS_NET_DEFAULT_TESTNET: fresh = testnet
+// What the last kiss_psbt_load() said, so kiss_psbt_details() can agree with
+// it. Two stubs describing one transaction differently is a fixture that
+// makes a correct screen look broken.
+static uint32_t s_sim_n_in = 1;
+static uint64_t s_sim_in_sats = 100000;
 void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
 int kiss_testnet(void) { return s_sim_testnet; }
 static int s_sim_script;
@@ -550,12 +565,34 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_UNPROVEN_IN;
     snprintf(s->reason, sizeof s->reason,
              "input amounts not proven - fee may be higher");
+  } else if (len >= 5 && memmem(bytes, len, "MERGE", 5)) {
+    // A consolidation: twenty coins swept to one address, nothing back. Above
+    // WPSBT_MERGE_INS so the coins-linked caution always fires, and above
+    // WPSBT_MAX_INS so kiss_psbt_details can only hold sixteen of them -- which
+    // is what makes the group's count and total come from the summary rather
+    // than from the rows the graph can see.
+    // Twenty coins, fourteen addresses: six of them are pairs already sitting
+    // on a shared address. The two numbers being different is the point -- the
+    // caution names the fourteen, because the six were joined the day the
+    // address was handed out twice and this transaction reveals nothing new
+    // about them.
+    s->n_in = 20; s->n_in_addr = 14; s->n_out = 1;
+    s->in_sats = 4210000; s->send_sats = 4200000; s->change_sats = 0;
+    s->fee_sats = 10000; s->fee_rate_x10 = 24; s->est_vsize = 4166;
+    s->outs[0].sats = 4200000; s->outs[0].is_change = false;
+    snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
+             "bc1qm52k4nv8ffkz7mvd3sjn54khce6mua7l7p9c8x");
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_MERGE_INS;
+    snprintf(s->reason, sizeof s->reason,
+             "many coins spent at once - they are linked forever");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
     // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the verify screen can ever draw, and it is the only fixture
     // that reaches the tight row metric (SG_ROW_H5) and the dropped footer, so
     // this is where that layout gets looked at.
     s->n_in = WPSBT_MERGE_INS;
+    s->n_in_addr = WPSBT_MERGE_INS;      // five coins, five addresses: at the bar
     s->n_unproven_in = WPSBT_MERGE_INS;
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
@@ -566,6 +603,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
                        WPSBT_C_UNPROVEN_IN;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
+  s_sim_n_in = s->n_in;
+  s_sim_in_sats = s->in_sats;
   return 0;
 }
 int kiss_psbt_details(wpsbt_details_t *d) {
@@ -578,18 +617,45 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   // WARN beside one only claimed) AND overflows its viewport, which is what
   // keeps the always-on scrollbar honest: past two inputs the list must not
   // look like it ends at the fold.
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 5; d->n_total = 17;
+  //
+  // The count comes from the summary the walk actually loaded. It used to be a
+  // flat 5 whatever was on screen, which was invisible while the details page
+  // was the only reader -- but the bundle graph draws one strand per input
+  // beside a caption counting s_sum.n_in, so a stub that disagreed with itself
+  // put five coins under the words "SPENDING 1 OF YOUR COINS". A fixture may
+  // not be the thing that makes a screen look wrong.
+  //
+  // S_D_MANYIN_FMT needs n_total > n_in, which no fixture reaches yet; the
+  // twenty-input one arrives with the elision and restores it.
+  d->version = 2; d->locktime = 0; d->txid_final = true;
+  d->n_total = s_sim_n_in ? s_sim_n_in : 1;
+  d->n_in = d->n_total > WPSBT_MAX_INS ? WPSBT_MAX_INS : d->n_total;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
-  for (uint32_t i = 0; i < 5; i++) {
-    memset(d->ins[i].txid, "abcde"[i], 64);
+  // Amounts that sum to the summary's in_sats, so the strands have real
+  // proportions to draw and the elided total has a true number to state. The
+  // spread GROWS -- each coin takes two thirds of an even share and the last
+  // one takes the remainder -- because a set of equal strands would hide
+  // whether wt_strand_px is doing anything at all.
+  uint64_t left = s_sim_in_sats, n = d->n_in;
+  for (uint32_t i = 0; i < d->n_in; i++) {
+    memset(d->ins[i].txid, "abcdefghijklmnop"[i], 64);
     d->ins[i].txid[64] = 0;
-    d->ins[i].vout = i; d->ins[i].sats = 100000 - i * 9750;
+    uint64_t take = (i + 1 == d->n_in) ? left : (left * 2) / (3 * (n - i));
+    if (!take) take = 1;
+    d->ins[i].vout = i; d->ins[i].sats = take;
+    left -= take;
     d->ins[i].purpose = 84; d->ins[i].change = 0; d->ins[i].index = i;
     d->ins[i].proven = (i == 0);   // the fold hides unproven coins: scroll
   }
   return 0;
 }
+// One shot, so the walk can reach SIGN FAILED without a second fixture. The
+// real refusal is a libwally call returning nothing -- a key that does not own
+// an input, a sighash it will not produce -- and none of that can be staged
+// from a stub that has no wally behind it.
+static int s_sim_sign_fails;
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
+  if (s_sim_sign_fails) { s_sim_sign_fails = 0; return -1; }
   size_t n = out_len < 220 ? out_len : 220;
   memset(out, 0xAB, n); *written = n;
   return 0;
@@ -774,6 +840,7 @@ static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 // head and an accented tail, so no single label ever holds the whole string.
 // Concatenating the spans is the only way to ask "is the address on screen".
 static int find_label_text(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return 0;
   if (lv_obj_check_type(o, &lv_label_class)) {
     const char *t = lv_label_get_text(o);
     if (t && strstr(t, needle)) return 1;
@@ -794,6 +861,31 @@ static int find_label_text(lv_obj_t *o, const char *needle) {
   for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
     if (find_label_text(lv_obj_get_child(o, i), needle)) return 1;
   return 0;
+}
+
+// The 8-hex-char fingerprint string, the one value that identifies a wallet.
+// Both the fingerprint screen and the setup warning show it in a value card;
+// the walk reads it off one to prove the other names the same wallet. No
+// other label on either screen is exactly eight hex digits.
+static lv_obj_t *find_hex8(lv_obj_t *o) {
+  lv_obj_t *f;
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    if (t && strlen(t) == 8) {
+      int hex = 1;
+      for (int i = 0; i < 8; i++) {
+        char c = t[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'))) { hex = 0; break; }
+      }
+      if (hex) return o;
+    }
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    f = find_hex8(lv_obj_get_child(o, i));
+    if (f) return f;
+  }
+  return NULL;
 }
 // What IS on the screen, when what should be is not. A bare "no label contains
 // the address" says nothing about whether the walk landed on the wrong screen,
@@ -924,6 +1016,22 @@ static void find_pill(lv_obj_t *o, const char *txt)
         find_pill(lv_obj_get_child(o, i), txt);
 }
 
+// The first accent-flagged lv_line under `o`. The change strand is the one
+// object on the verify screen whose accent is a LINE colour, so it is what
+// proves the walk of that channel actually runs.
+static lv_obj_t *find_accent_line(lv_obj_t *o)
+{
+    if (lv_obj_check_type(o, &lv_line_class) &&
+        lv_obj_has_flag(o, WT_FLAG_ACCENT))
+        return o;
+    uint32_t n = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *r = find_accent_line(lv_obj_get_child(o, i));
+        if (r) return r;
+    }
+    return NULL;
+}
+
 static lv_obj_t *pill_for(int key, const char *how)
 {
     const char *txt = tr(key);
@@ -941,6 +1049,59 @@ static lv_obj_t *pill_for(int key, const char *how)
         return NULL;
     }
     return s_hit;
+}
+
+// The nth "?" chip right of x>700, top to bottom. The DETAILS page's four term
+// chips sit in ONE column (x = RX+RW-26 = 714), and their y used to be hard
+// coded into the walk -- then each of the three flag rows lost its explainer
+// note and the column shrank, and a tap at the old y hit nothing. A walk that
+// taps nothing above an empty frame is exactly the silent derail the first
+// counter exists for, so the chips are found by their own marks and order
+// instead: they are the only "?" labels in the page's right hand column.
+static void det_chip_scan(lv_obj_t *o, lv_obj_t **found, int *n)
+{
+    if (*n >= 8) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        // ABSOLUTE coords, and a RECURSIVE walk. Both halves were wrong before:
+        // lv_obj_get_x is relative to the parent, and this label's parent is the
+        // 30px chip it is centred in, so its own x is about 10 in every column;
+        // and the scan went screen -> child -> grandchild, while wt_screen puts
+        // a container of its own between the active screen and anything a page
+        // builds, which leaves these labels three deep. It found nothing on any
+        // screen, in any locale, for either reason on its own.
+        lv_area_t la; lv_obj_get_coords(o, &la);
+        if (t && strcmp(t, "?") == 0 && la.x1 >= 700) found[(*n)++] = o;
+        return;
+    }
+    uint32_t c = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < c && *n < 8; i++)
+        det_chip_scan(lv_obj_get_child(o, i), found, n);
+}
+
+static lv_obj_t *det_chip(int idx)
+{
+    lv_obj_t *found[8];
+    int n = 0;
+    det_chip_scan(lv_screen_active(), found, &n);
+    // Top to bottom on the glass, for the same reason: every one of these
+    // labels sits at the same y inside its own chip.
+    for (int a = 0; a < n; a++)
+        for (int b = a + 1; b < n; b++) {
+            lv_area_t aa, ab;
+            lv_obj_get_coords(found[a], &aa);
+            lv_obj_get_coords(found[b], &ab);
+            if (ab.y1 < aa.y1) {
+                lv_obj_t *t = found[a]; found[a] = found[b]; found[b] = t;
+            }
+        }
+    if (idx < 0 || idx >= n) {
+        printf("FAIL: expected a %dth '?' chip in the details column, found %d\n",
+               idx, n);
+        g_walk_fails++;
+        return NULL;
+    }
+    return found[idx];
 }
 
 // Press the pill saying tr(key), hold for `hold` frames, release, settle for
@@ -1188,6 +1349,10 @@ static void sim_fixture_reset(void) {
     // Sorts LAST on purpose: the walk taps rows by position, so a fixture
     // inserted anywhere else would shift every tap after it.
     { "zzzz-MANY.psbt",  "MANY"  },
+    // ... and this one sorts after THAT, for the same reason. Twenty coins into
+    // one recipient with no change: the shape the elided middle exists for, and
+    // the only fixture where n_total exceeds what ins[] can hold.
+    { "zzzzz-MERGE.psbt", "MERGE" },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -1237,6 +1402,36 @@ int main(void) {
 #endif
 
   sim_pick_accent();
+
+  // Focused boot-routing harness for tools/check_screen_coverage.py. Each
+  // non-OK settings status runs in its own process, before any game object or
+  // timer exists, and must stop on the literal safe-mode screen. This screen
+  // cannot participate in wt_screen's translated-title registry, so a separate
+  // machine-readable marker is the only honest way to include it in coverage.
+  const char *safe_boot = getenv("SCREENCOVER_SAFEBOOT");
+  if (safe_boot && *safe_boot) {
+    char *end = NULL;
+    long raw = strtol(safe_boot, &end, 10);
+    if (!end || *end || raw < WSETTINGS_LOAD_NVS_NO_FREE_PAGES ||
+        raw > WSETTINGS_LOAD_NVS_READ_FAILED) {
+      fprintf(stderr, "bad SCREENCOVER_SAFEBOOT status: %s\n", safe_boot);
+      return 1;
+    }
+    int err = 0x5A00 + (int)raw;
+    kiss_settings_sim_set_load_result((kiss_settings_load_status_t)raw, err);
+    build_game();
+    pump(20);
+    char cause[32];
+    snprintf(cause, sizeof cause, "code 0x%X", err);
+    must_show("safe-boot/title", "STORAGE LOCKED");
+    must_show("safe-boot/cause", cause);
+    must_not_show("safe-boot/no-game", "TAP TO PLAY");
+    save("/tmp/sim_storage_locked.ppm");   // own process: not in walk order
+    printf("SAFEBOOT\tSTORAGE LOCKED\t%s\n",
+           kiss_settings_load_status_name((kiss_settings_load_status_t)raw));
+    printf("sim done\n");
+    return g_walk_fails ? 1 : 0;
+  }
 
   build_game();
   pump(20);                                      // ~320ms: logo letters mid-drop
@@ -1818,12 +2013,131 @@ int main(void) {
   save("/tmp/sim_sign_details.ppm");
   touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
   save("/tmp/sim_sign_glossary.ppm");
-  tap_str(STR_C_OK, 3, 6);     // OK closes glossary
+  // A page now, so it leaves by BACK and lands on DETAILS -- the page it was
+  // opened from -- rather than dismissing an overlay onto whatever was under
+  // it. Two BACKs to get from here to verify, where there used to be one.
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> DETAILS
+  // Each term answers for itself now. The sighash chip is the one worth
+  // opening: it is the term a reader is least likely to know and the one whose
+  // card used to be reachable only by tapping the question mark about the FEE.
+  // Found by mark and order, not by coordinate: the flag rows lost their
+  // explainer notes and the column's chips moved up with it.
+  {
+    lv_obj_t *chip = det_chip(2);              // fee, locktime, SIGHASH, rbf
+    if (chip) {
+      lv_obj_t *par = lv_obj_get_parent(chip);
+      touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
+      pump(3); release(); pump(30);
+    }
+  }
+  save("/tmp/sim_sign_term_sighash.ppm");
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
-  press_str(STR_S_HOLD_TO_SIGN); pump(40);          // ring ~half full
+  // The accent changed while this screen was UP, which is the case the flags
+  // exist for and the one no rebuild can cover: every other check in this walk
+  // runs a whole locale or a whole accent from scratch, so a builder that gets
+  // the colour right and a restyle that never repaints look identical.
+  //
+  // Three channels, three ways of failing silently. The rim is a border, the
+  // strand is a line and the sweep is a fill, and a flag that only ever set a
+  // text colour did nothing to any of them while appearing correctly set.
+  //
+  // The third channel used to be named as the hold ring, and was never checked
+  // -- it could not be. That ring was built inside an opaque pill created after
+  // it and had not drawn a pixel since the day it was added, so an assertion
+  // here would have been reading the style of something nobody could see. The
+  // sweep is on the glass, so this is the first time the comment's third
+  // channel and the code's third channel are the same object.
+  {
+    lv_obj_t *hp = pill_for(STR_S_HOLD_TO_SIGN, "accent restyle");
+    lv_obj_t *ln = find_accent_line(lv_screen_active());
+    if (!ln) {
+      printf("FAIL: no accent-flagged strand on the verify screen\n");
+      return 1;
+    }
+    if (hp) {
+      // By its flag, not its index: the sweep is moved behind the label after
+      // it is built, so which child it is depends on an ordering this check
+      // has no business knowing.
+      lv_obj_t *sw = NULL;
+      for (uint32_t ci = 0; ci < lv_obj_get_child_count(hp); ci++) {
+        lv_obj_t *c = lv_obj_get_child(hp, ci);
+        if (lv_obj_has_flag(c, WT_FLAG_ACCENT_FILL)) { sw = c; break; }
+      }
+      if (!sw) {
+        printf("FAIL: no accent-flagged sweep under HOLD TO SIGN\n");
+        return 1;
+      }
+      const int was = wt_accent_get();
+      lv_color_t b0 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      lv_color_t l0 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
+      lv_color_t f0 = lv_obj_get_style_bg_color(sw, LV_PART_MAIN);
+      wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
+      wt_accent_restyle(lv_screen_active());
+      pump(2);
+      lv_color_t b1 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      if (lv_color_eq(b0, b1)) {
+        printf("FAIL: HOLD TO SIGN kept its old rim through an accent change\n");
+        return 1;
+      }
+      if (!lv_color_eq(b1, wt_accent())) {
+        printf("FAIL: HOLD TO SIGN's rim is not the accent after a restyle\n");
+        return 1;
+      }
+      lv_color_t l1 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
+      if (lv_color_eq(l0, l1) || !lv_color_eq(l1, wt_accent())) {
+        printf("FAIL: the change strand kept its old accent through a change\n");
+        return 1;
+      }
+      lv_color_t f1 = lv_obj_get_style_bg_color(sw, LV_PART_MAIN);
+      if (lv_color_eq(f0, f1) || !lv_color_eq(f1, wt_accent())) {
+        printf("FAIL: the hold sweep kept its old accent through a change\n");
+        return 1;
+      }
+      save("/tmp/sim_sign_accent.ppm");
+      wt_accent_set(was);
+      wt_accent_restyle(lv_screen_active());
+      pump(2);
+      printf("ok: rim, strand and sweep follow the accent with no rebuild\n");
+    }
+  }
+
+  // The hold, sampled three times on the way up. One frame cannot show a fill:
+  // it looks exactly like a strand that is simply that long. Three at 25, 50
+  // and 75 percent of HOLD_MS are what make the length a function of the
+  // finger, and a fill wired to anything else -- a coin index, a signing
+  // estimate -- lands the same in all three.
+  // A pump is 16ms and HOLD_MS is 1200, so the whole hold is 75 of them.
+  press_str(STR_S_HOLD_TO_SIGN); pump(19);
+  save("/tmp/sim_sign_hold_q.ppm");
+  pump(21);                                         // sweep ~half across
   save("/tmp/sim_sign_hold.ppm");
-  pump(45);                                         // past 1.2s: signs + writes SD
+  pump(16);
+  save("/tmp/sim_sign_hold_3q.ppm");
+  if (!kiss_sign_test_locked()) {
+    printf("FAIL: the output side never stood down for the hold\n");
+    return 1;
+  }
+
+  // Let go early. This is the frame the addendum exists for and the only place
+  // the flow says out loud that a hold can be abandoned: strands retract, the
+  // outputs come back up, the padlock goes and the caption is a count again.
   release(); pump(8);
+  save("/tmp/sim_sign_abandon.ppm");
+  if (kiss_sign_test_locked()) {
+    printf("FAIL: an abandoned hold left the output side locked down\n");
+    return 1;
+  }
+
+  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs
+  release(); pump(8);
+  // The reveal, and the reason the walk stops here rather than landing straight
+  // on the exit screen. The graph has spent the whole flow claiming a strand in
+  // the accent means a signature exists; this is the frame where that is
+  // discharged, all inputs together, because one libwally call signed all of
+  // them and there was never a per coin moment to show.
+  save("/tmp/sim_sign_reveal.ppm");
+  pump(50);                                         // past REVEAL_MS: writes SD
   save("/tmp/sim_sign_done.ppm");
   // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
   // first, translated caption trailing, so this tap holds in all 21 locales.
@@ -1873,7 +2187,9 @@ int main(void) {
   // local (543,8) 170x40 inside a row pinned at (24, SG_PANEL_Y), so row 0's is
   // 567..737 x 158..198. This is its centre. It was still tapping the old
   // action-row position at (364,430), which the redraw deleted.
-  touch(652, 178); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
+  // The bar dropped to y=344 under the bundle graph, and its pill went with it:
+  // bar-relative (543,2) 170x40 is now 567..737 x 346..386. This is its centre.
+  touch(652, 366); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
   // BACK out of a screen an acknowledgement repainted. The tap above is what
   // makes the orphaned-screen check at the end of this walk mean anything: the
@@ -1893,9 +2209,14 @@ int main(void) {
   // the guarantee has two halves: something address shaped is on the glass
   // without a tap, and the whole of it is one tap away. Checking only the
   // second would pass on a screen that folded the address to nothing.
+  //
+  // The amounts lost their " sats" when they became strand labels: the unit is
+  // stated once, on the hero, and repeating it on every row of a graph whose
+  // rows are all the same unit is the restatement the copy rules cut. The
+  // guarantee is unchanged -- these two numbers are on the glass without a tap.
   must_show("verify (5 cautions)", "bc1q");           // folded, prefix span
-  must_show("verify (5 cautions)", "200 sats");       // the change amount
-  must_show("verify (5 cautions)", "800 sats");       // the fee, in sats
+  must_show("verify (5 cautions)", "200");            // the change amount
+  must_show("verify (5 cautions)", "800");            // the fee
   tap_str(STR_R_SP_SHOW_FULL, 3, 8);
   must_show("verify (5 cautions, full)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
@@ -1903,9 +2224,9 @@ int main(void) {
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
-  // never showed. The bar's pill is at the row pill's old x, so the FEE ack tap
-  // above and this REVIEW tap land in the same place.
-  touch(652, 172); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
+  // never showed. The bar's pill keeps the row pill's x, so the FEE ack tap above
+  // and this REVIEW tap land in the same place.
+  touch(652, 366); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
   save("/tmp/sim_sign_cautions.ppm");
   // Row 0's I UNDERSTAND: rows start at y=88 with the pill at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
@@ -1938,7 +2259,9 @@ int main(void) {
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
-  save("/tmp/sim_sign_sp.ppm");                      // SP output row: badge + address + note
+  save("/tmp/sim_sign_sp.ppm");                      // SP output: the on-chain note
+                                                      // moved to DETAILS, so the
+                                                      // column fits and needs no scroll
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   // The unproven-amount caution on its own: one row, footer kept. It is the
   // shape an ordinary two-input spend from a coordinator that ships bare
@@ -1950,8 +2273,8 @@ int main(void) {
   // coordinator that ships bare witness_utxos has, and the one most owners
   // will actually meet. Same guarantee.
   must_show("verify (1 caution)", "bc1q");            // folded, prefix span
-  must_show("verify (1 caution)", "39 000 sats");
-  must_show("verify (1 caution)", "1 000 sats");
+  must_show("verify (1 caution)", "39 000");   // change, no unit: see above
+  must_show("verify (1 caution)", "1 000");    // fee
   tap_str(STR_R_SP_SHOW_FULL, 3, 8);
   must_show("verify (1 caution, full)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
@@ -1977,11 +2300,12 @@ int main(void) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
   }
-  // Drag the recipient panel up until it stops moving. The panel is at
-  // SG_RECIP_X..+SG_RECIP_W, so x=250 is inside it and clear of the change
-  // panel; each drag is one flick and the list settles between them.
+  // Drag the graph's output column up until it stops moving. The column is the
+  // right half of the graph box, page x 464..776, so x=600 is inside it and
+  // clear of the scrollbar; each drag is one flick and the list settles between
+  // them. The strands are redrawn to follow their rows on every one of these.
   for (int f = 0; f < 6; f++) {
-    for (int i = 0; i <= 8; i++) { touch(250, 300 - i * 20); pump(3); }
+    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
     release(); pump(10);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
@@ -1992,8 +2316,95 @@ int main(void) {
   }
   printf("ok: signing waits until every recipient has been on the glass\n");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the file list
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+
+  // Twenty coins swept into one address. The graph draws five rows whatever the
+  // count -- first two, the elided middle, last two -- and the middle strand is
+  // the only dashed line on the device, so this frame is the only place that
+  // renderer path is ever looked at. Row 3, the last of the four the list shows.
+  //
+  // The two numbers on the group row are the whole reason it is not just a
+  // thinner line: sixteen coins is a count nothing else on the screen states,
+  // and their total is what stops "16 more" reading as loose change. Both come
+  // from the summary, because ins[] holds sixteen of the twenty.
+  touch(328, 348); pump(3); release(); pump(8);     // zzzzz-MERGE (row 3) -> verify
+  save("/tmp/sim_sign_merge.ppm");
+  // Digits only. Every other needle here would be a translated word, and
+  // wt_fmt_sats groups with the same space in all 21 locales, so these two read
+  // identically everywhere: the count of coins the middle strand stands for,
+  // and the value they carry. The total is the stronger of the two -- it can
+  // only be right if it came from the summary rather than from the four rows
+  // the graph can see.
+  must_show("twenty coins", "16");                  // the elided count
+  must_show("twenty coins", "2 749 257");           // ... and what it is worth
+  // The card behind the "?", on the one transaction where the two numbers
+  // differ: twenty coins, fourteen addresses. Six of those coins share an
+  // address with another, and were joined the day it was handed out twice --
+  // this transaction reveals nothing new about them, so the caution does not
+  // count them. A card saying "20" here would be inflating the loss it is
+  // asking the owner to accept.
+  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED
+  save("/tmp/sim_sign_merge_why.ppm");
+  must_show("twenty coins, why", "14");
+  tap_str(STR_C_OK, 3, 6);
+  if (kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN was live with the coins-linked bar unacknowledged\n");
+    return 1;
+  }
+  touch(652, 366); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
+  save("/tmp/sim_sign_merge_ack.ppm");
+  // Then read the output column to its end, because on this transaction
+  // whether that is even necessary depends on the locale: "no change, this
+  // empties all 20" is one line in English and two in Czech, which is enough to
+  // push the column over its fold. That is the gate behaving correctly -- if
+  // anything is below the fold it must be read -- so the walk scrolls
+  // unconditionally rather than asserting a state only English reaches. On a
+  // column that does not overflow these drags are a no-op.
+  for (int f = 0; f < 4; f++) {
+    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
+    release(); pump(10);
+  }
+  if (!kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN still inert after the bar was acked and the "
+           "outputs read to their end\n");
+    return 1;
+  }
+  printf("ok: twenty coins elide to five rows, count and total both stated\n");
+  // The hold on the one transaction that has a grouped strand. Two paths meet
+  // here and nowhere else: the flat two point line, which is how a strand
+  // sitting ON the junction row is written, and the dash, which is the only
+  // dashed line on the device. The accent drawn over it has to be dashed too --
+  // sixteen coins committing must not become one coin committing halfway
+  // through a hold.
+  press_str(STR_S_HOLD_TO_SIGN); pump(40);
+  save("/tmp/sim_sign_merge_hold.ppm");
+  release(); pump(8);
+  if (kiss_sign_test_locked()) {
+    printf("FAIL: an abandoned hold left twenty coins locked down\n");
+    return 1;
+  }
+  printf("ok: the grouped strand fills and retracts still dashed\n");
+  // The only fixture whose input count exceeds what wpsbt_details_t can hold,
+  // so it is the only one that reaches S_D_MANYIN_FMT -- the longest formatted
+  // line in the sign flow, ~140 bytes in ja, and the case that used to truncate.
+  // The details stub lost that coverage when it stopped inventing a count the
+  // summary disagreed with; this is where it comes back, on a transaction that
+  // genuinely has more inputs than the page can list.
+  tap_str(STR_S_DETAILS, 3, 8);
+  save("/tmp/sim_sign_merge_details.ppm");
+  must_show("twenty coins, details", "20");   // the real count
+  must_show("twenty coins, details", "16");   // ... and how many are listed
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> verify
+
+  // SIGN FAILED, on the one screen that can honestly produce it: a completed
+  // hold whose signing call returns nothing. The graph is left claiming no
+  // signature, because none was made. Nothing else in the walk opens this
+  // screen -- it was built, translated 21 times and never rendered.
+  s_sim_sign_fails = 1;
+  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs, or does not
+  release(); pump(10);
+  save("/tmp/sim_sign_failed.ppm");
+  must_show("sign failed", tr(STR_S_FAIL_SIGN));
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> home, the only way off a failure
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -2038,7 +2449,9 @@ int main(void) {
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
   press_str(STR_S_HOLD_TO_SIGN); pump(40);          // hold to sign
-  pump(45); release(); pump(8);
+  // ...then past the reveal as well: the QR path takes a different exit but
+  // shares the signing state, so it waits the same beat before leaving.
+  pump(45); release(); pump(58);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part
@@ -2095,6 +2508,42 @@ int main(void) {
   touch(174, 144); pump(3); release(); pump(6);     // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
+
+  // The two verdicts that are not success. Both were built, translated 21
+  // times and never rendered, and they are the two the owner most needs to
+  // read correctly: one says the wallet did not move, the other says it did
+  // move and something was left behind. Nothing in this walk could tell them
+  // apart, because neither had ever been on screen.
+  //
+  // STORAGE NOT CHANGED: the destination never became durable, so the wallet
+  // is still exactly where it was. Mode write fails, nothing is published.
+  s_sim_move_rc = WSEED_ERR_SD_IO;
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  save("/tmp/sim_storage_fail.ppm");
+  // The title, not the body: wt_why_body splits a two paragraph string across
+  // labels, and it is the verdict in the heading that must be the right one.
+  must_show("storage fail", tr(STR_G_STORAGE_FAIL_T));
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings, still FLASH
+  must_show("storage unchanged", tr(STR_W_KEEP_BTN));
+
+  // STORAGE CHANGED WITH WARNING: the card is verified and published, and the
+  // old copy could not be removed. Two copies, never zero -- which is why this
+  // is amber and not the red above, and why it must never say "not changed".
+  s_sim_move_rc = WSEED_ERR_CLEANUP;
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  save("/tmp/sim_storage_cleanup.ppm");
+  must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
+  // ...and back to FLASH, which is what the rest of the walk is written for.
+  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  touch(174, 144); pump(3); release(); pump(6);     // FLASH
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  tap_str(STR_C_OK, 3, 8);
+  must_show("storage restored", tr(STR_W_KEEP_BTN));
 
   // NO UNDO in its OTHER state. The paper has not been verified yet at this
   // point in the walk, so the chooser carries the amber qualifier over two
@@ -2594,11 +3043,103 @@ int main(void) {
   touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1 again
   touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning again
   touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
+  touch(696, 38); pump(3); release(); pump(3);      // SHOW: make the LVGL copy explicit
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> passphrase warning
+  // The fingerprint this wallet is called, read off the glass BEFORE the
+  // idle deadline below. The retry must land on the SAME one: the login's
+  // 120-second wipe is suppressed while the RECOVER screen holds the staged
+  // secret, and if that suppression regressed, TRY AGAIN would commit an
+  // empty passphrase and the warning would show a different fingerprint.
+  lv_obj_t *fp_lbl = find_hex8(lv_screen_active());
+  char fp_hex[16] = "";
+  if (!fp_lbl) {
+    printf("FAIL: no fingerprint hex on the fp screen\n");
+    g_walk_fails++;
+  } else {
+    snprintf(fp_hex, sizeof fp_hex, "%s", lv_label_get_text(fp_lbl));
+  }
+  // The commit that could not finish, through the real UI: this TAP TO OPEN
+  // commits the staged wallet, and a staged RECOVER result puts the recovery
+  // screen where the passphrase warning should be. TRY AGAIN then re-runs
+  // the same commit; the teardown under that success path used to
+  // dereference the freed entry label (recover_screen had deleted the login
+  // and nulled only s_login), which is what this block exists to catch. The
+  // retry must also land back on the same warning the flow expects next,
+  // because everything below this stop depends on it.
+  g_sim_commit_recover = 1;
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen
+  must_show("setup/recover", tr(STR_L_RECOVER_T));
+
+  // Past the screen's OWN deadline first. The words have none and must not
+  // gain one -- they may be the last copy -- but the passphrase the retry
+  // keeps is a secret idling on a device nobody is touching, and five
+  // untouched minutes take it. TRY AGAIN then cannot re-derive the wallet
+  // whose fingerprint the owner read, so it must ask for the passphrase
+  // again: not open the empty-passphrase wallet under that fingerprint, and
+  // not sit there doing nothing, which is what refusing silently looked like
+  // to the one person holding the only copy.
+  pump(19000);                                     // 304s > 300s, untouched
+  must_show("recover/expired", tr(STR_L_RECOVER_T));
+  tap_str(STR_C_TRY_AGAIN, 3, 30);      // TRY AGAIN with no passphrase left
+  save("/tmp/sim_setup_recover_reask.ppm");        // the keyboard, back at stage 1
+  must_show("recover/reask", tr(STR_L_TYPE_PROMPT));
+  must_show("recover/reask-stage1", tr(STR_L_CREATE_YOUR_PASS));
+  if (kiss_ui_recover_active()) {
+    printf("FAIL: the reask left the RECOVER screen up over the keyboard\n");
+    g_walk_fails++;
+  }
+  // Type the same passphrase again, through the wizard's own type-twice, and
+  // fail the commit once more so the block below still starts where it did.
+  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning
+  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
+  touch(46, 278); pump(3); release(); pump(3);      // 'a' again
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  g_sim_commit_recover = 1;             // the injection is one shot: re-arm it
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen again
+  must_show("setup/recover-again", tr(STR_L_RECOVER_T));
+  g_sim_commit_recover = 0;
+  // The recovery screen, held past the login's 120-second deadline. The
+  // staged secret must not inherit the hidden login's idle wipe -- the
+  // retry passphrase lives in s_pass, and a wipe would make TRY AGAIN open
+  // an empty-passphrase wallet under the stale fingerprint. 131s, matching
+  // the type-twice idle stop above.
+  pump(8200);
+  must_show("recover/idle-survives", tr(STR_L_RECOVER_T));
+  save("/tmp/sim_setup_recover_idle.ppm");         // the long-lived RECOVER state itself
+  if (!kiss_ui_test_rendered_secret_empty()) {
+    printf("FAIL: recovery mask timer repopulated a hidden rendered secret\n");
+    g_walk_fails++;
+  }
+  tap_str(STR_C_TRY_AGAIN, 3, 30);      // TRY AGAIN -> the passphrase warning
+  must_show("setup/recover-retry", tr(STR_L_WARN_T));
+  // The warning deliberately reuses the fingerprint already shown, so comparing
+  // its label alone cannot prove the retry used the retained passphrase. The sim
+  // marks an empty-passphrase session as the decoy; this fixture typed "a" and
+  // must therefore reopen a non-decoy session after the 131-second wait.
+  if (kiss_session_decoy()) {
+    printf("FAIL: recovery retry opened the empty-passphrase session\n");
+    g_walk_fails++;
+  }
+  if (fp_hex[0]) {
+    lv_obj_t *warn_lbl = find_hex8(lv_screen_active());
+    if (!warn_lbl) {
+      printf("FAIL: setup/recover-retry: no fingerprint hex on the warning\n");
+      g_walk_fails++;
+    } else if (strcmp(fp_hex, lv_label_get_text(warn_lbl)) != 0) {
+      printf("FAIL: setup/recover-retry: warning names %s, not the %s shown before the idle\n",
+             lv_label_get_text(warn_lbl), fp_hex);
+      g_walk_fails++;
+    }
+  }
+  save("/tmp/sim_setup_recover_retry.ppm");        // retry landed, teardown held
   lv_refr_now(NULL); pump(2);
-  save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
+  // The same warn screen the retry just landed on, photographed again under
+  // the name the docs manifest reads. Identical to the frame above and meant
+  // to be: nothing happens between them, and it is the retry landing on this
+  // screen that proves the wallet came back. Unchanged is the assertion.
+  save("/tmp/sim_setup_warn.ppm");   // unchanged by design; red ring on I UNDERSTAND
 
   // Optional full recovery rehearsal: all generated words, then the exact
   // passphrase. Prefixes below uniquely put each expected word in suggestion 0.
@@ -3097,8 +3638,9 @@ int main(void) {
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
-  tap_str(STR_G_FW_HOLD, 100, 20);  // hold -> writing -> refused
-  save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
+  tap_str(STR_G_FW_HOLD, 95, 1);       // hold completes, WRITING announces
+  pump(100);                           // deferred refusal lands, as above
+  save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
 
   // 4. no card at all: the same two block shape, different left hand claim.
   unlink("/tmp/simsd/kiss-signer-99.0.0.bin");

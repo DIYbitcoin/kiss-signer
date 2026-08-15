@@ -92,6 +92,17 @@ uint8_t *fountain_decoder_result_message(fountain_decoder_t *decoder);
 size_t fountain_decoder_result_message_len(fountain_decoder_t *decoder);
 
 /**
+ * Mixed-part budget telemetry, for the desktop stress test: the high-water
+ * mark of the live mixed-entry bytes and how many parts the budget refused.
+ * Both reset with the decoder's session (fountain_decoder_clear_initialization).
+ * @param decoder Pointer to fountain decoder
+ * @param peak_bytes Optional out: peak live bytes (MAX_MIXED_BYTES ceiling)
+ * @param drops Optional out: budget refusals since session start
+ */
+void fountain_decoder_mixed_stats(const fountain_decoder_t *decoder,
+                                  size_t *peak_bytes, size_t *drops);
+
+/**
  * Transfer ownership of the result message to the caller. The decoder
  * drops its reference (internal result->data set to NULL) so a later
  * fountain_decoder_free does not double-free. Returns NULL if no result

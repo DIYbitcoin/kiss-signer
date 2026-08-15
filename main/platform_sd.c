@@ -408,7 +408,11 @@ int platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len)
         return -1;
     *len = fread(buf, 1, max, f);
     int io = ferror(f);
-    int full = !feof(f);                      // file bigger than our buffer = reject
+    // The byte past the buffer proves "too big". feof is not enough: a file
+    // of exactly max bytes reads full without ever setting it, so it used to
+    // be rejected even though it is the device's own PSBT ceiling.
+    int full = fgetc(f) != EOF;
+    io |= ferror(f);  // the probe itself can fail, not just hit EOF
     if (fclose(f) != 0) io = 1;
     return io ? -3 : (*len == 0 || full) ? -2 : 0;
 }

@@ -185,6 +185,25 @@ static int expected_spk(const uint8_t pub[33], uint32_t purpose,
                                             out, cap, out_len) == WALLY_OK ? 0 : 1;
 }
 
+// How many distinct input addresses are tracked exactly. Beyond it the caller
+// falls back to the input count, which is the most it could be.
+#define WPSBT_ADDR_TRACK 40
+
+// FNV-1a over a scriptPubKey, for "have I seen this address already". Not a
+// security hash and it is not asked to be one: a collision would merge two
+// addresses into one and UNDERSTATE a consolidation by one, which is the same
+// answer the old count-the-coins version gave for every reused address. At 64
+// bits it will not happen on forty scripts.
+static uint64_t spk_key(const uint8_t *spk, size_t len)
+{
+    uint64_t h = 1469598103934665603ULL;              // FNV offset basis
+    for (size_t i = 0; i < len; i++) {
+        h ^= spk[i];
+        h *= 1099511628211ULL;                        // FNV prime
+    }
+    return h;
+}
+
 // Re-derive the key at path and compare its expected scriptPubKey with spk.
 // 0 = match, nonzero = mismatch/error. This is THE anti-theft check.
 static int rederive_matches(const uint32_t *path, size_t path_len,
@@ -580,7 +599,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // wipes its static decode result.
     static uint8_t b64buf[4096];
     if (len >= 6 && memcmp(bytes, "cHNidP", 6) == 0) {
-        static char txt[5462];                     // 4096 bytes of PSBT, padded
+        static char txt[5465];                     // 5464 base64 chars for 4096 bytes + NUL
         size_t tl = 0;
         for (size_t i = 0; i < len && tl + 1 < sizeof txt; i++)
             if (bytes[i] != '\r' && bytes[i] != '\n' && bytes[i] != ' ')
@@ -721,6 +740,11 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
     uint32_t nunproven = 0;   // amount taken from a witness_utxo with no prev tx behind it
+    // Distinct input scriptPubKeys, hashed rather than kept: the answer needed
+    // is only "seen before", and 40 scripts at up to 34 bytes each is a lot of
+    // stack for a question a 64-bit key settles.
+    uint64_t seen[WPSBT_ADDR_TRACK];
+    uint32_t nseen = 0;
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
@@ -833,6 +857,32 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             continue;
         }
         s->in_sats += utxo_val;
+        {
+            const uint64_t key = spk_key(utxo_spk, utxo_spk_len);
+            uint32_t j = 0;
+            while (j < nseen && seen[j] != key) j++;
+            if (j == nseen) {
+                // Refuse rather than print a number that was not counted. The
+                // old fallback here reported the INPUT count once the table
+                // filled, which is an upper bound and not an answer: the card
+                // would have said "joins 44 of your addresses" about a spend
+                // that joined thirty.
+                //
+                // Same call the output side makes one screen over -- "too many
+                // outputs to verify safely" -- and for the same reason. It is
+                // also unreachable: a loadable PSBT is capped at 4096 bytes and
+                // the generated fixtures cost ~137 bytes per marginal input
+                // (279 at one input, 825 at five), so the ceiling is near
+                // thirty against a table of forty. Unreachable is not the same
+                // as correct, and this branch is the one that stays true if a
+                // buffer ever grows.
+                if (nseen >= WPSBT_ADDR_TRACK) {
+                    stop(s, "too many input addresses to count safely");
+                    continue;
+                }
+                seen[nseen++] = key;
+            }
+        }
         // spending a tiny KISS-owned coin is the classic dust-attack tell: a
         // stranger sends dust hoping you consolidate it and link your coins
         if (utxo_val > 0 && utxo_val < WPSBT_PRIVACY_SATS)
@@ -849,6 +899,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                : (n84 && !n44 && !n49) ? 84 : 0;
 
     s->n_unproven_in = nunproven;
+    s->n_in_addr = nseen;
     // BIP375 silent-payment sends remove two cautions that cannot apply.
     // A BIP-376 SP PSBT never carries the previous transactions — proving the
     // input amounts is a property of the format, not an omission of the
@@ -881,7 +932,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // about how many are being tied together, and a sweep of perfectly ordinary
     // coins does the same damage. Soft CAUTION: consolidating is often the right
     // call, and the signer has no UTXO set to propose a better selection with.
-    if (s->n_in >= WPSBT_MERGE_INS && !sp_send)
+    //
+    // ADDRESSES, not coins. Five coins on one reused address are already one
+    // owner as far as anyone watching is concerned, and warning about them
+    // spends the owner's attention on a loss that happened when the address was
+    // reused. What this counts is what the transaction actually gives away.
+    if (s->n_in_addr >= WPSBT_MERGE_INS && !sp_send)
         caution(s, WPSBT_C_MERGE_INS, "merging many coins (privacy)");
 
     // ---- outputs: re-derive change ourselves; never trust "this is change" ----

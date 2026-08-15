@@ -42,6 +42,7 @@ typedef enum {
 // stops looking like coin selection and starts looking like a decision:
 // consolidating, or sweeping a wallet somewhere else. That is the case worth
 // interrupting, because the coordinator can still be told to split it.
+// Distinct input ADDRESSES, not inputs: see n_in_addr.
 #define WPSBT_MERGE_INS      5
 
 // High-fee-rate backstop (sat/vB * 10). Krux warns only on the fee-as-share-of
@@ -71,6 +72,14 @@ typedef struct {
     uint32_t n_sp;           // silent payment outputs among outs[]
     uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment
     uint32_t n_unproven_in;  // inputs whose amount came from a bare witness_utxo
+    // Distinct scriptPubKeys among the inputs, which is the real size of a
+    // consolidation. Two coins sitting on ONE address are already public proof
+    // of a single owner, so joining them tells the chain nothing it did not
+    // already have -- counting coins called that a privacy loss and it is not
+    // one. This is what WPSBT_C_MERGE_INS is raised on and what the caution
+    // states. Silent-payment inputs are not counted: they carry no address of
+    // ours to reuse.
+    uint32_t n_in_addr;
     bool     testnet;        // network this summary was verified under
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;

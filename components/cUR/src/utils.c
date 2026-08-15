@@ -206,7 +206,56 @@ void free_string_array(char **strings, size_t count) {
   }
 }
 
+// Allocation-failure injection, for the desktop stress test. This block and
+// the checks in the allocation wrappers are compiled out of firmware:
+// ur_alloc_arm(site, at) fails the
+// `at`-th allocation (1-based) made while `site` is current, then disarms
+// itself, so the surrounding decode keeps running on later allocations. The
+// site filter lets a test aim at one function's allocations (see utils.h)
+// without counting the ones on the way there, and ur_alloc_hits() proves the
+// target allocation was actually reached -- a test can no longer pass by
+// failing an allocation the target code never runs.
+#ifdef UR_ALLOC_FAIL_TEST
+static int s_ur_site = UR_SITE_NONE;   // current allocation site
+static int s_ur_arm_site = -1;         // armed site; -1 = not armed
+static int s_ur_arm_at = 0;            // the Nth matching allocation fails
+static unsigned s_ur_hits = 0;         // matching allocations since arming
+
+void ur_alloc_arm(int site, int at) {
+  s_ur_arm_site = site;
+  s_ur_arm_at = at;
+  s_ur_hits = 0;
+}
+
+void ur_alloc_disarm(void) {
+  s_ur_arm_site = -1;
+  s_ur_arm_at = 0;
+}
+
+unsigned ur_alloc_hits(void) { return s_ur_hits; }
+
+int ur_site_enter(int site) { int prev = s_ur_site; s_ur_site = site; return prev; }
+
+void ur_site_leave(int prev) { s_ur_site = prev; }
+
+static bool ur_inject_fail(void) {
+  if (s_ur_arm_site < 0) return false;          // not armed
+  if (s_ur_site != s_ur_arm_site) return false; // other site: count nothing
+  s_ur_hits++;
+  if (s_ur_arm_at > 0 && (unsigned)s_ur_arm_at == s_ur_hits) {
+    s_ur_arm_site = -1;                         // single shot: disarms on fire
+    s_ur_arm_at = 0;
+    return true;
+  }
+  return false;
+}
+#endif
+
 void *safe_malloc(size_t size) {
+#ifdef UR_ALLOC_FAIL_TEST
+  if (ur_inject_fail())
+    return NULL;
+#endif
   if (size == 0)
     return NULL;
   void *ptr = malloc(size);
@@ -217,12 +266,22 @@ void *safe_malloc(size_t size) {
 }
 
 void *safe_malloc_uninit(size_t size) {
+#ifdef UR_ALLOC_FAIL_TEST
+  if (ur_inject_fail())
+    return NULL;
+#endif
   if (size == 0)
     return NULL;
   return malloc(size);
 }
 
-void *safe_realloc(void *ptr, size_t size) { return realloc(ptr, size); }
+void *safe_realloc(void *ptr, size_t size) {
+#ifdef UR_ALLOC_FAIL_TEST
+  if (ur_inject_fail())
+    return NULL;
+#endif
+  return realloc(ptr, size);
+}
 
 char *safe_strdup(const char *str) {
   if (!str)

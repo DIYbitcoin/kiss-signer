@@ -29,7 +29,11 @@ int main(int argc, char **argv){
     // want_flags is checked EXACTLY, not as a subset: a fixture built for one
     // row on the screen that quietly starts raising two is a fixture that no
     // longer shows what the tester was told to look at.
-    struct { const char *f; int sc; int want; uint16_t flags; } t[] = {
+    // opt marks a fixture mk_sd_psbts.sh only writes when EMBIT points at the
+    // SP-capable embit fork. That fork is not vendored, so CI never has it and
+    // a missing file there is the generator being honest, not a stale fixture.
+    // Absent it is a SKIP; present it is checked exactly like the rest.
+    struct { const char *f; int sc; int want; uint16_t flags; int opt; } t[] = {
         {"01-native.psbt",            WSCRIPT_NATIVE, WPSBT_READY,   0},
         {"02-nested.psbt",            WSCRIPT_NESTED, WPSBT_READY,   0},
         {"03-legacy.psbt",            WSCRIPT_LEGACY, WPSBT_READY,   0},
@@ -53,19 +57,23 @@ int main(int argc, char **argv){
         // and merge cautions cannot apply (the format never carries the previous
         // transactions, and these coins were already linked by the scan), so the
         // owner reviews the recipient and the fee and signs.
-        {"11-sp-10in.psbt",          WSCRIPT_NATIVE, WPSBT_READY,   0},
+        {"11-sp-10in.psbt",          WSCRIPT_NATIVE, WPSBT_READY,   0, 1},
         // 20 inputs vs the SP stack's hard cap: WPSBT_MAX_INS is 16, so this one
         // MUST STOP. It is the size ladder's top rung on device, not a signable tx.
-        {"12-sp-20in.psbt",          WSCRIPT_NATIVE, WPSBT_STOP,   0},
+        {"12-sp-20in.psbt",          WSCRIPT_NATIVE, WPSBT_STOP,   0, 1},
     };
-    int fails=0;
+    int fails=0, skips=0;
     // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
     // the table above compiled clean and quietly checked everything except the
     // new one, which is the failure mode a fixture list can least afford.
     for(size_t i=0;i<sizeof t/sizeof *t;i++){
         unsigned char buf[8192];
         size_t n=slurp(argv[1],t[i].f,buf,sizeof buf);
-        if(!n){ printf("FAIL missing %s\n",t[i].f); fails++; continue; }
+        if(!n){
+            if(t[i].opt){ printf("SKIP %-26s not written (set EMBIT)\n",t[i].f); skips++; }
+            else        { printf("FAIL missing %s\n",t[i].f); fails++; }
+            continue;
+        }
         kiss_set_script(t[i].sc);
         wpsbt_summary_t sum; memset(&sum,0,sizeof sum);
         int rc=kiss_psbt_load(buf,n,&sum);
@@ -107,6 +115,9 @@ int main(int argc, char **argv){
     }
 
     kiss_session_close();
-    printf(fails?"\n%d FAIL\n":"\nALL PASS\n", fails);
+    // The skip count is printed even at zero. A run that quietly checked ten of
+    // twelve reads exactly like a run that checked all twelve otherwise.
+    printf("\n%d skipped (need EMBIT)\n", skips);
+    printf(fails?"%d FAIL\n":"ALL PASS\n", fails);
     return fails?1:0;
 }

@@ -33,6 +33,15 @@ DELIBERATE = re.compile(
     r"noop|still the|must be|stays|unchanged|no warning|gone again|nothing loaded",
     re.I)
 
+# A frame saved by a focused harness that runs in its OWN PROCESS, entered by
+# an environment variable and never by the ordinary walk. The plain run does
+# not write it, so demanding it exist fails the gate on a frame that was never
+# due, and it has no neighbour in walk order to be compared against. Its own
+# harness asks it more questions than this gate would: the safe-boot one
+# checks the title, the cause code and the absence of the game screen.
+# Same convention as above -- the intent stays on the line it applies to.
+OWN_PROCESS = re.compile(r"own process", re.I)
+
 
 def frames():
     """[(frame, deliberate_noop)] in the order the walk saves them."""
@@ -40,7 +49,7 @@ def frames():
     with open(SIM) as fh:
         for line in fh:
             m = re.search(r'save\("/tmp/(sim_[a-z0-9_]+)\.ppm"\)', line)
-            if m:
+            if m and not OWN_PROCESS.search(line):
                 out.append((m.group(1), bool(DELIBERATE.search(line))))
     return out
 

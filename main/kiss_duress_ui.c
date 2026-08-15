@@ -14,7 +14,9 @@
 #include <string.h>
 
 #include "kiss_duress.h"
+#include "kiss_duress_ui.h"
 #include "kiss_theme.h"
+#include "kiss_ui.h"
 #include "i18n.h"
 #include "kiss_wipe.h"
 
@@ -86,6 +88,19 @@ static void finish(void)
 }
 
 static void skip_cb(lv_event_t *e) { (void)e; finish(); }
+
+static void add_pass_cb(lv_event_t *e)
+{
+    (void)e;
+    // The add-later login owns the display while it runs and returns through
+    // the same channel the rest of this flow uses: its final screens chain
+    // into the stroke chooser (setup_warn_ok_cb), whose DONE closes back to
+    // whoever opened the ways in page.
+    lv_obj_t *parent = s_parent;
+    void (*done)(void) = s_done;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    kiss_login_open_add_later(done);
+}
 
 static void save_cb(lv_event_t *e)
 {
@@ -255,10 +270,20 @@ static void stage_build(int stage)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
         wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
+        // The missing layer is ADDABLE, and this is the room for it. The
+        // body above already says the rest: add a passphrase and the current
+        // keys become the spare. The add-later login runs the wizard's
+        // type-twice + fingerprint reveal (kiss_login_open_add_later) and
+        // falls out through setup_warn_ok_cb the same way the wizard does,
+        // so the stroke chooser is the very next screen -- setting a stroke
+        // is exactly why most owners will be doing this.
+        wt_pill(s_scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y,
+                kiss_duress_real() != WDG_NONE ? 340 : 556,
+                add_pass_cb, NULL);
         // The only way back to plain behaviour for a signer that was allowed to
         // configure a stroke before this case was handled.
         if (kiss_duress_real() != WDG_NONE)
-            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 48, WT_ACTION_Y, 260, turn_off_cb, NULL);
+            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 396, WT_ACTION_Y, 208, turn_off_cb, NULL);
         wt_pill(s_scr, tr(STR_C_OK), WT_BACK_X, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }

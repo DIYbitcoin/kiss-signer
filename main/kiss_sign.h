@@ -10,4 +10,7 @@ void kiss_sign_close(void);   // idle auto-lock: drop the screen + any loaded PS
 #ifndef ESP_PLATFORM
 // Walk only: is HOLD TO SIGN live on the verify screen? See kiss_sign.c.
 bool kiss_sign_test_armed(void);
+// Walk only: is the graph standing its output side down behind a padlock? True
+// from the press until the hold is let go or the transaction is written.
+bool kiss_sign_test_locked(void);
 #endif

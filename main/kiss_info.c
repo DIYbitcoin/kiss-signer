@@ -794,8 +794,8 @@ static void info_screen(void)
     int sc = kiss_script();
     int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
     snprintf(buf, sizeof buf, "%s   m/%dh/%dh/0h",
-             sc == WSCRIPT_LEGACY ? "Legacy"
-                 : sc == WSCRIPT_NESTED ? "Nested SegWit" : "Native SegWit",
+             tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
+                : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED : STR_S_TY_NATIVE),
              purpose, kiss_testnet() ? 1 : 0);
     wt_row_f(s_scr, tr(STR_I_SEC_TYPE), buf, wt_font_mono14(), NULL, NULL,
              WT_INK, WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W,

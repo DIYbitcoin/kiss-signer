@@ -29,3 +29,27 @@ design_handoff_kiss_signer/
 # third party audit working notes (crypto-wallet-security-audit skill): working
 # state, not a deliverable. Only a reviewed summary belongs in the repo.
 audit-notes/
+Sign IO Visualization.dc.html
+
+# Signing keys. The device refuses an OTA image whose signature does not check
+# against the public key baked into it, so the private half of that pair is the
+# one file in this project that can make firmware your signer will boot. It
+# lives in ~/.kiss-signer/ and is never in the tree -- build_release.sh reads it
+# from there, and docs/installer/SIGNING.md says to keep it offline like the GPG
+# key. A stray test key was sitting in the repo root; one `git add -A` is all
+# that stands between that and a public repo, which is why this is a pattern and
+# not a filename.
+*.pem
+!docs/installer/kiss_ota_pub.pem
+
+# The sdtest board config, same as its release/encrypted siblings above.
+sdkconfig.sdtest
+
+# Local editor and tool settings. Machine specific, and the repository is not
+# where they belong: .claude/settings.local.json was tracked for eight commits
+# before anyone noticed.
+.claude/
+
+# The working copy the local tooling reads. The tracked rules are
+# docs/house-rules.md; this file is a machine local convenience.
+CLAUDE.md
