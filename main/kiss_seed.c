@@ -74,8 +74,12 @@ static int storage_read_keep(char *out, size_t out_len)
     s_keep_legacy = 0;
 #ifdef ESP_PLATFORM
     nvs_handle_t h;
-    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
-        return KEEP_ABSENT;
+    esp_err_t orc = nvs_open("kiss", NVS_READONLY, &h);
+    if (orc != ESP_OK)
+        // A missing namespace is an empty slot; anything else (a corrupt
+        // area) is damage and must never read as absent, or setup would
+        // offer a fresh wallet over it.
+        return orc == ESP_ERR_NVS_NOT_FOUND ? KEEP_ABSENT : KEEP_BAD;
     uint8_t blob[SDSEED_MAX_BLOB];
     size_t blen = sizeof blob;
     esp_err_t err = nvs_get_blob(h, "wblob", blob, &blen);
@@ -92,8 +96,12 @@ static int storage_read_keep(char *out, size_t out_len)
     }
     // Pre-tag devices. The words are still theirs; kiss_seed_load migrates.
     size_t len = out_len;
-    int rc = nvs_get_str(h, "words", out, &len) == ESP_OK
-           ? KEEP_OK : KEEP_ABSENT;
+    esp_err_t nrc = nvs_get_str(h, "words", out, &len);
+    // nvs_get_str answers ESP_ERR_NVS_INVALID_LENGTH to an entry longer than
+    // out_len. That is damage, not absence: a bad string must never read as
+    // an empty slot, or setup would offer a fresh wallet over it.
+    int rc = nrc == ESP_OK ? KEEP_OK
+           : nrc == ESP_ERR_NVS_NOT_FOUND ? KEEP_ABSENT : KEEP_BAD;
     nvs_close(h);
     if (rc == KEEP_OK && kiss_seed_validate(out) != 0) {
         wally_bzero(out, out_len);
