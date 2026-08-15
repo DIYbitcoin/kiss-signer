@@ -433,10 +433,29 @@ static void fw_screen(void)
         // meeting "signature checked first" here has nowhere else to learn
         // what a signature buys them, and the two paragraphs that explain it
         // are already translated on the confirm screen.
-        wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_FW_WHY_H),
-                 NULL, NULL, NULL, NULL, WT_INK,
-                 false, WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W,
-                 WT_ROW_H, sig_row_help_cb, NULL);
+        //
+        // The "?" is the row's VALUE, in the accent, in the slot the size row
+        // above it puts "3.4 MB". It used to be a chevron, and on glass the
+        // owner read the row as inert and reported the help missing: a chevron
+        // promises a DESTINATION, so a row wearing one beside a claim reads as
+        // navigation nobody wants, not as an answer waiting to be asked for.
+        //
+        // In the value slot rather than as a wt_help_chip on the screen, and
+        // that is a geometry answer rather than a style one. wt_row_x sizes
+        // the label's BOX to the whole lane when the row has no value, so a
+        // 30px chip dropped at the row's right edge lands inside that box and
+        // the overlap gate reports a collision in all 21 locales. Handing the
+        // mark to the value slot is what bounds the label, and it is also
+        // where every other fact on this screen keeps its right hand mark.
+        //
+        // The cb is attached after the fact so the row does NOT also grow a
+        // chevron: one mark on a row, and the whole card is its target.
+        lv_obj_t *sig = wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_FW_WHY_H),
+                                 NULL, NULL, "?", NULL, wt_accent(),
+                                 false, WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W,
+                                 WT_ROW_H, NULL, NULL);
+        lv_obj_add_flag(sig, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(sig, sig_row_help_cb, LV_EVENT_CLICKED, NULL);
 
         // The direction sits under the card it describes, coloured by what it
         // means: forward is ordinary, backward is not.
