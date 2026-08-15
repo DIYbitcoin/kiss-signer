@@ -1010,30 +1010,43 @@ static lv_obj_t *pill_for(int key, const char *how)
 // taps nothing above an empty frame is exactly the silent derail the first
 // counter exists for, so the chips are found by their own marks and order
 // instead: they are the only "?" labels in the page's right hand column.
+static void det_chip_scan(lv_obj_t *o, lv_obj_t **found, int *n)
+{
+    if (*n >= 8) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        // ABSOLUTE coords, and a RECURSIVE walk. Both halves were wrong before:
+        // lv_obj_get_x is relative to the parent, and this label's parent is the
+        // 30px chip it is centred in, so its own x is about 10 in every column;
+        // and the scan went screen -> child -> grandchild, while wt_screen puts
+        // a container of its own between the active screen and anything a page
+        // builds, which leaves these labels three deep. It found nothing on any
+        // screen, in any locale, for either reason on its own.
+        lv_area_t la; lv_obj_get_coords(o, &la);
+        if (t && strcmp(t, "?") == 0 && la.x1 >= 700) found[(*n)++] = o;
+        return;
+    }
+    uint32_t c = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < c && *n < 8; i++)
+        det_chip_scan(lv_obj_get_child(o, i), found, n);
+}
+
 static lv_obj_t *det_chip(int idx)
 {
     lv_obj_t *found[8];
     int n = 0;
-    // Chips sit ON the screen; each chip's "?" is a label INSIDE it, so the
-    // scan goes two levels: the screen's children, then their children.
-    uint32_t pc = lv_obj_get_child_count(lv_screen_active());
-    for (uint32_t i = 0; i < pc && n < 8; i++) {
-        lv_obj_t *c = lv_obj_get_child(lv_screen_active(), i);
-        uint32_t cc = lv_obj_get_child_count(c);
-        for (uint32_t j = 0; j < cc && n < 8; j++) {
-            lv_obj_t *l = lv_obj_get_child(c, j);
-            if (lv_obj_check_type(l, &lv_label_class)) {
-                const char *t = lv_label_get_text(l);
-                if (t && strcmp(t, "?") == 0 && lv_obj_get_x(l) >= 700)
-                    found[n++] = l;
-            }
-        }
-    }
+    det_chip_scan(lv_screen_active(), found, &n);
+    // Top to bottom on the glass, for the same reason: every one of these
+    // labels sits at the same y inside its own chip.
     for (int a = 0; a < n; a++)
-        for (int b = a + 1; b < n; b++)
-            if (lv_obj_get_y(found[b]) < lv_obj_get_y(found[a])) {
+        for (int b = a + 1; b < n; b++) {
+            lv_area_t aa, ab;
+            lv_obj_get_coords(found[a], &aa);
+            lv_obj_get_coords(found[b], &ab);
+            if (ab.y1 < aa.y1) {
                 lv_obj_t *t = found[a]; found[a] = found[b]; found[b] = t;
             }
+        }
     if (idx < 0 || idx >= n) {
         printf("FAIL: expected a %dth '?' chip in the details column, found %d\n",
                idx, n);
