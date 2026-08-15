@@ -1885,6 +1885,12 @@ static const struct {
   // the deadline only counts in the second case.
   uint32_t secret_idle_ms;
   bool idle_needs_session;
+  // idle_keeps_session: expiry wipes this row's secret and stops there. The
+  // ordinary expiry locks an open session afterwards, which is right for a
+  // typed passphrase and fatal for RECOVER -- the lock would close the one
+  // screen naming a staged wallet that may exist nowhere else. A row that
+  // holds the last copy sets this, and its expiry is a wipe, not a teardown.
+  bool idle_keeps_session;
   void (*idle_expire)(void);
 } SCREENS[] = {
   // Wizards and login. They own the touch AND hold the clock off: writing
@@ -1894,22 +1900,30 @@ static const struct {
   // The deadline is suppressed while the RECOVER screen is up: its retry
   // keeps the passphrase in s_pass, and a wipe would make TRY AGAIN open an
   // empty-passphrase wallet beneath the stale fingerprint.
-  { kiss_ui_login_deadline_active, NULL,         true,  true,  120000, false, kiss_ui_idle_wipe },
-  { kiss_setup_active,     NULL,                  true,  true,  0,      false, NULL },
-  { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  kiss_duress_ui_lock_close },
-  { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  kiss_word_ui_lock_close },
+  { kiss_ui_login_deadline_active, NULL,         true,  true,  120000, false, false, kiss_ui_idle_wipe },
+  { kiss_setup_active,     NULL,                  true,  true,  0,      false, false, NULL },
+  { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  false, kiss_duress_ui_lock_close },
+  { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  false, kiss_word_ui_lock_close },
   // The commit-failed RECOVER screen, and the words screen it opens. Same
   // two trues for the same reason, plus one of its own: the staged seed it
-  // names may be the last copy anywhere, so it registers no close and no
-  // deadline -- the lock must neither fire under it nor take it away.
-  { kiss_ui_recover_active, NULL,                 true,  true,  0,      false, NULL },
+  // names may be the last copy anywhere, so it registers no close -- the
+  // lock must neither fire under it nor take it away.
+  //
+  // Its deadline is the passphrase alone. The words behind SHOW WORDS have
+  // no deadline and must not gain one; the typed passphrase the retry keeps
+  // is a different thing, and leaving it in RAM for as long as the screen
+  // stands was the one place on the device where a secret idled forever.
+  // Five minutes is what the other read-slowly screens already use. On
+  // expiry the wipe touches nothing else, and TRY AGAIN asks for the
+  // passphrase again instead of opening a wallet nobody chose.
+  { kiss_ui_recover_active, NULL,                 true,  true,  300000, false, true,  kiss_ui_idle_wipe },
   // Wallet sub-screens. They own the touch and the lock takes them away.
-  { kiss_scan_active,      kiss_scan_close,     true,  false, 0, false, NULL },
-  { kiss_sign_active,      kiss_sign_close,     true,  false, 0, false, NULL },
-  { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, NULL },
-  { kiss_info_active,      kiss_info_close,     true,  false, 0, false, NULL },
-  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, NULL },
-  { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, NULL },
+  { kiss_scan_active,      kiss_scan_close,     true,  false, 0, false, false, NULL },
+  { kiss_sign_active,      kiss_sign_close,     true,  false, 0, false, false, NULL },
+  { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, false, NULL },
+  { kiss_info_active,      kiss_info_close,     true,  false, 0, false, false, NULL },
+  { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, false, NULL },
+  { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, false, NULL },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
@@ -1988,11 +2002,17 @@ static void game_tick(lv_timer_t *t) {
       s_secret_rows = rows;
       s_secret_act_t = lv_tick_get();
     } else if (deadline && lv_tick_elaps(s_secret_act_t) > deadline) {
+      bool keep_session = false;
       for (size_t i = 0; i < N_SCREENS; i++)
         if ((rows & (1u << i)) &&
-            lv_tick_elaps(s_secret_act_t) > SCREENS[i].secret_idle_ms)
+            lv_tick_elaps(s_secret_act_t) > SCREENS[i].secret_idle_ms) {
           SCREENS[i].idle_expire();
-      if (s_wallet_on) {
+          // One expired row is enough to stop the lock: it is up because it
+          // holds the last copy of something, and locking would take the
+          // screen naming it away. Its secret is already gone.
+          keep_session |= SCREENS[i].idle_keeps_session;
+        }
+      if (s_wallet_on && !keep_session) {
         for (size_t i = 0; i < N_SCREENS; i++)
           if (SCREENS[i].close && SCREENS[i].active())
             SCREENS[i].close();

@@ -706,16 +706,28 @@ static void recover_retry_async(void *ud)
     s_recover_retry_queued = false;
 
     // The retry must open the wallet whose fingerprint the owner already saw.
-    // Recovery intentionally retains s_pass, but if any future timeout or
-    // lifecycle path clears it, blindly continuing would open the empty-
-    // passphrase wallet under that stale fingerprint. Fail closed on the
-    // recovery screen instead; SHOW WORDS remains available.
+    // Recovery retains s_pass for exactly that, but the screen has its own
+    // deadline now (main.c's registry) and an untouched five minutes wipes
+    // the passphrase while leaving the words: continuing then would open the
+    // empty-passphrase wallet under a stale fingerprint. Never that.
     uint8_t fp[4] = {0};
     bool same = s_shown_fp_valid &&
                 kiss_fingerprint(s_plen ? s_pass : NULL, fp) == 0 &&
                 memcmp(fp, s_shown_fp, sizeof fp) == 0;
     kiss_wipe(fp, sizeof fp);
-    if (!same) return;
+    if (!same) {
+        // Ask for it again, on the keyboard RECOVER hid rather than deleted.
+        // The wipe already put the flow back to its first stage, so the
+        // wizard's own type-twice runs from scratch and lands on the same
+        // fingerprint screen the commit failed from. Refusing silently was
+        // safe and unusable: a button that does nothing, on the screen
+        // holding the only copy of a wallet.
+        if (!s_login) return;      // nothing to ask with: RECOVER keeps SHOW WORDS
+        recover_close();
+        lv_obj_remove_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+        if (s_entry) { entry_refresh_text(); caret_refresh(); }
+        return;
+    }
 
     recover_close();
     fp_tap_cb(NULL);
@@ -971,6 +983,10 @@ void kiss_ui_idle_wipe(void) {
   s_first_done = false;      // stage 2 described an entry that no longer exists
   s_show = false;
   s_flash = false;
+  // The toggle keeps its own label, and the wipe turns SHOW off underneath
+  // it: the button read HIDE over a field that was already masked and empty,
+  // so the first press unmasked instead of masking.
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
   // A weak-passphrase card is a question about the entry just wiped; the
   // cancel confirm is a question about the SETUP and survives on purpose.
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
