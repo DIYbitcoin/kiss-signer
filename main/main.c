@@ -1891,7 +1891,10 @@ static const struct {
   // twelve words onto paper takes minutes of a screen nobody is touching.
   // The login is the exception that proves it: a typed passphrase is not a
   // thing to read slowly, so it alone gets a short deadline at every stage.
-  { kiss_ui_active,        NULL,                  true,  true,  120000, false, kiss_ui_idle_wipe },
+  // The deadline is suppressed while the RECOVER screen is up: its retry
+  // keeps the passphrase in s_pass, and a wipe would make TRY AGAIN open an
+  // empty-passphrase wallet beneath the stale fingerprint.
+  { kiss_ui_login_deadline_active, NULL,         true,  true,  120000, false, kiss_ui_idle_wipe },
   { kiss_setup_active,     NULL,                  true,  true,  0,      false, NULL },
   { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  kiss_duress_ui_lock_close },
   { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  kiss_word_ui_lock_close },

@@ -17,6 +17,7 @@
 #include "pass_edit.h"      // insert/delete at the caret, tested in sim/test_passedit.c
 #include "kiss_info.h"    // kiss_info_fp_card_open: the "?" on the reveal screen
 #include "kiss_theme.h"
+#include "kiss_wipe.h"  // secret wipes survive dead-store elimination
 
 #ifndef SIMULATOR
 #include "esp_efuse.h"
@@ -53,6 +54,8 @@ static lv_timer_t *s_pop_tmr;
 static char s_pass[PASS_MAX + 1];
 static int s_plen;
 static int s_caret;                        // insertion point, 0..s_plen (s_plen = at the end)
+static void pop_wipe_text(void);           // defined with the key callout, below
+static void login_teardown(void);          // defined with wipe_and_close, below
 static lv_obj_t *s_caret_obj;              // the visible bar, child of s_entry
 static bool s_show;                        // show-all toggle
 static bool s_flash;                       // last char currently unmasked
@@ -121,6 +124,17 @@ static lv_obj_t *s_pp_intro;   // setup passphrase-intro screen (owns touch too)
 
 bool kiss_ui_active(void) {
   return s_login != NULL || s_fpscr != NULL || s_errscr != NULL || s_pp_intro != NULL;
+}
+
+// The login row's secret deadline, suppressed while the RECOVER screen holds
+// the staged secret. The hidden login still owns the touch, but its
+// 120-second wipe would erase the passphrase the retry keeps in s_pass -- and
+// TRY AGAIN would then commit an EMPTY passphrase under the stale fingerprint,
+// opening a different wallet than the one the owner watched the fingerprint
+// of. The recovery row carries no deadline of its own (the staged seed may be
+// the last copy anywhere), so suppressing this row leaves nothing due.
+bool kiss_ui_login_deadline_active(void) {
+  return kiss_ui_active() && !kiss_ui_recover_active();
 }
 
 // ---- keyboard maps (three planes) ----
@@ -276,6 +290,7 @@ static void entry_apply(const char *txt, int chars) {
     static char tail[3 * 76 + 8];
     snprintf(tail, sizeof tail, "...%s", p);
     lv_label_set_text(s_entry, tail);
+    kiss_wipe(tail, sizeof tail);   // LVGL copied it; the static buffer must not keep it
   } else {
     lv_label_set_text(s_entry, txt);
   }
@@ -301,8 +316,19 @@ static void caret_refresh(void) {
 }
 
 // ---- entry display: dots, optional flash of the newest char, show-all ----
+// The label's text lives in LVGL's heap, copied there by lv_label_set_text,
+// and while SHOW is on that copy IS the passphrase. Wipe the previous render
+// before replacing it, on every re-render; the guard skips the label's
+// initial static-empty text, which is not ours to write.
+static void entry_wipe_text(void) {
+  if (!s_entry) return;
+  const char *t = lv_label_get_text(s_entry);
+  if (t && *t) kiss_wipe((void *)t, strlen(t) + 1);
+}
+
 static void entry_refresh_text(void) {
   static char buf[PASS_MAX * 3 + 8];
+  entry_wipe_text();
   meter_refresh();
   if (s_count) {
     int sp = 0;
@@ -316,11 +342,13 @@ static void entry_refresh_text(void) {
     lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
     lv_label_set_text(s_entry, tr(STR_L_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
+    kiss_wipe(buf, sizeof buf);
     return;
   }
   lv_obj_set_style_text_color(s_entry, wt_accent(), 0);
   if (s_show) {
     entry_apply(s_pass, s_plen);
+    kiss_wipe(buf, sizeof buf);
     return;
   }
   // Dots, with the character just entered left bare for FLASH_MS. That
@@ -334,6 +362,7 @@ static void entry_refresh_text(void) {
   }
   buf[n] = 0;
   entry_apply(buf, s_plen);
+  kiss_wipe(buf, sizeof buf);
 }
 
 // Text first, then the caret. The caret is placed by asking the label where a
@@ -390,6 +419,16 @@ static lv_obj_t *s_warnscr;                // post-setup passphrase warning (one
 static bool s_backup_verified;             // every word + exact passphrase rehearsed
 static bool s_backup_verify_pass;          // keyboard is checking that passphrase now
 
+// The typed passphrase, cleared through kiss_wipe: an ordinary memset can be
+// optimized away the moment the compiler sees the buffer is dead, which is
+// exactly the shape every wipe of a secret is in.
+static void wipe_login_secrets(void) {
+  kiss_wipe(s_pass, sizeof s_pass);
+  kiss_wipe(s_first, sizeof s_first);
+  s_plen = 0;
+  s_caret = 0;
+}
+
 static void wipe_and_close(void) {
   if (s_cancel_ovl) { lv_obj_delete_async(s_cancel_ovl); s_cancel_ovl = NULL; }
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
@@ -397,8 +436,7 @@ static void wipe_and_close(void) {
   // cancelling setup before the fingerprint confirm drops the staged seed, so
   // an abandoned setup never leaves a half-made wallet in flash (P0 safety net)
   if (s_setup_mode) kiss_seed_discard();
-  memset(s_pass, 0, sizeof(s_pass));         // never keep the passphrase around
-  memset(s_first, 0, sizeof(s_first));
+  wipe_login_secrets();
   s_setup_mode = false;
   s_pass_later = false;
   s_first_done = false;
@@ -409,10 +447,32 @@ static void wipe_and_close(void) {
   s_caret = 0;
   s_show = false;
   s_flash = false;
+  login_teardown();
+}
+
+// A rendered secret is a copy of the passphrase in LVGL's own heap: the entry
+// label's current text (the full passphrase while SHOW is on) and the key
+// callout's single character. The buffers outlive the wipe of s_pass — they
+// are freed only with the screen — so scrub them wherever the login dies
+// (login_teardown) or is left standing while the flow moves on (the success
+// path of fp_tap_cb).
+static void login_scrub_rendered(void) {
+  entry_wipe_text();
+  pop_wipe_text();
+}
+
+// The login screen dies. Scrub every rendered copy of the secret first, kill
+// the timers that would call back into freed widgets, then delete the screen
+// and null EVERY pointer into it. A half-nulled set leaves the rest dangling
+// for the next wipe or callback: recover_screen used to null only s_login,
+// and the next teardown then dereferenced the freed entry label.
+static void login_teardown(void) {
+  login_scrub_rendered();
   if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
   if (s_pop_tmr) { lv_timer_delete(s_pop_tmr); s_pop_tmr = NULL; }
-  s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL;   // children of s_login: die with it
-  s_caret_obj = NULL;                                // child of s_entry, same fate
+  s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL; s_kb = NULL;
+  s_entry = NULL; s_count = NULL; s_showbtn_lbl = NULL; s_cap = NULL;
+  s_caret_obj = NULL; s_meter = NULL; s_pp_hint = NULL;
   // async: this runs from event callbacks of children of these screens — deleting
   // an ancestor of the event target mid-event corrupts the rest of the event pass
   if (s_login) { lv_obj_delete_async(s_login); s_login = NULL; }
@@ -508,7 +568,7 @@ static void setup_accept_first(void) {
   memcpy(s_first, s_pass, sizeof s_first);
   s_first_done = true;
   s_weak_ack = false;
-  memset(s_pass, 0, sizeof s_pass);
+  kiss_wipe(s_pass, sizeof s_pass);
   s_plen = 0;
   s_caret = 0;
   s_show = false;
@@ -604,6 +664,7 @@ static void fp_tap_cb(lv_event_t *e);
 // is left. This screen says the opposite, and gives the two things that are
 // actually worth doing -- read the words onto paper, and try the write again.
 static lv_obj_t *s_recovscr;
+static bool s_recover_retry_queued;
 
 static void recover_close(void)
 {
@@ -642,16 +703,33 @@ bool kiss_ui_recover_active(void)
 static void recover_retry_async(void *ud)
 {
     (void)ud;
-#ifdef SIMULATOR
-#endif
+    s_recover_retry_queued = false;
+
+    // The retry must open the wallet whose fingerprint the owner already saw.
+    // Recovery intentionally retains s_pass, but if any future timeout or
+    // lifecycle path clears it, blindly continuing would open the empty-
+    // passphrase wallet under that stale fingerprint. Fail closed on the
+    // recovery screen instead; SHOW WORDS remains available.
+    uint8_t fp[4] = {0};
+    bool same = s_shown_fp_valid &&
+                kiss_fingerprint(s_plen ? s_pass : NULL, fp) == 0 &&
+                memcmp(fp, s_shown_fp, sizeof fp) == 0;
+    kiss_wipe(fp, sizeof fp);
+    if (!same) return;
+
+    recover_close();
     fp_tap_cb(NULL);
 }
 
 static void recover_retry_cb(lv_event_t *e)
 {
     (void)e;
-    recover_close();
-    lv_async_call(recover_retry_async, NULL);
+    if (s_recover_retry_queued) return;
+    // lv_async_call allocates both a record and a timer. If either allocation
+    // fails, leave RECOVER visible: deleting the last-copy screen before the
+    // retry is actually queued strands the only safe actions it offers.
+    if (lv_async_call(recover_retry_async, NULL) == LV_RESULT_OK)
+      s_recover_retry_queued = true;
 }
 
 static void recover_words_done(void)
@@ -681,8 +759,24 @@ static void recover_screen(void)
 {
 #ifdef SIMULATOR
 #endif
-    if (s_login)  { lv_obj_delete_async(s_login);  s_login = NULL; }
-    if (s_fpscr)  { lv_obj_delete_async(s_fpscr);  s_fpscr = NULL; }
+    // The login is HIDDEN, not deleted. The retry re-derives the same
+    // session, and the setup flow after it (the optional rehearsal) reopens
+    // the keyboard from the warn screen: setup_warn_words_done un-hides
+    // s_login. A deleted login left that step with nothing to type into, and
+    // its stale pointers were what the retry's later teardown dereferenced.
+    // The rendered copies of the passphrase are scrubbed here (the label
+    // heap holds the SHOW text); s_pass itself stays for the retry. The
+    // mask timer dies with the scrub: a live flash timer would re-render
+    // the retained passphrase into the hidden label on its next tick,
+    // repainting the exact text the scrub just erased. s_flash resets so
+    // the entry comes back fully masked.
+    if (s_login) {
+      login_scrub_rendered();
+      if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
+      s_flash = false;
+      lv_obj_add_flag(s_login, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
     recover_close();
 
     s_recovscr = wt_screen(lv_screen_active(), tr(STR_L_RECOVER_T), NULL);
@@ -721,20 +815,17 @@ static void setup_fail_dismiss_cb(lv_event_t *e) {
   (void)e;
   s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
   s_setup_mode = false; s_first_done = false; s_weak_ack = false;
-  s_plen = 0; s_caret = 0; s_show = false; s_flash = false;
-  memset(s_pass, 0, sizeof s_pass);
-  memset(s_first, 0, sizeof s_first);
+  s_pass_later = false;      // a failed add-later run is over; the next
+                             // Settings entry re-arms it
+  wipe_login_secrets();
+  s_show = false; s_flash = false;
   if (s_errscr) { lv_obj_delete_async(s_errscr); s_errscr = NULL; }
 }
 
 // Setup couldn't be saved (staged seed failed to commit, or the session didn't
 // derive): show a clear STOP instead of silently entering a broken home.
 static void setup_fail_screen(void) {
-  if (s_mask_tmr) { lv_timer_delete(s_mask_tmr); s_mask_tmr = NULL; }
-  if (s_pop_tmr) { lv_timer_delete(s_pop_tmr); s_pop_tmr = NULL; }
-  s_pop = NULL; s_pop_lbl = NULL; s_kflash = NULL;
-  if (s_login) { lv_obj_delete_async(s_login); s_login = NULL; }
-  if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
+  login_teardown();
 
   s_errscr = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_errscr);
@@ -808,6 +899,7 @@ static void fp_tap_cb(lv_event_t *e) {
     }
     if (crc != WSEED_OK && crc != WSEED_ERR_CLEANUP) {
       kiss_seed_discard();
+      wipe_login_secrets();
       setup_fail_screen();
       return;
     }
@@ -817,6 +909,10 @@ static void fp_tap_cb(lv_event_t *e) {
     // If the swap still fails, never publish the candidate fingerprint or
     // pretend that an unlocked session exists.
     if (s_setup_mode) kiss_session_close();
+    // The typed passphrase dies HERE, not on the failure screen's dismissal:
+    // that screen only inherits the login's two-minute secret-idle wipe, so a
+    // device set down on it would still sit on plaintext for up to 120 s.
+    wipe_login_secrets();
     setup_fail_screen();
     return;
   }
@@ -835,10 +931,12 @@ static void fp_tap_cb(lv_event_t *e) {
   // Sign use, and both exits below already wiped exactly this set, so doing it
   // here changes when rather than what. Returning to the keyboard re-types it,
   // which is what setup_warn_words_done was already relying on.
-  memset(s_pass, 0, sizeof s_pass);
-  memset(s_first, 0, sizeof s_first);
-  s_plen = 0;
-  s_caret = 0;
+  wipe_login_secrets();
+  // The SHOW text is a second copy of the passphrase in the entry label's
+  // heap, and the warn screen is on top of a login that stays alive until
+  // wipe_and_close: scrub it here, where the buffer dies, not when the screen
+  // finally does.
+  login_scrub_rendered();
   if (s_setup_mode) {          // one last screen: what the passphrase really is
     setup_warn_screen();       // (its OK button finishes the unlock)
     return;
@@ -869,10 +967,7 @@ void kiss_ui_idle_wipe(void) {
     lv_obj_delete_async(s_fpscr); s_fpscr = NULL;
     if (s_login) lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
   }
-  memset(s_pass, 0, sizeof s_pass);
-  memset(s_first, 0, sizeof s_first);
-  s_plen = 0;
-  s_caret = 0;
+  wipe_login_secrets();
   s_first_done = false;      // stage 2 described an entry that no longer exists
   s_show = false;
   s_flash = false;
@@ -885,6 +980,7 @@ void kiss_ui_idle_wipe(void) {
   if (s_login && s_cap && s_setup_mode)
     cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
   if (s_login && s_entry) { entry_refresh_text(); caret_refresh(); }
+  pop_wipe_text();   // the key callout may hold the last typed char, hidden or not
 }
 
 void kiss_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
@@ -928,7 +1024,7 @@ void kiss_ui_set_last_fp(const uint8_t fp[4])
 // thing.
 void kiss_ui_forget_fp(void)
 {
-  memset(s_last_fp, 0, sizeof s_last_fp);
+  kiss_wipe(s_last_fp, sizeof s_last_fp);
 }
 
 // Post-setup, pre-home: recovery words + passphrase rederive this wallet.
@@ -975,10 +1071,7 @@ static void setup_warn_words_done(void)
   // and require it fresh: comparing the resulting fingerprint proves the exact
   // words + exact passphrase combination without ever storing that passphrase.
   s_backup_verify_pass = true;
-  memset(s_pass, 0, sizeof s_pass);
-  memset(s_first, 0, sizeof s_first);
-  s_plen = 0;
-  s_caret = 0;
+  wipe_login_secrets();
   s_show = false;
   s_flash = false;
   if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
@@ -1104,7 +1197,10 @@ static void show_fingerprint(void) {
   if (kiss_fingerprint(s_plen ? s_pass : NULL, fp) != 0) {
     // derivation failed: STOP here. Never cache or reveal the zeroed fp —
     // it would flow into s_last_fp and render as the "SIGNING AS" identity.
+    // The typed passphrase dies with it: the fail screen only inherits the
+    // login's two-minute secret-idle wipe, and staging is already gone.
     if (s_setup_mode) kiss_seed_discard();
+    wipe_login_secrets();
     setup_fail_screen();
     return;
   }
@@ -1276,10 +1372,21 @@ static void key_rect(uint32_t id, int *x, int *y, int *w, int *h) {
 static lv_anim_t s_pop_a;
 static void pop_ty(void *o, int32_t v)  { lv_obj_set_style_translate_y((lv_obj_t *)o, v, 0); }
 
+// The callout shows the character just typed, a single plaintext char of the
+// passphrase, in LVGL's heap: wipe it before it is replaced and when the
+// callout hides, or the last char typed would sit in the label buffer until
+// the login screen is torn down.
+static void pop_wipe_text(void) {
+  if (!s_pop_lbl) return;
+  const char *t = lv_label_get_text(s_pop_lbl);
+  if (t && *t) kiss_wipe((void *)t, strlen(t) + 1);
+}
+
 static void pop_hide_cb(lv_timer_t *t) {
   (void)t;
   s_pop_tmr = NULL;
   if (s_pop) lv_obj_add_flag(s_pop, LV_OBJ_FLAG_HIDDEN);
+  pop_wipe_text();
 }
 
 // ---- key flash: the pressed key lights and fades ----
@@ -1342,6 +1449,7 @@ static void pop_show(const char *ch, uint32_t id) {
   }
   int kx, ky, kw, kh;
   key_rect(id, &kx, &ky, &kw, &kh);
+  pop_wipe_text();
   lv_label_set_text(s_pop_lbl, ch);
   int px = kx + kw / 2 - 48;
   if (px < 4) px = 4;
@@ -1415,7 +1523,7 @@ static void kb_cb(lv_event_t *e) {
       // This rehearsal is optional. Cancel returns to the warning with the
       // unverified red state; it does not abandon the wallet just created.
       s_backup_verify_pass = false;
-      memset(s_pass, 0, sizeof s_pass);
+      kiss_wipe(s_pass, sizeof s_pass);
       s_plen = 0;
       s_caret = 0;
       entry_refresh();
@@ -1432,13 +1540,13 @@ static void kb_cb(lv_event_t *e) {
       if (later && cb) cb();
     }
   }
-  else if (strcmp(txt, "OK") == 0) {
+  else if (strcmp(txt, tr(STR_C_OK)) == 0) {
     if (s_backup_verify_pass) {
       uint8_t fp[4] = {0};
       bool match = kiss_fingerprint(s_plen ? s_pass : NULL, fp) == 0
                 && memcmp(fp, s_last_fp, sizeof fp) == 0;
-      memset(fp, 0, sizeof fp);
-      memset(s_pass, 0, sizeof s_pass);
+      kiss_wipe(fp, sizeof fp);
+      kiss_wipe(s_pass, sizeof s_pass);
       s_plen = 0;
       s_caret = 0;
       s_show = false;
@@ -1462,15 +1570,15 @@ static void kb_cb(lv_event_t *e) {
       // unreproducible passphrase (= lost coins) later
       setup_accept_first();
     } else if (s_setup_mode && strcmp(s_first, s_pass) != 0) {
-      memset(s_first, 0, sizeof s_first);
+      kiss_wipe(s_first, sizeof s_first);
       s_first_done = false;
-      memset(s_pass, 0, sizeof s_pass);
+      kiss_wipe(s_pass, sizeof s_pass);
       s_plen = 0;
       s_caret = 0;
       cap_set(tr(STR_L_NO_MATCH), lv_color_hex(0xFF4D5E), true);
       entry_refresh();
     } else {
-      memset(s_first, 0, sizeof s_first);
+      kiss_wipe(s_first, sizeof s_first);
       show_fingerprint();
     }
   }
@@ -1659,7 +1767,7 @@ static void pp_intro_nopass_cb(lv_event_t *e) {
   // every other entry to this screen has been through wipe_and_close, but a
   // buffer this one never wrote is not a promise, and show_fingerprint derives
   // from s_plen.
-  memset(s_pass, 0, sizeof s_pass);
+  kiss_wipe(s_pass, sizeof s_pass);
   s_plen = 0;
   s_caret = 0;
   // No weak card on the way past: that card exists to question a guessable
@@ -1769,9 +1877,15 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   if (kiss_ui_active()) return;
   ensure_indev();
   s_unlocked_cb = unlocked_cb;
-  // localized CANCEL on every plane (array slot 32 = button id 29); kb_cb
-  // compares against the same tr() pointer, so the match is exact
-  MAP_LOWER[32] = MAP_UPPER[32] = MAP_SYM[32] = MAP_SYM2[32] = tr(STR_C_CANCEL);
+  // localized CANCEL and OK on every plane, CAPS included (slots 32 and 34 =
+  // button ids 29 and 31; slot 33 is the space key, width 3, and must keep
+  // its single space). kb_cb compares against the same tr() pointers, so the
+  // matches are exact. CAPS used to keep the static literals, so caps lock
+  // showed "CANCEL"/"OK" in every locale (hr-HR: OTKAŽI / U REDU).
+  MAP_LOWER[32] = MAP_UPPER[32] = MAP_CAPS[32] = MAP_SYM[32] = MAP_SYM2[32] =
+      tr(STR_C_CANCEL);
+  MAP_LOWER[34] = MAP_UPPER[34] = MAP_CAPS[34] = MAP_SYM[34] = MAP_SYM2[34] =
+      tr(STR_C_OK);
 
   s_login = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_login);
@@ -2061,5 +2175,11 @@ void kiss_ui_test_recover_close(void)
 {
     s_words_from_recov = false;
     recover_close();
+}
+bool kiss_ui_test_rendered_secret_empty(void)
+{
+    const char *entry = s_entry ? lv_label_get_text(s_entry) : NULL;
+    const char *pop = s_pop_lbl ? lv_label_get_text(s_pop_lbl) : NULL;
+    return (!entry || !*entry) && (!pop || !*pop);
 }
 #endif

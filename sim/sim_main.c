@@ -824,6 +824,7 @@ static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 // head and an accented tail, so no single label ever holds the whole string.
 // Concatenating the spans is the only way to ask "is the address on screen".
 static int find_label_text(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return 0;
   if (lv_obj_check_type(o, &lv_label_class)) {
     const char *t = lv_label_get_text(o);
     if (t && strstr(t, needle)) return 1;
@@ -844,6 +845,31 @@ static int find_label_text(lv_obj_t *o, const char *needle) {
   for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
     if (find_label_text(lv_obj_get_child(o, i), needle)) return 1;
   return 0;
+}
+
+// The 8-hex-char fingerprint string, the one value that identifies a wallet.
+// Both the fingerprint screen and the setup warning show it in a value card;
+// the walk reads it off one to prove the other names the same wallet. No
+// other label on either screen is exactly eight hex digits.
+static lv_obj_t *find_hex8(lv_obj_t *o) {
+  lv_obj_t *f;
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    if (t && strlen(t) == 8) {
+      int hex = 1;
+      for (int i = 0; i < 8; i++) {
+        char c = t[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'))) { hex = 0; break; }
+      }
+      if (hex) return o;
+    }
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    f = find_hex8(lv_obj_get_child(o, i));
+    if (f) return f;
+  }
+  return NULL;
 }
 // What IS on the screen, when what should be is not. A bare "no label contains
 // the address" says nothing about whether the walk landed on the wrong screen,
@@ -1360,6 +1386,36 @@ int main(void) {
 #endif
 
   sim_pick_accent();
+
+  // Focused boot-routing harness for tools/check_screen_coverage.py. Each
+  // non-OK settings status runs in its own process, before any game object or
+  // timer exists, and must stop on the literal safe-mode screen. This screen
+  // cannot participate in wt_screen's translated-title registry, so a separate
+  // machine-readable marker is the only honest way to include it in coverage.
+  const char *safe_boot = getenv("SCREENCOVER_SAFEBOOT");
+  if (safe_boot && *safe_boot) {
+    char *end = NULL;
+    long raw = strtol(safe_boot, &end, 10);
+    if (!end || *end || raw < WSETTINGS_LOAD_NVS_NO_FREE_PAGES ||
+        raw > WSETTINGS_LOAD_NVS_READ_FAILED) {
+      fprintf(stderr, "bad SCREENCOVER_SAFEBOOT status: %s\n", safe_boot);
+      return 1;
+    }
+    int err = 0x5A00 + (int)raw;
+    kiss_settings_sim_set_load_result((kiss_settings_load_status_t)raw, err);
+    build_game();
+    pump(20);
+    char cause[32];
+    snprintf(cause, sizeof cause, "code 0x%X", err);
+    must_show("safe-boot/title", "STORAGE LOCKED");
+    must_show("safe-boot/cause", cause);
+    must_not_show("safe-boot/no-game", "TAP TO PLAY");
+    save("/tmp/sim_storage_locked.ppm");
+    printf("SAFEBOOT\tSTORAGE LOCKED\t%s\n",
+           kiss_settings_load_status_name((kiss_settings_load_status_t)raw));
+    printf("sim done\n");
+    return g_walk_fails ? 1 : 0;
+  }
 
   build_game();
   pump(20);                                      // ~320ms: logo letters mid-drop
@@ -2927,9 +2983,68 @@ int main(void) {
   touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1 again
   touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning again
   touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
+  touch(696, 38); pump(3); release(); pump(3);      // SHOW: make the LVGL copy explicit
   touch(46, 278); pump(3); release(); pump(3);      // 'a' again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
-  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> passphrase warning
+  // The fingerprint this wallet is called, read off the glass BEFORE the
+  // idle deadline below. The retry must land on the SAME one: the login's
+  // 120-second wipe is suppressed while the RECOVER screen holds the staged
+  // secret, and if that suppression regressed, TRY AGAIN would commit an
+  // empty passphrase and the warning would show a different fingerprint.
+  lv_obj_t *fp_lbl = find_hex8(lv_screen_active());
+  char fp_hex[16] = "";
+  if (!fp_lbl) {
+    printf("FAIL: no fingerprint hex on the fp screen\n");
+    g_walk_fails++;
+  } else {
+    snprintf(fp_hex, sizeof fp_hex, "%s", lv_label_get_text(fp_lbl));
+  }
+  // The commit that could not finish, through the real UI: this TAP TO OPEN
+  // commits the staged wallet, and a staged RECOVER result puts the recovery
+  // screen where the passphrase warning should be. TRY AGAIN then re-runs
+  // the same commit; the teardown under that success path used to
+  // dereference the freed entry label (recover_screen had deleted the login
+  // and nulled only s_login), which is what this block exists to catch. The
+  // retry must also land back on the same warning the flow expects next,
+  // because everything below this stop depends on it.
+  g_sim_commit_recover = 1;
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen
+  must_show("setup/recover", tr(STR_L_RECOVER_T));
+  g_sim_commit_recover = 0;
+  // The recovery screen, held past the login's 120-second deadline. The
+  // staged secret must not inherit the hidden login's idle wipe -- the
+  // retry passphrase lives in s_pass, and a wipe would make TRY AGAIN open
+  // an empty-passphrase wallet under the stale fingerprint. 131s, matching
+  // the type-twice idle stop above.
+  pump(8200);
+  must_show("recover/idle-survives", tr(STR_L_RECOVER_T));
+  save("/tmp/sim_setup_recover_idle.ppm");         // the long-lived RECOVER state itself
+  if (!kiss_ui_test_rendered_secret_empty()) {
+    printf("FAIL: recovery mask timer repopulated a hidden rendered secret\n");
+    g_walk_fails++;
+  }
+  tap_str(STR_C_TRY_AGAIN, 3, 30);      // TRY AGAIN -> the passphrase warning
+  must_show("setup/recover-retry", tr(STR_L_WARN_T));
+  // The warning deliberately reuses the fingerprint already shown, so comparing
+  // its label alone cannot prove the retry used the retained passphrase. The sim
+  // marks an empty-passphrase session as the decoy; this fixture typed "a" and
+  // must therefore reopen a non-decoy session after the 131-second wait.
+  if (kiss_session_decoy()) {
+    printf("FAIL: recovery retry opened the empty-passphrase session\n");
+    g_walk_fails++;
+  }
+  if (fp_hex[0]) {
+    lv_obj_t *warn_lbl = find_hex8(lv_screen_active());
+    if (!warn_lbl) {
+      printf("FAIL: setup/recover-retry: no fingerprint hex on the warning\n");
+      g_walk_fails++;
+    } else if (strcmp(fp_hex, lv_label_get_text(warn_lbl)) != 0) {
+      printf("FAIL: setup/recover-retry: warning names %s, not the %s shown before the idle\n",
+             lv_label_get_text(warn_lbl), fp_hex);
+      g_walk_fails++;
+    }
+  }
+  save("/tmp/sim_setup_recover_retry.ppm");        // retry landed, teardown held
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
 
@@ -3430,8 +3545,9 @@ int main(void) {
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
-  tap_str(STR_G_FW_HOLD, 100, 20);  // hold -> writing -> refused
-  save("/tmp/sim_fw_rejected.ppm");                 // NOT INSTALLED, in WT_STOP
+  tap_str(STR_G_FW_HOLD, 95, 1);       // hold completes, WRITING announces
+  pump(100);                           // deferred refusal lands, as above
+  save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
 
   // 4. no card at all: the same two block shape, different left hand claim.
   unlink("/tmp/simsd/kiss-signer-99.0.0.bin");

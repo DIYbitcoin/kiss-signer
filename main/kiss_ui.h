@@ -24,6 +24,11 @@ bool kiss_ui_active(void);
 // the last copy anywhere, so nothing is allowed to tear it down.
 bool kiss_ui_recover_active(void);
 
+// The login row's idle-deadline gate: the login's 120-second wipe must not
+// fire while the RECOVER screen holds the retry passphrase in s_pass, or
+// TRY AGAIN would open an empty-passphrase wallet under the stale fingerprint.
+bool kiss_ui_login_deadline_active(void);
+
 // Fingerprint of the most recently unlocked wallet (4 bytes).
 void kiss_ui_last_fp(uint8_t out[4]);
 // True after the words + exact passphrase were rehearsed in THIS session
@@ -83,5 +88,7 @@ void kiss_build_id_restyle(lv_obj_t *version_label);
 // session under the screen), so it can no longer be a leaf that never leaves.
 void kiss_ui_test_recover_screen(void);
 void kiss_ui_test_recover_close(void);
+// True only when the hidden login's LVGL-owned entry/callout copies are empty.
+// The recovery walk uses this after the 900 ms mask timer would have fired.
+bool kiss_ui_test_rendered_secret_empty(void);
 #endif
-
