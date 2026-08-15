@@ -2032,11 +2032,12 @@ int main(void) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
   }
-  // Drag the recipient panel up until it stops moving. The panel is at
-  // SG_RECIP_X..+SG_RECIP_W, so x=250 is inside it and clear of the change
-  // panel; each drag is one flick and the list settles between them.
+  // Drag the graph's output column up until it stops moving. The column is the
+  // right half of the graph box, page x 464..776, so x=600 is inside it and
+  // clear of the scrollbar; each drag is one flick and the list settles between
+  // them. The strands are redrawn to follow their rows on every one of these.
   for (int f = 0; f < 6; f++) {
-    for (int i = 0; i <= 8; i++) { touch(250, 300 - i * 20); pump(3); }
+    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
     release(); pump(10);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
@@ -2073,8 +2074,20 @@ int main(void) {
   }
   touch(652, 366); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
   save("/tmp/sim_sign_merge_ack.ppm");
+  // Then read the output column to its end, because on this transaction
+  // whether that is even necessary depends on the locale: "no change, this
+  // empties all 20" is one line in English and two in Czech, which is enough to
+  // push the column over its fold. That is the gate behaving correctly -- if
+  // anything is below the fold it must be read -- so the walk scrolls
+  // unconditionally rather than asserting a state only English reaches. On a
+  // column that does not overflow these drags are a no-op.
+  for (int f = 0; f < 4; f++) {
+    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
+    release(); pump(10);
+  }
   if (!kiss_sign_test_armed()) {
-    printf("FAIL: HOLD TO SIGN still inert after the coins-linked bar was acked\n");
+    printf("FAIL: HOLD TO SIGN still inert after the bar was acked and the "
+           "outputs read to their end\n");
     return 1;
   }
   printf("ok: twenty coins elide to five rows, count and total both stated\n");

@@ -2628,6 +2628,13 @@ typedef struct {
     lv_obj_t           *amount[WT_BUNDLE_MAX];
     lv_obj_t           *note[WT_BUNDLE_MAX];
     uint8_t             role[WT_BUNDLE_MAX];
+    // The output side, and what it takes to redraw its strands when it moves.
+    lv_obj_t           *col;      // the scrolling output column, NULL if fixed
+    lv_obj_t           *sbox;     // clips the output strands to the graph band
+    lv_obj_t           *row[WT_BUNDLE_MAX];   // one per output, in column order
+    uint16_t            n_out;
+    uint16_t            out0;     // index in line[] where the outputs start
+    int16_t             jy;       // the junction, in box coordinates
 } wt_bundle_t;
 
 // lv_line_set_points stores the POINTER, not a copy (see kiss_word_ui.c:82 for
@@ -2719,6 +2726,13 @@ static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
     lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(r, end ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    // Content sized, so it never actually clips anything -- and saying so
+    // matters beyond drawing. A clip is what decides whether a cut off label is
+    // "below a fold the reader can scroll" or "text nobody can ever read", and
+    // the answer is taken from the nearest clipping ancestor. Left unsaid, a
+    // row that clips nothing still answers that question, with its own
+    // unscrollable self, for a column that scrolls perfectly well.
+    lv_obj_add_flag(r, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
     lv_obj_set_style_pad_column(r, 8, 0);
     lv_obj_set_pos(r, x, y);
     return r;
@@ -2733,6 +2747,46 @@ static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
     lv_obj_set_style_text_color(l, col, 0);
     if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     return l;
+}
+
+// Point every output strand at where its row actually IS, measured rather than
+// assumed, and let the box clip whatever leaves the band.
+//
+// This is the rule the scrolling column has to obey and the reason the strands
+// are recomputed instead of scrolled: the junction end is fixed and the row end
+// is not, so the two halves of one line move differently. Scrolling the strands
+// with the column would carry the junction off with them. Clamping the row end
+// to the edge would be worse than either -- the strand would appear to arrive
+// somewhere its row is not, which is the one thing a line between two facts may
+// never do. So it is drawn to the true position and cut where it leaves.
+static void bundle_relink(wt_bundle_t *b)
+{
+    if (!b->col) return;
+    const int sy = lv_obj_get_scroll_y(b->col);
+    // Row positions are box coordinates; the strands live in sbox, which is the
+    // graph BAND with no padding, so everything crossing over loses BPAD.
+    const int cy = lv_obj_get_y(b->col) - BPAD;
+    for (uint16_t i = 0; i < b->n_out; i++) {
+        lv_obj_t *ln = b->line[b->out0 + i];
+        lv_obj_t *rw = b->row[i];
+        if (!ln || !rw) continue;
+        const int ry = cy - sy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
+        lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
+        int npts = BSEG;
+        if (ry == b->jy) {
+            pp[0].x = BJ_X; pp[0].y = b->jy;
+            pp[1].x = BO_X; pp[1].y = ry;
+            npts = 2;
+        } else {
+            bundle_curve(pp, BJ_X, b->jy, BO_X, ry, 80, 20);
+        }
+        lv_line_set_points(ln, pp, (uint32_t)npts);
+    }
+}
+
+static void bundle_scroll_cb(lv_event_t *e)
+{
+    bundle_relink(lv_event_get_user_data(e));
 }
 
 lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
@@ -2812,34 +2866,111 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         b->n_line++;
     }
 
+    // ---- the output column ----
+    //
+    // Outputs are NEVER elided, at any count. Bundling inputs is safe -- they
+    // are all yours and their total is the fact -- but each output is a place
+    // your money goes, and one folded into a group would be a destination
+    // visible nowhere. The column scrolls instead, exactly as the panel it
+    // replaces did, and the caller keeps its read-to-the-end gate.
+    //
+    // Rows are content-sized inside a flex column rather than placed at
+    // computed y's, because one of them may be a paragraph: a silent payment
+    // says a second thing about itself. Their real positions are read back
+    // after layout, which is also what makes the strands correct while
+    // scrolling.
+    const int row_h = out_lh;
+    int pitch = (n_out < 2) ? row_h : (h - 2 * BMARG) / (int)(n_out - 1);
+    if (pitch < row_h + 4) pitch = row_h + 4;      // uniform, and it will scroll
+    b->out0 = b->n_line;
+    b->n_out = (uint16_t)n_out;
+    b->jy    = (int16_t)(jy - BPAD);      // sbox coordinates
+
+    // The output strands get their own clip, and it is not the box. The box
+    // carries BPAD of slack top and bottom so a label centred on the first row
+    // is not cut in half -- but a strand aimed at a row that has scrolled out
+    // of view must stop at the GRAPH, not BPAD above it, or it runs through the
+    // caption sitting on that line. Same reason the strand is clipped rather
+    // than clamped: where it stops has to be a boundary of the drawing, not a
+    // number chosen to make it look tidy.
+    lv_obj_t *sbox = lv_obj_create(box);
+    lv_obj_remove_style_all(sbox);
+    lv_obj_set_pos(sbox, 0, BPAD);
+    lv_obj_set_size(sbox, w, h);
+    lv_obj_remove_flag(sbox, LV_OBJ_FLAG_SCROLLABLE);
+    b->sbox = sbox;
+
+    // The column's own box is the clip, and where it starts matters twice over.
+    //
+    // It may not reach the box's top edge: the box carries BPAD of slack, and a
+    // row scrolled to the top of a full column would rise into it and share
+    // pixels with the caption sitting on that line -- "WHERE IT GOES" and a
+    // recipient's amount, overlapping, on the screen that says where the money
+    // goes. And it may not end on the box's edge either: a row cut by the BOX
+    // is a row cut by something that does not scroll, which reads as text
+    // clipped rather than text below a fold, and the gate says so.
+    //
+    // So the column clips itself, strictly inside the box, and starts 2px above
+    // the first row's band so the rows still land on the spread the appendix
+    // draws rather than half a line height below it.
+    lv_obj_t *col = lv_obj_create(box);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, BL_X, BPAD + BMARG - row_h / 2);
+    lv_obj_set_size(col, w - BL_X, h + row_h - 2 * BMARG);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(col, pitch - row_h, 0);
+    lv_obj_set_scroll_dir(col, LV_DIR_VER);
+    lv_obj_set_style_width(col, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(col, WT_MUT, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(col, LV_OPA_50, LV_PART_SCROLLBAR);
+    b->col = col;
+
     for (size_t i = 0; i < n_out; i++) {
-        const int ry = BPAD + (n_out < 2 ? h / 2
-                        : BMARG + (int)i * (h - 2 * BMARG) / (int)(n_out - 1));
-        int npts = BSEG;
-        if (ry == jy) {
-            pp[0].x = BJ_X; pp[0].y = jy;
-            pp[1].x = BO_X; pp[1].y = ry;
-            npts = 2;
-        } else {
-            // The output controls are crossed -- far, then near -- which is what
-            // makes the fan open sharply out of the junction instead of drifting.
-            bundle_curve(pp, BJ_X, jy, BO_X, ry, 80, 20);
-        }
         const int k = b->n_line;
+        // Placed at the junction for now; bundle_relink puts every one of them
+        // on its row once the column has been laid out.
+        bundle_curve(pp, BJ_X, jy - BPAD, BO_X, jy - BPAD, 80, 20);
         if (!out[i].note_only) {
-            b->line[k] = bundle_strand(box, &out[i], pp, npts,
+            b->line[k] = bundle_strand(sbox, &out[i], pp, BSEG,
                                        wt_strand_px(out[i].sats, max_sats));
             b->role[k] = out[i].role;
         }
         pp += BSEG;
 
+        // A COLUMN, because a row may be more than one line: an amount and its
+        // word, then the address it pays. The strand aims at the whole row's
+        // middle, so a row that grows stays joined to its line.
+        const int roww = w - BL_X - 8;             // 8 clear of the scrollbar
+        lv_obj_t *row = lv_obj_create(col);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, roww);
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(row, 2, 0);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_OVERFLOW_VISIBLE);   // see bundle_row
+        b->row[i] = row;
+
         if (out[i].note_only) {           // words only: the row without an output
-            lv_obj_t *row = bundle_row(box, BL_X, ry - out_lh / 2, w - BL_X, false);
-            b->note[k] = bundle_txt(row, out[i].label ? out[i].label : "",
-                                    wt_font14(), WT_MUT, false);
+            lv_obj_t *n = bundle_txt(row, out[i].label ? out[i].label : "",
+                                     wt_font14(), WT_MUT, false);
+            lv_obj_set_width(n, roww);
+            lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
+            b->note[k] = n;
             b->n_line++;
             continue;
         }
+
+        lv_obj_t *line = lv_obj_create(row);
+        lv_obj_remove_style_all(line);
+        lv_obj_set_width(line, roww);
+        lv_obj_set_height(line, LV_SIZE_CONTENT);
+        lv_obj_remove_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END,
+                              LV_FLEX_ALIGN_END);
+        lv_obj_set_style_pad_column(line, 8, 0);
+        lv_obj_add_flag(line, LV_OBJ_FLAG_OVERFLOW_VISIBLE);  // see bundle_row
 
         const bool acc = (out[i].role == WT_STRAND_CHANGE);
         // The STRAND is DIM for a fee and INK for the send -- that is the
@@ -2849,14 +2980,33 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // likely to be checking. Only change takes the accent, and it is the
         // only accent text in the graph.
         const lv_color_t oc = acc ? wt_accent() : WT_INK;
-        lv_obj_t *row = bundle_row(box, BL_X, ry - out_lh / 2, w - BL_X, false);
         wt_fmt_sats(out[i].sats, amt, sizeof amt);
-        b->amount[k] = bundle_txt(row, amt, wt_font_mono23(), oc, acc);
+        b->amount[k] = bundle_txt(line, amt, wt_font_mono23(), oc, acc);
         if (out[i].label)
-            b->note[k] = bundle_txt(row, out[i].label, wt_font14(),
+            b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     acc ? oc : WT_MUT, acc);
+        // The whole address, with the compared runs lit -- the same spans the
+        // panel drew, so the habit an owner has does not change with the count
+        // of destinations. NOT the lifted variant: the lift raises the compared
+        // tail to mono23, and in a 304px lane that puts the wrap immediately
+        // before it, so the eight characters worth reading land alone on a
+        // second line at a different size. One rung, wrapped evenly, reads.
+        if (out[i].addr)
+            wt_addr_spans(row, out[i].addr, roww, wt_font_mono14());
         b->n_line++;
     }
+
+    // Measured, not counted: whether this column overflows depends on the
+    // locale and on whether any row is a paragraph, which no output count can
+    // answer. MODE_ON rather than AUTO for the same reason the panel used it --
+    // a list with more below the fold must not look identical to one that ends
+    // there.
+    lv_obj_update_layout(col);
+    const bool overflows = lv_obj_get_scroll_bottom(col) > 0;
+    lv_obj_set_scrollbar_mode(col, overflows ? LV_SCROLLBAR_MODE_ON
+                                             : LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(col, bundle_scroll_cb, LV_EVENT_SCROLL, b);
+    bundle_relink(b);
 
     // The junction, last, so it sits over every strand that reaches it. A dot
     // rather than a joint: the strands genuinely meet here, and a gap where
@@ -2869,6 +3019,23 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     lv_obj_set_style_bg_color(dot, WT_INK, 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
     return box;
+}
+
+lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
+{
+    if (!bundle) return NULL;
+    // The state block is hung off the delete callback rather than user_data,
+    // which wt_screen already spends on its own tag. Reading it back through
+    // the same event is the one place that is not a layering violation.
+    uint32_t n = lv_obj_get_event_count(bundle);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_event_dsc_t *d = lv_obj_get_event_dsc(bundle, i);
+        if (lv_event_dsc_get_cb(d) == bundle_delete_cb) {
+            wt_bundle_t *b = lv_event_dsc_get_user_data(d);
+            return b ? b->col : NULL;
+        }
+    }
+    return NULL;
 }
 
 // Reserve exactly what this iteration writes, which is a character and, only
