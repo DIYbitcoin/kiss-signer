@@ -34,54 +34,167 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SIM = Path("/tmp/fruitsim")
 
-# wt_screen(parent, title, ...) / mk_screen(title, ...) / mk_screen2(title, ...)
-# Capture the first argument for the mk_ forms and the second for wt_screen,
-# then take every STR_ token in it: a ternary picks between two real titles and
-# both of them are screens somebody can reach.
-CALLS = [
-    (re.compile(r"\bmk_screen2?\s*\(([^;]*?)\)\s*;", re.S), 0),
-    (re.compile(r"\bwt_screen\s*\(([^;]*?)\)\s*;", re.S), 1),
-]
+# Screen constructors are not signature-compatible: setup's mk_screen takes
+# (title, sub), while signing's takes (parent, title, sub). Treating the name as
+# globally arg0 left every signing screen outside the gate. Registered wrappers
+# are scanned at their call sites; their one forwarding implementation is then
+# ignored below so a variable named `title` is not mistaken for an unknown
+# screen.
+BASE_CALLS = (("wt_screen", 1),)
+FILE_CALLS = {
+    "kiss_setup.c": (("mk_screen", 0), ("mk_screen2", 0),
+                     ("cards_verdict_screen", 0)),
+    "kiss_sign.c": (("mk_screen", 1),),
+    "kiss_fw_ui.c": (("fresh", 0),),
+}
+
+# (file, callee, normalized title expression) -> keys chosen in the enclosing
+# function. Each declaration must be consumed exactly once or strict mode
+# fails: a stale exception is only another silent hole.
+DYNAMIC_TITLES = {
+    ("kiss_settings.c", "wt_screen", "title"): {
+        "G_STORAGE_OK_T", "G_STORAGE_CLEANUP_T", "G_STORAGE_FAIL_T",
+    },
+    ("kiss_fw_ui.c", "fresh", "title"): {
+        "G_FW_OK_T", "G_FW_FAIL_T",
+    },
+}
+
+# Verified forwarding bodies. Their callers are covered by FILE_CALLS above.
+FORWARDER_IMPLS = {
+    ("kiss_setup.c", "wt_screen", "title"),
+    ("kiss_sign.c", "wt_screen", "title"),
+    ("kiss_fw_ui.c", "wt_screen", "title"),
+    ("kiss_setup.c", "mk_screen", "tr(title)"),
+}
 KEY = re.compile(r"\bSTR_([A-Z0-9_]+)\b")
+IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+
+
+def c_mask(text):
+    """Blank C strings/comments while preserving positions and newlines."""
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("//", i):
+            j = text.find("\n", i + 2)
+            if j < 0:
+                j = n
+            for k in range(i, j):
+                out[k] = " "
+            i = j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            for k in range(i, j):
+                if out[k] != "\n":
+                    out[k] = " "
+            i = j
+        elif text[i] in ('"', "'"):
+            quote = text[i]
+            out[i] = " "
+            i += 1
+            while i < n:
+                c = text[i]
+                if c == "\\" and i + 1 < n:
+                    out[i] = out[i + 1] = " "
+                    i += 2
+                    continue
+                if c == quote:
+                    out[i] = " "
+                    i += 1
+                    break
+                if c != "\n":
+                    out[i] = " "
+                i += 1
+        else:
+            i += 1
+    return "".join(out)
 
 
 def split_args(text):
     """Top level comma split, so tr(STR_X) stays in one piece."""
-    out, depth, cur = [], 0, ""
-    for ch in text:
+    out, depth, start = [], 0, 0
+    masked = c_mask(text)
+    for i, ch in enumerate(masked):
         if ch == "(":
             depth += 1
         elif ch == ")":
             depth -= 1
         if ch == "," and depth == 0:
-            out.append(cur)
-            cur = ""
-        else:
-            cur += ch
-    out.append(cur)
+            out.append(text[start:i])
+            start = i + 1
+    out.append(text[start:])
     return out
 
 
+def iter_calls(src, name):
+    """Yield (args, line, is_definition) for balanced C calls named `name`."""
+    masked = c_mask(src)
+    pattern = re.compile(rf"\b{re.escape(name)}\s*\(")
+    for match in pattern.finditer(masked):
+        open_at = masked.find("(", match.start())
+        depth, i = 1, open_at + 1
+        while i < len(masked) and depth:
+            if masked[i] == "(":
+                depth += 1
+            elif masked[i] == ")":
+                depth -= 1
+            i += 1
+        if depth:
+            continue
+        end = i - 1
+        j = i
+        while j < len(masked) and masked[j].isspace():
+            j += 1
+        yield src[open_at + 1:end], src[:match.start()].count("\n") + 1, \
+              j < len(masked) and masked[j] == "{"
+
+
 def titles_in_source():
-    """{key: [files]} for every screen title, plus a list of unresolvable sites."""
-    found, murky = {}, []
+    """Translated keys, literal titles, and genuinely unresolved call sites."""
+    found, literals, murky = {}, {}, []
+    dynamic_hits = {decl: 0 for decl in DYNAMIC_TITLES}
     for path in sorted((ROOT / "main").glob("*.c")):
         if path.name in ("kiss_theme.c", "i18n_tables.c"):
             continue          # the definition itself, and the generated table
         src = path.read_text(encoding="utf-8", errors="replace")
-        for pattern, argno in CALLS:
-            for m in pattern.finditer(src):
-                args = split_args(m.group(1))
+        specs = BASE_CALLS + FILE_CALLS.get(path.name, ())
+        for callee, argno in specs:
+            for arg_text, line, is_definition in iter_calls(src, callee):
+                if is_definition:
+                    continue
+                args = split_args(arg_text)
                 if len(args) <= argno:
+                    murky.append(f"{path.relative_to(ROOT)}:{line} ({callee}: no title arg)")
                     continue
-                keys = KEY.findall(args[argno])
+                title_expr = args[argno].strip()
+                normalized = re.sub(r"\s+", "", title_expr)
+                site = (path.name, callee, normalized)
+                if site in FORWARDER_IMPLS:
+                    continue
+                keys = KEY.findall(title_expr)
                 if not keys:
-                    line = src[: m.start()].count("\n") + 1
-                    murky.append(f"{path.relative_to(ROOT)}:{line}")
-                    continue
+                    dynamic = DYNAMIC_TITLES.get(site)
+                    if dynamic:
+                        dynamic_hits[site] += 1
+                        keys = sorted(dynamic)
+                    else:
+                        literal = re.fullmatch(r'"((?:[^"\\]|\\.)*)"', title_expr)
+                        if literal:
+                            text = bytes(literal.group(1), "utf-8").decode("unicode_escape")
+                            literals.setdefault(text, []).append(path.name)
+                            continue
+                        murky.append(f"{path.relative_to(ROOT)}:{line} "
+                                     f"({callee} title={title_expr!r})")
+                        continue
                 for k in keys:
                     found.setdefault(k, []).append(path.name)
-    return found, murky
+
+    for site, count in dynamic_hits.items():
+        if count != 1:
+            murky.append(f"dynamic declaration {site} consumed {count} times")
+    return found, literals, murky
 
 
 def drive_sim(**extra_env):
@@ -113,10 +226,40 @@ def drive_sim(**extra_env):
     return run.stdout
 
 
-def titles_built():
-    """English titles the walk actually opened, from the sim itself."""
+def walk_report():
+    """One walk run: (built titles, UNCHECKED lines).
+
+    The UNCHECKED lines are the walk's own "built but never captured" report
+    (sim_main.c): a screen the walk OPENED and never photographed. It caught
+    a real miss -- a firmware-rejected stop saved its frame before the
+    deferred result screen landed, so the walk reached the screen and no gate
+    asked it anything. That report used to exist only in a log nobody parsed,
+    one level down from the gates this script already complains about.
+    """
     out = drive_sim(SCREENCOVER_LIST="1")
-    return {l.split("\t", 1)[1] for l in out.splitlines() if l.startswith("BUILT\t")}
+    built = {l.split("\t", 1)[1] for l in out.splitlines() if l.startswith("BUILT\t")}
+    unchecked = [l.strip() for l in out.splitlines() if l.startswith("  UNCHECKED")]
+    return built, unchecked
+
+
+def safe_boot_report():
+    """Literal titles reached only by a pre-game boot failure.
+
+    wt_screen's ordinary registry intentionally keys translated table pointers,
+    so a literal title cannot appear in BUILT/UNCHECKED. Drive every non-OK
+    settings-load status in a fresh process and consume the explicit marker the
+    focused harness prints after checking the title, cause, and absence of the
+    game screen.
+    """
+    seen = set()
+    for status in range(1, 6):
+        out = drive_sim(SCREENCOVER_SAFEBOOT=str(status))
+        rows = [line.split("\t") for line in out.splitlines()
+                if line.startswith("SAFEBOOT\t")]
+        if len(rows) != 1 or len(rows[0]) < 3:
+            sys.exit(f"FAILED: safe-boot status {status} produced no unique marker")
+        seen.add(rows[0][1])
+    return seen
 
 
 def selftest():
@@ -130,14 +273,31 @@ def selftest():
     return any(l.startswith("  UNCHECKED") and '"OK"' in l for l in out.splitlines())
 
 
+def parser_selftest():
+    """Definitions, nested calls, strings and arg positions stay distinguishable."""
+    src = '''
+      static void mk_screen(lv_obj_t *parent, const char *title) { helper(); }
+      void f(void) { mk_screen(parent, tr(STR_DEMO), "comma, (inside)"); }
+    '''
+    calls = [(split_args(args), is_def)
+             for args, _line, is_def in iter_calls(src, "mk_screen")]
+    return (len(calls) == 2 and calls[0][1] and not calls[1][1] and
+            len(calls[1][0]) == 3 and "STR_DEMO" in calls[1][0][1])
+
+
 def main():
+    if not parser_selftest():
+        print("FAILED: the source-call parser self test no longer distinguishes "
+              "definitions, nested arguments and C strings.")
+        return 1
     if not selftest():
         print("FAILED: the coverage self test no longer reports, so a clean run "
               "means nothing.")
         return 1
 
-    found, murky = titles_in_source()
-    built = titles_built()
+    found, literals, murky = titles_in_source()
+    built, unchecked = walk_report()
+    safe_built = safe_boot_report()
 
     # The source gives keys, the sim gives English strings, so meet in the
     # middle through the same table the firmware reads.
@@ -149,25 +309,43 @@ def main():
     for key, text in re.findall(r'\[STR_([A-Z0-9_]+)\]\s*=\s*"((?:[^"\\]|\\.)*)"', tables):
         en.setdefault(key, text)
 
-    missing = []
+    missing, unknown_keys = [], []
     for key in sorted(found):
         text = en.get(key)
         if text is None:
-            continue                      # not a translated title; nothing to match
+            unknown_keys.append(key)
+            continue
         if text.encode().decode("unicode_escape") not in built and text not in built:
             missing.append((key, text, sorted(set(found[key]))))
+    missing_literals = sorted(set(literals) - safe_built)
 
     print(f"screen coverage: {len(found)} titles in source, {len(built)} opened by the walk")
     for key, text, files in missing:
         print(f'  NEVER OPENED  STR_{key}  "{text}"  ({", ".join(files)})')
+    if unchecked:
+        print(f"screen coverage: {len(unchecked)} built and never captured:")
+        for l in unchecked:
+            print(f"  {l}")
+    for title in missing_literals:
+        print(f'  NEVER OPENED  literal "{title}"  '
+              f'({", ".join(sorted(set(literals[title])))})')
+    for key in unknown_keys:
+        print(f"  UNKNOWN KEY  STR_{key} (not in the English table)")
     if murky:
-        print(f"  {len(murky)} title(s) built from a variable, not checkable here:")
+        print(f"  {len(murky)} unresolved title construction site(s):")
         for site in murky:
             print(f"    {site}")
-    print(f"screen coverage: {len(missing)} screens the walk never opens")
+    print(f"screen coverage: {len(missing)} translated and "
+          f"{len(missing_literals)} literal screens never opened; "
+          f"{len(murky)} unresolved sites")
 
-    if missing and os.environ.get("SCREENCOVER_STRICT"):
-        print("\nFAILED: SCREENCOVER_STRICT is set and a screen has no walk stop.")
+    if (missing or missing_literals or unchecked or murky or unknown_keys) and \
+       os.environ.get("SCREENCOVER_STRICT"):
+        print(f"\nFAILED: SCREENCOVER_STRICT is set and a screen has no honest stop: "
+              f"{len(missing)} translated never opened, "
+              f"{len(missing_literals)} literal never opened, "
+              f"{len(unchecked)} built but never captured, "
+              f"{len(murky)} unresolved, {len(unknown_keys)} unknown keys.")
         return 1
     return 0
 

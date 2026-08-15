@@ -13,15 +13,26 @@
 set -u
 cd "$(dirname "$0")/.."
 
-bash sim/build_overlapcheck.sh
+# A stale binary is worse than none: it passes its own self test, then the 24
+# walks "verify" whatever was built last. Fail the run when the build fails.
+bash sim/build_overlapcheck.sh || {
+    echo "FAILED: sim/build_overlapcheck.sh" >&2
+    exit 1
+}
 
 # WALL and ROLE both report nothing on the current UI, so prove they can still
 # report anything at all before trusting a clean run. See oc_selftest in
 # sim/overlapcheck.c for why these two need that and the other five do not.
+# The exit status is not enough on its own: the checks print a marker when
+# they behave, so a run that exits 0 without them (or vice versa) also fails.
 echo
-if ! OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap; then
+st=$(OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap 2>&1)
+if [ $? -ne 0 ] ||
+    ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected'; then
     echo
-    echo "FAILED: a self test check no longer behaves, so a clean run means nothing."
+    echo "FAILED: the self test no longer reports its expected markers, so a"
+    echo "clean run means nothing."
     exit 1
 fi
 
@@ -47,16 +58,71 @@ summary=""
 # one level down from the reporting-only gate this file already complains
 # about. max_used only: frag_pct is sampled at one instant, so ratcheting it
 # would be ratcheting noise.
-heap_max=0; heap_total=0; heap_who=""
+#
+# The line is now REQUIRED, not optional: a missing or malformed line used to
+# leave the heap verdict silently skipped, which read as "under the ceiling"
+# while measuring nothing. total_size is not quite the pool: the TLSF walker
+# sums block sizes, and splitting and merging free blocks moves the sum by a
+# block header or two between runs (observed +/-24 on the 128K pool). The pool
+# itself is a compile-time constant, so the checks are a tolerance against the
+# first run's total and a floor: a run that measured a different pool (a 64K
+# build, or a dead monitor) falls outside both.
+heap_max=0; heap_total=""; heap_who=""; heap_peak_total=0
 heap_note() {
-    local who="$1" out="$2" line used tot
-    line=$(printf '%s\n' "$out" | grep -m1 '^\[lvheap\]') || return 0
-    [ -n "$line" ] || return 0
+    local who="$1" out="$2" line tot used
+    line=$(printf '%s\n' "$out" | grep -m1 '^\[lvheap\]') || return 1
+    [ -n "$line" ] || return 1
+    # [lvheap] total %u used %u max_used %u frag %u%%: $3 is the pool, $7 the
+    # peak. Words sit between them, so a "$2/$4" pickup reads words and
+    # disables the ceiling silently.
     tot=$(printf '%s\n' "$line" | awk '{print $3}')
     used=$(printf '%s\n' "$line" | awk '{print $7}')
-    case "$used" in ''|*[!0-9]*) return 0;; esac
-    [ "$used" -gt "$heap_max" ] && { heap_max=$used; heap_who=$who; }
+    case "$used" in ''|*[!0-9]*) return 1;; esac
+    case "$tot" in ''|*[!0-9]*) return 1;; esac
+    if [ -n "$heap_total" ]; then
+        local d=$(( tot > heap_total ? tot - heap_total : heap_total - tot ))
+        if [ "$d" -gt 256 ]; then
+            echo "heap pool differs in $who: $tot vs $heap_total" >&2
+            return 1
+        fi
+    fi
+    if [ "$tot" -lt 98304 ] || [ "$tot" -gt 131072 ]; then
+        # A real 128K pool reads ~120K. The lower edge rejects a 64K/dead
+        # monitor; the upper edge rejects a 256K sim that would make the same
+        # device workload look artificially cheap.
+        echo "heap pool out of band in $who: $tot" >&2
+        return 1
+    fi
     heap_total=$tot
+    # The peak and ITS sample's own pool reading go together. total_size is
+    # not quite the pool (the TLSF walker sums block sizes, and merging free
+    # blocks moves it by a header or two between runs), so a percentage
+    # computed against the LAST run's total would be off by that wobble; the
+    # denominator that belonged to the peak is the honest one.
+    if [ "$used" -le 0 ]; then
+        echo "heap peak is not credible in $who: $used" >&2
+        return 1
+    fi
+    # Keep the sample with the WORST ratio, not merely the largest absolute
+    # byte count: TLSF's reported denominator wobbles by a header or two.
+    if [ "$heap_peak_total" -eq 0 ] ||
+       [ $(( used * heap_peak_total )) -gt $(( heap_max * tot )) ]; then
+        heap_max=$used; heap_who=$who; heap_peak_total=$tot
+    fi
+    return 0
+}
+
+# A run proves nothing unless it rendered and measured. A dead walk prints no
+# [overlap] summary at all, and a walk whose instrumentation vanished prints
+# one with zero stops; both used to read as "clean" (missing summaries became
+# zero findings). Each run must report its summary line and a stop count in
+# the same ballpark as the walk this gate ships: the nominal walk makes 251
+# stops, so a run that reports far fewer either derailed early or is an older
+# binary answering a newer question. The floor is a factor of safety, not a
+# ratchet: a stop dropped for good reason must be deliberate, not silent.
+MIN_STOPS=200
+summary_of() {
+    printf '%s\n' "$1" | grep -m1 '^\[overlap\] .* distinct findings$'
 }
 
 for l in "${langs[@]}"; do
@@ -69,12 +135,20 @@ for l in "${langs[@]}"; do
     rm -rf /tmp/simsd
     out=$(SIM_LANG="$l" /tmp/kissoverlap 2>&1)
     rc=$?
-    n=$(printf '%s\n' "$out" | sed -n 's/.*, \([0-9]*\) distinct findings/\1/p' | tail -1)
-    [ -z "$n" ] && n=0
-    total=$((total + n))
+    sline=$(summary_of "$out")
+    n=$(printf '%s\n' "$sline" | sed -n \
+        's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked, [0-9][0-9]* game frames skipped, \([0-9][0-9]*\) distinct findings$/\2/p')
+    stops=$(printf '%s\n' "$sline" | sed -n \
+        's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked.*/\1/p')
+    if [ -z "$n" ] || [ -z "$stops" ] || [ "$stops" -lt "$MIN_STOPS" ]; then
+        died="$died SIM_LANG=$l(no-summary)"
+    fi
+    if ! heap_note "$l" "$out"; then
+        died="$died SIM_LANG=$l(no-heap)"
+    fi
+    total=$((total + ${n:-0}))
     [ "$rc" -gt "$worst" ] && worst=$rc
-    if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then died="$died SIM_LANG=$l(rc=$rc)"; fi
-    heap_note "$l" "$out"
+    if [ "$rc" -ne 0 ] && [ "${n:-0}" -eq 0 ]; then died="$died SIM_LANG=$l(rc=$rc)"; fi
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
@@ -101,15 +175,25 @@ echo
 roletotal=0
 for a in GREEN CYPHERPINK ORANGE; do
     out=$(SIM_ACCENT="$a" /tmp/kissoverlap 2>&1)
-    heap_note "$a" "$out"
     rc=$?
-    n=$(printf '%s\n' "$out" | grep -c '^  ROLE')
-    roletotal=$((roletotal + n))
+    sline=$(summary_of "$out")
+    n=$(printf '%s\n' "$sline" | sed -n \
+        's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked, [0-9][0-9]* game frames skipped, \([0-9][0-9]*\) distinct findings$/\2/p')
+    stops=$(printf '%s\n' "$sline" | sed -n \
+        's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked.*/\1/p')
+    if [ -z "$n" ] || [ -z "$stops" ] || [ "$stops" -lt "$MIN_STOPS" ]; then
+        died="$died SIM_ACCENT=$a(no-summary)"
+    fi
+    if ! heap_note "$a" "$out"; then
+        died="$died SIM_ACCENT=$a(no-heap)"
+    fi
+    r=$(printf '%s\n' "$out" | grep -c '^  ROLE')
+    roletotal=$((roletotal + r))
     [ "$rc" -gt "$worst" ] && worst=$rc
-    if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then died="$died SIM_ACCENT=$a(rc=$rc)"; fi
+    if [ "$rc" -ne 0 ] && [ "$r" -eq 0 ]; then died="$died SIM_ACCENT=$a(rc=$rc)"; fi
 
-    if [ "$n" -gt 0 ]; then
-        printf '%-12s %3d findings\n' "$a" "$n"
+    if [ "$r" -gt 0 ]; then
+        printf '%-12s %3d findings\n' "$a" "$r"
         printf '%s\n' "$out" | grep -E '^  ROLE' | sed 's/^/  /'
         echo
     else
@@ -124,11 +208,20 @@ total=$((total + roletotal))
 # The heap verdict, AFTER the sweep and with its own message. Never through
 # kissoverlap's exit code: that code already means two things (findings, and a
 # dead walk), and a third meaning would be read as one of the first two.
-heap_pct=0
-if [ "$heap_total" -gt 0 ]; then
-    heap_pct=$(( heap_max * 100 / heap_total ))
+# The ceiling is enforced by cross multiplication, never by a pre-divided
+# percent: heap_max * 1000 cannot truncate, while a percent out of an integer
+# division could round 90.9% down to 90% and pass the very ceiling it exists
+# to stop. The denominator is the pool reading of the run that SET the peak,
+# not the last run's (heap_peak_total, recorded in heap_note).
+HEAP_MAX_PCT="${HEAP_MAX_PCT:-90}"
+heap_ok=1
+if [ "${heap_peak_total:-0}" -gt 0 ]; then
+    heap_pct=$(( heap_max * 1000 / heap_peak_total / 10 ))
     echo
-    echo "LVGL heap: peak $heap_max of $heap_total bytes (${heap_pct}%), worst in $heap_who"
+    echo "LVGL heap: peak $heap_max of $heap_peak_total bytes (${heap_pct}%), worst in $heap_who"
+    if [ $(( heap_max * 1000 )) -gt $(( heap_peak_total * HEAP_MAX_PCT * 10 )) ]; then
+        heap_ok=0
+    fi
 fi
 
 # Two different failures share this exit code and must not share a message.
@@ -139,7 +232,8 @@ fi
 # to say clean about a screen it never rendered.
 if [ -n "$died" ]; then
     echo
-    echo "FAILED: the walk exited non-zero having reported nothing:$died"
+    echo "FAILED: a run exited non-zero, or reported no valid summary, stop"
+    echo "count or heap line:$died"
     echo "A dead walk prints 'clean' for every stop it never reached, so this"
     echo "run proves nothing -- it is not a finding, and not a clean sweep."
     echo "Re-run it on its own: /tmp/simsd and the /tmp frames are shared with"
@@ -155,10 +249,9 @@ fi
 # screen, label and font this project adds, so an exact-match ratchet turns
 # every UI commit red. The pool is 128K and a failed lv_malloc is an LVGL
 # assert -- an infinite loop on the device -- so the margin is the point.
-HEAP_MAX_PCT="${HEAP_MAX_PCT:-90}"
-if [ "$heap_pct" -gt "$HEAP_MAX_PCT" ]; then
+if [ "$heap_ok" -eq 0 ]; then
     echo
-    echo "FAILED: LVGL heap peaked at ${heap_pct}% of the 128K pool (ceiling ${HEAP_MAX_PCT}%)."
+    echo "FAILED: LVGL heap peaked above the ${HEAP_MAX_PCT}% ceiling (peak ${heap_pct}%, $heap_max of $heap_peak_total, worst in $heap_who)."
     echo "A failed lv_malloc mid-render is an LVGL assert, which on the device"
     echo "is an infinite loop. Reduce what a screen builds, or raise the pool"
     echo "in BOTH sim/lv_conf.h and CONFIG_LV_MEM_SIZE_KILOBYTES deliberately."
