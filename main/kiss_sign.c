@@ -305,6 +305,38 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
     return wt_lbl(s_scr, txt, x, y, f, col);
 }
 
+// The nth TERM out of S_GLOSSARY_B, which every locale already writes one
+// `TERM: definition` per line -- the same string the explainers page reads and
+// the same split, wt_split_colon, that reads it there.
+//
+// It exists so the graph can label its change strand with the word the glossary
+// teaches, in 21 locales, without a twenty-second key. S_CHANGE_TAG was the
+// obvious candidate and is the wrong length: "change back to you, verified
+// here" is a panel's caption, and the graph row has ~200px beside a mono23
+// amount. The claim that clause makes belongs to the panel's WT_OK border,
+// which the graph replaces with the accent on the strand itself.
+//
+// Order is GLOSS_ICONS' order: 0 inputs, 1 outputs, 2 change, 3 txid,
+// 4 fee rate, 5 locktime, 6 derivation path, 7 descriptor.
+static const char *gloss_term(int idx)
+{
+    static char head[64];
+    const char *p = tr(STR_S_GLOSSARY_B);
+    for (int i = 0; i < idx && p; i++) {
+        p = strchr(p, '\n');
+        if (p) p++;
+    }
+    if (!p || !*p) return "";
+    char line[160];
+    const char *nl = strchr(p, '\n');
+    size_t n = nl ? (size_t)(nl - p) : strlen(p);
+    if (n >= sizeof line) n = sizeof line - 1;
+    memcpy(line, p, n);
+    line[n] = 0;
+    wt_split_colon(line, head, sizeof head);
+    return head;
+}
+
 static const char *sp_onchain_note(void)
 {
     // The two prefixes are arguments, so this reads the same in every locale
@@ -768,7 +800,13 @@ static void addr_full_cb(lv_event_t *e)
 // attempt put the strip 12px past the bottom in pt-BR, ru and tr, and the run
 // said so before any of this shipped.
 #define SG_BAR_Y     150
+#define SG_BAR_Y_G   344   // ... and where it sits under the bundle graph
 #define SG_BAR_H      44
+// The graph's box. 118 tall on a clean screen; 110 when the caution bar is
+// under it, which is the 8px the bar's band needs back.
+#define SG_GRAPH_Y   172
+#define SG_GRAPH_H   118
+#define SG_GRAPH_H_C 110
 #define SG_PAN_Y_C   202   // panels, with a bar above them
 #define SG_PAN_H_C   104
 #define SG_RULE_Y_C  314
@@ -1172,14 +1210,29 @@ static void verify_screen(lv_obj_t *parent)
     // LEAVING at the same rung and left the owner to work out which one they
     // were agreeing to. What leaves the wallet is the number being signed for.
     uint64_t total = s_sum.send_sats + s_sum.fee_sats;
+
+    // Counted here rather than beside the panels, because the answer decides
+    // the geometry of everything below the hero: the graph draws a transaction
+    // with one destination, which is what the frames specify and what almost
+    // every spend is. More than one recipient still takes the scrolling panel
+    // and its read-to-the-end gate until section 6 folds that column into the
+    // graph itself.
+    int recipient_n = 0, change_n = 0;
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+        { if (s_sum.outs[i].is_change) change_n++; else recipient_n++; }
+    // A silent payment output makes a second claim about itself -- the on-chain
+    // address is derived here and is not the one you were given -- and the graph
+    // has no row to put that on. Those keep the panel until they have one.
+    const bool graph = (recipient_n <= 1 && !s_sum.n_sp);
+
     {
-        lv_obj_t *cap = sg_lbl(s_scr, tr(STR_S_TOTAL_LEAVING), 24, 74,
+        lv_obj_t *cap = sg_lbl(s_scr, tr(STR_S_TOTAL_LEAVING), 24, 78,
                                wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
         lv_obj_t *row = lv_obj_create(s_scr);
         lv_obj_remove_style_all(row);
-        lv_obj_set_pos(row, 24, 88);
+        lv_obj_set_pos(row, 24, 92);
         lv_obj_set_size(row, 760, 52);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
@@ -1221,7 +1274,10 @@ static void verify_screen(lv_obj_t *parent)
     if (np) {
         bool all_done = (s_ack_flags & caution_all_bits(s_sum.caution_flags))
                         == caution_all_bits(s_sum.caution_flags);
-        lv_obj_t *bar = sg_panel(24, SG_BAR_Y, 752, SG_BAR_H,
+        // The graph owns 172..290, so the bar drops to the band the facts strip
+        // used to hold. It is the same bar, the same height and the same 475px
+        // text box; only its y depends on which layout is under it.
+        lv_obj_t *bar = sg_panel(24, graph ? SG_BAR_Y_G : SG_BAR_Y, 752, SG_BAR_H,
                                  all_done ? OK_COL : WARN_COL);
         sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
                wt_font23(), all_done ? OK_COL : WARN_COL);
@@ -1271,11 +1327,7 @@ static void verify_screen(lv_obj_t *parent)
     const int pan_y = np ? SG_PAN_Y_C : SG_PANEL_Y;
     const int pan_h = np ? SG_PAN_H_C : SG_PANEL_H;
     s_foot_y = np ? SG_FOOT_Y_C : SG_FOOT_Y;
-    {
-        int recipient_n = 0, change_n = 0;
-        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
-            { if (s_sum.outs[i].is_change) change_n++; else recipient_n++; }
-
+    if (!graph) {
         int rw = change_n ? SG_RECIP_W : 752;
         lv_obj_t *rp = sg_panel(SG_RECIP_X, pan_y, rw, pan_h, WT_HAIR);
         // The up arrow is the glossary's OUTPUTS badge: coins leaving. Panel
@@ -1532,7 +1584,148 @@ static void verify_screen(lv_obj_t *parent)
         }
     }
 
+    else {
+        // ---- the bundle graph --------------------------------------------
+        // The input amounts live on the DETAILS struct, not the summary, so
+        // this is the first verify-side call to kiss_psbt_details(). If it
+        // refuses -- it cannot here, the STOP branch returned already -- the
+        // graph still draws, as one strand carrying the whole input side. A
+        // graph that understates how many coins are being spent would be worse
+        // than no graph, so the fallback overstates nothing: one strand, one
+        // total, and the caption counts from the summary either way.
+        wpsbt_details_t det;
+        const bool have_det = (kiss_psbt_details(&det) == 0);
+
+        wt_strand_t in[WT_BUNDLE_MAX], out[WT_BUNDLE_MAX];
+        size_t n_in = 0, n_out = 0;
+        uint64_t max_sats = 0;
+
+        if (have_det) {
+            for (uint32_t i = 0; i < det.n_in && n_in < WT_BUNDLE_MAX; i++) {
+                in[n_in].sats  = det.ins[i].sats;
+                in[n_in].label = NULL;
+                in[n_in].role  = WT_STRAND_IN;
+                in[n_in].signed_ok = false;
+                in[n_in].is_group  = false;
+                in[n_in].group_n   = 0;
+                n_in++;
+            }
+        }
+        if (!n_in) {
+            in[0] = (wt_strand_t){ .sats = s_sum.in_sats, .role = WT_STRAND_IN };
+            n_in = 1;
+        }
+
+        // Recipients, then the fee, then change: the order every frame draws
+        // and the order the sentence "amount plus fee, and what comes back"
+        // is read in.
+        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
+                        && n_out < WT_BUNDLE_MAX; i++) {
+            if (s_sum.outs[i].is_change) continue;
+            out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
+                                          .label = tr(STR_S_SENDING_CAP),
+                                          .role  = WT_STRAND_SEND };
+        }
+        if (n_out < WT_BUNDLE_MAX)
+            out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
+                                          .label = tr(STR_S_FEE),
+                                          .role  = WT_STRAND_FEE };
+        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
+                        && n_out < WT_BUNDLE_MAX; i++) {
+            if (!s_sum.outs[i].is_change) continue;
+            out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
+                                          .label = gloss_term(2),   // CHANGE
+                                          .role  = WT_STRAND_CHANGE };
+        }
+        // A transaction that leaves nothing behind says so on the row where
+        // change would have been, rather than by having one row fewer. The
+        // missing row is the fact.
+        if (!change_n && n_out < WT_BUNDLE_MAX) {
+            snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_NOCHANGE_FMT),
+                     (unsigned)s_sum.n_in);
+            out[n_out++] = (wt_strand_t){ .sats = 0, .label = buf,
+                                          .role = WT_STRAND_FEE };
+        }
+
+        // One scale for the whole graph, taken across both sides, so a strand's
+        // thickness means the same thing wherever it is.
+        for (size_t i = 0; i < n_in; i++)
+            if (in[i].sats > max_sats) max_sats = in[i].sats;
+        for (size_t i = 0; i < n_out; i++)
+            if (out[i].sats > max_sats) max_sats = out[i].sats;
+
+        snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_IN_FMT), (unsigned)s_sum.n_in);
+        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 150, wt_font14(), MUT_COL);
+        lv_obj_set_style_text_letter_space(lc, 2, 0);
+        lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
+                              wt_font14(), MUT_COL);
+        lv_obj_set_style_text_letter_space(rc, 2, 0);
+
+        wt_bundle(s_scr, 24, SG_GRAPH_Y, 752, np ? SG_GRAPH_H_C : SG_GRAPH_H,
+                  in, n_in, out, n_out, max_sats);
+
+        // The address, under the graph rather than inside a panel: the strand
+        // above it is where the money goes, and this is the name of the place.
+        const int ay = np ? 292 : 300;
+        // Caption on the left, the compare cue and the reveal on the right, all
+        // on one line so the address itself gets the full lane underneath. The
+        // toggle is the receive screen's own key, so the two screens teach one
+        // habit, and it is what keeps the WHOLE address reachable when the fold
+        // is showing eight characters of forty one.
+        lv_obj_t *arow = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(arow);
+        lv_obj_set_pos(arow, 24, ay);
+        // Clean: 24..724, with the RBF "?" at 738..768 beyond it. Cautioned:
+        // 24..440 only, because the meta row moves up into 464..724 on that
+        // layout and a full width caption row would run the reveal underneath
+        // it. Both lanes are the appendix's, measured rather than assumed.
+        lv_obj_set_size(arow, np ? 416 : 700, LV_SIZE_CONTENT);
+        lv_obj_remove_flag(arow, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(arow, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_t *acap = lv_label_create(arow);
+        lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
+        lv_obj_set_style_text_font(acap, wt_font14(), 0);
+        lv_obj_set_style_text_color(acap, MUT_COL, 0);
+        lv_obj_t *tg = lv_label_create(arow);
+        lv_label_set_text(tg, tr(s_addr_full ? STR_R_SP_SHOW_SHORT
+                                             : STR_R_SP_SHOW_FULL));
+        lv_obj_set_style_text_font(tg, wt_font14(), 0);
+        lv_obj_set_style_text_color(tg, wt_accent(), 0);
+        lv_obj_set_style_text_letter_space(tg, 2, 0);
+        lv_obj_add_flag(tg, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(tg, 14);      // 44px, the device's floor
+        lv_obj_add_event_cb(tg, addr_full_cb, LV_EVENT_CLICKED, NULL);
+        // The RBF "?" rides this line rather than the meta row: at y=366 a 30px
+        // chip's box ends flush against the action bar's floor, and its 54px hit
+        // target reaches past WT_CONTENT_BOTTOM into it. Same corner the facts
+        // strip put it in, so the reflex is unchanged.
+        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, rbf_help_cb, NULL);
+
+        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+            if (s_sum.outs[i].is_change) continue;
+            lv_obj_t *ad;
+            if (s_addr_full) {
+                // The RAW address, as the panel passed it: addr_spans does its
+                // own spacing, and a pre-grouped string would put spaces inside
+                // the run an owner is comparing character by character.
+                ad = wt_addr_spans_lift(s_scr, s_sum.outs[i].addr, 752,
+                                        wt_font_mono14());
+            } else {
+                ad = wt_addr_short(s_scr, s_sum.outs[i].addr, wt_font_mono23());
+            }
+            lv_obj_set_pos(ad, 24, ay + 18);
+            break;
+        }
+        // Nothing is below the fold on this layout: one recipient, one address,
+        // both on the glass. The gate that demands a scroll has nothing to
+        // demand, exactly as it decides for a panel that does not overflow.
+        s_recip_seen = true;
+    }
+
     // ---- the facts strip -------------------------------------------------
+    if (!graph) {
     sg_rule(0, np ? SG_RULE_Y_C : SG_FOOT_RULE, 800, 1);
     fmt_sats(s_sum.fee_sats, a, sizeof a);
     snprintf(buf, sizeof buf, "%s sats", a);
@@ -1563,6 +1756,38 @@ static void verify_screen(lv_obj_t *parent)
                       : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF),
             NULL, INK_COL);
     wt_help_chip(s_scr, 738, s_foot_y - 6, MUT_COL, rbf_help_cb, NULL);
+    } else {
+        // ---- the meta row ------------------------------------------------
+        // What the facts strip said in three ruled cells, on one line: which
+        // network these coins are real on, and whether the fee can still be
+        // raised. The fee itself is a strand now, with its own thickness, so
+        // the cell that used to print it is the one thing the row does not
+        // carry.
+        //
+        // The "?" comes with it. The frames show no help target on this
+        // screen, and dropping it would leave the RBF card reachable from
+        // nowhere -- task 5 of docs/device-ux-test.md asks an owner to find
+        // every anonymous help target, and a card with no chip is a card that
+        // fails it by construction.
+        const char *net = s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN);
+        const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
+                                    : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
+        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
+        // Cautioned, the row moves up beside the address, because the bar owns
+        // the band it would otherwise use.
+        if (!np) sg_rule(0, 356, 800, 1);
+        // Amber on testnet, the same as the cell it replaces: the network is a
+        // status, not chrome, and it is the one fact on this row that changes
+        // what a signature is worth.
+        //
+        // Cautioned it wraps inside 260px between the address lane and the "?",
+        // and ends at 330 with the bar starting at 344. Clean it has the whole
+        // lane and one line, so it ellipsises rather than growing into the bar.
+        lv_obj_t *m = sg_lbl(s_scr, buf, np ? 464 : 24, np ? 292 : 366,
+                             wt_font14(), s_sum.testnet ? WARN_COL : MUT_COL);
+        lv_obj_set_width(m, np ? 260 : 752);
+        lv_label_set_long_mode(m, np ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+    }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
 

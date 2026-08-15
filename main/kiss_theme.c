@@ -2582,6 +2582,285 @@ void wt_diagram_pair(lv_obj_t *parent)
     wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
 }
 
+// ---- the bundle graph ----------------------------------------------------
+//
+// Geometry, all of it, in box coordinates. The drawing's path data is written
+// in the same box at 1:1, so these ARE the numbers in the appendix rather than
+// a reading of them.
+//
+//   junction      (BJ_X, h/2)          2c h=118 -> 59, 3a h=110 -> 55, 3b h=90 -> 45
+//   outputs end   BO_X
+//   labels start  BL_X
+//   rows          evenly spaced from BMARG to h - BMARG
+//
+// The row rule is worth stating because one of its consequences is load
+// bearing. pitch = (h - 2*BMARG) / (n - 1) reproduces frame 2c exactly (three
+// rows at 12 / 59 / 106) and lands within 2px of 3a and 3b -- but the part that
+// matters is that with an ODD row count the middle row falls exactly on the
+// junction. The elided group strand is that middle row, it is therefore
+// perfectly horizontal, and LVGL's software renderer dashes horizontal and
+// vertical segments ONLY (draw_line_skew has no dash path at all). A group
+// strand one pixel off the junction is a group strand drawn solid, which reads
+// as one coin -- the exact thing the dash exists to deny.
+#define BMARG   12
+#define BJ_X   330
+#define BO_X   430
+#define BL_X   440
+#define BJ_R     5
+// The lane the input amounts are right aligned in, measured from the widest of
+// them and clamped. 104 is frame 2c's lane, 206 is frame 3a's, where the group
+// row carries a count and a total on one line.
+#define BLANE_MIN 104
+#define BLANE_MAX 206
+#define BLANE_GAP  16
+// Points per curve. The longest strand spans 210px, so 16 puts a vertex every
+// ~14px; with line_rounded the joins disappear at this stroke width.
+#define BSEG 16
+// Vertical slack around the box so a row's LABEL, which is centred on its
+// strand and therefore reaches above the top row, is not clipped by the
+// container. LVGL clips children to their parent.
+#define BPAD 16
+
+typedef struct {
+    lv_point_precise_t *pts;      // one block for every strand; lv_line borrows it
+    uint16_t            n_line;
+    lv_obj_t           *line[WT_BUNDLE_MAX];
+    lv_obj_t           *amount[WT_BUNDLE_MAX];
+    lv_obj_t           *note[WT_BUNDLE_MAX];
+    uint8_t             role[WT_BUNDLE_MAX];
+} wt_bundle_t;
+
+// lv_line_set_points stores the POINTER, not a copy (see kiss_word_ui.c:82 for
+// the bug that taught this file the same lesson). The block outlives every
+// strand and dies with the container.
+static void bundle_delete_cb(lv_event_t *e)
+{
+    wt_bundle_t *b = lv_event_get_user_data(e);
+    if (!b) return;
+    lv_free(b->pts);
+    lv_free(b);
+}
+
+int wt_strand_px(uint64_t sats, uint64_t max_sats)
+{
+    if (!max_sats) return 2;
+    int px = (int)((sats * 11) / max_sats);       // 11px is the widest strand
+    return px < 2 ? 2 : px;                       // 2px floor, or dust vanishes
+}
+
+// A cubic sampled into `out`. Both control points share a y with the end they
+// belong to, which is what makes these read as one strand bending rather than
+// two lines meeting: the curve leaves its row horizontally and arrives at the
+// junction horizontally.
+static void bundle_curve(lv_point_precise_t *out, int x0, int y0, int x1, int y1,
+                         int c0_num, int c1_num)
+{
+    const int span = x1 - x0;
+    const int cx0 = x0 + (span * c0_num) / 100;
+    const int cx1 = x0 + (span * c1_num) / 100;
+    for (int i = 0; i < BSEG; i++) {
+        // Fixed point at 1/1024: this runs on a chip with no FPU worth using
+        // and the answer is rounded to a pixel either way.
+        const int32_t t  = (int32_t)i * 1024 / (BSEG - 1);
+        const int32_t it = 1024 - t;
+        const int64_t a = (int64_t)it * it * it;          // (1-t)^3
+        const int64_t b = 3LL * it * it * t;              // 3(1-t)^2 t
+        const int64_t c = 3LL * it * t * t;               // 3(1-t) t^2
+        const int64_t d = (int64_t)t * t * t;             // t^3
+        const int64_t den = 1024LL * 1024 * 1024;
+        out[i].x = (lv_value_precise_t)((a * x0 + b * cx0 + c * cx1 + d * x1) / den);
+        out[i].y = (lv_value_precise_t)((a * y0 + b * y0  + c * y1  + d * y1) / den);
+    }
+}
+
+static lv_color_t bundle_col(uint8_t role, bool signed_ok)
+{
+    if (signed_ok) return wt_accent();
+    switch (role) {
+    case WT_STRAND_SEND:   return WT_INK;
+    case WT_STRAND_FEE:    return WT_DIM;
+    case WT_STRAND_CHANGE: return wt_accent();
+    default:               return WT_MUT;
+    }
+}
+
+static lv_obj_t *bundle_strand(lv_obj_t *par, const wt_strand_t *s,
+                               lv_point_precise_t *pts, int npts, int px)
+{
+    lv_obj_t *l = lv_line_create(par);
+    lv_obj_set_pos(l, 0, 0);
+    lv_line_set_points(l, pts, (uint32_t)npts);
+    lv_obj_set_style_line_width(l, px, 0);
+    lv_obj_set_style_line_color(l, bundle_col(s->role, s->signed_ok), 0);
+    lv_obj_set_style_line_rounded(l, true, 0);
+    if (s->is_group) {
+        // Many coins must never read as one coin. This is the only dashed line
+        // on the device, and it only renders because the row it sits on is the
+        // junction row -- see the geometry note above.
+        lv_obj_set_style_line_dash_width(l, 3, 0);
+        lv_obj_set_style_line_dash_gap(l, 5, 0);
+    }
+    if (s->role == WT_STRAND_CHANGE || s->signed_ok)
+        lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    return l;
+}
+
+// One row of text beside a strand, as a flex line so a label and an amount can
+// be two different faces on the same baseline: the group row is proportional
+// words plus a monospaced total, and the output rows are a monospaced amount
+// plus proportional words. `end` right aligns the row in its lane, which is
+// what the input side needs and the output side must not have.
+static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
+{
+    lv_obj_t *r = lv_obj_create(box);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_size(r, w, LV_SIZE_CONTENT);
+    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(r, end ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_style_pad_column(r, 8, 0);
+    lv_obj_set_pos(r, x, y);
+    return r;
+}
+
+static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
+                            lv_color_t col, bool accent)
+{
+    lv_obj_t *l = lv_label_create(row);
+    lv_label_set_text(l, s);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, col, 0);
+    if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    return l;
+}
+
+lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
+                    const wt_strand_t *in,  size_t n_in,
+                    const wt_strand_t *out, size_t n_out,
+                    uint64_t max_sats)
+{
+    if (n_in > WT_BUNDLE_MAX)  n_in  = WT_BUNDLE_MAX;
+    if (n_out > WT_BUNDLE_MAX) n_out = WT_BUNDLE_MAX;
+
+    wt_bundle_t *b = lv_malloc(sizeof *b);
+    if (!b) return NULL;
+    lv_memzero(b, sizeof *b);
+    b->pts = lv_malloc(sizeof(lv_point_precise_t) * BSEG * (n_in + n_out));
+    if (!b->pts) { lv_free(b); return NULL; }
+
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, x, y - BPAD);
+    lv_obj_set_size(box, w, h + 2 * BPAD);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(box, bundle_delete_cb, LV_EVENT_DELETE, b);
+
+    const int jy = BPAD + h / 2;
+    char amt[32];
+
+    // The input lane, measured rather than assumed: the group row carries a
+    // count AND a total on one line, which is why frame 3a's lane is twice
+    // frame 2c's.
+    int lane = BLANE_MIN;
+    for (size_t i = 0; i < n_in; i++) {
+        lv_point_t ts;
+        int wid = 0;
+        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        lv_text_get_size(&ts, amt, wt_font_mono14(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        wid = ts.x;
+        if (in[i].label) {
+            lv_text_get_size(&ts, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            wid += ts.x + 8;                  // + bundle_row's pad_column
+        }
+        if (wid > lane) lane = wid;
+    }
+    if (lane > BLANE_MAX) lane = BLANE_MAX;
+    const int ix0 = lane + BLANE_GAP;
+
+    lv_point_precise_t *pp = b->pts;
+    const int in_lh  = lv_font_get_line_height(wt_font_mono14());
+    const int out_lh = lv_font_get_line_height(wt_font_mono23());
+
+    for (size_t i = 0; i < n_in; i++) {
+        const int ry = BPAD + (n_in < 2 ? h / 2
+                        : BMARG + (int)i * (h - 2 * BMARG) / (int)(n_in - 1));
+        int npts = BSEG;
+        if (ry == jy) {                       // flat: two points, so it dashes
+            pp[0].x = ix0;  pp[0].y = ry;
+            pp[1].x = BJ_X; pp[1].y = jy;
+            npts = 2;
+        } else {
+            bundle_curve(pp, ix0, ry, BJ_X, jy, 43, 62);
+        }
+        const int k = b->n_line;
+        b->line[k] = bundle_strand(box, &in[i], pp, npts,
+                                   wt_strand_px(in[i].sats, max_sats));
+        b->role[k] = in[i].role;
+        pp += BSEG;
+
+        const bool acc = in[i].signed_ok;
+        lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
+        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        if (in[i].label)                      // the group row: words, then the total
+            b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
+                                    acc ? wt_accent() : WT_MUT, acc);
+        b->amount[k] = bundle_txt(row, amt, wt_font_mono14(),
+                                  acc ? wt_accent() : WT_MUT, acc);
+        b->n_line++;
+    }
+
+    for (size_t i = 0; i < n_out; i++) {
+        const int ry = BPAD + (n_out < 2 ? h / 2
+                        : BMARG + (int)i * (h - 2 * BMARG) / (int)(n_out - 1));
+        int npts = BSEG;
+        if (ry == jy) {
+            pp[0].x = BJ_X; pp[0].y = jy;
+            pp[1].x = BO_X; pp[1].y = ry;
+            npts = 2;
+        } else {
+            // The output controls are crossed -- far, then near -- which is what
+            // makes the fan open sharply out of the junction instead of drifting.
+            bundle_curve(pp, BJ_X, jy, BO_X, ry, 80, 20);
+        }
+        const int k = b->n_line;
+        b->line[k] = bundle_strand(box, &out[i], pp, npts,
+                                   wt_strand_px(out[i].sats, max_sats));
+        b->role[k] = out[i].role;
+        pp += BSEG;
+
+        const bool acc = (out[i].role == WT_STRAND_CHANGE);
+        // The STRAND is DIM for a fee and INK for the send -- that is the
+        // thickness reading, and it is in the appendix. The AMOUNT is ink
+        // whatever the row, because WT_DIM is the colour of something present
+        // but inert, and a fee is neither: it is the number an owner is most
+        // likely to be checking. Only change takes the accent, and it is the
+        // only accent text in the graph.
+        const lv_color_t oc = acc ? wt_accent() : WT_INK;
+        lv_obj_t *row = bundle_row(box, BL_X, ry - out_lh / 2, w - BL_X, false);
+        wt_fmt_sats(out[i].sats, amt, sizeof amt);
+        b->amount[k] = bundle_txt(row, amt, wt_font_mono23(), oc, acc);
+        if (out[i].label)
+            b->note[k] = bundle_txt(row, out[i].label, wt_font14(),
+                                    acc ? oc : WT_MUT, acc);
+        b->n_line++;
+    }
+
+    // The junction, last, so it sits over every strand that reaches it. A dot
+    // rather than a joint: the strands genuinely meet here, and a gap where
+    // eleven pixels of stroke cross two of stroke reads as a rendering fault.
+    lv_obj_t *dot = lv_obj_create(box);
+    lv_obj_remove_style_all(dot);
+    lv_obj_set_size(dot, BJ_R * 2, BJ_R * 2);
+    lv_obj_set_pos(dot, BJ_X - BJ_R, jy - BJ_R);
+    lv_obj_set_style_radius(dot, BJ_R, 0);
+    lv_obj_set_style_bg_color(dot, WT_INK, 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    return box;
+}
+
 // Reserve exactly what this iteration writes, which is a character and, only
 // on a group boundary, a space before it.
 //
