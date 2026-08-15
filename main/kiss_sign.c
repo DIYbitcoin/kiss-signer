@@ -1600,15 +1600,53 @@ static void verify_screen(lv_obj_t *parent)
         size_t n_in = 0, n_out = 0;
         uint64_t max_sats = 0;
 
-        if (have_det) {
-            for (uint32_t i = 0; i < det.n_in && n_in < WT_BUNDLE_MAX; i++) {
-                in[n_in].sats  = det.ins[i].sats;
-                in[n_in].label = NULL;
-                in[n_in].role  = WT_STRAND_IN;
-                in[n_in].signed_ok = false;
-                in[n_in].is_group  = false;
-                in[n_in].group_n   = 0;
-                n_in++;
+        char gbuf[64];
+        if (have_det && det.n_in) {
+            // Five rows at any coin count. Above five: the first two, the
+            // elided middle, the last two.
+            //
+            // Both of the group's numbers come from figures the verifier
+            // stands behind rather than from the rows on screen. The count is
+            // the summary's n_in, which is the real input count; the total is
+            // in_sats less the four drawn. That matters because ins[] holds at
+            // most WPSBT_MAX_INS, so a twenty input spend has sixteen entries
+            // here -- summing what is in the array would understate the middle
+            // by four coins, and a graph that quietly loses value is worse than
+            // one that does not draw.
+            //
+            // The consequence of the same cap: above sixteen inputs the "last
+            // two" are the last two HELD, not the last two spent. They are real
+            // amounts of real coins in this transaction and nothing on screen
+            // claims an ordering, so this is a narrowing, not a fiction.
+            //
+            // Four held entries is the floor for eliding at all: below it there
+            // is no "first two and last two" to draw, so a short ins[] under a
+            // large n_in draws the rows it actually has rather than indexing
+            // off the end of the array to satisfy a shape.
+            const uint32_t total_n = s_sum.n_in ? s_sum.n_in : det.n_in;
+            if (total_n <= 5 || det.n_in < 4) {
+                for (uint32_t i = 0; i < det.n_in && n_in < WT_BUNDLE_MAX; i++)
+                    in[n_in++] = (wt_strand_t){ .sats = det.ins[i].sats,
+                                                .role = WT_STRAND_IN };
+            } else {
+                const uint32_t last = det.n_in - 1;
+                uint64_t shown = det.ins[0].sats + det.ins[1].sats
+                               + det.ins[last - 1].sats + det.ins[last].sats;
+                uint64_t hidden = s_sum.in_sats > shown ? s_sum.in_sats - shown : 0;
+                snprintf(gbuf, sizeof gbuf, tr(STR_S_BUNDLE_MORE_FMT),
+                         (unsigned)(total_n - 4));
+                in[n_in++] = (wt_strand_t){ .sats = det.ins[0].sats,
+                                            .role = WT_STRAND_IN };
+                in[n_in++] = (wt_strand_t){ .sats = det.ins[1].sats,
+                                            .role = WT_STRAND_IN };
+                in[n_in++] = (wt_strand_t){ .sats = hidden, .label = gbuf,
+                                            .role = WT_STRAND_IN,
+                                            .is_group = true,
+                                            .group_n = (uint16_t)(total_n - 4) };
+                in[n_in++] = (wt_strand_t){ .sats = det.ins[last - 1].sats,
+                                            .role = WT_STRAND_IN };
+                in[n_in++] = (wt_strand_t){ .sats = det.ins[last].sats,
+                                            .role = WT_STRAND_IN };
             }
         }
         if (!n_in) {
@@ -1640,11 +1678,16 @@ static void verify_screen(lv_obj_t *parent)
         // A transaction that leaves nothing behind says so on the row where
         // change would have been, rather than by having one row fewer. The
         // missing row is the fact.
+        // Its own buffer, not the shared one: this string is handed to the graph
+        // as a POINTER and read when the widget draws, which is after the next
+        // snprintf into buf. Sharing it printed the input caption on the output
+        // row -- "0  SPENDING 20 OF YOUR COINS" where the change would be.
+        char nbuf[64];
         if (!change_n && n_out < WT_BUNDLE_MAX) {
-            snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_NOCHANGE_FMT),
+            snprintf(nbuf, sizeof nbuf, tr(STR_S_BUNDLE_NOCHANGE_FMT),
                      (unsigned)s_sum.n_in);
-            out[n_out++] = (wt_strand_t){ .sats = 0, .label = buf,
-                                          .role = WT_STRAND_FEE };
+            out[n_out++] = (wt_strand_t){ .label = nbuf, .role = WT_STRAND_FEE,
+                                          .note_only = true };
         }
 
         // One scale for the whole graph, taken across both sides, so a strand's

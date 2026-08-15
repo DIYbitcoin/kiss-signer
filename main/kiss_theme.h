@@ -369,6 +369,13 @@ typedef struct {
     bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
     bool        is_group;   // the elided middle: dashed, and holds group_n coins
     uint16_t    group_n;
+    // A row that reserves its place and its words but has no strand and no
+    // amount, because there is no output. "no change, this empties all 20" is
+    // the case: the row has to exist, or a spend that keeps nothing back is
+    // drawn as a spend with one fewer destination and the reader is left to
+    // notice an absence. Drawing a strand to it would be worse still -- a line
+    // to a place the money does not go.
+    bool        note_only;
 } wt_strand_t;
 
 // A strand's stroke, in px, linear on the largest strand in the transaction.
