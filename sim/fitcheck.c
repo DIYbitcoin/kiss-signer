@@ -420,7 +420,6 @@ static const sub_t SUBROWS[] = {
     // NO UNDO. One row now, and its sub-line is the whole reason there is only
     // one: whichever door you pick, the words go. That claim has to survive the
     // narrowest locale or the merge just hides the cost again.
-    { "set/endwords", STR_I_ROW_ENDWORDS_SUB, NULL, NULL },
 };
 #define NSUBROW ((int)(sizeof SUBROWS / sizeof SUBROWS[0]))
 
@@ -557,7 +556,7 @@ static const pill_t PILLS[] = {
     // translations (frozen by the owner), and a slot measures every locale --
     // it would hold stale text to a box it was never written for. Add both
     // the moment the locales thaw.
-    { "set/wipe",         STR_G_WIPE,         270, 52, 0, 1 },
+    { "set/wipe",         STR_G_HOLD_WIPE,    400, 52, 0, 1 },
     // The settings header row. FIRMWARE is 150x44 and carries no flag, sitting
     // 12px left of the 170px LANGUAGE pill; between them they take 332 of the
     // title's lane, so both are worth measuring rather than assuming. It is the

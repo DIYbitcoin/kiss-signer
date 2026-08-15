@@ -56,21 +56,28 @@ use; never invent a house term a reader has to unlearn the first time they read
 anything else. `i18n/GLOSSARY.md` is the authority and has the 21 locale
 anchors — check it before naming anything.
 
-The three that got tangled, and cost a full sweep to untangle:
+The four that got tangled, and cost a sweep each to untangle:
 
 | | |
 | --- | --- |
 | **signer** | this box. Holds keys, signs offline. The whole device, never one screen or one tile. |
 | **wallet** | a set of keys and the coins they control. What a coordinator watches. Not a device: the same signer opens a different wallet under a different passphrase. |
 | **keys** | what the signer holds and what the fingerprint identifies. Use it where "wallet" would be ambiguous about device versus key set. |
+| **seed words** | the 12 or 24 BIP39 words. Never bare "words", which reads as a house term; "recovery words" survives only where a row is too narrow for the anchor. |
 
-Recovery words + passphrase → **keys**; the fingerprint is what those keys are
+Seed words + passphrase → **keys**; the fingerprint is what those keys are
 **called**; the **signer** is the box; the **wallet** is what a coordinator
 sees. A sentence like "an empty wallet on a signer" is describing two different
 things and needs rewriting.
 
+**The destroy family must not say wallet, in any locale.** Erasing this device
+does not erase the wallet: the coins stay on chain and the owner's paper plus
+passphrase still restore them. That rule was written down in `i18n/GLOSSARY.md`
+and broken anyway — in twenty of the twenty-one locales, on the screen that
+asks whether to destroy something. English is not where drift is caught.
+
 Same rule for everything else on screen: storage is **storage**, not "where
-your words live". If a mainstream signer has a word for it, use that word.
+your seed words live". If a mainstream signer has a word for it, use that word.
 
 ## Copy
 

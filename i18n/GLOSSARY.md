@@ -11,33 +11,38 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   sentence**. The mnemonic sentence and optional passphrase are processed to
   produce a 64-byte binary **seed**. They are related, but they are not the
   same object.
-- Two terms, each with a job. **seed phrase** is the technical term. Use it on
-  the setup chooser and in the `W_WHATSEED_*` explainer where BIP39 is
-  introduced: it is the word other software calls the same object, so an owner
-  who ends up recovering elsewhere meets a word they have already seen here.
-  **recovery words** is the plain-language term. Use it everywhere else on the
-  device, in `docs/`, in the walkthrough, and on the site.
+- **seed words** is THE term. One name for one thing, everywhere on the device
+  and in `docs/`: the setup chooser, the destroy family, the Settings rows, the
+  warning screens. It carries the word the rest of Bitcoin writes down (a
+  reader who recovers on any other signer meets "seed" there) without the
+  device inventing a house term of its own.
+- **recovery words** survives as the alias for a row too narrow for the
+  anchor, and nowhere else. Bare **"words"**, used as if it named the thing, is
+  what this replaced -- it reads as a house term and has to be unlearned the
+  first time an owner opens anything else.
 - **Never the bare word "seed"** on its own in a user-facing string. It is
   fine in code, comments and filenames, where `kiss-seed.enc` and
   `kiss_seed.c` already use it.
-- One interim exception, tracked and not permanent: the Settings destroy
-  family still says bare `SEED` in `G_CREATE_NEW`, `G_CREATE_NOTE`, `G_WIPE`,
-  `G_WIPEC_T`, `G_ERASED_T`. Those strings are safety copy that has already
-  been through review in 21 locales, and the SWEEP-02 pass that introduced this
-  rule was scoped to the setup chooser. Those five strings inherit the rule
-  as they get their next careful pass; do not touch them alongside unrelated
-  work.
+- The three strings meaning the PUBLIC 2048-entry BIP39 list are not seed
+  words and must never be renamed to it: `W_CARDS_HELP_B`, `W_CARDS_DUP_B`,
+  `W_CKSUM_FIT_FMT`. Nor are the two that mean the encrypted file on the card,
+  `W_SD_CORRUPT_B` and `G_STORAGE_FAIL_CARD_B`.
+- Not yet converted, and the remaining work: about fifty keys still say bare
+  "words" for the owner's own mnemonic. The pass that lands them is driven by
+  `sim/fitcheck.c`, which pins around forty of them to pixel boxes -- the
+  anchor is wider than the word it replaces, so each slot has to be re-measured
+  rather than assumed.
 - The destroy family in particular must NOT say wallet. Erasing this device
   does not erase the wallet: the coins stay on chain, a paired coordinator
   still shows them, and the owner's paper plus passphrase still restore them.
   Telling someone their wallet is being erased, while they decide whether to
   press the button, is the opposite of what happens. It must not say signer
   either: the signer is the device, and it is still there afterward.
-- After the phrase has been introduced, a short native form of **the words**
-  is fine in space-constrained copy.
-- Never say that the words alone "are the wallet." If a BIP39 passphrase is
-  non-empty, the same ordered words plus that passphrase restore this wallet;
-  the words alone derive the base wallet instead.
+- Never say that the seed words alone "are the wallet." If a BIP39 passphrase
+  is non-empty, the same ordered words plus that passphrase restore one set of
+  keys; the seed words alone derive the base set instead. That is why the
+  passphrase warning says the passphrase is part of YOUR KEYS: it selects among
+  them, and the fingerprint is how you tell which you are holding.
 - Say **compatible BIP39 signer/device**, not **any BIP39 signer**. Wallets can
   differ in BIP39 support, normalization, derivation path, network, and script
   type even when they use the same underlying standard.

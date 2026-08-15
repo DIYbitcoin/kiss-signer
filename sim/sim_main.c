@@ -3422,6 +3422,19 @@ int main(void) {
 
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words
+  // The chip states the RULE, not a chosen mark. Twenty locales still said
+  // "YOUR STROKE" here long after the picker was deleted, which is exactly
+  // what an owner reads as "a swipe I must have set somewhere".
+  must_show("waysin/rule", tr(STR_GD_PICK_REAL_T));
+  // The path no walk stop had ever taken: this pill is the only route from
+  // Settings into the duress wizard, and on a session with no passphrase it is
+  // the only route to CREATE PASSPHRASE. It survived being mislabelled for
+  // exactly that reason.
+  tap_str(STR_GD_SET_BTN, 3, 20);      // HOW IT WORKS -> the wizard
+  save("/tmp/sim_waysin_how.ppm");                  // the rule, at length
+  must_show("waysin/how", tr(STR_GD_PICK_REAL_T));  // the same rule, same words
+  tap_str(STR_GD_SKIP, 3, 20);         // NOT NOW -> Settings
+  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN DRAWING (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
@@ -3457,23 +3470,31 @@ int main(void) {
   //
   // The right column is SG_R_X 412 + SG_R_W 365, and NO UNDO is now ONE card at
   // y = SG_TOP + SG_HEAD + SG_PITCH + SG_HEAD = 189, 64 tall. Centre of it.
-  touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
+  // The row IS the erase confirm now: the chooser that stood between them
+  // offered a second door to the same room, and both doors ended at the same
+  // whole partition erase.
+  touch(580, 220); pump(3); release(); pump(8);     // Erase seed words -> confirm
   lv_refr_now(NULL); pump(2);
-  save("/tmp/sim_endwords.ppm");                    // two why blocks, three pills
-  // ERASE is the RIGHTMOST pill now: wt_pill(482, WT_ACTION_Y, 270) = 482..752.
-  tap_str(STR_G_WIPE, 4, 8);     // -> the hold confirm
-  lv_refr_now(NULL); pump(2);
-  save("/tmp/sim_wipe_confirm.ppm");                // ERASE THIS WALLET? + HOLD pill
+  save("/tmp/sim_wipe_confirm.ppm");                // fingerprint, the pair, HOLD
+  must_show("erase/title", tr(STR_G_WIPEC_T));
+  must_show("erase/fingerprint", "12A4BB6B");       // WHICH keys, before the hold
   // a tap is NOT enough: press, release early, nothing must happen
   tap_str(STR_G_HOLD_WIPE, 2, 4);
   save("/tmp/sim_wipe_tap_noop.ppm");               // still the confirm screen
-  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin
-  touch(208, 398); pump(60);                        // ~half way: the fill sweeps
+  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin. The pill sits
+  // on the action row now (48..368 x WT_ACTION_Y), not on an overlay at 372:
+  // the confirmation IS the screen, so it uses the same row every other screen
+  // puts its actions on.
+  touch(208, 430); pump(60);                        // ~half way: the fill sweeps
   lv_refr_now(NULL);
   save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
   pump(100); release(); pump(6);                    // hold through -> erased
-  save("/tmp/sim_wiped.ppm");                       // WALLET ERASED confirmation
-  tap_str(STR_C_OK, 3, 130);   // OK (200x52 at y=386) -> menu
+  save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
+  must_show("erased", tr(STR_G_ERASED_T));
+  // NEW SEED WORDS sits beside OK: erasing in order to make new ones is one
+  // tap now, which is the half the deleted chooser used to carry.
+  must_show("erased/new", tr(STR_W_CHOOSE_NEW));
+  tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
@@ -3677,15 +3698,17 @@ int main(void) {
   tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
 
-  // 95, not 100. The hold is 1500ms and pump is 16ms a frame, so it completes
-  // on frame 94; the write is deferred 30ms behind the screen that announces
-  // it, which is another two frames. At 100 the hold finished with six frames
-  // to spare, install_now fired inside the same pump call, and the frame saved
-  // as WRITING was already FIRMWARE REPLACED. Held to 95, released, one pump:
-  // that frame belongs to WRITING alone, and the rest carry the install to the
-  // result. Without this the write happens behind the last frame of the
-  // confirm screen and no gate sees the screen that says keep it powered.
-  tap_str(STR_G_FW_HOLD, 95, 1);
+  // Hold well past the 1500ms rather than to the frame it completes on. 95 was
+  // 1520ms against a 1500ms hold, and the indev samples the press about every
+  // 30ms -- so the press lands one or two frames after the touch, and whether
+  // 20ms of margin survives depends on the sampling PHASE, which is set by how
+  // many frames the whole walk has pumped before arriving here. Adding stops
+  // anywhere earlier moved it, the hold stopped completing, and the two frames
+  // below photographed a half filled pill under the names WRITING and
+  // FIRMWARE REPLACED. The window this needs to land in is not tight: WRITING
+  // stays up FW_LIT_MS (1200ms, 75 frames) before the result replaces it, and
+  // the write itself is deferred 30ms behind it.
+  tap_str(STR_G_FW_HOLD, 110, 4);
   save("/tmp/sim_fw_writing.ppm");                  // the DARK -> DONE band + the pair
   // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
   // the screen that announces it, so the panel can go dark on purpose rather
@@ -3693,6 +3716,7 @@ int main(void) {
   // easily; at 75 the walk was still on WRITING when it saved the frame it
   // calls sim_fw_done, and check_sim_taps rightly called the two identical.
   pump(100);
+  must_show("fw/replaced", tr(STR_G_FW_OK_T));   // the screen, not a hopeful name
   save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
 
   // 3. the refusal that matters most, on the same route: a signature that did

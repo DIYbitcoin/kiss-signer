@@ -1819,35 +1819,31 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 {
     lv_obj_t *card = wt_card(scr, x, y, w, 0);
 
+    // CENTRED, both of them. The fingerprint reveal builds its own box by hand
+    // and centres (kiss_ui.c), this one pinned everything at x=16, and the same
+    // eight characters therefore sat in two different places depending on which
+    // screen asked -- on the passphrase warning it read as a form field with a
+    // wide empty right half. The value needs a width before it can be centred:
+    // wt_lbl leaves it content sized, which is its own bounding box, so an
+    // alignment inside it would mean nothing.
     lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), WT_MUT);
     lv_obj_set_style_text_letter_space(c, 1, 0);
     lv_obj_set_width(c, w - 32);
     lv_label_set_long_mode(c, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_update_layout(c);
 
     int vy = 12 + lv_obj_get_height(c) + 8;
     lv_obj_t *v = wt_lbl(card, val, 16, vy,
                          big ? wt_font_mono28() : wt_font_mono23(), WT_INK);
     lv_obj_set_style_text_letter_space(v, 2, 0);
+    lv_obj_set_width(v, w - 32);
+    lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_update_layout(v);
     // Sized to its content, never to a guess: the caption is translated and the
     // value can be four characters or forty.
     lv_obj_set_size(card, w, vy + lv_obj_get_height(v) + 14);
     return card;
-}
-
-// Change the value on a card that is already up, without rebuilding it.
-//
-// The firmware WRITING screen used to delete and recreate its card on every
-// percent, which invalidates the card's whole rectangle a hundred times during
-// a write that already has the LVGL task blocked. Setting the text dirties
-// only the glyphs that changed. The caption and the geometry are the card's
-// and do not move: a percent is the same width at 9% and 99% in the mono font
-// this draws in.
-void wt_value_card_set(lv_obj_t *card, const char *val)
-{
-    if (!card || lv_obj_get_child_count(card) < 2) return;
-    lv_label_set_text(lv_obj_get_child(card, 1), val);
 }
 
 

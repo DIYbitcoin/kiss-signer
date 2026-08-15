@@ -655,12 +655,12 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // off the glass this way -- an ID code, a fingerprint, an amount -- because a
 // bare label above bare text reads as a form field, while a framed value reads
 // as the thing the screen is about. `big` picks font_mono28 over font_mono23 for
-// the values a holder compares character by character. Returns the card; its
-// height is whatever the content needed, so measure it before placing anything
-// underneath.
+// the values a holder compares character by character. Caption and value are
+// both CENTRED in the card, so the same figure sits in the same place on every
+// screen that frames one. Returns the card; its height is whatever the content
+// needed, so measure it before placing anything underneath.
 lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
                         int x, int y, int w, bool big);
-void      wt_value_card_set(lv_obj_t *card, const char *val);  // value only, no rebuild
 
 // A note with a coloured rule down its left edge: optional heading in WT_INK,
 // body in WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how
