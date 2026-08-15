@@ -599,7 +599,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // wipes its static decode result.
     static uint8_t b64buf[4096];
     if (len >= 6 && memcmp(bytes, "cHNidP", 6) == 0) {
-        static char txt[5462];                     // 4096 bytes of PSBT, padded
+        static char txt[5465];                     // 5464 base64 chars for 4096 bytes + NUL
         size_t tl = 0;
         for (size_t i = 0; i < len && tl + 1 < sizeof txt; i++)
             if (bytes[i] != '\r' && bytes[i] != '\n' && bytes[i] != ' ')
@@ -745,7 +745,6 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // stack for a question a 64-bit key settles.
     uint64_t seen[WPSBT_ADDR_TRACK];
     uint32_t nseen = 0;
-    bool seen_full = false;
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
@@ -858,13 +857,30 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             continue;
         }
         s->in_sats += utxo_val;
-        if (!seen_full) {
+        {
             const uint64_t key = spk_key(utxo_spk, utxo_spk_len);
             uint32_t j = 0;
             while (j < nseen && seen[j] != key) j++;
             if (j == nseen) {
-                if (nseen < WPSBT_ADDR_TRACK) seen[nseen++] = key;
-                else                          seen_full = true;
+                // Refuse rather than print a number that was not counted. The
+                // old fallback here reported the INPUT count once the table
+                // filled, which is an upper bound and not an answer: the card
+                // would have said "joins 44 of your addresses" about a spend
+                // that joined thirty.
+                //
+                // Same call the output side makes one screen over -- "too many
+                // outputs to verify safely" -- and for the same reason. It is
+                // also unreachable: a loadable PSBT is capped at 4096 bytes and
+                // the generated fixtures cost ~137 bytes per marginal input
+                // (279 at one input, 825 at five), so the ceiling is near
+                // thirty against a table of forty. Unreachable is not the same
+                // as correct, and this branch is the one that stays true if a
+                // buffer ever grows.
+                if (nseen >= WPSBT_ADDR_TRACK) {
+                    stop(s, "too many input addresses to count safely");
+                    continue;
+                }
+                seen[nseen++] = key;
             }
         }
         // spending a tiny KISS-owned coin is the classic dust-attack tell: a
@@ -883,10 +899,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                : (n84 && !n44 && !n49) ? 84 : 0;
 
     s->n_unproven_in = nunproven;
-    // Past the tracking cap the exact figure has stopped mattering and the
-    // honest fallback is the input count: it is the most addresses this could
-    // possibly be, and a spend that wide is warned about either way.
-    s->n_in_addr = seen_full ? s->n_in : nseen;
+    s->n_in_addr = nseen;
     // BIP375 silent-payment sends remove two cautions that cannot apply.
     // A BIP-376 SP PSBT never carries the previous transactions — proving the
     // input amounts is a property of the format, not an omission of the
