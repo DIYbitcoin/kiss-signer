@@ -555,6 +555,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_UNPROVEN_IN;
     snprintf(s->reason, sizeof s->reason,
              "input amounts not proven - fee may be higher");
+  } else if (len >= 5 && memmem(bytes, len, "MERGE", 5)) {
+    // A consolidation: twenty coins swept to one address, nothing back. Above
+    // WPSBT_MERGE_INS so the coins-linked caution always fires, and above
+    // WPSBT_MAX_INS so kiss_psbt_details can only hold sixteen of them -- which
+    // is what makes the group's count and total come from the summary rather
+    // than from the rows the graph can see.
+    s->n_in = 20; s->n_out = 1;
+    s->in_sats = 4210000; s->send_sats = 4200000; s->change_sats = 0;
+    s->fee_sats = 10000; s->fee_rate_x10 = 24; s->est_vsize = 4166;
+    s->outs[0].sats = 4200000; s->outs[0].is_change = false;
+    snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
+             "bc1qm52k4nv8ffkz7mvd3sjn54khce6mua7l7p9c8x");
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_MERGE_INS;
+    snprintf(s->reason, sizeof s->reason,
+             "many coins spent at once - they are linked forever");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
     // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the verify screen can ever draw, and it is the only fixture
@@ -599,15 +615,15 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   d->n_total = s_sim_n_in ? s_sim_n_in : 1;
   d->n_in = d->n_total > WPSBT_MAX_INS ? WPSBT_MAX_INS : d->n_total;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
-  // Amounts that sum to the summary's in_sats, largest first, so the strands
-  // have real proportions to draw and the elided total in section 2 has a true
-  // number to state.
+  // Amounts that sum to the summary's in_sats, so the strands have real
+  // proportions to draw and the elided total has a true number to state. The
+  // spread GROWS -- each coin takes two thirds of an even share and the last
+  // one takes the remainder -- because a set of equal strands would hide
+  // whether wt_strand_px is doing anything at all.
   uint64_t left = s_sim_in_sats, n = d->n_in;
   for (uint32_t i = 0; i < d->n_in; i++) {
     memset(d->ins[i].txid, "abcdefghijklmnop"[i], 64);
     d->ins[i].txid[64] = 0;
-    // A descending spread rather than an even split: equal strands would hide
-    // whether wt_strand_px is doing anything at all.
     uint64_t take = (i + 1 == d->n_in) ? left : (left * 2) / (3 * (n - i));
     if (!take) take = 1;
     d->ins[i].vout = i; d->ins[i].sats = take;
@@ -1216,6 +1232,10 @@ static void sim_fixture_reset(void) {
     // Sorts LAST on purpose: the walk taps rows by position, so a fixture
     // inserted anywhere else would shift every tap after it.
     { "zzzz-MANY.psbt",  "MANY"  },
+    // ... and this one sorts after THAT, for the same reason. Twenty coins into
+    // one recipient with no change: the shape the elided middle exists for, and
+    // the only fixture where n_total exceeds what ins[] can hold.
+    { "zzzzz-MERGE.psbt", "MERGE" },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -2026,6 +2046,49 @@ int main(void) {
     return 1;
   }
   printf("ok: signing waits until every recipient has been on the glass\n");
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the file list
+
+  // Twenty coins swept into one address. The graph draws five rows whatever the
+  // count -- first two, the elided middle, last two -- and the middle strand is
+  // the only dashed line on the device, so this frame is the only place that
+  // renderer path is ever looked at. Row 3, the last of the four the list shows.
+  //
+  // The two numbers on the group row are the whole reason it is not just a
+  // thinner line: sixteen coins is a count nothing else on the screen states,
+  // and their total is what stops "16 more" reading as loose change. Both come
+  // from the summary, because ins[] holds sixteen of the twenty.
+  touch(328, 348); pump(3); release(); pump(8);     // zzzzz-MERGE (row 3) -> verify
+  save("/tmp/sim_sign_merge.ppm");
+  // Digits only. Every other needle here would be a translated word, and
+  // wt_fmt_sats groups with the same space in all 21 locales, so these two read
+  // identically everywhere: the count of coins the middle strand stands for,
+  // and the value they carry. The total is the stronger of the two -- it can
+  // only be right if it came from the summary rather than from the four rows
+  // the graph can see.
+  must_show("twenty coins", "16");                  // the elided count
+  must_show("twenty coins", "2 749 257");           // ... and what it is worth
+  if (kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN was live with the coins-linked bar unacknowledged\n");
+    return 1;
+  }
+  touch(652, 366); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
+  save("/tmp/sim_sign_merge_ack.ppm");
+  if (!kiss_sign_test_armed()) {
+    printf("FAIL: HOLD TO SIGN still inert after the coins-linked bar was acked\n");
+    return 1;
+  }
+  printf("ok: twenty coins elide to five rows, count and total both stated\n");
+  // The only fixture whose input count exceeds what wpsbt_details_t can hold,
+  // so it is the only one that reaches S_D_MANYIN_FMT -- the longest formatted
+  // line in the sign flow, ~140 bytes in ja, and the case that used to truncate.
+  // The details stub lost that coverage when it stopped inventing a count the
+  // summary disagreed with; this is where it comes back, on a transaction that
+  // genuinely has more inputs than the page can list.
+  tap_str(STR_S_DETAILS, 3, 8);
+  save("/tmp/sim_sign_merge_details.ppm");
+  must_show("twenty coins, details", "20");   // the real count
+  must_show("twenty coins, details", "16");   // ... and how many are listed
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> verify
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the file list
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
