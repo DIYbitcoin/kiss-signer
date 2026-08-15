@@ -629,7 +629,7 @@
   "H_WAYS_IN_HINT": "ett streck efter ordet ber om lösenfrasen",
   "S_D_OUTPUTS_FMT": "UTDATA (%u) - %u TILL DIG",
   "S_BUNDLE_IN_FMT": "SPENDERAR %u AV DINA MYNT",
-  "S_COINS_HELP_B": "HEL: ett mynt används helt, aldrig en del av det.\nVÄXEL: det som blir över kommer tillbaka till dig.\nIHOP: flera används ihop när ett inte räcker.",
+  "S_COINS_HELP_B": "INTE HÄR: den ligger på bitcoin nätverket. ingen enhet håller den, inte heller denna.\nBARA NYCKLAR: ditt är nyckeln som öppnar den, och nyckeln är det den här signeraren sparar.\nFÖRBRUKAS: att öppna den förbrukar allt. det du inte skickar kommer tillbaka som en ny.",
   "S_BUNDLE_OUT": "VART DET GÅR",
   "S_BUNDLE_MORE_FMT": "%u mynt till",
   "S_BUNDLE_NOCHANGE_FMT": "ingen växel, detta tömmer alla %u",

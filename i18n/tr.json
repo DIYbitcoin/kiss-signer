@@ -629,7 +629,7 @@
   "H_WAYS_IN_HINT": "kelimeden sonra bir çizgi passphrase ister",
   "S_D_OUTPUTS_FMT": "ÇIKTILAR (%u) - %u SİZE",
   "S_BUNDLE_IN_FMT": "COINLERİNİZDEN %u TANESİ HARCANIYOR",
-  "S_COINS_HELP_B": "BÜTÜN: bir coin bütün harcanır, parçası değil.\nPARA ÜSTÜ: artan sana geri döner.\nBİRLİKTE: biri yetmediğinde birkaçı birlikte harcanır.",
+  "S_COINS_HELP_B": "BURADA DEĞİL: bitcoin ağında durur. hiçbir cihaz onu tutmaz, bu da tutmaz.\nSADECE ANAHTAR: senin olan, onu açan anahtardır ve bu imzalayıcının sakladığı da odur.\nTAMAMI GİDER: açmak tamamını harcar. göndermediğin kadarı yenisi olarak geri gelir.",
   "S_BUNDLE_OUT": "NEREYE GİDİYOR",
   "S_BUNDLE_MORE_FMT": "%u coin daha",
   "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",

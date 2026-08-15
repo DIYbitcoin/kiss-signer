@@ -629,7 +629,7 @@
   "H_WAYS_IN_HINT": "kreska po słowie prosi o frazę dostępu",
   "S_D_OUTPUTS_FMT": "WYJŚCIA (%u) - %u DO CIEBIE",
   "S_BUNDLE_IN_FMT": "WYDAJESZ %u SWOICH MONET",
-  "S_COINS_HELP_B": "CAŁA: monetę wydaje się w całości, nigdy jej część.\nRESZTA: to, co zostaje, wraca do ciebie.\nRAZEM: gdy jedna nie wystarcza, idzie ich kilka.",
+  "S_COINS_HELP_B": "NIE TUTAJ: leży w sieci bitcoina. nie trzyma go żadne urządzenie, to też nie.\nTYLKO KLUCZE: twój jest klucz, który go otwiera, i to klucz przechowuje ten podpisujący.\nZUŻYWA SIĘ: otwarcie zużywa go w całości. czego nie wysyłasz, wraca jako nowy.",
   "S_BUNDLE_OUT": "DOKĄD IDZIE",
   "S_BUNDLE_MORE_FMT": "jeszcze %u monet",
   "S_BUNDLE_NOCHANGE_FMT": "bez reszty, to opróżnia wszystkie %u",

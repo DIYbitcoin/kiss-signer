@@ -2047,7 +2047,9 @@ int main(void) {
   save("/tmp/sim_sign_btc.ppm");            // the same transaction, in BTC
   must_show("btc unit", "BTC");
   must_show("btc unit", "0.00061000");
-  touch(120, 130); pump(3); release(); pump(10);
+  // A STRAND label, not the total: every figure on the device is the switch,
+  // so the one at the end of the recipient strand has to work too.
+  touch(505, 185); pump(3); release(); pump(10);
   must_show("sats unit", "61 000");
 
   // The coins caption's own "?": the first word on this screen a newcomer has

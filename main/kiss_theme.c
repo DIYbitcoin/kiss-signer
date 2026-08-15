@@ -2922,6 +2922,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                                     acc ? wt_accent() : WT_MUT, acc);
         b->amount[k] = bundle_txt(row, amt, wt_font_mono14(),
                                   acc ? wt_accent() : WT_MUT, acc);
+        wt_denom_bind(b->amount[k]);   // every figure is the switch, not one
         b->n_line++;
     }
 
@@ -3043,6 +3044,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const lv_color_t oc = acc ? wt_accent() : WT_INK;
         wt_fmt_amount(out[i].sats, amt, sizeof amt);
         b->amount[k] = bundle_txt(line, amt, wt_font_mono23(), oc, acc);
+        wt_denom_bind(b->amount[k]);
         if (out[i].label)
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     acc ? oc : WT_MUT, acc);
@@ -3301,6 +3303,30 @@ const char *wt_denom_unit(void)
 // screen prints the total large in the chosen one and small in the other, so
 // whichever way a coordinator counts, the number is on the glass without a
 // trip to Settings.
+// Any label carrying an amount becomes the switch. The preference belongs to
+// the number, not to a settings page: wherever a figure is being compared
+// against a coordinator that counts the other way, the fix is a tap on the
+// figure. wt_denom_bind is what every screen calls after drawing one.
+static void (*s_denom_tap)(void);
+void wt_denom_on_tap(void (*fn)(void)) { s_denom_tap = fn; }
+
+static void denom_lbl_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_denom_tap) s_denom_tap();
+}
+
+void wt_denom_bind(lv_obj_t *o)
+{
+    if (!o) return;
+    lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE);
+    // 12 in every direction: an amount is type, not a button, and a bare
+    // label's box is exactly its glyphs. This is what makes a 14px figure
+    // reachable without giving it a border it should not have.
+    lv_obj_set_ext_click_area(o, 12);
+    lv_obj_add_event_cb(o, denom_lbl_cb, LV_EVENT_CLICKED, NULL);
+}
+
 void wt_fmt_amount(uint64_t sats, char *out, size_t out_len)
 {
     if (s_denom == WT_DENOM_BTC) wt_fmt_btc(sats, out, out_len);

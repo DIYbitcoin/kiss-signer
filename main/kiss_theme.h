@@ -768,6 +768,10 @@ int  wt_denom(void);
 void wt_denom_set(int d);
 const char *wt_denom_unit(void);       // "sats" / "BTC"
 const char *wt_denom_unit_alt(void);   // the other one
+// Make a label carrying an amount switch the unit when tapped. The screen
+// says what a switch costs it (usually a repaint) through wt_denom_on_tap.
+void wt_denom_bind(lv_obj_t *o);
+void wt_denom_on_tap(void (*fn)(void));
 void wt_fmt_amount(uint64_t sats, char *out, size_t out_len);      // in the chosen unit
 void wt_fmt_amount_alt(uint64_t sats, char *out, size_t out_len);  // ...and in the other
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567

@@ -905,28 +905,45 @@ static void caution_help_cb(lv_event_t *e)
 // redraw here would be the one path that has to stay in step with
 // verify_screen by hand.
 static void repaint_verify(void);
-static void denom_cb(lv_event_t *e)
+static void denom_flip(void)
 {
-    (void)e;
     kiss_settings_set_denom(wt_denom() == WT_DENOM_BTC ? WT_DENOM_SATS
                                                        : WT_DENOM_BTC);
-    repaint_verify();
+}
+
+// The verify screen redraws whole; the details page rebuilds itself. Both
+// register what a tap on any of their figures costs them, so the binding on
+// the label stays a plain "this is an amount" and nothing more.
+static void denom_tap_verify(void) { denom_flip(); repaint_verify(); }
+static void denom_tap_details(void)
+{
+    denom_flip();
+    details_cb(NULL);          // this page rebuilds itself from s_parent
 }
 
 // ---- "?" beside the coins caption: what a coin is ----
 // The word on the glass stays "coins", which is what a coordinator's own coin
-// control calls them; the card names the term the rest of Bitcoin writes down.
-// Three entries and three marks, and the marks are the graph's own: what goes
-// in, what comes back, what several look like joined. Nothing here is a
-// paragraph -- the picture underneath the caption is doing the explaining, and
-// this says what its shape means.
+// control calls them; the card names the term the rest of Bitcoin writes down
+// and corrects what the word implies.
+//
+// It said "a coin is spent whole, never a piece of one", which is true of the
+// output and wrong about everything around it: a signer does not hold coins.
+// The output is a record on the bitcoin network; what this box holds is the
+// key that can unlock it, and that key is the whole of what it holds. Getting
+// that backwards on the one screen where somebody is about to sign teaches
+// them the device is a wallet full of money -- which is also exactly the
+// belief that makes a lost passphrase feel survivable.
+//
+// The consumed-entirely part stays, because it is real and it is why the
+// graph has a change strand at all: unlocking an output uses all of it, and
+// the remainder comes back as a new one.
 static void coins_help_cb(lv_event_t *e)
 {
     (void)e;
     static const char *const ICONS[] = {
-        LV_SYMBOL_DOWNLOAD,      // a coin arriving, spent whole
-        LV_SYMBOL_LOOP,          // change, the same mark the outputs list wears
-        LV_SYMBOL_UPLOAD,        // several joined
+        LV_SYMBOL_GPS,           // where it actually is: out there, not in here
+        WT_ICON_KEY,             // what this box holds, and the whole of it
+        LV_SYMBOL_LOOP,          // used up, and the remainder coming back
     };
     // 64 for the term plus the parenthesis, because head is 64: the device
     // compiler refuses a snprintf that could cut a translated word in half,
@@ -1273,6 +1290,7 @@ static void cautions_screen(void)
 
 static void verify_screen(lv_obj_t *parent)
 {
+    wt_denom_on_tap(denom_tap_verify);   // what a tap on any figure here costs
     char buf[160], a[32], b[32];
     s_parent = parent;                    // details page rebuilds us from here
     mk_screen(parent, tr(STR_S_T), NULL);
@@ -1447,19 +1465,17 @@ static void verify_screen(lv_obj_t *parent)
         // coordinator is being compared against is the one place the question
         // comes up, and the settings page this would otherwise need a row on
         // is full to its margins.
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(row, 8);
-        lv_obj_add_event_cb(row, denom_cb, LV_EVENT_CLICKED, NULL);
-
         lv_obj_t *big = lv_label_create(row);
         lv_label_set_text(big, a);
         lv_obj_set_style_text_font(big, wt_font_num48(), 0);
         lv_obj_set_style_text_color(big, INK_COL, 0);
+        wt_denom_bind(big);
 
         lv_obj_t *unit = lv_label_create(row);
         lv_label_set_text(unit, wt_denom_unit());
         lv_obj_set_style_text_font(unit, wt_font23(), 0);
         lv_obj_set_style_text_color(unit, INK_COL, 0);
+        wt_denom_bind(unit);
 
         // The other unit, small, under the big one: a coordinator that counts
         // the other way is checked against this line without a trip to
@@ -1470,6 +1486,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_label_set_text(btc, buf);
         lv_obj_set_style_text_font(btc, wt_font_mono14(), 0);
         lv_obj_set_style_text_color(btc, MUT_COL, 0);
+        wt_denom_bind(btc);
     }
 
     // ---- the caution bar -------------------------------------------------
@@ -2124,6 +2141,7 @@ static void det_flag_row(int x, int *y, const char *icon, const char *head,
 static void details_cb(lv_event_t *e)
 {
     (void)e;
+    wt_denom_on_tap(denom_tap_details);   // a figure tapped here rebuilds here
     wpsbt_details_t det;
     if (kiss_psbt_details(&det) != 0)
         return;
@@ -2255,6 +2273,7 @@ static void details_cb(lv_event_t *e)
         // the whole fix for this list: what is being spent is the fact, and the
         // coin it came from is the reference you check it against.
         lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        wt_denom_bind(amt);
 
         // coin being spent: first 8 + last 8 of its txid, and the output index.
         // The mark is the glossary's own TXID icon, so the line says what it is
@@ -2340,6 +2359,7 @@ static void details_cb(lv_event_t *e)
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
         lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        wt_denom_bind(amt);
         // The fold, not the whole address: this list's job is "one line of
         // facts per output", and the full form is a 248px wall of mono14 that
         // pushed the eighth output off the fold. The last eight still light
@@ -2437,6 +2457,7 @@ static void details_cb(lv_event_t *e)
     // against the coordinator, which is the entire reason the BTC form is here
     // at all. It was the same size and the same grey as the locktime note.
     lv_obj_t *bt = mk_lbl(buf, RX, ry, wt_font23(), INK_COL);
+    wt_denom_bind(bt);
     ry += det_h(bt) + 10;
 
     // ---- the flag rows ----

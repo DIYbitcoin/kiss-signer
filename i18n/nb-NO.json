@@ -629,7 +629,7 @@
   "H_WAYS_IN_HINT": "en strek etter ordet ber om passordfrasen",
   "S_D_OUTPUTS_FMT": "UTGANGER (%u) - %u TIL DEG",
   "S_BUNDLE_IN_FMT": "BRUKER %u AV DINE MYNTER",
-  "S_COINS_HELP_B": "HEL: en mynt brukes hel, aldri en del av den.\nVEKSEL: det som blir igjen, kommer tilbake til deg.\nSAMLET: flere brukes sammen når én ikke er nok.",
+  "S_COINS_HELP_B": "IKKE HER: den ligger på bitcoin nettverket. ingen enhet holder den, heller ikke denne.\nBARE NØKLER: du eier nøkkelen som låser den opp, og nøkkelen er det denne signeren tar vare på.\nBRUKT OPP: å låse den opp bruker alt. det du ikke sender, kommer tilbake som en ny.",
   "S_BUNDLE_OUT": "HVOR DET GÅR",
   "S_BUNDLE_MORE_FMT": "%u mynter til",
   "S_BUNDLE_NOCHANGE_FMT": "ingen veksel, dette tømmer alle %u",

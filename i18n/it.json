@@ -629,7 +629,7 @@
   "H_WAYS_IN_HINT": "un tratto dopo la parola chiede la passphrase",
   "S_D_OUTPUTS_FMT": "USCITE (%u) - %u A TE",
   "S_BUNDLE_IN_FMT": "SPENDI %u DELLE TUE MONETE",
-  "S_COINS_HELP_B": "INTERA: una moneta si spende intera, mai un pezzo.\nRESTO: quel che avanza torna a te.\nUNITE: se ne spendono più insieme quando una non basta.",
+  "S_COINS_HELP_B": "NON È QUI: sta sulla rete bitcoin. nessun dispositivo la tiene, nemmeno questo.\nSOLO CHIAVI: tua è la chiave che la apre, e la chiave è ciò che questo firmatario custodisce.\nSI CONSUMA: aprirla la consuma tutta. quello che non mandi torna come una nuova.",
   "S_BUNDLE_OUT": "DOVE VA",
   "S_BUNDLE_MORE_FMT": "altre %u monete",
   "S_BUNDLE_NOCHANGE_FMT": "nessun resto, questo svuota tutte le %u",

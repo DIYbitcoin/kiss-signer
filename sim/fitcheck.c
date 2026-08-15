@@ -44,6 +44,7 @@ static const slot_t SLOTS[] = {
     // kiss_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
+    { "sign/?coins",      STR_S_COINS_HELP_B, 720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // kiss_ui.c:469,769 — login warning + passphrase intro
     { "login/warn",       STR_L_WARN_B,     740, 204 },
