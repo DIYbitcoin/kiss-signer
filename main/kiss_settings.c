@@ -631,13 +631,28 @@ static void duress_cb(lv_event_t *e)
         lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 128);
     }
 
-    // The camera audit, one row down. Advanced by placement -- this is the
-    // one Settings page with room, and both things here are for an owner who
-    // wants to check the device rather than use it. Opens the same flow the
-    // create wizard used to carry; it proves the derivation mechanism and
-    // never touches the seed.
-    wt_row(s_scr, tr(STR_W_PROOF_T), tr(STR_W_PROOF_CHECK_H), NULL, WT_INK,
-           48, 210, 704, audit_open_cb, NULL);
+    // The rule in words, under the chips that state it as a picture. The
+    // chips alone read as a STATUS -- "drawing set, one swipe set" -- so an
+    // owner who has just set a drawing goes looking for where the swipe is
+    // chosen, finds no such control, and reports the page broken. It was, in
+    // the only sense that matters: nothing on it said the swipe is not a
+    // choice. The left block says which swipe (any), the right says what the
+    // swipe is not (the secret).
+    //
+    // No headings. Both are sentences lifted whole from screens that already
+    // teach this, and a heading over either would be a new key in 21 locales
+    // for decoration. Accent on how it works, WARN on where it goes wrong --
+    // the proven pair geometry.
+    {
+        const char *b1 = tr(STR_GD_PICK_REAL_S);
+        const char *b2 = tr(STR_GD_DONE_B);
+        const lv_font_t *f = wt_body_font2(b1, b2, 330,
+                                           WT_CONTENT_BOTTOM - 232);
+        wt_why_block(s_scr, NULL, b1, 48, 232, 344,
+                     WT_CONTENT_BOTTOM - 232, f, wt_accent());
+        wt_why_block(s_scr, NULL, b2, 408, 232, 344,
+                     WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+    }
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
@@ -1631,6 +1646,10 @@ void kiss_settings_open(lv_obj_t *parent)
         // FIRMWARE is not here. It is device chrome, so it went up beside the
         // language pill; this bar had no room for it. See the header block.
 
+        // CAMERA AUDIT is not here either, though it belongs to this bar: it
+        // is built after the build identity, below, because it has to be
+        // measured against it.
+
         // Build identity AFTER the pill, and that order is load bearing. The
         // action bar is built lazily by the first wt_pill on the screen; the
         // language pill used to be that pill and used to come first, so this
@@ -1657,6 +1676,34 @@ void kiss_settings_open(lv_obj_t *parent)
         // pill exists, so the bar drew straight over the top of them. Nothing
         // errored, because they were still there and still tappable, just
         // hidden.
+
+        // CAMERA AUDIT. It spent a version on the duress page, which was the
+        // wrong room by a mile: an owner looking for the ways in found a
+        // camera drill, and an owner wanting to check the camera had to go
+        // through the screen about hiding coins to reach it. Those two share
+        // nothing except that both were once the only page with space.
+        //
+        // The bar is where it belongs, right of the build identity. Build
+        // identity says WHAT this device is; the audit proves one claim that
+        // identity makes -- that the camera is a camera and the words on the
+        // glass came out of it. Same line, left to right: the fact, then the
+        // way to check it.
+        //
+        // The room is MEASURED, not assumed. kiss_build_id_right() reports 440
+        // in all 21 locales (the facts row is version, encryption and
+        // randomness, none of them translated) and BACK's left edge is 612. A
+        // 240px pill at 330 looked like it cleared the build id by 55px, and
+        // the gate found it sharing 86x14 px with "randomness: NOISE" in every
+        // one of the 21. 464 is 24px past the measured edge, and 140 matches
+        // BACK, so the bar now ends in two pills of one width.
+        //
+        // Built after kiss_build_id_make for the same reason that block gives:
+        // the bar's fill is drawn by the first pill, and anything made before
+        // it is under it.
+        wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T),
+                     464, WT_ACTION_Y, 140, WT_ACTION_H,
+                     audit_open_cb, NULL);
+
         lv_obj_move_foreground(s_acc_name);
         for (int i = 0; i < WT_ACC_N; i++)
             if (s_acc_dot[i]) lv_obj_move_foreground(s_acc_dot[i]);
