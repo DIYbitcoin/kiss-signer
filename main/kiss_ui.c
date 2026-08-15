@@ -59,6 +59,8 @@ static bool s_flash;                       // last char currently unmasked
 static void (*s_unlocked_cb)(void);
 static lv_obj_t *s_cap;                    // caption (setup mode repurposes it)
 static bool s_setup_mode;                  // first login after the wizard: type twice
+static bool s_pass_later;                  // "add a passphrase" from Settings: the
+                                           // wizard's staged seed is not involved
 static bool s_first_done;                  // first of the two entries captured
 static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
@@ -398,6 +400,7 @@ static void wipe_and_close(void) {
   memset(s_pass, 0, sizeof(s_pass));         // never keep the passphrase around
   memset(s_first, 0, sizeof(s_first));
   s_setup_mode = false;
+  s_pass_later = false;
   s_first_done = false;
   s_weak_ack = false;
   s_backup_verified = false;
@@ -791,7 +794,11 @@ static void fp_tap_cb(lv_event_t *e) {
   //            and discarding it IS the data loss, not the report of it.
   //            setup_fail_dismiss_cb does not discard, so it survives the STOP.
   //   others   the previous state is intact and staging is safe to drop.
-  if (s_setup_mode) {
+  // A setup-mode commit publishes the STAGED seed. An add-later run has no
+  // staged seed -- the signer's wallet is what it already was; the passphrase
+  // derives the session, exactly like an everyday login -- and committing
+  // nothing returns WSEED_ERR_NO_SEED, which is not a failure here.
+  if (s_setup_mode && !s_pass_later) {
     int crc = kiss_seed_commit();
     if (crc == WSEED_ERR_RECOVER) {
       // Its own screen, not the generic STOP. The staging is kept, and the
@@ -1414,8 +1421,16 @@ static void kb_cb(lv_event_t *e) {
       entry_refresh();
       setup_warn_screen();
     }
-    else if (s_setup_mode) show_cancel_confirm();   // don't throw away a fresh seed on one tap
-    else wipe_and_close();                     // normal login: nothing to lose
+    else if (s_setup_mode && !s_pass_later) show_cancel_confirm(); // don't throw away a fresh seed on one tap
+    else {
+      // Normal login (nothing to lose) and add-later (the window's staged
+      // seed does not exist). The add-later case owes a return: it opened
+      // from Settings, so CANCEL goes back there rather than to the game.
+      bool later = s_pass_later;
+      void (*cb)(void) = s_unlocked_cb;
+      wipe_and_close();
+      if (later && cb) cb();
+    }
   }
   else if (strcmp(txt, "OK") == 0) {
     if (s_backup_verify_pass) {
@@ -1737,6 +1752,17 @@ static const lv_font_t *font_for_both(const char *a, const char *b,
   if (fa == wt_font14() || fb == wt_font14()) return wt_font14();
   if (fa == wt_font23() || fb == wt_font23()) return wt_font23();
   return fa;
+}
+
+// "ADD A PASSPHRASE" from Settings: the same type-twice, weak-ack, warning
+// and fingerprint reveal the wizard's passphrase step runs -- minus the staged
+// seed. There is none: the signer's wallet is already committed, and the
+// passphrase only derives the session. s_pass_later diverts the two staging
+// touchpoints (fp_tap_cb's commit and the cancel overlay's one-tap shield).
+void kiss_login_open_add_later(void (*unlocked_cb)(void))
+{
+  kiss_login_open_setup(unlocked_cb);
+  s_pass_later = true;
 }
 
 void kiss_login_open(void (*unlocked_cb)(void)) {

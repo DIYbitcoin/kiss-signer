@@ -11,7 +11,10 @@ void kiss_login_open(void (*unlocked_cb)(void));
 // Setup variant (first login after the seed wizard): the passphrase must be
 // typed TWICE — a typo here is an unreproducible wallet later (spec safety net).
 void kiss_login_open_setup(void (*unlocked_cb)(void));
-
+// Add-later variant (from Settings): same type-twice + fingerprint reveal, but
+// nothing is committed — there is no staged seed, the passphrase only derives
+// the session. CANCEL returns to the caller's callback rather than the game.
+void kiss_login_open_add_later(void (*unlocked_cb)(void));
 // True while any login screen is on top (game must ignore touch meanwhile).
 bool kiss_ui_active(void);
 
