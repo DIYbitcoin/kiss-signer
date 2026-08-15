@@ -1882,7 +1882,16 @@ int main(void) {
   save("/tmp/sim_sign_details.ppm");
   touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
   save("/tmp/sim_sign_glossary.ppm");
-  tap_str(STR_C_OK, 3, 6);     // OK closes glossary
+  // A page now, so it leaves by BACK and lands on DETAILS -- the page it was
+  // opened from -- rather than dismissing an overlay onto whatever was under
+  // it. Two BACKs to get from here to verify, where there used to be one.
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> DETAILS
+  // Each term answers for itself now. The sighash chip is the one worth
+  // opening: it is the term a reader is least likely to know and the one whose
+  // card used to be reachable only by tapping the question mark about the FEE.
+  touch(729, 315); pump(3); release(); pump(30);   // "?" beside sighash
+  save("/tmp/sim_sign_term_sighash.ppm");
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
   // The accent changed while this screen was UP, which is the case the flags
   // exist for and the one no rebuild can cover: every other check in this walk

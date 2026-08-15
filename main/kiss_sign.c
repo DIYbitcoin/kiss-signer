@@ -326,22 +326,33 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
 //
 // Order is GLOSS_ICONS' order: 0 inputs, 1 outputs, 2 change, 3 txid,
 // 4 fee rate, 5 locktime, 6 derivation path, 7 descriptor.
-static const char *gloss_term(int idx)
+static const char *gloss_line(int idx, char *head, size_t head_len)
 {
-    static char head[64];
     const char *p = tr(STR_S_GLOSSARY_B);
     for (int i = 0; i < idx && p; i++) {
         p = strchr(p, '\n');
         if (p) p++;
     }
-    if (!p || !*p) return "";
-    char line[160];
+    if (!p || !*p) { if (head_len) head[0] = 0; return ""; }
+    // One line at a time into a buffer this call owns, because wt_split_colon
+    // writes the term into `head` and hands back a pointer INTO the line it was
+    // given -- a pointer into the translation table would be to a string with
+    // the next seven terms still attached.
+    static char line[160];
     const char *nl = strchr(p, '\n');
     size_t n = nl ? (size_t)(nl - p) : strlen(p);
     if (n >= sizeof line) n = sizeof line - 1;
     memcpy(line, p, n);
     line[n] = 0;
-    wt_split_colon(line, head, sizeof head);
+    const char *def = wt_split_colon(line, head, head_len);
+    return def ? def : "";
+}
+
+// Just the term, for a caller that only needs the word.
+static const char *gloss_term(int idx)
+{
+    static char head[64];
+    gloss_line(idx, head, sizeof head);
     return head;
 }
 
@@ -1716,21 +1727,61 @@ static const char *const GLOSS_ICONS[] = {
     LV_SYMBOL_EYE_OPEN,     // DESCRIPTOR
 };
 
+static void gloss_back_cb(lv_event_t *e) { details_cb(e); }
+
 static void glossary_cb(lv_event_t *e)
 {
     (void)e;
-    // A list, not prose: one `term: definition` per line, drawn as a grid of
-    // icon badges. The colon split is why this needs no new string in any of the
-    // 21 locales -- they all already write it that way.
-    wt_explain_t x = {
-        .title  = tr(STR_S_GLOSSARY_T),
-        .icon   = LV_SYMBOL_LIST,
-        .body   = tr(STR_S_GLOSSARY_B),
-        .ok_txt = tr(STR_C_OK),
-        .mode   = WT_GRID_ICONS,
-        .icons  = GLOSS_ICONS,
-    };
-    wt_explain_open(s_scr, &x);
+    // A PAGE now, not an overlay card. Eight terms is a reference, and a
+    // reference read through a dimmed backdrop over the page you were on is a
+    // thing you dismiss rather than a thing you read: the card had to squeeze
+    // all eight into the room left under a floating title, which is what put
+    // the definitions on the smallest rung the device has.
+    //
+    // Still no new string. One `term: definition` per line is how every locale
+    // already writes S_GLOSSARY_B, wt_split_colon reads it, and GLOSS_ICONS is
+    // still one glyph per line in the same order. Only where the cells land
+    // changed.
+    lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
+
+    wt_card(s_scr, 24, 88, 752, 290);
+    sg_rule(400, 104, 1, 258);
+
+    const char *p = tr(STR_S_GLOSSARY_B);
+    for (int i = 0; i < 8 && p && *p; i++) {
+        char head[64], line[200];
+        const char *nl = strchr(p, '\n');
+        size_t n = nl ? (size_t)(nl - p) : strlen(p);
+        if (n >= sizeof line) n = sizeof line - 1;
+        memcpy(line, p, n);
+        line[n] = 0;
+        const char *def = wt_split_colon(line, head, sizeof head);
+
+        const int col = i / 4;                  // four down the left, four right
+        const int x   = col ? 424 : 40;
+        const int w   = col ? 328 : 344;
+        const int y   = 104 + (i % 4) * 68;
+
+        // The mark first, in the accent, and flagged so it survives a theme
+        // change: these are the same eight glyphs the detail rows wear, which
+        // is how a reader meets a concept's mark before its word.
+        lv_obj_t *ic = mk_lbl(GLOSS_ICONS[i], x, y, wt_font14(), wt_accent());
+        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        lv_obj_t *tm = mk_lbl(head, x + 26, y, wt_font14(), INK_COL);
+        lv_obj_set_style_text_letter_space(tm, 2, 0);
+        // 60 of the 68 pitch, so a long definition ellipsises inside its own
+        // cell instead of growing into the term under it.
+        lv_obj_t *dl = mk_lbl(def ? def : "", x, y + 20, wt_font14(), MUT_COL);
+        lv_obj_set_width(dl, w);
+        lv_label_set_long_mode(dl, LV_LABEL_LONG_DOT);
+        lv_obj_set_height(dl, 44);
+
+        p = nl ? nl + 1 : NULL;
+    }
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, gloss_back_cb);
 }
 
 // Measured height of a label that was just built, so the next thing can go
@@ -1757,29 +1808,59 @@ static int det_h(lv_obj_t *o)
 // and the two that would spill are held to the lines they have left and
 // ellipsised. A clipped sentence is bad. A sentence drawn over the BACK pill,
 // on the page whose job is telling you what you are about to sign, is worse.
-// The flags-strip explainer: locktime, sighash and RBF at reading size.
-// Bodies are the exact strings the strip itself draws -- head kept with its
-// tail so each paragraph is "TERM: what it means" -- and the card splits
-// them into ruled claims by itself.
-static void det_terms_back_cb(lv_event_t *e);
-static void det_terms_cb(lv_event_t *e)
+// One "?" per TERM, not one for the strip.
+//
+// The fee row used to carry a single chip whose card answered fee rate,
+// version, locktime and sighash together -- four questions behind one mark, so
+// a reader who did not know what sighash meant had to open a card about the fee
+// and find it in there. Each row answers for itself now, and a reader taps the
+// word they do not know.
+//
+// The bodies are the SAME strings the rows are built from, split at the colon
+// every locale already writes: the row shows the term and its short form, the
+// card shows the term and the whole of it. Nothing new to translate. The fee
+// rate has no `TERM: definition` string of its own, so it borrows the
+// glossary's, which is where a reader would have gone looking anyway.
+enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF };
+
+static void det_term_cb(lv_event_t *e)
 {
-    (void)e;
-    lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL;
-    mk_screen(parent, tr(STR_S_DETAILS), s_cur);
+    const int which = (int)(uintptr_t)lv_event_get_user_data(e);
+    static char head[64];
+    const char *body = NULL, *icon = NULL;
     wpsbt_details_t det;
-    char body[512];
-    if (kiss_psbt_details(&det) == 0) {
-        snprintf(body, sizeof body, "%s\n\n%s\n\n%s",
-                 det.locktime ? tr(STR_S_D_LT_NONZERO) : tr(STR_S_D_LT_ZERO),
-                 tr(STR_S_D_SIGHASH),
-                 s_sum.rbf ? tr(STR_S_D_RBF_ON) : tr(STR_S_D_RBF_OFF));
-        wt_why_body(s_scr, body, 116, wt_accent(), true);
+    const bool have = (kiss_psbt_details(&det) == 0);
+
+    switch (which) {
+    case DT_LOCKTIME:
+        body = wt_split_colon(have && det.locktime ? tr(STR_S_D_LT_NONZERO)
+                                                   : tr(STR_S_D_LT_ZERO),
+                              head, sizeof head);
+        icon = WT_ICON_LOCK;
+        break;
+    case DT_SIGHASH:
+        body = wt_split_colon(tr(STR_S_D_SIGHASH), head, sizeof head);
+        icon = LV_SYMBOL_OK;
+        break;
+    case DT_RBF:
+        body = wt_split_colon(s_sum.rbf ? tr(STR_S_D_RBF_ON)
+                                        : tr(STR_S_D_RBF_OFF),
+                              head, sizeof head);
+        icon = s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK;
+        break;
+    default:
+        body = gloss_line(4, head, sizeof head);      // FEE RATE
+        icon = LV_SYMBOL_CUT;
+        break;
     }
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, det_terms_back_cb);
+    wt_explain_t x = {
+        .title  = head,
+        .icon   = icon,
+        .body   = body ? body : "",
+        .ok_txt = tr(STR_C_OK),
+    };
+    wt_explain_open(s_scr, &x);
 }
-static void det_terms_back_cb(lv_event_t *e) { details_cb(e); }
 
 static void det_flag_row(int x, int *y, const char *icon, const char *head,
                          const char *tail, int w, int floor_y)
@@ -2131,15 +2212,28 @@ static void details_cb(lv_event_t *e)
     // row's line and that row's label lane is narrowed to match -- floated
     // over the strip it collided with the version row's head in all 21
     // locales, which the overlap gate caught before any bench did.
+    // Every row keeps 34px clear on its right for its own chip, and each chip is
+    // captured against the y the row STARTED at, since det_flag_row advances
+    // past whatever the translation needed.
     int chip_y = ry;
     det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW - 34, RFLOOR);
-    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_terms_cb, NULL);
-    det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW, RFLOOR);
-    det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW, RFLOOR);
+    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_FEE);
+    chip_y = ry;
+    det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW - 34, RFLOOR);
+    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_LOCKTIME);
+    chip_y = ry;
+    det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW - 34, RFLOOR);
+    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_SIGHASH);
+    chip_y = ry;
     // The same mark the RBF explainer wears, so the row and the card that
     // explains it are recognisably about one thing.
     det_flag_row(RX, &ry, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
-                 rbf_head, rbf_tail, RW, RFLOOR);
+                 rbf_head, rbf_tail, RW - 34, RFLOOR);
+    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_RBF);
 
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, details_back_cb);
 }
