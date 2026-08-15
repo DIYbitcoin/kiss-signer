@@ -43,8 +43,7 @@ static const slot_t SLOTS[] = {
     { "wallet/words-warn",STR_I_WARN_B,     700, 270 },
     // kiss_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
-    { "sign/rbf-on",      STR_S_RBF_B_ON,   720, 230 },
-    { "sign/rbf-off",     STR_S_RBF_B_OFF,  720, 230 },
+    { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // kiss_ui.c:469,769 — login warning + passphrase intro
     { "login/warn",       STR_L_WARN_B,     740, 204 },

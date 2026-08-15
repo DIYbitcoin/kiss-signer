@@ -1994,11 +1994,11 @@ int main(void) {
   // mono23 line a longer testnet prefix can push at the panel edge, and the
   // full one is the render that used to be the only one there was.
   //
-  // tap_str, not a coordinate: the toggle sits at the right end of a flex row
-  // whose left half is a translated caption, so its x moves with the locale.
-  tap_str(STR_R_SP_SHOW_FULL, 3, 8);   // SHOW FULL -> whole address, tail lifted
-  save("/tmp/sim_sign_verify_full.ppm");
-  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);  // SHOW SHORT -> back to the fold
+  // No tap and no second frame: the whole address is on the glass from the
+  // moment the screen builds. It used to arrive folded to eight characters
+  // behind a control called FULL ADDRESS, so what an owner compared depended
+  // on whether they found a toggle that read like a heading.
+  must_show("verify/address", "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
   // the RBF "?" is kiss_sign.c's 30px chip, pinned at (738, SG_FOOT_Y-6) for
   // BOTH the replaceable and final wordings. It used to sit right after the
   // text, so its x moved with the translation; it is fixed now. The redraw
@@ -2217,10 +2217,8 @@ int main(void) {
   must_show("verify (5 cautions)", "bc1q");           // folded, prefix span
   must_show("verify (5 cautions)", "200");            // the change amount
   must_show("verify (5 cautions)", "800");            // the fee
-  tap_str(STR_R_SP_SHOW_FULL, 3, 8);
-  must_show("verify (5 cautions, full)",
+  must_show("verify (5 cautions, address)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
-  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
@@ -2275,10 +2273,8 @@ int main(void) {
   must_show("verify (1 caution)", "bc1q");            // folded, prefix span
   must_show("verify (1 caution)", "39 000");   // change, no unit: see above
   must_show("verify (1 caution)", "1 000");    // fee
-  tap_str(STR_R_SP_SHOW_FULL, 3, 8);
-  must_show("verify (1 caution, full)",
+  must_show("verify (1 caution, address)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
-  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
   save("/tmp/sim_sign_unproven_why.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card

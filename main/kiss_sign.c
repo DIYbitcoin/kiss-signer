@@ -143,7 +143,6 @@ static bool s_recip_seen;
 // Is the single recipient's address shown whole? Folded by default; the
 // toggle under it opens the rest. Per PSBT, not per session -- it resets
 // wherever s_recip_seen resets, so a new file is always met folded.
-static bool s_addr_full;
 #ifndef ESP_PLATFORM
 // Walk only. The difference between an armed HOLD TO SIGN and an inert one is
 // a colour, and the walk cannot read a colour -- so without this the gate
@@ -898,39 +897,24 @@ static void caution_help_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
-// ---- "?" on the RBF line: plain-words Replace-By-Fee ----
-static void rbf_help_cb(lv_event_t *e)
+// ---- "?" beside the address: what to do with it ----
+// Two entries, not prose, and the same shape every other card on this screen
+// uses. The whole answer is a habit: read it against what your coordinator
+// shows. A signer can prove the change output is its own and can prove nothing
+// at all about someone else's address, so this is the only screen where a
+// destination swapped anywhere upstream still gets caught.
+static void addr_help_cb(lv_event_t *e)
 {
     (void)e;
-    // The card was a wall of text about a yes/no property of the transaction,
-    // and the two answers looked identical until you read to the end. The icon
-    // badge says which one this is before a word is read: a replace arrow when
-    // the fee can still be raised, a padlock when it cannot.
-    //
-    // The replaceable state is PLAIN, not OK, and that is deliberate. One
-    // element rendering an accent in one state and a status colour in the other
-    // is the thing ADDENDUM-02 leads with, and GREEN theme is where it bites:
-    // the accent there is 0x35D07F, which IS WT_OK, so "the fee can still be
-    // raised" would arrive in the exact green this device uses to say verified.
-    // That is a neutral property of the transaction wearing the colour of a
-    // safety check. The glyphs differ either way, so meaning never rested on
-    // colour. MONO is unchanged to the byte: its accent IS WT_INK.
-    //
-    // Both states answer the same two questions -- what happens if it gets
-    // stuck, and where the coins go -- so both are a two entry list and not
-    // prose. Drawn as a grid, the two cards differ only in the second half of
-    // one definition, which is the honest shape of a yes/no property.
-    static const char *const RBF_ICONS_ON[]  = { WT_ICON_REPLACE, LV_SYMBOL_OK };
-    static const char *const RBF_ICONS_OFF[] = { WT_ICON_LOCK,    LV_SYMBOL_OK };
-    const char *body = s_sum.rbf ? tr(STR_S_RBF_B_ON) : tr(STR_S_RBF_B_OFF);
+    static const char *const ICONS[] = { LV_SYMBOL_EYE_OPEN, LV_SYMBOL_WARNING };
     wt_explain_t x = {
-        .title  = s_sum.rbf ? tr(STR_S_RBF_T_ON) : tr(STR_S_RBF_T_OFF),
-        .icon   = s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
-        .body   = body,
+        .title  = tr(STR_R_VT),          // VERIFY ADDRESS, the receive screen's word
+        .icon   = LV_SYMBOL_EYE_OPEN,
+        .body   = tr(STR_S_ADDR_HELP_B),
         .ok_txt = tr(STR_C_OK),
-        .sev    = s_sum.rbf ? WT_SEV_PLAIN : WT_SEV_WARN,
+        .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
-        .icons  = s_sum.rbf ? RBF_ICONS_ON : RBF_ICONS_OFF,
+        .icons  = ICONS,
     };
     wt_explain_open(s_scr, &x);
 }
@@ -961,17 +945,6 @@ static void recip_scroll_cb(lv_event_t *e)
     repaint_verify();
 }
 
-// Fold the single recipient's address open, or back. A full repaint rather
-// than a swap of the spangroup: every other state on this screen is drawn by
-// verify_screen and a partial redraw here would be the one path that has to
-// stay in step with it by hand. s_recip_seen is static, so HOLD TO SIGN does
-// not un-arm because the owner looked at the address.
-static void addr_full_cb(lv_event_t *e)
-{
-    (void)e;
-    s_addr_full = !s_addr_full;
-    repaint_verify();
-}
 
 // ---- verify screen (the heart of the safety model) ----
 // Panel geometry, from design/sign-screens-buildable.html option 1b. Every one
@@ -1693,34 +1666,53 @@ static void verify_screen(lv_obj_t *parent)
         lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
         lv_obj_set_style_text_font(acap, wt_font14(), 0);
         lv_obj_set_style_text_color(acap, MUT_COL, 0);
-        lv_obj_t *tg = lv_label_create(arow);
-        lv_label_set_text(tg, tr(s_addr_full ? STR_R_SP_SHOW_SHORT
-                                             : STR_R_SP_SHOW_FULL));
-        lv_obj_set_style_text_font(tg, wt_font14(), 0);
-        lv_obj_set_style_text_color(tg, wt_accent(), 0);
-        lv_obj_set_style_text_letter_space(tg, 2, 0);
-        lv_obj_add_flag(tg, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(tg, 14);      // 44px, the device's floor
-        lv_obj_add_event_cb(tg, addr_full_cb, LV_EVENT_CLICKED, NULL);
         }
-        // The RBF "?" rides this line rather than the meta row: at y=366 a 30px
-        // chip's box ends flush against the action bar's floor, and its 54px hit
-        // target reaches past WT_CONTENT_BOTTOM into it. Same corner the facts
-        // strip put it in, so the reflex is unchanged.
-        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, rbf_help_cb, NULL);
+        // The "?" answers the address, because the address is what it sits
+        // beside. It used to open the RBF card from this exact spot: one row
+        // above the footer line it belonged to, and inches from a FULL ADDRESS
+        // control it had nothing to do with. The first owner to tap it asked
+        // what one had to do with the other. RBF keeps its own chip on DETAILS,
+        // beside its own row, which is where that question gets asked.
+        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, addr_help_cb, NULL);
 
         for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
                         && i < WPSBT_MAX_OUTS; i++) {
             if (s_sum.outs[i].is_change) continue;
+            // THE WHOLE ADDRESS, on one line, at the size it is compared at.
+            // It used to arrive folded to eight characters with the rest behind
+            // a control labelled FULL ADDRESS -- which reads as a heading and
+            // not as a button, and left the screen whose one job is catching a
+            // swapped destination showing a fifth of the destination.
+            //
+            // Ungrouped at mono23 rather than blocked in fours: a 42 character
+            // bech32 measures 739px raw and 915px grouped, against a 752 lane.
+            // Grouping it wrapped to three lines and broke the lit tail across
+            // two of them, which is worse to compare than one unbroken run. The
+            // tail still lights, and a longer address (taproot, or a silent
+            // payment at 117 characters) takes the blocked mono14 form with its
+            // tail lifted, because that one cannot be one line at any size.
+            // Measured, not a per character constant: every hand estimate in
+            // this file's history has been wrong, and this one decides which
+            // of two very different renderings an owner compares against.
+            // The whole lane in BOTH layouts. Only the CAPTION row has to stop
+            // short of the meta text beside it; the address sits on its own
+            // line below that, so the cautioned screen -- the one carrying a
+            // transaction this device already distrusts -- gets the same
+            // readable single line as the clean one, instead of the blocked
+            // mono14 form it used to fall back to at 416.
+            const int lane = 752;
+            lv_point_t sz;
+            lv_text_get_size(&sz, s_sum.outs[i].addr, wt_font_mono23(), 0, 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            const bool one_line = sz.x <= lane;
             lv_obj_t *ad;
-            if (s_addr_full) {
-                // The RAW address, as the panel passed it: addr_spans does its
-                // own spacing, and a pre-grouped string would put spaces inside
-                // the run an owner is comparing character by character.
-                ad = wt_addr_spans_lift(s_scr, s_sum.outs[i].addr, 752,
-                                        wt_font_mono14());
+            if (one_line) {
+                ad = wt_addr_spans(s_scr, s_sum.outs[i].addr, lane,
+                                   wt_font_mono23());
             } else {
-                ad = wt_addr_short(s_scr, s_sum.outs[i].addr, wt_font_mono23());
+                char grouped[192];
+                wt_group4(s_sum.outs[i].addr, grouped, sizeof grouped);
+                ad = wt_addr_spans_lift(s_scr, grouped, lane, wt_font_mono14());
             }
             lv_obj_set_pos(ad, 24, ay + 18);
             break;
@@ -1735,15 +1727,20 @@ static void verify_screen(lv_obj_t *parent)
         // the cell that used to print it is the one thing the row does not
         // carry.
         //
-        // The "?" comes with it. The frames show no help target on this
-        // screen, and dropping it would leave the RBF card reachable from
-        // nowhere -- task 5 of docs/device-ux-test.md asks an owner to find
-        // every anonymous help target, and a card with no chip is a card that
-        // fails it by construction.
+        // Where RBF is explained: the DETAILS row that prints the same word,
+        // wearing the same mark, with its own "?" beside it. It used to be
+        // explained from a chip parked up here, which is how a chip came to sit
+        // beside an address control it said nothing about.
         const char *net = s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
-        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
+        // Cautioned, this sits in a 260px slot beside the address caption and
+        // the whole address now takes the line below it, so the pair wrapped
+        // onto the address. The network is the half that changes what a
+        // signature is worth and it stays; RBF keeps its DETAILS row, which is
+        // the only place it was ever explained from anyway.
+        if (np) snprintf(buf, sizeof buf, "%s", net);
+        else    snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
         // Cautioned, the row moves up beside the address, because the bar owns
         // the band it would otherwise use.
         if (!np) sg_rule(0, 356, 800, 1);
@@ -1951,7 +1948,7 @@ static int det_h(lv_obj_t *o)
 // card shows the term and the whole of it. Nothing new to translate. The fee
 // rate has no `TERM: definition` string of its own, so it borrows the
 // glossary's, which is where a reader would have gone looking anyway.
-enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF };
+enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF, DT_TXID };
 
 static void det_term_cb(lv_event_t *e)
 {
@@ -1967,6 +1964,14 @@ static void det_term_cb(lv_event_t *e)
                                                    : tr(STR_S_D_LT_ZERO),
                               head, sizeof head);
         icon = WT_ICON_LOCK;
+        break;
+    case DT_TXID:
+        // The note that used to sit under the id, in the column. It is an
+        // explanation, and this page keeps its explanations behind a "?" --
+        // the id is the fact, whether it survives signing is the lesson.
+        body = det.txid_final ? tr(STR_S_D_TXID_SAME) : tr(STR_S_D_TXID_CHANGES);
+        snprintf(head, sizeof head, "%s", tr(STR_S_D_TXID));
+        icon = GLOSS_ICONS[3];
         break;
     case DT_SIGHASH:
         body = wt_split_colon(tr(STR_S_D_SIGHASH), head, sizeof head);
@@ -2085,16 +2090,28 @@ static void details_cb(lv_event_t *e)
     // giving it 90 more is what turns the sighash note from two lines into one,
     // which is exactly the room the value-over-note rows cost. Both columns
     // still land on the page's 28 and 752 margins.
-    wt_card(s_scr, 28, 100, 288, 296);
-    wt_card(s_scr, 328, 100, 424, 296);
+    // Two thirds to the left. What this transaction spends and where it goes
+    // is the reason anyone opens this page; the right column is reference --
+    // an id you compare, and four flags that each fit on a line. The split ran
+    // the other way (288/424) and the important column was the narrow one, so
+    // every address in it was folded to eight characters for want of room the
+    // reference column was not using.
+    wt_card(s_scr, 28, 100, 428, 296);
+    wt_card(s_scr, 468, 100, 284, 296);
 
     lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 108);
     // Bounded to the left column. STR_S_D_MANYIN_FMT is a sentence, not a
     // word, and in Spanish it ran straight across into the TXID caption in the
     // right column. It was font14 and unbounded before, which only hid the
     // fault behind a smaller face.
-    lv_obj_set_width(ihdr, 264);
+    lv_obj_set_width(ihdr, 360);       // 40px kept clear for the chip beside it
     lv_label_set_long_mode(ihdr, LV_LABEL_LONG_WRAP);
+    // The right column gives every one of its four facts a "?". The left one
+    // gave its two lists none, and the lists are the harder half: an amount,
+    // then two lines of hex and a path under it, with nothing on screen saying
+    // what either is. Both chips open the page that names them, and every mark
+    // used in the rows below is defined on it.
+    wt_help_chip(s_scr, 416, 106, MUT_COL, glossary_cb, NULL);
 
     lv_obj_t *il = lv_obj_create(s_scr);
     lv_obj_remove_style_all(il);
@@ -2116,7 +2133,7 @@ static void details_cb(lv_event_t *e)
     // outputs list keeps what is left. Both scroll and both say so, so a short
     // list is a short list rather than a hidden one.
     const int split = ly + 84 < 232 ? 232 : (ly + 84 > 272 ? 272 : ly + 84);
-    lv_obj_set_size(il, 264, split - 6 - ly);
+    lv_obj_set_size(il, 404, split - 6 - ly);
     lv_obj_set_style_pad_all(il, 8, 0);
     lv_obj_set_style_pad_row(il, 4, 0);
     lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
@@ -2157,8 +2174,10 @@ static void details_cb(lv_event_t *e)
         // coin it came from is the reference you check it against.
         lv_obj_set_style_text_font(amt, wt_font23(), 0);
 
-        // coin being spent: first 8 + last 8 of its txid, and the output index
-        snprintf(buf, sizeof buf, "%.8s...%s : %u",
+        // coin being spent: first 8 + last 8 of its txid, and the output index.
+        // The mark is the glossary's own TXID icon, so the line says what it is
+        // without a word of label, and the card one tap above names the mark.
+        snprintf(buf, sizeof buf, "%s %.8s...%s : %u", GLOSS_ICONS[3],
                  det.ins[i].txid, det.ins[i].txid + 56, (unsigned)det.ins[i].vout);
         lv_obj_t *tid = lv_label_create(row);
         lv_label_set_text(tid, buf);
@@ -2167,11 +2186,15 @@ static void details_cb(lv_event_t *e)
 
         // BIP376 received-SP input: its key is spend+tweak, not a BIP84 child,
         // so show the silent-payment badge instead of a misleading BIP32 path.
+        // The folder is the glossary's DERIVATION PATH mark. It used to be a
+        // second tick, one line under the tick on the amount, which said
+        // "verified" twice and what the line was not at all. The colour still
+        // carries ours.
         if (det.ins[i].is_sp)
-            snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/352'/%d'/0'   %s",
+            snprintf(buf, sizeof buf, "%s m/352'/%d'/0'   %s", GLOSS_ICONS[6],
                      s_sum.testnet ? 1 : 0, tr(STR_S_SP_BADGE));
         else
-            snprintf(buf, sizeof buf, LV_SYMBOL_OK " m/%u'/%d'/0'/%u/%u",
+            snprintf(buf, sizeof buf, "%s m/%u'/%d'/0'/%u/%u", GLOSS_ICONS[6],
                      (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
                      (unsigned)det.ins[i].change, (unsigned)det.ins[i].index);
         lv_obj_t *pl = lv_label_create(row);
@@ -2185,21 +2208,22 @@ static void details_cb(lv_event_t *e)
     // The verify screen's column can hold a recipient below its fold, and
     // HOLD TO SIGN stays inert until it has been read -- but that is a gate on
     // signing, not a place to look things up. This is the place.
-    sg_rule(40, split, 264, 1);
+    sg_rule(40, split, 404, 1);
     uint32_t n_ours = 0;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         if (s_sum.outs[i].is_change) n_ours++;
     snprintf(buf, sizeof buf, tr(STR_S_D_OUTPUTS_FMT),
              (unsigned)s_sum.n_out, (unsigned)n_ours);
     lv_obj_t *ohdr = wt_section(s_scr, buf, 40, split + 10);
-    lv_obj_set_width(ohdr, 264);
+    lv_obj_set_width(ohdr, 360);
     lv_label_set_long_mode(ohdr, LV_LABEL_LONG_WRAP);
+    wt_help_chip(s_scr, 416, split + 8, MUT_COL, glossary_cb, NULL);
 
     lv_obj_t *ol = lv_obj_create(s_scr);
     lv_obj_remove_style_all(ol);
     int oy = split + 10 + det_h(ohdr) + 6;
     lv_obj_set_pos(ol, 40, oy);
-    lv_obj_set_size(ol, 264, 392 - oy);
+    lv_obj_set_size(ol, 404, 392 - oy);
     lv_obj_set_style_pad_all(ol, 8, 0);
     lv_obj_set_style_pad_row(ol, 4, 0);
     lv_obj_set_flex_flow(ol, LV_FLEX_FLOW_COLUMN);
@@ -2224,7 +2248,11 @@ static void details_cb(lv_event_t *e)
         // accent. A recipient gets no tick: the signer has nothing to vouch for
         // about someone else's address, and a mark there would say it did.
         const bool ours = s_sum.outs[i].is_change;
-        snprintf(buf, sizeof buf, "%s%s sats", ours ? LV_SYMBOL_OK " " : "", a);
+        // The glossary's CHANGE mark, not a bare tick: on a list of outputs the
+        // question is WHICH of them comes back, and a tick answered "this one
+        // is fine". Green still says verified ours.
+        if (ours) snprintf(buf, sizeof buf, "%s %s sats", GLOSS_ICONS[2], a);
+        else      snprintf(buf, sizeof buf, "%s sats", a);
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
@@ -2256,17 +2284,22 @@ static void details_cb(lv_event_t *e)
     // each one measured after it is built and the next one put under it. That is
     // what makes the hierarchy affordable — a heading line costs 17px, and seven
     // fixed y values had no 17px anywhere to give.
-    const int RX = 340, RW = 400;    // inside the 328..752 card, 12 of padding
+    const int RX = 480, RW = 252;    // inside the 468..752 card, 12 of padding
     const int RFLOOR = 388;          // the card's own floor, 8 above its edge
     int ry = 108;
 
     // the id to find it by, once broadcast — final only for segwit-only spends
     wt_section(s_scr, tr(STR_S_D_TXID), RX, ry);
+    wt_help_chip(s_scr, RX + RW - 26, ry - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_TXID);
     ry += 20;
     char gt[80];
     group4(det.txid, gt, sizeof gt);
     lv_obj_t *tx = mk_lbl(gt, RX, ry, wt_font14(), INK_COL);
-    lv_obj_set_width(tx, RW);
+    // 34 clear on the right, the same as every flag row below: the heading's
+    // chip hangs into this block's first line otherwise, which the overlap
+    // gate caught at 8x3 px in all 21 locales.
+    lv_obj_set_width(tx, RW - 34);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
     ry += det_h(tx) + 4;
     // The fee rate, arrived from the verify screen's right column, which had to
@@ -2296,12 +2329,11 @@ static void details_cb(lv_event_t *e)
     char fee_line[sizeof buf];
     snprintf(fee_line, sizeof fee_line, "%s", buf);   // kept for the strip below
 
-    lv_obj_t *cn = mk_lbl(det.txid_final ? tr(STR_S_D_TXID_SAME)
-                                         : tr(STR_S_D_TXID_CHANGES),
-                          RX, ry, wt_font14(), MUT_COL);
-    lv_obj_set_width(cn, RW);
-    lv_label_set_long_mode(cn, LV_LABEL_LONG_WRAP);
-    ry += det_h(cn) + 6;
+    // The note about whether this id survives signing is behind the chip on
+    // the heading now. It was two wrapped lines of grey under a block of hex
+    // that is already three, and it pushed the fourth flag row off the card's
+    // floor when this column narrowed to give the lists the room they needed.
+    ry += 6;
     // The same total in BTC, directly under the line about comparing against
     // the coordinator, because comparing is the only reason to want it: a
     // coordinator that displays BTC needs this row to check the sats form.
@@ -2514,7 +2546,6 @@ static void file_tap_cb(lv_event_t *e)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
-    s_addr_full  = false;                  // ...folded, as every file arrives
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = opened_signed;
@@ -2850,7 +2881,6 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
-    s_addr_full  = false;                  // ...folded, as every file arrives
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = false;
