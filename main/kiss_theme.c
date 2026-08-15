@@ -892,6 +892,13 @@ void wt_pill_primary(lv_obj_t *pill)
     lv_obj_set_style_bg_color(pill, wt_accent_pressed(), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(pill, wt_primary(), 0);
     lv_obj_set_style_border_width(pill, 2, 0);
+    // The rim and the fill are the accent, so they are flagged as the accent.
+    // wt_pill's ORDINARY border stays WT_MUT and is not flagged: the accent
+    // marks the suggested action, and if every pill wore it it would mark
+    // nothing -- ADDENDUM-02 rule 3, and docs/device-ux-test.md task 6 is the
+    // acceptance test for exactly that.
+    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BORDER);
+    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BG);
     // this marker is already "the one action this screen wants" everywhere it
     // is used, so it is also where the label earns the top rung
     wt_pill_label_max(pill);
@@ -1445,8 +1452,24 @@ lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
 // survive this, or every theme change makes the arrows a little louder.
 static void accent_walk(lv_obj_t *o)
 {
-    if (lv_obj_has_flag(o, WT_FLAG_ACCENT))
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT)) {
+        // Text first and unconditionally, which is what this flag has always
+        // done and what every label under it still needs. Then the two classes
+        // that carry their ink somewhere else: setting a text colour on a line
+        // is not wrong, it is simply invisible, and that is exactly how the
+        // change strand wore a stale accent with the flag correctly set.
         lv_obj_set_style_text_color(o, wt_accent(), 0);
+        if (lv_obj_check_type(o, &lv_line_class))
+            lv_obj_set_style_line_color(o, wt_accent(), 0);
+        else if (lv_obj_check_type(o, &lv_arc_class))
+            lv_obj_set_style_arc_color(o, wt_accent(), LV_PART_INDICATOR);
+    }
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BORDER))
+        lv_obj_set_style_border_color(o, wt_accent(), 0);
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BG)) {
+        lv_obj_set_style_bg_color(o, wt_accent_bg(), 0);
+        lv_obj_set_style_bg_color(o, wt_accent_pressed(), LV_STATE_PRESSED);
+    }
     uint32_t n = lv_obj_get_child_count(o);
     for (uint32_t i = 0; i < n; i++) accent_walk(lv_obj_get_child(o, i));
 }
