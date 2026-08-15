@@ -1237,11 +1237,18 @@ void kiss_settings_open(lv_obj_t *parent)
     //
     // MAINNET and TESTNET stay a real pair of pills: they are two values of one
     // setting and the only control here where the choice itself is the widget.
-// The ways in row runs under BOTH columns and the gutter between them: 752.
-// It is the only row on this page that is about a mapping rather than a
-// setting, and at SG_L_W its label ellipsised to "Duress w..." while the value
-// took the rest -- which reads as a struck through label, not as a narrow row.
+// The ways in row shares its line with the CAMERA AUDIT pill, so the pair has
+// to fill the full 752 page width (25..777) between them. At a single-column
+// SG_L_W the label ellipsised to "Duress w..." while the value took the rest
+// -- which reads as a struck through label, not as a narrow row.
 #define SG_FULL_W (SG_R_X + SG_R_W - SG_L_X)
+// 605 + 7 gap + 140 pill = 752: the row keeps almost its whole width (the pill
+// is the same 140px width it always had beside BACK, now at the row's right
+// end) and the pill keeps its own geometry, so nothing about either object
+// moves from what the drawing already proved.
+#define SG_AUDIT_W 140
+#define SG_WAYS_W  (SG_FULL_W - 7 - SG_AUDIT_W)
+#define SG_AUDIT_X (SG_L_X + SG_WAYS_W + 7)
 // 331: the standard 7px gap under the RIGHT column, which is now the deeper of
 // the two. It was briefly 308, on the reasoning that 331 cleared nothing but a
 // reserved EMPTY slot at 260..324 and left a band of dead page above a full
@@ -1428,10 +1435,14 @@ void kiss_settings_open(lv_obj_t *parent)
     if (kiss_seed_mode() == WSEED_MODE_KEEP && !kiss_seed_flash_encrypted())
         wt_row_sev(s_storage_pill, WT_SEV_WARN);
 
-    // FULL WIDTH, under both columns. This row was the fourth card in the left
+    // LEFT-HALF, under both columns. This row was the fourth card in the left
     // column, and it did not belong there twice over: it is the only thing on
     // the page that states a mapping rather than a setting, and 365px could not
     // hold "Duress wallet" beside a value as long as LINE THROUGH.
+    //
+    // 605px fits it now: the value is SET / NOT SET (short) rather than the
+    // long name that burst the 365px column, and the audit pill takes the room
+    // it freed beside it (SG_AUDIT_X .. 777) rather than the action bar.
     //
     // The sub-line is GD_SET_NOTE, not GD_SET_SUB. The value on this row is the
     // stroke that opens the REAL wallet -- kiss_duress_real(), set by
@@ -1465,8 +1476,18 @@ void kiss_settings_open(lv_obj_t *parent)
     // fact left on this page now that the swipe is a rule, not a choice.
     wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
            gw_stored_any() ? tr(STR_GD_ON) : tr(STR_GD_OFF),
-           WT_INK, SG_L_X, SG_FULL_Y, SG_FULL_W,
+           WT_INK, SG_L_X, SG_FULL_Y, SG_WAYS_W,
            duress_cb, NULL);
+
+    // CAMERA AUDIT, beside the ways in row rather than on the action bar.
+    // The bar pill looked like a third action next to BACK; this is a page
+    // question -- "is the camera a camera" sits with the other facts about
+    // THIS SIGNER -- and the pill keeps the exact geometry it shipped with
+    // (140x52), seated on the row's line (the row card is WT_ROW_H tall, so
+    // the pill centres on it).
+    wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T),
+                 SG_AUDIT_X, SG_FULL_Y + (WT_ROW_H - WT_ACTION_H) / 2,
+                 SG_AUDIT_W, WT_ACTION_H, audit_open_cb, NULL);
 
     // RIGHT COLUMN, group one: the backup. Redraw 05 gives this its own eyebrow
     // rather than leaving the words row adrift among the destructive buttons,
@@ -1683,26 +1704,11 @@ void kiss_settings_open(lv_obj_t *parent)
         // through the screen about hiding coins to reach it. Those two share
         // nothing except that both were once the only page with space.
         //
-        // The bar is where it belongs, right of the build identity. Build
-        // identity says WHAT this device is; the audit proves one claim that
-        // identity makes -- that the camera is a camera and the words on the
-        // glass came out of it. Same line, left to right: the fact, then the
-        // way to check it.
-        //
-        // The room is MEASURED, not assumed. kiss_build_id_right() reports 440
-        // in all 21 locales (the facts row is version, encryption and
-        // randomness, none of them translated) and BACK's left edge is 612. A
-        // 240px pill at 330 looked like it cleared the build id by 55px, and
-        // the gate found it sharing 86x14 px with "randomness: NOISE" in every
-        // one of the 21. 464 is 24px past the measured edge, and 140 matches
-        // BACK, so the bar now ends in two pills of one width.
-        //
-        // Built after kiss_build_id_make for the same reason that block gives:
-        // the bar's fill is drawn by the first pill, and anything made before
-        // it is under it.
-        wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T),
-                     464, WT_ACTION_Y, 140, WT_ACTION_H,
-                     audit_open_cb, NULL);
+        // For one build it sat on the action bar next to BACK, which read as a
+        // control like BACK instead of the question it answers. It now shares
+        // the ways in row's line (SG_AUDIT_X), the page's one row about THIS
+        // SIGNER's identity, which is the question the audit asks too: the
+        // camera is a camera, and the words on the glass came out of it.
 
         lv_obj_move_foreground(s_acc_name);
         for (int i = 0; i < WT_ACC_N; i++)
