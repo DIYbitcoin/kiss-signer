@@ -44,3 +44,8 @@ Sign IO Visualization.dc.html
 
 # The sdtest board config, same as its release/encrypted siblings above.
 sdkconfig.sdtest
+
+# Local editor and tool settings. Machine specific, and the repository is not
+# where they belong: .claude/settings.local.json was tracked for eight commits
+# before anyone noticed.
+.claude/
