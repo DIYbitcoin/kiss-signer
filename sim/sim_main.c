@@ -968,6 +968,22 @@ static void find_pill(lv_obj_t *o, const char *txt)
         find_pill(lv_obj_get_child(o, i), txt);
 }
 
+// The first accent-flagged lv_line under `o`. The change strand is the one
+// object on the verify screen whose accent is a LINE colour, so it is what
+// proves the walk of that channel actually runs.
+static lv_obj_t *find_accent_line(lv_obj_t *o)
+{
+    if (lv_obj_check_type(o, &lv_line_class) &&
+        lv_obj_has_flag(o, WT_FLAG_ACCENT))
+        return o;
+    uint32_t n = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *r = find_accent_line(lv_obj_get_child(o, i));
+        if (r) return r;
+    }
+    return NULL;
+}
+
 static lv_obj_t *pill_for(int key, const char *how)
 {
     const char *txt = tr(key);
@@ -1868,6 +1884,50 @@ int main(void) {
   save("/tmp/sim_sign_glossary.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes glossary
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
+  // The accent changed while this screen was UP, which is the case the flags
+  // exist for and the one no rebuild can cover: every other check in this walk
+  // runs a whole locale or a whole accent from scratch, so a builder that gets
+  // the colour right and a restyle that never repaints look identical.
+  //
+  // Three channels, three ways of failing silently. The rim is a border, the
+  // strand is a line and the ring is an arc, and a flag that only ever set a
+  // text colour did nothing to any of them while appearing correctly set.
+  {
+    lv_obj_t *hp = pill_for(STR_S_HOLD_TO_SIGN, "accent restyle");
+    lv_obj_t *ln = find_accent_line(lv_screen_active());
+    if (!ln) {
+      printf("FAIL: no accent-flagged strand on the verify screen\n");
+      return 1;
+    }
+    if (hp) {
+      const int was = wt_accent_get();
+      lv_color_t b0 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      lv_color_t l0 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
+      wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
+      wt_accent_restyle(lv_screen_active());
+      pump(2);
+      lv_color_t b1 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      if (lv_color_eq(b0, b1)) {
+        printf("FAIL: HOLD TO SIGN kept its old rim through an accent change\n");
+        return 1;
+      }
+      if (!lv_color_eq(b1, wt_accent())) {
+        printf("FAIL: HOLD TO SIGN's rim is not the accent after a restyle\n");
+        return 1;
+      }
+      lv_color_t l1 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
+      if (lv_color_eq(l0, l1) || !lv_color_eq(l1, wt_accent())) {
+        printf("FAIL: the change strand kept its old accent through a change\n");
+        return 1;
+      }
+      save("/tmp/sim_sign_accent.ppm");
+      wt_accent_set(was);
+      wt_accent_restyle(lv_screen_active());
+      pump(2);
+      printf("ok: rim and strand follow the accent with no rebuild\n");
+    }
+  }
+
   press_str(STR_S_HOLD_TO_SIGN); pump(40);          // ring ~half full
   save("/tmp/sim_sign_hold.ppm");
   pump(45);                                         // past 1.2s: signs
