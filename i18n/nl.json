@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "DUST-AANVAL: een piepklein muntje dat iemand je stuurde. uitgeven kan deze wallet aan hem koppelen.",
   "S_WHY_TINYCH": "KLEIN WISSELGELD: laat een heel kleine munt achter, dat versnippert je saldo.",
   "S_WHY_UNPROVEN": "BEDRAGEN ONBEWEZEN: je app bewees niet wat deze munten waard zijn. de echte kosten kunnen hoger zijn dan getoond.",
-  "S_WHY_MERGE": "GEKOPPELDE MUNTEN: veel munten tegelijk uitgeven laat iedereen zien dat ze van jou zijn.",
+  "S_WHY_MERGE_FMT": "GEKOPPELDE MUNTEN: dit koppelt %u van je adressen en laat iedereen zien dat ze van jou zijn.",
   "S_WHY_FOOT": "twijfel? ga TERUG en los het op in je app.",
   "S_RBF_T_ON": "VERVANGBAAR (RBF)",
   "S_RBF_T_OFF": "DEFINITIEF",

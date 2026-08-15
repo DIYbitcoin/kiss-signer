@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "ATTACCO DUST: una moneta minuscola che qualcuno ti ha inviato. spenderla può collegare questo portafoglio a chi l'ha mandata.",
   "S_WHY_TINYCH": "RESTO MINUSCOLO: lascia una moneta piccolissima e frammenta il tuo saldo.",
   "S_WHY_UNPROVEN": "IMPORTI NON PROVATI: la tua app non ha provato quanto valgono queste monete. la commissione reale può superare quella mostrata.",
-  "S_WHY_MERGE": "MONETE COLLEGATE: spendere molte monete insieme mostra a tutti che sono tutte tue.",
+  "S_WHY_MERGE_FMT": "MONETE COLLEGATE: questo unisce %u dei tuoi indirizzi e mostra a tutti che sono tutte tue.",
   "S_WHY_FOOT": "dubbi? torna INDIETRO e sistemalo nell'app.",
   "S_RBF_T_ON": "SOSTITUIBILE (RBF)",
   "S_RBF_T_OFF": "DEFINITIVA",

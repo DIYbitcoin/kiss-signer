@@ -844,8 +844,16 @@ static void caution_help_cb(lv_event_t *e)
         BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
-    if (f & WPSBT_C_MERGE_INS)
-        BODY_ADD(LV_SYMBOL_LIST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_MERGE));
+    if (f & WPSBT_C_MERGE_INS) {
+        // The number is ADDRESSES, not coins. Coins on one address are already
+        // one owner to anyone watching, so counting them named a loss that had
+        // already happened and inflated every figure it printed. This is what
+        // the transaction actually gives away.
+        char m[256];
+        snprintf(m, sizeof m, tr(STR_S_WHY_MERGE_FMT),
+                 (unsigned)s_sum.n_in_addr);
+        BODY_ADD(LV_SYMBOL_LIST, "%s%s", o ? "\n" : "", m);
+    }
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
         BODY_ADD(LV_SYMBOL_MINUS, "%s%s", o ? "\n" : "", tr(STR_S_WHY_TINYCH));
     #undef BODY_ADD
@@ -1484,6 +1492,15 @@ static void verify_screen(lv_obj_t *parent)
         size_t n_in = 0, n_out = 0;
         uint64_t max_sats = 0;
 
+        // The coins linked caution, drawn rather than only written. The strands
+        // converging on one dot ARE the linkage the bar below is warning about,
+        // so they wear WT_WARN and the words stop being the only place it is
+        // said. Every input takes it, including the elided group -- the reason
+        // is the convergence, and no single coin is more responsible for it
+        // than another.
+        const uint8_t in_role = (s_sum.caution_flags & WPSBT_C_MERGE_INS)
+                              ? WT_STRAND_LINKED : WT_STRAND_IN;
+
         char gbuf[64];
         if (have_det && det.n_in) {
             // Five rows at any coin count. Above five: the first two, the
@@ -1511,7 +1528,7 @@ static void verify_screen(lv_obj_t *parent)
             if (total_n <= 5 || det.n_in < 4) {
                 for (uint32_t i = 0; i < det.n_in && n_in < WT_BUNDLE_MAX; i++)
                     in[n_in++] = (wt_strand_t){ .sats = det.ins[i].sats,
-                                                .role = WT_STRAND_IN };
+                                                .role = in_role };
             } else {
                 const uint32_t last = det.n_in - 1;
                 uint64_t shown = det.ins[0].sats + det.ins[1].sats
@@ -1520,21 +1537,21 @@ static void verify_screen(lv_obj_t *parent)
                 snprintf(gbuf, sizeof gbuf, tr(STR_S_BUNDLE_MORE_FMT),
                          (unsigned)(total_n - 4));
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[0].sats,
-                                            .role = WT_STRAND_IN };
+                                            .role = in_role };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[1].sats,
-                                            .role = WT_STRAND_IN };
+                                            .role = in_role };
                 in[n_in++] = (wt_strand_t){ .sats = hidden, .label = gbuf,
-                                            .role = WT_STRAND_IN,
+                                            .role = in_role,
                                             .is_group = true,
                                             .group_n = (uint16_t)(total_n - 4) };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[last - 1].sats,
-                                            .role = WT_STRAND_IN };
+                                            .role = in_role };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[last].sats,
-                                            .role = WT_STRAND_IN };
+                                            .role = in_role };
             }
         }
         if (!n_in) {
-            in[0] = (wt_strand_t){ .sats = s_sum.in_sats, .role = WT_STRAND_IN };
+            in[0] = (wt_strand_t){ .sats = s_sum.in_sats, .role = in_role };
             n_in = 1;
         }
 

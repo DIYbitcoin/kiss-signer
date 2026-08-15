@@ -376,8 +376,13 @@ static size_t mk_val_psbt(uint64_t in_val, uint64_t ext_val, uint64_t chg_val,
 //              PROVE with the proof removed, which is what makes the
 //              signature-unchanged regression mean anything
 //   NIN_LIE    real previous tx, witness_utxo overstating it by one sat
+//
+// NIN_REUSE is off that axis: proven amounts, like PROVE, but every input on
+// address 84h/0/0 instead of one address each. Distinct outpoints, one
+// scriptPubKey -- the shape of a wallet that has been handing out the same
+// address, where joining the coins reveals nothing the chain did not have.
 #define NIN_MAX 16
-enum { NIN_CLAIM = 0, NIN_PROVE, NIN_OMIT, NIN_LIE };
+enum { NIN_CLAIM = 0, NIN_PROVE, NIN_OMIT, NIN_LIE, NIN_REUSE };
 static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
                              uint8_t *out, size_t cap) {
     uint8_t ext_spk[22] = {0x00, 0x14};
@@ -390,9 +395,13 @@ static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
     struct wally_tx *prev[NIN_MAX] = {0};
     uint8_t spks[NIN_MAX][22]; size_t spklen[NIN_MAX];
     uint8_t txids[NIN_MAX][32];
+    // Which address each input sits on. REUSE pins every one of them to the
+    // same child, which is what makes the count of ADDRESSES differ from the
+    // count of coins.
+    #define NIN_IDX(i_) ((uint32_t)(mode == NIN_REUSE ? 0 : (i_)))
     for (int i = 0; i < n_in; i++) {
         struct ext_key kin;
-        derive5(84, 0, (uint32_t)i, &kin);
+        derive5(84, 0, NIN_IDX(i), &kin);
         spklen[i] = 0;
         build_spk(WSCRIPT_NATIVE, kin.pub_key, spks[i], &spklen[i]);
         wally_bzero(&kin, sizeof kin);
@@ -418,17 +427,17 @@ static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
     wally_psbt_set_global_tx(p, tx);
     for (int i = 0; i < n_in; i++) {
         struct ext_key kin;
-        derive5(84, 0, (uint32_t)i, &kin);
+        derive5(84, 0, NIN_IDX(i), &kin);
         struct wally_tx_output *u = NULL;
         wally_tx_output_init_alloc(mode == NIN_LIE ? per + 1 : per,
                                    spks[i], spklen[i], &u);
         wally_psbt_set_input_witness_utxo(p, i, u);
         wally_tx_output_free(u);
-        if (mode == NIN_PROVE || mode == NIN_LIE)
+        if (mode == NIN_PROVE || mode == NIN_LIE || mode == NIN_REUSE)
             wally_psbt_set_input_utxo(p, i, prev[i]);
         if (prev[i]) wally_tx_free(prev[i]);
 
-        const uint32_t pin[5] = {H + 84, H, H, 0, (uint32_t)i};
+        const uint32_t pin[5] = {H + 84, H, H, 0, NIN_IDX(i)};
         struct wally_map *m = NULL;
         wally_map_keypath_public_key_init_alloc(1, &m);
         wally_map_keypath_add(m, kin.pub_key, 33, t_fp, 4, pin, 5);
@@ -441,6 +450,7 @@ static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
     wally_psbt_to_bytes(p, 0, out, cap, &wr);
     wally_psbt_free(p);
     wally_tx_free(tx);
+    #undef NIN_IDX
     // libwally reports the length it WANTED when the buffer is short, and out
     // then holds nothing. Say so rather than handing back a phantom length.
     return wr > cap ? 0 : wr;
@@ -1100,10 +1110,28 @@ int main(int argc, char **argv) {
     pl = mk_nin_psbt(WPSBT_MERGE_INS, 100000, 10000, pb, sizeof pb);
     chki("merge load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("merge input count", (int)sum.n_in, WPSBT_MERGE_INS);
+    chki("merge address count", (int)sum.n_in_addr, WPSBT_MERGE_INS);
     chki("merge CAUTION", sum.status, WPSBT_CAUTION);
     chki("merge flag alone", sum.caution_flags, WPSBT_C_MERGE_INS);
     chkb("merge reason says merging", strstr(sum.reason, "merging") != NULL);
     chkb("merge still signable", kiss_psbt_sign(sb, sizeof sb, &sw) == 0);
+    kiss_psbt_free();
+
+    // ---- and it counts ADDRESSES, not coins ----
+    //
+    // The same coin count, all of it on one reused address. Nothing here is
+    // being revealed: anyone watching that address already knew those coins
+    // shared an owner, and the privacy was spent when it was handed out twice,
+    // not now. Counting inputs called this the worst kind of consolidation and
+    // put a warning in front of an owner who could do nothing about it -- which
+    // is the fatigue that makes the real one get waved through.
+    pl = mk_nin_psbt_ex(WPSBT_MERGE_INS + 3, 100000, 10000, NIN_REUSE,
+                        pb, sizeof pb);
+    chki("reuse load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("reuse input count", (int)sum.n_in, WPSBT_MERGE_INS + 3);
+    chki("reuse address count", (int)sum.n_in_addr, 1);
+    chki("reuse READY", sum.status, WPSBT_READY);
+    chki("reuse no merge caution", sum.caution_flags & WPSBT_C_MERGE_INS, 0);
     kiss_psbt_free();
 
     // a sweep of tiny coins stacks the merge flag on the dust-input one: they

@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "DUST ATTACK: a tiny coin someone sent you. spending it can link this wallet to them.",
   "S_WHY_TINYCH": "TINY CHANGE: leaves a very small coin behind. it fragments your balance.",
   "S_WHY_UNPROVEN": "AMOUNTS NOT PROVEN: your coordinator did not prove what these coins are worth. the real fee can be higher than shown.",
-  "S_WHY_MERGE": "COINS LINKED: spending many coins at once shows the world they all belong to you.",
+  "S_WHY_MERGE_FMT": "COINS LINKED: this joins %u of your addresses and shows the world they all belong to you.",
   "S_WHY_FOOT": "unsure? go BACK and fix it in your coordinator wallet.",
   "S_RBF_T_ON": "REPLACEABLE (RBF)",
   "S_RBF_T_OFF": "FINAL",

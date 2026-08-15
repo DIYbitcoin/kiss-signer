@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "STØVANGREP: en bitteliten mynt noen sendte deg. å bruke den kan koble denne lommeboken til dem.",
   "S_WHY_TINYCH": "LITEN VEKSEL: etterlater en veldig liten mynt og deler opp saldoen din.",
   "S_WHY_UNPROVEN": "BELØP IKKE BEVIST: appen din beviste ikke hva disse myntene er verdt. den ekte avgiften kan være høyere enn vist.",
-  "S_WHY_MERGE": "KOBLEDE MYNTER: å bruke mange mynter på én gang viser alle at de er dine.",
+  "S_WHY_MERGE_FMT": "KOBLEDE MYNTER: dette knytter sammen %u av adressene dine og viser alle at de er dine.",
   "S_WHY_FOOT": "usikker? gå TILBAKE og fiks det i appen.",
   "S_RBF_T_ON": "KAN ERSTATTES (RBF)",
   "S_RBF_T_OFF": "ENDELIG",

@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "STØVANGREB: en bitte lille mønt, som nogen sendte dig. at bruge den kan koble denne tegnebog til dem.",
   "S_WHY_TINYCH": "LILLE BYTTEPENGE: efterlader en meget lille mønt og splitter din saldo op.",
   "S_WHY_UNPROVEN": "BELØB IKKE BEVIST: din app beviste ikke, hvad disse mønter er værd. det ægte gebyr kan være højere end vist.",
-  "S_WHY_MERGE": "KOBLEDE MØNTER: at bruge mange mønter på én gang viser alle, at de er dine.",
+  "S_WHY_MERGE_FMT": "KOBLEDE MØNTER: dette forbinder %u af dine adresser og viser alle, at de er dine.",
   "S_WHY_FOOT": "i tvivl? gå TILBAGE og ret det i din app.",
   "S_RBF_T_ON": "KAN ERSTATTES (RBF)",
   "S_RBF_T_OFF": "ENDELIG",

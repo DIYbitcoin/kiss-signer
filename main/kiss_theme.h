@@ -353,7 +353,13 @@ void wt_diagram_pair(lv_obj_t *parent);
 // exists, SEND is WT_INK, FEE is WT_DIM, CHANGE is the accent -- and CHANGE is
 // the only accent text in the graph, so "arriving" and "leaving" stay two
 // families under all four accents including MONO, where the accent is ink.
-enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
+// WT_STRAND_LINKED is an input on a spend wide enough to raise the coins
+// linked caution. It is the same strand in WT_WARN, and it is the caution
+// DRAWN: the convergence on the junction is what the warning is describing, so
+// the screen can point at it instead of asking the reader to picture it.
+// Appended, never inserted -- these are stored in the widget by value.
+enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE,
+       WT_STRAND_LINKED };
 
 // Strands the graph can hold in total. Five is what the elision leaves on the
 // input side at any coin count (first two, the group, last two). The output

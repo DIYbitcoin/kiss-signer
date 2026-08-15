@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "PRAŠINSKI NAPAD: netko vam je poslao sićušan novčić. njegovim trošenjem možete povezati ovaj novčanik s njim.",
   "S_WHY_TINYCH": "SITAN OSTATAK: ostavlja vrlo mali novčić i usitnjava tvoje stanje.",
   "S_WHY_UNPROVEN": "IZNOSI NEDOKAZANI: tvoja aplikacija nije dokazala koliko ove kovanice vrijede. stvarna naknada može biti veća od prikazane.",
-  "S_WHY_MERGE": "POVEZANI NOVČIĆI: trošenje mnogo novčića odjednom pokazuje svima da su svi tvoji.",
+  "S_WHY_MERGE_FMT": "POVEZANI NOVČIĆI: ovo povezuje %u tvojih adresa i pokazuje svima da su svi tvoji.",
   "S_WHY_FOOT": "nisi siguran? NATRAG i popravi u aplikaciji.",
   "S_RBF_T_ON": "ZAMJENJIVA (RBF)",
   "S_RBF_T_OFF": "KONAČNA",

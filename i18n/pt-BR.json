@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "ATAQUE DE POEIRA: uma moeda minúscula que alguém te enviou. gastá-la pode ligar esta carteira a quem enviou.",
   "S_WHY_TINYCH": "TROCO MINÚSCULO: deixa uma moeda muito pequena e fragmenta o seu saldo.",
   "S_WHY_UNPROVEN": "VALORES NÃO PROVADOS: seu app não provou quanto valem estas moedas. a taxa real pode ser maior que a mostrada.",
-  "S_WHY_MERGE": "MOEDAS LIGADAS: gastar muitas moedas de uma vez mostra a todos que são todas suas.",
+  "S_WHY_MERGE_FMT": "MOEDAS LIGADAS: isto liga %u dos seus endereços e mostra a todos que são todas suas.",
   "S_WHY_FOOT": "na dúvida? VOLTAR e resolver no seu app.",
   "S_RBF_T_ON": "SUBSTITUÍVEL (RBF)",
   "S_RBF_T_OFF": "FINAL",

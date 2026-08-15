@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "TOZ SALDIRISI: biri size çok küçük bir coin gönderdi. harcamak bu cüzdanı gönderene bağlayabilir.",
   "S_WHY_TINYCH": "ÇOK KÜÇÜK PARA ÜSTÜ: çok küçük bir coin bırakır ve bakiyeni parçalar.",
   "S_WHY_UNPROVEN": "TUTARLAR KANITSIZ: uygulaman bu paraların değerini kanıtlamadı. gerçek ücret gösterilenden yüksek olabilir.",
-  "S_WHY_MERGE": "BAĞLANAN COINLER: birçok coini aynı anda harcamak hepsinin sana ait olduğunu herkese gösterir.",
+  "S_WHY_MERGE_FMT": "BAĞLANAN COINLER: bu, %u adresini birbirine bağlar ve hepsinin sana ait olduğunu herkese gösterir.",
   "S_WHY_FOOT": "emin değil misin? GERİ dön, uygulamada düzelt.",
   "S_RBF_T_ON": "DEĞİŞTİRİLEBİLİR (RBF)",
   "S_RBF_T_OFF": "KESİN",

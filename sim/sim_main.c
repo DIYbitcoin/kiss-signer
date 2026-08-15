@@ -561,7 +561,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     // WPSBT_MAX_INS so kiss_psbt_details can only hold sixteen of them -- which
     // is what makes the group's count and total come from the summary rather
     // than from the rows the graph can see.
-    s->n_in = 20; s->n_out = 1;
+    // Twenty coins, fourteen addresses: six of them are pairs already sitting
+    // on a shared address. The two numbers being different is the point -- the
+    // caution names the fourteen, because the six were joined the day the
+    // address was handed out twice and this transaction reveals nothing new
+    // about them.
+    s->n_in = 20; s->n_in_addr = 14; s->n_out = 1;
     s->in_sats = 4210000; s->send_sats = 4200000; s->change_sats = 0;
     s->fee_sats = 10000; s->fee_rate_x10 = 24; s->est_vsize = 4166;
     s->outs[0].sats = 4200000; s->outs[0].is_change = false;
@@ -577,6 +582,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     // that reaches the tight row metric (SG_ROW_H5) and the dropped footer, so
     // this is where that layout gets looked at.
     s->n_in = WPSBT_MERGE_INS;
+    s->n_in_addr = WPSBT_MERGE_INS;      // five coins, five addresses: at the bar
     s->n_unproven_in = WPSBT_MERGE_INS;
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
@@ -2233,6 +2239,16 @@ int main(void) {
   // the graph can see.
   must_show("twenty coins", "16");                  // the elided count
   must_show("twenty coins", "2 749 257");           // ... and what it is worth
+  // The card behind the "?", on the one transaction where the two numbers
+  // differ: twenty coins, fourteen addresses. Six of those coins share an
+  // address with another, and were joined the day it was handed out twice --
+  // this transaction reveals nothing new about them, so the caution does not
+  // count them. A card saying "20" here would be inflating the loss it is
+  // asking the owner to accept.
+  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED
+  save("/tmp/sim_sign_merge_why.ppm");
+  must_show("twenty coins, why", "14");
+  tap_str(STR_C_OK, 3, 6);
   if (kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN was live with the coins-linked bar unacknowledged\n");
     return 1;

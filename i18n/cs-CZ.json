@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "PRACHOVÝ ÚTOK: někdo vám poslal nepatrnou minci. jejím utracením propojíte tuto peněženku s odesílatelem.",
   "S_WHY_TINYCH": "DROBNÉ ZPĚT: zůstane velmi malá mince a tříští to tvůj zůstatek.",
   "S_WHY_UNPROVEN": "ČÁSTKY NEDOLOŽENY: tvá aplikace nedoložila, jakou hodnotu tyto mince mají. skutečný poplatek může být vyšší než zobrazený.",
-  "S_WHY_MERGE": "SPOJENÉ MINCE: utracením mnoha mincí najednou ukážeš všem, že patří všechny tobě.",
+  "S_WHY_MERGE_FMT": "SPOJENÉ MINCE: tato transakce spojuje %u tvých adres a ukáže všem, že patří všechny tobě.",
   "S_WHY_FOOT": "nejistota? ZPĚT a oprav to v aplikaci.",
   "S_RBF_T_ON": "NAHRADITELNÁ (RBF)",
   "S_RBF_T_OFF": "KONEČNÁ",

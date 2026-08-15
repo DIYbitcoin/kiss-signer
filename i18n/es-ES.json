@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "ATAQUE DE POLVO: una moneda diminuta que alguien te envió. gastarla puede vincular esta cartera con esa persona.",
   "S_WHY_TINYCH": "CAMBIO DIMINUTO: deja una moneda muy pequeña y fragmenta tu saldo.",
   "S_WHY_UNPROVEN": "IMPORTES SIN PROBAR: tu app no probó cuánto valen estas monedas. la comisión real puede ser mayor que la mostrada.",
-  "S_WHY_MERGE": "MONEDAS VINCULADAS: gastar muchas monedas a la vez muestra a todos que son tuyas.",
+  "S_WHY_MERGE_FMT": "MONEDAS VINCULADAS: esto une %u de tus direcciones y muestra a todos que son tuyas.",
   "S_WHY_FOOT": "dudas? vuelve ATRÁS y arréglalo en tu app.",
   "S_RBF_T_ON": "REEMPLAZABLE (RBF)",
   "S_RBF_T_OFF": "FINAL",

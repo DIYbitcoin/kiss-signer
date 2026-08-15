@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "STAUB-ANGRIFF: eine winzige Münze, die dir jemand geschickt hat. sie auszugeben kann diese Wallet mit ihm verknüpfen.",
   "S_WHY_TINYCH": "WINZIGES WECHSELGELD: es bleibt eine winzige Münze übrig, das zersplittert.",
   "S_WHY_UNPROVEN": "BETRÄGE UNBEWIESEN: deine App hat nicht belegt, was diese Münzen wert sind. die echte Gebühr kann höher sein als angezeigt.",
-  "S_WHY_MERGE": "VERKNÜPFTE MÜNZEN: viele Münzen auf einmal auszugeben zeigt allen, dass sie dir gehören.",
+  "S_WHY_MERGE_FMT": "VERKNÜPFTE MÜNZEN: dies verbindet %u deiner Adressen und zeigt allen, dass sie dir gehören.",
   "S_WHY_FOOT": "unsicher? ZURÜCK, dann in der App klären.",
   "S_RBF_T_ON": "ERSETZBAR (RBF)",
   "S_RBF_T_OFF": "FINAL",

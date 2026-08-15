@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "DAMMATTACK: ett pyttelitet mynt som någon skickade dig. att spendera det kan koppla den här plånboken till dem.",
   "S_WHY_TINYCH": "LITEN VÄXEL: lämnar kvar ett mycket litet mynt och splittrar ditt saldo.",
   "S_WHY_UNPROVEN": "BELOPP EJ BEVISADE: din app bevisade inte vad dessa mynt är värda. den verkliga avgiften kan vara högre än den visade.",
-  "S_WHY_MERGE": "LÄNKADE MYNT: att spendera många mynt på en gång visar alla att de är dina.",
+  "S_WHY_MERGE_FMT": "LÄNKADE MYNT: detta länkar ihop %u av dina adresser och visar alla att de är dina.",
   "S_WHY_FOOT": "osäker? gå TILLBAKA och fixa det i appen.",
   "S_RBF_T_ON": "KAN ERSÄTTAS (RBF)",
   "S_RBF_T_OFF": "SLUTGILTIG",

@@ -340,7 +340,7 @@
   "S_WHY_DUSTIN": "TẤN CÔNG BỤI: ai đó đã gửi cho bạn một đồng rất nhỏ. tiêu nó có thể liên kết ví này với người gửi.",
   "S_WHY_TINYCH": "TIỀN THỪA NHỎ: để lại một đồng rất nhỏ và làm vụn số dư của bạn.",
   "S_WHY_UNPROVEN": "SỐ TIỀN CHƯA CHỨNG MINH: ứng dụng chưa chứng minh giá trị của các đồng này. phí thật có thể cao hơn phí hiển thị.",
-  "S_WHY_MERGE": "TIỀN BỊ LIÊN KẾT: tiêu nhiều đồng cùng lúc cho mọi người thấy tất cả là của bạn.",
+  "S_WHY_MERGE_FMT": "TIỀN BỊ LIÊN KẾT: giao dịch này nối %u địa chỉ của bạn và cho mọi người thấy tất cả là của bạn.",
   "S_WHY_FOOT": "không chắc? QUAY LẠI và sửa trong ứng dụng.",
   "S_RBF_T_ON": "THAY ĐƯỢC (RBF)",
   "S_RBF_T_OFF": "CHỐT HẲN",

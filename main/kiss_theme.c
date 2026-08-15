@@ -2227,8 +2227,14 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     }
     if (!n) return;
 
-    int rows = (n + GRID_COLS - 1) / GRID_COLS;
-    int cw   = (EXP_FULL_W - GRID_GUT) / GRID_COLS;      // 346
+    // Two columns is what a LIST needs. One entry is not a list, and putting it
+    // in a 346px lane leaves the right half of the card empty while wrapping
+    // one sentence over five short lines. A single caution is the common case
+    // on this card -- most flagged transactions trip exactly one -- and no walk
+    // stop ever opened it, so it drew that way for its whole life.
+    const int cols = (n == 1) ? 1 : GRID_COLS;
+    int rows = (n + cols - 1) / cols;
+    int cw   = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;   // 346 at two
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
     int pitch = room / rows;
 
@@ -2261,8 +2267,8 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         line[l] = 0;
         const char *def = wt_split_colon(line, head, sizeof head);
 
-        int cx = 48 + (i % GRID_COLS) * (cw + GRID_GUT);
-        int cy = y + (i / GRID_COLS) * pitch;
+        int cx = 48 + (i % cols) * (cw + GRID_GUT);
+        int cy = y + (i / cols) * pitch;
 
         if (e->icons && e->icons[i])
             grid_badge(ovl, e->icons[i], cx, cy, sev);
@@ -2726,6 +2732,7 @@ static lv_color_t bundle_col(uint8_t role, bool signed_ok)
     case WT_STRAND_SEND:   return WT_INK;
     case WT_STRAND_FEE:    return WT_DIM;
     case WT_STRAND_CHANGE: return wt_accent();
+    case WT_STRAND_LINKED: return WT_WARN;
     default:               return WT_MUT;
     }
 }
@@ -3188,11 +3195,20 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
     for (int k = 0; k < (int)b->n_line; k++) {
         const bool is_in = (k < (int)b->out0);
         if (state == WT_BUNDLE_HOLDING) {
-            // The output half of SIGNING and nothing else. An input touched
-            // here is an input the hold cannot draw on: the fill is an accent
-            // line over a muted one, and both ends of that contrast have to
-            // still be there when the finger goes down.
-            if (!is_in) bundle_repaint(b, k, WT_EDGE, WT_EDGE, false);
+            // Outputs stand down, and so does a LINKED input's warn colour --
+            // to the plain mute, not up to WT_INK. Both directions matter and
+            // for the same reason: the fill drawn over these is the accent, and
+            // it needs something to be visible against. WT_INK is too close to
+            // the accent in MONO, and WT_WARN's amber is too close to it in
+            // ORANGE -- on a merge, in that theme, the whole animation
+            // disappeared into a strand that was already orange.
+            //
+            // The caution is not being retracted: the bar below still says it,
+            // it has already been acknowledged to get here, and the strands
+            // wear it again the moment the hold is let go. What the screen is
+            // about for these 1200ms is the commitment, not the warning.
+            bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
+                           is_in ? WT_MUT : WT_EDGE, false);
         } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
@@ -3212,7 +3228,12 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             if (b->note[k] && !acc)
                 lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
         } else {
-            bundle_repaint(b, k, WT_MUT, WT_MUT, false);
+            // An input at rest, taken from its role rather than assumed to be
+            // muted: a linked one wears WT_WARN and has to come back to it
+            // after a hold is let go. The LABEL stays muted either way -- the
+            // strand is what the caution is about, and an amount in WT_WARN
+            // would read as something wrong with that number.
+            bundle_repaint(b, k, bundle_col(b->role[k], false), WT_MUT, false);
         }
     }
 }
