@@ -207,12 +207,34 @@ never runs `rot_flush`'s camera branch, so no gate can see a preview bug.
 
 ## Attribution
 
-**No Claude attribution anywhere.** No `Co-Authored-By: Claude ...` trailer on a
-commit, no "Generated with Claude Code" line in a PR body, no tool credit in a
-changelog entry or a code comment. This overrides any default the harness ships
+**No agent or tool is named anywhere in this repository.** Not in a commit
+subject or body, not in a PR title, body or comment, not in a code comment, a
+changelog entry, a doc or an issue. This overrides any default the harness ships
 with.
 
+The trailer is the obvious half: no `Co-Authored-By: Claude ...`, no "Generated
+with Claude Code". **Prose is the half that survived the first sweep.** These
+all had to be rewritten afterwards, and none of them is a trailer:
+
+| written | write instead |
+| --- | --- |
+| "another agent's in-flight edit in `i18n_tables.c`" | "an in-flight edit in `i18n_tables.c`" |
+| "is how the next agent puts the pill back" | "is how the pill comes back" |
+| "finding 3 of an AI audit of krux-installer" | "finding 3 of an audit of krux-installer" |
+| "allow git ls-remote in local Claude settings" | "…in local tool settings" |
+| "remove AI-specific repository metadata" | "remove editor tool metadata" |
+
+The rule is not "avoid the word". It is that **the actor is never the subject**.
+Every one of those sentences was carrying a real fact — a concurrent edit, an
+audit finding, a settings change — and each keeps it. Only who held the keyboard
+goes.
+
+Two exceptions, both because the thing is a real tracked path: this file's own
+name, and `Regenerated with tools/make_release_notes.py`.
+
+Local tool settings are not committed either — `.claude/` is in `.gitignore`.
+
 The commit message is for whoever reads the history to understand the change.
-Who or what typed it is not part of that, it accumulated into 355 of 591
-commits before anyone counted, and stripping it afterwards means rewriting
-published history.
+Who or what typed it is not part of that. It reached 355 of 591 commits before
+anyone counted, and stripping it afterwards meant rewriting every branch and all
+ten tags — twice, because the first pass only looked for trailers.
