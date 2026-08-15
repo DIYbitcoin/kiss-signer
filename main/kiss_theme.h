@@ -417,6 +417,23 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
 // The graph owns the strands; the caller owns what the answer means.
 lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 
+// What the graph is doing.
+//
+//   LIVE     the transaction as verified, waiting for a decision.
+//   SIGNING  the key is working: inputs go WT_INK at full strength, outputs go
+//            WT_EDGE. The screen stops being about where the money goes and
+//            starts being about the coins being signed, and the dimmed output
+//            side is what says the destinations are settled.
+//   SIGNED   every input strand and its amount in the accent, together.
+//
+// Together, and not one at a time. `kiss_psbt_sign` is a single libwally call
+// that signs every input inside it with no hook to count from, so a per coin
+// sequence here would be a timer inventing steps -- and the whole claim of this
+// screen is that a strand in the accent means a signature exists. It changes
+// when that becomes true of all of them, which is the moment the call returns.
+enum { WT_BUNDLE_LIVE = 0, WT_BUNDLE_SIGNING, WT_BUNDLE_SIGNED };
+void wt_bundle_state(lv_obj_t *bundle, int state);
+
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
 // highlighting the front invited people to compare a constant and feel checked.

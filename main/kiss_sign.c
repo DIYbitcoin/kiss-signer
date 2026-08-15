@@ -107,6 +107,14 @@ enum { SRC_SD = 0, SRC_QR = 1 };
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_arc, *s_sign_lbl;
+// The graph, its left caption, and the eyebrow that appears over the output
+// side while the key is working. Held so the signing state can reach them
+// without rebuilding the screen: a repaint here would tear down the arc
+// mid-sweep and restart the hold the owner is in the middle of.
+static lv_obj_t *s_graph, *s_graph_cap, *s_locked;
+// DETAILS and BACK, NULL terminated, so the signing state can stand them down
+// without knowing what else is on the row.
+static lv_obj_t *s_inert[3];
 static lv_timer_t *s_hold_tmr;
 static uint32_t s_hold_t0;
 static char s_files[MAX_FILES][SD_NAME_LEN];
@@ -439,6 +447,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     (void)e;
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big: the signed screens no
@@ -515,6 +524,7 @@ static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
     // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
     // of the screen and does not fit one line at a readable size. Nothing is
@@ -542,6 +552,7 @@ static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     mk_screen(parent, tr(STR_S_FAIL_T), why);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
@@ -567,20 +578,21 @@ static void mark_used_receives(void)
         }
 }
 
-static void do_sign_cb(lv_timer_t *t)
+// How long the reveal is on the glass before the exit screen replaces it.
+//
+// The graph spends the whole flow claiming that a strand in the accent means a
+// signature exists, and this is the one moment that claim is discharged. It is
+// worth a beat. Not a fake progress bar and not a pause pretending work is
+// still happening -- the work is done, and this is the answer being shown for
+// long enough to read before the screen changes underneath it.
+#define REVEAL_MS 700
+
+static size_t s_signed_len;
+
+static void finish_sign_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
-    size_t sw = 0;
-    if (kiss_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
-        fail_screen(tr(STR_S_FAIL_SIGN));
-        return;
-    }
-    // Fingerprint the signature now, while the bytes are in hand, for both exit
-    // screens. On the (unexpected) failure path it is left empty and the screens
-    // just omit the aid.
-    if (kiss_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
-        s_sig_fp[0] = 0;
-    mark_used_receives();
+    const size_t sw = s_signed_len;
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         s_qr_sw = sw;
         qr_out_screen(sw);
@@ -599,6 +611,48 @@ static void do_sign_cb(lv_timer_t *t)
     done_screen(outname);
 }
 
+static void do_sign_cb(lv_timer_t *t)
+{
+    lv_timer_delete(t);
+    size_t sw = 0;
+    if (kiss_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
+        // Nothing on the graph moved: no strand ever wore the accent, because
+        // no signature was ever made.
+        fail_screen(tr(STR_S_FAIL_SIGN));
+        return;
+    }
+    // Fingerprint the signature now, while the bytes are in hand, for both exit
+    // screens. On the (unexpected) failure path it is left empty and the screens
+    // just omit the aid.
+    if (kiss_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
+        s_sig_fp[0] = 0;
+    mark_used_receives();
+    // Every input at once, which is what actually happened: one libwally call
+    // signed all of them and there was never a per coin moment to show.
+    if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNED);
+    if (s_graph_cap) {
+        // "ALL 1 COINS SIGNED" is what the count format says about a one coin
+        // spend, and it is wrong in English before it is wrong anywhere else.
+        // A single coin gets the word on its own. The plural form still cannot
+        // be right in Russian, Polish or Czech, which need three -- this file
+        // has no plural machinery and the rest of it dodges the problem the
+        // same way, by parenthesising the count or not printing one.
+        static char done_buf[64];
+        if (s_sum.n_in == 1) {
+            snprintf(done_buf, sizeof done_buf, "%s", tr(STR_S_SIGNED_T));
+        } else {
+            snprintf(done_buf, sizeof done_buf, tr(STR_S_ALL_SIGNED_FMT),
+                     (unsigned)s_sum.n_in);
+        }
+        lv_label_set_text(s_graph_cap, done_buf);
+        lv_obj_set_style_text_color(s_graph_cap, wt_accent(), 0);
+        lv_obj_add_flag(s_graph_cap, WT_FLAG_ACCENT);
+    }
+    if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNED_T));
+    s_signed_len = sw;
+    lv_timer_create(finish_sign_cb, REVEAL_MS, NULL);
+}
+
 static void hold_tick(lv_timer_t *t)
 {
     (void)t;
@@ -608,6 +662,37 @@ static void hold_tick(lv_timer_t *t)
         hold_stop();
         if (s_arc) lv_arc_set_value(s_arc, 100);
         if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
+        // The graph stops being about where the money goes and starts being
+        // about the coins being signed: inputs at full strength, the output
+        // side stood down behind a LOCKED eyebrow saying the destinations are
+        // settled. DETAILS and BACK go inert with it -- kiss_psbt_sign blocks
+        // the LVGL loop, so a tap landing on either is a tap that is answered
+        // after the signature exists, and a control that looks live while it
+        // cannot respond is a control that lies.
+        if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNING);
+        if (s_graph_cap)
+            lv_label_set_text(s_graph_cap, tr(STR_S_SIGNING));
+        if (!s_locked && s_scr) {
+            // The mark alone. "LOCKED" has no key, and the word it would
+            // borrow is SIGNED -- which the caption on the left and the pill
+            // below already say, so spelling it here would put the same word on
+            // one screen three times. A padlock over the output column says the
+            // destinations are settled, in the same glyph the RBF cell uses for
+            // a transaction that can no longer be replaced, and it needs no
+            // translating.
+            // On the caption's own line and at its rung, not above it: the
+            // output column's first row begins at y=170, and a larger glyph
+            // centred on this band reaches into it.
+            s_locked = mk_lbl(WT_ICON_LOCK, 748, 150, wt_font14(),
+                              wt_accent());
+            lv_obj_add_flag(s_locked, WT_FLAG_ACCENT);
+        }
+        for (int i = 0; s_inert[i]; i++) {
+            lv_obj_set_style_border_color(s_inert[i], WT_EDGE, 0);
+            lv_obj_set_style_text_color(lv_obj_get_child(s_inert[i], 0),
+                                        WT_DIM, 0);
+            lv_obj_remove_flag(s_inert[i], LV_OBJ_FLAG_CLICKABLE);
+        }
         lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
     }
 }
@@ -738,6 +823,7 @@ static void repaint_verify(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     verify_screen(s_parent);
 }
 
@@ -900,6 +986,7 @@ static void repaint_cautions(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     cautions_screen();
 }
 
@@ -920,6 +1007,7 @@ static void cautions_open_cb(lv_event_t *e)
     (void)e;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     s_on_cautions = true;
     cautions_screen();
 }
@@ -1414,6 +1502,7 @@ static void verify_screen(lv_obj_t *parent)
         snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_IN_FMT), (unsigned)s_sum.n_in);
         lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 150, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
+        s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
         lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
@@ -1421,6 +1510,7 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *bg = wt_bundle(s_scr, 24, SG_GRAPH_Y, 752,
                                  np ? SG_GRAPH_H_C : SG_GRAPH_H,
                                  in, n_in, out, n_out, max_sats);
+        s_graph = bg;
 
         // The read-to-the-end gate, unchanged in every respect that matters:
         // the same question, measured the same way, with the same answer. Only
@@ -1541,10 +1631,12 @@ static void verify_screen(lv_obj_t *parent)
     // Acknowledgement lives in the caution rows now, so there is no second
     // button competing for this position and no way for two taps in the same
     // place to become a signature nobody read.
-    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 104, WT_ACTION_H,
-             s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
-    wt_pillh(s_scr, tr(STR_S_DETAILS), SG_DETAILS_X, WT_ACTION_Y, 150,
-             WT_ACTION_H, details_cb, NULL);
+    s_inert[0] = wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 104,
+                          WT_ACTION_H,
+                          s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
+    s_inert[1] = wt_pillh(s_scr, tr(STR_S_DETAILS), SG_DETAILS_X, WT_ACTION_Y,
+                          150, WT_ACTION_H, details_cb, NULL);
+    s_inert[2] = NULL;
 
     s_arc = lv_arc_create(s_scr);
     lv_obj_set_size(s_arc, 40, 40);
@@ -1735,6 +1827,7 @@ static void details_cb(lv_event_t *e)
         return;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
     // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
     // starts at x=560 with a label that takes two lines in the longer locales.
@@ -2099,6 +2192,7 @@ static void qr_out_screen(size_t sw)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
 
     s_qr_ez = false;
     s_out_len = sw;
@@ -2240,6 +2334,7 @@ static void rm_repaint(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     rm_screen();
 }
 
@@ -2339,6 +2434,7 @@ static void rm_open_cb(lv_event_t *e)
     (void)e;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
     rm_screen();
 }
 
