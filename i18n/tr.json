@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "TAM YEDEK DOĞRULANDI",
   "L_VERIFY_PASS": "YEDEKTEKİ TAM PASSPHRASE'İ YAZIN",
   "L_BACKUP_PASS_BAD": "BU BAŞKA BİR CÜZDAN AÇIYOR. TEKRAR DENEYİN.",
-  "S_TOTAL_LEAVING": "CÜZDANDAN ÇIKAN TOPLAM",
+  "S_TOTAL_LEAVING": "CÜZDANINIZDAN ÇIKAN TOPLAM",
   "S_FILES_HINT": "önce imzasız, sonra A-Z. imzalı dosyalar işaretlidir.",
   "S_FILES_MORE_FMT": "%d dosya gösteriliyor, toplam %d. kalanı görmek için birkaçını silin",
   "S_FILE_UNSIGNED": "İMZASIZ",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "G_FW_FAIL_CARD_B": "kart yarıda yanıt vermeyi bıraktı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "G_FW_FAIL_WRITE_B": "yazma tamamlanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
-  "H_WAYS_IN_HINT": "kelimeden sonra bir çizgi passphrase ister"
+  "H_WAYS_IN_HINT": "kelimeden sonra bir çizgi passphrase ister",
+  "S_D_OUTPUTS_FMT": "ÇIKTILAR (%u) - %u SİZE",
+  "S_BUNDLE_IN_FMT": "COINLERİNİZDEN %u TANESİ HARCANIYOR",
+  "S_BUNDLE_OUT": "NEREYE GİDİYOR",
+  "S_BUNDLE_MORE_FMT": "%u coin daha",
+  "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",
+  "S_ALL_SIGNED_FMT": "%u COININ TÜMÜ İMZALANDI"
 }

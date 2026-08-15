@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "PEŁNA KOPIA SPRAWDZONA",
   "L_VERIFY_PASS": "WPISZ DOKŁADNĄ FRAZĘ Z KOPII",
   "L_BACKUP_PASS_BAD": "TO OTWIERA INNY PORTFEL. SPRÓBUJ PONOWNIE.",
-  "S_TOTAL_LEAVING": "ŁĄCZNIE OPUSZCZA PORTFEL",
+  "S_TOTAL_LEAVING": "ŁĄCZNIE OPUSZCZA TWÓJ PORTFEL",
   "S_FILES_HINT": "najpierw niepodpisane, potem A-Z. podpisane są oznaczone.",
   "S_FILES_MORE_FMT": "pokazano %d z %d plików. usuń kilka, aby zobaczyć resztę",
   "S_FILE_UNSIGNED": "NIEPODPISANY",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_CARD_B": "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_WRITE_B": "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
-  "H_WAYS_IN_HINT": "kreska po słowie prosi o frazę dostępu"
+  "H_WAYS_IN_HINT": "kreska po słowie prosi o frazę dostępu",
+  "S_D_OUTPUTS_FMT": "WYJŚCIA (%u) - %u DO CIEBIE",
+  "S_BUNDLE_IN_FMT": "WYDAJESZ %u SWOICH MONET",
+  "S_BUNDLE_OUT": "DOKĄD IDZIE",
+  "S_BUNDLE_MORE_FMT": "jeszcze %u monet",
+  "S_BUNDLE_NOCHANGE_FMT": "bez reszty, to opróżnia wszystkie %u",
+  "S_ALL_SIGNED_FMT": "WSZYSTKIE %u MONET PODPISANE"
 }

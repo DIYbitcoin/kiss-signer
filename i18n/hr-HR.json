@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "PUNA KOPIJA JE PROVJERENA",
   "L_VERIFY_PASS": "UPIŠI TOČNU KODNU FRAZU IZ KOPIJE",
   "L_BACKUP_PASS_BAD": "TO OTVARA DRUGI NOVČANIK. POKUŠAJ PONOVNO.",
-  "S_TOTAL_LEAVING": "UKUPNO IZLAZI IZ NOVČANIKA",
+  "S_TOTAL_LEAVING": "UKUPNO IZLAZI IZ TVOG NOVČANIKA",
   "S_FILES_HINT": "prvo nepotpisane, zatim A-Z. potpisane su označene.",
   "S_FILES_MORE_FMT": "prikazano %d od %d datoteka. ukloni koju da vidiš ostale",
   "S_FILE_UNSIGNED": "NEPOTPISANO",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_CARD_B": "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_WRITE_B": "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
-  "H_WAYS_IN_HINT": "potez nakon riječi traži kodnu frazu"
+  "H_WAYS_IN_HINT": "potez nakon riječi traži kodnu frazu",
+  "S_D_OUTPUTS_FMT": "IZLAZI (%u) - %u VAMA",
+  "S_BUNDLE_IN_FMT": "TROŠIŠ %u SVOJIH NOVČIĆA",
+  "S_BUNDLE_OUT": "KAMO IDE",
+  "S_BUNDLE_MORE_FMT": "još %u novčića",
+  "S_BUNDLE_NOCHANGE_FMT": "bez ostatka, ovo prazni svih %u",
+  "S_ALL_SIGNED_FMT": "SVIH %u NOVČIĆA POTPISANO"
 }

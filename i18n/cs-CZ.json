@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "CELÁ ZÁLOHA OVĚŘENA",
   "L_VERIFY_PASS": "ZADEJTE PŘESNOU PŘÍSTUPOVOU FRÁZI",
   "L_BACKUP_PASS_BAD": "OTEVÍRÁ JINOU PENĚŽENKU. ZKUSTE ZNOVU.",
-  "S_TOTAL_LEAVING": "CELKEM ODCHÁZÍ Z PENĚŽENKY",
+  "S_TOTAL_LEAVING": "CELKEM ODCHÁZÍ Z TVÉ PENĚŽENKY",
   "S_FILES_HINT": "nejprve nepodepsané, pak A-Z. podepsané jsou označeny.",
   "S_FILES_MORE_FMT": "zobrazeno %d z %d souborů. odeber pár, ať vidíš zbytek",
   "S_FILE_UNSIGNED": "NEPODEPSÁNO",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_CARD_B": "karta v půlce přestala odpovídat.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_WRITE_B": "zápis se nedokončil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
-  "H_WAYS_IN_HINT": "tah po slovu vyžádá přístupovou frázi"
+  "H_WAYS_IN_HINT": "tah po slovu vyžádá přístupovou frázi",
+  "S_D_OUTPUTS_FMT": "VÝSTUPY (%u) - %u VÁM",
+  "S_BUNDLE_IN_FMT": "UTRÁCÍŠ %u ZE SVÝCH MINCÍ",
+  "S_BUNDLE_OUT": "KAM TO JDE",
+  "S_BUNDLE_MORE_FMT": "dalších %u mincí",
+  "S_BUNDLE_NOCHANGE_FMT": "bez drobných, tímto se vyprázdní všech %u",
+  "S_ALL_SIGNED_FMT": "VŠECH %u MINCÍ PODEPSÁNO"
 }

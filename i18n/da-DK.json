@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "HELE BACKUPEN KONTROLLERET",
   "L_VERIFY_PASS": "SKRIV DEN NØJAGTIGE ADGANGSFRASE",
   "L_BACKUP_PASS_BAD": "DET ÅBNER EN ANDEN TEGNEBOG. PRØV IGEN.",
-  "S_TOTAL_LEAVING": "I ALT UD AF TEGNEBOGEN",
+  "S_TOTAL_LEAVING": "I ALT UD AF DIN TEGNEBOG",
   "S_FILES_HINT": "usignerede først, derefter A-Z. signerede filer er mærket.",
   "S_FILES_MORE_FMT": "viser %d af %d filer. fjern nogle for at se resten",
   "S_FILE_UNSIGNED": "USIGNERET",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "G_FW_FAIL_CARD_B": "kortet holdt op med at svare undervejs.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "G_FW_FAIL_WRITE_B": "skrivningen blev ikke færdig.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
-  "H_WAYS_IN_HINT": "en streg efter ordet beder om adgangsfrasen"
+  "H_WAYS_IN_HINT": "en streg efter ordet beder om adgangsfrasen",
+  "S_D_OUTPUTS_FMT": "OUTPUT (%u) - %u TIL DIG",
+  "S_BUNDLE_IN_FMT": "BRUGER %u AF DINE MØNTER",
+  "S_BUNDLE_OUT": "HVOR DEN GÅR HEN",
+  "S_BUNDLE_MORE_FMT": "%u mønter mere",
+  "S_BUNDLE_NOCHANGE_FMT": "ingen byttepenge, dette tømmer alle %u",
+  "S_ALL_SIGNED_FMT": "ALLE %u MØNTER SIGNERET"
 }

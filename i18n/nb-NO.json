@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "FULL BACKUP KONTROLLERT",
   "L_VERIFY_PASS": "SKRIV NØYAKTIG PASSORDFRASE FRA BACKUP",
   "L_BACKUP_PASS_BAD": "DET ÅPNER EN ANNEN LOMMEBOK. PRØV IGJEN.",
-  "S_TOTAL_LEAVING": "TOTALT UT AV LOMMEBOKEN",
+  "S_TOTAL_LEAVING": "TOTALT UT AV DIN LOMMEBOK",
   "S_FILES_HINT": "usignert først, så A-Z. signerte filer er merket.",
   "S_FILES_MORE_FMT": "viser %d av %d filer. fjern noen for å se resten",
   "S_FILE_UNSIGNED": "USIGNERT",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_CARD_B": "kortet sluttet å svare underveis.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_WRITE_B": "skrivingen ble ikke ferdig.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
-  "H_WAYS_IN_HINT": "en strek etter ordet ber om passordfrasen"
+  "H_WAYS_IN_HINT": "en strek etter ordet ber om passordfrasen",
+  "S_D_OUTPUTS_FMT": "UTGANGER (%u) - %u TIL DEG",
+  "S_BUNDLE_IN_FMT": "BRUKER %u AV DINE MYNTER",
+  "S_BUNDLE_OUT": "HVOR DET GÅR",
+  "S_BUNDLE_MORE_FMT": "%u mynter til",
+  "S_BUNDLE_NOCHANGE_FMT": "ingen veksel, dette tømmer alle %u",
+  "S_ALL_SIGNED_FMT": "ALLE %u MYNTER SIGNERT"
 }
