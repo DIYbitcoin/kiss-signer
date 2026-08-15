@@ -106,7 +106,7 @@ static bool    s_cur_signed;      // ... for the one the owner then opened
 enum { SRC_SD = 0, SRC_QR = 1 };
 
 static lv_obj_t *s_scr;
-static lv_obj_t *s_arc, *s_sign_lbl;
+static lv_obj_t *s_sign_lbl;
 // The graph, its left caption, and the eyebrow that appears over the output
 // side while the key is working. Held so the signing state can reach them
 // without rebuilding the screen: a repaint here would tear down the arc
@@ -218,14 +218,13 @@ static const char *signed_name(const char *src)
 static void hold_stop(void)
 {
     if (s_hold_tmr) { lv_timer_delete(s_hold_tmr); s_hold_tmr = NULL; }
-    if (s_arc) lv_arc_set_value(s_arc, 0);
 }
 
 static void close_cb(lv_event_t *e)
 {
     (void)e;
     hold_stop();
-    s_arc = NULL; s_sign_lbl = NULL;
+    s_sign_lbl = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
@@ -249,7 +248,7 @@ static void sd_open(lv_obj_t *parent);
 static void step_back(void)
 {
     hold_stop();
-    s_arc = NULL; s_sign_lbl = NULL;
+    s_sign_lbl = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
@@ -284,10 +283,10 @@ static void choose_back_cb(lv_event_t *e)     // -> SCAN QR / FROM SD CARD
 //
 // Every call site clears s_scr itself rather than leaning on the recovery
 // below, because clearing it is never just the delete: the hold timer ticks
-// against s_arc, and s_arc and s_sign_lbl both point into the outgoing screen.
-// mk_screen() cannot see any of that, so a call site that let it do the tidying
-// would leave a timer running against a freed arc. The branch below is a net,
-// not a mechanism.
+// against s_sweep and the graph, and those and s_sign_lbl all point into the
+// outgoing screen. mk_screen() cannot see any of that, so a call site that let
+// it do the tidying would leave a timer widening a freed sweep. The branch
+// below is a net, not a mechanism.
 #ifdef SIMULATOR
 int g_sign_orphaned_screens;          // sim_main.c fails the walk on this
 #endif
@@ -477,7 +476,7 @@ static void sig_fp_help_cb(lv_event_t *e)
 {
     (void)e;
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
@@ -555,7 +554,7 @@ static void draw_sig_chip(int x, int y, bool from_qr)
 static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
@@ -584,7 +583,7 @@ static void done_screen(const char *outname)
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_FAIL_T), why);
@@ -743,7 +742,6 @@ static void hold_tick(lv_timer_t *t)
     (void)t;
     uint32_t el = lv_tick_elaps(s_hold_t0);
     if (el > HOLD_MS) el = HOLD_MS;
-    if (s_arc) lv_arc_set_value(s_arc, (int32_t)(el * 100 / HOLD_MS));
     // The graph and the sweep run on the same fraction as the ring, because
     // there is only one thing being measured: how long this finger has been
     // down. Three readings of one number, not three numbers.
@@ -751,7 +749,6 @@ static void hold_tick(lv_timer_t *t)
     if (s_sweep) lv_obj_set_width(s_sweep, (int32_t)(el * SG_HOLD_W / HOLD_MS));
     if (el >= HOLD_MS) {
         hold_stop();
-        if (s_arc) lv_arc_set_value(s_arc, 100);
         // The sweep has done its job and goes, leaving the pill in its plain
         // accent fill. It measured a finger, and there is no longer a finger to
         // measure -- a bar sitting full while libwally works would be read as a
@@ -922,13 +919,13 @@ static void rbf_help_cb(lv_event_t *e)
 
 // The verify screen has no partial redraw: every state change rebuilds it. The
 // rebuild has to drop the screen-scoped state first, because the hold timer
-// ticks against s_arc and both s_arc and s_sign_lbl are about to point at
-// objects on the outgoing screen. Both call sites need this and each one used to
+// ticks against s_sweep and the graph, and those and s_sign_lbl are about to
+// point at objects on the outgoing screen. Both call sites need this and used to
 // spell it out; the one that forgot a line is what shipped the orphan.
 static void repaint_verify(void)
 {
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     verify_screen(s_parent);
@@ -1041,7 +1038,6 @@ static void addr_full_cb(lv_event_t *e)
 // hard coordinates: it never moves, never changes width and never changes label
 // between the normal and caution screens, so a tap learned on one lands on the
 // same pill on the other.
-#define SG_ARC_DX      8   // the hold arc's inset from HOLD TO SIGN's left edge
 
 // A caution row carries its own acknowledgement now, so the answer to "I read
 // it" lives next to the thing being read instead of in the action row. That is
@@ -1092,7 +1088,7 @@ static void cautions_screen(void);
 static void repaint_cautions(void)
 {
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     cautions_screen();
@@ -1114,7 +1110,7 @@ static void cautions_open_cb(lv_event_t *e)
 {
     (void)e;
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     s_on_cautions = true;
@@ -1760,21 +1756,16 @@ static void verify_screen(lv_obj_t *parent)
                           150, WT_ACTION_H, details_cb, NULL);
     s_inert[2] = NULL;
 
-    s_arc = lv_arc_create(s_scr);
-    lv_obj_set_size(s_arc, 40, 40);
-    lv_obj_set_pos(s_arc, SG_HOLD_X + SG_ARC_DX, WT_ACTION_Y + 6);
-    lv_arc_set_rotation(s_arc, 270);
-    lv_arc_set_bg_angles(s_arc, 0, 360);
-    lv_arc_set_range(s_arc, 0, 100);
-    lv_arc_set_value(s_arc, 0);
-    lv_obj_remove_style(s_arc, NULL, LV_PART_KNOB);
-    lv_obj_remove_flag(s_arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_arc_width(s_arc, 5, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(s_arc, 5, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(s_arc, KEY_COL, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(s_arc, wt_accent(), LV_PART_INDICATOR);
-    lv_obj_add_flag(s_arc, WT_FLAG_ACCENT);   // the ring is ink, not text
-
+    // There used to be a 40x40 ring here, built a few lines before the pill and
+    // placed at (56, 410) -- inside a pill at (48, 404) 310x52 whose background
+    // is LV_OPA_COVER. Same parent, created first, so the pill painted over the
+    // whole of it. It never drew a pixel, in any theme, from the day it was
+    // added, and a pixel scan of its own rect returns nothing but the sweep and
+    // one letter of the label.
+    //
+    // Not restored to the foreground: it would land on the label's first
+    // character, and it would be a second reading of the number the sweep
+    // already draws across the whole button. One control, one reading.
     lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), SG_HOLD_X, WT_ACTION_Y,
                            SG_HOLD_W, WT_ACTION_H, NULL, NULL);
     wt_pill_label_max(p);          // the most consequential button in the app
@@ -1794,7 +1785,6 @@ static void verify_screen(lv_obj_t *parent)
         // would be a lie.
         lv_obj_set_style_border_color(p, WT_EDGE, 0);
         lv_obj_set_style_text_color(s_sign_lbl, WT_DIM, 0);
-        lv_obj_add_state(s_arc, LV_STATE_DISABLED);
     } else {
         lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
         // The same primary marker every other screen's suggested action wears,
@@ -1870,7 +1860,7 @@ static void glossary_cb(lv_event_t *e)
     // still one glyph per line in the same order. Only where the cells land
     // changed.
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
@@ -2033,7 +2023,7 @@ static void details_cb(lv_event_t *e)
     if (kiss_psbt_details(&det) != 0)
         return;
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
@@ -2431,7 +2421,7 @@ static void qr_ez_cb(lv_event_t *e)
 static void qr_out_screen(size_t sw)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
 
@@ -2574,7 +2564,7 @@ static void rm_back_cb(lv_event_t *e)
 static void rm_repaint(void)
 {
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     rm_screen();
@@ -2675,7 +2665,7 @@ static void rm_open_cb(lv_event_t *e)
 {
     (void)e;
     hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     rm_screen();

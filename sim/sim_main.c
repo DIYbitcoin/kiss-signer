@@ -1967,8 +1967,15 @@ int main(void) {
   // the colour right and a restyle that never repaints look identical.
   //
   // Three channels, three ways of failing silently. The rim is a border, the
-  // strand is a line and the ring is an arc, and a flag that only ever set a
+  // strand is a line and the sweep is a fill, and a flag that only ever set a
   // text colour did nothing to any of them while appearing correctly set.
+  //
+  // The third channel used to be named as the hold ring, and was never checked
+  // -- it could not be. That ring was built inside an opaque pill created after
+  // it and had not drawn a pixel since the day it was added, so an assertion
+  // here would have been reading the style of something nobody could see. The
+  // sweep is on the glass, so this is the first time the comment's third
+  // channel and the code's third channel are the same object.
   {
     lv_obj_t *hp = pill_for(STR_S_HOLD_TO_SIGN, "accent restyle");
     lv_obj_t *ln = find_accent_line(lv_screen_active());
@@ -1977,9 +1984,22 @@ int main(void) {
       return 1;
     }
     if (hp) {
+      // By its flag, not its index: the sweep is moved behind the label after
+      // it is built, so which child it is depends on an ordering this check
+      // has no business knowing.
+      lv_obj_t *sw = NULL;
+      for (uint32_t ci = 0; ci < lv_obj_get_child_count(hp); ci++) {
+        lv_obj_t *c = lv_obj_get_child(hp, ci);
+        if (lv_obj_has_flag(c, WT_FLAG_ACCENT_FILL)) { sw = c; break; }
+      }
+      if (!sw) {
+        printf("FAIL: no accent-flagged sweep under HOLD TO SIGN\n");
+        return 1;
+      }
       const int was = wt_accent_get();
       lv_color_t b0 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
       lv_color_t l0 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
+      lv_color_t f0 = lv_obj_get_style_bg_color(sw, LV_PART_MAIN);
       wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
       wt_accent_restyle(lv_screen_active());
       pump(2);
@@ -1997,11 +2017,16 @@ int main(void) {
         printf("FAIL: the change strand kept its old accent through a change\n");
         return 1;
       }
+      lv_color_t f1 = lv_obj_get_style_bg_color(sw, LV_PART_MAIN);
+      if (lv_color_eq(f0, f1) || !lv_color_eq(f1, wt_accent())) {
+        printf("FAIL: the hold sweep kept its old accent through a change\n");
+        return 1;
+      }
       save("/tmp/sim_sign_accent.ppm");
       wt_accent_set(was);
       wt_accent_restyle(lv_screen_active());
       pump(2);
-      printf("ok: rim and strand follow the accent with no rebuild\n");
+      printf("ok: rim, strand and sweep follow the accent with no rebuild\n");
     }
   }
 
@@ -2013,7 +2038,7 @@ int main(void) {
   // A pump is 16ms and HOLD_MS is 1200, so the whole hold is 75 of them.
   press_str(STR_S_HOLD_TO_SIGN); pump(19);
   save("/tmp/sim_sign_hold_q.ppm");
-  pump(21);                                         // ring ~half full
+  pump(21);                                         // sweep ~half across
   save("/tmp/sim_sign_hold.ppm");
   pump(16);
   save("/tmp/sim_sign_hold_3q.ppm");

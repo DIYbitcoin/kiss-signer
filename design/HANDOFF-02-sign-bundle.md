@@ -86,7 +86,9 @@ Do this instead:
 1. On hold complete, the graph enters a signing state: all input strands to `WT_INK` at
    full opacity, output strands to `0x2A3346`, output side takes the `LOCKED` eyebrow,
    `DETAILS` and `BACK` inert. Header is `S_SIGNING` (no count).
-2. The existing hold pill keeps its arc. The arc means work in progress, which is true.
+2. The hold pill's sweep stays where the hold left it. It means work in progress,
+   which is true. (The arc this line used to name was deleted: it was built inside
+   an opaque pill created after it and never drew a pixel. §9.1's Arc row goes with it.)
 3. On return 0, every input strand and its label repaint to `wt_accent()` together, and
    the header becomes `S_ALL_SIGNED_FMT`. On non-zero, no strand changes colour and the
    existing failure path runs unchanged.
@@ -235,7 +237,6 @@ Page origin is the screen's top left. Every value is px. Rungs: `f14`, `f23`, `f
 | Meta row | 24 | 366 | — | — | f14, MUT with INK terms |
 | Action bar | 0 | 390 | 800 | 90 | BAR, 1px RIM top border |
 | HOLD TO SIGN | 48 | 404 | 310 | 52 | r10, `ACC_BG`, 2px ACC rim, f23 |
-| Arc | 56 | 410 | 40 | 40 | r20, 5px ring |
 | DETAILS | 366 | 404 | 150 | 52 | r10, `#10141D`, 1px MUT rim, f23 |
 | BACK | 672 | 404 | 104 | 52 | r10, `#10141D`, 1px MUT rim, f23 |
 
@@ -395,7 +396,7 @@ number this needs.
   output column. This is `WT_BUNDLE_SIGNING`'s output half, fired on press instead of on
   release, because the destinations are settled the moment the user commits.
 - Left caption to `S_SIGNING`. `DETAILS` and `BACK` go inert.
-- Arc appears and spins.
+- The sweep starts across the pill. There is no arc; see §2.
 
 **During the hold**, on each `hold_tick`:
 
@@ -417,7 +418,7 @@ the seam if you want it; it is optional and purely presentational.
 ### 11.2 The one thing not to get wrong
 
 **The fill is the hold's progress, nothing else.** It is `el / HOLD_MS`, the same
-fraction `lv_arc_set_value` is already given two lines above. It is not per-coin, not a
+fraction the sweep is already given two lines above. It is not per-coin, not a
 signing estimate, and not a timer that continues after the hold completes. All three
 strands fill together at the same rate and arrive together.
 
@@ -435,7 +436,7 @@ Extend the widget rather than reaching into it:
 void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress);
 ```
 
-In `hold_tick`, beside the existing arc call:
+In `hold_tick`, beside the sweep:
 
 ```c
 if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(el * 255 / HOLD_MS));
