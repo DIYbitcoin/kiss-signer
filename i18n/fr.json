@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "un trait après le mot demande la phrase secrète",
   "S_D_OUTPUTS_FMT": "SORTIES (%u) - %u POUR TOI",
   "S_BUNDLE_IN_FMT": "DÉPENSE DE %u DE TES PIÈCES",
+  "S_COINS_HELP_B": "ENTIÈRE: une pièce se dépense entière, jamais un morceau.\nMONNAIE: ce qui reste vous revient.\nENSEMBLE: plusieurs partent ensemble quand une ne suffit pas.",
   "S_BUNDLE_OUT": "OÙ CELA VA",
   "S_BUNDLE_MORE_FMT": "%u pièces de plus",
   "S_BUNDLE_NOCHANGE_FMT": "pas de monnaie, cela vide les %u",

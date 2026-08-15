@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "再画一笔，进入密码短语",
   "S_D_OUTPUTS_FMT": "输出 (%u), %u 个到你",
   "S_BUNDLE_IN_FMT": "花掉你的 %u 个币",
+  "S_COINS_HELP_B": "整笔: 一笔币要整笔花掉，不能只花一部分。\n找零: 没有花掉的会回到你这里。\n合起来: 一笔不多时，就一起花几笔。",
   "S_BUNDLE_OUT": "去向",
   "S_BUNDLE_MORE_FMT": "另有 %u 个币",
   "S_BUNDLE_NOCHANGE_FMT": "没有找零, 这会花掉全部 %u 个",

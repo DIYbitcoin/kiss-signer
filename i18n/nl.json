@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "een streek na het woord vraagt om de passphrase",
   "S_D_OUTPUTS_FMT": "OUTPUTS (%u) - %u NAAR JOU",
   "S_BUNDLE_IN_FMT": "%u VAN JOUW MUNTEN UITGEVEN",
+  "S_COINS_HELP_B": "HEEL: een munt gaat in zijn geheel, nooit een stuk ervan.\nWISSELGELD: wat overblijft komt terug naar jou.\nSAMEN: meerdere gaan samen als één niet genoeg is.",
   "S_BUNDLE_OUT": "WAAR HET HEEN GAAT",
   "S_BUNDLE_MORE_FMT": "%u munten meer",
   "S_BUNDLE_NOCHANGE_FMT": "geen wisselgeld, dit leegt alle %u",

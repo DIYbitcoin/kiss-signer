@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "un tratto dopo la parola chiede la passphrase",
   "S_D_OUTPUTS_FMT": "USCITE (%u) - %u A TE",
   "S_BUNDLE_IN_FMT": "SPENDI %u DELLE TUE MONETE",
+  "S_COINS_HELP_B": "INTERA: una moneta si spende intera, mai un pezzo.\nRESTO: quel che avanza torna a te.\nUNITE: se ne spendono più insieme quando una non basta.",
   "S_BUNDLE_OUT": "DOVE VA",
   "S_BUNDLE_MORE_FMT": "altre %u monete",
   "S_BUNDLE_NOCHANGE_FMT": "nessun resto, questo svuota tutte le %u",

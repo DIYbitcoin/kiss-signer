@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "potez nakon riječi traži kodnu frazu",
   "S_D_OUTPUTS_FMT": "IZLAZI (%u) - %u VAMA",
   "S_BUNDLE_IN_FMT": "TROŠIŠ %u SVOJIH NOVČIĆA",
+  "S_COINS_HELP_B": "CIJELI: novčić se troši cijeli, nikad njegov dio.\nOSTATAK: ono što pretekne vraća se tebi.\nSPOJENI: kad jedan nije dovoljan, troši se više njih.",
   "S_BUNDLE_OUT": "KAMO IDE",
   "S_BUNDLE_MORE_FMT": "još %u novčića",
   "S_BUNDLE_NOCHANGE_FMT": "bez ostatka, ovo prazni svih %u",

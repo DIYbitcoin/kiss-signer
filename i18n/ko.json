@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "이 획으로 패스프레이즈를 입력합니다",
   "S_D_OUTPUTS_FMT": "출력 (%u), %u개는 당신에게",
   "S_BUNDLE_IN_FMT": "당신의 코인 %u개를 씁니다",
+  "S_COINS_HELP_B": "전부: 코인은 일부가 아니라 전부 씁니다.\n거스름돈: 남는 것은 당신에게 돌아옵니다.\n합쳐서: 하나로 모자라면 여러 개를 같이 씁니다.",
   "S_BUNDLE_OUT": "가는 곳",
   "S_BUNDLE_MORE_FMT": "코인 %u개 더",
   "S_BUNDLE_NOCHANGE_FMT": "잔돈 없음, %u개 전부 씁니다",

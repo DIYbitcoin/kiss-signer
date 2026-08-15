@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "kelimeden sonra bir çizgi passphrase ister",
   "S_D_OUTPUTS_FMT": "ÇIKTILAR (%u) - %u SİZE",
   "S_BUNDLE_IN_FMT": "COINLERİNİZDEN %u TANESİ HARCANIYOR",
+  "S_COINS_HELP_B": "BÜTÜN: bir coin bütün harcanır, parçası değil.\nPARA ÜSTÜ: artan sana geri döner.\nBİRLİKTE: biri yetmediğinde birkaçı birlikte harcanır.",
   "S_BUNDLE_OUT": "NEREYE GİDİYOR",
   "S_BUNDLE_MORE_FMT": "%u coin daha",
   "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",

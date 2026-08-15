@@ -112,6 +112,7 @@ static lv_obj_t *s_sign_lbl;
 // without rebuilding the screen: a repaint here would tear down the arc
 // mid-sweep and restart the hold the owner is in the middle of.
 static lv_obj_t *s_graph, *s_graph_cap, *s_locked;
+static int s_coins_chip_x = 24;   // measured off the caption; see verify_screen
 // What the caption says at rest. It is a formatted count, so a hold that is let
 // go has to put back a string rather than a key -- and the buffer it was built
 // in is a local that went out of scope the moment the screen was drawn.
@@ -897,6 +898,43 @@ static void caution_help_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
+// ---- "?" beside the coins caption: what a coin is ----
+// The word on the glass stays "coins", which is what a coordinator's own coin
+// control calls them; the card names the term the rest of Bitcoin writes down.
+// Three entries and three marks, and the marks are the graph's own: what goes
+// in, what comes back, what several look like joined. Nothing here is a
+// paragraph -- the picture underneath the caption is doing the explaining, and
+// this says what its shape means.
+static void coins_help_cb(lv_event_t *e)
+{
+    (void)e;
+    static const char *const ICONS[] = {
+        LV_SYMBOL_DOWNLOAD,      // a coin arriving, spent whole
+        LV_SYMBOL_LOOP,          // change, the same mark the outputs list wears
+        LV_SYMBOL_UPLOAD,        // several joined
+    };
+    // 64 for the term plus the parenthesis, because head is 64: the device
+    // compiler refuses a snprintf that could cut a translated word in half,
+    // and it is right -- this is the second buffer on this screen to be caught
+    // that way and neither could have been seen from a frame.
+    static char title[80];
+    char head[64];
+    gloss_line(0, head, sizeof head);          // INPUTS, already in 21 locales
+    // UTXO is not translated by wallets anywhere: it goes on as it stands, so
+    // the owner can carry the word to any other tool and be understood.
+    snprintf(title, sizeof title, "%s  (UTXO)", head);
+    wt_explain_t x = {
+        .title  = title,
+        .icon   = LV_SYMBOL_DOWNLOAD,
+        .body   = tr(STR_S_COINS_HELP_B),
+        .ok_txt = tr(STR_C_OK),
+        .sev    = WT_SEV_PLAIN,
+        .mode   = WT_GRID_ICONS,
+        .icons  = ICONS,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 // ---- "?" beside the address: what to do with it ----
 // Two entries, not prose, and the same shape every other card on this screen
 // uses. The whole answer is a habit: read it against what your coordinator
@@ -1612,6 +1650,15 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 150, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
         s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
+        // "SPENDING 3 OF YOUR COINS" is the first line on this screen that uses
+        // a word a newcomer has to be taught, and it had nothing to tap. The
+        // chip goes after the caption's MEASURED width rather than a guessed x,
+        // because the caption is a formatted translation -- 160 bytes of it in
+        // Cyrillic -- and clamped short of the outputs caption at 464 so the
+        // widest locale cannot push it into the other half of the row.
+        lv_obj_update_layout(lc);
+        s_coins_chip_x = 24 + lv_obj_get_width(lc) + 8;
+        if (s_coins_chip_x > 424) s_coins_chip_x = 424;
         lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
@@ -1620,6 +1667,13 @@ static void verify_screen(lv_obj_t *parent)
                                  np ? SG_GRAPH_H_C : SG_GRAPH_H,
                                  in, n_in, out, n_out, max_sats);
         s_graph = bg;
+
+        // AFTER the graph, deliberately. The chip's box runs 144..174 and the
+        // graph starts at 172, so a chip built before it is two pixels under a
+        // later sibling that covers the whole width -- it drew correctly, and
+        // every press went to the graph. The frame cannot show this: the chip
+        // is right there, in the right place, and simply does nothing.
+        wt_help_chip(s_scr, s_coins_chip_x, 144, MUT_COL, coins_help_cb, NULL);
 
         // The read-to-the-end gate, unchanged in every respect that matters:
         // the same question, measured the same way, with the same answer. Only

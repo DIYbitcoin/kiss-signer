@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "một nét sau từ sẽ hỏi cụm mật khẩu",
   "S_D_OUTPUTS_FMT": "ĐẦU RA (%u) - %u VỀ BẠN",
   "S_BUNDLE_IN_FMT": "TIÊU %u ĐỒNG CỦA BẠN",
+  "S_COINS_HELP_B": "TRỌN: một đồng được tiêu trọn, không tiêu một phần.\nTIỀN THỪA: phần còn lại quay về với bạn.\nGỘP: khi một đồng chưa đủ thì tiêu nhiều đồng.",
   "S_BUNDLE_OUT": "TIỀN ĐI ĐÂU",
   "S_BUNDLE_MORE_FMT": "%u đồng nữa",
   "S_BUNDLE_NOCHANGE_FMT": "không có tiền thừa, dùng hết cả %u đồng",

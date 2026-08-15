@@ -440,6 +440,7 @@
   "L_BACKUP_PASS_BAD": "THAT OPENS A DIFFERENT WALLET. TRY AGAIN.",
   "S_TOTAL_LEAVING": "TOTAL LEAVING YOUR WALLET",
   "S_BUNDLE_IN_FMT": "SPENDING %u OF YOUR COINS",
+  "S_COINS_HELP_B": "WHOLE: a coin is spent whole, never a piece of one.\nCHANGE: what is left over comes back to you.\nJOINED: several are spent together when one is not enough.",
   "S_BUNDLE_OUT": "WHERE IT GOES",
   "S_BUNDLE_MORE_FMT": "%u more coins",
   "S_BUNDLE_NOCHANGE_FMT": "no change, this empties all %u",

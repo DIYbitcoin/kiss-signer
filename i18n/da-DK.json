@@ -629,6 +629,7 @@
   "H_WAYS_IN_HINT": "en streg efter ordet beder om adgangsfrasen",
   "S_D_OUTPUTS_FMT": "OUTPUT (%u) - %u TIL DIG",
   "S_BUNDLE_IN_FMT": "BRUGER %u AF DINE MØNTER",
+  "S_COINS_HELP_B": "HEL: en mønt bruges hel, aldrig en del af den.\nBYTTEPENGE: det, der er tilbage, kommer tilbage til dig.\nSAMLET: flere bruges sammen, når én ikke er nok.",
   "S_BUNDLE_OUT": "HVOR DEN GÅR HEN",
   "S_BUNDLE_MORE_FMT": "%u mønter mere",
   "S_BUNDLE_NOCHANGE_FMT": "ingen byttepenge, dette tømmer alle %u",

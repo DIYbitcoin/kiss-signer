@@ -1117,6 +1117,50 @@ static void tap_str(int key, int hold, int settle)
     pump(settle);
 }
 
+// Tap the "?" chip that sits immediately after a caption. The chip's x is
+// computed from the caption's rendered width, so a fixed coordinate here would
+// only prove the English layout: find the caption, then press just past its
+// right edge, which is the chip in whatever locale this run is in.
+static void chip_scan_any(lv_obj_t *o, lv_obj_t **found, int *n)
+{
+    if (*n >= 8) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        if (t && strcmp(t, "?") == 0) found[(*n)++] = o;
+        return;
+    }
+    uint32_t c = lv_obj_get_child_count(o);
+    for (uint32_t i = 0; i < c && *n < 8; i++)
+        chip_scan_any(lv_obj_get_child(o, i), found, n);
+}
+
+// Tap the topmost "?" chip on the screen. On the verify screen that is the one
+// beside the coins caption, whose x is computed from the caption's rendered
+// width -- so a fixed coordinate here would only ever prove the English
+// layout, while finding the chip proves it landed somewhere tappable in
+// whatever locale this run is in.
+static void tap_chip_top(void)
+{
+    lv_obj_t *found[8];
+    int n = 0;
+    chip_scan_any(lv_screen_active(), found, &n);
+    lv_obj_t *top = NULL;
+    lv_area_t ta = {0};
+    for (int i = 0; i < n; i++) {
+        lv_area_t a; lv_obj_get_coords(found[i], &a);
+        if (!top || a.y1 < ta.y1) { top = found[i]; ta = a; }
+    }
+    if (!top) {
+        printf("FAIL: no \"?\" chip on screen to tap\n");
+        g_walk_fails++;
+        return;
+    }
+    touch((ta.x1 + ta.x2) / 2, (ta.y1 + ta.y2) / 2);
+    pump(3);
+    release();
+    pump(30);       // the explain card animates in; 8 photographs it mid-slide
+}
+
 // The two-part form, for a hold the walk photographs partway through.
 static void press_str(int key)
 {
@@ -1994,6 +2038,15 @@ int main(void) {
   // mono23 line a longer testnet prefix can push at the panel edge, and the
   // full one is the render that used to be the only one there was.
   //
+  // The coins caption's own "?": the first word on this screen a newcomer has
+  // to be taught, and until now the only one with nothing to tap. The chip is
+  // placed off the caption's measured width, so this tap also proves the
+  // placement lands somewhere tappable in whatever locale the walk is running.
+  tap_chip_top();
+  save("/tmp/sim_sign_coins_help.ppm");     // INPUTS (UTXO), three marks
+  must_show("coins help", "UTXO");
+  tap_str(STR_C_OK, 3, 8);     // OK closes the card
+
   // No tap and no second frame: the whole address is on the glass from the
   // moment the screen builds. It used to arrive folded to eight characters
   // behind a control called FULL ADDRESS, so what an owner compared depended
