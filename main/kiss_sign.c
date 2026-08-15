@@ -972,40 +972,6 @@ static void sg_rule(int x, int y, int w, int h)
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
 }
 
-// Where the footer strip actually sits this repaint: SG_FOOT_Y on a clean
-// screen, SG_BAR_DY lower when a caution bar pushed the panels down.
-static int s_foot_y = SG_FOOT_Y;
-
-// One footer cell: caption, value, qualifier. The value is the only thing here
-// that changes a decision, so it takes the middle rung; the other two are 14.
-static void sg_cell(int x, int w, const char *cap, const char *val,
-                    const lv_font_t *vf, lv_color_t vc)
-{
-    if (cap) {
-        lv_obj_t *c = sg_lbl(s_scr, cap, x, s_foot_y, wt_font14(), MUT_COL);
-        lv_obj_set_style_text_letter_space(c, 2, 0);
-    }
-    lv_obj_t *v = lv_label_create(s_scr);
-    lv_obj_set_pos(v, x, s_foot_y + 20);
-    lv_obj_set_style_text_color(v, vc, 0);
-    if (vf) {                       // a mono figure: fixed width, known to fit
-        lv_label_set_text(v, val);
-        lv_obj_set_style_text_font(v, vf, 0);
-    } else {
-        // A TRANSLATED value. Sized to the column rather than assumed to fit:
-        // "MAINNET, real bitcoin" is about 250px at font23 in a 210px cell, and
-        // an unwidthed LVGL label runs into its neighbour silently.
-        wt_note_fit(v, val, w, 29);
-        // wt_note_fit picks the rung that fits; it does not bound the box.
-        // Russian "TESTNET, тренировочные монеты" still ran 2px into the RBF
-        // cell at the smallest rung, so clamp and let it ellipsise. A network
-        // name the owner can half read is recoverable; one drawn over its
-        // neighbour is not.
-        lv_obj_set_width(v, w);
-        lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
-    }
-}
-
 // ---- the caution rows, on a page of their own ------------------------------
 // They used to be drawn on the verify screen INSTEAD of the output panels, and
 // that is the bug this page exists to close: the address the owner was being
@@ -1211,19 +1177,11 @@ static void verify_screen(lv_obj_t *parent)
     // were agreeing to. What leaves the wallet is the number being signed for.
     uint64_t total = s_sum.send_sats + s_sum.fee_sats;
 
-    // Counted here rather than beside the panels, because the answer decides
-    // the geometry of everything below the hero: the graph draws a transaction
-    // with one destination, which is what the frames specify and what almost
-    // every spend is. More than one recipient still takes the scrolling panel
-    // and its read-to-the-end gate until section 6 folds that column into the
-    // graph itself.
+    // Counted before the hero because the change count decides whether the graph
+    // draws a change strand or the row that says there is none.
     int recipient_n = 0, change_n = 0;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         { if (s_sum.outs[i].is_change) change_n++; else recipient_n++; }
-    // A silent payment output makes a second claim about itself -- the on-chain
-    // address is derived here and is not the one you were given -- and the graph
-    // has no row to put that on. Those keep the panel until they have one.
-    const bool graph = (recipient_n <= 1 && !s_sum.n_sp);
 
     {
         lv_obj_t *cap = sg_lbl(s_scr, tr(STR_S_TOTAL_LEAVING), 24, 78,
@@ -1274,10 +1232,10 @@ static void verify_screen(lv_obj_t *parent)
     if (np) {
         bool all_done = (s_ack_flags & caution_all_bits(s_sum.caution_flags))
                         == caution_all_bits(s_sum.caution_flags);
-        // The graph owns 172..290, so the bar drops to the band the facts strip
-        // used to hold. It is the same bar, the same height and the same 475px
-        // text box; only its y depends on which layout is under it.
-        lv_obj_t *bar = sg_panel(24, graph ? SG_BAR_Y_G : SG_BAR_Y, 752, SG_BAR_H,
+        // The graph owns 172..282, so the bar sits in the band the facts strip
+        // used to hold. Same bar, same height, same 475px text box -- which is
+        // what keeps the string from running under the pill at 543.
+        lv_obj_t *bar = sg_panel(24, SG_BAR_Y_G, 752, SG_BAR_H,
                                  all_done ? OK_COL : WARN_COL);
         sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
                wt_font23(), all_done ? OK_COL : WARN_COL);
@@ -1321,270 +1279,10 @@ static void verify_screen(lv_obj_t *parent)
         }
     }
 
-    // ---- the two outputs -------------------------------------------------
+    // ---- the outputs ------------------------------------------------------
     // Drawn on EVERY verify screen. There is no status, no count of warnings
     // and no acknowledgement state that removes them; that was the defect.
-    const int pan_y = np ? SG_PAN_Y_C : SG_PANEL_Y;
-    const int pan_h = np ? SG_PAN_H_C : SG_PANEL_H;
-    s_foot_y = np ? SG_FOOT_Y_C : SG_FOOT_Y;
-    if (!graph) {
-        int rw = change_n ? SG_RECIP_W : 752;
-        lv_obj_t *rp = sg_panel(SG_RECIP_X, pan_y, rw, pan_h, WT_HAIR);
-        // The up arrow is the glossary's OUTPUTS badge: coins leaving. Panel
-        // and glossary teach each other's mark.
-        lv_obj_t *cap = sg_lbl(rp, tr_sym(LV_SYMBOL_UPLOAD, STR_S_SENDING_OUT),
-                               SG_PAD, 12, wt_font14(), MUT_COL);
-        lv_obj_set_style_text_letter_space(cap, 2, 0);
-
-        // The single recipient's amount, on the caption row.
-        //
-        // It was not drawn AT ALL, which is the defect: the hero is TOTAL
-        // LEAVING (send plus fee) and the change panel states change, so with
-        // one recipient the one figure this screen never printed was how much
-        // arrives at the address printed directly beneath it. An owner had to
-        // subtract a fee off a total to learn the thing they were agreeing to,
-        // on the screen whose whole job is where the coins go and how much.
-        // "One number, not two" governs the HERO and still does; this is the
-        // per-output line every other recipient already had.
-        //
-        // Here rather than in the list because the list row costs 34px and 34px
-        // is exactly what decides whether this panel overflows. Measured with
-        // lv_obj_get_scroll_bottom: as a list row the ordinary one-recipient
-        // panel went 27px over clean and 18px over cautioned, which turns the
-        // scrollbar on and holds HOLD TO SIGN inert until the owner scrolls a
-        // panel whose every line is already visible. That is the dead-button
-        // case the gate below is written to avoid, bought for a number that
-        // fits on a row already on the glass.
-        if (recipient_n == 1) {
-            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
-                if (s_sum.outs[i].is_change) continue;
-                fmt_sats(s_sum.outs[i].sats, a, sizeof a);
-                snprintf(buf, sizeof buf, "%s sats", a);
-                lv_obj_t *amt = lv_label_create(rp);
-                lv_label_set_text(amt, buf);
-                lv_obj_set_style_text_font(amt, wt_font_mono23(), 0);
-                lv_obj_set_style_text_color(amt, INK_COL, 0);
-                lv_obj_align(amt, LV_ALIGN_TOP_RIGHT, -SG_PAD, 6);
-                break;
-            }
-        }
-
-        // Every output is still shown. One recipient is the common case and
-        // gets the panel to itself; more than one scrolls inside it, because
-        // nothing the owner is asked to sign may be hidden.
-        lv_obj_t *list = lv_obj_create(rp);
-        lv_obj_remove_style_all(list);
-        lv_obj_set_pos(list, SG_PAD, 34);
-        lv_obj_set_size(list, rw - 2 * SG_PAD, pan_h - 42);
-        lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(list, 6, 0);
-        lv_obj_set_scroll_dir(list, LV_DIR_VER);
-        // Mode is decided AFTER the rows are built, from whether this panel
-        // actually overflows -- see the measurement below. recipient_n > 1 was
-        // the wrong question: one silent payment address is 117 characters and
-        // wraps past the fold on its own, with the scrollbar explicitly OFF.
-        lv_obj_set_style_width(list, 5, LV_PART_SCROLLBAR);
-        lv_obj_set_style_bg_color(list, MUT_COL, LV_PART_SCROLLBAR);
-        lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
-
-        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
-            if (s_sum.outs[i].is_change) continue;
-            char ga[200];
-            // Every recipient carries its number. Several of them are a list and
-            // each takes a row of its own; the single recipient's rides the
-            // caption row above, where it costs no height. See the header.
-            if (recipient_n > 1) {
-                fmt_sats(s_sum.outs[i].sats, a, sizeof a);
-                snprintf(buf, sizeof buf, "%s sats", a);
-                lv_obj_t *amt = lv_label_create(list);
-                lv_label_set_text(amt, buf);
-                lv_obj_set_style_text_font(amt, wt_font_mono23(), 0);
-                lv_obj_set_style_text_color(amt, INK_COL, 0);
-            }
-            // UNGROUPED, deliberately. Grouped in fours a 42 character address
-            // becomes 52 and no longer fits the panel, so it wraps and its
-            // second line lands where the comparison belongs. Measured in
-            // design/sign-screens-buildable.html: 353px ungrouped against a
-            // 438px box, 437px grouped. Grouping would also split the final
-            // four across a group boundary, because 38 does not divide by four,
-            // and that final four is half of what "compare these" points at.
-            (void)ga;
-            // mono14, not mono23. The 353px the drawing measured is the body
-            // at FOURTEEN; the 23 belongs to the two compared runs on their own
-            // line beneath. At 23 the whole address is about 580px and wraps
-            // again, which is the thing ungrouping was meant to prevent.
-            // Lifted ONLY when this line is the whole marking. Below, a single
-            // recipient gets the compared runs again at mono23, blocked, on
-            // their own line -- lifting here too would draw the same eight
-            // characters at the same size twice and cost the panel a scrollbar,
-            // with "compare these 8" at the fold. A list of recipients has no
-            // such line, so at mono14 the tail was carried by colour alone.
-            // FOLDED by default on the single recipient, whole underneath.
-            //
-            // Both renders are the same address and neither is a summary of
-            // the other -- the fold elides the middle, which is the run an
-            // attacker cannot cheaply match anyway, and lights the last eight,
-            // which is the run that has to be compared. What the fold buys is
-            // that those eight arrive at mono23 as the LARGEST thing in the
-            // panel, instead of at mono14 inside 42 characters of ungrouped
-            // bech32 that the eye has to find them in.
-            //
-            // The whole address is one tap away, and the receive screen's
-            // silent payment view already works exactly this way, down to the
-            // two keys naming the toggle. Two screens, one habit.
-            //
-            // A LIST of recipients does not fold: each row carries its own
-            // amount, there is one comparison per row rather than one ritual,
-            // and the toggle has nowhere to stand that is not below the fold
-            // in a panel the owner is being made to scroll.
-            if (recipient_n == 1 && !s_addr_full) {
-                wt_addr_short(list, s_sum.outs[i].addr, wt_font_mono23());
-            } else {
-                // mono14, not mono23. The 353px the drawing measured is the
-                // body at FOURTEEN; at 23 the whole address is about 580px and
-                // wraps, which is what ungrouping exists to prevent.
-                wt_addr_spans_lift
-                    (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
-            }
-            if (recipient_n == 1) {
-                // One line under the address carrying both halves of the
-                // question it raises: what to compare, and how to see the
-                // rest. Left mut, right accent and tappable.
-                //
-                // The caption is the half the shorter cautioned panel gives
-                // up -- it always was -- but the TOGGLE never goes, or the
-                // folded view becomes a screen that hides an address with no
-                // way back. That is the one thing this panel may not do.
-                lv_obj_t *crow = lv_obj_create(list);
-                lv_obj_remove_style_all(crow);
-                lv_obj_set_width(crow, rw - 2 * SG_PAD);
-                lv_obj_set_height(crow, LV_SIZE_CONTENT);
-                lv_obj_remove_flag(crow, LV_OBJ_FLAG_SCROLLABLE);
-                lv_obj_set_flex_flow(crow, LV_FLEX_FLOW_ROW);
-                lv_obj_set_flex_align(crow, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-                if (!np) {
-                    // The caption HANDOFF-01 asks for. Without it the two lit
-                    // runs are still there and still landing at the same
-                    // character width, but the reason to keep looking at them
-                    // is not spelled out. "compare these 8" makes the four
-                    // plus four the label claims explicit, in one glance.
-                    lv_obj_t *ccap = lv_label_create(crow);
-                    lv_label_set_text(ccap, tr(STR_S_CMP_8));
-                    lv_obj_set_style_text_font(ccap, wt_font14(), 0);
-                    lv_obj_set_style_text_color(ccap, MUT_COL, 0);
-                    lv_obj_set_style_text_letter_space(ccap, 1, 0);
-                }
-                // SHOW FULL / SHOW SHORT: the receive screen's own pair,
-                // already translated in 21 locales, so this costs no key and
-                // says the same words in both places it appears.
-                lv_obj_t *tg = lv_label_create(crow);
-                lv_label_set_text(tg, tr(s_addr_full ? STR_R_SP_SHOW_SHORT
-                                                     : STR_R_SP_SHOW_FULL));
-                lv_obj_set_style_text_font(tg, wt_font14(), 0);
-                lv_obj_set_style_text_color(tg, wt_accent(), 0);
-                lv_obj_set_style_text_letter_space(tg, 2, 0);
-                lv_obj_add_flag(tg, LV_OBJ_FLAG_CLICKABLE);
-                // 14px of ext area on a ~16px tall label is a 44px target,
-                // which is the smallest this device is allowed to ask a
-                // finger for. It sits inside a scrollable list, so it takes
-                // CLICKED -- a press that turns into a drag belongs to the
-                // list, and LVGL hands it over on its own.
-                lv_obj_set_ext_click_area(tg, 14);
-                lv_obj_add_event_cb(tg, addr_full_cb, LV_EVENT_CLICKED, NULL);
-            }
-            if (s_sum.outs[i].is_sp) {
-                lv_obj_t *n = lv_label_create(list);
-                lv_label_set_text(n, sp_onchain_note());
-                lv_obj_set_style_text_font(n, wt_font14(), 0);
-                lv_obj_set_style_text_color(n, MUT_COL, 0);
-                lv_obj_set_width(n, rw - 2 * SG_PAD);
-                lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
-            }
-        }
-
-        // "Every output is still shown" was true of the list and not of the
-        // owner. A recipient below the fold was present, scrollable and never
-        // looked at, and HOLD TO SIGN was live the whole time -- so a PSBT with
-        // one honest destination on top and a second one under it signed both
-        // on a glance. The cap of 16 bounds how much can hide, not whether it
-        // can, and TOTAL LEAVING sums destinations without naming them.
-        //
-        // So the list has to be read to the end before the signature is
-        // available. Measured, not counted: what matters is whether anything is
-        // BELOW THE FOLD on this panel in this locale, which no output count
-        // can answer -- one long bech32m address wrapping in de is a scroll and
-        // three short ones may not be.
-        lv_obj_update_layout(list);
-        const bool overflows = lv_obj_get_scroll_bottom(list) > 0;
-        // The bar and the gate answer the same question or the screen lies. Tied
-        // to recipient_n the two disagreed on the one-recipient silent payment:
-        // the panel scrolled, the gate held HOLD TO SIGN inert, and MODE_OFF
-        // left no scrollbar to say why or hint at what to do. A dead button with
-        // no affordance beside it is worse than the hidden recipient this gate
-        // exists to prevent -- an owner cannot sign a transaction that is fine.
-        //
-        // MODE_ON, not AUTO: a list with more below the fold must not look
-        // identical to one that ends there.
-        lv_obj_set_scrollbar_mode(list, overflows ? LV_SCROLLBAR_MODE_ON
-                                                  : LV_SCROLLBAR_MODE_OFF);
-        if (!overflows)
-            s_recip_seen = true;            // nothing hidden: nothing to demand
-        else if (!s_recip_seen)
-            lv_obj_add_event_cb(list, recip_scroll_cb, LV_EVENT_SCROLL, NULL);
-
-        if (change_n) {
-            // WT_OK is a status here, not decoration: it means re-derived and
-            // verified on this device. Per ADDENDUM-02 the accent never lands
-            // on this panel, and the glyph carries the meaning without colour.
-            lv_obj_t *cp = sg_panel(SG_CHANGE_X, pan_y, SG_CHANGE_W,
-                                    pan_h, OK_COL);
-            // The caption goes above the list once, because it says the same
-            // thing about every entry under it.
-            lv_obj_t *ct = lv_label_create(cp);
-            lv_obj_set_pos(ct, SG_PAD, 12);
-            lv_obj_set_style_text_color(ct, OK_COL, 0);
-            lv_obj_set_width(ct, SG_CHANGE_W - 2 * SG_PAD);
-            lv_label_set_long_mode(ct, LV_LABEL_LONG_WRAP);
-            // Sized to the panel, not assumed to fit: this caption is
-            // translated and the panel is only 270 wide, so English alone
-            // already ran off the edge and clipped silently.
-            lv_label_set_text(ct, tr_sym(LV_SYMBOL_OK, STR_S_CHANGE_TAG));
-            lv_obj_set_style_text_font(ct, wt_font14(), 0);
-            lv_obj_update_layout(ct);
-
-            // EVERY change output, not the first one. This used to break after
-            // one, so a two-change PSBT showed one amount while the fee was
-            // computed from both and the difference had nowhere to show up.
-            // Each of them was independently re-derived to get here, so this is
-            // disclosure rather than a check -- which is exactly why hiding the
-            // rest of it was indefensible.
-            int cy = 12 + lv_obj_get_height(ct) + 10;
-            lv_obj_t *clist = lv_obj_create(cp);
-            lv_obj_remove_style_all(clist);
-            lv_obj_set_pos(clist, SG_PAD, cy);
-            lv_obj_set_size(clist, SG_CHANGE_W - 2 * SG_PAD, pan_h - cy - 8);
-            lv_obj_set_flex_flow(clist, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_style_pad_row(clist, 4, 0);
-            lv_obj_set_scroll_dir(clist, LV_DIR_VER);
-            lv_obj_set_scrollbar_mode(clist, change_n > 1 ? LV_SCROLLBAR_MODE_ON
-                                                          : LV_SCROLLBAR_MODE_OFF);
-            lv_obj_set_style_width(clist, 5, LV_PART_SCROLLBAR);
-            lv_obj_set_style_bg_color(clist, MUT_COL, LV_PART_SCROLLBAR);
-            lv_obj_set_style_bg_opa(clist, LV_OPA_50, LV_PART_SCROLLBAR);
-            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
-                if (!s_sum.outs[i].is_change) continue;
-                fmt_sats(s_sum.outs[i].sats, a, sizeof a);
-                snprintf(buf, sizeof buf, "%s sats", a);
-                lv_obj_t *cv = lv_label_create(clist);
-                lv_label_set_text(cv, buf);
-                lv_obj_set_style_text_font(cv, wt_font_mono23(), 0);
-                lv_obj_set_style_text_color(cv, INK_COL, 0);
-            }
-        }
-    }
-
-    else {
+    {
         // ---- the bundle graph --------------------------------------------
         // The input amounts live on the DETAILS struct, not the summary, so
         // this is the first verify-side call to kiss_psbt_details(). If it
@@ -1660,9 +1358,25 @@ static void verify_screen(lv_obj_t *parent)
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (s_sum.outs[i].is_change) continue;
+            // With one recipient the address gets its own full width line under
+            // the graph, at mono23, which is the frame and the more legible of
+            // the two. With more than one, the graph is the ONLY place an
+            // address can appear -- a single line below it could name the first
+            // and no other -- so every row carries its own.
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
                                           .label = tr(STR_S_SENDING_CAP),
-                                          .role  = WT_STRAND_SEND };
+                                          .role  = WT_STRAND_SEND,
+                                          .addr  = recipient_n > 1
+                                                   ? s_sum.outs[i].addr : NULL };
+            // A silent payment says a second thing about itself: the address on
+            // chain is derived HERE and is not the one you were handed. That is
+            // a claim about the strand above it, so it takes the row under it
+            // rather than a panel somewhere else, and the column grows and
+            // scrolls to hold it like any other row.
+            if (s_sum.outs[i].is_sp && n_out < WT_BUNDLE_MAX)
+                out[n_out++] = (wt_strand_t){ .label = sp_onchain_note(),
+                                              .role = WT_STRAND_SEND,
+                                              .note_only = true };
         }
         if (n_out < WT_BUNDLE_MAX)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
@@ -1704,8 +1418,25 @@ static void verify_screen(lv_obj_t *parent)
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
 
-        wt_bundle(s_scr, 24, SG_GRAPH_Y, 752, np ? SG_GRAPH_H_C : SG_GRAPH_H,
-                  in, n_in, out, n_out, max_sats);
+        lv_obj_t *bg = wt_bundle(s_scr, 24, SG_GRAPH_Y, 752,
+                                 np ? SG_GRAPH_H_C : SG_GRAPH_H,
+                                 in, n_in, out, n_out, max_sats);
+
+        // The read-to-the-end gate, unchanged in every respect that matters:
+        // the same question, measured the same way, with the same answer. Only
+        // the object it is asked of moved, from a panel of addresses to the
+        // graph's output column.
+        //
+        // It is why outputs are never elided. A destination folded into a group
+        // strand would be a recipient hidden where no scroll can reveal it and
+        // no page lists it, which is the exact failure this gate was built to
+        // stop -- one honest destination on top and a second one under it,
+        // signed on a glance.
+        lv_obj_t *ocol = wt_bundle_outputs(bg);
+        if (!ocol || lv_obj_get_scroll_bottom(ocol) <= 0)
+            s_recip_seen = true;            // nothing hidden: nothing to demand
+        else if (!s_recip_seen)
+            lv_obj_add_event_cb(ocol, recip_scroll_cb, LV_EVENT_SCROLL, NULL);
 
         // The address, under the graph rather than inside a panel: the strand
         // above it is where the money goes, and this is the name of the place.
@@ -1727,6 +1458,11 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_flex_flow(arow, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_SPACE_BETWEEN,
                               LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        // With more than one recipient every address is already in its own row
+        // above, so this line names nothing and the reveal has nothing to
+        // reveal. Both go; the "?" stays, because the RBF card is reachable
+        // from nowhere else.
+        if (recipient_n == 1) {
         lv_obj_t *acap = lv_label_create(arow);
         lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
         lv_obj_set_style_text_font(acap, wt_font14(), 0);
@@ -1740,13 +1476,15 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_add_flag(tg, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(tg, 14);      // 44px, the device's floor
         lv_obj_add_event_cb(tg, addr_full_cb, LV_EVENT_CLICKED, NULL);
+        }
         // The RBF "?" rides this line rather than the meta row: at y=366 a 30px
         // chip's box ends flush against the action bar's floor, and its 54px hit
         // target reaches past WT_CONTENT_BOTTOM into it. Same corner the facts
         // strip put it in, so the reflex is unchanged.
         wt_help_chip(s_scr, 738, ay - 6, MUT_COL, rbf_help_cb, NULL);
 
-        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+        for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
+                        && i < WPSBT_MAX_OUTS; i++) {
             if (s_sum.outs[i].is_change) continue;
             lv_obj_t *ad;
             if (s_addr_full) {
@@ -1761,45 +1499,9 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_pos(ad, 24, ay + 18);
             break;
         }
-        // Nothing is below the fold on this layout: one recipient, one address,
-        // both on the glass. The gate that demands a scroll has nothing to
-        // demand, exactly as it decides for a panel that does not overflow.
-        s_recip_seen = true;
     }
 
-    // ---- the facts strip -------------------------------------------------
-    if (!graph) {
-    sg_rule(0, np ? SG_RULE_Y_C : SG_FOOT_RULE, 800, 1);
-    fmt_sats(s_sum.fee_sats, a, sizeof a);
-    snprintf(buf, sizeof buf, "%s sats", a);
-    // Scissors are the fee's mark everywhere it appears -- here, the WHY card,
-    // the DETAILS rate row, the glossary -- one mark per concept, met before it
-    // is read, so a new reader recognises the fee before knowing the word. And
-    // scissors, NOT the bolt this device used to use: to a bitcoiner a bolt
-    // means the Lightning Network, which this signer has nothing to do with,
-    // and the WHY copy already says "a big slice of what you are sending" --
-    // the mark now draws what the sentence says.
-    sg_cell(24, 230, tr_sym(LV_SYMBOL_CUT, STR_S_FEE), buf, wt_font_mono23(),
-            np ? WARN_COL : INK_COL);
-    // The strip sits lower with a bar above it, so the column rules give back
-    // the 24px they would otherwise push past WT_CONTENT_BOTTOM.
-    const int frh = np ? SG_FOOT_H_C : SG_FOOT_H;
-    sg_rule(270, s_foot_y + 2, 1, frh);
-    sg_cell(294, 210, tr(STR_I_SEC_NET),
-            s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN),
-            NULL, s_sum.testnet ? WARN_COL : INK_COL);
-    sg_rule(520, s_foot_y + 2, 1, frh);
-    // No caption: there is no uppercase "if it gets stuck" key, and inventing
-    // one would mean 21 translations for a label the value already states.
-    // S_RBF_T_* is already caption-cased, so it carries the cell on its own --
-    // wearing the same badge its ? card answers with (replace arrow / padlock),
-    // so the cell teaches the icon and the card confirms it.
-    sg_cell(544, 190, NULL,
-            s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
-                      : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF),
-            NULL, INK_COL);
-    wt_help_chip(s_scr, 738, s_foot_y - 6, MUT_COL, rbf_help_cb, NULL);
-    } else {
+    {
         // ---- the meta row ------------------------------------------------
         // What the facts strip said in three ruled cells, on one line: which
         // network these coins are real on, and whether the fee can still be
@@ -2093,7 +1795,19 @@ static void details_cb(lv_event_t *e)
     // lane is 288 rather than 372. Measure it instead.
     int ly = 108 + det_h(ihdr) + 8;
     lv_obj_set_pos(il, 40, ly);
-    lv_obj_set_size(il, 264, 392 - ly);
+    // Half the card, not all of it: the outputs list takes the other half. It
+    // is here rather than in the right card because the right card ends at 388
+    // already, and because a list of amounts belongs beside the other list of
+    // amounts -- the page then reads in one direction, what this spends and
+    // where it goes, exactly as the graph does.
+    // The divide is measured from where the header actually ended, not fixed:
+    // this header is one line for most transactions and three for one with more
+    // inputs than the page can list, and a constant split cut an input row in
+    // half through the middle of its txid. One whole row is the floor, and the
+    // outputs list keeps what is left. Both scroll and both say so, so a short
+    // list is a short list rather than a hidden one.
+    const int split = ly + 84 < 232 ? 232 : (ly + 84 > 272 ? 272 : ly + 84);
+    lv_obj_set_size(il, 264, split - 6 - ly);
     lv_obj_set_style_pad_all(il, 8, 0);
     lv_obj_set_style_pad_row(il, 4, 0);
     lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
@@ -2155,6 +1869,58 @@ static void details_cb(lv_event_t *e)
         lv_label_set_text(pl, buf);
         lv_obj_set_style_text_color(pl, OK_COL, 0);
         lv_obj_set_style_text_font(pl, wt_font14(), 0);
+    }
+
+    // ---- the outputs, under the inputs ----
+    // Every destination readable somewhere that does not scroll under a gate.
+    // The verify screen's column can hold a recipient below its fold, and
+    // HOLD TO SIGN stays inert until it has been read -- but that is a gate on
+    // signing, not a place to look things up. This is the place.
+    sg_rule(40, split, 264, 1);
+    uint32_t n_ours = 0;
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+        if (s_sum.outs[i].is_change) n_ours++;
+    snprintf(buf, sizeof buf, tr(STR_S_D_OUTPUTS_FMT),
+             (unsigned)s_sum.n_out, (unsigned)n_ours);
+    lv_obj_t *ohdr = wt_section(s_scr, buf, 40, split + 10);
+    lv_obj_set_width(ohdr, 264);
+    lv_label_set_long_mode(ohdr, LV_LABEL_LONG_WRAP);
+
+    lv_obj_t *ol = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(ol);
+    int oy = split + 10 + det_h(ohdr) + 6;
+    lv_obj_set_pos(ol, 40, oy);
+    lv_obj_set_size(ol, 264, 392 - oy);
+    lv_obj_set_style_pad_all(ol, 8, 0);
+    lv_obj_set_style_pad_row(ol, 4, 0);
+    lv_obj_set_flex_flow(ol, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(ol, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(ol, s_sum.n_out > 1 ? LV_SCROLLBAR_MODE_ON
+                                                  : LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_width(ol, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(ol, MUT_COL, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(ol, LV_OPA_50, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(ol, LV_OPA_TRANSP, 0);
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+        lv_obj_t *row = lv_obj_create(ol);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, lv_pct(100));
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_bottom(row, 10, 0);
+
+        fmt_sats(s_sum.outs[i].sats, a, sizeof a);
+        // The tick is the change output's own claim -- re-derived and verified
+        // on this device -- and it is WT_OK because that is a status, not the
+        // accent. A recipient gets no tick: the signer has nothing to vouch for
+        // about someone else's address, and a mark there would say it did.
+        const bool ours = s_sum.outs[i].is_change;
+        snprintf(buf, sizeof buf, "%s%s sats", ours ? LV_SYMBOL_OK " " : "", a);
+        lv_obj_t *amt = lv_label_create(row);
+        lv_label_set_text(amt, buf);
+        lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
+        lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        wt_addr_spans(row, s_sum.outs[i].addr, 248, wt_font14());
     }
 
     // ---- the right column ----
