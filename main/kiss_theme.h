@@ -341,6 +341,60 @@ void wt_diagram_verify(lv_obj_t *parent);
 // the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
 void wt_diagram_pair(lv_obj_t *parent);
 
+// ---- the sign screen's bundle graph ----
+// Coins on the left, a junction, where the money goes on the right, and every
+// strand as thick as its share of the value. It exists because the old verify
+// screen stated the same facts as text panels and left the reader to assemble
+// the SHAPE of the transaction in their head: which coin is big, how much of
+// the send the fee really is, whether anything comes back.
+//
+// Roles, not colours, because the caller must not be able to paint a strand
+// something the theme did not sanction. IN is WT_MUT until its signature
+// exists, SEND is WT_INK, FEE is WT_DIM, CHANGE is the accent -- and CHANGE is
+// the only accent text in the graph, so "arriving" and "leaving" stay two
+// families under all four accents including MONO, where the accent is ink.
+enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
+
+// Strands one side of the junction can hold. Five is what the elision leaves on
+// the input side at any coin count (first two, the group, last two); the output
+// side is capped by WPSBT_MAX_OUTS, and above the fold it scrolls rather than
+// growing. Eight gives both room without letting a caller size the block from
+// a PSBT field.
+#define WT_BUNDLE_MAX 8
+
+typedef struct {
+    uint64_t    sats;
+    const char *label;      // the words beside the amount; NULL for a bare input
+    uint8_t     role;       // WT_STRAND_*
+    bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
+    bool        is_group;   // the elided middle: dashed, and holds group_n coins
+    uint16_t    group_n;
+} wt_strand_t;
+
+// A strand's stroke, in px, linear on the largest strand in the transaction.
+//
+// The floor is not cosmetic. An 800 sat fee against a 4.2M send computes to
+// zero, and a fee that vanishes is the one number on this screen that must not:
+// 2px is the thinnest stroke that still reads as a line on this panel.
+int wt_strand_px(uint64_t sats, uint64_t max_sats);
+
+// Build the graph into (x, y, w, h) -- the box the drawing's path data is
+// expressed in, 1:1, so a page coordinate is the box origin plus a path
+// coordinate. Returns the container, which owns every strand, every label and
+// the point arrays LVGL refuses to copy (see the note on lv_line below).
+//
+// Callers draw the two captions themselves: they sit ABOVE this box and belong
+// to the screen, not to the graph.
+//
+// `max_sats` is passed in rather than taken from these arrays, so a graph
+// showing part of a scrolling output column still scales against the whole
+// transaction. Renormalising per screenful would make a strand's thickness mean
+// something different after a scroll, which is the one thing it may never do.
+lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
+                    const wt_strand_t *in,  size_t n_in,
+                    const wt_strand_t *out, size_t n_out,
+                    uint64_t max_sats);
+
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
 // highlighting the front invited people to compare a constant and feel checked.

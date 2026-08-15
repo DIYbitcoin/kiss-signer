@@ -406,6 +406,11 @@ int kiss_seed_diff_word(const char *typed, const char *stored) {
 // network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
 static int s_sim_testnet = 1;   // mirror KISS_NET_DEFAULT_TESTNET: fresh = testnet
+// What the last kiss_psbt_load() said, so kiss_psbt_details() can agree with
+// it. Two stubs describing one transaction differently is a fixture that
+// makes a correct screen look broken.
+static uint32_t s_sim_n_in = 1;
+static uint64_t s_sim_in_sats = 100000;
 void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
 int kiss_testnet(void) { return s_sim_testnet; }
 static int s_sim_script;
@@ -566,6 +571,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
                        WPSBT_C_UNPROVEN_IN;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
+  s_sim_n_in = s->n_in;
+  s_sim_in_sats = s->in_sats;
   return 0;
 }
 int kiss_psbt_details(wpsbt_details_t *d) {
@@ -578,12 +585,33 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   // WARN beside one only claimed) AND overflows its viewport, which is what
   // keeps the always-on scrollbar honest: past two inputs the list must not
   // look like it ends at the fold.
-  d->version = 2; d->locktime = 0; d->txid_final = true; d->n_in = 5; d->n_total = 17;
+  //
+  // The count comes from the summary the walk actually loaded. It used to be a
+  // flat 5 whatever was on screen, which was invisible while the details page
+  // was the only reader -- but the bundle graph draws one strand per input
+  // beside a caption counting s_sum.n_in, so a stub that disagreed with itself
+  // put five coins under the words "SPENDING 1 OF YOUR COINS". A fixture may
+  // not be the thing that makes a screen look wrong.
+  //
+  // S_D_MANYIN_FMT needs n_total > n_in, which no fixture reaches yet; the
+  // twenty-input one arrives with the elision and restores it.
+  d->version = 2; d->locktime = 0; d->txid_final = true;
+  d->n_total = s_sim_n_in ? s_sim_n_in : 1;
+  d->n_in = d->n_total > WPSBT_MAX_INS ? WPSBT_MAX_INS : d->n_total;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
-  for (uint32_t i = 0; i < 5; i++) {
-    memset(d->ins[i].txid, "abcde"[i], 64);
+  // Amounts that sum to the summary's in_sats, largest first, so the strands
+  // have real proportions to draw and the elided total in section 2 has a true
+  // number to state.
+  uint64_t left = s_sim_in_sats, n = d->n_in;
+  for (uint32_t i = 0; i < d->n_in; i++) {
+    memset(d->ins[i].txid, "abcdefghijklmnop"[i], 64);
     d->ins[i].txid[64] = 0;
-    d->ins[i].vout = i; d->ins[i].sats = 100000 - i * 9750;
+    // A descending spread rather than an even split: equal strands would hide
+    // whether wt_strand_px is doing anything at all.
+    uint64_t take = (i + 1 == d->n_in) ? left : (left * 2) / (3 * (n - i));
+    if (!take) take = 1;
+    d->ins[i].vout = i; d->ins[i].sats = take;
+    left -= take;
     d->ins[i].purpose = 84; d->ins[i].change = 0; d->ins[i].index = i;
     d->ins[i].proven = (i == 0);   // the fold hides unproven coins: scroll
   }
@@ -1873,7 +1901,9 @@ int main(void) {
   // local (543,8) 170x40 inside a row pinned at (24, SG_PANEL_Y), so row 0's is
   // 567..737 x 158..198. This is its centre. It was still tapping the old
   // action-row position at (364,430), which the redraw deleted.
-  touch(652, 178); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
+  // The bar dropped to y=344 under the bundle graph, and its pill went with it:
+  // bar-relative (543,2) 170x40 is now 567..737 x 346..386. This is its centre.
+  touch(652, 366); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
   // BACK out of a screen an acknowledgement repainted. The tap above is what
   // makes the orphaned-screen check at the end of this walk mean anything: the
@@ -1893,9 +1923,14 @@ int main(void) {
   // the guarantee has two halves: something address shaped is on the glass
   // without a tap, and the whole of it is one tap away. Checking only the
   // second would pass on a screen that folded the address to nothing.
+  //
+  // The amounts lost their " sats" when they became strand labels: the unit is
+  // stated once, on the hero, and repeating it on every row of a graph whose
+  // rows are all the same unit is the restatement the copy rules cut. The
+  // guarantee is unchanged -- these two numbers are on the glass without a tap.
   must_show("verify (5 cautions)", "bc1q");           // folded, prefix span
-  must_show("verify (5 cautions)", "200 sats");       // the change amount
-  must_show("verify (5 cautions)", "800 sats");       // the fee, in sats
+  must_show("verify (5 cautions)", "200");            // the change amount
+  must_show("verify (5 cautions)", "800");            // the fee
   tap_str(STR_R_SP_SHOW_FULL, 3, 8);
   must_show("verify (5 cautions, full)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
@@ -1903,9 +1938,9 @@ int main(void) {
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
-  // never showed. The bar's pill is at the row pill's old x, so the FEE ack tap
-  // above and this REVIEW tap land in the same place.
-  touch(652, 172); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
+  // never showed. The bar's pill keeps the row pill's x, so the FEE ack tap above
+  // and this REVIEW tap land in the same place.
+  touch(652, 366); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
   save("/tmp/sim_sign_cautions.ppm");
   // Row 0's I UNDERSTAND: rows start at y=88 with the pill at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
@@ -1950,8 +1985,8 @@ int main(void) {
   // coordinator that ships bare witness_utxos has, and the one most owners
   // will actually meet. Same guarantee.
   must_show("verify (1 caution)", "bc1q");            // folded, prefix span
-  must_show("verify (1 caution)", "39 000 sats");
-  must_show("verify (1 caution)", "1 000 sats");
+  must_show("verify (1 caution)", "39 000");   // change, no unit: see above
+  must_show("verify (1 caution)", "1 000");    // fee
   tap_str(STR_R_SP_SHOW_FULL, 3, 8);
   must_show("verify (1 caution, full)",
             "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
