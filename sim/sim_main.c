@@ -1793,7 +1793,17 @@ int main(void) {
   release(); pump(6);                              // -> file list
   save("/tmp/sim_sign_files.ppm");
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
-  save("/tmp/sim_sign_verify.ppm");
+  save("/tmp/sim_sign_verify.ppm");                 // FOLDED address + SHOW FULL
+  // The fold, opened and closed. Both states are a screen an owner signs from,
+  // so both have to be photographed in all 21 locales -- the folded one is a
+  // mono23 line a longer testnet prefix can push at the panel edge, and the
+  // full one is the render that used to be the only one there was.
+  //
+  // tap_str, not a coordinate: the toggle sits at the right end of a flex row
+  // whose left half is a translated caption, so its x moves with the locale.
+  tap_str(STR_R_SP_SHOW_FULL, 3, 8);   // SHOW FULL -> whole address, tail lifted
+  save("/tmp/sim_sign_verify_full.ppm");
+  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);  // SHOW SHORT -> back to the fold
   // the RBF "?" is kiss_sign.c's 30px chip, pinned at (738, SG_FOOT_Y-6) for
   // BOTH the replaceable and final wordings. It used to sit right after the
   // text, so its x moved with the translation; it is fixed now. The redraw
@@ -1878,9 +1888,18 @@ int main(void) {
   // -- and a coordinator could induce exactly that by padding the input count
   // or leaving the previous transactions off. The frame above proves it looks
   // right; these three prove the facts are actually on it.
-  must_show("verify (5 cautions)", "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  //
+  // Two assertions where there was one, because the address is FOLDED now and
+  // the guarantee has two halves: something address shaped is on the glass
+  // without a tap, and the whole of it is one tap away. Checking only the
+  // second would pass on a screen that folded the address to nothing.
+  must_show("verify (5 cautions)", "bc1q");           // folded, prefix span
   must_show("verify (5 cautions)", "200 sats");       // the change amount
   must_show("verify (5 cautions)", "800 sats");       // the fee, in sats
+  tap_str(STR_R_SP_SHOW_FULL, 3, 8);
+  must_show("verify (5 cautions, full)",
+            "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
@@ -1930,9 +1949,13 @@ int main(void) {
   // The single-caution shape: the one an ordinary two-input spend from a
   // coordinator that ships bare witness_utxos has, and the one most owners
   // will actually meet. Same guarantee.
-  must_show("verify (1 caution)", "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  must_show("verify (1 caution)", "bc1q");            // folded, prefix span
   must_show("verify (1 caution)", "39 000 sats");
   must_show("verify (1 caution)", "1 000 sats");
+  tap_str(STR_R_SP_SHOW_FULL, 3, 8);
+  must_show("verify (1 caution, full)",
+            "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  tap_str(STR_R_SP_SHOW_SHORT, 3, 8);
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
   save("/tmp/sim_sign_unproven_why.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
@@ -2778,14 +2801,12 @@ int main(void) {
   // only thing that knew, because a screen with no walk stop is a screen no
   // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
-  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
-  save("/tmp/sim_settings_duress.ppm");             // drawing + ONE SWIPE chips
-
-  // The camera audit, from its new home on this page. The stub writes a real
-  // (small) kiss-proof.bin and the stateless checker page into /tmp/simsd;
-  // BACK out of the capture screen returns to Settings via the done cb, so
-  // the page is re-entered for the drawing enrolment below.
-  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT row -> capture screen
+  // The camera audit, from its home in the Settings action bar. It spent a
+  // version on the duress page below, which is why this block used to sit
+  // after that tap; the stub writes a real (small) kiss-proof.bin and the
+  // stateless checker page into /tmp/simsd, and DONE returns here via the
+  // done cb.
+  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT pill -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
   tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
   save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
@@ -2794,8 +2815,10 @@ int main(void) {
   tap_str(STR_R_NEXT, 3, 6);          // NEXT -> words 13-24
   save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
   tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
-  touch(400, 355); pump(3); release(); pump(8);     // Duress again, for the word
-  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS (482..752)
+
+  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
+  save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words
+  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN DRAWING (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
   // The ink itself, mid-enrolment and before DONE clears it. The strokes now
@@ -3037,6 +3060,15 @@ int main(void) {
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
+
+  // The signature row's "?". It was a chevron and the owner read the row as
+  // inert: a chevron promises a destination, not an answer. The mark is the
+  // row's value now, and the whole card is the target -- so this taps the
+  // card's middle, which no translation can move. WT_LIST_R_X + half of
+  // WT_LIST_W across, WT_LIST_Y(2) + half a row down.
+  touch(594, 269); pump(3); release(); pump(20);
+  save("/tmp/sim_fw_sig_help.ppm");                 // what a signature buys, in prose
+  tap_str(STR_C_OK, 3, 8);             // OK closes the card
 
   tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
   save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row

@@ -119,6 +119,10 @@ static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
 // list actually has something below the fold; set true immediately when it
 // does not, so the common single-recipient transaction gates on nothing.
 static bool s_recip_seen;
+// Is the single recipient's address shown whole? Folded by default; the
+// toggle under it opens the rest. Per PSBT, not per session -- it resets
+// wherever s_recip_seen resets, so a new file is always met folded.
+static bool s_addr_full;
 #ifndef ESP_PLATFORM
 // Walk only. The difference between an armed HOLD TO SIGN and an inert one is
 // a colour, and the walk cannot read a colour -- so without this the gate
@@ -714,6 +718,18 @@ static void recip_scroll_cb(lv_event_t *e)
     if (lv_obj_get_scroll_bottom(lv_event_get_target(e)) > 0)
         return;                             // still more under the fold
     s_recip_seen = true;
+    repaint_verify();
+}
+
+// Fold the single recipient's address open, or back. A full repaint rather
+// than a swap of the spangroup: every other state on this screen is drawn by
+// verify_screen and a partial redraw here would be the one path that has to
+// stay in step with it by hand. s_recip_seen is static, so HOLD TO SIGN does
+// not un-arm because the owner looked at the address.
+static void addr_full_cb(lv_event_t *e)
+{
+    (void)e;
+    s_addr_full = !s_addr_full;
     repaint_verify();
 }
 
@@ -1351,33 +1367,79 @@ static void verify_screen(lv_obj_t *parent)
             // characters at the same size twice and cost the panel a scrollbar,
             // with "compare these 8" at the fold. A list of recipients has no
             // such line, so at mono14 the tail was carried by colour alone.
-            // ONE render of the address, the FULL one, with the compared
-            // runs lifted inside it. There used to be a second, shortened
-            // line under this ("...abcd efgh" at mono23) and it was the
-            // wrong thing to feature: address poisoning is built to match
-            // the short ends, so the ritual this screen exists for is
-            // reading the WHOLE address, and the lift makes the compare
-            // runs big without ever letting them stand alone.
-            wt_addr_spans_lift
-                (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
+            // FOLDED by default on the single recipient, whole underneath.
+            //
+            // Both renders are the same address and neither is a summary of
+            // the other -- the fold elides the middle, which is the run an
+            // attacker cannot cheaply match anyway, and lights the last eight,
+            // which is the run that has to be compared. What the fold buys is
+            // that those eight arrive at mono23 as the LARGEST thing in the
+            // panel, instead of at mono14 inside 42 characters of ungrouped
+            // bech32 that the eye has to find them in.
+            //
+            // The whole address is one tap away, and the receive screen's
+            // silent payment view already works exactly this way, down to the
+            // two keys naming the toggle. Two screens, one habit.
+            //
+            // A LIST of recipients does not fold: each row carries its own
+            // amount, there is one comparison per row rather than one ritual,
+            // and the toggle has nowhere to stand that is not below the fold
+            // in a panel the owner is being made to scroll.
+            if (recipient_n == 1 && !s_addr_full) {
+                wt_addr_short(list, s_sum.outs[i].addr, wt_font_mono23());
+            } else {
+                // mono14, not mono23. The 353px the drawing measured is the
+                // body at FOURTEEN; at 23 the whole address is about 580px and
+                // wraps, which is what ungrouping exists to prevent.
+                wt_addr_spans_lift
+                    (list, s_sum.outs[i].addr, rw - 2 * SG_PAD, wt_font_mono14());
+            }
             if (recipient_n == 1) {
-                // The hint below is the one thing the shorter cautioned panel
-                // gives up. The address and its lifted runs are drawn either
-                // way; only the sentence explaining them goes.
+                // One line under the address carrying both halves of the
+                // question it raises: what to compare, and how to see the
+                // rest. Left mut, right accent and tappable.
+                //
+                // The caption is the half the shorter cautioned panel gives
+                // up -- it always was -- but the TOGGLE never goes, or the
+                // folded view becomes a screen that hides an address with no
+                // way back. That is the one thing this panel may not do.
+                lv_obj_t *crow = lv_obj_create(list);
+                lv_obj_remove_style_all(crow);
+                lv_obj_set_width(crow, rw - 2 * SG_PAD);
+                lv_obj_set_height(crow, LV_SIZE_CONTENT);
+                lv_obj_remove_flag(crow, LV_OBJ_FLAG_SCROLLABLE);
+                lv_obj_set_flex_flow(crow, LV_FLEX_FLOW_ROW);
+                lv_obj_set_flex_align(crow, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                                      LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
                 if (!np) {
-                // The caption HANDOFF-01 asks for, next line down. Without it
-                // the two lit runs are still there and still landing at the
-                // same character width above the address body, but the reason
-                // to keep looking at them is not spelled out. "compare these 8"
-                // makes the four plus four total the label claims explicit, in
-                // one glance: two runs of four is what the elided line above
-                // shows, one four is what the label used to point at.
-                lv_obj_t *ccap = lv_label_create(list);
-                lv_label_set_text(ccap, tr(STR_S_CMP_8));
-                lv_obj_set_style_text_font(ccap, wt_font14(), 0);
-                lv_obj_set_style_text_color(ccap, MUT_COL, 0);
-                lv_obj_set_style_text_letter_space(ccap, 1, 0);
+                    // The caption HANDOFF-01 asks for. Without it the two lit
+                    // runs are still there and still landing at the same
+                    // character width, but the reason to keep looking at them
+                    // is not spelled out. "compare these 8" makes the four
+                    // plus four the label claims explicit, in one glance.
+                    lv_obj_t *ccap = lv_label_create(crow);
+                    lv_label_set_text(ccap, tr(STR_S_CMP_8));
+                    lv_obj_set_style_text_font(ccap, wt_font14(), 0);
+                    lv_obj_set_style_text_color(ccap, MUT_COL, 0);
+                    lv_obj_set_style_text_letter_space(ccap, 1, 0);
                 }
+                // SHOW FULL / SHOW SHORT: the receive screen's own pair,
+                // already translated in 21 locales, so this costs no key and
+                // says the same words in both places it appears.
+                lv_obj_t *tg = lv_label_create(crow);
+                lv_label_set_text(tg, tr(s_addr_full ? STR_R_SP_SHOW_SHORT
+                                                     : STR_R_SP_SHOW_FULL));
+                lv_obj_set_style_text_font(tg, wt_font14(), 0);
+                lv_obj_set_style_text_color(tg, wt_accent(), 0);
+                lv_obj_set_style_text_letter_space(tg, 2, 0);
+                lv_obj_add_flag(tg, LV_OBJ_FLAG_CLICKABLE);
+                // 14px of ext area on a ~16px tall label is a 44px target,
+                // which is the smallest this device is allowed to ask a
+                // finger for. It sits inside a scrollable list, so it takes
+                // CLICKED -- a press that turns into a drag belongs to the
+                // list, and LVGL hands it over on its own.
+                lv_obj_set_ext_click_area(tg, 14);
+                lv_obj_add_event_cb(tg, addr_full_cb, LV_EVENT_CLICKED, NULL);
             }
             if (s_sum.outs[i].is_sp) {
                 lv_obj_t *n = lv_label_create(list);
@@ -2074,6 +2136,7 @@ static void file_tap_cb(lv_event_t *e)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
+    s_addr_full  = false;                  // ...folded, as every file arrives
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = opened_signed;
@@ -2405,6 +2468,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
+    s_addr_full  = false;                  // ...folded, as every file arrives
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = false;
