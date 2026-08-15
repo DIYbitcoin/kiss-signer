@@ -92,6 +92,26 @@ bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locale
 bash sim/build_sim.sh && python3 tools/check_screen_coverage.py  # screens no gate sees
 ```
 
+**One at a time.** `kisstest` and the screen walk share one fake SD at
+`/tmp/simsd`, so two of these running at once interleave on it and the walk
+comes back with a failure that is not in the code. A backgrounded sweep beside a
+foreground run is enough to do it. Re-run alone before believing any of them.
+
+**Anything touching `main/` also runs the device compiler**, because none of the
+above is it:
+
+```bash
+docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
+  espressif/idf:v6.0.1 idf.py -B /tmp/idfbuild build
+```
+
+The desktop build is clang and the device build is gcc with `-Werror`, and they
+do not refuse the same code. A 64 byte buffer holding a 160 byte translated
+caption passed all six gates and every desktop test, and was caught by this
+command alone — after a push, because it was not on the list. `-Wformat-truncation`
+is the family, and clang does not implement it.
+
 `check_screen_coverage.py` answers the question the others cannot: **which
 screens has nothing ever looked at.** overlapcheck asks seven questions per
 STOP, so a screen with no stop is a screen with no opinion attached. It reports
