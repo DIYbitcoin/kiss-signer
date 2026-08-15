@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "RESPALDO COMPLETO VERIFICADO",
   "L_VERIFY_PASS": "ESCRIBE LA PASSPHRASE EXACTA DEL RESPALDO",
   "L_BACKUP_PASS_BAD": "ESO ABRE OTRA CARTERA. INTÉNTALO DE NUEVO.",
-  "S_TOTAL_LEAVING": "TOTAL QUE SALE DE LA CARTERA",
+  "S_TOTAL_LEAVING": "TOTAL QUE SALE DE TU CARTERA",
   "S_FILES_HINT": "primero sin firmar, luego A-Z. los firmados están marcados.",
   "S_FILES_MORE_FMT": "mostrando %d de %d archivos. quita algunos para ver el resto",
   "S_FILE_UNSIGNED": "SIN FIRMAR",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_CARD_B": "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_WRITE_B": "la escritura no terminó.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
-  "H_WAYS_IN_HINT": "un trazo tras la palabra pide la passphrase"
+  "H_WAYS_IN_HINT": "un trazo tras la palabra pide la passphrase",
+  "S_D_OUTPUTS_FMT": "SALIDAS (%u) - %u PARA TI",
+  "S_BUNDLE_IN_FMT": "GASTANDO %u DE TUS MONEDAS",
+  "S_BUNDLE_OUT": "A DÓNDE VA",
+  "S_BUNDLE_MORE_FMT": "%u monedas más",
+  "S_BUNDLE_NOCHANGE_FMT": "sin cambio, esto vacía las %u",
+  "S_ALL_SIGNED_FMT": "LAS %u MONEDAS FIRMADAS"
 }

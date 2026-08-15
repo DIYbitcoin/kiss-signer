@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "BACKUP COMPLETO VERIFICADO",
   "L_VERIFY_PASS": "DIGITE A PASSPHRASE EXATA DO BACKUP",
   "L_BACKUP_PASS_BAD": "ISSO ABRE OUTRA CARTEIRA. TENTE DE NOVO.",
-  "S_TOTAL_LEAVING": "TOTAL SAINDO DA CARTEIRA",
+  "S_TOTAL_LEAVING": "TOTAL SAINDO DA SUA CARTEIRA",
   "S_FILES_HINT": "não assinados primeiro, depois A-Z. assinados são marcados.",
   "S_FILES_MORE_FMT": "mostrando %d de %d arquivos. remova alguns para ver o resto",
   "S_FILE_UNSIGNED": "NÃO ASSINADO",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "a assinatura não era válida.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
   "G_FW_FAIL_CARD_B": "o cartão parou de responder no meio.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
   "G_FW_FAIL_WRITE_B": "a gravação não terminou.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
-  "H_WAYS_IN_HINT": "um traço após a palavra pede a passphrase"
+  "H_WAYS_IN_HINT": "um traço após a palavra pede a passphrase",
+  "S_D_OUTPUTS_FMT": "SAÍDAS (%u) - %u PARA VOCÊ",
+  "S_BUNDLE_IN_FMT": "GASTANDO %u DAS SUAS MOEDAS",
+  "S_BUNDLE_OUT": "PARA ONDE VAI",
+  "S_BUNDLE_MORE_FMT": "mais %u moedas",
+  "S_BUNDLE_NOCHANGE_FMT": "sem troco, isto esvazia todas as %u",
+  "S_ALL_SIGNED_FMT": "TODAS AS %u MOEDAS ASSINADAS"
 }

@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "HELA BACKUPEN KONTROLLERAD",
   "L_VERIFY_PASS": "SKRIV EXAKT LÖSENFRAS FRÅN BACKUP",
   "L_BACKUP_PASS_BAD": "DET ÖPPNAR EN ANNAN PLÅNBOK. FÖRSÖK IGEN.",
-  "S_TOTAL_LEAVING": "TOTALT UT UR PLÅNBOKEN",
+  "S_TOTAL_LEAVING": "TOTALT UT UR DIN PLÅNBOK",
   "S_FILES_HINT": "osignerade först, sedan A-Z. signerade filer är märkta.",
   "S_FILES_MORE_FMT": "visar %d av %d filer. ta bort några för att se resten",
   "S_FILE_UNSIGNED": "OSIGNERAD",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_CARD_B": "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_WRITE_B": "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
-  "H_WAYS_IN_HINT": "ett streck efter ordet ber om lösenfrasen"
+  "H_WAYS_IN_HINT": "ett streck efter ordet ber om lösenfrasen",
+  "S_D_OUTPUTS_FMT": "UTDATA (%u) - %u TILL DIG",
+  "S_BUNDLE_IN_FMT": "SPENDERAR %u AV DINA MYNT",
+  "S_BUNDLE_OUT": "VART DET GÅR",
+  "S_BUNDLE_MORE_FMT": "%u mynt till",
+  "S_BUNDLE_NOCHANGE_FMT": "ingen växel, detta tömmer alla %u",
+  "S_ALL_SIGNED_FMT": "ALLA %u MYNT SIGNERADE"
 }

@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "BẢN SAO ĐẦY ĐỦ ĐÃ ĐƯỢC KIỂM",
   "L_VERIFY_PASS": "NHẬP ĐÚNG CỤM MẬT KHẨU CỦA BẢN SAO",
   "L_BACKUP_PASS_BAD": "CỤM NÀY MỞ MỘT VÍ KHÁC. HÃY THỬ LẠI.",
-  "S_TOTAL_LEAVING": "TỔNG TIỀN RỜI KHỎI VÍ",
+  "S_TOTAL_LEAVING": "TỔNG TIỀN RỜI KHỎI VÍ CỦA BẠN",
   "S_FILES_HINT": "chưa ký trước, rồi A-Z. tệp đã ký được đánh dấu.",
   "S_FILES_MORE_FMT": "đang hiện %d trong %d tệp. bớt vài tệp để thấy phần còn lại",
   "S_FILE_UNSIGNED": "CHƯA KÝ",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "chữ ký không hợp lệ.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "G_FW_FAIL_CARD_B": "thẻ ngừng phản hồi giữa chừng.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "G_FW_FAIL_WRITE_B": "việc ghi chưa hoàn tất.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
-  "H_WAYS_IN_HINT": "một nét sau từ sẽ hỏi cụm mật khẩu"
+  "H_WAYS_IN_HINT": "một nét sau từ sẽ hỏi cụm mật khẩu",
+  "S_D_OUTPUTS_FMT": "ĐẦU RA (%u) - %u VỀ BẠN",
+  "S_BUNDLE_IN_FMT": "TIÊU %u ĐỒNG CỦA BẠN",
+  "S_BUNDLE_OUT": "TIỀN ĐI ĐÂU",
+  "S_BUNDLE_MORE_FMT": "%u đồng nữa",
+  "S_BUNDLE_NOCHANGE_FMT": "không có tiền thừa, dùng hết cả %u đồng",
+  "S_ALL_SIGNED_FMT": "ĐÃ KÝ CẢ %u ĐỒNG"
 }
