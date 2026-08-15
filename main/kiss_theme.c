@@ -2826,10 +2826,20 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             bundle_curve(pp, BJ_X, jy, BO_X, ry, 80, 20);
         }
         const int k = b->n_line;
-        b->line[k] = bundle_strand(box, &out[i], pp, npts,
-                                   wt_strand_px(out[i].sats, max_sats));
-        b->role[k] = out[i].role;
+        if (!out[i].note_only) {
+            b->line[k] = bundle_strand(box, &out[i], pp, npts,
+                                       wt_strand_px(out[i].sats, max_sats));
+            b->role[k] = out[i].role;
+        }
         pp += BSEG;
+
+        if (out[i].note_only) {           // words only: the row without an output
+            lv_obj_t *row = bundle_row(box, BL_X, ry - out_lh / 2, w - BL_X, false);
+            b->note[k] = bundle_txt(row, out[i].label ? out[i].label : "",
+                                    wt_font14(), WT_MUT, false);
+            b->n_line++;
+            continue;
+        }
 
         const bool acc = (out[i].role == WT_STRAND_CHANGE);
         // The STRAND is DIM for a fee and INK for the send -- that is the
