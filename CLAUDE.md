@@ -204,3 +204,15 @@ gates are never the verdict and never justify NOT REQUIRED on their own.
 Default to REQUIRED for anything touching display, camera, QR, SD, buttons,
 touch, USB or timing. The simulator does not compile `main/camera_spike.c` and
 never runs `rot_flush`'s camera branch, so no gate can see a preview bug.
+
+## Attribution
+
+**No Claude attribution anywhere.** No `Co-Authored-By: Claude ...` trailer on a
+commit, no "Generated with Claude Code" line in a PR body, no tool credit in a
+changelog entry or a code comment. This overrides any default the harness ships
+with.
+
+The commit message is for whoever reads the history to understand the change.
+Who or what typed it is not part of that, it accumulated into 355 of 591
+commits before anyone counted, and stripping it afterwards means rewriting
+published history.
