@@ -1426,7 +1426,7 @@ int main(void) {
     must_show("safe-boot/title", "STORAGE LOCKED");
     must_show("safe-boot/cause", cause);
     must_not_show("safe-boot/no-game", "TAP TO PLAY");
-    save("/tmp/sim_storage_locked.ppm");
+    save("/tmp/sim_storage_locked.ppm");   // own process: not in walk order
     printf("SAFEBOOT\tSTORAGE LOCKED\t%s\n",
            kiss_settings_load_status_name((kiss_settings_load_status_t)raw));
     printf("sim done\n");
@@ -3070,6 +3070,35 @@ int main(void) {
   g_sim_commit_recover = 1;
   tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen
   must_show("setup/recover", tr(STR_L_RECOVER_T));
+
+  // Past the screen's OWN deadline first. The words have none and must not
+  // gain one -- they may be the last copy -- but the passphrase the retry
+  // keeps is a secret idling on a device nobody is touching, and five
+  // untouched minutes take it. TRY AGAIN then cannot re-derive the wallet
+  // whose fingerprint the owner read, so it must ask for the passphrase
+  // again: not open the empty-passphrase wallet under that fingerprint, and
+  // not sit there doing nothing, which is what refusing silently looked like
+  // to the one person holding the only copy.
+  pump(19000);                                     // 304s > 300s, untouched
+  must_show("recover/expired", tr(STR_L_RECOVER_T));
+  tap_str(STR_C_TRY_AGAIN, 3, 30);      // TRY AGAIN with no passphrase left
+  save("/tmp/sim_setup_recover_reask.ppm");        // the keyboard, back at stage 1
+  must_show("recover/reask", tr(STR_L_TYPE_PROMPT));
+  must_show("recover/reask-stage1", tr(STR_L_CREATE_YOUR_PASS));
+  if (kiss_ui_recover_active()) {
+    printf("FAIL: the reask left the RECOVER screen up over the keyboard\n");
+    g_walk_fails++;
+  }
+  // Type the same passphrase again, through the wizard's own type-twice, and
+  // fail the commit once more so the block below still starts where it did.
+  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning
+  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
+  touch(46, 278); pump(3); release(); pump(3);      // 'a' again
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  g_sim_commit_recover = 1;             // the injection is one shot: re-arm it
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen again
+  must_show("setup/recover-again", tr(STR_L_RECOVER_T));
   g_sim_commit_recover = 0;
   // The recovery screen, held past the login's 120-second deadline. The
   // staged secret must not inherit the hidden login's idle wipe -- the
@@ -3106,7 +3135,11 @@ int main(void) {
   }
   save("/tmp/sim_setup_recover_retry.ppm");        // retry landed, teardown held
   lv_refr_now(NULL); pump(2);
-  save("/tmp/sim_setup_warn.ppm");                  // unverified: I UNDERSTAND has red ring
+  // The same warn screen the retry just landed on, photographed again under
+  // the name the docs manifest reads. Identical to the frame above and meant
+  // to be: nothing happens between them, and it is the retry landing on this
+  // screen that proves the wallet came back. Unchanged is the assertion.
+  save("/tmp/sim_setup_warn.ppm");   // unchanged by design; red ring on I UNDERSTAND
 
   // Optional full recovery rehearsal: all generated words, then the exact
   // passphrase. Prefixes below uniquely put each expected word in suggestion 0.

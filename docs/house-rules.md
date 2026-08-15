@@ -90,7 +90,14 @@ bash sim/build_themecheck.sh && /tmp/kisstheme     # accent vs status colour
 bash sim/build_osdcheck.sh && /tmp/kissosd         # on-video overlay text
 bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locales
 bash sim/build_sim.sh && python3 tools/check_screen_coverage.py  # screens no gate sees
+bash sim/build_sim.sh && /tmp/fruitsim && python3 tools/check_sim_taps.py  # taps that hit nothing
+python3 tools/gen_docs_shots.py --check            # the frames the docs publish
 ```
+
+The last two run against the frames a plain `/tmp/fruitsim` just wrote, and both
+were on CI's list and not on this one — which is how a frame that moved into a
+harness the ordinary walk never enters went red after a push instead of before
+it. Run the walk first or they report every frame as missing.
 
 **One at a time.** `kisstest` and the screen walk share one fake SD at
 `/tmp/simsd`, so two of these running at once interleave on it and the walk
