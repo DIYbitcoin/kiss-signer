@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "SAUVEGARDE COMPLÈTE VÉRIFIÉE",
   "L_VERIFY_PASS": "SAISISSEZ LA PHRASE SECRÈTE EXACTE",
   "L_BACKUP_PASS_BAD": "CELA OUVRE UN AUTRE PORTEFEUILLE. RÉESSAYEZ.",
-  "S_TOTAL_LEAVING": "TOTAL QUITTANT LE PORTEFEUILLE",
+  "S_TOTAL_LEAVING": "TOTAL QUITTANT TON PORTEFEUILLE",
   "S_FILES_HINT": "non signés d'abord, puis A-Z. les fichiers signés sont marqués.",
   "S_FILES_MORE_FMT": "%d fichiers sur %d affichés. retirez en pour voir le reste",
   "S_FILE_UNSIGNED": "NON SIGNÉ",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_CARD_B": "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_WRITE_B": "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
-  "H_WAYS_IN_HINT": "un trait après le mot demande la phrase secrète"
+  "H_WAYS_IN_HINT": "un trait après le mot demande la phrase secrète",
+  "S_D_OUTPUTS_FMT": "SORTIES (%u) - %u POUR TOI",
+  "S_BUNDLE_IN_FMT": "DÉPENSE DE %u DE TES PIÈCES",
+  "S_BUNDLE_OUT": "OÙ CELA VA",
+  "S_BUNDLE_MORE_FMT": "%u pièces de plus",
+  "S_BUNDLE_NOCHANGE_FMT": "pas de monnaie, cela vide les %u",
+  "S_ALL_SIGNED_FMT": "LES %u PIÈCES SIGNÉES"
 }

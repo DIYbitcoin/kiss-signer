@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "完整备份已验证",
   "L_VERIFY_PASS": "输入备份中的准确密码短语",
   "L_BACKUP_PASS_BAD": "这会打开另一个钱包，请重试。",
-  "S_TOTAL_LEAVING": "离开钱包的总额",
+  "S_TOTAL_LEAVING": "离开你钱包的总额",
   "S_FILES_HINT": "未签名优先，然后按A-Z。已签名文件有标记。",
   "S_FILES_MORE_FMT": "显示 %d 个文件，全部有 %d 个。移除一些才能看到其余的",
   "S_FILE_UNSIGNED": "未签名",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "签名不对。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_CARD_B": "卡在中间停止回应。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_WRITE_B": "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。",
-  "H_WAYS_IN_HINT": "再画一笔，进入密码短语"
+  "H_WAYS_IN_HINT": "再画一笔，进入密码短语",
+  "S_D_OUTPUTS_FMT": "输出 (%u), %u 个到你",
+  "S_BUNDLE_IN_FMT": "花掉你的 %u 个币",
+  "S_BUNDLE_OUT": "去向",
+  "S_BUNDLE_MORE_FMT": "另有 %u 个币",
+  "S_BUNDLE_NOCHANGE_FMT": "没有找零, 这会花掉全部 %u 个",
+  "S_ALL_SIGNED_FMT": "全部 %u 个币已签名"
 }

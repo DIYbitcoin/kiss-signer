@@ -437,7 +437,7 @@
   "L_BACKUP_VERIFIED": "VOLLEDIGE BACK-UP GECONTROLEERD",
   "L_VERIFY_PASS": "TYP DE EXACTE BACK-UPPASSPHRASE",
   "L_BACKUP_PASS_BAD": "DAT OPENT EEN ANDERE WALLET. PROBEER OPNIEUW.",
-  "S_TOTAL_LEAVING": "TOTAAL UIT DE WALLET",
+  "S_TOTAL_LEAVING": "TOTAAL UIT JOUW WALLET",
   "S_FILES_HINT": "eerst ongetekend, dan A-Z. getekende bestanden zijn gemarkeerd.",
   "S_FILES_MORE_FMT": "%d van %d bestanden getoond. verwijder er een paar voor de rest",
   "S_FILE_UNSIGNED": "ONGETEKEND",
@@ -626,5 +626,11 @@
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_CARD_B": "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_WRITE_B": "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
-  "H_WAYS_IN_HINT": "een streek na het woord vraagt om de passphrase"
+  "H_WAYS_IN_HINT": "een streek na het woord vraagt om de passphrase",
+  "S_D_OUTPUTS_FMT": "OUTPUTS (%u) - %u NAAR JOU",
+  "S_BUNDLE_IN_FMT": "%u VAN JOUW MUNTEN UITGEVEN",
+  "S_BUNDLE_OUT": "WAAR HET HEEN GAAT",
+  "S_BUNDLE_MORE_FMT": "%u munten meer",
+  "S_BUNDLE_NOCHANGE_FMT": "geen wisselgeld, dit leegt alle %u",
+  "S_ALL_SIGNED_FMT": "ALLE %u MUNTEN ONDERTEKEND"
 }
