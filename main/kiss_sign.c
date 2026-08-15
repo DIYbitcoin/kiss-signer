@@ -1470,15 +1470,15 @@ static void verify_screen(lv_obj_t *parent)
                                           .role  = WT_STRAND_SEND,
                                           .addr  = recipient_n > 1
                                                    ? s_sum.outs[i].addr : NULL };
-            // A silent payment says a second thing about itself: the address on
-            // chain is derived HERE and is not the one you were handed. That is
-            // a claim about the strand above it, so it takes the row under it
-            // rather than a panel somewhere else, and the column grows and
-            // scrolls to hold it like any other row.
-            if (s_sum.outs[i].is_sp && n_out < WT_BUNDLE_MAX)
-                out[n_out++] = (wt_strand_t){ .label = sp_onchain_note(),
-                                              .role = WT_STRAND_SEND,
-                                              .note_only = true };
+            // A silent payment used to claim its on-chain address here, in a
+            // paragraph under its own row. That row cost the column its last
+            // line: amount + paragraph + fee + change is 4 rows in a band that
+            // holds 3, so every SP send scrolled and the read-to-the-end gate
+            // held HOLD TO SIGN until the column had been dragged -- the SP
+            // case, on a screen whose first job is saying a signature is
+            // armed. The note lives on the DETAILS page now, beside the SP
+            // output's address, where a reader who wants the raw facts has
+            // already come.
         }
         if (n_out < WT_BUNDLE_MAX)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
@@ -1793,22 +1793,16 @@ static int det_h(lv_obj_t *o)
     return lv_obj_get_height(o);
 }
 
-// One flag row: an icon, the value beside it in ink, and the note under both.
-// Advances *y past whatever it used.
+// One flag row: an icon, the value beside it in ink. Advances *y past whatever
+// it used. `tail` used to be the explainer sentence under the value; every row
+// carries a "?" whose card is that sentence, so no row draws it twice anymore
+// and the parameter survives for the day one locale genuinely needs the text
+// on the page.
 //
-// The notes are hard wrapped in the tables with a "\n", from when this column
-// was a stack of sentences in a 330px lane. Those breaks are wrong for a lane
-// that now starts past an icon, so they are flattened to spaces and the label
-// wraps where the width actually is. Nothing translated changes; only where the
-// line happens to end.
-//
-// `floor_y` is the last y this row may touch, and it is what makes the strip
-// safe in twenty locales rather than in the one it was measured in. English
-// fits three rows with room to spare; Polish and Russian run about 40% longer,
-// and the two that would spill are held to the lines they have left and
-// ellipsised. A clipped sentence is bad. A sentence drawn over the BACK pill,
-// on the page whose job is telling you what you are about to sign, is worse.
-// One "?" per TERM, not one for the strip.
+// `floor_y` is the last y this row may touch, and it is what keeps the strip
+// safe in twenty locales rather than in the one it was measured in. A clipped
+// sentence is bad. A sentence drawn over the BACK pill, on the page whose job
+// is telling you what you are about to sign, is worse.
 //
 // The fee row used to carry a single chip whose card answered fee rate,
 // version, locktime and sighash together -- four questions behind one mark, so
@@ -2098,7 +2092,24 @@ static void details_cb(lv_event_t *e)
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
         lv_obj_set_style_text_font(amt, wt_font23(), 0);
-        wt_addr_spans(row, s_sum.outs[i].addr, 248, wt_font14());
+        // The fold, not the whole address: this list's job is "one line of
+        // facts per output", and the full form is a 248px wall of mono14 that
+        // pushed the eighth output off the fold. The last eight still light
+        // (the same rule the verify screen teaches), and the verify screen's
+        // reveal is one BACK away for anyone comparing character by character.
+        wt_addr_short(row, s_sum.outs[i].addr, wt_font14());
+        // A silent payment output's on-chain address is not the one handed
+        // over: the graph used to carry this claim and lost it because a
+        // paragraph costs the column a row. Here it is beside the very address
+        // it is about, on the page a reader comes to for the raw facts.
+        if (s_sum.outs[i].is_sp) {
+            lv_obj_t *spn = lv_label_create(row);
+            lv_label_set_text(spn, sp_onchain_note());
+            lv_obj_set_style_text_color(spn, MUT_COL, 0);
+            lv_obj_set_style_text_font(spn, wt_font14(), 0);
+            lv_obj_set_width(spn, 248);
+            lv_label_set_long_mode(spn, LV_LABEL_LONG_WRAP);
+        }
     }
 
     // ---- the right column ----
@@ -2176,7 +2187,7 @@ static void details_cb(lv_event_t *e)
     lv_obj_t *bt = mk_lbl(buf, RX, ry, wt_font23(), INK_COL);
     ry += det_h(bt) + 10;
 
-    // ---- the three flag rows ----
+    // ---- the flag rows ----
     // "is this transaction normal" has exactly three answers on this device, and
     // they were three more grey sentences in the same stack as everything else.
     // Each is written `head: tail` in all 21 locales, so the head becomes the
@@ -2184,21 +2195,23 @@ static void details_cb(lv_event_t *e)
     // new string anywhere: wt_split_colon reads the shape the translators
     // already wrote, wide colon and French spacing included.
     //
+    // The tail stayed ON the row for a long time, and it is gone now. Every row
+    // keeps a "?" at its right edge whose card answers for itself -- the same
+    // head:tail string, in full -- and a note that duplicates its own card is a
+    // note that costs the column a line in twenty locales for text the reader
+    // must already have opened to learn anything from. The row shows the fact;
+    // the "?" shows why it matters.
+    //
     // The version and locktime numbers ride on the locktime row's head instead
     // of a line of their own, and the head the locale wrote for that row is
     // dropped: "locktime 0" beside "version 2, locktime 0" is the same value
     // printed twice.
-    char lt_head[64], sh_head[64], rbf_head[64];
+    char sh_head[64], rbf_head[64];
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
              (unsigned)det.version, (unsigned)det.locktime);
-    const char *lt_tail = wt_split_colon(det.locktime ? tr(STR_S_D_LT_NONZERO)
-                                                      : tr(STR_S_D_LT_ZERO),
-                                         lt_head, sizeof lt_head);
-    const char *sh_tail = wt_split_colon(tr(STR_S_D_SIGHASH),
-                                         sh_head, sizeof sh_head);
-    const char *rbf_tail = wt_split_colon(s_sum.rbf ? tr(STR_S_D_RBF_ON)
-                                                    : tr(STR_S_D_RBF_OFF),
-                                          rbf_head, sizeof rbf_head);
+    wt_split_colon(tr(STR_S_D_SIGHASH), sh_head, sizeof sh_head);
+    wt_split_colon(s_sum.rbf ? tr(STR_S_D_RBF_ON) : tr(STR_S_D_RBF_OFF),
+                   rbf_head, sizeof rbf_head);
 
     // The fee rate joins the strip rather than floating above it as a loose
     // muted line. It is a property of the transaction exactly like the three
@@ -2220,18 +2233,18 @@ static void details_cb(lv_event_t *e)
     wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)DT_FEE);
     chip_y = ry;
-    det_flag_row(RX, &ry, WT_ICON_LOCK, buf, lt_tail, RW - 34, RFLOOR);
+    det_flag_row(RX, &ry, WT_ICON_LOCK, buf, NULL, RW - 34, RFLOOR);
     wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)DT_LOCKTIME);
     chip_y = ry;
-    det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, sh_tail, RW - 34, RFLOOR);
+    det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, NULL, RW - 34, RFLOOR);
     wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)DT_SIGHASH);
     chip_y = ry;
     // The same mark the RBF explainer wears, so the row and the card that
     // explains it are recognisably about one thing.
     det_flag_row(RX, &ry, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
-                 rbf_head, rbf_tail, RW - 34, RFLOOR);
+                 rbf_head, NULL, RW - 34, RFLOOR);
     wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)DT_RBF);
 
