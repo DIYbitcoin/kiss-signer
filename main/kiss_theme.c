@@ -2870,7 +2870,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     for (size_t i = 0; i < n_in; i++) {
         lv_point_t ts;
         int wid = 0;
-        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        wt_fmt_amount(in[i].sats, amt, sizeof amt);
         lv_text_get_size(&ts, amt, wt_font_mono14(), 0, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         wid = ts.x;
@@ -2916,7 +2916,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
 
         const bool acc = in[i].signed_ok;
         lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
-        wt_fmt_sats(in[i].sats, amt, sizeof amt);
+        wt_fmt_amount(in[i].sats, amt, sizeof amt);
         if (in[i].label)                      // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);
@@ -3041,7 +3041,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // likely to be checking. Only change takes the accent, and it is the
         // only accent text in the graph.
         const lv_color_t oc = acc ? wt_accent() : WT_INK;
-        wt_fmt_sats(out[i].sats, amt, sizeof amt);
+        wt_fmt_amount(out[i].sats, amt, sizeof amt);
         b->amount[k] = bundle_txt(line, amt, wt_font_mono23(), oc, acc);
         if (out[i].label)
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
@@ -3280,6 +3280,42 @@ void wt_fmt_btc(uint64_t sats, char *out, size_t out_len)
     snprintf(out, out_len, "%llu.%08llu",
              (unsigned long long)(sats / 100000000ULL),
              (unsigned long long)(sats % 100000000ULL));
+}
+
+// The owner's unit. Sats is the default because this is a signer and the
+// numbers it shows are compared against a coordinator's transaction view,
+// which counts in sats far more often than not; BTC is one row away for anyone
+// whose coordinator counts the other way. It is a display preference and
+// nothing else -- every amount on this device is a uint64 of satoshis, and the
+// setting never reaches storage, a PSBT, or a signature.
+static int s_denom = WT_DENOM_SATS;
+int  wt_denom(void)        { return s_denom; }
+void wt_denom_set(int d)   { s_denom = d == WT_DENOM_BTC ? WT_DENOM_BTC
+                                                         : WT_DENOM_SATS; }
+const char *wt_denom_unit(void)
+{
+    return s_denom == WT_DENOM_BTC ? "BTC" : "sats";
+}
+
+// The same amount in the OTHER unit, for the places that show both: the sign
+// screen prints the total large in the chosen one and small in the other, so
+// whichever way a coordinator counts, the number is on the glass without a
+// trip to Settings.
+void wt_fmt_amount(uint64_t sats, char *out, size_t out_len)
+{
+    if (s_denom == WT_DENOM_BTC) wt_fmt_btc(sats, out, out_len);
+    else                         wt_fmt_sats(sats, out, out_len);
+}
+
+void wt_fmt_amount_alt(uint64_t sats, char *out, size_t out_len)
+{
+    if (s_denom == WT_DENOM_BTC) wt_fmt_sats(sats, out, out_len);
+    else                         wt_fmt_btc(sats, out, out_len);
+}
+
+const char *wt_denom_unit_alt(void)
+{
+    return s_denom == WT_DENOM_BTC ? "sats" : "BTC";
 }
 
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len)

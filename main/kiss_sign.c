@@ -19,6 +19,7 @@
 #include "kiss_psbt.h"
 #include "kiss_scan.h"
 #include "kiss_theme.h"
+#include "kiss_settings.h"   // the unit preference, written where it is changed
 #include "kiss_ui.h"   // kiss_ui_last_fp: the SIGNING AS fingerprint
 #include "kiss_usage.h"   // reuse guard: mark receive indexes used on sign
 
@@ -898,6 +899,20 @@ static void caution_help_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
+// Tapping the total switches the unit every amount is drawn in. A full
+// repaint, like every other state change on this screen: the strand labels,
+// the lists and the pair of totals all read the preference, and a partial
+// redraw here would be the one path that has to stay in step with
+// verify_screen by hand.
+static void repaint_verify(void);
+static void denom_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_settings_set_denom(wt_denom() == WT_DENOM_BTC ? WT_DENOM_SATS
+                                                       : WT_DENOM_BTC);
+    repaint_verify();
+}
+
 // ---- "?" beside the coins caption: what a coin is ----
 // The word on the glass stays "coins", which is what a coordinator's own coin
 // control calls them; the card names the term the rest of Bitcoin writes down.
@@ -1423,21 +1438,34 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_pad_column(row, 14, 0);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
-        fmt_sats(total, a, sizeof a);
+        wt_fmt_amount(total, a, sizeof a);
         // font_kiss_num48: digits, A to F, space and full stop. It cannot spell
         // a word, so it can never be handed a translated string by accident.
+        // The total is the switch. Tapping it moves every amount on the
+        // device between sats and BTC and writes the choice, which is how a
+        // wallet that offers both units has always done it: the number a
+        // coordinator is being compared against is the one place the question
+        // comes up, and the settings page this would otherwise need a row on
+        // is full to its margins.
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(row, 8);
+        lv_obj_add_event_cb(row, denom_cb, LV_EVENT_CLICKED, NULL);
+
         lv_obj_t *big = lv_label_create(row);
         lv_label_set_text(big, a);
         lv_obj_set_style_text_font(big, wt_font_num48(), 0);
         lv_obj_set_style_text_color(big, INK_COL, 0);
 
         lv_obj_t *unit = lv_label_create(row);
-        lv_label_set_text(unit, "sats");
+        lv_label_set_text(unit, wt_denom_unit());
         lv_obj_set_style_text_font(unit, wt_font23(), 0);
         lv_obj_set_style_text_color(unit, INK_COL, 0);
 
-        wt_fmt_btc(total, b, sizeof b);
-        snprintf(buf, sizeof buf, "%s BTC", b);
+        // The other unit, small, under the big one: a coordinator that counts
+        // the other way is checked against this line without a trip to
+        // Settings, which is the whole reason both are here.
+        wt_fmt_amount_alt(total, b, sizeof b);
+        snprintf(buf, sizeof buf, "%s %s", b, wt_denom_unit_alt());
         lv_obj_t *btc = lv_label_create(row);
         lv_label_set_text(btc, buf);
         lv_obj_set_style_text_font(btc, wt_font_mono14(), 0);
@@ -2211,15 +2239,15 @@ static void details_cb(lv_event_t *e)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
-        fmt_sats(det.ins[i].sats, a, sizeof a);
+        wt_fmt_amount(det.ins[i].sats, a, sizeof a);
         // The verify screen can only say "one of these amounts is not proven".
         // This is the page that says WHICH, so the mark leads the number and the
         // number wears the doubt: a tick when a previous transaction hashing to
         // this outpoint vouched for it, an eye-slash in WARN when the amount is
         // only what the coordinator claimed. Both glyphs are already in SYMS.
         bool ok = det.ins[i].proven;
-        snprintf(buf, sizeof buf, "%s %s sats",
-                 ok ? LV_SYMBOL_OK : WT_ICON_HIDDEN, a);
+        snprintf(buf, sizeof buf, "%s %s %s",
+                 ok ? LV_SYMBOL_OK : WT_ICON_HIDDEN, a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ok ? INK_COL : WARN_COL, 0);
@@ -2296,7 +2324,7 @@ static void details_cb(lv_event_t *e)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_bottom(row, 10, 0);
 
-        fmt_sats(s_sum.outs[i].sats, a, sizeof a);
+        wt_fmt_amount(s_sum.outs[i].sats, a, sizeof a);
         // The tick is the change output's own claim -- re-derived and verified
         // on this device -- and it is WT_OK because that is a status, not the
         // accent. A recipient gets no tick: the signer has nothing to vouch for
@@ -2305,8 +2333,9 @@ static void details_cb(lv_event_t *e)
         // The glossary's CHANGE mark, not a bare tick: on a list of outputs the
         // question is WHICH of them comes back, and a tick answered "this one
         // is fine". Green still says verified ours.
-        if (ours) snprintf(buf, sizeof buf, "%s %s sats", GLOSS_ICONS[2], a);
-        else      snprintf(buf, sizeof buf, "%s sats", a);
+        if (ours) snprintf(buf, sizeof buf, "%s %s %s", GLOSS_ICONS[2], a,
+                           wt_denom_unit());
+        else      snprintf(buf, sizeof buf, "%s %s", a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
@@ -2402,8 +2431,8 @@ static void details_cb(lv_event_t *e)
     // arm's length the sats total is a scan away on the verify screen the tap
     // to DETAILS came from.
     uint64_t leaving = s_sum.send_sats + s_sum.fee_sats;   // as the verify screen counts it
-    wt_fmt_btc(leaving, gt, sizeof gt);
-    snprintf(buf, sizeof buf, "= %s BTC", gt);
+    wt_fmt_amount_alt(leaving, gt, sizeof gt);
+    snprintf(buf, sizeof buf, "= %s %s", gt, wt_denom_unit_alt());
     // 23, and INK. This is the number a holder reads off the glass and compares
     // against the coordinator, which is the entire reason the BTC form is here
     // at all. It was the same size and the same grey as the locktime note.

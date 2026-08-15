@@ -2038,6 +2038,18 @@ int main(void) {
   // mono23 line a longer testnet prefix can push at the panel edge, and the
   // full one is the render that used to be the only one there was.
   //
+  // The total is the unit switch. Tap it, and every amount on the screen --
+  // the big total, the pair under it, and every strand label on the graph --
+  // has to move to BTC together; tap it back and the frame must be the one
+  // photographed before. A wallet that shows two units and switches only some
+  // of them is worse than one that shows a single unit.
+  touch(120, 130); pump(3); release(); pump(10);
+  save("/tmp/sim_sign_btc.ppm");            // the same transaction, in BTC
+  must_show("btc unit", "BTC");
+  must_show("btc unit", "0.00061000");
+  touch(120, 130); pump(3); release(); pump(10);
+  must_show("sats unit", "61 000");
+
   // The coins caption's own "?": the first word on this screen a newcomer has
   // to be taught, and until now the only one with nothing to tap. The chip is
   // placed off the caption's measured width, so this tap also proves the

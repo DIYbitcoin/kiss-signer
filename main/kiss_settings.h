@@ -25,6 +25,10 @@ typedef enum {
 
 kiss_settings_load_status_t kiss_settings_load(void);
 
+// Display unit for amounts (WT_DENOM_SATS / WT_DENOM_BTC): applies it and
+// writes it, so the sign screen can offer the switch where the amounts are.
+void kiss_settings_set_denom(int d);
+
 // Stable symbolic cause plus the underlying platform error (0 when there was
 // none). Kept ESP-independent so the simulator and host fault harnesses can
 // exercise the same boot-routing contract.

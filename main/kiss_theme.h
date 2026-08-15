@@ -760,6 +760,16 @@ lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int 
 
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4
+// Display unit. A preference about rendering only: amounts are satoshis
+// everywhere in this firmware, and nothing below the screen ever sees this.
+#define WT_DENOM_SATS 0
+#define WT_DENOM_BTC  1
+int  wt_denom(void);
+void wt_denom_set(int d);
+const char *wt_denom_unit(void);       // "sats" / "BTC"
+const char *wt_denom_unit_alt(void);   // the other one
+void wt_fmt_amount(uint64_t sats, char *out, size_t out_len);      // in the chosen unit
+void wt_fmt_amount_alt(uint64_t sats, char *out, size_t out_len);  // ...and in the other
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567
 void wt_fmt_btc(uint64_t sats, char *out, size_t out_len);     // 61000 -> 0.00061000
 

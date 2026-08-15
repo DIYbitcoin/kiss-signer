@@ -114,6 +114,18 @@ static const char *type_note(int sc)
 
 bool kiss_settings_active(void) { return s_scr != NULL; }
 
+static void store_u8(const char *key, uint8_t v);
+
+// The unit amounts are shown in. Changed by tapping the total on the sign
+// screen -- the amount IS the control, which is how every wallet that offers
+// this does it -- and persisted here beside the accent, because it is the same
+// kind of preference and survives a power cycle the same way.
+void kiss_settings_set_denom(int d)
+{
+    wt_denom_set(d);
+    store_u8("denom", (uint8_t)wt_denom());
+}
+
 // ---- persistence ----
 static void store_u8(const char *key, uint8_t v)
 {
@@ -181,6 +193,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
 
     nvs_handle_t h;
     uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
+    uint8_t dn = WT_DENOM_SATS;   // sats unless a previous run said otherwise
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -192,6 +205,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
         bool ok = get_optional_u8(h, "testnet", &tn) &&
                   get_optional_u8(h, "script", &sc) &&
                   get_optional_u8(h, "accent", &ac) &&
+                  get_optional_u8(h, "denom", &dn) &&
                   get_optional_u8(h, "lang", &lg);
         nvs_close(h);
         if (!ok)
@@ -204,6 +218,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     kiss_set_network(tn);
     kiss_set_script(sc);
     wt_accent_set(ac);
+    wt_denom_set(dn);
     i18n_set_lang(lg);
     return WSETTINGS_LOAD_OK;
 #endif
