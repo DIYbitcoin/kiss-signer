@@ -325,6 +325,7 @@ bool part_indexes_is_strict_subset(const part_indexes_t *a,
   return i == a->count;
 }
 
+#ifdef ENABLE_CROSS_REDUCTION
 static bool part_indexes_append_sorted(part_indexes_t *indexes, size_t value) {
   if (indexes->count >= indexes->capacity) {
     size_t new_capacity = indexes->capacity == 0 ? 4 : indexes->capacity * 2;
@@ -338,29 +339,65 @@ static bool part_indexes_append_sorted(part_indexes_t *indexes, size_t value) {
   indexes->indexes[indexes->count++] = value;
   return true;
 }
+#endif // ENABLE_CROSS_REDUCTION
 
 bool part_indexes_difference(const part_indexes_t *a, const part_indexes_t *b,
                              part_indexes_t *result) {
   if (!a || !b || !result)
     return false;
 
-  part_indexes_clear(result);
-
-  size_t i = 0, j = 0;
-  while (i < a->count) {
-    if (j >= b->count || a->indexes[i] < b->indexes[j]) {
-      if (!part_indexes_append_sorted(result, a->indexes[i])) {
-        return false;
-      }
+  // Two passes over the sorted arrays. Pass 1 counts the elements of a that b
+  // does not contain; pass 2 allocates exactly that many and fills them. The
+  // result is stored into a mixed entry (reduce_mixed_by installs it as the
+  // key), so the byte budget counts capacity, and capacity must equal count.
+  // An append-grown array would overshoot the budget the moment the reduction
+  // it belonged to was admitted.
+  //
+  // Built into a LOCAL temporary, not into *result. The public function can
+  // be called with a result that already owns a populated array (the reuse
+  // case), and writing a new pointer into it before the allocation is proven
+  // would leak the old one. The swap at the end frees the old array exactly
+  // once, on success; on failure *result is untouched, which is what callers
+  // rely on to skip the reduction with nothing to clean up.
+  size_t i = 0, j = 0, count = 0;
+  while (i < a->count && j < b->count) {
+    if (a->indexes[i] < b->indexes[j]) {
+      count++;
       i++;
-    } else if (a->indexes[i] == b->indexes[j]) {
-      i++;
+    } else if (a->indexes[i] > b->indexes[j]) {
       j++;
     } else {
+      i++;
       j++;
     }
   }
+  count += a->count - i;
 
+  part_indexes_t tmp = {0};
+  if (count) {
+    tmp.indexes = safe_malloc(count * sizeof(size_t));
+    if (!tmp.indexes)
+      return false;
+  }
+  tmp.count = tmp.capacity = count;
+
+  i = j = 0;
+  size_t n = 0;
+  while (i < a->count && j < b->count) {
+    if (a->indexes[i] < b->indexes[j]) {
+      tmp.indexes[n++] = a->indexes[i++];
+    } else if (a->indexes[i] > b->indexes[j]) {
+      j++;
+    } else {
+      i++;
+      j++;
+    }
+  }
+  while (i < a->count)
+    tmp.indexes[n++] = a->indexes[i++];
+
+  free(result->indexes);
+  *result = tmp;
   return true;
 }
 

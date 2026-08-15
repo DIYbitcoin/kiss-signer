@@ -60,6 +60,9 @@ struct fountain_decoder {
 
   // Hash-based mixed parts storage
   mixed_parts_hash_t *mixed_parts_hash;
+  size_t mixed_bytes; // live bytes of stored mixed entries; see mixed_hash_bytes
+  size_t mixed_peak_bytes; // high-water mark of mixed_bytes; desktop test
+  size_t mixed_drops;      // budget refusals; desktop test
 
   // Lightweight duplicate detection (stores only hashes, not full parts)
   hash_set_t received_fragments_hashes;
@@ -92,6 +95,11 @@ struct fountain_decoder {
 #define HASH_MIN_CAPACITY 64
 #define HASH_CAPACITY_MULTIPLIER 1
 #define MAX_MIXED_PARTS 256 // Limit mixed parts to prevent memory explosion
+// The count alone does not bound memory: 256 parts of a large payload would
+// hold hundreds of kilobytes on a ~340 KB heap. The byte budget bites first,
+// charged against what the entries actually hold: the payload, both duplicated
+// index arrays (the hash key and the part's own set), and the entry itself.
+#define MAX_MIXED_BYTES (96 * 1024)
 #define MAX_DUPLICATE_TRACKING 512 // Limit duplicate tracking set size
 
 #ifdef ENABLE_CROSS_REDUCTION
@@ -705,6 +713,40 @@ static bool reduce_part_by_part(const decoder_part_t *const a,
   return true;
 }
 
+// Live bytes of one mixed entry: the entry itself, its key's index array and
+// the stored part's own index array, and the payload. part_indexes_copy and
+// part_indexes_difference allocate exactly count entries, so count and
+// capacity agree and either charges the same.
+static size_t mixed_entry_bytes(const hash_entry_t *entry) {
+  return sizeof(hash_entry_t) +
+         entry->key.capacity * sizeof(size_t) +
+         entry->value.indexes.capacity * sizeof(size_t) +
+         entry->value.data_len;
+}
+
+// The whole hash's live bytes, summed from the entries. Recomputed after every
+// mutation (insert, shrink, removal) rather than adjusted delta-wise: a
+// counter that drifts stale both breaks the ceiling and, worse, rejects later
+// fragments on its stale history. The walk is at most MAX_MIXED_PARTS entries,
+// which is cheaper than the bug it buys out.
+static size_t mixed_hash_bytes(const mixed_parts_hash_t *hash) {
+  size_t total = 0;
+  if (!hash)
+    return 0;
+  for (size_t i = 0; i < hash->capacity; i++)
+    for (const hash_entry_t *e = hash->buckets[i]; e; e = e->next)
+      total += mixed_entry_bytes(e);
+  return total;
+}
+
+// What one new mixed part will cost once stored: its entry, the two index
+// array copies (hash key and the value's own set) and its payload. The copies
+// allocate exactly count entries, so the candidate's arrays charge count.
+static size_t mixed_part_cost(const decoder_part_t *part) {
+  return sizeof(hash_entry_t) + 2 * part->indexes.count * sizeof(size_t) +
+         part->data_len;
+}
+
 static bool add_mixed_part(fountain_decoder_t *const decoder,
                            const decoder_part_t *const part,
                            const mixed_part_source_t source) {
@@ -713,7 +755,9 @@ static bool add_mixed_part(fountain_decoder_t *const decoder,
 
   // Limit mixed parts to prevent memory explosion on embedded devices
   // When limit is reached, skip adding new mixed parts but continue processing
-  if (decoder->mixed_parts_hash->count >= MAX_MIXED_PARTS) {
+  if (decoder->mixed_parts_hash->count >= MAX_MIXED_PARTS ||
+      decoder->mixed_bytes + mixed_part_cost(part) > MAX_MIXED_BYTES) {
+    decoder->mixed_drops++;
     return false; // Limit reached, skip adding this mixed part
   }
 
@@ -721,6 +765,9 @@ static bool add_mixed_part(fountain_decoder_t *const decoder,
   if (!mixed_hash_put(decoder->mixed_parts_hash, &part->indexes, part)) {
     return false; // Duplicate or error
   }
+  decoder->mixed_bytes = mixed_hash_bytes(decoder->mixed_parts_hash);
+  if (decoder->mixed_bytes > decoder->mixed_peak_bytes)
+    decoder->mixed_peak_bytes = decoder->mixed_bytes;
 
 #ifdef DEBUG_STATS
   // Track the source of this mixed part
@@ -758,6 +805,9 @@ static void fountain_decoder_clear_initialization(fountain_decoder_t *decoder) {
     mixed_hash_free(decoder->mixed_parts_hash);
     safe_free(decoder->mixed_parts_hash);
   }
+  decoder->mixed_bytes = 0;
+  decoder->mixed_peak_bytes = 0;
+  decoder->mixed_drops = 0;
   hash_set_free(&decoder->received_fragments_hashes);
   random_sampler_free(&decoder->degree_sampler);
 
@@ -793,7 +843,31 @@ static void reduce_mixed_by(fountain_decoder_t *const decoder,
       }
 
       part_indexes_t new_indexes = {0};
-      if (!part_indexes_difference(&entry->key, &part->indexes, &new_indexes)) {
+      part_indexes_t new_value_indexes = {0};
+      // Allocate BOTH replacement arrays before touching the entry. The old
+      // code XOR'd the data and installed the new key, then tried to copy
+      // value.indexes, and a failure on that second allocation left the entry
+      // half rewritten: new key, XOR'd data, empty index array. The two-pass
+      // difference and the copy leave nothing allocated on failure, so the
+      // free below is at most one array, and the entry is only mutated once
+      // both exist.
+      //
+      // The two allocations are tagged for the allocation-failure stress
+      // test (utils.h): the test arms DIFF and COPY separately to fail them
+      // one at a time. Tagged HERE, at the caller, not inside the shared
+      // part_indexes_difference/part_indexes_copy -- the encoder and the
+      // part-reduction path call the same functions, and a tag inside them
+      // would have failed the encoder's own next_part instead of the
+      // transaction it is meant to aim at.
+      int prev_site = ur_site_enter(UR_SITE_DIFF);
+      bool diff_ok = part_indexes_difference(&entry->key, &part->indexes,
+                                             &new_indexes);
+      ur_site_leave(prev_site);
+      prev_site = ur_site_enter(UR_SITE_COPY);
+      bool copy_ok = part_indexes_copy(&new_indexes, &new_value_indexes);
+      ur_site_leave(prev_site);
+      if (!diff_ok || !copy_ok) {
+        free(new_indexes.indexes);
         prev = entry;
         entry = next;
         continue;
@@ -809,9 +883,7 @@ static void reduce_mixed_by(fountain_decoder_t *const decoder,
       entry->key_hash = hash_indexes(&entry->key);
 
       free(entry->value.indexes.indexes);
-      entry->value.indexes = (part_indexes_t){0};
-      if (!part_indexes_copy(&new_indexes, &entry->value.indexes))
-        return;   // rather than leave the entry half rewritten
+      entry->value.indexes = new_value_indexes;
 
       if (is_simple_part(&entry->value)) {
 #ifdef DEBUG_STATS
@@ -866,6 +938,9 @@ static void reduce_mixed_by(fountain_decoder_t *const decoder,
     e->next = hash->buckets[b];
     hash->buckets[b] = e;
   }
+
+// The walk shrank and removed entries; the budget sees the result.
+  decoder->mixed_bytes = mixed_hash_bytes(decoder->mixed_parts_hash);
 
 #ifdef DEBUG_STATS
   if (hash->count > decoder->maximum_mixed_parts) {
@@ -1049,7 +1124,10 @@ static void gaussian_reduce_with_new_part(fountain_decoder_t *const decoder,
               queue_enqueue(&decoder->queue, &reduced);
             }
           } else {
-            // Add reduced mixed part back
+            // Add reduced mixed part back. The walk above removed entries,
+            // so refresh the budget before the guard inside add_mixed_part
+            // reads it.
+            decoder->mixed_bytes = mixed_hash_bytes(decoder->mixed_parts_hash);
             add_mixed_part(decoder, &reduced, MIXED_SOURCE_REDUCTION);
           }
           decoder_part_free(&reduced);
@@ -1065,6 +1143,9 @@ static void gaussian_reduce_with_new_part(fountain_decoder_t *const decoder,
       entry = next;
     }
   }
+
+  // The walk removed and reinserted entries; the budget sees the result.
+  decoder->mixed_bytes = mixed_hash_bytes(decoder->mixed_parts_hash);
 }
 #endif // ENABLE_CROSS_REDUCTION
 
@@ -1436,6 +1517,14 @@ size_t fountain_decoder_result_message_len(fountain_decoder_t *decoder) {
   if (!decoder || !decoder->result)
     return 0;
   return decoder->result->data_len;
+}
+
+void fountain_decoder_mixed_stats(const fountain_decoder_t *decoder,
+                                  size_t *peak_bytes, size_t *drops) {
+  if (peak_bytes)
+    *peak_bytes = decoder ? decoder->mixed_peak_bytes : 0;
+  if (drops)
+    *drops = decoder ? decoder->mixed_drops : 0;
 }
 
 size_t fountain_decoder_processed_parts_count(fountain_decoder_t *decoder) {

@@ -124,4 +124,44 @@ char *safe_strdup(const char *str);
     (p) = NULL;                                                                \
   } while (0)
 
+// Allocation-failure injection, for the desktop stress test. The hook exists
+// only in the dedicated host-test build; production keeps the plain allocation
+// wrappers and no mutable injector state. Three knobs, used together:
+//
+//   ur_alloc_arm(site, at)  — arm the hook: the `at`-th allocation (1-based)
+//                             made at `site` fails, and the hook then disarms
+//                             itself (fail-on-Nth, single shot). A failed
+//                             safe_realloc keeps the old pointer, matching
+//                             realloc(3), which the two-pass difference and
+//                             the copy-before-mutate reduction rely on.
+//   ur_alloc_hits()         — matching allocations attempted since the arm.
+//                             The test asserts this to prove the armed site
+//                             was actually reached, so a test can no longer
+//                             pass by failing an allocation the target code
+//                             never runs.
+//   ur_site_enter/leave     — allocation-site tagging: push a site at
+//                             function entry, restore the previous one at
+//                             exit. An arm aimed at a site only counts (and
+//                             can only fail) allocations made while that
+//                             site is current, so the test does not have to
+//                             count the allocations on the way to its target.
+enum {
+  UR_SITE_NONE = 0,   // untagged allocations; never the fail target
+  UR_SITE_DIFF = 1,   // part_indexes_difference's count-exact allocation
+  UR_SITE_COPY = 2,   // part_indexes_copy's value-indexes allocation
+};
+#ifdef UR_ALLOC_FAIL_TEST
+void ur_alloc_arm(int site, int at);
+void ur_alloc_disarm(void);
+unsigned ur_alloc_hits(void);
+int ur_site_enter(int site);
+void ur_site_leave(int prev);
+#else
+// Keep the reduction source identical in production while compiling the site
+// markers completely away. The site constants remain available so the call
+// sites do not grow test-only branches of their own.
+#define ur_site_enter(site) ((void)(site), UR_SITE_NONE)
+#define ur_site_leave(prev) ((void)(prev))
+#endif
+
 #endif // UR_UTILS_H
