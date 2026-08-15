@@ -3021,21 +3021,71 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     return box;
 }
 
-lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
+// The state block is hung off the delete callback rather than user_data, which
+// wt_screen already spends on its own tag. Reading it back through the same
+// event is the one place that is not a layering violation.
+static wt_bundle_t *bundle_state(lv_obj_t *bundle)
 {
-    if (!bundle) return NULL;
-    // The state block is hung off the delete callback rather than user_data,
-    // which wt_screen already spends on its own tag. Reading it back through
-    // the same event is the one place that is not a layering violation.
     uint32_t n = lv_obj_get_event_count(bundle);
     for (uint32_t i = 0; i < n; i++) {
         lv_event_dsc_t *d = lv_obj_get_event_dsc(bundle, i);
-        if (lv_event_dsc_get_cb(d) == bundle_delete_cb) {
-            wt_bundle_t *b = lv_event_dsc_get_user_data(d);
-            return b ? b->col : NULL;
-        }
+        if (lv_event_dsc_get_cb(d) == bundle_delete_cb)
+            return lv_event_dsc_get_user_data(d);
     }
     return NULL;
+}
+
+static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
+                           lv_color_t txt_col, bool accent)
+{
+    if (b->line[k]) {
+        lv_obj_set_style_line_color(b->line[k], line_col, 0);
+        if (accent) lv_obj_add_flag(b->line[k], WT_FLAG_ACCENT);
+        else        lv_obj_remove_flag(b->line[k], WT_FLAG_ACCENT);
+    }
+    lv_obj_t *t[2] = { b->amount[k], b->note[k] };
+    for (int i = 0; i < 2; i++) {
+        if (!t[i]) continue;
+        lv_obj_set_style_text_color(t[i], txt_col, 0);
+        if (accent) lv_obj_add_flag(t[i], WT_FLAG_ACCENT);
+        else        lv_obj_remove_flag(t[i], WT_FLAG_ACCENT);
+    }
+}
+
+void wt_bundle_state(lv_obj_t *bundle, int state)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b) return;
+    for (int k = 0; k < (int)b->n_line; k++) {
+        const bool is_in = (k < (int)b->out0);
+        if (state == WT_BUNDLE_SIGNING) {
+            // Inputs at full strength, outputs stood down. The note rows go with
+            // their side: a silent payment's claim is about an output, so it
+            // dims with the output it belongs to.
+            bundle_repaint(b, k, is_in ? WT_INK : WT_EDGE,
+                           is_in ? WT_INK : WT_EDGE, false);
+        } else if (state == WT_BUNDLE_SIGNED && is_in) {
+            bundle_repaint(b, k, wt_accent(), wt_accent(), true);
+        } else if (!is_in) {
+            // Back to what the row means, taken from its role rather than
+            // remembered: the destinations are readable again the moment there
+            // is a signature over them.
+            const bool acc = (b->role[k] == WT_STRAND_CHANGE);
+            bundle_repaint(b, k, bundle_col(b->role[k], false),
+                           acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
+                           acc);
+            if (b->note[k] && !acc)
+                lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
+        } else {
+            bundle_repaint(b, k, WT_MUT, WT_MUT, false);
+        }
+    }
+}
+
+lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    return b ? b->col : NULL;
 }
 
 // Reserve exactly what this iteration writes, which is a character and, only
