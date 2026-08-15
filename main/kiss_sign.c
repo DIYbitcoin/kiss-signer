@@ -115,7 +115,13 @@ static lv_obj_t *s_graph, *s_graph_cap, *s_locked;
 // What the caption says at rest. It is a formatted count, so a hold that is let
 // go has to put back a string rather than a key -- and the buffer it was built
 // in is a local that went out of scope the moment the screen was drawn.
-static char s_graph_cap_rest[64];
+//
+// Sized to that local, not to what English needs. At 64 the device compiler
+// refused it outright: S_BUNDLE_IN_FMT runs to 160 bytes formatted, Cyrillic
+// and CJK are 2 and 3 bytes a character, and the copy below is a byte copy --
+// so a caption too long would have come back from an abandoned hold cut mid
+// codepoint. The desktop build never said a word.
+static char s_graph_cap_rest[160];
 // The sweep under HOLD TO SIGN's label, filled left to right on the same
 // fraction as the ring.
 static lv_obj_t *s_sweep;
