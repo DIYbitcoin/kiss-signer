@@ -1470,6 +1470,8 @@ static void accent_walk(lv_obj_t *o)
         lv_obj_set_style_bg_color(o, wt_accent_bg(), 0);
         lv_obj_set_style_bg_color(o, wt_accent_pressed(), LV_STATE_PRESSED);
     }
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_FILL))
+        lv_obj_set_style_bg_color(o, wt_accent(), 0);
     uint32_t n = lv_obj_get_child_count(o);
     for (uint32_t i = 0; i < n; i++) accent_walk(lv_obj_get_child(o, i));
 }
@@ -2639,6 +2641,10 @@ void wt_diagram_pair(lv_obj_t *parent)
 // Points per curve. The longest strand spans 210px, so 16 puts a vertex every
 // ~14px; with line_rounded the joins disappear at this stroke width.
 #define BSEG 16
+// The junction at rest and at the end of a hold. Rest is not this animation's
+// to move: the resting frame is drawn and approved, so growth is what carries
+// the hold and the accent that arrives afterwards means the signature.
+#define BJ_HOLD_R 8
 // Vertical slack around the box so a row's LABEL, which is centred on its
 // strand and therefore reaches above the top row, is not clipped by the
 // container. LVGL clips children to their parent.
@@ -2651,6 +2657,15 @@ typedef struct {
     lv_obj_t           *amount[WT_BUNDLE_MAX];
     lv_obj_t           *note[WT_BUNDLE_MAX];
     uint8_t             role[WT_BUNDLE_MAX];
+    // The hold overlay: one accent line per INPUT strand, drawn over its
+    // resting one and truncated to how far the hold has got. Its own point
+    // block, because the resting strand's is what the truncation is measured
+    // FROM and both are live at once.
+    lv_point_precise_t *hpts;
+    lv_obj_t           *hline[WT_BUNDLE_MAX];
+    uint8_t             nseg[WT_BUNDLE_MAX];  // 2 on a flat strand, BSEG on a curve
+    uint16_t            n_in;
+    lv_obj_t           *dot;      // the junction, which grows with the hold
     // The output side, and what it takes to redraw its strands when it moves.
     lv_obj_t           *col;      // the scrolling output column, NULL if fixed
     lv_obj_t           *sbox;     // clips the output strands to the graph band
@@ -2668,6 +2683,7 @@ static void bundle_delete_cb(lv_event_t *e)
     wt_bundle_t *b = lv_event_get_user_data(e);
     if (!b) return;
     lv_free(b->pts);
+    lv_free(b->hpts);
     lv_free(b);
 }
 
@@ -2825,6 +2841,10 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     lv_memzero(b, sizeof *b);
     b->pts = lv_malloc(sizeof(lv_point_precise_t) * BSEG * (n_in + n_out));
     if (!b->pts) { lv_free(b); return NULL; }
+    // Inputs only: the hold is about the coins being committed, and the output
+    // side is already standing down by the time any of this moves.
+    b->hpts = lv_malloc(sizeof(lv_point_precise_t) * BSEG * (n_in ? n_in : 1));
+    if (!b->hpts) { lv_free(b->pts); lv_free(b); return NULL; }
 
     lv_obj_t *box = lv_obj_create(scr);
     lv_obj_remove_style_all(box);
@@ -2873,9 +2893,18 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             bundle_curve(pp, ix0, ry, BJ_X, jy, 43, 62);
         }
         const int k = b->n_line;
-        b->line[k] = bundle_strand(box, &in[i], pp, npts,
-                                   wt_strand_px(in[i].sats, max_sats));
+        const int px = wt_strand_px(in[i].sats, max_sats);
+        b->line[k] = bundle_strand(box, &in[i], pp, npts, px);
         b->role[k] = in[i].role;
+        b->nseg[k] = (uint8_t)npts;
+        // The overlay, built now and hidden, so a tick allocates nothing and
+        // creates nothing. Same width and same dash as the strand underneath:
+        // a dashed strand means MANY COINS, and a solid accent line drawn over
+        // it during the hold would say one coin was committing.
+        b->hline[k] = bundle_strand(box, &in[i], pp, npts, px);
+        lv_obj_set_style_line_color(b->hline[k], wt_accent(), 0);
+        lv_obj_add_flag(b->hline[k], WT_FLAG_ACCENT);
+        lv_obj_add_flag(b->hline[k], LV_OBJ_FLAG_HIDDEN);
         pp += BSEG;
 
         const bool acc = in[i].signed_ok;
@@ -2888,6 +2917,8 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                                   acc ? wt_accent() : WT_MUT, acc);
         b->n_line++;
     }
+
+    b->n_in = b->n_line;
 
     // ---- the output column ----
     //
@@ -3041,6 +3072,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     lv_obj_set_style_radius(dot, BJ_R, 0);
     lv_obj_set_style_bg_color(dot, WT_INK, 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    b->dot = dot;
     return box;
 }
 
@@ -3075,13 +3107,93 @@ static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
     }
 }
 
+// The junction, sized and placed from one radius. Its centre never moves; only
+// the radius does, so the grow and the retract are the same line of arithmetic.
+static void bundle_dot_r(wt_bundle_t *b, int r)
+{
+    if (!b->dot) return;
+    lv_obj_set_size(b->dot, r * 2, r * 2);
+    lv_obj_set_pos(b->dot, BJ_X - r, b->jy + BPAD - r);
+    lv_obj_set_style_radius(b->dot, r, 0);
+}
+
+void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b) return;
+
+    for (uint16_t k = 0; k < b->n_in; k++) {
+        lv_obj_t *ov = b->hline[k];
+        if (!ov) continue;
+        if (!progress) { lv_obj_add_flag(ov, LV_OBJ_FLAG_HIDDEN); continue; }
+
+        // Walk the table the strand was already sampled into at build time.
+        // The cubic is not re-evaluated here: sixteen points per strand exist
+        // precisely so a tick every 30ms is a copy and one interpolation, not
+        // four multiplies per point on a chip with no FPU worth using.
+        //
+        // n is not always BSEG. An input whose row lands ON the junction row is
+        // written as two points so it can dash, and at twenty inputs that flat
+        // row is the grouped strand -- the common case, not the corner.
+        const int n = b->nseg[k];
+        const lv_point_precise_t *src = b->pts  + (size_t)k * BSEG;
+        lv_point_precise_t       *dst = b->hpts + (size_t)k * BSEG;
+        const int32_t t   = (int32_t)progress * (n - 1);
+        const int     q   = t / 255;
+        const int32_t rem = t - (int32_t)q * 255;
+        int npts = q + 1;
+        for (int i = 0; i <= q; i++) dst[i] = src[i];
+        if (q < n - 1) {
+            // The head of the line, between two sampled points. Without it the
+            // strand would advance a vertex at a time and read as sixteen steps
+            // rather than one continuous reach.
+            const int32_t ax = (int32_t)src[q].x,     ay = (int32_t)src[q].y;
+            const int32_t bx = (int32_t)src[q + 1].x, by = (int32_t)src[q + 1].y;
+            dst[q + 1].x = (lv_value_precise_t)(ax + (bx - ax) * rem / 255);
+            dst[q + 1].y = (lv_value_precise_t)(ay + (by - ay) * rem / 255);
+            npts = q + 2;
+        }
+        lv_line_set_points(ov, dst, (uint32_t)npts);
+        lv_obj_remove_flag(ov, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    bundle_dot_r(b, BJ_R + (BJ_HOLD_R - BJ_R) * progress / 255);
+}
+
 void wt_bundle_state(lv_obj_t *bundle, int state)
 {
     wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
     if (!b) return;
+    // SIGNING keeps the overlay exactly where the hold left it -- full length,
+    // in the accent. Hiding it there would paint the inputs back down to INK
+    // for the few hundred milliseconds libwally is busy and then up to the
+    // accent again, and a strand that dims at the moment of commitment says the
+    // opposite of what happened. LIVE and SIGNED both take it away, and SIGNED
+    // does it in the same call that paints the strands underneath, so the
+    // pixels do not change.
+    if (state != WT_BUNDLE_SIGNING && state != WT_BUNDLE_HOLDING)
+        for (uint16_t k = 0; k < b->n_in; k++)
+            if (b->hline[k]) lv_obj_add_flag(b->hline[k], LV_OBJ_FLAG_HIDDEN);
+    if (state == WT_BUNDLE_LIVE) bundle_dot_r(b, BJ_R);
+    if (b->dot) {
+        // Every input strand arrives in the accent, so the thing they arrive AT
+        // wears it too. Eleven pixels of accent stroke ending on a white disc
+        // is the seam this dot exists to prevent, and it would appear at the
+        // one moment the drawing is being read hardest.
+        const bool acc = (state == WT_BUNDLE_SIGNED);
+        lv_obj_set_style_bg_color(b->dot, acc ? wt_accent() : WT_INK, 0);
+        if (acc) lv_obj_add_flag(b->dot, WT_FLAG_ACCENT_FILL);
+        else     lv_obj_remove_flag(b->dot, WT_FLAG_ACCENT_FILL);
+    }
     for (int k = 0; k < (int)b->n_line; k++) {
         const bool is_in = (k < (int)b->out0);
-        if (state == WT_BUNDLE_SIGNING) {
+        if (state == WT_BUNDLE_HOLDING) {
+            // The output half of SIGNING and nothing else. An input touched
+            // here is an input the hold cannot draw on: the fill is an accent
+            // line over a muted one, and both ends of that contrast have to
+            // still be there when the finger goes down.
+            if (!is_in) bundle_repaint(b, k, WT_EDGE, WT_EDGE, false);
+        } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
             // dims with the output it belongs to.

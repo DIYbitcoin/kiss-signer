@@ -420,6 +420,12 @@ lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 // What the graph is doing.
 //
 //   LIVE     the transaction as verified, waiting for a decision.
+//   HOLDING  a finger is down: the outputs stand down exactly as they do below,
+//            because where the money goes was settled on the screen behind this
+//            one and holding the button is not a decision about it. The inputs
+//            are left at their resting mute ON PURPOSE -- wt_bundle_hold draws
+//            the accent OVER them, and a strand already at WT_INK gives it
+//            nothing to be drawn over. Brightening here made the fill invisible.
 //   SIGNING  the key is working: inputs go WT_INK at full strength, outputs go
 //            WT_EDGE. The screen stops being about where the money goes and
 //            starts being about the coins being signed, and the dimmed output
@@ -431,8 +437,23 @@ lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 // sequence here would be a timer inventing steps -- and the whole claim of this
 // screen is that a strand in the accent means a signature exists. It changes
 // when that becomes true of all of them, which is the moment the call returns.
-enum { WT_BUNDLE_LIVE = 0, WT_BUNDLE_SIGNING, WT_BUNDLE_SIGNED };
+enum { WT_BUNDLE_LIVE = 0, WT_BUNDLE_HOLDING, WT_BUNDLE_SIGNING,
+       WT_BUNDLE_SIGNED };
 void wt_bundle_state(lv_obj_t *bundle, int state);
+
+// The hold, drawn on the graph. 0 is at rest, 255 is every input strand landed
+// at the junction and no signature yet. Call it on each tick of the hold with
+// the same fraction the ring is given.
+//
+// It is that fraction and nothing else: not a per coin position, not an
+// estimate of how long signing will take, and not a timer that keeps running
+// after the hold completes. All the strands fill at one rate and arrive
+// together, because one call is going to sign all of them.
+//
+// It moves strands, not numbers. The amount labels stay WT_MUT until
+// WT_BUNDLE_SIGNED, which is the moment a signature exists: the strand is the
+// commitment, the label is the signature.
+void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress);
 
 // Grouped address with only the LAST 8 characters lit, everything before them
 // muted. Not the first: every Native SegWit address begins bc1q (or tb1q), so
@@ -488,9 +509,15 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 //   WT_FLAG_ACCENT_BG      its fill, from wt_accent_bg(), and the pressed fill
 //                          with it, so a control does not answer a press in
 //                          last theme's colour.
+//   WT_FLAG_ACCENT_FILL    its fill at full strength, from wt_accent(). BG is a
+//                          tint behind text and this is the object itself being
+//                          the mark -- the junction dot, where a stale colour
+//                          would read as a seam in the drawing rather than as a
+//                          control in the wrong theme.
 // They compose: the hold pill wears BORDER and BG together.
 #define WT_FLAG_ACCENT_BORDER LV_OBJ_FLAG_USER_2
 #define WT_FLAG_ACCENT_BG     LV_OBJ_FLAG_USER_3
+#define WT_FLAG_ACCENT_FILL   LV_OBJ_FLAG_USER_4
 // Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 

@@ -112,6 +112,13 @@ static lv_obj_t *s_arc, *s_sign_lbl;
 // without rebuilding the screen: a repaint here would tear down the arc
 // mid-sweep and restart the hold the owner is in the middle of.
 static lv_obj_t *s_graph, *s_graph_cap, *s_locked;
+// What the caption says at rest. It is a formatted count, so a hold that is let
+// go has to put back a string rather than a key -- and the buffer it was built
+// in is a local that went out of scope the moment the screen was drawn.
+static char s_graph_cap_rest[64];
+// The sweep under HOLD TO SIGN's label, filled left to right on the same
+// fraction as the ring.
+static lv_obj_t *s_sweep;
 // DETAILS and BACK, NULL terminated, so the signing state can stand them down
 // without knowing what else is on the row.
 static lv_obj_t *s_inert[3];
@@ -137,6 +144,12 @@ static bool s_addr_full;
 // below could be deleted and every frame would still compare equal.
 static bool s_armed;
 bool kiss_sign_test_armed(void) { return s_armed; }
+// Also walk only. An abandoned hold has to put the screen back, and most of
+// what it puts back is colour: strands to WT_MUT, output rows up, the dot to
+// its resting radius. A frame comparison cannot see any of it. The padlock is
+// the one piece that is an object rather than a shade, so it stands in for the
+// rest -- if the retract ever stops running, this is what says so.
+bool kiss_sign_test_locked(void) { return s_locked != NULL; }
 #endif
 static uint8_t s_in[4096], s_out[4680];
 static lv_obj_t *s_parent;             // where this flow's screens are built
@@ -428,6 +441,7 @@ static const char *tr_reason(const char *r)
 #define SG_BACK_X140 636   // 636..776, the standard 140px exit
 #define SG_DETAILS_X 366   // 366..516
 #define SG_HOLD_X     48   // 48..358, off the corner: it signs the transaction
+#define SG_HOLD_W    310   // named because the sweep across it is measured in it
 
 
 // The ? explainer: what the SIGNATURE code is for. Same pattern as the entropy
@@ -458,7 +472,8 @@ static void sig_fp_help_cb(lv_event_t *e)
     (void)e;
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big: the signed screens no
@@ -535,7 +550,8 @@ static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
     // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
     // of the screen and does not fit one line at a readable size. Nothing is
@@ -563,7 +579,8 @@ static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_FAIL_T), why);
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
 }
@@ -664,40 +681,97 @@ static void do_sign_cb(lv_timer_t *t)
     lv_timer_create(finish_sign_cb, REVEAL_MS, NULL);
 }
 
+// The output side settles the moment the owner commits, which is the press and
+// not the completion: where the money goes was decided on the screen behind
+// this one, and holding the button is not a decision about it. So the strands
+// stand down and the padlock goes up under the finger, and the coins on the
+// left become the subject for as long as the hold lasts.
+//
+// The caption does NOT move here, and that is the whole of the difference
+// between this and the state below. "SIGNING" while the finger is still
+// deciding is a screen claiming a signature that does not exist, which is the
+// one sentence a signer may never print. The padlock is the honest press time
+// mark: destinations settled, nothing signed.
+static void sign_lock_outputs(void)
+{
+    if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_HOLDING);
+    if (!s_locked && s_scr) {
+        // The mark alone. "LOCKED" has no key, and the word it would borrow is
+        // SIGNED -- which the caption on the left and the pill below already
+        // say, so spelling it here would put the same word on one screen three
+        // times. A padlock over the output column says the destinations are
+        // settled, in the same glyph the RBF cell uses for a transaction that
+        // can no longer be replaced, and it needs no translating.
+        // On the caption's own line and at its rung, not above it: the output
+        // column's first row begins at y=170, and a larger glyph centred on
+        // this band reaches into it.
+        s_locked = mk_lbl(WT_ICON_LOCK, 748, 150, wt_font14(), wt_accent());
+        lv_obj_add_flag(s_locked, WT_FLAG_ACCENT);
+    }
+}
+
+// Let go early and all of it retracts. This is the only place the flow says out
+// loud that a hold can be abandoned, so it puts back everything the press
+// moved rather than merely stopping the motion.
+//
+// It is deliberately NOT part of hold_stop(). hold_tick calls hold_stop the
+// instant the hold completes, one line before it builds the signing state, so a
+// retract living in there would undo the screen it is about to draw. hold_stop
+// is also called from close_cb, from step_back and from three screen builders,
+// where s_graph belongs to a screen already being torn down.
+static void hold_abandon(void)
+{
+    hold_stop();
+    if (s_sweep) lv_obj_set_width(s_sweep, 0);
+    if (s_graph) {
+        wt_bundle_hold(s_graph, 0);
+        wt_bundle_state(s_graph, WT_BUNDLE_LIVE);
+    }
+    if (s_locked) { lv_obj_delete(s_locked); s_locked = NULL; }
+    if (s_graph_cap && s_graph_cap_rest[0])
+        lv_label_set_text(s_graph_cap, s_graph_cap_rest);
+}
+
 static void hold_tick(lv_timer_t *t)
 {
     (void)t;
     uint32_t el = lv_tick_elaps(s_hold_t0);
+    if (el > HOLD_MS) el = HOLD_MS;
     if (s_arc) lv_arc_set_value(s_arc, (int32_t)(el * 100 / HOLD_MS));
+    // The graph and the sweep run on the same fraction as the ring, because
+    // there is only one thing being measured: how long this finger has been
+    // down. Three readings of one number, not three numbers.
+    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(el * 255 / HOLD_MS));
+    if (s_sweep) lv_obj_set_width(s_sweep, (int32_t)(el * SG_HOLD_W / HOLD_MS));
     if (el >= HOLD_MS) {
         hold_stop();
         if (s_arc) lv_arc_set_value(s_arc, 100);
+        // The sweep has done its job and goes, leaving the pill in its plain
+        // accent fill. It measured a finger, and there is no longer a finger to
+        // measure -- a bar sitting full while libwally works would be read as a
+        // progress bar for the signing, which is a thing nothing here can time.
+        if (s_sweep) lv_obj_set_width(s_sweep, 0);
         if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
-        // The graph stops being about where the money goes and starts being
-        // about the coins being signed: inputs at full strength, the output
-        // side stood down behind a LOCKED eyebrow saying the destinations are
-        // settled. DETAILS and BACK go inert with it -- kiss_psbt_sign blocks
-        // the LVGL loop, so a tap landing on either is a tap that is answered
-        // after the signature exists, and a control that looks live while it
-        // cannot respond is a control that lies.
+        // Now the caption may say it. The strands are landed, the button is
+        // spent, and the next thing that happens on this thread is the call.
+        // The accent they are wearing is the commitment; the amounts beside
+        // them stay muted until there is a signature over them.
+        //
+        // The inputs come up to full strength underneath that accent, which is
+        // the difference between HOLDING and SIGNING and is invisible while the
+        // overlay covers them. It is what the strand falls back to if the
+        // signature fails: WT_INK, a coin that was committed, not an accent
+        // claiming one that was signed.
+        sign_lock_outputs();
         if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNING);
         if (s_graph_cap)
             lv_label_set_text(s_graph_cap, tr(STR_S_SIGNING));
-        if (!s_locked && s_scr) {
-            // The mark alone. "LOCKED" has no key, and the word it would
-            // borrow is SIGNED -- which the caption on the left and the pill
-            // below already say, so spelling it here would put the same word on
-            // one screen three times. A padlock over the output column says the
-            // destinations are settled, in the same glyph the RBF cell uses for
-            // a transaction that can no longer be replaced, and it needs no
-            // translating.
-            // On the caption's own line and at its rung, not above it: the
-            // output column's first row begins at y=170, and a larger glyph
-            // centred on this band reaches into it.
-            s_locked = mk_lbl(WT_ICON_LOCK, 748, 150, wt_font14(),
-                              wt_accent());
-            lv_obj_add_flag(s_locked, WT_FLAG_ACCENT);
-        }
+        // DETAILS and BACK go inert HERE and not on the press -- kiss_psbt_sign
+        // blocks the LVGL loop, so a tap landing on either is a tap answered
+        // after the signature exists, and a control that looks live while it
+        // cannot respond is a control that lies. During the hold nothing
+        // blocks, both are answered normally, and standing them down for 1.2s
+        // to bring them back would be two controls flickering about nothing.
         for (int i = 0; s_inert[i]; i++) {
             lv_obj_set_style_border_color(s_inert[i], WT_EDGE, 0);
             lv_obj_set_style_text_color(lv_obj_get_child(s_inert[i], 0),
@@ -717,8 +791,15 @@ static void sign_press_cb(lv_event_t *e)
         if (s_ack_t0 && lv_tick_elaps(s_ack_t0) < SIGN_ARM_MS) return;
         s_hold_t0 = lv_tick_get();
         if (!s_hold_tmr) s_hold_tmr = lv_timer_create(hold_tick, 30, NULL);
+        sign_lock_outputs();
     } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
-        hold_stop();                                      // let go early = no signature
+        // Only a hold still running can be abandoned. The finger also comes up
+        // AFTER a completed hold -- kiss_psbt_sign holds the loop, so that
+        // release is delivered on the far side of the signature -- and
+        // retracting the graph there would erase a signed transaction's reveal.
+        // The timer is what tells the two apart: completion deleted it.
+        if (s_hold_tmr) hold_abandon();
+        else            hold_stop();
     }
 }
 
@@ -834,7 +915,8 @@ static void repaint_verify(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     verify_screen(s_parent);
 }
 
@@ -997,7 +1079,8 @@ static void repaint_cautions(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     cautions_screen();
 }
 
@@ -1018,7 +1101,8 @@ static void cautions_open_cb(lv_event_t *e)
     (void)e;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     s_on_cautions = true;
     cautions_screen();
 }
@@ -1514,6 +1598,7 @@ static void verify_screen(lv_obj_t *parent)
             if (out[i].sats > max_sats) max_sats = out[i].sats;
 
         snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_IN_FMT), (unsigned)s_sum.n_in);
+        snprintf(s_graph_cap_rest, sizeof s_graph_cap_rest, "%s", buf);
         lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 150, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
         s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
@@ -1668,7 +1753,7 @@ static void verify_screen(lv_obj_t *parent)
     lv_obj_add_flag(s_arc, WT_FLAG_ACCENT);   // the ring is ink, not text
 
     lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), SG_HOLD_X, WT_ACTION_Y,
-                           310, WT_ACTION_H, NULL, NULL);
+                           SG_HOLD_W, WT_ACTION_H, NULL, NULL);
     wt_pill_label_max(p);          // the most consequential button in the app
     s_sign_lbl = lv_obj_get_child(p, 0);
     // One expression, read twice. Writing the condition out again for the test
@@ -1696,6 +1781,25 @@ static void verify_screen(lv_obj_t *parent)
         // hand rolled variant of the app's loudest affordance is exactly the
         // kind of near miss the redraw is meant to remove.
         wt_pill_primary(p);
+
+        // The sweep, the third reading of the hold. Built the way wt_hold_pill
+        // builds its own -- a background child grown from zero, under the label
+        // LVGL has already made -- but in the ACCENT and not WT_STOP. On this
+        // device a red sweep under a pill means a destructive hold, wipe or
+        // reset, and signing is neither. Red here would code the safest hold in
+        // the app as the most dangerous one. At 90 of 255 over the pill's own
+        // accent tinted fill it reads as the press deepening across the button.
+        lv_obj_t *f = lv_obj_create(p);
+        lv_obj_remove_style_all(f);
+        lv_obj_set_size(f, 0, WT_ACTION_H);
+        lv_obj_set_pos(f, 0, 0);
+        lv_obj_set_style_radius(f, 10, 0);          // matches the pill it crosses
+        lv_obj_set_style_bg_color(f, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(f, 90, 0);
+        lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_move_background(f);
+        s_sweep = f;
     }
 }
 
@@ -1744,7 +1848,8 @@ static void glossary_cb(lv_event_t *e)
     // changed.
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
 
     wt_card(s_scr, 24, 88, 752, 290);
@@ -1906,7 +2011,8 @@ static void details_cb(lv_event_t *e)
         return;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
     // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
     // starts at x=560 with a label that takes two lines in the longer locales.
@@ -2303,7 +2409,8 @@ static void qr_out_screen(size_t sw)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
 
     s_qr_ez = false;
     s_out_len = sw;
@@ -2445,7 +2552,8 @@ static void rm_repaint(void)
 {
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     rm_screen();
 }
 
@@ -2545,7 +2653,8 @@ static void rm_open_cb(lv_event_t *e)
     (void)e;
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_arc = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL; s_inert[0] = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     rm_screen();
 }
 

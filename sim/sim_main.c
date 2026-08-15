@@ -1999,9 +1999,34 @@ int main(void) {
     }
   }
 
-  press_str(STR_S_HOLD_TO_SIGN); pump(40);          // ring ~half full
+  // The hold, sampled three times on the way up. One frame cannot show a fill:
+  // it looks exactly like a strand that is simply that long. Three at 25, 50
+  // and 75 percent of HOLD_MS are what make the length a function of the
+  // finger, and a fill wired to anything else -- a coin index, a signing
+  // estimate -- lands the same in all three.
+  // A pump is 16ms and HOLD_MS is 1200, so the whole hold is 75 of them.
+  press_str(STR_S_HOLD_TO_SIGN); pump(19);
+  save("/tmp/sim_sign_hold_q.ppm");
+  pump(21);                                         // ring ~half full
   save("/tmp/sim_sign_hold.ppm");
-  pump(45);                                         // past 1.2s: signs
+  pump(16);
+  save("/tmp/sim_sign_hold_3q.ppm");
+  if (!kiss_sign_test_locked()) {
+    printf("FAIL: the output side never stood down for the hold\n");
+    return 1;
+  }
+
+  // Let go early. This is the frame the addendum exists for and the only place
+  // the flow says out loud that a hold can be abandoned: strands retract, the
+  // outputs come back up, the padlock goes and the caption is a count again.
+  release(); pump(8);
+  save("/tmp/sim_sign_abandon.ppm");
+  if (kiss_sign_test_locked()) {
+    printf("FAIL: an abandoned hold left the output side locked down\n");
+    return 1;
+  }
+
+  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs
   release(); pump(8);
   // The reveal, and the reason the walk stops here rather than landing straight
   // on the exit screen. The graph has spent the whole flow claiming a strand in
@@ -2231,6 +2256,20 @@ int main(void) {
     return 1;
   }
   printf("ok: twenty coins elide to five rows, count and total both stated\n");
+  // The hold on the one transaction that has a grouped strand. Two paths meet
+  // here and nowhere else: the flat two point line, which is how a strand
+  // sitting ON the junction row is written, and the dash, which is the only
+  // dashed line on the device. The accent drawn over it has to be dashed too --
+  // sixteen coins committing must not become one coin committing halfway
+  // through a hold.
+  press_str(STR_S_HOLD_TO_SIGN); pump(40);
+  save("/tmp/sim_sign_merge_hold.ppm");
+  release(); pump(8);
+  if (kiss_sign_test_locked()) {
+    printf("FAIL: an abandoned hold left twenty coins locked down\n");
+    return 1;
+  }
+  printf("ok: the grouped strand fills and retracts still dashed\n");
   // The only fixture whose input count exceeds what wpsbt_details_t can hold,
   // so it is the only one that reaches S_D_MANYIN_FMT -- the longest formatted
   // line in the sign flow, ~140 bytes in ja, and the case that used to truncate.
