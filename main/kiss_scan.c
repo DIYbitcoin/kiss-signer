@@ -449,6 +449,11 @@ static void scan_open_common(lv_obj_t *parent)
     lv_obj_set_width(s_prog, SCN_CAM_W - 28);
     lv_obj_set_height(s_prog, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
+    // Centred, because this card is a readout and not a row of settings. Both
+    // labels are already full card width and pinned at 14, so the alignment is
+    // the only thing that decides where the text sits: left put "waiting for QR"
+    // hard against the edge of a box whose only job is to hold that one phrase.
+    lv_obj_set_style_text_align(s_prog, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_pos(s_prog, 14, 8);
 
     // The camera-failure path writes the driver status here, which is technical
@@ -462,6 +467,7 @@ static void scan_open_common(lv_obj_t *parent)
     lv_obj_set_width(s_hint, SCN_CAM_W - 28);
     lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_font14()));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_CENTER, 0);
     scan_status(NULL, NULL);            // places both lines for the one-line case
 
     // CANCEL in the action row, and the SD alternative NAMED beside it: the

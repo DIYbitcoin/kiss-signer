@@ -27,11 +27,19 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   words and must never be renamed to it: `W_CARDS_HELP_B`, `W_CARDS_DUP_B`,
   `W_CKSUM_FIT_FMT`. Nor are the two that mean the encrypted file on the card,
   `W_SD_CORRUPT_B` and `G_STORAGE_FAIL_CARD_B`.
-- Not yet converted, and the remaining work: about fifty keys still say bare
-  "words" for the owner's own mnemonic. The pass that lands them is driven by
-  `sim/fitcheck.c`, which pins around forty of them to pixel boxes -- the
-  anchor is wider than the word it replaces, so each slot has to be re-measured
-  rather than assumed.
+- Not yet converted, and the remaining work: keys still saying bare "words" for
+  the owner's own mnemonic, outside the passphrase, setup-verify and keys-screen
+  families that have been done. The pass that lands them is driven by
+  `sim/fitcheck.c`, which pins many of them to pixel boxes -- the anchor is
+  wider than the word it replaces, so each slot has to be re-measured rather
+  than assumed. `sub/write` is the worked example: it is 704x30, which is ONE
+  line at font23, and five locales had to be compressed to the `words +
+  passphrase = these keys` form to hold it.
+- **"wallet" for the owner's own key set is finished.** What is left is
+  correct: the coordinator wallet, other products' names (BlueWallet, Sparrow
+  Wallet), other people's software (`N_PSBT_B`, `R_SP_WHY_B`), and
+  `W_CARDS_HELP_B`, where "every wallet uses the same 2048 words" means every
+  BIP39 wallet that exists and not this one.
 - The destroy family in particular must NOT say wallet. Erasing this device
   does not erase the wallet: the coins stay on chain, a paired coordinator
   still shows them, and the owner's paper plus passphrase still restore them.
