@@ -3044,14 +3044,20 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (out[i].label)
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     acc ? oc : WT_MUT, acc);
-        // The whole address, with the compared runs lit -- the same spans the
-        // panel drew, so the habit an owner has does not change with the count
-        // of destinations. NOT the lifted variant: the lift raises the compared
-        // tail to mono23, and in a 304px lane that puts the wrap immediately
-        // before it, so the eight characters worth reading land alone on a
-        // second line at a different size. One rung, wrapped evenly, reads.
+        // THE FOLD, the same one RECEIVE and the single-recipient card draw:
+        // prefix, the four after it, an ellipsis, the last twelve with the
+        // final eight lit. One line per destination, whatever its length.
+        //
+        // It used to be the whole address wrapped in a 304px lane, which took
+        // two lines for a bech32 and four for a silent payment -- so a column
+        // sized for three rows held one and a half destinations, and the row at
+        // the fold was cut through the middle of an address rather than at a
+        // line. Folding is what makes a row a row here.
+        //
+        // Same habit on every screen that shows a destination, which is the
+        // whole reason the single-recipient card folds too.
         if (out[i].addr)
-            wt_addr_spans(row, out[i].addr, roww, wt_font_mono14());
+            wt_addr_short(row, out[i].addr, wt_font_mono14());
         b->n_line++;
     }
 

@@ -1278,6 +1278,9 @@ static void recip_scroll_cb(lv_event_t *e)
 #define SG_GRAPH_Y   172
 #define SG_GRAPH_H   118
 #define SG_GRAPH_H_C 110
+// Several recipients: no address card below, so the graph runs to 366 and the
+// output column shows two more destinations before anything is under the fold.
+#define SG_GRAPH_H_MANY 194
 #define SG_PAN_Y_C   202   // panels, with a bar above them
 #define SG_PAN_H_C   104
 #define SG_RULE_Y_C  314
@@ -1983,8 +1986,14 @@ static void verify_screen(lv_obj_t *parent)
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
 
-        lv_obj_t *bg = wt_bundle(s_scr, 24, SG_GRAPH_Y, 752,
-                                 np ? SG_GRAPH_H_C : SG_GRAPH_H,
+        // With one recipient the address card takes the band under the graph.
+        // With several there is no card -- every destination is a row up here
+        // instead -- so the graph takes that band back and shows more of them,
+        // which is the difference between a column an owner scrolls once and
+        // one they scroll four times to clear the read-to-the-end gate.
+        const int gh = np ? SG_GRAPH_H_C
+                     : (recipient_n > 1 ? SG_GRAPH_H_MANY : SG_GRAPH_H);
+        lv_obj_t *bg = wt_bundle(s_scr, 24, SG_GRAPH_Y, 752, gh,
                                  in, n_in, out, n_out, max_sats);
         s_graph = bg;
 
@@ -2013,7 +2022,10 @@ static void verify_screen(lv_obj_t *parent)
 
         // The address, under the graph rather than inside a panel: the strand
         // above it is where the money goes, and this is the name of the place.
-        const int ay = np ? 292 : 300;
+        // With several recipients the graph runs to 366, so the pair and its
+        // chip sit under it rather than through it. One recipient and the graph
+        // stops at 290, leaving the caption line and the card below it.
+        const int ay = np ? 292 : (recipient_n > 1 ? 372 : 300);
         // Caption and its "?" on the left, the network and RBF pair right
         // aligned on the same line, and the address on the whole lane beneath.
         //
@@ -2153,7 +2165,10 @@ static void verify_screen(lv_obj_t *parent)
         // behind "where is RBF". Sharing the caption's line costs nothing: the
         // caption is one short phrase on the left and the address has the whole
         // lane below it either way.
-        const int ay = np ? 292 : 300;
+        // With several recipients the graph runs to 366, so the pair and its
+        // chip sit under it rather than through it. One recipient and the graph
+        // stops at 290, leaving the caption line and the card below it.
+        const int ay = np ? 292 : (recipient_n > 1 ? 372 : 300);
         const char *net = s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
@@ -2164,9 +2179,17 @@ static void verify_screen(lv_obj_t *parent)
         // 364..724 right aligned, against a caption that starts at 24 and is one
         // phrase long. 360px is more than the pair measures in any locale and
         // the ellipsis is the backstop rather than the plan.
-        lv_obj_t *m = sg_lbl(s_scr, buf, 364, ay, wt_font14(),
+        // With several recipients nothing shares this line, so it gets the lane
+        // from 24 rather than the 360 it leaves the caption. And the HEIGHT is
+        // pinned to one line in every case: LONG_DOT on a sized label wraps
+        // FIRST and ellipsises second, so eleven locales put a second line at
+        // y=409 -- 12px past WT_CONTENT_BOTTOM, on the layout where this row is
+        // lowest. Pinned, the ellipsis is what happens instead.
+        const bool wide = !np && recipient_n > 1;
+        lv_obj_t *m = sg_lbl(s_scr, buf, wide ? 24 : 364, ay, wt_font14(),
                              s_sum.testnet ? WARN_COL : MUT_COL);
-        lv_obj_set_width(m, 360);
+        lv_obj_set_width(m, wide ? 700 : 360);
+        lv_obj_set_height(m, lv_font_get_line_height(wt_font14()));
         lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
         lv_label_set_long_mode(m, LV_LABEL_LONG_DOT);
     }

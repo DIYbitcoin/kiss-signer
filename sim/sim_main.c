@@ -2407,7 +2407,7 @@ int main(void) {
   // destinations without naming them.
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
-  must_show("many recipients", "bc1q00g3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  must_show("many recipients", "bc1q 00g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
   if (kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
@@ -2421,7 +2421,7 @@ int main(void) {
     release(); pump(10);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
-  must_show("many recipients (end)", "bc1q04g3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+  must_show("many recipients (end)", "bc1q 04g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
   if (!kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN still inert after the list was read to its end\n");
     return 1;
