@@ -1744,8 +1744,16 @@ static void proof_result_screen(void)
     //
     // Accent on how the check works, WARN on where the words go wrong: the
     // proven pair geometry, same call shape as the dice verdict screen.
-    const lv_font_t *f = wt_body_font2(tr(STR_W_PROOF_CHECK_B),
-                                       tr(STR_W_PROOF_BURN_B), 330, 112);
+    // wt_body_font2_HEAD: it measures the two headings instead of a flat
+    // constant. The number here used to be the 166px budget minus 54 for a
+    // heading that MIGHT wrap to two lines, in every locale whether it did or
+    // not -- a third of the budget given away, which is what drops a pair to
+    // font14. docs/house-rules.md rule 2 names it; these were the call sites
+    // still doing it.
+    const lv_font_t *f = wt_body_font2_head(
+        tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
+        tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
+        330, WT_CONTENT_BOTTOM - 232);
     wt_why_block(s_scr, tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
                  48, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
     wt_why_block(s_scr, tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
@@ -2082,8 +2090,16 @@ static void dice_warn_screen(int verdict)
     kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), dice_need(), &q);
     dice_bars_set(&q);
 
-    const lv_font_t *f = wt_body_font2(tr(STR_W_DICE_W1_B), tr(STR_W_DICE_W2_B),
-                                       330, 112);
+    // wt_body_font2_HEAD: it measures the two headings instead of a flat
+    // constant. The number here used to be the 166px budget minus 54 for a
+    // heading that MIGHT wrap to two lines, in every locale whether it did or
+    // not -- a third of the budget given away, which is what drops a pair to
+    // font14. docs/house-rules.md rule 2 names it; these were the call sites
+    // still doing it.
+    const lv_font_t *f = wt_body_font2_head(
+        tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
+        tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
+        330, WT_CONTENT_BOTTOM - 232);
     wt_why_block(s_scr, tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
                  48, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
     wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
@@ -2653,7 +2669,14 @@ static void cards_verdict_screen(int title, lv_color_t col, bool blocked)
 
     const char *b1 = tr(cards_why_key()), *b2 = tr(STR_W_CARDS_FIX_B);
     const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-    const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - 46 - 8);
+    // wt_body_font2_HEAD: it measures the two headings instead of a flat
+    // constant. The number here used to be the 166px budget minus 54 for a
+    // heading that MIGHT wrap to two lines, in every locale whether it did or
+    // not -- a third of the budget given away, which is what drops a pair to
+    // font14. docs/house-rules.md rule 2 names it; these were the call sites
+    // still doing it.
+    const lv_font_t *f = wt_body_font2_head(tr(STR_W_DICE_W1_H), b1,
+                                            tr(STR_W_DICE_W2_H), b2, BW - 14, BH);
     // Reusing the dice pair's headings: already parallel, already translated,
     // and kiss_info.c reuses a dice title off the dice path for the same
     // reason. The rule colour is the verdict's, the fix is always the accent.

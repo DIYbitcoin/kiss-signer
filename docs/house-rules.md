@@ -34,8 +34,30 @@ Rules:
    check — copy it rather than inventing a third layout.
    When the blocks have headings, size the shared body with
    `wt_body_font2_head(h1, b1, h2, b2, w, max_h)`. It measures the headings.
-   Callers used to subtract a constant 46 for a heading that *might* wrap to two
-   lines, plus 8 — 54px of a 166px budget, given away in all 21 locales.
+   **Never `wt_body_font2` with a hand-subtracted budget.** Four call sites did
+   it anyway, long after this paragraph was written: three passed
+   `BH - 46 - 8`, one passed a bare `112`, which is the same 54px of a 166px
+   budget given away in all 21 locales. That is a third of the room, and a third
+   of the room is the difference between font23 and font14.
+
+   **font14 is metadata. If a body is at font14, that is a BUG, not a
+   translation being long.** It was reported from the bench as "WHY IS THE TEXT
+   SO SMALL, LITERALLY, I KEEP ASKING" — about the confirm screen for replacing
+   the unlock drawing, a screen with a 2000ms hold on it, whose two claims were
+   set at font14 under 165px of empty glass. Nothing was long; the budget had
+   been thrown away in code.
+
+   Two habits that catch it, in order:
+
+   - **Look at the frame.** Every one of these was visible at a glance and none
+     of them was caught by a gate. `bash sim/build_sim.sh && /tmp/fruitsim` and
+     open the .ppm — the house rule about shipping a picture exists for exactly
+     this and it is the only check that sees type size.
+   - **Count the empty band first.** A screen whose blocks start at `y = 232`
+     with nothing above them has 165px doing nothing and a body starving in the
+     rest. Move the blocks up, or put the thing the screen is ABOUT in that band
+     (rule 1 wants it there anyway). Do not shrink the type to fit a layout that
+     was never full.
 3. **A blank line costs a whole line of type.** `exp_height` puts one full
    `lv_font_get_line_height` between paragraphs, so at font28 each blank line is
    ~38px. A three paragraph body pays it twice. **When a screen renders smaller

@@ -329,10 +329,60 @@ static void write_screen(bool again)
 static void confirm_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_GD_WORD_C_T), NULL);
+
+    // What is about to change, drawn, in the SAME card the screen after this
+    // one draws it in. This band was 165px of nothing: a title at font34 over
+    // empty glass over two blocks of font14, on the screen that asks for a
+    // 2000ms hold. Somebody deciding whether to hold could see what they were
+    // giving up only after they had given it up.
+    //
+    // The rows are the done screen's, with KISS in the first chip instead of
+    // the pencil, because that is exactly what the hold replaces. Whoever edits
+    // one of these two cards should edit both; they are one drawing shown
+    // before and after.
+    {
+        lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 96);
+        lv_obj_t *box = lv_obj_create(card);
+        lv_obj_remove_style_all(box);
+        lv_obj_set_pos(box, 0, 0);
+        lv_obj_set_size(box, 704, 96);
+        lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_row(box, 10, 0);
+        lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+        char buf[WT_ICON_TEXT_MAX];
+        lv_obj_t *r1 = wt_diagram_row(box);
+        wt_chip(r1, LV_SYMBOL_EDIT, false);
+        wt_diagram_op(r1, LV_SYMBOL_RIGHT);
+        wt_icon_text(buf, sizeof buf, WT_ICON_SECRET, tr(STR_D_SPARE));
+        wt_chip(r1, buf, false);
+
+        lv_obj_t *r2 = wt_diagram_row(box);
+        wt_chip(r2, LV_SYMBOL_EDIT, false);
+        wt_diagram_op(r2, "+");
+        wt_chip(r2, tr(STR_GD_PICK_REAL_T), false);
+        wt_diagram_op(r2, LV_SYMBOL_RIGHT);
+        wt_icon_text(buf, sizeof buf, WT_ICON_KEY, tr(STR_D_REAL));
+        wt_chip(r2, buf, true);
+    }
+
     {
         const char *b1 = tr(STR_GD_WORD_C_W1_B), *b2 = tr(STR_GD_WORD_C_W2_B);
-        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2(b1, b2, BW - 14, BH - 46 - 8);
+        // 208, not 232: the card above ends at 192 and nothing else wants this
+        // band, so the pair gets 190px instead of 166.
+        const int BW = 344, BY = 208, BH = WT_CONTENT_BOTTOM - BY;
+        // wt_body_font2_HEAD, which measures the two headings. The plain
+        // wt_body_font2 that was here took a flat 46 for a heading that MIGHT
+        // wrap, plus 8, and handed back 54px of a 166px budget in all 21
+        // locales -- which is how a screen with a 2000ms hold on it ended up
+        // explaining itself at font14. docs/house-rules.md rule 2 names this
+        // exact mistake and this call site was the one still making it.
+        const lv_font_t *f = wt_body_font2_head(tr(STR_GD_WORD_C_W1_H), b1,
+                                                tr(STR_GD_WORD_C_W2_H), b2,
+                                                BW - 14, BH);
         wt_why_block(s_scr, tr(STR_GD_WORD_C_W1_H), b1,  48, BY, BW, BH, f,
                      wt_accent());
         wt_why_block(s_scr, tr(STR_GD_WORD_C_W2_H), b2, 408, BY, BW, BH, f,
