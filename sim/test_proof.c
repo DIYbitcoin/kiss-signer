@@ -27,14 +27,13 @@ static void ok(const char *name, int cond)
 //   python3: buf[i] = (i*31+7) & 0xFF over the 1,875,328 frame bytes;
 //   hashlib.sha256 for the digest; BIP39 words from the digest via the
 //   wordlist in components/libwally-core/upstream/src/data/wordlists/english.c
-//   (32 bytes entropy ‖ first 8 bits of SHA256(entropy), 24 x 11-bit indices).
+//   (first 16 bytes of the digest ‖ first 4 bits of SHA256 over those 16,
+//   12 x 11-bit indices -- the 12 word length this signer actually creates).
 //   tools/verify_proof.py runs the same recipe against a real proof file.
 static const char *VEC_HASH =
     "c6f9982e11f767f5e17fb8321323a2609c9d69dd787d9b69039612564ef097aa";
 static const char *VEC_WORDS =
-    "shoulder smoke argue catalog island wife magnet warfare craft october "
-    "trigger scorpion six reject invest autumn opinion elite tortoise caution "
-    "gossip joke gadget execute";
+    "shoulder smoke argue catalog island wife magnet warfare craft october trigger science";
 
 static void hex32(const uint8_t h[32], char out[65])
 {

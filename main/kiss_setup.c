@@ -1460,9 +1460,8 @@ static void method_screen(void)
 // words are a real seed sitting on the card in cleartext, so they live in
 // their own buffers -- never s_w -- and every exit wipes them. No path from
 // here reaches the quiz or store_and_finish.
-static char s_pf_w[24][12];       // the burned words; structurally not s_w
+static char s_pf_w[12][12];       // the burned words; structurally not s_w
 static uint8_t s_pf_hash[32];     // sha256 of the frame, shown lowercase like shasum
-static int s_pf_page;
 static lv_obj_t *s_pf_state;      // line under the viewfinder; SAVING paints here
 static lv_obj_t *s_pf_shot, *s_pf_backp;
 #ifndef SIMULATOR
@@ -1473,7 +1472,6 @@ static void pf_wipe(void)
 {
     kiss_wipe(s_pf_w, sizeof s_pf_w);
     kiss_wipe(s_pf_hash, sizeof s_pf_hash);
-    s_pf_page = 0;
 }
 
 // Same splitter as kiss_setup_entropy, into the proof's own grid.
@@ -1482,7 +1480,7 @@ static void pf_split(const char *words)
     memset(s_pf_w, 0, sizeof s_pf_w);
     int nw = 0;
     const char *p = words;
-    while (*p && nw < 24) {
+    while (*p && nw < 12) {
         int n = 0;
         while (p[n] && p[n] != ' ' && n < 11) n++;
         memcpy(s_pf_w[nw], p, (size_t)n);
@@ -1559,8 +1557,7 @@ static void pf_finish(void)
     if (rc == WPROOF_OK) {
         pf_split(words);
         kiss_wipe(words, sizeof words);
-        s_pf_page = 0;
-        proof_result_screen();
+            proof_result_screen();
     } else {
         pf_wipe();
         pf_gate_screen(WPROOF_NAME, STR_W_PROOF_FAIL_B);
@@ -1637,7 +1634,14 @@ static void proof_screen(void)
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     wt_chip(row, "SHA256", false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, tr(STR_W_24), true);
+    // 12, not 24. The hash is 32 bytes and 32 bytes is 24 words, which is what
+    // this said for as long as it existed -- on a device that pins 12 on every
+    // creation path and offers 24 only when RESTORING paper an owner already
+    // has. A page whose entire job is showing how this signer turns entropy
+    // into seed words was showing it with a seed this signer cannot make, and
+    // a reader took the obvious lesson: that 24 is on offer. kiss_proof.c
+    // takes the first WPROOF_ENTROPY_BYTES of the hash now.
+    wt_chip(row, tr(STR_W_12), true);
 
     // The filename is a C literal, never translated: the owner types it into a
     // shell, so the screen shows exactly what the card will hold. 132 tall,
@@ -1646,6 +1650,28 @@ static void proof_screen(void)
     wt_row_x(s_scr, WT_ICON_SD, WPROOF_NAME, tr(STR_W_PROOF_FILE_NOTE), NULL,
              NULL, NULL, WT_INK, false, ENT_COL_X, ENT_CAM_Y + 64, ENT_COL_W,
              132, NULL, NULL);
+
+    // The one thing this page has to say and never did: these words are public
+    // the moment the photo is. W_PROOF_BURNED already says it in 21 locales and
+    // lived only on the screen AFTER the words were made, which is the wrong
+    // side of the button.
+    //
+    // Under the file row in the right column, not across the page: the band
+    // beneath the viewfinder belongs to s_pf_state, which is where SAVING and
+    // the camera error are written.
+    //
+    // A row rather than a paragraph, because a paragraph alone is what rule 1
+    // exists to stop, and because the mark does half the work: the same warning
+    // triangle the caution bar uses, on a page whose other control is CAPTURE,
+    // is read before the sentence is.
+    // A card and a wrapped note rather than a row: a row's label is one line
+    // and this sentence is three clauses, so it arrived as "not for keys. the
+    // photo is ..." -- an ellipsis exactly where the reason lives.
+    {
+        lv_obj_t *wc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y + 202, ENT_COL_W, 60);
+        wt_lbl(wc, LV_SYMBOL_WARNING, 14, 18, wt_font23(), WT_WARN);
+        wt_note(wc, tr(STR_W_PROOF_BURNED), 48, 10, ENT_COL_W - 62, 42);
+    }
 
 #ifdef SIMULATOR
     s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), WT_ACT_X, WT_ACTION_Y, 300,
@@ -1676,7 +1702,6 @@ static void proof_screen(void)
 static void pf_words_cb(lv_event_t *e)
 {
     (void)e;
-    s_pf_page = 0;
     proof_words_screen();
 }
 
@@ -1732,28 +1757,21 @@ static void proof_result_screen(void)
     wt_pill_primary(sw);
 }
 
-static void pf_words_page_cb(lv_event_t *e)
-{
-    s_pf_page += (int)(intptr_t)lv_event_get_user_data(e);
-    proof_words_screen();
-}
-
 static void pf_words_back_cb(lv_event_t *e) { (void)e; proof_result_screen(); }
 
-// The words screen's grid, reading the proof's own buffers. Always 24 words
-// over two pages, and the loud line is the opposite claim: these are NOT for
-// paper, they are on the card in the open.
+// The words screen's grid, reading the proof's own buffers. TWELVE words on one
+// page now, because the recipe takes the first 16 bytes of the hash -- the same
+// length every creation path on this device produces, which is the whole point
+// of a screen that demonstrates how this device makes seed words.
+//
+// One page, so the pager is gone and with it the only reason this screen ever
+// had a NEXT. The loud line stays and is the opposite claim to every other
+// words screen here: these are NOT for paper, they are on the card in the open.
 static void proof_words_screen(void)
 {
-    if (s_pf_page < 0) s_pf_page = 0;
-    if (s_pf_page > 1) s_pf_page = 1;
-    // AUDIT RESULT, not "24 WORDS": creation is 12 words now, and a title
-    // that counts these reads as a contradiction. The 24 here is correct (a
-    // 32-byte hash IS 24 words) but it is trivia, and the page number line
-    // still says /24 for anyone counting.
     mk_screen(tr(STR_W_PROOF_R_T), NULL);
 
-    const int first = s_pf_page * WORDS_PER_PAGE;
+    const int first = 0;
     const int rows = 6;
     for (int k = 0; k < WORDS_PER_PAGE; k++) {
         char buf[32];
@@ -1768,21 +1786,7 @@ static void proof_words_screen(void)
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
 
-    if (s_pf_page == 0) {
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_back_cb, NULL);
-        mk_pill(tr(STR_R_NEXT), 430, WT_ACTION_Y, 320, pf_words_page_cb,
-                (void *)(intptr_t)1);
-    } else {
-        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_page_cb,
-                (void *)(intptr_t)-1);
-        mk_pill(tr(STR_C_DONE), 430, WT_ACTION_Y, 320, pf_done_cb, NULL);
-    }
-    // After the pills, never before: the first pill summons the opaque action
-    // bar (action_bar_ensure), and anything drawn into the band before that
-    // moment is painted under it.
-    char cnt[40];
-    snprintf(cnt, sizeof cnt, "%d-%d / 24", first + 1, first + WORDS_PER_PAGE);
-    mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+    mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_back_cb, NULL);
 }
 
 // ---- dice screen ----

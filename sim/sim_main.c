@@ -3457,9 +3457,13 @@ int main(void) {
   tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
   save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
   tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);   // SHOW WORDS
-  save("/tmp/sim_setup_prove_words.ppm");           // words 1-12, thrown-away line
-  tap_str(STR_R_NEXT, 3, 6);          // NEXT -> words 13-24
-  save("/tmp/sim_setup_prove_words2.ppm");          // second page + counter
+  // ONE page of 12, not two of 24. The recipe takes the first 16 bytes of the
+  // hash now, so the audit demonstrates the same length every creation path on
+  // this device produces -- which is what the page was for, and what it was
+  // getting wrong by showing a seed the signer cannot make.
+  save("/tmp/sim_setup_prove_words.ppm");           // all 12, thrown-away line
+  must_show("audit words/count", "12. ");
+  tap_str(STR_C_BACK, 3, 8);          // BACK -> the result screen
   tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
 
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in

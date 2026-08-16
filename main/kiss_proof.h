@@ -1,7 +1,8 @@
 // The CAMERA AUDIT pipeline: one camera frame becomes a file on the SD card, a
-// SHA256 and 24 burned words. The owner checks all three on any computer:
+// SHA256 and 12 burned words. The owner checks all three on any computer:
 // shasum of the file must match the screen, and any BIP39 tool fed that hash
-// as entropy must produce the same words. See docs/specs/prove-it.md for what
+// as entropy must produce the same words -- fed the FIRST 16 BYTES of it, which
+// is what makes the result 12 words, the only length this signer creates. See docs/specs/prove-it.md for what
 // that does and does not prove.
 //
 // The words are a real seed sitting on the card in cleartext. Callers keep
@@ -35,6 +36,18 @@
 #define WPROOF_FILE_H      (WPROOF_FRAME_H / 2)
 #define WPROOF_FILE_BYTES  ((size_t)WPROOF_FILE_W * WPROOF_FILE_H * 2)
 
+// How much of the hash becomes seed words: 16 bytes, so the audit demonstrates
+// the same 12 word seed every creation path on this device produces. Taking all
+// 32 made 24, a length the signer offers only on RESTORE, so the page teaching
+// how entropy becomes seed words was teaching a capability it does not have.
+//
+// Changing this changes the recipe, and the recipe is written down in four
+// places that must move together: here, docs/verify.html (embedded into
+// verify_page.c and written onto the card beside every frame), verify_proof.py,
+// and docs/specs/prove-it.md. A card written by older firmware carries the
+// checker page that matches it, so old proofs keep verifying.
+#define WPROOF_ENTROPY_BYTES 16
+
 enum {
     WPROOF_OK         = 0,
     WPROOF_ERR_ARG    = -1,   // NULL frame, or len != WPROOF_FRAME_BYTES
@@ -45,7 +58,7 @@ enum {
 // Subsample the frame, SHA256 the subsampled bytes, write them to WPROOF_NAME (atomic form, so
 // the card copy is read back and byte compared before it gets the name), write
 // the embedded checker page plus this run's claim as WPROOF_PAGE_NAME the same
-// way, then derive the 24 words from the hash alone. hash_out and words_out are filled only on
+// way, then derive the 12 words from the first WPROOF_ENTROPY_BYTES of the hash. hash_out and words_out are filled only on
 // WPROOF_OK; words_len must be >= WSEED_MAX_MNEMONIC. A stale-sidecar cleanup
 // result from either write is success: the target is committed and verified.
 // On WPROOF_ERR_SD neither file exists (a failed page write deletes the

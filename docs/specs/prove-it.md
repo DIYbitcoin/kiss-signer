@@ -15,7 +15,7 @@ alone.
 The proof run computes
 
     hash  = SHA256(frame)            // the 1,875,328 raw RGB565 bytes
-    words = BIP39(hash)              // 24 words, standard checksum, English list
+    words = BIP39(hash[0:16])        // 12 words, standard checksum, English list
 
 and shows both, having first written `frame` byte for byte to `kiss-proof.bin`
 and the offline checker page beside it as `kiss-verify.html`. The owner then
@@ -28,7 +28,8 @@ checks, on any computer they trust, any of three ways:
    of the same check, open `verify.html` from the repo or the site instead;
    that copy has no claim, so it prints the hash and words to compare.
 2. `shasum -a 256 kiss-proof.bin` equals the hash on the screen, and any BIP39
-   tool fed that hash as entropy produces the same 24 words.
+   tool fed the FIRST 16 BYTES of that hash as entropy produces the same 12
+   words.
 3. `tools/verify_proof.py` does both of step 2's halves in one command.
 
 If both hold, the device's SHA256 and its BIP39 wordlist and checksum are
@@ -88,7 +89,7 @@ check it.
     WHY overlay -> CAMERA AUDIT -> [SD gate] -> viewfinder + CAPTURE
                 -> one frame frozen on screen -> SD writes (atomic, verified:
                    the frame, then the checker page)
-                -> hash + check/burn cards -> 24 words -> back to the wizard
+                -> hash + check/burn cards -> 12 words -> back to the wizard
 
 The frame frozen on the preview IS the captured frame: capture pauses the video
 on exactly the buffer that was copied, so what the owner saw is what got
@@ -137,7 +138,40 @@ against the same pinned vector (JS drift).
    `kiss-proof.bin` and no `kiss-verify.html`.
 5. The 1.83MB PSRAM proof buffer allocates with a wallet open.
 6. `kiss-verify.html` opened from the card itself, offline in a browser, fed
-   the card's file, shows MATCH and the same 24 words as the screen.
+   the card's file, shows MATCH and the same 12 words as the screen.
 7. The AUDIT pill on the entropy screen's action row reaches the same flow as
    the one on the WHY overlay, and hands the camera over cleanly (no second
    stream onto a framebuffer the entropy preview is still writing).
+
+## Why sixteen bytes and not thirty two
+
+The hash is 32 bytes and 32 bytes of entropy is 24 BIP39 words, which is what
+this derived for as long as it existed. This signer does not make 24 word seeds:
+every creation path pins 12 (`method_cam_cb`, `method_dice_cb`,
+`method_cards_cb` in `main/kiss_setup.c`) and 24 exists only on RESTORE, to
+match paper an owner already has.
+
+So the one screen whose entire job is demonstrating how this device turns
+entropy into seed words was demonstrating it with a seed the device cannot
+produce, and the obvious lesson for a reader was that 24 is on offer. It is not.
+The recipe takes `hash[0:16]` and the checksum is the top 4 bits of
+`SHA256(hash[0:16])`, which is what BIP39 specifies for 128 bits.
+
+What that gives up, recorded because it is a real loss: the audit no longer
+demonstrates that the other 16 bytes of the hash went unused. An owner who
+rederives still gets the same 12 words from the same file, and a page teaching
+a capability the signer does not have was the worse of the two.
+
+The recipe is written in four places and they move together or the audit stops
+verifying:
+
+- `main/kiss_proof.c` and `WPROOF_ENTROPY_BYTES` in `main/kiss_proof.h`
+- `docs/verify.html`, embedded into `main/verify_page.c` by
+  `tools/gen_verify_page.py` and written onto the card beside every frame, so a
+  card carries the checker that matches it and older cards keep verifying
+- `tools/verify_proof.py`
+- this file
+
+Three independent implementations are pinned to one vector: `sim/test_proof.c`
+(libwally), `tools/check_verify_page.mjs` (the page's own JS under Node) and the
+Python above.

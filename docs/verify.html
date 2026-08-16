@@ -150,7 +150,7 @@
       <div id="result" class="card">
         <h2>SHA256 of the file</h2>
         <div id="hash" class="mono"></div>
-        <h2 style="margin-top:18px">24 words from that hash</h2>
+        <h2 style="margin-top:18px">12 words from that hash</h2>
         <p class="mut legend">
           <span class="bit on"></span><span>bit of the hash</span>
           <span class="bit cs on"></span><span>checksum bit</span>
@@ -165,9 +165,10 @@
 
       <div class="card">
         <h2>What this page computes</h2>
-<pre>entropy  = SHA256(kiss-proof.bin)         a proof file is 468,832 bytes
-checksum = first 8 bits of SHA256(entropy)
-words    = 24 x 11 bit slices of entropy + checksum, standard English list</pre>
+<pre>hash     = SHA256(kiss-proof.bin)         a proof file is 468,832 bytes
+entropy  = first 16 bytes of that hash    128 bits, the length this signer makes
+checksum = first 4 bits of SHA256(entropy)
+words    = 12 x 11 bit slices of entropy + checksum, standard English list</pre>
         <p class="mut">
           Or: <span class="mono">shasum -a 256 kiss-proof.bin</span>, or
           <span class="mono">tools/verify_proof.py</span> from the repository.
@@ -245,28 +246,37 @@ words    = 24 x 11 bit slices of entropy + checksum, standard English list</pre>
         return out;
       }
 
-      // entropy(32) + 1 checksum byte -> 264 bits, read eleven at a time. Each
-      // slice IS the word: the eleven bits spell an index into the standard
-      // list. Bit 256 and up came from the checksum rather than the hash, which
-      // is why the last word is three bits of the file and eight bits of a
-      // check on it -- the one part of "hash goes in, words come out" that a
-      // reader cannot get from a list of words alone.
+      // The FIRST 16 BYTES of the hash, plus 4 checksum bits -> 132 bits, read
+      // eleven at a time. Each slice IS the word: the eleven bits spell an
+      // index into the standard list. Bit 128 and up came from the checksum
+      // rather than the hash, which is why the last word is three bits of the
+      // file and four bits of a check on it -- the one part of "hash goes in,
+      // words come out" that a reader cannot get from a list of words alone.
+      //
+      // Sixteen and not all thirty two, so the audit produces the same 12 word
+      // seed every creation path on the signer produces. Taking the whole hash
+      // gave 24, a length the device offers only when RESTORING paper you
+      // already have, so the page demonstrating how entropy becomes seed words
+      // was demonstrating a capability the signer does not have. The checksum
+      // is the top 4 bits of SHA256 over those 16 bytes, which is what BIP39
+      // specifies for 128 bits of entropy.
       //
       // Returned as data rather than drawn here: the page renders it, and the
       // Node vector check runs this same function with no DOM.
       function bip39Slices(hash32) {
-        var cs = sha256(hash32)[0];
-        var bytes = new Uint8Array(33);
-        bytes.set(hash32);
-        bytes[32] = cs;
+        var ent = hash32.slice(0, 16);
+        var cs = sha256(ent)[0] & 0xf0;
+        var bytes = new Uint8Array(17);
+        bytes.set(ent);
+        bytes[16] = cs;
         var out = [];
-        for (var i = 0; i < 24; i++) {
+        for (var i = 0; i < 12; i++) {
           var bit = i * 11, idx = 0, bits = [];
           for (var j = 0; j < 11; j++) {
             var b = bit + j;
             var v = (bytes[b >> 3] >> (7 - (b & 7))) & 1;
             idx = (idx << 1) | v;
-            bits.push({ on: v === 1, cs: b >= 256 });
+            bits.push({ on: v === 1, cs: b >= 128 });
           }
           out.push({ bits: bits, index: idx, word: WORDS[idx] });
         }

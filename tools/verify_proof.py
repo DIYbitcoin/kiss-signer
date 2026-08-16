@@ -3,13 +3,18 @@
 
     python3 verify_proof.py kiss-proof.bin
 
-Prints the SHA256 of the file and the 24 BIP39 words that hash derives to.
+Prints the SHA256 of the file and the 12 BIP39 words that hash derives to.
 Both must match what the device showed when it made the file. The words are
 burned: they sit on the card in the open, never use them for funds.
 
 The wordlist below is the standard BIP39 English list, embedded so this file
-works alone. Recipe: entropy = SHA256(file); checksum = first 8 bits of
-SHA256(entropy); 24 words = 24 x 11 bit slices of entropy + checksum.
+works alone. Recipe: hash = SHA256(file); entropy = the first 16 bytes of it;
+checksum = first 4 bits of SHA256(entropy); 12 words = 12 x 11 bit slices of
+entropy + checksum.
+
+Sixteen bytes and not all thirty two, so the audit produces the same 12 word
+seed the signer itself creates. The full hash gave 24 words, a length the device
+offers only when restoring paper you already have.
 """
 import hashlib
 import sys
@@ -200,12 +205,13 @@ def main():
         data = f.read()
     if len(data) != FRAME_BYTES:
         print(f"warning: {len(data)} bytes, a proof frame is {FRAME_BYTES}")
-    ent = hashlib.sha256(data).digest()
-    cs = hashlib.sha256(ent).digest()[0]
-    bits = int.from_bytes(ent, "big") << 8 | cs
-    words = [WORDS[(bits >> (11 * (23 - i))) & 0x7FF] for i in range(24)]
-    print("sha256:", ent.hex())
-    for i in range(0, 24, 6):
+    digest = hashlib.sha256(data).digest()
+    ent = digest[:16]
+    cs = hashlib.sha256(ent).digest()[0] >> 4
+    bits = int.from_bytes(ent, "big") << 4 | cs
+    words = [WORDS[(bits >> (11 * (11 - i))) & 0x7FF] for i in range(12)]
+    print("sha256:", digest.hex())
+    for i in range(0, 12, 6):
         print("words: " if i == 0 else "       ",
               " ".join(f"{w:8s}" for w in words[i:i + 6]))
 

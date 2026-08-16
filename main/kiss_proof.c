@@ -81,7 +81,27 @@ int kiss_proof_run(const uint8_t *frame, size_t len,
         return WPROOF_ERR_SD;
     }
 
-    if (kiss_seed_from_entropy(h, sizeof h, words_out, words_len) != 0)
+    // The FIRST 16 BYTES of the hash, which is 12 words.
+    //
+    // It used to be all 32, which is 24, and 24 is a number this signer never
+    // produces: every creation path pins 12 (kiss_setup.c method_cam_cb,
+    // method_dice_cb, method_cards_cb) and 24 survives only on RESTORE, to
+    // match paper an owner already has. So the one screen whose entire job is
+    // demonstrating how this device turns entropy into seed words was
+    // demonstrating it with a seed this device cannot make, and a reader who
+    // took the page at its word came away believing the signer offers 24.
+    //
+    // What is given up, stated because the spec has to record it: the audit no
+    // longer shows that the other 16 bytes of the hash went unused. It never
+    // showed much -- an owner who rederives gets the same 12 words from the
+    // same file either way -- and it is a poor trade against a page teaching a
+    // capability that is not there.
+    //
+    // The recipe now lives in four places and they move together or the audit
+    // stops verifying: here, docs/verify.html (which this device writes onto
+    // the card beside the frame, so a card carries its own matching checker),
+    // tools/verify_proof.py, and docs/specs/prove-it.md.
+    if (kiss_seed_from_entropy(h, WPROOF_ENTROPY_BYTES, words_out, words_len) != 0)
         return WPROOF_ERR_DERIVE;
 
     memcpy(hash_out, h, sizeof h);

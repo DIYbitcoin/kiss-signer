@@ -25,9 +25,7 @@ vm.runInContext(m[1], ctx, { filename: "verify.html <script>" });
 const VEC_HASH =
   "c6f9982e11f767f5e17fb8321323a2609c9d69dd787d9b69039612564ef097aa";
 const VEC_WORDS =
-  "shoulder smoke argue catalog island wife magnet warfare craft october " +
-  "trigger scorpion six reject invest autumn opinion elite tortoise caution " +
-  "gossip joke gadget execute";
+  "shoulder smoke argue catalog island wife magnet warfare craft october trigger science";
 
 // The page hashes the FILE the device writes: every second pixel of every
 // second row of the raw pattern frame, two bytes per pixel. Built here the
@@ -56,7 +54,7 @@ if (words !== VEC_WORDS) fail(`words mismatch\n  got  ${words}\n  want ${VEC_WOR
 // to spell the word printed beside them. Nothing on screen can reveal a slice
 // that disagrees with its own word, and only this check says so.
 const slices = ctx.bip39Slices(hash);
-if (slices.length !== 24) fail(`bip39Slices returned ${slices.length} slices`);
+if (slices.length !== 12) fail(`bip39Slices returned ${slices.length} slices`);
 let csBits = 0;
 slices.forEach((s, i) => {
   if (s.bits.length !== 11) fail(`slice ${i} has ${s.bits.length} bits`);
@@ -65,11 +63,11 @@ slices.forEach((s, i) => {
   if (ctx.WORDS[s.index] !== s.word) fail(`slice ${i} word is not index ${s.index}`);
   if (s.word !== VEC_WORDS.split(" ")[i]) fail(`slice ${i} disagrees with bip39Words`);
   s.bits.forEach((b, j) => {
-    if (b.cs !== (i * 11 + j >= 256)) fail(`slice ${i} bit ${j} mislabels its source`);
+    if (b.cs !== (i * 11 + j >= 128)) fail(`slice ${i} bit ${j} mislabels its source`);
     if (b.cs) csBits++;
   });
 });
-if (csBits !== 8) fail(`${csBits} bits marked checksum, want 8`);
+if (csBits !== 4) fail(`${csBits} bits marked checksum, want 4`);
 
 if (ctx.claimedHash("#h=" + VEC_HASH.toUpperCase()) !== VEC_HASH)
   fail("claimedHash does not normalize case");
@@ -86,7 +84,7 @@ if (typeof ctx.KISS_CLAIM !== "undefined" || typeof ctx.bakedClaim !== "undefine
 if (ctx.WORDS.length !== 2048 || ctx.WORDS[0] !== "abandon" || ctx.WORDS[2047] !== "zoo")
   fail("embedded wordlist is not the standard 2048");
 
-console.log("verify page vector: PASS (hash, 24 words, #h= parser)");
+console.log("verify page vector: PASS (hash, 12 words, #h= parser)");
 
 function fail(msg) {
   console.error("verify page vector: FAIL — " + msg);
