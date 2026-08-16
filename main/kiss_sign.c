@@ -967,12 +967,45 @@ static void coins_help_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
-// ---- "?" beside the address: what to do with it ----
-// Two entries, not prose, and the same shape every other card on this screen
-// uses. The whole answer is a habit: read it against what your coordinator
-// shows. A signer can prove the change output is its own and can prove nothing
-// at all about someone else's address, so this is the only screen where a
-// destination swapped anywhere upstream still gets caught.
+// ---- "?" beside the address: the address, big, and what to do with it ----
+//
+// The card carries the destination ITSELF as its aside, blocked in fours with
+// the compared tail lit, over the two-entry lesson. That is the whole point of
+// the chip: reading "compare it with your coordinator" on a card that does not
+// show you the thing to compare is an instruction with no object, and it is
+// what the owner hit when the "?" here answered RBF instead.
+//
+// It is also where a long destination gets the room it needs. The verify screen
+// gives the address one line of a band it shares with the meta row; a silent
+// payment address is 117 characters and a taproot one is 62, and this card has
+// the whole 704 lane and as many lines as it wants.
+//
+// A signer can prove the change output is its own and can prove nothing at all
+// about someone else's address, so this is the only screen where a destination
+// swapped anywhere upstream still gets caught.
+static char s_addr_help[128];          // the destination this card is about
+
+static int aside_addr(lv_obj_t *par, int x, int y, int w)
+{
+    if (!s_addr_help[0]) return 0;
+    char grouped[200];                 // 117 + 29 spaces, the worst case
+    wt_group4(s_addr_help, grouped, sizeof grouped);
+    // mono23 with the tail in the accent, blocked: 42 characters measure 915px
+    // grouped, so a bech32 takes two lines of this 704 lane and the silent
+    // payment form takes four. Lines are what this card has spare, which is
+    // exactly why the address is here and not down there.
+    lv_obj_t *ad = wt_addr_spans(par, grouped, w, wt_font_mono23());
+    lv_obj_set_pos(ad, x, y);
+    lv_obj_update_layout(ad);
+    // The caption goes UNDER it, naming the run that is lit rather than the
+    // block as a whole -- S_CMP_8 already ships in 21 locales and already says
+    // it on the receive screen, so the two screens teach one habit.
+    lv_obj_t *cap = wt_lbl(par, tr(STR_S_CMP_8), x, y + lv_obj_get_height(ad) + 6,
+                           wt_font14(), MUT_COL);
+    (void)cap;
+    return lv_obj_get_height(ad) + 6 + lv_font_get_line_height(wt_font14());
+}
+
 static void addr_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -981,6 +1014,55 @@ static void addr_help_cb(lv_event_t *e)
         .title  = tr(STR_R_VT),          // VERIFY ADDRESS, the receive screen's word
         .icon   = LV_SYMBOL_EYE_OPEN,
         .body   = tr(STR_S_ADDR_HELP_B),
+        .ok_txt = tr(STR_C_OK),
+        .sev    = WT_SEV_PLAIN,
+        .mode   = WT_GRID_ICONS,
+        .icons  = ICONS,
+        .aside  = s_addr_help[0] ? aside_addr : NULL,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
+// Opening the same card from the address block itself, so the destination is
+// its own control and not a label parked under a chip.
+static void addr_tap_cb(lv_event_t *e)
+{
+    const char *a = lv_event_get_user_data(e);
+    if (a) snprintf(s_addr_help, sizeof s_addr_help, "%s", a);
+    addr_help_cb(NULL);
+}
+
+// ---- "?" beside the network/RBF pair ----
+//
+// The question from the bench was "where is the option to RBF", and the honest
+// answer is that there is not one and cannot be. RBF is the nSequence value on
+// every input; it is inside the sighash preimage, so it is covered by the
+// signature, and a signer that changed it would be signing a transaction its
+// coordinator does not have. Sparrow, the coordinator this device names on its
+// own screens, has no pre-send toggle either: it is a right click on an
+// unconfirmed transaction afterwards.
+//
+// One body for both states, because two of its three lines are the same either
+// way and the third is now true either way as well: Bitcoin Core v28 turned
+// full RBF on by default and v29 removed the setting, so the flag no longer
+// decides whether a replacement is accepted. That is also why the OFF label
+// stopped saying FINAL -- see S_RBF_T_OFF.
+//
+// The TITLE carries the state, so the card names this transaction rather than
+// explaining a general fact and leaving the owner to work out which half is
+// theirs.
+static void rbf_help_cb(lv_event_t *e)
+{
+    (void)e;
+    static const char *const ICONS[] = {
+        WT_ICON_REPLACE,         // who sets it, and it is not this box
+        LV_SYMBOL_CUT,           // the fee, if it sticks
+        LV_SYMBOL_OK,            // what cannot change either way
+    };
+    wt_explain_t x = {
+        .title  = tr(s_sum.rbf ? STR_S_RBF_T_ON : STR_S_RBF_T_OFF),
+        .icon   = s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
+        .body   = tr(STR_S_RBF_HELP_B),
         .ok_txt = tr(STR_C_OK),
         .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
@@ -1701,8 +1783,31 @@ static void verify_screen(lv_obj_t *parent)
         // because the caption is a formatted translation -- 160 bytes of it in
         // Cyrillic -- and clamped short of the outputs caption at 464 so the
         // widest locale cannot push it into the other half of the row.
+        //
+        // Measured off the WIDEST text this one label will ever hold, not the
+        // text it holds now. It is s_graph_cap: the hold turns it into SIGNING
+        // and the signature turns it into SIGNED, and "ONDERTEKEND" is wider
+        // than "INPUTS (1)". Measuring only the resting caption put the chip
+        // 8px inside the signed word in nl, ru and hr -- on a frame that exists
+        // for 1.6 seconds, which is why the 21-locale gate found it and no
+        // amount of looking at the English screen would have.
         lv_obj_update_layout(lc);
-        s_coins_chip_x = 24 + lv_obj_get_width(lc) + 8;
+        int capw = lv_obj_get_width(lc);
+        {
+            char alt[64];
+            const char *cands[3];
+            snprintf(alt, sizeof alt, tr(STR_S_ALL_SIGNED_FMT), (unsigned)s_sum.n_in);
+            cands[0] = tr(STR_S_SIGNING);
+            cands[1] = tr(STR_S_SIGNED_T);
+            cands[2] = alt;
+            for (int c = 0; c < 3; c++) {
+                lv_point_t p;
+                lv_text_get_size(&p, cands[c], wt_font14(), 2, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                if (p.x > capw) capw = p.x;
+            }
+        }
+        s_coins_chip_x = 24 + capw + 8;
         if (s_coins_chip_x > 424) s_coins_chip_x = 424;
         lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
                               wt_font14(), MUT_COL);
@@ -1739,121 +1844,162 @@ static void verify_screen(lv_obj_t *parent)
         // The address, under the graph rather than inside a panel: the strand
         // above it is where the money goes, and this is the name of the place.
         const int ay = np ? 292 : 300;
-        // Caption on the left, the compare cue and the reveal on the right, all
-        // on one line so the address itself gets the full lane underneath. The
-        // toggle is the receive screen's own key, so the two screens teach one
-        // habit, and it is what keeps the WHOLE address reachable when the fold
-        // is showing eight characters of forty one.
-        lv_obj_t *arow = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(arow);
-        lv_obj_set_pos(arow, 24, ay);
-        // Clean: 24..724, with the RBF "?" at 738..768 beyond it. Cautioned:
-        // 24..440 only, because the meta row moves up into 464..724 on that
-        // layout and a full width caption row would run the reveal underneath
-        // it. Both lanes are the appendix's, measured rather than assumed.
-        lv_obj_set_size(arow, np ? 416 : 700, LV_SIZE_CONTENT);
-        lv_obj_remove_flag(arow, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_flex_flow(arow, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        // With more than one recipient every address is already in its own row
-        // above, so this line names nothing and the reveal has nothing to
-        // reveal. Both go; the "?" stays, because the RBF card is reachable
-        // from nowhere else.
+        // Caption and its "?" on the left, the network and RBF pair right
+        // aligned on the same line, and the address on the whole lane beneath.
+        //
+        // Each "?" sits against the thing it answers, which is the rule this
+        // screen has broken twice: the chip parked at 738 answered RBF while
+        // touching a FULL ADDRESS control, then answered the address while
+        // touching the meta row. The address chip is 8px from the word
+        // "recipient address" now, and the RBF chip is past the end of the pair.
+        // With more than one recipient every address is in its own row above,
+        // so the caption names nothing and goes -- and the address chip goes
+        // with it, because each row is its own control.
         if (recipient_n == 1) {
-        lv_obj_t *acap = lv_label_create(arow);
-        lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
-        lv_obj_set_style_text_font(acap, wt_font14(), 0);
-        lv_obj_set_style_text_color(acap, MUT_COL, 0);
+            lv_obj_t *arow = lv_obj_create(s_scr);
+            lv_obj_remove_style_all(arow);
+            lv_obj_set_pos(arow, 24, ay - 6);
+            lv_obj_set_size(arow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+            lv_obj_remove_flag(arow, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_flex_flow(arow, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_START,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_style_pad_column(arow, 8, 0);
+            lv_obj_t *acap = lv_label_create(arow);
+            lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
+            lv_obj_set_style_text_font(acap, wt_font14(), 0);
+            lv_obj_set_style_text_color(acap, MUT_COL, 0);
+            wt_help_chip(arow, 0, 0, MUT_COL, addr_help_cb, NULL);
         }
-        // The "?" answers the address, because the address is what it sits
-        // beside. It used to open the RBF card from this exact spot: one row
-        // above the footer line it belonged to, and inches from a FULL ADDRESS
-        // control it had nothing to do with. The first owner to tap it asked
-        // what one had to do with the other. RBF keeps its own chip on DETAILS,
-        // beside its own row, which is where that question gets asked.
-        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, addr_help_cb, NULL);
+        // RBF's own chip is built AFTER the address, at the end of this block.
+        // The address is a control now and its box is the whole 752 lane; a chip
+        // built before it is an earlier sibling under a later one that covers
+        // the band, so it draws in the right place and every press goes to the
+        // address. That is the third time this file has made exactly this
+        // mistake -- the coins chip under the graph, the caution chip under the
+        // bar, and now this -- and no frame can show any of them, because the
+        // chip is right there and simply does nothing.
 
         for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
                         && i < WPSBT_MAX_OUTS; i++) {
             if (s_sum.outs[i].is_change) continue;
-            // THE WHOLE ADDRESS, on one line, at the size it is compared at.
+            // THE WHOLE ADDRESS, never a fold, and ONE form for every length.
             // It used to arrive folded to eight characters with the rest behind
             // a control labelled FULL ADDRESS -- which reads as a heading and
             // not as a button, and left the screen whose one job is catching a
             // swapped destination showing a fifth of the destination.
             //
-            // Ungrouped at mono23 rather than blocked in fours: a 42 character
-            // bech32 measures 739px raw and 915px grouped, against a 752 lane.
-            // Grouping it wrapped to three lines and broke the lit tail across
-            // two of them, which is worse to compare than one unbroken run. The
-            // tail still lights, and a longer address (taproot, or a silent
-            // payment at 117 characters) takes the blocked mono14 form with its
-            // tail lifted, because that one cannot be one line at any size.
-            // Measured, not a per character constant: every hand estimate in
-            // this file's history has been wrong, and this one decides which
-            // of two very different renderings an owner compares against.
-            // The whole lane in BOTH layouts. Only the CAPTION row has to stop
-            // short of the meta text beside it; the address sits on its own
-            // line below that, so the cautioned screen -- the one carrying a
-            // transaction this device already distrusts -- gets the same
-            // readable single line as the clean one, instead of the blocked
-            // mono14 form it used to fall back to at 416.
+            // Blocked in fours at mono14 with the tail lifted to mono23. The
+            // two measurements that decide this are already recorded on
+            // wt_addr_spans_lift and are the reason it can be one branch
+            // instead of two: grouped at mono14 a 42 character bech32 is 438px
+            // and a 117 character silent payment is 722px, so BOTH are one line
+            // in this 752 lane. The mono23 form they replace was 739px for the
+            // bech32 alone and had no answer at all for the long one except a
+            // second rendering, which meant an owner compared against whichever
+            // of two shapes the transaction happened to produce.
+            //
+            // It also gives the band back. This line, the caption above it and
+            // the meta row below shared the 84px between the graph and the
+            // action bar, and the mono23 line was taking most of it -- which is
+            // what "the address takes the whole bottom" means from the bench.
+            //
+            // Groups of four is what Coldcard and Sparrow both moved to, and
+            // the lift is what keeps the compared run readable at this size.
+            // The whole lane in BOTH layouts: only the CAPTION row has to stop
+            // short of the meta text beside it.
             const int lane = 752;
-            lv_point_t sz;
-            lv_text_get_size(&sz, s_sum.outs[i].addr, wt_font_mono23(), 0, 0,
-                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-            const bool one_line = sz.x <= lane;
-            lv_obj_t *ad;
-            if (one_line) {
-                ad = wt_addr_spans(s_scr, s_sum.outs[i].addr, lane,
-                                   wt_font_mono23());
-            } else {
-                char grouped[192];
-                wt_group4(s_sum.outs[i].addr, grouped, sizeof grouped);
-                ad = wt_addr_spans_lift(s_scr, grouped, lane, wt_font_mono14());
-            }
+            char grouped[200];         // 117 + 29 spaces, the silent payment case
+            wt_group4(s_sum.outs[i].addr, grouped, sizeof grouped);
+            lv_obj_t *ad = wt_addr_spans_lift(s_scr, grouped, lane,
+                                              wt_font_mono14());
             lv_obj_set_pos(ad, 24, ay + 18);
+            // The block is the control. Tapping it opens the same card the "?"
+            // does, with this address drawn at mono23 across the whole 704 lane,
+            // which is where a careful comparison actually happens.
+            snprintf(s_addr_help, sizeof s_addr_help, "%s", s_sum.outs[i].addr);
+            lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(ad, 10);
+            lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
+                                (void *)s_sum.outs[i].addr);
             break;
         }
+
+        // RBF's own chip, past the right end of the pair it explains, and built
+        // LAST so it sits above the address lane. This is the answer to "where
+        // is the RBF option": there is no option, and the card behind this chip
+        // is where that gets said.
+        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, rbf_help_cb, NULL);
     }
 
     {
         // ---- the meta row ------------------------------------------------
-        // What the facts strip said in three ruled cells, on one line: which
-        // network these coins are real on, and whether the fee can still be
-        // raised. The fee itself is a strand now, with its own thickness, so
-        // the cell that used to print it is the one thing the row does not
-        // carry.
+        // Which network these coins are real on, and what the coordinator asked
+        // for about replacing the transaction. The fee is a strand now, with its
+        // own thickness, so the cell that used to print it is the one thing the
+        // row does not carry.
         //
-        // Where RBF is explained: the DETAILS row that prints the same word,
-        // wearing the same mark, with its own "?" beside it. It used to be
-        // explained from a chip parked up here, which is how a chip came to sit
-        // beside an address control it said nothing about.
+        // ON THE ADDRESS CAPTION'S LINE, right aligned, in BOTH layouts. It used
+        // to have a band of its own at y=366, which the cautioned screen has no
+        // room for -- so on a cautioned transaction the whole RBF half was
+        // simply dropped, and the fact went missing at exactly the moment the
+        // transaction became interesting enough to ask about. That is the bug
+        // behind "where is RBF". Sharing the caption's line costs nothing: the
+        // caption is one short phrase on the left and the address has the whole
+        // lane below it either way.
+        const int ay = np ? 292 : 300;
         const char *net = s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
-        // Cautioned, this sits in a 260px slot beside the address caption and
-        // the whole address now takes the line below it, so the pair wrapped
-        // onto the address. The network is the half that changes what a
-        // signature is worth and it stays; RBF keeps its DETAILS row, which is
-        // the only place it was ever explained from anyway.
-        if (np) snprintf(buf, sizeof buf, "%s", net);
-        else    snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
-        // Cautioned, the row moves up beside the address, because the bar owns
-        // the band it would otherwise use.
+        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
         if (!np) sg_rule(0, 356, 800, 1);
-        // Amber on testnet, the same as the cell it replaces: the network is a
-        // status, not chrome, and it is the one fact on this row that changes
-        // what a signature is worth.
+        // Amber on testnet: the network is a status, not chrome, and it is the
+        // one fact on this row that changes what a signature is worth.
         //
-        // Cautioned it wraps inside 260px between the address lane and the "?",
-        // and ends at 330 with the bar starting at 344. Clean it has the whole
-        // lane and one line, so it ellipsises rather than growing into the bar.
-        lv_obj_t *m = sg_lbl(s_scr, buf, np ? 464 : 24, np ? 292 : 366,
-                             wt_font14(), s_sum.testnet ? WARN_COL : MUT_COL);
-        lv_obj_set_width(m, np ? 260 : 752);
-        lv_label_set_long_mode(m, np ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+        // 364..724 right aligned, against a caption that starts at 24 and is one
+        // phrase long. 360px is more than the pair measures in any locale and
+        // the ellipsis is the backstop rather than the plan.
+        lv_obj_t *m = sg_lbl(s_scr, buf, 364, ay, wt_font14(),
+                             s_sum.testnet ? WARN_COL : MUT_COL);
+        lv_obj_set_width(m, 360);
+        lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_label_set_long_mode(m, LV_LABEL_LONG_DOT);
+
+        // ---- the fee rate, on the band the address gave back -------------
+        //
+        // The graph draws the fee as a strand with a thickness, which answers
+        // "how much" and cannot answer "is that a lot". S_FEERATE_PCT_FMT
+        // answers the second one and was already written and translated:
+        // "7.0 sat/vB, 1.6% of what you send". It lived on DETAILS alone, two
+        // taps from the decision, and the percentage is the number Coldcard
+        // warns on at 5% and refuses at 10% -- the one a newcomer can reason
+        // about without knowing what a good rate looks like this week.
+        //
+        // Clean layout only: cautioned, this band is the caution bar's, and
+        // what a flagged transaction needs said first is the flag.
+        if (!np && s_sum.fee_rate_x10) {
+            uint64_t p10 = s_sum.send_sats
+                         ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
+            if (s_sum.send_sats)
+                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
+                         (unsigned)(s_sum.fee_rate_x10 / 10),
+                         (unsigned)(s_sum.fee_rate_x10 % 10),
+                         (unsigned long long)(p10 / 10),
+                         (unsigned long long)(p10 % 10));
+            else
+                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
+                         (unsigned)(s_sum.fee_rate_x10 / 10),
+                         (unsigned)(s_sum.fee_rate_x10 % 10));
+            // The scissors, not a bolt: a bolt reads as Lightning. Same mark
+            // the DETAILS fee row and its explainer already wear.
+            lv_obj_t *fr = sg_lbl(s_scr, LV_SYMBOL_CUT, 24, 366,
+                                  wt_font14(), MUT_COL);
+            lv_obj_update_layout(fr);
+            lv_obj_t *fl = sg_lbl(s_scr, buf, 24 + lv_obj_get_width(fr) + 8, 366,
+                                  wt_font14(), MUT_COL);
+            lv_obj_set_width(fl, 700 - lv_obj_get_width(fr));
+            lv_label_set_long_mode(fl, LV_LABEL_LONG_DOT);
+        }
     }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
