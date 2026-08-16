@@ -3236,6 +3236,58 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
     }
 }
 
+// ---- the signature landing (see kiss_theme.h) ----
+// One value, every input strand, and no per input timing anywhere in it. The
+// end state is exactly what wt_bundle_state(SIGNED) paints, and it is that call
+// that lands it -- this only fills in the frames between SIGNING and there.
+static void bundle_reveal_exec(void *var, int32_t v)
+{
+    wt_bundle_t *b = bundle_state((lv_obj_t *)var);
+    if (!b) return;
+    const lv_color_t acc = wt_accent();
+    for (int k = 0; k < (int)b->out0; k++) {         // inputs only
+        // WT_INK is where SIGNING left them, which is what makes this a
+        // crossing rather than a jump from whatever each strand happened to be.
+        lv_color_t c = lv_color_mix(acc, WT_INK, (uint8_t)v);
+        if (b->line[k])   lv_obj_set_style_line_color(b->line[k], c, 0);
+        if (b->amount[k]) lv_obj_set_style_text_color(b->amount[k], c, 0);
+    }
+    // The junction takes the same value, so the discs and the strokes meeting
+    // at it are never two different colours -- the seam wt_bundle_state's dot
+    // branch exists to prevent, in the frames it does not cover.
+    if (b->dot)
+        lv_obj_set_style_bg_color(b->dot, lv_color_mix(acc, WT_INK, (uint8_t)v), 0);
+}
+
+static void bundle_reveal_done(lv_anim_t *a)
+{
+    wt_bundle_state((lv_obj_t *)a->var, WT_BUNDLE_SIGNED);
+}
+
+void wt_bundle_signed_reveal(lv_obj_t *bundle, uint32_t ms)
+{
+    if (!bundle || !bundle_state(bundle)) return;
+    if (!ms) { wt_bundle_state(bundle, WT_BUNDLE_SIGNED); return; }
+    // The hold overlay goes FIRST and on its own. It is the accent already, at
+    // full length, so leaving it up would put the finished colour over strands
+    // still crossing to it and the crossing would be invisible under its own
+    // answer.
+    wt_bundle_t *b = bundle_state(bundle);
+    for (uint16_t k = 0; k < b->n_in; k++)
+        if (b->hline[k]) lv_obj_add_flag(b->hline[k], LV_OBJ_FLAG_HIDDEN);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, bundle);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_set_duration(&a, ms);
+    // ease_out, the same curve the explainer card enters on: fast where the
+    // answer arrives, slow where it settles.
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&a, bundle_reveal_exec);
+    lv_anim_set_completed_cb(&a, bundle_reveal_done);
+    lv_anim_start(&a);
+}
+
 lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
 {
     wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;

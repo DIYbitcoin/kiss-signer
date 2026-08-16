@@ -2220,14 +2220,23 @@ int main(void) {
   }
 
   press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs
-  release(); pump(8);
+  release(); pump(40);                              // past REVEAL_TRAVEL_MS
   // The reveal, and the reason the walk stops here rather than landing straight
   // on the exit screen. The graph has spent the whole flow claiming a strand in
   // the accent means a signature exists; this is the frame where that is
   // discharged, all inputs together, because one libwally call signed all of
   // them and there was never a per coin moment to show.
+  //
+  // 40 frames, not 8: the strands CROSS to the accent over REVEAL_TRAVEL_MS
+  // now rather than switching between two frames, so 8 caught them a third of
+  // the way over and the frame this stop exists for was a colour that means
+  // nothing. 520ms is 33 frames at the harness's 16ms; 40 clears it.
   save("/tmp/sim_sign_reveal.ppm");
-  pump(50);                                         // past REVEAL_MS: writes SD
+  // 110, not 50: REVEAL_MS went 700 -> 1600 so the answer is on the glass long
+  // enough to read. 1600ms is 100 frames. Landing short here does not fail
+  // here -- it fails four screens later on a DONE pill that is not up yet, and
+  // then cascades through every BACK after it.
+  pump(110);                                        // past REVEAL_MS: writes SD
   save("/tmp/sim_sign_done.ppm");
   // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
   // first, translated caption trailing, so this tap holds in all 21 locales.
@@ -2537,7 +2546,13 @@ int main(void) {
   press_str(STR_S_HOLD_TO_SIGN); pump(40);          // hold to sign
   // ...then past the reveal as well: the QR path takes a different exit but
   // shares the signing state, so it waits the same beat before leaving.
-  pump(45); release(); pump(58);
+  // 45 + 120: the hold completes inside the first, and the second has to clear
+  // REVEAL_MS (1600ms, 100 frames) before the QR screen exists at all. It used
+  // to be 58, which cleared the old 700ms with room to spare and now lands on
+  // the reveal -- where BOTH of these saves would photograph the same graph and
+  // the taps gate would call them a dead interaction, which is exactly what it
+  // did.
+  pump(45); release(); pump(120);
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part

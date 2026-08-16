@@ -566,6 +566,15 @@ static void done_screen(const char *outname)
     wt_note(s_scr, tr(STR_S_DONE_SD_SUB), 48, 66, 704, 58);
     lv_obj_t *big = mk_lbl(LV_SYMBOL_OK, 0, 150, &lv_font_montserrat_48, OK_COL);
     lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 150);
+    // The padlock comes with it. It went up over the output column the moment
+    // the finger went down, meaning "the destinations are settled", and then
+    // left with the screen at the one moment that was most true. Two marks,
+    // two claims: the lock says where this can go is fixed, the tick says a
+    // signature now exists over it. Beside rather than under, at the smaller
+    // rung, because the tick is the answer and this is the condition it was
+    // reached under.
+    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, 0, 162, wt_font28(), MUT_COL);
+    lv_obj_align_to(lk, big, LV_ALIGN_OUT_LEFT_MID, -18, 0);
     lv_obj_t *fn = mk_lbl(outname, 0, 230, wt_font28(), INK_COL);
     lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 230);
     // The signature fingerprint, centred under the filename, with its ? panel.
@@ -637,7 +646,21 @@ static void mark_used_receives(void)
 // worth a beat. Not a fake progress bar and not a pause pretending work is
 // still happening -- the work is done, and this is the answer being shown for
 // long enough to read before the screen changes underneath it.
-#define REVEAL_MS 700
+//
+// 700 was not long enough to be that. libwally returns in a few milliseconds,
+// so SIGNING was never legible and the reward for holding a button for 1200ms
+// was the bar disappearing, followed by the screen. 1600 with the crossing
+// below inside it is about a second of settled answer -- reported from the
+// bench as "it happens too fast after the hold bar is full", which is the only
+// instrument that can measure this.
+#define REVEAL_MS 1600
+// The signature crossing the input strands. Inside REVEAL_MS, not added to it.
+#define REVEAL_TRAVEL_MS 520
+// The bar holding full while its fill crosses from the stop red to the accent.
+// The sweep measured a finger and there is no longer a finger to measure, but
+// snapping it to zero at the instant it fills takes the answer away in the
+// frame it was earned.
+#define SWEEP_SETTLE_MS 240
 
 static size_t s_signed_len;
 
@@ -681,7 +704,7 @@ static void do_sign_cb(lv_timer_t *t)
     mark_used_receives();
     // Every input at once, which is what actually happened: one libwally call
     // signed all of them and there was never a per coin moment to show.
-    if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNED);
+    if (s_graph) wt_bundle_signed_reveal(s_graph, REVEAL_TRAVEL_MS);
     if (s_graph_cap) {
         // "ALL 1 COINS SIGNED" is what the count format says about a one coin
         // spend, and it is wrong in English before it is wrong anywhere else.
@@ -716,6 +739,11 @@ static void do_sign_cb(lv_timer_t *t)
 // deciding is a screen claiming a signature that does not exist, which is the
 // one sentence a signer may never print. The padlock is the honest press time
 // mark: destinations settled, nothing signed.
+static void lock_opa_exec(void *var, int32_t v)
+{
+    lv_obj_set_style_opa((lv_obj_t *)var, (lv_opa_t)v, 0);
+}
+
 static void sign_lock_outputs(void)
 {
     if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_HOLDING);
@@ -731,6 +759,19 @@ static void sign_lock_outputs(void)
         // this band reaches into it.
         s_locked = mk_lbl(WT_ICON_LOCK, 748, 150, wt_font14(), wt_accent());
         lv_obj_add_flag(s_locked, WT_FLAG_ACCENT);
+        // It LANDS rather than appearing. A mark that says "the destinations are
+        // settled" arriving between two frames is indistinguishable from a mark
+        // that was always there, and this one is the only feedback the output
+        // half gives for a press that has not finished yet.
+        lv_obj_set_style_opa(s_locked, LV_OPA_TRANSP, 0);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, s_locked);
+        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+        lv_anim_set_duration(&a, 180);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&a, lock_opa_exec);
+        lv_anim_start(&a);
     }
 }
 
@@ -756,6 +797,22 @@ static void hold_abandon(void)
         lv_label_set_text(s_graph_cap, s_graph_cap_rest);
 }
 
+// The fill crossing from the hold's red into the pill's accent, then leaving.
+// It is width 0 at the end either way, so an abandoned hold and a completed one
+// both finish with the pill in its plain fill -- hold_abandon just gets there
+// without the crossing, because nothing was accepted.
+static void sweep_settle_exec(void *var, int32_t v)
+{
+    lv_obj_set_style_bg_color((lv_obj_t *)var,
+                              lv_color_mix(wt_accent(), WT_STOP, (uint8_t)v), 0);
+}
+
+static void sweep_settle_done(lv_anim_t *a)
+{
+    lv_obj_set_width((lv_obj_t *)a->var, 0);
+    lv_obj_set_style_bg_color((lv_obj_t *)a->var, WT_STOP, 0);   // ready to sweep again
+}
+
 static void hold_tick(lv_timer_t *t)
 {
     (void)t;
@@ -768,11 +825,30 @@ static void hold_tick(lv_timer_t *t)
     if (s_sweep) lv_obj_set_width(s_sweep, (int32_t)(el * SG_HOLD_W / HOLD_MS));
     if (el >= HOLD_MS) {
         hold_stop();
-        // The sweep has done its job and goes, leaving the pill in its plain
-        // accent fill. It measured a finger, and there is no longer a finger to
-        // measure -- a bar sitting full while libwally works would be read as a
-        // progress bar for the signing, which is a thing nothing here can time.
-        if (s_sweep) lv_obj_set_width(s_sweep, 0);
+        // The sweep SETTLES rather than snapping to zero. It measured a finger
+        // and there is no longer a finger to measure, and a bar sitting full
+        // while libwally works would be read as a progress bar for the signing,
+        // which is a thing nothing here can time -- so it does not sit. It holds
+        // its full width for SWEEP_SETTLE_MS while its fill crosses from the
+        // stop red to the accent the pill is already wearing, and then it is
+        // gone into that fill rather than deleted out from under the finger.
+        //
+        // Taking it away in the frame it filled was the complaint from the
+        // bench: the reward for holding the button for 1200ms was the bar
+        // disappearing. The fill still means "a finger was down this long"; the
+        // crossing is what says the measurement is finished and accepted.
+        if (s_sweep) {
+            lv_obj_set_style_bg_color(s_sweep, WT_STOP, 0);
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, s_sweep);
+            lv_anim_set_values(&a, 0, 255);
+            lv_anim_set_duration(&a, SWEEP_SETTLE_MS);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_set_exec_cb(&a, sweep_settle_exec);
+            lv_anim_set_completed_cb(&a, sweep_settle_done);
+            lv_anim_start(&a);
+        }
         if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
         // Now the caption may say it. The strands are landed, the button is
         // spent, and the next thing that happens on this thread is the call.

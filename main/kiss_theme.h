@@ -447,6 +447,21 @@ enum { WT_BUNDLE_LIVE = 0, WT_BUNDLE_HOLDING, WT_BUNDLE_SIGNING,
        WT_BUNDLE_SIGNED };
 void wt_bundle_state(lv_obj_t *bundle, int state);
 
+// SIGNED, arrived at over `ms` instead of between two frames.
+//
+// It is the same end state and the same claim: every input strand and its
+// amount in the accent, together, because one libwally call signed all of them.
+// What changes is that the colour crosses from WT_INK to the accent over time
+// rather than in one repaint, so the moment the whole screen has been building
+// toward is something the eye can follow. Nothing here is a progress bar and
+// nothing is per input: the work is already done when this starts, all strands
+// move on the same value, and they all finish together.
+//
+// Calls wt_bundle_state(WT_BUNDLE_SIGNED) itself at the end, which is what sets
+// the accent FLAGS a later theme change repaints from -- the interpolated
+// colours in between are not flagged and are not meant to survive one.
+void wt_bundle_signed_reveal(lv_obj_t *bundle, uint32_t ms);
+
 // The hold, drawn on the graph. 0 is at rest, 255 is every input strand landed
 // at the junction and no signature yet. Call it on each tick of the hold with
 // the same fraction the ring is given.
