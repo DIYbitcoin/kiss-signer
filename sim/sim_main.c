@@ -2066,11 +2066,14 @@ int main(void) {
   // behind a control called FULL ADDRESS, so what an owner compared depended
   // on whether they found a toggle that read like a heading.
   //
-  // The needle is the GROUPED form, which is a strictly stronger claim than the
-  // raw one it replaced: it pins the whole address AND the blocking that makes
-  // it comparable. Coldcard and Sparrow both moved to fours; this is the check
-  // that says this screen did too, and did not quietly go back.
-  must_show("verify/address", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
+  // The verify screen shows the FOLD, the same one RECEIVE draws: prefix, the
+  // four after it, an ellipsis, then the last twelve in three blocks with the
+  // final eight lit. The needle is the WHOLE fold, spans joined, so it pins
+  // which characters are dropped and not merely that something was. The WHOLE address is one tap
+  // away on the card below, and that card is where the full grouped form is
+  // asserted -- so the two needles together pin both renderings and which
+  // screen each belongs to.
+  must_show("verify/address", "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
   // The ADDRESS block is its own control now. Tapping it opens the same card
   // the "?" beside the caption does, with this destination drawn at mono23
   // across the whole 704 lane -- which is where a careful comparison happens,
@@ -2080,7 +2083,7 @@ int main(void) {
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
   must_show("address card/title", tr(STR_R_VT));
-  must_show("address card/addr", "bc1q zyg3");       // the destination, on the card
+  must_show("address card/addr", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");   // every character, on the card
   must_show("address card/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
 
@@ -2095,9 +2098,10 @@ int main(void) {
   // NOT must_show(RBF label): the verify screen underneath prints the same
   // words in its meta row, so that needle passes whether or not the card ever
   // opened -- and it did pass, for a build where this chip was buried under the
-  // address lane and could not be pressed at all. S_CMP_8 exists ONLY on the
-  // address card, so its absence is what says this is a different card.
-  must_not_show("rbf card/not the address card", tr(STR_S_CMP_8));
+  // address lane and could not be pressed at all. The FULL grouped address
+  // exists only on the address card (the verify screen behind both shows the
+  // fold), so its absence is what says this is a different card.
+  must_not_show("rbf card/not the address card", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
   tap_str(STR_S_DETAILS, 3, 6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
@@ -2317,7 +2321,7 @@ int main(void) {
   must_show("verify (5 cautions)", "200");            // the change amount
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
-            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
+            "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
@@ -2373,7 +2377,7 @@ int main(void) {
   must_show("verify (1 caution)", "39 000");   // change, no unit: see above
   must_show("verify (1 caution)", "1 000");    // fee
   must_show("verify (1 caution, address)",
-            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
+            "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
   save("/tmp/sim_sign_unproven_why.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card

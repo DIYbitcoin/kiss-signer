@@ -656,6 +656,10 @@ static void mark_used_receives(void)
 #define REVEAL_MS 1600
 // The signature crossing the input strands. Inside REVEAL_MS, not added to it.
 #define REVEAL_TRAVEL_MS 520
+// The address card under the graph. One mono23 line plus the compare caption,
+// centred as a block: 29 + 6 + 18 is 53, and 66 gives it the same breathing
+// room RECEIVE's 114 gives two lines of the same type.
+#define ADDR_CARD_H 66
 // The bar holding full while its fill crosses from the stop red to the accent.
 // The sweep measured a finger and there is no longer a finger to measure, but
 // snapping it to zero at the instant it fills takes the answer away in the
@@ -1645,6 +1649,38 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_font(btc, wt_font_mono14(), 0);
         lv_obj_set_style_text_color(btc, MUT_COL, 0);
         wt_denom_bind(btc);
+
+        // ---- the fee rate, on the row that is already about the money ----
+        //
+        // The graph draws the fee as a strand with a thickness, which answers
+        // "how much" and cannot answer "is that a lot". S_FEERATE_PCT_FMT
+        // answers the second one and was already written and translated:
+        // "7.0 sat/vB, 1.6% of what you send". It lived on DETAILS alone, two
+        // taps from the decision, and the percentage is the number Coldcard
+        // warns on at 5% and refuses at 10% -- the one a newcomer can reason
+        // about without knowing what a good rate looks like this week.
+        //
+        // Here rather than in the band under the address, because the address
+        // card took that band back, and because these are facts about the same
+        // amount. The scissors, not a bolt: a bolt reads as Lightning.
+        if (s_sum.fee_rate_x10) {
+            uint64_t p10 = s_sum.send_sats
+                         ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
+            if (s_sum.send_sats)
+                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
+                         (unsigned)(s_sum.fee_rate_x10 / 10),
+                         (unsigned)(s_sum.fee_rate_x10 % 10),
+                         (unsigned long long)(p10 / 10),
+                         (unsigned long long)(p10 % 10));
+            else
+                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
+                         (unsigned)(s_sum.fee_rate_x10 / 10),
+                         (unsigned)(s_sum.fee_rate_x10 % 10));
+            lv_obj_t *fr = lv_label_create(row);
+            lv_label_set_text_fmt(fr, "%s  %s", LV_SYMBOL_CUT, buf);
+            lv_obj_set_style_text_font(fr, wt_font14(), 0);
+            lv_obj_set_style_text_color(fr, MUT_COL, 0);
+        }
     }
 
     // ---- the caution bar -------------------------------------------------
@@ -1984,20 +2020,56 @@ static void verify_screen(lv_obj_t *parent)
             // the lift is what keeps the compared run readable at this size.
             // The whole lane in BOTH layouts: only the CAPTION row has to stop
             // short of the meta text beside it.
-            const int lane = 752;
-            char grouped[200];         // 117 + 29 spaces, the silent payment case
-            wt_group4(s_sum.outs[i].addr, grouped, sizeof grouped);
-            lv_obj_t *ad = wt_addr_spans_lift(s_scr, grouped, lane,
-                                              wt_font_mono14());
-            lv_obj_set_pos(ad, 24, ay + 18);
-            // The block is the control. Tapping it opens the same card the "?"
-            // does, with this address drawn at mono23 across the whole 704 lane,
-            // which is where a careful comparison actually happens.
+            // A CARD, and the card is the control -- the same object RECEIVE
+            // draws its address in, at the same font, with the same fold and
+            // the same caption under it. Owner's call, and the point of it is
+            // that the two address screens are one habit rather than two.
+            //
+            // Stated once and left here, because it is the reason this was not
+            // the default: a RECEIVE address is derived on this device and
+            // nobody else picks it, while a destination is chosen by whoever
+            // built the transaction. A fixed prefix and suffix is the pattern
+            // an attacker grinds a lookalike against -- EthClipper, DSN 2022,
+            // arXiv:2108.14004, which measured roughly even odds from matching
+            // about a quarter of the characters. Every character is one tap
+            // away on the card this opens, and the "?" beside the caption says
+            // to compare the lit run.
+            //
+            // Cautioned, the card frame goes and the fold stays. The band
+            // between the graph and the caution bar is 62px and the card is 66:
+            // what a flagged transaction spends its frame budget on is the
+            // flag. Same fold, same font, same target, no box around it.
             snprintf(s_addr_help, sizeof s_addr_help, "%s", s_sum.outs[i].addr);
-            lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_ext_click_area(ad, 10);
-            lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
-                                (void *)s_sum.outs[i].addr);
+            lv_obj_t *box = s_scr;
+            if (!np) {
+                box = wt_card(s_scr, 24, ay + 16, 752, ADDR_CARD_H);
+                lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
+                wt_tap_feedback(box);
+                lv_obj_add_event_cb(box, addr_tap_cb, LV_EVENT_CLICKED,
+                                    (void *)s_sum.outs[i].addr);
+            }
+            lv_obj_t *ad = wt_addr_short(box, s_sum.outs[i].addr,
+                                         wt_font_mono23());
+            if (np) {
+                lv_obj_set_pos(ad, 24, ay + 18);
+                lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_set_ext_click_area(ad, 8);
+                lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
+                                    (void *)s_sum.outs[i].addr);
+                break;
+            }
+            lv_obj_t *cmp = wt_lbl(box, tr(STR_S_CMP_8), 14, 0,
+                                   wt_font14(), MUT_COL);
+            // Block centred in a fixed height card, the same arithmetic
+            // recv_refresh uses: top aligning would leave one line floating in
+            // a box sized for the taller state.
+            lv_obj_update_layout(ad);
+            lv_obj_update_layout(cmp);
+            int ah = lv_obj_get_height(ad), ch = lv_obj_get_height(cmp);
+            int top = (ADDR_CARD_H - (ah + 6 + ch)) / 2;
+            if (top < 8) top = 8;
+            lv_obj_set_pos(ad,  14, top);
+            lv_obj_set_pos(cmp, 14, top + ah + 6);
             break;
         }
 
@@ -2028,7 +2100,6 @@ static void verify_screen(lv_obj_t *parent)
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
         snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
-        if (!np) sg_rule(0, 356, 800, 1);
         // Amber on testnet: the network is a status, not chrome, and it is the
         // one fact on this row that changes what a signature is worth.
         //
@@ -2040,42 +2111,6 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_width(m, 360);
         lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
         lv_label_set_long_mode(m, LV_LABEL_LONG_DOT);
-
-        // ---- the fee rate, on the band the address gave back -------------
-        //
-        // The graph draws the fee as a strand with a thickness, which answers
-        // "how much" and cannot answer "is that a lot". S_FEERATE_PCT_FMT
-        // answers the second one and was already written and translated:
-        // "7.0 sat/vB, 1.6% of what you send". It lived on DETAILS alone, two
-        // taps from the decision, and the percentage is the number Coldcard
-        // warns on at 5% and refuses at 10% -- the one a newcomer can reason
-        // about without knowing what a good rate looks like this week.
-        //
-        // Clean layout only: cautioned, this band is the caution bar's, and
-        // what a flagged transaction needs said first is the flag.
-        if (!np && s_sum.fee_rate_x10) {
-            uint64_t p10 = s_sum.send_sats
-                         ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
-            if (s_sum.send_sats)
-                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
-                         (unsigned)(s_sum.fee_rate_x10 / 10),
-                         (unsigned)(s_sum.fee_rate_x10 % 10),
-                         (unsigned long long)(p10 / 10),
-                         (unsigned long long)(p10 % 10));
-            else
-                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-                         (unsigned)(s_sum.fee_rate_x10 / 10),
-                         (unsigned)(s_sum.fee_rate_x10 % 10));
-            // The scissors, not a bolt: a bolt reads as Lightning. Same mark
-            // the DETAILS fee row and its explainer already wear.
-            lv_obj_t *fr = sg_lbl(s_scr, LV_SYMBOL_CUT, 24, 366,
-                                  wt_font14(), MUT_COL);
-            lv_obj_update_layout(fr);
-            lv_obj_t *fl = sg_lbl(s_scr, buf, 24 + lv_obj_get_width(fr) + 8, 366,
-                                  wt_font14(), MUT_COL);
-            lv_obj_set_width(fl, 700 - lv_obj_get_width(fr));
-            lv_label_set_long_mode(fl, LV_LABEL_LONG_DOT);
-        }
     }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
