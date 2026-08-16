@@ -1030,6 +1030,15 @@ void kiss_settings_open(lv_obj_t *parent)
     // and 260 is the standard 7px gap under it -- exactly the slot NO UNDO
     // freed when its two rows became one.
     lv_obj_t *th = wt_card(s_scr, SG_R_X, 260, SG_R_W, WT_ROW_H);
+    // The picked theme shows on this page, not only on the dots that pick it.
+    // Every ORDINARY card here takes the accent rim; the ones carrying a STATUS
+    // colour keep it, which is the separation kisstheme exists to police --
+    // Seed words stays WT_WARN while the paper is unchecked, Erase stays
+    // WT_STOP, and Network and Storage keep theirs. Flagged rather than
+    // painted, so restyle's accent walk repaints it the instant a dot is
+    // tapped, with no second list to keep in step.
+    lv_obj_add_flag(th, WT_FLAG_ACCENT_BORDER);
+    lv_obj_set_style_border_color(th, wt_accent(), 0);
     // I_ROW_THEME, not H_THEME. Same word, different job: H_THEME is the lower
     // case CAPTION on the home screen, set beside "fingerprint" and cased to
     // match it. Here it is a row label standing in a column with Network,
@@ -1230,6 +1239,9 @@ void kiss_settings_open(lv_obj_t *parent)
                          type_prefix(kiss_script(), kiss_testnet()), WT_INK,
                          SG_L_X, SG_TOP + SG_HEAD + SG_PITCH, SG_L_W,
                          type_open_cb, NULL);
+    // Ordinary: no status rides on the address type, so it takes the rim.
+    lv_obj_add_flag(s_type_pill, WT_FLAG_ACCENT_BORDER);
+    lv_obj_set_style_border_color(s_type_pill, wt_accent(), 0);
     s_type_expl = NULL;                // the explanation lives on the chooser
     // Capture the two labels restyle has to rewrite, rather than letting it
     // guess by x. Guessing matched the CHEVRON too, so the arrow's glyph was
@@ -1339,10 +1351,13 @@ void kiss_settings_open(lv_obj_t *parent)
     // which is the reason the label could come back at all.
     // SET means "a custom drawing replaced KISS" -- the one configurable
     // fact left on this page now that the swipe is a rule, not a choice.
-    wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
+    lv_obj_t *wr = wt_row(s_scr, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB),
            gw_stored_any() ? tr(STR_GD_ON) : tr(STR_GD_OFF),
            WT_INK, SG_L_X, SG_FULL_Y, SG_WAYS_W,
            duress_cb, NULL);
+    // SET / NOT SET is a setting, not a warning: nothing is wrong either way.
+    lv_obj_add_flag(wr, WT_FLAG_ACCENT_BORDER);
+    lv_obj_set_style_border_color(wr, wt_accent(), 0);
 
     // CAMERA AUDIT, beside the ways in row rather than on the action bar.
     // The bar pill looked like a third action next to BACK; this is a page

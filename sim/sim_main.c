@@ -839,6 +839,17 @@ static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 // Spangroups too, and the address is one: wt_addr_spans splits it into a muted
 // head and an accented tail, so no single label ever holds the whole string.
 // Concatenating the spans is the only way to ask "is the address on screen".
+// The first descendant carrying a flag, for the accent propagation checks.
+static lv_obj_t *find_flagged(lv_obj_t *o, uint32_t flag) {
+  if (!o) return NULL;
+  if (lv_obj_has_flag(o, flag)) return o;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_flagged(lv_obj_get_child(o, i), flag);
+    if (r) return r;
+  }
+  return NULL;
+}
+
 static int find_label_text(lv_obj_t *o, const char *needle) {
   if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return 0;
   if (lv_obj_check_type(o, &lv_label_class)) {
@@ -2244,9 +2255,11 @@ int main(void) {
   save("/tmp/sim_sign_done.ppm");
   // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
   // first, translated caption trailing, so this tap holds in all 21 locales.
+  // It moved down with everything else when the summary card took the band at
+  // 120: draw_sig_chip(296, 336) puts its centre here.
   // The code itself moved INTO the panel this opens -- the next frame must
   // show it above the two example rows.
-  touch(308, 274); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
+  touch(311, 351); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
@@ -2589,6 +2602,33 @@ int main(void) {
   // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
+
+  // The picked theme reaches the ORDINARY cards on this page, and stops at the
+  // ones carrying a status. Asserted rather than photographed: a frame in MONO
+  // cannot show which rim moved, and the whole property is about what happens
+  // when a different dot is tapped.
+  {
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_t *ord = find_flagged(scr, WT_FLAG_ACCENT_BORDER);
+    if (!ord) {
+      printf("FAIL: no accent-flagged card on the settings page\n");
+      return 1;
+    }
+    const int was = wt_accent_get();
+    wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
+    wt_accent_restyle(scr);
+    pump(2);
+    if (!lv_color_eq(lv_obj_get_style_border_color(ord, LV_PART_MAIN),
+                     wt_accent())) {
+      printf("FAIL: an ordinary settings card did not take the new accent\n");
+      return 1;
+    }
+    save("/tmp/sim_settings_accent.ppm");
+    wt_accent_set(was);
+    wt_accent_restyle(scr);
+    pump(2);
+    printf("ok: settings cards follow the accent, status rows keep their own\n");
+  }
 
   // STORAGE is a first-class Settings row, not a setup-only choice. SD is
   // offered on every build now, so exercise a real FLASH -> SD migration,

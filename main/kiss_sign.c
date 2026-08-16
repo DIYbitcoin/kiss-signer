@@ -552,6 +552,50 @@ static void draw_sig_chip(int x, int y, bool from_qr)
     mk_lbl(tr(STR_S_SIG_FP_CAP), x + 40, y + 5, wt_font14(), MUT_COL);
 }
 
+// The receipt: what left, what it cost, and where it went, in one card.
+//
+// Three rows, each a mark and a fact, and every one of them a string that was
+// already on the verify screen wearing the same glyph -- RECIPIENT GETS with
+// the download arrow, NETWORK FEE with the scissors, the destination with the
+// GPS pin the DETAILS output rows use. Nothing new is taught here; the point is
+// that the page you signed and the page that says you signed it agree.
+//
+// Muted, not accent. The tick below is the accent on this screen and it is the
+// claim being made; a card of facts competing with it in the same colour would
+// make the answer harder to find, which is ADDENDUM-02 rule 3.
+static void done_summary(int y)
+{
+    const int H = 104;
+    lv_obj_t *c = wt_card(s_scr, 48, y, 704, H);
+
+    // Recipient and fee side by side, because they are the two halves of the
+    // number the hero on the verify screen showed as one.
+    struct { const char *icon; int str; uint64_t sats; int x; } cells[2] = {
+        { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats,  14 },
+        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  366 },
+    };
+    for (int i = 0; i < 2; i++) {
+        char a[40], b[64];
+        wt_lbl(c, cells[i].icon, cells[i].x, 16, wt_font14(), MUT_COL);
+        wt_lbl(c, tr(cells[i].str), cells[i].x + 26, 14, wt_font14(), MUT_COL);
+        wt_fmt_amount(cells[i].sats, a, sizeof a);
+        snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
+        lv_obj_t *v = wt_lbl(c, b, cells[i].x, 38, wt_font28(), INK_COL);
+        wt_denom_bind(v);
+    }
+
+    // The destination, folded exactly as the screen before this one folded it.
+    // Change outputs are skipped for the same reason they are skipped there:
+    // an address the device proved is its own is not where the money went.
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
+        if (s_sum.outs[i].is_change) continue;
+        wt_lbl(c, LV_SYMBOL_GPS, 14, 76, wt_font14(), MUT_COL);
+        lv_obj_t *ad = wt_addr_short(c, s_sum.outs[i].addr, wt_font_mono14());
+        lv_obj_set_pos(ad, 40, 74);
+        break;
+    }
+}
+
 static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
@@ -563,9 +607,23 @@ static void done_screen(const char *outname)
     // of the screen and does not fit one line at a readable size. Nothing is
     // above the checkmark at y=150, so the second line costs nothing.
     mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
-    wt_note(s_scr, tr(STR_S_DONE_SD_SUB), 48, 66, 704, 58);
-    lv_obj_t *big = mk_lbl(LV_SYMBOL_OK, 0, 150, &lv_font_montserrat_48, OK_COL);
-    lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 150);
+    wt_note(s_scr, tr(STR_S_DONE_SD_SUB), 48, 66, 704, 48);
+
+    // ---- what was signed ------------------------------------------------
+    //
+    // This screen was a tick, a filename and 110px of nothing, on the one page
+    // an owner might photograph or read back to somebody. It says what left the
+    // keys and where it went, in the same three marks the verify screen used
+    // for the same three facts -- so it reads as the receipt for the page
+    // before it rather than as a new screen with new words.
+    //
+    // Every string here already shipped. The amounts are wt_denom_bind, so a
+    // tap still flips the whole device between sats and BTC on this screen too.
+    // The address is the same fold RECEIVE and the verify screen draw.
+    done_summary(120);
+
+    lv_obj_t *big = mk_lbl(LV_SYMBOL_OK, 0, 236, &lv_font_montserrat_48, OK_COL);
+    lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 236);
     // The padlock comes with it. It went up over the output column the moment
     // the finger went down, meaning "the destinations are settled", and then
     // left with the screen at the one moment that was most true. Two marks,
@@ -573,16 +631,16 @@ static void done_screen(const char *outname)
     // signature now exists over it. Beside rather than under, at the smaller
     // rung, because the tick is the answer and this is the condition it was
     // reached under.
-    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, 0, 162, wt_font28(), MUT_COL);
+    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, 0, 248, wt_font28(), MUT_COL);
     lv_obj_align_to(lk, big, LV_ALIGN_OUT_LEFT_MID, -18, 0);
-    lv_obj_t *fn = mk_lbl(outname, 0, 230, wt_font28(), INK_COL);
-    lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 230);
+    lv_obj_t *fn = mk_lbl(outname, 0, 300, wt_font28(), INK_COL);
+    lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 300);
     // The signature fingerprint, centred under the filename, with its ? panel.
-    draw_sig_chip(296, 262, false);
-    // "take the card back to your coordinator" is the next thing to do. It
-    // has 110px of empty width-704 page under it; not the small type.
-    lv_obj_t *note = wt_note(s_scr, tr(STR_S_SAVED_NOTE), 48, 300, 704, 90);
-    lv_obj_set_style_text_align(note, LV_TEXT_ALIGN_CENTER, 0);
+    draw_sig_chip(296, 336, false);
+    // S_SAVED_NOTE went with the space it was filling. "saved to the card" sat
+    // under a filename ending in .psbt, on a screen whose subtitle already says
+    // to take the card back -- the copy rule about restating a value sitting
+    // next to it, three times over.
     // No drift-home timer. This screen used to leave on its own after 6s,
     // which read as a crash mid-test and stole a filename the owner was
     // meant to read back to the coordinator. DONE is the only exit; the idle
