@@ -874,6 +874,31 @@ static int find_label_text(lv_obj_t *o, const char *needle) {
   return 0;
 }
 
+// A folded address that can be pressed. The DETAILS output rows carry one each
+// and their y moves with everything above them, so a locale whose fact rows run
+// taller pushes the list down and a hard coded tap lands on background. That is
+// the derail det_chip already exists for, and it bit again here: the tap at
+// (200, 300) opened nothing in fourteen locales, while the needle checking it
+// had worked -- "bc1q zyg3" -- matched the FOLD still showing on the page
+// underneath. A spurious pass, from a prefix the two renderings share.
+//
+// Found by what it is instead: the address spangroups are the only clickable
+// ones on the page. The needle is kept so a future page with a clickable
+// spangroup of some other kind cannot silently take its place.
+static int find_label_text(lv_obj_t *o, const char *needle);
+static lv_obj_t *find_click_addr(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_spangroup_class) &&
+      lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE) &&
+      find_label_text(o, needle))
+    return o;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_click_addr(lv_obj_get_child(o, i), needle);
+    if (r) return r;
+  }
+  return NULL;
+}
+
 // The 8-hex-char fingerprint string, the one value that identifies a wallet.
 // Both the fingerprint screen and the setup warning show it in a value card;
 // the walk reads it off one to prove the other names the same wallet. No
@@ -2127,9 +2152,24 @@ int main(void) {
   // have to stay reachable from where they were dropped -- two taps from the
   // graph to every character of any output, change included, which the verify
   // screen cannot show at all.
-  touch(200, 300); pump(3); release(); pump(30);
+  {
+    lv_obj_t *ao = find_click_addr(lv_screen_active(), "bc1q");
+    if (!ao) {
+      printf("FAIL: details row: no pressable folded address on the page\n");
+      g_walk_fails++;
+    } else {
+      lv_area_t a;
+      lv_obj_get_coords(ao, &a);
+      touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2); pump(3); release(); pump(30);
+    }
+  }
   save("/tmp/sim_sign_details_addr.ppm");
-  must_show("details row/full addr", "bc1q zyg3");
+  // The WHOLE grouped address, not the "bc1q zyg3" prefix the fold shares with
+  // it: that prefix is on the DETAILS page too, so it passed for fourteen
+  // locales in which this card never opened at all. Same needle the RBF card
+  // uses forty lines up, for the same reason.
+  must_show("details row/full addr",
+            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
   must_show("details row/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);            // OK closes the card
   // Each term answers for itself now. The sighash chip is the one worth

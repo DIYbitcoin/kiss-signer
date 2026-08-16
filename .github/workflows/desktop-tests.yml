@@ -113,6 +113,14 @@ jobs:
       # walk now fails the job by burning its timeout, which is the honest
       # answer -- a run that cannot say it looked at everything is a run that
       # looked at nothing.
+      #
+      # 300 is a HANG detector, not a duration budget, so it stays 300. It was
+      # proposed for 900 on the grounds that the walk gained two 8200-frame
+      # idle sections; measured, one walk is 9.3s and this script -- which
+      # re-drives it for the selftest and for every non-OK safe-boot status --
+      # is 18.5s, so 300 is already ~16x, and ~4x on a runner four times
+      # slower. Raising it would only make a wedged walk take fifteen minutes
+      # to say so instead of five. Measure before moving it.
       - name: every screen has a walk stop (strict, enforced)
         env:
           SCREENCOVER_STRICT: "1"
