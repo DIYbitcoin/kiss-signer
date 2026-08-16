@@ -2700,10 +2700,21 @@ static void details_cb(lv_event_t *e)
         wt_denom_bind(amt);
         // The fold, not the whole address: this list's job is "one line of
         // facts per output", and the full form is a 248px wall of mono14 that
-        // pushed the eighth output off the fold. The last eight still light
-        // (the same rule the verify screen teaches), and the verify screen's
-        // reveal is one BACK away for anyone comparing character by character.
-        wt_addr_short(row, s_sum.outs[i].addr, wt_font14());
+        // pushed the eighth output off the fold. The last eight still light,
+        // the same rule every other screen here teaches.
+        //
+        // And the row OPENS the whole thing, so the fold is a summary with the
+        // full form behind it rather than a truncation with nothing behind it.
+        // That distinction is the one the EthClipper work is about: a fixed
+        // prefix and suffix is what a lookalike gets ground against, so the
+        // characters it drops have to stay reachable from the place they were
+        // dropped. Two taps from the graph to every character of any output,
+        // change included -- which the verify screen cannot show at all.
+        lv_obj_t *ao = wt_addr_short(row, s_sum.outs[i].addr, wt_font14());
+        lv_obj_add_flag(ao, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(ao, 8);
+        lv_obj_add_event_cb(ao, addr_tap_cb, LV_EVENT_CLICKED,
+                            (void *)s_sum.outs[i].addr);
         // A silent payment output's on-chain address is not the one handed
         // over: the graph used to carry this claim and lost it because a
         // paragraph costs the column a row. Here it is beside the very address

@@ -2122,6 +2122,16 @@ int main(void) {
   // opened from -- rather than dismissing an overlay onto whatever was under
   // it. Two BACKs to get from here to verify, where there used to be one.
   tap_str(STR_C_BACK, 3, 6);     // BACK -> DETAILS
+  // An OUTPUT ROW opens the whole address. The fold on this page drops the
+  // middle of a destination somebody else chose, and the characters it drops
+  // have to stay reachable from where they were dropped -- two taps from the
+  // graph to every character of any output, change included, which the verify
+  // screen cannot show at all.
+  touch(200, 300); pump(3); release(); pump(30);
+  save("/tmp/sim_sign_details_addr.ppm");
+  must_show("details row/full addr", "bc1q zyg3");
+  must_show("details row/cmp", tr(STR_S_CMP_8));
+  tap_str(STR_C_OK, 3, 8);            // OK closes the card
   // Each term answers for itself now. The sighash chip is the one worth
   // opening: it is the term a reader is least likely to know and the one whose
   // card used to be reachable only by tapping the question mark about the FEE.
