@@ -44,7 +44,7 @@ def _p2wpkh_spk(h160):
     return script.Script(b"\x00\x14" + h160)
 
 
-RECIPIENTS = [_p2wpkh_spk(bytes([i + 1]) * 20) for i in range(5)]
+
 
 
 def main():
@@ -54,17 +54,20 @@ def main():
     ap.add_argument("--index", type=int, default=0, help="its index on RECEIVE")
     ap.add_argument("--purpose", type=int, default=84, choices=(44, 49, 84))
     ap.add_argument("--in-sats", type=int, default=250_000)
+    ap.add_argument("--n", type=int, default=5, help="how many recipients")
     ap.add_argument("--each", type=int, default=40_000, help="sats per recipient")
     ap.add_argument("--fee", type=int, default=2_000)
     ap.add_argument("--out", required=True, help="where to write the .psbt")
     a = ap.parse_args()
+
+    recipients = [_p2wpkh_spk(bytes([i + 1]) * 20) for i in range(a.n)]
 
     fp = bytes.fromhex(a.fp)
     if len(fp) != 4:
         sys.exit("--fp must be 8 hex characters")
 
     spk = script.Script(script.address_to_scriptpubkey(a.addr).data)
-    spent = a.each * len(RECIPIENTS) + a.fee
+    spent = a.each * len(recipients) + a.fee
     change = a.in_sats - spent
     if change < 0:
         sys.exit(f"inputs {a.in_sats} cannot cover {spent}")
@@ -81,7 +84,7 @@ def main():
         # transaction does not match" -- kiss_psbt.c hashes the prev tx and
         # compares, so the two have to be the same 32 bytes the same way up.
         vin=[TransactionInput(prev.txid(), 0, sequence=0xFFFFFFFD)],
-        vout=([TransactionOutput(a.each, r) for r in RECIPIENTS]
+        vout=([TransactionOutput(a.each, r) for r in recipients]
               + ([TransactionOutput(change, spk)] if change else [])),
     )
 
@@ -103,7 +106,7 @@ def main():
     data = psbt.serialize()
     with open(a.out, "wb") as f:
         f.write(data)
-    print(f"wrote {a.out}: {len(data)} bytes, {len(RECIPIENTS)} recipients "
+    print(f"wrote {a.out}: {len(data)} bytes, {len(recipients)} recipients "
           f"x {a.each} sats, fee {a.fee}, change {change}")
 
 
