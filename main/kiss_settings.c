@@ -672,12 +672,19 @@ static void duress_cb(lv_event_t *e)
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
     // than the 22px the roomier rows get.
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            waysin_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_SET_BTN), WT_ACT_X, WT_ACTION_Y, 270,
-            waysin_stroke_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
-            waysin_word_cb, NULL);
+    lv_obj_t *row[3];
+    row[0] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                     waysin_back_cb, NULL);
+    row[1] = wt_pill(s_scr, tr(STR_GD_SET_BTN), WT_ACT_X, WT_ACTION_Y, 270,
+                     waysin_stroke_cb, NULL);
+    row[2] = wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
+                     waysin_word_cb, NULL);
+    // One size across the row. pill_label_fit is per pill, so the longest label
+    // drops only its own pill a rung -- USE YOUR OWN DRAWING sat at font14
+    // between two pills at 28 and read as a rendering mistake rather than as
+    // three choices. That is the exact case wt_pill_row was written for and
+    // this row was not calling it.
+    wt_pill_row(row, 3);
 }
 
 static void theme_pick_cb(lv_event_t *e)
