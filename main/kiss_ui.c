@@ -1089,6 +1089,19 @@ static void setup_warn_ok_cb(lv_event_t *e) {
     if (cb) cb();
     return;
   }
+  // RESTORING ends here too, and this is the "incomplete flow" the owner hit:
+  // loading words they already had walked them straight on into decoy setup,
+  // so getting back into an existing wallet meant sitting through a wizard
+  // about a second one. Someone restoring has a wallet already and a reason to
+  // be in a hurry; the spare is a decision for later, and Settings > Duress is
+  // where it is made -- that page now offers the drawing as well as the swipe.
+  //
+  // A NEW seed keeps the wizard. That is the one moment the two-ways-in idea
+  // has to be taught, because nothing else in the product will bring it up.
+  if (s_restore_mode) {
+    if (cb) cb();
+    return;
+  }
   s_after_duress = cb;
   kiss_duress_ui_open(lv_screen_active(), duress_done_cb);
 }
@@ -1890,7 +1903,13 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
   lv_obj_t *p[2];
   p[0] = wt_pill(scr, tr(STR_L_NO_PASSPHRASE), 48, WT_ACTION_Y, 330,
                  pp_intro_nopass_cb, NULL);
-  p[1] = wt_pill(scr, tr(STR_L_CREATE_PASS_BTN), 422, WT_ACTION_Y, 330,
+  // CREATE PASSPHRASE is an instruction to invent one, which is wrong for words
+  // being restored: theirs already exists and inventing a second opens a
+  // different wallet. PASSPHRASE / NO PASSPHRASE is the parallel pair, and both
+  // halves already ship.
+  p[1] = wt_pill(scr, tr(s_restore_mode ? STR_L_PASSPHRASE_CAP
+                                        : STR_L_CREATE_PASS_BTN),
+                 422, WT_ACTION_Y, 330,
                  pp_intro_go_cb, NULL);
   wt_pill_row(p, 2);
   wt_pill_primary(p[1]);

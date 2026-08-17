@@ -11,15 +11,20 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   sentence**. The mnemonic sentence and optional passphrase are processed to
   produce a 64-byte binary **seed**. They are related, but they are not the
   same object.
-- **seed words** is THE term. One name for one thing, everywhere on the device
-  and in `docs/`: the setup chooser, the destroy family, the Settings rows, the
-  warning screens. It carries the word the rest of Bitcoin writes down (a
-  reader who recovers on any other signer meets "seed" there) without the
-  device inventing a house term of its own.
-- **recovery words** survives as the alias for a row too narrow for the
-  anchor, and nowhere else. Bare **"words"**, used as if it named the thing, is
-  what this replaced -- it reads as a house term and has to be unlearned the
-  first time an owner opens anything else.
+- **seed words** is THE term for the thing itself: the setup chooser, the
+  destroy family, the warning screens. It carries the word the rest of Bitcoin
+  writes down -- a reader who recovers on any other signer meets "seed" there --
+  without the device inventing a house term of its own.
+- **recovery words** is the term for the BACKUP, and it is not an alias of
+  convenience. Settings > YOUR BACKUP says "Recovery words" and the page behind
+  it is titled RECOVERY WORDS, because in that place the subject is what gets
+  you back in rather than what the keys are made of. Both words are ordinary
+  Bitcoin usage and neither has to be unlearned.
+  Do not "unify" these two. A pass renamed the backup row and its page to
+  "Seed words" for consistency, was not asked for, and was reverted.
+- Bare **"words"**, used as if it named the thing, is what both replaced -- it
+  reads as a house term and has to be unlearned the first time an owner opens
+  anything else.
 - **Never the bare word "seed"** on its own in a user-facing string. It is
   fine in code, comments and filenames, where `kiss-seed.enc` and
   `kiss_seed.c` already use it.
@@ -151,6 +156,15 @@ else.
   passphrase rebuild. A wallet is not a device: the same signer opens a
   different wallet when a different passphrase is typed, which is the entire
   point of the passphrase and the duress feature.
+- **coins** is right for bitcoin the owner HOLDS and wrong for the parts of a
+  transaction. "move your coins there", "your coins have not moved", "practice
+  coins" are all correct, and so is coin control as a term of art. The things a
+  transaction spends are **inputs** -- which is what the `?` beside them
+  teaches, what DETAILS lists them as, and what Sparrow, Coldcard and
+  SeedSigner all call them. "SPENDING 10 OF YOUR COINS" was the shape to avoid:
+  a screen naming the same list two ways, with the second name on the page
+  explaining the first. Say **UTXO** only inside an explainer that defines it,
+  never on the front of a screen a newcomer meets first.
 - **Keys** is the plain word for what the signer holds and what the fingerprint
   identifies. Use it where "wallet" would be ambiguous about device versus key
   set, and on the home tile, which names what is behind it.
