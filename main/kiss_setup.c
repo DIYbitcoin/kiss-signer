@@ -644,11 +644,17 @@ static void cksum_diagram(lv_obj_t *col)
             lv_obj_set_style_radius(c, 1, 0);
             // An UNSET check bit still has to read as a check bit, or the
             // group only appears when its bits happen to be ones -- here that
-            // is one cell in four, which says nothing. Dim amber for off,
-            // exactly the pair docs/verify.html uses (#2a2418 against
-            // #1a2130), so the seam is visible whatever the number is.
+            // is one cell in four, which says nothing.
+            //
+            // docs/verify.html's off-amber is #2a2418 and that is right for a
+            // browser, where the cell is as wide as the reader wants and sits
+            // on #1a2130. In a 7px cell at arm's length it disappeared: the
+            // rendered frame showed three of the last four cells as ordinary
+            // dark, so the seam the card is ABOUT was invisible unless the
+            // check bits happened to be set. Lifted until the group reads as a
+            // group at size, which is the only test that matters here.
             lv_color_t col_on  = ck ? WT_WARN : wt_accent();
-            lv_color_t col_off = ck ? lv_color_hex(0x2A2418) : WT_DIV;
+            lv_color_t col_off = ck ? lv_color_hex(0x5A4218) : WT_DIV;
             lv_obj_set_style_bg_color(c, on ? col_on : col_off, 0);
             lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
             lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);

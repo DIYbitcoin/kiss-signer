@@ -2292,7 +2292,12 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     lv_obj_remove_style_all(ovl);
     lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(ovl, WT_BG, 0);
-    lv_obj_set_style_bg_opa(ovl, 245, 0);
+    // Opaque, not 245. Ten parts in 255 of a light grey word list on a near
+    // black ground is still legible: the seed words behind the explainer read
+    // straight through it, competing with the card for the same eye. The card
+    // has a title, a rule and its own frame -- it does not need a ghost of the
+    // page under it to say it is a layer.
+    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
     lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);          // swallow stray taps
     lv_obj_remove_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(ovl, explain_close_cb, LV_EVENT_CLICKED, ovl);
