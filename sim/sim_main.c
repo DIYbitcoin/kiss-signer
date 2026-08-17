@@ -899,6 +899,24 @@ static lv_obj_t *find_click_addr(lv_obj_t *o, const char *needle) {
   return NULL;
 }
 
+// The printed reference word on the stroke rehearsal. Its PARENT card is the
+// box kiss_duress_classify measures the stroke against, so the walk reads the
+// same rectangle the firmware does rather than repeating its coordinates -- a
+// card that moves would otherwise turn every rehearsal stroke into a strike, or
+// into nothing, with the screen still looking right in the frame.
+static lv_obj_t *find_word_label(lv_obj_t *o) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    return (t && strcmp(t, "KISS") == 0) ? o : NULL;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_word_label(lv_obj_get_child(o, i));
+    if (r) return r;
+  }
+  return NULL;
+}
+
 // The 8-hex-char fingerprint string, the one value that identifies a wallet.
 // Both the fingerprint screen and the setup warning show it in a value card;
 // the walk reads it off one to prove the other names the same wallet. No
@@ -3375,14 +3393,61 @@ int main(void) {
   save("/tmp/sim_duress_intro.ppm");                // two ways in
   tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
-  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> the rule (the picker is gone)
-  // The picker and its two rehearsal screens no longer exist: the chosen
-  // stroke was never read on unlock, so the wizard now ends on the rule --
-  // one extra swipe, any swipe, asks for your passphrase. Assert the rule
-  // screen positively; a walk that only taps through would photograph
-  // whatever screen a regression left here and still look green.
+  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> pick your swipe
+  // The picker is BACK, and it decides something now: kiss_duress_route
+  // compares the drawn stroke with the stored one, so a wrong swipe opens the
+  // spare. It was deleted when the stored value routed nothing.
+  save("/tmp/sim_duress_pick.ppm");                 // six shapes, two rows
+  must_show("duress/pick", tr(STR_GD_PICK_REAL_T));
+  tap_str(STR_GD_UNDERLINE, 3, 40);      // -> rehearse it
+  save("/tmp/sim_duress_draw.ppm");                 // the printed word, waiting
+  must_show("duress/draw", tr(STR_GD_DRAW_T));
+
+  // Rehearse the underline TWICE, because one clean stroke stores nothing.
+  // Coordinates are read off the printed word rather than guessed: classify
+  // measures the stroke against that box, so a card that moves must move the
+  // rehearsal with it. Below by0 + 0.75H is what makes it an underline rather
+  // than a strike (kiss_duress.c).
+  {
+    lv_obj_t *lbl = find_word_label(lv_screen_active());
+    if (!lbl) { printf("FAIL: duress/draw: no printed word to draw on\n"); g_walk_fails++; }
+    lv_area_t b = { 250, 150, 550, 246 };
+    if (lbl) lv_obj_get_coords(lv_obj_get_parent(lbl), &b);
+    const int uy = b.y2 - 4;                 // just under the word: underline
+    for (int rep = 0; rep < 2; rep++) {
+      for (int x = b.x1 + 10; x <= b.x2 - 10; x += 40) {
+        touch(x, uy); pump(3);               // 3 frames/point: the indev reads ~30ms
+      }
+      release(); pump(8);                    // 8 after a lift, or the next press folds in
+      if (rep == 0) {
+        // One clean stroke in: the screen says why there is a second. Nothing
+        // is stored yet, and this is the only frame that shows that state.
+        save("/tmp/sim_duress_draw_again.ppm");
+        must_show("duress/draw-again", tr(STR_GD_DRAW_AGAIN_S));
+        if (kiss_duress_real() != WDG_NONE) {
+          printf("FAIL: duress/draw: one stroke stored a swipe\n");
+          g_walk_fails++;
+        }
+      }
+    }
+  }
   save("/tmp/sim_duress_done.ppm");                 // drawing -> spare, +swipe -> real
   must_show("duress/rule", tr(STR_GD_DONE_T));
+  // Landing on the rule screen only proves the rehearsal let us leave. What
+  // matters is that the stroke it rehearsed is the stroke the unlock will now
+  // compare against -- the exact link whose absence made the old picker
+  // theatre, and a screenshot cannot see it.
+  if (kiss_duress_real() != WDG_UNDERLINE) {
+    printf("FAIL: duress/pick: rehearsed UNDERLINE, stored %d\n",
+           kiss_duress_real());
+    g_walk_fails++;
+  }
+  if (kiss_duress_route(true, WDG_UNDERLINE) != WDR_REAL ||
+      kiss_duress_route(true, WDG_CIRCLE)    != WDR_DECOY ||
+      kiss_duress_route(true, WDG_NONE)      != WDR_DECOY) {
+    printf("FAIL: duress/pick: the stored swipe does not route\n");
+    g_walk_fails++;
+  }
   tap_str(STR_C_DONE, 3, 140);   // DONE -> home settles
   save("/tmp/sim_setup_home.ppm");
 

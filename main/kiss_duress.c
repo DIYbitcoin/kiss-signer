@@ -242,14 +242,53 @@ int kiss_duress_label_key(int gesture)
 // the bug the separate enum exists to prevent.
 int kiss_duress_route_marked(bool word_ok, bool marked)
 {
-    return kiss_duress_route(word_ok, marked ? WDG_STRIKE : WDG_NONE);
+    if (!word_ok)
+        return WDR_NONE;
+    // A custom drawing's final mark is a FREE mark: classified with no word box
+    // to measure it against, so it carries no WDG_* identity that could be
+    // compared with the configured stroke. On that path the DRAWING is the
+    // secret and the mark is only ever "yes, there was one". Said here rather
+    // than by handing kiss_duress_route a fabricated WDG_STRIKE, which used to
+    // be true by accident and would now silently mean "matches only owners who
+    // picked line-through".
+    return marked ? WDR_REAL : WDR_DECOY;
 }
 
 int kiss_duress_route(bool word_ok, int stroke)
 {
     if (!word_ok)
         return WDR_NONE;
-    return (stroke > WDG_NONE && stroke < WDG_N) ? WDR_REAL : WDR_DECOY;
+
+    // The bare word ALWAYS opens the spare, on every device. This is the
+    // property the uniform rule existed to protect and it is kept exactly: a
+    // device that draws a passphrase keyboard for the obvious gesture has
+    // announced that it has a passphrase, and no later screen can take that
+    // back.
+    if (stroke <= WDG_NONE || stroke >= WDG_N)
+        return WDR_DECOY;
+
+    // Nothing chosen: any stroke reaches the passphrase, which is the rule
+    // every device shipped with. An owner who never opened the picker keeps
+    // the way in they already have.
+    const int want = kiss_duress_real();
+    if (want == WDG_NONE)
+        return WDR_REAL;
+
+    // Chosen: only theirs. A wrong stroke lands on the spare, which is where
+    // no stroke lands, so the two are indistinguishable from outside -- a
+    // prober who tries one gets a plausible, working, funded signer five times
+    // in six instead of the passphrase keyboard every time.
+    //
+    // This is the line whose absence made the picker theatre. It is also why
+    // the picker can come back: it now decides something.
+    //
+    // No lockout, and that is a property of the escape hatch rather than of
+    // this rule: the spare is a full session, its Settings reach WAYS IN, and
+    // TURN THIS OFF clears the stroke from there (kiss_duress_ui.c ST_INTRO and
+    // ST_NOPASS both offer it whenever one is set). Forgetting a stroke costs
+    // an owner two taps inside the wallet they can always open, never their
+    // keys.
+    return (stroke == want) ? WDR_REAL : WDR_DECOY;
 }
 
 // ---- configuration -------------------------------------------------------

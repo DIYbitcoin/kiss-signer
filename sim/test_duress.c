@@ -174,32 +174,71 @@ int test_duress(void) {
         dchk("WDG_NONE has no label", kiss_duress_label_key(WDG_NONE) < 0);
     }
 
-    // ---- routing policy (uniform: the stored stroke must not change it) ----
+    // ---- routing policy (the configured stroke decides; the bare word never) --
     dchk("no word at all opens nothing",
          kiss_duress_route(false, WDG_NONE) == WDR_NONE);
     dchk("a scribble with a stroke still opens nothing",
          kiss_duress_route(false, WDG_CIRCLE) == WDR_NONE);
-    dchk("word alone opens the decoy",
+
+    // Unconfigured: the rule every device shipped with. An owner who never
+    // opened the picker keeps the way in they already had, so enabling this
+    // feature cannot shut anybody out of their own keys on upgrade.
+    kiss_duress_set(WDG_NONE);
+    dchk("unset: word alone opens the decoy",
          kiss_duress_route(true, WDG_NONE) == WDR_DECOY);
     {
         int all_real = 1;
         for (int g = WDG_NONE + 1; g < WDG_N; g++)
             if (kiss_duress_route(true, g) != WDR_REAL) all_real = 0;
-        dchk("word plus any stroke reaches the passphrase", all_real);
+        dchk("unset: word plus any stroke reaches the passphrase", all_real);
     }
 
-    // The property the whole change exists for: the answer must not depend on
-    // what is stored. Before this, drawing the word once told an attacker
-    // whether a stroke was configured, because the device either prompted or
-    // did not.
+    // Configured: only the owner's stroke, and every other one lands exactly
+    // where no stroke lands. That indistinguishability IS the feature -- a
+    // prober who guesses wrong gets a working, funded signer and no sign that
+    // they guessed at all.
     {
-        int stable = 1;
+        int exact = 1, wrong_is_decoy = 1;
+        for (int cfg = WDG_NONE + 1; cfg < WDG_N; cfg++) {
+            kiss_duress_set(cfg);
+            if (kiss_duress_route(true, cfg) != WDR_REAL) exact = 0;
+            for (int g = WDG_NONE + 1; g < WDG_N; g++)
+                if (g != cfg && kiss_duress_route(true, g) != WDR_DECOY)
+                    wrong_is_decoy = 0;
+        }
+        dchk("set: the chosen stroke reaches the passphrase", exact);
+        dchk("set: every other stroke opens the decoy", wrong_is_decoy);
+    }
+
+    // The leak the uniform rule was introduced to close, kept closed: it lived
+    // on the BARE WORD, where a configured device opened the decoy and an
+    // unconfigured one drew a passphrase keyboard. One gesture said which kind
+    // of device this was. The bare word now answers DECOY in every
+    // configuration, which is what makes it safe for the stroke to decide.
+    {
+        int bare_stable = 1;
         for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
             kiss_duress_set(cfg);
-            if (kiss_duress_route(true, WDG_NONE) != WDR_DECOY) stable = 0;
-            if (kiss_duress_route(true, WDG_UNDERLINE) != WDR_REAL) stable = 0;
+            if (kiss_duress_route(true, WDG_NONE) != WDR_DECOY) bare_stable = 0;
         }
-        dchk("routing is identical whatever stroke is configured", stable);
+        dchk("the bare word opens the decoy whatever is configured", bare_stable);
+    }
+
+    // A custom drawing's final mark is a FREE mark with no word box behind it,
+    // so it has no WDG_* identity to compare. That path stays any-mark on
+    // purpose, and must not start depending on the stroke: it used to hand
+    // kiss_duress_route a fabricated WDG_STRIKE, which now would mean "works
+    // only for owners who happened to pick line-through".
+    {
+        int marked_ok = 1;
+        for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
+            kiss_duress_set(cfg);
+            if (kiss_duress_route_marked(true, true) != WDR_REAL) marked_ok = 0;
+            if (kiss_duress_route_marked(true, false) != WDR_DECOY) marked_ok = 0;
+            if (kiss_duress_route_marked(false, true) != WDR_NONE) marked_ok = 0;
+        }
+        dchk("a custom drawing routes on any mark, whatever stroke is set",
+             marked_ok);
     }
     kiss_duress_set(WDG_NONE);
 

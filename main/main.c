@@ -1665,10 +1665,15 @@ static void kiss_open_decoy(void) {
 //
 // This function recognises shapes; it does not decide anything. The decision is
 // kiss_duress_route, which lives in kiss_duress.c because nothing here is
-// linked into a test binary. It used to consult kiss_duress_real() right at
-// the bottom, and that was the leak the audit found: a device with a stroke
-// configured answered a bare word with the decoy, one without answered with a
-// passphrase keyboard, so one gesture separated them.
+// linked into a test binary.
+//
+// It consults kiss_duress_real() again, and the leak the audit found is closed
+// at its source instead of by ignoring the setting. That leak was on the BARE
+// WORD -- a configured device answered it with the decoy, an unconfigured one
+// with a passphrase keyboard, so one gesture separated them. The bare word now
+// answers with the decoy in every configuration, which is what leaves the
+// stroke free to decide. Which stroke was drawn matters here for the first
+// time, so pass the classifier's real answer and never a stand-in.
 // The last answer unlock_kind gave, for the scripted walk to assert on. The
 // walk cannot reliably assert on WHICH SCREEN follows -- that depends on
 // storage mode, card presence and where in the walk it stands -- but the

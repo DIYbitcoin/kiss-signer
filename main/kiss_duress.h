@@ -52,12 +52,25 @@ enum {
 // word_ok: the drawing before the final stroke read as the opening word.
 // stroke:  WDG_* for the final stroke, WDG_NONE when there was not one.
 //
-// Deliberately does NOT consult kiss_duress_real(). It used to, and that was
-// the whole leak: a device with a stroke configured opened the decoy on the
-// bare word, while a device without one showed a passphrase keyboard, so a
-// single gesture told an attacker which kind of device they were holding. Any
-// recognised stroke now reaches the passphrase on every device, which costs
-// nothing -- the stroke was never the secret, the passphrase is.
+// Consults kiss_duress_real(), and the leak that once made that wrong is fixed
+// a different way. The old leak was on the BARE WORD: a configured device
+// opened the decoy, an unconfigured one showed a passphrase keyboard, so one
+// gesture told an attacker which kind of device they held. The answer taken at
+// the time was to make any stroke reach the passphrase everywhere, which
+// removed the leak and also removed the feature -- the picker went on storing a
+// choice nothing read.
+//
+// The bare word now opens the spare on EVERY device, configured or not, which
+// closes that leak at its actual source. The stroke can then decide something
+// without telling anyone anything: a wrong stroke lands exactly where no stroke
+// lands.
+//
+// What it buys is small and worth stating honestly. Six shapes is ~2.6 bits and
+// is worth nothing against someone holding the passphrase. The point is the
+// observable: any-stroke handed a prober the passphrase keyboard with
+// certainty, and this hands them the spare five times in six. The whole design
+// rests on a passphrase field being a tell (see docs/security-plan.md), and the
+// uniform rule produced that tell on demand.
 //
 // Pure, and in this file rather than in main.c, because main.c is not linked
 // into any test binary (sim/build_test.sh takes eighteen sources from main/ and
@@ -65,9 +78,10 @@ enum {
 // which is how the fork survived long enough to become an audit finding.
 int kiss_duress_route(bool word_ok, int stroke);
 
-// The configured stroke, WDG_NONE when unset. No longer routes anything: it is
-// the preference the Settings row shows, and what a future custom word will
-// hang off. Its value is not observable from outside the device.
+// The configured stroke, WDG_NONE when unset. This is what kiss_duress_route
+// compares against, so it is a secret again and not a display preference: never
+// render it anywhere the spare session can reach, or a coerced owner hands over
+// the answer by opening Settings.
 int kiss_duress_real(void);
 
 // Persist it. WDG_NONE turns the feature off. Returns 0 only once the write is

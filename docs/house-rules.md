@@ -221,6 +221,23 @@ work and show the result.
 
 ## i18n
 
+### English only until the UI is finished
+
+**Change `i18n/en.json` and nothing else.** No wording change touches the other
+twenty locales, and a rename is not carried through them as a courtesy.
+
+The UI is still moving. A screen that gets rebuilt rewrites its own strings, so
+a translation authored today is discarded tomorrow and the cost is paid twenty
+times per discard. Translation is the last pass, run once against final English
+after the screens stop changing.
+
+Unaffected: `tools/gen_i18n.py` still runs after every edit (the drift gate does
+not mind stale values), `kissfit` still measures all 21 against their own
+strings, and the glyph-gain check still runs — an English-only edit cannot gain
+a CJK glyph, which is most of what it is for. The other twenty keep their
+previous wording and the device shows it, which is the accepted state until the
+sweep.
+
 Prefer reusing a key that already ships in 21 locales over adding one. Most
 lessons this device needs to teach are already written and translated, and
 locked to a single path — check before authoring. Adding a key is a real cost

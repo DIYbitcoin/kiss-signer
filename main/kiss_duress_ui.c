@@ -24,16 +24,28 @@ static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
 static void (*s_done)(void);
 
-// Stage machine. The stroke picker and its two rehearsal stages are GONE,
-// deliberately: the chosen stroke was never read on the unlock path -- any
-// single extra swipe after the word routed to the passphrase keyboard, and
-// the passphrase was always the real gate. A wizard that stores a choice
-// nothing consults is worse than no wizard: it teaches a secret that does
-// not exist and adds a lockout the device never imposed. What remains is
-// the truth: teach the two-signer idea, say to fund the spare, and state
-// the rule -- one extra swipe, any swipe, asks for your passphrase.
-enum { ST_INTRO = 0, ST_FUND, ST_DONE, ST_NOPASS };
+// Stage machine. The picker and its rehearsal were deleted once, correctly:
+// the chosen stroke was never read on the unlock path, so the wizard stored a
+// choice nothing consulted and taught a secret that did not exist.
+//
+// They are back because kiss_duress_route now reads it. The bare word answers
+// with the decoy on every device, configured or not, which is where the leak
+// actually lived -- and with that fixed the stroke is free to decide something
+// without the device announcing anything. See kiss_duress.h.
+//
+// The rehearsal is not ceremony. A stroke the owner cannot reproduce is a
+// stroke that quietly stops reaching their keys, and the picker alone cannot
+// tell a shape they can draw from one they merely liked the name of. Drawing it
+// twice, classified by the same code the unlock runs, is the only thing here
+// that proves it works.
+enum { ST_INTRO = 0, ST_FUND, ST_PICK, ST_DRAW, ST_DONE, ST_NOPASS };
 static int s_stage;
+
+// The stroke being rehearsed and how many clean repeats it has. Nothing is
+// stored until the second one lands: kiss_duress_set on the first would leave a
+// half-learned stroke routing the device.
+static int s_pick = WDG_NONE;
+static int s_got;
 
 static void stage_show(int stage);
 static void stage_build(int stage);
@@ -96,7 +108,6 @@ static void add_pass_cb(lv_event_t *e)
     // the same channel the rest of this flow uses: its final screens chain
     // into the stroke chooser (setup_warn_ok_cb), whose DONE closes back to
     // whoever opened the ways in page.
-    lv_obj_t *parent = s_parent;
     void (*done)(void) = s_done;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_login_open_add_later(done);
@@ -105,8 +116,99 @@ static void add_pass_cb(lv_event_t *e)
 static void save_cb(lv_event_t *e)
 {
     (void)e;
-    // Nothing persists: there is no chosen stroke any more, only the rule.
+    // The stroke was committed by the second clean rehearsal, not here: a DONE
+    // that persists would store one for an owner who reached this screen by
+    // skipping the rehearsal.
     finish();
+}
+
+// ---- the rehearsal canvas -------------------------------------------------
+//
+// One stroke at a time, over a printed reference word. The word is printed
+// rather than drawn by the owner because the word is not what is being chosen,
+// and a fixed box is the same measurement kiss_duress_classify gets at unlock:
+// the bounding box of what came before the final stroke.
+#define DR_PTS 128
+static int s_rx[DR_PTS], s_ry[DR_PTS];
+static int s_rn;
+static bool s_rdown;
+static lv_obj_t *s_word_box, *s_rhint, *s_rink;
+static lv_point_precise_t s_rpts[DR_PTS];
+
+static void rehearse_reset(void)
+{
+    s_rn = 0;
+    s_rdown = false;
+    if (s_rink) lv_obj_add_flag(s_rink, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void rehearse_press_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_indev_t *in = lv_indev_active();
+    if (!in) return;
+    lv_point_t p;
+    lv_indev_get_point(in, &p);
+    if (!s_rdown) { s_rdown = true; s_rn = 0; }
+    if (s_rn >= DR_PTS) return;
+    // Same 10px dedupe kiss_word_ui uses. The classifier measures shape, and a
+    // hundred samples of a stationary finger is not shape.
+    if (s_rn == 0 || LV_ABS(p.x - s_rx[s_rn - 1]) >= 10 ||
+                     LV_ABS(p.y - s_ry[s_rn - 1]) >= 10) {
+        s_rx[s_rn] = p.x;
+        s_ry[s_rn] = p.y;
+        s_rpts[s_rn].x = p.x;
+        s_rpts[s_rn].y = p.y;
+        s_rn++;
+        if (s_rn >= 2 && s_rink) {
+            lv_line_set_points(s_rink, s_rpts, (uint32_t)s_rn);
+            lv_obj_remove_flag(s_rink, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
+static void rehearse_release_cb(lv_event_t *e)
+{
+    (void)e;
+    if (!s_rdown) return;
+    s_rdown = false;
+
+    lv_area_t b;
+    lv_obj_get_coords(s_word_box, &b);
+    // The SAME call the unlock path makes, with the same argument order. A
+    // rehearsal that judged the stroke by any other rule would certify a stroke
+    // the device then refuses.
+    const int got = kiss_duress_classify(s_rx, s_ry, s_rn,
+                                         b.x1, b.y1, b.x2, b.y2);
+    rehearse_reset();
+
+    if (got != s_pick) {
+        // Not a failure worth a screen of its own: the finger slipped. Say so
+        // in place and let them go again, because the alternative is an owner
+        // who gives up and leaves a stroke set that they cannot draw. The count
+        // resets -- two consecutive, or it has not been learned.
+        s_got = 0;
+        if (s_rhint) lv_label_set_text(s_rhint, tr(STR_GD_DRAW_BAD_T));
+        return;
+    }
+
+    if (++s_got < 2) {
+        // The long form here, not ONCE MORE: this is the moment the owner is
+        // told WHY there is a second one, and it is the same sentence that
+        // answers "what if I forget it".
+        if (s_rhint) lv_label_set_text(s_rhint, tr(STR_GD_DRAW_AGAIN_S));
+        return;
+    }
+    // Twice, cleanly. Only now does anything persist.
+    (void)kiss_duress_set(s_pick);
+    stage_show(ST_DONE);
+}
+
+static void pick_cb(lv_event_t *e)
+{
+    s_pick = (int)(intptr_t)lv_event_get_user_data(e);
+    s_got = 0;
+    stage_show(ST_DRAW);
 }
 
 static void turn_off_cb(lv_event_t *e)
@@ -211,13 +313,20 @@ static void stage_build(int stage)
         row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SET_UP_SPARE), 48,
                                WT_ACTION_Y_TALL, 240, WT_ACTION_H_TALL,
                                next_cb, NULL);
-        // Reached from Settings with a configuration already in place, this is
-        // the only way back to plain behaviour. Absent during setup, where
-        // there is nothing yet to turn off.
-        if (kiss_duress_real() != WDG_NONE)
-            row[nrow++] = wt_pillh(s_scr, tr(STR_GD_TURN_OFF), 300,
-                                   WT_ACTION_Y_TALL, 220, WT_ACTION_H_TALL,
-                                   turn_off_cb, NULL);
+        // The way back to plain behaviour, and it is the ESCAPE HATCH the
+        // enforced stroke rests on: forgetting your stroke costs two taps
+        // inside the spare, never your keys.
+        //
+        // UNCONDITIONAL, which it was not. It appeared only when a stroke was
+        // set, so in a spare session its presence announced that one was --
+        // and now that kiss_duress_route forks on kiss_duress_real() again,
+        // that is a coerced owner's confession sitting in an action row. The
+        // Settings row above it learned this exact lesson first
+        // (kiss_settings.c, "the row's absence was the confession"); a pill
+        // that clears nothing is the cheapest possible way to say nothing.
+        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_TURN_OFF), 300,
+                               WT_ACTION_Y_TALL, 220, WT_ACTION_H_TALL,
+                               turn_off_cb, NULL);
         row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y_TALL,
                                190, WT_ACTION_H_TALL, skip_cb, NULL);
         // One rung for the row. Without this the three fit independently and
@@ -260,6 +369,71 @@ static void stage_build(int stage)
         wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
         break;
     }
+    // Six shapes, two rows of three, at the geometry the deleted screen used.
+    // They are named rather than drawn because the names are what the rehearsal
+    // then asks for, and a picture of an underline beside a picture of a strike
+    // is two flat lines.
+    case ST_PICK: {
+        s_scr = wt_screen(s_parent, tr(STR_GD_PICK_REAL_T),
+                          tr(STR_GD_PICK_REAL_S));
+        for (int g = WDG_UNDERLINE, i = 0; g < WDG_N; g++, i++) {
+            const int key = kiss_duress_label_key(g);
+            if (key < 0) continue;
+            wt_pill(s_scr, tr((uint16_t)key), 48 + (i % 3) * 240,
+                    128 + (i / 3) * 72, 224, pick_cb, (void *)(intptr_t)g);
+        }
+        // No body here, and no new key for one. What forgetting costs is said
+        // where it is actually earned -- on the rehearsal, by GD_DRAW_AGAIN_S,
+        // which is the sentence "so a slip now does not lock you out later" and
+        // already ships. A paragraph on this screen would be a third telling of
+        // a rule the subtitle and the next screen both make.
+        wt_pill(s_scr, tr(STR_GD_SKIP), WT_EXIT_X, WT_ACTION_Y, 190,
+                skip_cb, NULL);
+        break;
+    }
+    case ST_DRAW: {
+        s_scr = wt_screen(s_parent, tr(STR_GD_DRAW_T), tr(STR_GD_DRAW_S));
+        // The shape being asked for, named, because by here the owner has left
+        // the screen that named it.
+        const int key = kiss_duress_label_key(s_pick);
+        if (key >= 0)
+            wt_lbl(s_scr, tr((uint16_t)key), 48, 104, wt_font23(), wt_accent());
+
+        // The reference word. Its box is what kiss_duress_classify measures
+        // against, so it is a real object with real coordinates and not a
+        // painted decoration.
+        s_word_box = wt_card(s_scr, 250, 150, 300, 96);
+        lv_obj_t *w = wt_lbl(s_word_box, "KISS", 0, 0, wt_font34(), WT_INK);
+        lv_obj_center(w);
+
+        // The canvas sits OVER the word and takes the whole band, because a
+        // stroke that has to start inside a 300px box is a stroke the owner
+        // cannot draw. Built after the card so the press lands here.
+        lv_obj_t *cv = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(cv);
+        lv_obj_set_pos(cv, 0, 110);
+        lv_obj_set_size(cv, 800, 200);
+        lv_obj_add_flag(cv, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(cv, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_event_cb(cv, rehearse_press_cb, LV_EVENT_PRESSING, NULL);
+        lv_obj_add_event_cb(cv, rehearse_release_cb, LV_EVENT_RELEASED, NULL);
+
+        s_rink = lv_line_create(cv);
+        lv_obj_set_style_line_width(s_rink, 6, 0);
+        lv_obj_set_style_line_color(s_rink, wt_accent(), 0);
+        lv_obj_set_style_line_rounded(s_rink, true, 0);
+        lv_obj_add_flag(s_rink, LV_OBJ_FLAG_HIDDEN);
+
+        // Empty until a stroke lands. GD_DRAW_AGAIN_S opens with "the same
+        // stroke again", which is a lie before there has been a first one --
+        // the subtitle already says what to do, and this line exists to react.
+        s_rhint = wt_lbl(s_scr, "", 48, 286, wt_font23(), WT_MUT);
+        lv_obj_set_width(s_rhint, 704);
+        rehearse_reset();
+        wt_pill(s_scr, tr(STR_GD_SKIP), WT_EXIT_X, WT_ACTION_Y, 190,
+                skip_cb, NULL);
+        break;
+    }
     case ST_NOPASS: {
         s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
         // Why there is nothing to hide behind, in two chips: the layer this
@@ -277,13 +451,15 @@ static void stage_build(int stage)
         // falls out through setup_warn_ok_cb the same way the wizard does,
         // so the stroke chooser is the very next screen -- setting a stroke
         // is exactly why most owners will be doing this.
-        wt_pill(s_scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y,
-                kiss_duress_real() != WDG_NONE ? 340 : 556,
+        // Both widths and both pills are now FIXED, where they used to fork on
+        // kiss_duress_real(). This screen is the one a spare session reaches,
+        // so a pill that appears only when a stroke is configured tells a
+        // prober that one is -- and the row that opens this screen was
+        // un-hidden for precisely that reason. A layout that changes shape is
+        // the same confession as a pill that comes and goes.
+        wt_pill(s_scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 340,
                 add_pass_cb, NULL);
-        // The only way back to plain behaviour for a signer that was allowed to
-        // configure a stroke before this case was handled.
-        if (kiss_duress_real() != WDG_NONE)
-            wt_pill(s_scr, tr(STR_GD_TURN_OFF), 396, WT_ACTION_Y, 208, turn_off_cb, NULL);
+        wt_pill(s_scr, tr(STR_GD_TURN_OFF), 396, WT_ACTION_Y, 208, turn_off_cb, NULL);
         wt_pill(s_scr, tr(STR_C_OK), WT_BACK_X, WT_ACTION_Y, 140, skip_cb, NULL);
         break;
     }
