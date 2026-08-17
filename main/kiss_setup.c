@@ -630,16 +630,32 @@ static void cksum_diagram(lv_obj_t *col)
     if (last >= 0) {
         const int cs = s_count == 24 ? 8 : 4;   // 264 - 256, or 132 - 128
         lv_obj_t *r2 = wt_diagram_row(col);
-        lv_obj_t *cells = lv_obj_create(r2);
-        lv_obj_remove_style_all(cells);
-        lv_obj_set_size(cells, 11 * 9 - 2, 15);
-        lv_obj_remove_flag(cells, LV_OBJ_FLAG_SCROLLABLE);
+
+        // Two groups with a "+" between them, not one strip of eleven. An
+        // unbroken strip is a barcode: it says "here are some bits" and stops.
+        // Split, it says the thing the card is for -- the last word is PART
+        // yours and PART arithmetic -- and it says it before a word is read,
+        // to someone who cannot read the words at all.
+        //
+        // The check group then takes the same tick row 1 gives the check, so
+        // which half is which is answered on the screen instead of by the
+        // colour, which four accents are free to change.
+        lv_obj_t *grp[2];
+        for (int g = 0; g < 2; g++) {
+            int n = g == 0 ? 11 - cs : cs;
+            if (g) wt_diagram_op(r2, "+");
+            grp[g] = lv_obj_create(r2);
+            lv_obj_remove_style_all(grp[g]);
+            lv_obj_set_size(grp[g], n * 9 - 2, 15);
+            lv_obj_remove_flag(grp[g], LV_OBJ_FLAG_SCROLLABLE);
+        }
         for (int b = 0; b < 11; b++) {
             bool on = (last >> (10 - b)) & 1;
             bool ck = b >= 11 - cs;
+            lv_obj_t *cells = grp[ck ? 1 : 0];
             lv_obj_t *c = lv_obj_create(cells);
             lv_obj_remove_style_all(c);
-            lv_obj_set_pos(c, b * 9, 0);
+            lv_obj_set_pos(c, (ck ? b - (11 - cs) : b) * 9, 0);
             lv_obj_set_size(c, 7, 15);
             lv_obj_set_style_radius(c, 1, 0);
             // An UNSET check bit still has to read as a check bit, or the
@@ -659,6 +675,7 @@ static void cksum_diagram(lv_obj_t *col)
             lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
             lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
         }
+        wt_diagram_op(r2, LV_SYMBOL_OK);
         wt_diagram_op(r2, "=");
         wt_chip(r2, s_w[s_count - 1], false);
     }
@@ -1054,8 +1071,12 @@ static void tap_screen(void)
     s_tap_count = wt_lbl(s_tap_card, buf, 18, 108, wt_font_mono28(), INK_COL);
     lv_obj_remove_flag(s_tap_count, LV_OBJ_FLAG_CLICKABLE);
 
+    // The only instruction on the screen, and it was font14 under 92px of empty
+    // card. Sized to the room it actually has instead of to the smallest rung.
     lv_obj_t *note = wt_lbl(s_tap_card, tr(STR_W_ENT_TAP_NOTE), 18, 168,
-                            wt_font14(), MUT_COL);
+                            wt_body_font(tr(STR_W_ENT_TAP_NOTE),
+                                         TAP_CARD_W - 36, TAP_CARD_H - 168 - 18),
+                            MUT_COL);
     lv_obj_set_width(note, TAP_CARD_W - 36);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
     lv_obj_remove_flag(note, LV_OBJ_FLAG_CLICKABLE);
