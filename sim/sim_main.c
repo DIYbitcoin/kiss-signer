@@ -3433,6 +3433,10 @@ int main(void) {
   }
   save("/tmp/sim_duress_done.ppm");                 // drawing -> spare, +swipe -> real
   must_show("duress/rule", tr(STR_GD_DONE_T));
+  // The drawing has to be OFFERED here, not merely reachable. Its only caller
+  // in the shipped firmware was a Settings pill, so an owner setting up a spare
+  // was never told the four letters in the diagram above can be replaced.
+  must_show("duress/drawing offered", tr(STR_GD_WORD_PILL));
   // Landing on the rule screen only proves the rehearsal let us leave. What
   // matters is that the stroke it rehearsed is the stroke the unlock will now
   // compare against -- the exact link whose absence made the old picker

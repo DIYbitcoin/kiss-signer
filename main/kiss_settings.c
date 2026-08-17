@@ -633,10 +633,13 @@ static void duress_cb(lv_event_t *e)
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
 
     // What is true today, as chips: what opens the spare (KISS, or the
-    // owner's drawing), and the fixed rule beside it. There is no chosen
-    // mark to report any more -- any one extra swipe asks for the
-    // passphrase -- so the page states the rule instead of a secret that
-    // never existed.
+    // owner's drawing), and what has to follow it.
+    //
+    // The chip names the swipe as YOURS again, because it is: kiss_duress_route
+    // compares the drawn stroke against the stored one. Never render WHICH
+    // stroke here -- this page is reachable from the spare session, so the
+    // shape itself is the one thing on it that a coerced owner must not be able
+    // to hand over by opening Settings.
     {
         lv_obj_t *row = wt_diagram_row(s_scr);
         wt_chip(row, gw_stored_any() ? tr(STR_GD_WORD_T) : "KISS",
@@ -646,13 +649,12 @@ static void duress_cb(lv_event_t *e)
         lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 128);
     }
 
-    // The rule in words, under the chips that state it as a picture. The
-    // chips alone read as a STATUS -- "drawing set, one swipe set" -- so an
-    // owner who has just set a drawing goes looking for where the swipe is
-    // chosen, finds no such control, and reports the page broken. It was, in
-    // the only sense that matters: nothing on it said the swipe is not a
-    // choice. The left block says which swipe (any), the right says what the
-    // swipe is not (the secret).
+    // The rule in words, under the chips that state it as a picture. The chips
+    // alone read as a STATUS -- "drawing set, swipe set" -- so an owner who has
+    // just set a drawing goes looking for where the swipe is chosen. That
+    // control now exists and HOW IT WORKS below reaches it. The left block says
+    // what the swipe does (yours opens the real keys, anything else the spare),
+    // the right says what it is not (the secret; the passphrase is).
     //
     // No headings. Both are sentences lifted whole from screens that already
     // teach this, and a heading over either would be a new key in 21 locales

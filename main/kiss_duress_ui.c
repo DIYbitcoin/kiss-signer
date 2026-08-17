@@ -17,6 +17,7 @@
 #include "kiss_duress_ui.h"
 #include "kiss_theme.h"
 #include "kiss_ui.h"
+#include "kiss_word_ui.h"
 #include "i18n.h"
 #include "kiss_wipe.h"
 
@@ -202,6 +203,20 @@ static void rehearse_release_cb(lv_event_t *e)
     // Twice, cleanly. Only now does anything persist.
     (void)kiss_duress_set(s_pick);
     stage_show(ST_DONE);
+}
+
+// Hand the display to the drawing module the way Settings does: drop this
+// screen first, then open it with OUR done callback, so it returns to whoever
+// opened the wizard rather than back into a stage that no longer exists.
+static void word_cb(lv_event_t *e)
+{
+    (void)e;
+    void (*done)(void) = s_done;
+    s_done = NULL;                   // finish() must not fire it as well
+    s_pending = -1;
+    close_all();
+    s_stage = ST_INTRO;
+    kiss_word_ui_open(s_parent, done);
 }
 
 static void pick_cb(lv_event_t *e)
@@ -470,8 +485,20 @@ static void stage_build(int stage)
         // unlock, and this is the last screen in the flow that says so.
         diagram_two_ways();
         wt_why_body(s_scr, tr(STR_GD_DONE_B), 250, WT_OK, true);
+        // The drawing is offered HERE, at the end of the flow, and that is the
+        // whole of the discoverability fix. kiss_word_ui_open had exactly one
+        // caller in the shipped firmware -- a third pill on a Settings page --
+        // so an owner setting up a spare was never once told that the four
+        // letters in the diagram they are looking at can be replaced. Reported
+        // from the bench as the drawing being missing; it was reachable, and
+        // never offered anywhere the decision was being made.
+        lv_obj_t *row[2];
+        row[0] = wt_pill(s_scr, tr(STR_GD_WORD_PILL), 48, WT_ACTION_Y, 380,
+                         word_cb, NULL);
         // 552..752: 200 wide, so it cannot use WT_BACK_X and still sit flush.
-        wt_pill(s_scr, tr(STR_C_DONE), 552, WT_ACTION_Y, 200, save_cb, NULL);
+        row[1] = wt_pill(s_scr, tr(STR_C_DONE), 552, WT_ACTION_Y, 200,
+                         save_cb, NULL);
+        wt_pill_row(row, 2);
         break;
     }
     }
