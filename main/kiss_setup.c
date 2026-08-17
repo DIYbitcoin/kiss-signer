@@ -852,7 +852,12 @@ static uint8_t s_cam_chain[32];   // source 1: the camera frame fold, frozen
 static uint8_t s_cam_trng[32];    // source 2: the chip read at capture
 static bool    s_cam_have;        // false when the camera failed: cam stays 0
 
+#define TAP_BITS_Y    216   // under the note, clear of the card's bottom edge
+#define TAP_BITS_N     64
+#define TAP_BITS_P      6   // same 5px cell and 1px gap as the dice strip
+
 static lv_obj_t *s_tap_segs[WTAP_TARGET];
+static lv_obj_t *s_tap_bits[TAP_BITS_N];
 static lv_obj_t *s_tap_count;
 static lv_obj_t *s_tap_card;
 
@@ -978,6 +983,20 @@ static void tap_hit_cb(lv_event_t *e)
         snprintf(buf, sizeof buf, "%u / %u", n, (unsigned)WTAP_TARGET);
         lv_label_set_text(s_tap_count, buf);
     }
+    // The segments above are a COUNTER -- they fill left to right and say how
+    // many taps are left. This is the randomness itself, and the two are
+    // different facts: dice shows a tally AND a strip for the same reason.
+    // Without it the default method is the only one of the three whose entropy
+    // the owner never sees, while a dice owner watches theirs move.
+    if (s_tap_bits[0]) {
+        uint8_t c[32];
+        kiss_tapent_peek(c);
+        for (int b = 0; b < TAP_BITS_N; b++)
+            lv_obj_set_style_bg_color(s_tap_bits[b],
+                                      ((c[b >> 3] >> (7 - (b & 7))) & 1)
+                                          ? wt_accent() : WT_DIV, 0);
+        kiss_wipe(c, sizeof c);
+    }
     if (n >= WTAP_TARGET) {
         lv_obj_remove_flag(s_tap_card, LV_OBJ_FLAG_CLICKABLE);
         // Hold the full bar so completion is seen, not inferred.
@@ -1032,6 +1051,7 @@ static void tap_screen(void)
 {
     kiss_tapent_reset();
     memset(s_tap_segs, 0, sizeof s_tap_segs);
+    memset(s_tap_bits, 0, sizeof s_tap_bits);
     s_tap_count = NULL;
     mk_screen2(tr(STR_W_ENT_TAP_T), tr(STR_W_ENT_TAP_S));
 
@@ -1079,11 +1099,24 @@ static void tap_screen(void)
     // card. Sized to the room it actually has instead of to the smallest rung.
     lv_obj_t *note = wt_lbl(s_tap_card, tr(STR_W_ENT_TAP_NOTE), 18, 168,
                             wt_body_font(tr(STR_W_ENT_TAP_NOTE),
-                                         TAP_CARD_W - 36, TAP_CARD_H - 168 - 18),
+                                         TAP_CARD_W - 36, TAP_BITS_Y - 168 - 6),
                             MUT_COL);
     lv_obj_set_width(note, TAP_CARD_W - 36);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
     lv_obj_remove_flag(note, LV_OBJ_FLAG_CLICKABLE);
+
+    for (int b = 0; b < TAP_BITS_N; b++) {
+        lv_obj_t *c = lv_obj_create(s_tap_card);
+        lv_obj_remove_style_all(c);
+        lv_obj_set_pos(c, 18 + b * TAP_BITS_P, TAP_BITS_Y);
+        lv_obj_set_size(c, TAP_BITS_P - 1, 14);
+        lv_obj_set_style_radius(c, 1, 0);
+        lv_obj_set_style_bg_color(c, WT_DIV, 0);
+        lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);   // presses hit the card
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+        s_tap_bits[b] = c;
+    }
 
     // CANCEL only. Same rule the words screen documents: no screen without an
     // exit. Nothing is staged here, because the seed does not exist yet.
@@ -1171,9 +1204,14 @@ static void ent_mix_closed_cb(lv_event_t *e)
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
 // the dice the fourth line sends an unconvinced reader to (the same LIST glyph
 // method_screen puts on the DICE row, so the two marks agree).
+//
+// The chip is SETTINGS, not CHARGE. A lightning bolt on a Bitcoin device reads
+// as the Lightning Network before it reads as "electrical noise", and this
+// signer has nothing to do with Lightning -- the same reason fees wear scissors
+// here and not a bolt.
 static const char *const ENT_MIX_ICONS[] = {
     LV_SYMBOL_IMAGE,
-    LV_SYMBOL_CHARGE,
+    LV_SYMBOL_SETTINGS,
     LV_SYMBOL_OK,
     LV_SYMBOL_LIST,
 };
@@ -1468,7 +1506,14 @@ static void method_screen(void)
     // word-count screen's subtitle asking how many words. Nothing on it answers
     // that question.
     mk_screen(tr(STR_W_NEW_T), tr(STR_W_METHOD_S));
-    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_NEW), tr(STR_W_NEW_NOTE), NULL,
+    // Its OWN name, not the screen title again. This row wore STR_W_CHOOSE_NEW
+    // and STR_W_NEW_NOTE, which are right one screen up where the choice is new
+    // words against RESTORE -- here they made the default method the only one
+    // that never said what it does, under a title saying the same words back.
+    // "made on this signer" then read as the hardware inventing a seed on its
+    // own, which is both frightening and untrue: an owner aims the camera and
+    // taps, and the chip's noise is the third input, not the only one.
+    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_DICE_NOTE),

@@ -76,6 +76,8 @@
   "W_RESTORE_T": "RESTAURAR",
   "W_HOWMANY": "¿cuántas palabras?",
   "W_METHOD_S": "de dónde viene el azar",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 PALABRAS",
   "W_24": "24 PALABRAS",
   "W_12_NOTE": "casi siempre son doce palabras semilla",

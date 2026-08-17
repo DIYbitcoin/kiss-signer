@@ -76,6 +76,8 @@
   "W_RESTORE_T": "복원",
   "W_HOWMANY": "단어 몇 개로 할까요?",
   "W_METHOD_S": "무작위를 어디서 만드는지",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12단어",
   "W_24": "24단어",
   "W_12_NOTE": "대개 시드 단어는 열두 개입니다",

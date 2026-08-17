@@ -76,6 +76,8 @@
   "W_RESTORE_T": "ÅTERSTÄLL",
   "W_HOWMANY": "hur många ord?",
   "W_METHOD_S": "varifrån slumpen kommer",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 ORD",
   "W_24": "24 ORD",
   "W_12_NOTE": "oftast är det tolv seed-ord",

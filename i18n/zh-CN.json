@@ -76,6 +76,8 @@
   "W_RESTORE_T": "恢复",
   "W_HOWMANY": "多少个词?",
   "W_METHOD_S": "随机性从哪里来",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 个词",
   "W_24": "24 个词",
   "W_12_NOTE": "多数助记词是 12 个",

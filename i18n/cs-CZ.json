@@ -76,6 +76,8 @@
   "W_RESTORE_T": "OBNOVIT",
   "W_HOWMANY": "kolik slov?",
   "W_METHOD_S": "odkud pochází náhoda",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 SLOV",
   "W_24": "24 SLOV",
   "W_12_NOTE": "většina seed slov je po dvanácti",

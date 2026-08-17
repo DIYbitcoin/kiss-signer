@@ -151,6 +151,12 @@ UNTRANSLATED_OK = {
     "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
     "W_KEF_BAD_T", "W_KEF_BAD_S", "W_KEF_BAD_B",
     "W_KEF_SD_T", "W_KEF_SD_S", "W_KEF_SD_EMPTY", "W_KEF_SD_NONE_B",
+    # The method screen's first row. Same rule as the KEF block above: born
+    # after the English-only rule, so the other twenty carry English until the
+    # sweep. It needed its own keys because the row had been borrowing
+    # W_CHOOSE_NEW / W_NEW_NOTE from the screen above it, where "NEW SEED
+    # WORDS" against RESTORE is correct and must not move.
+    "W_CHOOSE_MIX", "W_MIX_NOTE",
 }
 
 

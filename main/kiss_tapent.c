@@ -68,3 +68,10 @@ int kiss_tapent_take(uint8_t out[32])
     memcpy(out, s_chain, 32);
     return 0;
 }
+
+void kiss_tapent_peek(uint8_t out[32])
+{
+    if (!out)
+        return;
+    memcpy(out, s_chain, 32);
+}

@@ -76,6 +76,8 @@
   "W_RESTORE_T": "HERSTELLEN",
   "W_HOWMANY": "hoeveel woorden?",
   "W_METHOD_S": "waar het toeval vandaan komt",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 WOORDEN",
   "W_24": "24 WOORDEN",
   "W_12_NOTE": "meestal zijn het twaalf seed-woorden",

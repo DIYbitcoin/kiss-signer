@@ -79,6 +79,8 @@ enum {
     STR_W_RESTORE_T,
     STR_W_HOWMANY,
     STR_W_METHOD_S,
+    STR_W_CHOOSE_MIX,
+    STR_W_MIX_NOTE,
     STR_W_12,
     STR_W_24,
     STR_W_12_NOTE,

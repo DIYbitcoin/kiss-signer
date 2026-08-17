@@ -194,6 +194,14 @@ int kiss_tapent_take(uint8_t out[32]) {
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(i * 7);
   return 0;
 }
+// The strip the tap screen draws reads this. It has to CHANGE with the count,
+// or the walk photographs a stationary row and the stop that exists to tell a
+// live strip from a dead one proves nothing. Not a hash and not entropy: a
+// value that stirs on every tap, which is all the screen asks of it.
+void kiss_tapent_peek(uint8_t out[32]) {
+  for (int i = 0; i < 32; i++)
+    out[i] = (uint8_t)(i * 31 + s_sim_taps * 71 + (s_sim_taps << 3));
+}
 // Dice source (verifiable path). Real logic + SHA256 live in kiss_dice.c and
 // are exercised by kisstest; the sim links no crypto, so this stub only has to
 // let the dice screen advance and complete. The QUALITY judge is not stubbed:
@@ -3128,6 +3136,14 @@ int main(void) {
   // looking at it in any locale. sim_entropy_cb stands in for the camera.
   tap_str(STR_W_ENT_CAPTURE, 3, 6);     // ADD YOUR TAPS -> the card
   save("/tmp/sim_setup_ent_tap.ppm");               // SOURCE 3, 64 empty segments
+  // Part way through, because the empty state proves nothing about the strip:
+  // before the first tap the chain is all zeroes and every cell is off, which
+  // is indistinguishable from a strip that never updates. Twenty taps in, the
+  // segments are partly lit and the bits are live, so a stop here is the only
+  // one that can tell those two apart.
+  for (int i = 0; i < 20; i++) { touch(400, 260); pump(3); release(); pump(3); }
+  pump(6);
+  save("/tmp/sim_setup_ent_tap_part.ppm");          // counter climbing, bits live
   // The chip's noise source never came up. This is the ONLY way to reach the
   // refusal -- the other two legs cannot fail after a full 64-tap gate -- and
   // it is why the screen has to be forced rather than walked into. It was a

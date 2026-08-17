@@ -76,6 +76,8 @@
   "W_RESTORE_T": "ВОССТАНОВИТЬ",
   "W_HOWMANY": "сколько слов?",
   "W_METHOD_S": "откуда берется случайность",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 СЛОВ",
   "W_24": "24 СЛОВА",
   "W_12_NOTE": "чаще всего их двенадцать",

@@ -76,6 +76,8 @@
   "W_RESTORE_T": "RESTAURER",
   "W_HOWMANY": "combien de mots ?",
   "W_METHOD_S": "d'où vient le hasard",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 MOTS",
   "W_24": "24 MOTS",
   "W_12_NOTE": "le plus souvent douze mots",

@@ -76,6 +76,8 @@
   "W_RESTORE_T": "WIEDERHERSTELLEN",
   "W_HOWMANY": "wie viele Wörter?",
   "W_METHOD_S": "woher der Zufall kommt",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 WÖRTER",
   "W_24": "24 WÖRTER",
   "W_12_NOTE": "meist sind es zwölf Seed-Wörter",

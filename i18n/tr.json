@@ -76,6 +76,8 @@
   "W_RESTORE_T": "GERİ YÜKLE",
   "W_HOWMANY": "kaç kelime?",
   "W_METHOD_S": "rastgelelik nereden geliyor",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 KELİME",
   "W_24": "24 KELİME",
   "W_12_NOTE": "çoğunlukla on iki kelimedir",

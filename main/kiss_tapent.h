@@ -42,3 +42,12 @@ unsigned kiss_tapent_count(void);
 // Copy the finished chain into out[32]. Returns 0 only once the target is
 // reached, nonzero otherwise — a partial chain is never handed out.
 int kiss_tapent_take(uint8_t out[32]);
+
+// Copy the chain as it stands into out[32], at any count. FOR DISPLAY ONLY:
+// this is what the screen draws as the strip that moves under the tally, so an
+// owner can see their taps landing in something instead of watching a bar fill.
+// It is deliberately NOT the seed path — kiss_tapent_take stays the only way to
+// get bytes that go anywhere, and it still refuses below the target. Before the
+// first tap the chain is all zeroes, which is exactly what an empty strip
+// should draw.
+void kiss_tapent_peek(uint8_t out[32]);

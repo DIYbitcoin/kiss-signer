@@ -76,6 +76,8 @@
   "W_RESTORE_T": "GENDAN",
   "W_HOWMANY": "hvor mange ord?",
   "W_METHOD_S": "hvor tilfældigheden kommer fra",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12 ORD",
   "W_24": "24 ORD",
   "W_12_NOTE": "de fleste seed-ord er tolv",

@@ -76,6 +76,8 @@
   "W_RESTORE_T": "復元",
   "W_HOWMANY": "単語数は?",
   "W_METHOD_S": "乱数をどこから作るか",
+  "W_CHOOSE_MIX": "CAMERA AND TAPS",
+  "W_MIX_NOTE": "you aim the camera, then tap.",
   "W_12": "12語",
   "W_24": "24語",
   "W_12_NOTE": "ふつうは12個のシード単語です",
