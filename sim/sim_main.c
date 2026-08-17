@@ -3435,6 +3435,14 @@ int main(void) {
     for (int rep = 0; rep < 2; rep++) {
       for (int x = b.x1 + 10; x <= b.x2 - 10; x += 40) {
         touch(x, uy); pump(3);               // 3 frames/point: the indev reads ~30ms
+        // Mid-stroke, finger still down. The only frame that can show the ink
+        // AT ALL -- every other save here happens after a release, by which
+        // point rehearse_reset has hidden it. It is also the only frame that
+        // can show the ink in the WRONG PLACE: the line was parented to the
+        // canvas at y=110 while being fed absolute touch points, so every
+        // stroke drew 110px below the finger and no gate could see it.
+        if (rep == 0 && x > b.x1 + 80 && x <= b.x1 + 120)
+          save("/tmp/sim_duress_draw_ink.ppm");
       }
       release(); pump(8);                    // 8 after a lift, or the next press folds in
       if (rep == 0) {

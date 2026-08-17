@@ -231,12 +231,20 @@ a translation authored today is discarded tomorrow and the cost is paid twenty
 times per discard. Translation is the last pass, run once against final English
 after the screens stop changing.
 
-Unaffected: `tools/gen_i18n.py` still runs after every edit (the drift gate does
-not mind stale values), `kissfit` still measures all 21 against their own
-strings, and the glyph-gain check still runs — an English-only edit cannot gain
-a CJK glyph, which is most of what it is for. The other twenty keep their
-previous wording and the device shows it, which is the accepted state until the
-sweep.
+**This covers the gates too — no 21-locale sweeps.** Run the walk and
+`run_overlapcheck.sh` with `SIM_LANG=en` / `OVERLAPCHECK_LANGS=en`. The other
+twenty carry wording that is about to be replaced, so sweeping them proves
+nothing about the product. Written once with the gates carved out of it, which
+is why it kept happening.
+
+The cost, so nobody rediscovers it: a full sweep does catch real faults — a walk
+needle that passed in English because two keys share a string there and differ
+in French was caught that way. That class waits for the translation sweep.
+
+Still run after every edit: `tools/gen_i18n.py` (the drift gate does not mind
+stale values) and the glyph-gain check — an English-only edit cannot gain a CJK
+glyph, which is most of what it is for. The other twenty keep their previous
+wording, the device shows it, and no gate looks at them, until the sweep.
 
 Prefer reusing a key that already ships in 21 locales over adding one. Most
 lessons this device needs to teach are already written and translated, and

@@ -38,11 +38,30 @@ fi
 
 # The locale codes are the names of the translation files, so a language added
 # to i18n/ is covered here the same day without this script being edited.
+#
+# OVERLAPCHECK_LANGS overrides the list, space separated. While the UI is being
+# rebuilt the house rule is ENGLISH ONLY -- the other twenty carry wording that
+# is about to be replaced, so sweeping them proves nothing about the product and
+# takes twenty times as long to say it:
+#
+#   OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh
+#
+# The full sweep is the translation pass's gate, not the daily one. It does
+# catch real faults -- a walk needle that passed in English because two keys
+# share a string there and differ in French was caught exactly that way -- and
+# that class of bug waits until the wording settles.
 langs=()
-for f in i18n/*.json; do
-    b=$(basename "$f" .json)
-    langs+=("$b")
-done
+if [ -n "${OVERLAPCHECK_LANGS:-}" ]; then
+    for b in $OVERLAPCHECK_LANGS; do
+        [ -f "i18n/$b.json" ] || { echo "no such locale: $b" >&2; exit 1; }
+        langs+=("$b")
+    done
+else
+    for f in i18n/*.json; do
+        b=$(basename "$f" .json)
+        langs+=("$b")
+    done
+fi
 
 echo
 echo "text overlap gate: ${#langs[@]} locales"

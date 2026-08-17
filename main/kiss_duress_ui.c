@@ -433,7 +433,15 @@ static void stage_build(int stage)
         lv_obj_add_event_cb(cv, rehearse_press_cb, LV_EVENT_PRESSING, NULL);
         lv_obj_add_event_cb(cv, rehearse_release_cb, LV_EVENT_RELEASED, NULL);
 
-        s_rink = lv_line_create(cv);
+        // On the SCREEN at (0,0), not on the canvas. lv_line points are relative
+        // to the line object's own origin, and the points fed to it come from
+        // lv_indev_get_point, which is absolute -- so a line parented to a
+        // canvas at y=110 draws every stroke 110px BELOW the finger. Reported
+        // from the bench as the ink not following the finger at all. This is the
+        // same parenting kiss_word_ui.c uses for exactly the same reason, and
+        // the canvas above stays transparent so the ink sits over it.
+        s_rink = lv_line_create(s_scr);
+        lv_obj_set_pos(s_rink, 0, 0);
         lv_obj_set_style_line_width(s_rink, 6, 0);
         lv_obj_set_style_line_color(s_rink, wt_accent(), 0);
         lv_obj_set_style_line_rounded(s_rink, true, 0);
