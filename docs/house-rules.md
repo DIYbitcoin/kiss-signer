@@ -2,9 +2,26 @@
 
 ## Replies
 
-Short. A few sentences, and the picture when a screen changed. No summaries of
-what was just done, no lists of what is left, no restating the commit message
-back — it is all in the commit and the code. Detail only when asked for it.
+**Hard cap: about five sentences.** A few sentences, and the picture when a
+screen changed. No summaries of what was just done, no lists of what is left, no
+restating the commit message back — it is all in the commit and the code. Detail
+only when asked for it, and "asked" means asked, not inferred.
+
+This rule was already here, in these words, and was broken on essentially every
+turn anyway. It kept being overridden by a judgement call, so the judgement call
+is gone: length is not a thing to weigh, it is a limit. Every one of these is a
+rationalisation and none of them earns a longer reply:
+
+- "this finding is important" — then it is a commit message.
+- "I should explain why I chose this" — commit message.
+- "I found a second bug while in there" — one sentence, no section.
+- "I should flag what is still untested" — one sentence, or the device-test
+  verdict, which has its own required form and does not license prose around it.
+- "the owner will want the reasoning" — the owner asks when they want it, and
+  asks constantly for the opposite.
+
+Bullet lists, bold headers and section breaks in a reply are the tell that it
+has already gone too long. The commit body is unlimited; the reply is not.
 
 ## Screen chrome
 
