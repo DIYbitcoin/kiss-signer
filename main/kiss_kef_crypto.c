@@ -223,6 +223,10 @@ int kiss_kef_seal(const uint8_t *id, size_t id_len,
     if (!out || !out_len || !password || !pass_len || !plain || !plain_len)
         return -1;
     if (id_len > KEF_ID_MAX) return -1;
+    // Bound plain_len BEFORE the size arithmetic: every real caller passes
+    // tens of bytes, and this is what keeps a hostile length from wrapping
+    // `need` around zero and turning the cap check into a lie.
+    if (plain_len > KEF_MAX_ENV) return -1;
 
     size_t need = 5 + id_len + KEF_IV_LEN + plain_len + KEF_TAG_LEN;
     if (need > out_cap || need > KEF_MAX_ENV) return -1;
