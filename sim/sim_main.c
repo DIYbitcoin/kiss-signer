@@ -981,7 +981,32 @@ static int g_walk_fails;
 // live object and every frame of it looked correct.
 static int g_fw_done_fired;
 static void sim_fw_done_cb(void) { g_fw_done_fired++; }
+// A needle that cannot fail honestly. must_show asserts on tr(SOME_KEY), and if
+// that English value is ALSO the value of another key, the assertion passes
+// whenever EITHER screen is up. That is not hypothetical: restore/chooser
+// asserted W_NEW_T, W_CHOOSE_NEW carries the same words in English, and the
+// walk opened the wrong screen and reported success -- in twenty locales. Only
+// French, where the two differ, said anything.
+//
+// The 21-locale sweep used to be what caught this class, by accident. The gates
+// are English-only while the UI is being rebuilt, so the check has to be too,
+// and this one is better than the accident was: it names the ambiguity instead
+// of waiting for a locale where it happens to bite.
+static int needle_shared_by_two_keys(const char *s) {
+  int n = 0;
+  for (int i = 0; i < STR_N; i++)
+    if (strcmp(tr(i), s) == 0 && ++n > 1) return 1;
+  return 0;
+}
+
 static void must_show(const char *what, const char *needle) {
+  if (needle_shared_by_two_keys(needle)) {
+    printf("FAIL: %s: needle \"%s\" is the English value of more than one key, "
+           "so it passes on whichever screen shows either -- assert on "
+           "something unique to this screen\n", what, needle);
+    g_walk_fails++;
+    return;
+  }
   if (find_label_text(lv_screen_active(), needle)) return;
   printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
   // Only for the first failure of a run: six of these would bury the log, and
@@ -2607,6 +2632,10 @@ int main(void) {
     kiss_scan_inject(big, strlen(big));
     pump(6);
     save("/tmp/sim_qr_too_big.ppm");                // refusal + the way through
+    // "too big" used to be G_FW_BIG_H as well -- the firmware oversize heading --
+    // so this needle passed on either screen. That one says "file too big" now,
+    // which is both unambiguous and more useful: one is a QR payload, the other
+    // is a file on a card.
     must_show("scan/too-big", tr(STR_N_TOO_BIG));
   }
 
@@ -3724,7 +3753,10 @@ int main(void) {
   must_show("erased", tr(STR_G_ERASED_T));
   // NEW SEED WORDS sits beside OK: erasing in order to make new ones is one
   // tap now, which is the half the deleted chooser used to carry.
-  must_show("erased/new", tr(STR_W_CHOOSE_NEW));
+  // A pill, so ask for the pill. "NEW SEED WORDS" is the English value of
+  // three keys (W_CREATE_NEW, W_NEW_T, W_CHOOSE_NEW) and matches any label
+  // carrying those words on any screen.
+  if (!pill_for(STR_W_CHOOSE_NEW, "erased offers")) { /* counted */ }
   tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
@@ -4065,7 +4097,10 @@ int main(void) {
   // The button must not tell someone with a passphrase to invent one. PASSPHRASE
   // pairs with the NO PASSPHRASE beside it; CREATE PASSPHRASE is the new-seed
   // wording and on this path is an instruction into a different wallet.
-  must_show("restore/enter not create", tr(STR_L_PASSPHRASE_CAP));
+  // Also a pill, and "PASSPHRASE" is shared with D_PASSPHRASE, the diagram
+  // chip sitting on this very screen -- so the needle passed off the chip and
+  // proved nothing about the button.
+  if (!pill_for(STR_L_PASSPHRASE_CAP, "restore offers")) { /* counted */ }
   must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
 
   // STOPS HERE, deliberately. The keyboard past this pill needs a login

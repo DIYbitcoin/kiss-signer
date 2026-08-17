@@ -603,7 +603,7 @@
   "G_FW_NOFILE_B": "no firmware image on this card.",
   "G_FW_BAD_H": "not firmware",
   "G_FW_BAD_B": "the file on the card is not a KISS image.",
-  "G_FW_BIG_H": "too big",
+  "G_FW_BIG_H": "file too big",
   "G_FW_BIG_B": "this image is larger than the space kept for it, so it is not the build for this device.",
   "G_FW_UNSIGNED_H": "cannot be checked",
   "G_FW_UNSIGNED_B": "this build has no key to check an image with. flash a signed release over USB.",
