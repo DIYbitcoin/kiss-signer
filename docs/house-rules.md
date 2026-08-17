@@ -57,8 +57,23 @@ Rules:
    budget given away in all 21 locales. That is a third of the room, and a third
    of the room is the difference between font23 and font14.
 
-   **font14 is metadata. If a body is at font14, that is a BUG, not a
-   translation being long.** It was reported from the bench as "WHY IS THE TEXT
+   **font14 is metadata: chip labels, row sublines, unit suffixes. Nothing an
+   owner has to READ is ever font14.** It has now been reported from the bench
+   three separate times, and the third was not a `wt_body_font2` budget at all
+   — it was the SIGNED screen's "what to do next" line, the single most
+   important sentence on that screen, set through `wt_note` in a 48px box it
+   could not fit at any larger size.
+
+   `wt_note_fit` and `wt_pill_fit` pick the biggest font that FITS. That makes
+   them silent: hand them a long string in a small box and they drop to font14
+   and report nothing, so the string never looks like a bug in the source. **A
+   fit helper landing on font14 means the copy is too long for the space, not
+   that the space is too small — cut words first.** The SIGNED line named the
+   filename that is already on screen in font28 directly below it, which the
+   copy rule says to cut anyway; cutting it took the line from font14 to font28
+   with no layout change at all.
+
+   **font14 is a BUG in a body, not a translation being long.** It was reported from the bench as "WHY IS THE TEXT
    SO SMALL, LITERALLY, I KEEP ASKING" — about the confirm screen for replacing
    the unlock drawing, a screen with a 2000ms hold on it, whose two claims were
    set at font14 under 165px of empty glass. Nothing was long; the budget had

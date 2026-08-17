@@ -2232,6 +2232,26 @@ int main(void) {
   }
   save("/tmp/sim_sign_term_sighash.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  // The TXID card, which nothing had ever photographed. It used to say only
+  // whether the id survives signing; it now says what an owner actually wants
+  // an id FOR, so it needs a stop or no gate sees the copy at all.
+  {
+    lv_obj_t *chip = det_chip(0);            // TXID heads the right column
+    if (chip) {
+      lv_obj_t *par = lv_obj_get_parent(chip);
+      touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
+      pump(3); release(); pump(30);
+    } else {
+      printf("FAIL: details/txid: no fifth term chip on the page\n");
+      g_walk_fails++;
+    }
+  }
+  save("/tmp/sim_sign_term_txid.ppm");
+  // NOT the heading: S_D_TXID is printed on the page underneath too, so that
+  // needle passes whichever card is open -- it did, with the RBF card up. The
+  // body exists only on the card.
+  must_show("details/txid", tr(STR_S_D_TXID_SAME));
+  tap_str(STR_C_OK, 3, 6);     // OK closes the card
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
   // The accent changed while this screen was UP, which is the case the flags
   // exist for and the one no rebuild can cover: every other check in this walk
