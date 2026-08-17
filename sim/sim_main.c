@@ -23,6 +23,7 @@
 #include "kiss_duress.h"
 #include "kiss_gword.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "kiss_setup.h"      // kiss_setup_restoring: which passphrase flow follows
+void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_info.h"
 #include "kiss_recv.h"    // sim-only hook for the derivation path "?"
 #include "kiss_settings.h"
@@ -4002,6 +4003,77 @@ int main(void) {
     printf("ok: fw screen closes on lock without reopening settings\n");
   }
 
+  // ---- step 14: RESTORE, all the way through ----------------------------
+  //
+  // The walk has always PEEKED at restore and cancelled, so the passphrase flow
+  // behind it had never run once. That matters more than an uncaptured screen:
+  // restoring words the owner already has must ask for their passphrase ONCE
+  // and let the fingerprint be the check, because type-twice cannot tell a
+  // correctly re-entered passphrase from a consistently mistyped one -- the
+  // second opens a different, valid, EMPTY wallet and says nothing.
+  //
+  // LAST in the walk. It stores a seed and opens a wallet, so anywhere
+  // earlier it rewrites the state every later step stands on -- tried after
+  // the wipe first, and step 10 came back with three dead taps.
+  //
+  // Entered through kiss_begin_setup() rather than by drawing KISS on the
+  // game cover. That is the Settings > REPLACE WALLET door, it runs the same
+  // wizard with the same setup_done_login callback -- which is the whole
+  // point, since that callback is what chooses the passphrase flow -- and it
+  // does not care what is on screen. kiss_lock() would not serve here: it
+  // returns early unless a wallet is open, and at the tail none is.
+  // The FIRMWARE screen above is closed but still parented, and must_show
+  // walks the whole tree -- so without this the restore assertions pass while
+  // every save() photographs firmware. Blunt, and correct for a tail step that
+  // owns the rest of the run.
+  // The walk cold-booted the indev at step 12 (kiss_ui_drop_indev_for_test),
+  // and the passphrase keyboard is the one screen that needs it back -- without
+  // this the login builds and every key press lands on nothing.
+  kiss_ui_ensure_indev();
+  lv_obj_clean(lv_screen_active()); pump(4);
+  kiss_seed_wipe();
+  kiss_seed_set_mode(WSEED_MODE_KEEP);
+  pump(10);
+  kiss_begin_setup(); pump(20);                     // the wizard, on demand
+  // W_SETUP_T is the chooser's own title. W_NEW_T was the first needle here and
+  // it passed in English for the wrong reason -- W_CHOOSE_NEW carries the same
+  // words in English and different ones in French, so only French reported it.
+  must_show("restore/chooser", tr(STR_W_SETUP_T));
+  touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH
+  touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
+  // 11x abandon + about, the vector the VERIFY MY COPY step already types.
+  for (int i = 0; i < 11; i++) {
+    touch(44, 314); pump(3); release(); pump(3);    // a
+    touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
+    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
+  }
+  touch(44, 314); pump(3); release(); pump(3);      // a
+  touch(450, 374); pump(3); release(); pump(3);     // b
+  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
+  touch(163, 182); pump(3); release(); pump(30);    // accept "about"
+  save("/tmp/sim_restore_ppintro.ppm");
+  must_show("restore/ppintro", tr(STR_L_PPINTRO_T));
+  // The button must not tell someone with a passphrase to invent one. PASSPHRASE
+  // pairs with the NO PASSPHRASE beside it; CREATE PASSPHRASE is the new-seed
+  // wording and on this path is an instruction into a different wallet.
+  must_show("restore/enter not create", tr(STR_L_PASSPHRASE_CAP));
+  must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
+
+  // STOPS HERE, deliberately. The keyboard past this pill needs a login
+  // teardown the tail of the walk cannot give -- kiss_login_open returns early
+  // while kiss_ui_active(), so it builds nothing and the screen goes blank.
+  //
+  // The assertions that would have covered it were must_not_show(TYPE IT AGAIN)
+  // and must_not_show(WEAK PASSPHRASE), and BOTH PASS ON A BLANK SCREEN. An
+  // assertion that cannot fail is worse than none: it reports coverage of the
+  // exact behaviour nobody checked. So they are gone rather than left green.
+  //
+  // What is covered above is real and was rendered: restoring reaches the
+  // chooser, reaches the passphrase intro instead of the duress wizard, and
+  // that intro offers PASSPHRASE rather than CREATE PASSPHRASE. What is NOT
+  // covered is the single entry and the fingerprint after it, and that is on
+  // the device-test list rather than implied by a green walk.
   {
     extern int g_sign_orphaned_screens;
     if (g_sign_orphaned_screens) {
