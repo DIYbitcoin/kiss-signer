@@ -156,6 +156,15 @@ else.
   passphrase rebuild. A wallet is not a device: the same signer opens a
   different wallet when a different passphrase is typed, which is the entire
   point of the passphrase and the duress feature.
+- **The duress family names two identities: the spare signer and the real
+  signer.** Never "spare wallet" or "second wallet". They are the same box and
+  the same seed words; the passphrase is the only thing separating them, and
+  that is exactly what the owner has to understand — a "wallet" reads as a
+  separate thing somewhere else. The family already said "your real signer" in
+  its own strings, so wallet there was never even self-consistent.
+  A plain-language pass rewrote four of these to "wallet" for readability, was
+  caught on the bench, and was reverted. If a sentence needs a word for what a
+  coordinator watches, that is the ONE place wallet is correct.
 - **coins** is right for bitcoin the owner HOLDS and wrong for the parts of a
   transaction. "move your coins there", "your coins have not moved", "practice
   coins" are all correct, and so is coin control as a term of art. The things a

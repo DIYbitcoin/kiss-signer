@@ -3440,7 +3440,13 @@ int main(void) {
   save("/tmp/sim_duress_intro.ppm");                // two ways in
   tap_str(STR_GD_SET_UP_SPARE, 3, 40);    // -> fund the spare
   save("/tmp/sim_duress_fund.ppm");                 // why the decoy needs coins in it
-  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> pick your swipe
+  tap_str(STR_GD_SET_UP_REAL, 3, 40);    // -> confirm the model
+  // The last screen before anything is stored. Both signers are the same seed
+  // words and the passphrase is the only thing between them; an owner who has
+  // not understood that funds the wrong one.
+  save("/tmp/sim_duress_ack.ppm");
+  must_show("duress/ack", tr(STR_L_WARN_T));
+  tap_str(STR_C_I_UNDERSTAND, 3, 40);    // -> pick your swipe
   // The picker is BACK, and it decides something now: kiss_duress_route
   // compares the drawn stroke with the stored one, so a wrong swipe opens the
   // spare. It was deleted when the stored value routed nothing.

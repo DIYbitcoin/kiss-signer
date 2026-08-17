@@ -39,7 +39,12 @@ static void (*s_done)(void);
 // tell a shape they can draw from one they merely liked the name of. Drawing it
 // twice, classified by the same code the unlock runs, is the only thing here
 // that proves it works.
-enum { ST_INTRO = 0, ST_FUND, ST_PICK, ST_DRAW, ST_DONE, ST_NOPASS };
+// ST_ACK sits between learning and configuring on purpose: it is the last
+// screen before anything is stored, and what it asks the owner to confirm is
+// the one fact the whole feature rests on -- that both signers are the same
+// seed words, and the passphrase is the only thing separating them. An owner
+// who has not understood that will fund the wrong one.
+enum { ST_INTRO = 0, ST_FUND, ST_ACK, ST_PICK, ST_DRAW, ST_DONE, ST_NOPASS };
 static int s_stage;
 
 // The stroke being rehearsed and how many clean repeats it has. Nothing is
@@ -382,6 +387,38 @@ static void stage_build(int stage)
         // up on the wrong wallet.
         wt_pill(s_scr, tr(STR_GD_SET_UP_REAL), 48, WT_ACTION_Y, 420, next_cb, NULL);
         wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
+        break;
+    }
+    // The model, confirmed once, before anything is configured. Every string
+    // here already ships in 21 locales and every one of them is lifted from a
+    // screen that teaches the SAME rule elsewhere -- the keys screen and the
+    // write-it-down screen -- so the owner meets one rule twice rather than a
+    // second rule once. Nothing new was authored for this screen.
+    case ST_ACK: {
+        s_scr = wt_screen(s_parent, tr(STR_L_WARN_T), NULL);
+        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
+        wt_diagram_op(row, "+");
+        chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        chip_icon(row, WT_ICON_KEY, tr(STR_D_REAL), true);
+
+        const int BY = 208, BW = 344, BH = WT_CONTENT_BOTTOM - BY;
+        const char *b1 = tr(STR_L_FP_NOTE_NOPASS);   // seed words alone
+        const char *b2 = tr(STR_W_WRITE_S);          // seed words + passphrase
+        // _head, never a hand-subtracted budget: this screen has headings, and
+        // measuring them is the difference between font23 and font14 here.
+        const lv_font_t *f = wt_body_font2_head(tr(STR_D_SPARE), b1,
+                                                tr(STR_D_REAL),  b2, BW - 14, BH);
+        wt_why_block(s_scr, tr(STR_D_SPARE), b1,  48, BY, BW, BH, f, WT_WARN);
+        wt_why_block(s_scr, tr(STR_D_REAL),  b2, 408, BY, BW, BH, f, wt_accent());
+
+        lv_obj_t *p[2];
+        p[0] = wt_pill(s_scr, tr(STR_GD_SKIP), 48, WT_ACTION_Y, 190,
+                       skip_cb, NULL);
+        p[1] = wt_pill(s_scr, tr(STR_C_I_UNDERSTAND), 402, WT_ACTION_Y, 350,
+                       next_cb, NULL);
+        wt_pill_row(p, 2);
         break;
     }
     // Six shapes, two rows of three, at the geometry the deleted screen used.
