@@ -21,11 +21,16 @@
 //   7. sd_seed_open on random/multi-flipped blobs  -> never a mnemonic that is
 //      not the sealed one (single flips/truncations: sim/test_sdseed.c; here
 //      the same surface runs under ASAN with random shapes)
+//   8. kef_parse/kef_sniff/kiss_kef_open on random and damaged envelopes ->
+//      never crash, never a foreign plaintext, and no input is ever claimed
+//      by BOTH the KEF sniff and the seed QR parser (the restore router
+//      depends on that disjointness)
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
 #include "kiss_crypto.h"
+#include "kiss_kef.h"
 #include "kiss_psbt.h"
 #include "kiss_seed.h"
 #include "kiss_seed_sd.h"
@@ -638,6 +643,94 @@ int main(void)
         }
     }
     printf("PASS: sd blobs: random damage never yields a different mnemonic\n");
+
+    // ---- 8. KEF envelopes under ASAN ----
+    // test_kef.c walks every single-byte flip and truncation
+    // deterministically at the default work factor. Here: random multi-bit
+    // damage and random shapes, on a low-iteration envelope so thousands of
+    // PBKDF2 runs stay affordable, plus the router disjointness property.
+    {
+        static const uint8_t KP[16] = { 0xa5, 1, 2, 3, 4, 5, 6, 7,
+                                        8, 9, 10, 11, 12, 13, 14, 0xff };
+        uint8_t key[32], iv[KEF_IV_LEN], ct[16], tag16[16];
+        static uint8_t env[KEF_MAX_ENV], dmg[KEF_MAX_ENV], back[KEF_MAX_ENV];
+        char sw[WSEED_MAX_MNEMONIC];
+        size_t blen = 0;
+
+        // hand-build a valid envelope at 10001 iterations (the floor's raw
+        // form) with the same primitives open uses
+        for (size_t i = 0; i < KEF_IV_LEN; i++) iv[i] = (uint8_t)(0x60 + i);
+        chkb("kef: fixture key derives",
+             wally_pbkdf2_hmac_sha256((const uint8_t *)"fz", 2,
+                                      (const uint8_t *)"id", 2, 0, 10001,
+                                      key, 32) == WALLY_OK);
+        chkb("kef: fixture gcm runs",
+             kiss_kef_test_gcm(key, iv, KP, sizeof KP, ct, tag16) == 0);
+        size_t elen = kef_emit_header(env, sizeof env, (const uint8_t *)"id",
+                                      2, KEF_VERSION_AES_GCM, 10001);
+        memcpy(env + elen, iv, KEF_IV_LEN);
+        memcpy(env + elen + KEF_IV_LEN, ct, sizeof KP);
+        memcpy(env + elen + KEF_IV_LEN + sizeof KP, tag16, KEF_TAG_LEN);
+        elen += KEF_IV_LEN + sizeof KP + KEF_TAG_LEN;
+        chkb("kef: fixture opens",
+             kiss_kef_open("fz", 2, env, elen, back, sizeof back, &blen) == 0
+                 && blen == sizeof KP && memcmp(back, KP, sizeof KP) == 0);
+
+        // random multi-bit damage: success only with the true plaintext,
+        // rejection only with a zeroed output buffer
+        for (int i = 0; i < 800; i++) {
+            memcpy(dmg, env, elen);
+            int flips = 1 + rnd() % 16;
+            for (int f = 0; f < flips; f++)
+                dmg[rnd() % elen] ^= (uint8_t)(1u << (rnd() % 8));
+            int rc = kiss_kef_open("fz", 2, dmg, elen, back, sizeof back,
+                                   &blen);
+            if (rc == 0 && (blen != sizeof KP
+                            || memcmp(back, KP, sizeof KP) != 0)) {
+                printf("FAIL: damaged kef opened to foreign bytes (iter %d)\n",
+                       i);
+                fails++;
+            }
+            if (rc != 0) {
+                for (size_t j = 0; j < sizeof back; j++)
+                    if (back[j]) {
+                        printf("FAIL: kef rejection left bytes (iter %d)\n",
+                               i);
+                        fails++;
+                        break;
+                    }
+            }
+        }
+        printf("PASS: 800 damaged kef envelopes never a foreign plaintext\n");
+
+        // random buffers through parse and sniff; whenever the sniff claims
+        // one, the seed QR parser must not (and neither may crash)
+        int both = 0, sniffed = 0;
+        for (int i = 0; i < 6000; i++) {
+            size_t n = 1 + rnd() % KEF_MAX_ENV;
+            for (size_t j = 0; j < n; j += 4) {
+                uint32_t r = rnd();
+                memcpy(dmg + j, &r, (n - j) < 4 ? (n - j) : 4);
+            }
+            if (i & 1) {
+                // half the runs: a well-formed header so sniff hits happen
+                size_t h = kef_emit_header(dmg, n, (const uint8_t *)"FZ", 2,
+                                           KEF_VERSION_AES_GCM, 10);
+                if (!h || n < h + 17) continue;
+            }
+            kef_env_t e;
+            kef_parse(dmg, n, &e);
+            if (kef_sniff(dmg, n)) {
+                sniffed++;
+                if (kiss_seed_from_qr((const char *)dmg, n, sw,
+                                      sizeof sw) == 0) both++;
+            }
+        }
+        chkb("kef: sniff fired on the crafted half", sniffed > 1000);
+        chkb("kef: no input claimed by both sniff and seed parser",
+             both == 0);
+    }
+    printf("PASS: kef random shapes: no crash, no false claim\n");
 
     kiss_session_close();
     printf(fails ? "\n%d FUZZ FAIL\n" : "\nALL FUZZ PASS\n", fails);

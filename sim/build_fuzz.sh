@@ -26,6 +26,7 @@ clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conv
   main/kiss_crypto.c main/kiss_psbt.c main/kiss_seed.c main/qr_transport.c \
   main/kiss_sp.c \
   main/kiss_usage.c main/kiss_backup.c main/kiss_duress.c main/kiss_seed_sd.c main/platform_sd.c \
+  main/kiss_kef.c main/kiss_kef_crypto.c \
   sim/test_fuzz.c \
   -lm -o /tmp/kissfuzz
 echo "built /tmp/kissfuzz"

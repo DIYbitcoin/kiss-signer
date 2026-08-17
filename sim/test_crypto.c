@@ -32,6 +32,8 @@ int test_backup_layer(void);
 int test_sp(void);
 // sim/test_sdseed.c — the sealed blob SD-card storage writes
 int test_sdseed_layer(void);
+// sim/test_kef.c — the password-locked KEF backup envelope
+int test_kef(void);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
 int test_gword(void);
@@ -769,6 +771,7 @@ int main(int argc, char **argv) {
     fails += test_seed_layer();
     fails += test_backup_layer();
     fails += test_sdseed_layer();
+    fails += test_kef();
     fails += test_duress();
     fails += test_gword();
     fails += test_coverword();
