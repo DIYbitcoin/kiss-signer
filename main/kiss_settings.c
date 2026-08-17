@@ -1468,9 +1468,8 @@ void kiss_settings_open(lv_obj_t *parent)
         // but a chance to tap the wrong one. The row that is left says what they
         // share; the screen behind it asks which way.
         //
-        // The freed SG_PITCH slot stays empty on purpose. NO UNDO is the last
-        // group in this column and an empty slot reads as the end of a column,
-        // which is the same reasoning the duress row's hidden case already uses.
+        // The freed SG_PITCH slot is the theme card's now (412,260): NO UNDO
+        // stays the last ROW group and the dots close the column.
         // No sub-line. "these words go either way" was true of a chooser with
         // two doors in it; there is one door now and its own screen says what
         // goes and what brings it back, in stronger words and beside the

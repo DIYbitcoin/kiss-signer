@@ -31,6 +31,9 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // Settings owns the RECOVERY WORDS entry. The sensitive reveal/verify screens
 // stay here so there is only one implementation of that flow; done_cb returns
 // to Settings when the user leaves it.
+// The backup page it opens carries the ENCRYPTED BACKUP row too: consent, a
+// password typed twice, then the keys as a KEF envelope — a locked QR and
+// optionally a .kef file on the card.
 void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void));
 void kiss_info_close(void);             // idle auto-lock: drop whichever is up
 #ifdef SIMULATOR

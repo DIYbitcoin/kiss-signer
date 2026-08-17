@@ -121,7 +121,9 @@ int kiss_seed_from_entropy(const uint8_t *entropy, size_t len,
 //   * CompactSeedQR: 16 or 32 raw entropy bytes
 // data may contain NULs, so len is authoritative. 0 on success; out is always
 // NUL-terminated and is CLEARED on any failure (never a stale half-seed).
-// KISS deliberately has no matching export: it reads seed QRs, never makes one.
+// KISS deliberately has no matching PLAINTEXT export: it reads seed QRs and
+// never draws one. The one sanctioned export is the KEF encrypted backup
+// (kiss_kef.h), which leaves the box only under a password.
 int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len);
 
 // ---- wordlist access (RESTORE autocomplete + prove-backup quiz decoys) ----

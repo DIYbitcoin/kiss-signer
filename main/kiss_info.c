@@ -5,7 +5,9 @@
 //   pair    — the coordinator export: descriptor for Sparrow-family apps, key
 //             origin + SLIP-132 zpub for BlueWallet (it doesn't read descriptors).
 // Settings owns the RECOVERY WORDS entry; its warning/reveal implementation
-// remains in this module. Words stay paper-only: no seed-as-QR export.
+// remains in this module. Words stay paper-only as PLAINTEXT: the one
+// sanctioned export is the KEF encrypted backup below, which leaves the box
+// only under a password.
 // Compiled in BOTH device and sim builds; sim stubs the crypto seams.
 #include "kiss_info.h"
 
@@ -16,11 +18,13 @@
 #include "i18n.h"
 #include "kiss_backup.h"  // kiss_backup_mark: the paper check, made durable
 #include "kiss_crypto.h"
+#include "kiss_kef.h"     // the encrypted backup envelope
 #include "kiss_seed.h"
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
-#include "kiss_ui.h"   // kiss_ui_last_fp
+#include "kiss_ui.h"   // kiss_ui_last_fp; the borrowed KEF password keyboard
+#include "platform_sd.h"
 
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
@@ -29,12 +33,15 @@ static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWal
 static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
 static void info_screen(void);
+static void kef_warn_screen(lv_event_t *e);
+static void kef_wipe(void);
 
 bool kiss_info_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e)
 {
     (void)e;
+    kef_wipe();       // the idle close must never leave an envelope behind
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -668,11 +675,27 @@ static void words_warn_screen(lv_event_t *e)
                                           ok ? STR_L_BACKUP_VERIFIED
                                              : STR_L_BACKUP_UNVERIFIED),
                                    ok ? WT_OK : WT_WARN);
-    lv_obj_set_pos(chip, 48, 96);
     // Measure it rather than budget for it: the chip is self sizing and its
-    // height follows the locale's font, so the body starts under the real box.
+    // height follows the locale's font, so everything laid against it uses
+    // the real box.
     lv_obj_update_layout(chip);
-    int below = 96 + lv_obj_get_height(chip);
+    int chip_w = lv_obj_get_width(chip);
+    // The chip SHARES the 96 line with the encrypted-backup row: stacking
+    // them cost the body below a font rung (a 64px row plus its gap is
+    // exactly the difference between a 226px and a 174px body budget), and
+    // the two are one subject read left to right — the paper's state, then
+    // the other backup. The chip centres on the row's 64px band.
+    lv_obj_set_pos(chip, 48,
+                   96 + (WT_ROW_H - lv_obj_get_height(chip)) / 2);
+    int rx = 48 + chip_w + 12;
+    // The OTHER backup: the same keys, leaving locked. It lives on this page
+    // because this IS the backup page — and because Settings' right column is
+    // full (words row, NO UNDO, the theme card; measured, not assumed). A
+    // long locale's chip narrows the row; the row ellipsises by design.
+    wt_row(s_scr, tr(STR_I_ROW_KEF),
+           tr_sym(WT_ICON_LOCK, STR_I_ROW_KEF_SUB), NULL, WT_INK,
+           rx, 96, 752 - rx, kef_warn_screen, NULL);
+    int below = 96 + WT_ROW_H;
 
     // The dice judge's verdict, carried forward from the seed that was made.
     // It belongs on THIS page and not on the one that showed it first: the
@@ -696,16 +719,10 @@ static void words_warn_screen(lv_event_t *e)
                                                  : STR_W_DICE_WARN_T),
                                       WT_WARN);
         lv_obj_update_layout(ent);
-        // Side by side when the locale leaves room, stacked when it does not.
-        // A 36 character Dutch backup chip beside this one would run off the
-        // page, and measuring is cheaper than guessing which locales do that.
-        int x = 48 + lv_obj_get_width(chip) + 12;
-        if (x + lv_obj_get_width(ent) <= 752) {
-            lv_obj_set_pos(ent, x, 96);
-        } else {
-            lv_obj_set_pos(ent, 48, below + 8);
-            below += 8 + lv_obj_get_height(ent);
-        }
+        // The 96 line belongs to the chip + row pair now, so this verdict
+        // always stacks under them rather than measuring for a free slot.
+        lv_obj_set_pos(ent, 48, below + 8);
+        below += 8 + lv_obj_get_height(ent);
     }
 
     wt_why_body(s_scr, tr(STR_I_WARN_B), below + 12, WT_WARN, true);
@@ -723,6 +740,138 @@ static void words_warn_screen(lv_event_t *e)
                            verify_copy_cb, NULL);
     if (!ok) lv_obj_set_style_border_color(vp, WT_WARN, 0);
     wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
+}
+
+// ---- ENCRYPTED BACKUP (KEF): consent -> password -> locked QR / SD ----
+// The one sanctioned way the keys leave this box, and they leave locked: a
+// KEF envelope under a password the owner chooses on the next screen. The
+// envelope is built fresh from the stored words on demand, lives in this one
+// buffer, and is wiped on every exit and on the idle close.
+static uint8_t   s_kef_env[KEF_MAX_ENV];
+static size_t    s_kef_env_len;
+static char      s_kef_id[9];
+static lv_obj_t *s_kef_sd_chip;
+
+static void kef_wipe(void)
+{
+    kiss_wipe(s_kef_env, sizeof s_kef_env);
+    s_kef_env_len = 0;
+    memset(s_kef_id, 0, sizeof s_kef_id);
+    s_kef_sd_chip = NULL;
+}
+
+static void kef_finish_cb(lv_event_t *e)
+{
+    (void)e;
+    kef_wipe();
+    words_warn_screen(NULL);            // back to the backup page it lives on
+}
+
+// Runs on the keyboard's OK with the confirmed password. -1 keeps the
+// keyboard up with its one vague failure; nothing here says why.
+static int kef_check_cb(const char *pass, size_t len)
+{
+    char words[WSEED_MAX_MNEMONIC];
+    if (kiss_seed_load(words, sizeof words) != 0) return -1;
+    int rc = kiss_kef_seal_seed(words, pass, len, s_kef_env, sizeof s_kef_env,
+                                &s_kef_env_len, s_kef_id);
+    kiss_wipe(words, sizeof words);
+    if (rc != 0) kef_wipe();
+    return rc;
+}
+
+static void kef_sd_cb(lv_event_t *e)
+{
+    (void)e;
+    if (!s_kef_env_len) return;
+    char name[32];
+    snprintf(name, sizeof name, "%s.kef", s_kef_id);
+    int rc = platform_sd_mount() == 0
+                 ? platform_sd_write_atomic(name, s_kef_env, s_kef_env_len)
+                 : -1;
+    platform_sd_unmount();
+    bool ok = rc == 0 || rc == PLATFORM_SD_ATOMIC_CLEANUP;
+    // The verdict appears where the eye already is, under the fingerprint:
+    // the card committed (atomic write, so committed means verified), or the
+    // card refused and nothing was kept.
+    if (!s_kef_sd_chip) {
+        s_kef_sd_chip = wt_state_chip(s_scr, "", WT_OK);
+        lv_obj_set_pos(s_kef_sd_chip, 400, 344);
+    }
+    wt_state_chip_set(s_kef_sd_chip,
+                      tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
+                             ok ? STR_S_SAVED_NOTE : STR_S_FAIL_SD_WRITE),
+                      ok ? WT_OK : WT_STOP);
+}
+
+static void kef_show_screen(void)
+{
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), tr(STR_I_KEF_SHOW_S));
+    s_kef_sd_chip = NULL;
+
+    lv_obj_t *qr = NULL;
+    wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
+    if (qr) wt_qr_update(qr, s_kef_env, (uint32_t)s_kef_env_len);
+
+    // The fingerprint is the envelope's visible name: it says WHICH keys are
+    // inside without opening it, and it is what the .kef file is called.
+    lv_obj_t *card = wt_value_card(s_scr, tr(STR_D_FINGERPRINT), s_kef_id,
+                                   400, 96, 352, true);
+    lv_obj_update_layout(card);
+    int below = 96 + lv_obj_get_height(card) + 12;
+    wt_note(s_scr, tr(STR_I_KEF_SHOW_NOTE), 400, below, 352, 332 - below);
+
+    wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_I_KEF_SD_BTN), WT_ACT_X,
+                 WT_ACTION_Y, 330, WT_ACTION_H, kef_sd_cb, NULL);
+    lv_obj_t *dp = wt_pill(s_scr, tr(STR_C_DONE), WT_EXIT_X, WT_ACTION_Y, 140,
+                           kef_finish_cb, NULL);
+    wt_pill_primary(dp);
+}
+
+static void kef_warn_reopen(void) { kef_warn_screen(NULL); }
+
+static void kef_make(void *ud)
+{
+    (void)ud;
+    kiss_ui_kef_pass_open(true, kef_check_cb, kef_show_screen,
+                          kef_warn_reopen);
+}
+
+static void kef_warn_screen(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), tr(STR_I_KEF_WARN_S));
+
+    // The mechanism, drawn before it is explained: your keys plus one
+    // password become a QR that only the password opens.
+    lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 64);
+    lv_obj_t *row = wt_diagram_row(card);
+    wt_chip(row, tr_sym(WT_ICON_KEY, STR_D_KEYS), true);
+    wt_diagram_op(row, "+");
+    wt_chip(row, tr_sym(WT_ICON_LOCK, STR_L_KEF_PASS_OPEN), true);
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    wt_chip(row, tr_sym(WT_ICON_QR, STR_I_KEF_CHIP_QR), false);
+    lv_obj_center(row);
+
+    // Two claims, split: the accent rule on what the format buys, WT_WARN on
+    // the one way it goes wrong. The password never has a reset.
+    {
+        const char *h1 = tr(STR_I_KEF_W1_H), *b1 = tr(STR_I_KEF_W1_B);
+        const char *h2 = tr(STR_I_KEF_W2_H), *b2 = tr(STR_I_KEF_W2_B);
+        const int BW = 344, BY = 176, BH = WT_CONTENT_BOTTOM - BY;
+        const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, BW - 14, BH);
+        wt_why_block(s_scr, h1, b1,  48, BY, BW, BH, f, wt_accent());
+        wt_why_block(s_scr, h2, b2, 408, BY, BW, BH, f, WT_WARN);
+    }
+
+    // Making the envelope puts the keys on the glass as a QR one screen
+    // later, so the entry is a deliberate hold, the scan-key precedent.
+    wt_hold_pill(s_scr, tr(STR_I_KEF_MAKE_BTN), WT_ACT_X, WT_ACTION_Y, 330,
+                 WT_ACTION_H, 900, kef_make, NULL);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140,
+            kef_finish_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----
@@ -891,3 +1040,4 @@ void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
     s_words_done = done_cb;
     words_warn_screen(NULL);
 }
+

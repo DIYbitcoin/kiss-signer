@@ -390,6 +390,39 @@ text:
   }
   return -1;
 }
+// KEF crypto seam. The envelope half (kiss_kef.c) is REAL in this build, so
+// the stub emits a header the same kef_parse the restore router runs will
+// accept; only the cipher is faked. Password "kef" is the one that opens.
+#include "kiss_kef.h"
+int kiss_kef_seal_seed(const char *mnemonic, const char *password,
+                       size_t pass_len, uint8_t *out, size_t out_cap,
+                       size_t *out_len, char id_hex_out[9]) {
+  (void)mnemonic; (void)password; (void)pass_len;
+  snprintf(id_hex_out, 9, "73C5DA0A");
+  size_t h = kef_emit_header(out, out_cap, (const uint8_t *)id_hex_out, 8,
+                             KEF_VERSION_AES_GCM, KEF_ITER_STORED);
+  if (!h || h + 32 > out_cap) return -1;
+  for (int i = 0; i < 32; i++) out[h + i] = (uint8_t)(0x5a ^ i);
+  *out_len = h + 32;                    // iv12 + ct16 + tag4 shaped payload
+  return 0;
+}
+int kiss_kef_open(const char *password, size_t pass_len, const uint8_t *env,
+                  size_t env_len, uint8_t *plain, size_t plain_cap,
+                  size_t *plain_len) {
+  if (plain && plain_cap) plain[0] = 0;
+  if (plain_len) *plain_len = 0;
+  kef_env_t e;
+  if (kef_parse(env, env_len, &e) != 0 || e.version != KEF_VERSION_AES_GCM)
+    return -1;
+  if (pass_len != 3 || memcmp(password, "kef", 3) != 0) return -1;
+  size_t o = 0;
+  for (int w = 0; w < 12 && o + 12 < plain_cap; w++)
+    o += (size_t)snprintf((char *)plain + o, plain_cap - o, "%s%s",
+                          w ? " " : "", SIM_WORDS[w % 24]);
+  *plain_len = o;                       // a text mnemonic the seed stub takes
+  return 0;
+}
+
 int kiss_seed_word(int i, const char **out) {
   *out = SIM_WORDS[i % 24];
   return 0;
@@ -2879,6 +2912,34 @@ int main(void) {
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Settings
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }
+
+  // ENCRYPTED BACKUP: the backup page's other row. Consent screen, the
+  // borrowed keyboard in create mode ("kef" is deliberately weak, so the
+  // reworded weak card gets a frame), type twice, then the locked QR with
+  // the fingerprint on it, and the card write's verdict chip.
+  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> backup page
+  touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row -> consent
+  save("/tmp/sim_kef_warn.ppm");
+  tap_str(STR_I_KEF_MAKE_BTN, 65, 8);               // hold CHOOSE A PASSWORD
+  save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  touch(201, 202); pump(3); release(); pump(3);     // e
+  touch(312, 278); pump(3); release(); pump(3);     // f
+  touch(725, 430); pump(3); release(); pump(6);     // OK -> WEAK PASSWORD card
+  save("/tmp/sim_kef_weak.ppm");
+  tap_str(STR_L_USE_ANYWAY, 3, 6);                  // deliberate use -> TYPE AGAIN
+  save("/tmp/sim_kef_again.ppm");
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  touch(201, 202); pump(3); release(); pump(3);     // e
+  touch(312, 278); pump(3); release(); pump(3);     // f
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> seal -> the locked QR
+  save("/tmp/sim_kef_qr.ppm");
+  must_show("kef envelope id", "73C5DA0A");
+  tap_str(STR_I_KEF_SD_BTN, 3, 8);                  // SAVE TO SD CARD -> chip
+  save("/tmp/sim_kef_sd.ppm");
+  must_show("kef sd verdict", tr(STR_S_SAVED_NOTE));
+  tap_str(STR_C_DONE, 3, 8);                        // DONE -> the backup page
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> Settings
 
   // FIRMWARE, the other header pill: 232x44 at x=338, so its middle is (454,40).
   // The fw screens themselves are walked further down by calling

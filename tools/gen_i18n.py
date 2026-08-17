@@ -145,6 +145,9 @@ UNTRANSLATED_OK = {
     # as a placeholder the sweep replaces. Remove these lines in that sweep.
     "L_KEF_PASS_NEW", "L_KEF_PASS_OPEN", "L_KEF_LOCKING", "L_KEF_UNLOCKING",
     "L_KEF_BAD", "L_KEF_FAIL", "L_KEF_WEAK_T", "L_KEF_WEAK_ACK",
+    "I_ROW_KEF", "I_ROW_KEF_SUB", "I_KEF_WARN_S", "I_KEF_CHIP_QR",
+    "I_KEF_W1_H", "I_KEF_W1_B", "I_KEF_W2_H", "I_KEF_W2_B",
+    "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
 }
 
 
