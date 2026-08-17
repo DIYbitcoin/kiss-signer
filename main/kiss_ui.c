@@ -369,7 +369,11 @@ static void entry_refresh_text(void) {
   }
   if (s_plen == 0) {
     lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
-    lv_label_set_text(s_entry, tr(STR_L_TYPE_PROMPT));
+    // The ghost prompt names what is being typed, and in KEF mode that is a
+    // backup password, never a passphrase (vocabulary is load bearing here:
+    // a passphrase opens a wallet, this opens an envelope).
+    lv_label_set_text(s_entry, tr(s_kef_mode ? STR_L_KEF_TYPE_PROMPT
+                                             : STR_L_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     kiss_wipe(buf, sizeof buf);
     return;

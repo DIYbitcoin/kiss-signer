@@ -3865,12 +3865,50 @@ int main(void) {
   kiss_scan_inject("not a seed qr at all", 20); pump(6);
   save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR again
-  {   // a numeric SeedQR: 12 indices, four digits each
-    const char *sq = "000000000000000000000000000000000000000000000003";
-    kiss_scan_inject(sq, 48);
+
+  // An encrypted backup in a mode this signer refuses (CTR, version 15):
+  // recognized as KEF and refused BEFORE any password is asked for. The
+  // envelope is built with the same kef_emit_header the firmware uses.
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR
+  {
+    uint8_t fx[64];
+    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"id", 2, 15, 10);
+    for (int i = 0; i < 24; i++) fx[h + i] = (uint8_t)i;  // iv12+ct8+auth4 shape
+    kiss_scan_inject((const char *)fx, h + 24);
   }
   pump(8);
+  save("/tmp/sim_kef_badver.ppm");                  // LOCKED BACKUP, no prompt
+  must_show("kef refused version", tr(STR_W_KEF_BAD_T));
+  tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
+
+  // The locked backup, end to end through the card: picker, one wrong
+  // password (the single vague failure), then the right one — and the load
+  // continues into the same passphrase screen a scanned seed reaches. This
+  // section is the one place the walk can drive the KEF keyboard: no login
+  // has ever opened here, so kiss_ui_active() is genuinely false (the step
+  // 14 tail cannot say that, which is why it stops at the intro pill).
+  {
+    uint8_t fx[64];
+    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"73C5DA0A", 8,
+                               KEF_VERSION_AES_GCM, KEF_ITER_STORED);
+    for (int i = 0; i < 32; i++) fx[h + i] = (uint8_t)(0xa5 ^ i);
+    FILE *f = fopen("/tmp/simsd/73C5DA0A.kef", "wb");
+    if (f) { fwrite(fx, 1, h + 32, f); fclose(f); }
+  }
+  tap_str(STR_S_FROM_SD, 3, 8);                     // FROM SD CARD -> picker
+  save("/tmp/sim_kef_pick.ppm");
+  touch(400, 144); pump(3); release(); pump(8);     // the one .kef row
+  save("/tmp/sim_kef_open.ppm");                    // BACKUP PASSWORD keyboard
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  touch(201, 202); pump(3); release(); pump(3);     // e ("ke": wrong on purpose)
+  touch(725, 430); pump(3); release(); pump(40);    // OK -> the one vague failure
+                                                    // (40: outlive the key pop)
+  save("/tmp/sim_kef_open_bad.ppm");
+  must_show("kef vague failure", tr(STR_L_KEF_BAD));
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  touch(201, 202); pump(3); release(); pump(3);     // e
+  touch(312, 278); pump(3); release(); pump(3);     // f
+  touch(725, 430); pump(3); release(); pump(20);    // OK -> unlocked -> login
   save("/tmp/sim_amnesic_pass.ppm");                // straight to the passphrase
 
   // a passphrase can come from a QR too, behind one warning screen
@@ -4075,9 +4113,14 @@ int main(void) {
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);
   tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
-  tap_str(STR_G_FW_HOLD, 95, 1);       // hold completes, WRITING announces
+  // 110 pumps, same as the replaced-firmware hold above: 95 was enough only
+  // at one indev phase, and any walk insertion upstream shifts the phase —
+  // at the wrong one the hold never completed, nothing installed, and this
+  // save quietly photographed the confirm screen instead.
+  tap_str(STR_G_FW_HOLD, 110, 1);      // hold completes, WRITING announces
   pump(100);                           // deferred refusal lands, as above
   save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
+  must_show("fw/rejected", tr(STR_G_FW_FAIL_T));
 
   // 4. no card at all: the same two block shape, different left hand claim.
   unlink("/tmp/simsd/kiss-signer-99.0.0.bin");

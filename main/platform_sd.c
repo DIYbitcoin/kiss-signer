@@ -300,6 +300,40 @@ int platform_sd_list_firmware(char names[][SD_NAME_LEN], int max, int *total)
     return n;
 }
 
+int platform_sd_list_kef(char names[][SD_NAME_LEN], int max, int *total)
+{
+    DIR *d = opendir(SD_BASE);
+    if (!d)
+        return -1;
+    int n = 0, all = 0;
+    struct dirent *e;
+    // Same insertion sort over the whole directory as the listers above, so a
+    // full card offers its backups A-Z and not in FAT creation order.
+    while ((e = readdir(d)) != NULL) {
+        const char *nm = e->d_name;
+        size_t l = strlen(nm);
+        if (nm[0] == '.')
+            continue;
+        if (l < 5 || l >= SD_NAME_LEN || strcasecmp(nm + l - 4, ".kef") != 0)
+            continue;
+        all++;
+        int at = 0;
+        while (at < n && strcasecmp(names[at], nm) <= 0)
+            at++;
+        if (at >= max)
+            continue;
+        for (int i = (n < max ? n : max - 1); i > at; i--)
+            memcpy(names[i], names[i - 1], SD_NAME_LEN);
+        snprintf(names[at], SD_NAME_LEN, "%s", nm);
+        if (n < max)
+            n++;
+    }
+    closedir(d);
+    if (total)
+        *total = all;
+    return n;
+}
+
 static void full_path(char *dst, size_t dstsz, const char *name)
 {
     snprintf(dst, dstsz, "%s/%s", SD_BASE, name);

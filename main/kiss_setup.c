@@ -15,8 +15,10 @@
 #include "flag_imgs.h"
 #include "i18n.h"
 #include "kiss_crypto.h"   // kiss_entropy_mix3: camera + chip + taps -> seed
+#include "kiss_kef.h"      // encrypted backups arriving through restore
 #include "kiss_scan.h"     // kiss_scan_open_raw: seed-QR import (amnesic load)
 #include "kiss_seed.h"
+#include "kiss_ui.h"       // the borrowed KEF password keyboard
 #include "kiss_settings.h"   // kiss_lang_picker_open: first-boot language switch
 #include "kiss_tapent.h"   // source 3: the timing of the user's own taps
 #include "kiss_dice.h"     // alternate path: verifiable off-device dice rolls
@@ -98,6 +100,8 @@ static kiss_cards_q_t s_cq;
 
 static void choose_screen(void);
 static void count_screen(void);
+static void kef_sd_open_restore_cb(lv_event_t *e);
+static void kef_sd_open_load_cb(lv_event_t *e);
 static void whatseed_count_cb(lv_event_t *e);   // the seed explainer, count screen door
 // SeedQR was only reachable from the amnesic per-session load, so someone
 // restoring a wallet during setup had to type words they were holding as a QR.
@@ -1844,13 +1848,17 @@ static void proof_words_screen(void)
 #define DICE_CNT_Y    140   // per face counts under the columns
 #define DICE_TALLY_Y  168
 #define DICE_NOTE_Y   210
-#define DICE_FP_Y     250
+#define DICE_FP_Y     254
+#define DICE_BITS_Y   234   // the same 8 bytes as the hex above, drawn
+#define DICE_BITS_N    64
+#define DICE_BITS_P     6   // 5px cell, 1px gap: 64 of them span 383 of 564
 
 static lv_obj_t *s_dice_card;
 static lv_obj_t *s_dice_tally;
 static lv_obj_t *s_dice_done;
 static lv_obj_t *s_dice_fp;        // live SHA256 fingerprint, for the owner to check
 static bool     s_dice_fp_full;    // tap the fingerprint to reveal all 64 hex
+static lv_obj_t *s_dice_bits[DICE_BITS_N];  // the hex above, as bits
 static lv_obj_t *s_dice_fill[6];   // histogram fills, grown up from the base
 static lv_obj_t *s_dice_cnt[6];    // exact count under each column
 static lv_obj_t *s_dice_chip;      // the one status coloured element on the screen
@@ -2022,6 +2030,17 @@ static void dice_refresh(void)
             for (int i = 0; i < bytes; i++) snprintf(fp + i * 2, 3, "%02x", e[i]);
         }
         lv_label_set_text(s_dice_fp, fp);
+        // Same eight bytes, drawn. The hex line is for a doubter with a laptop
+        // and says nothing to anybody else; the strip says "this is the number
+        // your rolls made" without a word, in the notation the words screen
+        // uses again later. Live, because the lesson is in the CHANGE: one more
+        // roll moves every cell, which is what a hash does and what no amount
+        // of prose gets across.
+        for (int b = 0; b < DICE_BITS_N; b++) {
+            if (!s_dice_bits[b]) continue;
+            bool on = n > 0 && ((e[b >> 3] >> (7 - (b & 7))) & 1);
+            lv_obj_set_style_bg_color(s_dice_bits[b], on ? wt_accent() : WT_DIV, 0);
+        }
         kiss_wipe(e, sizeof e);
     }
     if (s_dice_done) {
@@ -2176,6 +2195,7 @@ static void dice_cancel_cb(lv_event_t *e) { kiss_dice_reset(); cancel_cb(e); }
 static void dice_screen_build(void)
 {
     s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_fp_full = false;
+    for (int b = 0; b < DICE_BITS_N; b++) s_dice_bits[b] = NULL;
     s_dice_chip = NULL; s_dice_last_verdict = -1;
     for (int i = 0; i < 6; i++) { s_dice_fill[i] = NULL; s_dice_cnt[i] = NULL; }
     mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_S));
@@ -2224,6 +2244,19 @@ static void dice_screen_build(void)
     lv_label_set_long_mode(s_dice_fp, LV_LABEL_LONG_WRAP);
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
+
+    for (int b = 0; b < DICE_BITS_N; b++) {
+        lv_obj_t *c = lv_obj_create(s_dice_card);
+        lv_obj_remove_style_all(c);
+        lv_obj_set_pos(c, 18 + b * DICE_BITS_P, DICE_BITS_Y);
+        lv_obj_set_size(c, DICE_BITS_P - 1, 14);
+        lv_obj_set_style_radius(c, 1, 0);
+        lv_obj_set_style_bg_color(c, WT_DIV, 0);
+        lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        s_dice_bits[b] = c;
+    }
 
     // action row (WT_ACTION_Y): CANCEL out on the left, UNDO in the middle,
     // DONE (disabled until the floor is met) in the corner. 160 + 200 + 200 =
@@ -2995,6 +3028,12 @@ static void count_screen(void)
     }
     // Restore is the only way in now, so BACK has one destination again.
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    // The fourth way in arrived with the encrypted backup: a .kef file. The
+    // chooser grid is full at three, so the card path sits on the action row.
+    if (s_restore)
+        wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), WT_ACT_X,
+                     WT_ACTION_Y, 330, WT_ACTION_H, kef_sd_open_restore_cb,
+                     NULL);
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
@@ -3271,6 +3310,164 @@ static void load_new_cb(lv_event_t *e)
 
 static void load_back_cb(lv_event_t *e) { (void)e; load_screen(); }
 
+// ---- KEF: an encrypted backup arriving where a seed was expected ----
+// The chokepoint is qr_text_cb (and the file picker below): the payload still
+// has its real length and no string assumption has been made. kef_sniff can
+// never claim any of the four seed QR shapes (kiss_kef.h), so a paper restore
+// never meets a password prompt. Version 20 within the work-factor cap gets
+// the password keyboard; every other well-formed envelope is refused BEFORE a
+// password is asked for — nothing the owner could type changes that answer.
+static uint8_t s_kef_env[KEF_MAX_ENV];
+static size_t  s_kef_env_len;
+
+static void kef_wipe_env(void)
+{
+    kiss_wipe(s_kef_env, sizeof s_kef_env);
+    s_kef_env_len = 0;
+}
+
+static void kef_bad_screen(void)
+{
+    mk_screen(tr(STR_W_KEF_BAD_T), tr(STR_W_KEF_BAD_S));
+    wt_why_body(s_scr, tr(STR_W_KEF_BAD_B), 140, STOP_COL, true);
+    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 452, WT_ACTION_Y, 300,
+                          s_qr_from_restore ? goto_count_cb : load_back_cb,
+                          NULL);
+    wt_pill_primary(p);
+}
+
+static int kef_open_cb(const char *pass, size_t len)
+{
+    uint8_t plain[WSEED_MAX_MNEMONIC];
+    char words[WSEED_MAX_MNEMONIC];
+    size_t plen = 0;
+    int rc = kiss_kef_open(pass, len, s_kef_env, s_kef_env_len,
+                           plain, sizeof plain, &plen);
+    // The plaintext convention is Krux's: BIP39 entropy bytes. The seed QR
+    // parser already reads exactly that shape (CompactSeedQR), and a text
+    // mnemonic too, so both plaintexts restore through the one tested door.
+    if (rc == 0)
+        rc = kiss_seed_from_qr((const char *)plain, plen, words, sizeof words);
+    if (rc == 0)
+        rc = kiss_seed_stage(words);
+    kiss_wipe(words, sizeof words);
+    kiss_wipe(plain, sizeof plain);
+    return rc == 0 ? 0 : -1;
+}
+
+static void kef_done_cb(void)
+{
+    kef_wipe_env();
+    void (*cb)(void) = s_done;          // the same tail a scanned seed takes
+    s_load = false;
+    close_all();
+    if (cb) cb();
+}
+
+static void kef_cancel_cb(void)
+{
+    kef_wipe_env();
+    if (s_qr_from_restore) count_screen();
+    else load_screen();
+}
+
+// 1 = the payload was KEF and has been routed (password prompt or refusal);
+// 0 = not an envelope, the seed paths should have it.
+static int kef_route(const uint8_t *data, size_t len)
+{
+    if (!kef_sniff(data, len)) return 0;
+    kef_env_t e;
+    if (len <= sizeof s_kef_env && kef_parse(data, len, &e) == 0
+        && e.version == KEF_VERSION_AES_GCM
+        && e.iter_eff <= KEF_MAX_EFF_ITER) {
+        memcpy(s_kef_env, data, len);
+        s_kef_env_len = len;
+        kiss_ui_kef_pass_open(false, kef_open_cb, kef_done_cb, kef_cancel_cb);
+    } else {
+        kef_bad_screen();
+    }
+    return 1;
+}
+
+// ---- the .kef file picker (FROM SD CARD on both restore screens) ----
+#define KEF_PICK_MAX 3
+static char s_kef_files[KEF_PICK_MAX][SD_NAME_LEN];
+
+static void kef_sd_pick_screen(void);
+static void kef_sd_retry_cb(lv_event_t *e) { (void)e; kef_sd_pick_screen(); }
+
+static void kef_pick_back_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_qr_from_restore) count_screen();
+    else load_screen();
+}
+
+static void kef_file_tap_cb(lv_event_t *e)
+{
+    int idx = (int)(intptr_t)lv_event_get_user_data(e);
+    uint8_t buf[KEF_MAX_ENV];
+    size_t n = 0;
+    int rc = platform_sd_mount() == 0
+                 ? platform_sd_read(s_kef_files[idx], buf, sizeof buf, &n)
+                 : -1;
+    platform_sd_unmount();
+    if (rc != 0 || n == 0 || !kef_route(buf, n))
+        kef_bad_screen();       // unreadable, oversized, or not an envelope
+    kiss_wipe(buf, sizeof buf);
+}
+
+static void kef_sd_pick_screen(void)
+{
+    if (platform_sd_mount() != 0) {
+        platform_sd_unmount();
+        mk_screen(tr(STR_W_SD_MISSING_T), NULL);
+        wt_why_body(s_scr, tr(STR_W_KEF_SD_NONE_B), 140, WT_WARN, true);
+        lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), 452, WT_ACTION_Y, 300,
+                              kef_sd_retry_cb, NULL);
+        wt_pill_primary(p);
+        mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 140, kef_pick_back_cb, NULL);
+        return;
+    }
+    int total = 0;
+    int n = platform_sd_list_kef(s_kef_files, KEF_PICK_MAX, &total);
+    platform_sd_unmount();
+    if (n <= 0) {
+        mk_screen(tr(STR_W_KEF_SD_T), NULL);
+        wt_why_body(s_scr, tr(STR_W_KEF_SD_EMPTY), 140, WT_WARN, true);
+        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                kef_pick_back_cb, NULL);
+        return;
+    }
+    mk_screen(tr(STR_W_KEF_SD_T), tr(STR_W_KEF_SD_S));
+    for (int i = 0; i < n; i++)
+        wt_row_x(s_scr, WT_ICON_LOCK, s_kef_files[i], NULL, NULL, NULL, NULL,
+                 WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
+                 WT_CHOICE_H, kef_file_tap_cb, (void *)(intptr_t)i);
+    if (total > n) {
+        // the same window note the cards pager draws: digits carry it all
+        char cnt[32];
+        snprintf(cnt, sizeof cnt, "%d / %d", n, total);
+        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+    }
+    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            kef_pick_back_cb, NULL);
+}
+
+static void kef_sd_open_restore_cb(lv_event_t *e)
+{
+    (void)e;
+    s_qr_from_restore = true;           // refusals return to the count screen
+    kef_sd_pick_screen();
+}
+
+static void kef_sd_open_load_cb(lv_event_t *e)
+{
+    (void)e;
+    s_qr_from_restore = false;          // refusals return to the load screen
+    kef_sd_pick_screen();
+}
+
 static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
@@ -3283,6 +3480,8 @@ static void qr_bad_screen(void)
 // The scan screen owns the camera; it hands us the first decoded payload.
 static void qr_text_cb(const char *txt, size_t len)
 {
+    if (kef_route((const uint8_t *)txt, len))
+        return;                          // an encrypted backup, not a seed QR
     char words[WSEED_MAX_MNEMONIC];
     int rc = kiss_seed_from_qr(txt, len, words, sizeof words);
     if (rc == 0)
@@ -3325,6 +3524,10 @@ static void load_screen(void)
     wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), 430, 150, 340, 110);
     wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 266, 340, 130);
     mk_pill(tr(STR_W_CREATE_NEW), 560, WT_ACTION_Y, 190, load_new_cb, NULL);
+    // An amnesic session restores from a .kef backup the same way the wizard
+    // does: the card path shares the action row with CREATE NEW.
+    wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), WT_ACT_X, WT_ACTION_Y,
+                 330, WT_ACTION_H, kef_sd_open_load_cb, NULL);
 }
 
 // ---- configured SD wallet: card/file gate before passphrase entry ----

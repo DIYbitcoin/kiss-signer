@@ -55,6 +55,11 @@ int  platform_sd_list_signed(char names[][SD_NAME_LEN], int max, int *total);
 // firmware image is its header and its signature, not what it is called.
 int  platform_sd_list_firmware(char names[][SD_NAME_LEN], int max, int *total);
 
+// KEF backup envelopes (*.kef), same rules again. The name proves nothing:
+// the file's bytes must parse as an envelope and the password must open it,
+// so a mislabeled file simply fails the same vague way a corrupt one does.
+int  platform_sd_list_kef(char names[][SD_NAME_LEN], int max, int *total);
+
 // Streaming read, because a firmware image is megabytes and platform_sd_read
 // wants the whole file in a caller buffer. Open reports the size up front so a
 // caller can refuse an image too big for the slot before reading a byte of it.
