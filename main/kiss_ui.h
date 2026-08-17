@@ -11,6 +11,13 @@ void kiss_login_open(void (*unlocked_cb)(void));
 // Setup variant (first login after the seed wizard): the passphrase must be
 // typed TWICE — a typo here is an unreproducible wallet later (spec safety net).
 void kiss_login_open_setup(void (*unlocked_cb)(void));
+
+// Same flow for words the owner ALREADY OWNS, minus the two checks that belong
+// only to a passphrase being invented: typed once, and no weak-strength gate.
+// The fingerprint screen that follows is the real check on a restore -- it is
+// the one thing that can tell a correctly re-entered passphrase from a
+// consistently mistyped one, which type-twice cannot.
+void kiss_login_open_restore(void (*unlocked_cb)(void));
 // Add-later variant (from Settings): same type-twice + fingerprint reveal, but
 // nothing is committed — there is no staged seed, the passphrase only derives
 // the session. CANCEL returns to the caller's callback rather than the game.

@@ -65,6 +65,22 @@ static bool s_setup_mode;                  // first login after the wizard: type
 static bool s_pass_later;                  // "add a passphrase" from Settings: the
                                            // wizard's staged seed is not involved
 static bool s_first_done;                  // first of the two entries captured
+// Restoring words the owner already owns. Everything about staging and
+// committing the seed is unchanged -- this ONLY turns off the two checks that
+// belong to a passphrase being invented.
+//
+// Type-twice is a safety net against a typo in a secret nobody has ever seen.
+// Re-entering an existing passphrase is the opposite problem: the same typo
+// made twice passes, and opens a different, valid, EMPTY wallet under a
+// fingerprint the owner has never seen either. The check that actually works
+// here already runs on the next screen -- the fingerprint, against the one
+// their coordinator shows.
+//
+// The weak-passphrase gate goes for the same reason. It asks the owner to pick
+// a stronger one, and a stronger one is a DIFFERENT WALLET. Nagging about a
+// passphrase that cannot be changed without abandoning the coins behind it
+// teaches the owner to dismiss the warning that matters.
+static bool s_restore_mode;
 static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
 static lv_obj_t *s_pp_hint;                // length-coaching hint (setup only)
@@ -438,6 +454,7 @@ static void wipe_and_close(void) {
   if (s_setup_mode) kiss_seed_discard();
   wipe_login_secrets();
   s_setup_mode = false;
+  s_restore_mode = false;
   s_pass_later = false;
   s_first_done = false;
   s_weak_ack = false;
@@ -826,7 +843,7 @@ static void setup_warn_screen(void);
 static void setup_fail_dismiss_cb(lv_event_t *e) {
   (void)e;
   s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
-  s_setup_mode = false; s_first_done = false; s_weak_ack = false;
+  s_setup_mode = false; s_restore_mode = false; s_first_done = false; s_weak_ack = false;
   s_pass_later = false;      // a failed add-later run is over; the next
                              // Settings entry re-arms it
   wipe_login_secrets();
@@ -1579,6 +1596,12 @@ static void kb_cb(lv_event_t *e) {
         setup_warn_screen();
       }
     }
+    // Restoring: one entry, and the fingerprint on the next screen is the
+    // check. See s_restore_mode.
+    else if (s_setup_mode && s_restore_mode) {
+      kiss_wipe(s_first, sizeof s_first);
+      show_fingerprint();
+    }
     else if (s_setup_mode && !s_first_done && pass_bits() < 40) {
       show_weak_confirm();
     } else if (s_setup_mode && !s_first_done) {
@@ -1796,7 +1819,15 @@ static void pp_intro_nopass_cb(lv_event_t *e) {
   show_fingerprint();
 }
 
+void kiss_login_open_restore(void (*unlocked_cb)(void)) {
+  s_restore_mode = true;
+  kiss_login_open_setup(unlocked_cb);
+}
+
 void kiss_login_open_setup(void (*unlocked_cb)(void)) {
+  // Not cleared here: kiss_login_open_restore sets it and calls straight in.
+  // Every other path through the wizard reaches this function without it set,
+  // and login_teardown puts it back.
   s_setup_mode = true;
   s_first_done = false;
   s_backup_verified = false;
@@ -1912,7 +1943,11 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   s_cap = lv_label_create(s_login);
   lv_obj_set_width(s_cap, CAP_W);          // stop long alerts under SCAN/SHOW
   lv_label_set_long_mode(s_cap, LV_LABEL_LONG_WRAP);
-  cap_set(s_setup_mode ? tr(STR_L_CREATE_YOUR_PASS) : tr(STR_L_PASSPHRASE_CAP),
+  // "CREATE YOUR PASSPHRASE" over a keyboard where the owner is RE-ENTERING one
+  // they already have is an instruction to invent a second one, which opens a
+  // different wallet. Restoring gets the plain caption the ordinary unlock uses.
+  cap_set(s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
+                                          : tr(STR_L_PASSPHRASE_CAP),
           MUT_COL, false);
 
   // show/hide toggle (top-right, inset from the panel's right overscan)

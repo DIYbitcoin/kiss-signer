@@ -45,3 +45,10 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len);
 // Set it before handing the entropy over; the funnel persists it and clears
 // itself, so a path that does not call this records a clean seed.
 void kiss_setup_entropy_note(int v);
+
+// Whether the run that just finished LOADED words the owner already had,
+// rather than making new ones. main.c reads it to choose which passphrase
+// flow follows: an invented passphrase is typed twice, an existing one is
+// typed once and checked against its fingerprint. Valid from the done
+// callback until the next run starts.
+bool kiss_setup_restoring(void);

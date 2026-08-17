@@ -22,6 +22,7 @@
 #include "kiss_sign.h"        // kiss_sign_test_armed: HOLD TO SIGN is a colour
 #include "kiss_duress.h"
 #include "kiss_gword.h"      // WDG_* , to reach ST_INTRO's configured state
+#include "kiss_setup.h"      // kiss_setup_restoring: which passphrase flow follows
 #include "kiss_info.h"
 #include "kiss_recv.h"    // sim-only hook for the derivation path "?"
 #include "kiss_settings.h"
@@ -2949,6 +2950,15 @@ int main(void) {
 
   // peek at RESTORE: word entry + autocomplete, then back out
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
+  // The flag main.c reads to choose the passphrase flow. Restored words get one
+  // entry and the fingerprint as the check; invented ones get typed twice. If
+  // this ever stops tracking the chooser, a restoring owner is asked to invent
+  // a second passphrase and lands in an empty wallet with no error anywhere --
+  // so it is asserted on both branches rather than assumed.
+  if (!kiss_setup_restoring()) {
+    printf("FAIL: setup/restore: chooser took RESTORE, flag says new words\n");
+    g_walk_fails++;
+  }
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
   // restoring shows a third option here: a SeedQR carries its own length, so
@@ -2972,6 +2982,13 @@ int main(void) {
   // its layout only (it cannot complete without a sensor), the dice one all the
   // way to a wallet. kisstest covers the real SHA256.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  // The other branch of the same flag: these words are being MADE, so the
+  // passphrase after them is invented and keeps the type-twice net -- which the
+  // walk goes on to exercise a few hundred lines below.
+  if (kiss_setup_restoring()) {
+    printf("FAIL: setup/new: chooser took CREATE, flag says restoring\n");
+    g_walk_fails++;
+  }
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   save("/tmp/sim_setup_method.ppm");                // camera+taps vs dice
 

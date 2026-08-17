@@ -54,8 +54,10 @@ SECTIONS = [
           "This is everything an onlooker sees: a fruit game. No wallet "
           "button, no lock icon, no hint that anything else is installed."),
          ("02-kiss-login", "sim_login",
-          "Draw K, I, S, S anywhere on the menu. On a device with no duress "
-          "strokes set, that opens the passphrase login."),
+          "Draw K, I, S, S anywhere on the menu. On a signer with no spare "
+          "set up, that opens the passphrase login. Once a spare exists, the "
+          "same four letters open that instead, and your own swipe after them "
+          "is what asks for the passphrase."),
          ("03-wallet-home", "sim_wallet",
           "Your recovery words and your exact passphrase together make this "
           "wallet. A different passphrase silently opens a different wallet, "
@@ -108,10 +110,14 @@ SECTIONS = [
          ("02b-duress-fund", "sim_duress_fund",
           "Put a small amount in it. An empty wallet on a signer looks "
           "exactly like a wallet with something hidden behind it."),
-         ("02c-duress-rule", "sim_duress_done",
+         ("02c-duress-pick", "sim_duress_pick",
           "One extra swipe after your drawing asks for your passphrase, and "
-          "the passphrase opens your real signer. Any swipe works: there is "
-          "nothing to memorise and nothing to forget."),
+          "the passphrase opens your real signer. You choose which swipe is "
+          "yours, so reading this firmware tells nobody what to draw."),
+         ("02d-duress-draw", "sim_duress_draw_again",
+          "Draw it over the printed word, twice, before anything is saved. "
+          "Any other swipe opens the spare, exactly as no swipe does, so a "
+          "wrong guess looks like a device with nothing behind it."),
      ]),
 
     ("Pairing with Sparrow",
@@ -646,6 +652,31 @@ def check():
     if orphans:
         print("note: generated but not referenced by any doc: %s"
               % ", ".join(orphans))
+
+    # The other direction, and it is the one that mattered. The check above
+    # asks "is every picture linked", which is a note. Nothing asked "is every
+    # linked picture still MADE" -- so when the stroke picker was deleted,
+    # 02c-duress-pick.png and 02d-duress-draw.png stopped being generated,
+    # stayed on disk from their last run, stayed linked from walkthrough.md,
+    # and went on describing a screen the firmware no longer had. Green the
+    # whole time. An owner reading the walkthrough was told to choose a stroke
+    # the device would not let them choose, which is most of the reason the
+    # request kept coming back.
+    #
+    # A stale file on disk is invisible; a stale file the docs SHOW is a lie.
+    # This fails.
+    made = {os.path.basename(p) for p, _ in targets()}
+    made |= {os.path.basename(rel) for rel, _ in LEGACY}
+    made.add(os.path.basename(REVEAL_GIF))
+    stale = sorted({m.group(1) for m in re.finditer(
+        r'[\w./-]*?([\w-]+\.(?:png|gif))', linked)} - made)
+    if stale:
+        sys.stderr.write(
+            "docs reference pictures nothing generates any more:\n  %s\n"
+            "Either add them back to the manifest above, or take them out of\n"
+            "the docs -- a picture the docs still show is a screen the reader\n"
+            "believes exists.\n" % "\n  ".join(stale))
+        return 1
     return 0
 
 

@@ -3039,6 +3039,8 @@ static void storage_screen(void)
 }
 
 // ---- entry ----
+bool kiss_setup_restoring(void) { return s_restore; }
+
 static void new_cb(lv_event_t *e)     { (void)e; s_restore = false; storage_screen(); }
 static void restore_cb(lv_event_t *e) { (void)e; s_restore = true;  storage_screen(); }
 static void cancel_cb(lv_event_t *e)

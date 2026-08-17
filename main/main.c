@@ -1355,8 +1355,20 @@ static void fp_fly_start(void) {
 }
 
 static void kiss_start(void);
-static void setup_done_login(void) {       // wizard stored the seed: first login,
-  kiss_login_open_setup(kiss_start);   // passphrase typed twice (safety net)
+static void setup_done_login(void) {       // wizard stored the seed: first login
+  // Which passphrase flow depends on whose passphrase it is.
+  //
+  // NEW words: the passphrase is being invented, nobody has ever seen it, and a
+  // typo is unrecoverable -- so it is typed twice.
+  //
+  // RESTORED words: the owner is re-entering one they already have, and typing
+  // it twice checks nothing. The same slip made twice matches itself and opens
+  // a different, valid, empty wallet. The fingerprint screen that follows is
+  // the only step that can tell those apart, so it carries the check alone.
+  if (kiss_setup_restoring())
+    kiss_login_open_restore(kiss_start);
+  else
+    kiss_login_open_setup(kiss_start);
 }
 
 // A seed already owned by the user is ready, either loaded into an AMNESIC

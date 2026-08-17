@@ -16,7 +16,7 @@ This is everything an onlooker sees: a fruit game. No wallet button, no lock ico
 
 ![KISS screen: kiss login](shots/02-kiss-login.png)
 
-Draw K, I, S, S anywhere on the menu. On a device with no duress strokes set, that opens the passphrase login.
+Draw K, I, S, S anywhere on the menu. On a signer with no spare set up, that opens the passphrase login. Once a spare exists, the same four letters open that instead, and your own swipe after them is what asks for the passphrase.
 
 ![KISS screen: wallet home](shots/03-wallet-home.png)
 
@@ -54,11 +54,11 @@ Put a small amount in it. An empty wallet on a signer looks exactly like a walle
 
 ![KISS screen: duress pick](shots/02c-duress-pick.png)
 
-One extra stroke after the word decides which wallet opens. You choose which stroke is yours, so reading this firmware does not tell anyone what to draw.
+One extra swipe after your drawing asks for your passphrase, and the passphrase opens your real signer. You choose which swipe is yours, so reading this firmware tells nobody what to draw.
 
 ![KISS screen: duress draw](shots/02d-duress-draw.png)
 
-Draw it over the printed word, twice, before anything is saved. Plain KISS keeps working forever and always opens the spare, so forgetting your stroke can never lock you out of the device.
+Draw it over the printed word, twice, before anything is saved. Any other swipe opens the spare, exactly as no swipe does, so a wrong guess looks like a device with nothing behind it.
 
 ## Pairing with Sparrow
 
