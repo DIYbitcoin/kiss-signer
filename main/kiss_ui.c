@@ -85,6 +85,19 @@ static bool s_weak_ack;                    // weak passphrase needs a second OK
 static lv_obj_t *s_meter;                  // WEAK/FAIR/STRONG (setup only)
 static lv_obj_t *s_pp_hint;                // length-coaching hint (setup only)
 static char s_first[PASS_MAX + 1];
+// The same keyboard, borrowed to collect a KEF backup password. Never a
+// passphrase: it opens no wallet and derives no session. Create mode gets the
+// meter, the weak ack and type-twice (a typo here is a backup nobody can ever
+// open); open mode is a single entry checked by the caller, which answers
+// with ONE vague failure — a wrong password and a corrupt envelope must read
+// the same. These arms run FIRST in kb_cb, the s_backup_verify_pass shape.
+static bool s_kef_mode;
+static bool s_kef_create;
+static bool s_kef_first_done;
+static char s_kef_first[PASS_MAX + 1];
+static int (*s_kef_check_cb)(const char *pass, size_t len);
+static void (*s_kef_done_cb)(void);
+static void (*s_kef_cancel_cb)(void);
 static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
 static uint8_t s_shown_fp[4];              // candidate shown, unpublished until OPEN
 static bool s_shown_fp_valid;
@@ -115,7 +128,7 @@ static int pass_bits(void) {
 
 static void meter_refresh(void) {
   if (!s_meter) return;
-  if (!s_setup_mode || s_plen == 0) {
+  if ((!s_setup_mode && !s_kef_create) || s_plen == 0) {
     lv_label_set_text(s_meter, "");
     if (s_pp_hint) lv_label_set_text(s_pp_hint, "");
     return;
@@ -423,8 +436,15 @@ static void cap_set(const char *txt, lv_color_t col, bool alert) {
 
 // after a weak-ack warning, any edit returns the caption to the stage prompt
 static void setup_cap_reset(void) {
-  if (!s_setup_mode || !s_weak_ack || !s_cap) return;
+  if ((!s_setup_mode && !s_kef_create) || !s_weak_ack || !s_cap) return;
   s_weak_ack = false;
+  if (s_kef_mode) {
+    if (s_kef_first_done)
+      cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+    else
+      cap_set(tr(STR_L_KEF_PASS_NEW), MUT_COL, false);
+    return;
+  }
   if (s_first_done) cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
   else              cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
 }
@@ -460,6 +480,13 @@ static void wipe_and_close(void) {
   s_weak_ack = false;
   s_backup_verified = false;
   s_backup_verify_pass = false;
+  s_kef_mode = false;
+  s_kef_create = false;
+  s_kef_first_done = false;
+  kiss_wipe(s_kef_first, sizeof s_kef_first);
+  s_kef_check_cb = NULL;
+  s_kef_done_cb = NULL;
+  s_kef_cancel_cb = NULL;
   s_plen = 0;
   s_caret = 0;
   s_show = false;
@@ -594,6 +621,21 @@ static void setup_accept_first(void) {
   entry_refresh();
 }
 
+// The KEF twin of setup_accept_first: same transition, its OWN capture
+// buffer, so a backup password can never bleed into the setup flow's s_first.
+static void kef_accept_first(void) {
+  memcpy(s_kef_first, s_pass, sizeof s_kef_first);
+  s_kef_first_done = true;
+  s_weak_ack = false;
+  kiss_wipe(s_pass, sizeof s_pass);
+  s_plen = 0;
+  s_caret = 0;
+  s_show = false;
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  entry_refresh();
+}
+
 static void weak_back_cb(lv_event_t *e) {
   (void)e;
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
@@ -604,7 +646,8 @@ static void weak_back_cb(lv_event_t *e) {
 static void weak_use_cb(lv_event_t *e) {
   (void)e;
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
-  setup_accept_first();
+  if (s_kef_mode) kef_accept_first();
+  else            setup_accept_first();
 }
 
 // A weak passphrase is a consequential choice, not a status tag. The old
@@ -644,11 +687,17 @@ static void show_weak_confirm(void) {
                           &lv_font_montserrat_48, lv_color_hex(0xFF4D5E));
   lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 30);
 
-  lv_obj_t *t = wt_lbl(card, tr(STR_L_WEAK_T), 0, 0, wt_font28(), INK_COL);
+  // A KEF password and a passphrase are different words for a reason: the
+  // card must name the thing being weak, and for a backup the threat is
+  // unlimited offline guessing rather than "another wallet".
+  lv_obj_t *t = wt_lbl(card, tr(s_kef_mode ? STR_L_KEF_WEAK_T : STR_L_WEAK_T),
+                       0, 0, wt_font28(), INK_COL);
   lv_obj_set_style_text_letter_space(t, 2, 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 88);
 
-  lv_obj_t *b = wt_note(card, tr(STR_L_WEAK_ACK), 32, 144, 640, 124);
+  lv_obj_t *b = wt_note(card, tr(s_kef_mode ? STR_L_KEF_WEAK_ACK
+                                            : STR_L_WEAK_ACK),
+                        32, 144, 640, 124);
   lv_obj_set_style_text_color(b, MUT_COL, 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -1565,7 +1614,14 @@ static void kb_cb(lv_event_t *e) {
   else if (strcmp(txt, KEY_SYM) == 0)  kb_plane(kb, MAP_SYM);
   else if (strcmp(txt, KEY_SYM2) == 0) kb_plane(kb, MAP_SYM2);
   else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
-    if (s_backup_verify_pass) {
+    if (s_kef_mode) {
+      // Nothing staged, nothing derived: fold the keyboard and hand the
+      // screen back to whichever flow borrowed it.
+      void (*cb)(void) = s_kef_cancel_cb;
+      wipe_and_close();
+      if (cb) cb();
+    }
+    else if (s_backup_verify_pass) {
       // This rehearsal is optional. Cancel returns to the warning with the
       // unverified red state; it does not abandon the wallet just created.
       s_backup_verify_pass = false;
@@ -1587,7 +1643,44 @@ static void kb_cb(lv_event_t *e) {
     }
   }
   else if (strcmp(txt, tr(STR_C_OK)) == 0) {
-    if (s_backup_verify_pass) {
+    if (s_kef_mode) {
+      if (s_plen == 0) return;               // an empty password locks nothing
+      if (s_kef_create && !s_kef_first_done && pass_bits() < 40) {
+        show_weak_confirm();                 // offline guessing is the threat
+      } else if (s_kef_create && !s_kef_first_done) {
+        kef_accept_first();
+      } else if (s_kef_create && strcmp(s_kef_first, s_pass) != 0) {
+        kiss_wipe(s_kef_first, sizeof s_kef_first);
+        s_kef_first_done = false;
+        kiss_wipe(s_pass, sizeof s_pass);
+        s_plen = 0;
+        s_caret = 0;
+        cap_set(tr(STR_L_NO_MATCH), lv_color_hex(0xFF4D5E), true);
+        entry_refresh();
+      } else {
+        // The derive takes a visible moment (100k PBKDF2 on the device);
+        // say so before blocking, or OK reads as a dead key.
+        cap_set(tr(s_kef_create ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
+                MUT_COL, true);
+        lv_refr_now(NULL);
+        int rc = s_kef_check_cb ? s_kef_check_cb(s_pass, (size_t)s_plen) : -1;
+        if (rc != 0) {
+          kiss_wipe(s_pass, sizeof s_pass);
+          s_plen = 0;
+          s_caret = 0;
+          s_show = false;
+          if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+          cap_set(tr(s_kef_create ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
+                  lv_color_hex(0xFF4D5E), true);
+          entry_refresh();
+        } else {
+          void (*cb)(void) = s_kef_done_cb;
+          wipe_and_close();
+          if (cb) cb();
+        }
+      }
+    }
+    else if (s_backup_verify_pass) {
       uint8_t fp[4] = {0};
       bool match = kiss_fingerprint(s_plen ? s_pass : NULL, fp) == 0
                 && memcmp(fp, s_last_fp, sizeof fp) == 0;
@@ -1965,8 +2058,10 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // "CREATE YOUR PASSPHRASE" over a keyboard where the owner is RE-ENTERING one
   // they already have is an instruction to invent a second one, which opens a
   // different wallet. Restoring gets the plain caption the ordinary unlock uses.
-  cap_set(s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
-                                          : tr(STR_L_PASSPHRASE_CAP),
+  cap_set(s_kef_mode
+              ? tr(s_kef_create ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
+          : s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
+                                            : tr(STR_L_PASSPHRASE_CAP),
           MUT_COL, false);
 
   // show/hide toggle (top-right, inset from the panel's right overscan)
@@ -1985,8 +2080,10 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
 
   // SCAN: a passphrase kept as a QR (some owners do). Gated behind one warning
   // screen, the same pattern as the scan-key export, because a passphrase in a
-  // QR is only as private as wherever that QR lives.
-  {
+  // QR is only as private as wherever that QR lives. Not offered for a KEF
+  // password: that flow is already inside a QR ritual, and a second camera
+  // hop from a password screen is a surface nobody asked for.
+  if (!s_kef_mode) {
     lv_obj_t *sb = lv_button_create(s_login);
     lv_obj_set_style_bg_color(sb, KEY_COL, 0);
     lv_obj_set_style_shadow_width(sb, 0, 0);
@@ -2063,6 +2160,28 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
                             LV_PART_ITEMS | LV_STATE_CHECKED);
   lv_obj_add_event_cb(s_kb, kb_cb, LV_EVENT_VALUE_CHANGED, NULL);
   lv_obj_add_event_cb(s_kb, kb_long_cb, LV_EVENT_LONG_PRESSED, NULL);
+}
+
+// The login keyboard, borrowed for a KEF backup password. create = invent one
+// (meter, weak ack, typed twice); otherwise one entry. on_check runs on OK
+// with the accepted password and answers 0 or -1 — on -1 the keyboard stays,
+// shows one vague failure and lets the owner retype; on 0 the keyboard folds
+// itself and THEN calls on_done, so the next screen never finds the login
+// still standing. CANCEL folds and calls on_cancel. No wallet, no session,
+// no fingerprint anywhere in this mode.
+void kiss_ui_kef_pass_open(bool create,
+                           int (*on_check)(const char *pass, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void))
+{
+  if (kiss_ui_active()) return;
+  s_kef_mode = true;
+  s_kef_create = create;
+  s_kef_first_done = false;
+  s_kef_first[0] = 0;
+  s_kef_check_cb = on_check;
+  s_kef_done_cb = on_done;
+  s_kef_cancel_cb = on_cancel;
+  kiss_login_open(NULL);
 }
 
 // ---- build identity (shared: Settings footer + wallet home corner) ----

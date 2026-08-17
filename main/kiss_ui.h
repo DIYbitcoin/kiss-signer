@@ -25,6 +25,15 @@ void kiss_login_open_add_later(void (*unlocked_cb)(void));
 // True while any login screen is on top (game must ignore touch meanwhile).
 bool kiss_ui_active(void);
 
+// The same keyboard, borrowed to collect a KEF backup password (never a
+// passphrase: no wallet, no session). create = type twice with the strength
+// meter; otherwise one entry. on_check runs on OK and returns 0 or -1; -1
+// keeps the keyboard up with one vague failure, 0 folds it and then calls
+// on_done. CANCEL folds it and calls on_cancel.
+void kiss_ui_kef_pass_open(bool create,
+                           int (*on_check)(const char *pass, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void));
+
 // True while the commit-failed RECOVER screen -- or the words screen it
 // opens -- is up. Its own row in main.c's SCREENS[]: owns the touch, holds
 // the idle lock off, and registers no close. The staged seed it names may be

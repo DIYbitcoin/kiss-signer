@@ -140,6 +140,11 @@ UNTRANSLATED_OK = {
     "N_PARTS_FMT",     # %d/%d: digits and a slash, deliberately locale neutral
     "S_QR_PART_FMT",   # (SWEEP-03); ja/ko/tr/vi/zh already wrote "of" as "/"
     "W_WORD_N_FMT",    # %d/%d  %s_: same counter plus the typed-prefix echo
+    # KEF backup strings: born under the English-only rule (translation is one
+    # sweep AFTER the UI stops moving), so the other twenty carry the English
+    # as a placeholder the sweep replaces. Remove these lines in that sweep.
+    "L_KEF_PASS_NEW", "L_KEF_PASS_OPEN", "L_KEF_LOCKING", "L_KEF_UNLOCKING",
+    "L_KEF_BAD", "L_KEF_FAIL", "L_KEF_WEAK_T", "L_KEF_WEAK_ACK",
 }
 
 
