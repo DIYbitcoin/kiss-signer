@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "como corrigir",
   "W_DICE_W2_B": "suas jogadas ficam guardadas. continue até nivelar.",
   "W_DICE_HELP_T": "POR QUE CONFERIMOS AS JOGADAS",
-  "W_DICE_HELP_B": "CADA FACE: deve sair mais ou menos igual. as barras mostram isso.\nEM ORDEM: 1 2 3 4 5 6 repetido fica igual mas nao e acaso. tambem e conferido.\nRECUSADA: uma serie que falha nao vira palavras. continue, nada se perde.\nVOCE CONFERE: recalcule o SHA256 offline. nao precisa confiar neste aparelho.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "SORTEIO ÀS CEGAS",
   "W_CARDS_NOTE": "palavras tiradas às cegas de uma lista BIP39 misturada. nenhum acaso de máquina.",
   "W_CARDS_T": "SORTEIO ÀS CEGAS",

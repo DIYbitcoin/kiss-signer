@@ -1237,10 +1237,32 @@ static void setup_warn_screen(void) {
 
   // body runs from y=92 down to the fingerprint: auto-fit keeps the
   // short English copy big and a long translation off the fingerprint
+  // Never print a zeroed fingerprint. Zero is kiss_ui_forget_fp's "no keys
+  // open" value and it also survives a derivation that failed, so an owner was
+  // shown 00000000 in a value card captioned FINGERPRINT -- a code that looks
+  // real, is not, and would be copied onto paper. kiss_setup.c's BACKUP
+  // VERIFIED screen already guards this; this screen did not.
+  const bool fp_known =
+      (s_last_fp[0] | s_last_fp[1] | s_last_fp[2] | s_last_fp[3]) != 0;
+
+  // Both warning bodies END with "know yours by its fingerprint:", which is a
+  // sentence that introduces the card below it. With no fingerprint to show
+  // there is no card, and the colon dangled into empty space -- a fault the
+  // fp_known guard CREATED and only a rendered frame of that state showed.
+  // Drop the trailing paragraph rather than add a second string in 21 locales;
+  // the rest of the warning is unchanged and still true.
+  char wb[512];
+  snprintf(wb, sizeof wb, "%s", tr(warn_b));
+  if (!fp_known) {
+    char *cut = NULL;
+    for (char *q = wb; (q = strstr(q, "\n\n")) != NULL; q++) cut = q;
+    if (cut) *cut = 0;
+  }
+
   lv_obj_t *b = lv_label_create(s_warnscr);
-  lv_label_set_text(b, tr(warn_b));
+  lv_label_set_text(b, wb);
   lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_body_font(tr(warn_b), 740, 204), 0);
+  lv_obj_set_style_text_font(b, wt_body_font(wb, 740, 204), 0);
   lv_obj_set_width(b, 740);
   lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
@@ -1256,13 +1278,6 @@ static void setup_warn_screen(void) {
   //
   // Centred as a pair: the card sizes itself to its caption in whatever locale
   // is rendering, so its x follows the measured width rather than a constant.
-  // Never print a zeroed fingerprint. Zero is kiss_ui_forget_fp's "no keys
-  // open" value and it also survives a derivation that failed, so an owner was
-  // shown 00000000 in a value card captioned FINGERPRINT -- a code that looks
-  // real, is not, and would be copied onto paper. kiss_setup.c's BACKUP
-  // VERIFIED screen already guards this; this screen did not.
-  const bool fp_known =
-      (s_last_fp[0] | s_last_fp[1] | s_last_fp[2] | s_last_fp[3]) != 0;
   char fpbuf[16];
   snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
            s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
@@ -1302,6 +1317,26 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_border_width(ok, 2, 0);
   lv_obj_set_style_border_color(ok, s_backup_verified ? WT_OK : WT_STOP, 0);
 }
+
+#ifdef SIMULATOR
+// STATE, not screen. check_screen_coverage proves every screen gets opened; it
+// cannot prove every screen gets opened in every STATE, and that gap is exactly
+// where the 00000000 fingerprint and the impossible passphrase prompt lived --
+// on a screen the walk photographed happily, in the one combination it never
+// reached. Both faults were on the no-passphrase branch of a screen whose
+// with-passphrase branch had a stop.
+//
+// So the walk can now ask for the combination directly. Reaching it by walking
+// would mean committing a second wallet mid-run and rewriting everything after,
+// which is how it stayed unphotographed in the first place.
+void kiss_ui_sim_warn_screen(bool verified, bool fp_zero)
+{
+  if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
+  s_backup_verified = verified;
+  if (fp_zero) kiss_wipe(s_last_fp, sizeof s_last_fp);
+  setup_warn_screen();
+}
+#endif
 
 // reveal pop-in: the code card rises + fades in (one-shot, no per-frame cost after)
 static void fp_pop_ty_cb(void *v, int32_t y) { lv_obj_set_style_translate_y((lv_obj_t *)v, y, 0); }

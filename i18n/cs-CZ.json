@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "jak to napravit",
   "W_DICE_W2_B": "tvé hody zůstávají. házej dál a tvar se vyrovná.",
   "W_DICE_HELP_T": "PROČ SE HODY KONTROLUJÍ",
-  "W_DICE_HELP_B": "KAZDA STENA: mela by padat asi stejne casto. sloupce to ukazuji.\nPO PORADKU: 1 2 3 4 5 6 dokola je rovnomerne, ale ne nahodne. kontroluje se taky.\nODMITNUTO: kdyz rada neprojde, slova nevzniknou. hazej dal, nic se neztrati.\nZKONTROLUJ SAM: prepocitej SHA256 nize offline. nemusis verit tomuto zarizeni.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "LOSOVÁNÍ NASLEPO",
   "W_CARDS_NOTE": "slova tažená naslepo ze zamíchaného seznamu BIP39. žádná náhoda stroje.",
   "W_CARDS_T": "LOSOVÁNÍ NASLEPO",

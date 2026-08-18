@@ -3987,6 +3987,30 @@ int main(void) {
   // The other half of the same question, and the half that was still lying.
   // YOUR LETTERS ARE SET drew "letters -> SPARE" and "letters + mark -> REAL"
   // on every wallet, including one with no passphrase, where the letters alone
+  // The post-setup warning screen in the two STATES no walk ever reached: no
+  // passphrase, and a fingerprint that failed to derive. Between them they hid
+  // two faults for the life of the screen -- an impossible "TYPE THE EXACT
+  // BACKUP PASSPHRASE" on keys that have none, and 00000000 rendered into a
+  // value card captioned FINGERPRINT, a code that looks real and was about to
+  // be copied onto paper.
+  //
+  // Neither was a missing screen. check_screen_coverage was green throughout,
+  // because the screen HAS a stop -- in the with-passphrase, fingerprint-known
+  // combination. A screen is not covered until its branches are.
+  {
+    (void)kiss_session_open(NULL);                  // no passphrase = the decoy
+    kiss_ui_sim_warn_screen(false, true);           // unverified, no fingerprint
+    pump(8);
+    save("/tmp/sim_warn_nopass_nofp.ppm");          // chip alone, NO value card
+    kiss_ui_sim_warn_screen(true, false);           // verified, fingerprint back
+    pump(8);
+    save("/tmp/sim_warn_verified.ppm");             // green chip beside the card
+    // The screen owns itself; reopening it deletes the previous one, and the
+    // duress excursion below opens a session of its own straight after.
+    kiss_ui_sim_warn_screen(false, false);
+    pump(8);
+  }
+
   // open the funded wallet and there is no spare to reach. The stroke wizard
   // has refused to describe this signer that way since ST_NOPASS existed; the
   // word wizard never had the guard, so an owner could be told to hand over a

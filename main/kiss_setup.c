@@ -1961,9 +1961,17 @@ static unsigned dice_need(void) { return s_count == 24 ? 32 : 16; }
 // attached. That line cannot live on the note itself: DICE_NOTE_Y 210 to
 // DICE_FP_Y 250 is 40px, two font14 lines, and a longer locale would land on
 // the fingerprint. The card has the room, so the reason goes here.
+// Two claims, two marks. This was four glossary terms -- COUNTS, ORDER,
+// REFUSED, YOURS TO CHECK -- which is a reference card for someone who already
+// knows, on a page a newcomer opens because their fifty rolls were rejected and
+// they do not know why. The two things they need are what gets refused and
+// whether they lost anything; both other terms were describing the mechanism
+// behind those, and YOURS TO CHECK told a beginner to recompute a SHA256.
+//
+// That line is not gone, it is where it belongs: the dice screen already prints
+// "SHA256 of your rolls. recompute it offline to check." under the strip, for
+// the reader who wants it.
 static const char *const DICE_HELP_ICONS[] = {
-    LV_SYMBOL_LIST,
-    LV_SYMBOL_LOOP,
     LV_SYMBOL_WARNING,
     LV_SYMBOL_OK,
 };
@@ -2014,7 +2022,7 @@ static void dice_help_cb(lv_event_t *e)
     wt_explain_t x = {
         .title  = tr(STR_W_DICE_HELP_T),
         .icon   = LV_SYMBOL_LIST,
-        .body   = tr(STR_W_DICE_HELP_B),
+        .body   = tr(STR_W_DICE_HELP_B2),
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = DICE_HELP_ICONS,

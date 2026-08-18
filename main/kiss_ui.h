@@ -108,3 +108,10 @@ void kiss_ui_test_recover_close(void);
 // The recovery walk uses this after the 900 ms mask timer would have fired.
 bool kiss_ui_test_rendered_secret_empty(void);
 #endif
+
+#ifdef SIMULATOR
+// Sim only: open the post-setup warning screen in a chosen state, so the walk
+// can photograph the no-passphrase and zeroed-fingerprint combinations without
+// committing a wallet to get there. See the definition in kiss_ui.c.
+void kiss_ui_sim_warn_screen(bool verified, bool fp_zero);
+#endif

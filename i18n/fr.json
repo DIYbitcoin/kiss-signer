@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "comment corriger",
   "W_DICE_W2_B": "vos lancers sont conservés. continuez et la forme s'égalise.",
   "W_DICE_HELP_T": "POURQUOI ON VÉRIFIE VOS LANCERS",
-  "W_DICE_HELP_B": "CHAQUE FACE: doit sortir a peu pres autant que les autres. les barres le suivent.\nEN ORDRE: 1 2 3 4 5 6 en boucle donne un compte parfait, pas du hasard. verifie aussi.\nREFUSE: une serie qui echoue ne donne pas de mots. continuez, rien de perdu.\nA VOUS DE VERIFIER: recalculez le SHA256 hors ligne. sans croire cet appareil sur parole.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "TIRAGE AVEUGLE",
   "W_CARDS_NOTE": "des mots tirés à l'aveugle d'une liste BIP39 mélangée. aucun hasard machine.",
   "W_CARDS_T": "TIRAGE AVEUGLE",

@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "どうするか",
   "W_DICE_W2_B": "出目は残っています。そのまま振り続ければそろいます。",
   "W_DICE_HELP_T": "なぜ出目を確認するか",
-  "W_DICE_HELP_B": "それぞれの目：どの目も同じくらい出ます。振るたびに画面に出ます。\n順番：1 2 3 4 5 6 のくりかえしも数はそろいますがサイコロではありません。\n断ります：通らない出目は単語になりません。もっと振るだけで出目は残ります。\n自分で確かめる：下の SHA256 をオフラインで計算。端末を信じずに済みます。",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "見ずに引く",
   "W_CARDS_NOTE": "BIP39リストから見ずに引いた単語。端末の乱数は使いません。",
   "W_CARDS_T": "見ずに引く",

@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "고치려면",
   "W_DICE_W2_B": "굴린 값은 그대로 있습니다. 더 굴리면 고르게 됩니다.",
   "W_DICE_HELP_T": "왜 굴린 값을 확인하는가",
-  "W_DICE_HELP_B": "값마다: 모든 값이 고르게 나와야 합니다. 막대에 바로 보입니다.\n순서: 1 2 3 4 5 6 반복은 고르지만 굴린 것이 아닙니다. 순서도 확인합니다.\n거절: 통과 못하면 단어를 만들 수 없습니다. 값은 남으니 더 굴리세요.\n직접 확인: 아래 SHA256을 오프라인에서 다시 계산하세요. 이 기기를 믿지 않아도 됩니다.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "안 보고 집기",
   "W_CARDS_NOTE": "섞은 BIP39 목록에서 안 보고 집은 단어. 기계는 수를 내지 않습니다.",
   "W_CARDS_T": "안 보고 집기",

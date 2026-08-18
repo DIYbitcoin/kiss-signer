@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "så fixar du det",
   "W_DICE_W2_B": "dina kast finns kvar. kasta vidare tills det jämnar ut sig.",
   "W_DICE_HELP_T": "VARFÖR DINA KAST KOLLAS",
-  "W_DICE_HELP_B": "ANTAL: varje sida ska komma ungefar lika ofta. staplarna visar det live.\nORDNING: 1 2 3 4 5 6 om och om igen ar jamnt men inte slumpmassigt. kollas ocksa.\nNEKAS: en rad som faller igenom ger inga ord. kasta vidare, inget forsvinner.\nKOLLA SJALV: rakna efter SHA256 nedanfor offline. du behover aldrig lita pa enheten.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "DRA I BLINDO",
   "W_CARDS_NOTE": "ord dragna blint ur en blandad BIP39-lista. ingen maskinslump.",
   "W_CARDS_T": "DRA I BLINDO",

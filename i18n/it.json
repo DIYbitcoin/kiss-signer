@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "come rimediare",
   "W_DICE_W2_B": "i tuoi lanci restano. continua e la forma si pareggia.",
   "W_DICE_HELP_T": "PERCHÉ SI CONTROLLANO I LANCI",
-  "W_DICE_HELP_B": "OGNI FACCIA: deve uscire quasi quanto le altre. le barre lo mostrano.\nIN ORDINE: 1 2 3 4 5 6 ripetuto pareggia tutto ma non e casuale. si controlla anche questo.\nRIFIUTATA: una serie che non passa non fa parole. continua, i tiri restano.\nTOCCA A TE: ricalcola lo SHA256 offline. non devi fidarti di questo dispositivo.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "PESCA CIECA",
   "W_CARDS_NOTE": "parole pescate alla cieca da una lista BIP39 mescolata. nessun caso di macchina.",
   "W_CARDS_T": "PESCA CIECA",

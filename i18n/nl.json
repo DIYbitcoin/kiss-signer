@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "zo los je het op",
   "W_DICE_W2_B": "je worpen blijven bewaard. gooi door tot het gelijk trekt.",
   "W_DICE_HELP_T": "WAAROM WORDT GECHECKT",
-  "W_DICE_HELP_B": "AANTALLEN: elke kant hoort ongeveer even vaak te vallen. de balken tonen het live.\nVOLGORDE: 1 2 3 4 5 6 steeds weer is gelijk maar niet willekeurig. ook gecheckt.\nGEWEIGERD: een reeks die zakt maakt geen woorden. gooi door, je worpen blijven.\nZELF CHECKEN: reken de SHA256 hieronder offline na. je hoeft dit apparaat niet te vertrouwen.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "BLIND TREKKEN",
   "W_CARDS_NOTE": "woorden blind getrokken uit een gemengde BIP39-lijst. geen machinetoeval.",
   "W_CARDS_T": "BLIND TREKKEN",

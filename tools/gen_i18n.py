@@ -159,6 +159,10 @@ UNTRANSLATED_OK = {
     "W_CHOOSE_MIX", "W_MIX_NOTE",
     # The checksum verdict, moved onto WRITE THESE DOWN where it matters.
     "W_WRITE_OK",
+    # The dice explainer, cut from four glossary terms to two claims. The old
+    # key's translations described content that no longer exists, so it was
+    # renamed rather than overwritten; English until the sweep.
+    "W_DICE_HELP_B2",
 }
 
 

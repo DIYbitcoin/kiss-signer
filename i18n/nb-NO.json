@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "slik retter du det",
   "W_DICE_W2_B": "kastene dine er beholdt. kast videre til det jevner seg ut.",
   "W_DICE_HELP_T": "HVORFOR KASTENE DINE SJEKKES",
-  "W_DICE_HELP_B": "ANTALL: hver side bor komme omtrent like ofte. stolpene viser det live.\nREKKEFOLGE: 1 2 3 4 5 6 om og om igjen er jevnt men ikke tilfeldig. sjekkes ogsa.\nAVVIST: en rekke som feiler gir ingen ord. kast videre, ingenting er tapt.\nSJEKK SELV: regn etter SHA256 nedenfor offline. du trenger aldri stole pa enheten.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "BLINDT TREKK",
   "W_CARDS_NOTE": "ord trukket blindt fra en blandet BIP39-liste. ingen maskintilfeldighet.",
   "W_CARDS_T": "BLINDT TREKK",

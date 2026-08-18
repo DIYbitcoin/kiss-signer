@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "cách khắc phục",
   "W_DICE_W2_B": "các lần gieo vẫn được giữ. gieo tiếp cho đến khi đều.",
   "W_DICE_HELP_T": "VÌ SAO KIỂM TRA CÁC LẦN GIEO",
-  "W_DICE_HELP_B": "MOI MAT: mat nao cung nen ra gan nhu nhau. cac thanh theo doi truc tiep.\nTHEO THU TU: 1 2 3 4 5 6 lap lai thi deu ma khong ngau nhien. cung duoc kiem tra.\nBI TU CHOI: chuoi khong dat khong tao duoc tu. gieo tiep, khong mat gi.\nTU KIEM TRA: tinh lai SHA256 ben duoi khi ngoai tuyen. khong phai tin may nay.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "RÚT KHÔNG NHÌN",
   "W_CARDS_NOTE": "rút không nhìn từ danh sách BIP39 đã trộn. không có ngẫu nhiên của máy.",
   "W_CARDS_T": "RÚT KHÔNG NHÌN",

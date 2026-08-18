@@ -120,7 +120,7 @@
   "W_DICE_W2_H": "nasıl düzeltilir",
   "W_DICE_W2_B": "atışların duruyor. dengelenene kadar atmaya devam et.",
   "W_DICE_HELP_T": "ATIŞLARIN NEDEN KONTROL EDİLİR",
-  "W_DICE_HELP_B": "HER YUZ: hepsi asagi yukari ayni sayida gelmeli. cubuklar anlik gosterir.\nSIRAYLA: 1 2 3 4 5 6 tekrari sayilari esitler ama rastgele degil. buna da bakilir.\nREDDEDILIR: gecemeyen dizi kelime uretmez. atmaya devam, kayip yok.\nKENDIN BAK: SHA256 degerini cevrimdisi yeniden hesapla. cihaza guvenmen gerekmez.",
+  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "GÖRMEDEN ÇEK",
   "W_CARDS_NOTE": "karıştırılmış BIP39 listesinden görmeden çekildi. makine rastgeleliği yok.",
   "W_CARDS_T": "GÖRMEDEN ÇEK",
