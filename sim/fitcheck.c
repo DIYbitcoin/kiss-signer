@@ -47,7 +47,11 @@ static const slot_t SLOTS[] = {
     { "sign/?coins",      STR_S_COINS_HELP_B, 720, 230 },
     { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // kiss_ui.c:469,769 — login warning + passphrase intro
-    { "login/warn",       STR_L_WARN_B,     740, 204 },
+    // The warn bodies render as ruled blocks split on their blank lines, so a
+    // whole-key slot can only bound the single-claim key at the wide block's
+    // width; the sliced no-passphrase pair is covered by the walk's three
+    // rendered states instead.
+    { "login/warn",       STR_L_WARN_B,     690, 160 },
     // The passphrase intro and the backup check both went from one 704px
     // paragraph to a PAIR of wt_why_blocks, so each body is measured in the
     // narrower box it actually renders in: 344 wide less the block's own 14px

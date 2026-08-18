@@ -1236,8 +1236,6 @@ static void setup_warn_screen(void) {
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
 
-  // body runs from y=92 down to the fingerprint: auto-fit keeps the
-  // short English copy big and a long translation off the fingerprint
   // Never print a zeroed fingerprint. Zero is kiss_ui_forget_fp's "no keys
   // open" value and it also survives a derivation that failed, so an owner was
   // shown 00000000 in a value card captioned FINGERPRINT -- a code that looks
@@ -1245,28 +1243,53 @@ static void setup_warn_screen(void) {
   // VERIFIED screen already guards this; this screen did not.
   const bool fp_known = kiss_fp_known(s_last_fp);
 
-  // Both warning bodies END with "know yours by its fingerprint:", which is a
-  // sentence that introduces the card below it. With no fingerprint to show
-  // there is no card, and the colon dangled into empty space -- a fault the
-  // fp_known guard CREATED and only a rendered frame of that state showed.
-  // Drop the trailing paragraph rather than add a second string in 21 locales;
-  // the rest of the warning is unchanged and still true.
+  // The claims as ruled blocks, not a wall. The no-passphrase branch was the
+  // last BARE screen the overlap gate knew: a 740px centred paragraph with
+  // nothing framed on the page (its only company is a state chip, which is
+  // not a frame). Both bodies were already written in paragraphs, so the
+  // blocks split on the blank lines the copy has -- zero new strings in any
+  // locale. Lone newlines inside a paragraph were line breaks for the old
+  // 740px label; they become spaces so each block wraps to its own width.
+  //
+  // The trailing "know ... by ... fingerprint:" paragraph is the value card's
+  // own intro: it renders as one line above the card and drops with it when
+  // no fingerprint derived -- the dangling-colon fault, handled structurally
+  // this time instead of by cutting at the last blank line.
   char wb[512];
   snprintf(wb, sizeof wb, "%s", tr(warn_b));
-  if (!fp_known) {
-    char *cut = NULL;
-    for (char *q = wb; (q = strstr(q, "\n\n")) != NULL; q++) cut = q;
-    if (cut) *cut = 0;
+  size_t wlen = strlen(wb);            // before the splits punch NULs into it
+  char *para[4] = { wb, NULL, NULL, NULL };
+  int np = 1;
+  for (char *q = wb; (q = strstr(q, "\n\n")) != NULL && np < 4; ) {
+    *q = 0;
+    q += 2;
+    para[np++] = q;
+  }
+  for (size_t i = 0; i < wlen; i++)
+    if (wb[i] == '\n') wb[i] = ' ';
+
+  const char *fp_intro = np >= 2 ? para[np - 1] : NULL;
+  int nclaims = np >= 2 ? np - 1 : np;
+
+  if (nclaims >= 2) {
+    // The proven pair: what these keys are on the accent rule, where they go
+    // wrong on the amber one. 160px keeps both clear of the card row at 300
+    // with the intro line between.
+    const lv_font_t *f = wt_body_font2(para[0], para[1], 330, 160);
+    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 344, 160, f, wt_accent());
+    wt_why_block(s_warnscr, NULL, para[1], 408, 92, 344, 160, f, WT_WARN);
+  } else {
+    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 704, 160,
+                 wt_body_font(para[0], 690, 160), WT_WARN);
   }
 
-  lv_obj_t *b = lv_label_create(s_warnscr);
-  lv_label_set_text(b, wb);
-  lv_obj_set_style_text_color(b, INK_COL, 0);
-  lv_obj_set_style_text_font(b, wt_body_font(wb, 740, 204), 0);
-  lv_obj_set_width(b, 740);
-  lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 92);
+  if (fp_known && fp_intro) {
+    lv_obj_t *n = lv_label_create(s_warnscr);
+    lv_label_set_text(n, fp_intro);
+    lv_obj_set_style_text_color(n, MUT_COL, 0);
+    lv_obj_set_style_text_font(n, wt_font23(), 0);
+    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 264);
+  }
 
   // The fingerprint in a value card, and the backup state as a real chip beside
   // it. Both were bare centred labels: on the screen that teaches an owner what
@@ -1333,7 +1356,13 @@ void kiss_ui_sim_warn_screen(bool verified, bool fp_zero)
 {
   if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
   s_backup_verified = verified;
+  // "fingerprint back" has to actually put one back: the fp_zero call wipes
+  // s_last_fp, and nothing on the forced path rederives it, so the verified
+  // frame silently rendered the chip-alone layout while its walk comment
+  // promised a card. The dev seed's code makes the frame honest.
   if (fp_zero) kiss_wipe(s_last_fp, sizeof s_last_fp);
+  else if (!kiss_fp_known(s_last_fp))
+    kiss_ui_set_last_fp((const uint8_t[4]){ 0x73, 0xC5, 0xDA, 0x0A });
   setup_warn_screen();
 }
 #endif
