@@ -35,6 +35,10 @@
 #endif
 #include "lvgl.h"
 #include "i18n.h"
+#ifdef __EMSCRIPTEN__
+#include "k_quirc.h"
+#include "kiss_scan.h"
+#endif
 
 #define HRES 800
 #define VRES 480
@@ -134,6 +138,53 @@ EMSCRIPTEN_KEEPALIVE const uint8_t *kiss_sim_tick(int dt) {
 }
 
 EMSCRIPTEN_KEEPALIVE void kiss_sim_touch(int x, int y, int down) { set_touch(x, y, down); }
+
+// ---- the lens -------------------------------------------------------------
+// The page owns the camera, because only a browser can ask for one. It owns
+// nothing else: the frame goes through the SAME k_quirc the device decodes
+// with, and a payload goes to the SAME kiss_scan_inject() the device's decode
+// callback calls, so BC-UR fountain, pMofN and static all travel the real
+// assembly path in main/qr_transport.c. A QR that this simulator can read is a
+// QR the signer can read.
+static k_quirc_t *g_q;
+static int g_qw, g_qh;
+
+// Hand the page the grayscale buffer to fill. Sized on demand: the video's
+// resolution is whatever camera the visitor has, not something to guess at.
+EMSCRIPTEN_KEEPALIVE uint8_t *kiss_sim_cam_frame(int w, int h) {
+    if (!g_q && !(g_q = k_quirc_new())) return NULL;
+    if (w != g_qw || h != g_qh) {
+        if (k_quirc_resize(g_q, w, h) != 0) return NULL;
+        g_qw = w; g_qh = h;
+    }
+    int bw, bh;
+    return k_quirc_begin(g_q, &bw, &bh);
+}
+
+// Decode whatever the page just wrote there. Returns how many payloads reached
+// the signer, so the page can show that a code was read without inventing its
+// own idea of progress -- the screen's own progress bar is the real one.
+EMSCRIPTEN_KEEPALIVE int kiss_sim_cam_decode(void) {
+    if (!g_q) return 0;
+    k_quirc_end(g_q, false);
+    int n = k_quirc_count(g_q), fed = 0;
+    for (int i = 0; i < n; i++) {
+        static k_quirc_result_t res;      // 2.6KB, kept off the stack
+        if (k_quirc_decode(g_q, i, &res) == K_QUIRC_SUCCESS && res.data.payload_len > 0) {
+            kiss_scan_inject((const char *)res.data.payload, (size_t)res.data.payload_len);
+            fed++;
+        }
+        // Static, so it outlives the scan in .bss. A SeedQR restore puts a
+        // whole mnemonic in there and a passphrase QR puts the passphrase; the
+        // device wipes it for that reason and so does this.
+        memset(&res, 0, sizeof res);
+    }
+    return fed;
+}
+
+// Whether the signer is on its scan screen, so the page shows the lens exactly
+// when the device would be streaming and hides it the rest of the time.
+EMSCRIPTEN_KEEPALIVE int kiss_sim_scanning(void) { return kiss_scan_active() ? 1 : 0; }
 EMSCRIPTEN_KEEPALIVE void kiss_sim_feed_qr(const char *d) { if (d) kiss_scan_inject(d, strlen(d)); }
 
 EMSCRIPTEN_KEEPALIVE void kiss_sim_set_lang(const char *code) {

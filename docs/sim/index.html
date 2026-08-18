@@ -163,6 +163,7 @@
     // from under a cached view, and a stale one throws or paints garbage.
     var px = new Uint8ClampedArray(mod.HEAPU8.buffer, ptr, PX);
     ctx.putImageData(new ImageData(px, W, H), 0, 0);
+    scanFrame();
     requestAnimationFrame(loop);
   }
 
@@ -231,13 +232,53 @@
 
   // ---- the lens -----------------------------------------------------------
   // On the device the camera writes into the viewfinder rect directly, outside
-  // LVGL. Here the <video> is positioned over that same rect, which is the same
-  // arrangement reached by different means.
+  // LVGL, and LVGL draws the chrome around it. Here the <video> sits over that
+  // same rect: the same arrangement reached by different means.
+  //
+  // The decode is not the page's. Frames go to the k_quirc compiled into the
+  // wasm and payloads go to kiss_scan_inject, which is where the device's own
+  // decode callback puts them -- so a QR this page reads is one the signer
+  // reads, and the multipart assembly on screen is the real one.
+  var video = document.getElementById('lens'), stream = null;
+  var grab = document.createElement('canvas'), gctx = grab.getContext('2d', { willReadFrequently: true });
+
   document.getElementById('cam').addEventListener('click', function () {
-    var v = document.getElementById('lens');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(function (s) { v.srcObject = s; v.style.display = 'block'; v.play(); })
+    if (stream) { stopCam(); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } })
+      .then(function (s) {
+        stream = s; video.srcObject = s; video.play();
+        document.getElementById('cam').textContent = 'STOP THE WEBCAM';
+      })
       .catch(function (err) { alert('No camera: ' + err.message); });
   });
+  function stopCam() {
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    stream = null; video.srcObject = null; video.style.display = 'none';
+    document.getElementById('cam').textContent = 'USE THE WEBCAM';
+  }
+
+  // Every 4th frame. A 60Hz decode buys nothing -- an animated BC-UR QR changes
+  // far slower than that -- and k_quirc over 640x480 is the most expensive
+  // thing on the page.
+  var camN = 0;
+  function scanFrame() {
+    if (!stream || !video.videoWidth) return;
+    var scanning = mod.ccall('kiss_sim_scanning', 'number', [], []);
+    video.style.display = scanning ? 'block' : 'none';
+    if (!scanning || (camN++ % 4)) return;
+
+    var w = video.videoWidth, h = video.videoHeight;
+    if (grab.width !== w) { grab.width = w; grab.height = h; }
+    gctx.drawImage(video, 0, 0, w, h);
+    var rgba = gctx.getImageData(0, 0, w, h).data;
+
+    var ptr = mod.ccall('kiss_sim_cam_frame', 'number', ['number', 'number'], [w, h]);
+    if (!ptr) return;
+    var gray = mod.HEAPU8.subarray(ptr, ptr + w * h);
+    // Rec. 601 luma, the same grey the sensor pipeline hands k_quirc on device.
+    for (var i = 0, j = 0; j < gray.length; i += 4, j++)
+      gray[j] = (rgba[i] * 77 + rgba[i + 1] * 150 + rgba[i + 2] * 29) >> 8;
+    mod.ccall('kiss_sim_cam_decode', 'number', [], []);
+  }
 })();
 </script>
