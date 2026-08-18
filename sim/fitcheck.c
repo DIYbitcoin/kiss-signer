@@ -461,6 +461,9 @@ static const sub_t SUBROWS[] = {
 // has no value but its sub carries a mark, two spaces and eight hex digits of
 // fingerprint before the sentence even starts. Both want shorter copy in a
 // dozen locales, or a wider left column -- a pass of its own, not a rename.
+// Parked for the translation sweep (decided 2026-08-18): every entry here is
+// translation-bound and English fits everywhere, so the sweep is where these
+// get their shorter copy and this list shrinks there, not before.
 static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
     { "cs-CZ", "set/duress" },  { "cs-CZ", "set/words" },
     { "da-DK", "set/duress" },
