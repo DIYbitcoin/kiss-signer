@@ -156,6 +156,7 @@
   "W_CARDS_Q_CLUSTER": "ZU NAH",
   "W_CARDS_Q_SORTED": "IN FOLGE",
   "W_CARDS_Q_DUP": "DOPPELT",
+  "W_WRITE_OK": "these add up",
   "W_WRITE_T": "SCHREIB SIE AUF",
   "W_WRITE_S": "Seed-Wörter + Passphrase = diese Schlüssel",
   "W_PAPER_ONLY": "nur Papier, nie Foto oder Datei.",

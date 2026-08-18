@@ -156,6 +156,7 @@
   "W_CARDS_Q_CLUSTER": "TROPPO VICINE",
   "W_CARDS_Q_SORTED": "IN ORDINE",
   "W_CARDS_Q_DUP": "RIPETUTE",
+  "W_WRITE_OK": "these add up",
   "W_WRITE_T": "SCRIVILE SU CARTA",
   "W_WRITE_S": "parole seed + la stessa passphrase ripristinano queste chiavi",
   "W_PAPER_ONLY": "solo carta, mai foto o file.",

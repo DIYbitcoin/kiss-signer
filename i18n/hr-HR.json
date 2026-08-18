@@ -156,6 +156,7 @@
   "W_CARDS_Q_CLUSTER": "PREBLIZU",
   "W_CARDS_Q_SORTED": "PO REDU",
   "W_CARDS_Q_DUP": "PONAVLJANJA",
+  "W_WRITE_OK": "these add up",
   "W_WRITE_T": "ZAPIŠITE OVE RIJEČI",
   "W_WRITE_S": "seed riječi + ista fraza vraćaju ove ključeve",
   "W_PAPER_ONLY": "samo papir, nikad fotografija ni datoteka.",

@@ -1166,6 +1166,21 @@ static void setup_warn_words_done(void)
     return;
   }
 
+  // A wallet with NO passphrase has nothing to type, and this asked for it
+  // anyway: "TYPE THE EXACT BACKUP PASSPHRASE" on a seed that has none, where
+  // the only accepted answer is an empty field and the caption never says so.
+  // Every real attempt was rejected, and cancelling left the session's
+  // fingerprint zeroed, which is where an owner's 00000000 came from. For
+  // these keys the words ARE the whole backup, so matching them finishes the
+  // rehearsal. Same flag setup_warn_screen reads below, for the same reason.
+  if (kiss_session_decoy()) {
+    s_backup_verified = true;
+    kiss_backup_mark(s_last_fp);
+    wipe_login_secrets();
+    setup_warn_screen();
+    return;
+  }
+
   // The words matched. Now throw away the passphrase that created the session
   // and require it fresh: comparing the resulting fingerprint proves the exact
   // words + exact passphrase combination without ever storing that passphrase.
@@ -1241,6 +1256,13 @@ static void setup_warn_screen(void) {
   //
   // Centred as a pair: the card sizes itself to its caption in whatever locale
   // is rendering, so its x follows the measured width rather than a constant.
+  // Never print a zeroed fingerprint. Zero is kiss_ui_forget_fp's "no keys
+  // open" value and it also survives a derivation that failed, so an owner was
+  // shown 00000000 in a value card captioned FINGERPRINT -- a code that looks
+  // real, is not, and would be copied onto paper. kiss_setup.c's BACKUP
+  // VERIFIED screen already guards this; this screen did not.
+  const bool fp_known =
+      (s_last_fp[0] | s_last_fp[1] | s_last_fp[2] | s_last_fp[3]) != 0;
   char fpbuf[16];
   snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
            s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
@@ -1249,16 +1271,23 @@ static void setup_warn_screen(void) {
   // most needs to see would have been the half under the bar. Side by side the
   // pair is one card tall, which the band from the body's floor to 398 can hold
   // in every locale.
-  lv_obj_t *card = wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf,
-                                 110, 300, 300, true);
+  lv_obj_t *card = fp_known
+      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 300, 300, true)
+      : NULL;
   lv_obj_t *state = wt_state_chip(s_warnscr,
                                   s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
                                                     : tr(STR_L_BACKUP_UNVERIFIED),
                                   s_backup_verified ? WT_OK : WT_STOP);
-  lv_obj_update_layout(card);
   lv_obj_update_layout(state);
-  lv_obj_set_pos(state, 440,
-                 300 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+  if (card) {
+    lv_obj_update_layout(card);
+    lv_obj_set_pos(state, 440,
+                   300 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+  } else {
+    // Alone, the chip takes the card's lane instead of sitting where a card
+    // used to be beside it.
+    lv_obj_set_pos(state, 110, 300);
+  }
 
   lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
                               48, WT_ACTION_Y_TALL, 300, WT_ACTION_H_TALL, setup_warn_verify_cb, NULL);

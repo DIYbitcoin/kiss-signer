@@ -156,6 +156,7 @@
   "W_CARDS_Q_CLUSTER": "나란히",
   "W_CARDS_Q_SORTED": "순서",
   "W_CARDS_Q_DUP": "반복",
+  "W_WRITE_OK": "these add up",
   "W_WRITE_T": "적어 두세요",
   "W_WRITE_S": "시드 문구 + 같은 패스프레이즈가 이 키를 되살립니다",
   "W_PAPER_ONLY": "종이에만 기록. 사진/파일 금지.",

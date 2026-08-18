@@ -1547,10 +1547,22 @@ static void verify_screen(lv_obj_t *parent)
                          LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         int fx = 48 + ts.x + 18, fr = 530;      // 10 clear of the chip at 540
         if (s_src == SRC_SD && s_cur_signed) {
+            // The badge has to say the SAME thing the row said. The list draws
+            // the two signed states apart on purpose -- a *-signed.psbt IS the
+            // signature (OK), a source that already carries one is a do-not-
+            // redo (WARN) -- and this screen ignored the distinction and warned
+            // about both. So one transaction signed once showed SIGNATURE in
+            // green on one row and SIGNED ALREADY in amber on the other, then
+            // said "signed already" on both when either was opened: two names
+            // and two colours for one file, and the device appearing to
+            // contradict its own list.
+            const bool is_out = is_signed_name(s_cur);
             // font14, NOT mono: the mono faces carry no icon plane, so a
             // symbol set in them draws a placeholder box.
-            lv_obj_t *w = sg_lbl(s_scr, tr_sym(LV_SYMBOL_WARNING, STR_S_SIGNED_ALREADY),
-                                 0, 33, wt_font14(), WARN_COL);
+            lv_obj_t *w = sg_lbl(s_scr,
+                                 is_out ? tr_sym(LV_SYMBOL_OK, STR_S_ROW_SIGNATURE)
+                                        : tr_sym(LV_SYMBOL_WARNING, STR_S_SIGNED_ALREADY),
+                                 0, 33, wt_font14(), is_out ? OK_COL : WARN_COL);
             lv_obj_update_layout(w);
             int ww = lv_obj_get_width(w);
             lv_obj_set_pos(w, fr - ww, 33);
@@ -3518,15 +3530,22 @@ void kiss_sign_open(lv_obj_t *parent)
     // keep WT_CHOICE_Y; they have no chip and they fill the page.
 #define SGC_ROW0 148
 #define SGC_ROW1 252
-    // Both subs are forced to font14 rather than sized apiece. wt_body_font
-    // answers per string, so the two-line SCAN QR note came back at 14 and the
-    // one-line SD note at 23 -- two rows offering the same kind of choice, one
-    // of them visibly shouting. A group shares a size or it stops being a group.
+    // Both subs share ONE size rather than being sized apiece: wt_body_font
+    // answers per string, so the two rows of one choice came back at different
+    // sizes and one of them visibly shouted. A group shares a size or it stops
+    // being a group.
+    //
+    // font23, not font14. The shared size was pinned to the SMALLEST rung the
+    // longer of the two strings could reach, so shortening one string bought
+    // nothing and the pair stayed at the size reserved for chip labels -- on
+    // the screen that opens every signing session. The strings are now both
+    // about thirty characters and the rung they share is one an owner can read
+    // at arm's length. A long translation still falls back inside wt_row_x.
     wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR), tr(STR_S_POINT_CAM),
-             wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
+             wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
              SGC_ROW0, WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
     wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), tr(STR_S_OR_LOAD),
-             wt_font14(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
+             wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
              SGC_ROW1, WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
     // A labelled help target teaches the acronym at first sight. An anonymous
     // "?" made users guess whether it explained QR, SD, or the coordinator.

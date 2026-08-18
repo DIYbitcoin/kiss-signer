@@ -157,6 +157,8 @@ UNTRANSLATED_OK = {
     # W_CHOOSE_NEW / W_NEW_NOTE from the screen above it, where "NEW SEED
     # WORDS" against RESTORE is correct and must not move.
     "W_CHOOSE_MIX", "W_MIX_NOTE",
+    # The checksum verdict, moved onto WRITE THESE DOWN where it matters.
+    "W_WRITE_OK",
 }
 
 

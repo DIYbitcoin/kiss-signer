@@ -156,6 +156,7 @@
   "W_CARDS_Q_CLUSTER": "FOR TAET",
   "W_CARDS_Q_SORTED": "I RAEKKEFOLGE",
   "W_CARDS_Q_DUP": "GENTAGELSER",
+  "W_WRITE_OK": "these add up",
   "W_WRITE_T": "SKRIV DISSE NED",
   "W_WRITE_S": "seed-ord + samme adgangsfrase gendanner disse nøgler",
   "W_PAPER_ONLY": "kun papir, aldrig foto eller fil.",

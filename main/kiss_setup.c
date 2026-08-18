@@ -76,6 +76,11 @@ static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
 static int s_quiz_correct;     // which of the 4 pills is right
+#ifndef SIMULATOR
+// Which third each round samples, shuffled. Device only: the sim pins the
+// positions so the walk's scripted taps land, so banding never runs there.
+static int s_quiz_band[QUIZ_ROUNDS];
+#endif
 static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
 
 static char s_prefix[12];       // restore: letters typed for the current word
@@ -485,15 +490,30 @@ static void quiz_screen(void)
     s_quiz_pos = (s_quiz_round * 5) % s_count;   // fixed for scripted taps
     s_quiz_correct = s_quiz_round;               // round 0 -> pill 0, etc.
 #else
-    // never re-ask a word already proven this pass: asking #6 twice checks
-    // less of the backup (QUIZ_ROUNDS <= every word count, so this terminates)
-    int again;
-    do {
-        s_quiz_pos = (int)(ui_rand() % (uint32_t)s_count);
-        again = 0;
-        for (int i = 0; i < s_quiz_round; i++)
-            if (s_quiz_asked[i] == s_quiz_pos) again = 1;
-    } while (again);
+    // One word from each THIRD of the list, not three uniform draws. Uniform
+    // with only a no-repeat guard let #6, #7 and #8 come up together, and a
+    // bench run got exactly that: three words from one corner of the paper,
+    // which checks that corner and says nothing about the rest. Banding
+    // guarantees the three questions reach the top, middle and bottom of what
+    // the owner wrote, and it is still random inside each band.
+    //
+    // The BAND order is shuffled too, so the questions do not march 1..12 down
+    // the page and let someone read ahead. Bands are [lo, hi) over s_count, so
+    // this holds for 12 and 24 alike; QUIZ_ROUNDS is 3 and s_count is never
+    // below it, so every band is non-empty.
+    if (s_quiz_round == 0) {
+        for (int i = 0; i < QUIZ_ROUNDS; i++) s_quiz_band[i] = i;
+        for (int i = QUIZ_ROUNDS - 1; i > 0; i--) {      // Fisher-Yates
+            int j = (int)(ui_rand() % (uint32_t)(i + 1));
+            int t = s_quiz_band[i]; s_quiz_band[i] = s_quiz_band[j]; s_quiz_band[j] = t;
+        }
+    }
+    {
+        const int b  = s_quiz_band[s_quiz_round];
+        const int lo = b * s_count / QUIZ_ROUNDS;
+        const int hi = (b + 1) * s_count / QUIZ_ROUNDS;
+        s_quiz_pos = lo + (int)(ui_rand() % (uint32_t)(hi - lo));
+    }
     s_quiz_correct = (int)(ui_rand() % 4);
 #endif
     s_quiz_asked[s_quiz_round] = s_quiz_pos;
@@ -741,8 +761,17 @@ static void words_screen(void)
     // rather than the full 704 -- the same arrangement the quiz uses for its
     // round counter, and for the same reason: without it the longer titles run
     // straight through the chip.
-    wt_title_fit(s_scr, 650);
+    wt_title_fit(s_scr, 594);
     wt_help_chip(s_scr, 722, 24, MUT_COL, words_help_cb, NULL);
+
+    // The verdict belongs HERE. The checksum held the only tick in the flow, on
+    // an explainer most owners never open, while the screen everyone copies
+    // from showed no verdict at all -- so the one place the fact matters was
+    // the one place it was missing. These twelve add up; say so where they are
+    // being read off the glass, and let the "?" beside it explain why.
+    lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
+    lv_obj_update_layout(okc);
+    lv_obj_set_pos(okc, 706 - lv_obj_get_width(okc), 30);
 
     const int first = s_wpage * WORDS_PER_PAGE;
     int on = s_count - first;
@@ -1181,12 +1210,19 @@ static void tap_only_cb(lv_event_t *e)
     tap_screen();
 }
 
+// method_screen, not choose_screen. The three methods are siblings reached from
+// one screen, and their back pills went three different places: BLIND DRAW back
+// one, this one back TWO (straight past the screen the owner had just used to
+// get here), and dice out of setup altogether. Nothing is stored on any of the
+// three, so leaving costs the same in each and they now all return to the
+// screen they were opened from. Abandoning setup is what the chooser's own
+// CANCEL is for.
 static void ent_back_cb(lv_event_t *e)
 {
     (void)e;
     if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
     camera_entropy_stop();
-    choose_screen();
+    method_screen();
 }
 
 // The explainer overlay is being torn down: put the camera screen back, with a
@@ -2235,7 +2271,9 @@ static void dice_done_cb(lv_event_t *e)
     dice_commit();
 }
 
-static void dice_cancel_cb(lv_event_t *e) { kiss_dice_reset(); cancel_cb(e); }
+// Rolls are discarded, the same as the taps and the typed words the other two
+// methods drop on their way out. See ent_back_cb.
+static void dice_back_cb(lv_event_t *e) { kiss_dice_reset(); goto_method_cb(e); }
 
 static void dice_screen_build(void)
 {
@@ -2315,9 +2353,9 @@ static void dice_screen_build(void)
     // judge gated, so a stray tap there does nothing until the roll is real.
     // UNDO is 200, not the 140 it wore unmeasured: DESHACER, DESFAZER and
     // HOÀN TÁC all fell to font14 at 140, and the row has the slack.
-    // 48, not the corner: dice_cancel_cb throws the whole roll set away on one
+    // 48, not the corner: dice_back_cb throws the whole roll set away on one
     // tap with no confirm. See the exemption in kiss_theme.h.
-    mk_pill(tr(STR_C_CANCEL), 48, WT_ACTION_Y, 160, dice_cancel_cb, NULL);
+    mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, dice_back_cb, NULL);
     mk_pill(tr(STR_W_DICE_UNDO), 280, WT_ACTION_Y, 200, dice_undo_cb, NULL);
     s_dice_done = mk_pill(tr(STR_C_DONE), 552, WT_ACTION_Y, 200, dice_done_cb, NULL);
     dice_refresh();
