@@ -12,9 +12,11 @@
 #include <stdlib.h>
 
 #include <wally_core.h>
+#include <wally_bip32.h>
 #include <wally_psbt.h>
 #include <wally_psbt_members.h>
 #include <wally_map.h>
+#include <wally_script.h>
 
 #include "sp_test_vectors.h"
 #include "sp_spend_vectors.h"
@@ -947,6 +949,156 @@ done:
     if (fake) wally_tx_free(fake);
 }
 
+// Walk one embit-style PSBT map: keypairs (varint keylen, key, varint vallen,
+// value) until a zero keylen -- embit's fork writes no field-count varint.
+// Reports the value offset of the first field with `want` as its one-byte key.
+// Returns the offset just past the map's terminator, or 0 on a malformed map.
+static size_t sp_map_end(const uint8_t *b, size_t n, size_t i, uint8_t want,
+                         size_t *want_val_off)
+{
+    if (want_val_off) *want_val_off = 0;
+    while (i < n) {
+        size_t kl = b[i++];
+        if (kl == 0) return i;
+        if (i + kl > n) return 0;
+        bool hit = kl == 1 && b[i] == want;
+        i += kl;
+        if (i + 1 > n) return 0;
+        size_t vl = b[i++];
+        if (i + vl > n) return 0;
+        if (hit && want_val_off) *want_val_off = i;
+        i += vl;
+    }
+    return 0;
+}
+
+// The unproven-inputs fee caution must fire on a MIXED send: a BIP376 input
+// (received silent-payment coin, amount covered by the BIP341 sighash) spent
+// alongside our own P2WPKH input that carries only a witness_utxo (amount
+// covered by BIP143 alone). A coordinator can run two signing sessions with
+// different amounts on that P2WPKH input, combine the signatures, and
+// broadcast a fee neither screen showed. The whole-transaction suppression
+// (`!sp_send`) used to silence exactly this shape; the caution now keys off
+// the inputs themselves (see kiss_psbt.c).
+//
+// The fixture is the pinned BIP376 spend (SPV_SPEND_EVEN_B64) with a second
+// input map spliced in: embit-style PSBT maps have no field-count varint
+// (key/value pairs until the 0x00 terminator), so inserting one requires
+// locating the first input map's end. The P2WPKH input's keypath + script
+// are re-derived from the session master, so ownership holds and only the
+// unproven-amount caution can fire. The output amount is patched to keep the
+// fee at 5000 (in 300000, out 295000).
+static void sp_test_mixed_unproven(void) {
+    const struct ext_key *master = kiss_session_master();
+    uint8_t raw[4096], mixed[4096];
+    size_t raw_len = 0;
+    if (!master ||
+        wally_base64_to_bytes(SPV_SPEND_EVEN_B64, 0, raw, sizeof raw, &raw_len) != WALLY_OK ||
+        !raw_len) {
+        spchk("mixed fixture decodes", 0);
+        return;
+    }
+    size_t in_count_off = 0, ins_end = 0, amt_off = 0;
+    size_t i = 5;                                     // "psbt\xff"
+    i = sp_map_end(raw, raw_len, i, 0x04, &in_count_off);   // globals: INPUT_COUNT
+    i = sp_map_end(raw, raw_len, i, 0xff, NULL);            // input 0 map
+    ins_end = i;
+    if (!i) {
+        spchk("mixed fixture layout found", 0);
+        return;
+    }
+    i = sp_map_end(raw, raw_len, i, 0x03, &amt_off);        // output map: AMOUNT
+    if (!i || !in_count_off || !ins_end || !amt_off) {
+        spchk("mixed fixture layout found", 0);
+        return;
+    }
+    spchk("mixed fixture layout found", 1);
+
+    // The second input's keypath + script, re-derived from the session master
+    // (dev seed, testnet): m/84'/1'/0'/0/0.
+    uint32_t path[5] = { 84 + BIP32_INITIAL_HARDENED_CHILD,
+                         1 + BIP32_INITIAL_HARDENED_CHILD,
+                         BIP32_INITIAL_HARDENED_CHILD, 0, 0 };
+    struct ext_key k;
+    struct ext_key m = *master;
+    uint8_t fp[4];
+    if (bip32_key_from_parent_path(master, path, 5, BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK ||
+        bip32_key_get_fingerprint(&m, fp, sizeof fp) != WALLY_OK) {
+        spchk("mixed P2WPKH key derives", 0);
+        return;
+    }
+    uint8_t scr[22];
+    size_t scr_len = 0;
+    if (wally_witness_program_from_bytes(k.pub_key, 33, WALLY_SCRIPT_HASH160,
+                                         scr, sizeof scr, &scr_len) != WALLY_OK ||
+        scr_len != 22) {
+        wally_bzero(&k, sizeof k);
+        spchk("mixed P2WPKH key derives", 0);
+        return;
+    }
+    uint8_t extra[256];
+    size_t x = 0;
+    // witness_utxo: key 0x01, value = 8-byte value LE + varint scriptlen + script
+    extra[x++] = 0x01; extra[x++] = 0x01;
+    extra[x++] = (uint8_t)(8 + 1 + scr_len);
+    for (int b = 0; b < 8; b++) extra[x++] = (uint8_t)(200000ULL >> (8 * b));
+    extra[x++] = (uint8_t)scr_len;
+    memcpy(extra + x, scr, scr_len); x += scr_len;
+    // bip32_derivation: key 0x06||pubkey, value = fp || path (LE32 x5)
+    extra[x++] = (uint8_t)(1 + 33);
+    extra[x++] = 0x06;
+    memcpy(extra + x, k.pub_key, 33); x += 33;
+    extra[x++] = (uint8_t)(4 + 5 * 4);
+    memcpy(extra + x, fp, 4); x += 4;
+    for (int d = 0; d < 5; d++)
+        for (int b = 0; b < 4; b++)
+            extra[x++] = (uint8_t)(path[d] >> (8 * b));
+    // prev txid / vout / sequence: the v2 fields every input must carry
+    extra[x++] = 0x01; extra[x++] = 0x0e; extra[x++] = 32;
+    memset(extra + x, 0xbe, 32); x += 32;
+    extra[x++] = 0x01; extra[x++] = 0x0f; extra[x++] = 4;
+    extra[x++] = 1; extra[x++] = 0; extra[x++] = 0; extra[x++] = 0;
+    extra[x++] = 0x01; extra[x++] = 0x10; extra[x++] = 4;
+    extra[x++] = 0xfe; extra[x++] = 0xff; extra[x++] = 0xff; extra[x++] = 0xff;
+    extra[x++] = 0;                                    // map terminator
+    wally_bzero(&k, sizeof k);
+
+    // splice: globals + input 0 + new input + rest
+    size_t n = 0;
+    memcpy(mixed + n, raw, ins_end); n += ins_end;
+    memcpy(mixed + n, extra, x); n += x;
+    memcpy(mixed + n, raw + ins_end, raw_len - ins_end); n += raw_len - ins_end;
+    mixed[in_count_off] = 2;                           // INPUT_COUNT: 1 -> 2
+    // output AMOUNT: 95000 -> 295000 (in 300000, fee stays 5000). The offset
+    // was measured in the unspliced buffer, so shift by the inserted map.
+    for (int b = 0; b < 8; b++)
+        mixed[amt_off + x + b] = (uint8_t)(295000ULL >> (8 * b));
+
+    wpsbt_summary_t sum;
+    uint8_t out1[4096], out2[4096];
+    size_t w1 = 0, w2 = 0;
+    kiss_set_network(1);
+    int rc = kiss_psbt_load(mixed, n, &sum);
+    if (rc != 0) printf("  mixed load rc=%d\n", rc);
+    else if (sum.status != WPSBT_CAUTION)
+        printf("  mixed status=%d reason=%s\n", sum.status, sum.reason);
+    spchk("mixed counts 1 BIP376 + 1 P2WPKH input",
+          sum.n_in == 2 && sum.n_sp_in == 1);
+    spchk("mixed fee math", sum.in_sats == 300000 && sum.fee_sats == 5000 &&
+          sum.send_sats + sum.change_sats == 295000);
+    spchk("unproven-inputs caution fires", sum.caution_flags == WPSBT_C_UNPROVEN_IN &&
+          strstr(sum.reason, "not proven") != NULL);
+
+    spchk("mixed sign rc", kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
+    kiss_psbt_free();
+    rc = kiss_psbt_load(mixed, n, &sum);
+    spchk("mixed re-load CAUTION", rc == 0 && sum.status == WPSBT_CAUTION);
+    spchk("mixed re-sign rc", kiss_psbt_sign(out2, sizeof out2, &w2) == 0);
+    spchk("mixed sign is deterministic", w1 == w2 && memcmp(out1, out2, w1) == 0);
+    kiss_psbt_free();
+    kiss_set_network(0);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
@@ -964,5 +1116,6 @@ int test_sp(void) {
     sp_test_sparrow_spend();
     sp_test_spend_explicit_sighash();
     sp_test_spend_stapled_prevtx();
+    sp_test_mixed_unproven();
     return sp_fails;
 }

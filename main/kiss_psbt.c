@@ -900,15 +900,14 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
     s->n_unproven_in = nunproven;
     s->n_in_addr = nseen;
-    // BIP375 silent-payment sends remove two cautions that cannot apply.
-    // A BIP-376 SP PSBT never carries the previous transactions — proving the
-    // input amounts is a property of the format, not an omission of the
-    // coordinator — and the inputs being spent together are the coins this
-    // signer's own scan already linked, so "merging" adds no information.
-    // The owner's review on the screen is the recipient and the fee either
-    // way; for everything else (non-SP spends) both cautions stay exactly as
-    // they are.
-    const bool sp_send = (s_sp.n > 0 || s->n_sp_in > 0);
+    // BIP376 inputs are exempt from the two cautions below, and only them.
+    // The format never carries the previous transactions (proving the input
+    // amounts is a property of BIP341, not an omission of the coordinator),
+    // and the coins being spent together are the ones this signer's own scan
+    // already linked, so "merging" adds no information. A silent-payment SEND
+    // that also spends ordinary P2WPKH inputs is not exempt: those inputs are
+    // neither provably priced nor scan-linked, so the cautions apply to them
+    // exactly as they do in any other transaction.
     // The fee on the screen is a subtraction, and every input amount is a term in
     // it. BIP143 commits only to the amount of the input being signed, so with
     // two or more inputs a coordinator can run two signing sessions, declare a
@@ -922,7 +921,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // invalidates it. Everything else is the owner's call, which is what a
     // CAUTION is for -- and a coordinator that attaches the previous transactions
     // clears it outright, because then there is nothing left to lie about.
-    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0 && !sp_send)
+    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
         caution(s, WPSBT_C_UNPROVEN_IN, "input amounts not proven - fee may be higher");
 
     // Merging coins is the one privacy loss a signer can see coming and the one
@@ -937,7 +936,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // owner as far as anyone watching is concerned, and warning about them
     // spends the owner's attention on a loss that happened when the address was
     // reused. What this counts is what the transaction actually gives away.
-    if (s->n_in_addr >= WPSBT_MERGE_INS && !sp_send)
+    if (s->n_in_addr >= WPSBT_MERGE_INS && s->n_in != s->n_sp_in)
         caution(s, WPSBT_C_MERGE_INS, "merging many coins (privacy)");
 
     // ---- outputs: re-derive change ourselves; never trust "this is change" ----
