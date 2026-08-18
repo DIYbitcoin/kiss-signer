@@ -3235,11 +3235,17 @@ int main(void) {
                                                     // 40 = the staggered card
                                                     // intro fully settled
   save("/tmp/sim_setup_ent_why.ppm");               // WHY THREE SOURCES, icon grid
-  // No PROVE IT detour here any more: the audit moved to Settings (its walk
-  // stops are on the WAYS IN page path), and the explainer card's text still
-  // names the doubt the audit answers. Close the card and carry on.
+  // Close the explainer, then take the audit door that came back to this
+  // action row: the pill hands the camera over, runs the same proof screens
+  // the Settings path photographs at length, and DONE rebuilds the entropy
+  // screen live -- which is the one new claim this stop exists to check.
   touch(400, 40); pump(3); release(); pump(20);     // tap anywhere -> closes
   pump(20);                                         // entropy screen rebuilds
+  tap_str(STR_W_AUD_T, 3, 8);           // AUDIT, mid-wizard -> capture screen
+  save("/tmp/sim_setup_ent_audit.ppm");             // the proof, reached from here
+  tap_str(STR_C_BACK, 3, 8);            // BACK -> pf_exit -> done cb
+  pump(20);                                         // -> entropy screen, rebuilt
+  must_show("ent/audit-return", tr(STR_W_ENT_CAPTURE));
 
   // TAP TO ADD RANDOMNESS, and the refusal behind it. Both were NEVER OPENED:
   // the walk stopped at the entropy screen and backed out, so source 3 -- the

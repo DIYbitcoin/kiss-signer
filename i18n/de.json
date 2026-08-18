@@ -608,7 +608,7 @@
   "W_PROOF_WORDS_BTN": "WÖRTER ZEIGEN",
   "W_AUD_T": "AUDIT",
   "W_AUD_S": "ask the signer to prove a part of itself. nothing leaves it.",
-  "W_AUD_CAM_SUB": "one photo becomes seed words you can recheck on any computer.",
+  "W_AUD_CAM_SUB": "proves the recipe with a throwaway photo. its words are public, never for funds.",
   "W_AUD_RNG_SUB": "5000 numbers from the chip, counted into piles. a fair chip fills them evenly.",
   "W_RNG_T": "RANDOMNESS AUDIT",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",

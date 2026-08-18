@@ -1226,6 +1226,7 @@ static void ent_back_cb(lv_event_t *e)
     method_screen();
 }
 
+
 // The explainer overlay is being torn down: put the camera screen back, with a
 // fresh meter. Deferred by one tick, because entropy_screen() replaces the
 // screen whose delete event is running right now.
@@ -1237,6 +1238,23 @@ static void ent_mix_closed_cb(lv_event_t *e)
     if (t) lv_timer_set_repeat_count(t, 1);
 }
 #endif
+
+// The camera audit, opened from the entropy screen itself. The camera is
+// handed over whole -- entropy stream stopped before the proof stream can
+// start -- and the done cb rebuilds this screen live, which is the
+// entropy_screen fallback pf_exit always documented as waiting for a
+// mid-wizard caller. Abandoned partial entropy costs nothing: a re-entered
+// session starts its chain fresh by design (camera_entropy_start).
+static void ent_audit_done(void) { entropy_screen(); }
+static void ent_audit_cb(lv_event_t *e)
+{
+    (void)e;
+#ifndef SIMULATOR
+    if (s_ent_tmr) { lv_timer_delete(s_ent_tmr); s_ent_tmr = NULL; }
+    camera_entropy_stop();
+#endif
+    kiss_setup_open_audit(s_parent, ent_audit_done);
+}
 
 // One glyph per body line, in order: the lens, the chip, the hand's tap, and
 // the dice the fourth line sends an unconvinced reader to (the same LIST glyph
@@ -2456,10 +2474,18 @@ static void entropy_screen(void)
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     s_ent_cr = wt_chip(row, tr(STR_W_ENT_RESULT), false);
 
-    // The audit lived in this action row once; it lives in Settings now.
+    // The audit is back in this action row -- as a door, not a stage. It was
+    // moved out because the wizard must not HOLD a 0.5MB card write; a pill
+    // the owner taps is the owner accepting that wait, and this screen is the
+    // exact moment of doubt the WHY THREE SOURCES card names. Settings keeps
+    // its copy for auditing on any ordinary day. Same 140px eye pill as
+    // Settings draws, in the bar's free middle; not built when the camera is
+    // dead, because the proof has nothing to photograph a claim with.
 #ifdef SIMULATOR
     (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
+    wt_pill_icon(s_scr, LV_SYMBOL_EYE_OPEN, tr(STR_W_AUD_T),
+                 460, WT_ACTION_Y, 140, WT_ACTION_H, ent_audit_cb, NULL);
     s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                             sim_entropy_cb, NULL);
     wt_pill_primary(s_ent_capture);
@@ -2476,6 +2502,8 @@ static void entropy_screen(void)
         lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // any tap = capture try
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
         if (!s_ent_tmr) s_ent_tmr = lv_timer_create(ent_poll_cb, 80, NULL);
+        wt_pill_icon(s_scr, LV_SYMBOL_EYE_OPEN, tr(STR_W_AUD_T),
+                     460, WT_ACTION_Y, 140, WT_ACTION_H, ent_audit_cb, NULL);
         s_ent_capture = mk_pill(tr(STR_W_ENT_CAPTURE), WT_ACT_X, WT_ACTION_Y, 300,
                                 ent_tap_cb, NULL);
         wt_pill_primary(s_ent_capture);
