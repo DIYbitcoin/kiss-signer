@@ -2096,18 +2096,35 @@ static void game_tick(lv_timer_t *t) {
       // before. On the top layer, so it floats over whatever screen is up and
       // needs no screen's cooperation; deleted on the touch that dismisses it,
       // on the lock it precedes, and by kiss_lock's own layer sweep.
+      // A DIM, not just a toast -- the idiom every phone taught: a darkened
+      // screen means "about to sleep" before any word is read, in every
+      // locale. The scrim is also the safety half of the design. The raw
+      // handler above dismisses on any press, but that same press flows on
+      // into LVGL and lands on whatever control is under the finger -- so
+      // "tap to stay open" was an invitation to press a live row, or start a
+      // hold, blind. CLICKABLE on the scrim swallows the press before any
+      // control beneath sees it: the waking tap wakes, and does nothing else.
+      // (The dismiss itself never depended on LVGL -- the handler reads the
+      // panel directly -- which is why swallowing costs nothing.)
       s_lock_warn = lv_obj_create(lv_layer_top());
       lv_obj_remove_style_all(s_lock_warn);
-      lv_obj_set_size(s_lock_warn, 420, 56);
-      lv_obj_align(s_lock_warn, LV_ALIGN_TOP_MID, 0, 8);
-      lv_obj_set_style_radius(s_lock_warn, 10, 0);
-      lv_obj_set_style_bg_color(s_lock_warn, WT_PANEL, 0);
-      lv_obj_set_style_bg_opa(s_lock_warn, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(s_lock_warn, 2, 0);
-      lv_obj_set_style_border_color(s_lock_warn, WT_WARN, 0);
-      lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_set_size(s_lock_warn, LV_PCT(100), LV_PCT(100));
+      lv_obj_set_style_bg_color(s_lock_warn, lv_color_black(), 0);
+      lv_obj_set_style_bg_opa(s_lock_warn, LV_OPA_60, 0);
+      lv_obj_add_flag(s_lock_warn, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_SCROLLABLE);
-      lv_obj_t *l = wt_lbl(s_lock_warn, tr(STR_C_LOCK_SOON), 0, 0,
+      lv_obj_t *card = lv_obj_create(s_lock_warn);
+      lv_obj_remove_style_all(card);
+      lv_obj_set_size(card, 420, 56);
+      lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 8);
+      lv_obj_set_style_radius(card, 10, 0);
+      lv_obj_set_style_bg_color(card, WT_PANEL, 0);
+      lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+      lv_obj_set_style_border_width(card, 2, 0);
+      lv_obj_set_style_border_color(card, WT_WARN, 0);
+      lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+      lv_obj_t *l = wt_lbl(card, tr(STR_C_LOCK_SOON), 0, 0,
                            wt_font23(), WT_WARN);
       lv_obj_center(l);
     }
