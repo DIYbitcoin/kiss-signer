@@ -2572,7 +2572,25 @@ static void restore_kb_cb(lv_event_t *e)
     }
     size_t pl = strlen(s_prefix);
     if (strcmp(txt, LV_SYMBOL_BACKSPACE) == 0) {
-        if (pl) s_prefix[pl - 1] = 0;
+        if (pl) {
+            s_prefix[pl - 1] = 0;
+        } else if (s_nw > 0) {
+            // Empty field: step back a WORD. Backspace at the start of a field
+            // going to the previous field is what every keyboard the owner has
+            // ever used does, so it needs no control and no label.
+            //
+            // Without it one typo meant retyping all twelve, and the screen it
+            // hurts most is the backup rehearsal -- the optional step that
+            // proves the paper works. Making the only way out of a slip
+            // "start over" is how an owner learns to skip it.
+            //
+            // The word comes back as the prefix rather than vanishing, so the
+            // suggestions reopen on what was typed and it can be corrected or
+            // deleted a letter at a time.
+            s_nw--;
+            snprintf(s_prefix, sizeof s_prefix, "%s", s_w[s_nw]);
+            s_w[s_nw][0] = 0;
+        }
     } else if (strlen(txt) == 1 && pl + 1 < sizeof s_prefix) {
         s_prefix[pl] = txt[0];
         s_prefix[pl + 1] = 0;

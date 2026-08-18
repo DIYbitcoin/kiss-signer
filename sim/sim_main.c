@@ -2205,7 +2205,7 @@ int main(void) {
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
   must_show("address card/title", tr(STR_R_VT));
-  must_show("address card/addr", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");   // every character, on the card
+  must_show("address card/addr", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");   // every character, on the card
   must_show("address card/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
 
@@ -2223,7 +2223,7 @@ int main(void) {
   // address lane and could not be pressed at all. The FULL grouped address
   // exists only on the address card (the verify screen behind both shows the
   // fold), so its absence is what says this is a different card.
-  must_not_show("rbf card/not the address card", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
+  must_not_show("rbf card/not the address card", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
   tap_str(STR_S_DETAILS, 3, 6);     // DETAILS -> raw facts page
   save("/tmp/sim_sign_details.ppm");
@@ -2255,7 +2255,7 @@ int main(void) {
   // locales in which this card never opened at all. Same needle the RBF card
   // uses forty lines up, for the same reason.
   must_show("details row/full addr",
-            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ff kz");
+            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
   must_show("details row/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);            // OK closes the card
   // Each term answers for itself now. The sighash chip is the one worth

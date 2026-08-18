@@ -582,10 +582,22 @@ static void words_render_page(int page)
     // floating on the page gave them nothing to keep their place against. The
     // cards are sized from `rows`, not from a constant: the last page of a 24
     // word mnemonic has fewer rows than the first.
-    const int WROW = 46;
+    // 42, not 46. The four pixels a row gives back are what open the band under
+    // the cards, and the screen needed it: twelve words in two boxes and
+    // nothing else never said WHICH keys they are, on the one screen where
+    // that is the whole question. A holder with two signers, or a passphrase
+    // and a decoy, had no way to tell one word list from another.
+    const int WROW = 42;
     const int card_h = rows * WROW + 12;
     lv_obj_t *col[2] = { wt_card(s_scr, 48, 96, 344, card_h), NULL };
     if (on > rows) col[1] = wt_card(s_scr, 408, 96, 344, card_h);
+
+    // The same verdict WRITE THESE DOWN carries. These words came off a stored
+    // seed, so their checksum holds by construction -- saying so is what stops
+    // a holder wondering whether a word they cannot read is a word gone wrong.
+    lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
+    lv_obj_update_layout(okc);
+    lv_obj_set_pos(okc, 752 - lv_obj_get_width(okc), 30);
 
     const char *p = words;
     for (int i = 0; i < n && *p; i++) {
@@ -601,6 +613,22 @@ static void words_render_page(int page)
         wt_lbl(col[c], buf, 14, 12 + r * WROW, wt_font28(), WT_INK);
     }
     kiss_wipe(words, sizeof words);
+
+    // Which keys these words open, under the list, in the band the tighter rows
+    // paid for. Guarded the same way every other fingerprint on the device is:
+    // zero is "no keys open", never a code to copy down.
+    {
+        uint8_t fp[4];
+        kiss_ui_last_fp(fp);
+        if ((fp[0] | fp[1] | fp[2] | fp[3]) != 0) {
+            char b[48];
+            snprintf(b, sizeof b, "%s  %02X%02X%02X%02X", tr(STR_L_FP_CAP),
+                     fp[0], fp[1], fp[2], fp[3]);
+            lv_obj_t *l = wt_lbl(s_scr, b, 48, 96 + card_h + 10, wt_font23(), WT_MUT);
+            lv_obj_set_width(l, 704);
+            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        }
+    }
 
     if (pages > 1) {
         char cnt[40];

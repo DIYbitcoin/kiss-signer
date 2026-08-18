@@ -1878,20 +1878,44 @@ const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
 // the guess was never load bearing -- it only ever made the font smaller than
 // the block would have allowed. This measures the same thing the same way, at
 // the same font, so the two agree by construction.
+// A why-block heading is HALF THE CLAIM, not a unit suffix. It was pinned at
+// font14 whatever the body did, so a pair set at font28 wore labels less than
+// half the size of the sentence under them -- reported from the bench as small
+// text more than once, on screens whose bodies were already correct. The rung
+// now follows the body: only a font14 body keeps a font14 heading.
+const lv_font_t *wt_why_head_font(const lv_font_t *body)
+{
+    return body == wt_font14() ? wt_font14() : wt_font23();
+}
+
+// Two passes, because the sizes depend on each other: a bigger heading eats the
+// room the body is measured against, and the heading's size is decided BY that
+// body. Assume the taller heading first; if the body still lands on font14,
+// remeasure with the font14 heading it will actually get, which can only give
+// room back. It terminates -- there are two heading rungs and the second is
+// strictly smaller.
 const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
                                     const char *h2, const char *b2,
                                     int w, int max_h)
 {
-    lv_point_t s1 = {0, 0}, s2 = {0, 0};
-    if (h1 && *h1)
-        lv_text_get_size(&s1, h1, wt_font14(), 0, 0, w, LV_TEXT_FLAG_NONE);
-    if (h2 && *h2)
-        lv_text_get_size(&s2, h2, wt_font14(), 0, 0, w, LV_TEXT_FLAG_NONE);
-    int head = s1.y > s2.y ? s1.y : s2.y;
-    if (head) head += 6;                  // wt_why_block's own heading gap
-    int room = max_h - head;
-    if (room < 40) room = 40;
-    return wt_body_font2(b1, b2, w, room);
+    const lv_font_t *hf = wt_font23();
+    const lv_font_t *f  = NULL;
+    for (int pass = 0; pass < 2; pass++) {
+        lv_point_t s1 = {0, 0}, s2 = {0, 0};
+        if (h1 && *h1)
+            lv_text_get_size(&s1, h1, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
+        if (h2 && *h2)
+            lv_text_get_size(&s2, h2, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
+        int head = s1.y > s2.y ? s1.y : s2.y;
+        if (head) head += 6;              // wt_why_block's own heading gap
+        int room = max_h - head;
+        if (room < 40) room = 40;
+        f = wt_body_font2(b1, b2, w, room);
+        const lv_font_t *want = wt_why_head_font(f);
+        if (want == hf) break;
+        hf = want;
+    }
+    return f;
 }
 
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
@@ -1909,7 +1933,9 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
     // string in twenty one locales for decoration.
     int by = 0;
     if (head && *head) {
-        lv_obj_t *h = wt_lbl(box, head, 14, 0, wt_font14(), WT_INK);
+        lv_obj_t *h = wt_lbl(box, head, 14, 0,
+                             wt_why_head_font(f ? f : wt_body_font(body, w - 14, max_h)),
+                             WT_INK);
         lv_obj_set_width(h, w - 14);
         lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
         lv_obj_update_layout(h);
@@ -3325,8 +3351,18 @@ void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;
     if (!out || !out_len) return;
+    // A trailing group of one or two characters JOINS the group before it. An
+    // address is rarely a multiple of four -- a 42 character bech32 leaves two
+    // -- and that stub is a separate token, so a line that is one group too
+    // long wraps it alone: the verify screen showed forty characters on one
+    // line and "kz" on the next, which reads as the address being cut off.
+    // Merged, the last token is five or six characters and there is no orphan
+    // to strand. Nothing is dropped and no other group changes.
+    size_t n = strlen(in);
+    size_t rem = n % 4;
+    size_t last = (rem == 1 || rem == 2) && n > 4 ? n - rem - 4 : n;
     for (size_t i = 0; in[i]; i++) {
-        size_t need = (i && i % 4 == 0) ? 2u : 1u;
+        size_t need = (i && i % 4 == 0 && i <= last) ? 2u : 1u;
         if (o + need + 1 > out_len) break;          // +1 keeps room for the NUL
         if (need == 2) out[o++] = ' ';
         out[o++] = in[i];

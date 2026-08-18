@@ -690,6 +690,8 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h);
 // Same, for a pair of why-blocks WITH headings. Measures the headings rather
 // than charging the caller a constant for the worst case they might reach.
+// The heading rung a why-block body implies: font14 only when the body is.
+const lv_font_t *wt_why_head_font(const lv_font_t *body);
 const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
                                     const char *h2, const char *b2,
                                     int w, int max_h);
