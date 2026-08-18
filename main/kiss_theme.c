@@ -1179,6 +1179,22 @@ static void qr_state_delete_cb(lv_event_t *e)
     lv_free(s);
 }
 
+// A QR whose payload could not be derived must VANISH, not encode the failure.
+// Five screens fed tr(STR_C_SESSION_LOCKED) straight into wt_qr_update when a
+// locked session refused them, so the device showed a scannable code whose
+// content was the words "SESSION LOCKED" -- on RECEIVE that is the square a
+// sender is invited to scan as a payment address. Hiding the CARD is the
+// contract: a blank white card reads as a broken render, and the qr alone is
+// not the tap target, its card is.
+void wt_qr_refusal(lv_obj_t *qr, bool locked)
+{
+    if (!qr) return;
+    lv_obj_t *card = lv_obj_get_parent(qr);
+    if (!card) return;
+    if (locked) lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+    else        lv_obj_remove_flag(card, LV_OBJ_FLAG_HIDDEN);
+}
+
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
                      int x, int y, int card_px, int qr_px)
 {

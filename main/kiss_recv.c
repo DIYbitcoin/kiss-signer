@@ -142,12 +142,25 @@ void kiss_recv_close(void) { close_cb(NULL); }   // idle auto-lock path
 static void recv_refresh(void) {
   char addr[91];
   int rc = kiss_session_address(0, s_idx, addr, sizeof(addr));
-  if (rc != 0)
-    snprintf(addr, sizeof(addr), "%s", tr(STR_C_SESSION_LOCKED));
-  if (s_qr)
-    wt_qr_update(s_qr, addr, (uint32_t)strlen(addr));
+  // Refused = no QR. This square is the one a SENDER is invited to scan, and
+  // the failure string used to go straight through wt_qr_update -- a scannable
+  // code whose content was the words "SESSION LOCKED", offered as a payment
+  // address. The words render once, in the address card, as a state.
+  wt_qr_refusal(s_qr, rc != 0);
   char grouped[120];
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
+  if (rc != 0) {
+    lv_obj_t *par0 = s_addr_card ? s_addr_card : s_scr;
+    s_addr_sg = wt_lbl(par0, tr(STR_C_SESSION_LOCKED), 14, 10,
+                       wt_font23(), WT_WARN);
+  } else
+  // The caption goes with the address it captions: "compare the lit
+  // characters" under a state word is an instruction with no object.
+  if (s_cmp_lbl) lv_obj_remove_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
+  if (rc != 0 && s_cmp_lbl) lv_obj_add_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
+  if (rc == 0)
+  if (s_qr)
+    wt_qr_update(s_qr, addr, (uint32_t)strlen(addr));
 
   // FOLDED by default, and folded is the same one line the address list draws:
   // constant prefix and middle muted, the four characters after the prefix and
@@ -160,7 +173,9 @@ static void recv_refresh(void) {
   // address the entire time. Same fold that the silent payment screen has always
   // had, so it is one behaviour on both address screens rather than two.
   lv_obj_t *par = s_addr_card ? s_addr_card : s_scr;
-  if (s_addr_full) {
+  if (rc != 0) {
+    // rendered above; nothing address-shaped to fold
+  } else if (s_addr_full) {
     wt_group4(addr, grouped, sizeof(grouped));
     s_addr_sg = wt_addr_spans(par, grouped, RECV_CARD_W - 28, RECV_ADDR_FONT);
   } else {
@@ -600,9 +615,14 @@ static void sp_addr_open(lv_obj_t *parent) {
   // module scale while preserving a real white quiet zone around it.
   wt_qr_card(s_scr, &s_qr, 44, 96, 304, 280);
 
-  if (kiss_session_sp_address(s_sp_addr, sizeof(s_sp_addr)) != 0)
+  // Same refusal contract as recv_refresh: this QR exists to be scanned by
+  // somebody else's phone, so a failed derivation hides it rather than encoding
+  // the failure. The state still lands in s_sp_addr for the text lane, where
+  // words reading as words is the point.
+  if (kiss_session_sp_address(s_sp_addr, sizeof(s_sp_addr)) != 0) {
     snprintf(s_sp_addr, sizeof(s_sp_addr), "%s", tr(STR_C_SESSION_LOCKED));
-  if (s_qr)
+    wt_qr_refusal(s_qr, true);
+  } else if (s_qr)
     wt_qr_update(s_qr, s_sp_addr, (uint32_t)strlen(s_sp_addr));
 
   // WT_INK for the same reason as the other two paths: on this panel WT_MUT is
@@ -805,8 +825,22 @@ static void recv_list_open(void) {
   // while touch still finds them at the unscrolled ones -- tapping the top row
   // did nothing, and tapping empty space 200px lower opened it. Paging picks a
   // first index instead, which needs no scroll to land where it means to.
-  for (uint32_t i = 0; i < RECV_LIST_N; i++)
-    recv_list_row(list, s_list_base + i);
+  // One probe speaks for the whole page: every row derives from the same
+  // session, so a locked one gives twenty rows each wearing SESSION LOCKED in
+  // its address slot -- a list of identical failures dressed as a list of
+  // addresses, every one with a chevron inviting a tap. The state renders
+  // once, as a state.
+  {
+    char probe[91];
+    if (kiss_session_address(0, s_list_base, probe, sizeof probe) != 0) {
+      lv_obj_t *chip = wt_state_chip(list, tr(STR_C_SESSION_LOCKED), WT_WARN);
+      (void)chip;
+      wt_note(s_scr, tr(STR_L_FAIL_OPEN_B), 48, 300, 704, 60);
+    } else {
+      for (uint32_t i = 0; i < RECV_LIST_N; i++)
+        recv_list_row(list, s_list_base + i);
+    }
+  }
 
   // Which slice of the range is on screen. Says OF 100 so the cap is a stated
   // fact rather than the list mysteriously refusing to go further.

@@ -311,6 +311,8 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // card is tappable and has an external "+" cue; tapping opens a crisp,
 // re-encoded full-screen view rather than scaling the original bitmap.
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
+// Hide/show a wt_qr_card by its qr when the payload could not be derived.
+void wt_qr_refusal(lv_obj_t *qr, bool locked);
 // Update a QR created by wt_qr_card. This caches the exact payload for zoom and
 // keeps animated QRs moving while enlarged. Use instead of lv_qrcode_update().
 lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len);

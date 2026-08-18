@@ -302,8 +302,15 @@ static void pair_refresh(void)
     char txt[256];
     int rc = s_pair_fmt ? kiss_session_bw_export(txt, sizeof txt)
                         : kiss_session_descriptor(txt, sizeof txt);
-    if (rc != 0)
-        snprintf(txt, sizeof txt, "%s", tr(STR_C_SESSION_LOCKED));
+    // Refused = no QR at all. The failure string used to go through
+    // wt_qr_update, so a coordinator was offered a scannable code whose
+    // content was the words "SESSION LOCKED" -- an import that fails somewhere
+    // over there instead of being refused here. See wt_qr_refusal.
+    wt_qr_refusal(s_pair_qr, rc != 0);
+    if (rc != 0) {
+        wt_note_fit(s_pair_note, tr(STR_L_FAIL_OPEN_B), 360, 190);
+        return;
+    }
     if (s_pair_qr)
         wt_qr_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
@@ -1002,9 +1009,14 @@ static void info_screen(void)
     // a value slot holds a word. Folded to the head and tail the rest of the
     // device shows: the full form belongs on RECEIVE, which is the screen built
     // for reading one out, and this row's job is to say which wallet you are in.
-    if (kiss_session_address(0, 0, buf, sizeof buf) != 0)
-        snprintf(buf, sizeof buf, "%s", tr(STR_C_SESSION_LOCKED));
-    wt_addr_fold(buf, grouped, sizeof grouped);
+    if (kiss_session_address(0, 0, buf, sizeof buf) != 0) {
+        // The state word, NOT folded. wt_addr_fold keeps a head and a lit tail
+        // with an ellipsis between, which turns SESSION LOCKED into an
+        // address-shaped fragment -- a state must read as a state.
+        snprintf(grouped, sizeof grouped, "%s", tr(STR_C_SESSION_LOCKED));
+    } else {
+        wt_addr_fold(buf, grouped, sizeof grouped);
+    }
     wt_row_f(s_scr, tr(STR_I_SEC_FIRST), grouped, wt_font_mono14(), NULL, NULL,
              WT_INK, WT_LIST_L_X, WT_LIST_Y(3), WT_LIST_W,
              row_help_cb, (void *)"addr");

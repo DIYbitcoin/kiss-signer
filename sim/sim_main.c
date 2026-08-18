@@ -497,7 +497,13 @@ void kiss_session_close(void) {
   kiss_seed_forget();          // real kiss_crypto.c does the same on lock
 }
 int kiss_session_decoy(void) { return s_sim_decoy; }
+// The refusal switch: a locked session refuses every derivation at once. The
+// refusal renders were introduced by fixes to five screens that used to encode
+// the failure string into their QRs; without this switch the sim derives
+// forever and those branches join the states nothing renders.
+static int s_sim_session_locked;
 int kiss_session_address(int change, unsigned int index, char *out, unsigned long len) {
+  if (s_sim_session_locked) return -1;
   if (s_sim_script == 2)                 // legacy 1.../m...
     snprintf(out, len, "%c%s%02u", s_sim_testnet ? 'm' : '1',
              "K3n7xPq2wDeRfGh9jLmNoPqRsTuV", (change * 50 + index) % 100u);
@@ -522,6 +528,7 @@ int kiss_address_validate(const char *addr) {
                                         : WADDR_WRONG_NETWORK;
 }
 int kiss_session_sp_address(char *out, unsigned long len) {
+  if (s_sim_session_locked) return -1;
   snprintf(out, len, "%s", s_sim_testnet
     ? "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n"
     : "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g");
@@ -544,6 +551,7 @@ int kiss_session_bw_export(char *out, unsigned long len) {
   return 0;
 }
 int kiss_session_descriptor(char *out, unsigned long len) {
+  if (s_sim_session_locked) return -1;
   snprintf(out, len, "wpkh([73c5da0a/84h/0h/0h]xpub6CatWdiZiodmUeTDp8LT5or8nmbKNcuy"
                      "vz7WyksVFkKB4RHwCD3XyuvPEbvqAQY3rAPshWcMLoP2fMFMKHPJ4ZeZXYVUhL"
                      "v1VMrjPC7PW6V/<0;1>/*)");
@@ -3104,6 +3112,16 @@ int main(void) {
   save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
   touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row
   save("/tmp/sim_recv_sp_mainnet.ppm");             // sp1, a character shorter
+  tap_str(STR_C_BACK, 3, 6);
+  // The refusals, on the same screens that just rendered working: flip the
+  // lock, rebuild each, and the QR must be GONE -- not a code encoding the
+  // words SESSION LOCKED, which is what these drew before the fix.
+  s_sim_session_locked = 1;
+  tap_str(STR_R_NEXT, 3, 6);     // NEXT rebuilds the detail via recv_refresh
+  save("/tmp/sim_recv_locked.ppm");                 // state in the card, no QR
+  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES -> the list
+  save("/tmp/sim_recv_list_locked.ppm");            // one chip, not twenty rows
+  s_sim_session_locked = 0;
   tap_str(STR_C_BACK, 3, 6);
   tap_str(STR_C_BACK, 3, 4);     // -> home
   // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
