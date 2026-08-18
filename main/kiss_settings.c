@@ -1583,13 +1583,13 @@ void kiss_settings_open(lv_obj_t *parent)
         // is the fix that cannot half work.
         //
         // x=48, the page margin. It sat at 150 only because BACK held the left
-        // corner and 48 was inside it. Three rows from 48 run to about 275, and
-        // the THEME eyebrow does not start until 340.
+        // corner and 48 was inside it.
         //
-        // y=404, the top of the bar, up from 418: the block is three rows now
-        // (see kiss_build_id_make) and 418 put the last one at 462..480, on
-        // the screen edge and below the bar's own fill, which stops at 471.
-        // From 404 the rows are 404, 426 and 448, all of them inside it.
+        // y=404, the top of the bar. TWO rows -- the version alone, then
+        // encryption, radio and randomness sharing the second (see
+        // kiss_build_id_make, which measured three-in-a-row at x=443 and put
+        // the facts side by side instead). Rows land at 404 and 426, both
+        // inside the bar's fill, which stops at 471.
         s_build_id = kiss_build_id_make(s_scr, 48, 404, true, true);
 
         // The THEME control has to be raised above the action bar's floor for

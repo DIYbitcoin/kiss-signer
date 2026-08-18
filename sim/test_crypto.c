@@ -38,6 +38,7 @@ int test_kef(void);
 int test_duress(void);
 int test_gword(void);
 int test_coverword(void);
+int test_rehearse(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
 // sim/test_tapent.c — the tap-entropy fold, debounce and three-way mix
@@ -775,6 +776,7 @@ int main(int argc, char **argv) {
     fails += test_duress();
     fails += test_gword();
     fails += test_coverword();
+    fails += test_rehearse();
     fails += test_passedit();
     fails += test_tapent();
     fails += test_art();

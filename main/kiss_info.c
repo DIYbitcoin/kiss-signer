@@ -23,6 +23,7 @@
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
+#include "kiss_rehearse.h"
 #include "kiss_ui.h"   // kiss_ui_last_fp; the borrowed KEF password keyboard
 #include "platform_sd.h"
 
@@ -457,12 +458,31 @@ static void sp_key_show(void *ud)
     (void)ud;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+
+    // The refusal is its OWN render, decided before anything is drawn. This
+    // used to fall through the success path with the failure string in the
+    // key's place -- so the screen showed a scannable QR that ENCODED the
+    // words "SESSION LOCKED", those words in the machine-import slot, and the
+    // usual coordinator note under them. A coordinator scanning what looks
+    // like a finished export would import garbage. A failed export has no
+    // key, so it draws no QR and nothing that resembles one.
+    //
+    // First rendered by the walk's failure stop; every frame before that was
+    // the success path, which is how the fall-through survived.
+    char key[256];
+    if (kiss_session_sp_scan_export(key, sizeof key) != 0) {
+        lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 140);
+        lv_obj_t *ic = wt_lbl(card, WT_ICON_LOCK, 0, 0, wt_font34(), WT_WARN);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, 28, 0);
+        lv_obj_t *chip = wt_state_chip(card, tr(STR_C_SESSION_LOCKED), WT_WARN);
+        lv_obj_align(chip, LV_ALIGN_LEFT_MID, 92, 0);
+        wt_note(s_scr, tr(STR_L_FAIL_OPEN_B), 48, 296, 704, 90);
+        wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
+        return;
+    }
+
     lv_obj_t *qr = NULL;
     wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
-
-    char key[256];
-    if (kiss_session_sp_scan_export(key, sizeof key) != 0)
-        snprintf(key, sizeof key, "%s", tr(STR_C_SESSION_LOCKED));
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
 
@@ -620,7 +640,7 @@ static void words_render_page(int page)
     {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
-        if ((fp[0] | fp[1] | fp[2] | fp[3]) != 0) {
+        if (kiss_fp_known(fp)) {
             char b[48];
             snprintf(b, sizeof b, "%s  %02X%02X%02X%02X", tr(STR_L_FP_CAP),
                      fp[0], fp[1], fp[2], fp[3]);

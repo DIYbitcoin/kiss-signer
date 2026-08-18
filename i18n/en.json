@@ -36,7 +36,7 @@
   "L_WARN_B": "your passphrase decides WHICH keys\nyour seed words open. a typo opens a\ndifferent set: no error, no recovery.\n\nknow yours by its fingerprint:",
   "L_FP_CAP": "THE ID OF YOUR KEYS",
   "L_FP_NOTE": "your passphrase always opens the keys with this code",
-  "L_FP_NOTE2": "not the code you wrote down?  go back and retype your passphrase",
+  "L_FP_NOTE2": "not the code you know?  go back and retype your passphrase",
   "L_TAP_TO_OPEN": "TAP TO OPEN",
   "L_COUNT_FMT": "characters: %d",
   "L_COUNT_SP_FMT": "characters: %d (spaces: %d)",

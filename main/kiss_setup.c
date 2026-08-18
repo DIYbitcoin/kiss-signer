@@ -22,7 +22,8 @@
 #include "kiss_settings.h"   // kiss_lang_picker_open: first-boot language switch
 #include "kiss_tapent.h"   // source 3: the timing of the user's own taps
 #include "kiss_dice.h"     // alternate path: verifiable off-device dice rolls
-#include "kiss_lastword.h" // cards path: the checksum valid last words
+#include "kiss_lastword.h"
+#include "kiss_rehearse.h" // cards path: the checksum valid last words
 #include "kiss_cards_q.h"  // and whether those words were drawn or chosen
 #include "kiss_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
 #include "platform_sd.h"     // the proof needs a card before it can start
@@ -365,7 +366,7 @@ static void verify_finish(void)
         // in reach this: the setup rehearsal, and WALLET > VERIFY BACKUP later.
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
-        const bool fp_known = (fp[0] | fp[1] | fp[2] | fp[3]) != 0;
+        const bool fp_known = kiss_fp_known(fp);
 
         // Body height follows: 58 is two lines of font23 and leaves the block
         // below its room; with no fingerprint to show, the old 190 is free
@@ -1996,9 +1997,10 @@ static int aside_dice_flow(lv_obj_t *p, int x, int y, int w)
     // the wrong way round. It also skipped the only part they DID: their own
     // rolls, entered by hand, one at a time.
     //
-    // SHA256 has not been hidden. It is in the body of this same card, under
-    // YOURS TO CHECK, where it is defined in the sentence that tells the owner
-    // to recompute it offline -- a term with a definition beside it rather than
+    // SHA256 has not been hidden. It sits on the dice screen itself, under the
+    // bit strip ("SHA256 of your rolls. recompute it offline to check."), where
+    // the reader who wants it already is -- a term with a definition beside it
+    // rather than
     // a chip standing on its own.
     char buf[WT_ICON_TEXT_MAX];
     lv_obj_t *row = wt_diagram_row(col);

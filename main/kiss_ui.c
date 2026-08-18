@@ -10,6 +10,7 @@
 #include "i18n.h"
 #include "kiss_backup.h"  // the paper check, remembered past this session
 #include "kiss_crypto.h"
+#include "kiss_rehearse.h"
 #include "kiss_scan.h"    // kiss_scan_open_raw: passphrase-from-QR
 #include "kiss_duress_ui.h"  // last setup step: which stroke opens which signer
 #include "kiss_seed.h"
@@ -1173,7 +1174,7 @@ static void setup_warn_words_done(void)
   // fingerprint zeroed, which is where an owner's 00000000 came from. For
   // these keys the words ARE the whole backup, so matching them finishes the
   // rehearsal. Same flag setup_warn_screen reads below, for the same reason.
-  if (kiss_session_decoy()) {
+  if (kiss_rehearse_after_words(kiss_session_decoy()) == KISS_REHEARSE_VERIFIED) {
     s_backup_verified = true;
     kiss_backup_mark(s_last_fp);
     wipe_login_secrets();
@@ -1242,8 +1243,7 @@ static void setup_warn_screen(void) {
   // shown 00000000 in a value card captioned FINGERPRINT -- a code that looks
   // real, is not, and would be copied onto paper. kiss_setup.c's BACKUP
   // VERIFIED screen already guards this; this screen did not.
-  const bool fp_known =
-      (s_last_fp[0] | s_last_fp[1] | s_last_fp[2] | s_last_fp[3]) != 0;
+  const bool fp_known = kiss_fp_known(s_last_fp);
 
   // Both warning bodies END with "know yours by its fingerprint:", which is a
   // sentence that introduces the card below it. With no fingerprint to show
@@ -1751,7 +1751,7 @@ static void kb_cb(lv_event_t *e) {
     else if (s_backup_verify_pass) {
       uint8_t fp[4] = {0};
       bool match = kiss_fingerprint(s_plen ? s_pass : NULL, fp) == 0
-                && memcmp(fp, s_last_fp, sizeof fp) == 0;
+                && kiss_rehearse_pass_ok(fp, s_last_fp);
       kiss_wipe(fp, sizeof fp);
       kiss_wipe(s_pass, sizeof s_pass);
       s_plen = 0;
