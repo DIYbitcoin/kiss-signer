@@ -50,3 +50,8 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void));
 // Picker grid slot (0..I18N_LANG_N-1, row-major) of a language: the picker
 // displays alphabetically, not in enum order. Used by the sim's scripted walk.
 int kiss_lang_pick_slot(int lang);
+
+#ifdef SIMULATOR
+// Sim only: rebuild the storage chooser so both flash-encryption states render.
+void kiss_settings_sim_reopen_storage(void);
+#endif

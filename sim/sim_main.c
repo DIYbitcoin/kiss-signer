@@ -317,7 +317,13 @@ int kiss_seed_set_mode(int m) {
 //
 // The screen-walk sim always runs the beta lane. The settable version of this
 // lives in main/kiss_seed.c, which is what the unit test binary links.
-int kiss_seed_flash_encrypted(void) { return 0; }
+// SWITCHABLE, because a hardcoded 0 means one of two renders never happens.
+// The storage chooser tints the KEEP row's subline amber only while this is
+// false, so pinning it here made the warned state the only state any gate had
+// ever seen -- and the unwarned one, which every device with flash encryption
+// on will show, unrendered.
+static int s_sim_flash_enc;
+int kiss_seed_flash_encrypted(void) { return s_sim_flash_enc; }
 
 // The screen walk creates seeds through the same funnel the device uses, so it
 // reaches the entropy note. RAM here: the walk is one process and there is no
@@ -523,7 +529,9 @@ int kiss_session_sp_address(char *out, unsigned long len) {
 }
 // Stage B scan-key export: the real strings kisstest pins against embit
 // (sp_test_scan_export), so the sim lays out exactly what the device shows.
+static int s_sim_sp_export_fail;   // see the failure stop in the walk
 int kiss_session_sp_scan_export(char *out, unsigned long len) {
+  if (s_sim_sp_export_fail) return -1;
   snprintf(out, len, "%s", s_sim_testnet
     ? "sp([73c5da0a/352h/1h/0h]tspscan1q8pjcdy7qzlzxl44chw2tsanvzg7dtwhkqf3nsvzmdavls2ekl8qq9qesshy6w9knddr825kqp442302zuwddh6vtqk7zqvgszace9aczgnuqn3)"
     : "sp([73c5da0a/352h/0h/0h]spscan1q0rnl6lft0gkpg4nsn528qgdpytfdej40atdqgrxpqqsg8c5r8vys973ppv7y5c9cphgkzm6g4efmhhcdkazt87ggxwz3pruphc9vkkxxhtvyag)");
@@ -2121,6 +2129,18 @@ int main(void) {
   save("/tmp/sim_sp_warn.ppm");
   tap_str(STR_R_SP_SHOW, 25, 6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
+  // The failure branch first, because it is one hold away and nothing else in
+  // the walk can reach it: kiss_info.c only draws the QR when the export
+  // succeeds, so a derivation that fails renders a different screen that had
+  // never been photographed in any locale.
+  s_sim_sp_export_fail = 1;
+  tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export refuses
+  save("/tmp/sim_sp_key_fail.ppm");                 // no QR: the refusal render
+  s_sim_sp_export_fail = 0;
+  // DONE, not BACK: the refusal render carries the same exit the success one
+  // does. Then take the row again for the working export below.
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET
+  touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent
   tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
@@ -2795,6 +2815,15 @@ int main(void) {
   // including the fact that a short press cannot fire it.
   touch(200, 250); pump(3); release(); pump(6);     // storage row (left col) -> chooser
   save("/tmp/sim_storage_choose.ppm");               // all three selectable
+  // Same screen, encryption ON: the KEEP row loses its amber subline. The
+  // shim used to be hardcoded 0, so only the cautioned render existed.
+  s_sim_flash_enc = 1;
+  kiss_settings_sim_reopen_storage();
+  pump(8);
+  save("/tmp/sim_storage_choose_enc.ppm");           // KEEP row not tinted
+  s_sim_flash_enc = 0;
+  kiss_settings_sim_reopen_storage();
+  pump(8);
   touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
@@ -2887,6 +2916,27 @@ int main(void) {
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
   touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
   save("/tmp/sim_verify_ok.ppm");
+  // The same screen with NO fingerprint to show -- the twin of the guard that
+  // let 00000000 onto the warning screen, and the branch this one has always
+  // taken the other side of. It is not a colour swap: with no fingerprint the
+  // body gets 190px of height instead of 58 and the two labels below it go, so
+  // this is a layout no gate has ever measured. kiss_ui_forget_fp is the same
+  // call locking performs, so the state is a real one and not a test fiction.
+  tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
+  kiss_ui_forget_fp();
+  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row
+  tap_str(STR_I_VERIFY_COPY, 3, 6);  // VERIFY MY COPY -> intro
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
+  for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
+    touch(44, 314); pump(3); release(); pump(3);
+    touch(450, 374); pump(3); release(); pump(3);
+    touch(163, 182); pump(3); release(); pump(3);
+  }
+  touch(44, 314); pump(3); release(); pump(3);      // a
+  touch(450, 374); pump(3); release(); pump(3);     // b
+  touch(664, 254); pump(3); release(); pump(3);     // o
+  touch(163, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
+  save("/tmp/sim_verify_ok_nofp.ppm");              // tall body, no code below
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   // The backup row in its OTHER state. The walk has always come back through
   // here and never looked: while "Paper checked" was a second card the amber
@@ -3037,6 +3087,30 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
+
+  // MAINNET, and this is the whole point of the excursion. 120 stops run after
+  // this flip, but not one of them is a screen that BRANCHES on the network:
+  // they are the setup, duress and firmware sections. Every screen that reads
+  // kiss_testnet() -- home, receive, pairing, wallet info -- was photographed
+  // on testnet only, in all 21 locales, for the life of the walk.
+  //
+  // So the branches that only mainnet takes had never been rendered: the home
+  // badge absent rather than present, MAINNET in WT_INK where TESTNET is amber,
+  // bc1 and sp1 prefixes where tb1 and tsp1 are one character longer. That last
+  // one is a layout difference, not a colour one, and the receive screen folds
+  // the address to fit.
+  save("/tmp/sim_wallet_mainnet.ppm");              // home: NO testnet badge
+  touch(310, 240); pump(3); release(); pump(6);     // Receive -> bc1 detail
+  save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
+  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row
+  save("/tmp/sim_recv_sp_mainnet.ppm");             // sp1, a character shorter
+  tap_str(STR_C_BACK, 3, 6);
+  tap_str(STR_C_BACK, 3, 4);     // -> home
+  // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
+  // network note lives on the section home, and the coordinates differ.
+  touch(490, 240); pump(3); release(); pump(6);     // KEYS tile -> section home
+  save("/tmp/sim_winfo_mainnet.ppm");               // MAINNET note, INK not WARN
+  tap_str(STR_C_BACK, 3, 4);     // -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock -> menu

@@ -520,6 +520,15 @@ static void storage_chooser_screen(void)
     lv_obj_set_ext_click_area(back, 10);
 }
 
+#ifdef SIMULATOR
+// Rebuild the chooser in place, so the walk can photograph it with flash
+// encryption both off and on. The KEEP row's amber subline is the only
+// difference and it is applied at build time, so nothing but a rebuild shows
+// the other state -- which is why the sim's hardcoded 0 meant one of the two
+// renders had never existed.
+void kiss_settings_sim_reopen_storage(void) { storage_chooser_screen(); }
+#endif
+
 static void storage_open_cb(lv_event_t *e)
 {
     (void)e;
