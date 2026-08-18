@@ -3913,6 +3913,17 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);          // BACK -> the result screen
   tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
 
+  // The no-card gate, forced: the sim card is otherwise always present, so
+  // the one screen a cardless owner meets -- and the dice row that points
+  // them at the check that needs none -- had no stop in any locale.
+  platform_sd_test_set_present(0);
+  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the chooser
+  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT -> the no-card gate
+  save("/tmp/sim_setup_prove_nocard.ppm");          // insert any card + dice row
+  must_show("proof/nocard-dice", tr(STR_W_PROOF_DICE_SUB));
+  platform_sd_test_set_present(1);
+  tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
+
   // The randomness audit, through the same chooser. The stub stream is
   // deterministic and rewound here, so the finished frame always shows the
   // score test_rngq.c pinned as golden: 105.920, EVEN.

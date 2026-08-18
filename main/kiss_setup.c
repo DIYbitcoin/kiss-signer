@@ -1661,6 +1661,15 @@ static void pf_gate_screen(const char *label, int body_key)
     wt_row_x(s_scr, WT_ICON_SD, label, tr(body_key), NULL, NULL, NULL, WT_INK,
              false, WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
+    // Only on the no-card gate: the owner with no card in the house should
+    // leave knowing the check that needs none exists, not just that this one
+    // is closed. Inert on purpose -- dice are a CREATE path, not a detour to
+    // wire from the middle of an audit -- so no chevron and no callback.
+    if (body_key == STR_W_PROOF_SD_B)
+        wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_DICE_T),
+                 tr(STR_W_PROOF_DICE_SUB), NULL, NULL, NULL, WT_INK, false,
+                 WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
+                 NULL, NULL);
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, pf_back_cb, NULL);
     lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
                           pf_retry_cb, NULL);
@@ -1871,7 +1880,8 @@ static void proof_result_screen(void)
     // No QR here. It carried the hash to the hosted page, but the check needs
     // the FILE, and the file is 1.9MB on the card -- so the machine that reads
     // the card is the machine that checks, and a phone scanning a code could
-    // never finish. The card's own copy of the page carries the claim instead.
+    // never finish. The comparison target is the 12 words on this screen: the
+    // card's page is stateless and recomputes them from the dropped file.
     //
     // Accent on how the check works, WARN on where the words go wrong: the
     // proven pair geometry, same call shape as the dice verdict screen.

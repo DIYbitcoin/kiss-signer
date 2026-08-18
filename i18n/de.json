@@ -597,6 +597,7 @@
   "W_PROOF_SD_B": "das Prüfbild braucht eine Karte. lege eine ein und versuche es erneut.",
   "W_PROOF_SAVING": "Foto wird auf die Karte geschrieben",
   "W_PROOF_FAIL_B": "die Karte hat die Datei abgelehnt. nichts wurde behalten, nichts erzeugt. versuche eine andere Karte.",
+  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "PRÜFERGEBNIS",
   "W_PROOF_R_S": "das Bild und die Seite, die es prüft, sind auf der Karte.",
   "W_PROOF_HASH_CAP": "SHA256 DES FOTOS",

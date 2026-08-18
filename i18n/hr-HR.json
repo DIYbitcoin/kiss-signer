@@ -597,6 +597,7 @@
   "W_PROOF_SD_B": "kadar za audit mora sletjeti na karticu. umetni jednu pa pokušaj opet.",
   "W_PROOF_SAVING": "zapisivanje kadra na karticu",
   "W_PROOF_FAIL_B": "kartica je odbila datoteku. ništa nije spremljeno i ništa nije nastalo. pokušaj s drugom karticom.",
+  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "REZULTAT AUDITA",
   "W_PROOF_R_S": "kadar i stranica koja ga provjerava su na kartici.",
   "W_PROOF_HASH_CAP": "SHA256 KADRA",

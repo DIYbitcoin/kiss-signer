@@ -22,11 +22,12 @@ and the offline checker page beside it as `kiss-verify.html`. The owner then
 checks, on any computer they trust, any of three ways:
 
 1. Open the card's own `kiss-verify.html` and drop the file on it: the page
-   computes the hash and the words in the browser, offline, and because the
-   device wrote its claimed hash into that copy it renders MATCH or MISMATCH
-   instead of a human comparing 64 hex characters. For the independent version
-   of the same check, open `verify.html` from the repo or the site instead;
-   that copy has no claim, so it prints the hash and words to compare.
+   computes the hash and the words in the browser, offline, and the check is
+   comparing its 12 words against the 12 on the device screen. The page is
+   stateless by design — a baked-in claim could survive an interrupted run and
+   swear to a hash from a run before. For the independent version of the same
+   check, open `verify.html` from the repo or the site instead (a `#h=` link
+   pre-fills a comparison target and renders MATCH or MISMATCH).
 2. `shasum -a 256 kiss-proof.bin` equals the hash on the screen, and any BIP39
    tool fed the FIRST 16 BYTES of that hash as entropy produces the same 12
    words.

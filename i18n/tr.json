@@ -597,6 +597,7 @@
   "W_PROOF_SD_B": "denetim karesinin konacağı bir kart gerek. birini tak, tekrar dene.",
   "W_PROOF_SAVING": "kare karta yazılıyor",
   "W_PROOF_FAIL_B": "kart dosyayı reddetti. hiçbir şey saklanmadı, hiçbir şey oluşmadı. başka bir kart dene.",
+  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "DENETİM SONUCU",
   "W_PROOF_R_S": "kare ve onu doğrulayan sayfa artık kartta.",
   "W_PROOF_HASH_CAP": "KARENİN SHA256 DEĞERİ",

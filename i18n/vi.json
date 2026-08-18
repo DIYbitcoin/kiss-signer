@@ -597,6 +597,7 @@
   "W_PROOF_SD_B": "khung hình kiểm tra cần một thẻ để lưu. cắm thẻ rồi thử lại.",
   "W_PROOF_SAVING": "đang ghi khung hình vào thẻ",
   "W_PROOF_FAIL_B": "thẻ không nhận file. không có gì được lưu, không có gì được tạo. hãy thử thẻ khác.",
+  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "KẾT QUẢ KIỂM TRA",
   "W_PROOF_R_S": "khung hình và trang kiểm tra nó đã nằm trên thẻ.",
   "W_PROOF_HASH_CAP": "SHA256 CỦA KHUNG HÌNH",

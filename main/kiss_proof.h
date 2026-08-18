@@ -15,10 +15,12 @@
 #define WPROOF_NAME        "kiss-proof.bin"
 
 // The offline checker page, written beside the frame (same rule: a literal the
-// owner sees in a file listing). The card copy carries the hash this run
-// claimed, so opening it and dropping the file is the entire check. It comes
-// from the device being audited, so a doubter fetches the same page from the
-// repo or the site the page itself names, and checks with that copy instead.
+// owner sees in a file listing). The page is STATELESS -- it computes the hash
+// and the words from whatever file is dropped on it, and the human compares
+// the 12 words against the device screen. No claim is baked in: a card that
+// carried one could swear to a hash from a run before (see kiss_proof.c). It
+// comes from the device being audited, so a doubter fetches the same page from
+// the repo or the site the page itself names, and checks with that copy.
 #define WPROOF_PAGE_NAME   "kiss-verify.html"
 
 // The whole negotiated sensor frame, raw RGB565. A frame of any other length
