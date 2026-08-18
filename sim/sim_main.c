@@ -3921,6 +3921,7 @@ int main(void) {
   pump(180);                           // past the 32 ticks the fill needs
   save("/tmp/sim_rng_result.ppm");                  // EVEN + the golden score
   must_show("rng/verdict", tr(STR_W_RNG_EVEN));
+  must_show("rng/pass-note", tr(STR_W_RNG_PASS_NOTE));
   must_show("rng/score", "105.920");                // pinned by test_rngq.c
   // The two states an honest chip shows once in 500 runs, rigged: no walk
   // could wait for them and no gate would forgive a flaky needle.

@@ -172,8 +172,12 @@ static void finish(void)
                                   live ? OK_COL : WARN_COL);
     lv_obj_set_pos(src, 578, 352);
 
-    if (v != RNGQ_PASS && s_note)
-        wt_note_fit(s_note, tr(STR_W_RNG_RETRY), 704, 34);
+    // The sub lane answers "so is it good?" in a sentence either way: the
+    // chips carry the verdict, but a newcomer should not have to decode it
+    // from a chip. On a miss, the once-in-500 line; on a pass, the plain one.
+    if (s_note)
+        wt_note_fit(s_note, v == RNGQ_PASS ? tr(STR_W_RNG_PASS_NOTE)
+                                           : tr(STR_W_RNG_RETRY), 704, 34);
 
     if (s_exit) lv_obj_delete(s_exit);
     lv_obj_t *row[2];

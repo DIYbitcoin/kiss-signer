@@ -195,6 +195,7 @@ static const slot_t SLOTS[] = {
     { "rng/why2",         STR_W_RNG_WHY2_B,      330, 155 },
     { "rng/nosrc",        STR_W_RNG_NOSRC_B,     330, 155 },
     { "rng/retry",        STR_W_RNG_RETRY,       704,  34, 0 },
+    { "rng/pass-note",    STR_W_RNG_PASS_NOTE,   704,  34, 0 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
     // line on wt_screen; the verify note gets two card lines; the two why
