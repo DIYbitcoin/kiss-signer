@@ -56,3 +56,10 @@ CLAUDE.md
 
 # offline fixture tooling (tools/sign_fixtures/README names the pip install)
 venv/
+
+# The browser simulator's compiled bundle. Built by tools/build_wasm.sh, which
+# needs emsdk, and shipped the way docs/installer/firmware/*.bin is: rebuilt and
+# committed when a release is cut, not on every push. Keeping it out of the tree
+# in between stops a 4MB blob landing in history once per wording change.
+docs/sim/kiss-sim.js
+docs/sim/kiss-sim.wasm

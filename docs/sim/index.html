@@ -1,0 +1,238 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KISS Signer — simulator</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+  .lead { color: var(--muted); margin: 0 0 20px; max-width: 66ch; }
+  .stage { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .stage { grid-template-columns: minmax(0,1fr); } }
+
+  /* The device. 800x480 is the panel; the frame around it is chrome, not UI. */
+  .device { background: #05070b; border: 1px solid var(--line); border-radius: 14px;
+            padding: 14px; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  .screen { position: relative; background: #000; border-radius: 6px; overflow: hidden; }
+  /* SDL writes width/height ATTRIBUTES on the canvas; the aspect box has to be
+     the canvas itself or those attributes decide the layout. */
+  #fb { width: 100%; height: auto; aspect-ratio: 800 / 480; display: block;
+        image-rendering: pixelated; touch-action: none; cursor: crosshair; }
+  /* The lens sits ON the frame, in the viewfinder rect, because that is where
+     it sits on the device: camera frames bypass LVGL and land straight on the
+     panel. Percentages come from SCN_CAM_* in main/kiss_scan.c over 800x480. */
+  #lens { position: absolute; left: 6%; top: 23.333%; width: 37.5%; height: 39.167%;
+          object-fit: cover; display: none; background: #000; }
+  .boot { position: absolute; inset: 0; display: grid; place-content: center;
+          gap: 14px; text-align: center; background: rgba(5,7,11,.94); padding: 24px; }
+  .boot p { color: var(--muted); margin: 0; max-width: 46ch; font-size: 13px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+              color: var(--dim); margin: 0 0 10px; font-weight: 500; }
+  .panel p { font-size: 12px; color: var(--dim); margin: 8px 0 0; }
+  select, textarea, button, input[type=file] { width: 100%; font: inherit; font-size: 13px;
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; }
+  textarea { min-height: 76px; resize: vertical; }
+  button { background: var(--control); cursor: pointer; margin-top: 8px; }
+  button:hover { border-color: var(--dim); }
+  button.warn { background: transparent; color: var(--amber); border-color: #4a3a1c; }
+  .note { border-left: 2px solid var(--amber); padding-left: 12px; }
+  .note strong { color: var(--amber); }
+  .files { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12px; }
+  .files li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0;
+              border-top: 1px solid var(--line-soft); color: var(--muted); }
+  .files a { color: var(--green); }
+</style>
+
+<div class="wrap">
+  <p><a href="../">← KISS Signer</a></p>
+  <h1>Simulator</h1>
+  <p class="lead">The signer's own firmware, compiled to WebAssembly and drawn into the
+  canvas below. Every screen, the real word list, the real derivation, a real signature.
+  Nothing is installed and nothing leaves this tab.</p>
+
+  <div class="stage">
+    <div>
+      <div class="device">
+        <div class="screen">
+          <canvas id="fb" width="800" height="480"></canvas>
+          <video id="lens" playsinline muted></video>
+          <div class="boot" id="boot">
+            <div>
+              <button id="start" style="width:auto;padding:10px 28px">START THE SIGNER</button>
+              <p style="margin-top:14px"><strong style="color:var(--amber)">A browser tab is not a signer.</strong>
+              The keys made here live in a page anyone could be watching. Use it to learn the
+              flow, then make the keys that matter on the device, offline.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:14px;font-size:13px;color:var(--muted)">
+        Drag to draw. The cover screen is a game until you draw <strong>KISS</strong> across it.</p>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Language</h2>
+        <select id="lang"></select>
+      </div>
+
+      <div class="panel">
+        <h2>Show it a QR</h2>
+        <p style="margin:0 0 8px">Point a coordinator's QR at your webcam, or paste the payload.</p>
+        <button id="cam">USE THE WEBCAM</button>
+        <textarea id="qr" placeholder="ur:crypto-psbt/… or cHNidP8B…"></textarea>
+        <button id="feed">FEED IT IN</button>
+      </div>
+
+      <div class="panel">
+        <h2>The card</h2>
+        <input type="file" id="sd" multiple>
+        <p>Drops files onto the simulated SD card. Signed output appears here.</p>
+        <ul class="files" id="sdlist"></ul>
+        <button id="refresh">REFRESH</button>
+      </div>
+
+      <div class="panel">
+        <h2>Start over</h2>
+        <button class="warn" id="reset">FACTORY RESET</button>
+        <p>Nothing is stored between visits. Reloading is a factory reset.</p>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:40px;font-size:12px;color:var(--dim);max-width:70ch">
+    Fruit art from Fluent Emoji (MIT). Kiss mark and flags from Twemoji, icons from
+    Font Awesome, both CC BY 4.0. LVGL, libwally-core and secp256k1 are MIT.
+    Full attributions in <a href="https://github.com/kkdao/kiss-signer/blob/main/THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</a>.
+  </p>
+</div>
+
+<script src="kiss-sim.js"></script>
+<script>
+(function () {
+  var mod = null, canvas = document.getElementById('fb'), ctx = canvas.getContext('2d');
+  var W = 800, H = 480, PX = W * H * 4;
+
+  window.kissLog = [];
+  window.addEventListener('error', function (e) { window.kissLog.push('ERROR ' + e.message); });
+
+  function boot() {
+    document.getElementById('boot').style.display = 'none';
+    KissSim({ print:    function (t) { window.kissLog.push('out ' + t); },
+              printErr: function (t) { window.kissLog.push('err ' + t); } }).then(function (m) {
+      mod = m;
+      window.kissSim = m;          // one handle, for anyone poking at a console
+      m.ccall('kiss_sim_boot', null, [], []);
+      fillLangs();
+      listCard();
+      requestAnimationFrame(loop);
+    });
+  }
+  document.getElementById('start').addEventListener('click', boot);
+
+  // The loop lives here rather than in C so a hidden or throttled tab simply
+  // stops, instead of waking up and fast-forwarding the signer's idle timers
+  // through a lock screen the visitor never saw.
+  var last = 0;
+  function loop(now) {
+    var dt = last ? now - last : 16; last = now;
+    var ptr = mod.ccall('kiss_sim_tick', 'number', ['number'], [Math.round(dt)]);
+    // Re-viewed every frame: ALLOW_MEMORY_GROWTH can swap the whole buffer out
+    // from under a cached view, and a stale one throws or paints garbage.
+    var px = new Uint8ClampedArray(mod.HEAPU8.buffer, ptr, PX);
+    ctx.putImageData(new ImageData(px, W, H), 0, 0);
+    requestAnimationFrame(loop);
+  }
+
+  // ---- the finger ---------------------------------------------------------
+  function at(e) {
+    var r = canvas.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) * W / r.width),
+            Math.round((e.clientY - r.top)  * H / r.height)];
+  }
+  function touch(e, down) {
+    if (!mod) return;
+    var p = at(e);
+    mod.ccall('kiss_sim_touch', null, ['number', 'number', 'number'], [p[0], p[1], down]);
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId); touch(e, 1); e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (e.buttons) touch(e, 1);
+  });
+  canvas.addEventListener('pointerup', function (e) { touch(e, 0); });
+  canvas.addEventListener('pointercancel', function (e) { touch(e, 0); });
+
+  // ---- the host panel -----------------------------------------------------
+  function call(n, r, t, a) { return mod.ccall(n, r, t, a); }
+
+  function fillLangs() {
+    var sel = document.getElementById('lang'), n = call('kiss_sim_lang_count', 'number', [], []);
+    for (var i = 0; i < n; i++) {
+      var o = document.createElement('option');
+      o.value = call('kiss_sim_lang_code', 'string', ['number'], [i]);
+      o.textContent = call('kiss_sim_lang_native', 'string', ['number'], [i]);
+      sel.appendChild(o);
+    }
+    sel.value = 'en';
+    sel.addEventListener('change', function () {
+      call('kiss_sim_set_lang', null, ['string'], [sel.value]);
+    });
+  }
+
+  document.getElementById('feed').addEventListener('click', function () {
+    var v = document.getElementById('qr').value.trim();
+    if (mod && v) call('kiss_sim_feed_qr', null, ['string'], [v]);
+  });
+  document.getElementById('reset').addEventListener('click', function () { location.reload(); });
+
+  var SD = '/tmp/simsd';
+  function listCard() {
+    var ul = document.getElementById('sdlist'); ul.innerHTML = '';
+    var names = [];
+    try { names = mod.FS.readdir(SD).filter(function (f) { return f !== '.' && f !== '..'; }); }
+    catch (e) { return; }
+    names.forEach(function (name) {
+      var li = document.createElement('li'), a = document.createElement('a');
+      li.appendChild(document.createTextNode(name));
+      a.textContent = 'save'; a.href = '#';
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var url = URL.createObjectURL(new Blob([mod.FS.readFile(SD + '/' + name)]));
+        var d = document.createElement('a'); d.href = url; d.download = name; d.click();
+        URL.revokeObjectURL(url);
+      });
+      li.appendChild(a); ul.appendChild(li);
+    });
+  }
+  document.getElementById('refresh').addEventListener('click', listCard);
+
+  document.getElementById('sd').addEventListener('change', function (e) {
+    var files = Array.prototype.slice.call(e.target.files), left = files.length;
+    try { mod.FS.mkdir(SD); } catch (err) {}
+    files.forEach(function (f) {
+      var r = new FileReader();
+      r.onload = function () {
+        mod.FS.writeFile(SD + '/' + f.name, new Uint8Array(r.result));
+        if (--left === 0) listCard();
+      };
+      r.readAsArrayBuffer(f);
+    });
+  });
+
+  // ---- the lens -----------------------------------------------------------
+  // On the device the camera writes into the viewfinder rect directly, outside
+  // LVGL. Here the <video> is positioned over that same rect, which is the same
+  // arrangement reached by different means.
+  document.getElementById('cam').addEventListener('click', function () {
+    var v = document.getElementById('lens');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(function (s) { v.srcObject = s; v.style.display = 'block'; v.play(); })
+      .catch(function (err) { alert('No camera: ' + err.message); });
+  });
+})();
+</script>

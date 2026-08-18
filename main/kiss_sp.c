@@ -87,8 +87,12 @@ int sp_address_network(const char *addr)
     return network;
 }
 
-// ---- BIP352 derivation (not in the sim build: no secp there) ---------------
-#ifndef SIMULATOR
+// ---- BIP352 derivation (needs secp; absent wherever libwally is not linked)
+// The gate build (sim/build_sim.sh) fakes the crypto and never links wally, so
+// it defines KISS_NO_WALLY. The interactive simulator does link it and must
+// get this block: an sp address it cannot derive is an sp address it would
+// have to invent, and inventing one is the one thing this repo cannot ship.
+#ifndef KISS_NO_WALLY
 #include <secp256k1.h>
 #include <secp256k1_extrakeys.h>
 #include <secp256k1_schnorrsig.h>
@@ -669,7 +673,7 @@ out:
     wally_bzero(tw, sizeof tw);
     return ret;
 }
-#endif  // !SIMULATOR
+#endif  // !KISS_NO_WALLY
 
 // version 0 + convertbits(payload, 8 -> 5, pad), then bech32m under hrp. Shared
 // by the sp/tsp address (66-byte payload) and the spscan/tspscan export
