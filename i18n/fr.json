@@ -5,6 +5,7 @@
   "C_CANCEL": "ANNULER",
   "C_I_UNDERSTAND": "J'AI COMPRIS",
   "C_SESSION_LOCKED": "SESSION VERROUILLÉE",
+  "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "caméra indisponible",
   "D_WORDS": "MOTS DE RÉCUPÉRATION",
   "D_PASSPHRASE": "PHRASE SECRÈTE",

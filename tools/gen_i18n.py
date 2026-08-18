@@ -159,6 +159,9 @@ UNTRANSLATED_OK = {
     "W_CHOOSE_MIX", "W_MIX_NOTE",
     # The checksum verdict, moved onto WRITE THESE DOWN where it matters.
     "W_WRITE_OK",
+    # The locked-state explainer: reassurance for the five refusal renders.
+    # Born under the English-only rule, like the KEF block above.
+    "C_LOCKED_B",
     # The dice explainer, cut from four glossary terms to two claims. The old
     # key's translations described content that no longer exists, so it was
     # renamed rather than overwritten; English until the sweep.

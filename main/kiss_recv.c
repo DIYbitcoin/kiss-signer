@@ -122,6 +122,7 @@ static char s_seen_key[16];
 static bool s_addr_full;                   // detail address is folded by default
 static bool s_sp_full;                     // silent-payment text is folded by default
 static char s_sp_addr[128];
+static lv_obj_t *s_lock_note;              // the locked reassurance in the QR's space
 
 bool kiss_recv_active(void) { return s_scr != NULL; }
 
@@ -147,12 +148,20 @@ static void recv_refresh(void) {
   // code whose content was the words "SESSION LOCKED", offered as a payment
   // address. The words render once, in the address card, as a state.
   wt_qr_refusal(s_qr, rc != 0);
+  if (rc == 0 && s_lock_note) { lv_obj_delete(s_lock_note); s_lock_note = NULL; }
   char grouped[120];
   if (s_addr_sg) lv_obj_delete(s_addr_sg);   // spans have no set_text: rebuild
   if (rc != 0) {
     lv_obj_t *par0 = s_addr_card ? s_addr_card : s_scr;
     s_addr_sg = wt_lbl(par0, tr(STR_C_SESSION_LOCKED), 14, 10,
                        wt_font23(), WT_WARN);
+    // The hidden QR's own footprint carries the reassurance -- the one region
+    // guaranteed empty in this state, and the place the eye goes looking for
+    // the missing square. Created per refresh and deleted on recovery like
+    // s_addr_sg, through the same handle discipline.
+    if (!s_lock_note) {
+      s_lock_note = wt_note(s_scr, tr(STR_C_LOCKED_B), 44, 130, 252, 220);
+    }
   } else
   // The caption goes with the address it captions: "compare the lit
   // characters" under a state word is an instruction with no object.
@@ -773,7 +782,7 @@ static void back_to_detail_cb(lv_event_t *e) {
 }
 
 static void recv_list_open(void) {
-  s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = NULL;   // detail-only widgets are gone
+  s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;   // detail-only widgets are gone
   s_state_chip = NULL;
   s_path_tn_lbl = NULL;
   s_addr_card = s_cmp_lbl = NULL;
@@ -835,7 +844,7 @@ static void recv_list_open(void) {
     if (kiss_session_address(0, s_list_base, probe, sizeof probe) != 0) {
       lv_obj_t *chip = wt_state_chip(list, tr(STR_C_SESSION_LOCKED), WT_WARN);
       (void)chip;
-      wt_note(s_scr, tr(STR_L_FAIL_OPEN_B), 48, 300, 704, 60);
+      wt_note(s_scr, tr(STR_C_LOCKED_B), 48, 132, 620, 80);   // reassurance, not a fault
     } else {
       for (uint32_t i = 0; i < RECV_LIST_N; i++)
         recv_list_row(list, s_list_base + i);

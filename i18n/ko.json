@@ -5,6 +5,7 @@
   "C_CANCEL": "취소",
   "C_I_UNDERSTAND": "이해했습니다",
   "C_SESSION_LOCKED": "세션 잠김",
+  "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "카메라를 사용할 수 없음",
   "D_WORDS": "복구 단어",
   "D_PASSPHRASE": "패스프레이즈",

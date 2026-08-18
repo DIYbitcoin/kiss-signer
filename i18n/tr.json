@@ -5,6 +5,7 @@
   "C_CANCEL": "İPTAL",
   "C_I_UNDERSTAND": "ANLADIM",
   "C_SESSION_LOCKED": "OTURUM KİLİTLİ",
+  "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "kamera kullanılamıyor",
   "D_WORDS": "KURTARMA KELİMELERİ",
   "D_PASSPHRASE": "PASSPHRASE",

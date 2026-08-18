@@ -308,7 +308,7 @@ static void pair_refresh(void)
     // over there instead of being refused here. See wt_qr_refusal.
     wt_qr_refusal(s_pair_qr, rc != 0);
     if (rc != 0) {
-        wt_note_fit(s_pair_note, tr(STR_L_FAIL_OPEN_B), 360, 190);
+        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, 190);   // see the scan key refusal
         return;
     }
     if (s_pair_qr)
@@ -483,7 +483,11 @@ static void sp_key_show(void *ud)
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 28, 0);
         lv_obj_t *chip = wt_state_chip(card, tr(STR_C_SESSION_LOCKED), WT_WARN);
         lv_obj_align(chip, LV_ALIGN_LEFT_MID, 92, 0);
-        wt_note(s_scr, tr(STR_L_FAIL_OPEN_B), 48, 296, 704, 90);
+        // Not L_FAIL_OPEN_B: nothing went WRONG. The lock is the device
+        // doing its job, and a refusal note that reads like a fault teaches an
+        // owner to fear a feature. Reassurance first, then the mechanism, then
+        // the way back.
+        wt_note(s_scr, tr(STR_C_LOCKED_B), 48, 296, 704, 90);
         wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
         return;
     }

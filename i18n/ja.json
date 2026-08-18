@@ -5,6 +5,7 @@
   "C_CANCEL": "中止",
   "C_I_UNDERSTAND": "理解しました",
   "C_SESSION_LOCKED": "セッションはロック中",
+  "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "カメラを使用できません",
   "D_WORDS": "リカバリー単語",
   "D_PASSPHRASE": "パスフレーズ",

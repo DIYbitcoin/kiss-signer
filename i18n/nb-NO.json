@@ -5,6 +5,7 @@
   "C_CANCEL": "AVBRYT",
   "C_I_UNDERSTAND": "JEG FORSTÅR",
   "C_SESSION_LOCKED": "ØKTEN ER LÅST",
+  "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "kameraet er utilgjengelig",
   "D_WORDS": "GJENOPPRETTINGSORD",
   "D_PASSPHRASE": "PASSORDFRASE",
