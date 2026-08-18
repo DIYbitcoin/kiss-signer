@@ -5,6 +5,7 @@
   "C_CANCEL": "SAIR",
   "C_I_UNDERSTAND": "ENTENDI",
   "C_SESSION_LOCKED": "SESSÃO BLOQUEADA",
+  "C_LOCK_SOON": "locking soon. tap to stay open.",
   "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "câmara indisponível",
   "D_WORDS": "PALAVRAS DE RECUPERAÇÃO",

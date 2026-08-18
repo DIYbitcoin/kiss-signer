@@ -5,6 +5,7 @@
   "C_CANCEL": "ANNULLA",
   "C_I_UNDERSTAND": "HO CAPITO",
   "C_SESSION_LOCKED": "SESSIONE BLOCCATA",
+  "C_LOCK_SOON": "locking soon. tap to stay open.",
   "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "fotocamera non disponibile",
   "D_WORDS": "PAROLE DI RECUPERO",

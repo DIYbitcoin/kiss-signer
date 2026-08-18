@@ -232,6 +232,7 @@ static bool s_sd_badge_live;             // SD mode + card in: game_tick breathe
 static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
+static lv_obj_t *s_lock_warn;            // "locking soon" toast, up for the last 30s
 static uint32_t s_secret_act_t;          // secret-idle deadline: last touch on a
 static uint32_t s_secret_rows;           // deadline row, and WHICH rows those were
 #ifndef SIMULATOR
@@ -2067,8 +2068,12 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
-    if (pressed) s_wallet_act_t = lv_tick_get();  // any touch anywhere resets the clock
+    if (pressed) {
+      s_wallet_act_t = lv_tick_get();  // any touch anywhere resets the clock
+      if (s_lock_warn) { lv_obj_delete(s_lock_warn); s_lock_warn = NULL; }
+    }
     else if (lv_tick_elaps(s_wallet_act_t) > KISS_AUTOLOCK_MS) {
+      if (s_lock_warn) { lv_obj_delete(s_lock_warn); s_lock_warn = NULL; }
       // Everything the registry says the lock owns, in the order it lists them:
       // the camera stops first, and firmware goes before settings because its
       // close deliberately does not hand control back the way its BACK does. A
@@ -2079,6 +2084,32 @@ static void game_tick(lv_timer_t *t) {
       kiss_lock();                              // session key leaves RAM
       s_prev_press = pressed;
       return;
+    }
+    else if (lv_tick_elaps(s_wallet_act_t) > KISS_AUTOLOCK_MS - 30000 &&
+             !s_lock_warn) {
+      // The lock announces itself. Without this, five quiet minutes ended in
+      // the screen simply becoming the game -- correct, and indistinguishable
+      // from a crash for someone mid-read on an explainer, which is the one
+      // way to be idle while USING the device. Thirty seconds of notice turns
+      // the surprise into a choice: any touch anywhere keeps the session (the
+      // same touch that always reset the clock), and ignoring it locks as
+      // before. On the top layer, so it floats over whatever screen is up and
+      // needs no screen's cooperation; deleted on the touch that dismisses it,
+      // on the lock it precedes, and by kiss_lock's own layer sweep.
+      s_lock_warn = lv_obj_create(lv_layer_top());
+      lv_obj_remove_style_all(s_lock_warn);
+      lv_obj_set_size(s_lock_warn, 420, 56);
+      lv_obj_align(s_lock_warn, LV_ALIGN_TOP_MID, 0, 8);
+      lv_obj_set_style_radius(s_lock_warn, 10, 0);
+      lv_obj_set_style_bg_color(s_lock_warn, WT_PANEL, 0);
+      lv_obj_set_style_bg_opa(s_lock_warn, LV_OPA_COVER, 0);
+      lv_obj_set_style_border_width(s_lock_warn, 2, 0);
+      lv_obj_set_style_border_color(s_lock_warn, WT_WARN, 0);
+      lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_SCROLLABLE);
+      lv_obj_t *l = wt_lbl(s_lock_warn, tr(STR_C_LOCK_SOON), 0, 0,
+                           wt_font23(), WT_WARN);
+      lv_obj_center(l);
     }
     // The scan screen gets one escape that does NOT go through LVGL. Its own
     // CLOSE is an LVGL control, and while the camera streams it is painted over

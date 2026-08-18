@@ -5,6 +5,7 @@
   "C_CANCEL": "HỦY",
   "C_I_UNDERSTAND": "TÔI HIỂU",
   "C_SESSION_LOCKED": "PHIÊN ĐÃ KHÓA",
+  "C_LOCK_SOON": "locking soon. tap to stay open.",
   "C_LOCKED_B": "your keys are safe. this signer locks itself after 5 minutes idle. unlock to continue.",
   "C_CAM_UNAVAIL": "camera không khả dụng",
   "D_WORDS": "TỪ KHÔI PHỤC",

@@ -3736,6 +3736,18 @@ int main(void) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
     return 1;
   }
+  // The warning first: 30s before the lock a toast floats over whatever is
+  // up, and any touch keeps the session. 17200 pumps is ~275s -- inside the
+  // warning window, before the 300s lock.
+  pump(17200);
+  save("/tmp/sim_autolock_warn.ppm");               // the toast over FIRMWARE
+  // A touch DISMISSES it and keeps the session: this is the whole promise.
+  touch(400, 240); pump(3); release(); pump(8);
+  if (!kiss_fw_ui_active()) {
+    printf("FAIL: the pre-lock touch should have kept the session\n");
+    return 1;
+  }
+  save("/tmp/sim_autolock_kept.ppm");               // toast gone, screen alive
   pump(20000);                                      // 320s > 300s, untouched
   if (kiss_fw_ui_active()) {
     printf("FAIL: firmware screen survived the idle auto-lock\n");
