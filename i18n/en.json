@@ -604,7 +604,6 @@
   "W_PROOF_SD_B": "the audit frame needs a card to land on. insert one, then try again.",
   "W_PROOF_SAVING": "writing the frame to the card",
   "W_PROOF_FAIL_B": "the card refused the file. nothing was kept and nothing was made. try another card.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "AUDIT RESULT",
   "W_PROOF_R_S": "the frame and the page that checks it are on the card.",
   "W_PROOF_HASH_CAP": "SHA256 OF THE FRAME",

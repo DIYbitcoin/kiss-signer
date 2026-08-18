@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "la foto di audit ha bisogno di una scheda. inseriscine una e riprova.",
   "W_PROOF_SAVING": "scrittura della foto sulla scheda",
   "W_PROOF_FAIL_B": "la scheda ha rifiutato il file. nulla è stato salvato, nulla è stato creato. prova un'altra scheda.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "ESITO DELL'AUDIT",
   "W_PROOF_R_S": "la foto e la pagina che la verifica sono sulla scheda.",
   "W_PROOF_HASH_CAP": "SHA256 DELLA FOTO",

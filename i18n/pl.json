@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "kadr audytu musi wylądować na karcie. włóż jakąś i spróbuj ponownie.",
   "W_PROOF_SAVING": "zapisuję kadr na kartę",
   "W_PROOF_FAIL_B": "karta odrzuciła plik. nic nie zapisano i nic nie powstało. spróbuj innej karty.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "WYNIK AUDYTU",
   "W_PROOF_R_S": "kadr i strona, która go sprawdza, są na karcie.",
   "W_PROOF_HASH_CAP": "SHA256 KADRU",

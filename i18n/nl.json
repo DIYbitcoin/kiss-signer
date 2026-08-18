@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "het auditframe moet op een kaart landen. plaats er een, probeer opnieuw.",
   "W_PROOF_SAVING": "foto wordt naar de kaart geschreven",
   "W_PROOF_FAIL_B": "de kaart weigerde het bestand. er is niets bewaard en niets gemaakt. probeer een andere kaart.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "AUDITRESULTAAT",
   "W_PROOF_R_S": "het frame en de controlepagina staan op de kaart.",
   "W_PROOF_HASH_CAP": "SHA256 VAN DE FOTO",

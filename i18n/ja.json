@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "検証のコマには保存先のカードが必要です。挿してからもう一度お試しください。",
   "W_PROOF_SAVING": "コマをカードに書き込み中",
   "W_PROOF_FAIL_B": "カードに書き込めませんでした。何も保存されず、何も作られていません。別のカードで試してください。",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "検証結果",
   "W_PROOF_R_S": "コマと、それを確かめるページがカードにあります。",
   "W_PROOF_HASH_CAP": "コマの SHA256",

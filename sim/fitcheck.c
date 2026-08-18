@@ -177,7 +177,6 @@ static const slot_t SLOTS[] = {
     { "proof/burned",     STR_W_PROOF_BURNED,    700,  40 },
     { "proof/file-note",  STR_W_PROOF_FILE_NOTE, 282,  80, 1 },
     { "proof/sd",         STR_W_PROOF_SD_B,      620,  46, 1 },
-    { "proof/dice",       STR_W_PROOF_DICE_SUB,  620,  46, 1 },
     { "proof/fail",       STR_W_PROOF_FAIL_B,    620,  46, 1 },
     { "proof/saving",     STR_W_PROOF_SAVING,    300,  40, 1 },
     { "proof/hash-cap",   STR_W_PROOF_HASH_CAP,  545,  40, 1 },

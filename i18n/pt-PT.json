@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "a foto de auditoria precisa de um cartão. insira um e tente novamente.",
   "W_PROOF_SAVING": "a gravar a foto no cartão",
   "W_PROOF_FAIL_B": "o cartão recusou o ficheiro. nada foi guardado e nada foi criado. tente outro cartão.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "RESULTADO",
   "W_PROOF_R_S": "a foto e a página que a verifica estão no cartão.",
   "W_PROOF_HASH_CAP": "SHA256 DA FOTO",

@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "检验画面需要一张卡来存放。插入一张，再试一次。",
   "W_PROOF_SAVING": "正在把画面写到卡上",
   "W_PROOF_FAIL_B": "这张卡没有收下文件。什么都没保存，也什么都没生成。换一张卡试试。",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "检验结果",
   "W_PROOF_R_S": "画面和核对用的文件都已在卡上。",
   "W_PROOF_HASH_CAP": "画面的 SHA256",

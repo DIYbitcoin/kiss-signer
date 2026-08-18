@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "감사 프레임이 저장될 카드가 필요합니다. 꽂은 뒤 다시 시도하세요.",
   "W_PROOF_SAVING": "프레임을 카드에 쓰는 중",
   "W_PROOF_FAIL_B": "카드가 파일을 거부했습니다. 남은 것도 만들어진 것도 없습니다. 다른 카드로 시도하세요.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "감사 결과",
   "W_PROOF_R_S": "프레임과 그것을 확인하는 페이지가 카드에 있습니다.",
   "W_PROOF_HASH_CAP": "프레임의 SHA256",

@@ -1661,15 +1661,11 @@ static void pf_gate_screen(const char *label, int body_key)
     wt_row_x(s_scr, WT_ICON_SD, label, tr(body_key), NULL, NULL, NULL, WT_INK,
              false, WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
-    // Only on the no-card gate: the owner with no card in the house should
-    // leave knowing the check that needs none exists, not just that this one
-    // is closed. Inert on purpose -- dice are a CREATE path, not a detour to
-    // wire from the middle of an audit -- so no chevron and no callback.
-    if (body_key == STR_W_PROOF_SD_B)
-        wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_DICE_T),
-                 tr(STR_W_PROOF_DICE_SUB), NULL, NULL, NULL, WT_INK, false,
-                 WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
-                 NULL, NULL);
+    // ONE row, nothing else. A dice pointer stood under it for one commit
+    // and rendered as a second OPTION -- two cards on the chooser grid read
+    // as a choice, whatever the second one says -- so the refusal says only
+    // its own sentence. The card-free check is taught where dice are
+    // actually choosable: WHY THREE SOURCES, line four.
     mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, pf_back_cb, NULL);
     lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
                           pf_retry_cb, NULL);

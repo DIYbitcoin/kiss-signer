@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "revisionsbilden måste landa på ett kort. sätt in ett och försök igen.",
   "W_PROOF_SAVING": "skriver fotot till kortet",
   "W_PROOF_FAIL_B": "kortet vägrade ta emot filen. inget behölls och inget skapades. prova ett annat kort.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "REVISIONSRESULTAT",
   "W_PROOF_R_S": "bildrutan och sidan som kontrollerar den finns på kortet.",
   "W_PROOF_HASH_CAP": "SHA256 AV FOTOT",

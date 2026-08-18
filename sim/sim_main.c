@@ -3919,8 +3919,8 @@ int main(void) {
   platform_sd_test_set_present(0);
   tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the chooser
   tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT -> the no-card gate
-  save("/tmp/sim_setup_prove_nocard.ppm");          // insert any card + dice row
-  must_show("proof/nocard-dice", tr(STR_W_PROOF_DICE_SUB));
+  save("/tmp/sim_setup_prove_nocard.ppm");          // the one-row refusal
+  must_show("proof/nocard", tr(STR_W_PROOF_SD_T));
   platform_sd_test_set_present(1);
   tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
 

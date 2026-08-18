@@ -597,7 +597,6 @@
   "W_PROOF_SD_B": "auditní snímek potřebuje kartu, kam dopadne. vlož jednu a zkus to znovu.",
   "W_PROOF_SAVING": "zápis snímku na kartu",
   "W_PROOF_FAIL_B": "karta soubor odmítla. nic se neuložilo a nic nevzniklo. zkus jinou kartu.",
-  "W_PROOF_DICE_SUB": "no card? dice are the check that needs none.",
   "W_PROOF_R_T": "VÝSLEDEK AUDITU",
   "W_PROOF_R_S": "snímek i stránka, která ho ověří, jsou na kartě.",
   "W_PROOF_HASH_CAP": "SHA256 SNÍMKU",
