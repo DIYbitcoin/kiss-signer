@@ -180,6 +180,21 @@ static const slot_t SLOTS[] = {
     { "proof/fail",       STR_W_PROOF_FAIL_B,    620,  46, 1 },
     { "proof/saving",     STR_W_PROOF_SAVING,    300,  40, 1 },
     { "proof/hash-cap",   STR_W_PROOF_HASH_CAP,  545,  40, 1 },
+    // The AUDIT chooser and the randomness audit (kiss_rngaudit.c). The two
+    // chooser subs live in 716-wide wt_row_x rows like the proof gate rows;
+    // the why pair shares the proven 344-wide body budget under a measured
+    // heading; the retry line has the run screen's one-line sub lane.
+    { "sub/aud",          STR_W_AUD_S,           704,  30, 0 },
+    { "aud/cam-sub",      STR_W_AUD_CAM_SUB,     620,  46, 1 },
+    { "aud/rng-sub",      STR_W_AUD_RNG_SUB,     620,  46, 1 },
+    { "sub/rng",          STR_W_RNG_S,           704,  30, 0 },
+    { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
+    // 330, not 344: the block's rule bar eats 14px of body width. Height is
+    // the pair budget (194) minus a measured one-line heading (35).
+    { "rng/why1",         STR_W_RNG_WHY1_B,      330, 155 },
+    { "rng/why2",         STR_W_RNG_WHY2_B,      330, 155 },
+    { "rng/nosrc",        STR_W_RNG_NOSRC_B,     330, 155 },
+    { "rng/retry",        STR_W_RNG_RETRY,       704,  34, 0 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
     // line on wt_screen; the verify note gets two card lines; the two why
@@ -332,6 +347,8 @@ static const row_t ROWS[] = {
     // right column, SG_R_W = 365. None of these carry a value.
     { "set/words",    STR_I_ROW_WORDS,   -1, NULL, 365 },
     { "set/endwords", STR_I_ROW_ENDWORDS, -1, NULL, 365 },
+    // The randomness audit's provenance row: label against its wider value.
+    { "rng/src",      STR_W_RNG_SRC,     STR_W_RNG_OFF, NULL, 716 },
 };
 #define NROW ((int)(sizeof ROWS / sizeof ROWS[0]))
 
@@ -536,9 +553,15 @@ static const pill_t PILLS[] = {
     // of the whole signing flow.
     { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
     { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
-    { "proof/open",       STR_W_PROOF_BTN,       220, 52, 0, 1 },
+    // 140 with an eye, the geometry the Settings pill actually has now that
+    // it opens the audit chooser; 220 bare was a width no screen drew. Not a
+    // key action any more either: it opens a chooser page, and the two
+    // buttons that actually run an audit are measured on their own rows.
+    { "aud/open",         STR_W_AUD_T,           140, 52, 0, 0, LV_SYMBOL_EYE_OPEN },
     { "proof/capture",    STR_W_PROOF_SHOT,      300, 52, 1, 1 },
     { "proof/words",      STR_W_PROOF_WORDS_BTN, 300, 52, 1, 1 },
+    { "rng/start",        STR_W_RNG_GO,          240, 52, 1, 1 },
+    { "rng/again",        STR_W_RNG_AGAIN,       240, 52, 1, 1 },
     { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
     { "storage/sd",       STR_W_SD_BTN,        252, 52, 0, 1 },
     { "storage/amnesic",  STR_W_AMNESIC_BTN,   252, 52, 0, 1 },

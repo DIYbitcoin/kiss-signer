@@ -47,6 +47,7 @@ int test_tapent(void);
 int test_art(void);
 // sim/test_dice.c — the dice-entropy digit buffer + SHA256 recipe
 int test_dice(void);
+int test_rngq(void);
 
 // sim/test_lastword.c — the checksum valid last word enumeration (cards mode)
 int test_lastword(void);
@@ -781,6 +782,7 @@ int main(int argc, char **argv) {
     fails += test_tapent();
     fails += test_art();
     fails += test_dice();
+    fails += test_rngq();
     fails += test_lastword();
     fails += test_cards_q();
     fails += test_proof();

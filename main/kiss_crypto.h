@@ -1,6 +1,7 @@
 // KISS Signer crypto layer (libwally). Step 1: prove the crypto stack.
 #pragma once
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // Runs the BIP39/BIP32 test vector (standard "abandon ... about" dev mnemonic,
@@ -65,6 +66,12 @@ void kiss_trng_start(void);
 // folded into it MUST refuse to be generated while this is false, rather than
 // quietly handing back a weak key that every later check will call valid.
 bool kiss_trng_live(void);
+
+// n bytes of the same stream esp_fill_random hands key material, for the
+// randomness audit (kiss_rngaudit.c). Conditioned output: a spread test on it
+// can catch a stuck or biased chip, never a swapped source -- see above. The
+// UI sim links a deterministic stub over this (sim_main.c).
+void kiss_trng_fill(uint8_t *out, size_t n);
 
 // ---- timing jitter ----
 // A second source for the key that cannot have the camera or the taps folded

@@ -52,6 +52,7 @@
 #include "kiss_coverword.h"
 #include "kiss_duress_ui.h"
 #include "kiss_word_ui.h"
+#include "kiss_rngaudit.h"
 // platform_sd.c is compiled in BOTH builds (host dir vs SDMMC), and the home
 // SD-storage badge probes it outside any device-only block, so its header is
 // platform-agnostic here. kiss_crypto/camera_spike stay device-only: they
@@ -1941,6 +1942,7 @@ static const struct {
   { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, false, NULL },
   { kiss_info_active,      kiss_info_close,     true,  false, 0, false, false, NULL },
   { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, false, NULL },
+  { kiss_rngaudit_active,  kiss_rngaudit_close, true,  false, 0, false, false, NULL },
   { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, false, NULL },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include "i18n.h"
 #include "kiss_crypto.h"
+#include "kiss_rngaudit.h"  // kiss_rngaudit_sim_result: the once-in-500 renders
 #include "kiss_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "verify_page.h"    // ...and the real checker page beside it
@@ -74,6 +75,24 @@ int kiss_fingerprint(const char *passphrase, unsigned char out[4]) {
 static bool s_sim_trng;
 void kiss_trng_start(void) { s_sim_trng = true; }
 bool kiss_trng_live(void) { return s_sim_trng; }
+
+// The randomness audit's byte stream, deterministic on purpose: one seed, one
+// histogram, one chi square score in every walk photograph. test_rngq.c pins
+// this seed's score as a golden value (105.920, PASS), so the picture the
+// walk saves is a picture a test has already judged. Byte p of the run is
+// splitmix step p+1 from the seed, whatever the call sizes were: test_fill
+// advances its seed by the splitmix increment once per byte, so continuing at
+// position p means starting the seed p increments along. The walk rewinds
+// before each entry so a re-entered screen fills identically.
+#include "kiss_rngq.h"
+#define RNGQ_SIM_SEED 0x4B495353u             // "KISS"; must match test_rngq.c
+#define SPLITMIX_GAMMA 0x9E3779B97F4A7C15ull  // must match kiss_rngq_test_fill
+static uint64_t s_sim_rng_pos;
+void kiss_trng_fill(unsigned char *out, size_t n) {
+  kiss_rngq_test_fill(RNGQ_SIM_SEED + s_sim_rng_pos * SPLITMIX_GAMMA, out, n);
+  s_sim_rng_pos += n;
+}
+static void sim_rng_rewind(void) { s_sim_rng_pos = 0; }
 
 // step-7 seams: the seed store is a RAM flag. A fresh sim run starts SEEDED so
 // the legacy script flows unchanged; the wizard test at the end wipes first.
@@ -3868,12 +3887,13 @@ int main(void) {
   // only thing that knew, because a screen with no walk stop is a screen no
   // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
-  // The camera audit, from its home in the Settings action bar. It spent a
-  // version on the duress page below, which is why this block used to sit
-  // after that tap; the stub writes a real (small) kiss-proof.bin and the
-  // stateless checker page into /tmp/simsd, and DONE returns here via the
-  // done cb.
-  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT pill -> capture screen
+  // The audits, from their home beside the ways in row. The pill opens a
+  // chooser now that there are two: the camera audit (the stub writes a real
+  // small kiss-proof.bin and the stateless checker page into /tmp/simsd) and
+  // the randomness audit. DONE returns here via the done cb both times.
+  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT pill -> the chooser
+  save("/tmp/sim_audit_choose.ppm");                // two audits, each stated
+  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT row -> capture screen
   save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
   tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
   save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
@@ -3886,6 +3906,42 @@ int main(void) {
   must_show("audit words/count", "12. ");
   tap_str(STR_C_BACK, 3, 8);          // BACK -> the result screen
   tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
+
+  // The randomness audit, through the same chooser. The stub stream is
+  // deterministic and rewound here, so the finished frame always shows the
+  // score test_rngq.c pinned as golden: 105.920, EVEN.
+  sim_rng_rewind();
+  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT -> the chooser
+  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
+  save("/tmp/sim_rng_intro.ppm");                   // NOISE row + the why pair
+  must_show("rng/provenance", tr(STR_W_RNG_ON));
+  tap_str(STR_W_RNG_GO, 3, 8);        // START -> piles fill on an 80ms timer
+  pump(40);                            // ~8 ticks in: partial piles, tally live
+  save("/tmp/sim_rng_run.ppm");                     // mid fill, fair line crossed
+  pump(180);                           // past the 32 ticks the fill needs
+  save("/tmp/sim_rng_result.ppm");                  // EVEN + the golden score
+  must_show("rng/verdict", tr(STR_W_RNG_EVEN));
+  must_show("rng/score", "105.920");                // pinned by test_rngq.c
+  // The two states an honest chip shows once in 500 runs, rigged: no walk
+  // could wait for them and no gate would forgive a flaky needle.
+  kiss_rngaudit_sim_result(+1);
+  save("/tmp/sim_rng_uneven.ppm");                  // sawtooth, 800.000, retry line
+  must_show("rng/uneven", tr(STR_W_DICE_UNEVEN));
+  kiss_rngaudit_sim_result(-1);
+  save("/tmp/sim_rng_tooeven.ppm");                 // the flat comb, 0.000
+  must_show("rng/tooeven", tr(STR_W_RNG_TOOEVEN));
+  tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
+
+  // The refusal render: the state a device that skipped kiss_trng_start is
+  // in. NO SOURCE in the provenance row, the right block carries the refusal
+  // and there is no START to tap.
+  s_sim_trng = false;
+  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT -> the chooser
+  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
+  save("/tmp/sim_rng_nosource.ppm");                // refusal: no START pill
+  must_show("rng/nosource", tr(STR_W_RNG_OFF));
+  tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
+  s_sim_trng = true;
 
   touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words

@@ -114,6 +114,22 @@ void kiss_trng_start(void)
 
 bool kiss_trng_live(void) { return s_trng_live; }
 
+// The randomness audit's tap into the same stream esp_fill_random gives key
+// material. On the host (kisstest) it reads /dev/urandom, which is the same
+// "already conditioned" shape; the UI sim links its own deterministic stub in
+// sim_main.c instead, so the walk photographs one histogram forever.
+void kiss_trng_fill(uint8_t *out, size_t n)
+{
+#ifdef ESP_PLATFORM
+    esp_fill_random(out, n);
+#else
+    FILE *f = fopen("/dev/urandom", "rb");
+    size_t got = f ? fread(out, 1, n, f) : 0;
+    if (f) fclose(f);
+    for (size_t i = got; i < n; i++) out[i] = (uint8_t)(i * 2654435761u >> 24);
+#endif
+}
+
 // ---- timing jitter ----
 // Why this exists and what is and is not claimed for it: kiss_crypto.h.
 //

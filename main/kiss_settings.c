@@ -13,6 +13,7 @@
 #include "kiss_fw_ui.h"   // the firmware pill opens it
 #include "kiss_seed.h"
 #include "kiss_setup.h"
+#include "kiss_rngaudit.h"   // the AUDIT chooser's second row opens it
 #include "kiss_duress.h"
 #include "kiss_duress_ui.h"
 #include "kiss_word_ui.h"
@@ -623,15 +624,47 @@ static void waysin_word_cb(lv_event_t *e)
 
 static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
-// The audit owns the display while it runs and hands back the same way the
-// firmware screens do, by rebuilding Settings underneath.
-static void audit_open_cb(lv_event_t *e)
+// Either audit owns the display while it runs and hands back the same way
+// the firmware screens do, by rebuilding Settings underneath.
+static void audit_cam_cb(lv_event_t *e)
 {
     (void)e;
     lv_obj_t *parent = s_parent;
-    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_setup_open_audit(parent, settings_reopen);
+}
+
+static void audit_rng_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *parent = s_parent;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    kiss_rngaudit_open(parent, settings_reopen);
+}
+
+static void audit_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
+
+// Two audits behind one word. A chooser rather than a second pill: the row
+// beside the ways in card has 140px to give, and a chooser row carries a
+// sub line saying what each audit checks BEFORE it is entered -- which a
+// pill never could, and which is most of what a newcomer needs from either.
+static void audit_open_cb(lv_event_t *e)
+{
+    (void)e;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), tr(STR_W_AUD_S));
+    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T), tr(STR_W_AUD_CAM_SUB),
+             NULL, NULL, NULL, WT_INK, false,
+             WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
+             audit_cam_cb, NULL);
+    wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_RNG_T), tr(STR_W_AUD_RNG_SUB),
+             NULL, NULL, NULL, WT_INK, false,
+             WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
+             audit_rng_cb, NULL);
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                audit_back_cb, NULL), 10);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -1377,13 +1410,15 @@ void kiss_settings_open(lv_obj_t *parent)
     lv_obj_add_flag(wr, WT_FLAG_ACCENT_BORDER);
     lv_obj_set_style_border_color(wr, wt_accent(), 0);
 
-    // CAMERA AUDIT, beside the ways in row rather than on the action bar.
-    // The bar pill looked like a third action next to BACK; this is a page
-    // question -- "is the camera a camera" sits with the other facts about
-    // THIS SIGNER -- and the pill keeps the exact geometry it shipped with
+    // AUDIT, beside the ways in row rather than on the action bar. The bar
+    // pill looked like a third action next to BACK; this is a page question
+    // -- "prove a part of this signer" sits with the other facts about THIS
+    // SIGNER -- and the pill keeps the exact geometry it shipped with
     // (140x52), seated on the row's line (the row card is WT_ROW_H tall, so
-    // the pill centres on it).
-    wt_pill_icon(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T),
+    // the pill centres on it). It opens a chooser now that there are two
+    // audits behind it, so the label is the word for the class and the mark
+    // is an eye, not a camera: the camera is one of the two things to look at.
+    wt_pill_icon(s_scr, LV_SYMBOL_EYE_OPEN, tr(STR_W_AUD_T),
                  SG_AUDIT_X, SG_FULL_Y + (WT_ROW_H - WT_ACTION_H) / 2,
                  SG_AUDIT_W, WT_ACTION_H, audit_open_cb, NULL);
 
