@@ -299,8 +299,9 @@ static SDL_Texture  *g_tex;
 static bool g_running = true;
 static int  g_scale = 1;
 // The two controls, in window coordinates before scaling.
-static const SDL_Rect BTN_KISS   = { 16, 494, 150, 30 };
-static const SDL_Rect BTN_SIGNER = { 178, 494, 168, 30 };
+// One control. Two was a menu, and a menu is a question asked before the
+// visitor knows enough to answer it.
+static const SDL_Rect BTN_OPEN = { 16, 494, 246, 30 };
 
 static void draw_text(const char *t, int x, int y, int px, uint8_t r, uint8_t g, uint8_t b) {
     SDL_SetRenderDrawColor(g_ren, r, g, b, 255);
@@ -408,6 +409,17 @@ static void pen_down(int wx, int wy) {
     map_pointer(wx, wy);
 }
 
+// One press, one destination: a signer with keys in it, so every tile works.
+//
+// It does NOT play the cover word first. That was tried: the stroke's own door
+// opens a frame or two AFTER the script drains -- game_tick classifies on the
+// release -- so the setup wizard landed on top of this and the button appeared
+// to do nothing. Chasing that with a delay would be timing guesswork against
+// the game loop. The gesture is still there to be found: lock the signer from
+// the top left corner and draw it, or run --kiss, which is what the headless
+// check uses to prove the recogniser still works.
+static void open_the_signer(void) { sim_open_signer(SIM_TEST_WORDS, NULL); }
+
 static void frame(void) {
     bool scripted = kiss_script_step();   // the script owns the pointer while it runs
     SDL_Event e;
@@ -416,8 +428,7 @@ static void frame(void) {
         else if (e.type == SDL_MOUSEBUTTONDOWN) {
             int bx = e.button.x / g_scale, by = e.button.y / g_scale;
             if (!in_panel(e.button.x, e.button.y)) {              // the strip: controls
-                if (in_rect(BTN_KISS, bx, by) && g_kiss_at < 0) g_kiss_at = 0;
-                else if (in_rect(BTN_SIGNER, bx, by)) sim_open_signer(SIM_TEST_WORDS, NULL);
+                if (in_rect(BTN_OPEN, bx, by)) open_the_signer();
             }
             else if (e.button.button == SDL_BUTTON_LEFT && !g_latched) pen_down(e.button.x, e.button.y);
             else if (e.button.button == SDL_BUTTON_RIGHT) {       // latch / unlatch
@@ -432,9 +443,8 @@ static void frame(void) {
             if (g_btn_down) map_pointer(e.motion.x, e.motion.y);
         }
         else if (e.type == SDL_KEYDOWN) {
-            if (e.key.keysym.sym == SDLK_k && g_kiss_at < 0) g_kiss_at = 0;
-            else if (e.key.keysym.sym == SDLK_w) sim_open_signer(SIM_TEST_WORDS, NULL);
-            else if (e.key.keysym.sym == SDLK_SPACE) {            // same latch, on a key
+            if (e.key.keysym.sym == SDLK_RETURN) open_the_signer();
+            else if (e.key.keysym.sym == SDLK_TAB) {              // same latch, on a key
                 int mx, my; SDL_GetMouseState(&mx, &my);
                 g_latched = !g_latched;
                 if (g_latched) pen_down(mx, my); else g_btn_down = false;
@@ -460,8 +470,7 @@ static void render(void) {
     SDL_Rect panel = { 0, 0, HRES * g_scale, VRES * g_scale };
     SDL_RenderCopy(g_ren, g_tex, NULL, &panel);
 
-    draw_button(BTN_KISS,   "DRAW KISS");
-    draw_button(BTN_SIGNER, "TEST SIGNER");
+    draw_button(BTN_OPEN, "OPEN THE SIGNER");
     // The one thing the simulator cannot do, said where it is asked rather than
     // left to be discovered: a mouse can trace the default word from a script,
     // but it cannot teach the recogniser a word of your own.
@@ -471,12 +480,13 @@ static void render(void) {
 }
 
 int main(int argc, char **argv) {
-    int frames = 0; const char *shot = NULL; bool draw_kiss = false;
+    int frames = 0; const char *shot = NULL; bool draw_kiss = false, open_now = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--scale")  && i + 1 < argc) g_scale = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot")   && i + 1 < argc) shot   = argv[++i];
-        else if (!strcmp(argv[i], "--kiss")) draw_kiss = true;
+        else if (!strcmp(argv[i], "--kiss")) draw_kiss = true;   // headless: the recogniser
+        else if (!strcmp(argv[i], "--open")) open_now = true;     // headless: the button
     }
     if (g_scale < 1) g_scale = 1;
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
@@ -490,10 +500,10 @@ int main(int argc, char **argv) {
 
     kiss_script_build();
     lvgl_start();
-    printf("Buttons under the panel: DRAW KISS opens the signer, TEST SIGNER\n"
-           "skips setup. Same on the keyboard: k, w, esc to quit.\n"
+    printf("Click OPEN THE SIGNER under the panel, or press ENTER. ESC quits.\n"
            "Drawing your own word needs a finger and is not usable here.\n");
-    if (draw_kiss) g_kiss_at = 0;
+    if (draw_kiss) g_kiss_at = 0;   // headless: exercise the real recogniser
+    if (open_now) open_the_signer();
     if (frames > 0) {                      // headless smoke, for CI
         for (int i = 0; i < frames; i++) {
             kiss_script_step();            // same replay the k key runs
