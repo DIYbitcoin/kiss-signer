@@ -77,9 +77,10 @@ static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
 static int s_quiz_correct;     // which of the 4 pills is right
-#ifndef SIMULATOR
-// Which third each round samples, shuffled. Device only: the sim pins the
-// positions so the walk's scripted taps land, so banding never runs there.
+#ifndef KISS_SIM_WALK
+// Which third each round samples, shuffled. Absent only from the scripted walk,
+// which pins the positions so its taps land; every build a person drives -- the
+// device and the interactive simulator alike -- asks a real question.
 static int s_quiz_band[QUIZ_ROUNDS];
 #endif
 static int s_quiz_asked[QUIZ_ROUNDS];   // positions already asked this pass
@@ -276,7 +277,7 @@ static void join_words(char *out, size_t out_len)
 // small deterministic-enough RNG for quiz layout (NOT for entropy!)
 static uint32_t ui_rand(void)
 {
-#ifdef SIMULATOR
+#ifdef KISS_SIM_WALK
     static uint32_t x = 7;                 // scripted taps need fixed layouts
 #else
     static uint32_t x;
@@ -487,7 +488,7 @@ static void quiz_pick_cb(lv_event_t *e)
 static void quiz_screen(void)
 {
     char buf[96];   // translated prompt, 3 bytes/char worst
-#ifdef SIMULATOR
+#ifdef KISS_SIM_WALK
     s_quiz_pos = (s_quiz_round * 5) % s_count;   // fixed for scripted taps
     s_quiz_correct = s_quiz_round;               // round 0 -> pill 0, etc.
 #else
@@ -891,29 +892,49 @@ static lv_obj_t *s_tap_bits[TAP_BITS_N];
 static lv_obj_t *s_tap_count;
 static lv_obj_t *s_tap_card;
 
-// The clock the tap timing is read from. On device this is where the entropy
-// lives; in the sim it is monotonic by construction so a scripted walk never
-// trips the debounce (real timing entropy is the device's job, unit-tested on
-// the host by sim/test_tapent.c).
+// The clock the tap timing is read from. Three cases, because there are three
+// kinds of caller and only one of them is a person on the device.
+//
+// The scripted walk needs a clock that is monotonic by construction, or the
+// debounce eats its taps -- it is not collecting entropy, it is photographing
+// screens.
+//
+// The interactive simulator IS driven by a person, so its taps carry the thing
+// this screen is for. It gets a real clock. But be honest about what that
+// clock is: a host has no cycle counter to read, and lv_tick_get is
+// milliseconds. Human tap jitter is tens of milliseconds so the timing still
+// carries entropy, the resolution is simply coarser than the device's -- which
+// is one of several reasons a browser tab is not where a key worth keeping
+// should be made.
 static void tap_clock(uint64_t *us, uint32_t *cyc)
 {
-#ifdef SIMULATOR
+#if defined(ESP_PLATFORM)
+    *us = (uint64_t)esp_timer_get_time();
+    *cyc = esp_cpu_get_cycle_count();
+#elif defined(KISS_SIM_WALK)
     static uint64_t t;
     t += WTAP_DEBOUNCE_US + 1000;
     *us = t;
     *cyc = ui_rand();
 #else
-    *us = (uint64_t)esp_timer_get_time();
-    *cyc = esp_cpu_get_cycle_count();
+    *us = (uint64_t)lv_tick_get() * 1000;
+    kiss_trng_fill((uint8_t *)cyc, sizeof *cyc);
 #endif
 }
 
+// Source 2, for when the camera never ran. This one splits on the PLATFORM and
+// not on any simulator macro, deliberately: kiss_trng_fill is the seam both
+// host builds already resolve correctly on their own. The walk links
+// sim_main.c's fake, a deterministic splitmix, so its frames stay pinned; the
+// interactive simulator links the real main/kiss_crypto.c, whose host branch
+// reads /dev/urandom -- which under Emscripten is crypto.getRandomValues. A
+// KISS_SIM_WALK guard here would have thrown the second one away.
 static void tap_fill_trng(uint8_t *b, size_t n)
 {
-#ifdef SIMULATOR
-    for (size_t i = 0; i < n; i++) b[i] = (uint8_t)(ui_rand() & 0xFF);
-#else
+#ifdef ESP_PLATFORM
     esp_fill_random(b, n);
+#else
+    kiss_trng_fill(b, n);
 #endif
 }
 
