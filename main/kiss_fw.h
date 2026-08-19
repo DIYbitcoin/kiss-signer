@@ -15,6 +15,17 @@
 
 #define WFW_VER_LEN 32
 
+// How many names the scan reads descriptors for. The card is meant to hold one
+// .bin -- G_FW_WHERE_B says so in 21 locales -- and this was 8, chosen as
+// "surely enough". It is the window, not the directory: platform_sd_list_firmware
+// streams the whole card and keeps the first WFW_SCAN_MAX by name, so anything
+// past it is never opened and never judged. Eight files sorting ahead of the
+// real image hid it, and if one of those eight was a genuine older release the
+// device offered THAT instead -- correctly signed, so nothing downstream could
+// object. 24 matches the PSBT list's cap, for the same reason: far past any
+// honest card, and the count below says so when it is not enough.
+#define WFW_SCAN_MAX 24
+
 enum {
     WFW_OK             =   0,
     WFW_ERR_NO_CARD    =  -1,
@@ -37,7 +48,9 @@ typedef struct {
     size_t slot;        // bytes the receiving slot holds
     int    cmp;         // version vs running: <0 older, 0 same, >0 newer
     int    status;      // WFW_OK when installable, otherwise why not
-} wfw_image_t;
+    int    examined;    // images whose descriptor was actually read
+    int    on_card;     // .bin files the card holds: > examined means a window
+} wfw_image_t;          // was hit and the answer is about a subset
 
 // What this firmware calls itself. Reads the running app's own descriptor on
 // device; the compiled in string in the sim.

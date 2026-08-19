@@ -15,6 +15,10 @@
 #include "kiss_fw.h"
 #include "platform_sd.h"
 
+// How many throwaway images the scan-window test writes. Named because
+// wipe_card has to remove exactly these again.
+#define WFW_DECOYS 40
+
 static int ffails;
 static void ok(const char *n, int c)
 {
@@ -63,11 +67,21 @@ static void wipe_card(void)
     // platform_sd's sim base. Remove only what these tests create.
     static const char *const junk[] = {
         "fw-new.bin", "fw-old.bin", "fw-same.bin", "aaa-notimage.bin",
-        "huge.bin", "short.bin", "0-old.bin", "z-new.bin", NULL
+        "huge.bin", "short.bin", "0-old.bin", "z-new.bin", "z-real.bin", NULL
     };
     for (int i = 0; junk[i]; i++) {
         char p[128];
         snprintf(p, sizeof p, "/tmp/simsd/%s", junk[i]);
+        remove(p);
+    }
+    // The scan-window fixtures, by pattern rather than by name. /tmp/simsd is
+    // shared with the screen walk, so a file left behind here is a layout
+    // regression over there -- and forty of them left behind is every firmware
+    // test in the NEXT run of this binary failing on a card that was supposed
+    // to start empty, which is exactly what happened.
+    for (int i = 0; i < WFW_DECOYS; i++) {
+        char p[128];
+        snprintf(p, sizeof p, "/tmp/simsd/a-decoy-%02d.bin", i);
         remove(p);
     }
 }
@@ -271,6 +285,49 @@ int test_fw(void)
     ok("install refuses without a verifying build",
        kiss_fw_install(&got, NULL, NULL) == WFW_ERR_UNSIGNED);
     ok("availability agrees", kiss_fw_available() == WFW_ERR_UNSIGNED);
+
+    // ---- the scan window -------------------------------------------------
+    //
+    // The lister streams the whole directory, but the scan reads descriptors
+    // for only the first WFW_SCAN_MAX names, and it used to ask for eight and
+    // throw the total away. So the answer could be about a subset chosen by
+    // filename with nothing saying so -- and if a genuine, correctly signed old
+    // release was in that subset, the device offered it as the update while the
+    // real image sat unopened. The signature check cannot object: the image
+    // really is ours.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    put("z-real.bin", big, sizeof big);      // sorts last, on purpose
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    for (int i = 0; i < 12; i++) {
+        char nm[32];
+        snprintf(nm, sizeof nm, "a-decoy-%02d.bin", i);
+        put(nm, big, sizeof big);
+    }
+    rc = kiss_fw_scan(&got);
+    ok("twelve decoys do not hide the real image",
+       rc == WFW_OK && strcmp(got.version, "99.0.0") == 0);
+    ok("the count says every file was opened",
+       got.examined == 13 && got.on_card == 13);
+
+    // Past the window. The pick is now honestly about a subset, and the two
+    // counts are the only thing that can say so -- there is no signature, no
+    // version and no name that reveals a file was never opened.
+    for (int i = 12; i < WFW_DECOYS; i++) {
+        char nm[32];
+        snprintf(nm, sizeof nm, "a-decoy-%02d.bin", i);
+        put(nm, big, sizeof big);
+    }
+    rc = kiss_fw_scan(&got);
+    ok("the window is reported when the card outruns it",
+       got.examined == WFW_SCAN_MAX && got.on_card == WFW_DECOYS + 1 &&
+       got.on_card > got.examined);
+    // ...and this is the harm, stated: the real image is on the card, the scan
+    // never opened it, and what comes back is a signed downgrade. The screen
+    // has the counts to warn with; the scan cannot fix it on its own.
+    ok("a hidden real image comes back as the older one",
+       rc == WFW_ERR_OLDER && strcmp(got.version, "0.0.1") == 0);
+    wipe_card();
 
     // ---- the boot confirmation gate ------------------------------------
     //

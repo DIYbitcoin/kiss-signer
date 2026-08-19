@@ -390,6 +390,34 @@ static void fw_screen(void)
         wt_value_card(s_scr, tr(STR_G_FW_ON_CARD), s_img.version,
                       WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W, true);
 
+    // A card holding more .bin files than the scan opened. The answer above is
+    // then about a SUBSET chosen by name, and the image the owner came here to
+    // install may be one of the ones nobody looked at -- so the screen has to
+    // say so wherever it lands, offer or refusal alike. The left column's
+    // middle slot is free in both branches and sits clear of the why-blocks at
+    // 232.
+    //
+    // Same sentence the PSBT list uses when the card outruns ITS window: the
+    // fact is identical, down to the remedy, and it already ships in 21
+    // locales. WT_SEV_WARN because a narrowed answer is not a neutral one.
+    const bool narrowed = s_img.on_card > s_img.examined;
+    if (narrowed) {
+        char more[96];
+        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT),
+                 s_img.examined, s_img.on_card);
+        // BOTH columns, and that is what makes the sentence readable: in one
+        // 365px column it ellipsised after "showing 24 of 31 files. r" and lost
+        // the remedy, which is the half an owner can act on. The size row gives
+        // up its slot for it when it is here -- how many bytes an image is
+        // matters less than the fact that the answer above it was picked from a
+        // subset -- and in the refusal branch the slot is empty anyway.
+        lv_obj_t *w = wt_row_x(s_scr, WT_ICON_SD, more, NULL, NULL, NULL, NULL,
+                               WT_WARN, false, WT_LIST_L_X, WT_LIST_Y(1),
+                               WT_LIST_R_X + WT_LIST_W - WT_LIST_L_X, WT_ROW_H,
+                               NULL, NULL);
+        wt_row_sev(w, WT_SEV_WARN);
+    }
+
     if (installable) {
         // Facts as rows on the list grid, every one with a mark. The right
         // column, so the value card keeps the left.
@@ -407,9 +435,10 @@ static void fw_screen(void)
         wt_row_x(s_scr, WT_ICON_SD, s_img.name, NULL, NULL,
                  NULL, NULL, WT_INK, false,
                  WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, WT_ROW_H, NULL, NULL);
-        wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_ROW_SIZE), NULL, NULL,
-                 sz, NULL, WT_INK, false,
-                 WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, WT_ROW_H, NULL, NULL);
+        if (!narrowed)
+            wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_ROW_SIZE), NULL,
+                     NULL, sz, NULL, WT_INK, false,
+                     WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, WT_ROW_H, NULL, NULL);
         // A PROMISE, not a verdict, because at this point nothing has checked
         // anything. rc comes from kiss_fw_scan, which reads the descriptor --
         // version, size, name -- and from kiss_fw_available, which asks only

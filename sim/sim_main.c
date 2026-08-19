@@ -2823,6 +2823,12 @@ int main(void) {
       }
     }
     tap_str(STR_C_DONE, 3, 6);     // DONE -> home
+    // /tmp/simsd outlives the process and sim_fixture_reset only WRITES the
+    // fixtures, so a signature left here is an extra row in the file list on
+    // the next run -- and every tap in the sign walk that goes by position
+    // lands one row off. The walk's own REMOVE step sweeps the earlier
+    // signature; this one is made after it, so it clears up after itself.
+    unlink(SIMSD "/zzzz-MANY-recipients-export-from-the-coordinator-ap-signed.psbt");
   }
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
@@ -4437,6 +4443,67 @@ int main(void) {
   pump(100);                           // deferred refusal lands, as above
   save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
   must_show("fw/rejected", tr(STR_G_FW_FAIL_T));
+
+  // 3b. a card holding more images than the scan opens.
+  //
+  // kiss_fw_scan reads descriptors for the first WFW_SCAN_MAX names and the
+  // lister hands them over sorted, so past that the screen's answer is about a
+  // SUBSET chosen by filename -- and it used to be silent about it. This frame
+  // is the harm end to end: thirty 0.0.1 images sorting ahead of the real
+  // 99.0.0 one fill the window, the device never opens the file the owner came
+  // here to install, and what it offers instead is a genuine older build the
+  // signature check has no reason to object to.
+  //
+  // 30, not WFW_SCAN_MAX + 1: the window has to be filled ENTIRELY by decoys
+  // for the real image to disappear, which is the case worth photographing.
+  {
+    unsigned char pad[512];
+    memset(pad, 0, sizeof pad);
+    pad[0] = 0xE9;
+    pad[32] = 0x32; pad[33] = 0x54; pad[34] = 0xCD; pad[35] = 0xAB;
+    memcpy(pad + 32 + 16, "0.0.1", 5);
+    memcpy(pad + 32 + 48, "kiss", 4);
+    for (int i = 0; i < 30; i++) {
+      char p[64];
+      snprintf(p, sizeof p, "/tmp/simsd/a-crowd-%02d.bin", i);
+      FILE *f = fopen(p, "wb");
+      if (f) { fwrite(pad, 1, sizeof pad, f); fclose(f); }
+    }
+  }
+  kiss_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  save("/tmp/sim_fw_crowded.ppm");
+  {
+    // Counted, not assumed. Earlier steps of this same walk leave their own
+    // .bin on the card -- kiss-proof.bin is one -- so a hard 31 here passed
+    // only for as long as nothing upstream wrote another file, and the first
+    // thing it did was fail on a screen that was completely correct.
+    int bins = 0;
+    DIR *cd = opendir("/tmp/simsd");
+    if (cd) {
+      struct dirent *de;
+      while ((de = readdir(cd)) != NULL) {
+        size_t l = strlen(de->d_name);
+        if (de->d_name[0] != '.' && l > 4 &&
+            strcasecmp(de->d_name + l - 4, ".bin") == 0)
+          bins++;
+      }
+      closedir(cd);
+    }
+    char want[96];
+    snprintf(want, sizeof want, tr(STR_S_FILES_MORE_FMT), WFW_SCAN_MAX, bins);
+    must_show("fw/narrowed scan", want);
+    if (bins <= WFW_SCAN_MAX) {
+      printf("FAIL: fw/narrowed scan: only %d .bin on the card, the window is "
+             "%d, so this stop proves nothing\n", bins, WFW_SCAN_MAX);
+      g_walk_fails++;
+    }
+  }
+  for (int i = 0; i < 30; i++) {
+    char p[64];
+    snprintf(p, sizeof p, "/tmp/simsd/a-crowd-%02d.bin", i);
+    unlink(p);
+  }
 
   // 4. no card at all: the same two block shape, different left hand claim.
   unlink("/tmp/simsd/kiss-signer-99.0.0.bin");

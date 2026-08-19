@@ -224,12 +224,23 @@ int kiss_fw_scan(wfw_image_t *out)
     if (platform_sd_probe() != 1)
         return out->status = WFW_ERR_NO_CARD;
 
-    char names[8][SD_NAME_LEN];
-    int n = platform_sd_list_firmware(names, 8, NULL);
+    // Static rather than automatic: 24 names is 1.5KB, which is a third of some
+    // of the task stacks this can be called from, and there is exactly one scan
+    // in flight at a time.
+    static char names[WFW_SCAN_MAX][SD_NAME_LEN];
+    int all = 0;
+    int n = platform_sd_list_firmware(names, WFW_SCAN_MAX, &all);
     if (n <= 0)
         return out->status = WFW_ERR_NO_FILE;
+    // The `total` the lister has always computed and this call has always
+    // thrown away, which is what made the window invisible. The comment below
+    // claimed every readable image was examined; past the window it was not,
+    // and nothing on the screen or in the struct said which case the owner was
+    // looking at.
+    out->examined = n;
+    out->on_card  = all;
 
-    // EVERY readable app image is examined and the NEWEST wins. Reading the
+    // EVERY readable app image IN THE WINDOW is examined and the NEWEST wins. Reading the
     // descriptor is what picks it, not the name: a card holding a photo called
     // firmware.bin and the real image called z.bin has to land on the real
     // image.
@@ -248,6 +259,15 @@ int kiss_fw_scan(wfw_image_t *out)
     // reported as too big, rather than silently falling back to an older one
     // that does fit. A downgrade the owner did not ask for is worse than a
     // refusal they can read.
+    //
+    // The window is the residual of that same attack and it is why out->on_card
+    // exists. Choosing correctly among the names that were opened is no defence
+    // if the real image was never one of them: enough files sorting ahead of it
+    // pushed it out of an eight name window entirely, and the device offered
+    // whatever was left with nothing on the screen to say a choice had been
+    // narrowed. WFW_SCAN_MAX is far past any card an owner builds by hand now,
+    // and where it is not, the screen says how many were looked at out of how
+    // many are there.
     int best = -1;
     size_t blen = 0;
     char bver[WFW_VER_LEN] = {0}, bproj[WFW_VER_LEN] = {0};
