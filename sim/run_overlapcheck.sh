@@ -193,6 +193,14 @@ echo "theme role gate: 3 accents"
 echo
 roletotal=0
 for a in GREEN CYPHERPINK ORANGE; do
+    # A fresh card here too. The locale loop above has done this since the walk
+    # started tapping pills by label, and this loop never did -- so each accent
+    # run inherited whatever the run before it left on /tmp/simsd: a signature
+    # it wrote, a file REMOVE ALL took away. That is a walk derailing on a row
+    # that moved, and a derailed walk prints "clean" for every stop it never
+    # reached, which is the exact failure the message at the bottom of this
+    # script warns about and blames on somebody else's interleaved run.
+    rm -rf /tmp/simsd
     out=$(SIM_ACCENT="$a" /tmp/kissoverlap 2>&1)
     rc=$?
     sline=$(summary_of "$out")
