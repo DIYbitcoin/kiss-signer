@@ -1263,6 +1263,52 @@ static lv_obj_t *det_chip(int idx)
 
 // Press the pill saying tr(key), hold for `hold` frames, release, settle for
 // `settle`. hold = 3 is an ordinary tap; a hold-to-confirm wants its duration.
+// A label whose text starts with `pre`, and the clickable row it sits in. The
+// file list is a scrollable column of rows labelled with the filename itself,
+// so nothing in STR_* names them and tap_str cannot reach one. Found by prefix
+// rather than by y, because which row a file lands on depends on how many
+// signatures are already on the card -- a number the walk changes as it goes.
+static lv_obj_t *find_label_prefix(lv_obj_t *o, const char *pre) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    return (t && strncmp(t, pre, strlen(pre)) == 0) ? o : NULL;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_label_prefix(lv_obj_get_child(o, i), pre);
+    if (r) return r;
+  }
+  return NULL;
+}
+
+// The row, not the label: the label is a child of the pressable object and a
+// press on it does not reach the row's own event.
+static lv_obj_t *find_row_prefix(lv_obj_t *o, const char *pre) {
+  lv_obj_t *l = find_label_prefix(o, pre);
+  for (lv_obj_t *up = l ? lv_obj_get_parent(l) : NULL; up;
+       up = lv_obj_get_parent(up))
+    if (lv_obj_has_flag(up, LV_OBJ_FLAG_CLICKABLE)) return up;
+  return NULL;
+}
+
+static int tap_row_prefix(const char *pre) {
+  lv_obj_t *row = find_row_prefix(lv_screen_active(), pre);
+  if (!row) {
+    printf("FAIL: no file row starting \"%s\"\n", pre);
+    g_walk_fails++;
+    return 0;
+  }
+  lv_obj_scroll_to_view(row, LV_ANIM_OFF);
+  pump(4);
+  lv_area_t a;
+  lv_obj_get_coords(row, &a);
+  touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+  pump(3);
+  release();
+  pump(8);
+  return 1;
+}
+
 static void tap_str(int key, int hold, int settle)
 {
     lv_obj_t *p = pill_for(key, "tap");
@@ -1549,7 +1595,15 @@ static void sim_fixture_reset(void) {
     { "zzz-UNPRV.psbt",  "UNPRV" },
     // Sorts LAST on purpose: the walk taps rows by position, so a fixture
     // inserted anywhere else would shift every tap after it.
-    { "zzzz-MANY.psbt",  "MANY"  },
+    //
+    // The name is long because signed_name clamps the output to 63 bytes and
+    // nothing on the SIGNED screen used to bound the label that shows it. This
+    // one produces exactly 63 -- the worst case, reachable from a coordinator
+    // that names its exports after the wallet and the date -- and it is the
+    // only fixture that produces anything but a short one. The prefix and the
+    // MANY body are unchanged, so it sorts where it always did and the walk's
+    // position taps are untouched.
+    { "zzzz-MANY-recipients-export-from-the-coordinator-app-01.psbt", "MANY" },
     // ... and this one sorts after THAT, for the same reason. Twenty coins into
     // one recipient with no change: the shape the elided middle exists for, and
     // the only fixture where n_total exceeds what ins[] can hold.
@@ -2720,6 +2774,61 @@ int main(void) {
   save("/tmp/sim_sign_failed.ppm");
   must_show("sign failed", tr(STR_S_FAIL_SIGN));
   tap_str(STR_C_BACK, 3, 8);     // BACK -> home, the only way off a failure
+
+  // The RECEIPT, on the only transaction whose receipt could be wrong: five
+  // recipients under a 63 byte filename. Nothing had ever signed a multi output
+  // fixture, so the card had only ever been photographed in the shape where it
+  // happens to be right.
+  //
+  // Two faults met on this frame. RECIPIENT GETS carries the total across every
+  // destination, and the line under it printed the first address it found and
+  // stopped -- so the page an owner keeps stated, as a fact, that the whole
+  // amount went to an address that got a fifth of it. And the filename was laid
+  // out with no width and no long mode at font28, which at 63 bytes is about
+  // 900px on an 800px panel: it ran off both edges, taking the first and last
+  // characters with it, which are the two an eye uses to match a name.
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
+  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
+  if (tap_row_prefix("zzzz-MANY")) {
+    // The read-to-the-end gate is still in force, so the column has to be
+    // dragged before HOLD TO SIGN is live. Same six flicks as the first visit.
+    for (int f = 0; f < 6; f++) {
+      for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
+      release(); pump(10);
+    }
+    press_str(STR_S_HOLD_TO_SIGN); pump(85);
+    release(); pump(150);                           // past the reveal, writes SD
+    save("/tmp/sim_sign_done_many.ppm");
+    // What the card must say, and what it must not. The count comes from the
+    // string DETAILS already uses for it, so this needle is the translated one
+    // in every locale; the address is the fold the old code drew, and its
+    // absence is the whole fix.
+    {
+      char want[80];
+      snprintf(want, sizeof want, tr(STR_S_D_OUTPUTS_FMT), 6u, 1u);
+      must_show("receipt/recipient count", want);
+    }
+    must_not_show("receipt/no first address", "bc1q 00g3");
+    // The filename, inside the panel. LV_LABEL_LONG_DOT keeps the label's TEXT
+    // whole, so a needle would pass on a label hanging off both edges -- the
+    // rendered box is the only thing that can answer this.
+    {
+      lv_obj_t *fn = find_label_prefix(lv_screen_active(), "zzzz-MANY");
+      if (!fn) {
+        printf("FAIL: receipt: the signed filename is not on the screen\n");
+        g_walk_fails++;
+      } else {
+        lv_area_t a;
+        lv_obj_get_coords(fn, &a);
+        if (a.x1 < 0 || a.x2 > 799) {
+          printf("FAIL: receipt: filename runs %d..%d, off an 800px panel\n",
+                 a.x1, a.x2);
+          g_walk_fails++;
+        }
+      }
+    }
+    tap_str(STR_C_DONE, 3, 6);     // DONE -> home
+  }
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out

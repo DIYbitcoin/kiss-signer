@@ -587,12 +587,38 @@ static void done_summary(int y)
     // The destination, folded exactly as the screen before this one folded it.
     // Change outputs are skipped for the same reason they are skipped there:
     // an address the device proved is its own is not where the money went.
+    //
+    // One recipient, or none -- never the first of several. RECIPIENT GETS
+    // above carries the total across every destination, and this line used to
+    // print the first address it found under it and stop. Two recipients and
+    // the receipt stated, in the shape of a fact, that the whole amount went to
+    // an address that got part of it; the owner keeps this page, or photographs
+    // it, and nothing later contradicts it.
+    //
+    // The verify screen decided this already and the reason is written there:
+    // above one recipient every strand carries its own address, because "a
+    // single line below it could name the first and no other". There is no
+    // graph on a 104px card, so the count takes the slot instead -- in the
+    // string the DETAILS page already uses for exactly this fact, so the honest
+    // version costs nothing in 21 locales.
+    uint32_t n_recip = 0, n_ours = 0;
+    int only = -1;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
-        if (s_sum.outs[i].is_change) continue;
+        if (s_sum.outs[i].is_change) { n_ours++; continue; }
+        if (!n_recip++) only = i;
+    }
+    if (n_recip == 1) {
         wt_lbl(c, LV_SYMBOL_GPS, 14, 76, wt_font14(), MUT_COL);
-        lv_obj_t *ad = wt_addr_short(c, s_sum.outs[i].addr, wt_font_mono14());
+        lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono14());
         lv_obj_set_pos(ad, 40, 74);
-        break;
+    } else if (n_recip > 1) {
+        char b[80];
+        snprintf(b, sizeof b, tr(STR_S_D_OUTPUTS_FMT),
+                 (unsigned)s_sum.n_out, (unsigned)n_ours);
+        wt_lbl(c, LV_SYMBOL_LIST, 14, 76, wt_font14(), MUT_COL);
+        lv_obj_t *l = wt_lbl(c, b, 40, 76, wt_font14(), MUT_COL);
+        lv_obj_set_width(l, 640);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
 }
 
@@ -633,8 +659,26 @@ static void done_screen(const char *outname)
     // reached under.
     lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, 0, 248, wt_font28(), MUT_COL);
     lv_obj_align_to(lk, big, LV_ALIGN_OUT_LEFT_MID, -18, 0);
-    lv_obj_t *fn = mk_lbl(outname, 0, 300, wt_font28(), INK_COL);
-    lv_obj_align(fn, LV_ALIGN_TOP_MID, 0, 300);
+    // Bounded, because signed_name clamps to 63 bytes and nothing here did.
+    // At font28 that is roughly 900px of text laid out on an 800px panel with
+    // no width and no long mode set, so a long name ran off BOTH edges of the
+    // one screen an owner reads a filename back to a coordinator from -- and
+    // took its own first and last characters with it, which are the two an
+    // eye actually uses to match a name against a card.
+    //
+    // DOT, not a smaller font. wt_note_fit and its siblings would have shrunk
+    // this to font14 and reported nothing, which is the failure mode the house
+    // rules name: a fit helper landing on font14 means the string is too long
+    // for the space, and a filename is not copy that can be cut.
+    lv_obj_t *fn = mk_lbl(outname, 48, 300, wt_font28(), INK_COL);
+    // Width AND height. DOT on a content-sized label wraps first and dots only
+    // once it runs out of lines, so bounding the width alone turned the name
+    // into two centred lines that ran straight through the SIGNATURE chip 36px
+    // below -- a different way of being unreadable, and one that also took the
+    // chip with it. One line is the whole budget here.
+    lv_obj_set_size(fn, 704, lv_font_get_line_height(wt_font28()));
+    lv_label_set_long_mode(fn, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(fn, LV_TEXT_ALIGN_CENTER, 0);
     // The signature fingerprint, centred under the filename, with its ? panel.
     draw_sig_chip(296, 336, false);
     // S_SAVED_NOTE went with the space it was filling. "saved to the card" sat
