@@ -198,6 +198,15 @@ for l in "${langs[@]}"; do
     else
         printf '%-8s clean\n' "$l"
     fi
+    # The backlog lines, which this runner has never shown. Three checks keep
+    # shrink-only exemption lists and the docs say "the run prints how many are
+    # left" -- true of the binary, and not of this script, which captured the
+    # output and printed only findings. An exemption nobody sees is an exemption
+    # nobody removes. Non-zero counts and stale entries only, so a clean sweep
+    # stays quiet.
+    printf '%s\n' "$out" \
+        | grep -E 'backlog entry .* never matched|: [1-9][0-9]* (screens|strings) still on the' \
+        | sed 's/^\[overlap\] /  /'
     summary="${summary}${l}=${n} "
 done
 
