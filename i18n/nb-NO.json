@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "veksel tilbake til deg, kontrollert her",
   "S_SENDING_OUT": "mottakeradresse",
   "S_ADDR_HELP_B": "SAMMENLIGN: de lyse tegnene, med adressen koordinatoren din viser.\nBYTTET: skadevare kan endre den på datamaskinen. her kan den ikke.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "stille betaling",
   "S_SP_NOTE": "adressen er beregnet på denne enheten, kontrollert på nytt av koordinatoren din",
   "S_SP_ONCHAIN_FMT": "riktig: den delte %s... blir en ny %s... adresse for denne betalingen",

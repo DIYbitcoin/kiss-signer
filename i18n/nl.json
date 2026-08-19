@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "wisselgeld terug naar jou, hier gecontroleerd",
   "S_SENDING_OUT": "ontvangeradres",
   "S_ADDR_HELP_B": "VERGELIJK: de opgelichte tekens, met het adres dat je coordinator toont.\nGERUILD: malware kan het op je computer wijzigen. hier niet.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "stille betaling",
   "S_SP_NOTE": "adres op dit apparaat berekend, opnieuw gecontroleerd door je coördinator",
   "S_SP_ONCHAIN_FMT": "klopt: de gedeelde %s... wordt een nieuw %s... adres voor deze betaling",

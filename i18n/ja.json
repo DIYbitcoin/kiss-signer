@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "お釣りはあなたへ戻ります。ここで検証済み",
   "S_SENDING_OUT": "受取人アドレス",
   "S_ADDR_HELP_B": "照合: 明るい文字を、コーディネーターが見せるアドレスと見くらべます。\nすり替え: 不正なソフトはパソコン上で書き換えます。ここでは書き換えられません。",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "サイレント支払い",
   "S_SP_NOTE": "アドレスはこの端末で計算され、コーディネーターが再確認します",
   "S_SP_ONCHAIN_FMT": "正しい動作です: 共有した %s... は、この支払い用の新しい %s... アドレスになります",

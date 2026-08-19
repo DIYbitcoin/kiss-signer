@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "troco para si, verificado aqui",
   "S_SENDING_OUT": "endereço do destinatário",
   "S_ADDR_HELP_B": "COMPARE: os caracteres acesos, com o endereço que o seu coordenador mostra.\nTROCADO: malware pode mudá-lo no seu computador. aqui não consegue.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "silent payment",
   "S_SP_NOTE": "endereço calculado neste dispositivo, reverificado pelo seu coordenador",
   "S_SP_ONCHAIN_FMT": "correto: o %s... partilhado passa a um novo endereço %s... para este pagamento",

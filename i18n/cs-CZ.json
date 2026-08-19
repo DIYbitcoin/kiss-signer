@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "drobné zpět pro vás, zde ověřeno",
   "S_SENDING_OUT": "adresa příjemce",
   "S_ADDR_HELP_B": "POROVNEJ: rozsvícené znaky s adresou, kterou ukazuje tvůj koordinátor.\nVYMĚNĚNÁ: škodlivý kód ji změní v počítači. tady ji nezmění.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "tichá platba",
   "S_SP_NOTE": "adresa vypočtena na tomto zařízení, znovu ověřena vaším koordinátorem",
   "S_SP_ONCHAIN_FMT": "správně: sdílená %s... se pro tuto platbu mění na novou adresu %s...",

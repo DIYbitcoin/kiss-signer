@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "växel tillbaka till dig, kontrollerad här",
   "S_SENDING_OUT": "mottagaradress",
   "S_ADDR_HELP_B": "JÄMFÖR: de upplysta tecknen, med adressen din koordinator visar.\nBYTT: skadlig kod kan ändra den på datorn. här kan den inte.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "tyst betalning",
   "S_SP_NOTE": "adressen beräknas på den här enheten, kontrolleras igen av din koordinator",
   "S_SP_ONCHAIN_FMT": "rätt: den delade %s... blir en ny %s... adress för den här betalningen",

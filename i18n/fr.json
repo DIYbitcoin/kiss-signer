@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "monnaie qui te revient, vérifiée ici",
   "S_SENDING_OUT": "adresse destinataire",
   "S_ADDR_HELP_B": "COMPARE : les caractères éclairés, avec l'adresse que montre ton coordinateur.\nÉCHANGÉE : un logiciel malveillant peut la changer sur ton ordinateur. pas ici.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "paiement furtif",
   "S_SP_NOTE": "adresse calculée sur cet appareil, revérifiée par votre coordinateur",
   "S_SP_ONCHAIN_FMT": "correct : la %s... partagée devient une nouvelle adresse %s... pour ce paiement",

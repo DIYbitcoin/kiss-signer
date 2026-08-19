@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "Wechselgeld zurück an dich, hier geprüft",
   "S_SENDING_OUT": "Empfängeradresse",
   "S_ADDR_HELP_B": "VERGLEICHEN: die hellen Zeichen, mit der Adresse deines Koordinators.\nGETAUSCHT: Schadsoftware kann sie am Computer ändern. hier nicht.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "Silent Payment",
   "S_SP_NOTE": "Adresse auf diesem Gerät berechnet, von deinem Koordinator erneut geprüft",
   "S_SP_ONCHAIN_FMT": "richtig: die geteilte %s... wird für diese Zahlung zu einer neuen %s... Adresse",

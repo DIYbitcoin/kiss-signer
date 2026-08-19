@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "сдача обратно вам, проверена здесь",
   "S_SENDING_OUT": "адрес получателя",
   "S_ADDR_HELP_B": "СРАВНИТЕ: подсвеченные знаки с адресом, который показывает координатор.\nПОДМЕНА: вредонос меняет адрес на компьютере. здесь он его не тронет.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "тихий платёж",
   "S_SP_NOTE": "адрес вычислен на этом устройстве, перепроверен вашим координатором",
   "S_SP_ONCHAIN_FMT": "все верно: общий %s... становится новым адресом %s... для этого платежа",

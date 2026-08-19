@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "para üstü size döner, burada doğrulandı",
   "S_SENDING_OUT": "alıcı adresi",
   "S_ADDR_HELP_B": "KARŞILAŞTIRIN: parlak karakterleri, koordinatörünüzün gösterdiği adresle.\nDEĞİŞTİRİLDİ: kötü yazılım onu bilgisayarda değiştirir. burada değiştiremez.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "sessiz ödeme",
   "S_SP_NOTE": "adres bu cihazda hesaplandı, koordinatörünüz tarafından yeniden doğrulandı",
   "S_SP_ONCHAIN_FMT": "doğru: paylaşılan %s... bu ödeme için yeni bir %s... adresine dönüşür",

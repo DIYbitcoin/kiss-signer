@@ -338,6 +338,8 @@
   "S_CHANGE_TAG": "reszta wraca do ciebie, sprawdzona tutaj",
   "S_SENDING_OUT": "adres odbiorcy",
   "S_ADDR_HELP_B": "PORÓWNAJ: podświetlone znaki, z adresem pokazywanym przez koordynatora.\nPODMIENIONY: malware zmieni go na komputerze. tutaj nie zmieni.",
+  "S_PAYEE_SEEN": "paid before",
+  "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "cicha płatność",
   "S_SP_NOTE": "adres obliczony na tym urządzeniu, ponownie sprawdzony przez koordynatora",
   "S_SP_ONCHAIN_FMT": "poprawnie: udostępniony %s... staje się nowym adresem %s... dla tej płatności",
