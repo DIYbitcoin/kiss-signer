@@ -150,7 +150,7 @@ bash sim/build_fitcheck.sh && /tmp/kissfit         # 21-locale text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme     # accent vs status colour
 bash sim/build_osdcheck.sh && /tmp/kissosd         # on-video overlay text
 bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locales
-bash sim/build_sim.sh && python3 tools/check_screen_coverage.py  # screens no gate sees
+python3 tools/check_screen_coverage.py             # screens no gate sees (builds its own)
 bash sim/build_sim.sh && /tmp/fruitsim && python3 tools/check_sim_taps.py  # taps that hit nothing
 python3 tools/gen_docs_shots.py --check            # the frames the docs publish
 ```
@@ -160,10 +160,51 @@ were on CI's list and not on this one — which is how a frame that moved into a
 harness the ordinary walk never enters went red after a push instead of before
 it. Run the walk first or they report every frame as missing.
 
-**One at a time.** `kisstest` and the screen walk share one fake SD at
-`/tmp/simsd`, so two of these running at once interleave on it and the walk
-comes back with a failure that is not in the code. A backgrounded sweep beside a
-foreground run is enough to do it. Re-run alone before believing any of them.
+### More than one of you at a time
+
+This section used to say **one at a time**, and it was right: `kisstest` and the
+screen walk shared one fake SD at `/tmp/simsd`, and two runs at once interleaved
+on it. What it did not say is how that failure looks, which is why it kept being
+dismissed. A run whose fixtures are deleted mid-walk comes up short in a file
+list, taps rows that have moved, and derails — and a derailed walk prints
+"clean" for every stop it never reached, so it reports a clean sweep AND a
+non-zero exit, under a message blaming an interleaved run nobody in that
+terminal can see. Roughly one run in four, for as long as anyone had been
+counting. The binaries collided the same way and more quietly: two builds at
+once, and the loser walks somebody else's code and reports findings about it.
+
+Everything a desktop build pretends is hardware — the fake card, the files
+standing in for NVS, every captured frame, and the binary itself — now hangs off
+`KISS_SIM_TMP` (`main/kiss_simpath.h`). **Unset it is `/tmp`, so every command
+above is unchanged and every path in this file still resolves.** Set it when two
+things run at once:
+
+```bash
+export KISS_SIM_TMP=/tmp/kiss-$$    # your own card, frames and binaries
+```
+
+The two walk gates do this for themselves and clean up after, so
+`run_overlapcheck.sh` and `check_screen_coverage.py` run beside each other and
+beside `kisstest`. `check_screen_coverage.py` also builds its own binary rather
+than trusting whatever `/tmp/fruitsim` is today — which is the rule
+`run_overlapcheck.sh` has had since a stale one "verified" the wrong code — so
+it is no longer chained behind `build_sim.sh` in the list above.
+
+Two things fell out of doing this, and both are worth more than the isolation:
+
+- **Path buffers were sized for one mount point.** `SD_NAME_LEN + 16` is room
+  for `/sdcard` and for `/tmp/simsd` and for nothing else. A longer root
+  silently truncated the longest fixture name, three walk stops opened nothing,
+  and the screens they photographed were correct pictures of the wrong
+  transaction. `full_path` and `side_path` now REFUSE rather than truncate: a
+  truncated path names a file that is not there, so every caller reports a
+  broken card for a card that is fine.
+- **A literal reads as equivalent right up until one end moves.**
+  `"/tmp/simsd/x"` was the same string `SIMSD "/x"` expanded to, so eleven of
+  them looked correct and went on clearing a card nobody was using — four in the
+  walk's own REMOVE step, seven in a `system("rm -f /tmp/simsd/*.psbt")` in the
+  SD tests. Same class as the buffers: agreement by coincidence, found by moving
+  one end.
 
 **Anything touching `main/` also runs the device compiler**, because none of the
 above is it:
