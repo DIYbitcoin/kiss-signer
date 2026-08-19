@@ -118,6 +118,7 @@ static lv_obj_t *s_state_chip;
 // refresh: the spans are children of the card and are placed against the
 // caption, which is a child of the card too.
 static lv_obj_t *s_addr_card, *s_cmp_lbl;
+static lv_obj_t *s_addr_more;   // "FULL ADDRESS" / "SHORT", the fold's own label
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
 // The card behind the silent-payment address and its path. Sized by
 // sp_addr_render, because the folded and full views are wildly different
@@ -144,7 +145,7 @@ static void close_cb(lv_event_t *e) {
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   s_sp_card = NULL;
   s_state_chip = NULL;
-  s_addr_card = s_cmp_lbl = NULL;
+  s_addr_card = s_cmp_lbl = s_addr_more = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -201,6 +202,17 @@ static void recv_refresh(void) {
   } else {
     s_addr_sg = wt_addr_short(par, addr, RECV_ADDR_FONT);
   }
+  // The fold's own label, naming the state a tap moves TO, right-aligned in the
+  // card's top corner so it clears the address block centred below it.
+  if (s_addr_more) {
+    lv_label_set_text(s_addr_more,
+                      tr_sym(s_addr_full ? LV_SYMBOL_EYE_CLOSE : LV_SYMBOL_EYE_OPEN,
+                             s_addr_full ? STR_R_SP_SHOW_SHORT : STR_R_SP_SHOW_FULL));
+    lv_obj_update_layout(s_addr_more);
+    lv_obj_set_pos(s_addr_more,
+                   RECV_CARD_W - 14 - lv_obj_get_width(s_addr_more), 8);
+  }
+
   // Centred as a block, because the card's height is fixed for the taller state:
   // top-aligning would leave the folded line floating in a box half empty.
   if (s_addr_sg && s_cmp_lbl) {
@@ -792,7 +804,7 @@ static void page_cb(lv_event_t *e) {
 static void back_to_detail_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
-  s_addr_card = s_cmp_lbl = NULL;
+  s_addr_card = s_cmp_lbl = s_addr_more = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   recv_detail_open();
 }
@@ -801,7 +813,7 @@ static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;   // detail-only widgets are gone
   s_state_chip = NULL;
   s_path_tn_lbl = NULL;
-  s_addr_card = s_cmp_lbl = NULL;
+  s_addr_card = s_cmp_lbl = s_addr_more = NULL;
 
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address you are about to hand over, so it
@@ -988,6 +1000,18 @@ static void recv_detail_open(void) {
   lv_obj_add_flag(s_addr_card, LV_OBJ_FLAG_CLICKABLE);
   wt_tap_feedback(s_addr_card);
   lv_obj_add_event_cb(s_addr_card, addr_toggle_cb, LV_EVENT_CLICKED, NULL);
+
+  // ...and it SAYS so. A big target nobody knows to press is not an
+  // affordance, and the silent-payment screen two taps away gives the very
+  // same gesture a labelled pill -- so the device answered "how do I see the
+  // whole address" twice, differently, on two screens showing an address.
+  //
+  // Not a pill here: the action row is full (BACK, NEXT, VERIFY) and the
+  // gesture belongs to the card, not to the row. A mark and its word in the
+  // card's own corner, at the caption rung, using the two strings the SP
+  // screen already ships in 21 locales. Text set by recv_refresh, because it
+  // names the state the tap will move TO.
+  s_addr_more = wt_lbl(s_addr_card, "", 14, 8, wt_font14(), WT_MUT);
 
   // The compare caption from HANDOFF-01: same string in every locale, points
   // at the lit characters above. Font14 muted so it never competes with the
