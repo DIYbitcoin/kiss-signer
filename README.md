@@ -26,6 +26,7 @@ draw. The strokes are traced onto this picture so you can see where they go.</su
 
 *Keep it simple. Make it clear. Make it safe.*
 
+[Simulator](https://kkdao.github.io/kiss-signer/sim/) &nbsp;·&nbsp;
 [Docs](docs/guide.html) &nbsp;·&nbsp;
 [Roadmap](ROADMAP.md) &nbsp;·&nbsp;
 [Security plan](docs/security-plan.md) &nbsp;·&nbsp;
@@ -281,7 +282,7 @@ the repo is public. They cover:
 - **Build from source.** Reproducible Docker builds, hashes match CI
 - **Flash encryption.** The final signer build that cannot be undone, and what it costs
 - **First boot.** The unlock gesture, passphrase model, pairing Sparrow
-- **Simulator & tests.** Try the UI and run the test suite, no hardware
+- **Simulator & tests.** Every screen in a browser, and the test suite, no hardware
 
 [**Walkthrough**](docs/walkthrough.md) covers the five things to do before the
 wallet holds anything you care about: getting back in from the game, pairing

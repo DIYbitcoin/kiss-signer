@@ -322,3 +322,26 @@ jobs:
           rm -rf /tmp/ci_sd_psbts && mkdir -p /tmp/ci_sd_psbts
           bash sim/mk_sd_psbts.sh /tmp/ci_sd_psbts
           bash sim/check_sd_psbts.sh /tmp/ci_sd_psbts
+
+      # The interactive simulator, and the only gate that compiles the UI and
+      # libwally into one binary. Neither of the other two link lines would
+      # notice it breaking: build_sim.sh fakes the crypto, build_test.sh has no
+      # screens. The browser build is the same sources through emcc, differing
+      # only inside its own #ifdef, so guarding this one guards both without
+      # putting a 1GB emsdk install on every push.
+      #
+      # Down here with the SD fixtures for the same reason they are: /tmp/kissapp
+      # links kiss_seed.c and platform_sd.c and writes the same hardcoded host
+      # paths, so it must not run before the screen walk.
+      - name: SDL2 for the interactive simulator
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+
+      - name: interactive simulator builds and boots
+        run: |
+          bash sim/build_simapp.sh
+          rm -rf /tmp/simsd
+          rm -f /tmp/kiss_seed.txt /tmp/kiss_seed_mode.txt /tmp/kiss_seed_entq.txt \
+                /tmp/kiss_device_key.bin /tmp/kiss_flash_key.bin
+          SDL_VIDEODRIVER=dummy /tmp/kissapp --frames 40 --shot /tmp/kissapp.ppm
+          test -s /tmp/kissapp.ppm || { echo "FAIL: the app rendered nothing"; exit 1; }
+          echo "ok: $(wc -c < /tmp/kissapp.ppm) bytes of frame"

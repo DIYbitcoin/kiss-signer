@@ -574,14 +574,35 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       <section class="doc-card reveal" id="simulator">
         <p class="eyebrow">07 / no hardware required</p>
         <h2>Try it without hardware</h2>
-<pre><code>sim/build_sim.sh      # headless LVGL sim -> /tmp/fruitsim (renders .ppm frames)
+        <p>
+          <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
+          own firmware compiled to WebAssembly. Every screen, the real word list, the real
+          derivation, a real signature. Nothing is installed and nothing leaves the tab.
+          Drag to draw <strong>KISS</strong> across the cover screen to open it, or use
+          <a href="sim/index.html#wallet=ready">a known test wallet</a> to skip setup.
+        </p>
+        <p class="note">
+          One thing there is not real: there is no camera behind CAMERA AND TAPS, so that
+          entropy source is filled in for you. The dice and the taps are yours. A browser
+          tab is not a signer — make the keys that matter on the device, offline.
+        </p>
+
+        <h3>The gates</h3>
+        <p>
+          The same sources also build the headless harnesses CI runs. Nothing here needs a
+          device.
+        </p>
+<pre><code>sim/build_simapp.sh   # the interactive simulator in a window -> /tmp/kissapp
+tools/build_wasm.sh   # the same thing for a browser -> docs/sim/
+sim/build_sim.sh      # headless walk -> /tmp/fruitsim (renders .ppm frames)
 sim/build_test.sh     # crypto/PSBT test suite -> /tmp/kisstest
 sim/build_fuzz.sh     # parser fuzz harness (ASAN/UBSAN) -> /tmp/kissfuzz
 sim/mk_test_qrs.sh d  # scan-test QR page (static/pMofN/BC-UR + STOP case)</code></pre>
         <p>
-          The sim compiles the real <code>main/</code> sources against vendored LVGL
-          and scripts touch input, so UI changes are previewed as frames before any
-          flash. The screenshots on this site are its output.
+          The walk compiles the real <code>main/</code> sources against vendored LVGL and
+          scripts touch input, so UI changes are previewed as frames before any flash. The
+          screenshots on this site are its output. The interactive build adds the real
+          libwally beside them, which is why the simulator can actually sign.
         </p>
       </section>
 

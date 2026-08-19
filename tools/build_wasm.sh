@@ -12,13 +12,19 @@ set -e
 cd "$(dirname "$0")/.."
 LVGL=managed_components/lvgl__lvgl
 WALLY=components/libwally-core
+# sorted, because find walks the filesystem in whatever order it feels like and
+# link order reaches the output. This bundle is COMMITTED, so a build that
+# reshuffles itself puts 4MB of noise in history every time anyone rebuilds it.
 SRCS=$(find "$LVGL/src" -name '*.c' \
   ! -path '*/drivers/*' \
   ! -path '*/libs/freetype/*' ! -path '*/libs/ffmpeg/*' ! -path '*/libs/rlottie/*' \
-  ! -path '*test*' ! -path '*demos*' ! -path '*examples*')
+  ! -path '*test*' ! -path '*demos*' ! -path '*examples*' | LC_ALL=C sort)
 VER=$(head -1 VERSION)
 mkdir -p docs/sim
-emcc -O2 -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations \
+# -g0 strips the name section. Without it emcc leaves its per-run temp directory
+# in the binary, so two builds of identical sources differ -- measured, and the
+# reason this script says anything about determinism at all.
+emcc -O2 -g0 -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations \
   -DSIMULATOR -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE \
   -DNDEBUG=1 -DBUILD_MINIMAL=1 -DECMULT_WINDOW_SIZE=8 \
   -DKISS_VERSION_STR="\"$VER\"" \

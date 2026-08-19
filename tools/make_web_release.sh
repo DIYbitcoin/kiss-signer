@@ -468,6 +468,19 @@ PY
 # and the changelog that does not need a network to read.
 "$PY" tools/make_release_notes.py --write
 
+# 6b. the browser simulator. Rebuilt here rather than on every push: it is a
+# 4MB tracked asset in docs/, on the same footing as the firmware image, and it
+# has to match the firmware this release ships or the page teaches last month's
+# screens. Skipped with a warning when emsdk is absent, because a missing
+# toolchain should not stop a firmware release -- but the bundle in the tree is
+# then stale, and the zip below will pack the stale one.
+if command -v emcc >/dev/null 2>&1; then
+    echo "building the browser simulator..."
+    bash tools/build_wasm.sh
+else
+    echo "WARNING: emcc not found; docs/sim/kiss-sim.wasm is whatever is in the tree" >&2
+fi
+
 # 7. the offline installer zip: the whole install page, the firmware and the
 # signed hashes in one download, so flashing needs no network at all.
 #

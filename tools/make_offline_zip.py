@@ -86,6 +86,13 @@ SITE_REQUIRED = [
     "installer/kiss_signer_pgp.asc",
     "installer/SIGNING.md",
     "installer/release-notes.md",
+    # The simulator. The .wasm is invisible to the reference scanner below --
+    # sim/index.html only names kiss-sim.js, and emscripten's glue fetches the
+    # .wasm at runtime -- so it has to be listed by hand or the zip would ship a
+    # page that loads and then does nothing.
+    "sim/index.html",
+    "sim/kiss-sim.js",
+    "sim/kiss-sim.wasm",
 ]
 
 # Present on a signed release, absent on an unsigned one, and minisign is
@@ -105,7 +112,7 @@ ROOT_FILES = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 # Files on disk whose local references the gate checks against the list above.
 # The generated index is checked too, from the string, not from disk.
-SCANNED = ["guide.html", "styles.css"]
+SCANNED = ["guide.html", "styles.css", "sim/index.html"]
 
 
 def app_ids() -> list[str]:
