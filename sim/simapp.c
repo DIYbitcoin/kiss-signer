@@ -101,21 +101,6 @@ static void lvgl_start(void) {
     lv_refr_now(NULL);
 }
 
-static bool write_ppm(const char *path) {
-    FILE *f = fopen(path, "wb");
-    if (!f) return false;
-    fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
-    for (long i = 0; i < (long)HRES * VRES; i++) {
-        uint16_t c = g_fb[i];
-        unsigned char rgb[3] = { (unsigned char)(((c >> 11) & 0x1F) * 255 / 31),
-                                 (unsigned char)(((c >>  5) & 0x3F) * 255 / 63),
-                                 (unsigned char)(( c        & 0x1F) * 255 / 31) };
-        fwrite(rgb, 1, 3, f);
-    }
-    fclose(f);
-    return true;
-}
-
 // ============================ the browser ==================================
 #ifdef __EMSCRIPTEN__
 
@@ -276,61 +261,227 @@ static bool kiss_script_step(void)
     return true;
 }
 
+// ---- the sim's own chrome, below the panel ---------------------------------
+//
+// The device screen is 800x480 and nothing that is not the device belongs
+// inside it. So the window is taller than the panel and the extra strip carries
+// the controls, the same arrangement the browser page uses with its side panel.
+//
+// It needs labels, and SDL2 without SDL_ttf cannot draw text, so here is a 5x7
+// font covering the characters these three strings use. Cheaper than a
+// dependency and it never has to grow.
+#define STRIP_H 64
+static const struct { char c; uint8_t r[7]; } FONT5x7[] = {
+    {' ',{0,0,0,0,0,0,0}},        {'A',{0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}},
+    {'B',{0x1E,0x11,0x1E,0x11,0x11,0x11,0x1E}}, {'C',{0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}},
+    {'D',{0x1E,0x11,0x11,0x11,0x11,0x11,0x1E}}, {'E',{0x1F,0x10,0x1E,0x10,0x10,0x10,0x1F}},
+    {'F',{0x1F,0x10,0x1E,0x10,0x10,0x10,0x10}}, {'G',{0x0E,0x11,0x10,0x17,0x11,0x11,0x0F}},
+    {'H',{0x11,0x11,0x1F,0x11,0x11,0x11,0x11}}, {'I',{0x0E,0x04,0x04,0x04,0x04,0x04,0x0E}},
+    {'K',{0x11,0x12,0x14,0x18,0x14,0x12,0x11}}, {'L',{0x10,0x10,0x10,0x10,0x10,0x10,0x1F}},
+    {'M',{0x11,0x1B,0x15,0x15,0x11,0x11,0x11}}, {'N',{0x11,0x19,0x15,0x13,0x11,0x11,0x11}},
+    {'O',{0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}}, {'R',{0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}},
+    {'S',{0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E}}, {'T',{0x1F,0x04,0x04,0x04,0x04,0x04,0x04}},
+    {'U',{0x11,0x11,0x11,0x11,0x11,0x11,0x0E}}, {'W',{0x11,0x11,0x11,0x15,0x15,0x1B,0x11}},
+    {'Y',{0x11,0x11,0x0A,0x04,0x04,0x04,0x04}}, {'.',{0,0,0,0,0,0x06,0x06}},
+    {'V',{0x11,0x11,0x11,0x11,0x11,0x0A,0x04}}, {'P',{0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}},
+    {'\'',{0x04,0x04,0,0,0,0,0}},
+};
+static const uint8_t *glyph(char c) {
+    if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+    for (size_t i = 0; i < sizeof FONT5x7 / sizeof *FONT5x7; i++)
+        if (FONT5x7[i].c == c) return FONT5x7[i].r;
+    return NULL;
+}
+
 static SDL_Window   *g_win;
 static SDL_Renderer *g_ren;
 static SDL_Texture  *g_tex;
 static bool g_running = true;
+static int  g_scale = 1;
+// The two controls, in window coordinates before scaling.
+static const SDL_Rect BTN_KISS   = { 16, 494, 150, 30 };
+static const SDL_Rect BTN_WALLET = { 178, 494, 170, 30 };
+
+static void draw_text(const char *t, int x, int y, int px, uint8_t r, uint8_t g, uint8_t b) {
+    SDL_SetRenderDrawColor(g_ren, r, g, b, 255);
+    for (; *t; t++, x += 6 * px) {
+        const uint8_t *gl = glyph(*t);
+        if (!gl) continue;
+        for (int row = 0; row < 7; row++)
+            for (int col = 0; col < 5; col++)
+                if (gl[row] & (0x10 >> col)) {
+                    SDL_Rect d = { (x + col * px) * g_scale, (y + row * px) * g_scale,
+                                   px * g_scale, px * g_scale };
+                    SDL_RenderFillRect(g_ren, &d);
+                }
+    }
+}
+
+static void draw_button(SDL_Rect b, const char *label) {
+    SDL_Rect s = { b.x * g_scale, b.y * g_scale, b.w * g_scale, b.h * g_scale };
+    SDL_SetRenderDrawColor(g_ren, 42, 51, 70, 255);
+    SDL_RenderFillRect(g_ren, &s);
+    SDL_SetRenderDrawColor(g_ren, 90, 104, 130, 255);
+    SDL_RenderDrawRect(g_ren, &s);
+    int w = (int)strlen(label) * 6 * 2;
+    draw_text(label, b.x + (b.w - w) / 2, b.y + (b.h - 14) / 2, 2, 232, 238, 247);
+}
+
+static bool in_rect(SDL_Rect r, int x, int y) {
+    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
 
 // Window coordinates are whatever size the user dragged the window to; every
 // screen in this repo is laid out in one fixed 800x480 space. Scale here so
 // nothing below ever learns the window exists.
-static void map_pointer(int wx, int wy, int down) {
-    int w = HRES, h = VRES;
-    SDL_GetWindowSize(g_win, &w, &h);
-    set_touch((int)((long)wx * HRES / (w > 0 ? w : 1)),
-              (int)((long)wy * VRES / (h > 0 ? h : 1)), down);
+// ---- making a mouse behave like a finger -----------------------------------
+//
+// Two things make drawing with a mouse harder than it should be, and neither is
+// the recogniser's fault.
+//
+// SDL coalesces motion. Every event that arrives in one frame overwrites the
+// last, and the seam is sampled ONCE per frame by two readers -- main.c's
+// game_tick and kiss_ui.c's indev -- so a quick flick reaches kiss_gword.c as a
+// handful of scattered points where a finger, moving slowly against glass,
+// would have left a dense path. So motion is interpolated into a queue at a
+// fixed spacing and played out one point per frame, and the button coming up
+// does NOT lift the finger until that queue has drained. The whole stroke gets
+// seen, however fast it was drawn.
+//
+// And holding a button down for the length of six letters is just tiring.
+// Space, or the right button, latches the pen: move freely, press again to
+// lift. Nothing below the seam can tell the difference.
+#define PATH_MAX_PTS 512
+#define PATH_STEP    18          // px between sampled points, in the 800x480 space
+static int16_t g_path[PATH_MAX_PTS][2];
+static int g_path_head, g_path_tail;
+static bool g_btn_down;          // the physical button (or the latch)
+static bool g_latched;           // space / right click: pen stays down
+static int  g_last_qx = -1, g_last_qy = -1;
+
+static void path_push(int x, int y) {
+    int nxt = (g_path_head + 1) % PATH_MAX_PTS;
+    if (nxt == g_path_tail) return;            // full: keep the earlier shape
+    g_path[g_path_head][0] = (int16_t)x;
+    g_path[g_path_head][1] = (int16_t)y;
+    g_path_head = nxt;
+}
+
+// Walk from the last queued point to this one, dropping a point every
+// PATH_STEP, so a fast drag is as dense as a slow one.
+static void path_extend(int x, int y) {
+    if (g_last_qx < 0) { path_push(x, y); g_last_qx = x; g_last_qy = y; return; }
+    int dx = x - g_last_qx, dy = y - g_last_qy;
+    int dist = (int)(0.5 + __builtin_sqrt((double)(dx * dx + dy * dy)));
+    int steps = dist / PATH_STEP;
+    for (int i = 1; i <= steps; i++)
+        path_push(g_last_qx + dx * i / steps, g_last_qy + dy * i / steps);
+    if (steps > 0) { g_last_qx = x; g_last_qy = y; }
+}
+
+static void path_clear(void) { g_path_head = g_path_tail = 0; g_last_qx = g_last_qy = -1; }
+
+// One queued point per frame, so both readers of the seam see the same one.
+// Returns false only once the queue is empty AND the button is up.
+static bool path_step(void) {
+    if (g_path_tail != g_path_head) {
+        set_touch(g_path[g_path_tail][0], g_path[g_path_tail][1], 1);
+        g_path_tail = (g_path_tail + 1) % PATH_MAX_PTS;
+        return true;
+    }
+    if (g_btn_down) return true;               // held still: keep reporting it
+    g_pressed = false;
+    return false;
+}
+
+// Window coordinates -> the 800x480 panel. The strip below it is not the panel,
+// so a press down there never reaches the signer.
+static void map_pointer(int wx, int wy) {
+    path_extend(wx / g_scale, wy / g_scale);
+}
+static bool in_panel(int wx, int wy) { return wy / g_scale < VRES; }
+static void render(void);
+
+static void pen_down(int wx, int wy) {
+    path_clear();
+    g_btn_down = true;
+    map_pointer(wx, wy);
 }
 
 static void frame(void) {
-    if (kiss_script_step()) { }      // the script owns the pointer while it runs
+    bool scripted = kiss_script_step();   // the script owns the pointer while it runs
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) g_running = false;
-        else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
-            map_pointer(e.button.x, e.button.y, 1);
-        else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
-            g_pressed = false;
-        else if (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK))
-            map_pointer(e.motion.x, e.motion.y, 1);
+        else if (e.type == SDL_MOUSEBUTTONDOWN) {
+            int bx = e.button.x / g_scale, by = e.button.y / g_scale;
+            if (!in_panel(e.button.x, e.button.y)) {              // the strip: controls
+                if (in_rect(BTN_KISS, bx, by) && g_kiss_at < 0) g_kiss_at = 0;
+                else if (in_rect(BTN_WALLET, bx, by)) sim_open_wallet(SIM_TEST_WORDS, NULL);
+            }
+            else if (e.button.button == SDL_BUTTON_LEFT && !g_latched) pen_down(e.button.x, e.button.y);
+            else if (e.button.button == SDL_BUTTON_RIGHT) {       // latch / unlatch
+                g_latched = !g_latched;
+                if (g_latched) pen_down(e.button.x, e.button.y); else g_btn_down = false;
+            }
+        }
+        else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+            if (!g_latched) g_btn_down = false;                   // drains, then lifts
+        }
+        else if (e.type == SDL_MOUSEMOTION) {
+            if (g_btn_down) map_pointer(e.motion.x, e.motion.y);
+        }
         else if (e.type == SDL_KEYDOWN) {
             if (e.key.keysym.sym == SDLK_k && g_kiss_at < 0) g_kiss_at = 0;
             else if (e.key.keysym.sym == SDLK_w) sim_open_wallet(SIM_TEST_WORDS, NULL);
+            else if (e.key.keysym.sym == SDLK_SPACE) {            // same latch, on a key
+                int mx, my; SDL_GetMouseState(&mx, &my);
+                g_latched = !g_latched;
+                if (g_latched) pen_down(mx, my); else g_btn_down = false;
+            }
             else if (e.key.keysym.sym == SDLK_ESCAPE) g_running = false;
         }
     }
+    if (!scripted) path_step();
     static uint32_t last;
     uint32_t now = SDL_GetTicks(), dt = now - last;
     if (dt > 100) dt = 100;
     if (dt) { lv_tick_inc(dt); last = now; }
     lv_timer_handler();
+    render();
+}
+
+// The panel, then the chrome under it. Split out so a headless run can capture
+// the whole window and not just LVGL's half of it.
+static void render(void) {
     SDL_UpdateTexture(g_tex, NULL, g_fb, HRES * (int)sizeof(uint16_t));
+    SDL_SetRenderDrawColor(g_ren, 7, 10, 16, 255);
     SDL_RenderClear(g_ren);
-    SDL_RenderCopy(g_ren, g_tex, NULL, NULL);
+    SDL_Rect panel = { 0, 0, HRES * g_scale, VRES * g_scale };
+    SDL_RenderCopy(g_ren, g_tex, NULL, &panel);
+
+    draw_button(BTN_KISS,   "DRAW KISS");
+    draw_button(BTN_WALLET, "TEST WALLET");
+    // The one thing the simulator cannot do, said where it is asked rather than
+    // left to be discovered: a mouse can trace the default word from a script,
+    // but it cannot teach the recogniser a word of your own.
+    draw_text("CUSTOM DRAWING NEEDS A FINGER. USE A DEVICE.",
+              16, 534, 1, 122, 134, 156);
     SDL_RenderPresent(g_ren);
 }
 
 int main(int argc, char **argv) {
-    int scale = 1, frames = 0; const char *shot = NULL; bool draw_kiss = false;
+    int frames = 0; const char *shot = NULL; bool draw_kiss = false;
     for (int i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "--scale")  && i + 1 < argc) scale  = atoi(argv[++i]);
+        if (!strcmp(argv[i], "--scale")  && i + 1 < argc) g_scale = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot")   && i + 1 < argc) shot   = argv[++i];
         else if (!strcmp(argv[i], "--kiss")) draw_kiss = true;
     }
-    if (scale < 1) scale = 1;
+    if (g_scale < 1) g_scale = 1;
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
     g_win = SDL_CreateWindow("KISS Signer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                             HRES * scale, VRES * scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                             HRES * g_scale, (VRES + STRIP_H) * g_scale, SDL_WINDOW_SHOWN);
     g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     g_tex = g_ren ? SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGB565,
@@ -339,8 +490,9 @@ int main(int argc, char **argv) {
 
     kiss_script_build();
     lvgl_start();
-    printf("keys:  k = draw KISS   w = open the test wallet   esc = quit\n"
-           "tip:   --scale 2 makes the window (and the drawing) twice the size\n");
+    printf("Buttons under the panel: DRAW KISS opens the signer, TEST WALLET\n"
+           "skips setup. Same on the keyboard: k, w, esc to quit.\n"
+           "Drawing your own word needs a finger and is not usable here.\n");
     if (draw_kiss) g_kiss_at = 0;
     if (frames > 0) {                      // headless smoke, for CI
         for (int i = 0; i < frames; i++) {
@@ -348,7 +500,23 @@ int main(int argc, char **argv) {
             lv_tick_inc(16); lv_timer_handler();
         }
         lv_refr_now(NULL);
-        if (shot && write_ppm(shot)) printf("wrote %s\n", shot);
+        render();
+        if (shot) {
+            int W = HRES * g_scale, H = (VRES + STRIP_H) * g_scale;
+            uint8_t *px = malloc((size_t)W * H * 4);
+            FILE *f = px ? fopen(shot, "wb") : NULL;
+            if (f && SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888,
+                                          px, W * 4) == 0) {
+                fprintf(f, "P6\n%d %d\n255\n", W, H);
+                for (long i = 0; i < (long)W * H; i++) {
+                    uint8_t rgb[3] = { px[i * 4 + 2], px[i * 4 + 1], px[i * 4 + 0] };
+                    fwrite(rgb, 1, 3, f);
+                }
+                printf("wrote %s\n", shot);
+            }
+            if (f) fclose(f);
+            free(px);
+        }
         SDL_Quit();
         return 0;
     }
