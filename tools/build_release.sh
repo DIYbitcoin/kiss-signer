@@ -137,6 +137,21 @@ docker run --rm \
 # answered here, unsigned, by anyone. "Is this the firmware KISS published" is
 # answered by the signature, made on a machine that holds the key, and by the
 # signed hashes in SHA256SUMS beside the release.
+# The version of esptool that gets handed the signing key, pinned.
+#
+# Every espsecure call below runs "uvx --from esptool", which resolved whatever
+# PyPI served at that second and then had $KISS_OTA_KEY put on its command
+# line. One bad esptool release -- a compromised maintainer account, a typo in
+# the index, a yanked version replaced in place -- and the private half of the
+# key this project's whole update story rests on walks off the machine, on a
+# run nobody would think to audit because the build succeeded.
+#
+# A pin does not make the download trustworthy; it makes it the SAME download
+# as last time, which is the property that lets a bad one be noticed at all.
+# The flashing hints printed at the end stay unpinned on purpose: they talk to
+# a board, never to a key, and a version baked into a line the reader copies by
+# hand is a staleness problem with nothing to buy it.
+ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   # A marker beside the image, not just a line of log nobody re-reads. Anything
@@ -157,7 +172,7 @@ elif [ ! -f "$KISS_OTA_KEY" ]; then
   exit 1
 else
 echo "signing app with $KISS_OTA_KEY"
-uvx --from esptool espsecure sign-data \
+uvx --from "$ESPTOOL_PIN" espsecure sign-data \
   --version 2 --keyfile "$KISS_OTA_KEY" \
   --output build-release/guition_kiss_bringup-signed.bin \
   build-release/guition_kiss_bringup.bin
@@ -167,7 +182,7 @@ mv build-release/guition_kiss_bringup-signed.bin \
 # The public half in the repo has to be the half that just signed, or users
 # verify against a key the firmware does not carry. Cheap to check, and the
 # failure it prevents is silent.
-uvx --from esptool espsecure extract-public-key \
+uvx --from "$ESPTOOL_PIN" espsecure extract-public-key \
   --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_check.pem
 if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
   echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
@@ -181,7 +196,7 @@ rm -f /tmp/kiss_ota_pub_check.pem
 # that fails if signing was skipped, applied to the wrong file, or undone by a
 # later step that rewrites the binary. The encrypted lane has run this since it
 # existed; this lane published without it.
-if ! uvx --from esptool espsecure verify-signature \
+if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
      --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
      build-release/guition_kiss_bringup.bin >/dev/null 2>&1; then
   echo "FAIL: build-release/guition_kiss_bringup.bin does not verify against"

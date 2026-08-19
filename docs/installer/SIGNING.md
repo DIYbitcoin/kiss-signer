@@ -123,6 +123,34 @@ espsecure.py extract_public_key --version 2 --keyfile kiss_ota.pem \
     docs/installer/kiss_ota_pub.pem     # commit this, publish its sha256
 ```
 
+### The tool that touches the key is pinned
+
+`espsecure` is the only program in this project that is ever handed the private
+half, and both release scripts used to fetch it as `uvx --from esptool`, which
+resolves whatever PyPI serves at that second. One bad release -- a compromised
+maintainer account, a yanked version replaced in place -- reads the key off the
+command line on a run nobody audits, because the build succeeded.
+
+`ESPTOOL_PIN` in `tools/build_release.sh` and
+`tools/build_encrypted_release.sh` names the exact version instead:
+
+```
+ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
+```
+
+A pin does not make the download trustworthy. It makes it the same download as
+last time, which is the property that lets a bad one be noticed at all. Bumping
+it is a deliberate commit, on a machine that can read the changelog first.
+
+The flashing instructions further down each script stay unpinned on purpose:
+they talk to a board and never to a key, and a version baked into a line the
+reader copies by hand is a staleness problem with nothing to buy it.
+
+Signing happens on the machine that holds the key, which should not be the
+machine that built the image. `KISS_UNSIGNED=1` produces the reproducible
+unsigned artifact anywhere; the signature is applied afterwards, where the key
+lives.
+
 The release lane turns the check on. It is **not** in `sdkconfig.defaults`,
 because `CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT` needs the private key at
 build time and a plain `idf.py build` would fail on any machine that does not
