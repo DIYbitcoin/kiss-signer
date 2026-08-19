@@ -1669,7 +1669,10 @@ static void kiss_open_decoy(void) {
 }
 
 #ifdef SIMULATOR
-// The browser simulator's way past the wizard.
+// The simulator's way past the wizard: load a known KEY SET into this signer.
+// Not "wallet" -- the glossary reserves that for what a coordinator watches,
+// and this hands the same box a different set of keys, which is exactly the
+// ambiguity it says to spell as keys.
 //
 // Every interesting screen -- sign, receive, the wallet facts, settings -- sits
 // behind first boot, and first boot is fifty dice rolls and a quiz. That is the
@@ -1684,7 +1687,7 @@ static void kiss_open_decoy(void) {
 // this lives here rather than in the frontend -- same reason sim_capture_word
 // does, and it takes the same sequence kiss_open_decoy just above uses, which
 // is the one path in this file that reaches the home without a login screen.
-void sim_open_wallet(const char *mnemonic, const char *passphrase)
+void sim_open_keys(const char *mnemonic, const char *passphrase)
 {
     if (!mnemonic) return;
     const char *pass = (passphrase && *passphrase) ? passphrase : NULL;
