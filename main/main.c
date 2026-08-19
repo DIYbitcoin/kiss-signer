@@ -1223,6 +1223,17 @@ static void saver_show(void) {
   }
   lv_obj_clear_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_saver_hint);                      // prompt on top of everything
+  {
+    lv_anim_t hp;
+    lv_anim_init(&hp);
+    lv_anim_set_var(&hp, s_saver_hint);
+    lv_anim_set_exec_cb(&hp, anim_opa_cb);
+    lv_anim_set_values(&hp, 150, 255);  // floor kept high so the prompt stays readable
+    lv_anim_set_duration(&hp, 950);
+    lv_anim_set_reverse_duration(&hp, 950);
+    lv_anim_set_repeat_count(&hp, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&hp);
+  }
 }
 
 static void saver_hide(void) {
@@ -1235,6 +1246,7 @@ static void saver_hide(void) {
       s_saver_fruit[i] = NULL;
     }
   }
+  lv_anim_delete(s_saver_hint, NULL);   // the pulse goes with the screen it is on
   lv_obj_add_flag(s_saver, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   // restore the panel for whatever state we returned to
@@ -2878,15 +2890,11 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_radius(s_saver_hint, 20, 0);
   lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -64);
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
-  lv_anim_t hp;
-  lv_anim_init(&hp);
-  lv_anim_set_var(&hp, s_saver_hint);
-  lv_anim_set_exec_cb(&hp, anim_opa_cb);
-  lv_anim_set_values(&hp, 150, 255);   // floor kept high so the prompt always stays readable
-  lv_anim_set_duration(&hp, 950);
-  lv_anim_set_reverse_duration(&hp, 950);
-  lv_anim_set_repeat_count(&hp, LV_ANIM_REPEAT_INFINITE);
-  lv_anim_start(&hp);
+  // The pulse starts with the saver and dies with it (saver_hint_pulse /
+  // saver_hide). It used to start HERE, once, at REPEAT_INFINITE -- so it ran
+  // for the life of the device, setting an opacity on a hidden label 60 times a
+  // second and invalidating it every time, behind the signer's screens and
+  // behind the game. Nothing showed it, and nothing stopped it.
 
   lv_timer_create(game_tick, TICK_MS, NULL);
   s_spawn_timer = lv_timer_create(spawn_tick, 800, NULL);
