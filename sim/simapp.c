@@ -46,9 +46,13 @@
 void build_game(void);            // main/main.c -- the device calls this too
 void kiss_trng_start(void);       // main/kiss_crypto.c
 void kiss_scan_inject(const char *data, size_t len);   // main/kiss_scan.c
-#ifdef __EMSCRIPTEN__
-void sim_open_wallet(const char *mnemonic, const char *passphrase);  // main/main.c
-#endif
+void sim_open_wallet(const char *mnemonic, const char *passphrase);   // main/main.c
+
+// The BIP39 vector every wallet tests against. Recognisable enough that nobody
+// mistakes it for keys worth keeping, and it makes the simulator checkable:
+// fingerprint 73C5DA0A, and m/84h/1h/0h/0/0 is a value pinned in test_crypto.c.
+#define SIM_TEST_WORDS "abandon abandon abandon abandon abandon abandon " \
+                       "abandon abandon abandon abandon abandon about"
 
 static uint16_t g_fb[HRES * VRES];
 
@@ -147,8 +151,7 @@ EMSCRIPTEN_KEEPALIVE void kiss_sim_touch(int x, int y, int down) { set_touch(x, 
 // keys worth keeping, and every address the simulator shows can be checked
 // against a published table, or against the owner's own signer.
 EMSCRIPTEN_KEEPALIVE void kiss_sim_ready_wallet(void) {
-    sim_open_wallet("abandon abandon abandon abandon abandon abandon "
-                    "abandon abandon abandon abandon abandon about", NULL);
+    sim_open_wallet(SIM_TEST_WORDS, NULL);
 }
 
 // The viewfinder rect, read from the screen that draws it. The page used to
@@ -222,6 +225,57 @@ int main(void) { return 0; }   // the page calls kiss_sim_boot when the user doe
 // ============================ the desktop ==================================
 #else
 
+// Drawing KISS with a mouse is genuinely awkward, and it is the first thing
+// between a person and the signer. So: a key that draws it for them.
+//
+// Replayed, not bypassed. These are the exact points sim/sim_main.c's
+// draw_cover_word() feeds the gate walk, so the stroke goes through the real
+// recogniser in kiss_gword.c and opens whichever door the real ink opens. A
+// hook that skipped detection would let the recogniser rot without any of the
+// three harnesses noticing.
+//
+// {-1,-1} lifts the finger, {-2,-2} ends the script. One point per frame,
+// matching the walk's pump(1) -- the game's sampler reads every tick.
+#define KP_UP  -1
+#define KP_END -2
+static int16_t g_kiss[220][2];
+static int g_kiss_n, g_kiss_at = -1, g_kiss_hold;
+
+static void kiss_script_build(void)
+{
+    int n = 0, i;
+    for (i = 0; i <= 9; i++) { g_kiss[n][0] = 140;          g_kiss[n][1] = (int16_t)(120 + i * 20); n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    for (i = 0; i <= 6; i++) { g_kiss[n][0] = (int16_t)(140 + i * 15); g_kiss[n][1] = (int16_t)(210 - i * 13); n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    for (i = 0; i <= 6; i++) { g_kiss[n][0] = (int16_t)(140 + i * 15); g_kiss[n][1] = (int16_t)(210 + i * 15); n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    for (i = 0; i <= 8; i++) { g_kiss[n][0] = 285;          g_kiss[n][1] = (int16_t)(130 + i * 21); n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    static const int16_t s5[7][2] = {{420,140},{360,152},{345,188},{400,212},{422,250},{362,286},{342,272}};
+    static const int16_t s6[7][2] = {{540,140},{480,152},{465,188},{520,212},{542,250},{482,286},{462,272}};
+    for (i = 0; i < 7; i++) { g_kiss[n][0] = s5[i][0]; g_kiss[n][1] = s5[i][1]; n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    for (i = 0; i < 7; i++) { g_kiss[n][0] = s6[i][0]; g_kiss[n][1] = s6[i][1]; n++; }
+    g_kiss[n][0] = KP_UP; g_kiss[n++][1] = KP_UP;
+    g_kiss[n][0] = KP_END; g_kiss[n++][1] = KP_END;
+    g_kiss_n = n;
+}
+
+// One step per frame. Returns true while the script still owns the pointer, so
+// the mouse cannot fight it half way through a letter.
+static bool kiss_script_step(void)
+{
+    if (g_kiss_at < 0) return false;
+    if (g_kiss_hold > 0) { g_kiss_hold--; return true; }
+    int16_t x = g_kiss[g_kiss_at][0], y = g_kiss[g_kiss_at][1];
+    g_kiss_at++;
+    if (x == KP_END) { g_kiss_at = -1; g_pressed = false; return false; }
+    if (x == KP_UP)  { g_pressed = false; g_kiss_hold = 2; return true; }
+    set_touch(x, y, 1);
+    return true;
+}
+
 static SDL_Window   *g_win;
 static SDL_Renderer *g_ren;
 static SDL_Texture  *g_tex;
@@ -238,6 +292,7 @@ static void map_pointer(int wx, int wy, int down) {
 }
 
 static void frame(void) {
+    if (kiss_script_step()) { }      // the script owns the pointer while it runs
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) g_running = false;
@@ -247,6 +302,11 @@ static void frame(void) {
             g_pressed = false;
         else if (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK))
             map_pointer(e.motion.x, e.motion.y, 1);
+        else if (e.type == SDL_KEYDOWN) {
+            if (e.key.keysym.sym == SDLK_k && g_kiss_at < 0) g_kiss_at = 0;
+            else if (e.key.keysym.sym == SDLK_w) sim_open_wallet(SIM_TEST_WORDS, NULL);
+            else if (e.key.keysym.sym == SDLK_ESCAPE) g_running = false;
+        }
     }
     static uint32_t last;
     uint32_t now = SDL_GetTicks(), dt = now - last;
@@ -260,11 +320,12 @@ static void frame(void) {
 }
 
 int main(int argc, char **argv) {
-    int scale = 1, frames = 0; const char *shot = NULL;
+    int scale = 1, frames = 0; const char *shot = NULL; bool draw_kiss = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--scale")  && i + 1 < argc) scale  = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot")   && i + 1 < argc) shot   = argv[++i];
+        else if (!strcmp(argv[i], "--kiss")) draw_kiss = true;
     }
     if (scale < 1) scale = 1;
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
@@ -276,9 +337,16 @@ int main(int argc, char **argv) {
                                       SDL_TEXTUREACCESS_STREAMING, HRES, VRES) : NULL;
     if (!g_win || !g_ren || !g_tex) { fprintf(stderr, "SDL setup: %s\n", SDL_GetError()); return 1; }
 
+    kiss_script_build();
     lvgl_start();
+    printf("keys:  k = draw KISS   w = open the test wallet   esc = quit\n"
+           "tip:   --scale 2 makes the window (and the drawing) twice the size\n");
+    if (draw_kiss) g_kiss_at = 0;
     if (frames > 0) {                      // headless smoke, for CI
-        for (int i = 0; i < frames; i++) { lv_tick_inc(16); lv_timer_handler(); }
+        for (int i = 0; i < frames; i++) {
+            kiss_script_step();            // same replay the k key runs
+            lv_tick_inc(16); lv_timer_handler();
+        }
         lv_refr_now(NULL);
         if (shot && write_ppm(shot)) printf("wrote %s\n", shot);
         SDL_Quit();
