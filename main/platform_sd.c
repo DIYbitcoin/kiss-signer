@@ -12,13 +12,21 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "kiss_simpath.h"
+
 #ifndef ESP_PLATFORM
 
 // Overridable, like SIMSD in sim_main.c and for the same reason: two host
 // builds running at once otherwise share one fake card, and a walk reading
 // another run's files fails in ways that belong to neither.
+//
+// At RUN time now, not only at compile time. A -DSD_BASE only separates two
+// builds, and the collision that was actually happening is two runs of the SAME
+// build -- gates and hand runs, in one checkout, by different people. See
+// kiss_simpath.h; KISS_SIM_TMP unset leaves this exactly "/tmp/simsd".
 #ifndef SD_BASE
-#define SD_BASE "/tmp/simsd"
+KISS_SIM_PATH_FN(sd_base_path, "simsd")
+#define SD_BASE sd_base_path()
 #endif
 static int s_test_present = 1;
 static unsigned s_test_fail;
@@ -339,9 +347,14 @@ int platform_sd_list_kef(char names[][SD_NAME_LEN], int max, int *total)
     return n;
 }
 
-static void full_path(char *dst, size_t dstsz, const char *name)
+// 0, or -1 when the composed path would not fit. A truncated path is the worst
+// possible answer: it names a file that is not there, so every caller reports a
+// missing or unreadable card for a card that is fine.
+static int full_path(char *dst, size_t dstsz, const char *name)
 {
-    snprintf(dst, dstsz, "%s/%s", SD_BASE, name);
+    int n = snprintf(dst, dstsz, "%s/%s", SD_BASE, name);
+    if (n < 0 || (size_t)n >= dstsz) { dst[0] = 0; return -1; }
+    return 0;
 }
 
 // The handle is just a FILE* and a sticky error flag. The flag exists because
@@ -357,8 +370,8 @@ platform_sd_file *platform_sd_open(const char *name, size_t *len)
 {
     if (!name_ok(name))
         return NULL;
-    char p[SD_NAME_LEN + 16];
-    full_path(p, sizeof p, name);
+    char p[SD_PATH_MAX];
+    if (full_path(p, sizeof p, name) != 0) return NULL;
     FILE *f = fopen(p, "rb");
     if (!f)
         return NULL;
@@ -398,9 +411,14 @@ void platform_sd_close(platform_sd_file *h)
     free(h);
 }
 
-static void side_path(char *dst, size_t dstsz, const char *name, const char *suffix)
+// Same refusal as full_path, and for the same reason: a truncated .tmp path is
+// a write that lands somewhere else and a rollback that cannot find what it
+// wrote.
+static int side_path(char *dst, size_t dstsz, const char *name, const char *suffix)
 {
-    snprintf(dst, dstsz, "%s/%s%s", SD_BASE, name, suffix);
+    int n = snprintf(dst, dstsz, "%s/%s%s", SD_BASE, name, suffix);
+    if (n < 0 || (size_t)n >= dstsz) { dst[0] = 0; return -1; }
+    return 0;
 }
 
 // Finish or roll back an interrupted atomic replace. A target that exists is
@@ -409,10 +427,11 @@ static void side_path(char *dst, size_t dstsz, const char *name, const char *suf
 // temp is the committed candidate. A lone .bak is the previous good file.
 static int recover_atomic(const char *name)
 {
-    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
-    full_path(target, sizeof target, name);
-    side_path(tmp, sizeof tmp, name, ".tmp");
-    side_path(bak, sizeof bak, name, ".bak");
+    char target[SD_PATH_MAX], tmp[SD_PATH_MAX], bak[SD_PATH_MAX];
+    if (full_path(target, sizeof target, name) != 0 ||
+        side_path(tmp, sizeof tmp, name, ".tmp") != 0 ||
+        side_path(bak, sizeof bak, name, ".bak") != 0)
+        return -3;
     if (access(target, F_OK) == 0) {
         int rc = 0;
         if (remove(tmp) != 0 && errno != ENOENT) rc = PLATFORM_SD_ATOMIC_CLEANUP;
@@ -440,8 +459,8 @@ int platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len)
     if (test_fail(PLATFORM_SD_TEST_FAIL_READ)) return -3;
 #endif
     (void)recover_atomic(name);
-    char p[SD_NAME_LEN + 16];
-    full_path(p, sizeof p, name);
+    char p[SD_PATH_MAX];
+    if (full_path(p, sizeof p, name) != 0) return -3;
     FILE *f = fopen(p, "rb");
     if (!f)
         return -1;
@@ -459,8 +478,8 @@ int platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len)
 int platform_sd_write(const char *name, const uint8_t *buf, size_t len)
 {
     if (!name_ok(name) || (!buf && len)) return -3;
-    char p[SD_NAME_LEN + 16];
-    full_path(p, sizeof p, name);
+    char p[SD_PATH_MAX];
+    if (full_path(p, sizeof p, name) != 0) return -3;
     FILE *f = fopen(p, "wb");
     if (!f)
         return -1;
@@ -499,10 +518,11 @@ int platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len)
 #endif
     if (recover_atomic(name) < 0) return -2;
 
-    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
-    full_path(target, sizeof target, name);
-    side_path(tmp, sizeof tmp, name, ".tmp");
-    side_path(bak, sizeof bak, name, ".bak");
+    char target[SD_PATH_MAX], tmp[SD_PATH_MAX], bak[SD_PATH_MAX];
+    if (full_path(target, sizeof target, name) != 0 ||
+        side_path(tmp, sizeof tmp, name, ".tmp") != 0 ||
+        side_path(bak, sizeof bak, name, ".bak") != 0)
+        return -3;
     (void)remove(tmp);
 
     FILE *f = fopen(tmp, "wb");
@@ -550,10 +570,11 @@ int platform_sd_delete(const char *name)
 #ifndef ESP_PLATFORM
     if (test_fail(PLATFORM_SD_TEST_FAIL_DELETE)) return -2;
 #endif
-    char target[SD_NAME_LEN + 24], tmp[SD_NAME_LEN + 24], bak[SD_NAME_LEN + 24];
-    full_path(target, sizeof target, name);
-    side_path(tmp, sizeof tmp, name, ".tmp");
-    side_path(bak, sizeof bak, name, ".bak");
+    char target[SD_PATH_MAX], tmp[SD_PATH_MAX], bak[SD_PATH_MAX];
+    if (full_path(target, sizeof target, name) != 0 ||
+        side_path(tmp, sizeof tmp, name, ".tmp") != 0 ||
+        side_path(bak, sizeof bak, name, ".bak") != 0)
+        return -3;
     int rc = 0;
     if (remove(target) != 0 && errno != ENOENT) rc = -2;
     if (remove(tmp) != 0 && errno != ENOENT) rc = -2;

@@ -8,6 +8,15 @@
 
 #define SD_NAME_LEN 64
 
+// Room for the mount point in front of a name, with slack. Every path buffer in
+// platform_sd.c used to be SD_NAME_LEN + 16 or + 24, which was room for
+// "/sdcard" and for "/tmp/simsd" and for nothing else. That held until the host
+// build's card moved under KISS_SIM_TMP: a longer root silently truncated the
+// longest fixture name, three walk stops opened nothing, and the screens they
+// photographed were correct pictures of the wrong thing. So the bound is stated
+// once, generously, and full_path REFUSES rather than truncating.
+#define SD_PATH_MAX (SD_NAME_LEN + 192)
+
 int  platform_sd_mount(void);      // 0 = mounted (idempotent)
 void platform_sd_unmount(void);
 

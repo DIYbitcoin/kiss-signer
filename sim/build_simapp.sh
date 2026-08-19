@@ -13,6 +13,15 @@
 # and be told a lie.
 set -e
 cd "$(dirname "$0")/.."
+
+# Where this build's binary goes. KISS_SIM_TMP is the same root the fake card,
+# the seed files and the captured frames use (main/kiss_simpath.h) -- unset it
+# is /tmp, exactly as before. It is here as well as in the C because two people
+# building at once wrote each other's binary, and the loser then ran a walk over
+# somebody else's code and reported findings about it.
+KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
+mkdir -p "$KISS_SIM_TMP"
+
 LVGL=managed_components/lvgl__lvgl
 WALLY=components/libwally-core
 SRCS=$(find "$LVGL/src" -name '*.c' \
@@ -36,5 +45,5 @@ clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conv
   main/kiss_crypto.c main/kiss_psbt.c main/kiss_payee.c main/kiss_seed.c main/kiss_seed_sd.c main/kiss_kef_crypto.c main/kiss_tapent.c main/kiss_dice.c main/kiss_lastword.c main/kiss_proof.c \
   components/cUR/src/*.c components/cUR/src/types/*.c components/cUR/src/sha256/sha256.c \
   sim/simapp.c \
-  $(sdl2-config --libs) -lm -o /tmp/kissapp
-echo "built /tmp/kissapp"
+  $(sdl2-config --libs) -lm -o "$KISS_SIM_TMP/kissapp"
+echo "built $KISS_SIM_TMP/kissapp"

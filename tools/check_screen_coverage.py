@@ -27,60 +27,37 @@ Run after sim/build_sim.sh; this drives /tmp/fruitsim itself.
 """
 import contextlib
 import os
+import shutil
 import re
 import subprocess
 import sys
-import time
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SIM = Path("/tmp/fruitsim")
+def sim_bin():
+    """The walk binary, under this run's scratch (main/kiss_simpath.h)."""
+    return Path(os.environ.get("KISS_SIM_TMP", "/tmp")) / "fruitsim"
 
-# One gate run at a time on this machine. /tmp/simsd is a single fake card and
-# every gate wipes it before each walk, so two runs at once means one of them has
-# its fixtures deleted mid-walk: the file list comes up short, the coordinate
-# taps land on rows that moved, and the walk derails. Every stop after that
-# prints "clean" for a screen it never reached, which is worse than a red run --
-# it is a green one that measured nothing.
-#
-# Same lock and same protocol as sim/run_overlapcheck.sh: the directory IS the
-# lock, mkdir is atomic, and a holder that died takes its lock with it after
-# LOCK_STALE. mkdir rather than fcntl so the two runners can hold each other off.
-LOCK = Path("/tmp/kiss-sim-gate.lock")
-LOCK_STALE = 900
-
-
+# This run's own scratch. Everything a desktop build pretends is hardware -- the
+# fake card, the seed files, the frames -- and the binary itself hang off
+# KISS_SIM_TMP (main/kiss_simpath.h); unset it is /tmp, which is what a hand run
+# wants. A gate wants its own directory, because two runs sharing one fake card
+# delete each other's fixtures mid-walk, and a walk that derails prints "clean"
+# for every stop it never reached. A lock here used to paper over that and made
+# everyone queue; this removes the collision instead.
 @contextlib.contextmanager
-def gate_lock():
-    waited = False
-    while True:
-        try:
-            LOCK.mkdir()
-            break
-        except FileExistsError:
-            try:
-                age = time.time() - LOCK.stat().st_mtime
-            except OSError:
-                continue
-            if age > LOCK_STALE:
-                print(f"note: removing a stale gate lock ({int(age)}s old)",
-                      file=sys.stderr)
-                try:
-                    LOCK.rmdir()
-                except OSError:
-                    pass
-                continue
-            if not waited:
-                print("waiting for another gate run to finish...", file=sys.stderr)
-                waited = True
-            time.sleep(2)
+def gate_scratch():
+    inherited = os.environ.get("KISS_SIM_TMP")
+    if inherited:
+        yield Path(inherited)
+        return
+    root = Path(tempfile.mkdtemp(prefix="kiss-cover-", dir="/tmp"))
+    os.environ["KISS_SIM_TMP"] = str(root)
     try:
-        yield
+        yield root
     finally:
-        try:
-            LOCK.rmdir()
-        except OSError:
-            pass
+        shutil.rmtree(root, ignore_errors=True)
 
 # Screen constructors are not signature-compatible: setup's mk_screen takes
 # (title, sub), while signing's takes (parent, title, sub). Treating the name as
@@ -259,14 +236,15 @@ def drive_sim(**extra_env):
     mid-run, or the shared /tmp state kisstest and the walk both own. Neither
     is a screen with no stop, and neither should be reported as one.
     """
-    if not SIM.exists():
-        sys.exit(f"{SIM} is missing: run bash sim/build_sim.sh first")
-    run = subprocess.run([str(SIM)], capture_output=True, text=True,
+    sim = sim_bin()
+    if not sim.exists():
+        sys.exit(f"{sim} is missing: run bash sim/build_sim.sh first")
+    run = subprocess.run([str(sim)], capture_output=True, text=True,
                          env=dict(os.environ, **extra_env))
     if run.returncode != 0 or "sim done" not in run.stdout:
         how = (f"exit {run.returncode}" if run.returncode
                else "exited 0 without reaching the end of the walk")
-        sys.exit(f"FAILED: {SIM} {how} with {' '.join(extra_env)} set. The walk "
+        sys.exit(f"FAILED: {sim} {how} with {' '.join(extra_env)} set. The walk "
                  f"did not finish, so its screen list means nothing.\n"
                  f"--- last 20 lines of the walk ---\n"
                  + "\n".join(run.stdout.splitlines()[-20:])
@@ -399,5 +377,16 @@ def main():
 
 
 if __name__ == "__main__":
-    with gate_lock():
+    with gate_scratch():
+        # Build INTO the scratch rather than trusting whatever /tmp/fruitsim is
+        # today. run_overlapcheck.sh has refused to run against a binary it did
+        # not just build since the day a stale one "verified" the wrong code,
+        # and this script's own drive_sim docstring names a concurrent
+        # build_sim.sh as a thing that happens. Now it cannot.
+        build = subprocess.run(["bash", str(ROOT / "sim" / "build_sim.sh")],
+                               capture_output=True, text=True, cwd=ROOT,
+                               env=os.environ)
+        if build.returncode != 0:
+            sys.exit("FAILED: sim/build_sim.sh\n" + build.stdout[-2000:]
+                     + build.stderr[-2000:])
         sys.exit(main())

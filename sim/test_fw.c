@@ -14,10 +14,22 @@
 
 #include "kiss_fw.h"
 #include "platform_sd.h"
+#include "kiss_simpath.h"
 
 // How many throwaway images the scan-window test writes. Named because
 // wipe_card has to remove exactly these again.
 #define WFW_DECOYS 40
+
+// The fake card, wherever this run put it. These were literal "/tmp/simsd/..."
+// strings, which is what SD_BASE happened to expand to -- so they agreed by
+// coincidence, and stopped agreeing the moment a run could own its own scratch.
+// See kiss_simpath.h.
+static const char *sdp(char *buf, size_t n, const char *name)
+{
+    char base[192];
+    snprintf(buf, n, "%s/%s", kiss_sim_path(base, sizeof base, "simsd"), name);
+    return buf;
+}
 
 static int ffails;
 static void ok(const char *n, int c)
@@ -70,8 +82,8 @@ static void wipe_card(void)
         "huge.bin", "short.bin", "0-old.bin", "z-new.bin", "z-real.bin", NULL
     };
     for (int i = 0; junk[i]; i++) {
-        char p[128];
-        snprintf(p, sizeof p, "/tmp/simsd/%s", junk[i]);
+        char p[256];
+        sdp(p, sizeof p, junk[i]);
         remove(p);
     }
     // The scan-window fixtures, by pattern rather than by name. /tmp/simsd is
@@ -80,16 +92,18 @@ static void wipe_card(void)
     // test in the NEXT run of this binary failing on a card that was supposed
     // to start empty, which is exactly what happened.
     for (int i = 0; i < WFW_DECOYS; i++) {
-        char p[128];
-        snprintf(p, sizeof p, "/tmp/simsd/a-decoy-%02d.bin", i);
+        char p[256];
+        char nm[32];
+        snprintf(nm, sizeof nm, "a-decoy-%02d.bin", i);
+        sdp(p, sizeof p, nm);
         remove(p);
     }
 }
 
 static int put(const char *name, const uint8_t *buf, size_t len)
 {
-    char p[128];
-    snprintf(p, sizeof p, "/tmp/simsd/%s", name);
+    char p[256];
+    sdp(p, sizeof p, name);
     FILE *f = fopen(p, "wb");
     if (!f) return -1;
     size_t w = fwrite(buf, 1, len, f);

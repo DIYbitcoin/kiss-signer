@@ -13,46 +13,27 @@
 set -u
 cd "$(dirname "$0")/.."
 
-# ---- one gate run at a time on this machine --------------------------------
+# ---- this run's own scratch ------------------------------------------------
 #
-# /tmp/simsd is a single fake card and every gate wipes it before each walk. Two
-# runs at once means one of them has its fixtures deleted mid-walk: the file
-# list comes up short, the coordinate taps land on rows that moved, and the walk
-# derails at the first stop past the file it thought it opened. Every later stop
-# then prints "clean" for a screen it never reached, so the run reports a clean
-# sweep AND a non-zero exit, and the note at the bottom of this script correctly
-# blames an interleaved run -- which nobody can see, because it is in another
-# terminal.
+# Everything a desktop build pretends is hardware -- the fake card, the seed
+# files, the frames -- and the binary itself now hang off KISS_SIM_TMP
+# (main/kiss_simpath.h). Unset it is /tmp, which is what a hand run wants.
 #
-# Reproduced deliberately rather than guessed: deleting the card on a 100ms loop
-# under a walk gives exactly the 22-failure signature this was showing, starting
-# at "btc unit: no label on screen contains BTC".
+# A gate run wants the opposite: its own directory, so two of these at once
+# cannot delete each other's fixtures mid-walk. That collision is what a lock
+# here used to work around, and a lock made everyone queue for no reason. A run
+# whose fixtures vanish comes up short in a file list, taps rows that moved, and
+# derails -- and then prints "clean" for every stop it never reached, so it
+# reports a clean sweep AND a non-zero exit. The note at the bottom of this
+# script has been blaming an interleaved run all along and was right.
 #
-# mkdir, not flock: flock(1) is not on macOS. The directory is the lock, mkdir
-# is atomic, and a holder that died takes its lock with it after LOCK_STALE.
-LOCK=/tmp/kiss-sim-gate.lock
-LOCK_STALE=900
-lock_acquire() {
-    local waited=0
-    while ! mkdir "$LOCK" 2>/dev/null; do
-        if [ -d "$LOCK" ]; then
-            local age
-            age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null \
-                                    || stat -c %Y "$LOCK" 2>/dev/null \
-                                    || date +%s) ))
-            if [ "$age" -gt "$LOCK_STALE" ]; then
-                echo "note: removing a stale gate lock (${age}s old)" >&2
-                rmdir "$LOCK" 2>/dev/null
-                continue
-            fi
-        fi
-        [ "$waited" -eq 0 ] && echo "waiting for another gate run to finish..." >&2
-        waited=$((waited + 2))
-        sleep 2
-    done
-    trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
-}
-lock_acquire
+# Honour an inherited value: CI may want the frames somewhere it can collect.
+if [ -z "${KISS_SIM_TMP:-}" ]; then
+    KISS_SIM_TMP=$(mktemp -d "/tmp/kiss-overlap-XXXXXX")
+    trap 'rm -rf "$KISS_SIM_TMP"' EXIT INT TERM
+fi
+export KISS_SIM_TMP
+mkdir -p "$KISS_SIM_TMP"
 
 # A stale binary is worse than none: it passes its own self test, then the 24
 # walks "verify" whatever was built last. Fail the run when the build fails.
@@ -67,7 +48,7 @@ bash sim/build_overlapcheck.sh || {
 # The exit status is not enough on its own: the checks print a marker when
 # they behave, so a run that exits 0 without them (or vice versa) also fails.
 echo
-st=$(OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap 2>&1)
+st=$(OVERLAPCHECK_SELFTEST=1 "$KISS_SIM_TMP/kissoverlap" 2>&1)
 if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected'; then
@@ -192,8 +173,8 @@ for l in "${langs[@]}"; do
     # the walk began tapping pills by label: the coordinate taps had been
     # missing REMOVE ALL in some locales and silently doing nothing, which read
     # as "stable" and was really "not pressing the button".
-    rm -rf /tmp/simsd
-    out=$(SIM_LANG="$l" /tmp/kissoverlap 2>&1)
+    rm -rf "$KISS_SIM_TMP/simsd"
+    out=$(SIM_LANG="$l" "$KISS_SIM_TMP/kissoverlap" 2>&1)
     rc=$?
     sline=$(summary_of "$out")
     n=$(printf '%s\n' "$sline" | sed -n \
@@ -241,8 +222,8 @@ for a in GREEN CYPHERPINK ORANGE; do
     # that moved, and a derailed walk prints "clean" for every stop it never
     # reached, which is the exact failure the message at the bottom of this
     # script warns about and blames on somebody else's interleaved run.
-    rm -rf /tmp/simsd
-    out=$(SIM_ACCENT="$a" /tmp/kissoverlap 2>&1)
+    rm -rf "$KISS_SIM_TMP/simsd"
+    out=$(SIM_ACCENT="$a" "$KISS_SIM_TMP/kissoverlap" 2>&1)
     rc=$?
     sline=$(summary_of "$out")
     n=$(printf '%s\n' "$sline" | sed -n \
@@ -304,8 +285,8 @@ if [ -n "$died" ]; then
     echo "count or heap line:$died"
     echo "A dead walk prints 'clean' for every stop it never reached, so this"
     echo "run proves nothing -- it is not a finding, and not a clean sweep."
-    echo "Re-run it on its own: /tmp/simsd and the /tmp frames are shared with"
-    echo "kisstest and the screen walk, and an interleaved run kills it."
+    echo "Re-run it on its own. This run had its own scratch, so an"
+    echo "interleaved run is no longer the explanation it used to be."
     exit 1
 fi
 if [ "$worst" -ne 0 ]; then

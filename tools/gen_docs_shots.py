@@ -37,7 +37,11 @@ import sys
 import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = "/tmp"
+# The frames are wherever the walk that made them put them: KISS_SIM_TMP,
+# unset it is /tmp, exactly as before (main/kiss_simpath.h). The regexes below
+# read save() literals out of the SOURCE, which still say "/tmp/..." because
+# that is what the code says -- only the run-time destination moves.
+SRC = os.environ.get("KISS_SIM_TMP") or "/tmp"
 OUT = os.path.join(ROOT, "docs", "shots")
 MD = os.path.join(ROOT, "docs", "walkthrough.md")
 SIM = os.path.join(ROOT, "sim", "sim_main.c")
@@ -410,8 +414,8 @@ def write_png(path, w, h, rgb):
 # means the annotation cannot drift the first time a coordinate moves. The
 # README caption says the trace is added, because a reader who expected the
 # device to draw it would be looking for a trail that is not there.
-REVEAL_FRAMES = "/tmp/sim_reveal_%03d.ppm"
-REVEAL_PATH = "/tmp/sim_reveal_path.txt"
+REVEAL_FRAMES = os.path.join(SRC, "sim_reveal_%03d.ppm")
+REVEAL_PATH = os.path.join(SRC, "sim_reveal_path.txt")
 REVEAL_GIF = os.path.join(ROOT, "docs", "media", "kiss-reveal.gif")
 
 # Two frames per GIF frame: the walk runs at LVGL's 16ms tick, so 32ms is real
@@ -555,7 +559,7 @@ def build_reveal_gif():
             disc(px, w, h, cur[-1][0], cur[-1][1], 8, live)
 
         ow, oh, small = halve(w, h, px)
-        out = os.path.join("/tmp", "sim_gif_%03d.ppm" % n)
+        out = os.path.join(SRC, "sim_gif_%03d.ppm" % n)
         with open(out, "wb") as fh:
             fh.write(b"P6\n%d %d\n255\n" % (ow, oh))
             fh.write(bytes(small))

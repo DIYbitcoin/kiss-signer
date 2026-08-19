@@ -6,6 +6,15 @@
 # purpose; it no longer exists.
 set -e
 cd "$(dirname "$0")/.."
+
+# Where this build's binary goes. KISS_SIM_TMP is the same root the fake card,
+# the seed files and the captured frames use (main/kiss_simpath.h) -- unset it
+# is /tmp, exactly as before. It is here as well as in the C because two people
+# building at once wrote each other's binary, and the loser then ran a walk over
+# somebody else's code and reported findings about it.
+KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
+mkdir -p "$KISS_SIM_TMP"
+
 LVGL=managed_components/lvgl__lvgl
 SRCS=$(find "$LVGL/src" -name '*.c' \
   ! -path '*/drivers/*' \
@@ -15,5 +24,5 @@ clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conv
   -I"$LVGL" -Isim -Imain \
   $SRCS main/osd_text.c main/osd_strips.c main/kiss_theme.c main/i18n.c main/i18n_tables.c main/font_kiss_*.c \
   sim/osdcheck.c \
-  -lm -o /tmp/kissosd
-echo "built /tmp/kissosd"
+  -lm -o "$KISS_SIM_TMP/kissosd"
+echo "built $KISS_SIM_TMP/kissosd"

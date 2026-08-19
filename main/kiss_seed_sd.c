@@ -19,8 +19,12 @@
 #else
 #include <errno.h>
 #include <stdlib.h>
-#define DKEY_FILE "/tmp/kiss_device_key.bin"
-#define NKEY_FILE "/tmp/kiss_flash_key.bin"
+#include "kiss_simpath.h"
+// Under KISS_SIM_TMP, like the seed files: see kiss_simpath.h.
+KISS_SIM_PATH_FN(dkey_file_path, "kiss_device_key.bin")
+KISS_SIM_PATH_FN(nkey_file_path, "kiss_flash_key.bin")
+#define DKEY_FILE dkey_file_path()
+#define NKEY_FILE nkey_file_path()
 #endif
 
 // Two independent subkeys from the one device key, so the cipher and the MAC

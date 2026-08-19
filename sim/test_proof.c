@@ -12,6 +12,23 @@
 #include <stdbool.h>
 
 #include "platform_sd.h"
+#include "kiss_simpath.h"
+
+// The fake card, wherever this run put it: see kiss_simpath.h. These were
+// literal "/tmp/simsd/" concatenations, which agreed with SD_BASE only by
+// coincidence and stopped agreeing the moment a run could own its own scratch.
+// A small ring so the call sites stay one expression, as they were when they
+// were two literals side by side.
+static const char *sdp(const char *name)
+{
+    static char buf[4][256];
+    static int slot;
+    char base[192];
+    slot = (slot + 1) & 3;
+    snprintf(buf[slot], sizeof buf[slot], "%s/%s",
+             kiss_sim_path(base, sizeof base, "simsd"), name);
+    return buf[slot];
+}
 #include "verify_page.h"
 #include "kiss_proof.h"
 
@@ -74,7 +91,7 @@ static void test_vector_and_file(void)
     // every second pixel of every second row -- and nothing else. Rebuilt
     // here independently of kiss_proof.c, so the two loops agreeing is the
     // test, not one loop trusted twice.
-    FILE *f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
+    FILE *f = fopen(sdp(WPROOF_NAME), "rb");
     ok("proof file exists", f != NULL);
     if (f) {
         uint8_t *back = malloc(WPROOF_FILE_BYTES + 1);
@@ -100,7 +117,7 @@ static void test_vector_and_file(void)
     // agree -- and a run interrupted between the two writes left a page
     // swearing to a frame from a run before (found on a real card). The
     // claim now lives on the device screen; the page only computes.
-    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    f = fopen(sdp(WPROOF_PAGE_NAME), "rb");
     ok("page file exists", f != NULL);
     if (f) {
         char *back = malloc(verify_page_html_len + 2);
@@ -146,10 +163,10 @@ static void test_faults(void)
     ok("write fault surfaces as SD error",
        kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
-    FILE *f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
+    FILE *f = fopen(sdp(WPROOF_NAME), "rb");
     ok("write fault leaves no proof file", f == NULL);
     if (f) fclose(f);
-    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    f = fopen(sdp(WPROOF_PAGE_NAME), "rb");
     ok("write fault leaves no page file", f == NULL);
     if (f) fclose(f);
 
@@ -157,7 +174,7 @@ static void test_faults(void)
     ok("rename fault surfaces as SD error",
        kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
-    f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
+    f = fopen(sdp(WPROOF_NAME), "rb");
     ok("rename fault leaves no proof file", f == NULL);
     if (f) fclose(f);
 
@@ -169,10 +186,10 @@ static void test_faults(void)
     ok("page write fault surfaces as SD error",
        kiss_proof_run(frame, WPROOF_FRAME_BYTES, hash, words, sizeof words)
            == WPROOF_ERR_SD);
-    f = fopen("/tmp/simsd/" WPROOF_NAME, "rb");
+    f = fopen(sdp(WPROOF_NAME), "rb");
     ok("page write fault deletes the committed frame", f == NULL);
     if (f) fclose(f);
-    f = fopen("/tmp/simsd/" WPROOF_PAGE_NAME, "rb");
+    f = fopen(sdp(WPROOF_PAGE_NAME), "rb");
     ok("page write fault leaves no page file", f == NULL);
     if (f) fclose(f);
 

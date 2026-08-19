@@ -23,11 +23,20 @@
 #else
 #include <errno.h>
 #include <unistd.h>
-#define SEED_FILE "/tmp/kiss_seed.txt"
-#define MODE_FILE "/tmp/kiss_seed_mode.txt"
-#define SEED_TMP  "/tmp/kiss_seed.txt.tmp"
-#define MODE_TMP  "/tmp/kiss_seed_mode.txt.tmp"
-#define ENTQ_FILE "/tmp/kiss_seed_entq.txt"
+#include "kiss_simpath.h"
+// Under KISS_SIM_TMP (kiss_simpath.h), which is /tmp unless a run sets it. The
+// accessors keep every call site the shape it already had, including the ones
+// that name two of these in one expression.
+KISS_SIM_PATH_FN(seed_file_path, "kiss_seed.txt")
+KISS_SIM_PATH_FN(mode_file_path, "kiss_seed_mode.txt")
+KISS_SIM_PATH_FN(seed_tmp_path,  "kiss_seed.txt.tmp")
+KISS_SIM_PATH_FN(mode_tmp_path,  "kiss_seed_mode.txt.tmp")
+KISS_SIM_PATH_FN(entq_file_path, "kiss_seed_entq.txt")
+#define SEED_FILE seed_file_path()
+#define MODE_FILE mode_file_path()
+#define SEED_TMP  seed_tmp_path()
+#define MODE_TMP  mode_tmp_path()
+#define ENTQ_FILE entq_file_path()
 static unsigned s_seed_test_fail;
 void kiss_seed_test_fail_next(unsigned flags) { s_seed_test_fail = flags; }
 static int seed_test_fail(unsigned flag)

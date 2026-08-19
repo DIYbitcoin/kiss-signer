@@ -13,6 +13,7 @@
 #include "i18n.h"
 #include "kiss_crypto.h"
 #include "kiss_rngaudit.h"  // kiss_rngaudit_sim_result: the once-in-500 renders
+#include "kiss_simpath.h"  // KISS_SIM_TMP: one run's scratch is its own
 #include "kiss_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "verify_page.h"    // ...and the real checker page beside it
@@ -864,7 +865,7 @@ static bool write_ppm(const char *path) {
 }
 
 static void save(const char *path) {
-  char lp[160];
+  char lp[384];
   lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
   // Every stop is a screen the gates get to question, so this is the one place
   // that can honestly say a screen was covered. See wt_sim_uncaptured.
@@ -880,8 +881,16 @@ static void save(const char *path) {
   oc_check(path);
   return;
 #endif
-  if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0) {
-    snprintf(lp, sizeof lp, "/tmp/sim_%s_%s", g_lang_code, path + 9);
+  // The frames land under KISS_SIM_TMP too, and this is the one place they all
+  // pass through -- 333 of the /tmp literals in this file are save() calls, so
+  // rewriting here is the whole of it. The locale prefix goes on in the same
+  // breath it always did.
+  if (strncmp(path, "/tmp/", 5) == 0) {
+    if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0)
+      snprintf(lp, sizeof lp, "%s/sim_%s_%s", kiss_sim_root(), g_lang_code,
+               path + 9);
+    else
+      snprintf(lp, sizeof lp, "%s/%s", kiss_sim_root(), path + 5);
     path = lp;
   }
   if (write_ppm(path)) printf("wrote %s\n", path);
@@ -904,7 +913,7 @@ static void save(const char *path) {
 // them would be 21 copies of a wordless gesture. Silent, because ~90 "wrote"
 // lines would bury the walk's own output.
 static void save_seq(void) {
-  char path[64];
+  char path[320];
 #ifdef OVERLAPCHECK
   // The gate builds run this same walk, one of them per accent. Without this
   // they would overwrite the captured frames with whatever theme they were
@@ -914,10 +923,13 @@ static void save_seq(void) {
 #endif
   if (g_lang_code) return;
   lv_refr_now(NULL);
-  snprintf(path, sizeof path, "/tmp/sim_reveal_%03d.ppm", g_seq_n);
+  snprintf(path, sizeof path, "%s/sim_reveal_%03d.ppm", kiss_sim_root(),
+           g_seq_n);
   if (!write_ppm(path)) return;
 
-  FILE *p = fopen("/tmp/sim_reveal_path.txt", g_seq_n ? "a" : "w");
+  char pp[192];
+  FILE *p = fopen(kiss_sim_path(pp, sizeof pp, "sim_reveal_path.txt"),
+                  g_seq_n ? "a" : "w");
   if (p) {
     fprintf(p, "%d %d %d %d\n", g_seq_n, g_tx, g_ty, (int)g_pressed);
     fclose(p);
@@ -1580,9 +1592,32 @@ static void restore_word(const char *prefix)
 // separate defect and this function does not address it. What this buys is
 // that the starting state is at least the same every time, so the next person
 // bisecting has one fewer variable.
+// Under KISS_SIM_TMP now, not only under a -DSIMSD: a compile-time override
+// separates two BUILDS, and what was colliding is two RUNS of the same build,
+// in one checkout, by different people. See kiss_simpath.h. Unset, this is
+// still exactly "/tmp/simsd".
 #ifndef SIMSD
-#define SIMSD "/tmp/simsd"
+KISS_SIM_PATH_FN(simsd_path, "simsd")
+#define SIMSD simsd_path()
 #endif
+
+// Remove one file from the fake card by name. Every one of these used to be a
+// literal "/tmp/simsd/x", which was the same string SIMSD expanded to and so
+// looked equivalent -- until the card moved under KISS_SIM_TMP and the literals
+// went on deleting a card nobody was using. The walk's REMOVE step then left
+// four files standing, every row below them shifted, and three later stops
+// photographed the wrong transaction while reporting a needle that was missing.
+static void sd_unlink(const char *name) {
+  char p[256];
+  snprintf(p, sizeof p, "%s/%s", SIMSD, name);
+  unlink(p);
+}
+
+static FILE *sd_fopen(const char *name, const char *mode) {
+  char p[256];
+  snprintf(p, sizeof p, "%s/%s", SIMSD, name);
+  return fopen(p, mode);
+}
 
 static void sim_fixture_reset(void) {
   mkdir(SIMSD, 0777);
@@ -1598,7 +1633,7 @@ static void sim_fixture_reset(void) {
     struct dirent *e;
     while ((e = readdir(d)) != NULL && n < 64) {
       if (e->d_name[0] == '.') continue;
-      snprintf(doomed[n++], sizeof doomed[0], SIMSD "/%s", e->d_name);
+      snprintf(doomed[n++], sizeof doomed[0], "%s/%s", SIMSD, e->d_name);
     }
     closedir(d);
   }
@@ -1633,18 +1668,21 @@ static void sim_fixture_reset(void) {
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
-    snprintf(p, sizeof p, SIMSD "/%s", FIXTURES[i].name);
+    snprintf(p, sizeof p, "%s/%s", SIMSD, FIXTURES[i].name);
     FILE *f = fopen(p, "wb");
     if (f) { fputs(FIXTURES[i].body, f); fclose(f); }
   }
 
   // kiss_seed.c and kiss_seed_sd.c persist to these on the host build.
   static const char *const STATE[] = {
-    "/tmp/kiss_seed.txt",      "/tmp/kiss_seed.txt.tmp",
-    "/tmp/kiss_seed_mode.txt", "/tmp/kiss_seed_mode.txt.tmp",
-    "/tmp/kiss_seed_entq.txt", "/tmp/kiss_device_key.bin",
+    "kiss_seed.txt",      "kiss_seed.txt.tmp",
+    "kiss_seed_mode.txt", "kiss_seed_mode.txt.tmp",
+    "kiss_seed_entq.txt", "kiss_device_key.bin",
   };
-  for (unsigned i = 0; i < sizeof STATE / sizeof STATE[0]; i++) remove(STATE[i]);
+  for (unsigned i = 0; i < sizeof STATE / sizeof STATE[0]; i++) {
+    char sp[192];
+    remove(kiss_sim_path(sp, sizeof sp, STATE[i]));
+  }
 }
 
 int main(void) {
@@ -2678,10 +2716,10 @@ int main(void) {
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
   // the list shows only the first 4 files, so clear the others (all frames above
   // are already saved) to leave zsp-SPAY in row 0 and zzz-UNPRV in row 1.
-  unlink("/tmp/simsd/payment-01.psbt");   unlink("/tmp/simsd/payment-01-signed.psbt");
-  unlink("/tmp/simsd/risky-STOP.psbt");
-  unlink("/tmp/simsd/silly-FEE.psbt");    unlink("/tmp/simsd/silly-FEE-signed.psbt");
-  unlink("/tmp/simsd/warn-COMBO.psbt");
+  sd_unlink("payment-01.psbt");   sd_unlink("payment-01-signed.psbt");
+  sd_unlink("risky-STOP.psbt");
+  sd_unlink("silly-FEE.psbt");    sd_unlink("silly-FEE-signed.psbt");
+  sd_unlink("warn-COMBO.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
   touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
@@ -2887,7 +2925,12 @@ int main(void) {
     // the next run -- and every tap in the sign walk that goes by position
     // lands one row off. The walk's own REMOVE step sweeps the earlier
     // signature; this one is made after it, so it clears up after itself.
-    unlink(SIMSD "/zzzz-MANY-recipients-export-from-the-coordinator-ap-signed.psbt");
+    {
+      char signed_out[384];
+      snprintf(signed_out, sizeof signed_out, "%s/%s", SIMSD,
+               "zzzz-MANY-recipients-export-from-the-coordinator-ap-signed.psbt");
+      unlink(signed_out);
+    }
   }
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
@@ -4260,7 +4303,7 @@ int main(void) {
     size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"73C5DA0A", 8,
                                KEF_VERSION_AES_GCM, KEF_ITER_STORED);
     for (int i = 0; i < 32; i++) fx[h + i] = (uint8_t)(0xa5 ^ i);
-    FILE *f = fopen("/tmp/simsd/73C5DA0A.kef", "wb");
+    FILE *f = sd_fopen("73C5DA0A.kef", "wb");
     if (f) { fwrite(fx, 1, h + 32, f); fclose(f); }
   }
   tap_str(STR_S_FROM_SD, 3, 8);                     // FROM SD CARD -> picker
@@ -4449,7 +4492,7 @@ int main(void) {
     img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
     memcpy(img + 32 + 16, "99.0.0", 6);
     memcpy(img + 32 + 48, "kiss", 4);
-    FILE *fw = fopen("/tmp/simsd/kiss-signer-99.0.0.bin", "wb");
+    FILE *fw = sd_fopen("kiss-signer-99.0.0.bin", "wb");
     if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
   }
 
@@ -4534,8 +4577,8 @@ int main(void) {
     memcpy(pad + 32 + 16, "0.0.1", 5);
     memcpy(pad + 32 + 48, "kiss", 4);
     for (int i = 0; i < 30; i++) {
-      char p[64];
-      snprintf(p, sizeof p, "/tmp/simsd/a-crowd-%02d.bin", i);
+      char p[320];
+      snprintf(p, sizeof p, "%s/a-crowd-%02d.bin", SIMSD, i);
       FILE *f = fopen(p, "wb");
       if (f) { fwrite(pad, 1, sizeof pad, f); fclose(f); }
     }
@@ -4549,7 +4592,7 @@ int main(void) {
     // only for as long as nothing upstream wrote another file, and the first
     // thing it did was fail on a screen that was completely correct.
     int bins = 0;
-    DIR *cd = opendir("/tmp/simsd");
+    DIR *cd = opendir(SIMSD);
     if (cd) {
       struct dirent *de;
       while ((de = readdir(cd)) != NULL) {
@@ -4570,13 +4613,13 @@ int main(void) {
     }
   }
   for (int i = 0; i < 30; i++) {
-    char p[64];
-    snprintf(p, sizeof p, "/tmp/simsd/a-crowd-%02d.bin", i);
+    char p[320];
+    snprintf(p, sizeof p, "%s/a-crowd-%02d.bin", SIMSD, i);
     unlink(p);
   }
 
   // 4. no card at all: the same two block shape, different left hand claim.
-  unlink("/tmp/simsd/kiss-signer-99.0.0.bin");
+  sd_unlink("kiss-signer-99.0.0.bin");
   platform_sd_test_set_present(0);
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(20);

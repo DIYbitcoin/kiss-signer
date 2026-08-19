@@ -25,7 +25,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIM = os.path.join(ROOT, "sim", "sim_main.c")
-SRC = "/tmp"
+# The frames are wherever the walk that made them put them: KISS_SIM_TMP,
+# unset it is /tmp, exactly as before (main/kiss_simpath.h). The regexes below
+# read save() literals out of the SOURCE, which still say "/tmp/..." because
+# that is what the code says -- only the run-time destination moves.
+SRC = os.environ.get("KISS_SIM_TMP") or "/tmp"
 
 # A frame whose comment says so is meant to look unchanged. Matching on the
 # comment keeps the intent next to the code that relies on it.
