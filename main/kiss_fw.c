@@ -416,6 +416,11 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
 
 // ---- rollback --------------------------------------------------------------
 
+bool kiss_fw_confirm_ok(bool sign_ok, bool touch_ok, bool storage_ok)
+{
+    return sign_ok && touch_ok && storage_ok;
+}
+
 void kiss_fw_mark_valid(void)
 {
 #ifdef ESP_PLATFORM

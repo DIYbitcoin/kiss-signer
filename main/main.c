@@ -2515,6 +2515,15 @@ static void storage_locked_screen(lv_obj_t *root,
   lv_label_set_long_mode(code, LV_LABEL_LONG_WRAP);
 }
 
+// Set by build_game, read by app_main's rollback gate below. A boot that lands
+// on the safe-mode screen has built no wallet at all, and confirming the slot
+// there would make a storage-broken image permanent -- which is precisely the
+// failure a reboot into the previous firmware undoes, since the thing that
+// broke storage arrived with the update. Not guarded out for the sim: the same
+// assignment runs there, and the harness that drives the safe-mode screen is
+// what proves it is reached.
+static bool s_storage_blocked;
+
 void build_game(void) {  // non-static: the simulator harness calls this too
   // The baked art lives in flash as RLE and its descriptors start empty, so
   // this has to run before the first lv_image_set_src below (kiss_art.h says
@@ -2528,6 +2537,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   art_unpack_all();
 
   kiss_settings_load_status_t settings_status = kiss_settings_load();
+  s_storage_blocked = settings_status != WSETTINGS_LOAD_OK;
   lv_obj_t *scr = lv_screen_active();
   if (settings_status != WSETTINGS_LOAD_OK) {
 #ifndef SIMULATOR
@@ -2957,14 +2967,26 @@ void app_main(void) {
   // drive -- with the rollback that would have undone it already cancelled.
   // Init success only, deliberately NOT a touch event: waiting for a finger
   // re-creates the walk-away revert the comment above rules out.
-  if (src == 0 && s_touch != NULL) {
+  // Storage is the fourth gate, beside drawing, signing and touch, and it was
+  // missing. build_game returns early on a failed kiss_settings_load and paints
+  // the safe-mode screen -- no wallet, no setup, no home -- and then this line
+  // confirmed the slot anyway, because the condition only asked about signing
+  // and touch. So an image that cannot open NVS made itself permanent on the
+  // one boot a reboot would have undone it. Nothing about that is theoretical:
+  // a partition table or an encryption state that moved is exactly what an
+  // update changes, and it is exactly what the previous firmware still works
+  // with.
+  if (kiss_fw_confirm_ok(src == 0, s_touch != NULL, !s_storage_blocked)) {
     kiss_fw_mark_valid();
   } else if (src != 0) {
     ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
                   "trial so a reboot returns the firmware that worked", src);
-  } else {
+  } else if (s_touch == NULL) {
     ESP_LOGE(TAG, "touch never came up: leaving this slot on trial so a "
                   "reboot returns the firmware that worked");
+  } else {
+    ESP_LOGE(TAG, "wallet storage would not open: leaving this slot on trial "
+                  "so a reboot returns the firmware that worked");
   }
 
   while (1) {           // single-threaded LVGL loop (we own the display + flush)

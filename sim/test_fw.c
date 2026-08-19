@@ -8,6 +8,7 @@
 // Build: sim/build_test.sh -> /tmp/kisstest
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -270,6 +271,29 @@ int test_fw(void)
     ok("install refuses without a verifying build",
        kiss_fw_install(&got, NULL, NULL) == WFW_ERR_UNSIGNED);
     ok("availability agrees", kiss_fw_available() == WFW_ERR_UNSIGNED);
+
+    // ---- the boot confirmation gate ------------------------------------
+    //
+    // Every combination, because this is the decision that says whether a bad
+    // image becomes permanent and app_main is the one file no desktop build
+    // compiles: they all define SIMULATOR and stop at build_game. Left as an
+    // `if` up there it would be the only safety gate on the device with
+    // nothing behind it.
+    //
+    // Storage is the leg that was missing. build_game returns early on a failed
+    // settings load and paints the safe-mode screen, and the slot got confirmed
+    // anyway -- so an image that could not open NVS made itself permanent on
+    // the one boot a reboot would have undone it.
+    for (int m = 0; m < 8; m++) {
+        bool sign = m & 1, touch = m & 2, store = m & 4;
+        char nm[96];
+        snprintf(nm, sizeof nm, "confirm sign=%d touch=%d storage=%d",
+                 sign, touch, store);
+        ok(nm, kiss_fw_confirm_ok(sign, touch, store) == (sign && touch && store));
+    }
+    ok("all three good confirms", kiss_fw_confirm_ok(true, true, true));
+    ok("broken storage alone leaves the slot on trial",
+       !kiss_fw_confirm_ok(true, true, false));
 
     wipe_card();
     return ffails;

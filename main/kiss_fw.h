@@ -9,6 +9,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "platform_sd.h"
 
@@ -75,6 +76,19 @@ int kiss_fw_desc_parse(const uint8_t *hdr, size_t len,
 // signature verified, so a failure here always leaves the running slot intact.
 typedef void (*wfw_progress_fn)(int pct, void *ud);
 int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud);
+
+// Should this boot confirm the slot? The three things a new image can break
+// that a reboot into the previous one would undo: it cannot sign, the panel it
+// draws on never answered, or wallet storage would not open. Every one of them
+// is fatal to the device as a signer and every one of them can arrive with an
+// update, so any of them leaves the slot on trial.
+//
+// A pure function, and exported, because app_main is the one file no gate on
+// this project compiles -- the desktop builds all define SIMULATOR and stop at
+// build_game. Left as an `if` up there, the decision that says whether a bad
+// image becomes permanent would be the only safety gate on the device with no
+// test behind it at all.
+bool kiss_fw_confirm_ok(bool sign_ok, bool touch_ok, bool storage_ok);
 
 // Confirm the firmware that is running actually works. Called once the home
 // screen is up: anything that reboots before this -- crash, watchdog, a hand on
