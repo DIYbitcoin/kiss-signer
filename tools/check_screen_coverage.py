@@ -25,14 +25,62 @@ gate that quietly ignores what it cannot parse is the thing being fixed.
 
 Run after sim/build_sim.sh; this drives /tmp/fruitsim itself.
 """
+import contextlib
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SIM = Path("/tmp/fruitsim")
+
+# One gate run at a time on this machine. /tmp/simsd is a single fake card and
+# every gate wipes it before each walk, so two runs at once means one of them has
+# its fixtures deleted mid-walk: the file list comes up short, the coordinate
+# taps land on rows that moved, and the walk derails. Every stop after that
+# prints "clean" for a screen it never reached, which is worse than a red run --
+# it is a green one that measured nothing.
+#
+# Same lock and same protocol as sim/run_overlapcheck.sh: the directory IS the
+# lock, mkdir is atomic, and a holder that died takes its lock with it after
+# LOCK_STALE. mkdir rather than fcntl so the two runners can hold each other off.
+LOCK = Path("/tmp/kiss-sim-gate.lock")
+LOCK_STALE = 900
+
+
+@contextlib.contextmanager
+def gate_lock():
+    waited = False
+    while True:
+        try:
+            LOCK.mkdir()
+            break
+        except FileExistsError:
+            try:
+                age = time.time() - LOCK.stat().st_mtime
+            except OSError:
+                continue
+            if age > LOCK_STALE:
+                print(f"note: removing a stale gate lock ({int(age)}s old)",
+                      file=sys.stderr)
+                try:
+                    LOCK.rmdir()
+                except OSError:
+                    pass
+                continue
+            if not waited:
+                print("waiting for another gate run to finish...", file=sys.stderr)
+                waited = True
+            time.sleep(2)
+    try:
+        yield
+    finally:
+        try:
+            LOCK.rmdir()
+        except OSError:
+            pass
 
 # Screen constructors are not signature-compatible: setup's mk_screen takes
 # (title, sub), while signing's takes (parent, title, sub). Treating the name as
@@ -351,4 +399,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    with gate_lock():
+        sys.exit(main())

@@ -13,6 +13,47 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# ---- one gate run at a time on this machine --------------------------------
+#
+# /tmp/simsd is a single fake card and every gate wipes it before each walk. Two
+# runs at once means one of them has its fixtures deleted mid-walk: the file
+# list comes up short, the coordinate taps land on rows that moved, and the walk
+# derails at the first stop past the file it thought it opened. Every later stop
+# then prints "clean" for a screen it never reached, so the run reports a clean
+# sweep AND a non-zero exit, and the note at the bottom of this script correctly
+# blames an interleaved run -- which nobody can see, because it is in another
+# terminal.
+#
+# Reproduced deliberately rather than guessed: deleting the card on a 100ms loop
+# under a walk gives exactly the 22-failure signature this was showing, starting
+# at "btc unit: no label on screen contains BTC".
+#
+# mkdir, not flock: flock(1) is not on macOS. The directory is the lock, mkdir
+# is atomic, and a holder that died takes its lock with it after LOCK_STALE.
+LOCK=/tmp/kiss-sim-gate.lock
+LOCK_STALE=900
+lock_acquire() {
+    local waited=0
+    while ! mkdir "$LOCK" 2>/dev/null; do
+        if [ -d "$LOCK" ]; then
+            local age
+            age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null \
+                                    || stat -c %Y "$LOCK" 2>/dev/null \
+                                    || date +%s) ))
+            if [ "$age" -gt "$LOCK_STALE" ]; then
+                echo "note: removing a stale gate lock (${age}s old)" >&2
+                rmdir "$LOCK" 2>/dev/null
+                continue
+            fi
+        fi
+        [ "$waited" -eq 0 ] && echo "waiting for another gate run to finish..." >&2
+        waited=$((waited + 2))
+        sleep 2
+    done
+    trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
+}
+lock_acquire
+
 # A stale binary is worse than none: it passes its own self test, then the 24
 # walks "verify" whatever was built last. Fail the run when the build fails.
 bash sim/build_overlapcheck.sh || {
