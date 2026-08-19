@@ -2190,6 +2190,15 @@ static void verify_screen(lv_obj_t *parent)
                 wt_chip(arow, kbuf, false);
             }
             wt_help_chip(arow, 0, 0, MUT_COL, addr_help_cb, NULL);
+            // The row is LV_SIZE_CONTENT, so a chip in it makes it TALLER than
+            // the caption alone -- and it sits directly above the address card.
+            // Parked at a fixed ay - 6 it grew down THROUGH the card's top
+            // edge: 294 plus a 31px chip row is 325 against a card starting at
+            // 316. Measure it and hang it off the card instead, so the row's
+            // BOTTOM is what stays put and the caption rises when a chip
+            // arrives rather than the card being covered.
+            lv_obj_update_layout(arow);
+            lv_obj_set_y(arow, ay + 16 - lv_obj_get_height(arow) - 6);
         }
         // RBF's own chip is built AFTER the address, at the end of this block.
         // The address is a control now and its box is the whole 752 lane; a chip
