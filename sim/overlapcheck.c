@@ -794,15 +794,11 @@ static void oc_fit_install(void) { wt_fit_set_sink(oc_fit_sink); }
 // Shrink only, like the two above. An entry is a string somebody decided to
 // leave at font14, and that decision needs saying so here.
 static const char *OC_FIT_BACKLOG[] = {
-    // The two the check found when it landed, in English. Both are real and
-    // neither is a translation being long:
-    //
-    //   the camera-proof screen's one instruction, on the screen that tells an
-    //   owner what a photograph of their words is worth;
-    "the photo is public",
-    //   and a settings pill, which the comment above wt_pill_fit says outright
-    //   should never happen -- a button in the smallest type the device owns.
-    "USE YOUR OWN DRAWING",
+    // EMPTY. Two strings were listed here on the day this check landed and both
+    // were cut rather than excused: the camera-proof warning lost a clause that
+    // its own warning triangle was already saying, and the settings pill took
+    // the shorter wording the other twenty locales had all along. A new entry
+    // is a string somebody chose to leave at font14, and needs saying so.
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
 static bool s_fit_hit[sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]];
