@@ -92,6 +92,17 @@
 #define SP_COL_X  366
 #define SP_COL_W  372
 
+// The suffix under a derivation path: "on TESTNET" / "on SIGNET", and nothing
+// at all on mainnet, where the path already says 0h and the absence is the
+// statement. The two test networks derive identically -- this names which one
+// the owner picked, so a tb1 address is not read as the other chain's.
+static const char *on_net_line(void)
+{
+    if (!kiss_testnet()) return "";
+    return kiss_network() == KISS_NET_SIGNET ? tr(STR_R_ON_SIGNET)
+                                             : tr(STR_R_ON_TESTNET);
+}
+
 static lv_obj_t *s_scr;                    // whichever receive-flow screen is up
 static lv_obj_t *s_parent;
 // Where the derivation path block starts on the detail screen: caption at this
@@ -213,7 +224,7 @@ static void recv_refresh(void) {
                           purpose, kiss_testnet() ? 1 : 0, (unsigned)s_idx);
     if (s_path_tn_lbl) {
       lv_label_set_text(s_path_tn_lbl,
-                        kiss_testnet() ? tr(STR_R_ON_TESTNET) : "");
+                        on_net_line());
       lv_obj_update_layout(s_path_lbl);
       lv_obj_set_pos(s_path_tn_lbl,
                      400 + lv_obj_get_width(s_path_lbl) + 16, RECV_PATH_Y + 28);
@@ -397,8 +408,13 @@ static void vfy_result(const char *txt, size_t len) {
     // are Bitcoin proper nouns and stay untranslated; every locale already
     // uses those two words as English in this file.
     char buf[256];
+    // The address's side cannot be narrowed past "testnet": a tb1 address is
+    // the same string on all three test chains. Ours can, and it is the half a
+    // reader acts on.
     const char *addr_net = kiss_testnet() ? "mainnet" : "testnet";
-    const char *wall_net = kiss_testnet() ? "testnet" : "mainnet";
+    const char *wall_net = kiss_network() == KISS_NET_SIGNET ? "signet"
+                         : kiss_testnet()                    ? "testnet"
+                                                             : "mainnet";
     snprintf(buf, sizeof buf, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
     lv_label_set_text(n, buf);
   } else {
@@ -657,7 +673,7 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_sp_path_lbl = wt_lbl(s_scr, "", SP_COL_X, 222, wt_font_mono23(), WT_INK);
   lv_label_set_text_fmt(s_sp_path_lbl, "m/352h/%dh/0h   %s",
                         kiss_testnet() ? 1 : 0,
-                        kiss_testnet() ? tr(STR_R_ON_TESTNET) : "");
+                        on_net_line());
 
   s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                            sp_back_cb, NULL);

@@ -54,4 +54,5 @@ int kiss_lang_pick_slot(int lang);
 #ifdef SIMULATOR
 // Sim only: rebuild the storage chooser so both flash-encryption states render.
 void kiss_settings_sim_reopen_storage(void);
+void kiss_settings_sim_reopen_network(void);
 #endif

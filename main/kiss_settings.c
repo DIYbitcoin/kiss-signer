@@ -61,8 +61,6 @@ void kiss_wiped_lock(void);
 static lv_obj_t *s_scr;
 static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
 static lv_obj_t *s_acc_name;            // live name under the dots
-static lv_obj_t *s_main_pill, *s_test_pill;   // the two network segments
-static lv_obj_t *s_state_lbl;                // the network row's sub-line
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
@@ -253,31 +251,10 @@ static void restyle(void)
             lv_obj_set_style_outline_color(s_acc_dot[i], INK_COL, 0);
         }
     if (s_acc_name) lv_label_set_text(s_acc_name, wt_accent_name());
-    // The network row's value: the live network name, amber on testnet. That
-    // colour is the whole warning now that the two pills are gone, and it is
-    // paired with the sub-line below so the state never rests on colour alone.
-    // The segmented control: the live side is a filled lozenge, the other is
-    // just text on the track. MAINNET fills WT_INK, as drawn; TESTNET fills
-    // WT_WARN instead, because amber is what this app has always used to say
-    // "these coins are not real" and the fill is now the loudest place to say
-    // it. Both take dark ink on the fill -- WT_INK text on WT_WARN is the one
-    // pairing here with no contrast.
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *s = i ? s_test_pill : s_main_pill;
-        if (!s) continue;
-        bool on = (i == 1) == (tn != 0);
-        lv_obj_set_style_bg_color(s, i ? WARN_COL : INK_COL, 0);
-        lv_obj_set_style_bg_opa(s, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-        lv_obj_set_style_text_color(s, on ? WT_BAR : MUT_COL, 0);
-    }
-    // The network note is a plain row sub-line now, not an auto-fitting note
-    // block: the row owns the width and the type size, so this only sets text
-    // and colour.
-    if (s_state_lbl) {
-        lv_label_set_text(s_state_lbl, tn ? tr(STR_G_TESTNET_NOTE)
-                                          : tr(STR_G_MAINNET_NOTE));
-        lv_obj_set_style_text_color(s_state_lbl, tn ? WARN_COL : MUT_COL, 0);
-    }
+    // Nothing to restyle for the network: picking one rebuilds Settings, so
+    // the row is built holding the live name and never has to be corrected in
+    // place. Its colours are WT_WARN and WT_INK, neither of which follows the
+    // accent.
 
     // The address type row carries the address PREFIX as its right-hand value
     // and the type name as its sub-line. Both are rebuilt by walking the row's
@@ -299,13 +276,6 @@ static void restyle(void)
     }
 }
 
-static void pick_cb(lv_event_t *e)
-{
-    int tn = (int)(intptr_t)lv_event_get_user_data(e);
-    kiss_set_network(tn);
-    store_u8("testnet", tn ? 1 : 0);
-    restyle();
-}
 
 static void settings_reopen(void)
 {
@@ -535,6 +505,75 @@ static void storage_open_cb(lv_event_t *e)
     (void)e;
     storage_chooser_screen();
 }
+
+// ---- network ----
+// Three of them now, and the third one is a LABEL. Signet, testnet3 and
+// testnet4 share coin type 1h, the tb hrp and the tsp prefix, so kiss_testnet()
+// stays the boolean every derivation asks and this screen is the only thing
+// that knows which of the two a reader is looking at.
+static const char *net_note(int net)
+{
+    return net == KISS_NET_MAIN   ? tr(STR_I_NET_MAIN_NOTE)
+         : net == KISS_NET_SIGNET ? tr(STR_I_NET_SIGNET_NOTE)
+                                  : tr(STR_I_NET_TEST_NOTE);
+}
+
+static void net_pick_cb(lv_event_t *e)
+{
+    int net = (int)(intptr_t)lv_event_get_user_data(e);
+    kiss_set_network(net);
+    // The NVS key is still "testnet" and still a u8; it holds KISS_NET_* now.
+    // Widening it beats a second key: a device that stored 0 or 1 under the
+    // two-network build reads back as exactly the network it had.
+    store_u8("testnet", (uint8_t)net);
+    settings_reopen();                     // return with the selected row updated
+}
+
+static void net_back_cb(lv_event_t *e)
+{
+    (void)e;
+    settings_reopen();
+}
+
+static void net_chooser_screen(void)
+{
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_NET), NULL);
+
+    // Enum order, which is also real money first and the two practice chains
+    // under it. The VALUE is the address prefix, and it is the whole reason
+    // this screen shows a value at all: TESTNET and SIGNET both read tb1...,
+    // side by side, one row apart. That is the trap this device cannot catch
+    // for you -- the addresses are identical and the coins are not.
+    //
+    // DIRECTORY on every row, the same mark the address types wear, because
+    // what a network selects here is the same kind of thing: a coin type at
+    // the top of the derivation path.
+    for (int net = 0; net < 3; net++) {
+        // font23 named, not auto-fitted. Auto-fit sizes each row on its own
+        // string, so the shortest note came back a rung LARGER than the two
+        // above it and the list read as three unrelated screens. Three options
+        // of one question are one size.
+        wt_row_x(s_scr, LV_SYMBOL_DIRECTORY, kiss_net_name_of(net), net_note(net),
+                 wt_font23(), type_prefix(kiss_script(), net != KISS_NET_MAIN),
+                 wt_font_mono23(), WT_MUT, kiss_network() == net,
+                 WT_CHOICE_X, WT_CHOICE_Y(net), WT_CHOICE_W, WT_CHOICE_H,
+                 net_pick_cb, (void *)(intptr_t)net);
+    }
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, net_back_cb, NULL), 10);
+}
+
+static void net_open_cb(lv_event_t *e)
+{
+    (void)e;
+    net_chooser_screen();
+}
+
+#ifdef SIMULATOR
+void kiss_settings_sim_reopen_network(void) { net_chooser_screen(); }
+#endif
 
 static void type_pick_cb(lv_event_t *e)
 {
@@ -1186,93 +1225,24 @@ void kiss_settings_open(lv_obj_t *parent)
 #define SG_FULL_Y 331
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
-    // Network: the one row on this page whose control IS the choice, so redraw 05
-    // draws a SEGMENTED control instead of a value plus a chevron -- a bordered
-    // track holding two lozenges, the live one filled. There is no chevron on
-    // this row in the drawing either, and that is the point: you do not navigate
-    // into a two-state setting, you set it where it is stated.
+    // Network: a value, a chevron, and the choice on a screen of its own.
     //
-    // The pair of full pills this replaces failed for a measurable reason: at
-    // font23 each needed 165px, which inside a row left the label 20px, and
-    // squeezed to 88 both words wrapped mid-syllable. At font14 a segment sets
-    // in 84, so the whole track is 176. That is the only thing that changed --
-    // the type, not the idea.
+    // It was a SEGMENTED control while there were two networks, for a good
+    // reason -- you do not navigate into a two-state setting, you set it where
+    // it is stated -- and that reason expired the moment a third arrived.
+    // Three lozenges in the same 176px track set at 56px each, and "MAINNET"
+    // does not fit 56px at any size a reader would call type; widening the
+    // track takes the room the label needs. So the row joins the two rows
+    // under it, which ask the same shape of question and already have a
+    // screen each.
     //
-    // 177 rather than the drawing's 162, which costs 15px of fidelity nobody can
-    // see and buys the label 155px instead of 140. The overlap gate compares
-    // BOXES: wt_row sizes the label against the chevron, this row has none, so
-    // the label's box ran the whole width of the card and CONTAINED both
-    // lozenges -- two findings in all 21 locales. Both text lines have to be
-    // capped short of the track, and 155 is what keeps the longest translations
-    // of "Network" off the ellipsis.
-#define SG_SEG_X 177
-#define SG_SEG_TEXT_W (SG_SEG_X - 14 - 8)
-    {
-        int y = SG_TOP + SG_HEAD;
-        int tn0 = kiss_testnet();
-        // No value and no callback: the segments carry both. wt_row still lays
-        // out the label and the sub-line, and only reserves the sub-line when it
-        // is given one, so the note text goes in here rather than being added
-        // afterwards (doing that put the note on top of the label).
-        lv_obj_t *row = wt_row(s_scr, tr(STR_I_ROW_NETWORK),
-                               tn0 ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
-                               NULL, WT_INK, SG_L_X, y, SG_L_W, NULL, NULL);
-        s_state_lbl = NULL;
-
-        // The track. 162 from the card's left edge puts it at x=187 absolute,
-        // which is where the drawing has it, and 34 tall centred in a 64 card.
-        lv_obj_t *seg = lv_obj_create(row);
-        lv_obj_remove_style_all(seg);
-        lv_obj_set_pos(seg, SG_SEG_X, (WT_ROW_H - 34) / 2);
-        lv_obj_set_size(seg, 176, 34);
-        lv_obj_set_style_radius(seg, 100, 0);
-        lv_obj_set_style_border_width(seg, 1, 0);
-        lv_obj_set_style_border_color(seg, WT_EDGE, 0);
-        lv_obj_remove_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(seg, LV_OBJ_FLAG_CLICKABLE);
-
-        // Two lozenges inset 3 inside it, 90 wide each. Each one is a label
-        // carrying its own box, the same trick wt_state_chip uses: a container
-        // plus a child needs two layout passes to measure, and LVGL labels take
-        // background and radius styles perfectly well on their own.
-        static const char *const seg_txt[2] = { "MAINNET", "TESTNET" };
-        lv_obj_t **slot[2] = { &s_main_pill, &s_test_pill };
-        for (int i = 0; i < 2; i++) {
-            lv_obj_t *s = lv_label_create(seg);
-            lv_label_set_text(s, seg_txt[i]);
-            lv_obj_set_pos(s, 3 + i * 86, 3);
-            lv_obj_set_size(s, 84, 28);
-            lv_obj_set_style_radius(s, 100, 0);
-            lv_obj_set_style_text_font(s, wt_font14(), 0);
-            lv_obj_set_style_text_letter_space(s, 1, 0);
-            lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
-            // The glyphs are 14px in a 28px box, so the text has to be pushed
-            // down to sit on the lozenge's centre line rather than its top.
-            lv_obj_set_style_pad_top(s, 5, 0);
-            lv_obj_add_flag(s, LV_OBJ_FLAG_CLICKABLE);
-            // 10px reach in every direction: an 84x28 lozenge is a 104x48
-            // target, and the two cannot steal from each other because the reach
-            // is smaller than half the 86px pitch between them.
-            lv_obj_set_ext_click_area(s, 10);
-            lv_obj_add_event_cb(s, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-            *slot[i] = s;
-        }
-
-        // BOTH text lines stop short of the track, the label as well as the note.
-        // wt_row sizes them against the chevron, and this row has none, so each
-        // box ran the full width of the card and CONTAINED both lozenges. The
-        // lozenges are text, so the overlap gate called it -- correctly -- in
-        // every locale. Only the row's own two labels are touched here; the
-        // segments live inside `seg`, not in this child list.
-        uint32_t n = lv_obj_get_child_count(row);
-        for (uint32_t i = 0; i < n; i++) {
-            lv_obj_t *c = lv_obj_get_child(row, i);
-            if (!lv_obj_check_type(c, &lv_label_class)) continue;
-            lv_obj_set_width(c, SG_SEG_TEXT_W);
-            lv_label_set_long_mode(c, LV_LABEL_LONG_DOT);
-            if (lv_obj_get_style_text_font(c, 0) == wt_font14()) s_state_lbl = c;
-        }
-    }
+    // Amber on both test networks: the colour says "these coins are not real",
+    // and the sub-line says it again in words so the state never rests on
+    // colour alone. WHICH test network it is only the value can say.
+    wt_row(s_scr, tr(STR_I_ROW_NETWORK),
+           kiss_testnet() ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
+           kiss_net_name(), kiss_testnet() ? WT_WARN : WT_INK,
+           SG_L_X, SG_TOP + SG_HEAD, SG_L_W, net_open_cb, NULL);
 
     // Address type: the ADDRESS PREFIX is the value, the type name is the
     // sub-line. That is the way round it has to be, not a preference.

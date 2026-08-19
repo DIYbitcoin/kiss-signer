@@ -858,6 +858,33 @@ int main(int argc, char **argv) {
         kiss_set_network(0);
     }
 
+    // SIGNET is a LABEL. Everything a signer can compute is byte identical to
+    // TESTNET -- same coin type, same hrp, same tpub, same address -- and the
+    // one thing that differs is the word on the screen. This is the guard
+    // against a later branch on kiss_network() in a derivation path: the
+    // moment one appears, the descriptors below stop matching.
+    {
+        char tn_addr[128], sg_addr[128], tn_desc[256], sg_desc[256];
+        kiss_set_network(KISS_NET_TESTNET);
+        chki("testnet is a test network", kiss_testnet(), 1);
+        chk("testnet names itself", kiss_net_name(), "TESTNET");
+        int rc = kiss_session_address(0, 0, tn_addr, sizeof tn_addr);
+        rc |= kiss_session_descriptor(tn_desc, sizeof tn_desc);
+        kiss_set_network(KISS_NET_SIGNET);
+        chki("signet is a test network too", kiss_testnet(), 1);
+        chki("signet keeps its own value", kiss_network(), KISS_NET_SIGNET);
+        chk("signet names itself", kiss_net_name(), "SIGNET");
+        rc |= kiss_session_address(0, 0, sg_addr, sizeof sg_addr);
+        rc |= kiss_session_descriptor(sg_desc, sizeof sg_desc);
+        chki("signet/testnet derivation rc", rc, 0);
+        chk("signet address == testnet address", sg_addr, tn_addr);
+        chk("signet descriptor == testnet descriptor", sg_desc, tn_desc);
+        // Out of range is the old boolean's true, not a fourth network.
+        kiss_set_network(7);
+        chk("an unknown network reads as TESTNET", kiss_net_name(), "TESTNET");
+        kiss_set_network(0);
+    }
+
     char desc[256];
     if (kiss_session_descriptor(desc, sizeof desc) != 0) { printf("FAIL: descriptor rc\n"); return 1; }
     printf("descriptor: %s\n", desc);

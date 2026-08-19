@@ -357,12 +357,30 @@ const struct ext_key *kiss_session_master(void)
     return s_session ? &s_master : NULL;
 }
 
-// ---- network. The master key is network-free; testnet only changes the coin
-// type (84h/1h), the address hrp (tb) and the tpub serialization, so it can be
-// flipped any time without re-opening the session.
-static bool s_testnet = KISS_NET_DEFAULT_TESTNET;   // see kiss_crypto.h
-void kiss_set_network(int testnet) { s_testnet = testnet != 0; }
+// ---- network. The master key is network-free; a test network only changes
+// the coin type (84h/1h), the address hrp (tb) and the tpub serialization, so
+// it can be flipped any time without re-opening the session.
+static uint8_t s_net = KISS_NET_DEFAULT_TESTNET;    // see kiss_crypto.h
+// Derived, not stored twice for convenience: every line below this one asks
+// the BOOLEAN, because signet and testnet are one network to a device that
+// cannot see a chain. s_net exists only so the screens can name which.
+static bool s_testnet = KISS_NET_DEFAULT_TESTNET != KISS_NET_MAIN;
+void kiss_set_network(int net)
+{
+    s_net = net == KISS_NET_SIGNET ? KISS_NET_SIGNET
+          : net != 0              ? KISS_NET_TESTNET
+                                  : KISS_NET_MAIN;
+    s_testnet = s_net != KISS_NET_MAIN;
+}
 int kiss_testnet(void) { return s_testnet; }
+int kiss_network(void) { return s_net; }
+const char *kiss_net_name_of(int net)
+{
+    return net == KISS_NET_MAIN   ? "MAINNET"
+         : net == KISS_NET_SIGNET ? "SIGNET"
+                                  : "TESTNET";
+}
+const char *kiss_net_name(void) { return kiss_net_name_of(s_net); }
 
 static int s_script;   // WSCRIPT_NATIVE / _NESTED / _LEGACY
 void kiss_set_script(int script)

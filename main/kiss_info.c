@@ -388,7 +388,7 @@ static void pair_screen(void)
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
     if (kiss_testnet()) {
-        lv_obj_t *net = wt_lbl(s_scr, "TESTNET", 672, 30, wt_font14(), WT_WARN);
+        lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(), WT_WARN);
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
         lv_obj_set_style_border_color(net, WT_WARN, 0);
@@ -699,7 +699,25 @@ static void words_show_cb(lv_event_t *e)
 // device nags.
 static void winfo_after_verify(void)
 {
-    if (kiss_setup_verify_succeeded()) {
+    // Only when the words ARE the whole backup. This marked the session
+    // fingerprint the moment the typed words matched the stored seed -- and on
+    // a wallet with a passphrase those are two different claims. The words are
+    // half of what restores these keys; the fingerprint being marked is the
+    // device saying the whole paper backup has been proven, which nothing on
+    // this route ever checked.
+    //
+    // The setup rehearsal gets this right and has since kiss_rehearse existed:
+    // after the words match it throws the session passphrase away and requires
+    // it fresh, then compares fingerprints (kiss_ui.c, setup_warn_words_done).
+    // That leg does not exist here, so the same seam decides the same way --
+    // no passphrase, nothing left to prove, mark it; a passphrase, and the
+    // chip stays as it was rather than being turned green by half a check.
+    //
+    // Nothing is taken away by this: kiss_backup_mark only ever sets, and a
+    // passphrase wallet earned its mark on the rehearsal at setup, where the
+    // passphrase actually was checked.
+    if (kiss_setup_verify_succeeded() &&
+        kiss_rehearse_after_words(kiss_session_decoy()) == KISS_REHEARSE_VERIFIED) {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
         kiss_backup_mark(fp);
@@ -983,7 +1001,7 @@ static void info_screen(void)
     // pair of strings Settings puts on its own network row.
     wt_row(s_scr, tr(STR_I_SEC_NET),
            kiss_testnet() ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
-           kiss_testnet() ? "TESTNET" : "MAINNET",
+           kiss_net_name(),
            kiss_testnet() ? WT_WARN : WT_INK,
            WT_LIST_L_X, WT_LIST_Y(1), WT_LIST_W, NULL, NULL);
 

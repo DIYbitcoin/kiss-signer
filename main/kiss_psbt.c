@@ -656,6 +656,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
     s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = kiss_testnet() != 0;
+    s->net     = (uint8_t)kiss_network();
 
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
     struct ext_key m = *master;                    // fingerprint API wants non-const

@@ -212,14 +212,18 @@ AXES = {
              "MONO hides because MONO's accent is ink."),
     "testnet": dict(
         env={}, pfx="",
-        extra=[("t1-home", "sim_wallet_testnet"),
+        extra=[("t0-network", "sim_net_choose"),
+               ("t0a-signet-settings", "sim_settings_signet"),
+               ("t0b-signet-home", "sim_wallet_signet"),
+               ("t1-home", "sim_wallet_testnet"),
                ("t2-settings", "sim_settings_tn"),
                ("t3-receive", "sim_recv_tn"),
                ("t4-receive-detail", "sim_recv_detail_tn"),
                ("t5-receive-sp", "sim_recv_sp_tn"),
                ("t6-verify", "sim_verify_tn")],
-        note="Testnet, MONO, English. The walk already captures these near the "
-             "end and they were published nowhere."),
+        note="The test networks, MONO, English. The walk already captures "
+             "these near the end and they were published nowhere. SIGNET is a "
+             "label: the same keys, the same tb1 addresses, a different chain."),
     "ja": dict(
         env={"SIM_LANG": "ja"}, pfx="ja", extra=[],
         note="Japanese. Every title and primary button drops from wt_font34 "

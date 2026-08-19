@@ -103,7 +103,7 @@ int kiss_jitter(uint8_t out[32]);
 // Returns 0 on success.
 int kiss_secp_randomize(void);
 
-// ---- network (mainnet / testnet) ----
+// ---- network (mainnet / testnet / signet) ----
 // Affects derivation coin type (84h/0h vs 84h/1h), address hrp (bc/tb) and the
 // descriptor xpub/tpub serialization. The master key itself is network-free,
 // so this can be flipped any time — no session re-open needed. Default mainnet.
@@ -113,8 +113,25 @@ int kiss_secp_randomize(void);
 // the network where a mistake costs nothing. A device that has ever picked a
 // network keeps its choice (the setting is in NVS and survives erase).
 #define KISS_NET_DEFAULT_TESTNET 1
-void kiss_set_network(int testnet);
+// The three names a coordinator prints. SIGNET is a LABEL and nothing else:
+// signet, testnet3 and testnet4 share coin type 1h, the tb hrp, tpub/vpub and
+// the tsp silent-payment prefix, so a signer with no node cannot tell them
+// apart -- the difference between them is consensus, which is the
+// coordinator's problem. Every derivation, address and export path therefore
+// takes kiss_testnet(), which is 1 on both test networks, and none of them may
+// take kiss_network().
+enum { KISS_NET_MAIN = 0, KISS_NET_TESTNET = 1, KISS_NET_SIGNET = 2 };
+void kiss_set_network(int net);
 int kiss_testnet(void);
+// KISS_NET_*: what the badge, the settings row and the sign summary SAY. Never
+// a derivation input.
+int kiss_network(void);
+// "MAINNET" / "TESTNET" / "SIGNET". Untranslated on purpose -- these are the
+// names every coordinator shows, and a reader is matching them against one.
+const char *kiss_net_name(void);
+// The same three names by value, for the chooser, which has to write all of
+// them at once. One home for the literals.
+const char *kiss_net_name_of(int net);
 
 // ---- address script type ----
 // Native segwit (bc1..., BIP84) is the default. Nested segwit (3..., BIP49)

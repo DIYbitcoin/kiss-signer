@@ -79,6 +79,10 @@ typedef struct {
     // ours to reuse.
     uint32_t n_in_addr;
     bool     testnet;        // network this summary was verified under
+    // Which test network the SCREEN names. The check above is the boolean --
+    // a signet transaction and a testnet one are byte-identical here -- so
+    // this is a label carried alongside the verdict, never part of it.
+    uint8_t  net;            // KISS_NET_*
     uint32_t purpose;        // detected input type: 44/49/84, or 0 = mixed types
     wpsbt_status_t status;
     uint16_t caution_flags;  // WPSBT_C_* bitset (all triggered cautions)

@@ -484,13 +484,22 @@ int kiss_seed_diff_word(const char *typed, const char *stored) {
 // network seam: kiss_settings + the verify screen read it (no kiss_crypto.c
 // in the sim, so the real setter lives here as a plain flag)
 static int s_sim_testnet = 1;   // mirror KISS_NET_DEFAULT_TESTNET: fresh = testnet
+static int s_sim_net = KISS_NET_TESTNET;   // which of the two test networks it says
 // What the last kiss_psbt_load() said, so kiss_psbt_details() can agree with
 // it. Two stubs describing one transaction differently is a fixture that
 // makes a correct screen look broken.
 static uint32_t s_sim_n_in = 1;
 static uint64_t s_sim_in_sats = 100000;
-void kiss_set_network(int testnet) { s_sim_testnet = testnet; }
+void kiss_set_network(int net) { s_sim_net = net; s_sim_testnet = net != KISS_NET_MAIN; }
 int kiss_testnet(void) { return s_sim_testnet; }
+int kiss_network(void) { return s_sim_net; }
+const char *kiss_net_name_of(int net)
+{
+  return net == KISS_NET_MAIN   ? "MAINNET"
+       : net == KISS_NET_SIGNET ? "SIGNET"
+                                : "TESTNET";
+}
+const char *kiss_net_name(void) { return kiss_net_name_of(s_sim_net); }
 static int s_sim_script;
 void kiss_set_script(int s) { s_sim_script = s; }
 int kiss_script(void) { return s_sim_script; }
@@ -589,6 +598,7 @@ int kiss_session_descriptor(char *out, unsigned long len) {
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
+  s->net     = (uint8_t)s_sim_net;
   s->purpose = s_sim_script == 2 ? 44 : s_sim_script == 1 ? 49 : 84;
   s->n_in = 1; s->n_out = 2;
   s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000; s->fee_sats = 1000;
@@ -3178,11 +3188,21 @@ int main(void) {
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(671, 292); pump(3); release(); pump(4);     // theme dot: back to MONO (i=0)
-  // The Network row is a SEGMENTED control now, so a tap on the row itself
-  // does nothing -- you pick a side. TESTNET is the right lozenge: the card
-  // starts at y=95, the track is centred in its 64 height and the lozenges sit
-  // 3px inside that, so 291..375 x 113..141. This is its centre.
-  touch(333, 127); pump(3); release(); pump(4);     // TESTNET segment
+  // The Network row opens a chooser now -- three networks do not fit a
+  // segmented control -- so the row itself is the target: the left column's
+  // first card starts at y=95 and is 64 tall, centre 127.
+  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
+  save("/tmp/sim_net_choose.ppm");                  // three rows, tb1... on two
+  // SIGNET first, because it is the row that had never existed: the chooser's
+  // third option, the settings value beside it and the home badge are the only
+  // three places on the device that can tell it from TESTNET at all.
+  touch(400, 346); pump(3); release(); pump(6);     // SIGNET (WT_CHOICE_Y(2))
+  save("/tmp/sim_settings_signet.ppm");             // row value reads SIGNET
+  tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
+  save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
+  touch(670, 240); pump(3); release(); pump(6);     // Settings tile
+  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
+  touch(400, 244); pump(3); release(); pump(6);     // TESTNET (WT_CHOICE_Y(1))
   save("/tmp/sim_settings_tn.ppm");
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
@@ -3222,7 +3242,8 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(247, 127); pump(3); release(); pump(4);     // MAINNET segment: flip back
+  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
+  touch(400, 144); pump(3); release(); pump(6);     // MAINNET: flip back
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // MAINNET, and this is the whole point of the excursion. 120 stops run after

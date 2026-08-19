@@ -2246,7 +2246,9 @@ static void verify_screen(lv_obj_t *parent)
         // chip sit under it rather than through it. One recipient and the graph
         // stops at 290, leaving the caption line and the card below it.
         const int ay = np ? 292 : (recipient_n > 1 ? 372 : 300);
-        const char *net = s_sum.testnet ? tr(STR_I_NET_TEST) : tr(STR_I_NET_MAIN);
+        const char *net = !s_sum.testnet             ? tr(STR_I_NET_MAIN)
+                        : s_sum.net == KISS_NET_SIGNET ? tr(STR_I_NET_SIGNET)
+                                                       : tr(STR_I_NET_TEST);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
         snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
