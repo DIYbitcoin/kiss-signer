@@ -46,7 +46,7 @@
 void build_game(void);            // main/main.c -- the device calls this too
 void kiss_trng_start(void);       // main/kiss_crypto.c
 void kiss_scan_inject(const char *data, size_t len);   // main/kiss_scan.c
-void sim_open_keys(const char *mnemonic, const char *passphrase);     // main/main.c
+void sim_open_signer(const char *mnemonic, const char *passphrase);   // main/main.c
 
 // The BIP39 vector every wallet tests against. Recognisable enough that nobody
 // mistakes it for keys worth keeping, and it makes the simulator checkable:
@@ -135,8 +135,8 @@ EMSCRIPTEN_KEEPALIVE void kiss_sim_touch(int x, int y, int down) { set_touch(x, 
 // on earth tests against, fingerprint 73C5DA0A -- so nobody mistakes it for
 // keys worth keeping, and every address the simulator shows can be checked
 // against a published table, or against the owner's own signer.
-EMSCRIPTEN_KEEPALIVE void kiss_sim_test_keys(void) {
-    sim_open_keys(SIM_TEST_WORDS, NULL);
+EMSCRIPTEN_KEEPALIVE void kiss_sim_test_signer(void) {
+    sim_open_signer(SIM_TEST_WORDS, NULL);
 }
 
 // The viewfinder rect, read from the screen that draws it. The page used to
@@ -300,7 +300,7 @@ static bool g_running = true;
 static int  g_scale = 1;
 // The two controls, in window coordinates before scaling.
 static const SDL_Rect BTN_KISS   = { 16, 494, 150, 30 };
-static const SDL_Rect BTN_KEYS   = { 178, 494, 150, 30 };
+static const SDL_Rect BTN_SIGNER = { 178, 494, 168, 30 };
 
 static void draw_text(const char *t, int x, int y, int px, uint8_t r, uint8_t g, uint8_t b) {
     SDL_SetRenderDrawColor(g_ren, r, g, b, 255);
@@ -417,7 +417,7 @@ static void frame(void) {
             int bx = e.button.x / g_scale, by = e.button.y / g_scale;
             if (!in_panel(e.button.x, e.button.y)) {              // the strip: controls
                 if (in_rect(BTN_KISS, bx, by) && g_kiss_at < 0) g_kiss_at = 0;
-                else if (in_rect(BTN_KEYS, bx, by)) sim_open_keys(SIM_TEST_WORDS, NULL);
+                else if (in_rect(BTN_SIGNER, bx, by)) sim_open_signer(SIM_TEST_WORDS, NULL);
             }
             else if (e.button.button == SDL_BUTTON_LEFT && !g_latched) pen_down(e.button.x, e.button.y);
             else if (e.button.button == SDL_BUTTON_RIGHT) {       // latch / unlatch
@@ -433,7 +433,7 @@ static void frame(void) {
         }
         else if (e.type == SDL_KEYDOWN) {
             if (e.key.keysym.sym == SDLK_k && g_kiss_at < 0) g_kiss_at = 0;
-            else if (e.key.keysym.sym == SDLK_w) sim_open_keys(SIM_TEST_WORDS, NULL);
+            else if (e.key.keysym.sym == SDLK_w) sim_open_signer(SIM_TEST_WORDS, NULL);
             else if (e.key.keysym.sym == SDLK_SPACE) {            // same latch, on a key
                 int mx, my; SDL_GetMouseState(&mx, &my);
                 g_latched = !g_latched;
@@ -461,7 +461,7 @@ static void render(void) {
     SDL_RenderCopy(g_ren, g_tex, NULL, &panel);
 
     draw_button(BTN_KISS,   "DRAW KISS");
-    draw_button(BTN_KEYS,   "TEST KEYS");
+    draw_button(BTN_SIGNER, "TEST SIGNER");
     // The one thing the simulator cannot do, said where it is asked rather than
     // left to be discovered: a mouse can trace the default word from a script,
     // but it cannot teach the recogniser a word of your own.
@@ -490,7 +490,7 @@ int main(int argc, char **argv) {
 
     kiss_script_build();
     lvgl_start();
-    printf("Buttons under the panel: DRAW KISS opens the signer, TEST KEYS\n"
+    printf("Buttons under the panel: DRAW KISS opens the signer, TEST SIGNER\n"
            "skips setup. Same on the keyboard: k, w, esc to quit.\n"
            "Drawing your own word needs a finger and is not usable here.\n");
     if (draw_kiss) g_kiss_at = 0;

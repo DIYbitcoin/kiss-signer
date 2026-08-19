@@ -230,7 +230,7 @@ static lv_obj_t *s_fp_fly;               // transient: the code flying from the 
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
 static lv_obj_t *s_sd_badge;             // home: SD-storage indicator (SD mode only)
 static bool s_sd_badge_live;             // SD mode + card in: game_tick breathes it
-static lv_obj_t *s_net_lbl;              // top-center TESTNET badge (hidden on mainnet)
+static lv_obj_t *s_net_lbl;              // top-center test-network badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_wallet_act_t;          // idle auto-lock: last touch while unlocked
 static lv_obj_t *s_lock_warn;            // "locking soon" toast, up for the last 30s
@@ -1472,8 +1472,12 @@ void kiss_home_refresh(void) {
   kiss_home_restyle();
   sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
-  if (kiss_testnet()) lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
-  else                  lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+  if (kiss_testnet()) {
+    lv_label_set_text(s_net_lbl, kiss_net_name());   // TESTNET or SIGNET
+    lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 #ifdef SIMULATOR
@@ -1669,10 +1673,13 @@ static void kiss_open_decoy(void) {
 }
 
 #ifdef SIMULATOR
-// The simulator's way past the wizard: load a known KEY SET into this signer.
-// Not "wallet" -- the glossary reserves that for what a coordinator watches,
-// and this hands the same box a different set of keys, which is exactly the
-// ambiguity it says to spell as keys.
+// The simulator's way past the wizard: open a known signer.
+//
+// "signer" and not "wallet" -- a wallet is what a coordinator watches, and
+// nothing here hands anyone a coordinator view. The identity a passphrase
+// selects is a signer in this product's own words: the duress family names the
+// spare signer and the real signer, and this is the same shape, opened with a
+// known seed instead of a typed passphrase.
 //
 // Every interesting screen -- sign, receive, the wallet facts, settings -- sits
 // behind first boot, and first boot is fifty dice rolls and a quiz. That is the
@@ -1687,7 +1694,7 @@ static void kiss_open_decoy(void) {
 // this lives here rather than in the frontend -- same reason sim_capture_word
 // does, and it takes the same sequence kiss_open_decoy just above uses, which
 // is the one path in this file that reaches the home without a login screen.
-void sim_open_keys(const char *mnemonic, const char *passphrase)
+void sim_open_signer(const char *mnemonic, const char *passphrase)
 {
     if (!mnemonic) return;
     const char *pass = (passphrase && *passphrase) ? passphrase : NULL;
@@ -2768,7 +2775,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // fingerprint chip (right). Amber pill, shown ONLY on testnet so mainnet stays
   // clean; kept in sync by kiss_home_refresh() (unlock + return from Settings).
   s_net_lbl = lv_label_create(s_wallet);
-  lv_label_set_text(s_net_lbl, "TESTNET");
+  lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
   lv_obj_set_style_text_color(s_net_lbl, lv_color_hex(0xF2B84B), 0);
   lv_obj_set_style_text_font(s_net_lbl, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_letter_space(s_net_lbl, 3, 0);
