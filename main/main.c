@@ -2526,8 +2526,8 @@ static void storage_locked_screen(lv_obj_t *root,
 }
 
 // Set by build_game, read by app_main's rollback gate below. A boot that lands
-// on the safe-mode screen has built no wallet at all, and confirming the slot
-// there would make a storage-broken image permanent -- which is precisely the
+// on the safe-mode screen has built nothing behind it at all, and confirming
+// the slot there would make a storage-broken image permanent -- which is the
 // failure a reboot into the previous firmware undoes, since the thing that
 // broke storage arrived with the update. Not guarded out for the sim: the same
 // assignment runs there, and the harness that drives the safe-mode screen is
@@ -2979,13 +2979,13 @@ void app_main(void) {
   // re-creates the walk-away revert the comment above rules out.
   // Storage is the fourth gate, beside drawing, signing and touch, and it was
   // missing. build_game returns early on a failed kiss_settings_load and paints
-  // the safe-mode screen -- no wallet, no setup, no home -- and then this line
-  // confirmed the slot anyway, because the condition only asked about signing
-  // and touch. So an image that cannot open NVS made itself permanent on the
-  // one boot a reboot would have undone it. Nothing about that is theoretical:
-  // a partition table or an encryption state that moved is exactly what an
-  // update changes, and it is exactly what the previous firmware still works
-  // with.
+  // the safe-mode screen -- no setup, no home, nothing that can reach the keys
+  // -- and then this line confirmed the slot anyway, because the condition
+  // only asked about signing and touch. So an image that cannot open NVS made
+  // itself permanent on the one boot a reboot would have undone it. Nothing
+  // about that is theoretical: a partition table or an encryption state that
+  // moved is exactly what an update changes, and exactly what the previous
+  // firmware still works with.
   if (kiss_fw_confirm_ok(src == 0, s_touch != NULL, !s_storage_blocked)) {
     kiss_fw_mark_valid();
   } else if (src != 0) {
@@ -2995,7 +2995,7 @@ void app_main(void) {
     ESP_LOGE(TAG, "touch never came up: leaving this slot on trial so a "
                   "reboot returns the firmware that worked");
   } else {
-    ESP_LOGE(TAG, "wallet storage would not open: leaving this slot on trial "
+    ESP_LOGE(TAG, "storage would not open: leaving this slot on trial "
                   "so a reboot returns the firmware that worked");
   }
 

@@ -700,9 +700,9 @@ static void words_show_cb(lv_event_t *e)
 static void winfo_after_verify(void)
 {
     // Only when the words ARE the whole backup. This marked the session
-    // fingerprint the moment the typed words matched the stored seed -- and on
-    // a wallet with a passphrase those are two different claims. The words are
-    // half of what restores these keys; the fingerprint being marked is the
+    // fingerprint the moment the typed words matched the stored seed, and on
+    // keys opened with a passphrase those are two different claims: the words
+    // are half of what restores them, and the fingerprint being marked is the
     // device saying the whole paper backup has been proven, which nothing on
     // this route ever checked.
     //
@@ -713,9 +713,9 @@ static void winfo_after_verify(void)
     // no passphrase, nothing left to prove, mark it; a passphrase, and the
     // chip stays as it was rather than being turned green by half a check.
     //
-    // Nothing is taken away by this: kiss_backup_mark only ever sets, and a
-    // passphrase wallet earned its mark on the rehearsal at setup, where the
-    // passphrase actually was checked.
+    // Nothing is taken away by this: kiss_backup_mark only ever sets, and keys
+    // opened with a passphrase earned their mark on the rehearsal at setup,
+    // where the passphrase actually was checked.
     if (kiss_setup_verify_succeeded() &&
         kiss_rehearse_after_words(kiss_session_decoy()) == KISS_REHEARSE_VERIFIED) {
         uint8_t fp[4];

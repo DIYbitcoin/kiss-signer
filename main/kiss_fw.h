@@ -92,7 +92,7 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud);
 
 // Should this boot confirm the slot? The three things a new image can break
 // that a reboot into the previous one would undo: it cannot sign, the panel it
-// draws on never answered, or wallet storage would not open. Every one of them
+// draws on never answered, or storage would not open. Every one of them
 // is fatal to the device as a signer and every one of them can arrive with an
 // update, so any of them leaves the slot on trial.
 //
