@@ -60,8 +60,8 @@ void kiss_wiped_lock(void);
 #define TYPE_NOTE_H 29
 
 static lv_obj_t *s_scr;
-static lv_obj_t *s_acc_dot[WT_ACC_N];   // theme dots, top-right
-static lv_obj_t *s_acc_name;            // live name under the dots
+static lv_obj_t *s_theme_dot;   // the header pill's accent swatch; restyle repaints it
+static lv_obj_t *s_theme_menu;  // theme dropdown scrim; NULL whenever it is closed
 static lv_obj_t *s_build_id;
 static lv_obj_t *s_wipe_pill;
 static lv_obj_t *s_lang_pill;   // paired with BACK so the bottom row matches
@@ -235,23 +235,11 @@ static void restyle(void)
     // here, so the flag walk is what finds them.
     wt_accent_restyle(s_scr);
     kiss_build_id_restyle(s_build_id);
-    for (int i = 0; i < WT_ACC_N; i++)
-        if (s_acc_dot[i]) {
-            bool on = (i == wt_accent_get());
-            lv_obj_set_style_border_color(s_acc_dot[i], on ? wt_accent() : KEY_COL, 0);
-            // Scaled for the 18px dot in the action bar. At the old 36px these
-            // were 3/12/3; kept at that size on an 18px dot the halo is wider
-            // than the dot and the four of them merge into one bright smear.
-            lv_obj_set_style_border_width(s_acc_dot[i], on ? 2 : 1, 0);
-            lv_obj_set_style_shadow_width(s_acc_dot[i], on ? 7 : 0, 0);
-            lv_obj_set_style_shadow_color(s_acc_dot[i], wt_accent(), 0);
-            lv_obj_set_style_shadow_opa(s_acc_dot[i], on ? 90 : 0, 0);
-            // detached ink halo: the gap reads even when the dot is white (MONO)
-            lv_obj_set_style_outline_width(s_acc_dot[i], on ? 2 : 0, 0);
-            lv_obj_set_style_outline_pad(s_acc_dot[i], 2, 0);
-            lv_obj_set_style_outline_color(s_acc_dot[i], INK_COL, 0);
-        }
-    if (s_acc_name) lv_label_set_text(s_acc_name, wt_accent_name());
+    // The theme control is a header pill now: a swatch of the current accent
+    // and a chevron. The swatch IS the value readout, so a pick repaints it and
+    // nothing else here -- the dropdown that offered the choice closes on the
+    // same tap, and its rows are built fresh each open.
+    if (s_theme_dot) lv_obj_set_style_bg_color(s_theme_dot, wt_accent(), 0);
     // Nothing to restyle for the network: picking one rebuilds Settings, so
     // the row is built holding the live name and never has to be corrected in
     // place. Its colours are WT_WARN and WT_INK, neither of which follows the
@@ -1080,9 +1068,7 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     }
 }
 
-// The two column grid every card on this page sits on. Hoisted above the
-// function because the THEME card is built early -- it lives in the right
-// column now, not the action bar -- and needs the same numbers.
+// The two column grid every card on this page sits on.
 #define SG_L_X    25
 #define SG_L_W   365
 #define SG_R_X   412
@@ -1091,90 +1077,153 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
 #define SG_HEAD  23    // eyebrow at SG_TOP -> first card at 95, as drawn
 #define SG_PITCH 71    // 64 tall card + 7 gap
 
+// ---- theme: a header pill and a dropdown ----
+//
+// THEME spent a version as a card in the right column, holding the row label,
+// the live accent name and four tappable dots in a 365x64 box. The dots were
+// the tell that it was the wrong shape: every other card on this page states a
+// value and opens a screen, and this one asked for a pick in place, in a
+// column about the wallet, for the one setting that is about the glass. It
+// also cost the column a whole slot, which pushed the full width row below
+// both columns down to clear it. So it joins LANGUAGE and FIRMWARE in the
+// header -- the three controls that belong to the DEVICE rather than the
+// wallet in it -- as a pill holding a swatch of the current accent and a
+// chevron, and the pick happens on a dropdown under it.
+//
+// The pill is wordless on purpose: the swatch is the value and the chevron
+// says it opens, which is the whole message, and a pill with no words costs
+// no key in any locale. 44px, not the 90 it was first drawn at: every pixel
+// this pill takes comes out of the TITLE's lane, and the settings word in six
+// locales (de leads at 269px in font28) needs 276 of it or wt_title_fit drops
+// to font23 -- which the fit gate hard-fails as a title that has stopped
+// looking like one. 44 holds the 18px dot and a font14 chevron, the same
+// chevron size every row on the device wears, with the fit gate's lane pinned
+// to this exact arithmetic in sim/fitcheck.c.
+#define THEME_PILL_W 44
+// LEFT of FIRMWARE, which is left of LANGUAGE -- both 170 wide (LANG_PILL_W,
+// defined where they are built) with 16 between them; this chip sits a
+// tighter 12 off FIRMWARE, giving the saved pixels to the title. Same y=18 as
+// the others, above WT_CONTENT_BOTTOM, so wt_pillh does not build an action
+// bar for it.
+#define THEME_PILL_X (752 - 170 - 16 - 170 - 12 - THEME_PILL_W)
+
+// The dropdown card hangs 6px under the pill and shares its right edge, so it
+// reads as the pill unfolding rather than as a second panel that happens to
+// appear. 230 fits the widest name (CYPHERPINK) beside its dot with the OK
+// mark still clear of it. Four rows on a 52 pitch inside 8px padding put the
+// card's bottom edge at 292, well above WT_CONTENT_BOTTOM.
+#define THEME_MENU_W     230
+#define THEME_MENU_X     (THEME_PILL_X + THEME_PILL_W - THEME_MENU_W)
+#define THEME_MENU_Y     (18 + 44 + 6)
+#define THEME_MENU_PITCH 52
+#define THEME_MENU_H     (8 + WT_ACC_N * THEME_MENU_PITCH + 8)
+
+static void theme_menu_close_cb(lv_event_t *e)
+{
+    (void)e;
+    // async: this runs from a tap on the scrim or on one of its rows, and an
+    // object must not be torn down while its own event is still on the stack.
+    if (s_theme_menu) { lv_obj_delete_async(s_theme_menu); s_theme_menu = NULL; }
+}
+
+static void theme_menu_pick_cb(lv_event_t *e)
+{
+    theme_pick_cb(e);          // set + persist + restyle + home refresh
+    theme_menu_close_cb(NULL); // the pick is the answer; the menu's job is done
+}
+
+static void theme_menu_open_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_theme_menu) return;
+
+    // Full screen scrim, black at 70 percent: the page stays visible but
+    // plainly out of reach, and a tap anywhere on it closes the menu. The
+    // opacity is load bearing beyond the look -- the overlap gate only treats
+    // content as buried under a backdrop at LV_OPA_50 or more, exactly as the
+    // language picker's overlay is treated.
+    lv_obj_t *scrim = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(scrim);
+    lv_obj_set_size(scrim, 800, 480);
+    lv_obj_set_pos(scrim, 0, 0);
+    lv_obj_set_style_bg_color(scrim, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scrim, LV_OPA_70, 0);
+    lv_obj_add_flag(scrim, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(scrim, theme_menu_close_cb, LV_EVENT_CLICKED, NULL);
+    s_theme_menu = scrim;
+
+    lv_obj_t *card = wt_card(scrim, THEME_MENU_X, THEME_MENU_Y,
+                             THEME_MENU_W, THEME_MENU_H);
+    // Clickable with no callback: a tap on the card's own padding is aimed at
+    // the menu, not past it, so it must not fall through to the scrim's close.
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+
+    for (int i = 0; i < WT_ACC_N; i++) {
+        // borrow the accent table for this row's colour and name, exactly as
+        // the old card's dots did: set, read, restore
+        int save = wt_accent_get();
+        wt_accent_set(i);
+        lv_color_t c = wt_accent();
+        const char *nm = wt_accent_name();
+        wt_accent_set(save);
+
+        lv_obj_t *row = lv_obj_create(card);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, 8, 8 + i * THEME_MENU_PITCH);
+        lv_obj_set_size(row, THEME_MENU_W - 16, THEME_MENU_PITCH);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        // the rows already abut on the 52 pitch; the ext area is tolerance at
+        // the card's edges, not the thing making the targets big enough
+        lv_obj_set_ext_click_area(row, 8);
+        lv_obj_add_event_cb(row, theme_menu_pick_cb, LV_EVENT_CLICKED,
+                            (void *)(intptr_t)i);
+
+        lv_obj_t *d = lv_obj_create(row);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_size(d, 18, 18);
+        lv_obj_set_pos(d, 6, (THEME_MENU_PITCH - 18) / 2);
+        lv_obj_set_style_radius(d, 9, 0);
+        lv_obj_set_style_bg_color(d, c, 0);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(d, 1, 0);
+        lv_obj_set_style_border_color(d, KEY_COL, 0);
+        lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);   // the row takes the tap
+
+        lv_obj_t *l = lv_label_create(row);
+        lv_label_set_text(l, nm);
+        lv_obj_set_style_text_color(l, WT_INK, 0);
+        lv_obj_set_style_text_font(l, wt_font23(), 0);
+        lv_obj_align(l, LV_ALIGN_LEFT_MID, 6 + 18 + 12, 0);
+
+        // the current theme's row carries the check, in its own colour --
+        // which IS wt_accent() on this row, so the mark and the swatch agree
+        if (i == save) {
+            lv_obj_t *ok = lv_label_create(row);
+            lv_label_set_text(ok, LV_SYMBOL_OK);
+            lv_obj_set_style_text_color(ok, c, 0);
+            lv_obj_set_style_text_font(ok, wt_font23(), 0);
+            lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -6, 0);
+        }
+    }
+}
+
 void kiss_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
     s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
     s_fw_pill = NULL;
+    s_theme_dot = NULL;
+    // A menu open when the screen died was deleted with it; the handle must
+    // not survive to block the next open.
+    s_theme_menu = NULL;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
-    // The top right belongs to the LANGUAGE pill now; see the block that builds
-    // it below. It held four 36px theme dots once, which was the largest,
-    // brightest, most saturated thing on the page handed to the one control that
-    // changes nothing about the wallet, and then briefly the wallet fingerprint,
-    // which moved to the home screen with every other copy of it.
-
-    // THEME, in the RIGHT COLUMN under NO UNDO, in the slot NO UNDO freed when
-    // its two rows became one. It lived in the action bar, floating between the
-    // build id and BACK, and that was always the wrong room: the theme is a
-    // SETTING, and every other setting on this page is a card in a column under
-    // an eyebrow. Sitting in the bar it was neither a control nor chrome, and it
-    // put a colour picker directly under a line of status text -- which is what
-    // finally made it untenable, because the build id's third fact reads as a
-    // caption under the dots no matter which of them moves first.
-    //
-    // Card, not wt_row: a row's value is a label, and this one's value is four
-    // tappable circles. Same 365x64 box on the same grid, same 23-over-14 pair
-    // for label and sub, so it reads as a row without pretending to be one.
-    // 260, not the left column's third slot at 237: the RIGHT column carries a
-    // second eyebrow, so its rhythm is offset. Replace or erase runs 189..253,
-    // and 260 is the standard 7px gap under it -- exactly the slot NO UNDO
-    // freed when its two rows became one.
-    lv_obj_t *th = wt_card(s_scr, SG_R_X, 260, SG_R_W, WT_ROW_H);
-    // The picked theme shows on this page, not only on the dots that pick it.
-    // Every ORDINARY card here takes the accent rim; the ones carrying a STATUS
-    // colour keep it, which is the separation kisstheme exists to police --
-    // Seed words stays WT_WARN while the paper is unchecked, Erase stays
-    // WT_STOP, and Network and Storage keep theirs. Flagged rather than
-    // painted, so restyle's accent walk repaints it the instant a dot is
-    // tapped, with no second list to keep in step.
-    lv_obj_add_flag(th, WT_FLAG_ACCENT_BORDER);
-    lv_obj_set_style_border_color(th, wt_accent(), 0);
-    // I_ROW_THEME, not H_THEME. Same word, different job: H_THEME is the lower
-    // case CAPTION on the home screen, set beside "fingerprint" and cased to
-    // match it. Here it is a row label standing in a column with Network,
-    // Storage and Duress, and it has to be cased like them.
-    wt_lbl(th, tr(STR_I_ROW_THEME), 16, 10, wt_font23(), WT_INK);
-    s_acc_name = lv_label_create(th);          // names the dressed colour
-    lv_obj_set_style_text_color(s_acc_name, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_acc_name, wt_font14(), 0);
-    lv_obj_set_style_text_letter_space(s_acc_name, 2, 0);
-    // The card's sub-line, where every other card on this page puts its second
-    // line: left edge at 16, under the label. It is the live accent NAME, so it
-    // is "MONO" in one theme and "CYPHERPINK" in another, and the dots start at
-    // 250 -- the width cap is what keeps the long one out of them. A dot is not
-    // text, so the overlap gate cannot catch that collision and the geometry
-    // has to make it impossible instead.
-    lv_obj_set_width(s_acc_name, 220);
-    lv_obj_set_style_text_align(s_acc_name, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_pos(s_acc_name, 16, 38);
-    for (int i = 0; i < WT_ACC_N; i++) {
-        int save = wt_accent_get();
-        wt_accent_set(i);                     // borrow the accent table for the dot fill
-        lv_color_t c = wt_accent();
-        wt_accent_set(save);
-        lv_obj_t *d = lv_obj_create(th);
-        lv_obj_remove_style_all(d);
-        lv_obj_set_size(d, 18, 18);
-        // Card relative. Four dots on a 27 pitch are 99 wide, right edge 16
-        // short of the card's own edge at 365, so the run starts at 250 and the
-        // name's 220px cap ends at 236 -- 14px of daylight that no translation
-        // can close. Vertically centred in the 64 tall card.
-        lv_obj_set_pos(d, 250 + i * 27, (WT_ROW_H - 18) / 2);
-        lv_obj_set_style_radius(d, 9, 0);
-        lv_obj_set_style_bg_color(d, c, 0);
-        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(d, 1, 0);
-        lv_obj_set_style_border_color(d, KEY_COL, 0);
-        lv_obj_add_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        // The dot shrank from 36 to 18, so the TOUCH target has to grow to keep
-        // it tappable: 15px of ext area gives each one a 48x48 region, and the
-        // 27px pitch means those regions tile without overlapping a neighbour.
-        lv_obj_set_ext_click_area(d, 15);
-        lv_obj_add_event_cb(d, theme_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        s_acc_dot[i] = d;
-    }
+    // The top right belongs to the header pills; see the block that builds
+    // them below. THEME is one of them now -- see the dropdown section above
+    // kiss_settings_open for the whole story of where it has lived.
 
     // Redraw 05: two columns of CARDS under section eyebrows, not a grid of
     // pills. Every number here is read off the drawing's own DOM rather than
@@ -1189,9 +1238,10 @@ void kiss_settings_open(lv_obj_t *parent)
     // was tried, flashed, and rejected on glass for being unreadable.
     //
     // The pitch is what has to be checked against WT_CONTENT_BOTTOM, not the
-    // height: the right column is the tall one, because it carries two cards, a
-    // second eyebrow and two more cards. 95 + 64 + 7 + 64 + 8 + 22 + 64 + 7 + 64
-    // lands its last card's bottom edge on 395, three pixels clear of 398.
+    // height: the deepest thing on the page is the full width row under both
+    // columns. The left column's three cards end at 301 (95 + 64 + 7 + 64 + 7
+    // + 64), the right's shorter stack at 253, and the row at SG_FULL_Y = 308
+    // puts its own bottom edge on 372, well clear of 398.
     //
     // Why this shape rather than the pills it replaces. Eleven pills gave every
     // control the same visual weight and the same answer to "what is this
@@ -1215,16 +1265,13 @@ void kiss_settings_open(lv_obj_t *parent)
 #define SG_AUDIT_W 140
 #define SG_WAYS_W  (SG_FULL_W - 7 - SG_AUDIT_W)
 #define SG_AUDIT_X (SG_L_X + SG_WAYS_W + 7)
-// 331: the standard 7px gap under the RIGHT column, which is now the deeper of
-// the two. It was briefly 308, on the reasoning that 331 cleared nothing but a
-// reserved EMPTY slot at 260..324 and left a band of dead page above a full
-// width row -- which was true while the slot was empty.
-//
-// The theme card fills it now, so 331 clears a real card again and the dead
-// band is gone for the right reason: something is standing in it. The left
-// column ends 30px higher at 301 because it carries one card fewer, and a row
-// spanning both has to answer to the deeper one.
-#define SG_FULL_Y 331
+// 308: the standard 7px gap under the LEFT column, whose third card ends at
+// 301. This number has moved with the right column's fortunes: it was 331
+// while the theme card closed that column at 324, and 308 before that, when
+// the same slot stood reserved and empty. The theme lives in the header
+// dropdown now, the right column ends at 253, and a row spanning both columns
+// answers to the deeper one -- which is the left again.
+#define SG_FULL_Y 308
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: a value, a chevron, and the choice on a screen of its own.
@@ -1441,7 +1488,7 @@ void kiss_settings_open(lv_obj_t *parent)
         // destroying them are opposite intentions, and distance said so -- and
         // the argument for keeping it was that the column did not need the
         // space. It does now: the ways in row moved out of the left column and
-        // spans the page at SG_FULL_Y, so this column has to end above 331.
+        // spans the page at SG_FULL_Y, so this column has to end above 308.
         //
         // The separation survives without the band. These two rows are STOP
         // tinted with red labels under their own red eyebrow and rule; the
@@ -1484,8 +1531,10 @@ void kiss_settings_open(lv_obj_t *parent)
         // but a chance to tap the wrong one. The row that is left says what they
         // share; the screen behind it asks which way.
         //
-        // The freed SG_PITCH slot is the theme card's now (412,260): NO UNDO
-        // stays the last ROW group and the dots close the column.
+        // The freed SG_PITCH slot is empty again -- the theme card that filled
+        // it for a version moved into the header dropdown -- so NO UNDO closes
+        // the column, and an empty slot at the bottom of a column reads as the
+        // end of the column.
         // No sub-line. "these words go either way" was true of a chooser with
         // two doors in it; there is one door now and its own screen says what
         // goes and what brings it back, in stronger words and beside the
@@ -1550,12 +1599,46 @@ void kiss_settings_open(lv_obj_t *parent)
                      752 - LANG_PILL_W - 16 - LANG_PILL_W, 18,
                      LANG_PILL_W, 44, fw_open_cb, NULL);
 
-        // The title had the whole 704 lane, then shared it with one 170px pill,
-        // and now shares it with two. Nothing else would catch this: the overlap
-        // gate measures text against text, a pill is not text, and a long
-        // locale's title would simply run underneath them. 332 = 704 - 170 - 170
-        // - 16 - 16 of gaps.
-        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - LANG_PILL_W - 16 - 48);
+        // THEME, left of FIRMWARE: the third device control in the header.
+        // The pill's label is the chevron; the swatch is added beside it and
+        // the pair is centred by measuring the glyph, since the pair's width
+        // is the only unknown in the 90px lane. Geometry and the story of why
+        // it is wordless live with the defines above kiss_settings_open.
+        //
+        // Same y=18 as its neighbours, above WT_CONTENT_BOTTOM, so wt_pillh
+        // does not build an action bar for it -- the bar is BACK's.
+        lv_obj_t *tp = mk_pillh(LV_SYMBOL_DOWN, THEME_PILL_X, 18,
+                                THEME_PILL_W, 44, theme_menu_open_cb, NULL);
+        lv_obj_t *gl = lv_obj_get_child(tp, 0);
+        // font14, the size every row's chevron already is: a mark, not text,
+        // and the small glyph is what lets the whole chip live in 44px.
+        lv_obj_set_style_text_font(gl, wt_font14(), 0);
+        lv_point_t gs;
+        lv_text_get_size(&gs, LV_SYMBOL_DOWN, wt_font14(), 0, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        int px = (THEME_PILL_W - (18 + 6 + gs.x)) / 2;
+        s_theme_dot = lv_obj_create(tp);
+        lv_obj_remove_style_all(s_theme_dot);
+        lv_obj_set_size(s_theme_dot, 18, 18);
+        lv_obj_set_pos(s_theme_dot, px, (44 - 18) / 2);
+        lv_obj_set_style_radius(s_theme_dot, 9, 0);
+        lv_obj_set_style_bg_color(s_theme_dot, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(s_theme_dot, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(s_theme_dot, 1, 0);
+        lv_obj_set_style_border_color(s_theme_dot, KEY_COL, 0);
+        lv_obj_remove_flag(s_theme_dot, LV_OBJ_FLAG_CLICKABLE); // the pill takes the tap
+        lv_obj_align(gl, LV_ALIGN_LEFT_MID, px + 18 + 6, 0);
+
+        // The title had the whole 704 lane, then shared it with one 170px
+        // pill, two, and now the theme chip as well. Nothing else would catch
+        // this: the overlap gate measures text against text, a pill is not
+        // text, and a long locale's title would simply run underneath them.
+        // 276 = what is left of 704 after both pills, the chip and the gaps
+        // -- and 276 is not decoration: de's title needs 269 to hold font28,
+        // and sim/fitcheck.c pins this same lane and fails the build if a
+        // locale's title is squeezed to font23.
+        wt_title_fit(s_scr, 752 - LANG_PILL_W - 16 - LANG_PILL_W - 12
+                            - THEME_PILL_W - 16 - 48);
     }
 
     {
@@ -1599,12 +1682,6 @@ void kiss_settings_open(lv_obj_t *parent)
         // inside the bar's fill, which stops at 471.
         s_build_id = kiss_build_id_make(s_scr, 48, 404, true, true);
 
-        // The THEME control has to be raised above the action bar's floor for
-        // the same reason: the label and all four dots are created before any
-        // pill exists, so the bar drew straight over the top of them. Nothing
-        // errored, because they were still there and still tappable, just
-        // hidden.
-
         // CAMERA AUDIT. It spent a version on the duress page, which was the
         // wrong room by a mile: an owner looking for the ways in found a
         // camera drill, and an owner wanting to check the camera had to go
@@ -1616,10 +1693,6 @@ void kiss_settings_open(lv_obj_t *parent)
         // the ways in row's line (SG_AUDIT_X), the page's one row about THIS
         // SIGNER's identity, which is the question the audit asks too: the
         // camera is a camera, and the words on the glass came out of it.
-
-        lv_obj_move_foreground(s_acc_name);
-        for (int i = 0; i < WT_ACC_N; i++)
-            if (s_acc_dot[i]) lv_obj_move_foreground(s_acc_dot[i]);
     }
 
     // NO FLAG ON THIS PILL. It used to carry the active language's flag, which

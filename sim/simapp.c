@@ -418,7 +418,12 @@ static void pen_down(int wx, int wy) {
 // the game loop. The gesture is still there to be found: lock the signer from
 // the top left corner and draw it, or run --kiss, which is what the headless
 // check uses to prove the recogniser still works.
-static void open_the_signer(void) { sim_open_signer(SIM_TEST_WORDS, NULL); }
+// Once used, the button goes away. The strip is host chrome, not the product,
+// and chrome that has outlived its purpose reads as part of the product: the
+// device never shows an OPEN THE SIGNER button, so leaving one drawn under a
+// running signer misrepresents the screen above it.
+static bool g_opened;
+static void open_the_signer(void) { g_opened = true; sim_open_signer(SIM_TEST_WORDS, NULL); }
 
 static void frame(void) {
     bool scripted = kiss_script_step();   // the script owns the pointer while it runs
@@ -428,7 +433,7 @@ static void frame(void) {
         else if (e.type == SDL_MOUSEBUTTONDOWN) {
             int bx = e.button.x / g_scale, by = e.button.y / g_scale;
             if (!in_panel(e.button.x, e.button.y)) {              // the strip: controls
-                if (in_rect(BTN_OPEN, bx, by)) open_the_signer();
+                if (!g_opened && in_rect(BTN_OPEN, bx, by)) open_the_signer();
             }
             else if (e.button.button == SDL_BUTTON_LEFT && !g_latched) pen_down(e.button.x, e.button.y);
             else if (e.button.button == SDL_BUTTON_RIGHT) {       // latch / unlatch
@@ -443,7 +448,7 @@ static void frame(void) {
             if (g_btn_down) map_pointer(e.motion.x, e.motion.y);
         }
         else if (e.type == SDL_KEYDOWN) {
-            if (e.key.keysym.sym == SDLK_RETURN) open_the_signer();
+            if (e.key.keysym.sym == SDLK_RETURN) { if (!g_opened) open_the_signer(); }
             else if (e.key.keysym.sym == SDLK_TAB) {              // same latch, on a key
                 int mx, my; SDL_GetMouseState(&mx, &my);
                 g_latched = !g_latched;
@@ -470,7 +475,7 @@ static void render(void) {
     SDL_Rect panel = { 0, 0, HRES * g_scale, VRES * g_scale };
     SDL_RenderCopy(g_ren, g_tex, NULL, &panel);
 
-    draw_button(BTN_OPEN, "OPEN THE SIGNER");
+    if (!g_opened) draw_button(BTN_OPEN, "OPEN THE SIGNER");
     // The one thing the simulator cannot do, said where it is asked rather than
     // left to be discovered: a mouse can trace the default word from a script,
     // but it cannot teach the recogniser a word of your own.

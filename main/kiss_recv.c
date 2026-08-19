@@ -899,40 +899,30 @@ static void recv_list_open(void) {
   // 101 screens. The list's job is choosing WHICH address, and VERIFY is not a
   // choice of address, so it does not belong in the row where that happens.
   //
-  // Dropping it is also what un-crams this row. Four controls in 704px instead
-  // of five gives every gap 22px and hands BACK the standard 140 it has
-  // everywhere else, so the one screen that had to squeeze to 110 no longer
-  // does.
-  // BACK is LEFTMOST here, and it was not. This list and the address page one
-  // tap away are the same errand, and BACK used to sit at 610 on the list and
-  // at 48 on the page: the way out swapped corners under the finger while the
-  // owner was doing one thing. The page has the rule the right way round (see
-  // its action bar below) and the list is what moves.
+  // BACK sits in the SAME corner here as on the address page one tap away.
+  // The two screens are one errand, and the way out once swapped corners
+  // under the finger between them; it does not any more, and every change to
+  // this bar has to keep that true.
   //
-  // The far right goes to the pager, which is what this screen is FOR. Its job
-  // is choosing WHICH address, > is how the choosing happens, and > outermost
-  // puts forward motion in the corner a thumb reaches for. < sits inboard of it
-  // so the pair still reads as one control in reading order.
+  // The pager takes WT_ACT_X, because paging IS this screen's action: its job
+  // is choosing WHICH address and the arrows are how the choosing happens. <
+  // before > in reading order, adjacent so the pair reads as one control, and
+  // BACK keeps the standard corner every lone-BACK screen uses.
   //
-  // Gaps stay 22px and BACK keeps the standard 140 it has everywhere else, so
-  // this is the same row re-ordered, not a re-crammed one. Right edge is still
-  // 750. row[] indices below are load bearing: page_arrow_dim addresses the two
+  // No SILENT PAYMENT here. It sat in this bar for a while, but the address
+  // page one tap back already carries the SP row among its destinations, and
+  // the same button on two screens of one errand said the device had two
+  // opinions about where that door is. The list's bar is down to the two
+  // things that belong to the LIST: turning its pages and leaving it.
+  //
+  // row[] indices below are load bearing: page_arrow_dim addresses the two
   // arrows by index, so < stays [1] and > stays [2] no matter where they sit.
-  lv_obj_t *row[4];
-  // STR_R_SP_BTN, not STR_S_SP_BADGE. The badge is a descriptor: it names a
-  // kind of address, and it is right in lower case as a screen title and as an
-  // inline label in the list above. In this row it is a button standing next to
-  // two arrows and BACK, and the only lower case button on the device reads as
-  // a bug rather than as a distinction. One string cannot be both, so there are
-  // two, and each locale's button is its own badge cased for a button.
-  // The arrow pair moves off the corner but stays adjacent to itself: two
-  // arrows split across the bar stop reading as one control.
-  row[0] = wt_pill(s_scr, tr(STR_R_SP_BTN), WT_ACT_X, WT_ACTION_Y, 220, sp_open_cb, NULL);
-  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, 290, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
-  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, 368, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
-  row[3] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+  lv_obj_t *row[3];
+  row[0] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                    back_to_detail_cb, NULL);
-  wt_pill_row(row, 4);
+  row[1] = wt_pill(s_scr, LV_SYMBOL_LEFT, WT_ACT_X, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)-1);
+  row[2] = wt_pill(s_scr, LV_SYMBOL_RIGHT, WT_ACT_X + 56 + 22, WT_ACTION_Y, 56, page_cb, (void *)(intptr_t)1);
+  wt_pill_row(row, 3);
 
   // An arrow at the end of the range says so. page_cb has always refused to
   // step past 0 or the cap, correctly, but it refused SILENTLY: on the first

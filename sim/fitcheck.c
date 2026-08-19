@@ -1165,12 +1165,15 @@ int main(int argc, char **argv)
     // overlap gate cannot see it either -- a smaller title overlaps nothing.
     //
     // Settings is the screen with pills in its header, so it is the one with a
-    // budget worth pinning: LANGUAGE (170) and FIRMWARE (232) with 12 between
-    // them, off the 752 right margin, less the 16 gap and the 48 left margin.
-    // font23 fails. 34 -> 28 is the accommodation this ladder exists for; 23 is
-    // a title that has stopped looking like one.
+    // budget worth pinning: LANGUAGE (170), FIRMWARE (170) and the wordless
+    // 44px THEME chip -- 16 between the pills, 12 before the chip, off the 752
+    // right margin, less the 16 gap and the 48 left margin. The same
+    // arithmetic kiss_settings.c hands wt_title_fit; the chip was sized DOWN
+    // to 44 by this very check, because de's title needs 269px to hold font28.
+    // font23 fails. 34 -> 28 is the accommodation this ladder exists for; 23
+    // is a title that has stopped looking like one.
     {
-        const int lane = 752 - 170 - 12 - 232 - 16 - 48;
+        const int lane = 752 - 170 - 16 - 170 - 12 - 44 - 16 - 48;
         static const int space[3] = { 3, 2, 2 };
         int title_small = 0;
         for (int l = 0; l < I18N_LANG_N; l++) {

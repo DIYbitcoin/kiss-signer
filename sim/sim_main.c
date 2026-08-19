@@ -2258,15 +2258,17 @@ int main(void) {
   tap_str(STR_R_NEXT, 3, 6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the QR page
-  // SCAN KEY is no longer buried in the pair screen: it is a top-level ROW in
-  // the WALLET screen's COORDINATOR column, so back out of pairing first. It was
-  // moved because hiding a separate PRIVATE-key export one tap inside the
-  // descriptor flow implied the two were the same action.
+  // SCAN KEY is no longer buried in the pair screen: it is one tappable CARD
+  // in the WALLET screen's COORDINATOR column (title, badge, note and the "?"
+  // in one frame -- the row and the explainer under it said the same lesson
+  // twice), so back out of pairing first. The card runs y=166..396 at x=412;
+  // its "?" chip sits card-relative (323,12), absolute centre (752,195), and
+  // a tap anywhere else on the card opens the consent warning.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost pill) -> WALLET
-  touch(748, 262); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
+  touch(748, 195); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
   save("/tmp/sim_sp_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent warning
+  touch(594, 300); pump(3); release(); pump(6);     // SCAN KEY card -> consent warning
   save("/tmp/sim_sp_warn.ppm");
   tap_str(STR_R_SP_SHOW, 25, 6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
@@ -2281,7 +2283,7 @@ int main(void) {
   // DONE, not BACK: the refusal render carries the same exit the success one
   // does. Then take the row again for the working export below.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET
-  touch(594, 198); pump(3); release(); pump(6);     // SCAN KEY row -> consent
+  touch(594, 300); pump(3); release(); pump(6);     // SCAN KEY card -> consent
   tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
@@ -3271,15 +3273,24 @@ int main(void) {
   // misroute visible.
   touch(218, 198); pump(3); release(); pump(6);     // Address card -> reopen the chooser
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
-  // Theme moved out of the action bar into the right column under NO UNDO.
-  // Card at (412,260), dots card relative at 250 + i*27 on an 18px circle, so
-  // absolute centres are 671, 698, 725, 752 at y=292. CYPHERPINK is i=2.
-  touch(725, 292); pump(3); release(); pump(4);     // theme dot: CYPHERPINK
+  // Theme moved out of the right column into the header: a wordless 44px chip
+  // at (340,18) -- swatch plus a down glyph -- opens a dropdown card at
+  // (154,68), four rows on a 52 pitch, row centres (269, 102 + 52*i) in enum
+  // order MONO, GREEN, CYPHERPINK, ORANGE. A full-screen scrim sits under the
+  // card, so a tap anywhere off it dismisses; both ways out get walked. The
+  // pick closes via delete_async, so the pump after it is what lets the scrim
+  // actually leave before the next frame is judged.
+  touch(362, 40); pump(3); release(); pump(6);      // theme chip -> dropdown
+  save("/tmp/sim_settings_theme.ppm");              // the four rows, over the scrim
+  touch(60, 440); pump(3); release(); pump(6);      // scrim -> dismissed, nothing picked
+  touch(362, 40); pump(3); release(); pump(6);      // theme chip again
+  touch(269, 206); pump(3); release(); pump(6);     // CYPHERPINK row (i=2)
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(671, 292); pump(3); release(); pump(4);     // theme dot: back to MONO (i=0)
+  touch(362, 40); pump(3); release(); pump(6);      // theme chip
+  touch(269, 102); pump(3); release(); pump(6);     // back to MONO (i=0)
   // The Network row opens a chooser now -- three networks do not fit a
   // segmented control -- so the row itself is the target: the left column's
   // first card starts at y=95 and is 64 tall, centre 127.

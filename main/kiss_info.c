@@ -1044,7 +1044,7 @@ static void info_screen(void)
              row_help_cb, (void *)"addr");
 
     // ---- right column ----
-    // Two exports, as rows. They were pills, which said "button" about two things
+    // Two exports. They were pills, which said "button" about two things
     // that are really destinations: both open a screen and neither does anything
     // by itself. Their notes were loose paragraphs floating beside them; a note
     // that belongs to a control belongs INSIDE it, which is the whole point of a
@@ -1060,24 +1060,31 @@ static void info_screen(void)
            WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, pair_open_cb, NULL);
     // "Scan" elsewhere on this device means the camera. Here it means searching
     // the chain, and the badge under the label is what says which.
-    wt_row(s_scr, tr(STR_R_SP_SCAN_BTN), tr(STR_S_SP_BADGE), NULL, WT_INK,
-           WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, sp_key_warn_cb, NULL);
-    // The export's own warning is three lines about handing someone the key that
-    // watches every payment you ever receive, which is more than a sub-line
-    // holds. It gets a CARD with the "?" in its top right corner, which is the
-    // idiom the scan screen already uses for a paragraph that owns a help
-    // affordance. Loose on the page with the chip floating out to the right, it
-    // read as a stray control belonging to nothing.
     //
-    // 160 tall, not 96. Nothing else lives in this column, so the card ran out
-    // at 333 with 65px of empty page under it and its note squeezed into 72 --
-    // which is font14, on a paragraph nobody is required to read twice. At 160
-    // it bottoms out at 396, one pixel clear of WT_CONTENT_BOTTOM, so the right
-    // column reaches the floor the way the four rows on the left do, and the
-    // note gets the height to be read at font23.
+    // ONE card, where a row and an explainer card used to stack. The row's
+    // sub-line said "silent payment", the note in the box under it explained
+    // the export, and the warn screen the row opened explained it again -- a
+    // reader met the same lesson as a sub-line, as a card, and as a warn
+    // screen, and only the first of the three took a tap. Worse, the box and
+    // the row wore the same fill and border, so nothing on the page said which
+    // of two identical panels was the control. Merged, the card IS the
+    // destination: the row's label and sub-line sit beside the badge, the note
+    // keeps the full width below them, and the whole panel opens the export
+    // the way the row did. It runs from the row's old slot down to the 396
+    // floor the explainer already stood on, one pixel clear of
+    // WT_CONTENT_BOTTOM, so the right column still reaches the bottom the way
+    // the four rows on the left do.
     {
-        lv_obj_t *why = wt_card(s_scr, WT_LIST_R_X, WT_LIST_Y(2),
-                                WT_LIST_W, 160);
+        const int card_h = 396 - WT_LIST_Y(1);
+        lv_obj_t *why = wt_card(s_scr, WT_LIST_R_X, WT_LIST_Y(1),
+                                WT_LIST_W, card_h);
+        // The whole card is the control, like the receive screen's address
+        // card: the thing being explained is the thing you tap, and a 365x230
+        // target needs no aiming. The "?" chip stays its own clickable on top
+        // of it and wins the taps that land there.
+        lv_obj_add_flag(why, LV_OBJ_FLAG_CLICKABLE);
+        wt_tap_feedback(why);
+        lv_obj_add_event_cb(why, sp_key_warn_cb, LV_EVENT_CLICKED, NULL);
         // The same badge the explainer this "?" opens wears in ITS top right
         // corner: help_cb's "scan" branch goes through DIAG_SCAN, and DIAG_SCAN
         // picks WT_ICON_SECRET. One mark on the card and on the page behind it
@@ -1097,10 +1104,46 @@ static void info_screen(void)
         lv_obj_center(wt_lbl(badge, WT_ICON_SECRET, 0, 0, wt_font23(),
                              wt_accent()));
         wt_help_chip(why, WT_LIST_W - 42, 12, WT_MUT, help_cb, (void *)"scan");
-        // UNDER both marks, not beside them: the badge owns 14..48 and the chip
-        // 323..353, and a note threaded between them would be 275 wide and back
-        // at font14. Full width below the row is what buys the size.
-        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, 58, WT_LIST_W - 28, 90);
+        // A big target nobody knows to press is not an affordance, so the card
+        // says it opens the way a row does: a chevron on the title line. Built
+        // and measured FIRST, like wt_row builds its own, so the label's box
+        // can exclude it -- the overlap gate compares boxes, and a label
+        // allowed to span the card would contain the chevron whatever the
+        // translation does. It stops 10 short of the chip's box at 323, and
+        // sits on the title line rather than at the card's right mid, because
+        // the note below owns the full width and a mark dropped into its box
+        // would collide with it in every locale at once.
+        const int lh23 = lv_font_get_line_height(wt_font23());
+        const int lh14 = lv_font_get_line_height(wt_font14());
+        lv_obj_t *chev = wt_lbl(why, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+                                WT_MUT);
+        lv_obj_update_layout(chev);
+        const int chx = WT_LIST_W - 42 - 10 - lv_obj_get_width(chev);
+        lv_obj_set_pos(chev, chx, 12 + (lh14 + 3) / 2);
+        // The row's label and sub-line, in the row's own type, in the lane the
+        // badge leaves: 14..48 plus the row's gutter. Both pinned to ONE line
+        // and stopped short of the chevron for the same reason a row's are --
+        // a translation too long to fit ellipsises rather than rearranging
+        // the card.
+        const int tx = 58;
+        lv_obj_t *tl = wt_lbl(why, tr(STR_R_SP_SCAN_BTN), tx, 12,
+                              wt_font23(), WT_INK);
+        lv_obj_set_width(tl, chx - 10 - tx);
+        lv_obj_set_height(tl, lh23);
+        lv_label_set_long_mode(tl, LV_LABEL_LONG_DOT);
+        lv_obj_t *sub = wt_lbl(why, tr(STR_S_SP_BADGE), tx, 12 + lh23 + 3,
+                               wt_font14(), WT_MUT);
+        lv_obj_set_width(sub, chx - 10 - tx);
+        lv_obj_set_height(sub, lh14);
+        lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
+        // UNDER the marks and the title band, not beside them: a note threaded
+        // between the badge and the chip would be 275 wide and back at font14.
+        // Full width and everything left of the card's height is what buys
+        // font23, measured from where the sub-line actually ends rather than
+        // from a constant, because the line heights differ per font class.
+        const int ny = 12 + lh23 + 3 + lh14 + 8;
+        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, ny,
+                WT_LIST_W - 28, card_h - ny - 12);
     }
 
     wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
