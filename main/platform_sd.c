@@ -14,7 +14,12 @@
 
 #ifndef ESP_PLATFORM
 
+// Overridable, like SIMSD in sim_main.c and for the same reason: two host
+// builds running at once otherwise share one fake card, and a walk reading
+// another run's files fails in ways that belong to neither.
+#ifndef SD_BASE
 #define SD_BASE "/tmp/simsd"
+#endif
 static int s_test_present = 1;
 static unsigned s_test_fail;
 static int s_test_fail_skip;

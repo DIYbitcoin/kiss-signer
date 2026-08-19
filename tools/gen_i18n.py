@@ -162,6 +162,10 @@ UNTRANSLATED_OK = {
     # The locked-state explainer: reassurance for the five refusal renders.
     # Born under the English-only rule, like the KEF block above.
     "C_LOCKED_B", "C_LOCK_SOON",
+    # Payee recognition on the verify screen. Born under the English-only rule,
+    # like the KEF block above: the other twenty carry the English until the
+    # sweep.
+    "S_PAYEE_SEEN", "S_PAYEE_HELP",
     # The dice explainer, cut from four glossary terms to two claims. The old
     # key's translations described content that no longer exists, so it was
     # renamed rather than overwritten; English until the sweep.

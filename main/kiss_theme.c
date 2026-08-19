@@ -3091,6 +3091,13 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (out[i].label)
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     acc ? oc : WT_MUT, acc);
+        // A destination these keys have paid before. A bare mark, no word: the
+        // row already carries an amount, a label and an address, and the one
+        // thing being added is "you have been here". The words for it are on
+        // the address card behind the "?" -- see kiss_payee.h for why nothing
+        // is drawn on a first payment.
+        if (out[i].known)
+            bundle_txt(line, LV_SYMBOL_REFRESH, wt_font14(), WT_MUT, false);
         // THE FOLD, the same one RECEIVE and the single-recipient card draw:
         // prefix, the four after it, an ellipsis, the last twelve with the
         // final eight lit. One line per destination, whatever its length.

@@ -8,6 +8,7 @@
 #include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
+#include "kiss_payee.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
 #include "boot_sign_vectors.h"  // the two the device re-signs at boot
 
@@ -1324,6 +1325,59 @@ int main(int argc, char **argv) {
     // ---- receive reuse guard (kiss_usage) ----
     {
         uint8_t fp[4] = {0xEC, 0x5A, 0x45, 0x95};
+    // ---- payee memory: has this wallet paid this destination before? -------
+    // Recognition only, and it has to be per WALLET: the whole point of the
+    // salt being derived from the master key is that two wallets on one device
+    // produce unrelated ids for the same payee, so a decoy cannot be used to
+    // ask what the passphrase wallet pays.
+    {
+        const char *A = "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz";
+        const char *B = "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el";
+        // Pin the wallet explicitly rather than inheriting whatever session the
+        // tests above left open: every assertion below is about WHICH wallet is
+        // asking, so the baseline cannot be "the previous one".
+        kiss_session_close();
+        chki("payee: base session opens", kiss_session_open(""), 0);
+        kiss_payee_wipe();
+        chkb("payee: fresh wallet recognises nothing", !kiss_payee_seen(A));
+        kiss_payee_mark(A);
+        chkb("payee: marked address is recognised", kiss_payee_seen(A));
+        chkb("payee: a different address is not", !kiss_payee_seen(B));
+        // Marking twice is not an error and not a second entry: the question is
+        // "before", not "how often".
+        kiss_payee_mark(A);
+        chkb("payee: marking twice still recognises", kiss_payee_seen(A));
+        // The empty string is what an SP output with no address would hand us.
+        chkb("payee: nothing is never recognised", !kiss_payee_seen(""));
+
+        // A DIFFERENT WALLET. Same device, same destination, and it must know
+        // nothing -- this is the property that keeps a decoy from being an
+        // oracle about the wallet behind the passphrase.
+        kiss_session_close();
+        chki("payee: second session opens", kiss_session_open("payee-test-pp"), 0);
+        chkb("payee: another wallet does not recognise it", !kiss_payee_seen(A));
+        kiss_payee_mark(A);
+        chkb("payee: ...and marks its own", kiss_payee_seen(A));
+        // Locking DROPS it, and that is the shipped behaviour rather than an
+        // oversight: persistence is gated on encrypted flash exactly as the
+        // receive guard is, and until that lands a list of payment
+        // relationships does not belong in plaintext NVS. So the memory is
+        // session scoped, and this asserts the loss rather than leaving it to
+        // be discovered as a bug.
+        kiss_session_close();
+        chki("payee: first session reopens", kiss_session_open(""), 0);
+        chkb("payee: locking drops the memory (no encrypted flash)",
+             !kiss_payee_seen(A));
+
+        // No session, no answer. Never a crash and never a true.
+        kiss_session_close();
+        chkb("payee: closed session recognises nothing", !kiss_payee_seen(A));
+        kiss_payee_mark(A);                       // must not crash either
+        chki("payee: session reopens after the test", kiss_session_open(""), 0);
+        chkb("payee: a mark with no session was not kept", !kiss_payee_seen(A));
+        kiss_payee_wipe();
+    }
+
         kiss_usage_wipe();
         chki("usage fresh -> -1", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
         kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 3);

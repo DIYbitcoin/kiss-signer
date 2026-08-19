@@ -22,6 +22,7 @@
 #include "kiss_settings.h"   // the unit preference, written where it is changed
 #include "kiss_ui.h"   // kiss_ui_last_fp: the SIGNING AS fingerprint
 #include "kiss_usage.h"   // reuse guard: mark receive indexes used on sign
+#include "kiss_payee.h"   // ...and the destinations this wallet has paid
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK
@@ -759,6 +760,21 @@ static void mark_used_receives(void)
         }
 }
 
+// Every destination this signature actually pays, recorded so the next spend to
+// the same payee can say so. AFTER the signature exists, never at load: a
+// transaction the owner read and walked away from is not a payment, and a
+// refused one is not either.
+//
+// Change is skipped. It is ours by re-derivation, the screen already labels it,
+// and a change address the owner sees twice is a reuse problem rather than a
+// payee they know.
+static void mark_paid_recipients(void)
+{
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+        if (!s_sum.outs[i].is_change)
+            kiss_payee_mark(s_sum.outs[i].addr);
+}
+
 // How long the reveal is on the glass before the exit screen replaces it.
 //
 // The graph spends the whole flow claiming that a strand in the accent means a
@@ -826,6 +842,7 @@ static void do_sign_cb(lv_timer_t *t)
     if (kiss_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
         s_sig_fp[0] = 0;
     mark_used_receives();
+    mark_paid_recipients();
     // Every input at once, which is what actually happened: one libwally call
     // signed all of them and there was never a per coin moment to show.
     if (s_graph) wt_bundle_signed_reveal(s_graph, REVEAL_TRAVEL_MS);
@@ -1183,6 +1200,10 @@ static void coins_help_cb(lv_event_t *e)
 // about someone else's address, so this is the only screen where a destination
 // swapped anywhere upstream still gets caught.
 static char s_addr_help[128];          // the destination this card is about
+// ...and whether these keys have paid it before, read once when the screen is
+// built rather than per draw: kiss_payee_seen hashes under the session key, and
+// the answer cannot change while one screen is up.
+static bool s_addr_known;
 
 static int aside_addr(lv_obj_t *par, int x, int y, int w)
 {
@@ -1208,15 +1229,25 @@ static int aside_addr(lv_obj_t *par, int x, int y, int w)
 static void addr_help_cb(lv_event_t *e)
 {
     (void)e;
-    static const char *const ICONS[] = { LV_SYMBOL_EYE_OPEN, LV_SYMBOL_WARNING };
+    // Two entries always, three when the mark is on the screen. The third is
+    // the ONLY place the repeat mark is explained, which is why it is built
+    // here rather than given a "?" of its own: the mark answers a question
+    // about this destination, and this is the destination's card.
+    static const char *const ICONS[]  = { LV_SYMBOL_EYE_OPEN, LV_SYMBOL_WARNING };
+    static const char *const ICONS3[] = { LV_SYMBOL_EYE_OPEN, LV_SYMBOL_WARNING,
+                                          LV_SYMBOL_REFRESH };
+    static char body[512];
+    snprintf(body, sizeof body, "%s%s%s", tr(STR_S_ADDR_HELP_B),
+             s_addr_known ? "\n" : "",
+             s_addr_known ? tr(STR_S_PAYEE_HELP) : "");
     wt_explain_t x = {
         .title  = tr(STR_R_VT),          // VERIFY ADDRESS, the receive screen's word
         .icon   = LV_SYMBOL_EYE_OPEN,
-        .body   = tr(STR_S_ADDR_HELP_B),
+        .body   = body,
         .ok_txt = tr(STR_C_OK),
         .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
-        .icons  = ICONS,
+        .icons  = s_addr_known ? ICONS3 : ICONS,
         .aside  = s_addr_help[0] ? aside_addr : NULL,
     };
     wt_explain_open(s_scr, &x);
@@ -1227,7 +1258,10 @@ static void addr_help_cb(lv_event_t *e)
 static void addr_tap_cb(lv_event_t *e)
 {
     const char *a = lv_event_get_user_data(e);
-    if (a) snprintf(s_addr_help, sizeof s_addr_help, "%s", a);
+    if (a) {
+        snprintf(s_addr_help, sizeof s_addr_help, "%s", a);
+        s_addr_known = kiss_payee_seen(a);   // a row's own answer, not the card's
+    }
     addr_help_cb(NULL);
 }
 
@@ -1977,6 +2011,7 @@ static void verify_screen(lv_obj_t *parent)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
                                           .label = tr(STR_S_SENDING_CAP),
                                           .role  = WT_STRAND_SEND,
+                                          .known = kiss_payee_seen(s_sum.outs[i].addr),
                                           .addr  = recipient_n > 1
                                                    ? s_sum.outs[i].addr : NULL };
             // A silent payment used to claim its on-chain address here, in a
@@ -2114,6 +2149,22 @@ static void verify_screen(lv_obj_t *parent)
         // With more than one recipient every address is in its own row above,
         // so the caption names nothing and goes -- and the address chip goes
         // with it, because each row is its own control.
+        // The one destination, settled BEFORE the caption row is built. The
+        // chip below reads it and the card behind the "?" reads it again, and
+        // the loop that draws the address itself is further down -- setting it
+        // there left the chip a screen behind, showing the previous
+        // transaction's answer about this one's address.
+        s_addr_known = false;
+        s_addr_help[0] = 0;
+        for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
+                        && i < WPSBT_MAX_OUTS; i++)
+            if (!s_sum.outs[i].is_change) {
+                snprintf(s_addr_help, sizeof s_addr_help, "%s",
+                         s_sum.outs[i].addr);
+                s_addr_known = kiss_payee_seen(s_sum.outs[i].addr);
+                break;
+            }
+
         if (recipient_n == 1) {
             lv_obj_t *arow = lv_obj_create(s_scr);
             lv_obj_remove_style_all(arow);
@@ -2128,6 +2179,16 @@ static void verify_screen(lv_obj_t *parent)
             lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
             lv_obj_set_style_text_font(acap, wt_font14(), 0);
             lv_obj_set_style_text_color(acap, MUT_COL, 0);
+            // The recognition chip, between the caption and its "?", so the
+            // mark and the thing that explains it are one reach apart. Only
+            // when the destination is known: see kiss_payee.h on why a first
+            // payment is silent.
+            if (s_addr_known) {
+                char kbuf[64];
+                snprintf(kbuf, sizeof kbuf, LV_SYMBOL_REFRESH "  %s",
+                         tr(STR_S_PAYEE_SEEN));
+                wt_chip(arow, kbuf, false);
+            }
             wt_help_chip(arow, 0, 0, MUT_COL, addr_help_cb, NULL);
         }
         // RBF's own chip is built AFTER the address, at the end of this block.

@@ -393,6 +393,10 @@ typedef struct {
     // readable nowhere. With one recipient the screen puts it below the graph
     // at mono23 instead, which is the frame and the more legible of the two.
     const char *addr;
+    // This wallet has signed to `addr` before (kiss_payee.h). Draws a small
+    // repeat mark beside the row's words -- recognition only, so a first
+    // payment carries nothing and the ordinary case stays unmarked.
+    bool        known;
 } wt_strand_t;
 
 // A strand's stroke, in px, linear on the largest strand in the transaction.

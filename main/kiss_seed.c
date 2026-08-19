@@ -5,6 +5,7 @@
 #include "kiss_seed_sd.h"
 #include "platform_sd.h"
 #include "kiss_usage.h"
+#include "kiss_payee.h"
 #include "kiss_backup.h"   // the paper check dies with the wallet it was about
 #include "kiss_duress.h"   // and so does the stroke that opened it
 
@@ -922,6 +923,7 @@ int kiss_seed_set_mode(int mode)
             wally_bzero(s_active_ram, sizeof s_active_ram);
             s_has_active_ram = false;
             kiss_usage_wipe();
+            kiss_payee_wipe();
             kiss_backup_forget();    // amnesic keeps no metadata either
         }
     }
@@ -976,6 +978,7 @@ int kiss_seed_commit(void)
         int key_cleanup = sd_seed_forget_device_key();
         int card_cleanup = storage_delete_sd();
         kiss_usage_forget_session();   // replacement is a different wallet
+        kiss_payee_forget_session();
         snprintf(s_active_ram, sizeof s_active_ram, "%s", s_pending);
         s_has_active_ram = true;
         clear_staged();
@@ -1001,6 +1004,7 @@ int kiss_seed_commit(void)
             clear_staged();
             if (prior_mode == WSEED_MODE_AMNESIC) {
                 kiss_usage_persist_session();
+                kiss_payee_persist_session();
                 clear_active_ram();
             }
             return rc;
@@ -1013,6 +1017,7 @@ int kiss_seed_commit(void)
         clear_staged();
         if (prior_mode == WSEED_MODE_AMNESIC) {
             kiss_usage_persist_session();
+            kiss_payee_persist_session();
             clear_active_ram();
         }
         return sidecar_cleanup ? WSEED_ERR_CLEANUP : WSEED_OK;
@@ -1076,6 +1081,7 @@ int kiss_seed_commit(void)
         // to avoid. A replacement is a different wallet, as the AMNESIC branch
         // above already says.
         kiss_usage_wipe();
+        kiss_payee_wipe();
         kiss_backup_forget();
         // The unlock stroke went with it too, and for the same reason: "greal"
         // is deliberately outside KEEP_KEYS so the partition erase takes it.
@@ -1093,6 +1099,7 @@ int kiss_seed_commit(void)
     clear_staged();
     if (prior_mode == WSEED_MODE_AMNESIC) {
         kiss_usage_persist_session();
+        kiss_payee_persist_session();
         clear_active_ram();
     }
     return result;
@@ -1183,6 +1190,7 @@ int kiss_seed_wipe(void)
     clear_staged();
     clear_active_ram();
     kiss_usage_wipe();
+    kiss_payee_wipe();
     kiss_backup_forget();          // the paper check was about THAT wallet
 
     // Best effort on the card, but absence cannot block a wipe: destroying the
@@ -1209,6 +1217,7 @@ void kiss_seed_forget(void)
     if (storage_mode_read() == WSEED_MODE_AMNESIC && !s_has_pending)
         clear_active_ram();
     kiss_usage_forget_session();
+    kiss_payee_forget_session();
 }
 
 int kiss_seed_move_to(int mode)
@@ -1268,6 +1277,7 @@ int kiss_seed_move_to(int mode)
         }
         if (source == WSEED_MODE_AMNESIC) {
             kiss_usage_persist_session();
+            kiss_payee_persist_session();
             clear_active_ram();
         }
         if (committed_with_cleanup) rc = WSEED_ERR_CLEANUP;
@@ -1285,6 +1295,7 @@ int kiss_seed_move_to(int mode)
             // an AMNESIC source; the caller must report the leftover old copy.
             if (source == WSEED_MODE_AMNESIC) {
                 kiss_usage_persist_session();
+                kiss_payee_persist_session();
                 clear_active_ram();
             }
             s_pending_mode = -1;
@@ -1299,6 +1310,7 @@ int kiss_seed_move_to(int mode)
         }
         if (source == WSEED_MODE_AMNESIC) {
             kiss_usage_persist_session();
+            kiss_payee_persist_session();
             clear_active_ram();
         }
         s_pending_mode = -1;

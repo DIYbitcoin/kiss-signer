@@ -22,6 +22,7 @@
 #include "kiss_theme.h"
 #include "kiss_ui.h"   // kiss_build_id_apply: the shared build-identity line
 #include "kiss_usage.h"   // clear the receive-index history on wipe
+#include "kiss_payee.h"   // ...and who this wallet has paid
 
 #ifndef SIMULATOR
 #include "nvs.h"
@@ -879,6 +880,7 @@ static void do_wipe(void *ud)
     }
     kiss_session_close();               // truly gone: session key leaves RAM too
     kiss_usage_wipe();                   // drop the receive-index history too
+    kiss_payee_wipe();                   // ...and the payees it recognised
     // On device the whole-partition erase in kiss_seed.c has already taken
     // these (they are deliberately absent from its KEEP_KEYS). Host builds keep
     // them in RAM, so say it explicitly: an unlock layout that outlived its

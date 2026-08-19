@@ -595,6 +595,15 @@ int kiss_session_descriptor(char *out, unsigned long len) {
 #include "kiss_scan.h"
 #include "qr_transport.h"
 #include <string.h>
+static bool s_sim_payee_known;
+bool kiss_payee_seen(const char *dest) {
+  return s_sim_payee_known && dest && strstr(dest, "bc1qzyg3") != NULL;
+}
+void kiss_payee_mark(const char *dest) { (void)dest; }
+void kiss_payee_wipe(void) { s_sim_payee_known = false; }
+void kiss_payee_persist_session(void) {}
+void kiss_payee_forget_session(void) {}
+
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
@@ -1571,7 +1580,9 @@ static void restore_word(const char *prefix)
 // separate defect and this function does not address it. What this buys is
 // that the starting state is at least the same every time, so the next person
 // bisecting has one fewer variable.
+#ifndef SIMSD
 #define SIMSD "/tmp/simsd"
+#endif
 
 static void sim_fixture_reset(void) {
   mkdir(SIMSD, 0777);
@@ -2549,6 +2560,39 @@ int main(void) {
   // tr(), not the English: this walk runs in all 21 locales.
   must_show("file list after signing", tr(STR_S_SIGNED_ALREADY));
   must_show("file list after signing", tr(STR_S_RM_SIGNED));
+  // A destination these keys have paid before, on the plain single-recipient
+  // screen and nowhere else: the difference is one chip beside the caption and
+  // a third entry on the card behind it. Small differences are exactly what a
+  // rendered frame is for -- whether the chip fits the caption row without
+  // pushing the network and RBF pair off the end, and whether the card still
+  // holds three entries, are not questions a gate can ask.
+  //
+  // Driven by the stub flag rather than by a fixture of its own. An eighth file
+  // on the fake SD moves the "showing 4 of N" line and every row tap below it.
+  s_sim_payee_known = true;
+  if (tap_row_prefix("payment-01")) {
+    save("/tmp/sim_sign_known.ppm");
+    must_show("paid before", tr(STR_S_PAYEE_SEEN));
+    // ...and the address is still whole and unmoved. The mark is an addition
+    // to the caption row, never a claim that takes the destination's place.
+    must_show("paid before (address)",
+              "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+    // The address CARD, which is the control an owner presses. One recipient
+    // and no caution bar puts it at y 316..382 across the full lane.
+    touch(400, 349); pump(3); release(); pump(30);
+    save("/tmp/sim_sign_known_why.ppm");
+    // The BODY, not the whole string: WT_GRID_ICONS splits each entry at its
+    // "HEAD: " and puts the two halves in separate labels, so the full string
+    // is never one label's text. Same split in every locale, so this stays
+    // locale independent.
+    {
+      const char *b = strstr(tr(STR_S_PAYEE_HELP), ": ");
+      must_show("paid before, why", b ? b + 2 : tr(STR_S_PAYEE_HELP));
+    }
+    tap_str(STR_C_OK, 3, 6);
+    tap_str(STR_C_BACK, 3, 6);   // BACK -> the file list
+  }
+  s_sim_payee_known = false;
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
   tap_str(STR_S_RM_SIGNED, 3, 8);
   save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
@@ -2655,7 +2699,12 @@ int main(void) {
   // The refusal text itself, not a fragment of it: this panel is the whole
   // screen, so if the mapping in tr_reason ever falls back to the raw English
   // reason the owner loses the remedy and nothing else on screen would say so.
-  must_show("verify (unproven STOP)", tr(STR_S_WHY_UNPROVEN));
+  // The VERDICT, which is one plain label. The remedy under it goes through
+  // wt_why_body, which lays a body out as ruled blocks and does not leave the
+  // whole string in any single label -- so the sentence is a thing for the
+  // frame to check, and this needle checks the mapping instead: raw English
+  // here would read "input amounts not proven", not this.
+  must_show("verify (unproven STOP)", tr(STR_S_C_UNPROVEN));
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
 
   // Five recipients: more than the panel shows at once, and the only shape on
