@@ -1154,8 +1154,9 @@ int main(int argc, char **argv) {
     // coordinator can run two sessions, name a different (individually true)
     // amount in each, and combine one valid signature per input. The tx that
     // broadcasts pays a fee neither screen showed. Nothing in a single PSBT can
-    // rule that out -- so with two or more inputs whose amounts are only
-    // CLAIMED, say so. See WPSBT_C_UNPROVEN_IN.
+    // rule that out and nothing the owner can read on the screen decides it, so
+    // with two or more inputs whose amounts are only CLAIMED this REFUSES. It
+    // was a caution until the blind-signing sweep; see kiss_psbt.c.
 
     // one input: the lie lands in that input's own sighash and breaks it, so a
     // bare witness_utxo is enough and there is nothing to warn about
@@ -1166,19 +1167,22 @@ int main(int argc, char **argv) {
     chki("1-in unproven count", (int)sum.n_unproven_in, 1);
     kiss_psbt_free();
 
-    // two inputs, amounts claimed and not proven: the case krux warns on
+    // two inputs, amounts claimed and not proven: krux warns here, this refuses
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
     chki("2-in unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
-    chki("2-in unproven CAUTION", sum.status, WPSBT_CAUTION);
-    chki("2-in unproven flag alone", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
+    chki("2-in unproven STOP", sum.status, WPSBT_STOP);
     chki("2-in unproven count", (int)sum.n_unproven_in, 2);
     chkb("2-in unproven reason", strstr(sum.reason, "not proven") != NULL);
-    chkb("2-in unproven still signable", kiss_psbt_sign(sb, sizeof sb, &sw) == 0);
+    chkb("2-in unproven refuses to sign", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    // and no details page: a refused transaction gets none, which is why the
+    // per-input proven marks are checked below on a tx that still loads.
+    { wpsbt_details_t dt; chkb("2-in unproven no details",
+                               kiss_psbt_details(&dt) != 0); }
     kiss_psbt_free();
 
     // the same two coins with their previous transactions attached: nothing left
-    // to lie about, so the warning goes away. This is the escape hatch, and it
-    // is what keeps the caution from being permanent noise.
+    // to lie about, so it signs. This is the escape hatch, and it is what keeps
+    // the refusal from being a wall -- every coordinator can attach these.
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
     chkb("2-in proven builds", pl > 0);
     chki("2-in proven load rc", kiss_psbt_load(pb, pl, &sum), 0);
@@ -1212,16 +1216,21 @@ int main(int argc, char **argv) {
     // previous transaction instead of the witness_utxo must not move a single
     // byte of the signature, or this change quietly broke every signer that
     // ever co-signed with this one.
+    //
+    // ONE input, because two unproven ones no longer sign. That is not a
+    // weaker test: the property is per input, and one input is the case where
+    // both halves are signable and directly comparable.
     {
         uint8_t sa[4096], sbb[4096];
         size_t wa = 0, wb = 0;
-        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_OMIT, pb, sizeof pb);
+        pl = mk_nin_psbt_ex(1, 100000, 2000, NIN_OMIT, pb, sizeof pb);
         chki("omit load rc", kiss_psbt_load(pb, pl, &sum), 0);
-        chki("omit is the unproven one", sum.caution_flags, WPSBT_C_UNPROVEN_IN);
+        chki("omit is the unproven one", (int)sum.n_unproven_in, 1);
+        chki("omit still READY at one input", sum.status, WPSBT_READY);
         chki("omit sign rc", kiss_psbt_sign(sa, sizeof sa, &wa), 0);
         kiss_psbt_free();
 
-        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+        pl = mk_nin_psbt_ex(1, 100000, 2000, NIN_PROVE, pb, sizeof pb);
         chki("prove load rc", kiss_psbt_load(pb, pl, &sum), 0);
         chki("prove sign rc", kiss_psbt_sign(sbb, sizeof sbb, &wb), 0);
         kiss_psbt_free();
@@ -1234,15 +1243,16 @@ int main(int argc, char **argv) {
         chk("proof does not change the signature", fa, fb);
     }
 
-    // DETAILS says WHICH coin: the per-input mark the verify row cannot carry
-    pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
+    // DETAILS says WHICH coin: the per-input mark the verify row cannot carry.
+    // One input, since two claimed amounts is the refusal above and a refused
+    // transaction has no details page to mark.
+    pl = mk_nin_psbt_ex(1, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
     chki("details unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     {
         wpsbt_details_t dt;
         chki("details unproven rc", kiss_psbt_details(&dt), 0);
-        chki("details unproven n_in", dt.n_in, 2);
+        chki("details unproven n_in", dt.n_in, 1);
         chkb("details in0 not proven", !dt.ins[0].proven);
-        chkb("details in1 not proven", !dt.ins[1].proven);
     }
     kiss_psbt_free();
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
@@ -1506,11 +1516,14 @@ int main(int argc, char **argv) {
         size_t plm = mk_mixed_psbt(pb2, sizeof pb2);
         chkb("mixed psbt builds", plm > 0);
         chki("mixed psbt load rc", kiss_psbt_load(pb2, plm, &sm), 0);
-        // CAUTION, not READY: the legacy input carries its previous transaction
+        // STOP, not READY: the legacy input carries its previous transaction
         // and is proven, the native one carries only a witness_utxo and is not,
         // and two inputs is where the two-session amount lie becomes possible.
-        chki("mixed psbt CAUTION", sm.status, WPSBT_CAUTION);
-        chki("mixed psbt unproven alone", sm.caution_flags, WPSBT_C_UNPROVEN_IN);
+        // ONE unproven input out of two is enough -- the lie only needs one.
+        // The summary below is still filled: nothing returns early on a STOP,
+        // and the verify screen has to be able to say what it refused.
+        chki("mixed psbt STOP", sm.status, WPSBT_STOP);
+        chkb("mixed psbt reason", strstr(sm.reason, "not proven") != NULL);
         chki("mixed psbt one unproven", (int)sm.n_unproven_in, 1);
         chki("mixed psbt purpose 0 (mixed)", sm.purpose, 0);
         chki("mixed psbt n_in", sm.n_in, 2);

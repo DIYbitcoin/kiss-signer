@@ -972,14 +972,14 @@ static size_t sp_map_end(const uint8_t *b, size_t n, size_t i, uint8_t want,
     return 0;
 }
 
-// The unproven-inputs fee caution must fire on a MIXED send: a BIP376 input
+// The unproven-inputs refusal must fire on a MIXED send: a BIP376 input
 // (received silent-payment coin, amount covered by the BIP341 sighash) spent
 // alongside our own P2WPKH input that carries only a witness_utxo (amount
 // covered by BIP143 alone). A coordinator can run two signing sessions with
 // different amounts on that P2WPKH input, combine the signatures, and
 // broadcast a fee neither screen showed. The whole-transaction suppression
-// (`!sp_send`) used to silence exactly this shape; the caution now keys off
-// the inputs themselves (see kiss_psbt.c).
+// (`!sp_send`) used to silence exactly this shape; the check now keys off
+// the inputs themselves, and STOPs rather than warns (see kiss_psbt.c).
 //
 // The fixture is the pinned BIP376 spend (SPV_SPEND_EVEN_B64) with a second
 // input map spliced in: embit-style PSBT maps have no field-count varint
@@ -1075,26 +1075,27 @@ static void sp_test_mixed_unproven(void) {
         mixed[amt_off + x + b] = (uint8_t)(295000ULL >> (8 * b));
 
     wpsbt_summary_t sum;
-    uint8_t out1[4096], out2[4096];
-    size_t w1 = 0, w2 = 0;
+    uint8_t out1[4096];
+    size_t w1 = 0;
     kiss_set_network(1);
     int rc = kiss_psbt_load(mixed, n, &sum);
     if (rc != 0) printf("  mixed load rc=%d\n", rc);
-    else if (sum.status != WPSBT_CAUTION)
+    else if (sum.status != WPSBT_STOP)
         printf("  mixed status=%d reason=%s\n", sum.status, sum.reason);
     spchk("mixed counts 1 BIP376 + 1 P2WPKH input",
           sum.n_in == 2 && sum.n_sp_in == 1);
+    // Still summed, and still worth asserting: the STOP screen shows what it
+    // refused, and the parse must reach the end to know the fee at all.
     spchk("mixed fee math", sum.in_sats == 300000 && sum.fee_sats == 5000 &&
           sum.send_sats + sum.change_sats == 295000);
-    spchk("unproven-inputs caution fires", sum.caution_flags == WPSBT_C_UNPROVEN_IN &&
+    spchk("unproven-inputs refusal fires", sum.status == WPSBT_STOP &&
           strstr(sum.reason, "not proven") != NULL);
-
-    spchk("mixed sign rc", kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
-    kiss_psbt_free();
-    rc = kiss_psbt_load(mixed, n, &sum);
-    spchk("mixed re-load CAUTION", rc == 0 && sum.status == WPSBT_CAUTION);
-    spchk("mixed re-sign rc", kiss_psbt_sign(out2, sizeof out2, &w2) == 0);
-    spchk("mixed sign is deterministic", w1 == w2 && memcmp(out1, out2, w1) == 0);
+    // BOTH inputs count as unproven -- a BIP376 input carries a witness_utxo
+    // and nothing else, by construction. What makes this transaction refuse is
+    // not the count but the mix: BIP341 covers the SP input's amount, and the
+    // P2WPKH input beside it is signed under BIP143, which does not.
+    spchk("mixed counts both inputs unproven", sum.n_unproven_in == 2);
+    spchk("mixed refuses to sign", kiss_psbt_sign(out1, sizeof out1, &w1) != 0);
     kiss_psbt_free();
     kiss_set_network(0);
 }

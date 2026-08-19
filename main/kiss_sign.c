@@ -403,6 +403,9 @@ static const char *tr_reason(const char *r)
         {"input's previous transaction does not match", STR_P_PREV_MISMATCH},
         {"legacy input needs its full previous transaction", STR_P_LEGACY_PREV},
         {"input amount unverifiable", STR_P_AMT_UNVERIFIED},
+        // Short, like every other verdict here. The sentence that says what to
+        // do about it is a body, not a headline: see stop_body().
+        {"input amounts not proven", STR_S_C_UNPROVEN},
         {"input amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_IN},
         {"input script does not re-derive", STR_P_IN_NO_DERIVE},
         {"too many outputs to verify safely", STR_P_TOO_MANY_VERIFY},
@@ -432,6 +435,21 @@ static const char *tr_reason(const char *r)
     for (size_t i = 0; i < sizeof MAP / sizeof MAP[0]; i++)
         if (strcmp(r, MAP[i].en) == 0) return tr(MAP[i].id);
     return r;
+}
+
+// What the owner can DO about a refusal, when there is anything. Almost never:
+// a malformed PSBT, a coin that is not this wallet's, a sighash this signer
+// does not sign -- none of those is fixable from the device, and inventing an
+// instruction for them would be worse than the silence.
+//
+// Exactly one refusal is different. A coordinator that stripped the previous
+// transactions can be told to put them back, it costs it nothing, and it is the
+// only STOP an honest one can trip. So this is a lookup rather than a second
+// field on all thirty reasons -- the asymmetry is real and worth showing.
+static const char *stop_body(const char *r)
+{
+    if (strcmp(r, "input amounts not proven") == 0) return tr(STR_S_WHY_UNPROVEN);
+    return NULL;
 }
 
 // same grouped-by-4 convention as the Receive screen: visual compare against
@@ -1029,7 +1047,7 @@ static void caution_help_cb(lv_event_t *e)
     // every append clamps o because snprintf returns the WOULD-BE length
     char body[1792];
     size_t o = 0;
-    const char *icons[5];
+    const char *icons[4];
     int ni = 0;
     uint16_t f = s_sum.caution_flags;
     #define BODY_ADD(icon_, ...) do { \
@@ -1039,11 +1057,10 @@ static void caution_help_cb(lv_event_t *e)
         } \
         icons[ni++] = (icon_); \
     } while (0)
-    // First, because it is the entry that says the fee on the screen behind this
-    // card may not be the fee. Every other reason argues about a number; this one
-    // argues about whether the number is knowable.
-    if (f & WPSBT_C_UNPROVEN_IN)
-        BODY_ADD(WT_ICON_HIDDEN, "%s", tr(STR_S_WHY_UNPROVEN));
+    // Unproven input amounts used to lead this card. They are a STOP now: every
+    // reason left here argues about a number the screen behind can show, and
+    // that one argued about whether the number was knowable at all, which is not
+    // something to hand an owner as a checkbox. See kiss_psbt.c.
     if (f & WPSBT_C_HIGHFEE)
         BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
@@ -1294,7 +1311,7 @@ static void recip_scroll_cb(lv_event_t *e)
 #define SG_FOOT_Y    300
 #define SG_ROW_H      56   // a caution row, on the page the rows now live on
 #define SG_ROW_PILL_W 170
-#define SG_ROW_MAX      5  // unproven + fee + dust in + merge + one change row
+#define SG_ROW_MAX      4  // fee + dust in + merge + one change row
 
 // The caution bar: one row, always, however many reasons there are. 44 is the
 // ack pill (40) plus 2px above and below, the least that still reads as a bar.
@@ -1376,21 +1393,17 @@ static void recip_scroll_cb(lv_event_t *e)
 static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int cap)
 {
     int n = 0;
-    // Ahead of the fee row, because it is the one reason that puts the fee row's
-    // own number in doubt. Reading "high fee" first and "amounts not proven"
-    // second invites the owner to judge a figure they have just been told may be
-    // wrong.
-    if (n < cap && (f & WPSBT_C_UNPROVEN_IN))
-        { bits[n] = WPSBT_C_UNPROVEN_IN; parts[n++] = tr(STR_S_C_UNPROVEN); }
+    // The fee leads. An "amounts not proven" row used to sit above it, because it
+    // was the one reason that put the fee row's own number in doubt -- a row that
+    // says "the figure below may be wrong" is a refusal wearing a checkbox, and
+    // it is one now.
     if (n < cap && (f & WPSBT_C_HIGHFEE))
         { bits[n] = WPSBT_C_HIGHFEE;     parts[n++] = tr(STR_S_C_HIGHFEE); }
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
     // input-side, so it sits with the dust row rather than with the change ones.
-    // Five rows is the ceiling this can reach (unproven + fee + dust in + merge +
-    // one of the two change rows), which is exactly the cap the row stack draws
-    // for. It was four until the unproven-amount row arrived, and the stack grew
-    // a tighter metric for the fifth rather than dropping a reason on the floor.
+    // Four rows is the ceiling this can reach (fee + dust in + merge + one of the
+    // two change rows), which is exactly the cap the row stack draws for.
     if (n < cap && (f & WPSBT_C_MERGE_INS))
         { bits[n] = WPSBT_C_MERGE_INS;   parts[n++] = tr(STR_S_C_MERGE); }
     if (n < cap && (f & WPSBT_C_DUST_CHANGE))
@@ -1498,12 +1511,11 @@ static void sg_rule(int x, int y, int w, int h)
 // that is the bug this page exists to close: the address the owner was being
 // asked to sign for disappeared the moment the device found anything to warn
 // about, which is precisely when it matters most. A coordinator could reach
-// that state on purpose -- five inputs, or simply not attaching the previous
-// transactions -- so the screen showed least about the transactions it trusted
-// least.
+// that state on purpose -- five inputs, or a dust coin planted last week -- so
+// the screen showed least about the transactions it trusted least.
 //
-// Rows cannot share the verify screen with the panels: five of them at the
-// metric that keeps a row readable is 296px, and the band between the hero and
+// Rows cannot share the verify screen with the panels: four of them at the
+// metric that keeps a row readable is 236px, and the band between the hero and
 // the footer is 138. One of the two had to move, and it is not going to be the
 // address. Here they get the whole page and the comfortable 56px metric back.
 static void cautions_screen(void)
@@ -1516,10 +1528,10 @@ static void cautions_screen(void)
     mk_screen(s_parent, tr(STR_S_WHY_T), NULL);
     wt_help_chip(s_scr, 738, 34, WARN_COL, caution_help_cb, NULL);
 
-    // 88 + 5*56 + 4*4 = 384, fourteen clear of WT_CONTENT_BOTTOM. The gap is 4
-    // rather than the verify screen's 8 so the fifth row keeps SG_ROW_H: the
-    // tight metric existed only because the rows were sharing a screen, and
-    // they no longer are.
+    // 88 + 4*56 + 3*4 = 324, well clear of WT_CONTENT_BOTTOM. The gap is 4
+    // rather than the verify screen's 8, from when a fifth row had to keep
+    // SG_ROW_H; the tight metric existed only because the rows were sharing a
+    // screen, and they no longer are.
     int y = 88;
     for (int i = 0; i < np; i++) {
         bool done = (s_ack_flags & bits[i]) != 0;
@@ -1697,11 +1709,20 @@ static void verify_screen(lv_obj_t *parent)
         // only content this screen has, so it begins where the eye lands. Same
         // left edge and lane as the hero it replaces; the extra height goes to
         // the reason, which is translated and is the longest string here.
-        lv_obj_t *p = sg_panel(24, 84, 752, SG_PANEL_H + 52, STOP_COL);
+        // A refusal with a remedy gets the verdict in a band and the two claims
+        // -- what went wrong, what to do -- as ruled blocks below it, which is
+        // the same shape every other explainer on this device uses. Without a
+        // remedy the panel keeps the whole upper band: there is nothing to put
+        // under it, and a short verdict floating over 230px of glass reads as a
+        // screen that lost something.
+        const char *body = stop_body(s_sum.reason);
+        int ph = body ? 64 : SG_PANEL_H + 52;
+        lv_obj_t *p = sg_panel(24, 84, 752, ph, STOP_COL);
         lv_obj_t *r = sg_lbl(p, tr_reason(s_sum.reason), SG_PAD, SG_PAD,
                              wt_font23(), STOP_COL);
         lv_obj_set_width(r, 752 - 2 * SG_PAD);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
+        if (body) wt_why_body(s_scr, body, 84 + ph + 20, STOP_COL, true);
         // Same 776 lane as the panel it just drew, so the same exit as verify.
         wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X140, WT_ACTION_Y, 140, WT_ACTION_H,
                  s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);

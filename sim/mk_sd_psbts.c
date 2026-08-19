@@ -369,15 +369,17 @@ int main(int argc, char **argv) {
     // the dust rules, so exactly one flag fires and the screen is predictable.
     rc |= emit(d, "05-caution-highfee.psbt", WSCRIPT_NATIVE, 84, 1, 8000, 82000);
 
-    // ---- the amount-proof pair. THE test: 6 and 7 are the same transaction
-    // spending the same two coins for the same amounts, and differ only in
-    // whether the previous transactions ride along. 6 must raise the unproven
-    // caution and 7 must not, and the SIGNATURE CHECK code on the signed
-    // screen must read the same on both. If it does not, reading the amount
-    // off the previous transaction changed what gets signed, which would break
-    // co-signing with every other wallet.
+    // ---- the amount-proof pair. 6 and 7 are the same transaction spending the
+    // same two coins for the same amounts, and differ only in whether the
+    // previous transactions ride along. 6 must REFUSE and 7 must sign, which is
+    // the whole blind-signing argument on glass: the device is not asking the
+    // owner to take a coordinator's word for the fee, it is asking the
+    // coordinator for the four hundred bytes that settle it.
+    //
+    // 6 is also the one refusal on this card an honest coordinator can trip, so
+    // it is the one whose panel has to name the fix rather than the fault.
     rc |= emit_nin(d, "06-unproven-2in.psbt", 2, 100000, 150000, 48000, 1,
-                   NIN_OMIT,  "CAUTION: amounts not proven");
+                   NIN_OMIT,  "STOP: amounts not proven");
     rc |= emit_nin(d, "07-proven-2in.psbt",   2, 100000, 150000, 48000, 1,
                    NIN_PROVE, "READY: same tx, proof attached");
 
@@ -387,13 +389,18 @@ int main(int argc, char **argv) {
     rc |= emit_nin(d, "08-stop-contradiction.psbt", 1, 100000, 60000, 39000, 1,
                    NIN_LIE, "STOP: prev tx does not match");
 
-    // All five caution rows at once, which is the layout that only exists since
-    // the unproven row was added and the only way to look at it on glass:
-    // unproven (2+ claimed amounts) + coins linked (5 inputs) + dust attack
-    // (3000 sat coins) + dust change (200 sats, under the 294 floor) + high fee
-    // (4800 of fee against a 10000 send is well over the tenth-of-the-send bar).
-    rc |= emit_nin(d, "09-caution-five.psbt", 5, 3000, 10000, 200, 1,
-                   NIN_CLAIM, "CAUTION x5: every row at once");
+    // Every caution row at once, and the only way to look at a full stack on
+    // glass: coins linked (5 inputs) + dust attack (3000 sat coins) + dust
+    // change (200 sats, under the 294 floor) + high fee (4800 of fee against a
+    // 10000 send is well over the tenth-of-the-send bar).
+    //
+    // PROVEN amounts, which is the change from when this was five rows. A fifth
+    // row is not available to stack any more: claimed amounts end the screen
+    // instead of adding to it, so a CLAIM here would produce a STOP and no rows
+    // at all -- a fixture that silently tests nothing, which is the failure a
+    // caution-row fixture can least afford.
+    rc |= emit_nin(d, "09-caution-four.psbt", 5, 3000, 10000, 200, 1,
+                   NIN_PROVE, "CAUTION x4: every row at once");
 
     // Eight destinations, so the recipient list runs off the bottom of the panel
     // and HOLD TO SIGN stays inert until it has been scrolled to the end. Eight
@@ -403,6 +410,25 @@ int main(int argc, char **argv) {
     // is a fixture that tests nothing in the other twenty.
     rc |= emit_multiout(d, "10-many-recipients.psbt", 8, 10000, 15000, 1,
                         "READY: 8 destinations, list must be scrolled");
+
+    // 11 and 12 are the silent-payment fixtures, written by
+    // tools/sp_fixtures/mk_sp_sd_fixtures.py when EMBIT points at the SP fork.
+
+    // ---- the signature-equivalence pair, at ONE input -----------------------
+    // Reading an amount off the previous transaction instead of the
+    // witness_utxo must not move a byte of the signature, or this signer stops
+    // agreeing with every other one it ever co-signed with. On the device that
+    // is the SIGNATURE CHECK code on the signed screen: it must read the same
+    // for both files.
+    //
+    // 13 and 14 spend the SAME outpoint for the same amount and differ only in
+    // whether the proof rides along. One input, because two unproven ones no
+    // longer sign -- and the property is per input anyway, so one is where both
+    // halves are signable and directly comparable.
+    rc |= emit_nin(d, "13-omit-1in.psbt",   1, 100000, 60000, 39000, 1,
+                   NIN_OMIT,  "READY: one input, amount claimed");
+    rc |= emit_nin(d, "14-proven-1in.psbt", 1, 100000, 60000, 39000, 1,
+                   NIN_PROVE, "READY: same outpoint, proof attached");
 
     wally_cleanup(0);
     return rc;

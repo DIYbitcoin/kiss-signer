@@ -39,12 +39,12 @@ int main(int argc, char **argv){
         {"03-legacy.psbt",            WSCRIPT_LEGACY, WPSBT_READY,   0},
         {"04-stop-wrongnet.psbt",     WSCRIPT_NATIVE, WPSBT_STOP,    0},
         {"05-caution-highfee.psbt",   WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_HIGHFEE},
-        {"06-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_UNPROVEN_IN},
+        {"06-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_STOP,    0},
         {"07-proven-2in.psbt",        WSCRIPT_NATIVE, WPSBT_READY,   0},
         {"08-stop-contradiction.psbt",WSCRIPT_NATIVE, WPSBT_STOP,    0},
-        {"09-caution-five.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
-             WPSBT_C_UNPROVEN_IN | WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
-             WPSBT_C_MERGE_INS   | WPSBT_C_DUST_CHANGE},
+        {"09-caution-four.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
+             WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
+             WPSBT_C_MERGE_INS | WPSBT_C_DUST_CHANGE},
         // READY and no flags is the POINT of this one. It exists to fill the
         // recipient list past the fold, and what is being looked at on device is
         // whether HOLD TO SIGN stays inert until that list has been read to its
@@ -53,14 +53,18 @@ int main(int argc, char **argv){
         {"10-many-recipients.psbt",  WSCRIPT_NATIVE, WPSBT_READY,   0},
         // BIP-375 silent-payment send fixtures (tools/sp_fixtures/mk_sp_sd_fixtures.py).
         // 10 testnet inputs at m/84'/1'/0'/0/i, one scriptless SP output (scan||spend)
-        // + change. READY with no flags is the POINT: for an SP send the unproven
-        // and merge cautions cannot apply (the format never carries the previous
-        // transactions, and these coins were already linked by the scan), so the
-        // owner reviews the recipient and the fee and signs.
+        // + change. READY with no flags is the POINT: for an SP send neither the
+        // unproven refusal nor the merge caution can apply (the format never
+        // carries the previous transactions, and these coins were already linked
+        // by the scan), so the owner reviews the recipient and the fee and signs.
         {"11-sp-10in.psbt",          WSCRIPT_NATIVE, WPSBT_READY,   0, 1},
         // 20 inputs vs the SP stack's hard cap: WPSBT_MAX_INS is 16, so this one
         // MUST STOP. It is the size ladder's top rung on device, not a signable tx.
         {"12-sp-20in.psbt",          WSCRIPT_NATIVE, WPSBT_STOP,   0, 1},
+        // The signature-equivalence pair, checked below. Both must load clean:
+        // one input, so a claimed amount is covered by its own sighash.
+        {"13-omit-1in.psbt",         WSCRIPT_NATIVE, WPSBT_READY,   0},
+        {"14-proven-1in.psbt",       WSCRIPT_NATIVE, WPSBT_READY,   0},
     };
     int fails=0, skips=0;
     // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
@@ -85,16 +89,20 @@ int main(int argc, char **argv){
         kiss_psbt_free();
     }
 
-    // THE pair. 6 and 7 spend the same two coins in the same transaction and
-    // differ only in whether the previous transactions ride along. Reading the
-    // amount off the previous transaction instead of the witness_utxo must not
-    // move a byte of the signature, or this signer stops agreeing with every
-    // other one it ever co-signed with. On the device this is the SIGNATURE
-    // CHECK code on the signed screen: it must read the same for both files.
+    // THE pair. 13 and 14 spend the same coin in the same transaction and differ
+    // only in whether the previous transaction rides along. Reading the amount
+    // off the previous transaction instead of the witness_utxo must not move a
+    // byte of the signature, or this signer stops agreeing with every other one
+    // it ever co-signed with. On the device this is the SIGNATURE CHECK code on
+    // the signed screen: it must read the same for both files.
+    //
+    // ONE input. It was 6 and 7 until claimed amounts became a refusal, and 6
+    // does not sign any more -- which is the point of that change and would
+    // have turned this check into two failed loads reported as a mismatch.
     {
         unsigned char pb[8192], sb[8192];
         char fa[9]="", fb[9]="";
-        const char *pair[2]={"06-unproven-2in.psbt","07-proven-2in.psbt"};
+        const char *pair[2]={"13-omit-1in.psbt","14-proven-1in.psbt"};
         char *out[2]={fa,fb};
         int ok=1;
         kiss_set_script(WSCRIPT_NATIVE);

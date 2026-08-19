@@ -635,14 +635,16 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
              "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     s->outs[5].sats = 39000; s->outs[5].is_change = true;
   } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
-    // The new caution on its own: a two-input spend whose amounts were declared
-    // and not proved. One row, footer kept -- the ordinary shape of it.
+    // A two-input spend whose amounts were declared and not proved. This is a
+    // REFUSAL, not a caution: the fee on the screen would be a number the
+    // device cannot stand behind, so there is nothing here for an owner to
+    // weigh. It is the one STOP an honest coordinator can trip, which is why
+    // its panel is worth a walk stop of its own -- the sentence on it has to
+    // name the fix.
     s->n_in = 2;
     s->n_unproven_in = 2;
-    s->status = WPSBT_CAUTION;
-    s->caution_flags = WPSBT_C_UNPROVEN_IN;
-    snprintf(s->reason, sizeof s->reason,
-             "input amounts not proven - fee may be higher");
+    s->status = WPSBT_STOP;
+    snprintf(s->reason, sizeof s->reason, "input amounts not proven");
   } else if (len >= 5 && memmem(bytes, len, "MERGE", 5)) {
     // A consolidation: twenty coins swept to one address, nothing back. Above
     // WPSBT_MERGE_INS so the coins-linked caution always fires, and above
@@ -665,20 +667,19 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->reason, sizeof s->reason,
              "many coins spent at once - they are linked forever");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
-    // Every caution at once: proves the summary + WHY card stack up. FIVE rows
-    // is the most the verify screen can ever draw, and it is the only fixture
-    // that reaches the tight row metric (SG_ROW_H5) and the dropped footer, so
-    // this is where that layout gets looked at.
+    // Every caution at once: proves the summary + WHY card stack up. FOUR rows
+    // is the most the row page can ever draw, so this is the fixture that says
+    // whether a full stack still clears WT_CONTENT_BOTTOM. It was five until
+    // unproven amounts became a STOP -- a fifth row cannot coexist with the
+    // other four now, because it ends the screen instead of joining it.
     s->n_in = WPSBT_MERGE_INS;
     s->n_in_addr = WPSBT_MERGE_INS;      // five coins, five addresses: at the bar
-    s->n_unproven_in = WPSBT_MERGE_INS;
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
     s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
-                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS |
-                       WPSBT_C_UNPROVEN_IN;
+                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
   s_sim_n_in = s->n_in;
@@ -2634,23 +2635,17 @@ int main(void) {
                                                       // moved to DETAILS, so the
                                                       // column fits and needs no scroll
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  // The unproven-amount caution on its own: one row, footer kept. It is the
-  // shape an ordinary two-input spend from a coordinator that ships bare
-  // witness_utxos now has, so it is worth a stop of its own rather than only
-  // being seen inside the five-row COMBO pile.
-  touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> verify
+  // The unproven-amount REFUSAL: a two-input spend from a coordinator that
+  // ships bare witness_utxos and nothing else. It is the only STOP an honest
+  // coordinator can trip, so unlike every other refusal on this device the
+  // panel has to leave the owner somewhere to go -- which is a property of a
+  // sentence, and only a rendered frame can say whether it fits the panel.
+  touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> STOP
   save("/tmp/sim_sign_unproven.ppm");
-  // The single-caution shape: the one an ordinary two-input spend from a
-  // coordinator that ships bare witness_utxos has, and the one most owners
-  // will actually meet. Same guarantee.
-  must_show("verify (1 caution)", "bc1q");            // folded, prefix span
-  must_show("verify (1 caution)", "39 000");   // change, no unit: see above
-  must_show("verify (1 caution)", "1 000");    // fee
-  must_show("verify (1 caution, address)",
-            "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
-  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED, one entry
-  save("/tmp/sim_sign_unproven_why.ppm");
-  tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  // The refusal text itself, not a fragment of it: this panel is the whole
+  // screen, so if the mapping in tr_reason ever falls back to the raw English
+  // reason the owner loses the remedy and nothing else on screen would say so.
+  must_show("verify (unproven STOP)", tr(STR_S_WHY_UNPROVEN));
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
 
   // Five recipients: more than the panel shows at once, and the only shape on

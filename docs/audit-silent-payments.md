@@ -82,6 +82,14 @@ correct fee math, and deterministic signing.
 Verified both ways: the test fails against the pre-fix code (load returns
 READY, no warning) and passes against the fix.
 
+**Since this audit.** Unproven input amounts are a **STOP**, not a caution.
+The reasoning above is unchanged and is why: the fee shown would be wrong by
+an unbounded amount and nothing on the screen could tell the owner so, which
+is a refusal rather than a box to tick. `WPSBT_C_UNPROVEN_IN` is retired, the
+reason string is `input amounts not proven`, and `sp_test_mixed_unproven`
+asserts STOP and a refused signature. The escape hatch is the coordinator's
+and costs it nothing: attach the full previous transactions.
+
 **Gates.** Unit suite 1377 PASS / 0 FAIL; fuzz suite PASS; 21-locale overlap
 walk clean on the changed surface (run English-only per house rules; this
 change touches no strings).

@@ -900,14 +900,14 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
     s->n_unproven_in = nunproven;
     s->n_in_addr = nseen;
-    // BIP376 inputs are exempt from the two cautions below, and only them.
+    // BIP376 inputs are exempt from the two checks below, and only them.
     // The format never carries the previous transactions (proving the input
     // amounts is a property of BIP341, not an omission of the coordinator),
     // and the coins being spent together are the ones this signer's own scan
     // already linked, so "merging" adds no information. A silent-payment SEND
     // that also spends ordinary P2WPKH inputs is not exempt: those inputs are
-    // neither provably priced nor scan-linked, so the cautions apply to them
-    // exactly as they do in any other transaction.
+    // neither provably priced nor scan-linked, so both apply to them exactly as
+    // they do in any other transaction -- and the first one now refuses.
     // The fee on the screen is a subtraction, and every input amount is a term in
     // it. BIP143 commits only to the amount of the input being signed, so with
     // two or more inputs a coordinator can run two signing sessions, declare a
@@ -918,11 +918,24 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // Nothing in the PSBT can rule that out: each session, on its own, is honest.
     // BIP341 hashes EVERY input amount into the sighash, so an all-taproot spend
     // is immune, and with one input the lie lands in that input's own sighash and
-    // invalidates it. Everything else is the owner's call, which is what a
-    // CAUTION is for -- and a coordinator that attaches the previous transactions
-    // clears it outright, because then there is nothing left to lie about.
+    // invalidates it. Everything else is a fee the owner cannot see and cannot
+    // check afterwards, so this BLOCKS rather than warns.
+    //
+    // It was a CAUTION until now, and a caution is the wrong instrument here.
+    // Every other caution states a cost the owner can weigh on the screen in
+    // front of them -- this fee is high, these coins get linked. This one says
+    // the biggest number on the screen may be wrong by an unbounded amount and
+    // there is no way to find out, which is the definition of signing blind. A
+    // reader who accepts it has not made a decision, only a guess.
+    //
+    // The remedy is entirely the coordinator's and costs it nothing: attach the
+    // full previous transaction for each input (BIP174's own recommendation, and
+    // what Core, Sparrow and Electrum already send). Then every amount hashes to
+    // an outpoint and there is nothing left to lie about. A coordinator that
+    // strips them is asking to be trusted about the fee; this device does not
+    // have to agree.
     if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
-        caution(s, WPSBT_C_UNPROVEN_IN, "input amounts not proven - fee may be higher");
+        stop(s, "input amounts not proven");
 
     // Merging coins is the one privacy loss a signer can see coming and the one
     // it can never take back: the moment this broadcasts, every input is public

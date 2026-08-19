@@ -364,7 +364,7 @@
   "S_WHY_HIGHFEE": "HIGH FEE: the fee is a big slice of what you are sending.",
   "S_WHY_DUSTIN": "DUST ATTACK: a tiny input someone sent you. spending it can link these keys to them.",
   "S_WHY_TINYCH": "TINY CHANGE: leaves a very small input behind. it fragments your balance.",
-  "S_WHY_UNPROVEN": "AMOUNTS NOT PROVEN: your coordinator did not prove what these inputs are worth. the real fee can be higher than shown.",
+  "S_WHY_UNPROVEN": "your coordinator did not prove what these coins are worth, so the fee cannot be checked. ask it to attach the full previous transactions and send the file again.",
   "S_WHY_MERGE_FMT": "INPUTS LINKED: this joins %u of your addresses and shows the world they all belong to you.",
   "S_WHY_FOOT": "unsure? go BACK and fix it in your coordinator wallet.",
   "S_RBF_T_ON": "REPLACEABLE (RBF)",
