@@ -153,7 +153,22 @@ bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locale
 python3 tools/check_screen_coverage.py             # screens no gate sees (builds its own)
 bash sim/build_sim.sh && /tmp/fruitsim && python3 tools/check_sim_taps.py  # taps that hit nothing
 python3 tools/gen_docs_shots.py --check            # the frames the docs publish
+
+docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
+  espressif/idf:v6.0.1 idf.py -B /tmp/idfbuild build     # the device compiler
 ```
+
+**The last one is on this list now, not only in a paragraph below it.** It was
+documented as required for anything touching `main/` and was not among the
+commands anyone actually runs, which is exactly how a 64 byte buffer holding a
+160 byte translated caption passed all six desktop gates and was caught after a
+push. It is the only lane with `-Wformat-truncation`: the desktop build is
+clang, clang does not implement that warning, and on macOS `gcc` is clang too,
+so there is no cheaper second opinion to reach for. Three more silent
+truncations turned up the day `KISS_SIM_TMP` landed — the `platform_sd` path
+buffers, a `char p[64]` in the walk, a `char p[96]` in the SD tests — which
+makes it a class, not an incident.
 
 The last two run against the frames a plain `/tmp/fruitsim` just wrote, and both
 were on CI's list and not on this one — which is how a frame that moved into a
@@ -222,7 +237,7 @@ command alone — after a push, because it was not on the list. `-Wformat-trunca
 is the family, and clang does not implement it.
 
 `check_screen_coverage.py` answers the question the others cannot: **which
-screens has nothing ever looked at.** overlapcheck asks seven questions per
+screens has nothing ever looked at.** overlapcheck asks eight questions per
 STOP, so a screen with no stop is a screen with no opinion attached. It reports
 two kinds:
 
@@ -258,18 +273,28 @@ Two harness numbers, both measured, neither about the device: a drag needs
 `release()`. At `pump(4)` the lift is seen but the next press is folded into
 it, so strokes merge and fall through.
 
-`overlapcheck` asks seven questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
-ROLE, **BARE** and **WALL**. Both of the last two are rule 1 above, enforced:
+`overlapcheck` asks eight questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
+ROLE, **BARE**, **WALL** and **FIT**. The first two of those three are rule 1
+above, enforced; the third is the font14 rule:
 
 - **BARE** — a wide paragraph and no framed element at all.
 - **WALL** — a wide paragraph where every frame on the screen is a box drawn
   *around* it. A `wt_card` full of `wt_wraph` passes BARE and is still a wall of
   text; this is the check that says so. A chip, a badge, a row, a value card or
   a why-block rule anywhere else on the screen clears it.
+- **FIT** — `wt_pill_fit` or `wt_note_fit` gave up and set font14. They pick the
+  biggest font that FITS, so they are silent by construction: the string never
+  looks like a bug in the source, and this has come off the bench three separate
+  times. They report it now. Only where the size is a CHOICE — a body at least
+  300 wide and 36 tall, or a pill at least 240 — because font14 in a caution
+  row's 24px subline is the box deciding, not the copy, and that is the one
+  place the rules keep it.
 
-Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG` in
-`sim/overlapcheck.c`) and the run prints how many are left. Both are empty
-today. WALL fires on a shape the product no longer contains, so
+Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
+`OC_FIT_BACKLOG` in `sim/overlapcheck.c`) and the run prints how many are left.
+The first two are empty. FIT carries the two it found on the day it landed: the
+camera-proof screen's one instruction, and a settings pill — which the comment
+above `wt_pill_fit` says outright should never happen. WALL fires on a shape the product no longer contains, so
 `OVERLAPCHECK_SELFTEST=1` builds that shape and proves the gate still reports
 it — a clean sweep means nothing without that, which is why `run_overlapcheck.sh`
 runs the self test first and refuses to continue if it fails.

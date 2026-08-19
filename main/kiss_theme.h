@@ -305,6 +305,25 @@ void      wt_wrap_fit(lv_obj_t *l, const char *txt, int w, int h);
 // note being the important thing. Explainer cards use wt_wraph; notes use this.
 lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);
 void      wt_note_fit(lv_obj_t *l, const char *txt, int w, int h);
+
+// ---- the fit helpers, when they give up -----------------------------------
+//
+// wt_pill_fit and wt_note_fit pick the biggest font that FITS, which makes them
+// silent: hand either one a long string in a small box and it lands on font14
+// and says nothing, so the string never looks like a bug in the source. That
+// has now come off the bench three separate times -- loudest as "WHY IS THE
+// TEXT SO SMALL, LITERALLY, I KEEP ASKING" -- and every time the fix was to cut
+// words or to stop throwing the layout budget away, never to accept the size.
+//
+// So they tell somebody. A sink, host only, because the device has nowhere to
+// put it and the point is to fail a GATE before a screen reaches glass.
+// overlapcheck installs one and reports what lands here as a finding against
+// the stop that was being built.
+#ifndef ESP_PLATFORM
+typedef void (*wt_fit_sink_t)(const char *kind, const char *txt,
+                              int w, int h);
+void wt_fit_set_sink(wt_fit_sink_t fn);
+#endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
 // White QR card; *qr receives the lv_qrcode (NULL if creation failed). Every

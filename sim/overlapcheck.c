@@ -735,6 +735,101 @@ static void oc_check_bare(const char *tag)
     oc_report_one(tag, sig, detail);
 }
 
+// ---- 8. FIT: a fit helper that gave up ------------------------------------
+//
+// wt_pill_fit and wt_note_fit pick the biggest font that FITS, so a string too
+// long for its box comes back at font14 and reports nothing. The source looks
+// correct, the gate sees no overlap, and the screen ships with a button or an
+// instruction in the smallest type the device owns. That is not a translation
+// being long -- it is copy too long for the space, or a layout budget thrown
+// away in code, and the house rules say to cut words or move the blocks rather
+// than accept the size.
+//
+// kiss_theme calls the sink below every time either helper reaches that rung.
+// The strings land here as the screen is BUILT, which is before the save() that
+// checks it, so they are attributed to the next stop -- the one whose build
+// they came from. A screen built and never saved has no stop to blame and its
+// strings go to whichever stop follows; that is the same blind spot
+// check_screen_coverage.py exists to close, not a new one.
+#define OC_FIT_MAX 24
+static char s_fit_kind[OC_FIT_MAX][8];
+static char s_fit_txt[OC_FIT_MAX][96];
+static int  s_fit_n;
+
+// Only where font14 is a fault. The house rules keep it for chip labels, row
+// sublines and unit suffixes, and a fit helper handed a chip-sized box is doing
+// exactly its job -- "dust attack" in a 110px caution chip is not the bug. A
+// BODY that fell to font14 is, and so is a pill: a button in the smallest type
+// the device owns is the shape the pill comment rejects outright.
+//
+// 300 and 240 are read off the kit, not guessed: wt_why_block bodies are 344
+// wide and the narrowest real body column is 330, while the action row's own
+// pills start at 240 and everything below that is a chip or a badge.
+// The HEIGHT matters as much. A caution row gives its subline about 24px, and
+// one line of font23 is 31 -- so font14 there is the box deciding, not the copy,
+// and "high fee" is not a screen anybody needs to fix. 36 is one font23 line
+// with its leading, which is the least a box can offer and still be a choice.
+#define OC_FIT_BODY_W 300
+#define OC_FIT_BODY_H  36
+#define OC_FIT_PILL_W 240
+
+static void oc_fit_sink(const char *kind, const char *txt, int w, int h)
+{
+    bool pill = strcmp(kind, "pill") == 0;
+    if (w < (pill ? OC_FIT_PILL_W : OC_FIT_BODY_W)) return;
+    if (!pill && h < OC_FIT_BODY_H) return;
+    if (s_fit_n >= OC_FIT_MAX) return;
+    snprintf(s_fit_kind[s_fit_n], sizeof s_fit_kind[0], "%s", kind ? kind : "?");
+    snprintf(s_fit_txt[s_fit_n], sizeof s_fit_txt[0], "%s", txt ? txt : "");
+    s_fit_n++;
+}
+
+// Before main, because the strings are produced while a screen is BUILT and the
+// first screen is built before anything in this file is called. There is no
+// main() here -- the gate links into the walk -- so a constructor is the only
+// hook that runs early enough.
+__attribute__((constructor))
+static void oc_fit_install(void) { wt_fit_set_sink(oc_fit_sink); }
+
+// Shrink only, like the two above. An entry is a string somebody decided to
+// leave at font14, and that decision needs saying so here.
+static const char *OC_FIT_BACKLOG[] = {
+    // The two the check found when it landed, in English. Both are real and
+    // neither is a translation being long:
+    //
+    //   the camera-proof screen's one instruction, on the screen that tells an
+    //   owner what a photograph of their words is worth;
+    "the photo is public",
+    //   and a settings pill, which the comment above wt_pill_fit says outright
+    //   should never happen -- a button in the smallest type the device owns.
+    "USE YOUR OWN DRAWING",
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_fit_hit[sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]];
+
+static bool oc_fit_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]; i++)
+        if (OC_FIT_BACKLOG[i] && strstr(txt, OC_FIT_BACKLOG[i]))
+            { s_fit_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_fit(const char *tag)
+{
+    for (int i = 0; i < s_fit_n; i++) {
+        if (oc_fit_excused(s_fit_txt[i])) continue;
+        char sig[192], detail[320];
+        snprintf(sig, sizeof sig, "FIT|%s|%s", s_fit_kind[i], s_fit_txt[i]);
+        snprintf(detail, sizeof detail,
+                 "FIT      wt_%s_fit gave up and set font14 for \"%s\" -- cut the "
+                 "copy or give the block its budget back, do not accept the size",
+                 s_fit_kind[i], s_fit_txt[i]);
+        oc_report_one(tag, sig, detail);
+    }
+    s_fit_n = 0;
+}
+
 // ---- 7. WALL: a paragraph with a card drawn round it ----------------------
 //
 // BARE stops at the first frame it finds (oc_check_bare's early return), which
@@ -1069,6 +1164,7 @@ void oc_check(const char *tag)
     oc_check_colour_roles(tag);
     oc_check_bare(tag);
     oc_check_wall(tag);
+    oc_check_fit(tag);
 }
 
 int oc_report(void)
@@ -1114,6 +1210,18 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d screens still on the WALL backlog\n",
                lang, wall_left);
+    }
+    {
+        int fit_left = 0;
+        for (unsigned i = 0; i < sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]; i++) {
+            if (!OC_FIT_BACKLOG[i]) continue;
+            if (s_fit_hit[i]) { fit_left++; continue; }
+            printf("[overlap] %s: FIT backlog entry \"%s\" never matched a stop"
+                   " -- cut it from the list, the string it excused is gone\n",
+                   lang, OC_FIT_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d strings still on the FIT backlog\n",
+               lang, fit_left);
     }
 
     for (int i = 0; i < s_seen_n; i++)

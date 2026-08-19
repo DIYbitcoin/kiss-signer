@@ -232,6 +232,17 @@ void wt_lock_565(int *r5, int *g6, int *b5)
 // largest of {23, 14} that fits (defined with wt_note); used by the subtitle too
 static const lv_font_t *note_font(const char *txt, int w, int max_h);
 
+// The sink from kiss_theme.h. NULL on device and in any host build that has not
+// asked, so this costs a null check on a path that already measured text.
+#ifndef ESP_PLATFORM
+static wt_fit_sink_t s_fit_sink;
+void wt_fit_set_sink(wt_fit_sink_t fn) { s_fit_sink = fn; }
+#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) \
+    do { if (s_fit_sink) s_fit_sink((kind_), (txt_), (w_), (h_)); } while (0)
+#else
+#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
+#endif
+
 #define SUB_ROW_H 22        // font14 line + breathing room, for two-line pills
 #define SUB_ROW_H23 35      // the same row when the second line is a readable 23
 
@@ -286,6 +297,10 @@ wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary)
         return (wt_pill_fit_t){ wt_font23(), 0, false };
     if (pill_fits(txt, wt_font23(), 0, bw, bh, true))
         return (wt_pill_fit_t){ wt_font23(), 0, true };
+    // Past here the label is going on a button in the smallest type the device
+    // owns, which is the thing the comment at the top of this function says
+    // nobody should ever see. Say so.
+    WT_FIT_GAVE_UP("pill", txt, bw, bh);
     if (pill_fits(txt, wt_font14(), 2, bw, bh, false))
         return r;
     if (pill_fits(txt, wt_font14(), 1, bw, bh, false))
@@ -1023,7 +1038,9 @@ static const lv_font_t *note_font(const char *txt, int w, int max_h)
     if (!txt || !*txt) return wt_font23();
     lv_point_t sz;
     lv_text_get_size(&sz, txt, wt_font23(), 0, 0, w, LV_TEXT_FLAG_NONE);
-    return sz.y <= max_h ? wt_font23() : wt_font14();
+    if (sz.y <= max_h) return wt_font23();
+    WT_FIT_GAVE_UP("note", txt, w, max_h);
+    return wt_font14();
 }
 
 void wt_note_fit(lv_obj_t *l, const char *txt, int w, int h)
