@@ -20,6 +20,13 @@ void kiss_scan_open_raw(lv_obj_t *parent,
                           void (*on_text)(const char *txt, size_t len),
                           void (*on_cancel)(void));
 
+// Where the live preview goes, in the 800x480 landscape space every screen is
+// laid out in. The camera writes into this rect directly on device, outside
+// LVGL, and the browser simulator positions its <video> over the same one --
+// which it was doing from four numbers copied into CSS by hand. Read it here
+// instead so there is one rect and not two that agree until one of them moves.
+void kiss_scan_view_rect(int *x, int *y, int *w, int *h);
+
 bool kiss_scan_active(void);
 void kiss_scan_close(void);   // idle auto-lock: stop camera + drop the screen
 // Cancel as if the CLOSE control had been used: tears down AND runs the

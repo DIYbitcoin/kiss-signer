@@ -1668,6 +1668,37 @@ static void kiss_open_decoy(void) {
   kiss_start();
 }
 
+#ifdef SIMULATOR
+// The browser simulator's way past the wizard.
+//
+// Every interesting screen -- sign, receive, the wallet facts, settings -- sits
+// behind first boot, and first boot is fifty dice rolls and a quiz. That is the
+// right shape for a device somebody owns and the wrong shape for a link
+// somebody was sent, who will close the tab long before they reach the part
+// worth seeing.
+//
+// This is not a shortcut through the crypto: it stores a real mnemonic and
+// opens a real session, so the fingerprint on the home screen and every address
+// behind it are derived the way the device derives them. It is a shortcut past
+// the COLLECTION of the words, nothing else. kiss_start is static, which is why
+// this lives here rather than in the frontend -- same reason sim_capture_word
+// does, and it takes the same sequence kiss_open_decoy just above uses, which
+// is the one path in this file that reaches the home without a login screen.
+void sim_open_wallet(const char *mnemonic, const char *passphrase)
+{
+    if (!mnemonic) return;
+    const char *pass = (passphrase && *passphrase) ? passphrase : NULL;
+    kiss_seed_set_mode(WSEED_MODE_KEEP);
+    if (kiss_seed_store(mnemonic) != WSEED_OK) return;
+    if (kiss_session_open(pass) != 0) return;
+    uint8_t fp[4] = {0};
+    (void)kiss_fingerprint(pass, fp);
+    kiss_ui_set_last_fp(fp);
+    gesture_swallow();
+    kiss_start();
+}
+#endif
+
 // Which signer the draw that just finished opens: 1 = the real one (ask for the
 // passphrase), 0 = the decoy (open it now), -1 = not a KISS at all.
 //

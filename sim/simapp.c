@@ -46,6 +46,9 @@
 void build_game(void);            // main/main.c -- the device calls this too
 void kiss_trng_start(void);       // main/kiss_crypto.c
 void kiss_scan_inject(const char *data, size_t len);   // main/kiss_scan.c
+#ifdef __EMSCRIPTEN__
+void sim_open_wallet(const char *mnemonic, const char *passphrase);  // main/main.c
+#endif
 
 static uint16_t g_fb[HRES * VRES];
 
@@ -138,6 +141,23 @@ EMSCRIPTEN_KEEPALIVE const uint8_t *kiss_sim_tick(int dt) {
 }
 
 EMSCRIPTEN_KEEPALIVE void kiss_sim_touch(int x, int y, int down) { set_touch(x, y, down); }
+
+// The known-answer wallet. abandon x11 + about is the BIP39 vector every wallet
+// on earth tests against, fingerprint 73C5DA0A -- so nobody mistakes it for
+// keys worth keeping, and every address the simulator shows can be checked
+// against a published table, or against the owner's own signer.
+EMSCRIPTEN_KEEPALIVE void kiss_sim_ready_wallet(void) {
+    sim_open_wallet("abandon abandon abandon abandon abandon abandon "
+                    "abandon abandon abandon abandon abandon about", NULL);
+}
+
+// The viewfinder rect, read from the screen that draws it. The page used to
+// carry these four numbers as hand-computed CSS percentages.
+EMSCRIPTEN_KEEPALIVE int kiss_sim_view_rect(int i) {
+    int r[4];
+    kiss_scan_view_rect(&r[0], &r[1], &r[2], &r[3]);
+    return (i >= 0 && i < 4) ? r[i] : 0;
+}
 
 // ---- the lens -------------------------------------------------------------
 // The page owns the camera, because only a browser can ask for one. It owns

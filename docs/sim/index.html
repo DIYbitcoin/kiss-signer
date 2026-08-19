@@ -12,6 +12,17 @@
   /* The device. 800x480 is the panel; the frame around it is chrome, not UI. */
   .device { background: #05070b; border: 1px solid var(--line); border-radius: 14px;
             padding: 14px; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+  /* Fullscreen is the phone story. 800x480 inside a 375px column is legible for
+     the action pills and nothing else, and this is a link people open on a
+     phone. In fullscreen the frame becomes the whole screen and the panel gets
+     every pixel of it. */
+  .device:fullscreen { display: grid; place-content: center; padding: 0; border: 0; border-radius: 0; }
+  .device:fullscreen .screen { width: 100vw; max-width: calc(100vh * 800 / 480); }
+  #full { display: block; margin: 10px 0 0 auto; width: auto; padding: 4px 10px;
+          font-size: 11px; letter-spacing: .1em; background: none; border: 0;
+          color: var(--dim); }
+  #full:hover { color: var(--ink); }
+  .device:fullscreen #full { display: none; }
   .screen { position: relative; background: #000; border-radius: 6px; overflow: hidden; }
   /* SDL writes width/height ATTRIBUTES on the canvas; the aspect box has to be
      the canvas itself or those attributes decide the layout. */
@@ -19,9 +30,10 @@
         image-rendering: pixelated; touch-action: none; cursor: crosshair; }
   /* The lens sits ON the frame, in the viewfinder rect, because that is where
      it sits on the device: camera frames bypass LVGL and land straight on the
-     panel. Percentages come from SCN_CAM_* in main/kiss_scan.c over 800x480. */
-  #lens { position: absolute; left: 6%; top: 23.333%; width: 37.5%; height: 39.167%;
-          object-fit: cover; display: none; background: #000; }
+     panel. The rect itself comes from the firmware at boot, via
+     kiss_scan_view_rect -- it used to be four percentages maintained here by
+     hand, which is two rects that agree until one of them moves. */
+  #lens { position: absolute; object-fit: cover; display: none; background: #000; }
   .boot { position: absolute; inset: 0; display: grid; place-content: center;
           gap: 14px; text-align: center; background: rgba(5,7,11,.94); padding: 24px; }
   .boot p { color: var(--muted); margin: 0; max-width: 46ch; font-size: 13px; }
@@ -49,9 +61,8 @@
 <div class="wrap">
   <p><a href="../">← KISS Signer</a></p>
   <h1>Simulator</h1>
-  <p class="lead">The signer's own firmware, compiled to WebAssembly and drawn into the
-  canvas below. Every screen, the real word list, the real derivation, a real signature.
-  Nothing is installed and nothing leaves this tab.</p>
+  <p class="lead">The signer's own firmware, compiled to WebAssembly. Real words, real
+  derivation, a real signature. Nothing installed, nothing leaves this tab.</p>
 
   <div class="stage">
     <div>
@@ -64,15 +75,20 @@
               <select id="lang" style="width:auto;min-width:190px;margin-bottom:12px"></select>
               <br>
               <button id="start" style="width:auto;padding:10px 28px">START THE SIGNER</button>
+              <br>
+              <button id="ready" style="width:auto;margin-top:10px;background:none;border:0;color:var(--dim);font-size:12px">or skip setup with a known test wallet &rarr;</button>
               <p style="margin-top:14px"><strong style="color:var(--amber)">A browser tab is not a signer.</strong>
               The keys made here live in a page anyone could be watching. Use it to learn the
               flow, then make the keys that matter on the device, offline.</p>
             </div>
           </div>
         </div>
+        <button id="full">FULLSCREEN &#8599;</button>
       </div>
       <p class="note" style="margin-top:14px;font-size:13px;color:var(--muted)">
-        Drag to draw. The cover screen is a game until you draw <strong>KISS</strong> across it.</p>
+        Drag to draw. The cover screen is a game until you draw <strong>KISS</strong> across it.
+        There is no camera behind CAMERA AND TAPS, so that one entropy source is filled in for
+        you; the dice and the taps are yours.</p>
     </div>
 
     <div>
@@ -122,6 +138,13 @@
   window.kissLog = [];
   window.addEventListener('error', function (e) { window.kissLog.push('ERROR ' + e.message); });
 
+  // #lang=de&wallet=ready -- so the simulator can be handed to someone in their
+  // own language, or opened straight onto the screens worth seeing.
+  var hash = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function (kv) {
+    var i = kv.indexOf('='); if (i > 0) hash[kv.slice(0, i)] = kv.slice(i + 1);
+  });
+
   // Filled before boot from a tiny second instance, so the list is the device's
   // own picker order rather than a copy of it maintained here.
   KissSim({ printErr: function () {} }).then(function (probe) {
@@ -133,9 +156,10 @@
       o.textContent = probe.ccall('kiss_sim_lang_native', 'string', ['number'], [i]);
       sel.appendChild(o);
     }
-    sel.value = 'en';
+    sel.value = (hash.lang && sel.querySelector('option[value="' + hash.lang + '"]')) ? hash.lang : 'en';
   });
 
+  var wantReady = false;
   function boot() {
     document.getElementById('boot').style.display = 'none';
     KissSim({ print:    function (t) { window.kissLog.push('out ' + t); },
@@ -146,11 +170,40 @@
       // has to land before build_game() runs, not after.
       m.ccall('kiss_sim_set_lang', null, ['string'], [document.getElementById('lang').value]);
       m.ccall('kiss_sim_boot', null, [], []);
+      placeLens();
+      if (wantReady) m.ccall('kiss_sim_ready_wallet', null, [], []);
       listCard();
       requestAnimationFrame(loop);
     });
   }
   document.getElementById('start').addEventListener('click', boot);
+  document.getElementById('ready').addEventListener('click', function () { wantReady = true; boot(); });
+  if (hash.wallet === 'ready') wantReady = true;
+
+  // The viewfinder rect, straight from the screen that draws it, in the same
+  // 800x480 space the canvas is. Percentages so it survives every scale the
+  // canvas is put through, fullscreen included.
+  function placeLens() {
+    var v = document.getElementById('lens'), r = [];
+    for (var i = 0; i < 4; i++) r.push(mod.ccall('kiss_sim_view_rect', 'number', ['number'], [i]));
+    v.style.left   = (r[0] / 800 * 100) + '%';
+    v.style.top    = (r[1] / 480 * 100) + '%';
+    v.style.width  = (r[2] / 800 * 100) + '%';
+    v.style.height = (r[3] / 480 * 100) + '%';
+  }
+
+  // Fullscreen, then landscape where the browser allows it. Both are best
+  // effort: iOS Safari grants neither on a div, and the responsive layout is
+  // still there underneath for that case.
+  document.getElementById('full').addEventListener('click', function () {
+    var d = document.querySelector('.device');
+    var req = d.requestFullscreen || d.webkitRequestFullscreen;
+    if (!req) return;
+    Promise.resolve(req.call(d)).then(function () {
+      if (screen.orientation && screen.orientation.lock)
+        return screen.orientation.lock('landscape').catch(function () {});
+    }).catch(function () {});
+  });
 
   // The loop lives here rather than in C so a hidden or throttled tab simply
   // stops, instead of waking up and fast-forwarding the signer's idle timers

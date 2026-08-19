@@ -311,6 +311,17 @@ void kiss_scan_open_raw(lv_obj_t *parent,
 // the preview because the preview can spare them: the decoder always reads the
 // full sensor, so this rectangle only has to be big enough to aim with.
 #define SCN_CAM_H 188
+
+// The rect, for anything outside this file that has to put something in the
+// same place. Below the #defines on purpose -- there is nowhere earlier it
+// could read them from.
+void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
+{
+    if (x) *x = SCN_CAM_X;
+    if (y) *y = SCN_CAM_Y;
+    if (w) *w = SCN_CAM_W;
+    if (h) *h = SCN_CAM_H;
+}
 #define SCN_COL_X 396
 #define SCN_COL_W 356
 // The status card, under the preview: a line of state at font23 over up to two
