@@ -203,3 +203,22 @@ void kiss_seed_test_fail_next(unsigned flags);
 
 void kiss_seed_set_entropy_note(int v);
 int  kiss_seed_entropy_note(void);
+
+// ---- how this seed was made ----
+// Which path produced the seed the device is holding. The note above says what
+// the device THOUGHT of the draw; this says where the draw came from, and it is
+// the one fact an owner cannot recover by looking at the words.
+//
+// Device wide and written by every staging path, like the note. 0 means nothing
+// was recorded -- a seed made before this existed, which is a real answer and
+// not an error.
+#define WSEED_SRC_NONE     0
+#define WSEED_SRC_MIX      1   // camera + chip + taps + timing
+#define WSEED_SRC_DICE     2   // d6 rolls, hashed
+#define WSEED_SRC_CARDS    3   // the owner's own blind draw
+#define WSEED_SRC_RESTORE  4   // words typed in from elsewhere
+#define WSEED_SRC_QR       5   // a seed QR made on another signer
+#define WSEED_SRC_KEF      6   // an encrypted backup
+
+void kiss_seed_set_source(int v);
+int  kiss_seed_source(void);

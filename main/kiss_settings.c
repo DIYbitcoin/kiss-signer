@@ -848,17 +848,126 @@ static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
 // The audit owns the display while it runs and hands back the same way the
 // firmware screens do, by rebuilding Settings underneath.
-//
-// A chooser stood here while there were two audits behind the word. There is
-// one now -- the camera audit is gone -- and a chooser with a single row is a
-// screen that asks a question with one answer, so the pill goes straight
-// through to it.
-static void audit_open_cb(lv_event_t *e)
+static void audit_rng_cb(lv_event_t *e)
 {
     (void)e;
     lv_obj_t *parent = s_parent;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_rngaudit_open(parent, settings_reopen);
+}
+
+static void audit_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
+static void audit_open_cb(lv_event_t *e);
+static void made_back_cb(lv_event_t *e) { (void)e; audit_open_cb(NULL); }
+
+// The label for the path that produced this seed, and the note under it. Every
+// one of these already ships in 21 locales on the screen that OFFERED the
+// choice, which is the right place to take them from: an owner reading this
+// should see the words they picked, not a second vocabulary for the same act.
+static void made_labels(int src, const char **label, const char **note)
+{
+    switch (src) {
+        case WSEED_SRC_MIX:     *label = tr(STR_W_CHOOSE_MIX);
+                                *note  = tr(STR_W_MIX_NOTE);      break;
+        case WSEED_SRC_DICE:    *label = tr(STR_W_CHOOSE_DICE);
+                                *note  = tr(STR_W_DICE_NOTE);     break;
+        case WSEED_SRC_CARDS:   *label = tr(STR_W_CHOOSE_CARDS);
+                                *note  = tr(STR_W_CARDS_NOTE);    break;
+        case WSEED_SRC_RESTORE: *label = tr(STR_W_CHOOSE_RESTORE);
+                                *note  = tr(STR_W_MADE_ELSE);     break;
+        case WSEED_SRC_QR:      *label = tr(STR_L_SCAN_BTN);
+                                *note  = tr(STR_W_MADE_ELSE);     break;
+        case WSEED_SRC_KEF:     *label = tr(STR_I_ROW_KEF);
+                                *note  = tr(STR_W_MADE_ELSE);     break;
+        default:                *label = tr(STR_W_MADE_NOREC);
+                                *note  = tr(STR_W_MADE_NONE);     break;
+    }
+}
+
+// What went into the seed this device is holding. The one fact about a wallet
+// an owner cannot recover by looking at the words, and until now the device
+// knew it for the length of one screen and then forgot it on their behalf.
+//
+// The sources are drawn rather than listed: this is a fold, and the equation
+// says so in the same shape the creation screen used, so an owner who saw it
+// once recognises it here.
+static void made_open_cb(lv_event_t *e)
+{
+    (void)e;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_W_MADE_T), tr(STR_W_MADE_S));
+
+    int src = kiss_seed_source();
+    const char *label = NULL, *note = NULL;
+    made_labels(src, &label, &note);
+    wt_value_card(s_scr, tr(STR_W_MADE_CAP), label, 48, 104, 704, false);
+
+    // The legs, for the paths this device folded itself. An import has none to
+    // show: the fold happened on somebody else's device and claiming otherwise
+    // would be the screen inventing a provenance it does not have.
+    int by = 232;
+    if (src == WSEED_SRC_MIX || src == WSEED_SRC_DICE) {
+        lv_obj_t *card = wt_card(s_scr, 48, 208, 704, 96);
+        lv_obj_t *col = lv_obj_create(card);
+        lv_obj_remove_style_all(col);
+        lv_obj_set_pos(col, 0, 0);
+        lv_obj_set_size(col, 704, 96);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *row = wt_diagram_row(col);
+        if (src == WSEED_SRC_MIX) {
+            // The four marks the WHY FOUR SOURCES card teaches, in its order.
+            // Marks rather than words because the owner met them there and a
+            // chip is not the place to re-explain a source (house rule 4).
+            wt_chip(row, LV_SYMBOL_IMAGE, false);
+            wt_diagram_op(row, "+");
+            wt_chip(row, LV_SYMBOL_SETTINGS, false);
+            wt_diagram_op(row, "+");
+            wt_chip(row, LV_SYMBOL_OK, false);
+            wt_diagram_op(row, "+");
+            wt_chip(row, LV_SYMBOL_REFRESH, false);
+        } else {
+            wt_chip(row, tr(STR_D_ROLLS), false);
+        }
+        wt_diagram_op(row, LV_SYMBOL_RIGHT);
+        wt_chip(row, tr(STR_D_KEYS), true);
+        by = 320;
+    }
+
+    wt_why_body(s_scr, note, by, wt_accent(), true);
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                made_back_cb, NULL), 10);
+}
+
+// Two things to look at again, so the chooser comes back -- with a different
+// second row. It is the room for "check a part of this signer", and how the
+// keys were made is exactly that question asked about the past.
+static void audit_open_cb(lv_event_t *e)
+{
+    (void)e;
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), tr(STR_W_AUD_S));
+    {
+        int src = kiss_seed_source();
+        const char *label = NULL, *note = NULL;
+        made_labels(src, &label, &note);
+        wt_row_x(s_scr, WT_ICON_KEY, tr(STR_W_MADE_T), label,
+                 NULL, NULL, NULL, WT_INK, false,
+                 WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
+                 made_open_cb, NULL);
+    }
+    wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_RNG_T), tr(STR_W_RNG_S),
+             NULL, NULL, NULL, WT_INK, false,
+             WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
+             audit_rng_cb, NULL);
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                audit_back_cb, NULL), 10);
 }
 
 static void duress_cb(lv_event_t *e)

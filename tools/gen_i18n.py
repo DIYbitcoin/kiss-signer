@@ -170,10 +170,18 @@ UNTRANSLATED_OK = {
     # key's translations described content that no longer exists, so it was
     # renamed rather than overwritten; English until the sweep.
     "W_DICE_HELP_B2",
+    # The mix explainer, which gained a fourth source. Same reason as the line
+    # above: the shape changed, so the key was renamed rather than overwritten
+    # and the other twenty carry English until the sweep.
+    "W_ENT_MIX_B2",
     # The audit chooser and the randomness audit. Born under the English-only
     # rule, like the KEF block above: the other twenty carry the English as a
     # placeholder the sweep replaces.
-    "W_AUD_T",
+    "W_AUD_T", "W_AUD_S",
+    # HOW YOUR KEYS WERE MADE: the record of which path produced this seed.
+    # Born under the English-only rule, like the KEF block above.
+    "W_MADE_T", "W_MADE_S", "W_MADE_CAP", "W_MADE_NONE", "W_MADE_ELSE",
+    "W_MADE_NOREC",
     "W_RNG_T", "W_RNG_S", "W_RNG_SRC", "W_RNG_SRC_SUB",
     "W_RNG_ON", "W_RNG_OFF",
     "W_RNG_WHY1_H", "W_RNG_WHY1_B", "W_RNG_WHY2_H", "W_RNG_WHY2_B",

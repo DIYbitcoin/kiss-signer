@@ -323,6 +323,8 @@ static void store_and_finish(void)
         // already has, which is the whole reason the note is persisted.
         if (s_cards || s_restore)
             kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
+        if (s_cards)        kiss_seed_set_source(WSEED_SRC_CARDS);
+        else if (s_restore) kiss_seed_set_source(WSEED_SRC_RESTORE);
     }
     if (rc != 0) {                          // restore path: checksum failed
         check_screen(false);
@@ -856,6 +858,10 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
     // that can promise the note describes the seed the owner actually has.
     kiss_seed_set_entropy_note(s_ent_note);
     s_ent_note = 0;
+    // Where the draw came from, beside what the device thought of it. s_dice is
+    // still set here: this is the one funnel both machine paths use, and it runs
+    // before the words screen exists.
+    kiss_seed_set_source(s_dice ? WSEED_SRC_DICE : WSEED_SRC_MIX);
     // split into the word array for the reveal grid + quiz
     s_nw = 0;
     const char *p = words;
@@ -1291,6 +1297,7 @@ static const char *const ENT_MIX_ICONS[] = {
     LV_SYMBOL_IMAGE,
     LV_SYMBOL_SETTINGS,
     LV_SYMBOL_OK,
+    LV_SYMBOL_REFRESH,       // the machine's own timing: nothing to aim at
     LV_SYMBOL_LIST,
 };
 
@@ -1325,7 +1332,7 @@ static void ent_mix_help_cb(lv_event_t *e)
         .title  = tr(STR_W_ENT_MIX_T),
         .sub    = tr(STR_W_ENT_MIX_S),
         .icon   = LV_SYMBOL_SHUFFLE,
-        .body   = tr(STR_W_ENT_MIX_B),
+        .body   = tr(STR_W_ENT_MIX_B2),
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = ENT_MIX_ICONS,
@@ -3188,8 +3195,10 @@ static int kef_open_cb(const char *pass, size_t len)
         rc = kiss_seed_from_qr((const char *)plain, plen, words, sizeof words);
     if (rc == 0)
         rc = kiss_seed_stage(words);
-    if (rc == 0)
+    if (rc == 0) {
         kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);   // as qr_text_cb, and why
+        kiss_seed_set_source(WSEED_SRC_KEF);
+    }
     kiss_wipe(words, sizeof words);
     kiss_wipe(plain, sizeof plain);
     return rc == 0 ? 0 : -1;
@@ -3334,6 +3343,7 @@ static void qr_text_cb(const char *txt, size_t len)
     // still on the backup screen afterwards, describing a draw that no longer
     // had anything to do with the seed on the device (kiss_seed.h).
     kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
+    kiss_seed_set_source(WSEED_SRC_QR);
     void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
     s_load = false;
     close_all();

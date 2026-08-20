@@ -33,11 +33,13 @@ KISS_SIM_PATH_FN(mode_file_path, "kiss_seed_mode.txt")
 KISS_SIM_PATH_FN(seed_tmp_path,  "kiss_seed.txt.tmp")
 KISS_SIM_PATH_FN(mode_tmp_path,  "kiss_seed_mode.txt.tmp")
 KISS_SIM_PATH_FN(entq_file_path, "kiss_seed_entq.txt")
+KISS_SIM_PATH_FN(ents_file_path, "kiss_seed_ents.txt")
 #define SEED_FILE seed_file_path()
 #define MODE_FILE mode_file_path()
 #define SEED_TMP  seed_tmp_path()
 #define MODE_TMP  mode_tmp_path()
 #define ENTQ_FILE entq_file_path()
+#define ENTS_FILE ents_file_path()
 static unsigned s_seed_test_fail;
 void kiss_seed_test_fail_next(unsigned flags) { s_seed_test_fail = flags; }
 static int seed_test_fail(unsigned flag)
@@ -700,6 +702,48 @@ int kiss_seed_entropy_note(void)
     if (!f) return 0;
     int v = 0;
     if (fscanf(f, "%d", &v) != 1) v = 0;
+    fclose(f);
+    return v;
+#endif
+}
+
+// Same storage shape as the note above, one byte in the same namespace. A
+// separate key rather than more bits in "entq" because the two answer different
+// questions -- what the device thought of the draw, and where the draw came
+// from -- and a device that upgrades has one of them and not the other.
+void kiss_seed_set_source(int v)
+{
+    if (v < 0 || v > 255) return;
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    if (nvs_set_u8(h, "ents", (uint8_t)v) == ESP_OK)
+        nvs_commit(h);
+    nvs_close(h);
+#else
+    FILE *f = fopen(ENTS_FILE, "w");
+    if (!f) return;
+    fprintf(f, "%d", v);
+    fclose(f);
+#endif
+}
+
+int kiss_seed_source(void)
+{
+#ifdef ESP_PLATFORM
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READONLY, &h) != ESP_OK)
+        return WSEED_SRC_NONE;
+    uint8_t v = 0;
+    int rc = nvs_get_u8(h, "ents", &v) == ESP_OK ? (int)v : WSEED_SRC_NONE;
+    nvs_close(h);
+    return rc;
+#else
+    FILE *f = fopen(ENTS_FILE, "r");
+    if (!f) return WSEED_SRC_NONE;
+    int v = WSEED_SRC_NONE;
+    if (fscanf(f, "%d", &v) != 1) v = WSEED_SRC_NONE;
     fclose(f);
     return v;
 #endif

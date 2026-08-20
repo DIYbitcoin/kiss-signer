@@ -333,6 +333,20 @@ int kiss_seed_flash_encrypted(void) { return s_sim_flash_enc; }
 // it the walk creates clean seeds and the widest version of that chip line --
 // two self sizing chips beside each other, in 21 locales -- is never measured.
 static int s_sim_ent_note = -1;
+// How the seed was made, RAM only. The walk creates through camera + taps, so
+// it sets itself the way the device would; SIM_SEED_SRC forces one of the other
+// values so the screens for a dice, a drawn or an imported seed get rendered
+// without walking every creation path twice.
+static int s_sim_seed_src = -1;
+void kiss_seed_set_source(int v) { s_sim_seed_src = v; }
+int kiss_seed_source(void) {
+  if (s_sim_seed_src < 0) {
+    const char *e = getenv("SIM_SEED_SRC");
+    s_sim_seed_src = (e && *e) ? atoi(e) : 0;   /* WSEED_SRC_NONE */
+  }
+  return s_sim_seed_src;
+}
+
 void kiss_seed_set_entropy_note(int v) { s_sim_ent_note = v; }
 int kiss_seed_entropy_note(void) {
   if (s_sim_ent_note < 0) {
@@ -4186,7 +4200,33 @@ int main(void) {
   // The stub stream is deterministic and rewound here, so the finished frame
   // always shows the score test_rngq.c pinned as golden: 105.920, EVEN.
   sim_rng_rewind();
-  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT pill -> the intro, no chooser
+  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT pill -> the chooser
+  save("/tmp/sim_audit_choose.ppm");                // two rows, each stated
+  // HOW YOUR KEYS WERE MADE. Nothing is forced here: the record is written by
+  // the same funnel the device writes it from, so this photographs whatever the
+  // walk last created -- which by this point is the dice run above.
+  tap_str(STR_W_MADE_T, 3, 8);        // -> the record
+  save("/tmp/sim_made.ppm");                        // MADE BY card + the fold
+  must_show("made/method", tr(STR_W_CHOOSE_DICE));
+  must_show("made/cap", tr(STR_W_MADE_CAP));
+  tap_str(STR_C_BACK, 3, 8);          // BACK -> the chooser
+  // The camera path's four chip fold, and the import's absence of one. Forced,
+  // because reaching all three states through the wizard would mean creating
+  // three wallets and every stop after this one stands on the wallet that is
+  // already here. Only the RECORD is forced; the screen reads it as it always
+  // does.
+  kiss_seed_set_source(WSEED_SRC_MIX);
+  tap_str(STR_W_MADE_T, 3, 8);
+  save("/tmp/sim_made_mix.ppm");                    // 4 marks + -> YOUR KEYS
+  must_show("made/mix", tr(STR_W_CHOOSE_MIX));
+  tap_str(STR_C_BACK, 3, 8);
+  kiss_seed_set_source(WSEED_SRC_QR);
+  tap_str(STR_W_MADE_T, 3, 8);
+  save("/tmp/sim_made_import.ppm");                 // no fold to show, and says so
+  must_show("made/import", tr(STR_W_MADE_ELSE));
+  tap_str(STR_C_BACK, 3, 8);
+  kiss_seed_set_source(WSEED_SRC_DICE);             // back to the truth
+  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
   save("/tmp/sim_rng_intro.ppm");                   // NOISE row + the why pair
   must_show("rng/provenance", tr(STR_W_RNG_ON));
   tap_str(STR_W_RNG_GO, 3, 8);        // START -> piles fill on an 80ms timer
@@ -4211,7 +4251,8 @@ int main(void) {
   // in. NO SOURCE in the provenance row, the right block carries the refusal
   // and there is no START to tap.
   s_sim_trng = false;
-  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the intro
+  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the chooser
+  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
   save("/tmp/sim_rng_nosource.ppm");                // refusal: no START pill
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
   tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)

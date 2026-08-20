@@ -2432,8 +2432,14 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     // claim. The bad state is NO SOURCE rather than OFF or NONE, because
     // neither of those is true -- numbers still come out, they just have
     // nothing physical behind them, and that is the sentence to render.
+    // Two legs, named, because the seed folds two independent physical
+    // sources and a footer that says only NOISE describes the one that can
+    // fail. TIMING is the board's own delays (kiss_jitter): a different
+    // circuit from the chip's noise, which is the whole reason it is folded.
+    // It needs no switch and cannot be off, so it has no bad state to report.
     bool noise = kiss_trng_live();
-    lv_label_set_text_fmt(n, "randomness: %s", noise ? "NOISE" : "NO SOURCE");
+    lv_label_set_text_fmt(n, "randomness: %s",
+                          noise ? "NOISE + TIMING" : "NO SOURCE");
     lv_obj_set_style_text_color(n, noise ? MUT_COL : lv_color_hex(0xF2B84B), 0);
     // Beside radio, on row two, stacked or not. It used to take a third row of
     // its own on the grounds that three facts end to end reach x=443 and read
