@@ -194,6 +194,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     nvs_handle_t h;
     uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
     uint8_t dn = WT_DENOM_SATS;   // sats unless a previous run said otherwise
+    uint8_t hs = 1;               // history remembered unless the owner said not
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -206,7 +207,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
                   get_optional_u8(h, "script", &sc) &&
                   get_optional_u8(h, "accent", &ac) &&
                   get_optional_u8(h, "denom", &dn) &&
-                  get_optional_u8(h, "lang", &lg);
+                  get_optional_u8(h, "lang", &lg) &&
+                  get_optional_u8(h, "hist", &hs);
         nvs_close(h);
         if (!ok)
             return WSETTINGS_LOAD_NVS_READ_FAILED;
@@ -220,6 +222,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     wt_accent_set(ac);
     wt_denom_set(dn);
     i18n_set_lang(lg);
+    kiss_history_set_enabled(hs);   // raw setter: a load is not the switch
     return WSETTINGS_LOAD_OK;
 #endif
 }
@@ -494,6 +497,71 @@ static void storage_open_cb(lv_event_t *e)
     (void)e;
     storage_chooser_screen();
 }
+
+// ---- history: what the wallet remembers between sessions ----
+// Two rows for one switch, on the same chooser shape as the network and the
+// address type: the marks this covers are the receive high-water guard
+// (kiss_usage.h) and the paid-before memory (kiss_payee.h). Instant apply,
+// no hold: this is a teaching guard, not funds, the marks rebuild through
+// ordinary use, and the OFF row's own sub-line states the erase before the
+// tap. Picking the row the tick is on is a no-op, so a double tap cannot
+// erase anything.
+static void hist_chooser_screen(void);
+
+static void hist_pick_cb(lv_event_t *e)
+{
+    int on = (int)(intptr_t)lv_event_get_user_data(e);
+    if (on == kiss_history_enabled()) return;   // already selected and ticked
+    kiss_history_apply(on);                     // OFF also erases both stores
+    store_u8("hist", (uint8_t)on);
+    settings_reopen();
+}
+
+static void hist_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
+
+static void hist_open_cb(lv_event_t *e) { (void)e; hist_chooser_screen(); }
+
+static void hist_chooser_screen(void)
+{
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    // The subtitle names what the switch covers; the tick below says which
+    // way it is set, so a "current: X" line would say it twice.
+    s_scr = wt_screen(s_parent, tr(STR_I_SEC_HISTORY),
+                      tr(STR_I_ROW_HISTORY_SUB));
+
+    // The ON row's sub tells the truth the way the storage chooser's KEEP row
+    // does: may_persist() (kiss_usage.c) needs encrypted flash AND a non
+    // amnesic mode, so on the plaintext lane "remembered" only lasts the
+    // session and the sub says so, in amber. Lying here would be the exact
+    // fault the KEEP row's amber note exists to avoid.
+    bool cross_boot = kiss_seed_flash_encrypted() &&
+                      kiss_seed_mode() != WSEED_MODE_AMNESIC;
+    lv_obj_t *on_row = wt_row_x(s_scr, LV_SYMBOL_SAVE, tr(STR_G_HIST_ON_BTN),
+                                tr(cross_boot ? STR_G_HIST_ON_NOTE
+                                              : STR_G_HIST_ON_NOTE_PLAIN),
+                                NULL, NULL, NULL, WT_INK,
+                                kiss_history_enabled() != 0,
+                                WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W,
+                                WT_CHOICE_H, hist_pick_cb, (void *)(intptr_t)1);
+    if (!cross_boot)
+        wt_row_sub_color(on_row, WT_WARN);
+    wt_row_x(s_scr, WT_ICON_SECRET, tr(STR_G_HIST_OFF_BTN),
+             tr(STR_G_HIST_OFF_NOTE), NULL, NULL, NULL, WT_INK,
+             kiss_history_enabled() == 0,
+             WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
+             hist_pick_cb, (void *)(intptr_t)0);
+    lv_obj_set_ext_click_area(
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                hist_back_cb, NULL), 10);
+}
+
+#ifdef SIMULATOR
+// Rebuild the chooser in place, so the walk photographs the ON row's sub in
+// both encryption states -- the same two-render problem the storage chooser's
+// reopen hook exists for.
+void kiss_settings_sim_reopen_history(void) { hist_chooser_screen(); }
+#endif
 
 // ---- network ----
 // Three of them now, and the third one is a LABEL. Signet, testnet3 and
@@ -1265,13 +1333,14 @@ void kiss_settings_open(lv_obj_t *parent)
 #define SG_AUDIT_W 140
 #define SG_WAYS_W  (SG_FULL_W - 7 - SG_AUDIT_W)
 #define SG_AUDIT_X (SG_L_X + SG_WAYS_W + 7)
-// 308: the standard 7px gap under the LEFT column, whose third card ends at
-// 301. This number has moved with the right column's fortunes: it was 331
-// while the theme card closed that column at 324, and 308 before that, when
-// the same slot stood reserved and empty. The theme lives in the header
-// dropdown now, the right column ends at 253, and a row spanning both columns
-// answers to the deeper one -- which is the left again.
-#define SG_FULL_Y 308
+// 331: the standard 7px gap under the RIGHT column, which ends at 324 again.
+// This number moves with that column's fortunes: it was 331 while the theme
+// card closed the column at 324, dropped to 308 when the theme moved into the
+// header dropdown and the column ended at 253, and is 331 once more now that
+// the HISTORY row has the theme card's old slot (260..324). Bottom edge 395,
+// three clear of WT_CONTENT_BOTTOM -- the exact geometry the theme card
+// already shipped.
+#define SG_FULL_Y 331
     wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), SG_L_X, SG_TOP, SG_L_W);
 
     // Network: a value, a chevron, and the choice on a screen of its own.
@@ -1552,6 +1621,25 @@ void kiss_settings_open(lv_obj_t *parent)
             if (lv_obj_get_y(c) < 24 && lv_obj_get_x(c) < 20)
                 lv_obj_set_style_text_color(c, WT_STOP_INK, 0);
         }
+
+        // HISTORY closes the column, in the slot the theme card used to hold
+        // (260..324; SG_FULL_Y answers to it again -- see the define). What it
+        // switches is the two stores of marks the wallet keeps between
+        // sessions: used receive addresses (kiss_usage.h) and who was paid
+        // (kiss_payee.h). The accent rim is what detaches an ordinary setting
+        // from the stop-tinted erase card directly above it -- the same rim
+        // the TYPE and WAYS IN rows wear for the same reason: nothing is
+        // wrong either way.
+        // No sub-line: beside the REMEMBERED value the 365px row clipped it
+        // to "used addresses a...", and an ellipsised promise is worse than
+        // none. What the switch covers is the chooser's subtitle instead.
+        lv_obj_t *hr = wt_row(s_scr, tr(STR_I_ROW_HISTORY), NULL,
+                              tr(kiss_history_enabled() ? STR_G_HIST_ON_BTN
+                                                        : STR_G_HIST_OFF_BTN),
+                              WT_INK, SG_R_X, y + SG_HEAD + SG_PITCH, SG_R_W,
+                              hist_open_cb, NULL);
+        lv_obj_add_flag(hr, WT_FLAG_ACCENT_BORDER);
+        lv_obj_set_style_border_color(hr, wt_accent(), 0);
     }
 
     // LANGUAGE: the current language on the pill; opens the picker. The pill is

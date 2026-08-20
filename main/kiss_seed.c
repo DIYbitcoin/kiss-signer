@@ -290,7 +290,12 @@ static int storage_write_keep(const char *words)
 // Non-secret settings that must survive an erase. Named here because erasing
 // is a WHOLE-PARTITION operation: everything else in NVS goes with it, and
 // dumping someone back into English is a rotten way to end a wipe.
-static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang" };
+// "denom" was stored beside these from the day the unit preference landed and
+// was never preserved, so every erase silently reset sats/BTC; "hist" rides
+// with it because an owner who turned history off expects the next wallet to
+// inherit that answer.
+static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang",
+                                         "denom", "hist" };
 #define N_KEEP (sizeof KEEP_KEYS / sizeof KEEP_KEYS[0])
 #endif
 

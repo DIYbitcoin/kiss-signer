@@ -3,6 +3,7 @@
 // the seed). Host backend = a small RAM table (the desktop tests and the sim
 // run in one process, so persistence-across-boot is a device-only concern).
 #include "kiss_usage.h"
+#include "kiss_payee.h"   // kiss_history_apply speaks for both stores
 #include "kiss_seed.h"
 
 #include <stdbool.h>
@@ -150,7 +151,33 @@ static void persistent_wipe(void)
 // deliberately session scoped one.
 static bool may_persist(void)
 {
-    return kiss_seed_mode() != WSEED_MODE_AMNESIC && kiss_seed_flash_encrypted();
+    return kiss_history_enabled() &&
+           kiss_seed_mode() != WSEED_MODE_AMNESIC && kiss_seed_flash_encrypted();
+}
+
+// ---- the history preference ----
+// Lives here rather than in kiss_settings.c because this module is linked into
+// every lane (device, sim, tests) and is the one whose gate the flag feeds;
+// kiss_settings.c is UI-only and absent from the test binary.
+static uint8_t s_history = 1;
+
+int  kiss_history_enabled(void)        { return s_history; }
+void kiss_history_set_enabled(int on)  { s_history = on != 0; }
+
+void kiss_history_apply(int on)
+{
+    s_history = on != 0;
+    if (!s_history) {
+        // The wipes take the session tables too, deliberately: reads promote
+        // persisted rows into session RAM, so sparing the session copy would
+        // spare exactly the data the owner just asked to destroy. Marks made
+        // from here on still guard within this session.
+        kiss_usage_wipe();
+        kiss_payee_wipe();
+    } else {
+        kiss_usage_persist_session();
+        kiss_payee_persist_session();
+    }
 }
 
 int kiss_usage_high(const uint8_t fp[4], int testnet, int script)

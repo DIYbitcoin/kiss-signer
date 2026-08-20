@@ -55,4 +55,7 @@ int kiss_lang_pick_slot(int lang);
 // Sim only: rebuild the storage chooser so both flash-encryption states render.
 void kiss_settings_sim_reopen_storage(void);
 void kiss_settings_sim_reopen_network(void);
+// Same two-render problem on the history chooser: the ON row's sub follows
+// the encryption state.
+void kiss_settings_sim_reopen_history(void);
 #endif

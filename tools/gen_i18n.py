@@ -185,6 +185,12 @@ UNTRANSLATED_OK = {
     # English as a placeholder the sweep replaces.
     "I_NET_SIGNET", "R_ON_SIGNET",
     "I_NET_MAIN_NOTE", "I_NET_TEST_NOTE", "I_NET_SIGNET_NOTE",
+    # The history switch: the Settings row, its chooser and the two truths the
+    # ON row can tell. Born under the English-only rule, like the KEF block
+    # above: the other twenty carry the English until the sweep.
+    "I_ROW_HISTORY", "I_ROW_HISTORY_SUB", "I_SEC_HISTORY",
+    "G_HIST_ON_BTN", "G_HIST_OFF_BTN",
+    "G_HIST_ON_NOTE", "G_HIST_ON_NOTE_PLAIN", "G_HIST_OFF_NOTE",
 }
 
 
