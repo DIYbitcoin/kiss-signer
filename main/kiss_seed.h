@@ -106,6 +106,17 @@ void kiss_seed_forget(void);
 // BIP39 checksum + wordlist validation only (nothing stored). 0 = valid.
 int kiss_seed_validate(const char *mnemonic);
 
+// 1 when a mnemonic's entropy carries no secret at all: a degenerate byte
+// pattern, or a word sequence the blind draw's judge blocks (WC_F_DEGEN).
+// Import and creation entry points only — kiss_seed_from_qr calls it, and the
+// typed restore judges the same class for itself so the walk can render it.
+//
+// NEVER call this from kiss_seed_validate or kiss_seed_stage. The storage read
+// back paths revalidate through both, so a gate there would refuse a seed the
+// device already holds and lock the owner out of a wallet at unlock. Refusing
+// to TAKE a seed and refusing to OPEN one are not the same act.
+int kiss_seed_degenerate(const char *mnemonic);
+
 // Entropy -> mnemonic words. len must be 16 (12 words) or 32 (24 words).
 // 0 on success; out is NUL-terminated.
 int kiss_seed_from_entropy(const uint8_t *entropy, size_t len,

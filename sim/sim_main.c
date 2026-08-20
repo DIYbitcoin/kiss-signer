@@ -16,6 +16,7 @@
 #include "kiss_simpath.h"  // KISS_SIM_TMP: one run's scratch is its own
 #include "kiss_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
+#include "kiss_seed_sd.h"   // SDSEED_FILENAME: the move stub keeps it truthful
 #include "verify_page.h"    // ...and the real checker page beside it
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
 #include "kiss_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
@@ -401,6 +402,15 @@ int kiss_seed_move_to(int m) {
     s_sim_has_pending = 0;
   }
   s_sim_pending_mode = -1;
+  // The fake card carries the sealed file exactly while the mode says it
+  // should. This stub steers screens, and CARD INFO's sealed row reads the
+  // card rather than the mode -- without the file the "present" render could
+  // never exist. Written before the mode flips so the row is never ahead of
+  // the file it reports.
+  if (m == WSEED_MODE_SD && s_sim_mode != WSEED_MODE_SD)
+    platform_sd_write(SDSEED_FILENAME, (const uint8_t *)"sealed", 6);
+  else if (m != WSEED_MODE_SD && s_sim_mode == WSEED_MODE_SD)
+    platform_sd_delete(SDSEED_FILENAME);
   s_sim_mode = m;
   return forced ? forced : WSEED_OK;
 }
@@ -3076,6 +3086,20 @@ int main(void) {
   s_sim_flash_enc = 0;
   kiss_settings_sim_reopen_storage();
   pump(8);
+
+  // CARD INFO, from the chooser's bar: capacity, free space and the file
+  // counts, then the same door with the slot empty.
+  tap_str(STR_G_SD_INFO_PILL, 3, 8);                // CARD INFO -> the facts
+  save("/tmp/sim_sdinfo.ppm");
+  must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  platform_sd_test_set_present(0);                  // the slot, empty
+  tap_str(STR_G_SD_INFO_PILL, 3, 8);
+  save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
+  must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
+  platform_sd_test_set_present(1);
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser, card back
+
   touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
@@ -3091,6 +3115,11 @@ int main(void) {
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
+  // CARD INFO while the words live on the card: the sealed row, green tick.
+  tap_str(STR_G_SD_INFO_PILL, 3, 8);
+  save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
+  must_show("sdinfo/sealed", SDSEED_FILENAME);
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
   touch(174, 144); pump(3); release(); pump(6);     // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4746,19 +4775,37 @@ int main(void) {
   // it passed in English for the wrong reason -- W_CHOOSE_NEW carries the same
   // words in English and different ones in French, so only French reported it.
   must_show("restore/chooser", tr(STR_W_SETUP_T));
+  // A restore that carries nothing, FIRST -- it is the same door and it must
+  // shut before the one that opens. Twelve of one word is the shape the blind
+  // draw already blocks; on this path it stands in for "abandon" x11 + about,
+  // which the walk used to type here and which the gate now refuses. The judge
+  // and the index stub are both real enough for this: same prefix, same index,
+  // twelve times.
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
-  // 11x abandon + about, the vector the VERIFY MY COPY step already types.
-  for (int i = 0; i < 11; i++) {
-    touch(44, 314); pump(3); release(); pump(3);    // a
-    touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
-    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
+  for (int i = 0; i < 12; i++) restore_word("g");   // the same word, twelve times
+  pump(6);
+  save("/tmp/sim_restore_degen.ppm");               // CHECK YOUR WORDS, flat bars
+  must_show("restore/degen", tr(STR_W_CARDS_BLOCK_B));
+  must_not_show("restore/degen offers no way past", tr(STR_L_USE_ANYWAY));
+  tap_str(STR_C_CANCEL, 3, 6);     // CANCEL -> chooser
+  if (s_sim_pending_mode != -1) {
+    fprintf(stderr, "restore degen cancel left storage mode staged\n");
+    return 1;
   }
-  touch(44, 314); pump(3); release(); pump(3);      // a
-  touch(450, 374); pump(3); release(); pump(3);     // b
-  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
-  touch(163, 182); pump(3); release(); pump(30);    // accept "about"
+
+  // ...and now the one that opens. Twelve DISTINCT words: the first eleven are
+  // the clean draw the cards stop already uses, which judge far apart under the
+  // index stub, plus a twelfth the gate never reads -- it is the checksum word,
+  // and excluding it is the whole reason the abandon vector is catchable.
+  touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH
+  touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
+  static const char *RESTORE_OK12[12] = {
+      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m" };
+  for (int i = 0; i < 12; i++) restore_word(RESTORE_OK12[i]);
+  pump(30);
   save("/tmp/sim_restore_ppintro.ppm");
   must_show("restore/ppintro", tr(STR_L_PPINTRO_T));
   // The button must not tell someone with a passphrase to invent one. PASSPHRASE

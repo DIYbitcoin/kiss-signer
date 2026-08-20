@@ -54,12 +54,17 @@ enum { WC_Q_SHORT = 0,  // fewer than WC_MIN words: nothing to judge yet
 #define WC_F_SORTED   (1u << 3)
 #define WC_F_DUP      (1u << 4)
 
-// The rules that REFUSE, as one definition rather than a test at each call
-// site. Only the two that prove the set carries nothing: a false block costs a
-// redraw, where a false warn costs one tap. Adding WC_F_CLUSTER here is a
-// deliberate one line change and nothing else moves — its rate (9.5e-7) is
-// already inside the block rules' budget.
-#define WC_F_BLOCK    (WC_F_SAME | WC_F_PERIOD)
+// The two rules that prove the set carries NOTHING: every word the same, or one
+// short run typed over and over. A set this shape has no secret in it at any
+// stage of its life, so this is the class an IMPORT refuses too — a restore or
+// a seed QR is somebody else's draw and the statistical rules below have no
+// business judging it, but these two are not a judgement about draw quality.
+// kiss_seed_degenerate() is the import side; it reads this name.
+#define WC_F_DEGEN    (WC_F_SAME | WC_F_PERIOD)
+
+// The rules that REFUSE at CREATION, as one definition rather than a test at
+// each call site.
+#define WC_F_BLOCK    WC_F_DEGEN
 
 typedef struct {
     int      verdict;    // WC_Q_*

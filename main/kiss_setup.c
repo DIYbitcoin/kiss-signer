@@ -132,6 +132,8 @@ static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
 static void cards_intro_screen(void);
+// The import refusal: a typed restore whose words carry nothing.
+static void degen_screen(void);
 static void goto_method_cb(lv_event_t *e);
 static void cards_cksum_open(void);
 static void cards_cksum_screen(void);
@@ -290,6 +292,35 @@ static uint32_t ui_rand(void)
 // ---- store + hand over to the login ----
 static void store_and_finish(void)
 {
+    // A typed restore is somebody else's draw, and the statistical rules have
+    // no business judging it: a real wallet whose words happen to cluster or
+    // repeat must still come back. The two that say the set carries NOTHING are
+    // a different claim -- "abandon" x11 is on every BIP39 page there is, and a
+    // device that takes it is a device holding a wallet anyone on earth can
+    // spend from. Those two refuse here (kiss_cards_q.h, WC_F_DEGEN).
+    //
+    // Judged here rather than in kiss_seed_stage on purpose. Staging and
+    // validating are also what the storage read back paths run, and a gate down
+    // there would refuse a seed the device ALREADY HOLDS -- locking the owner
+    // out of their own wallet at unlock, which is the opposite of the harm this
+    // is for. Refusing to TAKE a seed and refusing to OPEN one are not the same
+    // act. kiss_seed_degenerate() carries the same rule for the QR and KEF
+    // doors; this path judges for itself so the indices are the owner's typed
+    // words rather than a round trip through entropy.
+    if (s_restore && !s_cards && !s_verify) {
+        unsigned n = 0;
+        for (int i = 0; i < s_nw && n < 24; i++) {
+            int k = kiss_lastword_index(s_w[i]);
+            if (k < 0) { n = 0; break; }   // unreachable: every word came off a pill
+            s_cidx[n++] = (uint16_t)k;
+        }
+        // Every index is filled so the bars draw the whole phrase, but the last
+        // word is not judged: it is the checksum, not one of the owner's
+        // choices, which is the same cut the blind draw makes before its own
+        // last word joins.
+        kiss_cards_judge(s_cidx, n ? n - 1 : 0, &s_cq);
+        if (s_cq.flags & WC_F_DEGEN) { degen_screen(); return; }
+    }
     char words[WSEED_MAX_MNEMONIC];
     join_words(words, sizeof words);
     // STAGE only: the seed reaches flash after the passphrase-twice + fingerprint
@@ -2696,11 +2727,16 @@ static void restore_screen(void)
 static void cards_cancel_cb(lv_event_t *e)
 {
     (void)e;
+    bool load = s_load;      // wipe_state clears it, and it decides where back is
     wipe_state();
     // Same discard the restore keyboard's CANCEL does: the staged storage
     // mode must not outlive the words it was staged for.
     kiss_seed_discard();
-    choose_screen();
+    // The blind draw only ever runs at first boot, so this used to be one
+    // destination. The refusal above it can be reached from an AMNESIC load,
+    // which has its own door and no choose screen behind it.
+    if (load) load_screen_fwd();
+    else      choose_screen();
 }
 
 static void cards_start_cb(lv_event_t *e)   { (void)e; restore_screen(); }
@@ -2917,6 +2953,35 @@ static void cards_warn_screen(void)
 static void cards_block_screen(void)
 {
     cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL, true);
+}
+
+// A typed restore whose words carry nothing. It borrows the blind draw's
+// evidence -- the same bars, the same subtitle naming which rule fired -- but
+// not its two block layout: that pair's second half is "how to fix it: mix the
+// whole list, draw blind, type what you get", which is advice for somebody
+// MAKING a seed. An import cannot act on it. So one claim, the one that is
+// true either way, and the pills carry the two ways out.
+//
+// Titled CHECK YOUR WORDS rather than NOT A BLIND DRAW: the likeliest reason
+// these words are on screen is that they are not the words the owner meant to
+// type, and the title should say that before it says anything else.
+static void degen_screen(void)
+{
+    mk_screen(tr(STR_W_CARDS_WARN_T), tr(cards_sub_key()));
+
+    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+    cards_bars_make(card, STOP_COL);
+
+    mk_body(tr(STR_W_CARDS_BLOCK_B), 48, 224, 704, WT_CONTENT_BOTTOM - 224,
+            STOP_COL);
+
+    lv_obj_t *p[2];
+    p[0] = wt_pillh(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y_TALL, 330, 66,
+                    cards_cancel_cb, NULL);
+    p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 422, WT_ACTION_Y_TALL, 330, 66,
+                    cards_retype_cb, NULL);
+    wt_pill_row(p, 2);
+    wt_pill_primary(p[1]);
 }
 
 // The checksum explainer: why the last word is picked from a list. Two

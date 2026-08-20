@@ -18,6 +18,28 @@
 
 static int sfails;
 
+// mnemonic -> numeric SeedQR digits, the opposite direction to the parser.
+// Returns the digit count, or 0 if a word is not on the list.
+static size_t seed_digits(const char *mnemonic, char *out, size_t out_len)
+{
+    size_t d = 0;
+    const char *p = mnemonic;
+    while (*p && d + 4 < out_len) {
+        char w[12]; size_t n = 0;
+        while (*p && *p != ' ' && n + 1 < sizeof w) w[n++] = *p++;
+        w[n] = 0;
+        if (*p == ' ') p++;
+        int idx = -1;
+        for (int i = 0; i < 2048; i++) {
+            const char *c = NULL;
+            if (kiss_seed_word(i, &c) == 0 && strcmp(c, w) == 0) { idx = i; break; }
+        }
+        if (idx < 0) return 0;
+        d += (size_t)snprintf(out + d, out_len - d, "%04d", idx);
+    }
+    return d;
+}
+
 static void schk(const char *name, int ok) {
     if (ok) printf("PASS: %s\n", name);
     else { printf("FAIL: %s\n", name); sfails++; }
@@ -137,54 +159,67 @@ int test_seed_layer(void) {
     {
         char got[WSEED_MAX_MNEMONIC];
 
+        // The famous vectors are all refused now, so every ACCEPT test needs a
+        // mnemonic with real entropy behind it. Built here rather than pasted
+        // so it cannot quietly become another published one.
+        char good12[WSEED_MAX_MNEMONIC], good24[WSEED_MAX_MNEMONIC];
+        for (size_t i = 0; i < sizeof ent; i++) ent[i] = (uint8_t)(i * 37 + 11);
+        kiss_seed_from_entropy(ent, 16, good12, sizeof good12);
+        kiss_seed_from_entropy(ent, 32, good24, sizeof good24);
+
         // 1. plain text mnemonic in a QR
         schk("qr: plain mnemonic rc",
-             kiss_seed_from_qr(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) == 0);
-        schk("qr: plain mnemonic roundtrips", strcmp(got, DEV_WORDS) == 0);
-        schk("qr: plain mnemonic with stray spaces",
-             kiss_seed_from_qr("  " DEV_WORDS "\n", strlen(DEV_WORDS) + 3,
-                                 got, sizeof got) == 0 && strcmp(got, DEV_WORDS) == 0);
+             kiss_seed_from_qr(good12, strlen(good12), got, sizeof got) == 0);
+        schk("qr: plain mnemonic roundtrips", strcmp(got, good12) == 0);
+        {
+            char padded[WSEED_MAX_MNEMONIC + 8];
+            snprintf(padded, sizeof padded, "  %s\n", good12);
+            schk("qr: plain mnemonic with stray spaces",
+                 kiss_seed_from_qr(padded, strlen(padded), got, sizeof got) == 0
+                 && strcmp(got, good12) == 0);
+        }
         schk("qr: plain mnemonic with a bad checksum refused",
              kiss_seed_from_qr("abandon abandon abandon abandon abandon abandon "
                                  "abandon abandon abandon abandon abandon abandon", 71,
                                  got, sizeof got) != 0);
+        // Valid BIP39 and still nothing: the canonical zero-entropy vector is
+        // printed on every BIP39 explainer there is, so a QR of it is a wallet
+        // the whole world can spend from. The checksum has no opinion about it.
+        schk("qr: the abandon vector refused as text",
+             kiss_seed_from_qr(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) != 0);
+        schk("qr: the abandon vector leaves nothing behind", got[0] == 0);
+        schk("qr: the 0x80 vector refused as text",
+             kiss_seed_from_qr(ALT_WORDS, strlen(ALT_WORDS), got, sizeof got) != 0);
 
         // 2. numeric SeedQR (SeedSigner): 4 digits per wordlist index.
         // abandon = 0000 (x11), about = 0003.
         static const char *SQR12 =
             "000000000000000000000000000000000000000000000003";
-        schk("qr: numeric SeedQR 48 digits rc",
-             kiss_seed_from_qr(SQR12, 48, got, sizeof got) == 0);
-        schk("qr: numeric SeedQR = dev words", strcmp(got, DEV_WORDS) == 0);
+        schk("qr: numeric SeedQR of the abandon vector refused",
+             kiss_seed_from_qr(SQR12, 48, got, sizeof got) != 0);
 
-        // 24-word numeric: build the digits from a known mnemonic by searching
-        // the wordlist (word -> index), the opposite direction to the parser.
-        memset(ent, 0xFF, sizeof ent);
-        kiss_seed_from_entropy(ent, 32, words, sizeof words);
+        // Digits built from a known mnemonic by searching the wordlist
+        // (word -> index), the opposite direction to the parser.
         {
-            char digits[97];
-            size_t d = 0;
-            const char *p = words;
-            while (*p && d + 4 < sizeof digits) {
-                char w[12]; size_t n = 0;
-                while (*p && *p != ' ' && n + 1 < sizeof w) w[n++] = *p++;
-                w[n] = 0;
-                if (*p == ' ') p++;
-                int idx = -1;
-                for (int i = 0; i < 2048; i++) {
-                    const char *c = NULL;
-                    if (kiss_seed_word(i, &c) == 0 && strcmp(c, w) == 0) { idx = i; break; }
-                }
-                d += (size_t)snprintf(digits + d, sizeof digits - d, "%04d", idx);
-            }
-            schk("qr: built 96 digits for 24 words", d == 96);
+            char d12[49], d24[97];
+            schk("qr: built 48 digits for 12 words",
+                 seed_digits(good12, d12, sizeof d12) == 48);
+            schk("qr: built 96 digits for 24 words",
+                 seed_digits(good24, d24, sizeof d24) == 96);
+            schk("qr: numeric SeedQR 48 digits rc",
+                 kiss_seed_from_qr(d12, 48, got, sizeof got) == 0);
+            schk("qr: numeric SeedQR 48 roundtrips", strcmp(got, good12) == 0);
             schk("qr: numeric SeedQR 96 digits rc",
-                 kiss_seed_from_qr(digits, 96, got, sizeof got) == 0);
-            schk("qr: numeric SeedQR 96 roundtrips", strcmp(got, words) == 0);
+                 kiss_seed_from_qr(d24, 96, got, sizeof got) == 0);
+            schk("qr: numeric SeedQR 96 roundtrips", strcmp(got, good24) == 0);
 
-            digits[3] = '9';        // index 0009 in slot 0: checksum must fail
+            // Slot 0 to a different index: the checksum must notice. Toggled
+            // rather than set, because a hard-coded '9' is a no-op whenever the
+            // real first index already ends in one -- which is exactly what it
+            // silently became when this vector stopped being 0xFF entropy.
+            d24[3] = (d24[3] == '9') ? '8' : '9';
             schk("qr: numeric SeedQR with a broken checksum refused",
-                 kiss_seed_from_qr(digits, 96, got, sizeof got) != 0);
+                 kiss_seed_from_qr(d24, 96, got, sizeof got) != 0);
         }
         schk("qr: 47 digits refused",
              kiss_seed_from_qr(SQR12, 47, got, sizeof got) != 0);
@@ -235,6 +270,39 @@ int test_seed_layer(void) {
         got[0] = 'x';
         kiss_seed_from_qr("hello world", 11, got, sizeof got);
         schk("qr: output cleared on failure", got[0] == 0);
+
+        // ---- the gate itself, straight ----
+        // Two arms: degenerate BYTES, and a word sequence the blind draw's
+        // judge blocks. The abandon vector is the one that needs both -- its
+        // entropy is all-zero, and its INDICES are ten zeros and a three, which
+        // is what the word arm sees once the checksum word is excluded.
+        schk("degen: the abandon vector", kiss_seed_degenerate(DEV_WORDS) == 1);
+        schk("degen: the 0x80 vector", kiss_seed_degenerate(ALT_WORDS) == 1);
+        schk("degen: real entropy passes", kiss_seed_degenerate(good12) == 0);
+        schk("degen: real 24 word entropy passes", kiss_seed_degenerate(good24) == 0);
+        memset(ent, 0xAA, sizeof ent);
+        kiss_seed_from_entropy(ent, 16, words, sizeof words);
+        schk("degen: one repeated byte", kiss_seed_degenerate(words) == 1);
+        schk("degen: empty is not this function's question",
+             kiss_seed_degenerate("") == 0 && kiss_seed_degenerate(NULL) == 0);
+        schk("degen: not a mnemonic is not this function's question",
+             kiss_seed_degenerate("hello world") == 0);
+
+        // The gate refuses to TAKE a seed. It must never refuse to OPEN one:
+        // the storage read back paths run kiss_seed_validate, and a device that
+        // already holds the abandon vector has to keep unlocking. The rest of
+        // this suite depends on exactly that -- it stores DEV_WORDS below and
+        // derives addresses from it -- so this states it rather than leaving it
+        // as a side effect nobody would notice breaking.
+        schk("degen: a degenerate seed still validates",
+             kiss_seed_validate(DEV_WORDS) == 0);
+        schk("degen: and still stores and loads", kiss_seed_store(DEV_WORDS) == 0);
+        {
+            char back[WSEED_MAX_MNEMONIC];
+            schk("degen: load returns it unchanged",
+                 kiss_seed_load(back, sizeof back) == 0 &&
+                 strcmp(back, DEV_WORDS) == 0);
+        }
     }
 
     // ---- storage mode: amnesic never touches persistent storage ----

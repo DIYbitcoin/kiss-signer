@@ -422,27 +422,43 @@ int main(void)
     // The one invariant across all of them: returning 0 means `out` holds a
     // mnemonic that validates. Junk may fail, it must never half-succeed.
     {
+        // The canonical zero-entropy vector, which this parser used to hand
+        // back as a wallet and now refuses (kiss_seed_degenerate). It stays
+        // here as the SHAPE for the malformed cases below -- eleven words, a
+        // junk word, a short buffer -- because those must be refused for their
+        // own reasons and not because of what these particular words are.
         static const char *MN =
             "abandon abandon abandon abandon abandon abandon "
             "abandon abandon abandon abandon abandon about";
         char so[512];
 
+        // A mnemonic with real entropy behind it, built rather than pasted so
+        // it cannot quietly become another published vector.
+        uint8_t good[16];
+        char GOOD[512];
+        for (size_t i = 0; i < sizeof good; i++) good[i] = (uint8_t)(i * 37 + 11);
+        chkb("qr: built a non degenerate vector",
+             kiss_seed_from_entropy(good, sizeof good, GOOD, sizeof GOOD) == 0);
+
         chkb("qr: real mnemonic accepted",
-             kiss_seed_from_qr(MN, strlen(MN), so, sizeof so) == 0 &&
-             strcmp(so, MN) == 0);
+             kiss_seed_from_qr(GOOD, strlen(GOOD), so, sizeof so) == 0 &&
+             strcmp(so, GOOD) == 0);
 
         char pad[600];
-        int pn = snprintf(pad, sizeof pad, "  %s\r\n", MN);
+        int pn = snprintf(pad, sizeof pad, "  %s\r\n", GOOD);
         chkb("qr: padded mnemonic accepted and trimmed",
              kiss_seed_from_qr(pad, (size_t)pn, so, sizeof so) == 0 &&
-             strcmp(so, MN) == 0);
+             strcmp(so, GOOD) == 0);
 
-        // numeric SeedQR of the same words: 4 digits per index, about = 0003
+        chkb("qr: the abandon vector refused as text",
+             kiss_seed_from_qr(MN, strlen(MN), so, sizeof so) != 0);
+
+        // numeric SeedQR of that same vector: 4 digits per index, about = 0003.
+        // Valid BIP39, no secret in it, and printed on every explainer there is.
         static const char NUM[] =
             "000000000000000000000000000000000000000000000003";
-        chkb("qr: numeric SeedQR decodes to the same wallet",
-             kiss_seed_from_qr(NUM, 48, so, sizeof so) == 0 &&
-             strcmp(so, MN) == 0);
+        chkb("qr: numeric SeedQR of the abandon vector refused",
+             kiss_seed_from_qr(NUM, 48, so, sizeof so) != 0);
 
         chkb("qr: junk word refused",
              kiss_seed_from_qr("abandon abandon abandon abandon abandon abandon "
@@ -451,7 +467,7 @@ int main(void)
         chkb("qr: eleven words refused",
              kiss_seed_from_qr(MN, strlen(MN) - 6, so, sizeof so) != 0);
         chkb("qr: tiny out buffer refused",
-             kiss_seed_from_qr(MN, strlen(MN), so, 10) != 0);
+             kiss_seed_from_qr(GOOD, strlen(GOOD), so, 10) != 0);
 
         // degenerate CompactSeedQR entropy: the shapes a blank or hand-drawn
         // QR produces, all must be refused

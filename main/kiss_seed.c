@@ -8,6 +8,7 @@
 #include "kiss_payee.h"
 #include "kiss_backup.h"   // the paper check dies with the wallet it was about
 #include "kiss_duress.h"   // and so does the stroke that opened it
+#include "kiss_cards_q.h" // the blind draw's judge, reused on imports
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -1411,6 +1412,59 @@ static int from_numeric_seedqr(const char *p, size_t n, char *out, size_t out_le
     return 0;
 }
 
+// ---- degenerate entropy ----
+// The byte shapes that cannot be an accident of a real generator: every byte
+// the same value (00.., ff.., aa..), or fewer than a tenth of the bits set
+// either way. Deliberately narrow. Real 128/256 bits has no chance of tripping
+// it, so a false refusal here would be a bug and not a tuning question.
+static int entropy_degenerate(const uint8_t *e, size_t len)
+{
+    unsigned same = 0, bits = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (e[i] == e[0]) same++;
+        for (uint8_t b = e[i]; b; b &= (uint8_t)(b - 1)) bits++;
+    }
+    return (same == len || bits < len || bits > len * 8 - len) ? 1 : 0;
+}
+
+int kiss_seed_degenerate(const char *mnemonic)
+{
+    if (!mnemonic || !mnemonic[0])
+        return 0;                 // not this function's question; validate answers it
+    uint8_t ent[32];
+    size_t n = 0;
+    if (bip39_mnemonic_to_bytes(NULL, mnemonic, ent, sizeof ent, &n) != WALLY_OK)
+        return 0;                 // not a mnemonic: validate refuses it first
+    int bad = 0;
+    if (n == 16 || n == 32) {
+        bad = entropy_degenerate(ent, n);
+        if (!bad) {
+            // BIP39's encoding run backwards. The first (words - 1) indices are
+            // 11 bit slices of the entropy alone and never reach the checksum
+            // bits, so this is exactly the set of words the owner chose --
+            // which is what the blind draw judges too, before its checksum word
+            // joins and makes every set look finished (kiss_cards_q.h). Judging
+            // all of them instead would let the canonical "abandon" x11 + about
+            // read as a set with one different word in it, which is the one
+            // vector this has to keep refusing.
+            unsigned words = (unsigned)(n * 3 / 4);      // 16 -> 12, 32 -> 24
+            uint16_t idx[WC_MAX];
+            for (unsigned i = 0; i + 1 < words; i++) {
+                unsigned bit = i * 11, v = 0;
+                for (unsigned k = 0; k < 11; k++, bit++)
+                    v = (v << 1) | ((ent[bit >> 3] >> (7 - (bit & 7))) & 1u);
+                idx[i] = (uint16_t)v;
+            }
+            kiss_cards_q_t q;
+            kiss_cards_judge(idx, words - 1, &q);
+            bad = (q.flags & WC_F_DEGEN) ? 1 : 0;
+            wally_bzero(idx, sizeof idx);
+        }
+    }
+    wally_bzero(ent, sizeof ent);
+    return bad;
+}
+
 int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
 {
     if (out && out_len) out[0] = 0;      // never leave a stale value behind
@@ -1424,34 +1478,14 @@ int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
             goto fail;
         if (kiss_seed_validate(out) != 0)
             goto fail;
-        return 0;
+        goto degen;
     }
 
-    // CompactSeedQR: raw entropy, no encoding at all. Every other seed route in
-    // this device passes its entropy through a health check first (camera floor
-    // and novelty, dice histogram and period); this one is 16 or 32 bytes off a
-    // QR and straight into a wallet, so a printed square of 32 zero bytes used
-    // to become a real, funded-if-you-fund-it wallet with nothing said. It is
-    // the owner's own QR, so this is a footgun rather than an attack -- but the
-    // check is two lines and the failure is total.
-    //
-    // Deliberately narrow: only the degenerate cases that cannot be an accident
-    // of a real generator. A byte pattern this weak is a mistake or a joke, and
-    // a real 128/256 bits of entropy has no chance of tripping it.
+    // CompactSeedQR: raw entropy, no encoding at all.
     if (len == 16 || len == 32) {
-        const uint8_t *e = (const uint8_t *)data;
-        unsigned same = 0, bits = 0;
-        for (size_t i = 0; i < len; i++) {
-            if (e[i] == e[0]) same++;
-            for (uint8_t b = e[i]; b; b &= (uint8_t)(b - 1)) bits++;
-        }
-        // all one byte value (00.., ff.., aa..), or fewer than a tenth of the
-        // bits set either way -- the shapes a hand-drawn or blank QR produces.
-        if (same == len || bits < len || bits > len * 8 - len)
+        if (kiss_seed_from_entropy((const uint8_t *)data, len, out, out_len) != 0)
             goto fail;
-        if (kiss_seed_from_entropy(e, len, out, out_len) != 0)
-            goto fail;
-        return 0;                        // built from entropy: the checksum is ours
+        goto degen;                      // built from entropy: the checksum is ours
     }
 
     // Plain text mnemonic. Trimmed, so a trailing newline from a text QR does
@@ -1466,9 +1500,26 @@ int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
             goto fail;
         memcpy(out, b, n);
         out[n] = 0;
-        if (kiss_seed_validate(out) == 0)
-            return 0;
+        if (kiss_seed_validate(out) != 0)
+            goto fail;
     }
+
+degen:
+    // One gate, all three shapes. Every other seed route in this device passes
+    // its entropy through a health check first (camera floor and novelty, dice
+    // histogram and period, the blind draw's judge); a QR was 16 bytes off a
+    // printed square and straight into a wallet, so a square of 32 zero bytes
+    // -- or the "abandon" vector as 48 digits, which every BIP39 page prints --
+    // used to become a real, funded-if-you-fund-it wallet with nothing said.
+    // The check was on the CompactSeedQR shape alone, which was the one shape
+    // an owner is least likely to type by hand.
+    //
+    // It is the owner's own QR, so this is a footgun rather than an attack, and
+    // it refuses rather than warns for the same reason the dice do: there is
+    // nothing on the other side of the warning worth keeping.
+    if (kiss_seed_degenerate(out))
+        goto fail;
+    return 0;
 fail:
     wally_bzero(out, out_len);
     return -1;
