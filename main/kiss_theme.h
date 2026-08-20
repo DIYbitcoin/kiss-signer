@@ -704,7 +704,21 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 // The 250px cap is not cosmetic. sim/overlapcheck.c compares BOXES, and an
 // uncapped label box spans the whole row and therefore contains the value's
 // box, which reports a collision against every value on the page.
-enum { WT_WIDE_CHIP = 0,   // a bordered value chip with a down chevron
+// The mark on the right is a PROMISE about what the tap does, and the page
+// keeps exactly two:
+//
+//   LV_SYMBOL_LOOP   the tap resolves HERE, now. The value advances to the
+//                    next one in its set and the sub line under the label
+//                    changes to match. Nothing opens, nothing is confirmed.
+//   LV_SYMBOL_RIGHT  the tap LEAVES. A screen opens.
+//
+// Every one of these was a dropdown first. A dropdown is a third thing -- it
+// neither resolves nor leaves, it hovers -- and on a set of two or three it is
+// three taps and an overlay to do what one tap does. It also has to fit its
+// options into a floating box, which is how the storage list shipped reading
+// "SD C...". The sets here are two, three and four long. They cycle.
+enum { WT_WIDE_CYCLE = 0,  // a value chip that ADVANCES where it stands
+       WT_WIDE_CHIP,       // a value chip that opens a screen
        WT_WIDE_OPEN,       // an optional value and a right chevron: opens a screen
        WT_WIDE_INERT };    // present, stated, and dead. See the AMNESIC case.
 #define WT_WIDE_X      25
@@ -751,28 +765,6 @@ void wt_row_wide_sub_add(lv_obj_t *row, const char *txt, lv_color_t col);
 // swallowing every tap on the page.
 lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim, int x, int y,
                          int w, int h, int radius, lv_event_cb_t close_cb);
-
-// The dropdown a value chip opens. Two columns: the name, and a note that says
-// what picking it means. Width 280, right edge aligned to the row's, opening
-// DOWNWARD from the row unless that would cross WT_CONTENT_BOTTOM, in which
-// case it opens upward from the row's top.
-#define WT_POP_W    280
-// 46, not 48, and the two pixels are load bearing. A three item list opened
-// off the SECOND row lands its bottom edge on 396 at 46 and on 402 at 48 --
-// which is the difference between opening downward, where the finger already
-// is, and flipping up over the tab strip.
-#define WT_POP_ITEM  46
-typedef struct {
-    const char *name;
-    const char *note;   // NULL to omit
-    lv_color_t  col;    // zero: the accent when selected, WT_MUT when not
-    bool        sel;
-} wt_pop_item_t;
-// `pick_cb` is called with the item's index as its user data. Returns the
-// scrim, which is what the caller holds and deletes.
-lv_obj_t *wt_popover(lv_obj_t *scr, int right, int row_y,
-                     const wt_pop_item_t *it, int n,
-                     lv_event_cb_t pick_cb, lv_event_cb_t close_cb);
 
 // ---- the attention chip ------------------------------------------------
 // Bottom left of the action bar, opposite the exit. It exists so a caution

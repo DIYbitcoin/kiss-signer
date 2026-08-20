@@ -66,8 +66,9 @@ static const slot_t SLOTS[] = {
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
     { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
-    // Three-mode storage appears in both setup and Settings with the same
-    // side-by-side geometry, so all four notes are measured at the same box.
+    // The setup wizard's three storage cards. Settings used to share this
+    // geometry and no longer does: its own chooser states each mode on a row
+    // sub-line instead, measured further down as set/store-*.
     // The SD note used to carry a line about the mode being unavailable in
     // normal builds. It is not: kiss_seed_sd_supported() returns true on
     // every build, and the unreachable disabled path was deleted, so the note
@@ -132,6 +133,22 @@ static const slot_t SLOTS[] = {
     // thrown away in code.
     { "set/net-main",     STR_G_MAINNET_NOTE, 270, 19, 1 },
     { "set/net-test",     STR_G_TESTNET_NOTE, 270, 19, 1 },
+    // The same sub-lines, on the same 270px lane, for every row that states
+    // what its value MEANS. They appear twice each: under the label on the
+    // settings row, and again on the storage chooser, where the lane is wider
+    // (no value chip, only a chevron) -- so 270 is the binding box of the two.
+    //
+    // These went unmeasured for a commit, which is how the storage list
+    // shipped reading "SD C...": the dropdown it lived in was 280px wide and
+    // "on the card you carry" took the lane, leaving the NAME to ellipsise.
+    // Nothing on that path had a box in this table.
+    { "set/store-flash",  STR_I_STORE_FLASH_SUB,     270, 19, 1 },
+    { "set/store-fl-enc", STR_I_STORE_FLASH_ENC_SUB, 270, 19, 1 },
+    { "set/store-sd",     STR_I_STORE_SD_SUB,        270, 19, 1 },
+    { "set/store-amn",    STR_I_STORE_AMN_SUB,       270, 19, 1 },
+    // Persist, whose sub follows the STATE: what is kept, or that nothing is.
+    { "set/hist-on",      STR_I_HIST_SHORT,          270, 19, 1 },
+    { "set/hist-off",     STR_I_POP_NOTHING,         270, 19, 1 },
     // The NO UNDO tab's body, the one paragraph left on this page. 600 wide by
     // the design, and 90 tall is what the card leaves between its heading and
     // its button -- read off kiss_settings.c's tab_noundo, not guessed.

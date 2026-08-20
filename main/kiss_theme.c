@@ -2013,9 +2013,14 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     if (r->val && *r->val)
         lv_text_get_size(&vs, r->val, vf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
 
-    if (r->kind == WT_WIDE_CHIP) {
+    if (r->kind == WT_WIDE_CYCLE || r->kind == WT_WIDE_CHIP) {
+        // The mark is the promise: LOOP advances the value where it stands,
+        // RIGHT opens a screen. Measured before the chip is sized, because the
+        // two glyphs are not the same width.
+        const char *mark = r->kind == WT_WIDE_CYCLE
+                         ? LV_SYMBOL_LOOP : LV_SYMBOL_RIGHT;
         lv_point_t cs;
-        lv_text_get_size(&cs, LV_SYMBOL_DOWN, cf, 0, 0, LV_COORD_MAX,
+        lv_text_get_size(&cs, mark, cf, 0, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         int sw = r->swatch ? WT_WIDE_SWATCH + 10 : 0;
         // The chip grows LEFTWARDS out of its minimum, taking the room from
@@ -2057,7 +2062,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
             lv_obj_t *v = wt_lbl(chip, r->val, 0, 0, vf, vcol);
             lv_obj_align(v, LV_ALIGN_LEFT_MID, vx, 0);
         }
-        lv_obj_t *ch = wt_lbl(chip, LV_SYMBOL_DOWN, 0, 0, cf, wt_accent());
+        lv_obj_t *ch = wt_lbl(chip, mark, 0, 0, cf, wt_accent());
         lv_obj_set_style_text_opa(ch, 150, 0);
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
@@ -2201,96 +2206,6 @@ lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim_out, int x, int y,
     return box;
 }
 
-lv_obj_t *wt_popover(lv_obj_t *scr, int right, int row_y,
-                     const wt_pop_item_t *it, int n,
-                     lv_event_cb_t pick_cb, lv_event_cb_t close_cb)
-{
-    const lv_font_t *nf = wt_font23(), *tf = wt_font14();
-    int h = n * WT_POP_ITEM;
-    int y = row_y + WT_WIDE_H + 6;
-    // Downward from the row, unless that would run under the action bar. A
-    // list whose last option is behind the bar is a list with an option nobody
-    // can read, so it hangs off the row's TOP edge instead. Four items on row
-    // two or lower have no other way to fit.
-    if (y + h > WT_CONTENT_BOTTOM) {
-        y = row_y - 6 - h;                       // ...then upward off its top
-        // ...and if it fits neither way, as low as it can go without crossing
-        // the action line. A four item list opened off row two has no other
-        // answer: upward from there is y = 2, which puts the box over the
-        // title. Covering rows is what a modal dropdown does; covering the
-        // page's own name is a rendering fault.
-        if (y < 8) y = WT_CONTENT_BOTTOM - h - 6;
-        if (y < 8) y = 8;
-    }
-
-    lv_obj_t *scrim = NULL;
-    lv_obj_t *box = wt_overlay_box(scr, &scrim, right - WT_POP_W, y,
-                                   WT_POP_W, h, 10, close_cb);
-    const int iw = WT_POP_W - 2;             // inside the box's own 1px border
-
-    for (int i = 0; i < n; i++) {
-        lv_obj_t *r = lv_obj_create(box);
-        lv_obj_remove_style_all(r);
-        lv_obj_set_pos(r, 0, i * WT_POP_ITEM);
-        lv_obj_set_size(r, iw, WT_POP_ITEM);
-        lv_obj_set_style_radius(r, 10, 0);
-        lv_obj_set_style_bg_color(r, wt_accent_pressed(), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
-        if (pick_cb)
-            lv_obj_add_event_cb(r, pick_cb, LV_EVENT_CLICKED,
-                                (void *)(intptr_t)i);
-
-        if (i < n - 1) {
-            lv_obj_t *d = lv_obj_create(box);
-            lv_obj_remove_style_all(d);
-            lv_obj_set_pos(d, 0, (i + 1) * WT_POP_ITEM - 1);
-            lv_obj_set_size(d, iw, 1);
-            lv_obj_set_style_bg_color(d, WT_DIV, 0);
-            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
-            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        }
-
-        // The accent only when the caller left the colour out. A network's
-        // amber says "these coins are not real" and outranks the theme, and
-        // painting a themed accent over it is exactly the collision the ROLE
-        // check exists to catch.
-        bool themed = !(it[i].col.red || it[i].col.green || it[i].col.blue)
-                      && it[i].sel;
-        lv_color_t c = col_or(it[i].col, it[i].sel ? wt_accent() : WT_MUT);
-
-        int nx = 14;
-        if (it[i].sel) {
-            lv_obj_t *ok = wt_lbl(r, LV_SYMBOL_OK, 0, 0, tf, c);
-            if (themed) lv_obj_add_flag(ok, WT_FLAG_ACCENT);
-            lv_obj_update_layout(ok);
-            lv_obj_align(ok, LV_ALIGN_LEFT_MID, 14, 0);
-            nx = 14 + lv_obj_get_width(ok) + 10;
-        }
-
-        lv_point_t ts = { 0, 0 };
-        if (it[i].note && *it[i].note) {
-            lv_text_get_size(&ts, it[i].note, tf, 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
-            lv_obj_t *t = wt_lbl(r, it[i].note, 0, 0, tf, WT_DIM);
-            lv_obj_align(t, LV_ALIGN_RIGHT_MID, -14, 0);
-        }
-
-        lv_obj_t *nm = wt_lbl(r, it[i].name, 0, 0, nf, c);
-        if (themed) lv_obj_add_flag(nm, WT_FLAG_ACCENT);
-        // Capped to the lane the note leaves it, on EVERY item rather than on
-        // the ones that happen to be long: a collision that is impossible by
-        // geometry beats one that is avoided by the names staying short.
-        int nw = iw - nx - 14 - (ts.x ? ts.x + 12 : 0);
-        if (nw < 40) nw = 40;
-        lv_obj_set_width(nm, nw);
-        lv_obj_set_height(nm, lv_font_get_line_height(nf));
-        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
-        lv_obj_align(nm, LV_ALIGN_LEFT_MID, nx, 0);
-    }
-    return scrim;
-}
 
 lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
                         lv_event_cb_t cb, void *ud)

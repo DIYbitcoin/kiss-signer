@@ -1163,16 +1163,16 @@ static void release(void) { g_pressed = false; }
 // The strip is 144px tabs on a 152 pitch from x=25, 46 tall at y=68, so tab i
 // centres on (97 + 152i, 91). Rows are 60 tall on a 66 pitch from y=126, so
 // row i centres on y = 156 + 66i; x=200 is the label lane and x=670 the value
-// chip. A dropdown is 280 wide with its right edge on 777, items 46 tall,
-// hanging 6px under the row it belongs to.
+// chip. Nothing floats over the page any more: a chip that wears the LOOP
+// mark advances its value on every tap, so a pick is N taps on the SAME
+// coordinate, and the one pick that opens a screen puts its options on the
+// very same row grid.
 enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 #define SET_TAB_X(i)      (97 + 152 * (i))
 #define SET_TAB_Y          91
 #define SET_ROW_Y(i)      (156 + 66 * (i))
 #define SET_LABEL_X       200
 #define SET_CHIP_X        670
-#define SET_POP_X         637
-#define SET_POP_Y(r, j)   (126 + 66 * (r) + 60 + 6 + 46 * (j) + 23)
 // THIS DEVICE is not on the row grid: the facts card owns 104..200 and the
 // card slot's own row sits at 232, 60 tall.
 #define SET_DEV_CARD_Y     262
@@ -1180,9 +1180,12 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 static void set_tab(int i)  { touch(SET_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(8); }
 static void set_row(int i)  { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
-static void set_pick(int row, int j)
+// A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
+// this is n whole renders and not a gesture -- which is exactly what a finger
+// does to it.
+static void set_cycle(int row, int n)
 {
-  touch(SET_POP_X, SET_POP_Y(row, j)); pump(3); release(); pump(8);
+  for (int i = 0; i < n; i++) set_chip(row);
 }
 
 
@@ -3119,16 +3122,16 @@ int main(void) {
     printf("ok: settings cards follow the accent, status rows keep their own\n");
   }
 
-  // STORAGE is a chip on the BACKUP tab now, and its dropdown is the ONE that
-  // does not apply on the pick: moving where the recovery words live keeps the
-  // confirmation and the 1500ms hold it has always had. What the dropdown
-  // replaced is the chooser SCREEN, never the decision behind it.
+  // STORAGE is the one pick on the page that still LEAVES it. Every other row
+  // resolves under the finger; this one moves where the recovery words live,
+  // so it keeps a screen naming all three destinations and, behind that, the
+  // confirmation and the 1500ms hold it has always had.
   set_tab(SET_BACKUP);
-  set_chip(1);                                       // storage chip -> dropdown
-  save("/tmp/sim_storage_pop.ppm");                  // three modes, FLASH ticked
+  set_chip(1);                                       // storage row -> the chooser
+  save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
-  set_pick(1, 0);                                    // FLASH: already ticked, a no-op
+  tap_str(STR_C_BACK, 3, 8);                         // the live mode is inert
   s_sim_flash_enc = 1;
   kiss_settings_sim_reopen();
   pump(8);
@@ -3157,8 +3160,8 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
-  set_chip(1);
-  set_pick(1, 1);                                    // SD CARD -> confirmation
+  set_chip(1);                                       // -> the chooser
+  set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
   save("/tmp/sim_storage_hold_noop.ppm");
@@ -3181,7 +3184,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
   set_chip(1);
-  set_pick(1, 0);                                    // FLASH
+  set_row(0);                                        // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
 
@@ -3195,7 +3198,7 @@ int main(void) {
   // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
   set_chip(1);
-  set_pick(1, 1);                                    // SD CARD -> confirmation
+  set_row(1);                                        // SD CARD -> confirmation
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   save("/tmp/sim_storage_fail.ppm");
   // The title, not the body: wt_why_body splits a two paragraph string across
@@ -3209,26 +3212,32 @@ int main(void) {
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
   set_chip(1);
-  set_pick(1, 1);
+  set_row(1);                                        // SD CARD
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
   set_chip(1);
-  set_pick(1, 0);                                    // FLASH
+  set_row(0);                                        // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);
   must_show("storage restored", tr(STR_W_KEEP_BTN));
 
-  // CANCEL on the confirmation, which is the path the deleted chooser screen
-  // used to own. It comes back to SETTINGS now, on the tab the pick was made
-  // from, and nothing has moved.
+  // CANCEL on the confirmation. It lands back on the CHOOSER, not on
+  // SETTINGS: the owner was picking a destination, changing their mind about
+  // one of the three is not changing their mind about the question.
   set_chip(1);
-  set_pick(1, 2);                                    // AMNESIC -> confirmation
+  set_row(2);                                        // AMNESIC -> confirmation
   save("/tmp/sim_storage_confirm_amnesic.ppm");
   tap_str(STR_C_CANCEL, 3, 8);
-  must_show("storage cancel", tr(STR_W_KEEP_BTN));
+  save("/tmp/sim_storage_choose_back.ppm");          // the chooser again
+  // Not the title: "STORAGE" is the English value of more than one key, so it
+  // passes on whichever screen happens to show either. The AMNESIC sub line
+  // exists on this screen and nowhere else.
+  must_show("storage cancel", tr(STR_I_STORE_AMN_SUB));
+  tap_str(STR_C_BACK, 3, 8);
+  must_show("storage unmoved", tr(STR_W_KEEP_BTN));
 
   // NO UNDO is a whole tab now: one card, its reason in full, and one button.
   // The paper has not been verified yet at this point in the walk, so the
@@ -3239,18 +3248,18 @@ int main(void) {
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
   tap_str(STR_C_BACK, 3, 8);     // BACK -> Settings, NO UNDO tab
 
-  // PERSIST: the marks this signer keeps between sessions. A two item
-  // dropdown on the SECURITY tab, instant apply like the network pick, and the
-  // OFF item's own note states the erase before the tap lands.
+  // PERSIST: the marks this signer keeps between sessions. Two states, so the
+  // chip IS the switch -- one tap flips it and applies it. The sub line under
+  // the label follows the state, which is where the erase is stated: it is on
+  // screen before the tap rather than inside a list the tap has to open.
   set_tab(SET_SECURITY);
-  set_chip(1);                                       // persist chip -> dropdown
-  save("/tmp/sim_persist_pop.ppm");                  // ENABLED ticked
-  set_pick(1, 1);                                    // DISABLED -> applied
-  save("/tmp/sim_settings_hist_off.ppm");            // the chip flipped
+  save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
+  set_chip(1);                                       // flip -> DISABLED, applied
+  save("/tmp/sim_settings_hist_off.ppm");            // the chip and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
-  set_chip(1);
-  save("/tmp/sim_persist_pop_off.ppm");              // the tick moved rows
-  set_pick(1, 0);                                    // ENABLED -> default restored
+  must_show("persist off sub", tr(STR_I_POP_NOTHING));
+  set_chip(1);                                       // flip back -> ENABLED
+  must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
   // nothing by contract, so the row is drawn INERT with the reason stated
@@ -3416,16 +3425,18 @@ int main(void) {
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
 
-  // ADDRESS TYPE resolves in place now. The chooser SCREEN is gone: three
-  // options with a tick on the live one is what a dropdown is, and taking the
-  // whole page away to show three rows was the ceremony 1b removes.
+  // ADDRESS TYPE advances under the finger. Oldest to newest, so from the
+  // NATIVE default one tap lands on LEGACY and two more come back -- and the
+  // "?" below is where all three are named at once, which is the job the list
+  // was really doing.
   set_tab(SET_SIGNER);
-  set_chip(1);                                      // Address type chip -> dropdown
-  save("/tmp/sim_addr_type.ppm");                   // 3 names, prefixes as notes
-  set_pick(1, 0);                                   // LEGACY (oldest first)
+  set_cycle(1, 1);                                  // NATIVE -> LEGACY
   save("/tmp/sim_settings_legacy.ppm");             // the row reads Legacy / 1...
-  set_chip(1);
-  set_pick(1, 2);                                   // back to NATIVE
+  must_show("type legacy", "BIP44");
+  set_cycle(1, 1);                                  // -> NESTED
+  save("/tmp/sim_settings_nested.ppm");             // 3..., the middle rung
+  must_show("type nested", "BIP49");
+  set_cycle(1, 1);                                  // -> back to NATIVE
 
   // The "?" beside the address type label, and the card behind it: what the
   // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
@@ -3441,48 +3452,46 @@ int main(void) {
   must_show("bip card", tr(STR_I_BIP_T));
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
 
-  // THEME is a DEVICE row now rather than a wordless 44px chip in the header,
-  // so it states its value in words instead of standing for it with a swatch.
-  // Four items do not fit under row two either way up, so the popover is
-  // clamped to sit as low as it can without crossing the action line: the box
-  // is 208..392, items 46 tall, centres at 231 + 46i in enum order MONO,
-  // GREEN, CYPHERPINK, ORANGE. The pick closes via delete_async, so the pump
-  // after it is what lets the scrim leave before the next frame is judged.
+  // THEME is the row that argues hardest for resolving in place: what a theme
+  // pick CHANGES is the page, so a list floating over the page was covering
+  // the only preview there is. Enum order MONO, GREEN, CYPHERPINK, ORANGE, so
+  // two taps reach pink and two more come home.
   set_tab(SET_DEVICE);
-  set_chip(1);                                      // theme chip -> dropdown
-  save("/tmp/sim_settings_theme.ppm");              // the four rows, over the scrim
-  touch(60, 440); pump(3); release(); pump(6);      // scrim -> dismissed, nothing picked
-  set_chip(1);                                      // theme chip again
-  touch(SET_POP_X, 231 + 46 * 2); pump(3); release(); pump(8);   // CYPHERPINK
+  set_cycle(1, 1);                                  // -> GREEN, page and all
+  save("/tmp/sim_settings_green.ppm");              // every mark on the page moved
+  set_cycle(1, 1);                                  // -> CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
-  set_chip(1);
-  touch(SET_POP_X, 231); pump(3); release(); pump(8);            // back to MONO
+  set_cycle(1, 2);                                  // ORANGE, then back to MONO
 
-  // NETWORK, the first chip on the SIGNER tab. Its dropdown's NOTE is the
-  // whole reason the list shows one: TESTNET and SIGNET both read tb1..., one
-  // row apart, and that is the trap this device cannot catch for you.
+  // NETWORK, the first row on the SIGNER tab, MAINNET -> TESTNET -> SIGNET.
+  // MAINNET first in the cycle is deliberate: the very NEXT tap off it turns
+  // the row amber, and coming back is two taps with the amber up for both.
+  //
+  // TESTNET and SIGNET both read tb1..., which is the trap this device cannot
+  // catch for you -- so the chip's own name is the only thing that separates
+  // them, and the walk photographs each one.
   set_tab(SET_SIGNER);
-  set_chip(0);                                      // Network chip -> dropdown
-  save("/tmp/sim_net_choose.ppm");                  // three names, tb1... on two
-  // SIGNET first, because it is the option that had never existed: the list,
-  // the chip beside it and the home badge are the only three places on the
-  // device that can tell it from TESTNET at all.
-  set_pick(0, 2);                                   // SIGNET
+  set_cycle(0, 1);                                  // -> TESTNET
+  save("/tmp/sim_settings_tn_first.ppm");           // amber row, amber value
+  must_show("net testnet", tr(STR_G_TESTNET_NOTE));
+  // SIGNET next, because it is the option that had never existed: the chip,
+  // the sub line and the home badge are the only three places on the device
+  // that can tell it from TESTNET at all.
+  set_cycle(0, 1);                                  // -> SIGNET
   save("/tmp/sim_settings_signet.ppm");             // the chip reads SIGNET
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  set_chip(0);
-  set_pick(0, 1);                                   // TESTNET
+  set_cycle(0, 2);                                  // SIGNET -> MAINNET -> TESTNET
   save("/tmp/sim_settings_tn.ppm");
 
-  // DENOMINATION: two values, so the chip IS the control and there is no
-  // popover to open. Flipped and flipped back, because the sats/BTC choice
-  // reaches every amount the sign screen draws.
+  // DENOMINATION: two values, and the row every other pick on this page was
+  // eventually rebuilt to match. Flipped and flipped back, because the
+  // sats/BTC choice reaches every amount the sign screen draws.
   set_chip(2);
   save("/tmp/sim_settings_btc.ppm");                // the chip reads BTC
   must_show("denomination", "BTC");
@@ -3527,8 +3536,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_SIGNER);
-  set_chip(0);                                      // Network chip -> dropdown
-  set_pick(0, 0);                                   // MAINNET: flip back
+  set_cycle(0, 2);                                  // TESTNET -> SIGNET -> MAINNET
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // MAINNET, and this is the whole point of the excursion. 120 stops run after

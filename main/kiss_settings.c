@@ -70,11 +70,11 @@ static lv_obj_t *s_parent;      // language change rebuilds the screen here
 // and it has to SURVIVE settings_reopen(): every pick rebuilds the screen, so
 // without it a network change would throw the owner back to tab one.
 static int s_tab;
-// The dropdown or the help card, whichever is up -- one at a time, and NULL
-// whenever nothing is. Both are a scrim plus a box, so this is the scrim: it
-// is what has to be deleted, and deleting the box alone would leave a
-// full-screen catcher eating every tap on the page.
-static lv_obj_t *s_pop;
+// The address type help card, or NULL. It is a scrim plus a box, and this is
+// the SCRIM: it is what has to be deleted, and deleting the box alone would
+// leave a full-screen catcher eating every tap on the page. The only overlay
+// left on this page -- it explains, it does not choose.
+static lv_obj_t *s_help;
 
 static int s_load_error_code;
 #ifdef SIMULATOR
@@ -337,10 +337,12 @@ static void storage_apply(void *ud)
 // CANCEL goes back to the page the dropdown was opened from, which is where
 // the pick was made. The chooser screen that used to sit between them is gone:
 // a three item list with a tick on the live one is what a dropdown IS.
+static void storage_chooser_screen(void);
+
 static void storage_confirm_cancel_cb(lv_event_t *e)
 {
     (void)e;
-    settings_reopen();
+    storage_chooser_screen();   // back to the list it was picked from
 }
 
 static void storage_confirm_screen(int target)
@@ -486,95 +488,68 @@ static void sdinfo_open_cb(lv_event_t *e)
     sdinfo_screen();
 }
 
-// ---- the dropdowns ----
-// A pick that used to cost a whole screen costs a popover now. The screens
-// they replace -- NETWORK, ADDRESS TYPE, STORAGE and PERSIST -- each asked one
-// question with three or fewer answers and then took the page away to ask it,
-// which is a lot of ceremony for a tick moving one row.
+// ---- the picks that resolve where they stand ----
+// None of these opens anything. The row IS the control: tap it and the value
+// advances to the next one in its set, the sub line under the label changes to
+// say what that one means, and the page redraws in place.
 //
-// ONE overlay at a time, and s_pop is the SCRIM rather than the box: the box
-// alone would leave a full-screen catcher swallowing every tap on the page.
+// They were popovers for one commit. Two things were wrong with a popover here
+// and the first is arithmetic: the sets are two, three and four long, so the
+// list costs a tap to open, a tap to pick and a scrim over the page to choose
+// between as few as TWO things -- which is what the denomination row below has
+// always said, in a comment, while four rows beside it did the opposite.
 //
-// A pick that rebuilds the page must NOT delete the scrim first. The scrim is
-// a child of the screen, settings_reopen() deletes the screen, and two async
-// deletes racing over the same object is the parent freeing the child out from
-// under its own pending teardown. Nulling the handle is enough: the rebuild
-// takes the scrim with it.
-static void pop_close(void)
-{
-    if (s_pop) { lv_obj_delete_async(s_pop); s_pop = NULL; }
-}
-
-static void pop_close_cb(lv_event_t *e) { (void)e; pop_close(); }
+// The second is that a floating box has to fit its options into itself, and it
+// does not fit them. The storage list shipped reading "SD C...": the note
+// beside it, "on the card you carry", took the lane at font14 and the ellipsis
+// landed on the one word that says WHICH option the row is. A page is 800px
+// wide. The row is 752 of them. Nothing here needed a box.
+//
+// So the mark says which kind of tap a row takes -- LV_SYMBOL_LOOP advances in
+// place, LV_SYMBOL_RIGHT opens a screen -- and the two are never mixed.
+//
+// Every one of them is instant, free and reversible by tapping again. The one
+// pick in SETTINGS that is none of those is STORAGE, which MOVES the recovery
+// words, and it is the one that still opens a screen and still holds.
 
 // ---- network ----
 // Three of them, and the third one is a LABEL. Signet, testnet3 and testnet4
 // share coin type 1h, the tb hrp and the tsp prefix, so kiss_testnet() stays
-// the boolean every derivation asks and this list is the only thing that knows
+// the boolean every derivation asks and this row is the only thing that knows
 // which of the two a reader is looking at.
-static void net_pick_cb(lv_event_t *e)
+//
+// MAINNET is first, so the cycle from it goes straight to a test network and
+// the row turns amber on the very next tap. Coming back is two taps, and the
+// amber is on screen for both of them.
+static void net_cb(lv_event_t *e)
 {
-    int net = (int)(intptr_t)lv_event_get_user_data(e);
-    if (net == kiss_network()) { pop_close(); return; }   // already ticked
+    (void)e;
+    int net = (kiss_network() + 1) % 3;
     kiss_set_network(net);
     // The NVS key is still "testnet" and still a u8; it holds KISS_NET_* now.
     // Widening it beats a second key: a device that stored 0 or 1 under the
     // two-network build reads back as exactly the network it had.
     store_u8("testnet", (uint8_t)net);
-    s_pop = NULL;
     settings_reopen();
-}
-
-static void net_open_cb(lv_event_t *e)
-{
-    (void)e;
-    if (s_pop) { pop_close(); return; }
-    wt_pop_item_t it[3];
-    memset(it, 0, sizeof it);
-    for (int n = 0; n < 3; n++) {
-        it[n].name = kiss_net_name_of(n);
-        // The NOTE is the whole point of this list: TESTNET and SIGNET both
-        // read tb1..., one row apart, and that is the trap this device cannot
-        // catch for you -- the addresses are identical and the coins are not.
-        it[n].note = type_prefix(kiss_script(), n != KISS_NET_MAIN);
-        it[n].sel  = kiss_network() == n;
-        // Amber on both test networks whether or not they are the live one:
-        // the colour says "these coins are not real", and it outranks the
-        // theme's accent, which is why the selected one does not take it.
-        if (n != KISS_NET_MAIN) it[n].col = WT_WARN;
-    }
-    s_pop = wt_popover(s_scr, WT_WIDE_X + WT_WIDE_W, WT_WIDE_Y(0),
-                       it, 3, net_pick_cb, pop_close_cb);
 }
 
 // ---- address type ----
-static void type_pick_cb(lv_event_t *e)
-{
-    static const int SC[3] = { WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE };
-    int sc = SC[(int)(intptr_t)lv_event_get_user_data(e)];
-    if (sc == kiss_script()) { pop_close(); return; }
-    kiss_set_script(sc);
-    store_u8("script", (uint8_t)sc);
-    s_pop = NULL;
-    settings_reopen();
-}
+// Oldest to newest, so the tradeoff advances as a progression rather than
+// jumping about, and the "?" beside the label opens the card that names all
+// three at once -- which is the thing a list of three was really for.
+static const int TYPE_ORDER[3] = {
+    WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE
+};
 
-static void type_open_cb(lv_event_t *e)
+static void type_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_pop) { pop_close(); return; }
-    // Oldest to newest, which makes the tradeoff legible as a progression and
-    // puts the recommended Native SegWit last, nearest the thumb.
-    static const int SC[3] = { WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE };
-    wt_pop_item_t it[3];
-    memset(it, 0, sizeof it);
-    for (int i = 0; i < 3; i++) {
-        it[i].name = type_name(SC[i]);
-        it[i].note = type_prefix(SC[i], kiss_testnet());
-        it[i].sel  = kiss_script() == SC[i];
-    }
-    s_pop = wt_popover(s_scr, WT_WIDE_X + WT_WIDE_W, WT_WIDE_Y(1),
-                       it, 3, type_pick_cb, pop_close_cb);
+    int cur = 0;
+    for (int i = 0; i < 3; i++) if (TYPE_ORDER[i] == kiss_script()) cur = i;
+    int sc = TYPE_ORDER[(cur + 1) % 3];
+    kiss_set_script(sc);
+    store_u8("script", (uint8_t)sc);
+    settings_reopen();
 }
 
 // ---- the address type help card ----
@@ -582,10 +557,17 @@ static void type_open_cb(lv_event_t *e)
 // the prefix it produces, and what it costs. The prefixes follow the live
 // network, exactly as the row's own value does, so the card cannot claim bc1
 // on a device set to testnet.
+static void help_close(void)
+{
+    if (s_help) { lv_obj_delete_async(s_help); s_help = NULL; }
+}
+
+static void help_close_cb(lv_event_t *e) { (void)e; help_close(); }
+
 static void help_open_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_pop) { pop_close(); return; }
+    if (s_help) { help_close(); return; }
 
     static const int SC[3]   = { WSCRIPT_LEGACY, WSCRIPT_NESTED, WSCRIPT_NATIVE };
     static const char *BIP[3] = { "BIP44", "BIP49", "BIP84" };
@@ -602,8 +584,8 @@ static void help_open_cb(lv_event_t *e)
     // action row, rather than pinned to the drawing's y. The kit's type is
     // bigger than the prototype's, so the same three rows need a taller box,
     // and a box measured downward from a fixed top would cross 398.
-    lv_obj_t *box = wt_overlay_box(s_scr, &s_pop, 250, WT_CONTENT_BOTTOM - 6 - h,
-                                   480, h, 12, pop_close_cb);
+    lv_obj_t *box = wt_overlay_box(s_scr, &s_help, 250, WT_CONTENT_BOTTOM - 6 - h,
+                                   480, h, 12, help_close_cb);
 
     wt_lbl(box, tr(STR_I_BIP_T), 20, 16, hf, WT_INK);
     lv_obj_t *cl = wt_lbl(box, tr(STR_I_BIP_CLOSE), 0, 0, nf, WT_MUT);
@@ -632,10 +614,14 @@ static void help_open_cb(lv_event_t *e)
 }
 
 // ---- storage ----
-// The ONE dropdown that does not apply on the pick. Moving where the recovery
-// words live is not a preference, so it keeps the confirmation and the 1500ms
-// hold it has always had: what the dropdown replaced is the chooser SCREEN,
-// never the decision behind it.
+// The one pick on this page that does NOT resolve where it stands, and the
+// mark on its row says so before the finger lands: a chevron, not a loop.
+//
+// Moving where the recovery words live is not a preference. It reads the seed
+// out of one place and writes it to another, so it gets a screen that names
+// all three destinations with what each one costs, and then the confirmation
+// and the 1500ms hold it has always had. A tap that cycled it would step the
+// owner through two moves to get back where they started.
 static const int STORE_MODE[3] = {
     WSEED_MODE_KEEP, WSEED_MODE_SD, WSEED_MODE_AMNESIC
 };
@@ -643,59 +629,73 @@ static const int STORE_MODE[3] = {
 static void store_pick_cb(lv_event_t *e)
 {
     int target = STORE_MODE[(int)(intptr_t)lv_event_get_user_data(e)];
-    if (target == kiss_seed_mode()) { pop_close(); return; }
-    s_pop = NULL;                       // the confirm screen takes the scrim
+    if (target == kiss_seed_mode()) return;    // already the one it is on
     storage_confirm_screen(target);
 }
 
-static void store_open_cb(lv_event_t *e)
+static void store_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
+
+static void storage_chooser_screen(void)
 {
-    (void)e;
-    if (s_pop) { pop_close(); return; }
-    const int NOTE[3] = { STR_I_POP_CHIP, STR_I_STORE_SD_SUB,
-                          STR_I_POP_NOTHING };
-    wt_pop_item_t it[3];
-    memset(it, 0, sizeof it);
+    const int SUB[3] = { STR_I_STORE_FLASH_SUB, STR_I_STORE_SD_SUB,
+                         STR_I_STORE_AMN_SUB };
+    char current[128];
+    snprintf(current, sizeof current, tr(STR_G_STORAGE_CURRENT_FMT),
+             storage_mode_name(kiss_seed_mode()));
+
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current);
+
     for (int i = 0; i < 3; i++) {
-        it[i].name = storage_mode_name(STORE_MODE[i]);
-        it[i].note = tr(NOTE[i]);
-        it[i].sel  = kiss_seed_mode() == STORE_MODE[i];
+        bool on = kiss_seed_mode() == STORE_MODE[i];
+        // Encrypted flash is a different sentence from bare flash, and this
+        // pair of strings is the only place the distinction is ever stated.
+        bool bare = STORE_MODE[i] == WSEED_MODE_KEEP
+                    && !kiss_seed_flash_encrypted();
+        int sub = SUB[i];
+        if (STORE_MODE[i] == WSEED_MODE_KEEP && !bare)
+            sub = STR_I_STORE_FLASH_ENC_SUB;
+        wt_row_wide(s_scr, WT_WIDE_Y(i), &(wt_wide_t){
+            .label = storage_mode_name(STORE_MODE[i]),
+            .sub   = tr(sub),
+            // Amber on the SUB and not on the row. wt_row_sev would wash the
+            // whole card, and a permanently amber option in a list of three
+            // reads as broken rather than as cautioned.
+            .sub_col = bare ? WT_WARN : (lv_color_t){0},
+            // The one it is already on takes an accent tick and NO callback,
+            // which leaves it un-tappable without drawing it as WT_WIDE_INERT.
+            // Inert means dead, and it dims the whole row -- including the sub
+            // line, which on bare flash is the amber saying the words are
+            // sitting there unencrypted. Selected is not unavailable, and the
+            // caution that matters most is the one on the mode you are ON.
+            .kind  = WT_WIDE_OPEN,
+            .val   = on ? LV_SYMBOL_OK : NULL,
+            .vcol  = on ? wt_accent() : (lv_color_t){0},
+            .cb    = on ? NULL : store_pick_cb,
+            .ud    = (void *)(intptr_t)i,
+        });
     }
-    s_pop = wt_popover(s_scr, WT_WIDE_X + WT_WIDE_W, WT_WIDE_Y(1),
-                       it, 3, store_pick_cb, pop_close_cb);
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            store_back_cb, NULL);
 }
+
+static void store_open_cb(lv_event_t *e) { (void)e; storage_chooser_screen(); }
 
 // ---- persist: what this signer keeps between sessions ----
 // The marks this covers are the receive high-water guard (kiss_usage.h) and
-// the paid-before memory (kiss_payee.h). Instant apply, no hold: this is a
-// teaching guard rather than funds, the marks rebuild through ordinary use,
-// and the OFF item's own note states the erase BEFORE the tap lands. Picking
-// the item the tick is already on is a no-op, so a double tap cannot erase
-// anything.
-static void persist_pick_cb(lv_event_t *e)
-{
-    int on = (int)(intptr_t)lv_event_get_user_data(e) == 0;
-    if (on == (kiss_persist_enabled() != 0)) { pop_close(); return; }
-    kiss_persist_apply(on);             // OFF also erases both stores
-    store_u8("prst", (uint8_t)on);
-    s_pop = NULL;
-    settings_reopen();
-}
-
-static void persist_open_cb(lv_event_t *e)
+// the paid-before memory (kiss_payee.h). A flip, applied instantly, with no
+// hold and no confirmation: this is a teaching guard rather than funds, the
+// marks rebuild through ordinary use, and turning it OFF is the direction that
+// erases -- which is the SAFE direction for a thing whose whole content is a
+// record of what the owner has done. The sub line under the label states which
+// way it is set and what that costs.
+static void persist_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_pop) { pop_close(); return; }
-    wt_pop_item_t it[2];
-    memset(it, 0, sizeof it);
-    it[0].name = tr(STR_G_HIST_ON_BTN);
-    it[0].note = tr(STR_I_POP_KEEP);
-    it[0].sel  = kiss_persist_enabled() != 0;
-    it[1].name = tr(STR_G_HIST_OFF_BTN);
-    it[1].note = tr(STR_I_POP_ERASE);
-    it[1].sel  = kiss_persist_enabled() == 0;
-    s_pop = wt_popover(s_scr, WT_WIDE_X + WT_WIDE_W, WT_WIDE_Y(1),
-                       it, 2, persist_pick_cb, pop_close_cb);
+    int on = kiss_persist_enabled() == 0;
+    kiss_persist_apply(on);             // OFF also erases both stores
+    store_u8("prst", (uint8_t)on);
+    settings_reopen();
 }
 
 // ---- denomination ----
@@ -771,10 +771,12 @@ static void made_labels(int src, const char **label, const char **note)
         // somewhere else.
         case WSEED_SRC_RESTORE: *label = tr(STR_D_WORDS);
                                 *note  = tr(STR_W_MADE_ELSE);     break;
-        case WSEED_SRC_QR:      *label = tr(STR_W_MADE_QR);
-                                *note  = tr(STR_W_MADE_ELSE);     break;
         case WSEED_SRC_KEF:     *label = tr(STR_I_ROW_KEF);
                                 *note  = tr(STR_W_MADE_ELSE);     break;
+        // Includes the retired seed-QR source (kiss_seed.h): a device upgraded
+        // across its removal still has that number in flash, and the honest
+        // answer for a path this firmware no longer has is that it did not
+        // record one.
         default:                *label = tr(STR_W_MADE_NOREC);
                                 *note  = tr(STR_W_MADE_NONE);     break;
     }
@@ -933,37 +935,20 @@ static void duress_cb(lv_event_t *e)
 // in it. That grouping was right and it survives: all three are rows on the
 // DEVICE tab now, where each one can state its value in words instead of
 // standing for it with a swatch in 44px.
-static void theme_pick_cb(lv_event_t *e)
+// It is also the row that makes the case for tapping in place loudest: the
+// result of the pick is the PAGE, so a list floating over the page was hiding
+// the only preview there is. Tap, and every mark on every tab is the new
+// colour before the finger lifts.
+static void theme_cb(lv_event_t *e)
 {
-    int id = (int)(intptr_t)lv_event_get_user_data(e);
-    if (id == wt_accent_get()) { pop_close(); return; }
-    wt_accent_set(id);
+    (void)e;
+    wt_accent_set((wt_accent_get() + 1) % WT_ACC_N);
     store_u8("accent", (uint8_t)wt_accent_get());
     kiss_home_refresh();
-    s_pop = NULL;
     // The whole page takes the new accent, not one swatch. Every chevron on
     // every tab is accent inked, so a rebuild is both simpler and more honest
     // than repainting the control that was tapped.
     settings_reopen();
-}
-
-static void theme_open_cb(lv_event_t *e)
-{
-    (void)e;
-    if (s_pop) { pop_close(); return; }
-    wt_pop_item_t it[WT_ACC_N];
-    memset(it, 0, sizeof it);
-    const int live = wt_accent_get();
-    for (int i = 0; i < WT_ACC_N; i++) {
-        // Borrow the accent table for each row's name, exactly as the old
-        // header dropdown's dots did: set, read, restore.
-        wt_accent_set(i);
-        it[i].name = wt_accent_name();
-        wt_accent_set(live);
-        it[i].sel = i == live;
-    }
-    s_pop = wt_popover(s_scr, WT_WIDE_X + WT_WIDE_W, WT_WIDE_Y(1),
-                       it, WT_ACC_N, theme_pick_cb, pop_close_cb);
 }
 
 static void close_cb(lv_event_t *e)
@@ -1360,7 +1345,7 @@ static void tab_cb(lv_event_t *e)
     // row, its value and its severity, so animating the highlight over the top
     // of that would be decoration on a repaint -- and the strip's own header
     // note says the slide is a nicety, not the design.
-    s_pop = NULL;
+    s_help = NULL;
     settings_reopen();
 }
 
@@ -1389,10 +1374,10 @@ static void tab_signer(void)
         // says "these coins are not real" and the words say it again, so the
         // state never rests on colour alone.
         .sub_col = tn ? WT_WARN : WT_MUT,
-        .kind    = WT_WIDE_CHIP,
+        .kind    = WT_WIDE_CYCLE,
         .val     = kiss_net_name(),
         .vcol    = tn ? WT_WARN : WT_INK,
-        .cb      = net_open_cb,
+        .cb      = net_cb,
     });
 
     // "Native SegWit · BIP84": the name a reader met in their coordinator, and
@@ -1406,13 +1391,13 @@ static void tab_signer(void)
     lv_obj_t *trow = wt_row_wide(s_scr, WT_WIDE_Y(1), &(wt_wide_t){
         .label = tr(STR_I_ROW_TYPE),
         .sub   = tsub,
-        .kind  = WT_WIDE_CHIP,
+        .kind  = WT_WIDE_CYCLE,
         // The address PREFIX is the value, monospaced. That is the way round
         // it has to be, not a preference: bc1 is what an owner sees in their
         // coordinator, and "Native SegWit" is the name for it.
         .val   = type_prefix(sc, tn),
         .vf    = wt_font_mono23(),
-        .cb    = type_open_cb,
+        .cb    = type_cb,
     });
     wt_row_wide_help(trow, help_open_cb, NULL);
 
@@ -1425,7 +1410,7 @@ static void tab_signer(void)
     wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
         .label = tr(STR_I_ROW_DENOM),
         .sub   = tr(STR_I_DENOM_SUB),
-        .kind  = WT_WIDE_CHIP,
+        .kind  = WT_WIDE_CYCLE,
         .val   = unit,
         .cb    = denom_cb,
     });
@@ -1477,11 +1462,15 @@ static void tab_security(void)
           }
         : &(wt_wide_t){
             .label = tr(STR_I_ROW_HISTORY),
-            .sub   = tr(STR_I_HIST_SHORT),
-            .kind  = WT_WIDE_CHIP,
+            // The sub follows the STATE rather than naming the feature: ON
+            // says what is kept, OFF says that nothing is. It is the only
+            // warning the flip gets, and it is on screen before the tap.
+            .sub   = tr(kiss_persist_enabled() ? STR_I_HIST_SHORT
+                                               : STR_I_POP_NOTHING),
+            .kind  = WT_WIDE_CYCLE,
             .val   = tr(kiss_persist_enabled() ? STR_G_HIST_ON_BTN
                                                : STR_G_HIST_OFF_BTN),
-            .cb    = persist_open_cb,
+            .cb    = persist_cb,
           });
 
     wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
@@ -1539,7 +1528,7 @@ static void tab_backup(void)
         .label   = tr(STR_I_ROW_STORAGE),
         .sub     = tr(ssub),
         .sub_col = warn ? WT_WARN : WT_MUT,
-        .kind    = WT_WIDE_CHIP,
+        .kind    = WT_WIDE_CHIP,   // a chevron: this is the pick that LEAVES
         .val     = storage_mode_name(mode),
         .sev     = warn ? WT_SEV_WARN : WT_SEV_PLAIN,
         .cb      = store_open_cb,
@@ -1567,7 +1556,7 @@ static void tab_device(void)
     wt_row_wide(s_scr, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_ROW_LANG),
         .sub   = tr(STR_I_LANG_SUB),
-        .kind  = WT_WIDE_CHIP,
+        .kind  = WT_WIDE_CHIP,   // a chevron: 21 of them need the screen
         // No per-language font here, unlike the picker's rows. This row names
         // the ACTIVE language, so the active locale's own face is already the
         // right script -- and wt_font14_for_lang would have pinned the SIZE
@@ -1576,16 +1565,16 @@ static void tab_device(void)
         .cb    = lang_open_cb,
     });
 
-    char tsub[64];
-    snprintf(tsub, sizeof tsub, "%s \xC2\xB7 %s", tr(STR_I_THEME_SUB),
-             wt_accent_name());
+    // The sub used to append the accent's name to it -- "accent colour · MONO"
+    // beside a chip already reading MONO, which is the copy rule's own example
+    // of a string restating the value sitting next to it.
     wt_row_wide(s_scr, WT_WIDE_Y(1), &(wt_wide_t){
         .label  = tr(STR_I_ROW_THEME),
-        .sub    = tsub,
-        .kind   = WT_WIDE_CHIP,
+        .sub    = tr(STR_I_THEME_SUB),
+        .kind   = WT_WIDE_CYCLE,
         .val    = wt_accent_name(),
         .swatch = true,
-        .cb     = theme_open_cb,
+        .cb     = theme_cb,
     });
 
     wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
@@ -1708,7 +1697,7 @@ void kiss_settings_open(lv_obj_t *parent)
     s_parent = parent;
     // An overlay open when the screen died was deleted with it; the handle must
     // not survive to block the next open.
-    s_pop = NULL;
+    s_help = NULL;
     if (s_tab < 0 || s_tab >= TAB_N) s_tab = TAB_SIGNER;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
