@@ -46,6 +46,29 @@ static void tab_mark(struct usage_row *tab, int *n, const char *key, uint32_t id
 #ifdef ESP_PLATFORM
 #include "nvs.h"
 
+// ---- batching ----
+// A burst of marks used to pay for its own open/commit/close each: a
+// multi-input spend marks one receive per input, and a session flush marks up
+// to UMAX rows. begin opens one handle and defers the commit; end commits once
+// and closes. Power lost mid burst loses the batch -- these are reuse-guard
+// marks, best effort, and the RAM session table still carries them.
+static nvs_handle_t s_batch = 0;
+static bool s_batch_active = false;
+
+void kiss_usage_batch_begin(void)
+{
+    if (s_batch_active) return;
+    s_batch_active = nvs_open("kissu", NVS_READWRITE, &s_batch) == ESP_OK;
+}
+
+void kiss_usage_batch_end(void)
+{
+    if (!s_batch_active) return;
+    nvs_commit(s_batch);
+    nvs_close(s_batch);
+    s_batch_active = false;
+}
+
 static int persistent_high(const char *key)
 {
     nvs_handle_t h;
@@ -60,19 +83,22 @@ static int persistent_high(const char *key)
 static void persistent_mark(const char *key, uint32_t idx)
 {
     nvs_handle_t h;
-    if (nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
+    bool own = !s_batch_active;
+    if (own && nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
         return;
+    if (!own) h = s_batch;
     uint32_t cur = 0;
     bool have = nvs_get_u32(h, key, &cur) == ESP_OK;
     if (!have || idx > cur) {           // monotonic: never lower the high-water mark
         nvs_set_u32(h, key, idx);
-        nvs_commit(h);
+        if (own) nvs_commit(h);
     }
-    nvs_close(h);
+    if (own) nvs_close(h);
 }
 
 static void persistent_wipe(void)
 {
+    kiss_usage_batch_end();             // a pending batch must not resurrect after the wipe
     nvs_handle_t h;
     if (nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
         return;
@@ -82,6 +108,9 @@ static void persistent_wipe(void)
 }
 
 #else   // host (sim + desktop tests): RAM table
+
+void kiss_usage_batch_begin(void) {}
+void kiss_usage_batch_end(void)   {}
 
 static struct usage_row s_persistent[UMAX];
 static int s_persistent_n;
@@ -151,8 +180,10 @@ void kiss_usage_persist_session(void)
 {
     if (!may_persist())
         return;
+    kiss_usage_batch_begin();
     for (int i = 0; i < s_session_n; i++)
         persistent_mark(s_session[i].key, s_session[i].v);
+    kiss_usage_batch_end();
 }
 
 void kiss_usage_forget_session(void)

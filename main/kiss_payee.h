@@ -45,3 +45,10 @@ void kiss_payee_wipe(void);
 // storage may promote what the session learned; locking clears the RAM table.
 void kiss_payee_persist_session(void);
 void kiss_payee_forget_session(void);
+
+// Batch several marks into one NVS commit. A multi-output spend marks one payee
+// per output and a session flush marks the whole table; per-mark commits were
+// an open/write/commit/close each. Wrap the burst; a mark outside a batch
+// commits immediately as before.
+void kiss_payee_batch_begin(void);
+void kiss_payee_batch_end(void);

@@ -28,3 +28,10 @@ void kiss_usage_wipe(void);
 // promote its RAM high-water marks; locking always clears the RAM table.
 void kiss_usage_persist_session(void);
 void kiss_usage_forget_session(void);
+
+// Batch several marks into one NVS commit. A multi-input spend marks one
+// receive per input and a session flush marks the whole table; per-mark
+// commits were an open/write/commit/close each. Wrap the burst; a mark outside
+// a batch commits immediately as before.
+void kiss_usage_batch_begin(void);
+void kiss_usage_batch_end(void);

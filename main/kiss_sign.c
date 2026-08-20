@@ -749,6 +749,7 @@ static void mark_used_receives(void)
         return;
     uint8_t fp[4];
     kiss_ui_last_fp(fp);
+    kiss_usage_batch_begin();            // one NVS commit per spend, not per input
     for (uint32_t i = 0; i < det.n_in; i++)
         if (det.ins[i].change == 0) {                // 0 = receive branch (1 = change)
             // key by THIS input's own type, not the current Settings type: we
@@ -758,6 +759,7 @@ static void mark_used_receives(void)
                    : det.ins[i].purpose == 49 ? WSCRIPT_NESTED : WSCRIPT_NATIVE;
             kiss_usage_mark(fp, s_sum.testnet ? 1 : 0, sc, det.ins[i].index);
         }
+    kiss_usage_batch_end();
 }
 
 // Every destination this signature actually pays, recorded so the next spend to
@@ -770,9 +772,11 @@ static void mark_used_receives(void)
 // payee they know.
 static void mark_paid_recipients(void)
 {
+    kiss_payee_batch_begin();            // one NVS commit per spend, not per payee
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         if (!s_sum.outs[i].is_change)
             kiss_payee_mark(s_sum.outs[i].addr);
+    kiss_payee_batch_end();
 }
 
 // How long the reveal is on the glass before the exit screen replaces it.

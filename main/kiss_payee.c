@@ -97,6 +97,27 @@ static void tab_mark(struct payee_row *tab, int *n, const char *id)
 #ifdef ESP_PLATFORM
 #include "nvs.h"
 
+// ---- batching ----
+// The same burst shape kiss_usage.c batching covers: a multi-output spend marks
+// one payee per output, and a session flush marks up to PMAX rows. One handle
+// open across the burst, one commit at the end.
+static nvs_handle_t s_batch = 0;
+static bool s_batch_active = false;
+
+void kiss_payee_batch_begin(void)
+{
+    if (s_batch_active) return;
+    s_batch_active = nvs_open("kissp", NVS_READWRITE, &s_batch) == ESP_OK;
+}
+
+void kiss_payee_batch_end(void)
+{
+    if (!s_batch_active) return;
+    nvs_commit(s_batch);
+    nvs_close(s_batch);
+    s_batch_active = false;
+}
+
 static bool persistent_seen(const char *id)
 {
     nvs_handle_t h;
@@ -111,18 +132,21 @@ static bool persistent_seen(const char *id)
 static void persistent_mark(const char *id)
 {
     nvs_handle_t h;
-    if (nvs_open("kissp", NVS_READWRITE, &h) != ESP_OK)
+    bool own = !s_batch_active;
+    if (own && nvs_open("kissp", NVS_READWRITE, &h) != ESP_OK)
         return;
+    if (!own) h = s_batch;
     uint8_t v = 0;
     if (nvs_get_u8(h, id, &v) != ESP_OK) {          // present is the whole value
         nvs_set_u8(h, id, 1);
-        nvs_commit(h);
+        if (own) nvs_commit(h);
     }
-    nvs_close(h);
+    if (own) nvs_close(h);
 }
 
 static void persistent_wipe(void)
 {
+    kiss_payee_batch_end();             // a pending batch must not resurrect after the wipe
     nvs_handle_t h;
     if (nvs_open("kissp", NVS_READWRITE, &h) != ESP_OK)
         return;
@@ -132,6 +156,9 @@ static void persistent_wipe(void)
 }
 
 #else   // host (sim + desktop tests): RAM table
+
+void kiss_payee_batch_begin(void) {}
+void kiss_payee_batch_end(void)   {}
 
 static struct payee_row s_persistent[PMAX];
 static int s_persistent_n;
@@ -194,8 +221,10 @@ void kiss_payee_persist_session(void)
 {
     if (!may_persist())
         return;
+    kiss_payee_batch_begin();
     for (int i = 0; i < s_session_n; i++)
         persistent_mark(s_session[i].id);
+    kiss_payee_batch_end();
 }
 
 void kiss_payee_forget_session(void)
