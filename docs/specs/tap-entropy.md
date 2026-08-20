@@ -87,6 +87,18 @@ make a wallet, and a metronome-perfect user still contributes the cycle level
 jitter the budget is priced on. A stuck or dead touch panel simply never fills
 the bar, which explains itself without an error path.
 
+Every other input on this device now refuses something -- the dice histogram,
+all five blind draw rules, degenerate imports, a weak passphrase -- so this is
+the last one that does not, and "we chose not to score it" is a sentence worth
+being able to check rather than believe. `test_taps_cannot_weaken` in
+`sim/test_tapent.c` pins the reason it is safe: the taps are one leg of a fold
+whose other legs are hard gated and independent of the room, so the worst tap
+chain imaginable -- one spot, a metronome, a machine -- costs the seed nothing
+the other legs were not already carrying. The chip alone still moves it, the
+board's own timing alone still moves it, and good taps still move it, which is
+what makes them worth collecting rather than skipping. The one thing the tap
+path does enforce is the count, and that is pinned in the same place.
+
 ## Flow
 
 Today `CAPTURE` on the randomness screen generates the seed. It now advances.

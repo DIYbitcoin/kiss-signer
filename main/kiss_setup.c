@@ -2650,16 +2650,20 @@ static void cards_cksum_screen(void)
     // locale. It cannot go in the row at y=210 -- the card bottoms at 204 and
     // the why blocks start at the mandated 232, leaving 28px for a 30px chip.
     //
-    // NO verdict reaches this screen any more -- every one of the five refuses
-    // above it -- so the chip has one state left. It stays rather than going,
-    // because the mark is the answer to a question the owner is actually asking
-    // at this point ("was my draw all right?") and silence is a worse answer
-    // than a tick. The green accent is byte identical to WT_OK, so a word
-    // beside it would be saying the colour twice.
-    {
-        lv_obj_t *vchip = wt_state_chip(card, LV_SYMBOL_OK, OK_COL);
-        lv_obj_align(vchip, LV_ALIGN_TOP_RIGHT, -14, 10);
-    }
+    // No verdict chip, and that is the point. Every one of the five rules
+    // refuses above this screen now, so reaching it means no rule FIRED -- and
+    // a green tick turns that into "your draw is good", which is a claim the
+    // judge is documented as unable to make. kiss_cards_q.h lists exactly what
+    // walks through clean: a memorised phrase, a song lyric, a set chosen word
+    // by word while feeling random, a loose cluster typed out of order. The
+    // module promises one direction only, that a set it BLOCKS carries no
+    // secret, and the tick was quietly promising the converse at the most
+    // reassuring possible moment.
+    //
+    // So the screen states facts and makes no judgement: what the checksum is,
+    // what it catches, and how many of the 2048 fit. The verdict the device CAN
+    // honestly give is the checksum one, and it is on WRITE THESE DOWN where it
+    // belongs ("these add up" -- about the arithmetic, not about the draw).
 
     // The one concrete number: how many of the 2048 list words fit these.
     char fit[96];

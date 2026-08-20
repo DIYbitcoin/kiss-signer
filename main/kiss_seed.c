@@ -358,6 +358,15 @@ static int storage_erase(int mode_after)
         rc = -1;
     if (remove(SEED_TMP) != 0 && errno != ENOENT)
         rc = -1;
+    // The two facts ABOUT the seed go with the seed. On device this is free --
+    // nvs_flash_erase takes the whole partition and only KEEP_KEYS come back --
+    // and the host was quietly keeping them, so a wiped simulator answered HOW
+    // YOUR KEYS WERE MADE with the method of a wallet that no longer existed.
+    // Neither is in KEEP_KEYS on purpose: they describe a seed, not a setting.
+    if (remove(ENTQ_FILE) != 0 && errno != ENOENT)
+        rc = -1;
+    if (remove(ENTS_FILE) != 0 && errno != ENOENT)
+        rc = -1;
     if (rc == 0)
         rc = storage_mode_write(mode_after);
 #endif

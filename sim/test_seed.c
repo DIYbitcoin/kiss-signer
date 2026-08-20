@@ -8,6 +8,7 @@
 #include "kiss_backup.h"
 #include "kiss_crypto.h"
 #include "kiss_duress.h"
+#include "kiss_cards_q.h"
 #include "kiss_seed.h"
 
 #define DEV_WORDS "abandon abandon abandon abandon abandon abandon " \
@@ -287,6 +288,23 @@ int test_seed_layer(void) {
              kiss_seed_degenerate("") == 0 && kiss_seed_degenerate(NULL) == 0);
         schk("degen: not a mnemonic is not this function's question",
              kiss_seed_degenerate("hello world") == 0);
+
+        // The two facts ABOUT a seed die with it. They are not settings and
+        // are deliberately absent from KEEP_KEYS, so a wipe takes them -- and
+        // the host has to reach the same state the device's partition erase
+        // reaches for free, or the simulator answers "how were these keys
+        // made?" about a wallet that was erased.
+        kiss_seed_set_entropy_note(WSEED_ENTQ_CARDS | WC_Q_DUP);
+        kiss_seed_set_source(WSEED_SRC_DICE);
+        schk("wipe: the note and the source are readable first",
+             kiss_seed_entropy_note() != 0 && kiss_seed_source() == WSEED_SRC_DICE);
+        schk("wipe: rc", kiss_seed_wipe() == WSEED_OK);
+        schk("wipe: the entropy note went with the seed",
+             kiss_seed_entropy_note() == 0);
+        schk("wipe: the source went with the seed",
+             kiss_seed_source() == WSEED_SRC_NONE);
+        schk("wipe: and the seed really is gone",
+             kiss_seed_load(words, sizeof words) != 0);
 
         // The gate refuses to TAKE a seed. It must never refuse to OPEN one:
         // the storage read back paths run kiss_seed_validate, and a device that

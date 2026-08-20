@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kiss_crypto.h"
+#include "kiss_tapent.h"
 
 static int fails;
 
@@ -92,6 +93,62 @@ static void test_mix4(void)
 
     ok("mix4 rejects NULL", kiss_entropy_mix4(NULL, b, c, d, out) != 0);
     ok("mix4 rejects NULL leg 4", kiss_entropy_mix4(a, b, c, NULL, out) != 0);
+}
+
+// The taps are the one input on the default path that refuses nothing: no
+// rhythm test, no spread test, no quality score, only a 30ms debounce
+// (kiss_tapent.h, docs/specs/tap-entropy.md). That is deliberate -- a number
+// beside human timing would be the unprovable score every other screen here
+// refuses to print -- but after everything else on this device started refusing,
+// "unscored" is worth turning from a policy anyone can worry about into a
+// property anyone can check.
+//
+// The property: taps cannot WEAKEN the seed. They are one leg of a fold whose
+// other legs are hard-gated (kiss_trng_live) and independent of the room, so a
+// worst-case tap chain -- the same spot, a metronome, a machine -- costs the
+// seed nothing that the other legs were not already carrying.
+static void test_taps_cannot_weaken(void)
+{
+    uint8_t cam[32], trng1[32], trng2[32], jit[32];
+    uint8_t taps_good[32], taps_worst[32], s1[32], s2[32], s3[32];
+    memset(cam, 0x5A, 32); memset(jit, 0x3C, 32);
+    memset(trng1, 0x11, 32); memset(trng2, 0x12, 32);
+    memset(taps_good, 0xA7, 32);
+    memset(taps_worst, 0x00, 32);      // the worst a tap chain could possibly be
+
+    // Same everything, one bit of chip noise apart: the seed still moves, with
+    // the tap leg contributing nothing at all.
+    kiss_entropy_mix4(cam, trng1, taps_worst, jit, s1);
+    kiss_entropy_mix4(cam, trng2, taps_worst, jit, s2);
+    ok("worthless taps: the chip alone still moves the seed",
+       memcmp(s1, s2, 32) != 0);
+
+    // And jitter alone, with both the chip and the taps held still.
+    uint8_t jit2[32];
+    memset(jit2, 0x3D, 32);
+    kiss_entropy_mix4(cam, trng1, taps_worst, jit2, s3);
+    ok("worthless taps: the board's own timing still moves the seed",
+       memcmp(s1, s3, 32) != 0);
+
+    // The converse, so this is not just "some leg moves it": good taps move the
+    // seed too, which is what makes them worth collecting rather than skipping.
+    kiss_entropy_mix4(cam, trng1, taps_good, jit, s2);
+    ok("taps are a real leg, not decoration", memcmp(s1, s2, 32) != 0);
+
+    // The floor is a COUNT, and it is the one thing the tap path does enforce.
+    // Below it nothing is handed out, so a session cut short cannot mint a seed
+    // on however many taps it happened to collect.
+    kiss_tapent_reset();
+    uint64_t t = 0;
+    for (int i = 0; i < WTAP_TARGET - 1; i++) {
+        t += WTAP_DEBOUNCE_US + 1000;
+        kiss_tapent_tap(t, (uint32_t)(i * 7919), i, i);
+    }
+    ok("one short of the floor hands out nothing",
+       kiss_tapent_take(taps_good) != 0);
+    t += WTAP_DEBOUNCE_US + 1000;
+    kiss_tapent_tap(t, 12345, 1, 1);
+    ok("at the floor it does", kiss_tapent_take(taps_good) == 0);
 }
 
 // The jitter source has no test vector and cannot have one: a fixed answer
@@ -185,6 +242,7 @@ int test_tapent(void)
     printf("\n-- tap entropy --\n");
     test_mix3();
     test_mix4();
+    test_taps_cannot_weaken();
     test_jitter();
     test_debounce();
     test_fold();
