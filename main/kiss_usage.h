@@ -1,4 +1,4 @@
-// Receive-address reuse guard: remembers the highest receive index this wallet
+// Receive-address reuse guard: remembers the highest receive index these keys
 // has actually USED (KISS showed it, or later signed a spend from it), so the
 // Receive screen can hand out a fresh one and warn on a spent address.
 //
@@ -7,14 +7,14 @@
 // next-unused. This guard prevents KISS-initiated reuse and teaches, it does
 // not guarantee no reuse.
 //
-// State is keyed per wallet (master fingerprint) + network + script type, so a
-// different passphrase-wallet, network, or address type keeps its own count.
+// State is keyed per key set (master fingerprint) + network + script type, so a
+// different passphrase, network, or address type keeps its own count.
 // Device persists in a dedicated NVS namespace ("kissu") except in AMNESIC
 // mode, where identifying fingerprint/index metadata stays in session RAM.
 #pragma once
 #include <stdint.h>
 
-// Highest USED receive index for this wallet/network/type, or -1 if none yet.
+// Highest USED receive index for these keys/network/type, or -1 if none yet.
 int  kiss_usage_high(const uint8_t fp[4], int testnet, int script);
 
 // Record receive index `idx` as used. Monotonic: a lower idx never lowers the
@@ -24,7 +24,7 @@ void kiss_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t idx)
 // Forget everything (seed wipe, or test reset).
 void kiss_usage_wipe(void);
 
-// Session lifecycle hooks. Moving an AMNESIC wallet to persistent storage may
+// Session lifecycle hooks. Moving an AMNESIC signer to persistent storage may
 // promote its RAM high-water marks; locking always clears the RAM table.
 void kiss_usage_persist_session(void);
 void kiss_usage_forget_session(void);
@@ -39,9 +39,9 @@ void kiss_usage_batch_end(void);
 // ---- PERSIST: does this signer save anything it can avoid saving ----
 // The switch every signer in this class ships for settings storage, covering
 // the two kinds of write the seed chooser does not: settings changes
-// (kiss_settings.c gates its own store_u8 on this) and the wallet history --
-// the high-water marks in this file and the paid-before marks in
-// kiss_payee.h. Default ON. OFF gates may_persist() in both history modules;
+// (kiss_settings.c gates its own store_u8 on this) and what this signer has
+// seen -- the high-water marks in this file and the paid-before marks in
+// kiss_payee.h. Default ON. OFF gates may_persist() in both of those;
 // the session RAM tables keep working either way, so the reuse guard still
 // answers within an unlocked session.
 int  kiss_persist_enabled(void);
