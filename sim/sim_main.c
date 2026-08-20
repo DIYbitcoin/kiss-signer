@@ -403,21 +403,21 @@ int kiss_seed_move_to(int m) {
 void kiss_seed_forget(void) {
   if (s_sim_mode == WSEED_MODE_AMNESIC) s_sim_has_pending = 0;
 }
-// Enough of the real parser to drive the walk: the numeric SeedQR shape and a
-// plain mnemonic are accepted, anything else is the "NOT A SEED" path.
-int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t n) {
+// Enough of the real reader to drive the walk. This runs on the far side of a
+// password now: an opened envelope's plaintext is either raw entropy or a text
+// mnemonic, and the KEF stub below hands back the latter. The numeric SeedQR
+// shape is not a plaintext and is refused here as it is in the firmware.
+int kiss_seed_from_plaintext(const char *data, size_t len, char *out, size_t n) {
   if (out && n) out[0] = 0;
   if (!data || !out || len == 0) return -1;
-  if (len == 48 || len == 96) {
-    for (size_t i = 0; i < len; i++)
-      if (data[i] < '0' || data[i] > '9') goto text;
+  if (len == 16 || len == 32) {                 // raw BIP39 entropy
+    int words = len == 16 ? 12 : 24;
     size_t o = 0;
-    for (size_t w = 0; w < len / 4 && o + 12 < n; w++)
+    for (int w = 0; w < words && o + 12 < n; w++)
       o += (size_t)snprintf(out + o, n - o, "%s%s", w ? " " : "", SIM_WORDS[w % 24]);
     return 0;
   }
-text:
-  {   // a mnemonic is 12 or 24 words; anything else is the NOT A SEED path
+  {   // a mnemonic is 12 or 24 words; anything else is not a seed
     int words = 1;
     for (size_t i = 0; i < len; i++) if (data[i] == ' ') words++;
     if ((words == 12 || words == 24) && len + 1 <= n) {
@@ -3615,9 +3615,9 @@ int main(void) {
   }
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
-  // restoring shows a third option here: a SeedQR carries its own length, so
-  // it sits beside 12/24 rather than after them
-  save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN SEED QR
+  // restoring shows a third option here: an encrypted backup carries its own
+  // length, so it sits beside 12/24 rather than after them
+  save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN LOCKED QR
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_restore.ppm");
   touch(44, 314); pump(3); release(); pump(3);      // 'a'
@@ -4350,7 +4350,7 @@ int main(void) {
   save("/tmp/sim_made_mix.ppm");                    // 4 marks + -> YOUR KEYS
   must_show("made/mix", tr(STR_W_CHOOSE_MIX));
   tap_str(STR_C_BACK, 3, 8);
-  kiss_seed_set_source(WSEED_SRC_QR);
+  kiss_seed_set_source(WSEED_SRC_KEF);
   tap_str(STR_W_MADE_T, 3, 8);
   save("/tmp/sim_made_import.ppm");                 // no fold to show, and says so
   must_show("made/import", tr(STR_W_MADE_ELSE));
@@ -4475,7 +4475,8 @@ int main(void) {
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
-  // LOAD YOUR WALLET instead of the wizard, and a seed QR is a valid way in.
+  // LOAD YOUR WALLET instead of the wizard, and an encrypted backup is a valid
+  // way in.
   // the wipe above already left us locked on the game cover with no seed
   kiss_seed_set_mode(WSEED_MODE_AMNESIC);
   for (int i = 0; i <= 9; i++) { touch(140, 120 + i * 20); pump(1); } release(); pump(2);
@@ -4488,15 +4489,25 @@ int main(void) {
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
   save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WORDS
 
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR (pill at 264)
-  kiss_scan_inject("not a seed qr at all", 20); pump(6);
-  save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED QR, nothing loaded
+  // A bare seed square, which this door used to swallow whole. Twelve words in
+  // plain text is exactly what a SeedQR decodes to, so this is the removal
+  // itself under test: the scan must land on NOT A BACKUP and stage nothing.
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR (pill at 264)
+  {
+    static const char *SQ =
+        "apple bridge candle dragon eagle forest "
+        "garden hammer island jungle kettle ladder";
+    kiss_scan_inject(SQ, strlen(SQ));
+  }
+  pump(6);
+  save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A BACKUP, nothing loaded
+  must_show("seed square refused", tr(STR_W_QRBAD_T));
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
 
   // An encrypted backup in a mode this signer refuses (CTR, version 15):
   // recognized as KEF and refused BEFORE any password is asked for. The
   // envelope is built with the same kef_emit_header the firmware uses.
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR
   {
     uint8_t fx[64];
     size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"id", 2, 15, 10);

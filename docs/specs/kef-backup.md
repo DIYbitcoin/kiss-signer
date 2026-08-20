@@ -30,8 +30,9 @@ off        len       field
   padding, no compression — truncated to its first 4 bytes.
 - Plaintext convention for a seed: the BIP39 entropy bytes (16 or 32), the
   same convention Krux uses, so either device rebuilds the other's words.
-  On restore the decrypted plaintext is fed through `kiss_seed_from_qr`,
-  which also accepts a text mnemonic, so both plaintext shapes open.
+  On restore the decrypted plaintext is fed through
+  `kiss_seed_from_plaintext`, which also accepts a text mnemonic, so both
+  plaintext shapes open.
 
 ## Iterations
 
@@ -88,17 +89,21 @@ How it is proven:
 
 ## The restore router
 
-A scanned or file-loaded payload is offered to `kef_sniff` before the seed
-QR parser. The two can never both claim an input:
+A scanned or file-loaded payload is offered to `kef_sniff`, and an envelope
+is now the only thing either door accepts — the seed-QR scan was removed, so
+nothing the camera sees reaches a seed parser. What the sniff does not claim
+is refused on the spot.
 
-- lengths 16 and 32 are refused by the sniff outright — CompactSeedQR
-  territory, and no envelope that small holds a seed;
-- every byte of a text mnemonic or a numeric SeedQR is `>= 0x20`, and every
-  KEF version byte is `< 0x20`, so the version-byte check structurally
-  excludes them.
+The sniff must still never claim an envelope's own PLAINTEXT, or an opened
+backup could be mistaken for another envelope on the way through:
 
-Unit tests pin all four seed QR shapes to sniff = 0, and the fuzz harness
-asserts no input is ever claimed by both parsers.
+- lengths 16 and 32 are refused by the sniff outright — that is raw BIP39
+  entropy, and no envelope that small holds a seed;
+- every byte of a text mnemonic is `>= 0x20`, and every KEF version byte is
+  `< 0x20`, so the version-byte check structurally excludes it.
+
+Unit tests pin both plaintext shapes to sniff = 0, and the fuzz harness
+asserts no input is ever claimed by both.
 
 ## Privacy note
 

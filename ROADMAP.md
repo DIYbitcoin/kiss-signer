@@ -42,7 +42,8 @@ for BIP375 and BIP376 is still thin.
 | BIP39 generation, 12 or 24 words | done | 128 or 256 bits of entropy plus checksum |
 | Camera plus hardware TRNG entropy | done | The camera hash is mixed with `esp_fill_random`, neither source decides alone |
 | Restore by typing words | done | |
-| Restore by SeedQR | done | |
+| Restore from an encrypted backup | done | The locked QR or a `.kef` file, both under the backup password |
+| Restore by SeedQR | removed | A bare seed square is a seed to whoever photographs it, and this signer never wrote one |
 | Passphrase, typed per session, never stored | done | Every passphrase is valid, so there is no wrong passphrase error |
 | Backup verification against paper | done | Reports a mismatch by word position, never shows the stored words |
 | FLASH storage | done | **Not encrypted in the normal beta**, so a chip dump reveals the words |

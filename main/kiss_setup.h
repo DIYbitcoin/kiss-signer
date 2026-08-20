@@ -19,7 +19,7 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void));
 bool kiss_setup_verify_succeeded(void);
 
 // AMNESIC mode's per-session load. Nothing is stored on this device, so every
-// power-on starts here: type the words, or scan a seed QR made elsewhere. The
+// power-on starts here: type the words, or open an encrypted backup. The
 // mnemonic is staged in RAM only; done_cb then runs the NORMAL login (one
 // passphrase), not the setup ritual. Also offers a way into the full wizard,
 // otherwise an amnesic device could never make a fresh wallet.

@@ -14,6 +14,25 @@ the transaction lets it, and says so plainly when it cannot. Found and fixed
 first by odudex in Krux (release 26.08.0); the reading of the attack and the
 wording of the warning are theirs.
 
+### Removed
+
+- **Restoring from a SeedQR is gone.** Both restore screens used to offer it:
+  point the camera at a printed square and the words were in. The square holds
+  the seed itself with nothing over it, so anyone who photographs it — across a
+  room, over a shoulder, out of a cloud backup of your camera roll — has the
+  wallet. This signer never wrote one, so the feature only ever read somebody
+  else's, and the sensible thing to do with the paper it came from is to keep
+  it away from cameras rather than to teach a device to eat it.
+
+  What replaces it is what was already there: type the words, or open an
+  **encrypted backup**. The backup is the same QR shape and the same paper, with
+  a password over it, and this signer does write those. The scan door on both
+  screens now takes an encrypted backup and nothing else, so a QR alone can no
+  longer put keys on this device — a password always stands in between.
+
+  If you are holding a SeedQR and nothing else, type the twelve or twenty four
+  words in. They are the same words.
+
 ### Fixed
 
 - **The amount of every coin is now read from the transaction that created it**,
@@ -53,9 +72,8 @@ wording of the warning are theirs.
   Typing "abandon" eleven times and "about" is a valid BIP39 phrase with a
   correct checksum, printed on essentially every page that explains what a seed
   is, and worth nothing: anyone can type it and spend from it. The signer used
-  to accept it by hand, from a seed QR, and out of an encrypted backup. Now all
-  three turn it down, along with a short run of words repeated to fill the
-  phrase. Only that class is refused. A real wallet whose words happen to
+  to accept it by hand and out of an encrypted backup. Now both turn it down,
+  along with a short run of words repeated to fill the phrase. Only that class is refused. A real wallet whose words happen to
   cluster or repeat still restores, because those are judgements about a draw
   and an existing wallet cannot be redrawn.
 

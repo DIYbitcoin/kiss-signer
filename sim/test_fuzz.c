@@ -13,8 +13,9 @@
 //      UR parts                                    -> must not crash or complete
 //   4. kiss_psbt_load on base64 TEXT ("cHNidP")  -> the branch random binary
 //      never reaches; junk never READY, whitespace in real b64 still loads
-//   5. kiss_seed_from_qr on junk/digits/entropy  -> returns 0 only for a
-//      mnemonic that validates; degenerate entropy refused
+//   5. kiss_seed_from_plaintext on junk/digits/entropy -> returns 0 only for
+//      a mnemonic that validates; degenerate entropy refused, and the retired
+//      numeric SeedQR shape refused even when it is well formed
 //   6. kiss_address_validate on junk + flipped
 //      real addresses                              -> always a defined verdict,
 //                                                     never a false network claim
@@ -23,7 +24,7 @@
 //      the same surface runs under ASAN with random shapes)
 //   8. kef_parse/kef_sniff/kiss_kef_open on random and damaged envelopes ->
 //      never crash, never a foreign plaintext, and no input is ever claimed
-//      by BOTH the KEF sniff and the seed QR parser (the restore router
+//      by BOTH the KEF sniff and the plaintext reader (the restore router
 //      depends on that disjointness)
 #include <stdio.h>
 #include <string.h>
@@ -417,9 +418,9 @@ int main(void)
     }
     printf("PASS: base64 PSBTs: junk never READY, whitespace survives, no crash\n");
 
-    // ---- 5. kiss_seed_from_qr: a printed QR becomes a wallet ----
-    // Three parse paths (numeric SeedQR, CompactSeedQR entropy, plain text).
-    // The one invariant across all of them: returning 0 means `out` holds a
+    // ---- 5. kiss_seed_from_plaintext: an opened envelope becomes a wallet ----
+    // Two parse paths now (raw entropy, plain text) on the far side of a
+    // password. The one invariant across both: returning 0 means `out` holds a
     // mnemonic that validates. Junk may fail, it must never half-succeed.
     {
         // The canonical zero-entropy vector, which this parser used to hand
@@ -437,59 +438,84 @@ int main(void)
         uint8_t good[16];
         char GOOD[512];
         for (size_t i = 0; i < sizeof good; i++) good[i] = (uint8_t)(i * 37 + 11);
-        chkb("qr: built a non degenerate vector",
+        chkb("plaintext: built a non degenerate vector",
              kiss_seed_from_entropy(good, sizeof good, GOOD, sizeof GOOD) == 0);
 
-        chkb("qr: real mnemonic accepted",
-             kiss_seed_from_qr(GOOD, strlen(GOOD), so, sizeof so) == 0 &&
+        chkb("plaintext: real mnemonic accepted",
+             kiss_seed_from_plaintext(GOOD, strlen(GOOD), so, sizeof so) == 0 &&
              strcmp(so, GOOD) == 0);
 
         char pad[600];
         int pn = snprintf(pad, sizeof pad, "  %s\r\n", GOOD);
-        chkb("qr: padded mnemonic accepted and trimmed",
-             kiss_seed_from_qr(pad, (size_t)pn, so, sizeof so) == 0 &&
+        chkb("plaintext: padded mnemonic accepted and trimmed",
+             kiss_seed_from_plaintext(pad, (size_t)pn, so, sizeof so) == 0 &&
              strcmp(so, GOOD) == 0);
 
-        chkb("qr: the abandon vector refused as text",
-             kiss_seed_from_qr(MN, strlen(MN), so, sizeof so) != 0);
+        chkb("plaintext: the abandon vector refused as text",
+             kiss_seed_from_plaintext(MN, strlen(MN), so, sizeof so) != 0);
 
-        // numeric SeedQR of that same vector: 4 digits per index, about = 0003.
-        // Valid BIP39, no secret in it, and printed on every explainer there is.
+        // The retired numeric SeedQR shape: 4 digits per wordlist index. This
+        // reader used to accept it; it must not now, at either length and
+        // whatever the indices spell. Built from the good vector rather than
+        // the abandon one so this is testing the REMOVAL and not the
+        // degenerate gate that would refuse it anyway.
+        {
+            char dg[97];
+            const char *w = GOOD;
+            size_t d = 0;
+            for (int k = 0; k < 12 && d + 4 < sizeof dg; k++) {
+                char one[12]; size_t m = 0;
+                while (*w && *w != ' ' && m + 1 < sizeof one) one[m++] = *w++;
+                one[m] = 0; if (*w == ' ') w++;
+                int idx = -1;
+                for (int i = 0; i < 2048; i++) {
+                    const char *lw = NULL;
+                    if (kiss_seed_word(i, &lw) == 0 && lw && strcmp(lw, one) == 0) {
+                        idx = i; break;
+                    }
+                }
+                if (idx < 0) break;
+                d += (size_t)snprintf(dg + d, sizeof dg - d, "%04d", idx);
+            }
+            chkb("plaintext: built a well formed 48 digit SeedQR", d == 48);
+            chkb("plaintext: a well formed SeedQR is refused",
+                 kiss_seed_from_plaintext(dg, 48, so, sizeof so) != 0);
+        }
         static const char NUM[] =
             "000000000000000000000000000000000000000000000003";
-        chkb("qr: numeric SeedQR of the abandon vector refused",
-             kiss_seed_from_qr(NUM, 48, so, sizeof so) != 0);
+        chkb("plaintext: the abandon vector as digits refused",
+             kiss_seed_from_plaintext(NUM, 48, so, sizeof so) != 0);
 
-        chkb("qr: junk word refused",
-             kiss_seed_from_qr("abandon abandon abandon abandon abandon abandon "
+        chkb("plaintext: junk word refused",
+             kiss_seed_from_plaintext("abandon abandon abandon abandon abandon abandon "
                                  "abandon abandon abandon abandon abandon zzzzzz",
                                  95, so, sizeof so) != 0);
-        chkb("qr: eleven words refused",
-             kiss_seed_from_qr(MN, strlen(MN) - 6, so, sizeof so) != 0);
-        chkb("qr: tiny out buffer refused",
-             kiss_seed_from_qr(GOOD, strlen(GOOD), so, 10) != 0);
+        chkb("plaintext: eleven words refused",
+             kiss_seed_from_plaintext(MN, strlen(MN) - 6, so, sizeof so) != 0);
+        chkb("plaintext: tiny out buffer refused",
+             kiss_seed_from_plaintext(GOOD, strlen(GOOD), so, 10) != 0);
 
-        // degenerate CompactSeedQR entropy: the shapes a blank or hand-drawn
-        // QR produces, all must be refused
+        // degenerate entropy out of an envelope: all must be refused
         uint8_t ent[32];
         memset(ent, 0x00, 32);
-        chkb("qr: all-zero 16B entropy refused",
-             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
-        chkb("qr: all-zero 32B entropy refused",
-             kiss_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
+        chkb("plaintext: all-zero 16B entropy refused",
+             kiss_seed_from_plaintext((const char *)ent, 16, so, sizeof so) != 0);
+        chkb("plaintext: all-zero 32B entropy refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, so, sizeof so) != 0);
         memset(ent, 0xFF, 32);
-        chkb("qr: all-ones entropy refused",
-             kiss_seed_from_qr((const char *)ent, 32, so, sizeof so) != 0);
+        chkb("plaintext: all-ones entropy refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, so, sizeof so) != 0);
         memset(ent, 0xAA, 16);
-        chkb("qr: single repeated byte refused",
-             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
+        chkb("plaintext: single repeated byte refused",
+             kiss_seed_from_plaintext((const char *)ent, 16, so, sizeof so) != 0);
         memset(ent, 0x00, 16); ent[7] = 0x01;      // one bit in 128
-        chkb("qr: near-empty entropy refused",
-             kiss_seed_from_qr((const char *)ent, 16, so, sizeof so) != 0);
+        chkb("plaintext: near-empty entropy refused",
+             kiss_seed_from_plaintext((const char *)ent, 16, so, sizeof so) != 0);
 
         // random junk at every shape: bytes, printable, digit strings at the
-        // numeric lengths. Success is only legal with a validating mnemonic
-        // (random 16/32-byte lengths ARE real entropy and legitimately pass).
+        // lengths the numeric shape used to occupy. Success is only legal with
+        // a validating mnemonic (random 16/32-byte lengths ARE real entropy and
+        // legitimately pass).
         for (int i = 0; i < 2000; i++) {
             char jb[301];
             size_t n = 1 + rnd() % 300;
@@ -502,18 +528,18 @@ int main(void)
             }
             if (mode == 2 && rnd() % 2) n = rnd() % 2 ? 48 : 96;
             memset(so, 0x5A, sizeof so);
-            int rc = kiss_seed_from_qr(jb, n, so, sizeof so);
+            int rc = kiss_seed_from_plaintext(jb, n, so, sizeof so);
             if (rc == 0 && kiss_seed_validate(so) != 0) {
-                printf("FAIL: qr junk accepted without a valid mnemonic (iter %d)\n", i);
+                printf("FAIL: plaintext junk accepted without a valid mnemonic (iter %d)\n", i);
                 fails++;
             }
             if (rc != 0 && so[0] != 0) {
-                printf("FAIL: qr rejection left bytes in out (iter %d)\n", i);
+                printf("FAIL: plaintext rejection left bytes in out (iter %d)\n", i);
                 fails++;
             }
         }
     }
-    printf("PASS: seed QR: junk never yields an invalid mnemonic, rejections wipe\n");
+    printf("PASS: backup plaintext: junk never yields an invalid mnemonic, rejections wipe\n");
 
     // ---- 6. kiss_address_validate: a stranger's address string ----
     // Reaches bech32/bech32m decode, base58check decode and the SP prefix
@@ -720,7 +746,7 @@ int main(void)
         printf("PASS: 800 damaged kef envelopes never a foreign plaintext\n");
 
         // random buffers through parse and sniff; whenever the sniff claims
-        // one, the seed QR parser must not (and neither may crash)
+        // one, the plaintext reader must not (and neither may crash)
         int both = 0, sniffed = 0;
         for (int i = 0; i < 6000; i++) {
             size_t n = 1 + rnd() % KEF_MAX_ENV;
@@ -738,7 +764,7 @@ int main(void)
             kef_parse(dmg, n, &e);
             if (kef_sniff(dmg, n)) {
                 sniffed++;
-                if (kiss_seed_from_qr((const char *)dmg, n, sw,
+                if (kiss_seed_from_plaintext((const char *)dmg, n, sw,
                                       sizeof sw) == 0) both++;
             }
         }

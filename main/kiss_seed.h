@@ -108,7 +108,8 @@ int kiss_seed_validate(const char *mnemonic);
 
 // 1 when a mnemonic's entropy carries no secret at all: a degenerate byte
 // pattern, or a word sequence the blind draw's judge blocks (WC_F_DEGEN).
-// Import and creation entry points only — kiss_seed_from_qr calls it, and the
+// Import and creation entry points only — kiss_seed_from_plaintext calls it,
+// and the
 // typed restore judges the same class for itself so the walk can render it.
 //
 // NEVER call this from kiss_seed_validate or kiss_seed_stage. The storage read
@@ -122,20 +123,19 @@ int kiss_seed_degenerate(const char *mnemonic);
 int kiss_seed_from_entropy(const uint8_t *entropy, size_t len,
                              char *out, size_t out_len);
 
-// ---- QR seed import ----
-// One decoded QR payload -> a checksum-valid mnemonic. Three shapes, told
-// apart by content (they cannot collide: the digit forms are 48/96 bytes, the
-// binary forms 16/32):
-//   * plain text mnemonic, as a wallet or a text QR would write it
-//   * numeric SeedQR (SeedSigner/Krux): 48 or 96 ASCII digits, four per
-//     wordlist index, zero padded
-//   * CompactSeedQR: 16 or 32 raw entropy bytes
+// ---- opened backup -> words ----
+// The decrypted plaintext of a KEF envelope (kiss_kef.h) -> a checksum-valid
+// mnemonic. Two shapes, told apart by length:
+//   * 16 or 32 raw entropy bytes -- the convention Krux writes, so either
+//     device rebuilds the other's words
+//   * a plain text mnemonic, which Krux can also seal
 // data may contain NULs, so len is authoritative. 0 on success; out is always
 // NUL-terminated and is CLEARED on any failure (never a stale half-seed).
-// KISS deliberately has no matching PLAINTEXT export: it reads seed QRs and
-// never draws one. The one sanctioned export is the KEF encrypted backup
-// (kiss_kef.h), which leaves the box only under a password.
-int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len);
+//
+// This is the ONLY way a seed enters the device without being typed, and it is
+// the far side of a password. Nothing feeds it straight off the camera: the
+// signer used to read SeedQR and CompactSeedQR squares, and no longer does.
+int kiss_seed_from_plaintext(const char *data, size_t len, char *out, size_t out_len);
 
 // ---- wordlist access (RESTORE autocomplete + prove-backup quiz decoys) ----
 // Up to n wordlist words starting with prefix into out[]; returns the count.
@@ -217,7 +217,10 @@ int  kiss_seed_entropy_note(void);
 #define WSEED_SRC_DICE     2   // d6 rolls, hashed
 #define WSEED_SRC_CARDS    3   // the owner's own blind draw
 #define WSEED_SRC_RESTORE  4   // words typed in from elsewhere
-#define WSEED_SRC_QR       5   // a seed QR made on another signer
+// 5 was a seed QR, which this signer no longer reads. The number stays retired
+// rather than reused: a device upgraded across the removal still has it in
+// flash, and made_labels answers it the way it answers any source it does not
+// recognise -- not recorded -- instead of naming whatever took its slot.
 #define WSEED_SRC_KEF      6   // an encrypted backup
 
 void kiss_seed_set_source(int v);

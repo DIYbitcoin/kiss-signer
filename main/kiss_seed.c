@@ -1437,34 +1437,6 @@ int kiss_seed_from_entropy(const uint8_t *entropy, size_t len,
 }
 
 // ---- QR seed import (see kiss_seed.h) ----
-static bool all_digits(const char *p, size_t n)
-{
-    for (size_t i = 0; i < n; i++)
-        if (p[i] < '0' || p[i] > '9') return false;
-    return n > 0;
-}
-
-// 48 or 96 ASCII digits, four per wordlist index. Rebuilding the words from
-// indices means a damaged QR shows up as a checksum failure below, not as a
-// silently different wallet.
-static int from_numeric_seedqr(const char *p, size_t n, char *out, size_t out_len)
-{
-    size_t words_n = n / 4;
-    size_t o = 0;
-    for (size_t w = 0; w < words_n; w++) {
-        int idx = 0;
-        for (int d = 0; d < 4; d++) idx = idx * 10 + (p[w * 4 + d] - '0');
-        const char *word = NULL;
-        if (kiss_seed_word(idx, &word) != 0 || !word)   // 2048+ lands here
-            return -1;
-        int need = snprintf(out + o, out_len - o, "%s%s", w ? " " : "", word);
-        if (need < 0 || (size_t)need >= out_len - o)
-            return -1;
-        o += (size_t)need;
-    }
-    return 0;
-}
-
 // ---- degenerate entropy ----
 // The byte shapes that cannot be an accident of a real generator: every byte
 // the same value (00.., ff.., aa..), or fewer than a tenth of the bits set
@@ -1518,31 +1490,23 @@ int kiss_seed_degenerate(const char *mnemonic)
     return bad;
 }
 
-int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
+int kiss_seed_from_plaintext(const char *data, size_t len, char *out, size_t out_len)
 {
     if (out && out_len) out[0] = 0;      // never leave a stale value behind
     if (!data || !out || out_len < 2 || len == 0)
         return -1;
 
-    // Numeric SeedQR first: it is the only all-ASCII-digit form, and its
-    // lengths (48/96) cannot be mistaken for a CompactSeedQR (16/32).
-    if ((len == 48 || len == 96) && all_digits(data, len)) {
-        if (from_numeric_seedqr(data, len, out, out_len) != 0)
-            goto fail;
-        if (kiss_seed_validate(out) != 0)
-            goto fail;
-        goto degen;
-    }
-
-    // CompactSeedQR: raw entropy, no encoding at all.
+    // Raw entropy, no encoding at all: what Krux seals, and what this signer
+    // seals. 16 and 32 are also the two lengths kef_sniff refuses outright, so
+    // an envelope can never arrive here claiming to be its own plaintext.
     if (len == 16 || len == 32) {
         if (kiss_seed_from_entropy((const uint8_t *)data, len, out, out_len) != 0)
             goto fail;
         goto degen;                      // built from entropy: the checksum is ours
     }
 
-    // Plain text mnemonic. Trimmed, so a trailing newline from a text QR does
-    // not turn into a failed wordlist lookup.
+    // A text mnemonic, which Krux can seal instead of the entropy. Trimmed, so
+    // a trailing newline does not turn into a failed wordlist lookup.
     {
         const char *b = data, *e = data + len;
         while (b < e && (*b == ' ' || *b == '\n' || *b == '\r' || *b == '\t')) b++;
@@ -1558,18 +1522,16 @@ int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
     }
 
 degen:
-    // One gate, all three shapes. Every other seed route in this device passes
-    // its entropy through a health check first (camera floor and novelty, dice
-    // histogram and period, the blind draw's judge); a QR was 16 bytes off a
-    // printed square and straight into a wallet, so a square of 32 zero bytes
-    // -- or the "abandon" vector as 48 digits, which every BIP39 page prints --
-    // used to become a real, funded-if-you-fund-it wallet with nothing said.
-    // The check was on the CompactSeedQR shape alone, which was the one shape
-    // an owner is least likely to type by hand.
+    // One gate, both shapes. Every other seed route in this device passes its
+    // entropy through a health check first (camera floor and novelty, dice
+    // histogram and period, the blind draw's judge). A sealed backup gets the
+    // same treatment on the way out of the envelope: 32 zero bytes, or the
+    // "abandon" vector every BIP39 page prints, would otherwise become a real,
+    // funded-if-you-fund-it wallet with nothing said.
     //
-    // It is the owner's own QR, so this is a footgun rather than an attack, and
-    // it refuses rather than warns for the same reason the dice do: there is
-    // nothing on the other side of the warning worth keeping.
+    // It is the owner's own backup, so this is a footgun rather than an attack,
+    // and it refuses rather than warns for the same reason the dice do: there
+    // is nothing on the other side of the warning worth keeping.
     if (kiss_seed_degenerate(out))
         goto fail;
     return 0;

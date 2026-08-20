@@ -292,7 +292,7 @@ static const slot_t SLOTS[] = {
     { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  90 },
     { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340,  62 },
     // The two word-count notes sit in the 80px gaps of a three-pill stack (12
-    // WORDS at y=150, 24 WORDS at 230, SCAN SEED QR at 310) in a 340px column.
+    // WORDS at y=150, 24 WORDS at 230, SCAN LOCKED QR at 310) in a 340px column.
     // Both run to three or four lines at 23 -- 87px and 116px -- so neither can
     // reach it without restacking the page or cutting the copy. Same situation
     // as the ADDRESS TYPE notes above, and recorded for the same reason.

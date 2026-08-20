@@ -16,7 +16,7 @@
 #include "i18n.h"
 #include "kiss_crypto.h"   // kiss_entropy_mix3: camera + chip + taps -> seed
 #include "kiss_kef.h"      // encrypted backups arriving through restore
-#include "kiss_scan.h"     // kiss_scan_open_raw: seed-QR import (amnesic load)
+#include "kiss_scan.h"     // kiss_scan_open_raw: the locked-backup QR door
 #include "kiss_seed.h"
 #include "kiss_ui.h"       // the borrowed KEF password keyboard
 #include "kiss_settings.h"   // kiss_lang_picker_open: first-boot language switch
@@ -109,9 +109,9 @@ static void count_screen(void);
 static void kef_sd_open_restore_cb(lv_event_t *e);
 static void kef_sd_open_load_cb(lv_event_t *e);
 static void whatseed_count_cb(lv_event_t *e);   // the seed explainer, count screen door
-// SeedQR was only reachable from the amnesic per-session load, so someone
-// restoring a wallet during setup had to type words they were holding as a QR.
-// Same decoder, same staging; only the way back differs.
+// The locked-backup scan is offered on both restore doors -- the wizard's
+// count screen and the amnesic per-session load. Same decoder, same staging;
+// only the way back differs.
 static void restore_scan_cb(lv_event_t *e);
 static void cancel_cb(lv_event_t *e);
 static void goto_count_cb(lv_event_t *e);
@@ -2839,8 +2839,8 @@ static void count_screen(void)
     // place on this device where a control and its explanation were separate
     // objects that happened to share a y.
     //
-    // LIST for a count of words, and WT_ICON_QR for the path that reads them off
-    // a code instead. No tick on any of them: the paper decides how many words
+    // LIST for a count of words, and WT_ICON_QR for the locked backup, which
+    // carries its own. No tick on any of them: the paper decides how many words
     // there are, so the device has no current answer to mark.
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
@@ -2848,10 +2848,10 @@ static void count_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
-    // A SeedQR carries its own length, so it sits beside the count rather than
-    // after it.
+    // An envelope carries its own length, so it sits beside the count rather
+    // than after it.
     if (s_restore)
-        wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_SEED_QR),
+        wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_KEF_QR),
                  tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
@@ -2877,7 +2877,7 @@ static void count_screen(void)
     }
     // Restore is the only way in now, so BACK has one destination again.
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
-    // The fourth way in arrived with the encrypted backup: a .kef file. The
+    // The same envelope off the card instead of the glass: a .kef file. The
     // chooser grid is full at three, so the card path sits on the action row.
     if (s_restore)
         wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), WT_ACT_X,
@@ -3135,11 +3135,14 @@ static void choose_screen(void)
     }
 }
 
-// ---- AMNESIC per-session load: type the words, or scan a seed QR ----
-// KISS never writes a seed QR. It reads one the owner already made on a
-// SeedSigner / Krux, which is what makes "power on, load, sign, power off"
-// bearable. Everything here stages into RAM; nothing can reach flash because
-// kiss_seed_commit is a no-op in this mode.
+// ---- AMNESIC per-session load: type the words, or open a backup ----
+// The signer used to read a bare SeedQR here. It no longer does: an unlocked
+// square of a seed is a seed to anyone who photographs it, and this device
+// never wrote one, so it was only ever a door for somebody else's. The QR that
+// remains is the locked one this device does write (kiss_kef.h), which is what
+// makes "power on, load, sign, power off" bearable without leaving a readable
+// seed on paper. Everything here stages into RAM; nothing can reach flash
+// because kiss_seed_commit is a no-op in this mode.
 static void load_screen(void);
 static void load_screen_fwd(void) { load_screen(); }
 
@@ -3159,13 +3162,14 @@ static void load_new_cb(lv_event_t *e)
 
 static void load_back_cb(lv_event_t *e) { (void)e; load_screen(); }
 
-// ---- KEF: an encrypted backup arriving where a seed was expected ----
+// ---- KEF: the only envelope either door accepts ----
 // The chokepoint is qr_text_cb (and the file picker below): the payload still
-// has its real length and no string assumption has been made. kef_sniff can
-// never claim any of the four seed QR shapes (kiss_kef.h), so a paper restore
-// never meets a password prompt. Version 20 within the work-factor cap gets
-// the password keyboard; every other well-formed envelope is refused BEFORE a
-// password is asked for — nothing the owner could type changes that answer.
+// has its real length and no string assumption has been made. Version 20
+// within the work-factor cap gets the password keyboard; every other
+// well-formed envelope is refused BEFORE a password is asked for — nothing the
+// owner could type changes that answer. What kef_sniff does not claim at all
+// no longer reaches a seed parser, so the camera cannot hand this device
+// words: it can only hand it an envelope that a password still has to open.
 static uint8_t s_kef_env[KEF_MAX_ENV];
 static size_t  s_kef_env_len;
 
@@ -3192,11 +3196,11 @@ static int kef_open_cb(const char *pass, size_t len)
     size_t plen = 0;
     int rc = kiss_kef_open(pass, len, s_kef_env, s_kef_env_len,
                            plain, sizeof plain, &plen);
-    // The plaintext convention is Krux's: BIP39 entropy bytes. The seed QR
-    // parser already reads exactly that shape (CompactSeedQR), and a text
-    // mnemonic too, so both plaintexts restore through the one tested door.
+    // The plaintext convention is Krux's: BIP39 entropy bytes, or a text
+    // mnemonic. One reader takes both.
     if (rc == 0)
-        rc = kiss_seed_from_qr((const char *)plain, plen, words, sizeof words);
+        rc = kiss_seed_from_plaintext((const char *)plain, plen, words,
+                                      sizeof words);
     if (rc == 0)
         rc = kiss_seed_stage(words);
     if (rc == 0) {
@@ -3330,28 +3334,14 @@ static void qr_bad_screen(void)
     wt_pill_primary(p);
 }
 
-// The scan screen owns the camera; it hands us the first decoded payload.
+// The scan screen owns the camera; it hands us the first decoded payload. A
+// locked backup is the only thing it can be now: kef_route takes it to the
+// password or refuses it, and everything else -- including the bare seed
+// square this signer used to read -- lands on the screen above.
 static void qr_text_cb(const char *txt, size_t len)
 {
-    if (kef_route((const uint8_t *)txt, len))
-        return;                          // an encrypted backup, not a seed QR
-    char words[WSEED_MAX_MNEMONIC];
-    int rc = kiss_seed_from_qr(txt, len, words, sizeof words);
-    if (rc == 0)
-        rc = kiss_seed_stage(words);
-    kiss_wipe(words, sizeof words);           // a scanned mnemonic must not linger
-    if (rc != 0) { qr_bad_screen(); return; }
-    // Somebody else's draw, with nothing to say about it -- and saying nothing
-    // means writing 0, not skipping the write. Both import paths skipped it,
-    // so a note left by the wallet this device made BEFORE the import was
-    // still on the backup screen afterwards, describing a draw that no longer
-    // had anything to do with the seed on the device (kiss_seed.h).
-    kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
-    kiss_seed_set_source(WSEED_SRC_QR);
-    void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
-    s_load = false;
-    close_all();
-    if (cb) cb();
+    if (!kef_route((const uint8_t *)txt, len))
+        qr_bad_screen();
 }
 
 static void qr_cancel_cb(void) { load_screen(); }
@@ -3380,7 +3370,7 @@ static void load_screen(void)
     mk_screen(tr(STR_W_LOAD_T), tr(STR_W_LOAD_S));
     lv_obj_t *p = mk_pill(tr(STR_W_TYPE_MY_WORDS), 48, 150, 340, load_type_cb, NULL);
     wt_pill_primary(p);
-    mk_pill(tr(STR_W_SCAN_SEED_QR), 48, 264, 340, load_scan_cb, NULL);
+    mk_pill(tr(STR_W_SCAN_KEF_QR), 48, 264, 340, load_scan_cb, NULL);
     wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), 430, 150, 340, 110);
     wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 266, 340, 130);
     mk_pill(tr(STR_W_CREATE_NEW), 560, WT_ACTION_Y, 190, load_new_cb, NULL);

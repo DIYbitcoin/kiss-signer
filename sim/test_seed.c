@@ -19,8 +19,10 @@
 
 static int sfails;
 
-// mnemonic -> numeric SeedQR digits, the opposite direction to the parser.
-// Returns the digit count, or 0 if a word is not on the list.
+// mnemonic -> numeric SeedQR digits. The parser that read these is gone; this
+// builds a WELL-FORMED one so the tests can prove it is refused rather than
+// only proving that junk is. Returns the digit count, or 0 if a word is not on
+// the list.
 static size_t seed_digits(const char *mnemonic, char *out, size_t out_len)
 {
     size_t d = 0;
@@ -168,109 +170,104 @@ int test_seed_layer(void) {
         kiss_seed_from_entropy(ent, 16, good12, sizeof good12);
         kiss_seed_from_entropy(ent, 32, good24, sizeof good24);
 
-        // 1. plain text mnemonic in a QR
-        schk("qr: plain mnemonic rc",
-             kiss_seed_from_qr(good12, strlen(good12), got, sizeof got) == 0);
-        schk("qr: plain mnemonic roundtrips", strcmp(got, good12) == 0);
+        // 1. a text mnemonic, which Krux can seal instead of the entropy
+        schk("plaintext: plain mnemonic rc",
+             kiss_seed_from_plaintext(good12, strlen(good12), got, sizeof got) == 0);
+        schk("plaintext: plain mnemonic roundtrips", strcmp(got, good12) == 0);
         {
             char padded[WSEED_MAX_MNEMONIC + 8];
             snprintf(padded, sizeof padded, "  %s\n", good12);
-            schk("qr: plain mnemonic with stray spaces",
-                 kiss_seed_from_qr(padded, strlen(padded), got, sizeof got) == 0
+            schk("plaintext: plain mnemonic with stray spaces",
+                 kiss_seed_from_plaintext(padded, strlen(padded), got, sizeof got) == 0
                  && strcmp(got, good12) == 0);
         }
-        schk("qr: plain mnemonic with a bad checksum refused",
-             kiss_seed_from_qr("abandon abandon abandon abandon abandon abandon "
-                                 "abandon abandon abandon abandon abandon abandon", 71,
-                                 got, sizeof got) != 0);
+        schk("plaintext: plain mnemonic with a bad checksum refused",
+             kiss_seed_from_plaintext(
+                 "abandon abandon abandon abandon abandon abandon "
+                 "abandon abandon abandon abandon abandon abandon", 71,
+                 got, sizeof got) != 0);
         // Valid BIP39 and still nothing: the canonical zero-entropy vector is
-        // printed on every BIP39 explainer there is, so a QR of it is a wallet
-        // the whole world can spend from. The checksum has no opinion about it.
-        schk("qr: the abandon vector refused as text",
-             kiss_seed_from_qr(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) != 0);
-        schk("qr: the abandon vector leaves nothing behind", got[0] == 0);
-        schk("qr: the 0x80 vector refused as text",
-             kiss_seed_from_qr(ALT_WORDS, strlen(ALT_WORDS), got, sizeof got) != 0);
+        // printed on every BIP39 explainer there is, so a backup of it is a
+        // wallet the whole world can spend from. The checksum has no opinion.
+        schk("plaintext: the abandon vector refused as text",
+             kiss_seed_from_plaintext(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) != 0);
+        schk("plaintext: the abandon vector leaves nothing behind", got[0] == 0);
+        schk("plaintext: the 0x80 vector refused as text",
+             kiss_seed_from_plaintext(ALT_WORDS, strlen(ALT_WORDS), got, sizeof got) != 0);
 
-        // 2. numeric SeedQR (SeedSigner): 4 digits per wordlist index.
-        // abandon = 0000 (x11), about = 0003.
-        static const char *SQR12 =
-            "000000000000000000000000000000000000000000000003";
-        schk("qr: numeric SeedQR of the abandon vector refused",
-             kiss_seed_from_qr(SQR12, 48, got, sizeof got) != 0);
-
-        // Digits built from a known mnemonic by searching the wordlist
-        // (word -> index), the opposite direction to the parser.
+        // 2. numeric SeedQR: REMOVED, and pinned removed.
+        // 48 or 96 ASCII digits, four per wordlist index, was a shape this
+        // signer read straight off a printed square. It no longer does: a bare
+        // seed square is a seed to whoever photographs it, this device never
+        // wrote one, and the only thing a camera can hand it now is an
+        // envelope a password still has to open.
+        //
+        // A WELL-FORMED one is the test that matters. Junk was always refused,
+        // so junk proves nothing about the removal; digits built from a real
+        // mnemonic used to restore it, and must not any more.
         {
             char d12[49], d24[97];
-            schk("qr: built 48 digits for 12 words",
+            schk("plaintext: built 48 digits for 12 words",
                  seed_digits(good12, d12, sizeof d12) == 48);
-            schk("qr: built 96 digits for 24 words",
+            schk("plaintext: built 96 digits for 24 words",
                  seed_digits(good24, d24, sizeof d24) == 96);
-            schk("qr: numeric SeedQR 48 digits rc",
-                 kiss_seed_from_qr(d12, 48, got, sizeof got) == 0);
-            schk("qr: numeric SeedQR 48 roundtrips", strcmp(got, good12) == 0);
-            schk("qr: numeric SeedQR 96 digits rc",
-                 kiss_seed_from_qr(d24, 96, got, sizeof got) == 0);
-            schk("qr: numeric SeedQR 96 roundtrips", strcmp(got, good24) == 0);
-
-            // Slot 0 to a different index: the checksum must notice. Toggled
-            // rather than set, because a hard-coded '9' is a no-op whenever the
-            // real first index already ends in one -- which is exactly what it
-            // silently became when this vector stopped being 0xFF entropy.
-            d24[3] = (d24[3] == '9') ? '8' : '9';
-            schk("qr: numeric SeedQR with a broken checksum refused",
-                 kiss_seed_from_qr(d24, 96, got, sizeof got) != 0);
+            schk("plaintext: a valid 48 digit SeedQR is refused",
+                 kiss_seed_from_plaintext(d12, 48, got, sizeof got) != 0);
+            schk("plaintext: a valid 96 digit SeedQR is refused",
+                 kiss_seed_from_plaintext(d24, 96, got, sizeof got) != 0);
+            schk("plaintext: a refused SeedQR leaves nothing behind",
+                 got[0] == 0);
         }
-        schk("qr: 47 digits refused",
-             kiss_seed_from_qr(SQR12, 47, got, sizeof got) != 0);
-        schk("qr: index 2048 out of range refused",
-             kiss_seed_from_qr("204800000000000000000000"
-                                 "000000000000000000000000", 48, got, sizeof got) != 0);
+        // abandon = 0000 (x11), about = 0003: the vector every BIP39 page
+        // prints, refused twice over now.
+        schk("plaintext: the abandon vector as digits is refused",
+             kiss_seed_from_plaintext(
+                 "000000000000000000000000000000000000000000000003", 48,
+                 got, sizeof got) != 0);
 
-        // 3. CompactSeedQR: raw entropy bytes, 16 or 32
+        // 3. raw entropy bytes, 16 or 32: what Krux seals, and what this
+        // signer seals
         // Ordinary entropy still goes straight through, and must agree with the
         // entropy path byte for byte.
         for (size_t i = 0; i < sizeof ent; i++) ent[i] = (uint8_t)(i * 37 + 11);
         kiss_seed_from_entropy(ent, 16, words, sizeof words);
-        schk("qr: compact 16 bytes rc",
-             kiss_seed_from_qr((const char *)ent, 16, got, sizeof got) == 0);
-        schk("qr: compact 16 matches entropy path", strcmp(got, words) == 0);
+        schk("plaintext: 16 bytes rc",
+             kiss_seed_from_plaintext((const char *)ent, 16, got, sizeof got) == 0);
+        schk("plaintext: 16 matches entropy path", strcmp(got, words) == 0);
         kiss_seed_from_entropy(ent, 32, words, sizeof words);
-        schk("qr: compact 32 rc",
-             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) == 0);
-        schk("qr: compact 32 matches entropy path", strcmp(got, words) == 0);
-        schk("qr: 20 raw bytes refused",
-             kiss_seed_from_qr((const char *)ent, 20, got, sizeof got) != 0);
+        schk("plaintext: 32 rc",
+             kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) == 0);
+        schk("plaintext: 32 matches entropy path", strcmp(got, words) == 0);
+        schk("plaintext: 20 raw bytes refused",
+             kiss_seed_from_plaintext((const char *)ent, 20, got, sizeof got) != 0);
 
-        // Degenerate entropy is refused. These are the shapes a blank, a solid
-        // or a hand-drawn CompactSeedQR produces, and every one of them used to
-        // build a real wallet without a word said. kiss_seed_from_entropy is
-        // NOT the gate -- it happily turns 32 zero bytes into the dev mnemonic
-        // -- so the check lives in kiss_seed_from_qr and these prove it.
+        // Degenerate entropy is refused on the way out of the envelope too.
+        // kiss_seed_from_entropy is NOT the gate -- it happily turns 32 zero
+        // bytes into the dev mnemonic -- so the check lives here and these
+        // prove it.
         memset(ent, 0x00, sizeof ent);
-        schk("qr: compact all-zero 16 refused",
-             kiss_seed_from_qr((const char *)ent, 16, got, sizeof got) != 0);
-        schk("qr: compact all-zero 32 refused",
-             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        schk("plaintext: all-zero 16 refused",
+             kiss_seed_from_plaintext((const char *)ent, 16, got, sizeof got) != 0);
+        schk("plaintext: all-zero 32 refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) != 0);
         memset(ent, 0xFF, sizeof ent);
-        schk("qr: compact all-ones 32 refused",
-             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        schk("plaintext: all-ones 32 refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) != 0);
         memset(ent, 0xA5, sizeof ent);   // one repeated byte, half the bits set
-        schk("qr: compact one repeated byte refused",
-             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        schk("plaintext: one repeated byte refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) != 0);
         // ... and a single bit set in 32 bytes: not all one value, still nothing
         memset(ent, 0x00, sizeof ent); ent[7] = 0x08;
-        schk("qr: compact near-empty entropy refused",
-             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) != 0);
+        schk("plaintext: near-empty entropy refused",
+             kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) != 0);
 
-        schk("qr: empty refused", kiss_seed_from_qr("", 0, got, sizeof got) != 0);
-        schk("qr: garbage refused",
-             kiss_seed_from_qr("hello world", 11, got, sizeof got) != 0);
+        schk("plaintext: empty refused", kiss_seed_from_plaintext("", 0, got, sizeof got) != 0);
+        schk("plaintext: garbage refused",
+             kiss_seed_from_plaintext("hello world", 11, got, sizeof got) != 0);
         // a NUL-terminated buffer must not leak the old value on failure
         got[0] = 'x';
-        kiss_seed_from_qr("hello world", 11, got, sizeof got);
-        schk("qr: output cleared on failure", got[0] == 0);
+        kiss_seed_from_plaintext("hello world", 11, got, sizeof got);
+        schk("plaintext: output cleared on failure", got[0] == 0);
 
         // ---- the gate itself, straight ----
         // Two arms: degenerate BYTES, and a word sequence the blind draw's

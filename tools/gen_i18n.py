@@ -151,6 +151,10 @@ UNTRANSLATED_OK = {
     "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
     "W_KEF_BAD_T", "W_KEF_BAD_S", "W_KEF_BAD_B",
     "W_KEF_SD_T", "W_KEF_SD_S", "W_KEF_SD_EMPTY", "W_KEF_SD_NONE_B",
+    # The locked-backup scan, which replaced the seed-QR scan on both restore
+    # doors. The old key's translations named a feature this signer no longer
+    # has, so it was renamed rather than overwritten; English until the sweep.
+    "W_SCAN_KEF_QR",
     # The method screen's first row. Same rule as the KEF block above: born
     # after the English-only rule, so the other twenty carry English until the
     # sweep. It needed its own keys because the row had been borrowing
@@ -181,7 +185,7 @@ UNTRANSLATED_OK = {
     # HOW YOUR KEYS WERE MADE: the record of which path produced this seed.
     # Born under the English-only rule, like the KEF block above.
     "W_MADE_T", "W_MADE_S", "W_MADE_CAP", "W_MADE_NONE", "W_MADE_ELSE",
-    "W_MADE_NOREC", "W_MADE_QR",
+    "W_MADE_NOREC",
     "W_RNG_T", "W_RNG_S", "W_RNG_SRC", "W_RNG_SRC_SUB",
     "W_RNG_ON", "W_RNG_OFF",
     "W_RNG_WHY1_H", "W_RNG_WHY1_B", "W_RNG_WHY2_H", "W_RNG_WHY2_B",

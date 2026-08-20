@@ -1,6 +1,6 @@
 // The KEF envelope: GCM against the spec vectors, the envelope against
 // golden vectors produced by the reference implementation, and the sniff
-// against every seed QR shape it must never claim.
+// against every plaintext shape it must never claim.
 //
 // The goldens are the interop proof and their provenance matters: each was
 // produced by the Krux project's kef.py (the format's reference) driving an
@@ -251,7 +251,7 @@ static void test_roundtrip(void)
     dchk("all non-20 versions refused by open", versions_ok);
 }
 
-// ---- the sniff must never claim a seed QR shape -------------------------
+// ---- the sniff must never claim a plaintext shape -----------------------
 static void test_sniff(void)
 {
     const char *words =
@@ -264,19 +264,21 @@ static void test_sniff(void)
     char digits[97];
     memset(digits, '0', 96);
     digits[96] = 0;
-    dchk("sniff: 96 digit SeedQR is not KEF",
+    dchk("sniff: 96 ASCII digits is not KEF",
          kef_sniff((const uint8_t *)digits, 96) == 0);
-    dchk("sniff: 48 digit SeedQR is not KEF",
+    dchk("sniff: 48 ASCII digits is not KEF",
          kef_sniff((const uint8_t *)digits, 48) == 0);
 
-    // worst-case CompactSeedQR bytes crafted to look as KEF-ish as a 16/32
-    // byte buffer can: the length rule alone must throw both out
+    // worst-case raw entropy crafted to look as KEF-ish as a 16/32 byte
+    // buffer can: the length rule alone must throw both out. This is the
+    // shape a real envelope's own plaintext takes, so a hit here would let
+    // an opened backup be mistaken for another envelope.
     uint8_t entropy[32] = { 0 };
     entropy[0] = 0;                              // len_id 0
     entropy[1] = 20;                             // version 20
     entropy[4] = 10;                             // iterations 10
-    dchk("sniff: 16B CompactSeedQR is not KEF", kef_sniff(entropy, 16) == 0);
-    dchk("sniff: 32B CompactSeedQR is not KEF", kef_sniff(entropy, 32) == 0);
+    dchk("sniff: 16B raw entropy is not KEF", kef_sniff(entropy, 16) == 0);
+    dchk("sniff: 32B raw entropy is not KEF", kef_sniff(entropy, 32) == 0);
 
     uint8_t env[64], plain16[16] = { 1 };
     size_t elen = 0;

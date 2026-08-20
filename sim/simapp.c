@@ -182,8 +182,8 @@ EMSCRIPTEN_KEEPALIVE int kiss_sim_cam_decode(void) {
             kiss_scan_inject((const char *)res.data.payload, (size_t)res.data.payload_len);
             fed++;
         }
-        // Static, so it outlives the scan in .bss. A SeedQR restore puts a
-        // whole mnemonic in there and a passphrase QR puts the passphrase; the
+        // Static, so it outlives the scan in .bss. A passphrase QR puts the
+        // passphrase in there, and a locked backup puts an envelope; the
         // device wipes it for that reason and so does this.
         memset(&res, 0, sizeof res);
     }

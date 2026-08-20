@@ -1167,11 +1167,11 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         ESP_LOGI(TAG, "scan: located but %s", k_quirc_strerror(err));
       }
       // `res` is static so the 2.6KB stays off this task's stack, which means
-      // it is .bss that outlives the scan. A SeedQR restore puts a full BIP39
-      // mnemonic in there, and a passphrase QR puts the passphrase, and both
-      // would sit in RAM until the next decode happened to overwrite them --
-      // for the rest of the boot if none ever did. The callback has consumed
-      // the payload by now, so this is the last moment it is still ours.
+      // it is .bss that outlives the scan. A passphrase QR puts the passphrase
+      // in there, and a locked backup puts the envelope, and both would sit in
+      // RAM until the next decode happened to overwrite them -- for the rest
+      // of the boot if none ever did. The callback has consumed the payload by
+      // now, so this is the last moment it is still ours.
       wally_bzero(&res, sizeof res);
     }
     if (decoded || s_scan_seen > 0) {
