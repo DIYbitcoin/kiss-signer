@@ -203,7 +203,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     nvs_handle_t h;
     uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
     uint8_t dn = WT_DENOM_SATS;   // sats unless a previous run said otherwise
-    uint8_t hs = 1;               // history remembered unless the owner said not
+    uint8_t ps = 1;               // the signer saves what it saves, unless told not
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
