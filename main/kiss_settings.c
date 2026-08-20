@@ -873,9 +873,13 @@ static void made_labels(int src, const char **label, const char **note)
                                 *note  = tr(STR_W_DICE_NOTE);     break;
         case WSEED_SRC_CARDS:   *label = tr(STR_W_CHOOSE_CARDS);
                                 *note  = tr(STR_W_CARDS_NOTE);    break;
-        case WSEED_SRC_RESTORE: *label = tr(STR_W_CHOOSE_RESTORE);
+        // The caption reads MADE WITH, so an imported path names the THING it
+        // came in as, not the button that fetched it: "MADE WITH / SCAN" is
+        // not a sentence, and the note underneath already says it was made
+        // somewhere else.
+        case WSEED_SRC_RESTORE: *label = tr(STR_D_WORDS);
                                 *note  = tr(STR_W_MADE_ELSE);     break;
-        case WSEED_SRC_QR:      *label = tr(STR_L_SCAN_BTN);
+        case WSEED_SRC_QR:      *label = tr(STR_W_MADE_QR);
                                 *note  = tr(STR_W_MADE_ELSE);     break;
         case WSEED_SRC_KEF:     *label = tr(STR_I_ROW_KEF);
                                 *note  = tr(STR_W_MADE_ELSE);     break;

@@ -625,6 +625,7 @@ enum {
     STR_W_MADE_CAP,
     STR_W_MADE_NONE,
     STR_W_MADE_NOREC,
+    STR_W_MADE_QR,
     STR_W_MADE_ELSE,
     STR_W_AUD_S,
     STR_W_RNG_T,
