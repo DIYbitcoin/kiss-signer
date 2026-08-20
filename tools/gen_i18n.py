@@ -151,6 +151,9 @@ UNTRANSLATED_OK = {
     "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
     "W_KEF_BAD_T", "W_KEF_BAD_S", "W_KEF_BAD_B",
     "W_KEF_SD_T", "W_KEF_SD_S", "W_KEF_SD_EMPTY", "W_KEF_SD_NONE_B",
+    # What the envelope does NOT hold, shown only when a passphrase is in use.
+    # Born under the English-only rule, like the block it sits in.
+    "I_KEF_PP_H", "I_KEF_PP_B", "I_KEF_WARN_S_PP",
     # The locked-backup scan, which replaced the seed-QR scan on both restore
     # doors. The old key's translations named a feature this signer no longer
     # has, so it was renamed rather than overwritten; English until the sweep.

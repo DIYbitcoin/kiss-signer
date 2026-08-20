@@ -3373,7 +3373,30 @@ int main(void) {
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> backup page
   touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row -> consent
-  save("/tmp/sim_kef_warn.ppm");
+  save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
+  must_show("kef/with passphrase", tr(STR_I_KEF_PP_H));
+
+  // The same screen for an owner with no passphrase, where the words alone
+  // ARE the keys: the chip, the subtitle and the first claim all say so, and
+  // the sentence about what is missing has nothing to warn about. Forced the
+  // way the MADE record's three sources are, because reaching it honestly
+  // would mean a second login and every stop after this one stands on the
+  // session that is already open.
+  //
+  // Without this the branch is BUILT AND NEVER CAPTURED, which is the state
+  // check_screen_coverage.py exists to name -- except that it counts screens
+  // and this is a branch inside one, so nothing would have said a word.
+  kiss_session_open("");                            // decoy: no passphrase
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> the backup page
+  touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row again
+  save("/tmp/sim_kef_warn_nopass.ppm");             // YOUR KEYS, and no caveat
+  must_show("kef/no passphrase", tr(STR_I_KEF_W1_H));
+  must_not_show("kef/no passphrase says nothing about one",
+                tr(STR_I_KEF_PP_H));
+  kiss_session_open("x");                           // back to the truth
+  tap_str(STR_C_BACK, 3, 8);
+  touch(650, 128); pump(3); release(); pump(6);
+
   tap_str(STR_I_KEF_MAKE_BTN, 65, 8);               // hold CHOOSE A PASSWORD
   save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD
   touch(664, 278); pump(3); release(); pump(3);     // k

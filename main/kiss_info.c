@@ -919,13 +919,22 @@ static void kef_warn_screen(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), tr(STR_I_KEF_WARN_S));
 
-    // The mechanism, drawn before it is explained: your keys plus one
-    // password become a QR that only the password opens.
+    // Whether a passphrase stands between the words in this envelope and the
+    // keys it opens. kiss_session_decoy() is 1 for the session an EMPTY
+    // passphrase derives, so 0 here means the owner typed one -- and the
+    // envelope holds the words alone, which is not the same thing.
+    const bool pp = !kiss_session_decoy();
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF),
+                      tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S));
+
+    // The mechanism, drawn before it is explained: what goes in, plus one
+    // password, becomes a QR that only the password opens. With a passphrase
+    // the left chip is the WORDS, because the keys are the words plus the
+    // passphrase and only one of those two is going in the envelope.
     lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 64);
     lv_obj_t *row = wt_diagram_row(card);
-    wt_chip(row, tr_sym(WT_ICON_KEY, STR_D_KEYS), true);
+    wt_chip(row, tr_sym(WT_ICON_KEY, pp ? STR_D_WORDS : STR_D_KEYS), true);
     wt_diagram_op(row, "+");
     wt_chip(row, tr_sym(WT_ICON_LOCK, STR_L_KEF_PASS_OPEN), true);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
@@ -934,8 +943,17 @@ static void kef_warn_screen(lv_event_t *e)
 
     // Two claims, split: the accent rule on what the format buys, WT_WARN on
     // the one way it goes wrong. The password never has a reset.
+    //
+    // With a passphrase the first claim changes, because the shipped one is
+    // FALSE for that owner: "type the password, and your keys are back" is
+    // true only when the words alone are the keys. The passphrase is wiped at
+    // login by design (kiss_crypto.h), so it is not in the envelope and no
+    // future version can quietly put it there -- which makes this the one
+    // sentence standing between a passphrase owner and a backup that restores
+    // an empty wallet.
     {
-        const char *h1 = tr(STR_I_KEF_W1_H), *b1 = tr(STR_I_KEF_W1_B);
+        const char *h1 = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_W1_H);
+        const char *b1 = tr(pp ? STR_I_KEF_PP_B : STR_I_KEF_W1_B);
         const char *h2 = tr(STR_I_KEF_W2_H), *b2 = tr(STR_I_KEF_W2_B);
         const int BW = 344, BY = 176, BH = WT_CONTENT_BOTTOM - BY;
         const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, BW - 14, BH);
