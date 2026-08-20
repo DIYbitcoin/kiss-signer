@@ -3503,6 +3503,8 @@ static int kef_open_cb(const char *pass, size_t len)
         rc = kiss_seed_from_qr((const char *)plain, plen, words, sizeof words);
     if (rc == 0)
         rc = kiss_seed_stage(words);
+    if (rc == 0)
+        kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);   // as qr_text_cb, and why
     kiss_wipe(words, sizeof words);
     kiss_wipe(plain, sizeof plain);
     return rc == 0 ? 0 : -1;
@@ -3641,6 +3643,12 @@ static void qr_text_cb(const char *txt, size_t len)
         rc = kiss_seed_stage(words);
     kiss_wipe(words, sizeof words);           // a scanned mnemonic must not linger
     if (rc != 0) { qr_bad_screen(); return; }
+    // Somebody else's draw, with nothing to say about it -- and saying nothing
+    // means writing 0, not skipping the write. Both import paths skipped it,
+    // so a note left by the wallet this device made BEFORE the import was
+    // still on the backup screen afterwards, describing a draw that no longer
+    // had anything to do with the seed on the device (kiss_seed.h).
+    kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
     void (*cb)(void) = s_done;      // straight to the passphrase, same as typing
     s_load = false;
     close_all();
