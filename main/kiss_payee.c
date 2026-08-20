@@ -5,7 +5,7 @@
 #include "kiss_payee.h"
 #include "kiss_crypto.h"
 #include "kiss_seed.h"
-#include "kiss_usage.h"   // kiss_history_enabled: one switch for both stores
+#include "kiss_usage.h"   // kiss_persist_enabled: one switch for both stores
 
 #include <stdio.h>
 #include <string.h>
@@ -189,7 +189,7 @@ static void persistent_wipe(void)
 // but plaintext NVS is not where a list of payment relationships belongs.
 static bool may_persist(void)
 {
-    return kiss_history_enabled() &&
+    return kiss_persist_enabled() &&
            kiss_seed_mode() != WSEED_MODE_AMNESIC && kiss_seed_flash_encrypted();
 }
 

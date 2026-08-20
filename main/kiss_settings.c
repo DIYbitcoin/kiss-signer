@@ -129,9 +129,16 @@ void kiss_settings_set_denom(int d)
 }
 
 // ---- persistence ----
+// Every settings byte comes through here, and PERSIST is the gate on it: with
+// the switch off, a change applies to the running session and is never written,
+// so the next boot comes up on whatever was last stored. "prst" itself is the
+// one exception -- a switch that could not record its own position would turn
+// itself back on at the next power up.
 static void store_u8(const char *key, uint8_t v)
 {
 #ifndef SIMULATOR
+    if (!kiss_persist_enabled() && strcmp(key, "prst") != 0)
+        return;
     nvs_handle_t h;
     if (nvs_open("kiss", NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_u8(h, key, v);
@@ -210,7 +217,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
                   get_optional_u8(h, "accent", &ac) &&
                   get_optional_u8(h, "denom", &dn) &&
                   get_optional_u8(h, "lang", &lg) &&
-                  get_optional_u8(h, "hist", &hs);
+                  get_optional_u8(h, "prst", &ps);
         nvs_close(h);
         if (!ok)
             return WSETTINGS_LOAD_NVS_READ_FAILED;
@@ -224,7 +231,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     wt_accent_set(ac);
     wt_denom_set(dn);
     i18n_set_lang(lg);
-    kiss_history_set_enabled(hs);   // raw setter: a load is not the switch
+    kiss_persist_set_enabled(ps);   // raw setter: a load is not the switch
     return WSETTINGS_LOAD_OK;
 #endif
 }
@@ -630,9 +637,9 @@ static void hist_chooser_screen(void);
 static void hist_pick_cb(lv_event_t *e)
 {
     int on = (int)(intptr_t)lv_event_get_user_data(e);
-    if (on == kiss_history_enabled()) return;   // already selected and ticked
-    kiss_history_apply(on);                     // OFF also erases both stores
-    store_u8("hist", (uint8_t)on);
+    if (on == kiss_persist_enabled()) return;   // already selected and ticked
+    kiss_persist_apply(on);                     // OFF also erases both stores
+    store_u8("prst", (uint8_t)on);
     settings_reopen();
 }
 
@@ -660,14 +667,14 @@ static void hist_chooser_screen(void)
                                 tr(cross_boot ? STR_G_HIST_ON_NOTE
                                               : STR_G_HIST_ON_NOTE_PLAIN),
                                 NULL, NULL, NULL, WT_INK,
-                                kiss_history_enabled() != 0,
+                                kiss_persist_enabled() != 0,
                                 WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W,
                                 WT_CHOICE_H, hist_pick_cb, (void *)(intptr_t)1);
     if (!cross_boot)
         wt_row_sub_color(on_row, WT_WARN);
     wt_row_x(s_scr, WT_ICON_SECRET, tr(STR_G_HIST_OFF_BTN),
              tr(STR_G_HIST_OFF_NOTE), NULL, NULL, NULL, WT_INK,
-             kiss_history_enabled() == 0,
+             kiss_persist_enabled() == 0,
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              hist_pick_cb, (void *)(intptr_t)0);
     lv_obj_set_ext_click_area(
@@ -1753,7 +1760,7 @@ void kiss_settings_open(lv_obj_t *parent)
         // addresses a...", and an ellipsised promise is worse than none. What
         // the switch covers is the chooser's subtitle instead.
         lv_obj_t *hr = wt_row(s_scr, tr(STR_I_ROW_HISTORY), NULL,
-                              tr(kiss_history_enabled() ? STR_G_HIST_ON_BTN
+                              tr(kiss_persist_enabled() ? STR_G_HIST_ON_BTN
                                                         : STR_G_HIST_OFF_BTN),
                               WT_INK, SG_R_X, y + SG_HEAD + SG_PITCH, SG_R_W,
                               hist_open_cb, NULL);

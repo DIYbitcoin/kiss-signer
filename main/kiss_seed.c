@@ -292,11 +292,11 @@ static int storage_write_keep(const char *words)
 // is a WHOLE-PARTITION operation: everything else in NVS goes with it, and
 // dumping someone back into English is a rotten way to end a wipe.
 // "denom" was stored beside these from the day the unit preference landed and
-// was never preserved, so every erase silently reset sats/BTC; "hist" rides
+// was never preserved, so every erase silently reset sats/BTC; "prst" rides
 // with it because an owner who turned history off expects the next wallet to
 // inherit that answer.
 static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang",
-                                         "denom", "hist" };
+                                         "denom", "prst" };
 #define N_KEEP (sizeof KEEP_KEYS / sizeof KEEP_KEYS[0])
 #endif
 

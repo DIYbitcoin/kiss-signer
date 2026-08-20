@@ -1393,29 +1393,29 @@ int main(int argc, char **argv) {
         kiss_usage_wipe();
         chki("usage wipe clears", kiss_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
 
-        // ---- the history switch (kiss_history_*) -------------------------
+        // ---- the history switch (kiss_persist_*) -------------------------
         // Host flash_encrypted() is 0, so everything here is the session RAM
         // level plus the wipe the switch fires; the NVS half is device only.
         const char *HA = "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz";
-        chki("hist: default is on", kiss_history_enabled(), 1);
+        chki("persist: default is on", kiss_persist_enabled(), 1);
         kiss_session_close();
-        chki("hist: payee session for the switch", kiss_session_open(""), 0);
+        chki("persist: payee session for the switch", kiss_session_open(""), 0);
         kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 5);
         kiss_payee_mark(HA);
-        kiss_history_apply(0);
-        chki("hist: off is off", kiss_history_enabled(), 0);
-        chki("hist: switch-off wiped the guard",
+        kiss_persist_apply(0);
+        chki("persist: off is off", kiss_persist_enabled(), 0);
+        chki("persist: switch-off wiped the guard",
              kiss_usage_high(fp, 0, WSCRIPT_NATIVE), -1);
-        chkb("hist: switch-off wiped the payees", !kiss_payee_seen(HA));
+        chkb("persist: switch-off wiped the payees", !kiss_payee_seen(HA));
         // OFF is session scoped, not dead: new marks still answer until lock.
         kiss_usage_mark(fp, 0, WSCRIPT_NATIVE, 2);
-        chki("hist: off still guards this session",
+        chki("persist: off still guards this session",
              kiss_usage_high(fp, 0, WSCRIPT_NATIVE), 2);
         kiss_payee_mark(HA);
-        chkb("hist: off still recognises this session", kiss_payee_seen(HA));
-        kiss_history_apply(1);
-        chki("hist: back on", kiss_history_enabled(), 1);
-        chki("hist: what survived the off session is still here",
+        chkb("persist: off still recognises this session", kiss_payee_seen(HA));
+        kiss_persist_apply(1);
+        chki("persist: back on", kiss_persist_enabled(), 1);
+        chki("persist: what survived the off session is still here",
              kiss_usage_high(fp, 0, WSCRIPT_NATIVE), 2);
         kiss_usage_wipe();
         kiss_payee_wipe();

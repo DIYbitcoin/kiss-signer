@@ -36,16 +36,19 @@ void kiss_usage_forget_session(void);
 void kiss_usage_batch_begin(void);
 void kiss_usage_batch_end(void);
 
-// ---- the history preference ----
-// One switch over what the wallet remembers between sessions: the high-water
-// marks in this file and the paid-before marks in kiss_payee.h. Default ON.
-// OFF gates may_persist() in both modules; the session RAM tables keep working
-// either way, so the reuse guard still answers within an unlocked session.
-int  kiss_history_enabled(void);
+// ---- PERSIST: does this signer save anything it can avoid saving ----
+// The switch every signer in this class ships for settings storage, covering
+// the two kinds of write the seed chooser does not: settings changes
+// (kiss_settings.c gates its own store_u8 on this) and the wallet history --
+// the high-water marks in this file and the paid-before marks in
+// kiss_payee.h. Default ON. OFF gates may_persist() in both history modules;
+// the session RAM tables keep working either way, so the reuse guard still
+// answers within an unlocked session.
+int  kiss_persist_enabled(void);
 // Raw setter for the boot-time settings load only: no wipes, no promotion.
-void kiss_history_set_enabled(int on);
-// The owner's switch. OFF also erases both persistent stores ("kissu",
-// "kissp") at that moment; ON promotes what the current session has learned.
-// The NVS "hist" byte itself is written by kiss_settings.c, which owns that
-// namespace.
-void kiss_history_apply(int on);
+void kiss_persist_set_enabled(int on);
+// The owner's switch. OFF also erases both history stores ("kissu", "kissp")
+// at that moment -- stored settings stay, they are what the next boot runs
+// on; ON promotes what the current session has learned. The NVS "prst" byte
+// itself is written by kiss_settings.c, which owns that namespace.
+void kiss_persist_apply(int on);
