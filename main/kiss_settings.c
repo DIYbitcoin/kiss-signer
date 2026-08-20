@@ -1303,10 +1303,14 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
 
 // The dropdown card hangs 6px under the pill and shares its right edge, so it
 // reads as the pill unfolding rather than as a second panel that happens to
-// appear. 230 fits the widest name (CYPHERPINK) beside its dot with the OK
-// mark still clear of it. Four rows on a 52 pitch inside 8px padding put the
-// card's bottom edge at 292, well above WT_CONTENT_BOTTOM.
-#define THEME_MENU_W     230
+// appear. 280, up from 230: 230 was eyeballed as fitting the widest name
+// (CYPHERPINK) with the OK mark still clear of it, and on the bench the mark
+// sat on the name anyway. The width is no longer what keeps them apart --
+// every name label is capped to the lane left of the MEASURED tick, so a
+// collision is impossible by geometry and the extra 50 just gives the type
+// room. Four rows on a 52 pitch inside 8px padding put the card's bottom
+// edge at 292, well above WT_CONTENT_BOTTOM.
+#define THEME_MENU_W     280
 #define THEME_MENU_X     (THEME_PILL_X + THEME_PILL_W - THEME_MENU_W)
 #define THEME_MENU_Y     (18 + 44 + 6)
 #define THEME_MENU_PITCH 52
@@ -1353,6 +1357,15 @@ static void theme_menu_open_cb(lv_event_t *e)
     // the menu, not past it, so it must not fall through to the scrim's close.
     lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
 
+    // the tick's width, measured once. eyeballing this lane is what put the
+    // mark on top of CYPHERPINK; every name label below stops a tick's width
+    // short of the right edge instead, on EVERY row -- the mark only shows on
+    // the current one, but the cap on all four is what makes the collision
+    // impossible by geometry rather than by the names staying short.
+    lv_point_t oksz;
+    lv_text_get_size(&oksz, LV_SYMBOL_OK, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+
     for (int i = 0; i < WT_ACC_N; i++) {
         // borrow the accent table for this row's colour and name, exactly as
         // the old card's dots did: set, read, restore
@@ -1366,6 +1379,12 @@ static void theme_menu_open_cb(lv_event_t *e)
         lv_obj_remove_style_all(row);
         lv_obj_set_pos(row, 8, 8 + i * THEME_MENU_PITCH);
         lv_obj_set_size(row, THEME_MENU_W - 16, THEME_MENU_PITCH);
+        // the press flashes exactly as wt_row_x flashes every row on the
+        // device: the accent's pressed shade over the whole row, on a 10px
+        // radius so the flash has a shape rather than filling to the corners
+        lv_obj_set_style_radius(row, 10, 0);
+        lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         // the rows already abut on the 52 pitch; the ext area is tolerance at
@@ -1389,11 +1408,22 @@ static void theme_menu_open_cb(lv_event_t *e)
         lv_label_set_text(l, nm);
         lv_obj_set_style_text_color(l, WT_INK, 0);
         lv_obj_set_style_text_font(l, wt_font23(), 0);
+        // capped to the lane between the dot's gutter and the tick's, with
+        // LONG_DOT past it; nothing in the table comes near the cap today,
+        // and the cap is what keeps that true when a name does
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(l, (THEME_MENU_W - 16) - (6 + 18 + 12)
+                            - (oksz.x + 12));
         lv_obj_align(l, LV_ALIGN_LEFT_MID, 6 + 18 + 12, 0);
 
-        // the current theme's row carries the check, in its own colour --
-        // which IS wt_accent() on this row, so the mark and the swatch agree
+        // the current theme's row wears the chooser idiom wt_row_x defines
+        // for sel: the tick AND a 1px border, both in the row's own colour --
+        // which IS wt_accent() here, so the mark, the edge and the swatch
+        // agree. the border sits straight on the transparent row; a chooser
+        // says selected with an edge, never with a fill that reads as held.
         if (i == save) {
+            lv_obj_set_style_border_width(row, 1, 0);
+            lv_obj_set_style_border_color(row, c, 0);
             lv_obj_t *ok = lv_label_create(row);
             lv_label_set_text(ok, LV_SYMBOL_OK);
             lv_obj_set_style_text_color(ok, c, 0);
