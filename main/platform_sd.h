@@ -82,6 +82,17 @@ platform_sd_file *platform_sd_open(const char *name, size_t *len);
 int  platform_sd_read_chunk(platform_sd_file *f, uint8_t *buf, size_t max, size_t *got);
 void platform_sd_close(platform_sd_file *f);
 
+// What is in the slot, as numbers: filesystem capacity and free space, plus
+// the card's own CID product name. Mounts if needed; <0 = no card or it could
+// not be read. Sim: a fixed 32 GB class total with free = total minus the fake
+// card's bytes, so the figures are stable within a walk, and the name "SIMSD".
+typedef struct {
+    uint64_t total_bytes;
+    uint64_t free_bytes;
+    char     name[8];        // CID PNM is 5 chars in an 8 byte field
+} platform_sd_info_t;
+int  platform_sd_info(platform_sd_info_t *out);
+
 // Secret-bearing callers use the atomic form. It writes and verifies a sibling
 // temporary file before switching names, keeping the previous file recoverable
 // until the replacement is durable. delete also removes interrupted-write

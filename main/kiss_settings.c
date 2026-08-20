@@ -12,7 +12,9 @@
 #include "kiss_info.h"
 #include "kiss_fw_ui.h"   // the firmware pill opens it
 #include "kiss_seed.h"
+#include "kiss_seed_sd.h"   // SDSEED_FILENAME: the sealed row on CARD INFO
 #include "kiss_setup.h"
+#include "platform_sd.h"
 #include "kiss_rngaudit.h"   // the AUDIT chooser's second row opens it
 #include "kiss_duress.h"
 #include "kiss_duress_ui.h"
@@ -427,6 +429,119 @@ static void storage_chooser_back_cb(lv_event_t *e)
     settings_reopen();
 }
 
+// ---- the card itself: capacity, free space, and what is on it ----
+// Reached from the storage chooser's bar, the one screen where the owner is
+// already thinking about the card. Facts as rows on the list grid, the
+// firmware screen's shape; the framed subject is used-of-total.
+static void sdinfo_back_cb(lv_event_t *e)
+{
+    (void)e;
+    storage_chooser_screen();
+}
+
+static void sdinfo_screen(void)
+{
+    platform_sd_info_t inf;
+    int rc = platform_sd_info(&inf);
+
+    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+
+    if (rc != 0) {
+        // The slot is empty (or the card unreadable). The firmware screen's
+        // no-card pair already says what to do in 21 locales; the right block
+        // says what this screen would have shown.
+        s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
+        const char *lh = tr(STR_G_FW_NOCARD_H), *lb = tr(STR_G_FW_NOCARD_B);
+        const char *rh = tr(STR_G_SD_ABOUT_H), *rb = tr(STR_G_SD_ABOUT_B);
+        const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, 344 - 14,
+                                                WT_CONTENT_BOTTOM - 232);
+        wt_why_block(s_scr, lh, lb, 48, 232, 344, WT_CONTENT_BOTTOM - 232,
+                     f, WT_WARN);
+        wt_why_block(s_scr, rh, rb, 408, 232, 344, WT_CONTENT_BOTTOM - 232,
+                     f, wt_accent());
+        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+                sdinfo_back_cb, NULL);
+        return;
+    }
+
+    // The CID product name is the card introducing itself; it is the subtitle
+    // so the title stays the word the chooser's pill promised.
+    s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), inf.name);
+
+    uint64_t used = inf.total_bytes - inf.free_bytes;
+    char a[24], b[24], val[52];
+    wt_fmt_bytes(used, a, sizeof a);
+    wt_fmt_bytes(inf.total_bytes, b, sizeof b);
+    snprintf(val, sizeof val, "%s / %s", a, b);
+    wt_value_card(s_scr, tr(STR_G_FW_ON_CARD), val,
+                  WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W, true);
+
+    wt_fmt_bytes(inf.free_bytes, a, sizeof a);
+    wt_row_x(s_scr, LV_SYMBOL_DRIVE, tr(STR_G_SD_ROW_FREE), NULL, NULL,
+             a, wt_font_mono23(), WT_INK, false,
+             WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W, WT_ROW_H, NULL, NULL);
+
+    // Counts from the directory, not from a kept window: every lister returns
+    // the real total, so a card holding more files than any screen shows still
+    // counts them all here.
+    char one[1][SD_NAME_LEN];
+    char cnt[16], sub[32];
+    int total = 0;
+    platform_sd_list_psbt(one, 1, &total);
+    int nsigned = platform_sd_signed_scan(NULL, NULL, 0, 0);
+    snprintf(cnt, sizeof cnt, "%d", total);
+    snprintf(sub, sizeof sub, tr(STR_G_SD_ROW_SIGNED_FMT),
+             nsigned > 0 ? nsigned : 0);
+    wt_row_x(s_scr, LV_SYMBOL_FILE, tr(STR_G_SD_ROW_PSBT), sub, NULL,
+             cnt, wt_font_mono23(), WT_INK, false,
+             WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, WT_ROW_H, NULL, NULL);
+
+    total = 0;
+    platform_sd_list_firmware(one, 1, &total);
+    snprintf(cnt, sizeof cnt, "%d", total);
+    wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_SD_ROW_FW), NULL, NULL,
+             cnt, wt_font_mono23(), WT_INK, false,
+             WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, WT_ROW_H, NULL, NULL);
+
+    total = 0;
+    platform_sd_list_kef(one, 1, &total);
+    snprintf(cnt, sizeof cnt, "%d", total);
+    wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_SD_ROW_KEF), NULL, NULL,
+             cnt, wt_font_mono23(), WT_INK, false,
+             WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W, WT_ROW_H, NULL, NULL);
+
+    // Only in SD storage mode: the sealed words file, present or not. The
+    // filename is the label -- it is a filename, not a phrase to translate --
+    // and the sub is W_SD_MISSING_S's short sentence: the chooser's full
+    // W_SD_NOTE ellipsised against the tick in this 365px lane.
+    if (kiss_seed_mode() == WSEED_MODE_SD) {
+        size_t len = 0;
+        platform_sd_file *f = platform_sd_open(SDSEED_FILENAME, &len);
+        bool present = f != NULL;
+        if (f) platform_sd_close(f);
+        lv_obj_t *row = wt_row_x(s_scr, WT_ICON_KEY, SDSEED_FILENAME,
+                                 tr(present ? STR_W_SD_MISSING_S
+                                            : STR_G_SD_ROW_WORDS_MISSING),
+                                 NULL,
+                                 present ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
+                                 NULL, present ? WT_OK : WT_WARN, false,
+                                 WT_LIST_R_X, WT_LIST_Y(3), WT_LIST_W,
+                                 WT_ROW_H, NULL, NULL);
+        wt_row_sev(row, present ? WT_SEV_OK : WT_SEV_WARN);
+        if (!present) wt_row_sub_color(row, WT_WARN);
+    }
+
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            sdinfo_back_cb, NULL);
+}
+
+static void sdinfo_open_cb(lv_event_t *e)
+{
+    (void)e;
+    sdinfo_screen();
+}
+
 static void storage_chooser_screen(void)
 {
     int current = kiss_seed_mode();
@@ -481,6 +596,10 @@ static void storage_chooser_screen(void)
     lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
                              storage_chooser_back_cb, NULL);
     lv_obj_set_ext_click_area(back, 10);
+    // The card itself, from the one screen already about it. The label avoids
+    // the words SD CARD, which name the mode row two inches above the pill.
+    wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_G_SD_INFO_PILL),
+                 WT_ACT_X, WT_ACTION_Y, 240, WT_ACTION_H, sdinfo_open_cb, NULL);
 }
 
 #ifdef SIMULATOR

@@ -121,6 +121,32 @@ static int test_sd_list(void) {
 // two rows below it, and the owner signed the same work twice. The tests that
 // matter here are the ones that fail if anyone ever answers it from the array
 // platform_sd_list_psbt returned instead of from the card.
+static int test_sd_info(void) {
+    platform_sd_info_t inf;
+    dchk("info: present card answers", platform_sd_info(&inf) == 0);
+    dchk("info: a card has a size", inf.total_bytes > 0);
+    dchk("info: free never exceeds total", inf.free_bytes <= inf.total_bytes);
+    dchk("info: the card has a name", inf.name[0] != 0);
+
+    // The host accounting is a literal byte sum, so a write moves free by
+    // exactly what it wrote and a delete gives it back.
+    uint64_t before = inf.free_bytes;
+    static const uint8_t kb[1000] = { 7 };
+    dchk("info: write a 1000 byte file",
+         platform_sd_write("info-probe.bin", kb, sizeof kb) == 0);
+    dchk("info: re-read", platform_sd_info(&inf) == 0);
+    dchk("info: free dropped by the file's bytes",
+         before - inf.free_bytes == sizeof kb);
+    dchk("info: delete it", platform_sd_delete("info-probe.bin") == 0);
+    dchk("info: re-read again", platform_sd_info(&inf) == 0);
+    dchk("info: free came back", inf.free_bytes == before);
+
+    platform_sd_test_set_present(0);
+    dchk("info: an empty slot refuses", platform_sd_info(&inf) < 0);
+    platform_sd_test_set_present(1);
+    return 0;
+}
+
 static int test_sd_signed_scan(void) {
     clear_psbts();
     static char names[24][SD_NAME_LEN];
@@ -366,6 +392,7 @@ static void test_keep_tag(void) {
 
 int test_sdseed_layer(void) {
     test_sd_list();
+    test_sd_info();
     test_sd_signed_scan();
     uint8_t key[32], key2[32];
     uint8_t blob[SDSEED_MAX_BLOB], blob2[SDSEED_MAX_BLOB];

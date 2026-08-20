@@ -3440,6 +3440,21 @@ void wt_group4(const char *in, char *out, size_t out_len)
     out[o] = 0;
 }
 
+void wt_fmt_bytes(uint64_t bytes, char *out, size_t out_len)
+{
+    // One decimal, unit picked by size: a firmware image reads in MB, a card
+    // in GB -- "31981.6 MB" is a number nobody can compare with the sticker on
+    // the card. uint64 arithmetic throughout: the old MB-only helper multiplied
+    // a size_t by ten, which overflows 32 bits past ~400 MB on the device.
+    if (bytes >= 1073741824ull) {
+        unsigned gb10 = (unsigned)((bytes * 10 + 536870912ull) / 1073741824ull);
+        snprintf(out, out_len, "%u.%u GB", gb10 / 10, gb10 % 10);
+    } else {
+        unsigned mb10 = (unsigned)((bytes * 10 + 524288) / 1048576);
+        snprintf(out, out_len, "%u.%u MB", mb10 / 10, mb10 % 10);
+    }
+}
+
 void wt_fmt_btc(uint64_t sats, char *out, size_t out_len)
 {
     // full 8 decimals, never abbreviated: this string exists to be compared

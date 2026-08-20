@@ -67,13 +67,6 @@ static void fresh(const char *title, const char *sub)
     s_scr = wt_screen(s_parent, title, sub);
 }
 
-// Bytes as something a person reads off glass. Whole MB: a firmware image is
-// megabytes and the third decimal place of one is not a fact anybody acts on.
-static void size_str(char *out, size_t n, size_t bytes)
-{
-    unsigned mb10 = (unsigned)((bytes * 10 + 524288) / 1048576);
-    snprintf(out, n, "%u.%u MB", mb10 / 10, mb10 % 10);
-}
 
 // What the panel is about to do, drawn, on both screens that need it.
 //
@@ -422,7 +415,7 @@ static void fw_screen(void)
         // Facts as rows on the list grid, every one with a mark. The right
         // column, so the value card keeps the left.
         char sz[24];
-        size_str(sz, sizeof sz, s_img.size);
+        wt_fmt_bytes(s_img.size, sz, sizeof sz);
         const char *dir = s_img.cmp > 0 ? tr(STR_G_FW_NEWER) : tr(STR_G_FW_OLDER);
 
         // The file name is the row's LABEL, not its value, and there is no

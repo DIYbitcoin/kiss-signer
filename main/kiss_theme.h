@@ -817,6 +817,7 @@ const char *wt_denom_unit_alt(void);   // the other one
 // says what a switch costs it (usually a repaint) through wt_denom_on_tap.
 void wt_denom_bind(lv_obj_t *o);
 void wt_denom_on_tap(void (*fn)(void));
+void wt_fmt_bytes(uint64_t bytes, char *out, size_t out_len);  // 1.2 MB / 29.7 GB
 void wt_fmt_amount(uint64_t sats, char *out, size_t out_len);      // in the chosen unit
 void wt_fmt_amount_alt(uint64_t sats, char *out, size_t out_len);  // ...and in the other
 void wt_fmt_sats(uint64_t v, char *out, size_t out_len);       // 1234567 -> 1 234 567

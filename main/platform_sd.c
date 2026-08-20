@@ -54,6 +54,33 @@ int platform_sd_mount(void)
 void platform_sd_unmount(void) {}
 int platform_sd_probe(void) { return platform_sd_mount() == 0 ? 1 : 0; }
 
+int platform_sd_info(platform_sd_info_t *out)
+{
+    if (platform_sd_mount() != 0) return -2;
+    // A fixed 32 GB class card (what the real cards on the bench report), with
+    // the fake card's own bytes as the used side, so the number moves when a
+    // test writes a file and every walk of the same fixtures reads the same
+    // figures. statvfs would answer for the host disk, which is nobody's card.
+    out->total_bytes = 31914983424ull;
+    uint64_t used = 0;
+    DIR *d = opendir(SD_BASE);
+    if (!d) return -1;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.') continue;
+        char p[SD_PATH_MAX];
+        if (snprintf(p, sizeof p, "%s/%s", SD_BASE, e->d_name) >= (int)sizeof p)
+            continue;
+        struct stat st;
+        if (stat(p, &st) == 0 && S_ISREG(st.st_mode))
+            used += (uint64_t)st.st_size;
+    }
+    closedir(d);
+    out->free_bytes = used < out->total_bytes ? out->total_bytes - used : 0;
+    snprintf(out->name, sizeof out->name, "SIMSD");
+    return 0;
+}
+
 #else
 
 #include "esp_vfs_fat.h"
@@ -115,6 +142,23 @@ int platform_sd_probe(void)
 {
     // mount() validates an existing mount and remounts after a pull/reinsert.
     return platform_sd_mount() == 0 ? 1 : 0;
+}
+
+int platform_sd_info(platform_sd_info_t *out)
+{
+    if (platform_sd_mount() != 0 || !s_card) return -2;
+    // esp_vfs_fat_info walks the FAT for the free cluster count on the first
+    // call after mount; FAT32's FSINFO sector usually answers after that. If a
+    // large card ever makes this a visible stall on open, that is a screen
+    // problem to solve there, not a reason to guess here.
+    if (esp_vfs_fat_info(SD_BASE, &out->total_bytes, &out->free_bytes) != ESP_OK)
+        return -1;
+    // CID product name: 5 characters, not NUL terminated in the register.
+    size_t n = sizeof out->name - 1 < sizeof s_card->cid.name
+                   ? sizeof out->name - 1 : sizeof s_card->cid.name;
+    memcpy(out->name, s_card->cid.name, n);
+    out->name[n] = 0;
+    return 0;
 }
 
 #endif
