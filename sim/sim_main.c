@@ -1154,6 +1154,38 @@ static void must_not_show(const char *what, const char *needle) {
 }
 static void release(void) { g_pressed = false; }
 
+// ---- SETTINGS, direction 1b: five section tabs ----------------------------
+// Every tap into this page is expressed here rather than as thirty numbers
+// scattered down the walk, because the page moved wholesale and a stale
+// literal does not fail -- it lands on the background, the frame saves, and
+// the frame is simply a copy of the one before it.
+//
+// The strip is 144px tabs on a 152 pitch from x=25, 46 tall at y=68, so tab i
+// centres on (97 + 152i, 91). Rows are 60 tall on a 66 pitch from y=126, so
+// row i centres on y = 156 + 66i; x=200 is the label lane and x=670 the value
+// chip. A dropdown is 280 wide with its right edge on 777, items 46 tall,
+// hanging 6px under the row it belongs to.
+enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
+#define SET_TAB_X(i)      (97 + 152 * (i))
+#define SET_TAB_Y          91
+#define SET_ROW_Y(i)      (156 + 66 * (i))
+#define SET_LABEL_X       200
+#define SET_CHIP_X        670
+#define SET_POP_X         637
+#define SET_POP_Y(r, j)   (126 + 66 * (r) + 60 + 6 + 46 * (j) + 23)
+// THIS DEVICE is not on the row grid: the facts card owns 104..200 and the
+// card slot's own row sits at 232, 60 tall.
+#define SET_DEV_CARD_Y     262
+
+static void set_tab(int i)  { touch(SET_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(8); }
+static void set_row(int i)  { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
+static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
+static void set_pick(int row, int j)
+{
+  touch(SET_POP_X, SET_POP_Y(row, j)); pump(3); release(); pump(8);
+}
+
+
 // ---- tapping a pill by WHAT IT SAYS, not where it is -------------------------
 //
 // The walk used to aim 179 hardcoded coordinates at the action row, and that
@@ -3038,29 +3070,46 @@ int main(void) {
   save("/tmp/sim_recv_next.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> home
 
-  // settings: address-type chooser (all 3 visible, active highlighted) + the
-  // TESTNET home badge; verify Receive/verify reflect testnet, then restore.
+  // settings: the five section tabs. Direction 1b shows ONE group at a time,
+  // so a group that is not open is a group no gate can question -- which is
+  // why all five get a frame here before anything else is tapped. This is the
+  // same blind spot check_screen_coverage.py exists for, one level down: not a
+  // screen nobody opens, but a THIRD of a screen nobody opens.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  save("/tmp/sim_settings.ppm");                    // mainnet, NATIVE highlighted
+  save("/tmp/sim_settings.ppm");                    // SIGNER: network, type, denomination
+  set_tab(SET_SECURITY);
+  save("/tmp/sim_settings_security.ppm");           // duress unset: amber row + dot
+  set_tab(SET_BACKUP);
+  save("/tmp/sim_settings_backup.ppm");             // paper unchecked, storage on plain flash
+  set_tab(SET_DEVICE);
+  save("/tmp/sim_settings_device.ppm");             // language, theme, firmware, this device
+  set_tab(SET_NOUNDO);
+  save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
+  set_tab(SET_SIGNER);
 
   // The picked theme reaches the ORDINARY cards on this page, and stops at the
   // ones carrying a status. Asserted rather than photographed: a frame in MONO
   // cannot show which rim moved, and the whole property is about what happens
   // when a different dot is tapped.
   {
+    // WT_FLAG_ACCENT, not _BORDER. 1b tints no border with the accent: the
+    // selected tab wears WT_EDGE and so does every value chip, because a tab
+    // strip says where you ARE, which is neither a status nor an action. What
+    // carries the theme now is the chevron on every row, which is accent INK
+    // -- so the flag to look for, and the property to check, both moved.
     lv_obj_t *scr = lv_screen_active();
-    lv_obj_t *ord = find_flagged(scr, WT_FLAG_ACCENT_BORDER);
+    lv_obj_t *ord = find_flagged(scr, WT_FLAG_ACCENT);
     if (!ord) {
-      printf("FAIL: no accent-flagged card on the settings page\n");
+      printf("FAIL: no accent-flagged chrome on the settings page\n");
       return 1;
     }
     const int was = wt_accent_get();
     wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
     wt_accent_restyle(scr);
     pump(2);
-    if (!lv_color_eq(lv_obj_get_style_border_color(ord, LV_PART_MAIN),
+    if (!lv_color_eq(lv_obj_get_style_text_color(ord, LV_PART_MAIN),
                      wt_accent())) {
-      printf("FAIL: an ordinary settings card did not take the new accent\n");
+      printf("FAIL: ordinary settings chrome did not take the new accent\n");
       return 1;
     }
     save("/tmp/sim_settings_accent.ppm");
@@ -3070,69 +3119,83 @@ int main(void) {
     printf("ok: settings cards follow the accent, status rows keep their own\n");
   }
 
-  // STORAGE is a first-class Settings row, not a setup-only choice. SD is
-  // offered on every build now, so exercise a real FLASH -> SD migration,
-  // including the fact that a short press cannot fire it.
-  touch(200, 250); pump(3); release(); pump(6);     // storage row (left col) -> chooser
-  save("/tmp/sim_storage_choose.ppm");               // all three selectable
-  // Same screen, encryption ON: the KEEP row loses its amber subline. The
+  // STORAGE is a chip on the BACKUP tab now, and its dropdown is the ONE that
+  // does not apply on the pick: moving where the recovery words live keeps the
+  // confirmation and the 1500ms hold it has always had. What the dropdown
+  // replaced is the chooser SCREEN, never the decision behind it.
+  set_tab(SET_BACKUP);
+  set_chip(1);                                       // storage chip -> dropdown
+  save("/tmp/sim_storage_pop.ppm");                  // three modes, FLASH ticked
+  // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
+  set_pick(1, 0);                                    // FLASH: already ticked, a no-op
   s_sim_flash_enc = 1;
-  kiss_settings_sim_reopen_storage();
+  kiss_settings_sim_reopen();
   pump(8);
-  save("/tmp/sim_storage_choose_enc.ppm");           // KEEP row not tinted
+  save("/tmp/sim_settings_backup_enc.ppm");          // "on this chip, encrypted", no tint
   s_sim_flash_enc = 0;
-  kiss_settings_sim_reopen_storage();
+  kiss_settings_sim_reopen();
   pump(8);
 
-  // CARD INFO, from the chooser's bar: capacity, free space and the file
-  // counts, then the same door with the slot empty.
-  tap_str(STR_G_SD_INFO_PILL, 3, 8);                // CARD INFO -> the facts
+  // CARD INFO, from THIS DEVICE. It used to hang off the storage chooser,
+  // which is gone; capacity and what is on the card belong with the build id
+  // and the radio rather than behind a picker for where the words live.
+  set_tab(SET_DEVICE);
+  set_row(3);                                        // This device -> the facts
+  save("/tmp/sim_device.ppm");                       // build id, encryption, radio, card
+  must_show("device/build id", "KISS");
+  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);   // the card
   save("/tmp/sim_sdinfo.ppm");
   must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
-  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
   platform_sd_test_set_present(0);                  // the slot, empty
-  tap_str(STR_G_SD_INFO_PILL, 3, 8);
+  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
   must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
   platform_sd_test_set_present(1);
-  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser, card back
+  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
+  tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
-  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  set_tab(SET_BACKUP);
+  set_chip(1);
+  set_pick(1, 1);                                    // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
   save("/tmp/sim_storage_hold_noop.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);   // deliberate hold -> success
   save("/tmp/sim_storage_sd_ok.ppm");
-  tap_str(STR_C_OK, 3, 8);     // OK -> Settings
-  save("/tmp/sim_settings_sd.ppm");                 // current mode reads SD CARD
+  tap_str(STR_C_OK, 3, 8);     // OK -> Settings, on the tab it was picked from
+  save("/tmp/sim_settings_sd.ppm");                 // the chip reads SD CARD
   // The home now carries the SD-storage badge (accent, breathing while the
-  // card is in). Pop out to capture it, then return to Settings to migrate
-  // back to FLASH.
+  // card is in). Pop out to capture it, then return to migrate back to FLASH.
   tap_str(STR_C_BACK, 3, 8);      // Settings BACK, right corner -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
-  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
   // CARD INFO while the words live on the card: the sealed row, green tick.
-  tap_str(STR_G_SD_INFO_PILL, 3, 8);
+  set_tab(SET_DEVICE);
+  set_row(3);
+  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
-  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
-  touch(174, 144); pump(3); release(); pump(6);     // FLASH
+  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
+  tap_str(STR_C_BACK, 3, 8);                        // -> Settings
+  set_tab(SET_BACKUP);
+  set_chip(1);
+  set_pick(1, 0);                                    // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
 
   // The two verdicts that are not success. Both were built, translated 21
   // times and never rendered, and they are the two the owner most needs to
-  // read correctly: one says the wallet did not move, the other says it did
+  // read correctly: one says the keys did not move, the other says they did
   // move and something was left behind. Nothing in this walk could tell them
   // apart, because neither had ever been on screen.
   //
-  // STORAGE NOT CHANGED: the destination never became durable, so the wallet
-  // is still exactly where it was. Mode write fails, nothing is published.
+  // STORAGE NOT CHANGED: the destination never became durable, so the keys
+  // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
-  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
-  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  set_chip(1);
+  set_pick(1, 1);                                    // SD CARD -> confirmation
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   save("/tmp/sim_storage_fail.ppm");
   // The title, not the body: wt_why_body splits a two paragraph string across
@@ -3145,50 +3208,71 @@ int main(void) {
   // old copy could not be removed. Two copies, never zero -- which is why this
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
-  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
-  touch(174, 244); pump(3); release(); pump(6);     // SD CARD -> confirmation
+  set_chip(1);
+  set_pick(1, 1);
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
-  touch(200, 250); pump(3); release(); pump(6);     // storage row -> chooser
-  touch(174, 144); pump(3); release(); pump(6);     // FLASH
+  set_chip(1);
+  set_pick(1, 0);                                    // FLASH
   tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
   tap_str(STR_C_OK, 3, 8);
   must_show("storage restored", tr(STR_W_KEEP_BTN));
 
-  // NO UNDO in its OTHER state. The paper has not been verified yet at this
-  // point in the walk, so the chooser carries the amber qualifier over two
-  // blocks that both promise the paper still opens this wallet. By step 9 the
-  // walk has verified and that branch is unreachable, which is exactly how the
-  // backup row's own unchecked frame went uncaptured for so long.
-  touch(580, 220); pump(3); release(); pump(8);     // Replace or erase -> chooser
-  save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
-  tap_str(STR_C_BACK, 3, 8);     // BACK (leftmost now) -> Settings
+  // CANCEL on the confirmation, which is the path the deleted chooser screen
+  // used to own. It comes back to SETTINGS now, on the tab the pick was made
+  // from, and nothing has moved.
+  set_chip(1);
+  set_pick(1, 2);                                    // AMNESIC -> confirmation
+  save("/tmp/sim_storage_confirm_amnesic.ppm");
+  tap_str(STR_C_CANCEL, 3, 8);
+  must_show("storage cancel", tr(STR_W_KEEP_BTN));
 
-  // HISTORY: the marks the wallet keeps between sessions, remembered or
-  // session scoped. Instant apply like the network picker; the OFF row's own
-  // sub-line states the erase before the tap lands.
-  touch(580, 290); pump(3); release(); pump(6);     // History row (260..324) -> chooser
-  save("/tmp/sim_hist_choose.ppm");                 // REMEMBERED ticked, amber plain note
-  s_sim_flash_enc = 1;                              // the encrypted build's ON note
-  kiss_settings_sim_reopen_history();
-  pump(8);
-  save("/tmp/sim_hist_choose_enc.ppm");             // same chooser without the amber
-  s_sim_flash_enc = 0;
-  kiss_settings_sim_reopen_history();
-  pump(8);
-  touch(174, 244); pump(3); release(); pump(6);     // SESSION ONLY -> applied -> Settings
-  save("/tmp/sim_settings_hist_off.ppm");           // the row's value flipped
-  must_show("history off", tr(STR_G_HIST_OFF_BTN));
-  touch(580, 290); pump(3); release(); pump(6);     // reopen: the tick moved rows
-  save("/tmp/sim_hist_choose_off.ppm");
-  touch(174, 144); pump(3); release(); pump(6);     // REMEMBERED -> default restored
+  // NO UNDO is a whole tab now: one card, its reason in full, and one button.
+  // The paper has not been verified yet at this point in the walk, so the
+  // confirmation behind the button carries its amber qualifier -- the branch
+  // that goes unreachable once step 9 has verified.
+  set_tab(SET_NOUNDO);
+  touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
+  save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> Settings, NO UNDO tab
+
+  // PERSIST: the marks this signer keeps between sessions. A two item
+  // dropdown on the SECURITY tab, instant apply like the network pick, and the
+  // OFF item's own note states the erase before the tap lands.
+  set_tab(SET_SECURITY);
+  set_chip(1);                                       // persist chip -> dropdown
+  save("/tmp/sim_persist_pop.ppm");                  // ENABLED ticked
+  set_pick(1, 1);                                    // DISABLED -> applied
+  save("/tmp/sim_settings_hist_off.ppm");            // the chip flipped
+  must_show("persist off", tr(STR_G_HIST_OFF_BTN));
+  set_chip(1);
+  save("/tmp/sim_persist_pop_off.ppm");              // the tick moved rows
+  set_pick(1, 0);                                    // ENABLED -> default restored
+
+  // ...and the state where the switch has nothing to switch. AMNESIC keeps
+  // nothing by contract, so the row is drawn INERT with the reason stated
+  // rather than hidden: a control that vanishes sends the owner hunting.
+  // Forced through the seam, because reaching it by tapping means migrating
+  // the words and every stop after this one stands on where they are.
+  {
+    int was = s_sim_mode;
+    s_sim_mode = WSEED_MODE_AMNESIC;
+    kiss_settings_sim_reopen();
+    pump(8);
+    save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in WT_DIM
+    must_show("persist inert", tr(STR_I_PERSIST_DEAD_VAL));
+    s_sim_mode = was;
+    kiss_settings_sim_reopen();
+    pump(8);
+  }
 
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning
+  set_tab(SET_BACKUP);
+  set_row(0);                                       // Recovery words -> warning
   save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
@@ -3222,7 +3306,8 @@ int main(void) {
   // call locking performs, so the state is a real one and not a test fiction.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   kiss_ui_forget_fp();
-  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row
+  set_tab(SET_BACKUP);
+  set_row(0);                                       // Recovery words
   tap_str(STR_I_VERIFY_COPY, 3, 6);  // VERIFY MY COPY -> intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
@@ -3241,9 +3326,11 @@ int main(void) {
   // one was captured and the green one never was, and now that the two cards
   // are one row that changes colour, glyph and sub-line, the unchecked frame
   // covers half of what this row can draw.
-  save("/tmp/sim_settings_checked.ppm");            // green, with the wallet ID
+  set_tab(SET_BACKUP);
+  save("/tmp/sim_settings_checked.ppm");            // green card, the keys' ID
 
-  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning again
+  set_tab(SET_BACKUP);
+  set_row(0);                                       // Recovery words -> warning again
   tap_str(STR_I_SHOW_WORDS, 3, 6);     // SHOW THE WORDS (rightmost now)
   save("/tmp/sim_words.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
@@ -3258,7 +3345,8 @@ int main(void) {
     for (int i = 0; i < 24; i++)
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
-    touch(580, 122); pump(3); release(); pump(6);   // Recovery words row -> warning
+    set_tab(SET_BACKUP);
+    set_row(0);                                     // Recovery words -> warning
     tap_str(STR_I_SHOW_WORDS, 3, 6);   // SHOW THE WORDS
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     tap_str(STR_R_NEXT, 3, 6);   // NEXT
@@ -3273,7 +3361,8 @@ int main(void) {
   // borrowed keyboard in create mode ("kef" is deliberately weak, so the
   // reworded weak card gets a frame), type twice, then the locked QR with
   // the fingerprint on it, and the card write's verdict chip.
-  touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> backup page
+  set_tab(SET_BACKUP);
+  set_row(0);                                       // Recovery words -> backup page
   touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row -> consent
   save("/tmp/sim_kef_warn.ppm");
   tap_str(STR_I_KEF_MAKE_BTN, 65, 8);               // hold CHOOSE A PASSWORD
@@ -3308,73 +3397,97 @@ int main(void) {
   tap_str(STR_C_DONE, 3, 8);                        // DONE -> the backup page
   tap_str(STR_C_BACK, 3, 8);                        // BACK -> Settings
 
-  // FIRMWARE, the other header pill: 232x44 at x=338, so its middle is (454,40).
-  // The fw screens themselves are walked further down by calling
-  // kiss_fw_ui_open directly with the seams set; what this proves is the
-  // ROUTE, which nothing exercised until settings grew a way in. Settings tears
-  // itself down before handing over, so a leak here shows up as the fw screen
-  // drawn on top of a live settings page.
-  touch(454, 40); pump(3); release(); pump(8);      // FIRMWARE -> the update screen
+  // FIRMWARE and LANGUAGE are rows on the DEVICE tab now, not header pills.
+  // What this proves is the ROUTE: Settings tears itself down before handing
+  // over, so a leak shows up as the firmware screen drawn on top of a live
+  // settings page.
+  set_tab(SET_DEVICE);
+  set_row(2);                                       // Firmware -> the update screen
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
 
-  touch(667, 40); pump(3); release(); pump(6);      // language pill, TOP right now -> picker
+  set_tab(SET_DEVICE);
+  set_chip(0);                                      // Language -> the full screen picker
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = kiss_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
     touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
-  // ADDRESS TYPE is a full-width subpage now: the settings row opens it, and
-  // the pick happens there. Walking both halves keeps a broken chooser from
-  // hiding behind a frame that only ever showed the list.
-  touch(200, 188); pump(3); release(); pump(6);     // Address type row -> chooser
-  save("/tmp/sim_addr_type.ppm");                   // 3 names + notes, NATIVE selected
-  touch(400, 122); pump(3); release(); pump(6);     // pick LEGACY -> back to settings
-  save("/tmp/sim_settings_legacy.ppm");             // the row now reads Legacy / 1...
-  // 198, not 254. The Address card spans y=166..230; 254 was inside the
-  // STORAGE card below it, so this reopened the storage chooser and the walk
-  // spent the next six taps on the wrong subpage. It passed the tap gate
-  // anyway, because every frame it landed on still differed from the one
-  // before -- moving Settings BACK across the bar is what finally made the
-  // misroute visible.
-  touch(218, 198); pump(3); release(); pump(6);     // Address card -> reopen the chooser
-  touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
-  // Theme moved out of the right column into the header: a wordless 44px chip
-  // at (340,18) -- swatch plus a down glyph -- opens a dropdown card at
-  // (104,68), four rows on a 52 pitch, row centres (244, 102 + 52*i) in enum
-  // order MONO, GREEN, CYPHERPINK, ORANGE. A full-screen scrim sits under the
-  // card, so a tap anywhere off it dismisses; both ways out get walked. The
-  // pick closes via delete_async, so the pump after it is what lets the scrim
-  // actually leave before the next frame is judged.
-  touch(362, 40); pump(3); release(); pump(6);      // theme chip -> dropdown
+
+  // ADDRESS TYPE resolves in place now. The chooser SCREEN is gone: three
+  // options with a tick on the live one is what a dropdown is, and taking the
+  // whole page away to show three rows was the ceremony 1b removes.
+  set_tab(SET_SIGNER);
+  set_chip(1);                                      // Address type chip -> dropdown
+  save("/tmp/sim_addr_type.ppm");                   // 3 names, prefixes as notes
+  set_pick(1, 0);                                   // LEGACY (oldest first)
+  save("/tmp/sim_settings_legacy.ppm");             // the row reads Legacy / 1...
+  set_chip(1);
+  set_pick(1, 2);                                   // back to NATIVE
+
+  // The "?" beside the address type label, and the card behind it: what the
+  // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
+  // outside dismisses; both ways out get walked.
+  {
+    lv_point_t hs;
+    lv_text_get_size(&hs, tr(STR_I_ROW_TYPE), wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    touch(25 + 18 + hs.x + 10 + 15, SET_ROW_Y(1));   // WT_WIDE_X + lane + gap
+    pump(3); release(); pump(8);
+  }
+  save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
+  must_show("bip card", tr(STR_I_BIP_T));
+  touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
+
+  // THEME is a DEVICE row now rather than a wordless 44px chip in the header,
+  // so it states its value in words instead of standing for it with a swatch.
+  // Four items do not fit under row two either way up, so the popover is
+  // clamped to sit as low as it can without crossing the action line: the box
+  // is 208..392, items 46 tall, centres at 231 + 46i in enum order MONO,
+  // GREEN, CYPHERPINK, ORANGE. The pick closes via delete_async, so the pump
+  // after it is what lets the scrim leave before the next frame is judged.
+  set_tab(SET_DEVICE);
+  set_chip(1);                                      // theme chip -> dropdown
   save("/tmp/sim_settings_theme.ppm");              // the four rows, over the scrim
   touch(60, 440); pump(3); release(); pump(6);      // scrim -> dismissed, nothing picked
-  touch(362, 40); pump(3); release(); pump(6);      // theme chip again
-  touch(244, 206); pump(3); release(); pump(6);     // CYPHERPINK row (i=2)
-  save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
+  set_chip(1);                                      // theme chip again
+  touch(SET_POP_X, 231 + 46 * 2); pump(3); release(); pump(8);   // CYPHERPINK
+  save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(362, 40); pump(3); release(); pump(6);      // theme chip
-  touch(244, 102); pump(3); release(); pump(6);     // back to MONO (i=0)
-  // The Network row opens a chooser now -- three networks do not fit a
-  // segmented control -- so the row itself is the target: the left column's
-  // first card starts at y=95 and is 64 tall, centre 127.
-  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
-  save("/tmp/sim_net_choose.ppm");                  // three rows, tb1... on two
-  // SIGNET first, because it is the row that had never existed: the chooser's
-  // third option, the settings value beside it and the home badge are the only
-  // three places on the device that can tell it from TESTNET at all.
-  touch(400, 346); pump(3); release(); pump(6);     // SIGNET (WT_CHOICE_Y(2))
-  save("/tmp/sim_settings_signet.ppm");             // row value reads SIGNET
+  set_tab(SET_DEVICE);
+  set_chip(1);
+  touch(SET_POP_X, 231); pump(3); release(); pump(8);            // back to MONO
+
+  // NETWORK, the first chip on the SIGNER tab. Its dropdown's NOTE is the
+  // whole reason the list shows one: TESTNET and SIGNET both read tb1..., one
+  // row apart, and that is the trap this device cannot catch for you.
+  set_tab(SET_SIGNER);
+  set_chip(0);                                      // Network chip -> dropdown
+  save("/tmp/sim_net_choose.ppm");                  // three names, tb1... on two
+  // SIGNET first, because it is the option that had never existed: the list,
+  // the chip beside it and the home badge are the only three places on the
+  // device that can tell it from TESTNET at all.
+  set_pick(0, 2);                                   // SIGNET
+  save("/tmp/sim_settings_signet.ppm");             // the chip reads SIGNET
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
-  touch(400, 244); pump(3); release(); pump(6);     // TESTNET (WT_CHOICE_Y(1))
+  set_chip(0);
+  set_pick(0, 1);                                   // TESTNET
   save("/tmp/sim_settings_tn.ppm");
+
+  // DENOMINATION: two values, so the chip IS the control and there is no
+  // popover to open. Flipped and flipped back, because the sats/BTC choice
+  // reaches every amount the sign screen draws.
+  set_chip(2);
+  save("/tmp/sim_settings_btc.ppm");                // the chip reads BTC
+  must_show("denomination", "BTC");
+  set_chip(2);                                      // back to SATS
+
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
@@ -3413,8 +3526,9 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
-  touch(200, 127); pump(3); release(); pump(6);     // Network row -> chooser
-  touch(400, 144); pump(3); release(); pump(6);     // MAINNET: flip back
+  set_tab(SET_SIGNER);
+  set_chip(0);                                      // Network chip -> dropdown
+  set_pick(0, 0);                                   // MAINNET: flip back
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // MAINNET, and this is the whole point of the excursion. 120 stops run after
@@ -4055,7 +4169,8 @@ int main(void) {
   // in for the hardware: nothing here is display, timing or IO, it is only
   // which screens the lock can see.
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
-  touch(454, 40);  pump(3); release(); pump(8);     // FIRMWARE
+  set_tab(SET_DEVICE);
+  set_row(2);                                       // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
@@ -4148,11 +4263,17 @@ int main(void) {
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(140);
   save("/tmp/sim_decoy_home.ppm");                  // decoy home, reached with no login
 
-  // Settings in a DECOY session must not carry the WAYS IN row: a row that
-  // only appears for one of the two signers is exactly the tell this feature
-  // exists to avoid. The frame is what proves it.
+  // Settings in a DECOY session shows exactly the page every other session
+  // shows, DURESS ROW INCLUDED. This comment used to claim the opposite, and
+  // the code stopped agreeing with it a long time before the frame did: a row
+  // that appears for only one of the two signers is the tell, so its ABSENCE
+  // was the confession an attacker could read. Nothing forks on
+  // kiss_duress_real() any more, so there is nothing left for its presence to
+  // corroborate either. The frame is what proves the two pages match.
   touch(670, 240); pump(3); release(); pump(20);    // SETTINGS tile
-  save("/tmp/sim_decoy_settings.ppm");              // no WAYS IN row here
+  set_tab(SET_SECURITY);
+  save("/tmp/sim_decoy_settings.ppm");              // the same SECURITY group
+  must_show("decoy/duress row present", tr(STR_I_ROW_WAYSIN));
   tap_str(STR_C_BACK, 3, 20);    // BACK
   touch(44, 44); pump(3); release(); pump(20);     // KISS logo -> lock, back to the game
 
@@ -4200,7 +4321,8 @@ int main(void) {
   // The stub stream is deterministic and rewound here, so the finished frame
   // always shows the score test_rngq.c pinned as golden: 105.920, EVEN.
   sim_rng_rewind();
-  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT pill -> the chooser
+  set_tab(SET_SECURITY);
+  set_row(2);                         // Audit -> the chooser
   save("/tmp/sim_audit_choose.ppm");                // two rows, each stated
   // HOW YOUR KEYS WERE MADE. Nothing is forced here: the record is written by
   // the same funnel the device writes it from, so this photographs whatever the
@@ -4251,14 +4373,16 @@ int main(void) {
   // in. NO SOURCE in the provenance row, the right block carries the refusal
   // and there is no START to tap.
   s_sim_trng = false;
-  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the chooser
+  set_tab(SET_SECURITY);
+  set_row(2);                         // Audit -> the chooser
   tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
   save("/tmp/sim_rng_nosource.ppm");                // refusal: no START pill
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
   tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
   s_sim_trng = true;
 
-  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
+  set_tab(SET_SECURITY);
+  set_row(0);                                       // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words
   // The chip states the RULE, not a chosen mark. Twenty locales still said
   // "YOUR STROKE" here long after the picker was deleted, which is exactly
@@ -4272,7 +4396,8 @@ int main(void) {
   save("/tmp/sim_waysin_how.ppm");                  // the rule, at length
   must_show("waysin/how", tr(STR_GD_PICK_REAL_T));  // the same rule, same words
   tap_str(STR_GD_SKIP, 3, 20);         // NOT NOW -> Settings
-  touch(400, 355); pump(3); release(); pump(8);     // Duress -> the two ways in
+  set_tab(SET_SECURITY);
+  set_row(0);                                       // Duress -> the two ways in
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN DRAWING (482..752)
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
@@ -4290,7 +4415,8 @@ int main(void) {
   tap_str(STR_GD_WORD_HOLD, 140, 8);   // HOLD TO CHANGE (422..752)
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
   tap_str(STR_C_OK, 3, 8);     // OK (552..752) -> Settings
-  touch(400, 355); pump(3); release(); pump(8);     // Duress again
+  set_tab(SET_SECURITY);
+  set_row(0);                                       // Duress again
   save("/tmp/sim_settings_duress_set.ppm");         // the chip now reads LETTERS
   // Put KISS back before anything else in this walk draws it. gw_stored_set
   // is what BACK TO KISS calls, and leaving the owner's letters in place here
@@ -4298,20 +4424,18 @@ int main(void) {
   // screen that still looks right.
   tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS
   tap_str(STR_GD_WORD_BACK_T, 3, 8);     // BACK TO KISS (210..470)
-  // 220, not 356. This tap was written when the right column ended in two rows
-  // and NO UNDO's second card sat at y=260..324; 356 was already past both of
-  // them, and once the duress row went full width at SG_FULL_Y=331 it started
-  // landing on THAT. Every frame below then walked the duress screens while
-  // still being called sim_wipe_*: "sim_wiped.ppm" was PUT A LITTLE IN THE
-  // SPARE. check_sim_taps.py could not see it, because each of those taps did
-  // change the screen -- just not to the screen the name claims.
+  // The NO UNDO tab: one card, its reason at length, and one button. This tap
+  // was a coordinate in the old right column and it has been wrong twice --
+  // once at 356, which landed on the full width duress row and walked every
+  // frame below through the duress screens while still being called
+  // sim_wipe_*, and once at 220, which was only right until the column moved
+  // again. It is a named row on a named tab now.
   //
-  // The right column is SG_R_X 412 + SG_R_W 365, and NO UNDO is now ONE card at
-  // y = SG_TOP + SG_HEAD + SG_PITCH + SG_HEAD = 189, 64 tall. Centre of it.
-  // The row IS the erase confirm now: the chooser that stood between them
-  // offered a second door to the same room, and both doors ended at the same
-  // whole partition erase.
-  touch(580, 220); pump(3); release(); pump(8);     // Erase seed words -> confirm
+  // The row IS the erase confirm: the chooser that stood between them offered
+  // a second door to the same room, and both ended at the same whole partition
+  // erase.
+  set_tab(SET_NOUNDO);
+  touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // fingerprint, the pair, HOLD
   must_show("erase/title", tr(STR_G_WIPEC_T));

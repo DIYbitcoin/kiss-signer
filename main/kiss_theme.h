@@ -208,6 +208,11 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 #define WT_ICON_HIDDEN  "\xEF\x81\xB0"   // U+F070 eye-slash
 // A coordinator running on a phone, for the pairing steps. Already in SYMS.
 #define WT_ICON_PHONE   "\xEF\x82\x95"   // U+F095 phone
+// The SETTINGS SECURITY tab. Deliberately NOT WT_ICON_SECRET: that glyph means
+// silent payments everywhere else in the app, and a mark cannot say two
+// things. Added to SYMS in the same edit that named it here -- an icon missing
+// from the font hard-hangs the renderer rather than drawing a tofu box.
+#define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 
 // Compose "<icon>  <label>" into out. The icon rides INSIDE the pill's label
 // rather than sitting beside it as a second object, so wt_pill_fit keeps
@@ -657,6 +662,125 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
                    const char *val, const lv_font_t *vf, lv_color_t vcol,
                    bool sel, int x, int y, int w, int h,
                    lv_event_cb_t cb, void *ud);
+
+// ---- SETTINGS: the section tabs ----------------------------------------
+// The accordion laid on its side. Five groups, one on screen at a time, so a
+// group can hold four rows on the full page lane instead of nine rows fighting
+// for one 800x480 page in two 365px columns.
+//
+// The strip does NOT animate the highlight between tabs. A tap rebuilds the
+// page, which is what every other pick on SETTINGS already does, and the slide
+// is a nicety rather than the design.
+//
+// `icon` must be a codepoint in tools/fonts/gen_fonts.sh's SYMS. One that is
+// not draws a blank box half a line wide, identically in the simulator, so a
+// wrong pick survives every gate and is caught on glass.
+#define WT_TAB_H     46
+#define WT_TAB_W    144
+#define WT_TAB_PITCH 152   // 144 + 8 of gap
+typedef struct {
+    const char *icon;
+    const char *label;
+    bool        dot;    // a 7px WT_WARN mark: something in this group wants reading
+    bool        stop;   // the destructive group, in WT_STOP_INK on a WT_STOP tint
+} wt_tab_t;
+// Builds `n` tabs left to right from (x, y); the one at `sel` wears the
+// highlight. `cb` is called with the tab's index as its user data.
+lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                  int x, int y, lv_event_cb_t cb);
+
+// ---- SETTINGS: the full-lane row ---------------------------------------
+// A sibling of wt_row_x, not a mode flag on it: the two have different internal
+// geometry and sharing one function would mean a branch in every measurement.
+//
+// wt_row_x stacks the label over its sub because it was drawn for a 365px
+// column. On the full 752px lane the label, its sub and the control fit on ONE
+// line, which is what lets the page be read straight down the value column.
+//
+//   label   x=18, capped at 250px, one line, ellipsised
+//   sub     x=268, one line, height pinned to the font's line height
+//   control the chip, the chevron, or nothing, right aligned
+//
+// The 250px cap is not cosmetic. sim/overlapcheck.c compares BOXES, and an
+// uncapped label box spans the whole row and therefore contains the value's
+// box, which reports a collision against every value on the page.
+enum { WT_WIDE_CHIP = 0,   // a bordered value chip with a down chevron
+       WT_WIDE_OPEN,       // an optional value and a right chevron: opens a screen
+       WT_WIDE_INERT };    // present, stated, and dead. See the AMNESIC case.
+#define WT_WIDE_X      25
+#define WT_WIDE_W     752
+#define WT_WIDE_H      60
+#define WT_WIDE_PITCH  66   // 60 + 6 of gap
+// Four rows land at 126, 192, 258 and 324; the last bottom edge is 384, clear
+// of WT_CONTENT_BOTTOM at 398.
+#define WT_WIDE_Y(i)  (126 + (i) * WT_WIDE_PITCH)
+// The line under the last row of a group. ONE line, never two: a translation
+// that does not fit is copy to shorten, not a paragraph to wrap.
+#define WT_WIDE_EXPL_Y(rows) (WT_WIDE_Y((rows) - 1) + WT_WIDE_H + 12)
+typedef struct {
+    const char *label;
+    const char *sub;
+    lv_color_t  sub_col;   // zero for WT_MUT; set it when the sub is a status
+    int         kind;      // WT_WIDE_*
+    const char *val;       // NULL to omit
+    const lv_font_t *vf;   // NULL for wt_font23()
+    lv_color_t  vcol;      // zero for WT_INK
+    bool        swatch;    // an accent dot before the value, inside the chip
+    int         sev;       // WT_SEV_*, tinting the card as wt_row_sev does
+    lv_event_cb_t cb;
+    void       *ud;
+} wt_wide_t;
+lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r);
+// The "?" after a wide row's label, on the round-mark idiom wt_help_chip
+// defines. Shrinks the label's box to its text first, so the chip lands after
+// the words instead of inside the label's 250px box.
+lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud);
+// A SECOND fact in the sub lane, 16px after the first, in its own colour. For
+// the one row that states two: "encryption OFF" beside "radio HELD".
+void wt_row_wide_sub_add(lv_obj_t *row, const char *txt, lv_color_t col);
+
+// ---- overlays: the popover and the help card ---------------------------
+// A full screen scrim with a floating box on it. The scrim is black at
+// LV_OPA_70, which is load bearing beyond the look: sim/overlapcheck.c only
+// treats content as buried under a backdrop at LV_OPA_50 or more, so a lighter
+// scrim would report every row underneath as a collision.
+//
+// A tap anywhere on the scrim runs `close_cb`; a tap on the box itself does
+// not fall through to it. Returns the BOX and writes the scrim to *scrim,
+// which is the handle to delete -- deleting the box alone leaves the scrim
+// swallowing every tap on the page.
+lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim, int x, int y,
+                         int w, int h, int radius, lv_event_cb_t close_cb);
+
+// The dropdown a value chip opens. Two columns: the name, and a note that says
+// what picking it means. Width 280, right edge aligned to the row's, opening
+// DOWNWARD from the row unless that would cross WT_CONTENT_BOTTOM, in which
+// case it opens upward from the row's top.
+#define WT_POP_W    280
+// 46, not 48, and the two pixels are load bearing. A three item list opened
+// off the SECOND row lands its bottom edge on 396 at 46 and on 402 at 48 --
+// which is the difference between opening downward, where the finger already
+// is, and flipping up over the tab strip.
+#define WT_POP_ITEM  46
+typedef struct {
+    const char *name;
+    const char *note;   // NULL to omit
+    lv_color_t  col;    // zero: the accent when selected, WT_MUT when not
+    bool        sel;
+} wt_pop_item_t;
+// `pick_cb` is called with the item's index as its user data. Returns the
+// scrim, which is what the caller holds and deletes.
+lv_obj_t *wt_popover(lv_obj_t *scr, int right, int row_y,
+                     const wt_pop_item_t *it, int n,
+                     lv_event_cb_t pick_cb, lv_event_cb_t close_cb);
+
+// ---- the attention chip ------------------------------------------------
+// Bottom left of the action bar, opposite the exit. It exists so a caution
+// inside a COLLAPSED tab is still visible from every other tab -- the one
+// thing section tabs cost, bought back. Sizes itself to its label. Absent at
+// zero: there is no "all good" chip.
+lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
+                        lv_event_cb_t cb, void *ud);
 
 // The two-column list geometry Settings is drawn on, lifted out of it so the
 // WALLET screen cannot drift from the screen it is meant to match. First

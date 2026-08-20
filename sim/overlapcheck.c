@@ -670,8 +670,20 @@ static bool oc_is_frame(const oc_node_t *n)
     // a why-block's coloured rule: 3px wide, as tall as the claim beside it
     if (w <= 4 && h >= 30) return true;
     if (w < 100 || h < 30) return false;
-    return lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) >= 1 &&
-           lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50;
+    if (lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) < 1) return false;
+    if (lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50) return true;
+    // A SEVERITY TINTED CARD IS A FRAME TOO, and this test could not see one.
+    // wt_row_sev paints its fill at opa 13 under a border at 77 -- the
+    // drawing's 5 percent under 30 percent -- so every amber and red card on
+    // the device failed the fill test above while being the most framed object
+    // on its screen. A screen whose only chrome was a WT_SEV card has always
+    // been reported BARE, which is the gate's blind spot rather than the
+    // screen's fault.
+    //
+    // The BORDER is what makes it a frame; the wash is what makes it a
+    // warning. So ask whether the border is actually PAINTED, which an
+    // invisible box still fails.
+    return lv_obj_get_style_border_opa(n->obj, LV_PART_MAIN) >= 50;
 }
 
 // The screens that are bare TODAY, queued for the chrome rollout. Each entry is

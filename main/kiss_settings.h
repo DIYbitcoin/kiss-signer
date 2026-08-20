@@ -52,10 +52,9 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void));
 int kiss_lang_pick_slot(int lang);
 
 #ifdef SIMULATOR
-// Sim only: rebuild the storage chooser so both flash-encryption states render.
-void kiss_settings_sim_reopen_storage(void);
-void kiss_settings_sim_reopen_network(void);
-// Same two-render problem on the history chooser: the ON row's sub follows
-// the encryption state.
-void kiss_settings_sim_reopen_history(void);
+// Sim only: rebuild the page in place, on whatever tab is open. For the states
+// a seam produces rather than a tap -- flash encryption on changes the storage
+// row's sub-line and the DEVICE tab's own fact, and both are applied at BUILD
+// time, so nothing but a rebuild shows the other one.
+void kiss_settings_sim_reopen(void);
 #endif

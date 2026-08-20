@@ -76,7 +76,6 @@ static const slot_t SLOTS[] = {
     { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   420, 87 },
     { "storage/sd",       STR_W_SD_NOTE,          420, 87 },
     { "storage/amnesic",  STR_W_AMNESIC_NOTE,     420, 87 },
-    { "storage/current",  STR_G_STORAGE_CURRENT_FMT, 704, 30 },
     { "storage/confirm-flash", STR_G_STORAGE_CONFIRM_FLASH_B,   704, 238 },
     { "storage/confirm-sd",    STR_G_STORAGE_CONFIRM_SD_B,      704, 238 },
     { "storage/confirm-amn",   STR_G_STORAGE_CONFIRM_AMNESIC_B, 704, 238 },
@@ -125,19 +124,18 @@ static const slot_t SLOTS[] = {
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
-    // kiss_settings.c — the notes under each chooser. These sit in gaps
-    // between controls, so 23 (not 28) is the realistic top rung; what matters
-    // is that none of them falls to 14.
-    { "set/net-main",     STR_G_MAINNET_NOTE, 340, 50 },
-    { "set/net-test",     STR_G_TESTNET_NOTE, 340, 58 },
-    // ADDRESS TYPE is a full-width subpage now, not three pills crammed into a
-    // 360px column, so these notes stopped being 82px-wide fragments that had
-    // no rung above 14 to reach. They get the 664x29 the subpage actually draws
-    // (kiss_settings.c type_open_cb) and no may_be_small: what the user is
-    // choosing between must be readable.
-    { "set/ty-native",    STR_G_TY_NATIVE_NOTE, 664, 29 },
-    { "set/ty-nested",    STR_G_TY_NESTED_NOTE, 664, 29 },
-    { "set/ty-legacy",    STR_G_TY_LEGACY_NOTE, 664, 29 },
+    // kiss_settings.c — the network row's sub-line on the SIGNER tab. It is a
+    // ROW SUB now rather than a note floating in a gap between controls: one
+    // line, font14 by the kit's own rule for row sub-lines, in the lane the
+    // value chip leaves it (268..538 at the chip's 190px minimum).
+    // may_be_small, because font14 here is the row idiom and not a budget
+    // thrown away in code.
+    { "set/net-main",     STR_G_MAINNET_NOTE, 270, 19, 1 },
+    { "set/net-test",     STR_G_TESTNET_NOTE, 270, 19, 1 },
+    // The NO UNDO tab's body, the one paragraph left on this page. 600 wide by
+    // the design, and 90 tall is what the card leaves between its heading and
+    // its button -- read off kiss_settings.c's tab_noundo, not guessed.
+    { "set/erase-body",   STR_I_ERASE_B,      600, 90 },
     // set/separate and sub/addr-type used to sit here, both measuring
     // STR_G_SEPARATE, "each network + type is its own separate wallet". The
     // string is gone: it was the ADDRESS TYPE subtitle and, doing second duty,
@@ -1133,21 +1131,23 @@ int main(int argc, char **argv)
 
     // ---- screen titles against the lane they actually get ----
     // wt_title_fit walks 34 -> 28 -> 23 and takes the first that fits UNWRAPPED,
-    // silently, with no floor. Nothing measured that until now: a header pill
-    // added beside a title takes width away from it, and the only symptom is a
-    // title two sizes smaller in the locales with the longest word for it. The
+    // silently, with no floor. Nothing measured that until now: anything put
+    // beside a title takes width away from it, and the only symptom is a title
+    // two sizes smaller in the locales with the longest word for it. The
     // overlap gate cannot see it either -- a smaller title overlaps nothing.
     //
-    // Settings is the screen with pills in its header, so it is the one with a
-    // budget worth pinning: LANGUAGE (170), FIRMWARE (170) and the wordless
-    // 44px THEME chip -- 16 between the pills, 12 before the chip, off the 752
-    // right margin, less the 16 gap and the 48 left margin. The same
-    // arithmetic kiss_settings.c hands wt_title_fit; the chip was sized DOWN
-    // to 44 by this very check, because de's title needs 269px to hold font28.
-    // font23 fails. 34 -> 28 is the accommodation this ladder exists for; 23
-    // is a title that has stopped looking like one.
+    // Settings is the screen this was written for. It USED to hand
+    // wt_title_fit a narrowed lane, because three header pills shared the
+    // title's row -- LANGUAGE (170), FIRMWARE (170) and a wordless theme chip
+    // -- and this check is what sized that chip down to 44, because de's title
+    // needs 269px to hold font28.
+    //
+    // Direction 1b moved all three into rows on the DEVICE tab, so the header
+    // holds nothing but the title and the lane is the full 704 between the page
+    // margins again. Pinned rather than deleted: the day something goes back up
+    // there, this is what says which locale's title it cost.
     {
-        const int lane = 752 - 170 - 16 - 170 - 12 - 44 - 16 - 48;
+        const int lane = 704;
         static const int space[3] = { 3, 2, 2 };
         int title_small = 0;
         for (int l = 0; l < I18N_LANG_N; l++) {
@@ -1171,10 +1171,10 @@ int main(int argc, char **argv)
         printf("screen titles: settings lane %dpx, %d locale(s) at font23\n",
                lane, title_small);
         if (title_small) {
-            puts("\nFAIL: a settings header pill has squeezed the title to its\n"
-                 "smallest size. Narrow or drop a header pill, or shorten that\n"
-                 "locale's title. A title that reads at font23 is a title the\n"
-                 "owner no longer uses to know which screen they are on.");
+            puts("\nFAIL: something in the settings header has squeezed the\n"
+                 "title to its smallest size. Narrow it, move it into a row, or\n"
+                 "shorten that locale's title. A title that reads at font23 is a\n"
+                 "title the owner no longer uses to know which screen they are on.");
             return 1;
         }
     }

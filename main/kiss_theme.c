@@ -21,6 +21,10 @@ static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
 static const char WT_DECOR_TAG[]  = "wt_decor";
 static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
+// The wide row's label, so the "?" chip can be measured against the TEXT
+// rather than the 250px box the label is capped to. Asking the object how
+// wide it is answers 250 and puts the chip on top of the words.
+static const char WT_ROW_LABEL_TAG[] = "wt_row_label";
 
 void wt_mark_decor(lv_obj_t *o)
 {
@@ -1842,6 +1846,493 @@ lv_obj_t *wt_card(lv_obj_t *scr, int x, int y, int w, int h)
     lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
+}
+
+// ---- SETTINGS: the section tabs (see kiss_theme.h) ----
+//
+// A designated initialiser that leaves a colour out gives you {0,0,0}, and
+// pure black is the one value nothing on this device is painted in -- no ink,
+// no border, no fill. So it reads as "unset" and the field takes its default,
+// which keeps the wt_wide_t and wt_pop_item_t literals in kiss_settings.c
+// short instead of charging every one of them a WT_MUT it did not want to
+// think about. Cheaper than a parallel bool per colour, and impossible to get
+// half right the way a bool can be.
+static lv_color_t col_or(lv_color_t c, lv_color_t dflt)
+{
+    return (c.red || c.green || c.blue) ? c : dflt;
+}
+
+#define WT_TAB_GAP    9    // icon to label, and label to dot
+#define WT_TAB_DOT    7
+#define WT_TAB_SPACE  2    // the tracking a font14 label wears at this size
+
+lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                  int x, int y, lv_event_cb_t cb)
+{
+    lv_obj_t *first = NULL;
+    const lv_font_t *f = wt_font14();
+
+    for (int i = 0; i < n; i++) {
+        const wt_tab_t *t = &tabs[i];
+        bool on = (i == sel);
+
+        lv_obj_t *b = lv_obj_create(scr);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_pos(b, x + i * WT_TAB_PITCH, y);
+        lv_obj_set_size(b, WT_TAB_W, WT_TAB_H);
+        lv_obj_set_style_radius(b, 10, 0);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+        // The same press answer every row on the device gives, so a tab reads
+        // as the same family of object as the rows it switches between.
+        lv_obj_set_style_bg_color(b, wt_accent_pressed(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
+        wt_tap_feedback(b);
+        if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+
+        // The highlight is a FILL and an edge, never the accent. A tab strip
+        // is navigation: it says where you are, which is not a status and not
+        // an action, so it stays in the surface colours and leaves the accent
+        // to the chevrons that say a row opens.
+        if (on) {
+            lv_obj_set_style_border_width(b, 1, 0);
+            if (t->stop) {
+                lv_obj_set_style_bg_color(b, WT_STOP, 0);
+                lv_obj_set_style_bg_opa(b, 13, 0);
+                lv_obj_set_style_border_color(b, WT_STOP, 0);
+                lv_obj_set_style_border_opa(b, 77, 0);
+            } else {
+                lv_obj_set_style_bg_color(b, WT_PANEL, 0);
+                lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+                lv_obj_set_style_border_color(b, WT_EDGE, 0);
+            }
+        }
+
+        lv_color_t ink  = t->stop ? WT_STOP_INK : WT_INK;
+        lv_color_t mark = t->stop ? WT_STOP : WT_MUT;
+
+        // Measured and centred as a group, because the icon, the label and the
+        // dot are three objects and only their TOTAL can be centred. Letter
+        // spacing is measured with the label, or the centring is off by two
+        // pixels per character in every locale.
+        lv_point_t is = { 0, 0 }, ls;
+        if (t->icon && *t->icon)
+            lv_text_get_size(&is, t->icon, f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+        lv_text_get_size(&ls, t->label, f, WT_TAB_SPACE, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        int iw = is.x ? is.x + WT_TAB_GAP : 0;
+        int dw = t->dot ? WT_TAB_GAP + WT_TAB_DOT : 0;
+        int lw = ls.x;
+        // A locale whose word does not fit LOSES LETTERS. The tab does not
+        // widen: 144 on a 152 pitch is what puts five groups in the 752 lane,
+        // and one long translation may not move the other four.
+        int room = WT_TAB_W - 8 - iw - dw;
+        if (lw > room) lw = room;
+        int px = (WT_TAB_W - (iw + lw + dw)) / 2;
+        if (px < 4) px = 4;
+
+        if (iw) {
+            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, f, mark);
+            lv_obj_align(ic, LV_ALIGN_LEFT_MID, px, 0);
+        }
+        lv_obj_t *l = wt_lbl(b, t->label, 0, 0, f, ink);
+        lv_obj_set_style_text_letter_space(l, WT_TAB_SPACE, 0);
+        lv_obj_set_width(l, lw);
+        lv_obj_set_height(l, lv_font_get_line_height(f));
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        lv_obj_align(l, LV_ALIGN_LEFT_MID, px + iw, 0);
+
+        if (t->dot) {
+            lv_obj_t *d = lv_obj_create(b);
+            lv_obj_remove_style_all(d);
+            lv_obj_set_size(d, WT_TAB_DOT, WT_TAB_DOT);
+            lv_obj_set_style_radius(d, WT_TAB_DOT, 0);
+            lv_obj_set_style_bg_color(d, WT_WARN, 0);
+            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);   // the tab takes the tap
+            lv_obj_align(d, LV_ALIGN_LEFT_MID, px + iw + lw + WT_TAB_GAP, 0);
+        }
+        if (!first) first = b;
+    }
+    return first;
+}
+
+// ---- SETTINGS: the full-lane row (see kiss_theme.h) ----
+#define WT_WIDE_LX      18    // the label's lane, row local
+#define WT_WIDE_LW     250    // ...and its cap. See the header: the gate
+                              // compares boxes, not ink.
+#define WT_WIDE_CHIP_W 190    // the chip's MINIMUM; a long value widens it
+#define WT_WIDE_CHIP_H  40
+#define WT_WIDE_SWATCH  16
+#define WT_HELP_CHIP_W  30    // wt_help_chip's own size
+
+lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
+{
+    const bool inert = r->kind == WT_WIDE_INERT;
+    const lv_font_t *lf = wt_font23();
+    const lv_font_t *sf = wt_font14();
+    const lv_font_t *vf = r->vf ? r->vf : wt_font23();
+    const lv_font_t *cf = wt_font14();       // chevrons, at the size every row
+                                             // on the device already wears
+
+    lv_obj_t *row = lv_obj_create(scr);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_pos(row, WT_WIDE_X, y);
+    lv_obj_set_size(row, WT_WIDE_W, WT_WIDE_H);
+    lv_obj_set_style_radius(row, 10, 0);
+    lv_obj_set_style_bg_color(row, WT_PANEL, 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(row, 1, 0);
+    // An inert row keeps its fill and takes the QUIETER edge. It is not hidden
+    // and not greyed into illegibility: it is present, stated, and dead, which
+    // is the whole point of drawing it at all.
+    lv_obj_set_style_border_color(row, inert ? WT_DIV : WT_HAIR, 0);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    if (r->cb && !inert) {
+        lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        wt_tap_feedback(row);
+        lv_obj_add_event_cb(row, r->cb, LV_EVENT_CLICKED, r->ud);
+    } else {
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    }
+    if (r->sev) wt_row_sev(row, r->sev);
+
+    lv_color_t ink  = inert ? WT_DIM : WT_INK;
+    lv_color_t subc = inert ? WT_DIM : col_or(r->sub_col, WT_MUT);
+    lv_color_t vcol = inert ? WT_DIM : col_or(r->vcol, WT_INK);
+
+    // THE CONTROL FIRST, so the sub-line's lane can be measured against what
+    // is actually there. Sizing the sub to the row and hoping is how a
+    // translated value ("DESACTIVADO" for OFF) ends up sitting on the words
+    // that explain it.
+    int lane_end = WT_WIDE_W - 12;
+    lv_point_t vs = { 0, 0 };
+    if (r->val && *r->val)
+        lv_text_get_size(&vs, r->val, vf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+
+    if (r->kind == WT_WIDE_CHIP) {
+        lv_point_t cs;
+        lv_text_get_size(&cs, LV_SYMBOL_DOWN, cf, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        int sw = r->swatch ? WT_WIDE_SWATCH + 10 : 0;
+        // The chip grows LEFTWARDS out of its minimum, taking the room from
+        // the sub-line rather than from the page margin: the right edge is
+        // where the eye reads the value column down, so it does not move.
+        int cw = 12 + sw + vs.x + 12 + cs.x + 12;
+        if (cw < WT_WIDE_CHIP_W) cw = WT_WIDE_CHIP_W;
+        int cx = WT_WIDE_W - 12 - cw;
+
+        lv_obj_t *chip = lv_obj_create(row);
+        lv_obj_remove_style_all(chip);
+        lv_obj_set_pos(chip, cx, (WT_WIDE_H - WT_WIDE_CHIP_H) / 2);
+        lv_obj_set_size(chip, cw, WT_WIDE_CHIP_H);
+        lv_obj_set_style_radius(chip, 8, 0);
+        lv_obj_set_style_bg_color(chip, WT_KEY, 0);
+        lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(chip, 1, 0);
+        lv_obj_set_style_border_color(chip, WT_EDGE, 0);
+        lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE);   // the row takes the tap
+        lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
+
+        int vx = 12;
+        if (r->swatch) {
+            lv_obj_t *d = lv_obj_create(chip);
+            lv_obj_remove_style_all(d);
+            lv_obj_set_size(d, WT_WIDE_SWATCH, WT_WIDE_SWATCH);
+            lv_obj_set_style_radius(d, WT_WIDE_SWATCH, 0);
+            lv_obj_set_style_bg_color(d, wt_accent(), 0);
+            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+            // The swatch IS the value: it has to follow a theme change, and a
+            // fill needs the FILL flag -- the plain accent flag only ever
+            // repaints text and would fail here in silence.
+            lv_obj_add_flag(d, WT_FLAG_ACCENT_FILL);
+            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_align(d, LV_ALIGN_LEFT_MID, vx, 0);
+            vx += WT_WIDE_SWATCH + 10;
+        }
+        if (r->val && *r->val) {
+            lv_obj_t *v = wt_lbl(chip, r->val, 0, 0, vf, vcol);
+            lv_obj_align(v, LV_ALIGN_LEFT_MID, vx, 0);
+        }
+        lv_obj_t *ch = wt_lbl(chip, LV_SYMBOL_DOWN, 0, 0, cf, wt_accent());
+        lv_obj_set_style_text_opa(ch, 150, 0);
+        lv_obj_add_flag(ch, WT_FLAG_ACCENT);
+        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
+
+        lane_end = cx - 12;
+    } else if (r->kind == WT_WIDE_OPEN) {
+        int right = WT_WIDE_W - 12;
+        if (r->cb) {
+            lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, cf, wt_accent());
+            lv_obj_set_style_text_opa(ch, 150, 0);
+            lv_obj_add_flag(ch, WT_FLAG_ACCENT);
+            lv_obj_update_layout(ch);
+            lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
+            right -= lv_obj_get_width(ch) + 12;
+        }
+        if (r->val && *r->val) {
+            lv_obj_t *v = wt_lbl(row, r->val, 0, 0, vf, vcol);
+            lv_obj_align(v, LV_ALIGN_RIGHT_MID, right - WT_WIDE_W, 0);
+            right -= vs.x + 12;
+        }
+        lane_end = right;
+    } else {
+        // Inert: no chip and no chevron, because there is nothing to open and
+        // nothing to pick. The value sits where a chip's text would have.
+        if (r->val && *r->val) {
+            lv_obj_t *v = wt_lbl(row, r->val, 0, 0, vf, vcol);
+            lv_obj_align(v, LV_ALIGN_RIGHT_MID, -18, 0);
+            lane_end = WT_WIDE_W - 18 - vs.x - 12;
+        } else {
+            lane_end = WT_WIDE_W - 18;
+        }
+    }
+
+    // The label, capped and pinned to one line. Both matter: the cap keeps the
+    // label's BOX off the value's, and the pin stops a long translation
+    // growing a second line into the sub-line beside it.
+    lv_obj_t *l = wt_lbl(row, r->label, WT_WIDE_LX, 0, lf, ink);
+    lv_obj_set_width(l, WT_WIDE_LW);
+    lv_obj_set_height(l, lv_font_get_line_height(lf));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_obj_set_y(l, (WT_WIDE_H - lv_font_get_line_height(lf)) / 2);
+    lv_obj_set_user_data(l, (void *)WT_ROW_LABEL_TAG);
+
+    if (r->sub && *r->sub) {
+        int sx = WT_WIDE_LX + WT_WIDE_LW;    // 268: where the label's box ends
+        int sw = lane_end - sx;
+        if (sw < 40) sw = 40;
+        lv_obj_t *s = wt_lbl(row, r->sub, sx, 0, sf, subc);
+        lv_obj_set_width(s, sw);
+        lv_obj_set_height(s, lv_font_get_line_height(sf));
+        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+        lv_obj_set_y(s, (WT_WIDE_H - lv_font_get_line_height(sf)) / 2);
+        lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
+    }
+    return row;
+}
+
+lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *l = wt_tagged(row, WT_ROW_LABEL_TAG);
+    if (!l) return NULL;
+    const char *txt = lv_label_get_text(l);
+    if (!txt) return NULL;
+
+    // Measure the TEXT, never the label. wt_row_wide caps the box at 250 so a
+    // long translation ellipsises, so asking the object how wide it is answers
+    // 250 for every row in every locale and puts the chip on top of the words.
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    int lw = sz.x;
+    int cap = WT_WIDE_LW - WT_HELP_CHIP_W - 10;
+    if (lw > cap) lw = cap;
+    // The label gives up the rest of its lane, so the chip lands after the
+    // words rather than inside the label's box -- which the overlap gate reads
+    // as the "?" and the label sharing pixels, because by box they do.
+    lv_obj_set_width(l, lw);
+
+    lv_obj_t *chip = wt_help_chip(row, 0, 0, WT_MUT, cb, ud);
+    lv_obj_align(chip, LV_ALIGN_LEFT_MID, WT_WIDE_LX + lw + 10, 0);
+    return chip;
+}
+
+void wt_row_wide_sub_add(lv_obj_t *row, const char *txt, lv_color_t col)
+{
+    lv_obj_t *s = wt_tagged(row, WT_SUB_TAG);
+    if (!s || !txt || !*txt) return;
+    const lv_font_t *f = wt_font14();
+
+    lv_obj_update_layout(s);
+    int x0 = lv_obj_get_x(s), y0 = lv_obj_get_y(s);
+    int lane = lv_obj_get_width(s);
+
+    // The first fact hands back whatever it is not using. These are two
+    // separate facts, not a sentence, so they are measured and spaced rather
+    // than joined -- a separator between them would be punctuation doing the
+    // job of a gap.
+    lv_point_t sz;
+    lv_text_get_size(&sz, lv_label_get_text(s), f, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    if (sz.x < lane) { lv_obj_set_width(s, sz.x); lane = sz.x; }
+
+    lv_obj_t *b = wt_lbl(row, txt, x0 + lane + 16, y0, f, col);
+    lv_obj_set_height(b, lv_font_get_line_height(f));
+    lv_label_set_long_mode(b, LV_LABEL_LONG_DOT);
+}
+
+// ---- overlays (see kiss_theme.h) ----
+lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim_out, int x, int y,
+                         int w, int h, int radius, lv_event_cb_t close_cb)
+{
+    lv_obj_t *scrim = lv_obj_create(scr);
+    lv_obj_remove_style_all(scrim);
+    lv_obj_set_size(scrim, 800, 480);
+    lv_obj_set_pos(scrim, 0, 0);
+    lv_obj_set_style_bg_color(scrim, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(scrim, LV_OPA_70, 0);
+    lv_obj_add_flag(scrim, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
+    if (close_cb) lv_obj_add_event_cb(scrim, close_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *box = lv_obj_create(scrim);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, x, y);
+    lv_obj_set_size(box, w, h);
+    lv_obj_set_style_radius(box, radius, 0);
+    lv_obj_set_style_bg_color(box, WT_BAR, 0);
+    lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(box, 1, 0);
+    lv_obj_set_style_border_color(box, WT_EDGE, 0);
+    lv_obj_set_style_shadow_width(box, 40, 0);
+    lv_obj_set_style_shadow_offset_y(box, 18, 0);
+    lv_obj_set_style_shadow_color(box, lv_color_black(), 0);
+    lv_obj_set_style_shadow_opa(box, 140, 0);
+    // Clickable with no callback: a tap on the box's own padding is aimed at
+    // the box, not past it, so it must not fall through to the scrim's close.
+    lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+    if (scrim_out) *scrim_out = scrim;
+    return box;
+}
+
+lv_obj_t *wt_popover(lv_obj_t *scr, int right, int row_y,
+                     const wt_pop_item_t *it, int n,
+                     lv_event_cb_t pick_cb, lv_event_cb_t close_cb)
+{
+    const lv_font_t *nf = wt_font23(), *tf = wt_font14();
+    int h = n * WT_POP_ITEM;
+    int y = row_y + WT_WIDE_H + 6;
+    // Downward from the row, unless that would run under the action bar. A
+    // list whose last option is behind the bar is a list with an option nobody
+    // can read, so it hangs off the row's TOP edge instead. Four items on row
+    // two or lower have no other way to fit.
+    if (y + h > WT_CONTENT_BOTTOM) {
+        y = row_y - 6 - h;                       // ...then upward off its top
+        // ...and if it fits neither way, as low as it can go without crossing
+        // the action line. A four item list opened off row two has no other
+        // answer: upward from there is y = 2, which puts the box over the
+        // title. Covering rows is what a modal dropdown does; covering the
+        // page's own name is a rendering fault.
+        if (y < 8) y = WT_CONTENT_BOTTOM - h - 6;
+        if (y < 8) y = 8;
+    }
+
+    lv_obj_t *scrim = NULL;
+    lv_obj_t *box = wt_overlay_box(scr, &scrim, right - WT_POP_W, y,
+                                   WT_POP_W, h, 10, close_cb);
+    const int iw = WT_POP_W - 2;             // inside the box's own 1px border
+
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *r = lv_obj_create(box);
+        lv_obj_remove_style_all(r);
+        lv_obj_set_pos(r, 0, i * WT_POP_ITEM);
+        lv_obj_set_size(r, iw, WT_POP_ITEM);
+        lv_obj_set_style_radius(r, 10, 0);
+        lv_obj_set_style_bg_color(r, wt_accent_pressed(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(r, LV_OPA_COVER, LV_STATE_PRESSED);
+        lv_obj_add_flag(r, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+        if (pick_cb)
+            lv_obj_add_event_cb(r, pick_cb, LV_EVENT_CLICKED,
+                                (void *)(intptr_t)i);
+
+        if (i < n - 1) {
+            lv_obj_t *d = lv_obj_create(box);
+            lv_obj_remove_style_all(d);
+            lv_obj_set_pos(d, 0, (i + 1) * WT_POP_ITEM - 1);
+            lv_obj_set_size(d, iw, 1);
+            lv_obj_set_style_bg_color(d, WT_DIV, 0);
+            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+        }
+
+        // The accent only when the caller left the colour out. A network's
+        // amber says "these coins are not real" and outranks the theme, and
+        // painting a themed accent over it is exactly the collision the ROLE
+        // check exists to catch.
+        bool themed = !(it[i].col.red || it[i].col.green || it[i].col.blue)
+                      && it[i].sel;
+        lv_color_t c = col_or(it[i].col, it[i].sel ? wt_accent() : WT_MUT);
+
+        int nx = 14;
+        if (it[i].sel) {
+            lv_obj_t *ok = wt_lbl(r, LV_SYMBOL_OK, 0, 0, tf, c);
+            if (themed) lv_obj_add_flag(ok, WT_FLAG_ACCENT);
+            lv_obj_update_layout(ok);
+            lv_obj_align(ok, LV_ALIGN_LEFT_MID, 14, 0);
+            nx = 14 + lv_obj_get_width(ok) + 10;
+        }
+
+        lv_point_t ts = { 0, 0 };
+        if (it[i].note && *it[i].note) {
+            lv_text_get_size(&ts, it[i].note, tf, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            lv_obj_t *t = wt_lbl(r, it[i].note, 0, 0, tf, WT_DIM);
+            lv_obj_align(t, LV_ALIGN_RIGHT_MID, -14, 0);
+        }
+
+        lv_obj_t *nm = wt_lbl(r, it[i].name, 0, 0, nf, c);
+        if (themed) lv_obj_add_flag(nm, WT_FLAG_ACCENT);
+        // Capped to the lane the note leaves it, on EVERY item rather than on
+        // the ones that happen to be long: a collision that is impossible by
+        // geometry beats one that is avoided by the names staying short.
+        int nw = iw - nx - 14 - (ts.x ? ts.x + 12 : 0);
+        if (nw < 40) nw = 40;
+        lv_obj_set_width(nm, nw);
+        lv_obj_set_height(nm, lv_font_get_line_height(nf));
+        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+        lv_obj_align(nm, LV_ALIGN_LEFT_MID, nx, 0);
+    }
+    return scrim;
+}
+
+lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
+                        lv_event_cb_t cb, void *ud)
+{
+    const lv_font_t *lf = wt_font23(), *mf = wt_font14();
+    // It stands on the action bar, so make sure there is one. Every screen
+    // that grows this chip has an exit too, but the order the two are built in
+    // belongs to the caller and this may not depend on it.
+    action_bar_ensure(scr);
+
+    lv_point_t is, ls, cs;
+    lv_text_get_size(&is, LV_SYMBOL_WARNING, mf, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ls, txt, lf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&cs, LV_SYMBOL_RIGHT, mf, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    int w = 18 + is.x + 12 + ls.x + 12 + cs.x + 18;
+
+    lv_obj_t *c = lv_obj_create(scr);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_pos(c, WT_ACT_X, WT_ACTION_Y);
+    lv_obj_set_size(c, w, WT_ACTION_H);
+    lv_obj_set_style_radius(c, 10, 0);
+    lv_obj_set_style_bg_color(c, WT_WARN, 0);
+    lv_obj_set_style_bg_opa(c, 18, 0);
+    lv_obj_set_style_border_width(c, 1, 0);
+    lv_obj_set_style_border_color(c, WT_WARN, 0);
+    lv_obj_set_style_border_opa(c, 90, 0);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    wt_tap_feedback(c);
+    if (cb) lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
+
+    lv_obj_t *ic = wt_lbl(c, LV_SYMBOL_WARNING, 0, 0, mf, WT_WARN);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 18, 0);
+    lv_obj_t *l = wt_lbl(c, txt, 0, 0, lf, WT_WARN);
+    lv_obj_set_style_text_letter_space(l, 1, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, 18 + is.x + 12, 0);
+    lv_obj_t *ch = wt_lbl(c, LV_SYMBOL_RIGHT, 0, 0, mf, WT_WARN);
+    lv_obj_set_style_text_opa(ch, 180, 0);
+    lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -18, 0);
+    return c;
 }
 
 // A camera viewport: the card, a WT_EDGE edge, and four bracket corners drawn

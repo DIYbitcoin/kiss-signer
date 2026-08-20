@@ -204,6 +204,25 @@ UNTRANSLATED_OK = {
     "G_SD_INFO_PILL", "G_SD_ROW_FREE", "G_SD_ROW_PSBT", "G_SD_ROW_SIGNED_FMT",
     "G_SD_ROW_FW", "G_SD_ROW_KEF", "G_SD_ROW_WORDS_MISSING",
     "G_SD_ABOUT_H", "G_SD_ABOUT_B",
+    # SETTINGS rebuilt as section tabs: the five groups' row labels, sub-lines
+    # and explainers, the dropdown notes, the NO UNDO card, the address type
+    # help card and the attention chip. Born under the English-only rule, like
+    # the KEF block above: the other twenty carry the English until the sweep.
+    "I_TAB_SIGNER", "I_TAB_SECURITY", "I_TAB_BACKUP", "I_TAB_DEVICE",
+    "I_ROW_DENOM", "I_DENOM_SUB", "I_EXPL_SIGNER",
+    "I_WAYSIN_SHORT", "I_HIST_SHORT", "I_ROW_AUDIT", "I_AUDIT_SUB",
+    "I_EXPL_SECURITY",
+    "I_PERSIST_DEAD_SUB", "I_PERSIST_DEAD_VAL",
+    "I_STORE_FLASH_SUB", "I_STORE_FLASH_ENC_SUB", "I_STORE_SD_SUB",
+    "I_STORE_AMN_SUB", "I_EXPL_BACKUP",
+    "I_CARD_SUB",
+    "I_ROW_LANG", "I_LANG_SUB", "I_THEME_SUB", "I_ROW_FW", "I_FW_SUB",
+    "I_ROW_DEVICE", "I_DEVICE_T",
+    "I_ERASE_B", "I_ERASE_BTN", "I_ERASE_CAP",
+    "I_BIP_T", "I_BIP_CLOSE", "I_BIP_44_NOTE", "I_BIP_49_NOTE",
+    "I_BIP_84_NOTE",
+    "I_POP_CHIP", "I_POP_NOTHING", "I_POP_KEEP", "I_POP_ERASE",
+    "I_ATTN_1", "I_ATTN_N_FMT",
 }
 
 
