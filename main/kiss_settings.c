@@ -532,9 +532,9 @@ static void hist_chooser_screen(void)
 
     // The ON row's sub tells the truth the way the storage chooser's KEEP row
     // does: may_persist() (kiss_usage.c) needs encrypted flash AND a non
-    // amnesic mode, so on the plaintext lane "remembered" only lasts the
-    // session and the sub says so, in amber. Lying here would be the exact
-    // fault the KEEP row's amber note exists to avoid.
+    // amnesic mode, so on the plaintext lane ENABLED only lasts the session
+    // and the sub says so, in amber. Lying here would be the exact fault the
+    // KEEP row's amber note exists to avoid.
     bool cross_boot = kiss_seed_flash_encrypted() &&
                       kiss_seed_mode() != WSEED_MODE_AMNESIC;
     lv_obj_t *on_row = wt_row_x(s_scr, LV_SYMBOL_SAVE, tr(STR_G_HIST_ON_BTN),
@@ -1630,9 +1630,9 @@ void kiss_settings_open(lv_obj_t *parent)
         // from the stop-tinted erase card directly above it -- the same rim
         // the TYPE and WAYS IN rows wear for the same reason: nothing is
         // wrong either way.
-        // No sub-line: beside the REMEMBERED value the 365px row clipped it
-        // to "used addresses a...", and an ellipsised promise is worse than
-        // none. What the switch covers is the chooser's subtitle instead.
+        // No sub-line: beside the value the 365px row clipped it to "used
+        // addresses a...", and an ellipsised promise is worse than none. What
+        // the switch covers is the chooser's subtitle instead.
         lv_obj_t *hr = wt_row(s_scr, tr(STR_I_ROW_HISTORY), NULL,
                               tr(kiss_history_enabled() ? STR_G_HIST_ON_BTN
                                                         : STR_G_HIST_OFF_BTN),
