@@ -201,7 +201,7 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
         accent_art(d, A, theme_col=A, status_col=scol, status=bake_status)
     # header
     d.text((44, 44), "KISS", font=font(44), fill=INK)
-    d.text((48, 100), "airgapped bitcoin signer", font=font(15, mono=True), fill=MUT)
+    d.text((48, 100), "offline bitcoin signing device", font=font(15, mono=True), fill=MUT)
     # kiss-mark logo: soft glow pass then sharp, same treatment as the chrome
     mark = KISS_MARK.resize((KISS_MARK_SIZE, KISS_MARK_SIZE), Image.LANCZOS)
     ml = Image.new("RGBA", (W, H), (0, 0, 0, 0))
