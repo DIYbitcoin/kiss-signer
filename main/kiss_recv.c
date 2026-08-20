@@ -1043,9 +1043,12 @@ static void recv_detail_open(void) {
              WT_INK, false, RECV_CARD_X, 260, RECV_CARD_W, 0,
              list_from_detail_cb, NULL);
   }
-  wt_row_x(s_scr, WT_ICON_SECRET, tr(STR_R_SP_BTN), NULL, NULL,
-           NULL, NULL, WT_INK, false, RECV_CARD_X, 331, RECV_CARD_W, 0,
-           sp_open_cb, NULL);
+  // The secret mark is the silent payment identity and wears the accent on
+  // the KEYS card already; one mark, one colour.
+  lv_obj_t *sp = wt_row_x(s_scr, WT_ICON_SECRET, tr(STR_R_SP_BTN), NULL, NULL,
+                          NULL, NULL, WT_INK, false, RECV_CARD_X, 331,
+                          RECV_CARD_W, 0, sp_open_cb, NULL);
+  wt_row_icon_accent(sp);
 
   // Action bar: the three things that ACT. BACK is LEFTMOST and VERIFY is the
   // far-right primary, which is the reverse of what HANDOFF-03's table said and

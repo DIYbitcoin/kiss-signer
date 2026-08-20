@@ -982,7 +982,7 @@ static void info_screen(void)
     // The labels stay in the eyebrow's upper case: they are the strings the 21
     // locales already carry for these four facts, and inventing sentence case
     // for them would mean English saying something no other language says.
-    char buf[128], grouped[120];
+    char buf[128];
     uint8_t fp[4];
     kiss_ui_last_fp(fp);
 
@@ -1027,21 +1027,79 @@ static void info_screen(void)
              WT_INK, WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W,
              row_help_cb, (void *)"type");
 
-    // The address goes on the SUB line, in mono, because it is 42 characters and
-    // a value slot holds a word. Folded to the head and tail the rest of the
-    // device shows: the full form belongs on RECEIVE, which is the screen built
-    // for reading one out, and this row's job is to say which wallet you are in.
-    if (kiss_session_address(0, 0, buf, sizeof buf) != 0) {
-        // The state word, NOT folded. wt_addr_fold keeps a head and a lit tail
-        // with an ellipsis between, which turns SESSION LOCKED into an
-        // address-shaped fragment -- a state must read as a state.
-        snprintf(grouped, sizeof grouped, "%s", tr(STR_C_SESSION_LOCKED));
-    } else {
-        wt_addr_fold(buf, grouped, sizeof grouped);
+    // The address on its own line at mono23, with the last EIGHT lit -- the
+    // same eight every receive and verify screen marks. It was a mono14
+    // sub-line with nothing lit, and both halves of that were wrong: an
+    // address is compare material, read character by character against a
+    // coordinator's screen, and font14 on it was a layout budget thrown away.
+    // This is the last row of its column, so it grows to 76 (bottom 384,
+    // above the 396 floor) instead of shrinking the one string on this page
+    // an owner actually has to READ.
+    {
+        lv_obj_t *arow = wt_row_x(s_scr, NULL, tr(STR_I_SEC_FIRST), NULL, NULL,
+                                  NULL, NULL, WT_INK, false, WT_LIST_L_X,
+                                  WT_LIST_Y(3), WT_LIST_W, 76,
+                                  row_help_cb, (void *)"addr");
+        // With no sub the row centres its label; this row builds its second
+        // line below, so the label takes the top lane every two-line row uses.
+        // The label is the row's last child: no icon, no value and no sub
+        // means only the chevron is built before it.
+        lv_obj_set_y(lv_obj_get_child(arow, -1), 7);
+
+        size_t n = kiss_session_address(0, 0, buf, sizeof buf) == 0
+                       ? strlen(buf) : 0;
+        if (n < 20) {
+            // The state, as words. Never through the address fold: an ellipsis
+            // and a lit tail would turn LOCKED into an address-shaped fragment,
+            // and a state must read as a state. font23, because it is the one
+            // thing on the row an owner is being told -- not metadata.
+            lv_obj_t *st = wt_lbl(arow, tr(STR_C_SESSION_LOCKED), 14, 43,
+                                  wt_font23(), WT_MUT);
+            lv_obj_set_width(st, 300);   // stops short of the chevron's lane
+            lv_obj_set_height(st, lv_font_get_line_height(wt_font23()));
+            lv_label_set_long_mode(st, LV_LABEL_LONG_DOT);
+        } else {
+            // wt_addr_short's fold, drawn locally: its double-spaced ellipsis
+            // is 28 mono cells, and 28 at mono23 (13.8px a cell) is 387px
+            // against the ~330 this card has. Same blocks, same last eight
+            // lit; only the air around the ellipsis goes. Cutting a BLOCK
+            // instead would change which characters the row teaches an owner
+            // to check, and shrinking the font is the bug being fixed.
+            int pre = !strncmp(buf, "tsp1", 4) ? 5
+                    : (!strncmp(buf, "bc1", 3) || !strncmp(buf, "tb1", 3) ||
+                       !strncmp(buf, "sp1", 3)) ? 4 : 0;
+            const char *t = buf + n - 12;
+            // The prefix through a bounded copy, not "%.*s": the device
+            // compiler's truncation gate cannot see that pre is at most 5,
+            // and a copy into a char[8] is a bound it can prove.
+            char pfx[8] = {0};
+            if (pre) { memcpy(pfx, buf, (size_t)pre); pfx[pre] = ' '; }
+            char head[24], tail[16];
+            snprintf(head, sizeof head, "%s%.4s\xE2\x80\xA6%.4s ",
+                     pfx, buf + pre, t);
+            snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
+
+            lv_obj_t *sg = lv_spangroup_create(arow);
+            // A spangroup is clickable out of the box and silently eats every
+            // press that lands on it -- inside a tappable row that kills the
+            // row exactly where the address is printed.
+            lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+            lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);
+            lv_obj_set_style_text_font(sg, wt_font_mono23(), 0);
+            lv_span_t *s1 = lv_spangroup_new_span(sg);
+            lv_span_set_text(s1, head);
+            lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
+            lv_span_t *s2 = lv_spangroup_new_span(sg);
+            lv_span_set_text(s2, tail);
+            // Brightness alone marks the compared run, the same as every
+            // other address on the device: no underline, no second hue.
+            lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
+            lv_spangroup_refresh(sg);
+            // Below the chevron's band, so the tail can run past the
+            // chevron's x lane without the two boxes sharing a pixel.
+            lv_obj_set_pos(sg, 14, 47);
+        }
     }
-    wt_row_f(s_scr, tr(STR_I_SEC_FIRST), grouped, wt_font_mono14(), NULL, NULL,
-             WT_INK, WT_LIST_L_X, WT_LIST_Y(3), WT_LIST_W,
-             row_help_cb, (void *)"addr");
 
     // ---- right column ----
     // Two exports. They were pills, which said "button" about two things

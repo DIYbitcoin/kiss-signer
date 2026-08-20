@@ -595,6 +595,9 @@ void wt_row_sev(lv_obj_t *row, int sev);
 // to pick but whose explanation is a warning -- FLASH storage on a chip with no
 // encryption is the case this exists for.
 void wt_row_sub_color(lv_obj_t *row, lv_color_t c);
+// Recolour a built row's icon badge to the accent, theme-change safe. For a
+// mark that names an identity elsewhere and has to keep one colour everywhere.
+void wt_row_icon_accent(lv_obj_t *row);
 // The row's BOX with nothing in it: WT_PANEL fill, WT_HAIR hairline, radius 10,
 // not clickable, not scrollable. Position children relative to the card. Every
 // screen that shows a block of content wears one, because the fill is what makes

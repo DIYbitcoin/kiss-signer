@@ -20,6 +20,7 @@ static const char WT_BAR_TAG[]    = "wt_action_bar";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
 static const char WT_DECOR_TAG[]  = "wt_decor";
+static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
 
 void wt_mark_decor(lv_obj_t *o)
 {
@@ -1599,9 +1600,17 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // borrowing the language of a button being held.
     int right = w - 12;
     if (sel) {
+        // Flagged as well as painted, all three accents: a selected row built
+        // before a theme change would otherwise keep the old accent on its
+        // border, tick and icon while everything around it moved -- the
+        // chevron branch below has carried its flag from the start, and paint
+        // without the flag is exactly the stale-strand defect accent_walk's
+        // own comment describes.
         lv_obj_set_style_border_color(row, wt_accent(), 0);
+        lv_obj_add_flag(row, WT_FLAG_ACCENT_BORDER);
         lv_obj_t *ok = wt_lbl(row, LV_SYMBOL_OK, 0, 0, wt_font23(),
                               wt_accent());
+        lv_obj_add_flag(ok, WT_FLAG_ACCENT);
         lv_obj_update_layout(ok);
         lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -10, 0);
         right = w - 10 - lv_obj_get_width(ok) - 10;
@@ -1638,6 +1647,10 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     if (icon && *icon) {
         lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(),
                               sel ? wt_accent() : WT_MUT);
+        // a selected icon is accent INK, so it repaints with the accent; see
+        // the sel branch above for why the flag rides with the paint
+        if (sel) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        lv_obj_set_user_data(ic, (void *)WT_ROW_ICON_TAG);
         lv_obj_update_layout(ic);
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 14, 0);
     }
@@ -1755,6 +1768,23 @@ void wt_row_sub_color(lv_obj_t *row, lv_color_t c)
 {
     lv_obj_t *s = wt_tagged(row, WT_SUB_TAG);
     if (s) lv_obj_set_style_text_color(s, c, 0);
+}
+
+// Recolour just a row's icon badge from WT_MUT to the accent. For the one case
+// where the mark is an identity and not decoration: the secret glyph on the
+// KEYS card is drawn in the accent, and the same glyph on a row in another
+// screen has to match, or one mark reads as two different things.
+//
+// By tag, not by child index, for the same reason wt_row_sub_color is: which
+// children a row has depends on whether it was given a chevron, a tick, a
+// value or a sub. The flag hands the label to accent_walk, so a theme change
+// repaints it along with every other accent-inked label.
+void wt_row_icon_accent(lv_obj_t *row)
+{
+    lv_obj_t *ic = wt_tagged(row, WT_ROW_ICON_TAG);
+    if (!ic) return;
+    lv_obj_set_style_text_color(ic, wt_accent(), 0);
+    lv_obj_add_flag(ic, WT_FLAG_ACCENT);
 }
 
 // Tint a built row by severity. Redraw 05 colours the BOX, not just a note
