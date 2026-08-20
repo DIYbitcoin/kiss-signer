@@ -298,7 +298,14 @@ int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
   for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i]);
   return 0;
 }
-// Stands in for the camera on the dead-lens path, so the walk has to link it.
+int kiss_entropy_mix4(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], const uint8_t d[32],
+                        uint8_t out[32]) {
+  if (!a || !b || !c || !d || !out) return -1;
+  for (int i = 0; i < 32; i++) out[i] = (uint8_t)(a[i] ^ b[i] ^ c[i] ^ d[i]);
+  return 0;
+}
+// A leg of the seed fold, so the walk has to link it.
 // The real one measures two clocks against each other and kisstest exercises
 // that; a scripted walk has no clocks worth measuring, so this only has to be
 // non-constant and succeed. Nothing here is entropy and nothing here claims to
@@ -604,6 +611,10 @@ void kiss_payee_mark(const char *dest) { (void)dest; }
 void kiss_payee_wipe(void) { s_sim_payee_known = false; }
 void kiss_payee_persist_session(void) {}
 void kiss_payee_forget_session(void) {}
+// The burst brackets kiss_sign.c wraps around its marks. The sim's store is
+// a bool, so there is nothing to batch; they exist so the link does.
+void kiss_payee_batch_begin(void) {}
+void kiss_payee_batch_end(void) {}
 
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
@@ -3129,6 +3140,25 @@ int main(void) {
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
   tap_str(STR_C_BACK, 3, 8);     // BACK (leftmost now) -> Settings
 
+  // HISTORY: the marks the wallet keeps between sessions, remembered or
+  // session scoped. Instant apply like the network picker; the OFF row's own
+  // sub-line states the erase before the tap lands.
+  touch(580, 290); pump(3); release(); pump(6);     // History row (260..324) -> chooser
+  save("/tmp/sim_hist_choose.ppm");                 // REMEMBERED ticked, amber plain note
+  s_sim_flash_enc = 1;                              // the encrypted build's ON note
+  kiss_settings_sim_reopen_history();
+  pump(8);
+  save("/tmp/sim_hist_choose_enc.ppm");             // same chooser without the amber
+  s_sim_flash_enc = 0;
+  kiss_settings_sim_reopen_history();
+  pump(8);
+  touch(174, 244); pump(3); release(); pump(6);     // SESSION ONLY -> applied -> Settings
+  save("/tmp/sim_settings_hist_off.ppm");           // the row's value flipped
+  must_show("history off", tr(STR_G_HIST_OFF_BTN));
+  touch(580, 290); pump(3); release(); pump(6);     // reopen: the tick moved rows
+  save("/tmp/sim_hist_choose_off.ppm");
+  touch(174, 144); pump(3); release(); pump(6);     // REMEMBERED -> default restored
+
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
   touch(580, 122); pump(3); release(); pump(6);     // Recovery words row -> warning
@@ -3275,7 +3305,7 @@ int main(void) {
   touch(400, 308); pump(3); release(); pump(6);     // back to NATIVE
   // Theme moved out of the right column into the header: a wordless 44px chip
   // at (340,18) -- swatch plus a down glyph -- opens a dropdown card at
-  // (154,68), four rows on a 52 pitch, row centres (269, 102 + 52*i) in enum
+  // (104,68), four rows on a 52 pitch, row centres (244, 102 + 52*i) in enum
   // order MONO, GREEN, CYPHERPINK, ORANGE. A full-screen scrim sits under the
   // card, so a tap anywhere off it dismisses; both ways out get walked. The
   // pick closes via delete_async, so the pump after it is what lets the scrim
@@ -3284,13 +3314,13 @@ int main(void) {
   save("/tmp/sim_settings_theme.ppm");              // the four rows, over the scrim
   touch(60, 440); pump(3); release(); pump(6);      // scrim -> dismissed, nothing picked
   touch(362, 40); pump(3); release(); pump(6);      // theme chip again
-  touch(269, 206); pump(3); release(); pump(6);     // CYPHERPINK row (i=2)
+  touch(244, 206); pump(3); release(); pump(6);     // CYPHERPINK row (i=2)
   save("/tmp/sim_settings_pink.ppm");               // accent recolors selections+title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_wallet_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   touch(362, 40); pump(3); release(); pump(6);      // theme chip
-  touch(269, 102); pump(3); release(); pump(6);     // back to MONO (i=0)
+  touch(244, 102); pump(3); release(); pump(6);     // back to MONO (i=0)
   // The Network row opens a chooser now -- three networks do not fit a
   // segmented control -- so the row itself is the target: the left column's
   // first card starts at y=95 and is 64 tall, centre 127.

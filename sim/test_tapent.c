@@ -1,4 +1,4 @@
-// Host tests for the tap-entropy fold and the three-way mix.
+// Host tests for the tap-entropy fold and the seed's entropy folds.
 // Build: sim/build_test.sh -> /tmp/kisstest
 #include <stdio.h>
 #include <string.h>
@@ -17,6 +17,11 @@ static void ok(const char *name, int cond)
 //   python3 -c "import hashlib;print(hashlib.sha256(bytes(32)+b'\x11'*32+b'\x22'*32).hexdigest())"
 static const char *MIX3_ABC =
     "b647d2614ad2099840c899399acf3b264e8f40f9eb0d0f997c2e6e1c3ffc2da6";
+
+// SHA256 of 128 bytes: 0x00 x32 ‖ 0x11 x32 ‖ 0x22 x32 ‖ 0x33 x32.
+//   python3 -c "import hashlib;print(hashlib.sha256(bytes(32)+b'\x11'*32+b'\x22'*32+b'\x33'*32).hexdigest())"
+static const char *MIX4_ABCD =
+    "325c8ab64d40352bffd802154612a622287137182eae3f9c238c6c7385e2e701";
 
 static void hex32(const uint8_t h[32], char out[65])
 {
@@ -48,6 +53,45 @@ static void test_mix3(void)
     ok("mix3 depends on c", memcmp(out, out2, 32) != 0);
 
     ok("mix3 rejects NULL", kiss_entropy_mix3(NULL, b, c, out) != 0);
+}
+
+// The seed's own fold when the lens is live: camera, chip, taps, jitter. mix3
+// keeps its tests because it is still the fold a dead lens uses, with jitter in
+// the camera's slot -- the two are a pair, not a replacement.
+static void test_mix4(void)
+{
+    uint8_t a[32], b[32], c[32], d[32], out[32], out2[32];
+    memset(a, 0x00, 32); memset(b, 0x11, 32);
+    memset(c, 0x22, 32); memset(d, 0x33, 32);
+
+    ok("mix4 returns 0", kiss_entropy_mix4(a, b, c, d, out) == 0);
+
+    char got[65]; hex32(out, got);
+    ok("mix4 matches the independent vector", strcmp(got, MIX4_ABCD) == 0);
+    if (strcmp(got, MIX4_ABCD) != 0) printf("  got %s\n  want %s\n", got, MIX4_ABCD);
+
+    kiss_entropy_mix4(d, c, b, a, out2);
+    ok("mix4 is order sensitive", memcmp(out, out2, 32) != 0);
+
+    // A leg that could not reach the digest would be a leg the seed does not
+    // actually have, which is the whole claim being made on the entropy screen.
+    a[31] ^= 1; kiss_entropy_mix4(a, b, c, d, out2);
+    ok("mix4 depends on a", memcmp(out, out2, 32) != 0);
+    a[31] ^= 1; b[31] ^= 1; kiss_entropy_mix4(a, b, c, d, out2);
+    ok("mix4 depends on b", memcmp(out, out2, 32) != 0);
+    b[31] ^= 1; c[31] ^= 1; kiss_entropy_mix4(a, b, c, d, out2);
+    ok("mix4 depends on c", memcmp(out, out2, 32) != 0);
+    c[31] ^= 1; d[31] ^= 1; kiss_entropy_mix4(a, b, c, d, out2);
+    ok("mix4 depends on d", memcmp(out, out2, 32) != 0);
+    d[31] ^= 1;
+
+    // Three of the four legs are the mix3 fold's inputs, so a mix4 that quietly
+    // ignored its fourth would still look right on every screen.
+    kiss_entropy_mix3(a, b, c, out2);
+    ok("mix4 is not mix3", memcmp(out, out2, 32) != 0);
+
+    ok("mix4 rejects NULL", kiss_entropy_mix4(NULL, b, c, d, out) != 0);
+    ok("mix4 rejects NULL leg 4", kiss_entropy_mix4(a, b, c, NULL, out) != 0);
 }
 
 // The jitter source has no test vector and cannot have one: a fixed answer
@@ -140,6 +184,7 @@ int test_tapent(void)
     fails = 0;
     printf("\n-- tap entropy --\n");
     test_mix3();
+    test_mix4();
     test_jitter();
     test_debounce();
     test_fold();

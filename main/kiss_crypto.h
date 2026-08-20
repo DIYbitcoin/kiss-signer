@@ -43,6 +43,18 @@ int kiss_entropy_mix(const uint8_t a[32], const uint8_t b[32], uint8_t out[32]);
 int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], uint8_t out[32]);
 
+// Flat four-input fold: out = SHA256(a || b || c || d). The seed's own fold:
+// camera, chip TRNG, taps, timing jitter. The first three are the sources the
+// owner can see and influence and the setup screens number them; the fourth is
+// below that story deliberately (see the tap_done_cb comment in kiss_setup.c),
+// folded because it is the one physical source on this board that does not run
+// through the circuit esp_random does. mix3 is still the fold used when the
+// lens is dead -- jitter takes the camera's slot there, so it is folded exactly
+// once either way and a zero leg is never folded at all.
+int kiss_entropy_mix4(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], const uint8_t d[32],
+                        uint8_t out[32]);
+
 // ---- hardware entropy source ----
 // The chip's RNG only emits TRUE random numbers while a physical noise source
 // is feeding it, and on this board none of the ways that happens by accident

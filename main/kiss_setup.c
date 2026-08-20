@@ -942,26 +942,23 @@ static void tap_fill_trng(uint8_t *b, size_t n)
 // know, so the only way on is a fresh collection: rebuild the entropy screen.
 static void ent_retry_cb(lv_event_t *e) { (void)e; entropy_screen(); }
 
-// The only place a seed comes into existence: three chains in, words out, and
+// The only place a seed comes into existence: the chains in, words out, and
 // every intermediate wiped on the way through.
 static void tap_done_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
-    uint8_t cam[32], trng[32], taps[32], seed[32];
-    // A dead lens costs a source, not the wallet. What stands in for it has to
-    // be a source the camera's absence does not already imply: reading the chip
-    // twice would put both halves on one circuit, and that circuit going quiet
-    // is the exact failure the three-way fold exists to survive. Timing jitter
-    // is the one physical source on this board outside it (kiss_crypto.h),
-    // and needs nobody present, which is why the SD device key already uses it.
-    // If even that fails, cam stays zero and the seed is chip + taps -- the old
-    // behaviour, not a worse one.
+    uint8_t cam[32], trng[32], taps[32], jit[32], seed[32];
+    // A dead lens costs a source, not the wallet: jitter takes the camera's
+    // slot rather than standing in for the chip, because reading the chip twice
+    // would put both halves on one circuit and that circuit going quiet is the
+    // exact failure the fold exists to survive. Timing jitter is the one
+    // physical source on this board outside it (kiss_crypto.h) and needs nobody
+    // present, which is why the SD device key has always used it.
     if (s_cam_have) {
         memcpy(cam, s_cam_chain, 32);
         memcpy(trng, s_cam_trng, 32);
     } else {
-        if (kiss_jitter(cam) != 0)
-            memset(cam, 0, 32);
+        memset(cam, 0, 32);
         tap_fill_trng(trng, 32);
     }
     // Source 2 has to prove where it came from, and this is the only check that
@@ -974,22 +971,33 @@ static void tap_done_cb(lv_timer_t *t)
     // One check covers both reads of the chip, the one at capture
     // (camera_spike.c) and tap_fill_trng's above, because the flag is a latch
     // set once at boot and never cleared: false here means false there too. The
-    // fills above it are wiped unread, since && stops before mix3 sees them.
+    // fills above it are wiped unread, since && stops before the fold sees them.
     //
     // A refusal, not a warning, and deliberately not softened into "two sources
     // instead of three". A dead lens loses a source the fold was built to
     // survive. A chip whose noise was never switched on is a source that looks
     // exactly like a live one all the way to the words screen, and folding it
     // with the taps would hand back a seed every later check calls valid.
+    //
+    // Jitter is a leg, not a spare. Live lens folds four; a dead one folds three
+    // with jitter in the camera's slot, so it goes in exactly once either way
+    // and a zero leg is never folded. It refuses on failure like every other
+    // leg rather than being papered over with zeros: kiss_jitter only fails when
+    // wally_sha256 does, which no fold downstream would survive either. The
+    // screens still say three sources, and that stays true -- they name the ones
+    // the owner can see and aim. This one nobody can aim, which is the point.
     int ok = kiss_trng_live() &&
+             kiss_jitter(jit) == 0 &&
              kiss_tapent_take(taps) == 0 &&
-             kiss_entropy_mix3(cam, trng, taps, seed) == 0;
+             (s_cam_have ? kiss_entropy_mix4(cam, trng, taps, jit, seed)
+                         : kiss_entropy_mix3(jit, trng, taps, seed)) == 0;
     // Every one of these is dead-store territory: last read is the line above,
     // so memset is elidable and wally_bzero is not. Same reasoning as
     // kiss_scan.c's scan_bzero and kiss_seed_sd.c's sd_bzero.
     kiss_wipe(cam, sizeof cam);
     kiss_wipe(trng, sizeof trng);
     kiss_wipe(taps, sizeof taps);
+    kiss_wipe(jit, sizeof jit);
     kiss_wipe(s_cam_chain, sizeof s_cam_chain);
     kiss_wipe(s_cam_trng, sizeof s_cam_trng);
     s_cam_have = false;
@@ -997,9 +1005,10 @@ static void tap_done_cb(lv_timer_t *t)
     if (ok) {
         kiss_setup_entropy(seed, 32);
     } else {
-        // Reachable one way now: the chip's noise source is not running. The
-        // other two legs still cannot fail after a full 64-tap gate (take
-        // succeeds, mix3 only fails on NULL). Either way the owner is told
+        // Reachable one way in practice: the chip's noise source is not
+        // running. The other legs still cannot fail after a full 64-tap gate
+        // (take succeeds, jitter and the fold only fail if SHA256 does, and
+        // nothing downstream survives that). Either way the owner is told
         // plainly rather than left on a full bar that does nothing.
         //
         // TRY AGAIN restarts collection, which will not revive a chip that

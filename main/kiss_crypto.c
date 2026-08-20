@@ -96,6 +96,22 @@ int kiss_entropy_mix3(const uint8_t a[32], const uint8_t b[32],
     return rc;
 }
 
+int kiss_entropy_mix4(const uint8_t a[32], const uint8_t b[32],
+                        const uint8_t c[32], const uint8_t d[32],
+                        uint8_t out[32])
+{
+    if (!a || !b || !c || !d || !out)
+        return -1;
+    uint8_t cat[128];
+    memcpy(cat, a, 32);
+    memcpy(cat + 32, b, 32);
+    memcpy(cat + 64, c, 32);
+    memcpy(cat + 96, d, 32);
+    int rc = wally_sha256(cat, sizeof cat, out, 32) == WALLY_OK ? 0 : -1;
+    wally_bzero(cat, sizeof cat);
+    return rc;
+}
+
 // ---- hardware entropy source ----
 // Why the chip does not already have this on, and why no test would notice:
 // see the block comment in kiss_crypto.h. Enabled once and never disabled,
