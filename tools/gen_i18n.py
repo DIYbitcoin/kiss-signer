@@ -173,7 +173,7 @@ UNTRANSLATED_OK = {
     # The audit chooser and the randomness audit. Born under the English-only
     # rule, like the KEF block above: the other twenty carry the English as a
     # placeholder the sweep replaces.
-    "W_AUD_T", "W_AUD_S", "W_AUD_CAM_SUB", "W_AUD_RNG_SUB",
+    "W_AUD_T",
     "W_RNG_T", "W_RNG_S", "W_RNG_SRC", "W_RNG_SRC_SUB",
     "W_RNG_ON", "W_RNG_OFF",
     "W_RNG_WHY1_H", "W_RNG_WHY1_B", "W_RNG_WHY2_H", "W_RNG_WHY2_B",

@@ -25,7 +25,6 @@
 #include "kiss_lastword.h"
 #include "kiss_rehearse.h" // cards path: the checksum valid last words
 #include "kiss_cards_q.h"  // and whether those words were drawn or chosen
-#include "kiss_proof.h"    // PROVE IT: one frame -> SD file + hash + burned words
 #include "platform_sd.h"     // the proof needs a card before it can start
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
@@ -120,20 +119,14 @@ static bool s_qr_from_restore;
 static void entropy_screen(void);
 static void dice_screen(void);
 static void method_screen(void);
-// PROVE IT (docs/specs/prove-it.md): the burned proof run off the WHY overlay.
-static void proof_screen(void);
-// Set only by kiss_setup_open_audit: where the audit returns. (The create
-// wizard no longer runs the audit at all.)
-static void (*s_pf_done)(void);
-static void proof_result_screen(void);
 static void ent_fail_screen(void);
-static void proof_words_screen(void);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
 static void cards_intro_screen(void);
-// The import refusal: a typed restore whose words carry nothing.
-static void degen_screen(void);
+// The one restore-failed screen; see the definition beside the cards verdict
+// helpers it borrows its evidence from.
+static void check_screen(bool degenerate);
 static void goto_method_cb(lv_event_t *e);
 static void cards_cksum_open(void);
 static void cards_cksum_screen(void);
@@ -155,17 +148,6 @@ static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 bool kiss_setup_active(void) { return s_scr != NULL; }
 
-// The camera audit, from Settings: photo -> hash -> words -> proof file on
-// the card. It proves the MECHANISM -- that this device derives words from
-// a photo and nothing else -- on a throwaway run; it never touches the real
-// seed, which is why it belongs in Settings and not inside seed creation,
-// where its 0.5MB card write held the wizard hostage.
-void kiss_setup_open_audit(lv_obj_t *parent, void (*done_cb)(void))
-{
-    s_parent = parent ? parent : lv_screen_active();
-    s_pf_done = done_cb;
-    proof_screen();
-}
 bool kiss_setup_verify_succeeded(void) { return s_verify_ok; }
 
 static void wipe_state(void)
@@ -319,7 +301,7 @@ static void store_and_finish(void)
         // choices, which is the same cut the blind draw makes before its own
         // last word joins.
         kiss_cards_judge(s_cidx, n ? n - 1 : 0, &s_cq);
-        if (s_cq.flags & WC_F_DEGEN) { degen_screen(); return; }
+        if (s_cq.flags & WC_F_DEGEN) { check_screen(true); return; }
     }
     char words[WSEED_MAX_MNEMONIC];
     join_words(words, sizeof words);
@@ -343,9 +325,7 @@ static void store_and_finish(void)
             kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
     }
     if (rc != 0) {                          // restore path: checksum failed
-        mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
-        mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
-        mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
+        check_screen(false);
         return;
     }
     void (*cb)(void) = s_done;
@@ -1627,356 +1607,6 @@ static void method_screen(void)
     mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, goto_choose_cb, NULL);
 }
 
-// ---- PROVE IT (docs/specs/prove-it.md) ----
-// The WHY overlay concedes that all three sources are made by this device and
-// hands doubters the dice. This is the camera's answer: one frame becomes a
-// file on the card, a SHA256 and 24 words, all checkable on any computer. The
-// words are a real seed sitting on the card in cleartext, so they live in
-// their own buffers -- never s_w -- and every exit wipes them. No path from
-// here reaches the quiz or store_and_finish.
-static char s_pf_w[12][12];       // the burned words; structurally not s_w
-static uint8_t s_pf_hash[32];     // sha256 of the frame, shown lowercase like shasum
-static lv_obj_t *s_pf_state;      // line under the viewfinder; SAVING paints here
-static lv_obj_t *s_pf_shot, *s_pf_backp;
-#ifndef SIMULATOR
-static lv_timer_t *s_pf_tmr;
-#endif
-
-static void pf_wipe(void)
-{
-    kiss_wipe(s_pf_w, sizeof s_pf_w);
-    kiss_wipe(s_pf_hash, sizeof s_pf_hash);
-}
-
-// Same splitter as kiss_setup_entropy, into the proof's own grid.
-static void pf_split(const char *words)
-{
-    memset(s_pf_w, 0, sizeof s_pf_w);
-    int nw = 0;
-    const char *p = words;
-    while (*p && nw < 12) {
-        int n = 0;
-        while (p[n] && p[n] != ' ' && n < 11) n++;
-        memcpy(s_pf_w[nw], p, (size_t)n);
-        s_pf_w[nw][n] = 0;
-        nw++;
-        p += n;
-        while (*p == ' ') p++;
-    }
-}
-
-// The audit lives in Settings now (its own opener below), so every exit
-// hands control back to whoever opened it -- the same shape as the verify
-// flow's exit. The entropy_screen fallback covers only a build where
-// something still opens the audit mid-wizard; nothing does.
-static void pf_exit(void)
-{
-    pf_wipe();
-    if (s_pf_done) {
-        void (*cb)(void) = s_pf_done;
-        s_pf_done = NULL;
-        close_all();
-        if (cb) cb();
-        return;
-    }
-    entropy_screen();
-}
-
-static void pf_back_cb(lv_event_t *e)
-{
-    (void)e;
-#ifndef SIMULATOR
-    if (s_pf_tmr) { lv_timer_delete(s_pf_tmr); s_pf_tmr = NULL; }
-    camera_proof_stop();
-    camera_proof_end();
-#endif
-    pf_exit();
-}
-
-static void pf_retry_cb(lv_event_t *e) { (void)e; proof_screen(); }
-static void pf_done_cb(lv_event_t *e) { (void)e; pf_exit(); }
-
-// The no-card gate and the failed-write screen are one shape: a framed SD row
-// that says what is missing or what went wrong, TRY AGAIN, and a way out.
-static void pf_gate_screen(const char *label, int body_key)
-{
-    mk_screen(tr(STR_W_PROOF_T), NULL);
-    wt_row_x(s_scr, WT_ICON_SD, label, tr(body_key), NULL, NULL, NULL, WT_INK,
-             false, WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
-             NULL, NULL);
-    // ONE row, nothing else. A dice pointer stood under it for one commit
-    // and rendered as a second OPTION -- two cards on the chooser grid read
-    // as a choice, whatever the second one says -- so the refusal says only
-    // its own sentence. The card-free check is taught where dice are
-    // actually choosable: WHY THREE SOURCES, line four.
-    mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, pf_back_cb, NULL);
-    lv_obj_t *p = mk_pill(tr(STR_C_TRY_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
-                          pf_retry_cb, NULL);
-    wt_pill_primary(p);
-}
-
-// Frame in hand: hash it, write it, derive the words. Runs one LVGL tick after
-// the SAVING line paints (the do_sign_cb defer pattern), because the atomic
-// write of 1.9MB blocks for seconds and a screen that freezes silently reads
-// as a crash.
-static void pf_finish(void)
-{
-    char words[WSEED_MAX_MNEMONIC];
-    int rc;
-#ifdef SIMULATOR
-    rc = kiss_proof_run(NULL, 0, s_pf_hash, words, sizeof words);
-#else
-    camera_proof_stop();               // stream off BEFORE SDMMC gets touched
-    size_t n = 0;
-    const uint8_t *fr = camera_proof_data(&n);
-    rc = fr ? kiss_proof_run(fr, n, s_pf_hash, words, sizeof words)
-            : WPROOF_ERR_ARG;
-    camera_proof_end();
-#endif
-    if (rc == WPROOF_OK) {
-        pf_split(words);
-        kiss_wipe(words, sizeof words);
-            proof_result_screen();
-    } else {
-        pf_wipe();
-        pf_gate_screen(WPROOF_NAME, STR_W_PROOF_FAIL_B);
-    }
-}
-
-#ifdef SIMULATOR
-// The sim has no camera; the stubbed kiss_proof_run in sim_main.c writes a
-// small real file and derives the fixed SIM_WORDS, so the walk exercises the
-// same screens the device shows.
-static void pf_sim_capture_cb(lv_event_t *e) { (void)e; pf_finish(); }
-#else
-static void pf_capture_cb(lv_event_t *e) { (void)e; camera_proof_capture(); }
-
-static void pf_write_cb(lv_timer_t *t)
-{
-    lv_timer_delete(t);
-    pf_finish();
-}
-
-static void pf_poll_cb(lv_timer_t *t)
-{
-    if (!camera_proof_done()) return;
-    lv_timer_delete(t);
-    s_pf_tmr = NULL;
-    // The preview is frozen on exactly the captured frame. Say what happens
-    // next and take both pills away: the write is not interruptible, and a
-    // BACK that silently lost the race with it would read as a missed touch.
-    if (s_pf_state) lv_label_set_text(s_pf_state, tr(STR_W_PROOF_SAVING));
-    if (s_pf_shot) {
-        lv_obj_set_style_opa(s_pf_shot, LV_OPA_40, 0);
-        lv_obj_remove_flag(s_pf_shot, LV_OBJ_FLAG_CLICKABLE);
-    }
-    if (s_pf_backp) {
-        lv_obj_set_style_opa(s_pf_backp, LV_OPA_40, 0);
-        lv_obj_remove_flag(s_pf_backp, LV_OBJ_FLAG_CLICKABLE);
-    }
-    lv_timer_create(pf_write_cb, 50, NULL);
-}
-#endif
-
-static void proof_screen(void)
-{
-    pf_wipe();
-    s_pf_state = s_pf_shot = s_pf_backp = NULL;
-    if (platform_sd_probe() != 1) {
-        pf_gate_screen(tr(STR_W_PROOF_SD_T), STR_W_PROOF_SD_B);
-        return;
-    }
-    mk_screen2(tr(STR_W_PROOF_T), tr(STR_W_PROOF_S));
-
-    // Left: the same viewfinder geometry as the entropy screen, so the proof
-    // reads as the same camera being put to a different question.
-    wt_viewfinder(s_scr, ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
-    s_pf_state = wt_lbl(s_scr, "", ENT_CAM_X, ENT_CAM_Y + ENT_CAM_H + 8,
-                        wt_font14(), WARN_COL);
-    lv_obj_set_width(s_pf_state, ENT_CAM_W);
-    lv_label_set_long_mode(s_pf_state, LV_LABEL_LONG_WRAP);
-
-    // Right: the recipe as a diagram -- frame to SHA256 to words -- in the
-    // equation card's shape, then the file the card will receive.
-    lv_obj_t *pc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y, ENT_COL_W, 56);
-    lv_obj_t *pq = lv_obj_create(pc);
-    lv_obj_remove_style_all(pq);
-    lv_obj_set_pos(pq, 0, 0);
-    lv_obj_set_size(pq, ENT_COL_W, 56);
-    lv_obj_set_flex_flow(pq, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(pq, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(pq, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(pq, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *row = wt_diagram_row(pq);
-    wt_chip(row, LV_SYMBOL_IMAGE, false);
-    wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, "SHA256", false);
-    wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    // 12, not 24. The hash is 32 bytes and 32 bytes is 24 words, which is what
-    // this said for as long as it existed -- on a device that pins 12 on every
-    // creation path and offers 24 only when RESTORING paper an owner already
-    // has. A page whose entire job is showing how this signer turns entropy
-    // into seed words was showing it with a seed this signer cannot make, and
-    // a reader took the obvious lesson: that 24 is on offer. kiss_proof.c
-    // takes the first WPROOF_ENTROPY_BYTES of the hash now.
-    wt_chip(row, tr(STR_W_12), true);
-
-    // The filename is a C literal, never translated: the owner types it into a
-    // shell, so the screen shows exactly what the card will hold. 132 tall,
-    // not the chooser's 96: the note wraps to three lines in this narrower
-    // column and a 96 row cuts the third.
-    wt_row_x(s_scr, WT_ICON_SD, WPROOF_NAME, tr(STR_W_PROOF_FILE_NOTE), NULL,
-             NULL, NULL, WT_INK, false, ENT_COL_X, ENT_CAM_Y + 64, ENT_COL_W,
-             132, NULL, NULL);
-
-    // The one thing this page has to say and never did: these words are public
-    // the moment the photo is. W_PROOF_BURNED already says it in 21 locales and
-    // lived only on the screen AFTER the words were made, which is the wrong
-    // side of the button.
-    //
-    // Under the file row in the right column, not across the page: the band
-    // beneath the viewfinder belongs to s_pf_state, which is where SAVING and
-    // the camera error are written.
-    //
-    // A row rather than a paragraph, because a paragraph alone is what rule 1
-    // exists to stop, and because the mark does half the work: the same warning
-    // triangle the caution bar uses, on a page whose other control is CAPTURE,
-    // is read before the sentence is.
-    // A card and a wrapped note rather than a row: a row's label is one line
-    // and this sentence is three clauses, so it arrived as "not for keys. the
-    // photo is ..." -- an ellipsis exactly where the reason lives.
-    {
-        lv_obj_t *wc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y + 202, ENT_COL_W, 60);
-        wt_lbl(wc, LV_SYMBOL_WARNING, 14, 18, wt_font23(), WT_WARN);
-        wt_note(wc, tr(STR_W_PROOF_BURNED), 48, 10, ENT_COL_W - 62, 42);
-    }
-
-#ifdef SIMULATOR
-    s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), WT_ACT_X, WT_ACTION_Y, 300,
-                        pf_sim_capture_cb, NULL);
-    wt_pill_primary(s_pf_shot);
-#else
-    // Rect BEFORE start, same as the entropy screen: the video and LVGL share
-    // one framebuffer from the first frame.
-    camera_spike_set_preview_rect(ENT_CAM_X, ENT_CAM_Y, ENT_CAM_W, ENT_CAM_H);
-    if (camera_proof_start()) {
-        s_pf_shot = mk_pill(tr(STR_W_PROOF_SHOT), WT_ACT_X, WT_ACTION_Y, 300,
-                            pf_capture_cb, NULL);
-        wt_pill_primary(s_pf_shot);
-        if (!s_pf_tmr) s_pf_tmr = lv_timer_create(pf_poll_cb, 80, NULL);
-    } else {
-        // No camera, no proof: unlike the wizard there is no source to fall
-        // back to, so the column carries the error and BACK is the only way.
-        mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
-               wt_font23(), STOP_COL);
-        mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
-               wt_font14(), MUT_COL);
-    }
-#endif
-    s_pf_backp = mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140,
-                         pf_back_cb, NULL);
-}
-
-static void pf_words_cb(lv_event_t *e)
-{
-    (void)e;
-    proof_words_screen();
-}
-
-static void proof_result_screen(void)
-{
-    mk_screen(tr(STR_W_PROOF_R_T), tr(STR_W_PROOF_R_S));
-
-    // The hash, framed, with the filename it belongs to in the card's corner.
-    // Lowercase, like the dice fingerprint and like shasum's own output, so
-    // the owner compares character by character with no case translation.
-    // Hand-built rather than wt_value_card because the 79 grouped characters
-    // must wrap, and the value card pins its value to one line.
-    char hex[65];
-    for (int i = 0; i < 32; i++)
-        snprintf(hex + i * 2, 3, "%02x", s_pf_hash[i]);
-    char grp[96];
-    wt_group4(hex, grp, sizeof grp);
-
-    lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 0);
-    lv_obj_t *cap = wt_lbl(card, tr(STR_W_PROOF_HASH_CAP), 14, 12, wt_font14(),
-                           MUT_COL);
-    lv_obj_set_style_text_letter_space(cap, 1, 0);
-    lv_obj_t *fn = wt_lbl(card, WPROOF_NAME, 0, 12, wt_font_mono14(), OK_COL);
-    lv_obj_update_layout(fn);
-    lv_obj_set_pos(fn, 704 - 14 - lv_obj_get_width(fn), 12);
-    lv_obj_set_width(cap, 704 - 28 - lv_obj_get_width(fn) - 12);
-    lv_label_set_long_mode(cap, LV_LABEL_LONG_WRAP);
-    lv_obj_update_layout(cap);
-    int vy = 12 + lv_obj_get_height(cap) + 8;
-    lv_obj_t *v = wt_lbl(card, grp, 14, vy, wt_font_mono23(), INK_COL);
-    lv_obj_set_width(v, 676);
-    lv_label_set_long_mode(v, LV_LABEL_LONG_WRAP);
-    lv_obj_update_layout(v);
-    lv_obj_set_size(card, 704, vy + lv_obj_get_height(v) + 14);
-
-    // No QR here. It carried the hash to the hosted page, but the check needs
-    // the FILE, and the file is 1.9MB on the card -- so the machine that reads
-    // the card is the machine that checks, and a phone scanning a code could
-    // never finish. The comparison target is the 12 words on this screen: the
-    // card's page is stateless and recomputes them from the dropped file.
-    //
-    // Accent on how the check works, WARN on where the words go wrong: the
-    // proven pair geometry, same call shape as the dice verdict screen.
-    // wt_body_font2_HEAD: it measures the two headings instead of a flat
-    // constant. The number here used to be the 166px budget minus 54 for a
-    // heading that MIGHT wrap to two lines, in every locale whether it did or
-    // not -- a third of the budget given away, which is what drops a pair to
-    // font14. docs/house-rules.md rule 2 names it; these were the call sites
-    // still doing it.
-    const lv_font_t *f = wt_body_font2_head(
-        tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
-        tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
-        330, WT_CONTENT_BOTTOM - 232);
-    wt_why_block(s_scr, tr(STR_W_PROOF_CHECK_H), tr(STR_W_PROOF_CHECK_B),
-                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
-    wt_why_block(s_scr, tr(STR_W_PROOF_BURN_H), tr(STR_W_PROOF_BURN_B),
-                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
-
-    mk_pill(tr(STR_C_DONE), WT_EXIT_X, WT_ACTION_Y, 140, pf_done_cb, NULL);
-    lv_obj_t *sw = mk_pill(tr(STR_W_PROOF_WORDS_BTN), WT_ACT_X, WT_ACTION_Y, 300,
-                           pf_words_cb, NULL);
-    wt_pill_primary(sw);
-}
-
-static void pf_words_back_cb(lv_event_t *e) { (void)e; proof_result_screen(); }
-
-// The words screen's grid, reading the proof's own buffers. TWELVE words on one
-// page now, because the recipe takes the first 16 bytes of the hash -- the same
-// length every creation path on this device produces, which is the whole point
-// of a screen that demonstrates how this device makes seed words.
-//
-// One page, so the pager is gone and with it the only reason this screen ever
-// had a NEXT. The loud line stays and is the opposite claim to every other
-// words screen here: these are NOT for paper, they are on the card in the open.
-static void proof_words_screen(void)
-{
-    mk_screen(tr(STR_W_PROOF_R_T), NULL);
-
-    const int first = 0;
-    const int rows = 6;
-    for (int k = 0; k < WORDS_PER_PAGE; k++) {
-        char buf[32];
-        snprintf(buf, sizeof buf, "%2d. %.11s", first + k + 1,
-                 s_pf_w[first + k]);
-        mk_lbl(buf, 48 + (k / rows) * 352, 104 + (k % rows) * 40, wt_font28(),
-               INK_COL);
-    }
-    lv_obj_t *po = mk_lbl(tr(STR_W_PROOF_BURNED), 48, 352,
-                          wt_body_font(tr(STR_W_PROOF_BURNED), 700, 40),
-                          STOP_COL);
-    lv_obj_set_width(po, 700);
-    lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
-
-    mk_pill(tr(STR_C_BACK), 48, WT_ACTION_Y, 160, pf_words_back_cb, NULL);
-}
-
 // ---- dice screen ----
 // The card sits on the y=96 content line and runs to 394, four clear of
 // WT_CONTENT_BOTTOM: the histogram needs the height, and the only direction
@@ -2942,6 +2572,31 @@ static void cards_verdict_screen(int title, lv_color_t col)
     wt_pill_primary(p[1]);
 }
 
+// A restore that did not work out, and there is exactly one of these however it
+// failed. It used to be two: this screen for a broken checksum, and a separate
+// one for words that carry no secret -- which borrowed the blind draw's title
+// and put a THIRD "CHECK YOUR WORDS" in the product. The owner could not tell
+// them apart, which is the whole argument for one screen with two reasons.
+//
+// `degenerate` is the second reason: the words are valid BIP39 and still have
+// nothing in them. It brings its own evidence, the same index bars the blind
+// draw's refusal draws, because s_cidx is already filled by the gate in
+// store_and_finish -- and a claim about the owner's words should show them.
+static void check_screen(bool degenerate)
+{
+    mk_screen(tr(STR_W_CHECK_T),
+              tr(degenerate ? cards_sub_key() : STR_W_CHECK_S));
+    int by = 140;
+    if (degenerate) {
+        lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+        cards_bars_make(card, STOP_COL);
+        by = 224;
+    }
+    mk_body(tr(degenerate ? STR_W_CARDS_BLOCK_B : STR_W_CHECK_B),
+            48, by, 704, WT_CONTENT_BOTTOM - by, STOP_COL);
+    mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
+}
+
 // Kept apart from the block screen for the title and the colour, not for the
 // way out: a draw that climbed the list is a different mistake from a draw of
 // one word eleven times, and the owner should be told which they made.
@@ -2953,35 +2608,6 @@ static void cards_warn_screen(void)
 static void cards_block_screen(void)
 {
     cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL);
-}
-
-// A typed restore whose words carry nothing. It borrows the blind draw's
-// evidence -- the same bars, the same subtitle naming which rule fired -- but
-// not its two block layout: that pair's second half is "how to fix it: mix the
-// whole list, draw blind, type what you get", which is advice for somebody
-// MAKING a seed. An import cannot act on it. So one claim, the one that is
-// true either way, and the pills carry the two ways out.
-//
-// Titled CHECK YOUR WORDS rather than NOT A BLIND DRAW: the likeliest reason
-// these words are on screen is that they are not the words the owner meant to
-// type, and the title should say that before it says anything else.
-static void degen_screen(void)
-{
-    mk_screen(tr(STR_W_CARDS_WARN_T), tr(cards_sub_key()));
-
-    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
-    cards_bars_make(card, STOP_COL);
-
-    mk_body(tr(STR_W_CARDS_BLOCK_B), 48, 224, 704, WT_CONTENT_BOTTOM - 224,
-            STOP_COL);
-
-    lv_obj_t *p[2];
-    p[0] = wt_pillh(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y_TALL, 330, 66,
-                    cards_cancel_cb, NULL);
-    p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 422, WT_ACTION_Y_TALL, 330, 66,
-                    cards_retype_cb, NULL);
-    wt_pill_row(p, 2);
-    wt_pill_primary(p[1]);
 }
 
 // The checksum explainer: why the last word is picked from a list. Two
@@ -3065,9 +2691,7 @@ static void cards_cksum_open(void)
         // Unreachable by construction: every typed word came off the suggest
         // pills, so the prefix is wordlist words and the count is 128 or 8.
         // Still never a dead branch on a seed path.
-        mk_screen(tr(STR_W_CHECK_T), tr(STR_W_CHECK_S));
-        mk_body(tr(STR_W_CHECK_B), 48, 140, 704, 256, STOP_COL);
-        mk_pill(tr(STR_W_START_OVER), 48, WT_ACTION_Y, 240, goto_restore_cb, NULL);
+        check_screen(false);
         return;
     }
 

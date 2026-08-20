@@ -95,25 +95,6 @@ int camera_entropy_progress(void);
 enum { ENT_R_OK = 0, ENT_R_DARK, ENT_R_STILL };
 int camera_entropy_reason(void);
 
-// ---- proof mode: CAMERA AUDIT (kiss_proof.h). One whole raw frame, frozen on
-// the preview and copied out for the SD write + SHA256. No meter and no gates:
-// any frame proves the machinery. The full-frame PSRAM copy is allocated at
-// start so failure happens there, never at the owner's tap.
-//   start    preview live; caller sets the preview rect BEFORE this
-//   capture  the stream task copies the NEXT frame, then freezes the preview
-//            on exactly that frame — what the owner sees is what gets hashed
-//   done     poll from an LVGL timer
-//   data     the frozen bytes; len is always the exact frame size, never the
-//            (possibly padded) V4L2 buffer length
-//   stop     stream OFF, task joined; the copy SURVIVES. Call before the SD
-//            write so SDMMC never contends with CSI + PPA
-//   end      free the copy and repaint; the final call on every exit path
-bool camera_proof_start(void);
-void camera_proof_capture(void);
-bool camera_proof_done(void);
-const uint8_t *camera_proof_data(size_t *len);
-void camera_proof_stop(void);
-void camera_proof_end(void);
 
 // ---- step 6: QR scan mode (same pipeline + k_quirc decode every few frames) ----
 // on_decode runs in the CAMERA TASK context — copy the payload out, return fast.

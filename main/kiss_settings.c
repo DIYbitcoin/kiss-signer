@@ -846,47 +846,19 @@ static void waysin_word_cb(lv_event_t *e)
 
 static void waysin_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
-// Either audit owns the display while it runs and hands back the same way
-// the firmware screens do, by rebuilding Settings underneath.
-static void audit_cam_cb(lv_event_t *e)
-{
-    (void)e;
-    lv_obj_t *parent = s_parent;
-    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    kiss_setup_open_audit(parent, settings_reopen);
-}
-
-static void audit_rng_cb(lv_event_t *e)
+// The audit owns the display while it runs and hands back the same way the
+// firmware screens do, by rebuilding Settings underneath.
+//
+// A chooser stood here while there were two audits behind the word. There is
+// one now -- the camera audit is gone -- and a chooser with a single row is a
+// screen that asks a question with one answer, so the pill goes straight
+// through to it.
+static void audit_open_cb(lv_event_t *e)
 {
     (void)e;
     lv_obj_t *parent = s_parent;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_rngaudit_open(parent, settings_reopen);
-}
-
-static void audit_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
-
-// Two audits behind one word. A chooser rather than a second pill: the row
-// beside the ways in card has 140px to give, and a chooser row carries a
-// sub line saying what each audit checks BEFORE it is entered -- which a
-// pill never could, and which is most of what a newcomer needs from either.
-static void audit_open_cb(lv_event_t *e)
-{
-    (void)e;
-    s_type_pill = s_type_pfx = s_type_expl = s_storage_pill = NULL;
-    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), tr(STR_W_AUD_S));
-    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_PROOF_T), tr(STR_W_AUD_CAM_SUB),
-             NULL, NULL, NULL, WT_INK, false,
-             WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
-             audit_cam_cb, NULL);
-    wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_RNG_T), tr(STR_W_AUD_RNG_SUB),
-             NULL, NULL, NULL, WT_INK, false,
-             WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
-             audit_rng_cb, NULL);
-    lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                audit_back_cb, NULL), 10);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -1477,7 +1449,7 @@ void kiss_settings_open(lv_obj_t *parent)
     //
     // MAINNET and TESTNET stay a real pair of pills: they are two values of one
     // setting and the only control here where the choice itself is the widget.
-// The ways in row shares its line with the CAMERA AUDIT pill, so the pair has
+// The ways in row shares its line with the AUDIT pill, so the pair has
 // to fill the full 752 page width (25..777) between them. At a single-column
 // SG_L_W the label ellipsised to "Duress w..." while the value took the rest
 // -- which reads as a struck through label, not as a narrow row.
@@ -1660,8 +1632,8 @@ void kiss_settings_open(lv_obj_t *parent)
     // SIGNER -- and the pill keeps the exact geometry it shipped with
     // (140x52), seated on the row's line (the row card is WT_ROW_H tall, so
     // the pill centres on it). It opens a chooser now that there are two
-    // audits behind it, so the label is the word for the class and the mark
-    // is an eye, not a camera: the camera is one of the two things to look at.
+    // the label is the word for the class and the mark
+    // is an eye rather than a mark for any one check behind it.
     wt_pill_icon(s_scr, LV_SYMBOL_EYE_OPEN, tr(STR_W_AUD_T),
                  SG_AUDIT_X, SG_FULL_Y + (WT_ROW_H - WT_ACTION_H) / 2,
                  SG_AUDIT_W, WT_ACTION_H, audit_open_cb, NULL);
@@ -1901,8 +1873,8 @@ void kiss_settings_open(lv_obj_t *parent)
         // FIRMWARE is not here. It is device chrome, so it went up beside the
         // language pill; this bar had no room for it. See the header block.
 
-        // CAMERA AUDIT is not here either, though it belongs to this bar: it
-        // is built after the build identity, below, because it has to be
+        // AUDIT is not here either, though it belongs to this bar: it is
+        // built after the build identity, below, because it has to be
         // measured against it.
 
         // Build identity AFTER the pill, and that order is load bearing. The
@@ -1926,11 +1898,11 @@ void kiss_settings_open(lv_obj_t *parent)
         // inside the bar's fill, which stops at 471.
         s_build_id = kiss_build_id_make(s_scr, 48, 404, true, true);
 
-        // CAMERA AUDIT. It spent a version on the duress page, which was the
-        // wrong room by a mile: an owner looking for the ways in found a
-        // camera drill, and an owner wanting to check the camera had to go
-        // through the screen about hiding coins to reach it. Those two share
-        // nothing except that both were once the only page with space.
+        // AUDIT. It spent a version on the duress page, which was the wrong
+        // room by a mile: an owner looking for the ways in found a hardware
+        // drill, and an owner wanting to check the hardware had to go through
+        // the screen about hiding coins to reach it. Those two share nothing
+        // except that both were once the only page with space.
         //
         // For one build it sat on the action bar next to BACK, which read as a
         // control like BACK instead of the question it answers. It now shares

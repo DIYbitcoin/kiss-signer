@@ -54,8 +54,6 @@ int test_rngq(void);
 int test_lastword(void);
 // sim/test_cards_q.c — whether the owner's own words are worth a seed
 int test_cards_q(void);
-// sim/test_proof.c — the CAMERA AUDIT frame -> file -> hash -> words pipeline
-int test_proof(void);
 // sim/test_fw.c — SD firmware update: version ordering and image descriptors
 int test_fw(void);
 
@@ -786,7 +784,6 @@ int main(int argc, char **argv) {
     fails += test_rngq();
     fails += test_lastword();
     fails += test_cards_q();
-    fails += test_proof();
     fails += test_fw();
 
     test_boot_sign_selftest();

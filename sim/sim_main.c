@@ -14,10 +14,8 @@
 #include "kiss_crypto.h"
 #include "kiss_rngaudit.h"  // kiss_rngaudit_sim_result: the once-in-500 renders
 #include "kiss_simpath.h"  // KISS_SIM_TMP: one run's scratch is its own
-#include "kiss_proof.h"   // WPROOF_NAME + the stubbed proof pipeline below
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "kiss_seed_sd.h"   // SDSEED_FILENAME: the move stub keeps it truthful
-#include "verify_page.h"    // ...and the real checker page beside it
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
 #include "kiss_duress_ui.h"   // the no-passphrase stop, unreachable by tapping
 #include "kiss_fw.h"          // the SD firmware seams: no flash here, no key
@@ -170,32 +168,6 @@ int kiss_seed_from_entropy(const uint8_t *e, size_t len, char *out, size_t n) {
   for (int i = 0; i < count && o + 12 < n; i++)
     o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", SIM_WORDS[i]);
   return 0;
-}
-// PROVE IT (main/kiss_proof.c wants wally SHA256; the sim links no wally).
-// The stub writes a SMALL real file AND the real checker page through the real
-// platform_sd so the walk's SD gate and the host directory stay honest, and
-// hashes the junk with cUR's already-linked SHA256 -- still deterministic, but
-// now dropping /tmp/simsd/kiss-proof.bin on the page (or scanning the sim's
-// QR) shows MATCH instead of a confusing MISMATCH. Words stay the fixed
-// SIM_WORDS; kisstest runs the real pipeline against a pinned vector.
-int kiss_proof_run(const uint8_t *frame, size_t len, uint8_t hash_out[32],
-                     char *words_out, size_t words_len) {
-  (void)frame; (void)len;
-  uint8_t junk[64];
-  for (int i = 0; i < 64; i++) junk[i] = (uint8_t)(i * 3 + 1);
-  if (platform_sd_mount() != 0 ||
-      platform_sd_write_atomic(WPROOF_NAME, junk, sizeof junk) < 0)
-    return WPROOF_ERR_SD;
-  CRYAL_SHA256_CTX cx;
-  ur_bundled_sha256_init(&cx);
-  ur_bundled_sha256_update(&cx, junk, sizeof junk);
-  ur_bundled_sha256_final(&cx, hash_out);
-  // Same shape the device writes now: the page as-is, stateless. The claim
-  // lives on the (sim's) result screen; the page only computes.
-  int prc = platform_sd_write_atomic(WPROOF_PAGE_NAME, verify_page_html,
-                                     verify_page_html_len);
-  if (prc < 0) return WPROOF_ERR_SD;
-  return kiss_seed_from_entropy(hash_out, 32, words_out, words_len);
 }
 // Source 3 (taps) + the three-way mix. The real fold lives in kiss_tapent.c
 // and kiss_crypto.c and needs wally's SHA256; the sim links no crypto, same
@@ -1606,7 +1578,7 @@ static void type_pass9(void)
 // ---- the walk owns its fixtures ----
 // /tmp/simsd is platform_sd.c's SD_BASE on the host, and THREE binaries write
 // into it: this walk, /tmp/kissoverlap (the same walk instrumented) and
-// /tmp/kisstest (test_sdseed.c, test_fw.c and test_proof.c all put files
+// /tmp/kisstest (test_sdseed.c and test_fw.c both put files
 // there). The sign screens list that directory and the walk taps rows by
 // position, so one file left behind by any of them silently shifts which PSBT
 // a tap opens -- and the failure surfaces as six missing labels on a verify
@@ -1618,10 +1590,7 @@ static void type_pass9(void)
 // for the host's wallet state files, which kisstest also writes -- a leftover
 // provisioned seed starts the walk on a login screen instead of first boot.
 //
-// Nothing outside a run depends on what a previous run left. kiss-proof.bin
-// and kiss-verify.html are written DURING the walk by the proof flow, and
-// sim/test_proof.c makes its own copies through kiss_proof_run before it
-// reads them back, so it never needs the walk's.
+// Nothing outside a run depends on what a previous run left.
 //
 // NOT a fix for run-to-run flakiness. The walk has been seen to give different
 // results from a byte identical starting state under machine load; that is a
@@ -4210,43 +4179,14 @@ int main(void) {
   // only thing that knew, because a screen with no walk stop is a screen no
   // gate has an opinion on -- and YOUR LETTERS ARE SET was a wall of text for
   // exactly that reason. The duress row is full width at SG_FULL_Y 331.
-  // The audits, from their home beside the ways in row. The pill opens a
-  // chooser now that there are two: the camera audit (the stub writes a real
-  // small kiss-proof.bin and the stateless checker page into /tmp/simsd) and
-  // the randomness audit. DONE returns here via the done cb both times.
-  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT pill -> the chooser
-  save("/tmp/sim_audit_choose.ppm");                // two audits, each stated
-  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT row -> capture screen
-  save("/tmp/sim_setup_prove.ppm");                 // viewfinder + recipe + file row
-  tap_str(STR_W_PROOF_SHOT, 3, 6);    // CAPTURE (stubbed, instant)
-  save("/tmp/sim_setup_prove_result.ppm");          // hash card + check/burn pair
-  tap_str(STR_W_PROOF_WORDS_BTN, 3, 6);   // SHOW WORDS
-  // ONE page of 12, not two of 24. The recipe takes the first 16 bytes of the
-  // hash now, so the audit demonstrates the same length every creation path on
-  // this device produces -- which is what the page was for, and what it was
-  // getting wrong by showing a seed the signer cannot make.
-  save("/tmp/sim_setup_prove_words.ppm");           // all 12, thrown-away line
-  must_show("audit words/count", "12. ");
-  tap_str(STR_C_BACK, 3, 8);          // BACK -> the result screen
-  tap_str(STR_C_DONE, 3, 12);         // DONE -> back to Settings (done cb)
-
-  // The no-card gate, forced: the sim card is otherwise always present, so
-  // the one screen a cardless owner meets -- and the dice row that points
-  // them at the check that needs none -- had no stop in any locale.
-  platform_sd_test_set_present(0);
-  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the chooser
-  tap_str(STR_W_PROOF_T, 3, 8);       // CAMERA AUDIT -> the no-card gate
-  save("/tmp/sim_setup_prove_nocard.ppm");          // the one-row refusal
-  must_show("proof/nocard", tr(STR_W_PROOF_SD_T));
-  platform_sd_test_set_present(1);
-  tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
-
-  // The randomness audit, through the same chooser. The stub stream is
-  // deterministic and rewound here, so the finished frame always shows the
-  // score test_rngq.c pinned as golden: 105.920, EVEN.
+  // The audit, from its home beside the ways in row. The pill went to a
+  // chooser while there were two behind it; the camera audit is gone, so it
+  // opens the randomness audit directly. DONE returns here via the done cb.
+  //
+  // The stub stream is deterministic and rewound here, so the finished frame
+  // always shows the score test_rngq.c pinned as golden: 105.920, EVEN.
   sim_rng_rewind();
-  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT -> the chooser
-  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
+  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT pill -> the intro, no chooser
   save("/tmp/sim_rng_intro.ppm");                   // NOISE row + the why pair
   must_show("rng/provenance", tr(STR_W_RNG_ON));
   tap_str(STR_W_RNG_GO, 3, 8);        // START -> piles fill on an 80ms timer
@@ -4271,8 +4211,7 @@ int main(void) {
   // in. NO SOURCE in the provenance row, the right block carries the refusal
   // and there is no START to tap.
   s_sim_trng = false;
-  tap_str(STR_W_AUD_T, 3, 8);     // AUDIT -> the chooser
-  tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
+  tap_str(STR_W_AUD_T, 3, 8);         // AUDIT -> the intro
   save("/tmp/sim_rng_nosource.ppm");                // refusal: no START pill
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
   tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
@@ -4691,10 +4630,10 @@ int main(void) {
   pump(20);
   save("/tmp/sim_fw_crowded.ppm");
   {
-    // Counted, not assumed. Earlier steps of this same walk leave their own
-    // .bin on the card -- kiss-proof.bin is one -- so a hard 31 here passed
-    // only for as long as nothing upstream wrote another file, and the first
-    // thing it did was fail on a screen that was completely correct.
+    // Counted, not assumed. Earlier steps of this same walk can leave their
+    // own .bin on the card, so a hard 31 here passed only for as long as
+    // nothing upstream wrote another file, and the first thing it did was
+    // fail on a screen that was completely correct.
     int bins = 0;
     DIR *cd = opendir(SIMSD);
     if (cd) {
@@ -4822,20 +4761,17 @@ int main(void) {
   pump(6);
   save("/tmp/sim_restore_degen.ppm");               // CHECK YOUR WORDS, flat bars
   must_show("restore/degen", tr(STR_W_CARDS_BLOCK_B));
+  must_show("restore/degen names the rule", tr(STR_W_CARDS_SAME_S));
   must_not_show("restore/degen offers no way past", tr(STR_L_USE_ANYWAY));
-  tap_str(STR_C_CANCEL, 3, 6);     // CANCEL -> chooser
-  if (s_sim_pending_mode != -1) {
-    fprintf(stderr, "restore degen cancel left storage mode staged\n");
-    return 1;
-  }
+  // One way off it, the same one a broken checksum gets: this IS that screen,
+  // wearing its second reason. START OVER goes back to the keyboard rather
+  // than the chooser, so the count screen is not walked through again.
+  tap_str(STR_W_START_OVER, 3, 6);     // START OVER -> empty keyboard
 
   // ...and now the one that opens. Twelve DISTINCT words: the first eleven are
   // the clean draw the cards stop already uses, which judge far apart under the
   // index stub, plus a twelfth the gate never reads -- it is the checksum word,
   // and excluding it is the whole reason the abandon vector is catchable.
-  touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH
-  touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   static const char *RESTORE_OK12[12] = {
       "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m" };
   for (int i = 0; i < 12; i++) restore_word(RESTORE_OK12[i]);

@@ -168,29 +168,6 @@ static const slot_t SLOTS[] = {
     // lines their copy was written for.
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
     { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
-    { "sub/proof",        STR_W_PROOF_S,      704, 58, 0 },
-    // CAMERA AUDIT (docs/specs/prove-it.md). The why pair shares rule 2's 330x112
-    // body budget; the burned line takes the paper-only slot; the notes live
-    // in wt_row_x subs (380-wide file row, 716-wide gate rows, both 96 tall)
-    // and under the 300-wide viewfinder, so font14 is an accepted outcome
-    // there. The hash caption shares its card row with the mono14 filename,
-    // so it is measured in the width that leaves.
-    { "sub/proof-r",      STR_W_PROOF_R_S,       704,  30, 0 },
-    { "proof/check",      STR_W_PROOF_CHECK_B,   330, 112 },
-    { "proof/burn",       STR_W_PROOF_BURN_B,    330, 112 },
-    { "proof/burned",     STR_W_PROOF_BURNED,    700,  40 },
-    { "proof/file-note",  STR_W_PROOF_FILE_NOTE, 282,  80, 1 },
-    { "proof/sd",         STR_W_PROOF_SD_B,      620,  46, 1 },
-    { "proof/fail",       STR_W_PROOF_FAIL_B,    620,  46, 1 },
-    { "proof/saving",     STR_W_PROOF_SAVING,    300,  40, 1 },
-    { "proof/hash-cap",   STR_W_PROOF_HASH_CAP,  545,  40, 1 },
-    // The AUDIT chooser and the randomness audit (kiss_rngaudit.c). The two
-    // chooser subs live in 716-wide wt_row_x rows like the proof gate rows;
-    // the why pair shares the proven 344-wide body budget under a measured
-    // heading; the retry line has the run screen's one-line sub lane.
-    { "sub/aud",          STR_W_AUD_S,           704,  30, 0 },
-    { "aud/cam-sub",      STR_W_AUD_CAM_SUB,     620,  46, 1 },
-    { "aud/rng-sub",      STR_W_AUD_RNG_SUB,     620,  46, 1 },
     { "sub/rng",          STR_W_RNG_S,           704,  30, 0 },
     { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
     // 330, not 344: the block's rule bar eats 14px of body width. Height is
@@ -566,8 +543,6 @@ static const pill_t PILLS[] = {
     // key action any more either: it opens a chooser page, and the two
     // buttons that actually run an audit are measured on their own rows.
     { "aud/open",         STR_W_AUD_T,           140, 52, 0, 0, LV_SYMBOL_EYE_OPEN },
-    { "proof/capture",    STR_W_PROOF_SHOT,      300, 52, 1, 1 },
-    { "proof/words",      STR_W_PROOF_WORDS_BTN, 300, 52, 1, 1 },
     { "rng/start",        STR_W_RNG_GO,          240, 52, 1, 1 },
     { "rng/again",        STR_W_RNG_AGAIN,       240, 52, 1, 1 },
     { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
