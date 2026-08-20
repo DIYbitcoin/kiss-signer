@@ -648,18 +648,24 @@ static void weak_back_cb(lv_event_t *e) {
   setup_cap_reset();
 }
 
-static void weak_use_cb(lv_event_t *e) {
-  (void)e;
-  if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
-  if (s_kef_mode) kef_accept_first();
-  else            setup_accept_first();
-}
-
-// A weak passphrase is a consequential choice, not a status tag. The old
-// warning replaced the keyboard caption with a long sentence, which rendered
-// at the smallest face and asked for an unexplained second press of OK.
-// Keep the keyboard and entered secret behind a modal card, make the warning
-// readable at 23px, and name both outcomes.
+// A weak passphrase is not a choice the device offers. This card used to say
+// so and then put USE ANYWAY under it, selected, at the one moment in the
+// product where the owner is most impatient to get past a screen -- so the
+// sentence above the pill was advice and the pill was the answer.
+//
+// It refuses now. Same argument as the dice and the blind draw: this is a
+// secret being MADE, and making a longer one costs seconds. The only thing on
+// the far side of the warning was a guessable passphrase guarding real funds.
+//
+// BACK is the whole card, and it keeps the entry, so the way out is to add
+// characters to what is already typed rather than start again. What this can
+// never become is a judgement at LOGIN: every passphrase there is valid and
+// opens some wallet, so a device that refused one would be refusing a wallet
+// (see pass_bits). Restoring is exempt for the same reason -- those words and
+// that passphrase already exist.
+//
+// It is not the warning for an EMPTY passphrase either. That is a legitimate
+// choice with its own screens, and it has its own pill (pp_intro_nopass_cb).
 static void show_weak_confirm(void) {
   if (s_weak_ovl) return;
   s_weak_ack = true;
@@ -706,13 +712,12 @@ static void show_weak_confirm(void) {
   lv_obj_set_style_text_color(b, MUT_COL, 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
 
-  // 314 wide, not 280: "USE ANYWAY" is one word in English and three in most
-  // other languages, and this is the button that decides whether a guessable
-  // passphrase guards real funds. It gets the width it needs to stay readable.
-  wt_pillh(card, tr(STR_C_BACK), 18, 284, 314, 56, weak_back_cb, NULL);
-  lv_obj_t *use = wt_pillh(card, tr(STR_L_USE_ANYWAY), 372, 284, 314, 56,
-                           weak_use_cb, NULL);
-  wt_pill_select(use, true);
+  // One pill, centred on the card's own 704 rather than left where it sat
+  // beside the one that is gone. 314 keeps the width the translations were
+  // measured at (fitcheck: login/weak-back).
+  lv_obj_t *back = wt_pillh(card, tr(STR_C_BACK), 195, 284, 314, 56,
+                            weak_back_cb, NULL);
+  wt_pill_select(back, true);
 }
 
 // ---- fingerprint reveal ----
@@ -1744,6 +1749,7 @@ static void kb_cb(lv_event_t *e) {
       if (s_plen == 0) return;               // an empty password locks nothing
       if (s_kef_create && !s_kef_first_done && pass_bits() < 40) {
         show_weak_confirm();                 // offline guessing is the threat
+                                             // and it never gets tired
       } else if (s_kef_create && !s_kef_first_done) {
         kef_accept_first();
       } else if (s_kef_create && strcmp(s_kef_first, s_pass) != 0) {
@@ -1805,8 +1811,21 @@ static void kb_cb(lv_event_t *e) {
       kiss_wipe(s_first, sizeof s_first);
       show_fingerprint();
     }
+    // Empty, in setup: the same place the NO PASSPHRASE pill goes, and for its
+    // reason. There is no secret here to call weak, and the card now refuses
+    // rather than asking -- so leaving empty on this arm would have made OK a
+    // dead key on a screen where a dead key reads as a missed touch. BACK from
+    // the fingerprint uncovers this keyboard, so an accidental empty costs one
+    // tap to undo.
+    else if (s_setup_mode && !s_first_done && s_plen == 0) {
+      kiss_wipe(s_pass, sizeof s_pass);
+      s_plen = 0;
+      s_caret = 0;
+      kiss_wipe(s_first, sizeof s_first);
+      show_fingerprint();
+    }
     else if (s_setup_mode && !s_first_done && pass_bits() < 40) {
-      show_weak_confirm();
+      show_weak_confirm();                   // a dead end: BACK, and lengthen it
     } else if (s_setup_mode && !s_first_done) {
       // setup: capture the first entry, demand it again — a typo here is an
       // unreproducible passphrase (= lost coins) later

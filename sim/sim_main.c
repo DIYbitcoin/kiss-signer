@@ -1588,6 +1588,21 @@ static void restore_word(const char *prefix)
   touch(163, 182); pump(3); release(); pump(3);    // first suggestion
 }
 
+// The wallet's passphrase, nine of one letter. pass_bits() wants 40 to get past
+// the weak refusal and a lowercase pool is 4.7 bits a character, so nine is the
+// shortest thing that opens the wizard at all. One repeated key keeps the tap
+// coordinates exactly as simple as the single 'a' this replaces -- and every
+// later login has to type the SAME thing, or it opens a different wallet under
+// a different fingerprint and every assertion after it is about the wrong one.
+// pump(6), not pump(3): the indev reads about every 30ms and these are nine
+// presses of the SAME key, so at pump(3) the lift is seen but the next press
+// folds into it and the count comes up short. The 44 character stress loop
+// below already uses 6 for exactly this reason.
+static void type_pass9(void)
+{
+  for (int i = 0; i < 9; i++) { touch(46, 278); pump(6); release(); pump(6); }
+}
+
 // ---- the walk owns its fixtures ----
 // /tmp/simsd is platform_sd.c's SD_BASE on the host, and THREE binaries write
 // into it: this walk, /tmp/kissoverlap (the same walk instrumented) and
@@ -1950,7 +1965,7 @@ int main(void) {
       // no-op while it is (kiss_lock returns early unless s_wallet_on). So
       // finish the same login the walk used to get here -- 'a', OK, TAP TO OPEN
       // -- and every pass, including the last, ends on the open home.
-      touch(46, 278);  pump(3); release(); pump(3);
+      type_pass9();
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
@@ -1997,7 +2012,7 @@ int main(void) {
                g_last_unlock_kind, WDR_REAL);
         g_walk_fails++;
       }
-      touch(46, 278);  pump(3); release(); pump(3);
+      type_pass9();
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
@@ -2019,7 +2034,7 @@ int main(void) {
       gw_stored_set(NULL);
       pump(200);
       draw_cover_underlined();
-      touch(46, 278);  pump(3); release(); pump(3);
+      type_pass9();
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
@@ -2113,7 +2128,7 @@ int main(void) {
       lock_to_menu();
       pump(200);
       draw_cover_underlined();
-      touch(46, 278);  pump(3); release(); pump(3);   // 'a'
+      type_pass9();                                   // the wallet's passphrase
       touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
       pump(8200);                                     // 131s; nobody confirms
       must_not_show("idle-wipe/fp", tr(STR_L_TAP_TO_OPEN));
@@ -2171,7 +2186,7 @@ int main(void) {
       }
 
       // Finish the login it just asked for, so the walk gets its home back.
-      touch(46, 278);  pump(3); release(); pump(3);
+      type_pass9();
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
@@ -3285,11 +3300,22 @@ int main(void) {
   touch(312, 278); pump(3); release(); pump(3);     // f
   touch(725, 430); pump(3); release(); pump(6);     // OK -> WEAK PASSWORD card
   save("/tmp/sim_kef_weak.ppm");
-  tap_str(STR_L_USE_ANYWAY, 3, 6);                  // deliberate use -> TYPE AGAIN
+  must_not_show("kef weak card offers no way past", tr(STR_L_USE_ANYWAY));
+  touch(400, 372); pump(3); release(); pump(6);     // GO BACK -> keyboard, "kef" intact
+  // Six more, to nine: a backup password faces unlimited offline guessing, so
+  // this card refuses like the passphrase one and the way past is a longer one.
+  for (int i = 0; i < 2; i++) {
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e
+    touch(312, 278); pump(3); release(); pump(3);   // f
+  }
+  touch(725, 430); pump(3); release(); pump(6);     // OK -> TYPE AGAIN
   save("/tmp/sim_kef_again.ppm");
-  touch(664, 278); pump(3); release(); pump(3);     // k
-  touch(201, 202); pump(3); release(); pump(3);     // e
-  touch(312, 278); pump(3); release(); pump(3);     // f
+  for (int i = 0; i < 3; i++) {
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e
+    touch(312, 278); pump(3); release(); pump(3);   // f
+  }
   touch(725, 430); pump(3); release(); pump(8);     // OK -> seal -> the locked QR
   save("/tmp/sim_kef_qr.ppm");
   must_show("kef envelope id", "73C5DA0A");
@@ -3788,14 +3814,16 @@ int main(void) {
   save("/tmp/sim_setup_cancel.ppm");
   touch(264, 323); pump(3); release(); pump(4);     // KEEP GOING -> back to keyboard
   touch(46, 278); pump(3); release(); pump(3);      // 'a' (deliberately weak)
-  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning
-  save("/tmp/sim_setup_weak.ppm");                  // modal: BACK / USE ANYWAY
-  // BACK first: a weak passphrase must be escapable, and the entry has to
-  // survive it so the owner can lengthen what they typed instead of retyping.
-  touch(223, 372); pump(3); release(); pump(4);     // GO BACK -> keyboard, 'a' intact
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak refusal
+  save("/tmp/sim_setup_weak.ppm");                  // modal: one pill, BACK
+  must_not_show("weak card offers no way past", tr(STR_L_USE_ANYWAY));
+  // BACK is the only way off it, and the entry has to survive so the owner
+  // lengthens what they typed instead of retyping it.
+  touch(400, 372); pump(3); release(); pump(4);     // GO BACK -> keyboard, 'a' intact
   save("/tmp/sim_setup_weak_back.ppm");
-  touch(725, 430); pump(3); release(); pump(4);     // OK -> the card again
-  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> confirm stage
+  // Eight more, taking it to nine: the shortest passphrase this wizard accepts.
+  for (int i = 0; i < 8; i++) { touch(46, 278); pump(6); release(); pump(6); }
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> confirm stage
   save("/tmp/sim_setup_pass2.ppm");                 // TYPE IT AGAIN
   // The secret-idle deadline, mid type-twice. TYPE IT AGAIN is holding entry
   // #1 in RAM; two untouched minutes must wipe both entries and put the
@@ -3805,11 +3833,10 @@ int main(void) {
   pump(8200);                                       // 131s > 120s, untouched
   must_show("idle-wipe/stage1", tr(STR_L_CREATE_YOUR_PASS));
   must_show("idle-wipe/prompt", tr(STR_L_TYPE_PROMPT));
-  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1 again
-  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning again
-  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
+  type_pass9();                                     // from stage 1 again
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> TYPE IT AGAIN
   touch(696, 38); pump(3); release(); pump(3);      // SHOW: make the LVGL copy explicit
-  touch(46, 278); pump(3); release(); pump(3);      // 'a' again
+  type_pass9();                                     // the same, again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   // The fingerprint this wallet is called, read off the glass BEFORE the
   // idle deadline below. The retry must land on the SAME one: the login's
@@ -3856,10 +3883,9 @@ int main(void) {
   }
   // Type the same passphrase again, through the wizard's own type-twice, and
   // fail the commit once more so the block below still starts where it did.
-  touch(46, 278); pump(3); release(); pump(3);      // 'a', from stage 1
-  touch(725, 430); pump(3); release(); pump(4);     // OK -> weak warning
-  touch(577, 372); pump(3); release(); pump(4);     // USE ANYWAY -> TYPE IT AGAIN
-  touch(46, 278); pump(3); release(); pump(3);      // 'a' again
+  type_pass9();                                     // from stage 1
+  touch(725, 430); pump(3); release(); pump(4);     // OK -> TYPE IT AGAIN
+  type_pass9();                                     // the same, again
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   g_sim_commit_recover = 1;             // the injection is one shot: re-arm it
   tap_str(STR_L_TAP_TO_OPEN, 3, 8);     // TAP TO OPEN -> the RECOVER screen again
@@ -3920,7 +3946,7 @@ int main(void) {
   pump(4);                                          // all words -> VERIFIED
   tap_str(STR_C_DONE, 3, 8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
-  touch(46, 278); pump(3); release(); pump(3);      // exact passphrase: 'a'
+  type_pass9();                                     // the exact passphrase
   // The rehearsal above completes again now that creating makes 12 words: the
   // prefixes were always written for a 12-word seed, and the wizard's "TEMP
   // probe" switch to 24 had quietly left them one word list out of step. Every
@@ -4172,7 +4198,7 @@ int main(void) {
   // findings on later screens rather than as a failure here, so keep the slack.
   release(); pump(45);
   save("/tmp/sim_real_login.ppm");                  // passphrase keyboard, NOT a wallet home
-  touch(46, 278); pump(3); release(); pump(3);      // 'a'
+  type_pass9();                                     // the wallet's passphrase
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   tap_str(STR_L_TAP_TO_OPEN, 3, 140);   // TAP TO OPEN -> home
 
@@ -4309,7 +4335,11 @@ int main(void) {
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // fingerprint, the pair, HOLD
   must_show("erase/title", tr(STR_G_WIPEC_T));
-  must_show("erase/fingerprint", "12A4BB6B");       // WHICH keys, before the hold
+  // 9A2C33E3 is the stub fingerprint of nine 'a's, the shortest passphrase
+  // the wizard accepts now. It is a literal because the point of the stop is
+  // that the erase screen names WHICH keys before the hold, so it has to be
+  // the value the walk actually committed and not whatever is on screen.
+  must_show("erase/fingerprint", "9A2C33E3");       // WHICH keys, before the hold
   // a tap is NOT enough: press, release early, nothing must happen
   tap_str(STR_G_HOLD_WIPE, 2, 4);
   save("/tmp/sim_wipe_tap_noop.ppm");               // still the confirm screen
@@ -4406,7 +4436,7 @@ int main(void) {
   touch(696, 38); pump(3); release(); pump(4);      // SHOW
   save("/tmp/sim_kb_show_long.ppm");                // 90 chars, wrapped not "..."
   for (int i = 0; i < 90; i++) { touch(752, 355); pump(1); release(); pump(1); }
-  touch(46, 278);  pump(3); release(); pump(3);     // 'a'
+  type_pass9();                                     // the wallet's passphrase
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   tap_str(STR_L_TAP_TO_OPEN, 3, 140);   // TAP TO OPEN -> home
   save("/tmp/sim_amnesic_home.ppm");                // an amnesic wallet, unlocked

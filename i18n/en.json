@@ -44,7 +44,7 @@
   "L_COUNT_SP_FMT": "characters: %d (spaces: %d)",
   "L_TYPE_PROMPT": "type your passphrase",
   "L_WEAK_T": "WEAK PASSPHRASE",
-  "L_WEAK_ACK": "a short passphrase is easier to guess.\nuse a longer one if these keys will hold funds.",
+  "L_WEAK_ACK": "a short passphrase is easier to guess.\nadd more characters to the one you typed.",
   "L_USE_ANYWAY": "USE ANYWAY",
   "L_NO_MATCH": "THOSE DIDN'T MATCH. START OVER",
   "L_SHOW": "SHOW",

@@ -659,7 +659,7 @@ static const pill_t PILLS[] = {
     // Naming the weak-passphrase outcome IS the safety of that card: a user who
     // cannot read this button has no idea which of the two presses keeps the
     // short passphrase. key_action, same tier as the one that spends.
-    { "login/use-anyway", STR_L_USE_ANYWAY,   314, 56, 1, 1 },
+    { "login/weak-back",  STR_C_BACK,          314, 56, 1, 1 },
     // The dice verdict row: all three are key_action, because a holder who
     // cannot read them cannot tell which press keeps the flagged rolls.
     { "setup/dice-more",  STR_W_DICE_MORE,    330, 66, 0, 1 },
