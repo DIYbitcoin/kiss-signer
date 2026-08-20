@@ -4478,11 +4478,11 @@ int main(void) {
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
-  save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WALLET
+  save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WORDS
 
   touch(218, 290); pump(3); release(); pump(6);     // SCAN A SEED QR (pill at 264)
   kiss_scan_inject("not a seed qr at all", 20); pump(6);
-  save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED, nothing loaded
+  save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED QR, nothing loaded
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
 
   // An encrypted backup in a mode this signer refuses (CTR, version 15):
