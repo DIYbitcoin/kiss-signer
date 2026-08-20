@@ -84,18 +84,24 @@ int test_cards_q(void)
     // wc_period only looks at p with 2p <= n, so a smallest repeat of 6 at
     // eleven words is NOT periodic. Asserted rather than implied, exactly as
     // test_dice.c asserts the four/five face boundary.
+    //
+    // Only the PERIOD rule is claimed here. Copying a six word block onto an
+    // eleven word draw repeats five of them, so WC_F_DUP fires on this fixture
+    // by construction -- and once creation started refusing DUP as well, an
+    // assertion about the whole verdict would have failed while the thing under
+    // test was still exactly right.
     clean(w, 11);
     for (unsigned i = 6; i < 11; i++) w[i] = w[i - 6];
     kiss_cards_judge(w, 11, &q);
     ok("smallest repeat 6 at n=11 -> not periodic",
-       q.period == 0 && !(q.flags & WC_F_PERIOD) && !kiss_cards_blocked(&q));
+       q.period == 0 && !(q.flags & WC_F_PERIOD) && !(q.flags & WC_F_DEGEN));
 
     // ---- sorted ----
     clean(w, 11);
     for (unsigned i = 0; i < 11; i++) w[i] = (uint16_t)(40 + i * 137);
     kiss_cards_judge(w, 11, &q);
-    ok("ascending, wide gaps -> SORTED",
-       q.verdict == WC_Q_SORTED && !kiss_cards_blocked(&q) &&
+    ok("ascending, wide gaps -> SORTED, blocked",
+       q.verdict == WC_Q_SORTED && kiss_cards_blocked(&q) &&
        q.sorted == 1 && q.near == 0 && q.dups == 0);
     for (unsigned i = 0; i < 11; i++) w[i] = (uint16_t)(1800 - i * 137);
     kiss_cards_judge(w, 11, &q);
@@ -167,6 +173,37 @@ int test_cards_q(void)
        q.verdict == WC_Q_SHORT && !kiss_cards_blocked(&q));
     kiss_cards_judge(NULL, 11, &q);
     ok("NULL -> SHORT", q.verdict == WC_Q_SHORT);
+
+    // ---- the two classes, pinned apart ----
+    // WC_F_BLOCK is what CREATION refuses: all five, because a draw being made
+    // right now can be made again. WC_F_DEGEN is the narrower class an IMPORT
+    // refuses (kiss_seed_degenerate): only the two that prove the set carries
+    // nothing, because a wallet that already exists cannot be redrawn and a
+    // false block there costs the owner their coins.
+    //
+    // The distinction is one #define apart and reads as a typo, so it is stated
+    // here rather than left to whoever widens one of them next.
+    for (unsigned i = 0; i < 11; i++) w[i] = 777;          // SAME + PERIOD
+    kiss_cards_judge(w, 11, &q);
+    ok("SAME is degenerate", (q.flags & WC_F_DEGEN) && kiss_cards_blocked(&q));
+    clean(w, 11);
+    for (unsigned i = 5; i < 11; i++) w[i] = w[i - 5];     // PERIOD
+    kiss_cards_judge(w, 11, &q);
+    ok("PERIOD is degenerate", (q.flags & WC_F_DEGEN) && kiss_cards_blocked(&q));
+
+    for (unsigned i = 0; i < 11; i++) w[i] = (uint16_t)(40 + i * 137);
+    kiss_cards_judge(w, 11, &q);
+    ok("SORTED blocks creation, not import",
+       kiss_cards_blocked(&q) && !(q.flags & WC_F_DEGEN));
+    for (unsigned i = 0; i < 11; i++) w[i] = (uint16_t)(100 + i);
+    kiss_cards_judge(w, 11, &q);
+    ok("CLUSTER blocks creation, not import",
+       kiss_cards_blocked(&q) && !(q.flags & WC_F_DEGEN));
+    clean(w, 11);
+    w[3] = w[0]; w[7] = w[0]; w[9] = w[0];
+    kiss_cards_judge(w, 11, &q);
+    ok("DUP blocks creation, not import",
+       q.verdict == WC_Q_DUP && kiss_cards_blocked(&q) && !(q.flags & WC_F_DEGEN));
 
     // ---- false positive rate, stated as a rate ----
     // 20,000 blind draws at each size from a FIXED seed: integer judge plus

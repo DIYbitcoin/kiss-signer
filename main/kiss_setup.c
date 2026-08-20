@@ -332,15 +332,14 @@ static void store_and_finish(void)
         // clean rebuild clears the previous one. Camera and dice write theirs
         // through kiss_setup_entropy before words exist; cards has no entropy
         // call at all, and a restore is somebody else's draw with nothing to
-        // say about it. WC_Q_OK packs to a nonzero byte, so it is written as 0
-        // instead: the reader's "!= 0" has to keep meaning "there is something
-        // to say".
-        if (s_cards)
-            kiss_seed_set_entropy_note(
-                s_cq.verdict == WC_Q_OK || s_cq.verdict == WC_Q_SHORT
-                    ? WSEED_ENTQ_NONE
-                    : WSEED_ENTQ_CARDS | (unsigned)s_cq.verdict);
-        else if (s_restore)
+        // say about it.
+        //
+        // Cards can only be clean by the time it gets here -- like dice, it
+        // refuses instead of warning now -- so this writes 0 and nothing else.
+        // The nonzero encoding stays in kiss_seed.h and kiss_info.c still reads
+        // it: a device that upgrades keeps telling the truth about the seed it
+        // already has, which is the whole reason the note is persisted.
+        if (s_cards || s_restore)
             kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
     }
     if (rc != 0) {                          // restore path: checksum failed
@@ -2888,10 +2887,6 @@ static int cards_why_key(void)
     }
 }
 
-// USE ANYWAY on a warn: straight to the picker, verdict intact so the chip on
-// the checksum card can still say what it said.
-static void cards_force_cb(lv_event_t *e) { (void)e; cards_cksum_screen(); }
-
 // A retype is a fresh draw, not an edit, so the old words go before the
 // keyboard opens and a half finished retype cannot leave a stale word behind
 // s_nw. wipe_state() is the wrong tool here: it clears s_cards and would drop
@@ -2909,7 +2904,10 @@ static void cards_retype_cb(lv_event_t *e)
 
 // The two verdict screens. Same geometry, one difference that is the whole
 // point: the warn has a way past and the block does not.
-static void cards_verdict_screen(int title, lv_color_t col, bool blocked)
+// One screen, two titles. Every verdict refuses now, so `blocked` is gone with
+// the pill it used to choose: the only difference left between a SAME and a
+// SORTED draw is what the screen is called and what colour the evidence is.
+static void cards_verdict_screen(int title, lv_color_t col)
 {
     mk_screen(tr(title), tr(cards_sub_key()));
 
@@ -2936,23 +2934,25 @@ static void cards_verdict_screen(int title, lv_color_t col, bool blocked)
     // unlike the three pill row this replaces. The way forward is on the right,
     // farthest from nothing and nearest the thumb.
     lv_obj_t *p[2];
-    p[0] = wt_pillh(s_scr, tr(blocked ? STR_C_CANCEL : STR_L_USE_ANYWAY),
-                    48, WT_ACTION_Y_TALL, 330, 66,
-                    blocked ? cards_cancel_cb : cards_force_cb, NULL);
+    p[0] = wt_pillh(s_scr, tr(STR_C_CANCEL), 48, WT_ACTION_Y_TALL, 330, 66,
+                    cards_cancel_cb, NULL);
     p[1] = wt_pillh(s_scr, tr(STR_W_START_OVER), 422, WT_ACTION_Y_TALL, 330, 66,
                     cards_retype_cb, NULL);
     wt_pill_row(p, 2);
     wt_pill_primary(p[1]);
 }
 
+// Kept apart from the block screen for the title and the colour, not for the
+// way out: a draw that climbed the list is a different mistake from a draw of
+// one word eleven times, and the owner should be told which they made.
 static void cards_warn_screen(void)
 {
-    cards_verdict_screen(STR_W_CARDS_WARN_T, WARN_COL, false);
+    cards_verdict_screen(STR_W_CARDS_WARN_T, WARN_COL);
 }
 
 static void cards_block_screen(void)
 {
-    cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL, true);
+    cards_verdict_screen(STR_W_CARDS_BLOCK_T, STOP_COL);
 }
 
 // A typed restore whose words carry nothing. It borrows the blind draw's
@@ -3017,21 +3017,14 @@ static void cards_cksum_screen(void)
     // locale. It cannot go in the row at y=210 -- the card bottoms at 204 and
     // the why blocks start at the mandated 232, leaving 28px for a 30px chip.
     //
-    // A block never reaches this screen, so only the three warn verdicts have a
-    // word here. OK is the bare mark: the green accent is byte identical to
-    // WT_OK, so a word beside it would be saying the colour twice.
+    // NO verdict reaches this screen any more -- every one of the five refuses
+    // above it -- so the chip has one state left. It stays rather than going,
+    // because the mark is the answer to a question the owner is actually asking
+    // at this point ("was my draw all right?") and silence is a worse answer
+    // than a tick. The green accent is byte identical to WT_OK, so a word
+    // beside it would be saying the colour twice.
     {
-        char b[64];
-        bool clean = s_cq.verdict == WC_Q_OK || s_cq.verdict == WC_Q_SHORT;
-        if (clean) {
-            snprintf(b, sizeof b, "%s", LV_SYMBOL_OK);
-        } else {
-            int k = s_cq.verdict == WC_Q_CLUSTER ? STR_W_CARDS_Q_CLUSTER
-                  : s_cq.verdict == WC_Q_SORTED  ? STR_W_CARDS_Q_SORTED
-                                                 : STR_W_CARDS_Q_DUP;
-            snprintf(b, sizeof b, "%s %s", LV_SYMBOL_WARNING, tr(k));
-        }
-        lv_obj_t *vchip = wt_state_chip(card, b, clean ? OK_COL : WARN_COL);
+        lv_obj_t *vchip = wt_state_chip(card, LV_SYMBOL_OK, OK_COL);
         lv_obj_align(vchip, LV_ALIGN_TOP_RIGHT, -14, 10);
     }
 
@@ -3096,9 +3089,12 @@ static void cards_cksum_open(void)
         }
         kiss_cards_judge(s_cidx, n, &s_cq);
     }
-    if (kiss_cards_blocked(&s_cq)) { cards_block_screen(); return; }
-    if (s_cq.verdict != WC_Q_OK && s_cq.verdict != WC_Q_SHORT) {
-        cards_warn_screen();
+    // kiss_cards_blocked covers all five now, so the split below is only about
+    // which screen says it: the two that prove the set carries nothing get the
+    // stop colour and their own title, the three statistical ones stay amber.
+    if (kiss_cards_blocked(&s_cq)) {
+        if (s_cq.flags & WC_F_DEGEN) cards_block_screen();
+        else                         cards_warn_screen();
         return;
     }
     cards_cksum_screen();

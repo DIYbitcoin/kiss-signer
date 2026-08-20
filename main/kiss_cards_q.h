@@ -63,8 +63,16 @@ enum { WC_Q_SHORT = 0,  // fewer than WC_MIN words: nothing to judge yet
 #define WC_F_DEGEN    (WC_F_SAME | WC_F_PERIOD)
 
 // The rules that REFUSE at CREATION, as one definition rather than a test at
-// each call site.
-#define WC_F_BLOCK    WC_F_DEGEN
+// each call site. All five: a draw the owner is MAKING right now can be made
+// again for the price of a redraw, so there is nothing on the far side of a
+// warning worth keeping. That is the argument kiss_dice_q settled first and
+// this is the same argument -- a warned draw carries provably less than the
+// owner thinks, and USE ANYWAY was one tap over the top of that sentence.
+//
+// The import gate is the narrower WC_F_DEGEN above, deliberately: a wallet that
+// already exists cannot be redrawn, so the price of a false block there is the
+// owner's coins rather than five minutes.
+#define WC_F_BLOCK    (WC_F_DEGEN | WC_F_CLUSTER | WC_F_SORTED | WC_F_DUP)
 
 typedef struct {
     int      verdict;    // WC_Q_*

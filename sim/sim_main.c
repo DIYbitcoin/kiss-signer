@@ -3627,9 +3627,12 @@ int main(void) {
     return 1;
   }
 
-  // The warned draw, and the chip that has to survive USE ANYWAY. Ascending
-  // index order gives sorted = +1 with no near pairs, so the verdict is SORTED
-  // and the chip reads IN ORDER.
+  // The other refusal, in the other colour. Ascending index order gives
+  // sorted = +1 with no near pairs, so the verdict is SORTED: amber, its own
+  // title, and no way past it any more. The chip that used to survive USE
+  // ANYWAY onto the checksum card is gone with the pill, so there is no
+  // sim_setup_cards_cksum_warn frame -- that screen cannot be reached with a
+  // verdict on it.
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
@@ -3638,8 +3641,9 @@ int main(void) {
       "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
   save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
-  tap_str(STR_L_USE_ANYWAY, 3, 4);     // USE ANYWAY -> the checksum card
-  save("/tmp/sim_setup_cards_cksum_warn.ppm");      // the amber IN ORDER chip, kept
+  must_not_show("cards warn offers no way past", tr(STR_L_USE_ANYWAY));
+  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
+  for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);  // back to it
   tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards warn cancel left storage mode staged\n");

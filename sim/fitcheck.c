@@ -668,7 +668,6 @@ static const pill_t PILLS[] = {
     { "setup/cards-type", STR_W_TYPE_MY_WORDS, 300, 66, 1, 1 },
     { "setup/cksum-go",   STR_W_CKSUM_GO,      300, 66, 1, 1 },
     { "setup/dice-over",  STR_W_START_OVER,   330, 66, 0, 1 },
-    { "setup/cards-use",  STR_L_USE_ANYWAY,   330, 66, 1, 1 },
     { "setup/cards-cxl",  STR_C_CANCEL,       330, 66, 0, 1 },
     { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
 };
