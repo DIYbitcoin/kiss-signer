@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "hiçbir şey saklanmaz. her oturumda kelimeleri veya SeedQR'ı yükle.",
   "W_LOAD_T": "KELİMELERİNİZİ YÜKLE",
   "W_LOAD_S": "bu cihazda hiçbir şey saklanmıyor",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "başka bir cihazda yaptığın bir seed QR. bu cihaz asla böyle bir QR üretmez.",
   "W_QRBAD_T": "SEED DEĞİL",
   "W_QRBAD_S": "hiçbir şey yüklenmedi",

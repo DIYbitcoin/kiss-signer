@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "아무것도 저장하지 않습니다. 세션마다 복구 문구나 SeedQR을 불러옵니다.",
   "W_LOAD_T": "단어 불러오기",
   "W_LOAD_S": "이 기기에는 아무것도 저장되어 있지 않습니다",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "다른 기기에서 만든 시드 QR. 이 기기는 만들지 않습니다.",
   "W_QRBAD_T": "시드가 아닙니다",
   "W_QRBAD_S": "아무것도 불러오지 못했습니다",

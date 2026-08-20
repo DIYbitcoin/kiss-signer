@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "不保存任何内容。每次会话都要载入助记词或 SeedQR。",
   "W_LOAD_T": "载入你的词",
   "W_LOAD_S": "本机没有保存任何东西",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "你在别的设备上做好的助记词二维码。本机从不生成。",
   "W_QRBAD_T": "不是助记词",
   "W_QRBAD_S": "什么都没有载入",

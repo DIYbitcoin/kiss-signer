@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "niets opgeslagen. laad je woorden of SeedQR elke sessie.",
   "W_LOAD_T": "JE WOORDEN LADEN",
   "W_LOAD_S": "op dit apparaat is niets bewaard",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "een seed-QR die je al op een andere signer maakte. dit apparaat maakt er geen.",
   "W_QRBAD_T": "GEEN SEED",
   "W_QRBAD_S": "er is niets geladen",

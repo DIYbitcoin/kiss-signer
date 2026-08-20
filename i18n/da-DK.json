@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "intet gemmes. indlæs dine ord eller SeedQR hver gang.",
   "W_LOAD_T": "INDLÆS DINE ORD",
   "W_LOAD_S": "intet er gemt på denne enhed",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "en seed-QR du allerede lavede på en anden enhed. denne laver aldrig en.",
   "W_QRBAD_T": "IKKE EN SEED",
   "W_QRBAD_S": "intet blev indlæst",

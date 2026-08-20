@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "nic nie zapisano. w każdej sesji wczytaj słowa lub SeedQR.",
   "W_LOAD_T": "WCZYTAJ SWOJE SŁOWA",
   "W_LOAD_S": "na tym urządzeniu nic nie jest zapisane",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "QR z seedem zrobiony na innym urządzeniu. to nigdy takiego nie tworzy.",
   "W_QRBAD_T": "TO NIE SEED",
   "W_QRBAD_S": "nic nie wczytano",

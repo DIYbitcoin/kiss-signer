@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "không lưu gì. mỗi phiên hãy nạp cụm từ hoặc SeedQR.",
   "W_LOAD_T": "NẠP CÁC TỪ CỦA BẠN",
   "W_LOAD_S": "không có gì được lưu trên thiết bị này",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "mã QR seed bạn đã tạo trên thiết bị khác. thiết bị này không bao giờ tạo.",
   "W_QRBAD_T": "KHÔNG PHẢI SEED",
   "W_QRBAD_S": "không nạp được gì",

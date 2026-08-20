@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "ingenting lagres. last inn ordene eller SeedQR hver økt.",
   "W_LOAD_T": "LAST INN ORDENE DINE",
   "W_LOAD_S": "ingenting er lagret på denne enheten",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "en seed-QR du allerede laget på en annen enhet. denne lager aldri en.",
   "W_QRBAD_T": "IKKE EN SEED",
   "W_QRBAD_S": "ingenting ble lastet",

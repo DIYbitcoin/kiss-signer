@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "inget sparas. ladda orden eller SeedQR varje session.",
   "W_LOAD_T": "LADDA IN DINA ORD",
   "W_LOAD_S": "inget är sparat på den här enheten",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "en seed-QR du redan gjort på en annan enhet. den här gör aldrig en.",
   "W_QRBAD_T": "INGEN SEED",
   "W_QRBAD_S": "inget laddades in",

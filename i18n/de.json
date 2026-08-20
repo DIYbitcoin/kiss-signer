@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "nichts gespeichert. Wörter oder SeedQR bei jeder Sitzung laden.",
   "W_LOAD_T": "WÖRTER LADEN",
   "W_LOAD_S": "auf diesem Gerät ist nichts gespeichert",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "ein Seed-QR, den du auf einem anderen Signer gemacht hast. dieses Gerät nie.",
   "W_QRBAD_T": "KEIN SEED",
   "W_QRBAD_S": "nichts geladen",

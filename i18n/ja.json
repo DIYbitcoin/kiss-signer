@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "何も保存しません。毎回リカバリーフレーズかSeedQRを読み込みます。",
   "W_LOAD_T": "単語を読み込む",
   "W_LOAD_S": "この端末には何も保存されていません",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "他の端末で作ったシードQR。この端末は作りません。",
   "W_QRBAD_T": "シードではありません",
   "W_QRBAD_S": "何も読み込まれていません",

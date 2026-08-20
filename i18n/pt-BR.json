@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "nada salvo. carregue as palavras ou SeedQR a cada sessão.",
   "W_LOAD_T": "CARREGAR SUAS PALAVRAS",
   "W_LOAD_S": "nada está salvo neste dispositivo",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "um QR de seed que você já fez em outro dispositivo. este aqui nunca cria um.",
   "W_QRBAD_T": "NÃO É UM SEED",
   "W_QRBAD_S": "nada foi carregado",

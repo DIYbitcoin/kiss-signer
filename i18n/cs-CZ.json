@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "nic se neukládá. při každém použití načtěte slova nebo SeedQR.",
   "W_LOAD_T": "NAČÍST SVÁ SLOVA",
   "W_LOAD_S": "v tomto zařízení není nic uloženo",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "seed QR, který jsi udělal na jiném zařízení. tohle žádný nevytváří.",
   "W_QRBAD_T": "TOHLE NENÍ SEED",
   "W_QRBAD_S": "nic se nenačetlo",

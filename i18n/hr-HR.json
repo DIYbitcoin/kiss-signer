@@ -447,7 +447,7 @@
   "W_AMNESIC_NOTE": "ništa se ne sprema. učitaj riječi ili SeedQR u svakoj sesiji.",
   "W_LOAD_T": "UČITAJ SVOJE RIJEČI",
   "W_LOAD_S": "na ovom uređaju ništa nije spremljeno",
-  "W_SCAN_KEF_QR": "SCAN LOCKED QR",
+  "W_SCAN_KEF_QR": "SCAN MY BACKUP",
   "W_LOAD_SCAN_NOTE": "seed QR koji si već napravio na drugom uređaju. ovaj ga nikada ne stvara.",
   "W_QRBAD_T": "OVO NIJE SEED",
   "W_QRBAD_S": "ništa nije učitano",

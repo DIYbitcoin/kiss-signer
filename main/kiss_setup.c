@@ -2848,8 +2848,8 @@ static void count_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
-    // An envelope carries its own length, so it sits beside the count rather
-    // than after it.
+    // An encrypted backup carries its own length, so it sits beside the count
+    // rather than after it.
     if (s_restore)
         wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_KEF_QR),
                  tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
