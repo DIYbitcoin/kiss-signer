@@ -26,6 +26,51 @@ wording of the warning are theirs.
 
 ### Changed
 
+- **The camera audit is gone.** It took one photo, hashed it, turned the hash
+  into twelve real recovery words and wrote the photo to the card so you could
+  repeat the sum on a computer. What it proved was true and narrow: that this
+  device derives words from what you give it and nothing else. What it also did
+  was hand you a genuine, spendable set of words made from a completely unjudged
+  photo, on a device where every other way of making a seed now checks its
+  input. A lens cap made a wallet. It was labelled public and never for funds,
+  and a label is not a safeguard. The RANDOMNESS AUDIT, which counts 5000
+  numbers from the chip and scores the spread, is untouched and is now what the
+  AUDIT door opens.
+
+- **A passphrase the device thinks is guessable is refused, not warned about.**
+  Creating one used to put USE ANYWAY under a card explaining that a short
+  passphrase is easier to guess, selected, at the moment in setup you are least
+  inclined to read carefully. Now the card sends you back to lengthen what you
+  typed. This applies only where a passphrase is being MADE. Logging in never
+  judges what you type and never could: every passphrase is valid and opens some
+  wallet, so a signer that turned one down would be turning down a wallet.
+  Choosing to have no passphrase at all is still one tap, and is still a real
+  choice with its own screens. The password on an encrypted backup is refused on
+  the same terms, because whoever finds that file can guess at it offline
+  forever.
+
+- **Recovery words that carry no secret are refused when you bring them in.**
+  Typing "abandon" eleven times and "about" is a valid BIP39 phrase with a
+  correct checksum, printed on essentially every page that explains what a seed
+  is, and worth nothing: anyone can type it and spend from it. The signer used
+  to accept it by hand, from a seed QR, and out of an encrypted backup. Now all
+  three turn it down, along with a short run of words repeated to fill the
+  phrase. Only that class is refused. A real wallet whose words happen to
+  cluster or repeat still restores, because those are judgements about a draw
+  and an existing wallet cannot be redrawn.
+
+- **A restore that does not work out now lands in one place**, whether a word is
+  wrong, the phrase does not add up, or the words carry nothing. There were
+  three screens with the same name; there is one.
+
+- **The signer folds one more source into every seed it makes.** Alongside the
+  camera, the chip's noise and your taps, it now measures the tiny delays in its
+  own workings, which run on a different circuit from the chip's noise generator
+  and so survive that generator failing. The "?" on the randomness screen names
+  all four and still points a doubter at DICE, which is the only source here you
+  can check away from the device. The Settings footer names both physical
+  sources rather than one.
+
 - **A firmware update that does not start is no longer the end of the device.**
   The bootloader now keeps the version you were running and returns to it if the
   new one never comes up. Nothing stops you installing an older build on
@@ -37,12 +82,15 @@ wording of the warning are theirs.
   Type one word eleven times, or one short run over and over, and it now
   refuses: those carry no secret at all, and anybody could type them. Draws that
   are merely weaker than you think, words sitting side by side on the list,
-  words in list order, or more repeats than 2048 words would give, get a warning
-  you can read and then overrule. Whichever screen you see, it shows your own
-  draw as a row of bars, so the shape being questioned is the one on screen. If
-  you overrule a
-  warning, the verdict follows the seed to the page where you copy the words
-  onto paper, which is the last moment redoing it is still cheap.
+  words in list order, or more repeats than 2048 words would give, are also
+  turned down. Whichever screen you see, it shows your own draw as a row of
+  bars, so the shape being questioned is the one on screen, and START OVER
+  reopens the keyboard.
+
+  Every one of them refuses now. Three of the five used to offer a USE ANYWAY
+  instead, and the argument for removing it is the one the dice settled first: a
+  draw you are making right now can be made again for the price of a redraw, so
+  there was nothing on the far side of that warning worth keeping.
 
   Sorting the pieces before typing them is worth calling out, because it looks
   harmless: the order you picked them in was part of the secret, and putting
@@ -76,6 +124,16 @@ wording of the warning are theirs.
   written before this still open: a device keeps the key it already minted.
 
 ### Added
+
+- **The signer now tells you how your keys were made, and keeps telling you.**
+  Settings > AUDIT > HOW YOUR KEYS WERE MADE names the path that produced the
+  seed this device is holding: the camera and taps, dice, your own blind draw,
+  or words brought in from somewhere else. It is the one fact about a wallet you
+  cannot recover by looking at the words, and until now the device knew it for
+  the length of one screen and then forgot it. Where the signer did the mixing
+  itself, the screen draws it: the sources that went in, folding into your keys.
+  A wallet made before this arrived says so rather than guessing. Erasing the
+  wallet erases this with it.
 
 - **THE INSTALLER NOW FITS IN ONE FILE, so you can flash with the network
   unplugged.** Every release carries `kiss-signer-VERSION-offline.zip`, about

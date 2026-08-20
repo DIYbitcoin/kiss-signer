@@ -86,16 +86,22 @@ extraction.
     panel bounce, no drops while mashing), a held drag across the card counts
     once, and CANCEL from a part-filled bar returns to the randomness screen
     having staged nothing.
-14. **Prove the tap entropy is real (the coarse-clock check).** This is a
-    correctness check, not a safety one: the seed is safe regardless, because
-    the camera and chip TRNG floor it even if the taps contribute nothing. But
-    the screen claims three sources, so the taps must actually carry entropy.
-    Temporarily log `esp_cpu_get_cycle_count()` per tap and confirm the low bits
-    vary across a real session. Pass when they do. If the touch controller
-    delivers events on a coarse tick they will not, in which case the taps are a
-    dead source and the fix is to timestamp in the touch ISR rather than on the
-    LVGL callback. Without this check, a coarse clock leaves the device honestly
-    saying "three sources" while shipping two.
+14. **Prove the tap entropy is real (the coarse-clock check).** Still a
+    correctness check and not a safety one, and it is now less load bearing than
+    it was: the seed is floored by the camera, the chip TRNG *and* the board's
+    own timing jitter, which is a fourth leg of the fold and needs nobody
+    present. `test_taps_cannot_weaken` in `sim/test_tapent.c` pins that on the
+    host -- the chip alone moves the seed, jitter alone moves it -- so the
+    safety half of this step is answered before anyone picks up the device.
+
+    What is left is the honesty half, and it still needs hardware. The screen
+    counts the taps as one of the sources the owner ADDS, so they have to carry
+    something. Temporarily log `esp_cpu_get_cycle_count()` per tap and confirm
+    the low bits vary across a real session. Pass when they do. If the touch
+    controller delivers events on a coarse tick they will not, in which case the
+    taps are a dead source and the fix is to timestamp in the touch ISR rather
+    than on the LVGL callback. Without this check the device is inviting an
+    owner to add a source that contributes nothing, and telling them it counted.
 15. **Read the last line.** On every screen the participant reaches, ask them to
     read the last line of content aloud. Pass only when every glyph is fully
     visible. Fail on any half rendered row, any text overlapping other text, and
