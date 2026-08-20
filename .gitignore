@@ -21,10 +21,13 @@ tools/fonts/node_modules/
 __pycache__/
 *.pyc
 
-# design handoff bundle: reference material unzipped into the repo root while
-# the review is being worked through. Never committed, the repo carries the
-# results rather than the brief.
-design_handoff_kiss_signer/
+# design handoff bundles: reference material unzipped into the repo root while
+# the work is being done -- a brief, a .dc.html canvas and a screenshot of what
+# is being replaced. Never committed, the repo carries the results rather than
+# the brief. The SETTINGS one is the worked example: its five section tabs
+# shipped in b690465, and the folder that described them adds nothing the code
+# does not already say.
+design_handoff_*/
 
 # third party audit working notes (crypto-wallet-security-audit skill): working
 # state, not a deliverable. Only a reviewed summary belongs in the repo.
