@@ -54,6 +54,8 @@ int test_rngq(void);
 int test_lastword(void);
 // sim/test_cards_q.c — whether the owner's own words are worth a seed
 int test_cards_q(void);
+// sim/test_usage.c — the coordinator's address usage payload
+int test_usage(void);
 // sim/test_fw.c — SD firmware update: version ordering and image descriptors
 int test_fw(void);
 
@@ -773,6 +775,7 @@ int main(int argc, char **argv) {
     fails += test_backup_layer();
     fails += test_sdseed_layer();
     fails += test_kef();
+    fails += test_usage();
     fails += test_duress();
     fails += test_gword();
     fails += test_coverword();

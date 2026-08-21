@@ -17,6 +17,88 @@ static void usage_key(const uint8_t fp[4], int testnet, int script, char out[16]
              fp[0], fp[1], fp[2], fp[3], testnet ? 1 : 0, script);
 }
 
+// ---- the coordinator's payload ----
+// Fields are fixed width or bounded decimals, and the address goes last because
+// it is the only variable length one. Everything is read out of a bounded copy:
+// the scan path hands over whatever a camera decoded, which is not trusted to
+// be terminated, terminated where it claims, or terminated at all.
+static const char *utok(const char *p, const char *end, char *out, size_t cap)
+{
+    while (p < end && *p == ' ') p++;
+    size_t n = 0;
+    while (p < end && *p != ' ') {
+        if (n + 1 >= cap) return NULL;          // longer than the field allows
+        out[n++] = *p++;
+    }
+    out[n] = 0;
+    return n ? p : NULL;                        // an empty field is malformed
+}
+
+static int udec(const char *s, long lo, long hi, long *out)
+{
+    int neg = *s == '-';
+    if (neg) s++;
+    if (!*s) return -1;
+    long v = 0;
+    for (; *s; s++) {
+        if (*s < '0' || *s > '9') return -1;
+        if (v > 100000000L) return -1;          // bounded well under LONG_MAX
+        v = v * 10 + (*s - '0');
+    }
+    if (neg) v = -v;
+    if (v < lo || v > hi) return -1;
+    *out = v;
+    return 0;
+}
+
+static int uhexnib(char c, uint8_t *out)
+{
+    if (c >= '0' && c <= '9') { *out = (uint8_t)(c - '0');      return 0; }
+    if (c >= 'a' && c <= 'f') { *out = (uint8_t)(c - 'a' + 10); return 0; }
+    if (c >= 'A' && c <= 'F') { *out = (uint8_t)(c - 'A' + 10); return 0; }
+    return -1;
+}
+
+int kiss_usage_parse(const char *txt, size_t len, kiss_usage_msg_t *out)
+{
+    if (!txt || !out) return -1;
+    // The coordinator emits uppercase so the whole payload stays inside the QR
+    // alphanumeric charset, but the parser is liberal about case: that choice
+    // is the sender's density trick, not a rule the reader gets to enforce.
+    while (len && (txt[len - 1] == 0    || txt[len - 1] == '\n' ||
+                   txt[len - 1] == '\r' || txt[len - 1] == ' '))
+        len--;
+
+    const char *p = txt, *end = txt + len;
+    char f[24];
+    long v;
+
+    if (!(p = utok(p, end, f, sizeof f)) || strcmp(f, "KISSU1") != 0) return -1;
+
+    if (!(p = utok(p, end, f, sizeof f)) || strlen(f) != 8) return -1;
+    for (int i = 0; i < 4; i++) {
+        uint8_t hi, lo;
+        if (uhexnib(f[i * 2], &hi) || uhexnib(f[i * 2 + 1], &lo)) return -1;
+        out->fp[i] = (uint8_t)((hi << 4) | lo);
+    }
+
+    if (!(p = utok(p, end, f, sizeof f)) || udec(f, 0, 1, &v)) return -1;
+    out->testnet = (int)v;
+    if (!(p = utok(p, end, f, sizeof f)) || udec(f, 0, 2, &v)) return -1;
+    out->script = (int)v;
+    if (!(p = utok(p, end, f, sizeof f)) || udec(f, -1, KISS_USAGE_MAX_INDEX, &v)) return -1;
+    out->high = (int)v;
+    // Low bound 1, not 0: a coordinator that has never synced has no claim to
+    // make, and a zero would win the height gate against nothing and then block
+    // the first real one behind it.
+    if (!(p = utok(p, end, f, sizeof f)) || udec(f, 1, 100000000L, &v)) return -1;
+    out->height = (uint32_t)v;
+
+    if (!(p = utok(p, end, out->addr, sizeof out->addr))) return -1;
+    while (p < end && *p == ' ') p++;
+    return p == end ? 0 : -1;                   // trailing junk is malformed
+}
+
 #define UMAX 32
 struct usage_row { char key[16]; uint32_t v; };
 static struct usage_row s_session[UMAX];

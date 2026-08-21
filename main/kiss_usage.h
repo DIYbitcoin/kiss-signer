@@ -12,6 +12,7 @@
 // Device persists in a dedicated NVS namespace ("kissu") except in AMNESIC
 // mode, where identifying fingerprint/index metadata stays in session RAM.
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 
 // Highest USED receive index for these keys/network/type, or -1 if none yet.
@@ -52,3 +53,42 @@ void kiss_persist_set_enabled(int on);
 // on; ON promotes what the current session has learned. The NVS "prst" byte
 // itself is written by kiss_settings.c, which owns that namespace.
 void kiss_persist_apply(int on);
+
+// ---- what a coordinator says the chain shows ----
+// This device has no chain view, so UNUSED is a claim it cannot make alone. A
+// coordinator can, and sends one line of text in the QR the Receive screen
+// already scans at VERIFY.
+//
+// DISPLAY DATA. It picks a chip's text and colour and reaches no derivation, no
+// address search and no signature. A wrong value costs the owner a fresher
+// address than they needed, which is the direction to be wrong in.
+
+// Not a wallet's ceiling: an absurdity bound, so a scanned number cannot strand
+// the chip somewhere no owner could walk back from with NEXT.
+#define KISS_USAGE_MAX_INDEX 100000
+
+typedef struct {
+    uint8_t  fp[4];
+    int      testnet;    // 0 / 1
+    int      script;     // WSCRIPT_*
+    int      high;       // highest used external index; -1 = chain shows none
+    uint32_t height;     // chain tip the coordinator synced to
+    char     addr[128];  // the address to verify; holds a silent payment whole
+} kiss_usage_msg_t;
+
+// Parse "KISSU1 <FP8> <net> <script> <high> <height> <ADDR>".
+// 0 = a well formed payload. Nonzero means this is not one, and the caller
+// feeds it to the address path unchanged.
+int kiss_usage_parse(const char *txt, size_t len, kiss_usage_msg_t *out);
+
+// Has a coordinator spoken about these keys? 1 = yes, and *high / *height are
+// filled. *high may be -1, meaning the chain shows nothing used, which is a
+// real answer and not an absence.
+int kiss_usage_chain_known(const uint8_t fp[4], int testnet, int script,
+                           int *high, uint32_t *height);
+
+// Record what a coordinator claims. Accepted only when height beats the stored
+// one, which makes a re-shown QR inert and still lets a real correction land
+// after a reorg or a rebuilt wallet. 1 = accepted, 0 = older, equal or refused.
+int kiss_usage_chain_set(const uint8_t fp[4], int testnet, int script,
+                         int high, uint32_t height);
