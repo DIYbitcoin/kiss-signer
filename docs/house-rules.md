@@ -317,6 +317,78 @@ worth skipping.
 Never hand back a draft of strings, copy or translations to be reviewed. Do the
 work and show the result.
 
+A still cannot show motion. Anything that MOVES ships as a GIF instead --
+`SIM_TABGIF=1` records every frame of a settings tab change at the real tick
+rate, the way the reveal capture already does, and ImageMagick turns the
+frames into one file. A frame says where a row got to and never how it got
+there.
+
+## Motion
+
+**Every tappable thing on this device already moves.** `wt_tap_feedback` sinks
+a pill, a row, a tile and a tab 2px under the finger and rings it in the
+accent, so the whole UI answers a touch. On top of that the SIGN screen fades
+its lock in, settles its sweep and reveals the signature across the strands;
+the login pops the fingerprint card up and flashes each key as it lands; and
+SETTINGS moves a whole group at a time when a tab changes.
+
+What is deliberate is that a page ARRIVES settled. Opening a screen, and
+coming back to one, paints at rest -- the motion is attached to a change the
+owner made, never to a repaint. The rules SETTINGS had to learn getting
+there:
+
+1. **Animate a CHANGE, never a rebuild.** A value chip rebuilds the whole page
+   on every tap. Three taps to reach SIGNET replaying the entry under the
+   owner's finger is a flicker, not a design. Walking in from home and coming
+   back from a screen a row opened both paint at rest.
+2. **`translate_x` / `translate_y`, never `set_x` / `set_y`** -- and not for
+   the reason it looks like. LVGL 9 folds translate straight into the object's
+   coords (`lv_obj_pos.c`), so `sim/overlapcheck.c` sees a translated row
+   exactly as it would see a moved one. What protects the gate is that
+   `save()` only ever photographs a SETTLED screen. Translate is still right,
+   for a different reason: it leaves `lv_obj_set_pos`'s bookkeeping alone, so
+   an interrupted row resettles by having one style cleared rather than by
+   being put back.
+3. **The walk must settle before it saves.** `pump()` advances the tick, so
+   animations run during it. `set_tab` waits 800ms for exactly this: at eight
+   frames every one of its call sites photographed a page mid flight -- rows
+   part faded and still travelling -- and every gate measured that as a laid
+   out screen.
+4. **A mid-flight frame is captured raw, never `save()`d.** A `save()` is a
+   checkpoint every gate then questions, and `check_sim_taps.py` compares it
+   with its neighbour. Use the raw writer for pictures meant for a person.
+5. **Cancel on interrupt and on close.** `lv_obj`'s destructor calls
+   `lv_anim_delete(obj, NULL)`, so an object's OWN animations die with it. The
+   hazard that survives is a `completed_cb` touching something other than its
+   own `var` -- the one that deletes the outgoing lane. That goes through a
+   file static and checks it, never a captured pointer.
+6. **A latch hangs off the thing it measures.** The flag saying "this group
+   has not settled" hung off the last CHILD of the pane, and the NO UNDO wash
+   has no entry animation -- so a group whose scenery was built last would
+   have latched true for the session, silently, with every later tab change
+   dropping its outgoing group instead of sliding it.
+7. **800ms is the whole budget for a page change.** Cut the tail of a pulse
+   before cutting anything that carries a fact.
+
+### A number from a design handoff is in someone else's units
+
+Two were taken on trust in one sitting and both were wrong on this panel:
+
+- a fill at **opacity 13** over `WT_BG` lands at (8,12,16) against (0,8,16) --
+  eight levels in a five bit red channel, which is nothing. The same number
+  over a CSS background reads exactly as drawn. A whole object was rendering
+  no pixels anybody could see, and no gate has an opinion about that:
+  overlapcheck measures boxes, themecheck asks who owns the accent.
+- `cubic-bezier(.17,.84,.32,1.05)`, described as "about 5% past the mark and
+  back". **1.05 is a control point, not the curve's maximum.** That curve
+  peaks at 1.0069 -- four tenths of a pixel on a 56px travel, in a browser as
+  much as here. A paragraph of the handoff argued about how to reproduce an
+  overshoot that never existed.
+
+Measure it on a rendered frame, or off the object, before writing it into a
+comment as a reason. Every hand estimate in this file's history has been
+wrong, and these two were not even estimates -- they were copied.
+
 ## i18n
 
 ### English only until the UI is finished
