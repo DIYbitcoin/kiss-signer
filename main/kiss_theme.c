@@ -3359,6 +3359,19 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     const int jy = BPAD + h / 2;
     char amt[32];
 
+    // ONE input row is the input TOTAL, and the total is half the arithmetic a
+    // reader does on this screen: what came in, less what goes out, is the fee.
+    // So it takes the same rung as the amounts on the other side of the
+    // junction rather than the rung of a breakdown line. Reported from the
+    // bench as the input total being the smallest text on the screen, which it
+    // was: mono14, against mono23 outputs 300px to its right.
+    //
+    // More than one row and they are a BREAKDOWN -- these coins, this size
+    // each -- so they stay at mono14 and the caller puts the total on the
+    // caption line above them, where there is room for it at mono23 and where
+    // no coin row can be mistaken for the sum.
+    const lv_font_t *in_f = (n_in == 1) ? wt_font_mono23() : wt_font_mono14();
+
     // The input lane, measured rather than assumed: the group row carries a
     // count AND a total on one line, which is why frame 3a's lane is twice
     // frame 2c's.
@@ -3367,7 +3380,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         lv_point_t ts;
         int wid = 0;
         wt_fmt_amount(in[i].sats, amt, sizeof amt);
-        lv_text_get_size(&ts, amt, wt_font_mono14(), 0, 0, LV_COORD_MAX,
+        lv_text_get_size(&ts, amt, in_f, 0, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         wid = ts.x;
         if (in[i].label) {
@@ -3381,7 +3394,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     const int ix0 = lane + BLANE_GAP;
 
     lv_point_precise_t *pp = b->pts;
-    const int in_lh  = lv_font_get_line_height(wt_font_mono14());
+    const int in_lh  = lv_font_get_line_height(in_f);
     const int out_lh = lv_font_get_line_height(wt_font_mono23());
 
     for (size_t i = 0; i < n_in; i++) {
@@ -3416,8 +3429,16 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (in[i].label)                      // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);
-        b->amount[k] = bundle_txt(row, amt, wt_font_mono14(),
-                                  acc ? wt_accent() : WT_MUT, acc);
+        // WT_INK when this row IS the total, WT_MUT when it is one coin of
+        // several: the number a reader has to READ is never the dimmest thing
+        // on the screen, and the breakdown under a total is not that number.
+        // The signature still lands on it -- SIGNING already paints inputs
+        // WT_INK and the reveal crosses from there to the accent, so a total
+        // that starts at WT_INK loses a step it never used and keeps the one
+        // that says a signature exists.
+        b->amount[k] = bundle_txt(row, amt, in_f,
+                                  acc ? wt_accent()
+                                      : (n_in == 1 ? WT_INK : WT_MUT), acc);
         wt_denom_bind(b->amount[k]);   // every figure is the switch, not one
         b->n_line++;
     }
@@ -3719,7 +3740,8 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             // wear it again the moment the hold is let go. What the screen is
             // about for these 1200ms is the commitment, not the warning.
             bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
-                           is_in ? WT_MUT : WT_EDGE, false);
+                           is_in ? (b->n_in == 1 ? WT_INK : WT_MUT) : WT_EDGE,
+                           false);
         } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
@@ -3744,7 +3766,12 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             // after a hold is let go. The LABEL stays muted either way -- the
             // strand is what the caution is about, and an amount in WT_WARN
             // would read as something wrong with that number.
-            bundle_repaint(b, k, bundle_col(b->role[k], false), WT_MUT, false);
+            //
+            // One input row is the input total and rests at WT_INK; several
+            // are a breakdown and rest muted. Same test wt_bundle built them
+            // under, so a hold let go puts back what was drawn.
+            bundle_repaint(b, k, bundle_col(b->role[k], false),
+                           b->n_in == 1 ? WT_INK : WT_MUT, false);
         }
     }
 }

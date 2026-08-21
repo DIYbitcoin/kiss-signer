@@ -179,6 +179,24 @@ static bool s_help_from_qr;       // which signed screen the SIGNATURE panel ret
 
 bool kiss_sign_active(void) { return s_scr != NULL; }
 
+// The figure the verify screen prints largest, so DETAILS can show the other
+// unit of the SAME number. One function and two call sites, because the two
+// used to be one expression each and the day the hero changed only one of them
+// changed with it: the screen said 60 000 and the page one tap behind it
+// offered 0.00061000 BTC as "the same total", which is a coordinator check
+// that fails for a reason the reader cannot see.
+//
+// One recipient and it is what that recipient gets. None or several and it is
+// the sum of what leaves, because there is then no single send amount to be
+// the headline. See the hero in verify_screen for why that is the split.
+static uint64_t hero_sats(void)
+{
+    int recip = 0;
+    for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+        if (!s_sum.outs[i].is_change) recip++;
+    return recip == 1 ? s_sum.send_sats : s_sum.send_sats + s_sum.fee_sats;
+}
+
 // Is this name one of our own signed outputs?
 static bool is_signed_name(const char *nm)
 {
@@ -346,6 +364,31 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
 //
 // Order is GLOSS_ICONS' order: 0 inputs, 1 outputs, 2 change, 3 txid,
 // 4 fee rate, 5 locktime, 6 derivation path, 7 descriptor.
+//
+// The table itself is up here now, beside the words it marks, because the
+// graph rows use it too: a mark on every row is what tells the fee from the
+// send without asking the reader to compare two shades of white, and the mark
+// it uses has to be the one the glossary teaches for that word rather than a
+// second one invented for this screen. It used to sit beside the DETAILS
+// glossary page, 2200 lines down, which is the only reader it had.
+//
+// Every glyph is already baked into the Latin faces (tools/fonts/gen_fonts.sh),
+// so this costs no font work and no flash. Chosen to mean the thing without the
+// word: coins arriving, coins leaving, the part that comes back, a marker for
+// finding it later, scissors for what you pay for speed, a lock for the
+// earliest it may confirm, a folder for a path, and an open eye for the map
+// that can watch but not spend.
+static const char *const GLOSS_ICONS[] = {
+    LV_SYMBOL_DOWNLOAD,     // INPUTS
+    LV_SYMBOL_UPLOAD,       // OUTPUTS
+    LV_SYMBOL_LOOP,         // CHANGE
+    LV_SYMBOL_GPS,          // TXID
+    LV_SYMBOL_CUT,          // FEE RATE
+    WT_ICON_LOCK,           // LOCKTIME
+    LV_SYMBOL_DIRECTORY,    // DERIVATION PATH
+    LV_SYMBOL_EYE_OPEN,     // DESCRIPTOR
+};
+
 static const char *gloss_line(int idx, char *head, size_t head_len)
 {
     const char *p = tr(STR_S_GLOSSARY_B);
@@ -799,7 +842,11 @@ static void mark_paid_recipients(void)
 // The address card under the graph. One mono23 line plus the compare caption,
 // centred as a block: 29 + 6 + 18 is 53, and 66 gives it the same breathing
 // room RECEIVE's 114 gives two lines of the same type.
-#define ADDR_CARD_H 66
+// 74, not 66: the address inside it is mono28 now (see verify_screen), and a
+// 34px line, 6 of air and a 17px caption is 57 -- centred in 66 that left 4px
+// top and bottom, which reads as a line jammed into a box. The card starts at
+// 316 and WT_CONTENT_BOTTOM is 398, so the extra 8 is room the screen had.
+#define ADDR_CARD_H 74
 // The bar holding full while its fill crosses from the stop red to the accent.
 // The sweep measured a finger and there is no longer a finger to measure, but
 // snapping it to zero at the instant it fills takes the answer away in the
@@ -1770,18 +1817,38 @@ static void verify_screen(lv_obj_t *parent)
     // ---- the hero -------------------------------------------------------
     // One number, not two. The old screen showed RECIPIENT GETS and TOTAL
     // LEAVING at the same rung and left the owner to work out which one they
-    // were agreeing to. What leaves the wallet is the number being signed for.
-    uint64_t total = s_sum.send_sats + s_sum.fee_sats;
-
-    // Counted before the hero because the change count decides whether the graph
-    // draws a change strand or the row that says there is none.
+    // were agreeing to.
+    //
+    // With ONE recipient that number is what the recipient gets, and it took a
+    // bench report to get it there: the hero was send + fee, so a transaction
+    // paying 10 000 with a 281 fee printed 10 281 in 48px type -- a figure that
+    // appears on no coordinator screen, is in no field of the PSBT, and is not
+    // the amount anyone decided to send. The reader was left comparing the
+    // biggest number on the signer against a different number on the machine
+    // that built the transaction. The fee is not lost by this: it has its own
+    // row in the graph, its rate and its share of the send sit on this line,
+    // and the input total above the graph is what the two are checked against.
+    //
+    // With none or several it stays send + fee, because there is no single send
+    // amount to enlarge and the sum of what leaves is then the honest headline.
+    // A spend with no recipient at all -- a consolidation back to yourself --
+    // is the case that makes this exact: the only thing leaving is the fee, and
+    // that is what the number says.
+    //
+    // Counted before the hero because it decides which number the hero IS, and
+    // because the change count decides whether the graph draws a change strand
+    // or the row that says there is none.
     int recipient_n = 0, change_n = 0;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         { if (s_sum.outs[i].is_change) change_n++; else recipient_n++; }
 
+    const bool one_recip = (recipient_n == 1);
+    uint64_t total = hero_sats();
+
     {
-        lv_obj_t *cap = sg_lbl(s_scr, tr(STR_S_TOTAL_LEAVING), 24, 78,
-                               wt_font14(), MUT_COL);
+        lv_obj_t *cap = sg_lbl(s_scr, one_recip ? tr(STR_S_SENDING_CAP)
+                                                : tr(STR_S_TOTAL_LEAVING),
+                               24, 78, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
         lv_obj_t *row = lv_obj_create(s_scr);
@@ -2004,6 +2071,34 @@ static void verify_screen(lv_obj_t *parent)
         // Recipients, then the fee, then change: the order every frame draws
         // and the order the sentence "amount plus fee, and what comes back"
         // is read in.
+        //
+        // Every row wears the glossary's mark for what it is: OUTPUTS on a
+        // recipient, FEE RATE's scissors on the fee, CHANGE's loop on change.
+        // That is what the bench was asking for when it said the fee is white
+        // and the change is coloured -- the colours DO mean something (ink
+        // leaves your control, the accent comes back to you, mute is a coin
+        // waiting for its signature), but the send and the fee both leave, so
+        // both are ink and colour alone could never tell them apart. The mark
+        // does, at a glance, and it is the same mark the page one tap away
+        // teaches the word with.
+        //
+        // Own buffers, alive until wt_bundle() has read them: the strand array
+        // holds POINTERS, and the shared `buf` is written again before the
+        // graph is built -- see the change row below, which learned this the
+        // hard way.
+        //
+        // The recipient row goes bare when there is only ONE recipient: the
+        // hero four lines above is that row's own amount and already carries
+        // the words, and the same phrase twice in a 300px column is the legend
+        // arguing with the headline. What is left is the number, which is not
+        // a repeat -- it is the term in the sum the reader checks the fee with.
+        // With several recipients the words come back, because then the hero is
+        // a total and no single row owns it.
+        char sbuf[80], fbuf[80], cbuf[80];
+        snprintf(sbuf, sizeof sbuf, "%s  %s", GLOSS_ICONS[1],
+                 tr(STR_S_SENDING_CAP));
+        snprintf(fbuf, sizeof fbuf, "%s  %s", GLOSS_ICONS[4], tr(STR_S_FEE));
+        snprintf(cbuf, sizeof cbuf, "%s  %s", GLOSS_ICONS[2], gloss_term(2));
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (s_sum.outs[i].is_change) continue;
@@ -2013,7 +2108,7 @@ static void verify_screen(lv_obj_t *parent)
             // address can appear -- a single line below it could name the first
             // and no other -- so every row carries its own.
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
-                                          .label = tr(STR_S_SENDING_CAP),
+                                          .label = one_recip ? NULL : sbuf,
                                           .role  = WT_STRAND_SEND,
                                           .known = kiss_payee_seen(s_sum.outs[i].addr),
                                           .addr  = recipient_n > 1
@@ -2030,13 +2125,13 @@ static void verify_screen(lv_obj_t *parent)
         }
         if (n_out < WT_BUNDLE_MAX)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
-                                          .label = tr(STR_S_FEE),
+                                          .label = fbuf,
                                           .role  = WT_STRAND_FEE };
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (!s_sum.outs[i].is_change) continue;
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
-                                          .label = gloss_term(2),   // CHANGE
+                                          .label = cbuf,   // CHANGE
                                           .role  = WT_STRAND_CHANGE };
         }
         // A transaction that leaves nothing behind says so on the row where
@@ -2096,8 +2191,50 @@ static void verify_screen(lv_obj_t *parent)
                 if (p.x > capw) capw = p.x;
             }
         }
+        // ---- the input total, at the rung the outputs are read at ----------
+        //
+        // What came in is the only figure that says whether the fee is the fee:
+        // in, less what goes out, IS the fee, and a reader who cannot see the
+        // first number cannot check the last one. It was mono14 and muted, the
+        // smallest text on the screen, and above one input it was not on the
+        // screen at all -- five coins drew five amounts and never their sum, so
+        // the check was a page away behind DETAILS on the one screen whose job
+        // is catching a transaction that lies about itself.
+        //
+        // Here only when the graph draws a BREAKDOWN. With a single input strand
+        // that row is already the total, and wt_bundle sets it at mono23 for
+        // exactly that reason -- printing it again 40px above would be the same
+        // number twice.
+        //
+        // Next to the caption it belongs to, past its "?", and never past 448:
+        // WHERE IT GOES starts at 464, and a figure right aligned against that
+        // reads as the first line of the other column instead of the last of
+        // this one. Placed on the caption's BASELINE rather than its top,
+        // because these are two faces of different heights and a shared top
+        // edge is not a shared line.
+        //
+        // Measured BEFORE the chip is placed, and the chip's clamp comes off
+        // it. The clamp was a flat 424, chosen when nothing but the caption
+        // shared this half of the row; leaving it there let a wide locale push
+        // the "?" onto the number. Which of the two gives way is not a
+        // question: the chip explains a word, and this is half the arithmetic
+        // the screen exists for.
+        char intot[32] = "";
+        int tot_w = 0, tot_x = 0, tot_y = 0;
+        if (n_in > 1) {
+            lv_point_t ts;
+            const lv_font_t *f14 = wt_font14(), *f23 = wt_font_mono23();
+            wt_fmt_amount(s_sum.in_sats, intot, sizeof intot);
+            lv_text_get_size(&ts, intot, f23, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            tot_w = ts.x + 12;
+            tot_y = 150 + (lv_font_get_line_height(f14) - f14->base_line)
+                        - (lv_font_get_line_height(f23) - f23->base_line);
+        }
         s_coins_chip_x = 24 + capw + 8;
-        if (s_coins_chip_x > 424) s_coins_chip_x = 424;
+        const int chip_max = 448 - tot_w - 30;
+        if (s_coins_chip_x > chip_max) s_coins_chip_x = chip_max;
+        tot_x = s_coins_chip_x + 30 + 12;
         lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
@@ -2119,6 +2256,19 @@ static void verify_screen(lv_obj_t *parent)
         // every press went to the graph. The frame cannot show this: the chip
         // is right there, in the right place, and simply does nothing.
         wt_help_chip(s_scr, s_coins_chip_x, 144, MUT_COL, coins_help_cb, NULL);
+
+        // The input total, here for the same reason and measured above for it:
+        // the graph's box begins at SG_GRAPH_Y - BPAD = 156 and this figure's
+        // line box reaches 174, so built before the graph it is a figure under
+        // a sibling that covers the whole width. It is a CONTROL -- every
+        // amount on this device flips the unit -- so that is not cosmetic:
+        // built first it rendered perfectly and swallowed every press. Fourth
+        // time in this file. The walk taps it now.
+        if (tot_w) {
+            lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x, tot_y,
+                                   wt_font_mono23(), INK_COL);
+            wt_denom_bind(tot);
+        }
 
         // The read-to-the-end gate, unchanged in every respect that matters:
         // the same question, measured the same way, with the same answer. Only
@@ -2269,8 +2419,16 @@ static void verify_screen(lv_obj_t *parent)
                 lv_obj_add_event_cb(box, addr_tap_cb, LV_EVENT_CLICKED,
                                     (void *)s_sum.outs[i].addr);
             }
+            // mono28 on the card, mono23 without one. The destination is the
+            // second thing this screen is about -- the first is how much, and
+            // nothing else here competes -- so it takes the rung under the
+            // hero rather than sharing the graph's. Cautioned there is no card:
+            // that band is 62px and belongs to the flag, and the fold stays at
+            // mono23 in it. The fold is the same in both, so the run being
+            // compared is the same run at either size.
             lv_obj_t *ad = wt_addr_short(box, s_sum.outs[i].addr,
-                                         wt_font_mono23());
+                                         np ? wt_font_mono23()
+                                            : wt_font_mono28());
             if (np) {
                 lv_obj_set_pos(ad, 24, ay + 18);
                 lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
@@ -2428,26 +2586,6 @@ static void details_back_cb(lv_event_t *e)
     (void)e;
     repaint_verify();
 }
-
-// The eight glossary icons, in the order STR_S_GLOSSARY_B lists its terms:
-// inputs, outputs, change, txid, fee rate, locktime, derivation path, descriptor.
-// Every one is already baked into the Latin faces (tools/fonts/gen_fonts.sh),
-// so this costs no font work and no flash.
-//
-// Chosen to mean the thing without the word: coins arriving, coins leaving, the
-// part that comes back, a marker for finding it later, a bolt for what you pay
-// for speed, a lock for the earliest it may confirm, a folder for a path, and an
-// open eye for the map that can watch but not spend.
-static const char *const GLOSS_ICONS[] = {
-    LV_SYMBOL_DOWNLOAD,     // INPUTS
-    LV_SYMBOL_UPLOAD,       // OUTPUTS
-    LV_SYMBOL_LOOP,         // CHANGE
-    LV_SYMBOL_GPS,          // TXID
-    LV_SYMBOL_CUT,          // FEE RATE
-    WT_ICON_LOCK,           // LOCKTIME
-    LV_SYMBOL_DIRECTORY,    // DERIVATION PATH
-    LV_SYMBOL_EYE_OPEN,     // DESCRIPTOR
-};
 
 static void gloss_back_cb(lv_event_t *e) { details_cb(e); }
 
@@ -2952,8 +3090,7 @@ static void details_cb(lv_event_t *e)
     // its second line into that row. Copy: cut the value that is beside it, at
     // arm's length the sats total is a scan away on the verify screen the tap
     // to DETAILS came from.
-    uint64_t leaving = s_sum.send_sats + s_sum.fee_sats;   // as the verify screen counts it
-    wt_fmt_amount_alt(leaving, gt, sizeof gt);
+    wt_fmt_amount_alt(hero_sats(), gt, sizeof gt);   // the hero, in the other unit
     snprintf(buf, sizeof buf, "= %s %s", gt, wt_denom_unit_alt());
     // 23, and INK. This is the number a holder reads off the glass and compares
     // against the coordinator, which is the entire reason the BTC form is here

@@ -379,6 +379,13 @@ void wt_diagram_pair(lv_obj_t *parent);
 // exists, SEND is WT_INK, FEE is WT_DIM, CHANGE is the accent -- and CHANGE is
 // the only accent text in the graph, so "arriving" and "leaving" stay two
 // families under all four accents including MONO, where the accent is ink.
+//
+// The AMOUNTS follow one law and the caller states it in words on the screen:
+// WT_INK leaves your control (a recipient's amount and the fee alike), the
+// accent comes back to you (change), WT_MUT is a coin being spent until its
+// signature exists. Colour is never the only cue for any of them -- each row
+// carries the glossary's own mark for what it is, so the fee is told from the
+// send by a pair of scissors and not by a shade of white.
 // WT_STRAND_LINKED is an input on a spend wide enough to raise the coins
 // linked caution. It is the same strand in WT_WARN, and it is the caution
 // DRAWN: the convergence on the junction is what the warning is describing, so
@@ -501,9 +508,13 @@ void wt_bundle_signed_reveal(lv_obj_t *bundle, uint32_t ms);
 // after the hold completes. All the strands fill at one rate and arrive
 // together, because one call is going to sign all of them.
 //
-// It moves strands, not numbers. The amount labels stay WT_MUT until
-// WT_BUNDLE_SIGNED, which is the moment a signature exists: the strand is the
-// commitment, the label is the signature.
+// It moves strands, not numbers. A breakdown of several coins stays WT_MUT
+// until WT_BUNDLE_SIGNED, which is the moment a signature exists: the strand is
+// the commitment, the label is the signature. A single input row is the input
+// TOTAL rather than one coin of several -- it rests at WT_INK and at mono23,
+// because it is half the arithmetic the reader is here to do -- and for it the
+// signature is the crossing to the accent, which is the step that says a
+// signature exists either way.
 void wt_bundle_hold(lv_obj_t *bundle, uint8_t progress);
 
 // Grouped address with only the LAST 8 characters lit, everything before them

@@ -1383,6 +1383,38 @@ static int tap_row_prefix(const char *pre) {
   return 1;
 }
 
+// Tap a label by its exact text. For a figure whose x is computed at build
+// time -- the input total sits past a caption of translated width and the "?"
+// after it -- pressing where it actually landed is the only tap that proves
+// anything, and a fixed coordinate would only ever prove the English screen.
+static lv_obj_t *find_label_obj_exact(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    return (t && strcmp(t, needle) == 0) ? o : NULL;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_label_obj_exact(lv_obj_get_child(o, i), needle);
+    if (r) return r;
+  }
+  return NULL;
+}
+
+static void tap_label_exact(const char *txt)
+{
+    lv_obj_t *l = find_label_obj_exact(lv_screen_active(), txt);
+    if (!l) {
+        printf("FAIL: no label reading \"%s\" to tap\n", txt);
+        g_walk_fails++;
+        return;
+    }
+    lv_area_t a; lv_obj_get_coords(l, &a);
+    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    pump(3);
+    release();
+    pump(10);
+}
+
 static void tap_str(int key, int hold, int settle)
 {
     lv_obj_t *p = pill_for(key, "tap");
@@ -2385,11 +2417,11 @@ int main(void) {
   touch(120, 130); pump(3); release(); pump(10);
   save("/tmp/sim_sign_btc.ppm");            // the same transaction, in BTC
   must_show("btc unit", "BTC");
-  must_show("btc unit", "0.00061000");
+  must_show("btc unit", "0.00060000");   // the hero is what the recipient gets
   // A STRAND label, not the total: every figure on the device is the switch,
   // so the one at the end of the recipient strand has to work too.
   touch(505, 185); pump(3); release(); pump(10);
-  must_show("sats unit", "61 000");
+  must_show("sats unit", "60 000");
 
   // The coins caption's own "?": the first word on this screen a newcomer has
   // to be taught, and until now the only one with nothing to tap. The chip is
@@ -2741,6 +2773,19 @@ int main(void) {
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
             "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  // The input TOTAL, and it is a control. Above one coin the graph draws a
+  // breakdown, so the sum goes on the caption line: 4 000 in, against 3 000 and
+  // 800 and 200 out, is the only arithmetic that says whether the fee is the
+  // fee, and it used to be a DETAILS tap away on the one screen that exists to
+  // catch a transaction lying about itself. Tapped, it flips the unit like
+  // every other figure on the device -- which is also what proves it landed
+  // somewhere a finger reaches, since its x comes off the caption's rendered
+  // width and the chip past it rather than a number written here.
+  must_show("verify (5 cautions)", "4 000");
+  tap_label_exact("4 000");
+  must_show("input total is the unit switch", "0.00004000");
+  tap_label_exact("0.00004000");
+  must_show("input total switches back", "4 000");
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
