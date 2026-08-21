@@ -3172,6 +3172,31 @@ int main(void) {
   shot_raw("sim_settings_pulse.ppm");
   pump(50);
 
+  // SIM_TABGIF=1 records every frame of one tab change, one per 16ms tick, the
+  // way the reveal capture does. It is the only honest picture of motion -- a
+  // still says where a row got to, never how it got there -- and it is behind
+  // an env var because 55 frames is 60MB nobody wants on an ordinary run.
+  if (getenv("SIM_TABGIF")) {
+    // Two, because the page has two entrances. An ordinary group slides in
+    // from the side you tapped towards; NO UNDO rises instead, and is the only
+    // one that does.
+    static const struct { int to; const char *fmt; } REC[2] = {
+      { SET_DEVICE, "sim_tabmove_%03d.ppm" },
+      { SET_NOUNDO, "sim_tabundo_%03d.ppm" },
+    };
+    for (int r = 0; r < 2; r++) {
+      set_tab(SET_SIGNER);
+      touch(SET_TAB_X(REC[r].to), SET_TAB_Y); pump(3); release();
+      for (int i = 0; i < 56; i++) {
+        char nm[48];
+        snprintf(nm, sizeof nm, REC[r].fmt, i);
+        shot_raw(nm);
+        pump(1);
+      }
+    }
+    set_tab(SET_SIGNER);
+  }
+
   // Four tabs faster than any of them settles. This is the case that crashes a
   // transition if the interrupt path is wrong: two lanes are alive, a callback
   // is pending against the one leaving, and the tap deletes both. The frame

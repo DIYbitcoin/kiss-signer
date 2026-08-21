@@ -128,11 +128,19 @@ static void an_tx(void *v, int32_t x)  { lv_obj_set_style_translate_x(v, x, 0); 
 static void an_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
 static void an_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
 
-// The prototype's ease is cubic-bezier(.17,.84,.32,1.05): about five percent
-// past the mark and back. LVGL's stock overshoot is several times that and
-// reads as bouncy on a page of settings, so this is the curve itself --
-// lv_cubic_bezier does not clamp its output, so a y2 above 1.0 overshoots by
-// exactly what it says.
+// The prototype's ease, cubic-bezier(.17,.84,.32,1.05), typed in as itself.
+//
+// The handoff calls this "about 5% past the mark, then back" and spends a
+// paragraph on how to reproduce the overshoot without LVGL's stock one, which
+// is far stronger and reads as bouncy on a page of settings. There is no
+// overshoot to reproduce: 1.05 is a CONTROL POINT, not the curve's maximum,
+// and the curve it controls peaks at 1.0069 -- four tenths of a pixel on a
+// 56px travel, in the browser as much as here. Measured off the frames, the
+// row arrives at 25 and stays at 25.
+//
+// The curve is still not ease_out. It is front loaded: most of the distance is
+// gone in the first third, so a row reads as arriving rather than as being
+// slid. That is what it is here for, and the overshoot never existed.
 static void an_path_settle(lv_anim_t *a)
 {
     lv_anim_set_path_cb(a, lv_anim_path_custom_bezier3);
@@ -1946,7 +1954,13 @@ static void tab_noundo(void)
     lv_obj_set_pos(wash, 8, 118);
     lv_obj_set_size(wash, 784, WT_CONTENT_BOTTOM - 118);
     lv_obj_set_style_bg_color(wash, WT_STOP, 0);
-    lv_obj_set_style_bg_opa(wash, 13, 0);
+    // 30 and not the prototype's 13. That number is a CSS alpha over a CSS
+    // background; on this panel, over WT_BG, it lands at (8,12,16) against
+    // (0,8,16) -- eight levels in a five bit red channel, which is nothing.
+    // Measured off the frame, because looking at the frame is the only check
+    // that catches a colour doing no work. At 30 the band around the card is a
+    // dark red field and the group reads as different before a word of it does.
+    lv_obj_set_style_bg_opa(wash, 30, 0);
     lv_obj_remove_flag(wash, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(wash, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_user_data(wash, (void *)SET_SKIP_TAG);   // scenery, not a row
