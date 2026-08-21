@@ -4,7 +4,7 @@
 
 **An airgapped single-sig Bitcoin signer hidden behind a fruit slashing arcade game.**
 
-<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-version.svg" alt="version: 0.1.0-beta7"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: disabled"> <img src="docs/readme/badge-encryption.svg" alt="flash encryption: in progress"> <img src="docs/readme/badge-signing.svg" alt="signing: single-sig + SP"> <img src="docs/readme/badge-langs.svg" alt="languages: 21"> <img src="docs/readme/badge-license.svg" alt="license: Apache-2.0">
+<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-version.svg" alt="version: 0.1.0-beta7"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: disabled"> <img src="docs/readme/badge-encryption.svg" alt="flash encryption: in progress"> <img src="docs/readme/badge-signing.svg" alt="signing: single-sig + SP"> <img src="docs/readme/badge-langs.svg" alt="languages: 21"> <img src="docs/readme/badge-license.svg" alt="license: MIT">
 
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
@@ -338,7 +338,7 @@ read out of the chip.
 ## License
 
 KISS Signer's original source code and documentation are licensed under the
-[Apache License 2.0](LICENSE). Vendored third party components and assets keep
+[MIT License](LICENSE). Vendored third party components and assets keep
 their own licenses: [libwally-core](components/libwally-core) (MIT), Espressif
 components and ESP-IDF (Apache-2.0), LVGL (MIT), the fonts (SIL OFL 1.1), the
 [Twemoji](https://github.com/twitter/twemoji) kiss mark and language flags

@@ -1,7 +1,7 @@
 # Third-party notices
 
-KISS Signer's own source and documentation are licensed under the Apache License
-2.0 (see [`LICENSE`](LICENSE)). The firmware image also statically incorporates
+KISS Signer's own source and documentation are licensed under the MIT License
+(see [`LICENSE`](LICENSE)). The firmware image also statically incorporates
 the third-party software and assets listed below, each under its own license.
 Full license texts live next to each component in the tree (paths given).
 
