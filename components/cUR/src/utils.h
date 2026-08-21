@@ -149,6 +149,7 @@ enum {
   UR_SITE_NONE = 0,   // untagged allocations; never the fail target
   UR_SITE_DIFF = 1,   // part_indexes_difference's count-exact allocation
   UR_SITE_COPY = 2,   // part_indexes_copy's value-indexes allocation
+  UR_SITE_ENC_COPY = 3, // fountain encoder's last-part index copy
 };
 #ifdef UR_ALLOC_FAIL_TEST
 void ur_alloc_arm(int site, int at);

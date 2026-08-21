@@ -419,6 +419,25 @@ static void qr_test_fountain_cap_churn(void) {
         }
     }
 
+    {   // The encoder mixes the payload before it copies the chosen indexes
+        // into its next-part state. An allocation failure in that last copy
+        // must release both temporary allocations, return an empty part, and
+        // leave the encoder usable for a retry.
+        fountain_encoder_t *e =
+            fountain_encoder_new(msg, msg_len, frag, 60, frag);
+        fountain_encoder_part_t p = {0};
+        ur_alloc_arm(UR_SITE_ENC_COPY, 1);
+        bool refused = e && !fountain_encoder_next_part(e, &p);
+        qchkb("fountain encoder copy allocation failure is refused cleanly",
+              refused && ur_alloc_hits() == 1 && !p.data && p.data_len == 0);
+        ur_alloc_disarm();
+        bool recovered = e && fountain_encoder_next_part(e, &p);
+        qchkb("fountain encoder recovers after copy allocation failure",
+              recovered && p.data && p.data_len == frag);
+        fountain_encoder_part_free(&p);
+        if (e) fountain_encoder_free(e);
+    }
+
     {   // Allocation-failure injection, aimed at reduce_mixed_by's OWN
         // allocations. Every arm gets a fresh deterministic decoder, so a
         // previous injection cannot complete the shared fixture and silently

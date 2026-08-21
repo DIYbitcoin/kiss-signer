@@ -451,8 +451,14 @@ bool fountain_encoder_next_part(fountain_encoder_t *encoder,
 
   // Checked: on failure dst is left partly built, and last_part_indexes is
   // what the next part is generated against.
-  if (!part_indexes_copy(indexes, &encoder->last_part_indexes))
+  int copy_site = ur_site_enter(UR_SITE_ENC_COPY);
+  bool copied = part_indexes_copy(indexes, &encoder->last_part_indexes);
+  ur_site_leave(copy_site);
+  if (!copied) {
+    safe_free(mixed_data);
+    part_indexes_free(indexes);
     return false;
+  }
 
   // Fill part structure
   part->seq_num = encoder->seq_num;
