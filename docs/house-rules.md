@@ -153,6 +153,7 @@ bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locale
 python3 tools/check_screen_coverage.py             # screens no gate sees (builds its own)
 bash sim/build_sim.sh && /tmp/fruitsim && python3 tools/check_sim_taps.py  # taps that hit nothing
 python3 tools/gen_docs_shots.py --check            # the frames the docs publish
+python3 tools/check_glyphs.py                      # icons the fonts do not contain
 
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
@@ -235,6 +236,22 @@ do not refuse the same code. A 64 byte buffer holding a 160 byte translated
 caption passed all six gates and every desktop test, and was caught by this
 command alone — after a push, because it was not on the list. `-Wformat-truncation`
 is the family, and clang does not implement it.
+
+`check_glyphs.py` answers a different one, and it is the blind spot this
+file names twice in `main/kiss_theme.h` -- above `wt_row_x` and above
+`wt_tabs`, in the same words: *a wrong pick survives every gate and is
+caught on glass*. A codepoint missing from the generated fonts draws a
+blank box about half a line wide, and draws it identically in the
+simulator, so no frame, no walk and no overlap check has ever had an
+opinion about it. It compares every icon `main/` names -- the
+`LV_SYMBOL_*` constants and the raw `"\xEF\x.."` escapes both -- against
+`SYMS` in `tools/fonts/gen_fonts.sh`, reading LVGL's own
+`lv_symbol_def.h` for what each name resolves to rather than keeping a
+third list that would drift from the other two. It self tests first, and
+refuses to report if the check no longer fires
+(`GLYPHCHECK_SELFTEST=1`). Codepoints in `SYMS` that nothing names are
+printed and do NOT fail: font bytes are cheap next to deleting a glyph a
+half-written screen is waiting for.
 
 `check_screen_coverage.py` answers the question the others cannot: **which
 screens has nothing ever looked at.** overlapcheck asks eight questions per
