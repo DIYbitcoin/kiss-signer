@@ -379,11 +379,39 @@ static int vfy_is_sp_mine(const char *addr) {
 }
 
 static void vfy_result(const char *txt, size_t len) {
-  (void)len;
   // must hold a silent-payment address (~117 chars) whole: a truncated address
   // silently becomes a DIFFERENT address, which is the one thing this screen
   // exists to rule out. grouped adds a space every 4 chars.
   char addr[128], grouped[200], buf[200];  // translated line, 3 bytes/char worst
+
+  // A coordinator's usage payload rides in the same QR as the address it is
+  // about, so this runs on the RAW scanned text, ahead of vfy_norm. Anything
+  // without the magic falls straight through and the address path below is
+  // exactly what it was.
+  //
+  // The index in the payload says NOTHING about this address. It is a fact
+  // about the wallet, and vfy_find goes on re-deriving and searching for the
+  // address itself: the ownership answer is what this screen exists for, and
+  // nothing that arrived through a camera gets to shortcut it.
+  kiss_usage_msg_t um;
+  int have_um = kiss_usage_parse(txt, len, &um) == 0;
+  int um_recorded = 0, um_view = 0;
+  if (have_um) {
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    int um_mine = memcmp(fp, um.fp, 4) == 0;
+    // Stored in the bucket the payload NAMES, which need not be the one on
+    // screen. A different purpose is a different account key, so a coordinator
+    // on another address type really is watching other keys -- and reporting an
+    // update over a chip that did not move is the more confusing answer.
+    um_view = um_mine && um.testnet == (kiss_testnet() ? 1 : 0) &&
+              um.script == kiss_script();
+    if (um_mine)
+      um_recorded = kiss_usage_chain_set(um.fp, um.testnet, um.script,
+                                         um.high, um.height);
+    txt = um.addr;                       // the address half, for the check below
+  }
+
   vfy_norm(txt, addr, sizeof addr);
   int change = 0;
   uint32_t idx = 0;
@@ -459,6 +487,27 @@ static void vfy_result(const char *txt, size_t len) {
            48, 130, wt_font28(), WT_STOP);
     lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
     lv_label_set_text(n, tr(STR_R_INVALID_B));
+  }
+
+  // What the usage half did, under the answer the owner actually came for.
+  // A mismatched fingerprint does NOT refuse the scan: ownership is answerable
+  // without trusting a byte of the payload, and refusing would withhold the one
+  // answer this screen owes in order to punish a half that is only ever display
+  // data.
+  if (have_um) {
+    char note[160];
+    if (!um_view)
+      snprintf(note, sizeof note, "%s", tr(STR_R_UM_OTHER_KEYS));
+    else if (!um_recorded)
+      snprintf(note, sizeof note, "%s", tr(STR_R_UM_NO_CHANGE));
+    else if (um.high >= 0)
+      snprintf(note, sizeof note, tr(STR_R_CHAIN_UPTO_FMT), (unsigned)um.high);
+    else
+      snprintf(note, sizeof note, "%s", tr(STR_R_CHAIN_CLEAN));
+    lv_obj_t *ul = wt_lbl(s_scr, "", 48, WT_ACTION_Y - 44, wt_font14(), WT_MUT);
+    lv_obj_set_width(ul, 700);
+    lv_label_set_long_mode(ul, LV_LABEL_LONG_WRAP);
+    wt_note_fit(ul, note, 700, 34);
   }
 
   lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, WT_ACTION_Y, 220, vfy_scan, NULL);
