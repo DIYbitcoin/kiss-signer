@@ -513,8 +513,14 @@ int platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len)
     // The byte past the buffer proves "too big". feof is not enough: a file
     // of exactly max bytes reads full without ever setting it, so it used to
     // be rejected even though it is the device's own PSBT ceiling.
-    int full = fgetc(f) != EOF;
-    io |= ferror(f);  // the probe itself can fail, not just hit EOF
+    // Probe only after a complete, error-free read. After fread reports an I/O
+    // error the stream position may be indeterminate, so another read is not a
+    // valid size check; a short clean read already proves the file ended.
+    int full = 0;
+    if (!io && *len == max) {
+        full = fgetc(f) != EOF;
+        io |= ferror(f);  // the probe itself can fail, not just hit EOF
+    }
     if (fclose(f) != 0) io = 1;
     return io ? -3 : (*len == 0 || full) ? -2 : 0;
 }
@@ -549,7 +555,10 @@ static int file_matches(const char *path, const uint8_t *buf, size_t len)
         off += want;
     }
     if (ok && fgetc(f) != EOF) ok = 0;
-    if (ferror(f) || fclose(f) != 0) ok = 0;
+    if (ferror(f)) ok = 0;
+    // Do not combine these with ||: if ferror is true, short-circuiting would
+    // skip fclose and leak one stream every time verification hits an I/O fault.
+    if (fclose(f) != 0) ok = 0;
     memset(chunk, 0, sizeof chunk);
     return ok;
 }
