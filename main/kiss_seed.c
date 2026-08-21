@@ -1227,14 +1227,20 @@ int kiss_seed_load(char *out, size_t out_len)
         return WSEED_ERR_INVALID;
     wally_bzero(out, out_len);
     if (s_has_pending) {               // staged setup: derive before it's flashed
-        snprintf(out, out_len, "%s", s_pending);
+        size_t n = strlen(s_pending);
+        if (n >= out_len)
+            return WSEED_ERR_INVALID;
+        memcpy(out, s_pending, n + 1);
         return WSEED_OK;
     }
     int mode = storage_mode_read();
     if (mode == WSEED_MODE_AMNESIC) {
         if (!s_has_active_ram)
             return WSEED_ERR_NO_SEED;
-        snprintf(out, out_len, "%s", s_active_ram);
+        size_t n = strlen(s_active_ram);
+        if (n >= out_len)
+            return WSEED_ERR_INVALID;
+        memcpy(out, s_active_ram, n + 1);
         return WSEED_OK;
     }
     if (mode == WSEED_MODE_SD)

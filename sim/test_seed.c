@@ -323,6 +323,8 @@ int test_seed_layer(void) {
     // ---- storage mode: amnesic never touches persistent storage ----
     {
         char got[WSEED_MAX_MNEMONIC];
+        char exact[sizeof ALT_WORDS];
+        char short_out[sizeof ALT_WORDS - 1];
 
         schk("mode defaults to KEEP", kiss_seed_mode() == WSEED_MODE_KEEP);
         schk("wipe before mode tests", kiss_seed_wipe() == 0);
@@ -331,9 +333,20 @@ int test_seed_layer(void) {
              kiss_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
         schk("mode reads back AMNESIC", kiss_seed_mode() == WSEED_MODE_AMNESIC);
         schk("amnesic: stage ok", kiss_seed_stage(ALT_WORDS) == 0);
+        memset(short_out, 0xA5, sizeof short_out);
+        schk("pending: too-small load refused and cleared",
+             kiss_seed_load(short_out, sizeof short_out) == WSEED_ERR_INVALID &&
+             short_out[0] == '\0');
+        schk("pending: exact-size load succeeds",
+             kiss_seed_load(exact, sizeof exact) == WSEED_OK &&
+             strcmp(exact, ALT_WORDS) == 0);
         schk("amnesic: commit ok", kiss_seed_commit() == 0);
         // the session must work for as long as the device stays unlocked...
         schk("amnesic: seed visible while unlocked", kiss_seed_exists() == 1);
+        memset(short_out, 0xA5, sizeof short_out);
+        schk("amnesic: too-small load refused and cleared",
+             kiss_seed_load(short_out, sizeof short_out) == WSEED_ERR_INVALID &&
+             short_out[0] == '\0');
         schk("amnesic: load rc", kiss_seed_load(got, sizeof got) == 0);
         schk("amnesic: load roundtrips", strcmp(got, ALT_WORDS) == 0);
         schk("amnesic: session opens", kiss_session_open("") == 0);
