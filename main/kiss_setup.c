@@ -194,9 +194,21 @@ int kiss_setup_sd_status(void)
 }
 
 // ---- shared widgets: thin wrappers over the kiss_theme kit ----
+
+// Every pointer this file keeps into a screen: the tap counter's, the camera
+// entropy screen's, the dice screen's. Each group is already reset by its own
+// builder, which is why nothing has ever dereferenced one -- but only the
+// builder resets it, so between leaving a group's screen and coming back the
+// statics name objects that no longer exist. Nulling them where the screen
+// actually dies is never wrong: the children are freed with it either way, and
+// anything that expected a group to survive a rebuild was already reading
+// memory that had been handed back. Defined below the three groups it clears.
+static void widgets_drop(void);
+
 static void mk_screen(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    widgets_drop();
     s_scr = wt_screen(s_parent, title, sub);
 }
 
@@ -209,6 +221,7 @@ static void mk_screen(const char *title, const char *sub)
 static void mk_screen2(const char *title, const char *sub)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    widgets_drop();
     s_scr = wt_screen(s_parent, title, NULL);
     // The quiz puts its round counter at x=500 on the title's own row, so the
     // title gets 436 rather than the full 704. Without this the Italian and
@@ -1649,6 +1662,25 @@ static lv_obj_t *s_dice_fill[6];   // histogram fills, grown up from the base
 static lv_obj_t *s_dice_cnt[6];    // exact count under each column
 static lv_obj_t *s_dice_chip;      // the one status coloured element on the screen
 static int      s_dice_last_verdict;
+
+// See the forward declaration above mk_screen. Arrays as well as scalars: the
+// bit strips are read by their own screens' refreshes through s_tap_bits[0] /
+// s_dice_bits[0] as a "was it built" test, which a stale pointer answers yes
+// to just as convincingly as a live one.
+static void widgets_drop(void)
+{
+    memset(s_tap_bits, 0, sizeof s_tap_bits);
+    s_tap_count = NULL; s_tap_card = NULL;
+
+    s_ent_bar1 = s_ent_bar2 = s_ent_state = s_ent_dot = s_ent_capture = NULL;
+    s_ent_c1 = s_ent_c2 = s_ent_c3 = s_ent_cr = NULL;
+
+    memset(s_dice_bits, 0, sizeof s_dice_bits);
+    memset(s_dice_fill, 0, sizeof s_dice_fill);
+    memset(s_dice_cnt, 0, sizeof s_dice_cnt);
+    s_dice_card = NULL; s_dice_tally = NULL; s_dice_done = NULL;
+    s_dice_fp = NULL; s_dice_chip = NULL;
+}
 
 // The floor is not derived here any more: kiss_dice_judge computes it from
 // the byte need, so the screen reads it off the verdict struct and cannot

@@ -22,6 +22,10 @@
 #include "kiss_wipe.h"
 
 static lv_obj_t *s_scr;
+// The rehearsal's three widgets. Declared up here with the screen they
+// belong to, so close_all() can null them: they live only on ST_DRAW, and
+// rehearse_release_cb reads s_word_box without a guard.
+static lv_obj_t *s_word_box, *s_rhint, *s_rink;
 static lv_obj_t *s_parent;
 static void (*s_done)(void);
 
@@ -83,6 +87,7 @@ static void stage_show(int stage)
 
 static void close_all(void)
 {
+    s_word_box = s_rhint = s_rink = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -115,7 +120,8 @@ static void add_pass_cb(lv_event_t *e)
     // into the stroke chooser (setup_warn_ok_cb), whose DONE closes back to
     // whoever opened the ways in page.
     void (*done)(void) = s_done;
-    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    close_all();                     // and not a bare delete: the rehearsal's
+                                     // widgets are the point of that function
     kiss_login_open_add_later(done);
 }
 
@@ -138,7 +144,6 @@ static void save_cb(lv_event_t *e)
 static int s_rx[DR_PTS], s_ry[DR_PTS];
 static int s_rn;
 static bool s_rdown;
-static lv_obj_t *s_word_box, *s_rhint, *s_rink;
 static lv_point_precise_t s_rpts[DR_PTS];
 
 static void rehearse_reset(void)
@@ -294,6 +299,11 @@ static void diagram_two_ways(void)
 static void stage_build(int stage)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    // The rehearsal's three widgets belong to ST_DRAW's screen and to no other
+    // stage. s_word_box is read UNGUARDED -- lv_obj_get_coords(s_word_box, &b)
+    // in rehearse_release_cb -- so leaving it set across a stage change makes
+    // that a dereference of freed memory rather than a skipped branch.
+    s_word_box = s_rhint = s_rink = NULL;
     s_stage = stage;
 
     switch (stage) {

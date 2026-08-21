@@ -240,14 +240,33 @@ static void hold_stop(void)
     if (s_hold_tmr) { lv_timer_delete(s_hold_tmr); s_hold_tmr = NULL; }
 }
 
-static void close_cb(lv_event_t *e)
+// Every pointer into the screen about to go, and the timers that would call
+// back into it. One function and not two copies, because the two copies had
+// drifted: both nulled the QR group and neither nulled the graph group, which
+// three other drop sites in this file do null.
+//
+// Every read of the graph group is guarded by `if (x)`, so a stale non-NULL is
+// the one state that turns a guard into a dereference. Nothing reaches them
+// after a drop today -- their readers are callbacks on the screen being
+// deleted. That was true of Settings' pane too, right up to the day a function
+// reachable from another screen read it. kiss_ui's login_teardown says the
+// same thing from the other side, in a comment about the teardown that
+// dereferenced a freed entry label because an earlier one nulled only the root.
+static void widgets_drop(void)
 {
-    (void)e;
     hold_stop();
     s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
+}
+
+static void close_cb(lv_event_t *e)
+{
+    (void)e;
+    widgets_drop();
     kiss_psbt_free();
     platform_sd_unmount();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -267,11 +286,7 @@ static void sd_open(lv_obj_t *parent);
 
 static void step_back(void)
 {
-    hold_stop();
-    s_sign_lbl = NULL;
-    if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
-    if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
-    s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
+    widgets_drop();
     kiss_psbt_free();               // the next pick loads its own
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }

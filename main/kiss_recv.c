@@ -140,6 +140,14 @@ bool kiss_recv_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e) {
   (void)e;
+  // The detail-only five, which recv_list_open() already nulls and this did
+  // not. Two of them are read UNGUARDED -- wt_qr_refusal(s_qr, ...) and
+  // lv_label_set_text_fmt(s_idx_lbl, ...) in recv_refresh() -- so a stale
+  // pointer here is a dereference and not a skipped branch. Only that one
+  // static function reads them and only from callbacks on the screen being
+  // deleted, which is exactly what was true of Settings' pane until something
+  // reachable from another screen read it.
+  s_qr = s_idx_lbl = s_path_lbl = s_path_tn_lbl = s_lock_note = NULL;
   s_addr_sg = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
