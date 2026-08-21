@@ -173,16 +173,24 @@ static int aside_pair(lv_obj_t *p, int x, int y, int w)
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, sp_permission_model); }
 
-// Two entries, and the mark for each. A body written `TERM: definition` per
+// Three entries, and the mark for each. A body written `TERM: definition` per
 // line is a LIST, and passing icons here is what says so: wt_explain_open then
 // draws badges and headings instead of a grey paragraph the reader has to
 // finish before finding the half that applies to them.
-static const char *const PAIR_ICONS[] = { LV_SYMBOL_EYE_OPEN, WT_ICON_LOCK };
+static const char *const PAIR_ICONS[] = {
+    LV_SYMBOL_EYE_OPEN,
+    WT_ICON_LOCK,
+    LV_SYMBOL_GPS,       // the bitcoin is on the network, not in either device
+};
 static const char *const TYPE_ICONS[] = { LV_SYMBOL_OK, LV_SYMBOL_DIRECTORY };
+
+_Static_assert(sizeof PAIR_ICONS / sizeof PAIR_ICONS[0] == 3,
+               "the pairing explainer supplies three semantic badges");
 
 static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                               const char *body, int diagram, bool fp_exit_hint,
-                              const char *icon, const char *const *icons)
+                              const char *icon, const char *const *icons,
+                              size_t icons_count)
 {
     // The escape-gesture hint belongs to the HOME fingerprint card and nowhere
     // else, so it rides on the end of the body rather than being a fourth kind
@@ -204,6 +212,7 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
         .ok_txt = tr(STR_C_OK),
         .mode   = icons ? WT_GRID_ICONS : WT_BODY_PROSE,
         .icons  = icons,
+        .icons_count = icons_count,
         .aside  = diagram == DIAG_FP     ? aside_fp
                 : diagram == DIAG_PAIR   ? aside_pair
                 : diagram == DIAG_SCAN   ? aside_scan : NULL,
@@ -212,15 +221,17 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
 }
 
 static lv_obj_t *help_open_d(const char *title, const char *body, int diagram,
-                             const char *const *icons)
+                             const char *const *icons, size_t icons_count)
 {
-    return help_open_on(s_scr, title, body, diagram, false, NULL, icons);
+    return help_open_on(s_scr, title, body, diagram, false, NULL, icons,
+                        icons_count);
 }
 
 static void help_open(const char *title, const char *body, const char *icon,
-                      const char *const *icons)
+                      const char *const *icons, size_t icons_count)
 {
-    help_open_on(s_scr, title, body, DIAG_NONE, false, icon, icons);
+    help_open_on(s_scr, title, body, DIAG_NONE, false, icon, icons,
+                 icons_count);
 }
 
 lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
@@ -235,13 +246,13 @@ lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
 
     return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
-                        exit_hint, NULL, NULL);
+                        exit_hint, NULL, NULL, 0);
 }
 
 lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
                                      const char *body, const char *icon)
 {
-    return help_open_on(parent, title, body, DIAG_NONE, false, icon, NULL);
+    return help_open_on(parent, title, body, DIAG_NONE, false, icon, NULL, 0);
 }
 
 // The fingerprint row's explainer, opened WITH the code so the card draws the
@@ -268,21 +279,24 @@ static void help_cb(lv_event_t *e)
     // an address is where money arrives. Both are in the baked symbol set.
     else if (!strcmp(key, "type"))
         help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B), LV_SYMBOL_DIRECTORY,
-                  TYPE_ICONS);
+                  TYPE_ICONS, sizeof TYPE_ICONS / sizeof TYPE_ICONS[0]);
     else if (!strcmp(key, "pair"))
-        help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR, PAIR_ICONS);
+        help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR,
+                    PAIR_ICONS, sizeof PAIR_ICONS / sizeof PAIR_ICONS[0]);
     else if (!strcmp(key, "scan"))
-        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN, NULL);
+        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN,
+                    NULL, 0);
     else
         help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD,
-                  NULL);
+                  NULL, 0);
 }
 
 #ifdef SIMULATOR
 void kiss_info_sim_open_type_help(void)
 {
     if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B),
-                         LV_SYMBOL_DIRECTORY, TYPE_ICONS);
+                         LV_SYMBOL_DIRECTORY, TYPE_ICONS,
+                         sizeof TYPE_ICONS / sizeof TYPE_ICONS[0]);
 }
 
 void kiss_info_sim_open_fp_help(void)

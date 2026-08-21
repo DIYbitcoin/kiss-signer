@@ -913,8 +913,9 @@ void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
 // Body modes.
 //   WT_BODY_PROSE  paragraphs, laid out as described above.
 //   WT_GRID_ICONS  one `term: definition` per LINE, drawn as a grid of icon
-//                  badges. `icons` supplies one glyph per line, in order, and
-//                  must hold at least as many as the body has lines. The colon
+//                  badges. `icons` supplies glyphs in line order and
+//                  `icons_count` says how many are safe to read. A body may have
+//                  more lines; those entries render without a badge. The colon
 //                  split is what makes this free: the glossary is written that
 //                  way in every locale, so an icon grid needs no new string.
 enum { WT_BODY_PROSE = 0, WT_GRID_ICONS };
@@ -928,7 +929,8 @@ typedef struct {
     const char *ok_txt;   // the dismiss pill's label, already translated
     int sev;              // WT_SEV_*: colours the title and the first rule
     int mode;             // WT_BODY_PROSE / WT_GRID_ICONS
-    const char *const *icons;   // WT_GRID_ICONS only, one per body line
+    const char *const *icons;   // WT_GRID_ICONS only, in body-line order
+    size_t icons_count;         // number of readable entries in icons
     int (*aside)(lv_obj_t *par, int x, int y, int w);
 } wt_explain_t;
 lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e);

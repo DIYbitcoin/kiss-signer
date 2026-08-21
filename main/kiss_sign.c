@@ -1161,8 +1161,6 @@ static void caution_help_cb(lv_event_t *e)
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
         BODY_ADD(LV_SYMBOL_MINUS, "%s%s", o ? "\n" : "", tr(STR_S_WHY_TINYCH));
     #undef BODY_ADD
-    (void)ni;
-
     // No flag set means no grid to draw, and a card with a title and nothing
     // under it is worse than the prose it replaced. The "?" only exists on a
     // flagged row, so this is defensive, not a state a reader reaches.
@@ -1177,6 +1175,7 @@ static void caution_help_cb(lv_event_t *e)
         .sev    = WT_SEV_WARN,
         .mode   = WT_GRID_ICONS,
         .icons  = icons,
+        .icons_count = (size_t)ni,
     };
     wt_explain_open(s_scr, &x);
 }
@@ -1245,6 +1244,7 @@ static void coins_help_cb(lv_event_t *e)
         .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
         .icons  = ICONS,
+        .icons_count = sizeof ICONS / sizeof ICONS[0],
     };
     wt_explain_open(s_scr, &x);
 }
@@ -1314,6 +1314,9 @@ static void addr_help_cb(lv_event_t *e)
         .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
         .icons  = s_addr_known ? ICONS3 : ICONS,
+        .icons_count = s_addr_known
+                     ? sizeof ICONS3 / sizeof ICONS3[0]
+                     : sizeof ICONS / sizeof ICONS[0],
         .aside  = s_addr_help[0] ? aside_addr : NULL,
     };
     wt_explain_open(s_scr, &x);
@@ -1366,6 +1369,7 @@ static void rbf_help_cb(lv_event_t *e)
         .sev    = WT_SEV_PLAIN,
         .mode   = WT_GRID_ICONS,
         .icons  = ICONS,
+        .icons_count = sizeof ICONS / sizeof ICONS[0],
     };
     wt_explain_open(s_scr, &x);
 }

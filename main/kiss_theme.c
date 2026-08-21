@@ -2835,7 +2835,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         int cx = 48 + (i % cols) * (cw + GRID_GUT);
         int cy = y + (i / cols) * pitch;
 
-        if (e->icons && e->icons[i])
+        if (e->icons && (size_t)i < e->icons_count && e->icons[i])
             grid_badge(ovl, e->icons[i], cx, cy, sev);
 
         int tx = cx + GRID_BADGE + GRID_GUT;

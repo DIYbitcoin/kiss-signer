@@ -772,6 +772,7 @@ static void words_help_cb(lv_event_t *e)
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = CKSUM_ICONS,
+        .icons_count = sizeof CKSUM_ICONS / sizeof CKSUM_ICONS[0],
         .aside  = aside_cksum,
     };
     wt_explain_open(s_scr, &x);
@@ -1349,6 +1350,7 @@ static void ent_mix_help_cb(lv_event_t *e)
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = ENT_MIX_ICONS,
+        .icons_count = sizeof ENT_MIX_ICONS / sizeof ENT_MIX_ICONS[0],
     };
     lv_obj_t *ovl = wt_explain_open(s_scr, &x);
     (void)ovl;                       // read only by the device branch below
@@ -1764,6 +1766,7 @@ static void dice_help_cb(lv_event_t *e)
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = DICE_HELP_ICONS,
+        .icons_count = sizeof DICE_HELP_ICONS / sizeof DICE_HELP_ICONS[0],
         .aside  = aside_dice_flow,
     };
     wt_explain_open(s_scr, &x);
@@ -2436,6 +2439,7 @@ static void cards_help_cb(lv_event_t *e)
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_GRID_ICONS,
         .icons  = CARDS_HELP_ICONS,
+        .icons_count = sizeof CARDS_HELP_ICONS / sizeof CARDS_HELP_ICONS[0],
     };
     wt_explain_open(s_scr, &x);
 }
