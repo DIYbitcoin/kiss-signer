@@ -3157,6 +3157,16 @@ int main(void) {
   save("/tmp/sim_settings_device.ppm");             // language, theme, firmware, this device
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
+
+  // The attention chip, which nothing had ever tapped. It is the one thing
+  // paying for a collapsed group -- a caution two tabs away is invisible
+  // without it -- and check_screen_coverage.py counts SCREENS, so a control
+  // with no stop is a control with no opinion attached. Tapped from NO UNDO,
+  // which is as far from BACKUP as the strip goes.
+  touch(150, WT_ACTION_Y + 26); pump(3); release(); pump(50);
+  save("/tmp/sim_settings_attn.ppm");               // -> BACKUP, the flagged group
+  must_show("the attention chip lands on the flagged group",
+            tr(STR_I_ROW_STORAGE));
   set_tab(SET_SIGNER);
 
   // The exchange itself, caught part way through: two lanes of rows on screen

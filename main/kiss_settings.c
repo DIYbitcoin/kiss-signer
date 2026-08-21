@@ -1660,16 +1660,29 @@ static int attention_count(void)
     return (backup_unchecked() ? 1 : 0) + (words_unencrypted() ? 1 : 0);
 }
 
+static void go_tab(int tab);
+
+// The chip exists to point at the row that wants reading, and the pulse is the
+// thing that points. Rebuilding the page paints it settled, so the one control
+// on this page whose entire purpose is "show me the caution" was the only way
+// of reaching a caution with the caution already sitting still. It takes the
+// same road a tab tap takes now: the highlight slides to BACKUP, the group
+// arrives, and the amber row flares once under the eye that just followed it.
 static void attn_cb(lv_event_t *e)
 {
     (void)e;
-    s_tab = TAB_BACKUP;      // both counted conditions live there
-    settings_reopen();
+    if (s_tab == TAB_BACKUP) {
+        // Already there. The group does not need replacing, only pointing at
+        // again -- re-entering it re-fires the pulse, which is the whole
+        // answer to a second tap on a chip that says something wants reading.
+        if (!s_entering && s_pane) pane_enter(s_pane, 1, false);
+        return;
+    }
+    go_tab(TAB_BACKUP);      // both counted conditions live there
 }
 
-static void tab_cb(lv_event_t *e)
+static void go_tab(int tab)
 {
-    int tab = (int)(intptr_t)lv_event_get_user_data(e);
     if (tab == s_tab) return;
     const int dir = tab > s_tab ? 1 : -1;
     const int from = s_tab;
@@ -1702,6 +1715,11 @@ static void tab_cb(lv_event_t *e)
     wt_tabs_select(s_tabs, from, tab, tab == TAB_NOUNDO);
     pane_enter(s_pane, dir, tab == TAB_NOUNDO);
     if (s_pane_out) pane_exit(s_pane_out, dir);
+}
+
+static void tab_cb(lv_event_t *e)
+{
+    go_tab((int)(intptr_t)lv_event_get_user_data(e));
 }
 
 // The explainer under a group: ONE line, at font23, in the page's own margin.
@@ -1890,6 +1908,27 @@ static void tab_backup(void)
     });
 
     group_note(2, STR_I_EXPL_BACKUP);
+
+    // WHICH keys. This group has two rows where the others have three or four,
+    // so it ended at y=290 with 108px of glass doing nothing under it -- the
+    // one tab that looked unfinished. What earns that band is not a third
+    // setting invented to fill it: it is the subject the page was missing.
+    // Every row here is about moving or checking a set of keys and none of
+    // them said WHOSE, and the fingerprint is the only thing an owner can hold
+    // against the paper already in their hand. The NO UNDO card makes exactly
+    // this argument for its own badge.
+    //
+    // Framed and centred, on the value-card idiom every figure worth reading
+    // off the glass already uses, so the same eight characters sit where they
+    // sit on the fingerprint reveal and the pairing screen. STR_L_FP_CAP is
+    // the caption those screens use and it already ships in 21 locales.
+    {
+        uint8_t fp[4];
+        kiss_ui_last_fp(fp);
+        char id[16];
+        snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+        wt_value_card(s_pane, tr(STR_L_FP_CAP), id, 231, 302, 340, true);
+    }
 }
 
 static void tab_device(void)
