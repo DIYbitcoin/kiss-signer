@@ -76,6 +76,288 @@ static int s_tab;
 // left on this page -- it explains, it does not choose.
 static lv_obj_t *s_help;
 
+// ---- the page moves: frame 5a ------------------------------------------
+// Three jobs, in the order they matter. If any of this ever has to be cut,
+// cut from the bottom:
+//
+//   1. the caution on a flagged row is pointed AT, once, after the row lands.
+//      This is the reason the page animates rather than decorating it.
+//   2. NO UNDO arrives unlike its four neighbours -- it rises rather than
+//      sliding, slower, without the overshoot, and the pane reddens. The owner
+//      knows which group they are in before reading a word.
+//   3. the value lands a beat after its label, so the eye reads the setting's
+//      NAME and then what it is set to, instead of a grid arriving at once.
+//
+// Everything here is confined to a TAB CHANGE. Walking in from home, and
+// coming back from any screen a row opens, paint settled: a value chip
+// rebuilds the whole page on every tap, and three taps to reach SIGNET
+// replaying the entry under the owner's finger is not a design, it is a
+// flicker.
+static lv_obj_t *s_pane;       // the group on screen
+static lv_obj_t *s_pane_out;   // the group leaving, alive for its own 200ms
+static lv_obj_t *s_tabs;       // the strip's highlight: the one part that slides
+static bool      s_entering;   // the new group has not settled yet
+
+// A child of the pane that is scenery rather than a row -- the NO UNDO wash.
+// It fades on its own schedule and must not be dealt a row's slide.
+static const char SET_SKIP_TAG[] = "set_skip";
+
+#define MO_IN_MS      260   // a row arriving
+#define MO_IN_DX       56
+#define MO_IN_STEP     38   // and the beat between rows down the group
+#define MO_UP_MS      320   // ...except in NO UNDO, which rises
+#define MO_UP_DY       14
+#define MO_UP_STEP     44
+#define MO_OUT_MS     200   // a row leaving
+#define MO_OUT_DX      44
+#define MO_OUT_STEP    26
+#define MO_FADE_IN     200
+#define MO_FADE_UP     240
+#define MO_FADE_OUT    160
+#define MO_CTRL_MS    220   // the value, a beat behind its label
+#define MO_CTRL_DX      7
+#define MO_CTRL_LAG    90
+#define MO_FLARE_UP   220   // the caution, pointed at once and let go
+#define MO_FLARE_DOWN 200   // 200 and not the 420 the handoff drew: at 420 the
+                            // page is still moving at 976ms, past the 800 the
+                            // kit allows a page change
+#define MO_FLARE_LAG  260
+#define MO_WASH_MS    280
+
+static void an_tx(void *v, int32_t x)  { lv_obj_set_style_translate_x(v, x, 0); }
+static void an_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
+static void an_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
+
+// The prototype's ease is cubic-bezier(.17,.84,.32,1.05): about five percent
+// past the mark and back. LVGL's stock overshoot is several times that and
+// reads as bouncy on a page of settings, so this is the curve itself --
+// lv_cubic_bezier does not clamp its output, so a y2 above 1.0 overshoots by
+// exactly what it says.
+static void an_path_settle(lv_anim_t *a)
+{
+    lv_anim_set_path_cb(a, lv_anim_path_custom_bezier3);
+    lv_anim_set_bezier3_param(a, LV_BEZIER_VAL_FLOAT(0.17),
+                                 LV_BEZIER_VAL_FLOAT(0.84),
+                                 LV_BEZIER_VAL_FLOAT(0.32),
+                                 LV_BEZIER_VAL_FLOAT(1.05));
+}
+
+// The caution, and it is a RING rather than the dot the prototype draws. The
+// rows on this page already carry a warning glyph and an amber rim; a 7px dot
+// growing to 14 beside them is a detail nobody at the bench would see, and it
+// would be a fifth mark on a row that has four. The ring is the row's own edge,
+// brightened once. It is a separate object so an interrupted pulse is deleted
+// rather than unwound -- there is no half-restored border colour to put back.
+static void flare_del(lv_anim_t *a) { lv_obj_delete(a->var); }
+
+static void flare_down(lv_anim_t *a)
+{
+    lv_anim_t b;
+    lv_anim_init(&b);
+    lv_anim_set_var(&b, a->var);
+    lv_anim_set_exec_cb(&b, an_opa);
+    lv_anim_set_values(&b, LV_OPA_COVER, LV_OPA_TRANSP);
+    lv_anim_set_duration(&b, MO_FLARE_DOWN);
+    lv_anim_set_path_cb(&b, lv_anim_path_ease_in_out);
+    lv_anim_set_completed_cb(&b, flare_del);
+    lv_anim_start(&b);
+}
+
+static void flare(lv_obj_t *row, int delay)
+{
+    lv_obj_t *ring = lv_obj_create(row);
+    lv_obj_remove_style_all(ring);
+    lv_obj_set_pos(ring, 0, 0);
+    lv_obj_set_size(ring, WT_WIDE_W, WT_WIDE_H);
+    lv_obj_set_style_radius(ring, 10, 0);
+    lv_obj_set_style_border_width(ring, 1, 0);
+    lv_obj_set_style_border_color(ring, WT_WARN, 0);
+    lv_obj_set_style_opa(ring, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(ring, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(ring, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, ring);
+    lv_anim_set_exec_cb(&a, an_opa);
+    lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_duration(&a, MO_FLARE_UP);
+    lv_anim_set_delay(&a, delay);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, flare_down);
+    lv_anim_start(&a);
+}
+
+static void enter_done(lv_anim_t *a) { (void)a; s_entering = false; }
+
+// `dir` is sign(new tab - old tab), so the group arrives from the side of the
+// strip the finger moved towards and the motion carries which way you went.
+static void pane_enter(lv_obj_t *pane, int dir, bool rise)
+{
+    uint32_t n = lv_obj_get_child_count(pane);
+    int k = 0;
+    s_entering = true;
+
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(pane, i);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, c);
+
+        // The wash is not a row. It has no lane to come in from: it is the
+        // colour of the page changing, so it only deepens.
+        if (lv_obj_get_user_data(c) == (void *)SET_SKIP_TAG) {
+            lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
+            lv_anim_set_exec_cb(&a, an_opa);
+            lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+            lv_anim_set_duration(&a, MO_WASH_MS);
+            lv_anim_set_path_cb(&a, lv_anim_path_linear);
+            lv_anim_start(&a);
+            continue;
+        }
+
+        const int delay = k * (rise ? MO_UP_STEP : MO_IN_STEP);
+        lv_anim_set_delay(&a, delay);
+        if (rise) {
+            lv_anim_set_exec_cb(&a, an_ty);
+            lv_anim_set_values(&a, MO_UP_DY, 0);
+            lv_anim_set_duration(&a, MO_UP_MS);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);   // never overshoot
+        } else {
+            lv_anim_set_exec_cb(&a, an_tx);
+            lv_anim_set_values(&a, dir > 0 ? MO_IN_DX : -MO_IN_DX, 0);
+            lv_anim_set_duration(&a, MO_IN_MS);
+            an_path_settle(&a);
+        }
+        // The flag comes off the LAST row to be dealt, which is the last one
+        // to settle. A tap arriving before it is a tap on a page still moving.
+        if (i + 1 == n) lv_anim_set_completed_cb(&a, enter_done);
+        lv_anim_start(&a);
+
+        lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
+        lv_anim_set_completed_cb(&a, NULL);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+        lv_anim_set_duration(&a, rise ? MO_FADE_UP : MO_FADE_IN);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_start(&a);
+
+        // The value, 90ms behind the label it belongs to. Its own opacity, on
+        // top of the row's, so it is still climbing after the row has arrived.
+        lv_obj_t *ctrl = wt_row_wide_ctrl(c);
+        if (ctrl) {
+            lv_obj_set_style_opa(ctrl, LV_OPA_TRANSP, 0);
+            lv_anim_set_var(&a, ctrl);
+            lv_anim_set_delay(&a, delay + MO_CTRL_LAG);
+            lv_anim_set_duration(&a, MO_CTRL_MS);
+            lv_anim_start(&a);
+            lv_anim_set_exec_cb(&a, an_tx);
+            lv_anim_set_values(&a, MO_CTRL_DX, 0);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_start(&a);
+        }
+
+        // Only the rows that are actually asking for something. WT_SEV_WARN is
+        // the page's own answer to "does this want reading", so the pulse and
+        // the amber card can never disagree about which row it is.
+        if (lv_obj_get_style_border_opa(c, LV_PART_MAIN) == 77
+            && lv_color_eq(lv_obj_get_style_border_color(c, LV_PART_MAIN), WT_WARN))
+            flare(c, delay + MO_FLARE_LAG);
+
+        k++;
+    }
+}
+
+static void pane_out_done(lv_anim_t *a)
+{
+    (void)a;
+    // The one callback on this page that reaches past its own object, so it
+    // goes through the static and never a captured pointer: by the time it
+    // fires the pane it meant may already have been deleted, by a second tab
+    // tap or by the screen closing over it.
+    if (s_pane_out) { lv_obj_delete(s_pane_out); s_pane_out = NULL; }
+}
+
+static void pane_exit(lv_obj_t *pane, int dir)
+{
+    uint32_t n = lv_obj_get_child_count(pane);
+    if (!n) { pane_out_done(NULL); return; }
+
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(pane, i);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, c);
+        lv_anim_set_delay(&a, i * MO_OUT_STEP);
+        lv_anim_set_exec_cb(&a, an_tx);
+        lv_anim_set_values(&a, 0, dir > 0 ? -MO_OUT_DX : MO_OUT_DX);
+        lv_anim_set_duration(&a, MO_OUT_MS);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+        // The slide outlasts the fade, so the pane goes when the LAST row has
+        // finished travelling and not when it stopped being visible.
+        if (i + 1 == n) lv_anim_set_completed_cb(&a, pane_out_done);
+        lv_anim_start(&a);
+
+        lv_anim_set_completed_cb(&a, NULL);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_duration(&a, MO_FADE_OUT);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_start(&a);
+    }
+}
+
+// Everything moving, stopped, and both lanes accounted for. Deleting a pane
+// takes its animations with it -- lv_obj's destructor calls lv_anim_delete --
+// which is what makes the callback that would have deleted it never fire.
+static void motion_stop(void)
+{
+    if (s_pane_out) { lv_obj_delete(s_pane_out); s_pane_out = NULL; }
+    s_entering = false;
+}
+
+static void build_tab(void);   // the group the strip points at, into s_pane
+
+// Every route off this page drops the screen, and a dozen of them do it
+// without a word to the statics: the exit, the idle lock, and every row that
+// opens a screen of its own -- sdinfo_screen(), device_screen(), the storage
+// chooser, the language picker, the firmware page. Each one deletes s_scr and
+// builds its own into the same parent, and the pane went with it while the
+// static still named it. The next reopen then deleted a freed object.
+//
+// So the OBJECT says when it is gone, rather than ten call sites remembering
+// to. Comparing against the static is what makes it safe when a page has
+// already been replaced: an older pane's delete arrives after the new one has
+// been named, matches nothing, and does nothing.
+static void pane_gone(lv_event_t *e)
+{
+    lv_obj_t *p = lv_event_get_target(e);
+    if (p == s_pane)     s_pane = NULL;
+    if (p == s_pane_out) s_pane_out = NULL;
+}
+
+static void tabs_gone(lv_event_t *e)
+{
+    if (lv_event_get_target(e) == s_tabs) s_tabs = NULL;
+}
+
+static lv_obj_t *pane_new(void)
+{
+    lv_obj_t *p = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(p);
+    lv_obj_set_pos(p, 0, 0);
+    // The whole page, and never clipped: a row leaving travels 44px past the
+    // lane, and a container sized to the rows would cut it in half. It takes
+    // no taps of its own, so the strip and the exit under it stay reachable --
+    // LVGL only ever hands a press to a CLICKABLE object and walks past this
+    // one to the siblings beneath.
+    lv_obj_set_size(p, 800, 480);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(p, pane_gone, LV_EVENT_DELETE, NULL);
+    return p;
+}
+
 static int s_load_error_code;
 #ifdef SIMULATOR
 static kiss_settings_load_status_t s_sim_load_status = WSETTINGS_LOAD_OK;
@@ -246,6 +528,11 @@ static void restyle(void)
 static void settings_reopen(void)
 {
     lv_obj_t *parent = s_parent;
+    // The screen goes async, so for one handler pass the OLD page is still up
+    // while the new one is being built over it. Anything still moving on it
+    // would be moving objects the statics no longer name.
+    motion_stop();
+    if (s_pane) { lv_obj_delete(s_pane); s_pane = NULL; }
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_settings_open(parent);      // s_tab survives, deliberately
 }
@@ -955,6 +1242,15 @@ static void close_cb(lv_event_t *e)
 {
     (void)e;
     kiss_home_refresh();                // reflect any network change on the home badge
+    // Both panes go NOW, synchronously, and take every animation on them with
+    // them. The screen itself is dropped async, and the animation timer runs
+    // in the same handler that will eventually free it -- so between this call
+    // and the free there is a window with callbacks still pointing at rows,
+    // and the idle auto-lock is exactly the thing that lands in the middle of
+    // an entry.
+    motion_stop();
+    if (s_pane) { lv_obj_delete(s_pane); s_pane = NULL; }
+    s_tabs = NULL;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -1340,13 +1636,37 @@ static void tab_cb(lv_event_t *e)
 {
     int tab = (int)(intptr_t)lv_event_get_user_data(e);
     if (tab == s_tab) return;
+    const int dir = tab > s_tab ? 1 : -1;
+    const int from = s_tab;
     s_tab = tab;
-    // Rebuilt in place rather than slid. A tap on a tab already rebuilds every
-    // row, its value and its severity, so animating the highlight over the top
-    // of that would be decoration on a repaint -- and the strip's own header
-    // note says the slide is a nicety, not the design.
-    s_help = NULL;
-    settings_reopen();
+
+    // A tab change no longer rebuilds the SCREEN, only the group. Nothing on
+    // the strip or the action bar depends on which tab is open -- the dots
+    // read the duress and backup state and the chip counts them -- so the
+    // things that would have been rebuilt identically are simply left alone,
+    // and the highlight has something continuous to slide along.
+    help_close();                // an overlay does not outlive the group under it
+
+    const bool was_moving = s_entering;
+    motion_stop();
+    if (was_moving && s_pane) {
+        // Tapping faster than the page settles: the group that never finished
+        // arriving is dropped outright rather than sent back out. Sliding a
+        // row that has not appeared yet is a flicker, not a transition.
+        lv_obj_delete(s_pane);
+        s_pane = NULL;
+    }
+
+    s_pane_out = s_pane;
+    s_pane = pane_new();
+    build_tab();
+    // The new rows were built after the page's own restyle() had already run,
+    // so the accent flags on them have never been walked.
+    wt_accent_restyle(s_pane);
+
+    wt_tabs_select(s_tabs, from, tab, tab == TAB_NOUNDO);
+    pane_enter(s_pane, dir, tab == TAB_NOUNDO);
+    if (s_pane_out) pane_exit(s_pane_out, dir);
 }
 
 // The explainer under a group: ONE line, at font23, in the page's own margin.
@@ -1356,7 +1676,7 @@ static void tab_cb(lv_event_t *e)
 // and row sublines.
 static void group_note(int rows, int key)
 {
-    lv_obj_t *l = wt_lbl(s_scr, tr(key), WT_WIDE_X, WT_WIDE_EXPL_Y(rows),
+    lv_obj_t *l = wt_lbl(s_pane, tr(key), WT_WIDE_X, WT_WIDE_EXPL_Y(rows),
                          wt_font23(), WT_MUT);
     lv_obj_set_width(l, WT_WIDE_W);
     lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
@@ -1367,7 +1687,7 @@ static void tab_signer(void)
 {
     int sc = kiss_script(), tn = kiss_testnet();
 
-    wt_row_wide(s_scr, WT_WIDE_Y(0), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label   = tr(STR_I_ROW_NETWORK),
         .sub     = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
         // Amber on both test networks, in the sub AND in the value: the colour
@@ -1388,7 +1708,7 @@ static void tab_signer(void)
     char tsub[64];
     snprintf(tsub, sizeof tsub, "%s \xC2\xB7 BIP%s", type_name(sc),
              BIPNO[sc >= 0 && sc < 3 ? sc : 0]);
-    lv_obj_t *trow = wt_row_wide(s_scr, WT_WIDE_Y(1), &(wt_wide_t){
+    lv_obj_t *trow = wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label = tr(STR_I_ROW_TYPE),
         .sub   = tsub,
         .kind  = WT_WIDE_CYCLE,
@@ -1407,7 +1727,7 @@ static void tab_signer(void)
     for (; u[ui] && ui + 1 < sizeof unit; ui++)
         unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
     unit[ui] = 0;
-    wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
         .label = tr(STR_I_ROW_DENOM),
         .sub   = tr(STR_I_DENOM_SUB),
         .kind  = WT_WIDE_CYCLE,
@@ -1437,7 +1757,7 @@ static void tab_security(void)
     if (set) snprintf(dval, sizeof dval, "%s", tr(STR_GD_ON));
     else     snprintf(dval, sizeof dval, "%s  %s", LV_SYMBOL_WARNING,
                       tr(STR_GD_OFF));
-    wt_row_wide(s_scr, WT_WIDE_Y(0), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_ROW_WAYSIN),
         .sub   = tr(STR_I_WAYSIN_SHORT),
         .kind  = WT_WIDE_OPEN,
@@ -1453,7 +1773,7 @@ static void tab_security(void)
     // hunting for it; this is the one place on the page that deliberately
     // shows a dead one.
     bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
-    wt_row_wide(s_scr, WT_WIDE_Y(1), amnesic
+    wt_row_wide(s_pane, WT_WIDE_Y(1), amnesic
         ? &(wt_wide_t){
             .label = tr(STR_I_ROW_HISTORY),
             .sub   = tr(STR_I_PERSIST_DEAD_SUB),
@@ -1473,7 +1793,7 @@ static void tab_security(void)
             .cb    = persist_cb,
           });
 
-    wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
         // Its own word, sentence case. STR_W_AUD_T is the audit SCREEN's
         // title and every title on this device is uppercase, which between
         // "Duress" and "Persist" reads as a row shouting.
@@ -1504,7 +1824,7 @@ static void tab_backup(void)
     }
     // A colour cue AND a glyph: in the GREEN theme the accent is byte
     // identical to WT_OK, so colour alone stops carrying meaning.
-    wt_row_wide(s_scr, WT_WIDE_Y(0), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label   = tr(STR_I_ROW_WORDS),
         .sub     = wsub,
         .sub_col = ok ? WT_OK : WT_WARN,
@@ -1524,7 +1844,7 @@ static void tab_backup(void)
     // encrypt is the one fact on the page a holder should catch without
     // reading anything.
     bool warn = words_unencrypted();
-    wt_row_wide(s_scr, WT_WIDE_Y(1), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label   = tr(STR_I_ROW_STORAGE),
         .sub     = tr(ssub),
         .sub_col = warn ? WT_WARN : WT_MUT,
@@ -1553,7 +1873,7 @@ static void tab_device(void)
     // Twenty one items do not fit a popover, so this row keeps the full screen
     // picker: every name in its own language, with a flag, because somebody
     // stuck in a language they cannot read must still find the way back.
-    wt_row_wide(s_scr, WT_WIDE_Y(0), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_ROW_LANG),
         .sub   = tr(STR_I_LANG_SUB),
         .kind  = WT_WIDE_CHIP,   // a chevron: 21 of them need the screen
@@ -1568,7 +1888,7 @@ static void tab_device(void)
     // The sub used to append the accent's name to it -- "accent colour · MONO"
     // beside a chip already reading MONO, which is the copy rule's own example
     // of a string restating the value sitting next to it.
-    wt_row_wide(s_scr, WT_WIDE_Y(1), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label  = tr(STR_I_ROW_THEME),
         .sub    = tr(STR_I_THEME_SUB),
         .kind   = WT_WIDE_CYCLE,
@@ -1577,7 +1897,7 @@ static void tab_device(void)
         .cb     = theme_cb,
     });
 
-    wt_row_wide(s_scr, WT_WIDE_Y(2), &(wt_wide_t){
+    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
         .label = tr(STR_I_ROW_FW),
         .sub   = tr(STR_I_FW_SUB),
         .kind  = WT_WIDE_OPEN,
@@ -1600,7 +1920,7 @@ static void tab_device(void)
 #endif
     char efact[32];
     snprintf(efact, sizeof efact, "encryption %s", enc ? "ON" : "OFF");
-    lv_obj_t *drow = wt_row_wide(s_scr, WT_WIDE_Y(3), &(wt_wide_t){
+    lv_obj_t *drow = wt_row_wide(s_pane, WT_WIDE_Y(3), &(wt_wide_t){
         .label   = tr(STR_I_ROW_DEVICE),
         .sub     = efact,
         .sub_col = enc ? WT_MUT : WT_WARN,
@@ -1615,10 +1935,26 @@ static void tab_device(void)
 
 static void tab_noundo(void)
 {
+    // The page itself reddens under the group, behind everything in it. NO
+    // UNDO is not a peer of the other four tabs and this is what says so from
+    // across the room, before a word of the card below has been read. Faint on
+    // purpose: at opa 13 it is the same weight as a severity tint, so it
+    // colours the page without competing with the card that carries the
+    // decision.
+    lv_obj_t *wash = lv_obj_create(s_pane);
+    lv_obj_remove_style_all(wash);
+    lv_obj_set_pos(wash, 8, 118);
+    lv_obj_set_size(wash, 784, WT_CONTENT_BOTTOM - 118);
+    lv_obj_set_style_bg_color(wash, WT_STOP, 0);
+    lv_obj_set_style_bg_opa(wash, 13, 0);
+    lv_obj_remove_flag(wash, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(wash, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_user_data(wash, (void *)SET_SKIP_TAG);   // scenery, not a row
+
     // ONE card, because a destructive action deserves its reason on the same
     // screen as its button. This group holds exactly one thing: storage and
     // duress are not destructive and are not in it.
-    lv_obj_t *card = wt_card(s_scr, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, 258);
+    lv_obj_t *card = wt_card(s_pane, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, 258);
     wt_row_sev(card, WT_SEV_STOP);
 
     // WT_STOP_INK rather than WT_STOP: full stop red on a stop tinted card is
@@ -1691,13 +2027,27 @@ static void tab_noundo(void)
     lv_obj_set_y(cap, byy + (WT_ACTION_H - lv_font_get_line_height(wt_font14())) / 2);
 }
 
+// The group the strip is pointing at, drawn into whatever pane is current.
+static void build_tab(void)
+{
+    switch (s_tab) {
+    case TAB_SECURITY: tab_security(); break;
+    case TAB_BACKUP:   tab_backup();   break;
+    case TAB_DEVICE:   tab_device();   break;
+    case TAB_NOUNDO:   tab_noundo();   break;
+    default:           tab_signer();   break;
+    }
+}
+
 void kiss_settings_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
-    // An overlay open when the screen died was deleted with it; the handle must
-    // not survive to block the next open.
+    // An overlay open when the screen died was deleted with it; the handles
+    // must not survive to block the next open, or to be animated after it.
     s_help = NULL;
+    s_pane = s_pane_out = s_tabs = NULL;
+    s_entering = false;
     if (s_tab < 0 || s_tab >= TAB_N) s_tab = TAB_SIGNER;
     s_scr = wt_screen(parent, tr(STR_G_T), NULL);
 
@@ -1717,15 +2067,15 @@ void kiss_settings_open(lv_obj_t *parent)
         { LV_SYMBOL_SETTINGS, tr(STR_I_TAB_DEVICE),   false,          false },
         { LV_SYMBOL_TRASH,    tr(STR_I_SEC_NO_UNDO),  false,          true  },
     };
-    wt_tabs(s_scr, tabs, TAB_N, s_tab, WT_WIDE_X, 68, tab_cb);
+    s_tabs = wt_tabs(s_scr, tabs, TAB_N, s_tab, WT_WIDE_X, 68, tab_cb);
+    lv_obj_add_event_cb(s_tabs, tabs_gone, LV_EVENT_DELETE, NULL);
 
-    switch (s_tab) {
-    case TAB_SECURITY: tab_security(); break;
-    case TAB_BACKUP:   tab_backup();   break;
-    case TAB_DEVICE:   tab_device();   break;
-    case TAB_NOUNDO:   tab_noundo();   break;
-    default:           tab_signer();   break;
-    }
+    // The group lives in a pane of its own so that a tab change can hold TWO
+    // of them for the 200ms the outgoing one takes to leave. Built here and
+    // not animated: walking in from home is not a tab change, and neither is
+    // the rebuild every value chip does when it is tapped.
+    s_pane = pane_new();
+    build_tab();
 
     // BACK takes the bottom RIGHT corner, in the standard 140x52 pill every
     // other lone-exit screen uses, and it is what builds the action bar the

@@ -679,9 +679,12 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // group can hold four rows on the full page lane instead of nine rows fighting
 // for one 800x480 page in two 365px columns.
 //
-// The strip does NOT animate the highlight between tabs. A tap rebuilds the
-// page, which is what every other pick on SETTINGS already does, and the slide
-// is a nicety rather than the design.
+// The highlight is its OWN object, under the buttons, and it SLIDES between
+// them. It has to be its own object to move at all: styling the selected
+// button meant a tab change could only be a rebuild, and a rebuild cannot
+// carry which way along the strip you went. Nothing else about a button
+// depends on selection -- its ink and its mark come from `stop` -- so the
+// buttons themselves are identical whether or not they are the one you are on.
 //
 // `icon` must be a codepoint in tools/fonts/gen_fonts.sh's SYMS. One that is
 // not draws a blank box half a line wide, identically in the simulator, so a
@@ -697,8 +700,20 @@ typedef struct {
 } wt_tab_t;
 // Builds `n` tabs left to right from (x, y); the one at `sel` wears the
 // highlight. `cb` is called with the tab's index as its user data.
+//
+// Returns the HIGHLIGHT, which is the handle wt_tabs_select needs and the only
+// part of the strip that ever moves. It is not the first button: nothing on
+// the page has ever wanted that, and a caller holding a button could not slide
+// anything.
 lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                   int x, int y, lv_event_cb_t cb);
+// Slide the highlight from tab `from` to tab `to`, over WT_TAB_MS. `stop` is
+// the destructive group's tint, which is a different fill and a different
+// border, so it cross-fades over the same span rather than snapping at either
+// end. Safe to call while a previous slide is still running: it takes the
+// highlight from wherever it currently IS.
+#define WT_TAB_MS 200
+void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal
@@ -756,6 +771,11 @@ typedef struct {
     void       *ud;
 } wt_wide_t;
 lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r);
+// The row's CONTROL: the chip a value sits in, or the value itself on a row
+// that only opens a screen, or NULL where a row states nothing. It exists so
+// the page can land the setting a beat after the label it belongs to without
+// knowing which of the four kinds drew it.
+lv_obj_t *wt_row_wide_ctrl(lv_obj_t *row);
 // The "?" after a wide row's label, on the round-mark idiom wt_help_chip
 // defines. Shrinks the label's box to its text first, so the chip lands after
 // the words instead of inside the label's 250px box.

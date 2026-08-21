@@ -25,6 +25,10 @@ static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
 // rather than the 250px box the label is capped to. Asking the object how
 // wide it is answers 250 and puts the chip on top of the words.
 static const char WT_ROW_LABEL_TAG[] = "wt_row_label";
+// The wide row's CONTROL -- the chip a value sits in, or the value itself on a
+// row that only opens a screen. Tagged so the page can land it a beat after
+// the row it belongs to without knowing which of the four kinds built it.
+static const char WT_ROW_CTRL_TAG[] = "wt_row_ctrl";
 
 void wt_mark_decor(lv_obj_t *o)
 {
@@ -1866,15 +1870,49 @@ static lv_color_t col_or(lv_color_t c, lv_color_t dflt)
 #define WT_TAB_DOT    7
 #define WT_TAB_SPACE  2    // the tracking a font14 label wears at this size
 
+// The highlight's two skins as ONE number: 0 is the ordinary group's panel
+// fill and edge, 255 is the destructive group's stop tint. A move into or out
+// of NO UNDO changes the fill, the border and both opacities at once, so the
+// slide carries a single mix rather than swapping four styles at whichever
+// moment happens to look least wrong.
+#define WT_TAB_STOP_BG_OPA 13
+#define WT_TAB_STOP_BD_OPA 77
+
+static void tab_hl_skin(lv_obj_t *hl, int32_t t)
+{
+    lv_obj_set_style_bg_color(hl, lv_color_mix(WT_STOP, WT_PANEL, (uint8_t)t), 0);
+    lv_obj_set_style_bg_opa(hl, (lv_opa_t)(LV_OPA_COVER
+        + (WT_TAB_STOP_BG_OPA - LV_OPA_COVER) * t / 255), 0);
+    lv_obj_set_style_border_color(hl, lv_color_mix(WT_STOP, WT_EDGE, (uint8_t)t), 0);
+    lv_obj_set_style_border_opa(hl, (lv_opa_t)(LV_OPA_COVER
+        + (WT_TAB_STOP_BD_OPA - LV_OPA_COVER) * t / 255), 0);
+}
+
+static void tab_hl_x(void *v, int32_t x)   { lv_obj_set_x((lv_obj_t *)v, x); }
+static void tab_hl_mix(void *v, int32_t t) { tab_hl_skin((lv_obj_t *)v, t); }
+
 lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                   int x, int y, lv_event_cb_t cb)
 {
-    lv_obj_t *first = NULL;
     const lv_font_t *f = wt_font14();
+
+    // FIRST, so every button draws over it. It is the only part of the strip
+    // that moves, and the buttons above it are identical to each other.
+    lv_obj_t *hl = lv_obj_create(scr);
+    lv_obj_remove_style_all(hl);
+    lv_obj_set_pos(hl, x + sel * WT_TAB_PITCH, y);
+    lv_obj_set_size(hl, WT_TAB_W, WT_TAB_H);
+    lv_obj_set_style_radius(hl, 10, 0);
+    lv_obj_set_style_border_width(hl, 1, 0);
+    lv_obj_remove_flag(hl, LV_OBJ_FLAG_CLICKABLE);   // the button over it takes the tap
+    lv_obj_remove_flag(hl, LV_OBJ_FLAG_SCROLLABLE);
+    // The strip's own origin, which wt_tabs_select needs to place tab `to` and
+    // cannot recover from a highlight caught mid slide.
+    lv_obj_set_user_data(hl, (void *)(intptr_t)x);
+    tab_hl_skin(hl, (sel >= 0 && sel < n && tabs[sel].stop) ? 255 : 0);
 
     for (int i = 0; i < n; i++) {
         const wt_tab_t *t = &tabs[i];
-        bool on = (i == sel);
 
         lv_obj_t *b = lv_obj_create(scr);
         lv_obj_remove_style_all(b);
@@ -1890,24 +1928,17 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         wt_tap_feedback(b);
         if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
-        // The highlight is a FILL and an edge, never the accent. A tab strip
-        // is navigation: it says where you are, which is not a status and not
-        // an action, so it stays in the surface colours and leaves the accent
-        // to the chevrons that say a row opens.
-        if (on) {
-            lv_obj_set_style_border_width(b, 1, 0);
-            if (t->stop) {
-                lv_obj_set_style_bg_color(b, WT_STOP, 0);
-                lv_obj_set_style_bg_opa(b, 13, 0);
-                lv_obj_set_style_border_color(b, WT_STOP, 0);
-                lv_obj_set_style_border_opa(b, 77, 0);
-            } else {
-                lv_obj_set_style_bg_color(b, WT_PANEL, 0);
-                lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-                lv_obj_set_style_border_color(b, WT_EDGE, 0);
-            }
-        }
-
+        // The highlight is a FILL and an edge, never the accent, and it is the
+        // object created above rather than anything set here. Which also puts
+        // the labels back in line: LV_ALIGN_LEFT_MID aligns to the CONTENT
+        // area, so the one tab wearing a 1px border used to hold its label a
+        // pixel right of the other four, and the word jumped when you selected
+        // it. Every settings frame in the walk moved by exactly that pixel.
+        //
+        // A tab strip is
+        // navigation: it says where you are, which is not a status and not an
+        // action, so it stays in the surface colours and leaves the accent to
+        // the chevrons that say a row opens.
         lv_color_t ink  = t->stop ? WT_STOP_INK : WT_INK;
         lv_color_t mark = t->stop ? WT_STOP : WT_MUT;
 
@@ -1953,9 +1984,45 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);   // the tab takes the tap
             lv_obj_align(d, LV_ALIGN_LEFT_MID, px + iw + lw + WT_TAB_GAP, 0);
         }
-        if (!first) first = b;
     }
-    return first;
+    return hl;
+}
+
+void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop)
+{
+    (void)from;
+    if (!hl || !lv_obj_is_valid(hl)) return;
+    const int x0 = (int)(intptr_t)lv_obj_get_user_data(hl);
+
+    // Both start from where the highlight IS, not from where the last tap
+    // meant it to end up. Tapping across the strip faster than 200ms is one
+    // continuous slide rather than five jumps to the left edge.
+    lv_anim_delete(hl, tab_hl_x);
+    lv_anim_delete(hl, tab_hl_mix);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, hl);
+    lv_anim_set_duration(&a, WT_TAB_MS);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&a, tab_hl_x);
+    lv_anim_set_values(&a, lv_obj_get_x(hl), x0 + to * WT_TAB_PITCH);
+    lv_anim_start(&a);
+
+    // The mix is read back off the fill rather than remembered, so an
+    // interrupted cross fade resumes from the colour on the glass. Skipped
+    // when there is nowhere to travel: every pair of ordinary tabs wears the
+    // same skin, and animating 255 -> 0 between two of them flashes red.
+    const int32_t cur = lv_obj_get_style_bg_opa(hl, LV_PART_MAIN);
+    const int32_t t0 = (LV_OPA_COVER - cur) * 255
+                     / (LV_OPA_COVER - WT_TAB_STOP_BG_OPA);
+    const int32_t t1 = stop ? 255 : 0;
+    if (t0 != t1) {
+        lv_anim_set_exec_cb(&a, tab_hl_mix);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_set_values(&a, t0, t1);
+        lv_anim_start(&a);
+    }
 }
 
 // ---- SETTINGS: the full-lane row (see kiss_theme.h) ----
@@ -2041,6 +2108,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         lv_obj_set_style_border_color(chip, WT_EDGE, 0);
         lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE);   // the row takes the tap
         lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_user_data(chip, (void *)WT_ROW_CTRL_TAG);
 
         int vx = 12;
         if (r->swatch) {
@@ -2081,6 +2149,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         if (r->val && *r->val) {
             lv_obj_t *v = wt_lbl(row, r->val, 0, 0, vf, vcol);
             lv_obj_align(v, LV_ALIGN_RIGHT_MID, right - WT_WIDE_W, 0);
+            lv_obj_set_user_data(v, (void *)WT_ROW_CTRL_TAG);
             right -= vs.x + 12;
         }
         lane_end = right;
@@ -2118,6 +2187,11 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
     }
     return row;
+}
+
+lv_obj_t *wt_row_wide_ctrl(lv_obj_t *row)
+{
+    return wt_tagged(row, WT_ROW_CTRL_TAG);
 }
 
 lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)

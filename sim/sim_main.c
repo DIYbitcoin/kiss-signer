@@ -871,6 +871,22 @@ static bool write_ppm(const char *path) {
   return true;
 }
 
+// A frame that is deliberately NOT settled. Written straight to disk rather
+// than through save(), because a save() is a checkpoint every gate then
+// questions -- and a page mid transition is exactly what the comment above
+// save_seq refuses to hand them: rows part faded and still travelling, which
+// overlapcheck would read as thirty boxes sharing pixels and check_sim_taps
+// as a frame that failed to change. It is a picture for a person to look at.
+static void shot_raw(const char *name) {
+#ifdef OVERLAPCHECK
+  (void)name;
+#else
+  char p[192];
+  lv_refr_now(NULL);
+  write_ppm(kiss_sim_path(p, sizeof p, name));
+#endif
+}
+
 static void save(const char *path) {
   char lp[384];
   lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
@@ -1177,7 +1193,15 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 // card slot's own row sits at 232, 60 tall.
 #define SET_DEV_CARD_Y     262
 
-static void set_tab(int i)  { touch(SET_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(8); }
+// 50 frames, which is 800ms, and it is the only tap on this page that needs
+// them: a tab change is the one thing SETTINGS animates. The last row of a
+// group settles at 408ms, its value at 466 and the caution pulse at 756, so
+// eight frames photographs a page mid flight -- rows part faded and still
+// travelling, which every gate then measures as a settled screen and reports
+// as thirty overlaps. Nothing else here is affected, because nothing else
+// moves: the fresh open, every value chip's rebuild and every return from a
+// screen a row opens all paint at rest by construction.
+static void set_tab(int i)  { touch(SET_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(50); }
 static void set_row(int i)  { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 // A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
@@ -3133,6 +3157,31 @@ int main(void) {
   save("/tmp/sim_settings_device.ppm");             // language, theme, firmware, this device
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
+  set_tab(SET_SIGNER);
+
+  // The exchange itself, caught part way through: two lanes of rows on screen
+  // at once, the arriving group coming in from the side of the strip the
+  // finger moved towards while the one it replaces leaves the other way.
+  // Written raw and not saved, for the reason shot_raw gives.
+  touch(SET_TAB_X(SET_DEVICE), SET_TAB_Y); pump(3); release(); pump(10);
+  shot_raw("sim_settings_mid.ppm");
+  pump(50);                                         // and let it settle again
+  // And the caution, at the top of its one pulse: 260ms after the row it
+  // belongs to has landed, which on the first row of SECURITY is 480ms in.
+  touch(SET_TAB_X(SET_SECURITY), SET_TAB_Y); pump(3); release(); pump(30);
+  shot_raw("sim_settings_pulse.ppm");
+  pump(50);
+
+  // Four tabs faster than any of them settles. This is the case that crashes a
+  // transition if the interrupt path is wrong: two lanes are alive, a callback
+  // is pending against the one leaving, and the tap deletes both. The frame
+  // afterwards is the assertion -- if anything were left animating, or freed
+  // and still animated, this is not a settled DEVICE page.
+  for (int t = SET_SECURITY; t <= SET_NOUNDO; t++) {
+    touch(SET_TAB_X(t), SET_TAB_Y); pump(2); release(); pump(2);
+  }
+  set_tab(SET_DEVICE);
+  save("/tmp/sim_settings_fasttab.ppm");            // four tabs in 250ms, then DEVICE
   set_tab(SET_SIGNER);
 
   // The picked theme reaches the ORDINARY cards on this page, and stops at the
