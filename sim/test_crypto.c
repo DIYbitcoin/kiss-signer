@@ -98,6 +98,7 @@ enum {
                          // and no xpub on earth can derive it back -> STOP
     MUT_CONSOLID  = 256, // every output is change: a self-consolidation, the one
                          // shape the old fee-share test skipped entirely
+    MUT_BAD_KP_PUB = 512, // correct fingerprint/path under a different valid pubkey
 };
 
 static struct ext_key t_master, t_k00, t_k10;   // full-path keys (pub_key valid)
@@ -186,7 +187,8 @@ static size_t mk_psbt(int mut, uint8_t *out, size_t outsz) {
     const uint32_t p00[5] = {H + 84, coin, H, 0, 0}, p10[5] = {H + 84, coin, H, 1, 0};
     struct wally_map *m = NULL;
     wally_map_keypath_public_key_init_alloc(1, &m);
-    wally_map_keypath_add(m, k00->pub_key, 33, t_fp, 4, p00, 5);
+    wally_map_keypath_add(m, (mut & MUT_BAD_KP_PUB) ? k10->pub_key : k00->pub_key,
+                          33, t_fp, 4, p00, 5);
     wally_psbt_set_input_keypaths(p, 0, m);
     wally_map_free(m);
     if (mut & MUT_CONSOLID) {            // out0 needs its own keypath to count
@@ -1042,6 +1044,15 @@ int main(int argc, char **argv) {
     chki("no-utxo STOP", sum.status, WPSBT_STOP);
     chkb("no-utxo reason says amount", strstr(sum.reason, "amount") != NULL);
     chkb("no-utxo sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
+
+    pl = mk_psbt(MUT_BAD_KP_PUB, pb, sizeof pb);
+    chki("wrong-keypath-pubkey load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("wrong-keypath-pubkey STOP", sum.status, WPSBT_STOP);
+    chkb("wrong-keypath-pubkey reason says pubkey",
+         strstr(sum.reason, "pubkey") != NULL);
+    chkb("wrong-keypath-pubkey sign refused",
+         kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
     kiss_psbt_free();
 
     pl = mk_psbt(MUT_FAKE_CHG, pb, sizeof pb);

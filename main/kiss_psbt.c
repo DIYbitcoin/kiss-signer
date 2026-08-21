@@ -86,10 +86,15 @@ static uint64_t dust_floor(uint32_t purpose)
 }
 
 // Find OUR keypath in a PSBT keypath map (master fingerprint match) and parse
-// its derivation path. Returns 1 if found, 0 if the map holds no key of ours.
+// its derivation path. If item_out is non-NULL it receives the matching entry,
+// whose map key is the public key the coordinator claims that path derives.
+// Returns 1 if found, 0 if the map holds no key of ours.
 static int our_keypath(const struct wally_map *m, const uint8_t fp[4],
-                       uint32_t *path, size_t *path_len /* in: max, out: got */)
+                       uint32_t *path, size_t *path_len /* in: max, out: got */,
+                       const struct wally_map_item **item_out)
 {
+    if (item_out)
+        *item_out = NULL;
     for (size_t i = 0; i < m->num_items; i++) {
         const struct wally_map_item *it = &m->items[i];
         if (it->value_len < 4 || (it->value_len - 4) % 4 != 0)
@@ -105,6 +110,8 @@ static int our_keypath(const struct wally_map *m, const uint8_t fp[4],
                       ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
         }
         *path_len = depth;
+        if (item_out)
+            *item_out = it;
         return 1;
     }
     return 0;
@@ -204,10 +211,15 @@ static uint64_t spk_key(const uint8_t *spk, size_t len)
     return h;
 }
 
-// Re-derive the key at path and compare its expected scriptPubKey with spk.
-// 0 = match, nonzero = mismatch/error. This is THE anti-theft check.
+// Re-derive the key at path and compare both claims the PSBT makes about it:
+// the keypath map's public-key key (when keypath is non-NULL), and the UTXO's
+// scriptPubKey. A correct fingerprint/path paired with somebody else's pubkey
+// otherwise passes review, but libwally silently skips it at sign time and
+// returns success with no signature.
+// 0 = match, 1 = script/path mismatch/error, 2 = keypath pubkey mismatch.
 static int rederive_matches(const uint32_t *path, size_t path_len,
-                            const uint8_t *spk, size_t spk_len)
+                            const uint8_t *spk, size_t spk_len,
+                            const struct wally_map_item *keypath)
 {
     uint32_t purpose = our_purpose(path, path_len);   // build the spk for the path's OWN type
     if (!purpose)
@@ -220,7 +232,10 @@ static int rederive_matches(const uint32_t *path, size_t path_len,
     if (master &&
         bip32_key_from_parent_path(master, path, path_len,
                                    BIP32_FLAG_KEY_PRIVATE, &k) == WALLY_OK) {
-        if (expected_spk(k.pub_key, purpose, want, sizeof want, &wl) == 0 &&
+        if (keypath && (keypath->key_len != sizeof k.pub_key ||
+                        memcmp(keypath->key, k.pub_key, sizeof k.pub_key) != 0))
+            rc = 2;
+        else if (expected_spk(k.pub_key, purpose, want, sizeof want, &wl) == 0 &&
             wl == spk_len && memcmp(want, spk, wl) == 0)
             rc = 0;
         wally_bzero(&k, sizeof k);
@@ -435,7 +450,7 @@ static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
 
         uint32_t path[8];
         size_t path_len = 8;
-        if (!our_keypath(&in->keypaths, fp, path, &path_len)) {
+        if (!our_keypath(&in->keypaths, fp, path, &path_len, NULL)) {
             stop(s, "input is not this wallet's");
             goto out;
         }
@@ -792,7 +807,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
         uint32_t path[8];
         size_t path_len = 8;
-        if (!our_keypath(&in->keypaths, fp, path, &path_len)) {
+        const struct wally_map_item *keypath = NULL;
+        if (!our_keypath(&in->keypaths, fp, path, &path_len, &keypath)) {
             stop(s, "input is not this wallet's");
             continue;
         }
@@ -891,7 +907,11 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         if (purpose == 44) n44++; else if (purpose == 49) n49++; else n84++;
         // re-derive our scriptPubKey for THIS input's own type and require an
         // exact match — the amount above is only trustworthy if this spk is ours
-        if (rederive_matches(path, path_len, utxo_spk, utxo_spk_len) != 0)
+        int match = rederive_matches(path, path_len, utxo_spk, utxo_spk_len,
+                                     keypath);
+        if (match == 2)
+            stop(s, "input derivation pubkey does not match");
+        else if (match != 0)
             stop(s, "input script does not re-derive");
     }
     // detected type for the UI: one uniform purpose, or 0 when inputs mix types
@@ -990,9 +1010,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 
         uint32_t path[8];
         size_t path_len = 8;
-        if (our_keypath(&s_psbt->outputs[j].keypaths, fp, path, &path_len)) {
+        const struct wally_map_item *keypath = NULL;
+        if (our_keypath(&s_psbt->outputs[j].keypaths, fp, path, &path_len,
+                        &keypath)) {
             if (!our_purpose(path, path_len) ||
-                rederive_matches(path, path_len, o->script, o->script_len) != 0) {
+                rederive_matches(path, path_len, o->script, o->script_len,
+                                 keypath) != 0) {
                 stop(s, "change address does not re-derive");  // active attack marker
             } else {
                 so->is_change = true;
@@ -1115,7 +1138,8 @@ int kiss_psbt_details(wpsbt_details_t *d)
         } else {
             uint32_t path[8];
             size_t path_len = 8;
-            if (our_keypath(&in->keypaths, fp, path, &path_len) && path_len == 5) {
+            if (our_keypath(&in->keypaths, fp, path, &path_len, NULL) &&
+                path_len == 5) {
                 di->purpose = our_purpose(path, path_len);
                 di->change = path[3];
                 di->index = path[4];
@@ -1190,6 +1214,27 @@ static int sign_sp_spends(const struct ext_key *master)
     return rc;
 }
 
+// libwally deliberately treats "no matching key" as a successful no-op while
+// signing a PSBT. Verification above should make that state unreachable, but a
+// signing API that returns success with zero signatures makes the UI claim the
+// transaction was signed when its bytes are unchanged. Keep the end-to-end
+// invariant here as the last gate. Already-signed inputs are not conflated with
+// failure: their existing partial/taproot signature satisfies it.
+static bool psbt_has_signature(const struct wally_psbt *p)
+{
+    if (!p)
+        return false;
+    for (size_t i = 0; i < p->num_inputs; i++) {
+        if (p->inputs[i].signatures.num_items)
+            return true;
+        const struct wally_map_item *tap =
+            wally_map_get_integer(&p->inputs[i].psbt_fields, 0x13);
+        if (tap && (tap->value_len == 64 || tap->value_len == 65))
+            return true;
+    }
+    return false;
+}
+
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
 {
     const struct ext_key *master = kiss_session_master();
@@ -1205,6 +1250,8 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
         return -2;
     if (sign_sp_spends(master) != 0)
         return -5;
+    if (!psbt_has_signature(s_psbt))
+        return -7;
     size_t need = 0;
     if (wally_psbt_get_length(s_psbt, 0, &need) != WALLY_OK || need > out_len)
         return -3;
