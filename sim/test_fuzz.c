@@ -326,6 +326,32 @@ int main(void)
     }
     printf("PASS: mismatched-fragment UR frames rejected, no OOB\n");
 
+    // ---- 3d. a checksum-bad final frame is a terminal transfer error ----
+    // cUR correctly completes the decoder with an unsuccessful checksum, but
+    // the transport used to report the final frame as generic junk and every
+    // later frame as an accepted no-op. The scan UI could then never finish or
+    // recover without being closed manually.
+    {
+        static char first[512], last[512];
+        const uint32_t MSG = 16, BAD_SUM = 0x1234ABCDu;
+        int built = mk_ur_part(first, sizeof first, 1, 2, MSG, BAD_SUM, 8) > 0 &&
+                    mk_ur_part(last, sizeof last, 2, 2, MSG, BAD_SUM, 8) > 0;
+        qrt_parser_t *p = qrt_parser_new();
+        chkb("checksum-bad UR terminal fixture builds", built && p);
+        if (built && p) {
+            chkb("checksum-bad UR first part accepted",
+                 qrt_parser_feed(p, first, strlen(first)) == 0);
+            chkb("checksum-bad UR final part reported",
+                 qrt_parser_feed(p, last, strlen(last)) == QRT_FEED_CORRUPT);
+            chkb("checksum-bad UR error latched",
+                 qrt_parser_feed(p, first, strlen(first)) == QRT_FEED_CORRUPT);
+            qrt_parser_reset(p);
+            chkb("checksum-bad UR reset permits a new transfer",
+                 qrt_parser_feed(p, first, strlen(first)) == 0);
+        }
+        qrt_parser_free(p);
+    }
+
     // ---- 4. base64 PSBT text ----
     // The loader's "cHNidP" branch strips whitespace and base64-decodes before
     // the binary parser ever runs. Sections 1/2 never reach it: random binary

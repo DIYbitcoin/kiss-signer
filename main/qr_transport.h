@@ -15,7 +15,14 @@
 #define QRT_FMT_PMOFN  2   // "pMofN <base64>" legacy animated (Specter/Krux)
 #define QRT_FMT_UR     3   // ur:crypto-psbt, single or fountain multi-part
 
-#define QRT_MAX_PSBT   4096   // matches the Sign screen input buffer
+#define QRT_MAX_PSBT          4096   // matches the Sign screen input buffer
+// Signing adds fields to the parsed PSBT: up to 107 serialized bytes for each
+// of 16 ECDSA signatures. A 16-recipient BIP375 transaction can also gain one
+// 169-byte share/proof pair and a 37-byte output script per recipient, plus the
+// 4-byte modifiable-flags field, while the signer self-verifies it. Reserve the
+// full accepted-input ceiling plus that worst-case growth so every transaction
+// that passes review can still be serialized and returned after signing.
+#define QRT_MAX_SIGNED_PSBT   9108
 
 // ---- decode: feed scanned QR payloads until complete ----
 typedef struct qrt_parser qrt_parser_t;
@@ -29,13 +36,19 @@ void qrt_parser_free(qrt_parser_t *p);
 // on its part counter forever with nothing on screen saying why.
 #define QRT_FEED_TOO_BIG (-2)
 
+// A multipart transfer that reached its terminal part but failed its own
+// checksum/encoding. Unlike an unrelated QR (-1), feeding more parts cannot
+// repair this set: the caller must reset it before scanning again.
+#define QRT_FEED_CORRUPT (-3)
+
 // Feed one scanned QR payload (may contain NULs for binary QRs).
 // 0 = accepted (including harmless duplicates), -1 = not usable for this scan
 // (unknown format, or a format different from the one already in progress),
-// QRT_FEED_TOO_BIG = larger than this device can hold. Once a parser has
-// answered TOO_BIG it keeps answering it until reset: the parts it holds are
-// from a set it will never finish, and quietly accepting more assembles
-// nonsense out of them.
+// QRT_FEED_TOO_BIG = larger than this device can hold, QRT_FEED_CORRUPT = a
+// complete multipart set failed its checksum or encoding. Once a parser has
+// answered either terminal error it keeps answering it until reset: the parts
+// it holds are from a set it will never finish, and quietly accepting more
+// would leave the scan screen wedged on an unfinishable transfer.
 int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len);
 
 // Back to what qrt_parser_new returns: no parts, no bytes, no format. Lets
@@ -56,8 +69,9 @@ int qrt_parser_result(qrt_parser_t *p, uint8_t *out, size_t cap, size_t *out_len
 // ---- encode: turn a PSBT into QR part strings ----
 typedef struct qrt_encoder qrt_encoder_t;
 
-// fmt = QRT_FMT_UR / QRT_FMT_PMOFN / QRT_FMT_STATIC.
-// STATIC refuses PSBTs too big for one QR.
+// fmt = QRT_FMT_UR / QRT_FMT_PMOFN / QRT_FMT_STATIC. Encoders accept signed
+// results up to QRT_MAX_SIGNED_PSBT; STATIC still refuses payloads too big for
+// one QR.
 qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len);
 
 // Same, with a fragment-size override (UR: bytes per fragment; pMofN: base64

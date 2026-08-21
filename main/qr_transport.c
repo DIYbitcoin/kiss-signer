@@ -15,6 +15,11 @@
 #include "types/psbt.h"
 
 #define PMOFN_MAX_PARTS 64
+// Output has a larger byte ceiling than input because signatures and BIP375
+// self-verification fields grow the PSBT. At the signed ceiling, easy-scan's
+// 50-character chunks need 243 parts; the encoder streams them and holds no
+// per-part pointer array, so this does not relax the decoder's 64-part cap.
+#define PMOFN_MAX_OUTPUT_PARTS 256
 #define PMOFN_CHUNK     100   // base64 chars per pMofN part
 #define UR_MAX_FRAGMENT 120   // bytes per UR fragment (part str ~330 chars)
 #define STATIC_MAX_B64  2900  // one-QR ceiling (v40 binary mode is 2953)
@@ -83,6 +88,7 @@ struct qrt_parser {
     int fmt;
     bool complete;
     bool too_big;             // refused once: every later feed refuses too
+    bool corrupt;             // terminal checksum/encoding failure
     uint8_t psbt[QRT_MAX_PSBT];
     size_t psbt_len;
     // pMofN state
@@ -129,6 +135,7 @@ void qrt_parser_reset(qrt_parser_t *p) {
     p->fmt = QRT_FMT_NONE;
     p->complete = false;
     p->too_big = false;
+    p->corrupt = false;
     p->total = 0;
     p->seen = 0;
 }
@@ -176,7 +183,8 @@ static int feed_pmofn(qrt_parser_t *p, const char *data, size_t len) {
     if (!p->parts[m - 1]) return -1;
     p->b64_held += plen;
     p->seen++;
-    if (p->seen == p->total && pmofn_assemble(p) != 0) return -1;
+    if (p->seen == p->total && pmofn_assemble(p) != 0)
+        return QRT_FEED_CORRUPT;
     return 0;
 }
 
@@ -192,11 +200,15 @@ static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
         if (!p->ur) p->ur = ur_decoder_new();
         if (p->ur) {
             if (ur_decoder_is_complete(p->ur))
-                rc = 0;   // late extra part after completion: no-op
+                rc = ur_decoder_is_success(p->ur) ? 0 : QRT_FEED_CORRUPT;
             else
                 rc = ur_decoder_receive_part(p->ur, low) ? 0 : -1;
-            if (p->ur && ur_decoder_is_complete(p->ur) && ur_decoder_is_success(p->ur))
-                p->complete = true;
+            if (p->ur && ur_decoder_is_complete(p->ur)) {
+                if (ur_decoder_is_success(p->ur))
+                    p->complete = true;
+                else
+                    rc = QRT_FEED_CORRUPT;
+            }
         }
     }
     free(low);
@@ -206,6 +218,7 @@ static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
 int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     if (!p || !data || len == 0) return -1;
     if (p->too_big) return QRT_FEED_TOO_BIG;
+    if (p->corrupt) return QRT_FEED_CORRUPT;
 
     int kind;
     if (len >= 5 && memcmp(data, "psbt\xff", 5) == 0) kind = QRT_FMT_STATIC;
@@ -243,6 +256,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     }
     if (rc == 0 && p->fmt == QRT_FMT_NONE) p->fmt = kind;
     if (rc == QRT_FEED_TOO_BIG) p->too_big = true;
+    if (rc == QRT_FEED_CORRUPT) p->corrupt = true;
     return rc;
 }
 
@@ -313,7 +327,7 @@ struct qrt_encoder {
 };
 
 qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, int frag) {
-    if (!psbt || len == 0 || len > QRT_MAX_PSBT) return NULL;
+    if (!psbt || len == 0 || len > QRT_MAX_SIGNED_PSBT) return NULL;
     qrt_encoder_t *e = calloc(1, sizeof *e);
     if (!e) return NULL;
     e->fmt = fmt;
@@ -348,7 +362,11 @@ qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, in
             e->chunk = frag > 0 ? (size_t)frag : PMOFN_CHUNK;
             e->total = (int)((e->b64_len + e->chunk - 1) / e->chunk);
             if (e->total < 1) e->total = 1;
-            if (e->total > PMOFN_MAX_PARTS) { free(e->b64); free(e); return NULL; }
+            if (e->total > PMOFN_MAX_OUTPUT_PARTS) {
+                free(e->b64);
+                free(e);
+                return NULL;
+            }
         }
         return e;
     }

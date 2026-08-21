@@ -190,6 +190,17 @@ static void feed(const char *data, size_t len)
         if (s_prog) scan_status(tr(STR_N_TOO_BIG), "");
         return;
     }
+    // A final pMofN/UR fragment can be structurally valid while the completed
+    // set fails base64 or its message checksum. Those decoders are terminal at
+    // that point: retaining them and treating later frames as harmless extras
+    // leaves the counter stuck forever. Drop the set and give the owner the
+    // existing translated retry instruction.
+    if (rc == QRT_FEED_CORRUPT) {
+        SCAN_LOG("REFUSED: completed transfer failed checksum or encoding");
+        qrt_parser_reset(s_parser);
+        if (s_prog) scan_status(tr(STR_N_RETRY), "");
+        return;
+    }
     if (rc != 0) {                             // some other QR in view: ignore
 #ifdef ESP_PLATFORM
         // Rate-limited: an unrecognised code sits in frame at ~10 decodes a

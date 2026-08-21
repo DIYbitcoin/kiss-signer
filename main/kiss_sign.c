@@ -159,7 +159,7 @@ bool kiss_sign_test_armed(void) { return s_armed; }
 // rest -- if the retract ever stops running, this is what says so.
 bool kiss_sign_test_locked(void) { return s_locked != NULL; }
 #endif
-static uint8_t s_in[4096], s_out[4680];
+static uint8_t s_in[QRT_MAX_PSBT], s_out[QRT_MAX_SIGNED_PSBT];
 static lv_obj_t *s_parent;             // where this flow's screens are built
 static int s_src;                      // SRC_SD / SRC_QR: where the PSBT came from
 static int s_qr_fmt;                   // QRT_FMT_* the scan arrived in

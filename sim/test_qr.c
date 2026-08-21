@@ -137,6 +137,61 @@ static void qr_test_pmofn_bounds(void) {
         free(raw);
         qrt_parser_free(p);
     }
+
+    {   // once all pMofN parts are present, malformed base64 is terminal.
+        // It must not masquerade as an unrelated QR and leave a full set
+        // permanently stuck behind harmless-duplicate returns.
+        qrt_parser_t *p = qrt_parser_new();
+        qchki("qr corrupt pMofN first part accepted",
+              qrt_parser_feed(p, "p1of2 cHNidP", 12), 0);
+        qchki("qr corrupt pMofN terminal part reported",
+              qrt_parser_feed(p, "p2of2 !", 7), QRT_FEED_CORRUPT);
+        qchki("qr corrupt pMofN error latched",
+              qrt_parser_feed(p, "p1of2 cHNidP", 12), QRT_FEED_CORRUPT);
+        qrt_parser_reset(p);
+        qchki("qr corrupt pMofN reset permits a new transfer",
+              qrt_parser_feed(p, "p1of2 cHNidP", 12), 0);
+        qrt_parser_free(p);
+    }
+}
+
+// A PSBT grows when signatures are inserted. Input parsing remains capped at
+// QRT_MAX_PSBT, but a successful signer result can legitimately occupy the
+// larger output workspace. Both animated output formats must carry that result
+// instead of failing only after the irreversible hold-to-sign interaction.
+static void qr_test_signed_output_ceiling(void) {
+    uint8_t *signed_psbt = malloc(QRT_MAX_SIGNED_PSBT + 1);
+    if (!signed_psbt) { qchkb("signed-output ceiling fixture allocs", 0); return; }
+    memset(signed_psbt, 0xA5, QRT_MAX_SIGNED_PSBT + 1);
+    memcpy(signed_psbt, "psbt\xff", 5);
+
+    qrt_encoder_t *ur = qrt_encoder_new(QRT_FMT_UR, signed_psbt,
+                                        QRT_MAX_SIGNED_PSBT);
+    qrt_encoder_t *pm = qrt_encoder_new(QRT_FMT_PMOFN, signed_psbt,
+                                        QRT_MAX_SIGNED_PSBT);
+    qrt_encoder_t *easy = qrt_encoder_new_frag(QRT_FMT_PMOFN, signed_psbt,
+                                               QRT_MAX_SIGNED_PSBT, 50);
+    char part[600];
+    qchkb("qr UR accepts the signed-output ceiling", ur != NULL);
+    qchkb("qr pMofN accepts the signed-output ceiling",
+          pm && qrt_encoder_parts(pm) > 0 &&
+          qrt_encoder_next(pm, part, sizeof part) == 0);
+    qchkb("qr easy pMofN accepts the signed-output ceiling",
+          easy && qrt_encoder_parts(easy) > qrt_encoder_parts(pm) &&
+          qrt_encoder_next(easy, part, sizeof part) == 0);
+    qrt_encoder_free(ur);
+    qrt_encoder_free(pm);
+    qrt_encoder_free(easy);
+
+    ur = qrt_encoder_new(QRT_FMT_UR, signed_psbt,
+                         QRT_MAX_SIGNED_PSBT + 1);
+    pm = qrt_encoder_new(QRT_FMT_PMOFN, signed_psbt,
+                         QRT_MAX_SIGNED_PSBT + 1);
+    qchkb("qr UR refuses past the signed-output ceiling", ur == NULL);
+    qchkb("qr pMofN refuses past the signed-output ceiling", pm == NULL);
+    qrt_encoder_free(ur);
+    qrt_encoder_free(pm);
+    free(signed_psbt);
 }
 
 static void qr_test_hostile_header(void) {
@@ -744,6 +799,7 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     qr_test_version_tables();
     qr_test_hostile_header();
     qr_test_pmofn_bounds();
+    qr_test_signed_output_ceiling();
     qr_test_prng_range();
     qr_test_fountain_cap_churn();
 

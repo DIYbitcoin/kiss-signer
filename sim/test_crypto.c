@@ -9,6 +9,7 @@
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
 #include "kiss_payee.h"
+#include "qr_transport.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
 #include "boot_sign_vectors.h"  // the two the device re-signs at boot
 
@@ -1173,6 +1174,26 @@ int main(int argc, char **argv) {
     chkb("merge-dust has merge", (sum.caution_flags & WPSBT_C_MERGE_INS) != 0);
     chkb("merge-dust has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
     kiss_psbt_free();
+
+    {   // The largest proven-input fixture still fits the scan/input ceiling,
+        // but adding one signature map entry per input legitimately takes the
+        // result past it. Signing and QR output therefore need their own bound:
+        // otherwise the owner reviews a valid transaction and only learns it
+        // cannot be returned after completing HOLD TO SIGN.
+        uint8_t signed_big[QRT_MAX_SIGNED_PSBT];
+        size_t signed_len = 0;
+        pl = mk_nin_psbt_ex(WPSBT_MAX_INS, 100000, 10000, NIN_PROVE,
+                            pb, sizeof pb);
+        chkb("max-input PSBT fits the scan ceiling",
+             pl > 0 && pl <= QRT_MAX_PSBT);
+        chki("max-input PSBT load rc", kiss_psbt_load(pb, pl, &sum), 0);
+        chki("max-input PSBT count", (int)sum.n_in, WPSBT_MAX_INS);
+        chki("max-input PSBT signs into signed ceiling",
+             kiss_psbt_sign(signed_big, sizeof signed_big, &signed_len), 0);
+        chkb("max-input signed PSBT exceeds the scan ceiling",
+             signed_len > QRT_MAX_PSBT && signed_len <= sizeof signed_big);
+        kiss_psbt_free();
+    }
 
     // ---- amounts declared vs amounts proven --------------------------------
     // BIP143 signs the amount of the input being signed and nothing else, so a
