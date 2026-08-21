@@ -2262,7 +2262,13 @@ int main(void) {
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     tap_str(STR_R_VERIFY, 3, 6);   // VERIFY pill -> raw scan screen
-    const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
+    // TESTNET, because the walk is on testnet here. This was the mainnet form
+    // of the same key, so the frame named "yes" rendered WRONG NETWORK -- the
+    // same red screen sim_vfy_wrong_net.ppm already photographs, published
+    // under a caption promising green. The URI wrapper and the amount param
+    // stay: stripping those is what vfy_norm is for and this is where it is
+    // exercised.
+    const char *good = "BITCOIN:TB1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q00?amount=0.001";
     kiss_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
