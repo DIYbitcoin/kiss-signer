@@ -511,13 +511,31 @@ static void sp_key_show(void *ud)
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
 
-    // machine-import string: wrapped whole, not grouped like an address
-    lv_obj_t *k = wt_lbl(s_scr, key, 400, 100, wt_font14(), WT_INK);
+    // Machine-import string: still wrapped whole, not grouped like an address,
+    // because a descriptor is one token and blocking it invites someone to type
+    // the spaces back in. What was wrong was the FACE and the SIZE. This is the
+    // only string on the screen an owner may have to read back character by
+    // character against a coordinator, and it was set in font14 -- the size
+    // this file reserves for metadata -- in the PROPORTIONAL face, where the
+    // bech32 charset's l and 1 are one shape and its narrow letters carry no
+    // column to count along. Every other machine string on the device is
+    // mono23: the fingerprint row and the folded address two screens back.
+    //
+    // The room was already here. 100 down to the note at 250 is 150px and
+    // font14 was using 78 of it, so the fix costs nothing but the empty band.
+    // 360 wide at mono23 is 26 cells of 13.81px, and 144 characters wrap into
+    // six lines of 25 -- 96 through 246, with the note moved down to meet it.
+    lv_obj_t *k = wt_lbl(s_scr, key, 400, 96, wt_font_mono23(), WT_INK);
     lv_obj_set_width(k, 360);
     lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
 
-    // 250 down to the DONE pill at 404 is 154px, so this reads at 23.
-    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, 250, 360, 140);
+    // Placed off the key's MEASURED height rather than a y decided in advance:
+    // the wrap depends on where LVGL takes its breaks, and a hard 250 is how
+    // the old layout ended up with a band of dead glass above it.
+    lv_obj_update_layout(k);
+    int note_y = 96 + lv_obj_get_height(k) + 16;
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, note_y, 360,
+            WT_CONTENT_BOTTOM - note_y);
 
     // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
     wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
@@ -1255,4 +1273,3 @@ void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
     s_words_done = done_cb;
     words_warn_screen(NULL);
 }
-
