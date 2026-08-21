@@ -1007,6 +1007,21 @@ static int find_label_text(lv_obj_t *o, const char *needle) {
   return 0;
 }
 
+// Exact-label counterpart for state captions. Some caption values deliberately
+// share their English with diagram chips (PASSPHRASE is both), so must_show's
+// global duplicate-key guard correctly refuses them even when the live screen
+// has only the one caption whose state the walk needs to pin.
+static int find_label_exact(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return 0;
+  if (lv_obj_check_type(o, &lv_label_class)) {
+    const char *t = lv_label_get_text(o);
+    if (t && strcmp(t, needle) == 0) return 1;
+  }
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+    if (find_label_exact(lv_obj_get_child(o, i), needle)) return 1;
+  return 0;
+}
+
 // A folded address that can be pressed. The DETAILS output rows carry one each
 // and their y moves with everything above them, so a locale whose fact rows run
 // taller pushes the list down and a hard coded tap lands on background. That is
@@ -1158,6 +1173,12 @@ static void must_show(const char *what, const char *needle) {
     printf("      --- frame written to /tmp/sim_walk_FAIL.ppm ---\n");
 #endif
   }
+  g_walk_fails++;
+}
+
+static void must_show_exact(const char *what, const char *needle) {
+  if (find_label_exact(lv_screen_active(), needle)) return;
+  printf("FAIL: %s: no label on screen equals \"%s\"\n", what, needle);
   g_walk_fails++;
 }
 
@@ -1644,10 +1665,16 @@ static void lock_to_menu(void)
   touch(6, 470); pump(2); release(); pump(6);
 }
 
-// Type a short prefix on kiss_setup.c's recovery-word keyboard, then choose
-// its first suggestion.  Keeping this as a real touch walk means the optional
-// recovery rehearsal is tested through the exact UI a person uses.
-static void restore_word(const char *prefix)
+// These prefixes uniquely select the first twelve SIM_WORDS from suggestion 0.
+// They are the one shared fixture for a clean restore and the later rehearsal
+// of the same words, so either path changing its autocomplete semantics breaks
+// both at the real recovery keyboard rather than drifting into two fake seeds.
+static const char *const SIM_12_PREFIXES[12] = {
+  "g", "m", "no", "so", "sy", "fem",
+  "fi", "at", "v", "fo", "c", "stay"
+};
+
+static void type_restore_prefix(const char *prefix)
 {
   static const char *rows[] = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
   static const int x0[] = { 44, 47, 53 };
@@ -1662,6 +1689,14 @@ static void restore_word(const char *prefix)
       break;
     }
   }
+}
+
+// Type a short prefix on kiss_setup.c's recovery-word keyboard, then choose
+// its first suggestion. Keeping this as a real touch walk means restore and
+// the optional recovery rehearsal use the exact UI a person uses.
+static void restore_word(const char *prefix)
+{
+  type_restore_prefix(prefix);
   touch(163, 182); pump(3); release(); pump(3);    // first suggestion
 }
 
@@ -3782,7 +3817,9 @@ int main(void) {
   save("/tmp/sim_setup_whatseed.ppm");               // YOUR SEED PHRASE
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
 
-  // peek at RESTORE: word entry + autocomplete, then back out
+  // RESTORE, all the way through the warning's exit. This is the first-boot
+  // door a real owner reaches, not a direct screen call: every word, both
+  // passphrase entries below and every action are real touches.
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS (row 1)
   // The flag main.c reads to choose the passphrase flow. Restored words get one
   // entry and the fingerprint as the check; invented ones get typed twice. If
@@ -3800,15 +3837,66 @@ int main(void) {
   save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN LOCKED QR
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_restore.ppm");
-  touch(44, 314); pump(3); release(); pump(3);      // 'a'
-  touch(450, 374); pump(3); release(); pump(3);     // 'b'
+  type_restore_prefix(SIM_12_PREFIXES[0]);
   save("/tmp/sim_setup_sug.ppm");                   // suggestions visible
-  touch(163, 182); pump(3); release(); pump(3);     // accept "abandon" -> word 2
-  touch(160, 434); pump(3); release(); pump(4);     // CANCEL -> chooser
-  if (s_sim_pending_mode != -1) {
-    fprintf(stderr, "setup cancel left storage mode staged\n");
-    return 1;
+  touch(163, 182); pump(3); release(); pump(3);     // accept "gravity" -> word 2
+  for (size_t i = 1; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
+    restore_word(SIM_12_PREFIXES[i]);
+  pump(30);                                         // words -> passphrase intro
+  must_show("setup/restore-ppintro", tr(STR_L_PPINTRO_T));
+  if (!pill_for(STR_L_PASSPHRASE_CAP, "setup restore offers")) { /* counted */ }
+  must_not_show("setup/restore-no-create-verb", tr(STR_L_CREATE_PASS_BTN));
+  tap_str(STR_L_PASSPHRASE_CAP, 3, 8);              // existing passphrase -> keyboard
+
+  // A restore asks for an EXISTING passphrase. Let one typed byte expire and
+  // prove the reset did not turn that instruction into CREATE YOUR PASSPHRASE,
+  // which invites the owner to create a different, empty wallet. The saved
+  // keyboard is a distinct visual-QA stop for this state.
+  touch(46, 278); pump(3); release(); pump(3);      // 'a'
+  pump(8200);                                      // 131s > 120s, untouched
+  save("/tmp/sim_setup_restore_idle.ppm");
+  must_show_exact("setup/restore-idle-caption", tr(STR_L_PASSPHRASE_CAP));
+  must_not_show("setup/restore-idle-not-create", tr(STR_L_CREATE_YOUR_PASS));
+  must_show("setup/restore-idle-prompt", tr(STR_L_TYPE_PROMPT));
+  touch(46, 278); pump(3); release(); pump(3);      // retype the wiped 'a'
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint, once
+  must_show("setup/restore-fingerprint", tr(STR_L_TAP_TO_OPEN));
+  tap_str(STR_L_TAP_TO_OPEN, 3, 8);                 // commit -> warning
+  must_show("setup/restore-warning", tr(STR_L_WARN_T));
+
+  // Exercise the other setup caption that must survive the same idle wipe.
+  // The exact words and the exact passphrase recreate the restored wallet's
+  // fingerprint; this also leaves the warning in its verified state before
+  // testing the restore-specific exit below.
+  tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);          // warning -> rehearsal intro
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);               // intro -> recovery keyboard
+  for (size_t i = 0; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
+    restore_word(SIM_12_PREFIXES[i]);
+  pump(4);
+  tap_str(STR_C_DONE, 3, 8);                        // words matched -> exact passphrase
+  touch(46, 278); pump(3); release(); pump(3);      // 'a'
+  pump(8200);                                      // expire it on the verify keyboard
+  must_show_exact("setup/verify-idle-caption", tr(STR_L_VERIFY_PASS));
+  must_not_show("setup/verify-idle-not-create", tr(STR_L_CREATE_YOUR_PASS));
+  must_show("setup/verify-idle-prompt", tr(STR_L_TYPE_PROMPT));
+  touch(46, 278); pump(3); release(); pump(3);      // retype the wiped 'a'
+  touch(725, 430); pump(3); release(); pump(25);    // exact match -> verified warning
+  must_show_exact("setup/restore-backup-verified", tr(STR_L_BACKUP_VERIFIED));
+  tap_str(STR_C_I_UNDERSTAND, 3, 30);               // restored setup ends at home
+  if (kiss_duress_ui_active()) {
+    printf("FAIL: setup/restore opened the duress wizard after acceptance\n");
+    g_walk_fails++;
   }
+  must_show("setup/restore-home", tr(STR_H_TILE_SIGN));
+
+  // The rest of this step owns the new-seed screens. Reset like the real erase
+  // path, then enter the same chooser on demand so those existing stops keep
+  // testing a fresh creation rather than the wallet just restored above.
+  kiss_seed_wipe();
+  kiss_session_close();
+  kiss_duress_forget();
+  kiss_begin_setup(); pump(20);
+  must_show("setup/new-chooser", tr(STR_W_SETUP_T));
 
   // the real path: CREATE SEED, entropy, quiz, login twice. Creating no longer
   // asks how many words -- it is always 12 -- so FLASH lands on the method
@@ -4222,12 +4310,8 @@ int main(void) {
   tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);     // VERIFY MY COPY -> intro
   save("/tmp/sim_setup_rehearse_intro.ppm");
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
-  static const char *verify_prefixes[] = {
-    "g", "m", "no", "so", "sy", "fem",
-    "fi", "at", "v", "fo", "c", "stay"
-  };
-  for (size_t i = 0; i < sizeof verify_prefixes / sizeof verify_prefixes[0]; i++)
-    restore_word(verify_prefixes[i]);
+  for (size_t i = 0; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
+    restore_word(SIM_12_PREFIXES[i]);
   pump(4);                                          // all words -> VERIFIED
   tap_str(STR_C_DONE, 3, 8);     // DONE -> fresh passphrase entry
   save("/tmp/sim_setup_rehearse_pass.ppm");
@@ -5076,14 +5160,13 @@ int main(void) {
     printf("ok: fw screen closes on lock without reopening settings\n");
   }
 
-  // ---- step 14: RESTORE, all the way through ----------------------------
+  // ---- step 14: RESTORE refusal, at the tail -----------------------------
   //
-  // The walk has always PEEKED at restore and cancelled, so the passphrase flow
-  // behind it had never run once. That matters more than an uncaptured screen:
-  // restoring words the owner already has must ask for their passphrase ONCE
-  // and let the fingerprint be the check, because type-twice cannot tell a
-  // correctly re-entered passphrase from a consistently mistyped one -- the
-  // second opens a different, valid, EMPTY wallet and says nothing.
+  // Step 7 now takes a clean restore through its single passphrase entry,
+  // fingerprint, backup rehearsal, warning and home handoff. Re-enter here for
+  // the complementary refusal: twelve copies of one word must never reach that
+  // passphrase flow. The clean fixture after START OVER proves the refusal did
+  // not strand the recovery keyboard.
   //
   // LAST in the walk. It stores a seed and opens a wallet, so anywhere
   // earlier it rewrites the state every later step stands on -- tried after
@@ -5132,13 +5215,11 @@ int main(void) {
   // than the chooser, so the count screen is not walked through again.
   tap_str(STR_W_START_OVER, 3, 6);     // START OVER -> empty keyboard
 
-  // ...and now the one that opens. Twelve DISTINCT words: the first eleven are
-  // the clean draw the cards stop already uses, which judge far apart under the
-  // index stub, plus a twelfth the gate never reads -- it is the checksum word,
-  // and excluding it is the whole reason the abandon vector is catchable.
-  static const char *RESTORE_OK12[12] = {
-      "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy", "m" };
-  for (int i = 0; i < 12; i++) restore_word(RESTORE_OK12[i]);
+  // ...and now the shared clean fixture opens. Its prefixes select twelve
+  // distinct, well-spaced SIM_WORDS and are the same ones the end-to-end
+  // restore and optional backup rehearsal already typed.
+  for (size_t i = 0; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
+    restore_word(SIM_12_PREFIXES[i]);
   pump(30);
   save("/tmp/sim_restore_ppintro.ppm");
   must_show("restore/ppintro", tr(STR_L_PPINTRO_T));
@@ -5151,20 +5232,20 @@ int main(void) {
   if (!pill_for(STR_L_PASSPHRASE_CAP, "restore offers")) { /* counted */ }
   must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
 
-  // STOPS HERE, deliberately. The keyboard past this pill needs a login
-  // teardown the tail of the walk cannot give -- kiss_login_open returns early
-  // while kiss_ui_active(), so it builds nothing and the screen goes blank.
+  // This TAIL entry stops here deliberately. The keyboard past this pill needs
+  // a login teardown the tail of the walk cannot give -- kiss_login_open
+  // returns early while kiss_ui_active(), so it builds nothing and the screen
+  // goes blank. The full keyboard and commit path is covered at step 7, where
+  // the first-boot lifecycle naturally supplies that teardown.
   //
   // The assertions that would have covered it were must_not_show(TYPE IT AGAIN)
   // and must_not_show(WEAK PASSPHRASE), and BOTH PASS ON A BLANK SCREEN. An
   // assertion that cannot fail is worse than none: it reports coverage of the
   // exact behaviour nobody checked. So they are gone rather than left green.
   //
-  // What is covered above is real and was rendered: restoring reaches the
-  // chooser, reaches the passphrase intro instead of the duress wizard, and
-  // that intro offers PASSPHRASE rather than CREATE PASSPHRASE. What is NOT
-  // covered is the single entry and the fingerprint after it, and that is on
-  // the device-test list rather than implied by a green walk.
+  // What is covered HERE is real and rendered: the refusal, retry, passphrase
+  // intro and its PASSPHRASE wording. Step 7 owns the single entry, fingerprint
+  // and restored-wallet exit rather than implying them from this tail stop.
   {
     extern int g_sign_orphaned_screens;
     if (g_sign_orphaned_screens) {
