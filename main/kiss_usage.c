@@ -100,9 +100,28 @@ int kiss_usage_parse(const char *txt, size_t len, kiss_usage_msg_t *out)
 }
 
 #define UMAX 32
-struct usage_row { char key[16]; uint32_t v; };
+// chain/cheight hold what a coordinator claimed, beside — never merged into —
+// the witnessed mark in v. cheight doubles as the presence flag: a real payload
+// always carries a height of at least 1, so zero means nobody has spoken and no
+// second byte has to stay in agreement with this one.
+struct usage_row { char key[16]; uint32_t v; uint32_t chain; uint32_t cheight; };
 static struct usage_row s_session[UMAX];
 static int s_session_n;
+
+static struct usage_row *tab_row(struct usage_row *tab, int *n, const char *key,
+                                 int create)
+{
+    for (int i = 0; i < *n; i++)
+        if (strcmp(tab[i].key, key) == 0)
+            return &tab[i];
+    if (!create || *n >= UMAX)
+        return NULL;
+    struct usage_row *r = &tab[*n];
+    memset(r, 0, sizeof *r);
+    snprintf(r->key, sizeof r->key, "%s", key);
+    (*n)++;
+    return r;
+}
 
 static int tab_high(const struct usage_row *tab, int n, const char *key)
 {
@@ -114,16 +133,26 @@ static int tab_high(const struct usage_row *tab, int n, const char *key)
 
 static void tab_mark(struct usage_row *tab, int *n, const char *key, uint32_t idx)
 {
-    for (int i = 0; i < *n; i++)
+    struct usage_row *r = tab_row(tab, n, key, 1);
+    if (r && idx > r->v) r->v = idx;      // monotonic: never lower the mark
+}
+
+static void tab_chain_get(const struct usage_row *tab, int n, const char *key,
+                          uint32_t *chain, uint32_t *cheight)
+{
+    *chain = *cheight = 0;
+    for (int i = 0; i < n; i++)
         if (strcmp(tab[i].key, key) == 0) {
-            if (idx > tab[i].v) tab[i].v = idx;
+            *chain = tab[i].chain; *cheight = tab[i].cheight;
             return;
         }
-    if (*n < UMAX) {
-        snprintf(tab[*n].key, sizeof tab[*n].key, "%s", key);
-        tab[*n].v = idx;
-        (*n)++;
-    }
+}
+
+static void tab_chain_set(struct usage_row *tab, int *n, const char *key,
+                          uint32_t chain, uint32_t cheight)
+{
+    struct usage_row *r = tab_row(tab, n, key, 1);
+    if (r) { r->chain = chain; r->cheight = cheight; }
 }
 
 #ifdef ESP_PLATFORM
@@ -179,6 +208,39 @@ static void persistent_mark(const char *key, uint32_t idx)
     if (own) nvs_close(h);
 }
 
+// Two more keys in the same namespace, so the erase-all in persistent_wipe and
+// the PERSIST switch cover them with no path of their own. "c" holds the
+// claimed index plus one (0 alone could not be told from an unset key) and "h"
+// holds the height it was claimed at.
+static void chain_persistent_get(const char *key, uint32_t *chain, uint32_t *cheight)
+{
+    *chain = *cheight = 0;
+    nvs_handle_t h;
+    if (nvs_open("kissu", NVS_READONLY, &h) != ESP_OK)
+        return;
+    char k[18];
+    snprintf(k, sizeof k, "c%s", key);
+    if (nvs_get_u32(h, k, chain) != ESP_OK) *chain = 0;
+    snprintf(k, sizeof k, "h%s", key);
+    if (nvs_get_u32(h, k, cheight) != ESP_OK) *cheight = 0;
+    nvs_close(h);
+}
+
+static void chain_persistent_set(const char *key, uint32_t chain, uint32_t cheight)
+{
+    nvs_handle_t h;
+    bool own = !s_batch_active;
+    if (own && nvs_open("kissu", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    if (!own) h = s_batch;
+    char k[18];
+    snprintf(k, sizeof k, "c%s", key);
+    nvs_set_u32(h, k, chain);
+    snprintf(k, sizeof k, "h%s", key);
+    nvs_set_u32(h, k, cheight);
+    if (own) { nvs_commit(h); nvs_close(h); }
+}
+
 static void persistent_wipe(void)
 {
     kiss_usage_batch_end();             // a pending batch must not resurrect after the wipe
@@ -206,6 +268,16 @@ static int persistent_high(const char *key)
 static void persistent_mark(const char *key, uint32_t idx)
 {
     tab_mark(s_persistent, &s_persistent_n, key, idx);
+}
+
+static void chain_persistent_get(const char *key, uint32_t *chain, uint32_t *cheight)
+{
+    tab_chain_get(s_persistent, s_persistent_n, key, chain, cheight);
+}
+
+static void chain_persistent_set(const char *key, uint32_t chain, uint32_t cheight)
+{
+    tab_chain_set(s_persistent, &s_persistent_n, key, chain, cheight);
 }
 
 static void persistent_wipe(void)
@@ -283,6 +355,46 @@ void kiss_usage_mark(const uint8_t fp[4], int testnet, int script, uint32_t idx)
         persistent_mark(key, idx);
 }
 
+int kiss_usage_chain_known(const uint8_t fp[4], int testnet, int script,
+                           int *high, uint32_t *height)
+{
+    char key[16];
+    usage_key(fp, testnet, script, key);
+    uint32_t c, h;
+    if (may_persist()) {
+        chain_persistent_get(key, &c, &h);
+        if (h) tab_chain_set(s_session, &s_session_n, key, c, h);   // promote, as the mark does
+    } else {
+        tab_chain_get(s_session, s_session_n, key, &c, &h);
+    }
+    if (!h) return 0;
+    if (high)   *high   = (int)c - 1;      // stored as high+1, so 0 stays free
+    if (height) *height = h;
+    return 1;
+}
+
+int kiss_usage_chain_set(const uint8_t fp[4], int testnet, int script,
+                         int high, uint32_t height)
+{
+    if (height == 0 || high < -1 || high > KISS_USAGE_MAX_INDEX)
+        return 0;
+    int cur_high; uint32_t cur_height;
+    // Strictly newer, and then the index is TAKEN rather than raised. A
+    // coordinator is the chain's source of truth, so a genuine correction after
+    // a reorg or a rebuilt wallet has to be able to come DOWN; an old QR shown
+    // again cannot, because it loses the height comparison. Monotonic on the
+    // index would have made a wrong value permanent until a wipe.
+    if (kiss_usage_chain_known(fp, testnet, script, &cur_high, &cur_height) &&
+        height <= cur_height)
+        return 0;
+    char key[16];
+    usage_key(fp, testnet, script, key);
+    tab_chain_set(s_session, &s_session_n, key, (uint32_t)(high + 1), height);
+    if (may_persist())
+        chain_persistent_set(key, (uint32_t)(high + 1), height);
+    return 1;
+}
+
 // Second door onto the same NVS keys: the mode change paths in kiss_seed.c
 // flush the whole session table at once. Gating only kiss_usage_mark would
 // leave every fingerprint to land here instead.
@@ -291,8 +403,14 @@ void kiss_usage_persist_session(void)
     if (!may_persist())
         return;
     kiss_usage_batch_begin();
-    for (int i = 0; i < s_session_n; i++)
+    for (int i = 0; i < s_session_n; i++) {
         persistent_mark(s_session[i].key, s_session[i].v);
+        // The claim rides the same flush, or a mode change would drop what it
+        // had just promoted into the session table.
+        if (s_session[i].cheight)
+            chain_persistent_set(s_session[i].key, s_session[i].chain,
+                                 s_session[i].cheight);
+    }
     kiss_usage_batch_end();
 }
 

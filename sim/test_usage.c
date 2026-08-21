@@ -7,6 +7,8 @@
 #include "kiss_crypto.h"   // WSCRIPT_*
 #include "kiss_usage.h"
 
+void kiss_seed_test_set_flash_encrypted(int on);   // sim/test_backup.c owns the hook
+
 static int ufails;
 
 static void uchk(const char *name, int ok)
@@ -118,6 +120,117 @@ static void test_index_does_not_describe_address(void)
          strcmp(m.addr, "TB1QREALADDRESS") == 0);
 }
 
+// A coordinator's claim is stored beside — never merged into — what this device
+// witnessed. The two answer different questions and only the local one is
+// evidence, so only the local one is monotonic.
+static void test_chain_store(void)
+{
+    const uint8_t fp[4] = { 0xec, 0x5a, 0x45, 0x95 };
+    int high; uint32_t height;
+
+    kiss_usage_wipe();
+    uchk("nothing is known before a coordinator speaks",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 0);
+
+    uchk("a first claim is accepted",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 29, 1000) == 1);
+    uchk("  ...and reads back",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == 29 && height == 1000);
+
+    uchk("an older claim is inert",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 99, 999) == 0);
+    uchk("  ...and changed nothing",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == 29);
+    uchk("re-showing the same QR is inert",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 29, 1000) == 0);
+
+    uchk("a newer claim lands even when it LOWERS the index",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 12, 1001) == 1);
+    uchk("  ...because the coordinator is the chain's source of truth",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == 12 && height == 1001);
+
+    uchk("none used is a real answer",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, -1, 1002) == 1 &&
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == -1);
+
+    uchk("a height of zero is not a claim",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 5, 0) == 0);
+    uchk("an index past the cap is refused",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, KISS_USAGE_MAX_INDEX + 1, 2000) == 0);
+
+    // Buckets do not bleed: another address type is another account key.
+    uchk("another script type is its own bucket",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_LEGACY, &high, &height) == 0);
+    uchk("another network is its own bucket",
+         kiss_usage_chain_known(fp, 0, WSCRIPT_NATIVE, &high, &height) == 0);
+    const uint8_t other[4] = { 0x00, 0x11, 0x22, 0x33 };
+    uchk("another fingerprint is its own bucket",
+         kiss_usage_chain_known(other, 1, WSCRIPT_NATIVE, &high, &height) == 0);
+
+    // The local mark is evidence and a camera may not lower it.
+    kiss_usage_mark(fp, 1, WSCRIPT_NATIVE, 40);
+    uchk("a coordinator claim never touches the local mark",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NATIVE, 3, 3000) == 1 &&
+         kiss_usage_high(fp, 1, WSCRIPT_NATIVE) == 40);
+    uchk("  ...and the claim is still its own answer",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == 3);
+
+    kiss_usage_wipe();
+    uchk("a wipe takes the coordinator's claim with it",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NATIVE, &high, &height) == 0);
+    uchk("  ...and the local mark with it",
+         kiss_usage_high(fp, 1, WSCRIPT_NATIVE) == -1);
+}
+
+// The branch above only reaches the session table: may_persist() also wants
+// flash encryption, and the sim is left on the beta lane where it is off. The
+// stored path has the two things the session path does not -- a write that
+// outlives the RAM table, and the promote-on-read that pulls it back in -- so
+// it gets its own pass with the hook on.
+static void test_chain_store_persistent(void)
+{
+    const uint8_t fp[4] = { 0xab, 0xcd, 0xef, 0x01 };
+    int high; uint32_t height;
+
+    kiss_seed_test_set_flash_encrypted(1);
+    kiss_usage_wipe();
+
+    uchk("stored: a claim is accepted",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NESTED, 17, 5000) == 1);
+    kiss_usage_forget_session();          // the RAM table is gone; storage is not
+    uchk("stored: it survives the session table",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NESTED, &high, &height) == 1 &&
+         high == 17 && height == 5000);
+    uchk("stored: the height gate still holds after a promote",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NESTED, 99, 4999) == 0);
+    uchk("stored: and a newer claim still lands",
+         kiss_usage_chain_set(fp, 1, WSCRIPT_NESTED, 4, 5001) == 1 &&
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NESTED, &high, &height) == 1 &&
+         high == 4);
+
+    // A session-only claim promoted by the flush, which is the door a mode
+    // change comes through.
+    kiss_seed_test_set_flash_encrypted(0);
+    uchk("stored: a beta lane claim is session only",
+         kiss_usage_chain_set(fp, 0, WSCRIPT_NATIVE, 8, 6000) == 1);
+    kiss_seed_test_set_flash_encrypted(1);
+    kiss_usage_persist_session();
+    kiss_usage_forget_session();
+    uchk("stored: the flush carried it across",
+         kiss_usage_chain_known(fp, 0, WSCRIPT_NATIVE, &high, &height) == 1 &&
+         high == 8 && height == 6000);
+
+    kiss_usage_wipe();
+    uchk("stored: a wipe clears it",
+         kiss_usage_chain_known(fp, 1, WSCRIPT_NESTED, &high, &height) == 0);
+    kiss_seed_test_set_flash_encrypted(0);   // leave the sim on the beta lane
+}
+
 int test_usage(void)
 {
     ufails = 0;
@@ -125,5 +238,7 @@ int test_usage(void)
     test_parse_refusals();
     test_parse_adversarial();
     test_index_does_not_describe_address();
+    test_chain_store();
+    test_chain_store_persistent();
     return ufails;
 }
