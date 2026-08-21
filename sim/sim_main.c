@@ -3167,6 +3167,13 @@ int main(void) {
   save("/tmp/sim_settings_attn.ppm");               // -> BACKUP, the flagged group
   must_show("the attention chip lands on the flagged group",
             tr(STR_I_ROW_STORAGE));
+  // And tapped AGAIN, already on the group it points at: nothing arrives, the
+  // cautions are simply pointed at where they stand. Captured raw rather than
+  // saved, because the frame that proves it is mid pulse and a settled one is
+  // by design identical to the stop above.
+  touch(150, WT_ACTION_Y + 26); pump(3); release(); pump(14);
+  shot_raw("sim_settings_attn_again.ppm");
+  pump(40);
   set_tab(SET_SIGNER);
 
   // The exchange itself, caught part way through: two lanes of rows on screen

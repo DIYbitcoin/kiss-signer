@@ -198,6 +198,28 @@ static void flare(lv_obj_t *row, int delay)
 
 static void enter_done(lv_anim_t *a) { (void)a; s_entering = false; }
 
+// Asked of the ROW rather than of the page's state, so the pulse and the amber
+// card can never disagree about which row it is: WT_SEV_WARN is the page's own
+// answer to "does this want reading", and this reads the answer back off the
+// object it was written on.
+static bool row_wants_reading(lv_obj_t *c)
+{
+    return lv_obj_get_style_border_opa(c, LV_PART_MAIN) == 77
+        && lv_color_eq(lv_obj_get_style_border_color(c, LV_PART_MAIN), WT_WARN);
+}
+
+// Point at the cautions in a group already on the glass, without moving it.
+// The chip's second tap wants this and not a whole entry: the group is not
+// arriving, it is being indicated.
+static void pane_point(lv_obj_t *pane)
+{
+    uint32_t n = lv_obj_get_child_count(pane);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(pane, i);
+        if (row_wants_reading(c)) flare(c, 0);
+    }
+}
+
 // `dir` is sign(new tab - old tab), so the group arrives from the side of the
 // strip the finger moved towards and the motion carries which way you went.
 static void pane_enter(lv_obj_t *pane, int dir, bool rise)
@@ -274,12 +296,7 @@ static void pane_enter(lv_obj_t *pane, int dir, bool rise)
             lv_anim_start(&a);
         }
 
-        // Only the rows that are actually asking for something. WT_SEV_WARN is
-        // the page's own answer to "does this want reading", so the pulse and
-        // the amber card can never disagree about which row it is.
-        if (lv_obj_get_style_border_opa(c, LV_PART_MAIN) == 77
-            && lv_color_eq(lv_obj_get_style_border_color(c, LV_PART_MAIN), WT_WARN))
-            flare(c, delay + MO_FLARE_LAG);
+        if (row_wants_reading(c)) flare(c, delay + MO_FLARE_LAG);
 
         k++;
     }
@@ -1672,10 +1689,11 @@ static void attn_cb(lv_event_t *e)
 {
     (void)e;
     if (s_tab == TAB_BACKUP) {
-        // Already there. The group does not need replacing, only pointing at
-        // again -- re-entering it re-fires the pulse, which is the whole
-        // answer to a second tap on a chip that says something wants reading.
-        if (!s_entering && s_pane) pane_enter(s_pane, 1, false);
+        // Already there, so nothing arrives: replaying the entry would slide a
+        // group in from a side the finger never moved towards, to say
+        // something the pulse says on its own. The chip asks WHICH ROW, and
+        // the answer is the flare with no travel under it.
+        if (!s_entering && s_pane) pane_point(s_pane);
         return;
     }
     go_tab(TAB_BACKUP);      // both counted conditions live there
