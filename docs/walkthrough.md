@@ -34,11 +34,11 @@ Setup asks what remains after you power off, before the recovery words are commi
 
 ![KISS screen: settings storage](shots/03b-settings-storage.png)
 
-SETTINGS → STORAGE shows the current mode and the same three choices. Moving between modes requires a deliberate hold and verifies the destination before removing the source.
+SETTINGS → BACKUP states the current mode on the row and offers the same three choices where it stands. Moving between modes still requires a deliberate hold and verifies the destination before removing the source.
 
 ![KISS screen: settings](shots/03c-settings.png)
 
-SETTINGS itself, the page both of those are reached from. Storage and address type read their current value on the row that opens them, so nothing here has to be opened to be checked.
+SETTINGS itself, the page both of those are reached from. Five section groups, one on screen at a time; every row states its current value beside its name, so nothing here has to be opened to be checked.
 
 ## Two ways in: the spare wallet
 

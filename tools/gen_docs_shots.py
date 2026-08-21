@@ -85,7 +85,11 @@ SECTIONS = [
           "words are committed. FLASH keeps the words on this device (they open "
           "the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the "
           "words to a card only this signer can open."),
-         ("03b-settings-storage", "sim_storage_pop",
+         # sim_storage_pop was the popover 5482bc7 removed ("nothing floats
+         # over the page"); the caption below was rewritten for the inline row
+         # that replaced it and the frame name was left behind, so the shot has
+         # been unbuildable since. sim_storage_choose IS that screen.
+         ("03b-settings-storage", "sim_storage_choose",
           "SETTINGS → BACKUP states the current mode on the row and offers the "
           "same three choices where it stands. Moving between modes still "
           "requires a deliberate hold and verifies the destination before "
