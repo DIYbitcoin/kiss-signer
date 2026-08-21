@@ -85,11 +85,12 @@ SECTIONS = [
           "words are committed. FLASH keeps the words on this device (they open "
           "the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the "
           "words to a card only this signer can open."),
-         ("03b-settings-storage", "sim_storage_pop",
-          "SETTINGS → BACKUP states the current mode on the row and offers the "
-          "same three choices where it stands. Moving between modes still "
-          "requires a deliberate hold and verifies the destination before "
-          "removing the source."),
+         ("03b-settings-storage", "sim_storage_choose",
+          "SETTINGS → BACKUP states the current mode on the row and opens this "
+          "to change it: three modes, each saying where the words end up, with "
+          "the one in force ticked. Moving between them still requires a "
+          "deliberate hold and verifies the destination before removing the "
+          "source."),
          # SETTINGS itself, which the walkthrough sent people to twice without
          # ever showing. The simulator has captured this frame all along.
          ("03c-settings", "sim_settings",
