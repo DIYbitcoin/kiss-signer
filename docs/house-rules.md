@@ -369,6 +369,14 @@ there:
    dropping its outgoing group instead of sliding it.
 7. **800ms is the whole budget for a page change.** Cut the tail of a pulse
    before cutting anything that carries a fact.
+8. **Two lanes cost memory, and the pool asserts rather than returning
+   NULL.** `SIM_TABGIF=1` prints what an exchange actually takes:
+   `[tabcost] ordinary settled 46856 peak 59144 (+12288, 26%)`. That is
+   12K held for 288ms against a 123K pool whose walk-wide high water is
+   106K, so the settings exchange has ~67K of room and cannot be what
+   runs it out. Re-read that line after changing what a group holds --
+   nothing else measures a page mid transition, because every gate
+   photographs settled screens by design.
 
 ### A number from a design handoff is in someone else's units
 

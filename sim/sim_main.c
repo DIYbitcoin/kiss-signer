@@ -3202,14 +3202,35 @@ int main(void) {
       { SET_NOUNDO, "sim_tabundo_%03d.ppm" },
     };
     for (int r = 0; r < 2; r++) {
+      uint32_t base = 0, peak = 0;
+      int first = -1, last = -1;
       set_tab(SET_SIGNER);
       touch(SET_TAB_X(REC[r].to), SET_TAB_Y); pump(3); release();
       for (int i = 0; i < 56; i++) {
         char nm[48];
         snprintf(nm, sizeof nm, REC[r].fmt, i);
         shot_raw(nm);
+        // What the exchange COSTS, which is the one question the handoff left
+        // to the bench and no gate can answer: two lanes of rows exist at once
+        // for ~200ms, and the pool is 126K with an assert rather than a NULL
+        // at the bottom of it. Sampled here because this is the only place the
+        // walk sits inside a transition instead of stepping over it.
+        {
+          lv_mem_monitor_t m;
+          lv_mem_monitor(&m);
+          uint32_t used = (uint32_t)(m.total_size - m.free_size);
+          if (!i) base = used;
+          if (used > peak) peak = used;
+          if (used > base + 2000) { if (first < 0) first = i; last = i; }
+        }
         pump(1);
       }
+      printf("[tabcost] %-8s settled %u  peak %u  (+%u, %u%%)  "
+             "two lanes for %dms of a %uK pool\n",
+             REC[r].to == SET_NOUNDO ? "NO UNDO" : "ordinary",
+             base, peak, peak - base, base ? (peak - base) * 100 / base : 0,
+             first < 0 ? 0 : 16 * (last - first + 1),
+             (unsigned)(126136 / 1024));
     }
     set_tab(SET_SIGNER);
   }
