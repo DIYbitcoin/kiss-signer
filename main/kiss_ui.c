@@ -1067,10 +1067,17 @@ void kiss_ui_idle_wipe(void) {
   // cancel confirm is a question about the SETUP and survives on purpose.
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
   s_weak_ack = false;
-  // s_setup_mode and s_backup_verify_pass are the FLOW and stay. The caption
-  // walks back to the stage the wipe returned the owner to.
-  if (s_login && s_cap && s_setup_mode)
-    cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
+  // These flags are the FLOW and stay. The caption walks back to the stage the
+  // wipe returned the owner to: a backup rehearsal still asks for the exact
+  // backup passphrase, a restore still asks for the existing passphrase, and
+  // only a newly made wallet asks the owner to create one.
+  if (s_login && s_cap && s_setup_mode) {
+    const int cap = s_backup_verify_pass ? STR_L_VERIFY_PASS
+                  : s_restore_mode       ? STR_L_PASSPHRASE_CAP
+                                         : STR_L_CREATE_YOUR_PASS;
+    cap_set(tr(cap), s_backup_verify_pass ? lv_color_hex(0xF2B84B) : MUT_COL,
+            s_backup_verify_pass);
+  }
   if (s_login && s_entry) { entry_refresh_text(); caret_refresh(); }
   pop_wipe_text();   // the key callout may hold the last typed char, hidden or not
 }
@@ -1138,6 +1145,7 @@ static void setup_warn_ok_cb(lv_event_t *e) {
   (void)e;
   void (*cb)(void) = s_unlocked_cb;
   const bool nopass_setup = kiss_session_decoy();   // see setup_warn_screen
+  const bool restored_setup = s_restore_mode;       // wipe_and_close clears it
   wipe_and_close();                        // also deletes s_warnscr
   // A wallet with no passphrase IS the decoy: kiss_session_open(NULL) is what
   // both ways in reach. Offering to configure a "real" stroke here would let
@@ -1157,7 +1165,7 @@ static void setup_warn_ok_cb(lv_event_t *e) {
   //
   // A NEW seed keeps the wizard. That is the one moment the two-ways-in idea
   // has to be taught, because nothing else in the product will bring it up.
-  if (s_restore_mode) {
+  if (restored_setup) {
     if (cb) cb();
     return;
   }
