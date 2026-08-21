@@ -11,16 +11,47 @@
 
 #include "qr_transport.h"
 
+static int read_psbt(const char *path, uint8_t *out, size_t cap, size_t *len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return -1; }
+
+    size_t n = fread(out, 1, cap, f);
+    if (ferror(f)) {
+        fprintf(stderr, "%s: read failed\n", path);
+        fclose(f);
+        return -1;
+    }
+    if (n == cap) {
+        int extra = fgetc(f);
+        if (extra != EOF) {
+            fprintf(stderr, "%s: input exceeds QRT_MAX_PSBT (%zu bytes)\n",
+                    path, cap);
+            fclose(f);
+            return -1;
+        }
+        if (ferror(f)) {
+            fprintf(stderr, "%s: read failed\n", path);
+            fclose(f);
+            return -1;
+        }
+    }
+    if (fclose(f) != 0) {
+        fprintf(stderr, "%s: close failed\n", path);
+        return -1;
+    }
+    *len = n;
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "usage: %s <file.psbt> static|pmofn|ur\n", argv[0]);
         return 2;
     }
-    FILE *f = fopen(argv[1], "rb");
-    if (!f) { perror(argv[1]); return 1; }
     static uint8_t psbt[QRT_MAX_PSBT];
-    size_t n = fread(psbt, 1, sizeof psbt, f);
-    fclose(f);
+    size_t n = 0;
+    if (read_psbt(argv[1], psbt, sizeof psbt, &n) != 0) return 1;
 
     int fmt = !strcmp(argv[2], "static") ? QRT_FMT_STATIC
             : !strcmp(argv[2], "pmofn")  ? QRT_FMT_PMOFN

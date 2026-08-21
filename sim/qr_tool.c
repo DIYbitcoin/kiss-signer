@@ -1,23 +1,54 @@
 // Desktop QR-transport driver for interop tests (BlueWallet rig, tools/bw_interop):
-//   /tmp/kissqr emit <psbt-file>   -> UR crypto-psbt frames, one per line
-//                                     (cycles 3x the pure-fragment count, like the
-//                                      device's looping animated QR)
-//   /tmp/kissqr parse              -> frames on stdin (any order/dupes) -> raw PSBT
-//                                     bytes on stdout once assembly completes
+//   kissqr emit <psbt-file>   -> UR crypto-psbt frames, one per line
+//                                (cycles 3x the pure-fragment count, like the
+//                                 device's looping animated QR)
+//   kissqr parse              -> frames on stdin (any order/dupes) -> raw PSBT
+//                                bytes on stdout once assembly completes
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "qr_transport.h"
 
+static int read_psbt(const char *path, uint8_t *out, size_t cap, size_t *len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { fprintf(stderr, "cannot open %s\n", path); return -1; }
+
+    size_t n = fread(out, 1, cap, f);
+    if (ferror(f)) {
+        fprintf(stderr, "%s: read failed\n", path);
+        fclose(f);
+        return -1;
+    }
+    if (n == cap) {
+        int extra = fgetc(f);
+        if (extra != EOF) {
+            fprintf(stderr, "%s: input exceeds QRT_MAX_PSBT (%zu bytes)\n",
+                    path, cap);
+            fclose(f);
+            return -1;
+        }
+        if (ferror(f)) {
+            fprintf(stderr, "%s: read failed\n", path);
+            fclose(f);
+            return -1;
+        }
+    }
+    if (fclose(f) != 0) {
+        fprintf(stderr, "%s: close failed\n", path);
+        return -1;
+    }
+    *len = n;
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc >= 3 && strcmp(argv[1], "emit") == 0) {
-        FILE *f = fopen(argv[2], "rb");
-        if (!f) { fprintf(stderr, "cannot open %s\n", argv[2]); return 1; }
         static uint8_t psbt[QRT_MAX_PSBT];
-        size_t len = fread(psbt, 1, sizeof psbt, f);
-        fclose(f);
+        size_t len = 0;
+        if (read_psbt(argv[2], psbt, sizeof psbt, &len) != 0) return 1;
         qrt_encoder_t *e = qrt_encoder_new(QRT_FMT_UR, psbt, len);
         if (!e) { fprintf(stderr, "encoder failed\n"); return 1; }
         int parts = qrt_encoder_parts(e);
