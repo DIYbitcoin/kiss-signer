@@ -204,6 +204,7 @@ static void pane_enter(lv_obj_t *pane, int dir, bool rise)
 {
     uint32_t n = lv_obj_get_child_count(pane);
     int k = 0;
+    lv_obj_t *last = NULL;       // the last row DEALT, which the latch hangs on
     s_entering = true;
 
     for (uint32_t i = 0; i < n; i++) {
@@ -239,8 +240,16 @@ static void pane_enter(lv_obj_t *pane, int dir, bool rise)
         }
         // The flag comes off the LAST row to be dealt, which is the last one
         // to settle. A tap arriving before it is a tap on a page still moving.
-        if (i + 1 == n) lv_anim_set_completed_cb(&a, enter_done);
+        // The flag comes off the LAST ROW DEALT, which is not the same as the
+        // last child: the wash `continue`s above without an entry animation,
+        // and a group whose scenery happened to be built last would leave
+        // s_entering true for ever. The symptom of that is silent -- every
+        // later tab change would drop its outgoing group instead of sliding
+        // it -- so it is guarded here rather than by remembering the order
+        // tab_noundo builds in.
+        lv_anim_set_completed_cb(&a, NULL);
         lv_anim_start(&a);
+        last = c;
 
         lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
         lv_anim_set_completed_cb(&a, NULL);
@@ -274,6 +283,24 @@ static void pane_enter(lv_obj_t *pane, int dir, bool rise)
 
         k++;
     }
+
+    // A group of nothing but scenery never settles, so it is already settled.
+    if (!last) { s_entering = false; return; }
+
+    // Re-armed on the row that actually finishes last, over its own travel:
+    // restarting the same (var, exec_cb) pair replaces the animation LVGL is
+    // already running for it rather than adding a second one.
+    lv_anim_t z;
+    lv_anim_init(&z);
+    lv_anim_set_var(&z, last);
+    lv_anim_set_exec_cb(&z, rise ? an_ty : an_tx);
+    lv_anim_set_values(&z, rise ? MO_UP_DY : (dir > 0 ? MO_IN_DX : -MO_IN_DX), 0);
+    lv_anim_set_duration(&z, rise ? MO_UP_MS : MO_IN_MS);
+    lv_anim_set_delay(&z, (k - 1) * (rise ? MO_UP_STEP : MO_IN_STEP));
+    if (rise) lv_anim_set_path_cb(&z, lv_anim_path_ease_out);
+    else      an_path_settle(&z);
+    lv_anim_set_completed_cb(&z, enter_done);
+    lv_anim_start(&z);
 }
 
 static void pane_out_done(lv_anim_t *a)
