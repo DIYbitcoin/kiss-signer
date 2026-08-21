@@ -609,7 +609,7 @@
   "R_USAGE_UNKNOWN": "USAGE UNKNOWN",
   "R_CHAIN_UPTO_FMT": "coordinator: used up to #%u",
   "R_CHAIN_CLEAN": "coordinator: none used yet",
-  "R_CHAIN_ASK": "VERIFY with your coordinator to see which are used",
+  "R_CHAIN_ASK": "VERIFY with your coordinator",
   "R_UM_OTHER_KEYS": "that coordinator is watching different keys",
   "R_UM_NO_CHANGE": "already up to date; nothing moved",
   "I_SEC_NO_UNDO": "БЕЗ ОТМЕНЫ",

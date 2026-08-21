@@ -112,7 +112,7 @@ static lv_obj_t *s_parent;
 #define RECV_PATH_Y 236
 
 static lv_obj_t *s_qr, *s_addr_sg, *s_idx_lbl, *s_path_lbl, *s_path_tn_lbl;
-static lv_obj_t *s_state_chip;
+static lv_obj_t *s_state_chip, *s_chain_lbl;
 // The card the address lives in on the detail screen, and the caption inside it.
 // recv_refresh rebuilds the spans on every NEXT, so both have to outlive one
 // refresh: the spans are children of the card and are placed against the
@@ -144,7 +144,7 @@ static void close_cb(lv_event_t *e) {
   s_sp_path_lbl = s_sp_path_sec = NULL;
   s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
   s_sp_card = NULL;
-  s_state_chip = NULL;
+  s_state_chip = s_chain_lbl = NULL;
   s_addr_card = s_cmp_lbl = s_addr_more = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
@@ -245,31 +245,56 @@ static void recv_refresh(void) {
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
 
-  // The state chip HANDOFF-03 asks for, in the vocabulary every other bitcoin
-  // wallet uses: an address is USED or UNUSED. The doc drew it as "NEVER HANDED
-  // OUT" and "HANDED OUT ALREADY", which the owner cut, and rightly: handing an
-  // address to somebody happens off this device, so a signer with no chain view
-  // cannot know whether it happened. Claiming it did, on the screen whose
-  // subtitle is "trust what you see here", spends the credit that sentence asks
-  // for.
+  // The state chip, and the one line saying where its confidence came from.
   //
-  // Used and unused is a claim of the same shape as what kiss_usage_high
-  // actually holds: an address this device signed a spend from is on chain, so
-  // USED is certain. UNUSED means no record here, which is what the standard
-  // term means in any watch-only wallet too, and the privacy note beside the
-  // chip is what tells the owner to move on to a fresh one either way.
-  if (s_state_chip) {
+  // HANDOFF-03 asked for a chip here and the vocabulary is still right: USED and
+  // UNUSED are the words every wallet uses. What was wrong is that this screen
+  // made both claims out of one number, and they are not the same kind of claim.
+  //
+  // Spending an output proves it was funded, so an index this device signed
+  // from is USED on its own evidence -- mark_used_receives records exactly
+  // that, and no coordinator is needed to say it. UNUSED is a NEGATIVE claim
+  // about the chain, and a signer has no chain view to make it with. The old
+  // comment here argued that UNUSED means "no record on this device", the same
+  // as in a watch-only wallet; it does not. A watch-only wallet says it after
+  // looking at the chain and finding nothing. This device said it after looking
+  // at nothing, which is how a wallet with real history at 0..29 read UNUSED on
+  // all thirty of them.
+  //
+  // So the third state is a chip and not an absence. Drawing nothing would have
+  // been honest about the address and silent about its own silence: the screen
+  // looks finished, and nothing on it would ever tell an owner that the answer
+  // is obtainable at all.
+  {
     uint8_t fp[4];
     kiss_ui_last_fp(fp);
-    int high = kiss_usage_high(fp, kiss_testnet() ? 1 : 0, kiss_script());
-    bool handed = high >= 0 && (int)s_idx <= high;
-    wt_state_chip_set(s_state_chip,
-                      tr(handed ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED),
-                      handed ? WT_WARN : WT_OK);
-    // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed
-    // every refresh because the label length differs between the two states
-    // AND per locale.
-    lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 96);
+    int net = kiss_testnet() ? 1 : 0, sc = kiss_script();
+    int high = kiss_usage_high(fp, net, sc);
+    int chain = -1; uint32_t cheight = 0;
+    int known = kiss_usage_chain_known(fp, net, sc, &chain, &cheight);
+    if (known && chain > high) high = chain;
+
+    if (s_state_chip) {
+      const char *txt; lv_color_t col;
+      if ((int)s_idx <= high)  { txt = tr(STR_R_HANDED_ALREADY); col = WT_WARN; }
+      else if (known)          { txt = tr(STR_R_NEVER_HANDED);   col = WT_OK;   }
+      else                     { txt = tr(STR_R_USAGE_UNKNOWN);  col = WT_MUT;  }
+      wt_state_chip_set(s_state_chip, txt, col);
+      // Right aligned to x=752, on the same row as ADDRESS #N. Recomputed every
+      // refresh because the label length differs between the states AND per
+      // locale; there are three of them now and the reason is unchanged.
+      lv_obj_set_pos(s_state_chip, 752 - lv_obj_get_width(s_state_chip), 96);
+    }
+
+    if (s_chain_lbl) {
+      char buf[128];
+      if (known && chain >= 0)
+        snprintf(buf, sizeof buf, tr(STR_R_CHAIN_UPTO_FMT), (unsigned)chain);
+      else
+        snprintf(buf, sizeof buf, "%s",
+                 tr(known ? STR_R_CHAIN_CLEAN : STR_R_CHAIN_ASK));
+      wt_note_fit(s_chain_lbl, buf, 238, WT_CONTENT_BOTTOM - 356);
+    }
   }
 }
 
@@ -805,13 +830,14 @@ static void back_to_detail_cb(lv_event_t *e) {
   (void)e;
   s_addr_sg = NULL;
   s_addr_card = s_cmp_lbl = s_addr_more = NULL;
+  s_chain_lbl = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
   recv_detail_open();
 }
 
 static void recv_list_open(void) {
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;   // detail-only widgets are gone
-  s_state_chip = NULL;
+  s_state_chip = s_chain_lbl = NULL;
   s_path_tn_lbl = NULL;
   s_addr_card = s_cmp_lbl = s_addr_more = NULL;
 
@@ -969,6 +995,22 @@ static void recv_detail_open(void) {
   // a step you take once when pairing, not information you read every time
   // you hand out an address, and the WALLET card still shows it.
   wt_qr_card(s_scr, &s_qr, 48, 112, 238, 202);
+
+  // Under the QR, in the band the card leaves free. wt_qr_card's 238 is the
+  // CARD and the 202 is the QR inside it, so the white ends at 112 + 238 = 350
+  // and not at 314 -- placing this by the QR's own height drew it straight
+  // through the card's bottom edge, which is what the first rendered frame
+  // showed. 356 leaves six pixels of page and two font14 lines before
+  // WT_CONTENT_BOTTOM.
+  //
+  // This is the SCREEN's knowledge, not this address's state -- the chip beside
+  // the address owns that -- so it sits with the QR rather than in the right
+  // column. font14 is the intended size and not a fit helper giving up: it is
+  // metadata about where the chip's confidence came from, and the thing an
+  // owner reads to act is the chip itself.
+  s_chain_lbl = wt_lbl(s_scr, "", 48, 356, wt_font14(), WT_MUT);
+  lv_obj_set_width(s_chain_lbl, 238);
+  lv_label_set_long_mode(s_chain_lbl, LV_LABEL_LONG_WRAP);
 
   // Right column, x=310, w=442.
   //   y=106 caption ADDRESS #N + state chip right-aligned to x=752
