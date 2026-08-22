@@ -748,6 +748,12 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(chip, 1, 0);
     lv_obj_set_style_border_color(chip, color, 0);
+    // A chip painted in the accent has to say so on BOTH channels, or the rim
+    // and the glyph drift apart at the next theme change. Guarded on the
+    // colour rather than a parameter: callers pass a status colour here too,
+    // and a status colour must never be repainted by a theme.
+    const bool acc = lv_color_eq(color, wt_accent());
+    if (acc) lv_obj_add_flag(chip, WT_FLAG_ACCENT_BORDER);
     lv_obj_add_flag(chip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_ext_click_area(chip, 12);       // 54px effective target
@@ -757,6 +763,7 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     lv_obj_t *label = lv_label_create(chip);
     lv_label_set_text(label, symbol);
     lv_obj_set_style_text_color(label, color, 0);
+    if (acc) lv_obj_add_flag(label, WT_FLAG_ACCENT);
     lv_obj_set_style_text_font(label, wt_font14(), 0);
     lv_obj_center(label);
     return chip;
@@ -1533,6 +1540,8 @@ static void accent_walk(lv_obj_t *o)
     }
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT_FILL))
         lv_obj_set_style_bg_color(o, wt_accent(), 0);
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_SCROLL))
+        lv_obj_set_style_bg_color(o, wt_accent(), LV_PART_SCROLLBAR);
     uint32_t n = lv_obj_get_child_count(o);
     for (uint32_t i = 0; i < n; i++) accent_walk(lv_obj_get_child(o, i));
 }
@@ -2271,7 +2280,10 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     // as the "?" and the label sharing pixels, because by box they do.
     lv_obj_set_width(l, lw);
 
-    lv_obj_t *chip = wt_help_chip(row, 0, 0, WT_MUT, cb, ud);
+    // The "?" is a TAP TARGET, so it wears the accent like every other one on
+    // the device rather than the colour of a row that cannot be pressed. The
+    // guard in round_chip flags both its rim and its glyph.
+    lv_obj_t *chip = wt_help_chip(row, 0, 0, wt_accent(), cb, ud);
     lv_obj_align(chip, LV_ALIGN_LEFT_MID, WT_WIDE_LX + lw + 10, 0);
     return chip;
 }
@@ -2673,6 +2685,24 @@ void wt_pane_go(wt_pane_t *p, int tab, bool stop, void (*build)(void))
     wt_tabs_select(p->tabs, from, tab, stop);
     wt_pane_enter(p, dir, stop);
     wt_pane_exit(p, dir);
+}
+
+// The bar on a scrolling list. Four lists wrote this by hand and a fifth wrote
+// nothing at all -- and the one that had already been accented was stale on
+// every theme change, because accent_walk repaints LV_PART_MAIN and a
+// scrollbar is a PART. WT_FLAG_ACCENT_SCROLL is what reaches it.
+//
+// OPA_50 so it is a tint rather than a stripe, and the caller still decides ON
+// or OFF: a bar that appears only after you have scrolled answers the wrong
+// question, which is the argument written out in kiss_recv.c.
+void wt_list_scrollbar(lv_obj_t *list)
+{
+    if (!list) return;
+    lv_obj_set_style_bg_color(list, wt_accent(), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+    lv_obj_add_flag(list, WT_FLAG_ACCENT_SCROLL);
 }
 
 // ---- overlays (see kiss_theme.h) ----

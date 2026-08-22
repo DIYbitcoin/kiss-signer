@@ -415,9 +415,17 @@ static void vfy_result(const char *txt, size_t len) {
     lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
                                 wt_body_font(buf, 700, 44), WT_WARN);
     lv_label_set_text_fmt(headline, LV_SYMBOL_WARNING " %s", buf);
-    lv_obj_t *n = wt_wrap(s_scr, tr(STR_R_NOT_FOUND_B), 48, note_y, 700,
-                          WT_CONTENT_BOTTOM - note_y);
-    lv_obj_set_style_text_color(n, WT_WARN, 0);
+    // The HEADLINE carries the amber and the explanation does not, which is
+    // what the other two verdicts on this screen already do: wrong network and
+    // invalid both put the colour on the verdict and leave the sentence under
+    // it muted. This branch painted both, and when the note was font14 that
+    // read as a tint; at the size it should always have been it is half the
+    // page in warning colour, saying "caution" twice about one fact.
+    //
+    // The sentence is not a second warning either. It says the address is
+    // valid and the search was bounded -- the reassuring half of the verdict.
+    wt_wrap(s_scr, tr(STR_R_NOT_FOUND_B), 48, note_y, 700,
+            WT_CONTENT_BOTTOM - note_y);
   } else if (validity == WADDR_WRONG_NETWORK) {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_WRONG_NET),
            48, 130, wt_font28(), WT_STOP);
@@ -849,10 +857,7 @@ static void recv_list_open(void) {
   // remove_style_all took the default scrollbar with it, and on this background
   // an unstyled one is invisible -- which on the device reads as "the list does
   // not scroll" rather than "you have not scrolled yet".
-  lv_obj_set_style_bg_color(list, WT_MUT, LV_PART_SCROLLBAR);
-  lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
-  lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
-  lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+  wt_list_scrollbar(list);
   // ON, not AUTO, and this is the one thing about this screen that had to
   // change. There are TWO ways to move through a hundred addresses here, the
   // list scrolls and the arrows page by twenty, and the viewport is 324px

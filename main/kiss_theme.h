@@ -594,6 +594,12 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 #define WT_FLAG_ACCENT_BORDER LV_OBJ_FLAG_USER_2
 #define WT_FLAG_ACCENT_BG     LV_OBJ_FLAG_USER_3
 #define WT_FLAG_ACCENT_FILL   LV_OBJ_FLAG_USER_4
+//   WT_FLAG_ACCENT_SCROLL  its SCROLLBAR. A part rather than a channel, and it
+//                          needs its own flag because accent_walk repaints
+//                          LV_PART_MAIN only -- a scrollbar painted with the
+//                          accent and no flag is correct once and stale for
+//                          every theme after.
+#define WT_FLAG_ACCENT_SCROLL LV_OBJ_FLAG_USER_1
 // Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 
@@ -736,6 +742,10 @@ void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop);
 // The one line under a group of wide rows, at font23 in the page's margin.
 // `rows` is how many the group drew, so the line lands under the last one.
 void wt_group_note(lv_obj_t *pane, int rows, const char *txt);
+
+// The scrollbar on a scrolling list: accent, half opacity, and flagged so it
+// survives a theme change. The caller still picks LV_SCROLLBAR_MODE_ON or OFF.
+void wt_list_scrollbar(lv_obj_t *list);
 
 // ---- the group that MOVES ----------------------------------------------
 // A tabbed page holds ONE group at a time, and a tab change slides the old one

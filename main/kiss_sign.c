@@ -2912,9 +2912,7 @@ static void details_cb(lv_event_t *e)
     // on the page whose whole job is saying what the transaction spends.
     lv_obj_set_scrollbar_mode(il, det.n_in > 2 ? LV_SCROLLBAR_MODE_ON
                                                : LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_style_width(il, 5, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(il, MUT_COL, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(il, LV_OPA_50, LV_PART_SCROLLBAR);
+    wt_list_scrollbar(il);
     lv_obj_set_style_bg_opa(il, LV_OPA_TRANSP, 0);
     for (uint32_t i = 0; i < det.n_in; i++) {
         lv_obj_t *row = lv_obj_create(il);
@@ -2998,9 +2996,7 @@ static void details_cb(lv_event_t *e)
     lv_obj_set_scroll_dir(ol, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(ol, s_sum.n_out > 1 ? LV_SCROLLBAR_MODE_ON
                                                   : LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_style_width(ol, 5, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(ol, MUT_COL, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(ol, LV_OPA_50, LV_PART_SCROLLBAR);
+    wt_list_scrollbar(ol);
     lv_obj_set_style_bg_opa(ol, LV_OPA_TRANSP, 0);
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++) {
         lv_obj_t *row = lv_obj_create(ol);
@@ -3460,9 +3456,7 @@ static void rm_screen(void)
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(list, s_rmn > 3 ? LV_SCROLLBAR_MODE_ON
                                               : LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_width(list, 5, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(list, MUT_COL, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
+    wt_list_scrollbar(list);
 
     for (int i = 0; i < s_rmn; i++) {
         lv_obj_t *row = sg_panel(0, 0, 752, WT_ROW_H, WT_EDGE);
@@ -3586,10 +3580,7 @@ static void sd_open(lv_obj_t *parent)
     // whose whole job is "there is more of this", which is chrome the theme
     // should own -- and at OPA_50 it is a tint rather than a stripe. On MONO,
     // where the accent IS the ink, it reads exactly as the muted one did.
-    lv_obj_set_style_bg_color(list, wt_accent(), LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
-    lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
-    lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
+    wt_list_scrollbar(list);
     // One wt_row per file. These were hand built at radius 26 -- pill shaped
     // list items, which is the loudest form of the idiom this device has
     // stopped using: a row of buttons reads as six things to press, a row of
