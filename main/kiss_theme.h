@@ -763,9 +763,15 @@ typedef struct {
     lv_obj_t *scr;        // the page the groups are built on
     lv_obj_t *pane;       // the group on screen
     lv_obj_t *pane_out;   // the group leaving, alive for its own 200ms
-    lv_obj_t *tabs;       // the strip's highlight, from wt_tabs
+    lv_obj_t *tabs;       // the strip's handle: wt_tabs' highlight, or the
+                          // whole strip from wt_brackets
     int       tab;        // which group is open. Survives a page rebuild.
     bool      entering;   // the arriving group has not settled yet
+    // How this page's strip moves its marker. NULL means wt_tabs_select, which
+    // is every page that came before the bracket strip; KEYS and RECEIVE set
+    // wt_brackets_select. A hook rather than a kind enum because the two take
+    // the same four arguments and wt_pane_go's only interest is calling one.
+    void (*select)(lv_obj_t *tabs, int from, int to, bool stop);
 } wt_pane_t;
 
 // A transparent, unclipped, untappable 800x480 layer to build a group into.
@@ -790,6 +796,87 @@ void wt_pane_stop(wt_pane_t *p);
 // The two halves of wt_pane_go, for a page that needs them apart.
 void wt_pane_enter(wt_pane_t *p, int dir, bool rise);
 void wt_pane_exit(wt_pane_t *p, int dir);
+
+// ---- KEYS / RECEIVE: the borderless idioms ------------------------------
+// Three shapes that exist so those two screens can drop the card entirely: a
+// row is a line with a rule under it, a tab is marked with brackets, and a
+// button is an arrow with no box. Everything here is additive -- wt_row_x,
+// wt_tabs and wt_pill are untouched, because the rest of the device still
+// reads in that language and a half-converted device reads in neither.
+//
+// Three sizes the handoff asks for are not on this device's ladder, which is
+// 14/23/28/34 and mono 14/23/28. Substituted once, here, rather than per call
+// site: font16 brackets -> wt_font_mono14 (a bracket is a MARK, and 23 would
+// stand a 30px glyph in a 30px tab), font20 arrows -> wt_font23, font18
+// explainer -> wt_note's own 23-or-14 ladder, which reports through FIT when
+// it gives up instead of silently shrinking.
+
+// The line row. No fill, no border and no radius at rest: the row is invisible
+// until you touch it, and the pressed state below is therefore the ENTIRE
+// affordance of the redesign rather than a flourish on top of one.
+//
+// `val` may be NULL for a row that draws its own value -- an address needs a
+// spangroup with its last eight lit, which no signature short of passing the
+// spans could express. Build it at (WT_LINE_PAD, wt_line_val_y()) and it lands
+// exactly where a plain value would have.
+//
+// A row with no `cb` gets no arrow, no radius and no pressed style. It is not
+// a dimmed control, it is not a control: KEYS' NETWORK line is the only one.
+#define WT_LINE_PAD  14   // left inset for the caption and the value
+#define WT_LINE_CAP_Y 6   // caption's top inside the row
+// The value's top inside the row: under the caption with a 4px gap. A function
+// rather than a constant because the mono14 line height is what it is measured
+// from, and that moves with the face.
+int wt_line_val_y(void);
+lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
+                      const char *cap, const char *val, const lv_font_t *vf,
+                      lv_color_t vcol, const char *sub,
+                      lv_event_cb_t cb, void *ud);
+// The 1px WT_DIV rule that belongs to a line row, as its OWN object at y + h,
+// so the entry animation can draw it with transform_scale_x without touching
+// the row's box -- and so overlapcheck, which reads real positions, never sees
+// it move. Returns it because the animation needs the handle.
+lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w);
+
+// The 19px round "?" that marks a row whose whole box opens an explainer.
+// wt_help_chip is the same idiom at 30px, which is the size of a chip you aim
+// at; this one is a SIGN on a target you cannot miss, so it is smaller and
+// takes no taps of its own -- the row under it does.
+lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y);
+
+// The bracket tab strip. Same wt_tab_t as wt_tabs (`dot` and `stop` are
+// ignored -- neither screen has a destructive group or an unread one), and the
+// same event contract: `cb` is called with the tab's index as its user data.
+//
+// Returns the STRIP, a 704x36 container holding the buttons and the static
+// rule under them. wt_tabs returns its highlight because the highlight is the
+// only part that moves; nothing moves here, so the handle is the strip itself
+// and wt_brackets_select reaches the tabs through it.
+#define WT_BR_H      30   // a tab
+#define WT_BR_W     196
+#define WT_BR_PITCH 200
+#define WT_BR_STRIP_H 36  // the tabs, the gap, and the rule at the bottom of it
+lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                      int x, int y, int w, lv_event_cb_t cb);
+// Move the marker. Signature-compatible with wt_tabs_select so wt_pane_t can
+// hold either; `stop` is ignored for the reason above.
+void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop);
+
+// The arrow action. The action bar's control with no box at all: a label, and
+// an arrow pointing WHERE THE TAP TAKES YOU -- leading the label when it
+// leaves this screen, trailing it when it opens or advances.
+//
+// `primary` puts the accent on the label as well as the arrow. There is no
+// filled primary on these screens; a fill would be a box, which is the thing
+// being removed.
+//
+// Positions are the pill bar's: WT_ACT_X for the screen's own action, and
+// WT_BACK_X for the exit. Pass `right` to right-align inside x..x+w instead of
+// left-aligning at x, which is what keeps BACK's arrow against the margin
+// when a translation changes the label's width.
+lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
+                          bool primary, int x, int y, int w, bool right,
+                          lv_event_cb_t cb, void *ud);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal

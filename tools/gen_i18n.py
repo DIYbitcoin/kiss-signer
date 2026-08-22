@@ -172,6 +172,16 @@ UNTRANSLATED_OK = {
     # existed lands here, and telling that owner "the signature did not check
     # out" sends them hunting for a corrupt download. English until the sweep.
     "G_FW_FAIL_PQ_B",
+    # KEYS and RECEIVE rebuilt on the section-tab chrome, borderless: a row is
+    # a line with a rule under it, a tab is marked with brackets, a button is
+    # an arrow with no box. Born under the English-only rule; English until the
+    # sweep. Everything either screen could reuse, it reuses -- I_SEC_THIS_WALLET,
+    # R_NEVER_HANDED, R_HANDED_ALREADY, R_SP_BTN and S_CMP_8 all ship already.
+    # These eighteen are the ones with no equivalent.
+    "K_FP_SUB", "K_ADDR_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
+    "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
+    "R_NEXT_ADDR", "R_LIST_COUNT", "R_ONE_EACH_SHORT", "R_USED_NOTE",
+    "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back
     # there. Born under the English-only rule; English until the sweep.

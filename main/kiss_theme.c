@@ -2079,6 +2079,348 @@ void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop)
     }
 }
 
+// ---- KEYS / RECEIVE: the borderless idioms (see kiss_theme.h) ----
+// The kit's three animation exec callbacks live with the pane code below;
+// the bracket strip is the one caller above them.
+static void an_tx(void *v, int32_t x);
+static void an_opa(void *v, int32_t o);
+
+int wt_line_val_y(void)
+{
+    return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font_mono14()) + 4;
+}
+
+lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w)
+{
+    lv_obj_t *r = lv_obj_create(par);
+    lv_obj_remove_style_all(r);
+    lv_obj_set_pos(r, x, y);
+    lv_obj_set_size(r, w, 1);
+    lv_obj_set_style_bg_color(r, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(r, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+    // The pivot the entry animation needs, set HERE rather than at the call
+    // site. transform_scale_x with the default centre pivot draws the rule
+    // from its middle outward, which inverts the whole effect -- and it does
+    // it silently, because a rule at half scale still measures as a rule.
+    lv_obj_set_style_transform_pivot_x(r, 0, 0);
+    return r;
+}
+
+lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y)
+{
+    lv_obj_t *m = lv_obj_create(par);
+    lv_obj_remove_style_all(m);
+    lv_obj_set_pos(m, x, y);
+    lv_obj_set_size(m, 19, 19);
+    lv_obj_set_style_radius(m, 10, 0);
+    lv_obj_set_style_border_width(m, 1, 0);
+    lv_obj_set_style_border_color(m, wt_accent(), 0);
+    lv_obj_set_style_border_opa(m, 115, 0);
+    lv_obj_add_flag(m, WT_FLAG_ACCENT_BORDER);
+    // Takes no taps: the row under it is the target and a 19px circle inside a
+    // 468px row that already opens the same explainer would only ever steal
+    // presses from it.
+    lv_obj_remove_flag(m, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(m, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *q = wt_lbl(m, "?", 0, 0, wt_font14(), wt_accent());
+    lv_obj_add_flag(q, WT_FLAG_ACCENT);
+    lv_obj_center(q);
+    return m;
+}
+
+lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
+                      const char *cap, const char *val, const lv_font_t *vf,
+                      lv_color_t vcol, const char *sub,
+                      lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *row = lv_obj_create(par);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_pos(row, x, y);
+    lv_obj_set_size(row, w, h);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+
+    if (cb) {
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(row, cb, LV_EVENT_CLICKED, ud);
+        // The rail. A left border already present at opacity 0 costs one style
+        // property and no second object; the pressed state flips its opa and
+        // lights a 3px accent edge down the row under the finger. That plus
+        // the wash is the only feedback a borderless row can give, so it is
+        // not decoration -- without it the row is an unmarked target.
+        lv_obj_set_style_radius(row, 6, LV_STATE_PRESSED);
+        lv_obj_set_style_border_side(row, LV_BORDER_SIDE_LEFT, 0);
+        lv_obj_set_style_border_width(row, 3, 0);
+        lv_obj_set_style_border_color(row, wt_accent(), 0);
+        lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(row, wt_accent_pressed(), 0);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+        lv_obj_add_flag(row, WT_FLAG_ACCENT_BORDER);
+        lv_obj_add_flag(row, WT_FLAG_ACCENT_BG);
+        // A style transition, not an lv_anim: LVGL runs it on the state change
+        // itself, so a press that is released mid-fade reverses rather than
+        // finishing and snapping back.
+        static const lv_style_prop_t props[] = {
+            LV_STYLE_BG_OPA, LV_STYLE_BORDER_OPA, LV_STYLE_PROP_INV
+        };
+        static lv_style_transition_dsc_t tr;
+        static bool tr_ready;
+        if (!tr_ready) {
+            lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
+                                         160, 0, NULL);
+            tr_ready = true;
+        }
+        lv_obj_set_style_transition(row, &tr, 0);
+    } else {
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    }
+
+    // The arrow FIRST, so the sub can be measured against the lane it leaves.
+    // Absent, not dimmed, on a row that opens nothing: a mark at low opacity
+    // still says "there is something here", which is the opposite of true.
+    int right = w - WT_LINE_PAD;
+    if (cb) {
+        lv_obj_t *ar = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+                              wt_accent());
+        lv_obj_add_flag(ar, WT_FLAG_ACCENT);
+        lv_obj_update_layout(ar);
+        lv_obj_align(ar, LV_ALIGN_RIGHT_MID, -4 - (24 - lv_obj_get_width(ar)) / 2,
+                     0);
+        right = w - 4 - 24;
+    }
+
+    lv_obj_t *c = wt_lbl(row, cap, WT_LINE_PAD, WT_LINE_CAP_Y,
+                         wt_font_mono14(), WT_MUT);
+    lv_obj_set_style_text_letter_space(c, 3, 0);
+
+    if (val) {
+        lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
+                             vf ? vf : wt_font23(), vcol);
+        // Stops short of the sub's lane. The value is the row's subject and is
+        // never ellipsised by choice, but a locale that overruns must lose
+        // letters rather than run under the sub and share pixels with it.
+        lv_obj_set_width(v, right - 18 - 140 - WT_LINE_PAD);
+        lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
+        lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
+    }
+
+    if (sub && *sub) {
+        // Right edge 18 clear of the arrow's lane, which is 4 + 24 in from the
+        // row's right. The handoff writes this as "24 + 18 = 42 short"; the
+        // lane's own 4px inset makes it 46, and 46 is what the drawing shows.
+        const int lane = 200;
+        lv_obj_t *sl = wt_lbl(row, sub, 0, 0, wt_font14(), WT_DIM);
+        wt_sub_measure(sub, wt_font14(), lane);
+        lv_obj_set_width(sl, lane);
+        lv_obj_set_height(sl, lv_font_get_line_height(wt_font14()));
+        lv_label_set_long_mode(sl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(sl, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -(w - right) - 18, 0);
+    }
+    return row;
+}
+
+// ---- the bracket tab strip ----
+#define WT_BR_SPACE 2    // the tracking a mono14 tab label wears
+#define WT_BR_GAP   7    // icon to label, and bracket to either
+
+// Every tab is built with both brackets and they are never created or
+// destroyed -- only their opacity moves. Building them on selection instead
+// would reflow the strip on every tap, because a bracket appearing changes the
+// width of the group the tab centres.
+typedef struct { lv_obj_t *l, *r, *ic, *lbl; } br_tab_t;
+
+static void br_paint(lv_obj_t *tab, bool sel)
+{
+    // The four children in build order: [ , icon (or NULL), label, ].
+    lv_obj_t *lb = lv_obj_get_child(tab, 0);
+    lv_obj_t *rb = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 1);
+    lv_obj_t *lbl = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 2);
+    lv_obj_t *ic = lv_obj_get_child_count(tab) > 3 ? lv_obj_get_child(tab, 1)
+                                                   : NULL;
+    lv_obj_set_style_text_opa(lb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_opa(rb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(lbl, sel ? WT_INK : WT_MUT, 0);
+    if (ic) {
+        lv_obj_set_style_text_color(ic, sel ? wt_accent() : WT_DIM, 0);
+        // Only the SELECTED icon is accent-painted, so only it may carry the
+        // flag: a restyle that repainted every icon would put the accent on
+        // three tabs at once and the marker would stop marking anything.
+        if (sel) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        else     lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
+    }
+}
+
+lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                      int x, int y, int w, lv_event_cb_t cb)
+{
+    const lv_font_t *f = wt_font_mono14();
+
+    lv_obj_t *strip = lv_obj_create(scr);
+    lv_obj_remove_style_all(strip);
+    lv_obj_set_pos(strip, x, y);
+    lv_obj_set_size(strip, w, WT_BR_STRIP_H);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+
+    for (int i = 0; i < n; i++) {
+        const wt_tab_t *t = &tabs[i];
+        lv_obj_t *b = lv_obj_create(strip);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_pos(b, i * WT_BR_PITCH, 0);
+        lv_obj_set_size(b, WT_BR_W, WT_BR_H);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+        // No pressed fill. A wash here would be a box appearing on the one
+        // strip built to have none; the sink from wt_tap_feedback is the whole
+        // press answer.
+        wt_tap_feedback(b);
+        if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+
+        // Measured as a group, brackets included, or the label sits off centre
+        // by the width of a bracket on every unselected tab.
+        lv_point_t is = { 0, 0 }, ls, bs;
+        if (t->icon && *t->icon)
+            lv_text_get_size(&is, t->icon, f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+        lv_text_get_size(&ls, t->label, f, WT_BR_SPACE, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        lv_text_get_size(&bs, "[", f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        int iw = is.x ? is.x + WT_BR_GAP : 0;
+        int bw = bs.x + WT_BR_GAP;
+        // A locale whose word does not fit LOSES LETTERS. The tab does not
+        // widen: 196 on a 200 pitch is what puts three groups in the 704 lane.
+        int room = WT_BR_W - 8 - iw - 2 * bw;
+        int lw = ls.x > room ? room : ls.x;
+        int px = (WT_BR_W - (2 * bw + iw + lw)) / 2;
+        if (px < 2) px = 2;
+
+        lv_obj_t *lb = wt_lbl(b, "[", 0, 0, f, wt_accent());
+        lv_obj_add_flag(lb, WT_FLAG_ACCENT);
+        lv_obj_align(lb, LV_ALIGN_LEFT_MID, px, 0);
+        if (iw) {
+            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, f, WT_DIM);
+            lv_obj_align(ic, LV_ALIGN_LEFT_MID, px + bw, 0);
+        }
+        lv_obj_t *l = wt_lbl(b, t->label, 0, 0, f, WT_MUT);
+        lv_obj_set_style_text_letter_space(l, WT_BR_SPACE, 0);
+        lv_obj_set_width(l, lw);
+        lv_obj_set_height(l, lv_font_get_line_height(f));
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        lv_obj_align(l, LV_ALIGN_LEFT_MID, px + bw + iw, 0);
+        lv_obj_t *rb = wt_lbl(b, "]", 0, 0, f, wt_accent());
+        lv_obj_add_flag(rb, WT_FLAG_ACCENT);
+        lv_obj_align(rb, LV_ALIGN_LEFT_MID, px + bw + iw + lw + WT_BR_GAP, 0);
+
+        br_paint(b, i == sel);
+    }
+
+    // The rule under the strip: full lane, static, and NOT a line row's rule.
+    // It does not move with the selection and it does not draw on a tab change
+    // -- it is the floor the strip stands on, and a floor that redrew itself
+    // every tap would be the loudest thing on the page.
+    wt_line_rule(strip, 0, WT_BR_STRIP_H - 1, w);
+    return strip;
+}
+
+void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop)
+{
+    (void)stop;
+    if (!strip) return;
+    const uint32_t n = lv_obj_get_child_count(strip);
+    // The last child is the rule, so the tabs are 0..n-2.
+    if (from >= 0 && (uint32_t)from < n - 1)
+        br_paint(lv_obj_get_child(strip, from), false);
+    if (to < 0 || (uint32_t)to >= n - 1) return;
+    lv_obj_t *tab = lv_obj_get_child(strip, to);
+    br_paint(tab, true);
+
+    // Both brackets arrive from OUTSIDE the label, which is what makes the
+    // marker read as a pair closing on the word rather than as two glyphs
+    // fading up. One lv_anim per property, per the kit's rule.
+    lv_obj_t *lb = lv_obj_get_child(tab, 0);
+    lv_obj_t *rb = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 1);
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *o = i ? rb : lb;
+        lv_anim_del(o, NULL);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, o);
+        lv_anim_set_duration(&a, 220);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_values(&a, i ? -7 : 7, 0);
+        lv_anim_set_exec_cb(&a, an_tx);
+        lv_anim_start(&a);
+        lv_anim_set_values(&a, 0, 255);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_start(&a);
+    }
+}
+
+// ---- the arrow action ----
+lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
+                          bool primary, int x, int y, int w, bool right,
+                          lv_event_cb_t cb, void *ud)
+{
+    if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
+
+    const lv_font_t *f = wt_font23();
+    lv_point_t ls, as;
+    const char *arrow = back ? LV_SYMBOL_LEFT : LV_SYMBOL_RIGHT;
+    lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&as, arrow, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int cw = ls.x + 12 + as.x;
+
+    lv_obj_t *p = lv_obj_create(scr);
+    lv_obj_remove_style_all(p);
+    // The hit box is the action row's full height and the content's width. No
+    // fill, no border, no radius: the box IS the two labels, and anything
+    // drawn around them would be the pill this replaces.
+    lv_obj_set_size(p, cw, WT_ACTION_H);
+    lv_obj_set_pos(p, right ? x + w - cw : x, y);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, ud);
+
+    // The whole control shifts 5px the way its arrow points. Not a sink: the
+    // pill's 2px drop reads as a button being pushed into the page, and this
+    // is not a button -- it is a direction, so the feedback is movement along
+    // it. A style transition so a released press reverses rather than snaps.
+    {
+        static const lv_style_prop_t props[] = {
+            LV_STYLE_TRANSLATE_X, LV_STYLE_PROP_INV
+        };
+        static lv_style_transition_dsc_t tr;
+        static bool tr_ready;
+        if (!tr_ready) {
+            lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
+                                         170, 0, NULL);
+            tr_ready = true;
+        }
+        lv_obj_set_style_translate_x(p, 0, 0);
+        lv_obj_set_style_translate_x(p, back ? -5 : 5, LV_STATE_PRESSED);
+        lv_obj_set_style_transition(p, &tr, 0);
+    }
+
+    // The arrow points WHERE THE TAP TAKES YOU: leading the label on the way
+    // out, trailing it on the way in.
+    lv_obj_t *a = wt_lbl(p, arrow, 0, 0, f, wt_accent());
+    lv_obj_add_flag(a, WT_FLAG_ACCENT);
+    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + 12, 0);
+
+    // The primary takes the accent on its LABEL as well, and takes nothing
+    // else: there is no fill left to give it.
+    lv_obj_t *l = wt_lbl(p, txt, 0, 0, f, primary ? wt_accent() : WT_INK);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
+    if (primary) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + 12 : 0, 0);
+    return p;
+}
+
 // ---- SETTINGS: the full-lane row (see kiss_theme.h) ----
 #define WT_WIDE_LX      18    // the label's lane, row local
 #define WT_WIDE_LW     250    // ...and its cap. See the header: the gate
@@ -2682,7 +3024,8 @@ void wt_pane_go(wt_pane_t *p, int tab, bool stop, void (*build)(void))
     // so the accent flags on them have never been walked.
     wt_accent_restyle(p->pane);
 
-    wt_tabs_select(p->tabs, from, tab, stop);
+    if (p->select) p->select(p->tabs, from, tab, stop);
+    else           wt_tabs_select(p->tabs, from, tab, stop);
     wt_pane_enter(p, dir, stop);
     wt_pane_exit(p, dir);
 }
