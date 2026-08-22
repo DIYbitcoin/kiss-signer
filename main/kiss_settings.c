@@ -433,12 +433,28 @@ static void sdinfo_screen(void)
     // so the title stays the word the chooser's pill promised.
     s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), inf.name);
 
+    // The unit ONCE when both numbers carry the same one, which is how a person
+    // says it and what keeps the pair inside the card. mono28 with its letter
+    // spacing is 18.8px per character in a 333px box: seventeen characters to a
+    // line. "1.2 GB / 29.7 GB" is sixteen and fits; "123.4 GB / 256.0 GB" is
+    // nineteen and wraps to two lines on any card of 128 GB or more, which no
+    // simulated card is -- so it has never been seen here.
+    //
+    // The caption is this screen's own, not the firmware screen's. G_FW_ON_CARD
+    // means the VERSION on the card and is shared with kiss_fw_ui.c; over a
+    // byte pair it read "ON THE CARD" and said neither "used" nor "of".
     uint64_t used = inf.total_bytes - inf.free_bytes;
     char a[24], b[24], val[52];
     wt_fmt_bytes(used, a, sizeof a);
     wt_fmt_bytes(inf.total_bytes, b, sizeof b);
-    snprintf(val, sizeof val, "%s / %s", a, b);
-    wt_value_card(s_scr, tr(STR_G_FW_ON_CARD), val,
+    char *ua = strrchr(a, ' '), *ub = strrchr(b, ' ');
+    if (ua && ub && strcmp(ua, ub) == 0) {
+        *ua = 0;                                  // "123.4" / "256.0 GB"
+        snprintf(val, sizeof val, "%s / %s", a, b);
+    } else {
+        snprintf(val, sizeof val, "%s / %s", a, b);
+    }
+    wt_value_card(s_scr, tr(STR_G_SD_SPACE_CAP), val,
                   WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W, true);
 
     wt_fmt_bytes(inf.free_bytes, a, sizeof a);
@@ -477,15 +493,19 @@ static void sdinfo_screen(void)
 
     // Only in SD storage mode: the sealed words file, present or not. The
     // filename is the label -- it is a filename, not a phrase to translate --
-    // and the sub is W_SD_MISSING_S's short sentence: the chooser's full
-    // W_SD_NOTE ellipsised against the tick in this 365px lane.
+    // The PRESENT branch used to borrow W_SD_MISSING_S -- "your words are kept
+    // on the SD card" -- which is a sentence from the MISSING family stating
+    // the storage mode, under a row whose tick already says the file is here.
+    // It also says bare "words", which the glossary calls a house term a reader
+    // has to unlearn. It says what is true of the file instead: sealed to this
+    // signer, and no other.
     if (kiss_seed_mode() == WSEED_MODE_SD) {
         size_t len = 0;
         platform_sd_file *f = platform_sd_open(SDSEED_FILENAME, &len);
         bool present = f != NULL;
         if (f) platform_sd_close(f);
         lv_obj_t *row = wt_row_x(s_scr, WT_ICON_KEY, SDSEED_FILENAME,
-                                 tr(present ? STR_W_SD_MISSING_S
+                                 tr(present ? STR_G_SD_ROW_WORDS_HERE
                                             : STR_G_SD_ROW_WORDS_MISSING),
                                  NULL,
                                  present ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,

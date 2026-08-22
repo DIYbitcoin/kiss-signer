@@ -883,30 +883,56 @@ static void wtab_enc(void)
     // what restores them.
     const bool pp = !kiss_session_decoy();
 
+    // The sub NAMES the two artifacts, because "a locked QR of your keys" left
+    // an owner with nothing to look for on the card. One QR to photograph, or
+    // one file, and the file's name is the fingerprint -- which the card below
+    // this group is already showing, so the two read together.
+    char ksub[64];
+    uint8_t kfp[4];
+    kiss_ui_last_fp(kfp);
+    if (kiss_fp_known(kfp))
+        snprintf(ksub, sizeof ksub, tr(STR_I_ROW_KEF_SUB_FMT),
+                 kfp[0], kfp[1], kfp[2], kfp[3]);
+    else
+        snprintf(ksub, sizeof ksub, "%s", tr(STR_I_ROW_KEF_SUB));
+
     wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_WROW_KEF),
-        .sub   = tr(STR_I_ROW_KEF_SUB),
+        .sub   = ksub,
         .kind  = WT_WIDE_OPEN,
         .cb    = kef_warn_screen,
     });
 
-    // What is in it, framed and amber, before the owner taps the row above.
-    // The consent screen states this too, but as one of two blocks weighted
-    // the same as the reassuring one -- and the thing that bites is that this
-    // QR rebuilds DIFFERENT keys on its own. It leads here.
-    // WT_WIDE_OPEN with no callback, NOT WT_WIDE_INERT. Inert is for something
-    // present and dead, and it greys the whole row -- which took the one
-    // sentence on this page that bites and painted it the colour of a setting
-    // nobody can reach. This row is a statement, in full ink, with its caution
-    // in WT_WARN. No cb, so no chevron and no tap.
+    // What is in it, before the owner taps the row above. The consent screen
+    // states this too, but as one of two blocks weighted the same as the
+    // reassuring one -- and the thing that bites is that this QR rebuilds
+    // DIFFERENT keys on its own. It leads here.
+    //
+    // NO VALUE GLYPH, no vcol, no severity. This row DESCRIBES a format; it
+    // does not report a state, and this device's green tick means one thing --
+    // kiss_theme.h calls it "a state already satisfied", and every other tick
+    // in the product obeys that: paper verified, the sealed file present, the
+    // storage mode you are on. It came back from the bench read exactly the
+    // way the grammar says to read it: "misleading, making it seem like one was
+    // already set."
+    //
+    // It could not have been true either way. There is no record anywhere that
+    // an encrypted backup was ever made -- no NVS key, no counter, and
+    // kef_wipe() clears the session copy on every exit -- so even "you made one
+    // two minutes ago" is unknowable here. Counting .kef files means mounting
+    // the card inside a tab animation, and answers about whatever card is in
+    // the slot rather than about this signer.
+    //
+    // The firmware screen had this same bug and its fix is the rule: the label
+    // IS the claim, so there is no value beside it and no severity colour. A
+    // tick is a result. WT_WIDE_OPEN with no callback keeps it in full ink with
+    // no chevron and no tap; the amber is on the sub alone, where it is a
+    // caution about CONTENT rather than a claim about state.
     wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label   = tr(STR_I_WROW_HOLDS),
         .sub     = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_WARN_S),
         .sub_col = pp ? WT_WARN : WT_MUT,
         .kind    = WT_WIDE_OPEN,
-        .val     = pp ? LV_SYMBOL_WARNING : LV_SYMBOL_OK,
-        .vcol    = pp ? WT_WARN : WT_OK,
-        .sev     = pp ? WT_SEV_WARN : WT_SEV_PLAIN,
     });
 
     wt_group_note(w_pane, 2, tr(STR_I_KEF_W2_H));

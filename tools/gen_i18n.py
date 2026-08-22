@@ -161,6 +161,10 @@ UNTRANSLATED_OK = {
     # tab labels and the row names that had no equivalent.
     "I_WTAB_PAPER", "I_WTAB_ENC", "I_WROW_SHOW", "I_WROW_SHOW_SUB",
     "I_WROW_CHECK", "I_WROW_KEF", "I_WROW_HOLDS",
+    # Naming the artifacts rather than describing them: the encrypted backup
+    # row prints the file it will write, and the SD screen stops borrowing the
+    # firmware screen's caption for a byte pair. English until the sweep.
+    "I_ROW_KEF_SUB_FMT", "G_SD_SPACE_CAP", "G_SD_ROW_WORDS_HERE",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back
     # there. Born under the English-only rule; English until the sweep.
