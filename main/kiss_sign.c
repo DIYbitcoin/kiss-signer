@@ -3539,15 +3539,41 @@ static void sd_open(lv_obj_t *parent)
     // work is sorted first; signed PSBTs stay listed so a signature can be
     // re-verified, and every row that already has one says so.
 #define FILE_ROW_W 560
+    // A WHOLE number of rows. 264px against a 72px pitch showed three rows and
+    // 48px of a fourth, sliced through its own bottom border by the clip edge
+    // -- which the REMOVE screen one tap away already sizes itself to avoid,
+    // and which no gate reports: overlapcheck's CLIPPED check measures LABELS,
+    // and that row's label ends at 388 against a clip at 389. One pixel of
+    // headroom, and the box loses 16.
+    //
+    // The gap goes 8 -> 4 to buy the fourth row rather than give the space
+    // back: four whole rows at 68 of pitch bottom out at 394, inside the 398
+    // floor, where three whole rows would have left 64px of glass doing
+    // nothing on a screen whose entire job is showing a list.
+#define FILE_ROW_GAP 4
+#define FILE_ROWS_SHOWN 4
     lv_obj_t *list = lv_obj_create(s_scr);
     lv_obj_remove_style_all(list);
     lv_obj_set_pos(list, 48, 126);
-    lv_obj_set_size(list, FILE_ROW_W, 264);
+    lv_obj_set_size(list, FILE_ROW_W,
+                    FILE_ROWS_SHOWN * (WT_ROW_H + FILE_ROW_GAP) - FILE_ROW_GAP);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, 8, 0);
+    lv_obj_set_style_pad_row(list, FILE_ROW_GAP, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    // remove_style_all above took the theme's scrollbar with it, and LVGL
+    // declines to draw a scrollbar part whose bg and border are both
+    // transparent (lv_obj_scroll.c) -- so this list has scrolled since the day
+    // it shipped and has never once shown that it does, in any mode, at any
+    // file count, before or during a drag. The walk has photographed an eight
+    // file list in a four row viewport in 21 locales every run since July.
+    //
+    // Same style and same reasoning as the address list in kiss_recv.c and the
+    // REMOVE screen next door.
+    lv_obj_set_style_bg_color(list, WT_MUT, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
     // One wt_row per file. These were hand built at radius 26 -- pill shaped
     // list items, which is the loudest form of the idiom this device has
     // stopped using: a row of buttons reads as six things to press, a row of
@@ -3587,6 +3613,18 @@ static void sd_open(lv_obj_t *parent)
         // filename ellipsising instead of running under the tag.
         lv_obj_set_width(row, lv_pct(100));
     }
+
+    // ON when there is more below, OFF when there is not -- never AUTO, which
+    // hides the bar until you have already scrolled and so answers the wrong
+    // question. Measured rather than counted: the fourth row is whole now, but
+    // a row's height follows the locale's font and a count would be guessing at
+    // the boundary. lv_obj_update_layout first, or the scroll extent is zero
+    // because flex has not run.
+    lv_obj_update_layout(list);
+    lv_obj_set_scrollbar_mode(list, lv_obj_get_scroll_bottom(list) > 0
+                                        ? LV_SCROLLBAR_MODE_ON
+                                        : LV_SCROLLBAR_MODE_OFF);
+
     // This used to read "BACK keeps the corner where the thumb rests; the
     // destructive control does not go there" -- while replace-or-erase put
     // ERASE THE WORDS in that same corner. Two destructive controls, opposite

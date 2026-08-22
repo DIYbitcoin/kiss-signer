@@ -983,6 +983,10 @@ static lv_obj_t *find_flagged(lv_obj_t *o, uint32_t flag) {
   return NULL;
 }
 
+// The scrolling container under a point, if there is one. A drag stop needs to
+// read the scroll offset back to prove the finger moved the list rather than
+// tapping a row -- and asserting on a frame cannot tell those apart, because a
+// list that did not move looks exactly like one with nothing below the fold.
 static int find_label_text(lv_obj_t *o, const char *needle) {
   if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return 0;
   if (lv_obj_check_type(o, &lv_label_class)) {
@@ -2476,6 +2480,30 @@ int main(void) {
   save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
   release(); pump(6);                              // -> file list
   save("/tmp/sim_sign_files.ppm");
+  // DRAGGED, with a finger, which this list had never been. The eight file
+  // fixture has always overflowed the viewport and the frame above has been
+  // captured in 21 locales every run since July -- but the only two ways the
+  // harness ever reached row five were a hard coded y that addresses rows 0..3
+  // and tap_row_prefix, which calls lv_obj_scroll_to_view and bypasses touch
+  // entirely. Nothing ever asked whether a FINGER can get down there, which is
+  // how a list with no visible scrollbar shipped.
+  //
+  // The assertion is the FRAME, not the scroll offset. Reading the offset back
+  // means finding the container, and this walk stacks its screens as siblings
+  // under one active screen -- every hidden page is still in the tree with real
+  // coordinates, so a search by point returns whichever leftover happens to
+  // contain it. check_sim_taps.py already requires consecutive saves to differ,
+  // so two frames around the drag ARE the check, and they are the check that
+  // fails if the bar or the rows stop moving.
+  //
+  // x=300 is inside the 48..608 lane and clear of the bar on the right edge.
+  // pump(3) per point and pump(10) after the lift, per the measured floor: at
+  // pump(4) the release folds into the next press and strokes merge.
+  for (int i = 0; i <= 8; i++) { touch(300, 340 - i * 12); pump(3); }
+  release(); pump(10);
+  save("/tmp/sim_sign_files_scrolled.ppm");         // rows below the fold
+  for (int i = 0; i <= 8; i++) { touch(300, 200 + i * 12); pump(3); }
+  release(); pump(10);                              // back to the top
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");                 // FOLDED address + SHOW FULL
   // The fold, opened and closed. Both states are a screen an owner signs from,
