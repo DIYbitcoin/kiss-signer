@@ -1654,15 +1654,23 @@ static void device_screen(void)
 }
 
 // ---- what wants reading ----
-// Derived on every build, never stored. Two conditions, and both are about the
-// BACKUP group: the paper has never been checked against this device, and the
-// recovery words sit in a flash this build does not encrypt.
+// Derived on every build, never stored. THREE conditions, and the chip counts
+// every one of them: the paper has never been checked against this device, the
+// recovery words sit in a flash this build does not encrypt, and no duress
+// mark has been set.
 //
-// Duress being unset lights the SECURITY tab's dot but is deliberately NOT
-// counted here. It is a setting nobody has reached yet rather than something
-// wrong: a signer with no duress mark is the state every signer ships in, and
-// a permanent "1 NEEDS ATTENTION" on a factory fresh device teaches an owner
-// to ignore the chip.
+// Duress used to be excluded, on the argument that a signer with no duress
+// mark is the state every signer ships in and a permanent "1 NEEDS ATTENTION"
+// teaches an owner to ignore the chip. The argument reads well and was wrong
+// on glass: the dot lit anyway, so the page showed TWO dots over a chip saying
+// one, and a number that disagrees with the marks beside it teaches an owner
+// to ignore the chip far faster than a number that is merely unwelcome. A mark
+// and a count are the same claim; they cannot have different rules.
+//
+// One case still reads oddly and is named rather than hidden: BACKUP holds two
+// of the three conditions behind a single dot, so a device with both and no
+// duress problem says "2 NEED ATTENTION" under one mark. A tab has one dot to
+// give. Counting items and marking tabs is the trade, taken deliberately.
 static bool backup_unchecked(void) { return !kiss_ui_backup_checked(); }
 
 static bool words_unencrypted(void)
@@ -1674,7 +1682,20 @@ static bool duress_unset(void) { return !gw_stored_any(); }
 
 static int attention_count(void)
 {
-    return (backup_unchecked() ? 1 : 0) + (words_unencrypted() ? 1 : 0);
+    return (duress_unset()      ? 1 : 0)
+         + (backup_unchecked()  ? 1 : 0)
+         + (words_unencrypted() ? 1 : 0);
+}
+
+// The first tab carrying one, in strip order, so the chip lands on the leftmost
+// mark and the owner works rightwards. It used to be hard coded to BACKUP on
+// the strength of a comment saying both counted conditions lived there; that
+// stopped being true the moment duress joined the count, and a chip that jumps
+// past a lit dot is worse than one that does not move.
+static int attention_tab(void)
+{
+    if (duress_unset()) return TAB_SECURITY;
+    return TAB_BACKUP;
 }
 
 static void go_tab(int tab);
@@ -1688,7 +1709,8 @@ static void go_tab(int tab);
 static void attn_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_tab == TAB_BACKUP) {
+    const int want = attention_tab();
+    if (s_tab == want) {
         // Already there, so nothing arrives: replaying the entry would slide a
         // group in from a side the finger never moved towards, to say
         // something the pulse says on its own. The chip asks WHICH ROW, and
@@ -1696,7 +1718,7 @@ static void attn_cb(lv_event_t *e)
         if (!s_entering && s_pane) pane_point(s_pane);
         return;
     }
-    go_tab(TAB_BACKUP);      // both counted conditions live there
+    go_tab(want);
 }
 
 static void go_tab(int tab)
@@ -1707,8 +1729,8 @@ static void go_tab(int tab)
     s_tab = tab;
 
     // A tab change no longer rebuilds the SCREEN, only the group. Nothing on
-    // the strip or the action bar depends on which tab is open -- the dots
-    // read the duress and backup state and the chip counts them -- so the
+    // the strip or the action bar depends on which tab is open -- the dots and
+    // the chip read the same three conditions -- so the
     // things that would have been rebuilt identically are simply left alone,
     // and the highlight has something continuous to slide along.
     help_close();                // an overlay does not outlive the group under it
@@ -2154,9 +2176,11 @@ void kiss_settings_open(lv_obj_t *parent)
     // whole 704px lane back -- which is what wt_screen already fits it to, and
     // why the narrowed wt_title_fit this page used to make is gone.
 
-    // The dots are what a collapsed group costs, paid back. SECURITY carries
-    // one while no duress mark is set; BACKUP carries one for either of the two
-    // conditions the attention chip counts.
+    // The dots are what a collapsed group costs, paid back. Every condition
+    // the attention chip counts lights the dot on the tab that holds it:
+    // SECURITY while no duress mark is set, BACKUP for either of its two. The
+    // chip counts conditions and a tab has one dot, so BACKUP holding both is
+    // the one state where the number is larger than the marks.
     const wt_tab_t tabs[TAB_N] = {
         { WT_ICON_KEY,        tr(STR_I_TAB_SIGNER),   false,          false },
         { WT_ICON_SHIELD,     tr(STR_I_TAB_SECURITY), duress_unset(), false },

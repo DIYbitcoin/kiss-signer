@@ -3199,9 +3199,13 @@ int main(void) {
   // with no stop is a control with no opinion attached. Tapped from NO UNDO,
   // which is as far from BACKUP as the strip goes.
   touch(150, WT_ACTION_Y + 26); pump(3); release(); pump(50);
-  save("/tmp/sim_settings_attn.ppm");               // -> BACKUP, the flagged group
-  must_show("the attention chip lands on the flagged group",
-            tr(STR_I_ROW_STORAGE));
+  save("/tmp/sim_settings_attn.ppm");               // -> SECURITY, the leftmost mark
+  // The LEFTMOST lit dot, not BACKUP. The chip used to jump to BACKUP always,
+  // on the strength of a comment saying both counted conditions lived there --
+  // which stopped being true when duress joined the count, and a chip that
+  // jumps past a lit dot is worse than one that does not move.
+  must_show("the attention chip lands on the leftmost flagged group",
+            tr(STR_I_ROW_WAYSIN));
   // And tapped AGAIN, already on the group it points at: nothing arrives, the
   // cautions are simply pointed at where they stand. Captured raw rather than
   // saved, because the frame that proves it is mid pulse and a settled one is
