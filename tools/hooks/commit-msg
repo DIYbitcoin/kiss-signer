@@ -1,0 +1,32 @@
+#!/bin/sh
+# Strip agent attribution out of every commit message, in every lane.
+#
+# CLAUDE.md has said "no agent attribution, in anything" since early on. It was
+# followed on the trunk and ignored on one branch, and 247 trailered commits
+# reached GitHub, where the merged PRs earned the account a "Pair Extraordinaire"
+# badge. Server side refs/pull/*/head are immutable, so that could not be undone.
+# A written rule is not a mechanism; this is the mechanism.
+#
+# Strips (never rejects, so no lane is blocked by it):
+#   Co-Authored-By: <any agent identity>
+#   Generated with [Claude Code](...)  / 🤖 marker lines
+# Anything else - including prose that names CLAUDE.md as a file - is untouched.
+set -e
+MSG="$1"
+[ -f "$MSG" ] || exit 0
+
+TMP="$MSG.attr.$$"
+grep -viE \
+  -e '^[[:space:]]*co-authored-by:.*(anthropic|claude|openai|copilot|cursor|codex|chatgpt|gpt-|gemini|devin|aider)' \
+  -e '^[[:space:]]*(🤖[[:space:]]*)?generated with \[?claude code' \
+  -e '^[[:space:]]*🤖[[:space:]]*generated with' \
+  "$MSG" > "$TMP" || :
+
+if ! cmp -s "$MSG" "$TMP"; then
+  # collapse the blank line the stripped trailer block leaves behind
+  awk 'BEGIN{n=0} {if($0~/^[[:space:]]*$/){n++}else{n=0} if(n<2)print}' "$TMP" \
+    | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$MSG"
+  echo "commit-msg: stripped agent attribution (CLAUDE.md: the actor is never the subject)" >&2
+fi
+rm -f "$TMP"
+exit 0

@@ -1,0 +1,61 @@
+# No agent or tool is named in this repository's history.
+#
+# The rule is in CLAUDE.md and was followed on the trunk and ignored on one
+# branch: 247 commits carrying a "Co-Authored-By: <agent>" trailer reached
+# GitHub, and the merged pull requests earned the account a Pair Extraordinaire
+# badge. refs/pull/*/head is immutable server side, so those cannot be rewritten
+# away. This lane is the check that keeps the next 247 from being pushed.
+#
+# It looks at the commits a push or a PR actually adds, not the whole history,
+# so the old refs that cannot be fixed do not fail every future run.
+name: attribution
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  no-agent-attribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: commit messages name no agent
+        run: |
+          set -u
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            case "$BEFORE" in
+              ""|0000000000000000000000000000000000000000) RANGE="${{ github.sha }} -50" ;;
+              *) git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+                   && RANGE="$BEFORE..${{ github.sha }}" \
+                   || RANGE="${{ github.sha }} -50" ;;
+            esac
+          fi
+          echo "scanning: $RANGE"
+
+          BAD=$(git log $RANGE --format='%H%n%B%n--%n' \
+                | grep -iE -e 'co-authored-by:.*(anthropic|claude|openai|copilot|cursor|codex|chatgpt|gpt-|gemini|devin|aider)' \
+                           -e 'generated with \[?claude code' \
+                || :)
+          if [ -n "$BAD" ]; then
+            echo "::error::agent attribution in a commit message. CLAUDE.md: no agent or tool is named anywhere in this repository."
+            echo "$BAD"
+            exit 1
+          fi
+          echo "clean"
+
+      - name: tracked files name no agent as author
+        run: |
+          set -u
+          if git grep -nIiE 'co-authored-by:.*(anthropic|claude|openai|copilot)|generated with \[?claude code' \
+               -- . ':(exclude)CLAUDE.md' ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh'; then
+            echo "::error::agent attribution in a tracked file."
+            exit 1
+          fi
+          echo "clean"
