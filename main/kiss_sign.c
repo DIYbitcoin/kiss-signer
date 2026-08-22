@@ -3570,7 +3570,11 @@ static void sd_open(lv_obj_t *parent)
     //
     // Same style and same reasoning as the address list in kiss_recv.c and the
     // REMOVE screen next door.
-    lv_obj_set_style_bg_color(list, WT_MUT, LV_PART_SCROLLBAR);
+    // The bar takes the ACCENT, not WT_MUT. It is the one element on this page
+    // whose whole job is "there is more of this", which is chrome the theme
+    // should own -- and at OPA_50 it is a tint rather than a stripe. On MONO,
+    // where the accent IS the ink, it reads exactly as the muted one did.
+    lv_obj_set_style_bg_color(list, wt_accent(), LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
     lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
     lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
@@ -3612,6 +3616,11 @@ static void sd_open(lv_obj_t *parent)
         // flex ever runs. Passing the list's real width is what keeps a long
         // filename ellipsising instead of running under the tag.
         lv_obj_set_width(row, lv_pct(100));
+        // The file glyph is the mark that says WHAT these rows are, the same
+        // job WT_ICON_SD does on the chooser one screen back, so it takes the
+        // accent for the same reason. wt_row_x leaves a badge muted unless the
+        // row is selected, and a list of files has no selected item.
+        wt_row_icon_accent(row);
     }
 
     // ON when there is more below, OFF when there is not -- never AUTO, which
