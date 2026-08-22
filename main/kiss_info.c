@@ -1006,7 +1006,12 @@ static void words_page(void)
           !kiss_ui_backup_checked(), false },
         { WT_ICON_LOCK,   tr(STR_I_WTAB_ENC),   false, false },
     };
-    s_wctx.tabs = wt_tabs(s_scr, tabs, WTAB_N, w_tab, WT_WIDE_X, 68, wtab_cb);
+    // Brackets, like the page one tap above it. This file built a slab strip
+    // here and a bracket strip in info_screen -- two tab idioms, one file, two
+    // taps apart, which is the worst place on the device to have had them.
+    s_wctx.select = wt_brackets_select;
+    s_wctx.tabs = wt_brackets(s_scr, tabs, WTAB_N, w_tab, WT_WIDE_X, 68,
+                              WT_WIDE_W, wtab_cb);
     wt_pane_tabs_watch(&s_wctx);
 
     s_wctx.pane = wt_pane_new(&s_wctx);

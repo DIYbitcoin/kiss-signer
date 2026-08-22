@@ -2024,6 +2024,15 @@ void wt_row_sev(lv_obj_t *row, int sev)
     }
     lv_obj_set_style_bg_color(row, c, 0);
     lv_obj_set_style_bg_opa(row, 13, 0);
+    // The RAIL, and it sets its own width. This painted a border colour and an
+    // opacity and left the width to whoever built the row -- which was fine
+    // while every row was a card with a 1px edge, and became nothing at all
+    // the moment rows went borderless. A tappable row still showed it, because
+    // wt_line_press happens to put a 3px left border there for the pressed
+    // state; an INERT row showed a 13-opacity wash and no edge whatever, which
+    // is the state the NO UNDO comment already measured as invisible.
+    lv_obj_set_style_border_side(row, LV_BORDER_SIDE_LEFT, 0);
+    lv_obj_set_style_border_width(row, 3, 0);
     lv_obj_set_style_border_color(row, c, 0);
     lv_obj_set_style_border_opa(row, 77, 0);
 }
