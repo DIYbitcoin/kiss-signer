@@ -19,6 +19,7 @@
 #include "kiss_psbt.h"
 #include "kiss_scan.h"
 #include "kiss_theme.h"
+#include "kiss_wipe.h"
 #include "kiss_settings.h"   // the unit preference, written where it is changed
 #include "kiss_ui.h"   // kiss_ui_last_fp: the SIGNING AS fingerprint
 #include "kiss_usage.h"   // reuse guard: mark receive indexes used on sign
@@ -261,6 +262,19 @@ static void widgets_drop(void)
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
+    // The unsigned and the signed transaction, 13 KB of BSS, live here until
+    // the next PSBT happens to overwrite them. kiss_scan wipes the identical
+    // bytes on every exit path it has; this file had no wipe of any kind.
+    //
+    // Both callers are already done with them: close_cb leaves SIGN, and
+    // step_back drops the loaded transaction so the next pick loads its own.
+    // The QR-out screen and its easy-scan re-encode read s_out, and neither
+    // comes through here -- qr_out_screen clears the widget pointers itself.
+    kiss_wipe(s_in, sizeof s_in);
+    kiss_wipe(s_out, sizeof s_out);
+    s_out_len = 0;
+    kiss_wipe(s_sig_fp, sizeof s_sig_fp);
+    kiss_wipe(s_done_name, sizeof s_done_name);
 }
 
 static void close_cb(lv_event_t *e)
@@ -3635,11 +3649,21 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     s_src = SRC_QR;
     s_qr_fmt = fmt;
     snprintf(s_cur, sizeof s_cur, "%s", tr(STR_S_SCANNED_TX));
-    if (len > sizeof s_in) len = sizeof s_in;             // QRT_MAX_PSBT == sizeof s_in
-    memcpy(s_in, psbt, len);
-    SIGN_LOG("QR assembled: %u bytes, fmt %d", (unsigned)len, fmt);
-    log_psbt_hex(s_in, len);
-    int lrc = kiss_psbt_load(s_in, len, &s_sum);
+    // Truncating fed kiss_psbt_load the front half of a transaction and let it
+    // report on whatever parsed. The scanner caps at sizeof s_in before this is
+    // reached, so nothing arrives here oversized -- and it stays that way for a
+    // reason rather than by luck.
+    int lrc = -1;
+    if (len > sizeof s_in) {
+        SIGN_LOG("REJECTED: %u bytes past the %u-byte input workspace",
+                 (unsigned)len, (unsigned)sizeof s_in);
+        len = 0;
+    } else {
+        memcpy(s_in, psbt, len);
+        SIGN_LOG("QR assembled: %u bytes, fmt %d", (unsigned)len, fmt);
+        log_psbt_hex(s_in, len);
+        lrc = kiss_psbt_load(s_in, len, &s_sum);
+    }
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again

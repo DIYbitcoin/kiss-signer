@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "kiss_wipe.h"
 #include "ur_decoder.h"
 #include "ur_encoder.h"
 #include "types/psbt.h"
@@ -25,6 +26,17 @@
 #define STATIC_MAX_B64  2900  // one-QR ceiling (v40 binary mode is 2953)
 
 static const char UR_PSBT_PREFIX[] = "ur:crypto-psbt/";
+
+// psbt_free is the vendored free and does not wipe. What it holds is the
+// owner's transaction, on both the decode and the encode side, so the one
+// place that knows the length wipes it first.
+static void psbt_release(psbt_data_t *pd) {
+    if (!pd) return;
+    size_t n = 0;
+    const uint8_t *b = psbt_get_data(pd, &n);
+    if (b && n > 0) kiss_wipe((void *)(uintptr_t)b, n);
+    psbt_free(pd);
+}
 
 // ---- local base64 (standard alphabet; no external deps so the sim build
 // gets the real parser without linking libwally) ----
@@ -107,10 +119,14 @@ qrt_parser_t *qrt_parser_new(void) {
 // Parts hold base64 of a transaction. Wipe before free, the same reason the
 // assembled bytes below are wiped: this is the owner's transaction, and
 // freed heap is read by whatever allocates next.
+//
+// kiss_wipe rather than memset, because every one of these is the last write
+// to a buffer that is freed on the next line -- the exact dead store a
+// compiler is entitled to drop, and the reason kiss_wipe.h exists.
 static void parts_release(qrt_parser_t *p) {
     for (int i = 0; i < PMOFN_MAX_PARTS; i++) {
         if (!p->parts[i]) continue;
-        memset(p->parts[i], 0, strlen(p->parts[i]));
+        kiss_wipe(p->parts[i], strlen(p->parts[i]));
         free(p->parts[i]);
         p->parts[i] = NULL;
     }
@@ -122,7 +138,7 @@ void qrt_parser_free(qrt_parser_t *p) {
     parts_release(p);
     if (p->ur) ur_decoder_free(p->ur);
     // PSBT bytes passed through here; don't leave them in freed heap
-    memset(p->psbt, 0, sizeof p->psbt);
+    kiss_wipe(p->psbt, sizeof p->psbt);
     free(p);
 }
 
@@ -130,7 +146,7 @@ void qrt_parser_reset(qrt_parser_t *p) {
     if (!p) return;
     parts_release(p);
     if (p->ur) { ur_decoder_free(p->ur); p->ur = NULL; }
-    memset(p->psbt, 0, sizeof p->psbt);
+    kiss_wipe(p->psbt, sizeof p->psbt);
     p->psbt_len = 0;
     p->fmt = QRT_FMT_NONE;
     p->complete = false;
@@ -188,6 +204,11 @@ static int feed_pmofn(qrt_parser_t *p, const char *data, size_t len) {
     return 0;
 }
 
+// The UR message is the CBOR wrapper, not the PSBT: a byte string of this size
+// class costs a 0x59 head and two length bytes. Eight is that with room, and
+// small enough that nothing over the cap slips under it.
+#define UR_CBOR_OVERHEAD 8
+
 static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
     // Only crypto-psbt; reject other UR types before the CBOR layer sees them.
     if (len < sizeof UR_PSBT_PREFIX - 1) return -1;
@@ -201,9 +222,26 @@ static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
         if (p->ur) {
             if (ur_decoder_is_complete(p->ur))
                 rc = ur_decoder_is_success(p->ur) ? 0 : QRT_FEED_CORRUPT;
+            else if (ur_decoder_receive_part(p->ur, low))
+                rc = 0;
             else
-                rc = ur_decoder_receive_part(p->ur, low) ? 0 : -1;
-            if (p->ur && ur_decoder_is_complete(p->ur)) {
+                // Past the decoder's own ceiling. Its own answer, because -1
+                // here means "some other QR in view" and leaves the counter
+                // sitting at its old value with nothing said.
+                rc = ur_decoder_get_last_error(p->ur)
+                             == UR_DECODER_ERROR_MESSAGE_TOO_LARGE
+                         ? QRT_FEED_TOO_BIG
+                         : -1;
+            // The decoder's ceiling is generic; this one is the product's, and
+            // it is the smaller of the two. Refused on the part that declares
+            // it rather than after the set assembles: a transfer that finishes
+            // and is then dropped is indistinguishable from a cancel, which is
+            // what this used to look like.
+            if (rc == 0 &&
+                ur_decoder_expected_message_len(p->ur) >
+                    (size_t)QRT_MAX_PSBT + UR_CBOR_OVERHEAD)
+                rc = QRT_FEED_TOO_BIG;
+            if (rc == 0 && ur_decoder_is_complete(p->ur)) {
                 if (ur_decoder_is_success(p->ur))
                     p->complete = true;
                 else
@@ -211,6 +249,9 @@ static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
             }
         }
     }
+    // Bytewords of the owner's transaction; freed heap is read by whatever
+    // allocates next.
+    kiss_wipe(low, len);
     free(low);
     return rc;
 }
@@ -297,17 +338,21 @@ int qrt_parser_result(qrt_parser_t *p, uint8_t *out, size_t cap, size_t *out_len
         if (!pd) return -1;
         size_t n = 0;
         const uint8_t *bytes = psbt_get_data(pd, &n);
-        int rc = -1;
+        // Too large gets its own answer here too, so the caller can say which
+        // of the two things went wrong. Feed time refuses almost all of these
+        // now; what still arrives is a payload inside the CBOR head allowance.
+        int rc = bytes && n > cap ? QRT_FEED_TOO_BIG : -1;
         if (bytes && n > 0 && n <= cap) {
             memcpy(out, bytes, n);
             *out_len = n;
             rc = 0;
         }
-        psbt_free(pd);
+        psbt_release(pd);
         return rc;
     }
 
-    if (p->psbt_len == 0 || p->psbt_len > cap) return -1;
+    if (p->psbt_len > cap) return QRT_FEED_TOO_BIG;
+    if (p->psbt_len == 0) return -1;
     memcpy(out, p->psbt, p->psbt_len);
     *out_len = p->psbt_len;
     return 0;
@@ -326,6 +371,15 @@ struct qrt_encoder {
     ur_encoder_t *ur;
 };
 
+// The base64 of the signed transaction, on every path that drops it.
+static void b64_release(qrt_encoder_t *e) {
+    if (!e->b64) return;
+    kiss_wipe(e->b64, e->b64_len ? e->b64_len : strlen(e->b64));
+    free(e->b64);
+    e->b64 = NULL;
+    e->b64_len = 0;
+}
+
 qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, int frag) {
     if (!psbt || len == 0 || len > QRT_MAX_SIGNED_PSBT) return NULL;
     qrt_encoder_t *e = calloc(1, sizeof *e);
@@ -339,8 +393,8 @@ qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, in
         if (cb)
             e->ur = ur_encoder_new("crypto-psbt", cb, cbl,
                                    frag > 0 ? (size_t)frag : UR_MAX_FRAGMENT, 0, 10);
-        if (cb) free(cb);
-        if (pd) psbt_free(pd);
+        if (cb) { kiss_wipe(cb, cbl); free(cb); }
+        psbt_release(pd);
         if (!e->ur) { free(e); return NULL; }
         e->total = (int)ur_encoder_seq_len(e->ur);
         return e;
@@ -350,20 +404,22 @@ qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, in
         size_t cap = ((len + 2) / 3) * 4 + 8;
         e->b64 = malloc(cap);
         if (!e->b64 || b64_encode(psbt, len, e->b64, cap) != 0) {
-            free(e->b64);
+            // A failed encode may have left it unterminated, so wipe the
+            // allocation rather than what strlen would find in it.
+            if (e->b64) { kiss_wipe(e->b64, cap); free(e->b64); }
             free(e);
             return NULL;
         }
         e->b64_len = strlen(e->b64);
         if (fmt == QRT_FMT_STATIC) {
-            if (e->b64_len > STATIC_MAX_B64) { free(e->b64); free(e); return NULL; }
+            if (e->b64_len > STATIC_MAX_B64) { b64_release(e); free(e); return NULL; }
             e->total = 1;
         } else {
             e->chunk = frag > 0 ? (size_t)frag : PMOFN_CHUNK;
             e->total = (int)((e->b64_len + e->chunk - 1) / e->chunk);
             if (e->total < 1) e->total = 1;
             if (e->total > PMOFN_MAX_OUTPUT_PARTS) {
-                free(e->b64);
+                b64_release(e);
                 free(e);
                 return NULL;
             }
@@ -382,7 +438,7 @@ qrt_encoder_t *qrt_encoder_new(int fmt, const uint8_t *psbt, size_t len) {
 void qrt_encoder_free(qrt_encoder_t *e) {
     if (!e) return;
     if (e->ur) ur_encoder_free(e->ur);
-    free(e->b64);
+    b64_release(e);
     free(e);
 }
 
@@ -402,6 +458,7 @@ int qrt_encoder_next(qrt_encoder_t *e, char *out, size_t cap) {
             memcpy(out, part, l + 1);
             rc = 0;
         }
+        kiss_wipe(part, l);
         free(part);
         return rc;
     }

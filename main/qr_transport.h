@@ -63,7 +63,8 @@ int qrt_parser_seen(const qrt_parser_t *p);
 int qrt_parser_total(const qrt_parser_t *p);
 
 // Copy the assembled raw PSBT into out. 0 on success (only when complete and
-// it fits in cap), else nonzero.
+// it fits in cap); QRT_FEED_TOO_BIG when it assembled but does not fit, so the
+// caller can say so rather than backing out; other nonzero otherwise.
 int qrt_parser_result(qrt_parser_t *p, uint8_t *out, size_t cap, size_t *out_len);
 
 // ---- encode: turn a PSBT into QR part strings ----

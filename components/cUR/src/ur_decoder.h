@@ -14,6 +14,11 @@ typedef enum {
   UR_DECODER_ERROR_INVALID_FRAGMENT,
   UR_DECODER_ERROR_INVALID_PART,
   UR_DECODER_ERROR_INVALID_CHECKSUM,
+  // The header's declared message length is past UR_MAX_MESSAGE_LEN. Its own
+  // code because "too large" and "malformed" have to reach the owner as
+  // different sentences: one is a transfer this device cannot hold, the other
+  // is a QR that is not part of this transfer at all.
+  UR_DECODER_ERROR_MESSAGE_TOO_LARGE,
   UR_DECODER_ERROR_MEMORY,
   UR_DECODER_ERROR_NULL_POINTER
 } ur_decoder_error_t;
@@ -33,6 +38,11 @@ typedef struct ur_decoder {
   ur_result_t *result;
   bool is_complete_flag;
   ur_decoder_error_t last_error;
+  // Declared by the first accepted part's header, and identical in every part
+  // after it (the header agreement check enforces that). Kept so a caller with
+  // a tighter bound than this decoder's can refuse before the remaining parts
+  // are scanned, rather than after the set assembles.
+  size_t expected_message_len;
 } ur_decoder_t;
 
 /**
@@ -82,6 +92,13 @@ ur_result_t *ur_decoder_get_result(ur_decoder_t *decoder);
  * @return Expected part count
  */
 size_t ur_decoder_expected_part_count(ur_decoder_t *decoder);
+
+/**
+ * Get the message length declared by the parts seen so far
+ * @param decoder Pointer to URDecoder instance
+ * @return Declared message length, or 0 before the first part is accepted
+ */
+size_t ur_decoder_expected_message_len(ur_decoder_t *decoder);
 
 /**
  * Get processed parts count

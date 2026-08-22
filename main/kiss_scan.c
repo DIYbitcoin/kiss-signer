@@ -235,16 +235,24 @@ static void feed(const char *data, size_t len)
         int rrc = qrt_parser_result(s_parser, s_psbt, sizeof s_psbt, &n);
         SCAN_LOG("complete: fmt %d, %u parts, %u bytes, rc %d",
                  fmt, (unsigned)total, (unsigned)n, rrc);
-        scan_teardown();
-        if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-        if (rrc == 0) { if (s_on_psbt) s_on_psbt(s_psbt, n, fmt); }
-        else {
-            // Backing out here looks to the user exactly like tapping cancel,
-            // which is why an oversized PSBT reads as "the scanner quit".
+        if (rrc != 0) {
+            // This used to back out of the scanner, which on screen is the
+            // same thing as tapping cancel: the transfer reached 100% and the
+            // scanner quit, saying nothing. Almost nothing gets this far now
+            // -- every format refuses an oversized set at feed time -- but
+            // what does gets the same sentence as the rest.
             SCAN_LOG("REJECTED after assembly: rc %d (over %u-byte cap?)",
                      rrc, (unsigned)sizeof s_psbt);
-            if (s_on_cancel) s_on_cancel();
+            kiss_wipe(s_psbt, sizeof s_psbt);
+            qrt_parser_reset(s_parser);
+            if (s_prog)
+                scan_status(tr(rrc == QRT_FEED_TOO_BIG ? STR_N_TOO_BIG
+                                                       : STR_N_RETRY), "");
+            return;
         }
+        scan_teardown();
+        if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+        if (s_on_psbt) s_on_psbt(s_psbt, n, fmt);
         kiss_wipe(s_psbt, sizeof s_psbt);
     }
 }

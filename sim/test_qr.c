@@ -10,6 +10,7 @@
 #include <wally_core.h>      // wally_base64_from_bytes (cross-check only)
 #include "ur_encoder.h"      // craft single-part UR input
 #include "types/psbt.h"      // crypto-psbt CBOR wrap for crafting
+#include "bytewords.h"         // recompute a part's CRC after mutating it
 #include "fountain_decoder.h"  // hostile headers, below the bytewords layer
 #include "fountain_utils.h"    // the PRNG that picks fragment indexes
 #include "utils.h"             // ur_alloc_arm / ur_alloc_hits: the injection
@@ -152,6 +153,191 @@ static void qr_test_pmofn_bounds(void) {
         qchki("qr corrupt pMofN reset permits a new transfer",
               qrt_parser_feed(p, "p1of2 cHNidP", 12), 0);
         qrt_parser_free(p);
+    }
+}
+
+// A UR part whose fragment body is mutated and whose bytewords CRC is then
+// recomputed, so it is still a well formed part of this set: the four header
+// integers are untouched, so it passes the cross-frame agreement check, and
+// only the joined message fails its CRC32. Without the re-encode the part is
+// simply an unrecognised QR, which is a different answer and the wrong one.
+//
+// It must not be the LAST fragment of the set. That one is zero padded out to
+// the fragment length, the join copies only message_len bytes, and a flip in
+// the padding changes nothing -- the set completes and passes its checksum,
+// which is what the first version of this test measured.
+static char *corrupt_ur_part(const char *part) {
+    const char *slash = strrchr(part, '/');
+    if (!slash) return NULL;
+    uint8_t *cbor = NULL;
+    size_t cl = 0;
+    if (!bytewords_decode_raw(slash + 1, &cbor, &cl) || cl < 8) { free(cbor); return NULL; }
+    cbor[cl - 1] ^= 0xFF;          // inside the body, past the four header ints
+    char *bw = NULL;
+    bool ok = bytewords_encode(cbor, cl, &bw);
+    free(cbor);
+    if (!ok || !bw) { free(bw); return NULL; }
+    size_t head = (size_t)(slash - part) + 1;
+    char *out = malloc(head + strlen(bw) + 1);
+    if (out) { memcpy(out, part, head); memcpy(out + head, bw, strlen(bw) + 1); }
+    free(bw);
+    return out;
+}
+
+// "ur:crypto-psbt/<m>-<n>/<bytewords>" -> m, n. Zero if it is single part.
+static void ur_seq(const char *part, int *m, int *n) {
+    *m = *n = 0;
+    const char *p = strchr(part, '/');
+    if (p) sscanf(p + 1, "%d-%d", m, n);
+}
+
+static uint8_t *fake_psbt(size_t n) {
+    uint8_t *b = malloc(n);
+    if (!b) return NULL;
+    memset(b, 0xA5, n);
+    memcpy(b, "psbt\xff", 5);
+    return b;
+}
+
+// UR is the only format that used to let an oversized transfer finish. pMofN
+// and static refuse at feed time; UR accepted every frame, reached 100%, set
+// complete, and failed in qrt_parser_result -- which the scan screen reads as
+// a back-out, so the owner watched the scanner quit with nothing said.
+//
+// Two ceilings, both answered here. QRT_MAX_PSBT is the product's, and it is
+// the smaller. UR_MAX_MESSAGE_LEN is the decoder's own, and past it the part
+// used to come back as -1: "some other QR in view", which leaves the counter
+// sitting at its old value forever. Both have to say TOO BIG.
+static void qr_test_ur_bounds(void) {
+    char part[600];
+
+    {   // between the two ceilings, encoded by this tree's own encoder --
+        // which must keep accepting it, because a signed result legitimately
+        // outgrows the input that produced it
+        uint8_t *big = fake_psbt(QRT_MAX_SIGNED_PSBT);
+        qrt_encoder_t *e = big ? qrt_encoder_new(QRT_FMT_UR, big, QRT_MAX_SIGNED_PSBT) : NULL;
+        qrt_parser_t *p = qrt_parser_new();
+        qchkb("qr UR encoder still carries a signed-size result", e != NULL);
+        if (e && p && qrt_encoder_next(e, part, sizeof part) == 0) {
+            qchki("qr UR oversize refused on the first part",
+                  qrt_parser_feed(p, part, strlen(part)), QRT_FEED_TOO_BIG);
+            qchkb("qr UR oversize kept nothing", !qrt_parser_complete(p));
+            if (qrt_encoder_next(e, part, sizeof part) == 0)
+                qchki("qr UR oversize latched",
+                      qrt_parser_feed(p, part, strlen(part)), QRT_FEED_TOO_BIG);
+            qrt_parser_reset(p);
+            qchki("qr UR oversize reset permits a new transfer",
+                  qrt_parser_feed(p, "p1of2 cHNidP", 12), 0);
+        }
+        qrt_parser_free(p);
+        qrt_encoder_free(e);
+        free(big);
+    }
+
+    {   // one byte over, in a single part -- a sender that does not fragment
+        // must not get a bigger allowance than one that does
+        size_t n = (size_t)QRT_MAX_PSBT + 512;
+        uint8_t *big = fake_psbt(n);
+        psbt_data_t *pd = big ? psbt_new(big, n) : NULL;
+        size_t cbl = 0;
+        uint8_t *cb = pd ? psbt_to_cbor(pd, &cbl) : NULL;
+        char *sur = NULL;
+        if (cb) ur_encoder_encode_single("crypto-psbt", cb, cbl, &sur);
+        qchkb("qr UR single-part oversize fixture crafts", sur != NULL);
+        if (sur) {
+            qrt_parser_t *p = qrt_parser_new();
+            qchki("qr UR single-part oversize refused",
+                  qrt_parser_feed(p, sur, strlen(sur)), QRT_FEED_TOO_BIG);
+            qchkb("qr UR single-part oversize did not complete", !qrt_parser_complete(p));
+            qrt_parser_free(p);
+            free(sur);
+        }
+        free(cb);
+        if (pd) psbt_free(pd);
+        free(big);
+    }
+
+    {   // past the decoder's own ceiling: crafted with cUR directly, because
+        // this tree's encoder stops at the signed-output workspace
+        size_t n = 20000;
+        uint8_t *big = fake_psbt(n);
+        psbt_data_t *pd = big ? psbt_new(big, n) : NULL;
+        size_t cbl = 0;
+        uint8_t *cb = pd ? psbt_to_cbor(pd, &cbl) : NULL;
+        ur_encoder_t *ue = cb ? ur_encoder_new("crypto-psbt", cb, cbl, 120, 0, 10) : NULL;
+        char *up = NULL;
+        qchkb("qr UR past-ceiling fixture crafts",
+              ue && ur_encoder_next_part(ue, &up) && up != NULL);
+        if (up) {
+            qrt_parser_t *p = qrt_parser_new();
+            qchki("qr UR past the decoder ceiling answers too big",
+                  qrt_parser_feed(p, up, strlen(up)), QRT_FEED_TOO_BIG);
+            qrt_parser_free(p);
+            free(up);
+        }
+        if (ue) ur_encoder_free(ue);
+        free(cb);
+        if (pd) psbt_free(pd);
+        free(big);
+    }
+
+    {   // the narrow band the feed-time check cannot see: the declared length
+        // is the CBOR wrapper, so a payload a few bytes over the cap fits under
+        // the head allowance, assembles, and is refused on the way out. It has
+        // to be refused as TOO BIG and not as a generic failure, because the
+        // scan screen picks its sentence from this code.
+        size_t n = (size_t)QRT_MAX_PSBT + 4;
+        uint8_t *big = fake_psbt(n);
+        qrt_encoder_t *e = big ? qrt_encoder_new(QRT_FMT_UR, big, n) : NULL;
+        qrt_parser_t *p = qrt_parser_new();
+        int fed = 0;
+        for (int i = 0; i < 400 && e && p && !qrt_parser_complete(p); i++) {
+            if (qrt_encoder_next(e, part, sizeof part) != 0) break;
+            qrt_parser_feed(p, part, strlen(part));
+            fed++;
+        }
+        printf("  (slack: fed %d, seen %d of %d, complete %d)\n",
+               fed, qrt_parser_seen(p), qrt_parser_total(p), qrt_parser_complete(p));
+        qchkb("qr UR slack-band set assembles", qrt_parser_complete(p));
+        uint8_t small[QRT_MAX_PSBT];
+        size_t on = 0;
+        qchki("qr UR slack-band result says too big",
+              qrt_parser_result(p, small, sizeof small, &on), QRT_FEED_TOO_BIG);
+        qrt_parser_free(p);
+        qrt_encoder_free(e);
+        free(big);
+    }
+
+    {   // the corrupt terminal fragment, the UR half of what pMofN already
+        // pins: complete set, failed checksum, and RETRY rather than a stuck
+        // counter
+        char *frag[16] = {0};
+        int nfrag = read_ur_lines(UR_VECTOR_TXT, frag, 16);
+        int k = -1;
+        for (int i = 0; i < nfrag; i++) {
+            int m = 0, t = 0;
+            ur_seq(frag[i], &m, &t);
+            if (m > 0 && m != t) { k = i; break; }
+        }
+        char *bad = k >= 0 ? corrupt_ur_part(frag[k]) : NULL;
+        qchkb("qr corrupt UR fixture crafts", bad != NULL);
+        if (bad) {
+            qrt_parser_t *p = qrt_parser_new();
+            for (int i = 0; i < nfrag; i++)
+                if (i != k) qrt_parser_feed(p, frag[i], strlen(frag[i]));
+            qchkb("qr corrupt UR not complete before the last part",
+                  !qrt_parser_complete(p));
+            qchki("qr corrupt UR terminal part reported",
+                  qrt_parser_feed(p, bad, strlen(bad)), QRT_FEED_CORRUPT);
+            qchki("qr corrupt UR error latched",
+                  qrt_parser_feed(p, frag[k], strlen(frag[k])), QRT_FEED_CORRUPT);
+            qrt_parser_reset(p);
+            qchki("qr corrupt UR reset permits a new transfer",
+                  qrt_parser_feed(p, frag[k], strlen(frag[k])), 0);
+            qrt_parser_free(p);
+            free(bad);
+        }
+        for (int i = 0; i < nfrag; i++) free(frag[i]);
     }
 }
 
@@ -800,6 +986,7 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     qr_test_hostile_header();
     qr_test_pmofn_bounds();
     qr_test_signed_output_ceiling();
+    qr_test_ur_bounds();
     qr_test_prng_range();
     qr_test_fountain_cap_churn();
 

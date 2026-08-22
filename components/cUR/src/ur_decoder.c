@@ -92,6 +92,7 @@ ur_decoder_t *ur_decoder_new(void) {
   decoder->result = NULL;
   decoder->is_complete_flag = false;
   decoder->last_error = UR_DECODER_OK;
+  decoder->expected_message_len = 0;
 
   return decoder;
 }
@@ -275,12 +276,22 @@ bool ur_decoder_receive_part(ur_decoder_t *decoder, const char *part_str) {
 
   if (component_count == 1) {
     decoder->result = decode_single_part(type, components[0]);
-    if (decoder->result) {
-      decoder->is_complete_flag = true;
-      result = true;
-    } else {
+    if (!decoder->result) {
       decoder->last_error = UR_DECODER_ERROR_INVALID_FRAGMENT;
+      goto cleanup;
     }
+    // A one-part UR declares no length -- it IS its length. The multipart
+    // ceiling still has to apply, or the whole cap is a formality any sender
+    // avoids by not fragmenting.
+    if (decoder->result->cbor_len > UR_MAX_MESSAGE_LEN) {
+      ur_result_free(decoder->result);
+      decoder->result = NULL;
+      decoder->last_error = UR_DECODER_ERROR_MESSAGE_TOO_LARGE;
+      goto cleanup;
+    }
+    decoder->expected_message_len = decoder->result->cbor_len;
+    decoder->is_complete_flag = true;
+    result = true;
     goto cleanup;
   }
 
@@ -336,8 +347,15 @@ bool ur_decoder_receive_part(ur_decoder_t *decoder, const char *part_str) {
   // Fragment body must agree with URI path (spec requires it) and fall
   // within the sanity caps.
   if (cbor_seq_num != seq_num || cbor_seq_len != seq_len ||
-      cbor_message_len == 0 || cbor_message_len > UR_MAX_MESSAGE_LEN) {
+      cbor_message_len == 0) {
     decoder->last_error = UR_DECODER_ERROR_INVALID_FRAGMENT;
+    goto cleanup;
+  }
+  // Split out of the check above so the caller can tell a transfer that is
+  // simply too large from a fragment that is malformed. Both are refused here;
+  // only the first is something the owner can act on.
+  if (cbor_message_len > UR_MAX_MESSAGE_LEN) {
+    decoder->last_error = UR_DECODER_ERROR_MESSAGE_TOO_LARGE;
     goto cleanup;
   }
 
@@ -387,6 +405,9 @@ bool ur_decoder_receive_part(ur_decoder_t *decoder, const char *part_str) {
     decoder->last_error = UR_DECODER_ERROR_INVALID_PART;
     goto cleanup;
   }
+  // Only now, so the length reported to a caller always comes from a part the
+  // fountain decoder agreed to hold.
+  decoder->expected_message_len = cbor_message_len;
 
   if (fountain_decoder_is_complete(decoder->fountain_decoder)) {
     if (fountain_decoder_is_success(decoder->fountain_decoder)) {
@@ -454,6 +475,10 @@ size_t ur_decoder_expected_part_count(ur_decoder_t *decoder) {
   if (!decoder || !decoder->fountain_decoder)
     return 0;
   return fountain_decoder_expected_part_count(decoder->fountain_decoder);
+}
+
+size_t ur_decoder_expected_message_len(ur_decoder_t *decoder) {
+  return decoder ? decoder->expected_message_len : 0;
 }
 
 size_t ur_decoder_processed_parts_count(ur_decoder_t *decoder) {

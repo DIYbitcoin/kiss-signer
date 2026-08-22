@@ -70,6 +70,22 @@ jobs:
             tail -1 /tmp/sim_$L.log
           done
 
+      # The fuzz harness runs the parsers under ASAN, which is where untrusted
+      # bytes arrive -- but nothing had ever run the SCREENS under it, and the
+      # UI files are wall to wall char buf[N] + snprintf/memcpy. Same flags,
+      # one locale, and its own binary so the frames above are not overwritten.
+      #
+      # It cannot see LVGL: sim/lv_conf.h allocates every widget out of a 128 KB
+      # static pool, so ASAN has no redzone to place on any of them. Stack
+      # buffers, static arrays and UBSAN over the layout arithmetic are what
+      # this buys.
+      - name: sanitized walk (ASAN + UBSAN, en)
+        run: |
+          export KISS_SIM_TMP=/tmp/kiss-san
+          KISS_SAN=1 bash sim/build_sim.sh
+          timeout 600 env SIM_LANG=en /tmp/kiss-san/fruitsim > /tmp/kiss-san/walk.log
+          tail -1 /tmp/kiss-san/walk.log
+
       # The walk drives the UI with hardcoded touch coordinates. When a layout
       # moves, a tap lands on background: the frame still saves, it is just a
       # copy of the one before, and the walk still "passes". That is how the

@@ -3119,6 +3119,64 @@ int main(void) {
     must_show("scan/too-big", tr(STR_N_TOO_BIG));
   }
 
+  // The same refusal on the UR path, which is the format a coordinator
+  // actually animates. It had NO size check: every frame accepted, the counter
+  // walking to 100%, and the failure surfacing only after assembly -- where
+  // the scan screen backed out, which on glass is indistinguishable from
+  // tapping cancel. No save: this is the screen photographed above, reached
+  // from the other format, so a second stop would be a copy of that frame and
+  // the taps gate would rightly call it a dead interaction.
+  {
+    uint8_t *big = malloc(QRT_MAX_SIGNED_PSBT);
+    if (big) {
+      memset(big, 0xA5, QRT_MAX_SIGNED_PSBT);
+      memcpy(big, "psbt\xff", 5);
+      qrt_encoder_t *enc = qrt_encoder_new(QRT_FMT_UR, big, QRT_MAX_SIGNED_PSBT);
+      char part[600];
+      if (enc && qrt_encoder_next(enc, part, sizeof part) == 0) {
+        kiss_scan_inject(part, strlen(part));
+        pump(6);
+      }
+      must_show("scan/ur-too-big", tr(STR_N_TOO_BIG));
+      qrt_encoder_free(enc);
+      free(big);
+    }
+  }
+
+  // And the narrow band the feed-time check cannot see: the declared length is
+  // the CBOR wrapper, so a payload a few bytes over the cap fits under the
+  // head allowance and assembles. It has to arrive at the same sentence, and
+  // the scanner has to still be open behind it -- backing out here is the bug.
+  {
+    const size_t slack_len = (size_t)QRT_MAX_PSBT + 4;
+    uint8_t *slack = malloc(slack_len);
+    if (slack) {
+      memset(slack, 0xA5, slack_len);
+      memcpy(slack, "psbt\xff", 5);
+      qrt_encoder_t *enc = qrt_encoder_new(QRT_FMT_UR, slack, slack_len);
+      char part[600];
+      // Exactly the pure fragments and not one more. The refusal resets the
+      // parser so the owner can point the camera somewhere else, so a loop
+      // that keeps injecting starts the same set over and paints its progress
+      // back over the message -- which is what the first version of this stop
+      // measured, and it read as the fix not working.
+      const int n = qrt_encoder_parts(enc);
+      for (int i = 0; i < n; i++) {
+        if (qrt_encoder_next(enc, part, sizeof part) != 0) break;
+        kiss_scan_inject(part, strlen(part));
+        pump(1);
+      }
+      must_show("scan/ur-slack-too-big", tr(STR_N_TOO_BIG));
+      if (!kiss_scan_active()) {
+        printf("FAIL: an assembled oversize UR closed the scanner instead of "
+               "saying so\n");
+        g_walk_fails++;
+      }
+      qrt_encoder_free(enc);
+      free(slack);
+    }
+  }
+
   {
     uint8_t fake[300];
     memset(fake, 0x5A, sizeof fake);
