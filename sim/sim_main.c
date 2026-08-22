@@ -5097,7 +5097,15 @@ int main(void) {
   {
     // A real app descriptor: 0xE9 image magic, then ABCD5432 at offset 32 with
     // a version far ahead of any VERSION file, so the scan reads it as newer.
-    unsigned char img[512];
+    //
+    // 512 + a signature trailer, because a real update .bin is the image
+    // followed by KISS_PQSIG_TRAILER_LEN bytes and kiss_fw_scan now says so: a
+    // file no bigger than its own trailer has no image under it and comes back
+    // as "not firmware". A 512 byte fixture stopped being an image the day the
+    // second signature landed, and every screen below it would have gone with
+    // it -- silently, since a walk that never reaches a screen still saves a
+    // frame of whatever else is up.
+    static unsigned char img[512 + 8192];
     memset(img, 0, sizeof img);
     img[0] = 0xE9;
     img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
@@ -5168,6 +5176,23 @@ int main(void) {
   save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
   must_show("fw/rejected", tr(STR_G_FW_FAIL_T));
 
+  // 3a. the OTHER refusal, which reads the same and means something different.
+  //
+  // An image that fails here passed the secp256r1 check -- it really is a KISS
+  // release, signed with the release key -- and was still refused, because the
+  // post quantum signature over the same bytes was missing or wrong. Every
+  // release from before the trailer existed lands on this screen, so it is the
+  // one an owner is most likely to meet, and "the signature did not check out"
+  // would send them hunting for a corrupt download.
+  kiss_fw_test_set_install(WFW_ERR_PQ_REJECTED, 2);
+  kiss_fw_ui_open(lv_screen_active(), NULL);
+  pump(20);
+  tap_str(STR_G_FW_INSTALL, 3, 20);
+  tap_str(STR_G_FW_HOLD, 110, 1);
+  pump(100);
+  save("/tmp/sim_fw_pq_rejected.ppm");
+  must_show("fw/pq_rejected", tr(STR_G_FW_FAIL_T));
+
   // 3b. a card holding more images than the scan opens.
   //
   // kiss_fw_scan reads descriptors for the first WFW_SCAN_MAX names and the
@@ -5181,7 +5206,7 @@ int main(void) {
   // 30, not WFW_SCAN_MAX + 1: the window has to be filled ENTIRELY by decoys
   // for the real image to disappear, which is the case worth photographing.
   {
-    unsigned char pad[512];
+    static unsigned char pad[512 + 8192];   // image + trailer, as above
     memset(pad, 0, sizeof pad);
     pad[0] = 0xE9;
     pad[32] = 0x32; pad[33] = 0x54; pad[34] = 0xCD; pad[35] = 0xAB;

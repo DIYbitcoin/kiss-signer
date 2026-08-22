@@ -662,6 +662,7 @@
   "G_FW_RESTART": "ПЕРЕЗАПУСК",
   "G_FW_FAIL_T": "НЕ УСТАНОВЛЕНО",
   "G_FW_FAIL_SIG_B": "подпись не сошлась.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "карта перестала отвечать на полпути.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
   "G_FW_FAIL_WRITE_B": "запись не завершилась.\n\nничто не стало загрузочным, устройство работает на прежней прошивке.",
   "S_D_OUTPUTS_FMT": "ВЫХОДЫ (%u) - %u ВАМ",

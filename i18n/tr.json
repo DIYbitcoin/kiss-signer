@@ -662,6 +662,7 @@
   "G_FW_RESTART": "YENİDEN BAŞLAT",
   "G_FW_FAIL_T": "KURULMADI",
   "G_FW_FAIL_SIG_B": "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "kart yarıda yanıt vermeyi bıraktı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "G_FW_FAIL_WRITE_B": "yazma tamamlanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "S_D_OUTPUTS_FMT": "ÇIKTILAR (%u) - %u SİZE",

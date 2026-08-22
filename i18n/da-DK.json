@@ -662,6 +662,7 @@
   "G_FW_RESTART": "GENSTART",
   "G_FW_FAIL_T": "IKKE INSTALLERET",
   "G_FW_FAIL_SIG_B": "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "kortet holdt op med at svare undervejs.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "G_FW_FAIL_WRITE_B": "skrivningen blev ikke færdig.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "S_D_OUTPUTS_FMT": "OUTPUT (%u) - %u TIL DIG",

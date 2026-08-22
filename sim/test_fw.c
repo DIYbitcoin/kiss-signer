@@ -13,8 +13,17 @@
 #include <sys/stat.h>
 
 #include "kiss_fw.h"
+#include "kiss_pqsig.h"
 #include "platform_sd.h"
 #include "kiss_simpath.h"
+
+// Every image on the card is now the image followed by an 8 KB signature
+// trailer, so anything smaller than a trailer is not an image and the scan says
+// so. Fixtures are shaped the same way rather than being padded numbers: a
+// fixture that could not exist on a real card tests a path a real card cannot
+// reach.
+#define FIX_IMG (WFW_DESC_MIN * 4)
+#define FIX_LEN (FIX_IMG + KISS_PQSIG_TRAILER_LEN)
 
 // How many throwaway images the scan-window test writes. Named because
 // wipe_card has to remove exactly these again.
@@ -79,7 +88,8 @@ static void wipe_card(void)
     // platform_sd's sim base. Remove only what these tests create.
     static const char *const junk[] = {
         "fw-new.bin", "fw-old.bin", "fw-same.bin", "aaa-notimage.bin",
-        "huge.bin", "short.bin", "0-old.bin", "z-new.bin", "z-real.bin", NULL
+        "huge.bin", "short.bin", "0-old.bin", "z-new.bin", "z-real.bin",
+        "tiny.bin", "exact.bin", NULL
     };
     for (int i = 0; junk[i]; i++) {
         char p[256];
@@ -187,7 +197,7 @@ int test_fw(void)
 
     // Sorting puts aaa-notimage.bin first, so finding the real image proves the
     // descriptor picks the file rather than the name.
-    static uint8_t big[WFW_DESC_MIN * 4];
+    static uint8_t big[FIX_LEN];
     mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
     put("fw-new.bin", big, sizeof big);
     int rc = kiss_fw_scan(&got);
@@ -251,7 +261,7 @@ int test_fw(void)
     // Too big outranks the version: it is a fact about this device.
     wipe_card();
     {
-        size_t huge = 0x7F0000 + 1;
+        size_t huge = 0x7F0000 + KISS_PQSIG_TRAILER_LEN + 1;
         uint8_t *hb = calloc(1, huge);
         if (hb) {
             mk_image_head(hb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", "kiss");
@@ -261,6 +271,39 @@ int test_fw(void)
                kiss_fw_scan(&got) == WFW_ERR_TOO_BIG && got.cmp > 0);
         } else {
             printf("SKIP: oversized image (no memory)\n");
+        }
+    }
+
+    // A file with nothing under the trailer is not an image, whatever its
+    // descriptor claims. The scan cannot read the trailer itself -- the card
+    // does not seek -- but it can say that a file this small has no room for an
+    // image and a signature both.
+    wipe_card();
+    {
+        static uint8_t tiny[KISS_PQSIG_TRAILER_LEN];
+        mk_image_head(tiny, sizeof tiny, 0xABCD5432u, "99.0.0", "kiss");
+        put("tiny.bin", tiny, sizeof tiny);
+        ok("a file no bigger than its own trailer is refused",
+           kiss_fw_scan(&got) == WFW_ERR_UNREADABLE);
+    }
+
+    // The slot has to hold the IMAGE; the card holds the image plus the
+    // trailer. out->size reports the file, because that is the number an owner
+    // can check against the card, and the fit is judged on what is left after
+    // the trailer comes off. An image that fills the slot exactly still fits.
+    wipe_card();
+    {
+        size_t exact = (size_t)0x7F0000 + KISS_PQSIG_TRAILER_LEN;
+        uint8_t *eb = calloc(1, exact);
+        if (eb) {
+            mk_image_head(eb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", "kiss");
+            put("exact.bin", eb, exact);
+            free(eb);
+            int erc = kiss_fw_scan(&got);
+            ok("an image that fills the slot exactly still fits",
+               erc == WFW_OK && got.size == exact);
+        } else {
+            printf("SKIP: exact fit image (no memory)\n");
         }
     }
 

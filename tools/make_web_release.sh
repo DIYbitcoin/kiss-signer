@@ -16,6 +16,10 @@ set -e
 cd "$(dirname "$0")/.."
 
 MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-signer/minisign.key}"
+# The post quantum release key. Secret half here and nowhere else, exactly like
+# the two above; sim/pq_tool.c mints it and main/pq_release_pubkey.h carries the
+# public half into the firmware.
+KISS_PQ_KEY="${KISS_PQ_KEY:-$HOME/.kiss-signer/pq_release.key}"
 PUBKEY_FILE="docs/installer/kiss_signer.pub"
 GPG_PUB_FILE="docs/installer/kiss_signer_pgp.asc"
 # The interpreter must have esptool, because step 2 below merges the image with
@@ -249,6 +253,49 @@ if not ver:
              "refuses that rather than ordering it below everything")
 print(f"PASS: {os.path.basename(p)} carries app descriptor v{ver}")
 PY
+
+# ---- the second signature ----
+#
+# An SLH-DSA-SHA2-128s signature over the update image, appended as an 8 KB
+# trailer the device holds back rather than writes. Both signatures have to
+# check out before anything becomes bootable, and this one does not rest on an
+# elliptic curve -- which is the point of it, because the ECDSA key above is
+# the single thing standing between a quantum adversary and firmware every
+# signer would install and trust.
+#
+# After the ECDSA verify, never before: espsecure looks at the file as a whole,
+# and the trailer is not part of the image it signed.
+if [ ! -f "$KISS_PQ_KEY" ]; then
+  echo "FAIL: post quantum release key not found at $KISS_PQ_KEY"
+  echo "      Mint it once:  bash sim/build_pqtool.sh && /tmp/pq_tool keygen $KISS_PQ_KEY"
+  echo "      then put its public half in main/pq_release_pubkey.h:"
+  echo "        /tmp/pq_tool header $KISS_PQ_KEY > main/pq_release_pubkey.h"
+  echo "      and rebuild. Devices refuse an image with no trailer, so a release"
+  echo "      published without this one installs nowhere."
+  exit 1
+fi
+bash sim/build_pqtool.sh >/dev/null
+PQ_TOOL="${KISS_SIM_TMP:-/tmp}/pq_tool"
+
+# The key that signs has to be the key the firmware carries. Nothing downstream
+# can notice if it is not: the release would be correctly signed, correctly
+# hashed, correctly published, and refused by every device that installed it.
+if ! diff -q <("$PQ_TOOL" header "$KISS_PQ_KEY") main/pq_release_pubkey.h >/dev/null; then
+  echo "FAIL: main/pq_release_pubkey.h is not the public half of $KISS_PQ_KEY"
+  echo "      Regenerate it and rebuild:"
+  echo "        $PQ_TOOL header $KISS_PQ_KEY > main/pq_release_pubkey.h"
+  exit 1
+fi
+
+"$PQ_TOOL" sign "$KISS_PQ_KEY" "$OUT/firmware/$UPDATE_NAME"
+# Read back what was written, with the device's own kiss_pqsig.c. The file on
+# the card is the only copy that matters and this is the last thing that touches
+# it before SHA256SUMS hashes it.
+if ! "$PQ_TOOL" verify "$KISS_PQ_KEY" "$OUT/firmware/$UPDATE_NAME"; then
+  echo "FAIL: $UPDATE_NAME does not verify against its own post quantum signature"
+  exit 1
+fi
+echo "PASS: $UPDATE_NAME carries a post quantum signature that verifies"
 
 # drop stale firmware images so the served folder only holds this release
 find "$OUT/firmware" -name 'kiss-signer-*.bin*' \

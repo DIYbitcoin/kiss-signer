@@ -662,6 +662,7 @@
   "G_FW_RESTART": "URUCHOM PONOWNIE",
   "G_FW_FAIL_T": "NIE ZAINSTALOWANO",
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_WRITE_B": "zapis się nie zakończył.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "S_D_OUTPUTS_FMT": "WYJŚCIA (%u) - %u DO CIEBIE",

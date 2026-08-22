@@ -144,10 +144,11 @@ static void result_screen(int rc)
         // that just spent a minute writing to flash tells the owner nothing
         // about whether the device still boots, which is the only thing they
         // want to know.
-        body = rc == WFW_ERR_REJECTED  ? tr(STR_G_FW_FAIL_SIG_B)
-             : rc == WFW_ERR_CARD_GONE ? tr(STR_G_FW_FAIL_CARD_B)
-             : rc == WFW_ERR_UNSIGNED  ? tr(STR_G_FW_UNSIGNED_B)
-             :                           tr(STR_G_FW_FAIL_WRITE_B);
+        body = rc == WFW_ERR_REJECTED    ? tr(STR_G_FW_FAIL_SIG_B)
+             : rc == WFW_ERR_PQ_REJECTED ? tr(STR_G_FW_FAIL_PQ_B)
+             : rc == WFW_ERR_CARD_GONE   ? tr(STR_G_FW_FAIL_CARD_B)
+             : rc == WFW_ERR_UNSIGNED    ? tr(STR_G_FW_UNSIGNED_B)
+             :                             tr(STR_G_FW_FAIL_WRITE_B);
     }
 
     fresh(title, NULL);

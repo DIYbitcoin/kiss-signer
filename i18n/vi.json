@@ -662,6 +662,7 @@
   "G_FW_RESTART": "KHỞI ĐỘNG LẠI",
   "G_FW_FAIL_T": "CHƯA CÀI ĐẶT",
   "G_FW_FAIL_SIG_B": "chữ ký không hợp lệ.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "thẻ ngừng phản hồi giữa chừng.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "G_FW_FAIL_WRITE_B": "việc ghi chưa hoàn tất.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "S_D_OUTPUTS_FMT": "ĐẦU RA (%u) - %u VỀ BẠN",

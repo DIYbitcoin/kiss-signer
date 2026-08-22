@@ -28,7 +28,17 @@ bool kiss_pqsig_available(void)
     // A key of all zeroes is the placeholder, not a key.
     uint8_t any = 0;
     for (size_t i = 0; i < KISS_PQSIG_PK_LEN; i++) any |= s_pk[i];
-    return any != 0;
+    if (any == 0) return false;
+
+    // And the engine underneath has to be answering. On the device this is the
+    // ONLY thing that ever looks at the accelerator's register mapping, and a
+    // wrong one does not produce wrong signatures -- it produces zeroes, which
+    // means every image ever offered would be refused with the screen blaming
+    // the card. Run once, cached: it is a few milliseconds, and the answer
+    // cannot change while this firmware is running.
+    static int st = -1;
+    if (st < 0) st = kiss_pqsig_selftest();
+    return st == 0;
 }
 
 // ---- splitting the trailer off a stream ----

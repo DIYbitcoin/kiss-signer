@@ -1,11 +1,18 @@
 // Firmware update from the SD card, so the one moment an airgapped signer had
 // to meet a computer is gone.
 //
-// The device never trusts a file because of its name. What it trusts is the
-// signature the running firmware can verify with the key inside itself, checked
-// by esp_ota before the new slot is ever made bootable, and then the fact that
-// the new firmware boots far enough to say so. Everything below is arranged
-// around those two gates.
+// The device never trusts a file because of its name. What it trusts is TWO
+// signatures over the same bytes, both checked before the new slot is ever made
+// bootable -- the secp256r1 one esp_ota verifies against the key inside the
+// running firmware, and an SLH-DSA one verified by kiss_pqsig.c -- and then the
+// fact that the new firmware boots far enough to say so. Everything below is
+// arranged around those gates.
+//
+// The second signature is there because the first one is an elliptic curve
+// signature, and whoever can forge the release key can hand every KISS signer an
+// image it installs and trusts. SLH-DSA rests on SHA-256 instead. See
+// kiss_pqsig.h; the image carries it as an 8 KB trailer, which the device holds
+// back so the bytes reaching the slot are the bytes espsecure signed.
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
@@ -38,6 +45,12 @@ enum {
     WFW_ERR_REJECTED   =  -8,   // signature did not check out
     WFW_ERR_WRITE      =  -9,
     WFW_ERR_CARD_GONE  = -10,
+    // The second signature. An image that fails this one passed the secp256r1
+    // check -- so it really is a KISS image, correctly signed with the release
+    // key -- and was still refused, because the post quantum signature over the
+    // same bytes was missing or wrong. Separate from WFW_ERR_REJECTED so the
+    // screen can say which lock did not open.
+    WFW_ERR_PQ_REJECTED = -11,
 };
 
 typedef struct {

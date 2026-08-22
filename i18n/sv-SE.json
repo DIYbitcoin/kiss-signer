@@ -662,6 +662,7 @@
   "G_FW_RESTART": "STARTA OM",
   "G_FW_FAIL_T": "INTE INSTALLERAD",
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_WRITE_B": "skrivningen blev inte klar.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "S_D_OUTPUTS_FMT": "UTDATA (%u) - %u TILL DIG",

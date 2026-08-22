@@ -2,6 +2,7 @@
 // made bootable, and the boot the new firmware has to survive before the old
 // one is released.
 #include "kiss_fw.h"
+#include "kiss_pqsig.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -183,10 +184,18 @@ int kiss_fw_available(void)
     if (esp_secure_boot_get_signature_blocks_for_running_app(true, &digests)
             != ESP_OK || digests.num_digests == 0)
         return WFW_ERR_UNSIGNED;
+    // And the second key, by the same argument. A build with no post quantum
+    // public key compiled in, or one whose SHA accelerator fails its own
+    // selftest, cannot judge the trailer -- so it says the image cannot be
+    // checked instead of writing 4 MB and then refusing every image it is ever
+    // handed. kiss_pqsig_available() answers both questions.
+    if (!kiss_pqsig_available()) return WFW_ERR_UNSIGNED;
     return WFW_OK;
 #elif defined(ESP_PLATFORM) && defined(CONFIG_SECURE_BOOT)
     // Anchored in eFuse, not in the app's own block, so the running app's
-    // block is the wrong thing to test here.
+    // block is the wrong thing to test here. The post quantum half is anchored
+    // in this image either way.
+    if (!kiss_pqsig_available()) return WFW_ERR_UNSIGNED;
     return WFW_OK;
 #elif defined(ESP_PLATFORM)
     // A device build with neither signing option configured, which is the
@@ -315,7 +324,16 @@ int kiss_fw_scan(wfw_image_t *out)
     // Order matters. Too big is a fact about this device and outranks what the
     // version says; same and older are offers the screen presents differently,
     // not failures to parse.
-    if (out->slot && blen > out->slot) out->status = WFW_ERR_TOO_BIG;
+    //
+    // What the slot has to hold is the IMAGE, and the file on the card is the
+    // image plus its signature trailer. out->size stays the file size, because
+    // that is the number an owner can check against the card; the comparison
+    // takes the trailer off. A file no bigger than a trailer has no image under
+    // it at all, whatever its descriptor claimed.
+    const size_t iblen = blen > KISS_PQSIG_TRAILER_LEN
+                       ? blen - KISS_PQSIG_TRAILER_LEN : 0;
+    if (iblen == 0)                     out->status = WFW_ERR_UNREADABLE;
+    else if (out->slot && iblen > out->slot) out->status = WFW_ERR_TOO_BIG;
     else if (out->cmp == 0)            out->status = WFW_ERR_SAME;
     else if (out->cmp < 0)             out->status = WFW_ERR_OLDER;
     else                               out->status = WFW_OK;
@@ -323,6 +341,17 @@ int kiss_fw_scan(wfw_image_t *out)
 }
 
 // ---- install ---------------------------------------------------------------
+
+#ifdef ESP_PLATFORM
+// What the splitter hands the flash. Everything reaching here is image; the
+// trailer never does, so the slot ends up holding the exact bytes espsecure
+// signed and esp_ota_end judges the same image it always did.
+static int fw_ota_sink(const uint8_t *d, size_t n, void *ud)
+{
+    return esp_ota_write(*(esp_ota_handle_t *)ud, d, n) == ESP_OK ? 0 : -1;
+}
+#endif
+
 
 int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
 {
@@ -340,7 +369,12 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
 #else
     const esp_partition_t *dst = esp_ota_get_next_update_partition(NULL);
     if (!dst) return WFW_ERR_WRITE;
-    if (img->size == 0 || img->size > dst->size) return WFW_ERR_TOO_BIG;
+    // img->size is what the CARD holds. The image is that minus the signature
+    // trailer, and the slot only ever receives the image -- so that is the
+    // number the slot is measured against and the number esp_ota_begin is told.
+    if (img->size <= KISS_PQSIG_TRAILER_LEN) return WFW_ERR_UNREADABLE;
+    const size_t image_len = img->size - KISS_PQSIG_TRAILER_LEN;
+    if (image_len > dst->size) return WFW_ERR_TOO_BIG;
 
     size_t len = 0;
     platform_sd_file *f = platform_sd_open(img->name, &len);
@@ -352,7 +386,14 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     if (len != img->size) { platform_sd_close(f); return WFW_ERR_CARD_GONE; }
 
     uint8_t *buf = malloc(FW_CHUNK);
-    if (!buf) { platform_sd_close(f); return WFW_ERR_WRITE; }
+    // The splitter holds 8 KB of possible trailer plus a hash context, which is
+    // a third of some of the task stacks this is called from. Heap, and freed on
+    // every path out -- including the ones that abort the write.
+    kiss_pqsig_stream_t *ps = malloc(sizeof *ps);
+    if (!buf || !ps) {
+        free(buf); free(ps); platform_sd_close(f); return WFW_ERR_WRITE;
+    }
+    kiss_pqsig_stream_init(ps);
 
     // The version the owner approved has to be the version about to be written,
     // and matching byte lengths does not say that. A card swapped during the
@@ -369,36 +410,42 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     size_t first = 0;
     if (platform_sd_read_chunk(f, buf, FW_CHUNK, &first) != 0 ||
         first < WFW_DESC_MIN) {
-        free(buf); platform_sd_close(f); return WFW_ERR_CARD_GONE;
+        free(buf); free(ps); platform_sd_close(f); return WFW_ERR_CARD_GONE;
     }
     {
         char ver[WFW_VER_LEN], proj[WFW_VER_LEN];
         if (kiss_fw_desc_parse(buf, first, ver, sizeof ver,
                                  proj, sizeof proj) != 0 ||
             strcmp(ver, img->version) != 0 || strcmp(proj, img->project) != 0) {
-            free(buf); platform_sd_close(f); return WFW_ERR_CARD_GONE;
+            free(buf); free(ps); platform_sd_close(f); return WFW_ERR_CARD_GONE;
         }
     }
 
     esp_ota_handle_t h = 0;
-    if (esp_ota_begin(dst, len, &h) != ESP_OK) {
-        free(buf);
+    if (esp_ota_begin(dst, image_len, &h) != ESP_OK) {
+        free(buf); free(ps);
         platform_sd_close(f);
         return WFW_ERR_WRITE;
     }
 
-    size_t done = 0, got = first;
+    // Every byte off the card now goes through the splitter rather than straight
+    // into the slot. It releases everything more than a trailer's length from
+    // the end and hashes exactly what it releases, so esp_ota_write is handed
+    // the image and nothing else and the digest can only cover bytes that
+    // reached flash. The first chunk goes through it too: the descriptor above
+    // was read FROM that chunk, not instead of it.
+    size_t read_total = 0, got = first;
     int last_pct = -1, rc = WFW_OK;
     for (;;) {
         if (got == 0)
             break;
-        if (esp_ota_write(h, buf, got) != ESP_OK) {
+        if (kiss_pqsig_stream_feed(ps, buf, got, fw_ota_sink, &h) != 0) {
             rc = WFW_ERR_WRITE;
             break;
         }
-        done += got;
+        read_total += got;
         if (cb) {
-            int pct = (int)((done * 100) / len);
+            int pct = (int)((read_total * 100) / len);
             if (pct != last_pct) { last_pct = pct; cb(pct, ud); }
         }
         got = 0;
@@ -414,20 +461,44 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // bytes than the file claimed means the card went away mid write, and a
     // truncated image must never reach esp_ota_end, which would judge it only
     // by its signature over whatever arrived.
-    if (rc == WFW_OK && done != len)
+    if (rc == WFW_OK && read_total != len)
         rc = WFW_ERR_CARD_GONE;
+
+    uint8_t digest[32];
+    const uint8_t *trailer = NULL;
+    size_t tlen = 0;
+    if (rc == WFW_OK &&
+        kiss_pqsig_stream_end(ps, digest, &trailer, &tlen) != KISS_PQSIG_OK)
+        rc = WFW_ERR_PQ_REJECTED;
 
     if (rc != WFW_OK) {
         esp_ota_abort(h);
+        free(ps);
         return rc;
     }
 
-    // The gate. esp_ota_end verifies the image against the key in the running
-    // app's signature block; ESP_ERR_OTA_VALIDATE_FAILED is a real refusal, not
-    // an IO problem, and the screen says so in those words.
+    // Two gates now, and an image has to pass BOTH. esp_ota_end verifies the
+    // image against the key in the running app's signature block;
+    // ESP_ERR_OTA_VALIDATE_FAILED is a real refusal, not an IO problem, and the
+    // screen says so in those words.
     esp_err_t err = esp_ota_end(h);
-    if (err == ESP_ERR_OTA_VALIDATE_FAILED) return WFW_ERR_REJECTED;
-    if (err != ESP_OK) return WFW_ERR_WRITE;
+    if (err == ESP_ERR_OTA_VALIDATE_FAILED) { free(ps); return WFW_ERR_REJECTED; }
+    if (err != ESP_OK) { free(ps); return WFW_ERR_WRITE; }
+
+    // The second lock on the same door: an SLH-DSA signature over the same
+    // bytes, which nobody forges by breaking an elliptic curve. About 2100
+    // SHA-256 compressions, so a few milliseconds after a write that took a
+    // minute.
+    //
+    // After the write rather than before it for the same reason the ECDSA check
+    // is: platform_sd cannot seek, so checking first would mean reading the
+    // whole card twice. It costs the idle slot either way -- an image failing
+    // EITHER signature has already overwritten the rollback copy, which was true
+    // of this function before any of this existed. Nothing becomes bootable;
+    // esp_ota_set_boot_partition is below both.
+    const int pq = kiss_pqsig_check(digest, trailer, tlen);
+    free(ps);                      // trailer pointed into it
+    if (pq != KISS_PQSIG_OK) return WFW_ERR_PQ_REJECTED;
 
     if (esp_ota_set_boot_partition(dst) != ESP_OK) return WFW_ERR_WRITE;
     return WFW_OK;

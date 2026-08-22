@@ -662,6 +662,7 @@
   "G_FW_RESTART": "NEU STARTEN",
   "G_FW_FAIL_T": "NICHT INSTALLIERT",
   "G_FW_FAIL_SIG_B": "die Signatur stimmte nicht.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "die Karte antwortete mittendrin nicht mehr.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
   "G_FW_FAIL_WRITE_B": "das Schreiben wurde nicht fertig.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
   "S_D_OUTPUTS_FMT": "AUSGÄNGE (%u) - %u AN DICH",

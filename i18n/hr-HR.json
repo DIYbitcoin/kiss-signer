@@ -662,6 +662,7 @@
   "G_FW_RESTART": "PONOVNO POKRENI",
   "G_FW_FAIL_T": "NIJE INSTALIRANO",
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_WRITE_B": "zapisivanje nije dovršeno.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "S_D_OUTPUTS_FMT": "IZLAZI (%u) - %u VAMA",

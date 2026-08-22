@@ -662,6 +662,7 @@
   "G_FW_RESTART": "OPNIEUW STARTEN",
   "G_FW_FAIL_T": "NIET GEÏNSTALLEERD",
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_WRITE_B": "het schrijven is niet afgerond.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "S_D_OUTPUTS_FMT": "OUTPUTS (%u) - %u NAAR JOU",

@@ -662,6 +662,7 @@
   "G_FW_RESTART": "REINICIAR",
   "G_FW_FAIL_T": "NÃO INSTALADO",
   "G_FW_FAIL_SIG_B": "a assinatura não era válida.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "o cartão parou de responder no meio.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
   "G_FW_FAIL_WRITE_B": "a gravação não terminou.\n\nnada ficou inicializável e o dispositivo mantém seu firmware.",
   "S_D_OUTPUTS_FMT": "SAÍDAS (%u) - %u PARA VOCÊ",

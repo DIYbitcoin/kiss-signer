@@ -662,6 +662,7 @@
   "G_FW_RESTART": "重启",
   "G_FW_FAIL_T": "没有写入",
   "G_FW_FAIL_SIG_B": "签名不对。\n\n什么都没有变成可启动，设备还是用原来的版本。",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "卡在中间停止回应。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "G_FW_FAIL_WRITE_B": "写入没有完成。\n\n什么都没有变成可启动，设备还是用原来的版本。",
   "S_D_OUTPUTS_FMT": "输出 (%u), %u 个到你",

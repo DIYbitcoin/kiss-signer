@@ -662,6 +662,7 @@
   "G_FW_RESTART": "REDÉMARRER",
   "G_FW_FAIL_T": "NON INSTALLÉ",
   "G_FW_FAIL_SIG_B": "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
+  "G_FW_FAIL_PQ_B": "the post quantum signature is missing or wrong.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_CARD_B": "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_WRITE_B": "l'écriture n'a pas abouti.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "S_D_OUTPUTS_FMT": "SORTIES (%u) - %u POUR TOI",

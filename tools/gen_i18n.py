@@ -165,6 +165,13 @@ UNTRANSLATED_OK = {
     # row prints the file it will write, and the SD screen stops borrowing the
     # firmware screen's caption for a byte pair. English until the sweep.
     "I_ROW_KEF_SUB_FMT", "G_SD_SPACE_CAP", "G_SD_ROW_WORDS_HERE",
+    # The second refusal on the firmware screen: an image that passed the
+    # secp256r1 check and was still refused, because its post quantum signature
+    # was missing or wrong. It needed its own key rather than reusing
+    # G_FW_FAIL_SIG_B, because a genuine KISS release from before the trailer
+    # existed lands here, and telling that owner "the signature did not check
+    # out" sends them hunting for a corrupt download. English until the sweep.
+    "G_FW_FAIL_PQ_B",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back
     # there. Born under the English-only rule; English until the sweep.
