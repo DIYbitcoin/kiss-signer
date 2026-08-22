@@ -182,6 +182,10 @@ UNTRANSLATED_OK = {
     "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
     "R_NEXT_ADDR", "R_LIST_COUNT", "R_TAB_SP", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
+    # The erase card's paragraph, split into the claim PAIR the house rules
+    # ask for -- one sentence stacking three claims was a wall of text and
+    # overlapcheck said so. English until the sweep.
+    "I_ERASE_H1", "I_ERASE_B1", "I_ERASE_H2", "I_ERASE_B2",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back
     # there. Born under the English-only rule; English until the sweep.

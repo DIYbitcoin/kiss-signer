@@ -1729,7 +1729,10 @@ static void tab_noundo(void)
     // ONE card, because a destructive action deserves its reason on the same
     // screen as its button. This group holds exactly one thing: storage and
     // duress are not destructive and are not in it.
-    lv_obj_t *card = wt_card(s_pane, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, 258);
+    // 270 rather than 258. The claim PAIR needs more room than the paragraph it
+    // replaces -- two heads and two bodies in two 340px columns -- and the card
+    // has it: 126 + 270 lands on 396, two clear of the floor.
+    lv_obj_t *card = wt_card(s_pane, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, 270);
     wt_row_sev(card, WT_SEV_STOP);
 
     // WT_STOP_INK rather than WT_STOP: full stop red on a stop tinted card is
@@ -1761,13 +1764,27 @@ static void tab_noundo(void)
     }
     (void)head;
 
-    const int by = 22 + lv_font_get_line_height(wt_font28()) + 12;
-    const int bh = 258 - by - 24 - WT_ACTION_H - 20;
-    lv_obj_t *b = wt_lbl(card, tr(STR_I_ERASE_B), 24, by,
-                         wt_body_font(tr(STR_I_ERASE_B), 600, bh), WT_INK);
-    lv_obj_set_width(b, 600);
-    lv_obj_set_height(b, bh);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+    // TWO CLAIMS, side by side, not one paragraph stacking three. It was a
+    // 600x91 block reading "this signer forgets its keys. your paper words and
+    // passphrase are the only way back. the next screen asks again and needs a
+    // held press" -- and overlapcheck called it what it was: a wall of text
+    // with the only chrome on the screen drawn around it.
+    //
+    // The rule colours carry the split the house style asks for: the accent on
+    // what HAPPENS, WT_WARN on what it COSTS. The third clause is gone. The
+    // next screen does ask again and does need a held press, and an owner
+    // reaches it in one tap -- saying so in advance was the card explaining a
+    // screen instead of its own decision.
+    const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
+    const int bh = 270 - by - 20 - WT_ACTION_H - 14;
+    const int cw = (WT_WIDE_W - 24 - 24 - 24) / 2;
+    const lv_font_t *bf = wt_body_font2_head(
+        tr(STR_I_ERASE_H1), tr(STR_I_ERASE_B1),
+        tr(STR_I_ERASE_H2), tr(STR_I_ERASE_B2), cw, bh);
+    wt_why_block(card, tr(STR_I_ERASE_H1), tr(STR_I_ERASE_B1),
+                 24, by, cw, bh, bf, wt_accent());
+    wt_why_block(card, tr(STR_I_ERASE_H2), tr(STR_I_ERASE_B2),
+                 24 + cw + 24, by, cw, bh, bf, WT_WARN);
 
     // The button, and NO HOLD on it. The hold stays where it already is, on
     // the confirmation behind it: two gates in a row teaches an owner to grind
@@ -1779,7 +1796,7 @@ static void tab_noundo(void)
     lv_text_get_size(&bs, blab, wt_font23(), 1, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     const int bw = bs.x + 48;
-    const int byy = 258 - 24 - WT_ACTION_H;
+    const int byy = 270 - 20 - WT_ACTION_H;
     lv_obj_t *btn = lv_obj_create(card);
     lv_obj_remove_style_all(btn);
     lv_obj_set_pos(btn, 24, byy);
@@ -1797,8 +1814,13 @@ static void tab_noundo(void)
     lv_obj_set_style_text_letter_space(bl, 1, 0);
     lv_obj_center(bl);
 
+    // BOUNDED. It sat beside the button with no width and ran off the card's
+    // right edge the moment the claim pair took the room the old paragraph had.
     lv_obj_t *cap = wt_lbl(card, tr(STR_I_ERASE_CAP), 24 + bw + 14, 0,
                            wt_font23(), WT_MUT);
+    lv_obj_set_width(cap, WT_WIDE_W - (24 + bw + 14) - 24);
+    lv_obj_set_height(cap, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
     lv_obj_set_y(cap, byy + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2);
 }
 
