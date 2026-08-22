@@ -922,6 +922,21 @@ static void sp_key_export_cb(lv_event_t *e) {
   kiss_info_open_scan_key(s_parent, sp_return);
 }
 
+// A throw comes to rest on a whole line. LVGL rounds nothing by itself and its
+// own snap overshoots the content at the end of a list, so this rounds the
+// final offset to the pitch and clamps it to what actually exists.
+static void list_settle_cb(lv_event_t *e) {
+  lv_obj_t *list = lv_event_get_target(e);
+  const int pitch = (int)(intptr_t)lv_obj_get_user_data(list);
+  if (pitch <= 0) return;
+  const int y = lv_obj_get_scroll_y(list);
+  const int max = lv_obj_get_scroll_bottom(list) + y;   // total minus viewport
+  int want = ((y + pitch / 2) / pitch) * pitch;
+  if (want > max) want = (max / pitch) * pitch;
+  if (want < 0) want = 0;
+  if (want != y) lv_obj_scroll_to_y(list, want, LV_ANIM_ON);
+}
+
 // ---- the three groups ----
 static void recv_tab_build(void) {
   lv_obj_t *p = s_rctx.pane;
@@ -962,8 +977,10 @@ static void recv_tab_build(void) {
     lv_obj_remove_flag(ih, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ih, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(ih, pop_toggle_cb, LV_EVENT_CLICKED, NULL);
-    s_idx_lbl = wt_lbl(ih, "", 0, 6, wt_font_mono14(), wt_accent());
-    lv_obj_set_style_text_letter_space(s_idx_lbl, 3, 0);
+    // "ADDRESS #12" is a word carrying a number, not a code to compare, and it
+    // sits beside the lamp's word. It goes with the captions.
+    s_idx_lbl = wt_lbl(ih, "", 0, 6, wt_font14(), wt_accent());
+    lv_obj_set_style_text_letter_space(s_idx_lbl, 2, 0);
     lv_obj_add_flag(s_idx_lbl, WT_FLAG_ACCENT);
     lv_obj_update_layout(s_idx_lbl);
     // Placed after the caption is MEASURED, not at a guessed x: "ADDRESS #0"
@@ -1002,9 +1019,12 @@ static void recv_tab_build(void) {
     lv_obj_add_flag(pr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(pr, path_help_cb, LV_EVENT_CLICKED, NULL);
     wt_line_press(pr);
-    lv_obj_t *pc = wt_lbl(pr, tr(STR_R_PATH_CAP), 12, 0, wt_font_mono14(),
-                          WT_DIM);
-    lv_obj_set_style_text_letter_space(pc, 3, 0);
+    // A caption is a WORD. The mono face is for DATA -- the path beside it, an
+    // address, a fingerprint -- where fixed pitch is what lets two of them be
+    // compared character by character. Two typefaces in one row read as a
+    // mistake, which is what came back off the glass.
+    lv_obj_t *pc = wt_lbl(pr, tr(STR_R_PATH_CAP), 12, 0, wt_font14(), WT_DIM);
+    lv_obj_set_style_text_letter_space(pc, 2, 0);
     lv_obj_align(pc, LV_ALIGN_LEFT_MID, 12, 0);
     lv_obj_update_layout(pc);
     // The whole row is the target; the "?" is the sign that says so.
@@ -1040,13 +1060,20 @@ static void recv_tab_build(void) {
     lv_obj_set_pos(list, X, 120);
     lv_obj_set_size(list, W, VIEW);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    // NO snap. LV_SCROLL_SNAP_START aligns the nearest CHILD's top to the
-    // viewport top, which is right in the middle of a list and wrong at the
-    // end of one: at the bottom it pulls the LAST row up to the top and leaves
-    // three empty lanes under it. Plain scrolling stops at the content's own
-    // bottom, so the last four land whole, which is the case the snap was
-    // wanted for in the first place.
+    // Rounded to a whole line when the throw stops, NOT LV_SCROLL_SNAP_START.
+    // LVGL's snap aligns the nearest CHILD's top to the viewport top and will
+    // scroll PAST the content to do it: at the end of the list it pulled the
+    // last row up to the top and left three empty lanes under it. Rounding the
+    // final offset to a multiple of the pitch and clamping it to the content
+    // does the job the snap was wanted for -- the window can only come to rest
+    // showing four whole lines -- without inventing space below the last one.
+    //
+    // It has to be one or the other. Left plain, a throw rests wherever it
+    // dies and the bottom line is cut through its own caption, which is what
+    // overlapcheck reported as 17px of ADDRESS #14 unreadable.
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_user_data(list, (void *)(intptr_t)H);
+    lv_obj_add_event_cb(list, list_settle_cb, LV_EVENT_SCROLL_END, NULL);
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
     wt_list_scrollbar(list);
 
@@ -1155,7 +1182,12 @@ static void recv_detail_open(void) {
   wt_tab_t t[3] = {
       { .icon = WT_ICON_QR,      .label = tr(STR_R_TAB_THIS) },
       { .icon = LV_SYMBOL_LIST,  .label = tr(STR_R_ALL_ADDR) },
-      { .icon = WT_ICON_SECRET,  .label = tr(STR_R_SP_BTN) },
+      // SILENT, not SILENT PAYMENT. 196px on a 200 pitch holds about eleven
+      // proportional characters with a mark and two brackets, and the full
+      // term ellipsised to "SILENT PAYM..." the moment the tab labels moved
+      // off the mono face. The handoff's own rule for this is to shrink the
+      // label, never the tab: 196 is what puts three groups in the 704 lane.
+      { .icon = WT_ICON_SECRET,  .label = tr(STR_R_TAB_SP) },
   };
   s_rctx.scr    = s_scr;
   s_rctx.select = wt_brackets_select;

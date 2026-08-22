@@ -250,6 +250,7 @@ enum {
     STR_R_NEXT,
     STR_R_ALL_ADDR,
     STR_R_TAB_THIS,
+    STR_R_TAB_SP,
     STR_R_ENLARGE,
     STR_R_PATH_CAP,
     STR_R_NEXT_ADDR,

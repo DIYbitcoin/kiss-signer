@@ -180,7 +180,7 @@ UNTRANSLATED_OK = {
     # These eighteen are the ones with no equivalent.
     "K_FP_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
     "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
-    "R_NEXT_ADDR", "R_LIST_COUNT", "R_ONE_EACH_SHORT", "R_USED_NOTE",
+    "R_NEXT_ADDR", "R_LIST_COUNT", "R_TAB_SP", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back

@@ -1382,7 +1382,7 @@ static void info_screen(void)
         lv_obj_update_layout(w);
         lv_obj_t *l = wt_lbl(s_scr, tr(STR_G_TEST_CHIP),
                              WT_ACT_X + lv_obj_get_width(w) + 10,
-                             WT_ACTION_Y + 16, wt_font_mono14(), WT_WARN);
+                             WT_ACTION_Y + 16, wt_font14(), WT_WARN);
         lv_obj_set_style_text_letter_space(l, 2, 0);
     }
 }
