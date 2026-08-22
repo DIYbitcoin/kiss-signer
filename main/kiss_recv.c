@@ -599,6 +599,23 @@ static void sp_open_cb(lv_event_t *e) {
 static wt_pane_t s_rctx;
 // The kit keeps its own exec callbacks private, and these two are a line each.
 static void wt_anim_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
+// The dot swells by changing SIZE, not by transform_scale, and the difference
+// is not taste. A transform puts LVGL on the layer path: it allocates a buffer
+// the size of the transformed object every frame, and when that allocation
+// fails LV_ASSERT_MALLOC does not return -- it spins. The walk hung on the one
+// frame that flips this lamp, for ever, having drawn 167 of 467 frames. Size
+// is the same picture and allocates nothing.
+//
+// Recentred as it grows, so it swells about its own middle the way a scale
+// would rather than growing down and to the right.
+static void wt_anim_dot(void *v, int32_t d) {
+  lv_obj_t *o = v;
+  const int cx = lv_obj_get_x(o) + lv_obj_get_width(o) / 2;
+  const int cy = lv_obj_get_y(o) + lv_obj_get_height(o) / 2;
+  lv_obj_set_size(o, d, d);
+  lv_obj_set_style_radius(o, d / 2 + 1, 0);
+  lv_obj_set_pos(o, cx - d / 2, cy - d / 2);
+}
 static void wt_anim_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
 static lv_obj_t *s_lamp_dot, *s_lamp_lbl, *s_idx_chev;
 static lv_obj_t *s_expl;              // the line under the path row, tab 1
@@ -609,6 +626,7 @@ static lv_obj_t *s_pop;               // the index popover, or NULL
 static lv_obj_t *s_pop_away;
 static void recv_tab_build(void);
 static void recv_detail_open(void);
+static void pop_chevron(bool open);
 
 #define RECV_COL_X 296
 #define RECV_COL_W 456
@@ -618,6 +636,7 @@ static void pop_close(void) {
   // is what left a full screen catcher on the page eating every later tap.
   if (s_pop_away) lv_obj_delete(s_pop_away);
   s_pop = s_pop_away = NULL;
+  pop_chevron(false);
 }
 
 static void recv_tab_cb(lv_event_t *e) {
@@ -635,8 +654,25 @@ static void recv_tab_cb(lv_event_t *e) {
 // USED and UNUSED, four letters apart, and both words a new owner already
 // knows. NEVER HANDED OUT / HANDED OUT ALREADY was tried and cut: too long for
 // the lane and too wordy for the reader.
+// Motion 11. The dot swells and settles when the state CHANGES -- not on every
+// refresh, or the lamp would throb each time the screen redrew for a reason
+// that has nothing to do with it.
+static void lamp_pulse_done(lv_anim_t *a) {
+  lv_anim_t b;
+  lv_anim_init(&b);
+  lv_anim_set_var(&b, a->var);
+  lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)wt_anim_dot);
+  lv_anim_set_values(&b, 21, 10);
+  lv_anim_set_duration(&b, 200);
+  lv_anim_set_path_cb(&b, lv_anim_path_ease_in_out);
+  lv_anim_start(&b);
+}
+
 static void lamp_set(bool used) {
   if (!s_lamp_dot || !s_lamp_lbl) return;
+  static int s_lamp_was = -1;
+  const bool changed = s_lamp_was >= 0 && s_lamp_was != (int)used;
+  s_lamp_was = (int)used;
   // GREEN's accent is byte identical to WT_OK and ORANGE is a near match for
   // WT_WARN, so on those two themes the lamp's colour says nothing the rest of
   // the page is not already saying, and a readout that cannot be told from
@@ -664,6 +700,18 @@ static void lamp_set(bool used) {
   // different lengths, and more so per locale.
   lv_obj_set_pos(s_lamp_lbl, 752 - lv_obj_get_width(s_lamp_lbl), 120);
   lv_obj_set_pos(s_lamp_dot, 752 - lv_obj_get_width(s_lamp_lbl) - 8 - 14, 131);
+  if (changed) {
+    lv_anim_del(s_lamp_dot, NULL);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, s_lamp_dot);
+    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)wt_anim_dot);
+    lv_anim_set_values(&a, 10, 21);
+    lv_anim_set_duration(&a, 220);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, lamp_pulse_done);
+    lv_anim_start(&a);
+  }
 }
 
 static bool recv_used(uint32_t idx) {
@@ -802,6 +850,7 @@ static void pop_open(void) {
   // popover and silently ate every later tap on the screen.
   s_pop = wt_overlay_box(par, &s_pop_away, RECV_COL_X, 148, 300, n * item_h,
                          8, pop_dismiss_cb);
+  pop_chevron(true);
   // The accent rim the KEYS/RECEIVE weight asks for, in place of WT_EDGE.
   lv_obj_set_style_border_color(s_pop, wt_accent(), 0);
   lv_obj_set_style_border_opa(s_pop, 115, 0);
@@ -851,6 +900,17 @@ static void pop_open(void) {
   lv_anim_set_values(&a, 0, 255);
   lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)wt_anim_opa);
   lv_anim_start(&a);
+}
+
+// Motion 17: the chevron turns over as the popover opens, and back as it
+// closes, so the mark states which way the thing under it is going.
+static void pop_chevron(bool open) {
+  if (!s_idx_chev) return;
+  // The glyph SWAPS rather than rotating, for the same reason the dot swells
+  // by size: transform_rotation is the layer path and the layer path is what
+  // hangs this renderer. DOWN and UP are both in the baked symbol set, so the
+  // mark still states which way the thing under it is going.
+  lv_label_set_text(s_idx_chev, open ? LV_SYMBOL_UP : LV_SYMBOL_DOWN);
 }
 
 static void pop_toggle_cb(lv_event_t *e) { (void)e; pop_open(); }
@@ -1003,7 +1063,7 @@ static void recv_tab_build(void) {
                        WT_DIM);
     lv_obj_set_width(s_cmp_lbl, RECV_COL_W);
     lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
-    wt_line_rule(p, RECV_COL_X, 242, RECV_COL_W);
+    wt_line_rule_draw(wt_line_rule(p, RECV_COL_X, 242, RECV_COL_W), 180, 340);
 
     // The path row runs 12 LEFT of the column, so the pressed rail sits
     // outside the text lane rather than under the first letter of its label.
@@ -1102,7 +1162,13 @@ static void recv_tab_build(void) {
       // and came to rest with the top line cut through its own caption. With
       // the pitch equal to the height, the row's last pixel row and "one below
       // the row" are the same line anyway.
-      wt_line_rule(row, 0, H - 1, W);
+      // Only the lines you can SEE draw themselves in. A width animation
+      // relayouts its container every frame, and twenty of them staggered
+      // across a scroll container took the whole walk twenty times longer --
+      // seventeen of those rules being below the fold the entire time. The
+      // three in the window are the whole of the effect anyway.
+      lv_obj_t *rl = wt_line_rule(row, 0, H - 1, W);
+      if (i < 3) wt_line_rule_draw(rl, 42 * i + 110, 320);
       shown++;
     }
 
@@ -1159,11 +1225,11 @@ static void recv_tab_build(void) {
                              sp_open_cb, NULL);
   lv_obj_t *sg = wt_addr_short(r1, sp, wt_font_mono23());
   lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
-  wt_line_rule(p, X, 120 + H, W);
+  wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
   wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT),
               wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
               sp_key_export_cb, NULL);
-  wt_line_rule(p, X, 196 + H, W);
+  wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
   wt_note(p, tr(STR_R_EXPL_SP), X, 286, W,
           WT_CONTENT_BOTTOM - 286);
 }

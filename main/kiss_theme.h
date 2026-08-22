@@ -826,6 +826,10 @@ void wt_pane_exit(wt_pane_t *p, int dir);
 //
 // A row with no `cb` gets no arrow, no radius and no pressed style. It is not
 // a dimmed control, it is not a control: KEYS' NETWORK line is the only one.
+// The value's tag, so wt_line_row_stage can find it among the caption, the
+// sub and the arrow -- and so a caller building its own value (an address
+// needs a spangroup) can opt into the same beat.
+#define WT_LINE_VAL_TAG ((void *)0x57A6E)
 #define WT_LINE_PAD  14   // left inset for the caption and the value
 #define WT_LINE_CAP_Y 6   // caption's top inside the row
 // The value's top inside the row: under the caption with a 4px gap. A function
@@ -846,6 +850,18 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
 // the row's box -- and so overlapcheck, which reads real positions, never sees
 // it move. Returns it because the animation needs the handle.
 lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w);
+// The rule DRAWS itself in, left to right, behind the line that just rose.
+// Motion 3 and 15 of the handoff, which ask for transform_scale_x with a left
+// pivot -- and that is the one thing not to use. A transform puts LVGL on the
+// layer path: four transformed 704x1 rules on one screen took free heap from
+// 80KB to 24KB with the largest free block at 3.5KB, and the language picker
+// two stops later then spun for ever inside a failed allocation. Animating the
+// WIDTH is the same picture and allocates nothing.
+void wt_line_rule_draw(lv_obj_t *rule, int delay_ms, int ms);
+// A line's VALUE arrives after the line does: motion 4 and 5, opacity up and
+// 7px of travel, on the beat the row came in on. `k` is the line's index
+// within its group, 0-based.
+void wt_line_row_stage(lv_obj_t *row, int k);
 
 // The 19px round "?" that marks a row whose whole box opens an explainer.
 // wt_help_chip is the same idiom at 30px, which is the size of a chip you aim

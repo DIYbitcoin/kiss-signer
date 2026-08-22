@@ -1280,19 +1280,20 @@ static void info_tab_build(void)
         // compare digit by digit, and the proportional face is the one that
         // makes 0 and O and 8 and B argue.
         snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_line_row(p, X, 120, W, H, tr(STR_D_FINGERPRINT), buf,
-                    wt_font_mono28(), WT_INK, tr(STR_K_FP_SUB), NULL,
-                    row_help_cb, (void *)"fp");
-        wt_line_rule(p, X, 120 + H, W);
+        wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_D_FINGERPRINT),
+                                      buf, wt_font_mono28(), WT_INK,
+                                      tr(STR_K_FP_SUB), NULL,
+                                      row_help_cb, (void *)"fp"), 0);
+        wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
 
         // The one line with nothing to open, so the one line with no arrow at
         // all. Not a dimmed arrow: a mark at low opacity still says there is
         // something under it.
-        wt_line_row(p, X, 204, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
+        wt_line_row_stage(wt_line_row(p, X, 204, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
                     wt_font28(), kiss_testnet() ? WT_WARN : WT_INK,
                     tr(kiss_testnet() ? STR_G_TESTNET_NOTE
-                                      : STR_G_MAINNET_NOTE), NULL, NULL, NULL);
-        wt_line_rule(p, X, 204 + H, W);
+                                      : STR_G_MAINNET_NOTE), NULL, NULL, NULL), 1);
+        wt_line_rule_draw(wt_line_rule(p, X, 204 + H, W), 152, 320);
 
         // h, not an apostrophe, and this is correctness rather than style: at
         // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
@@ -1302,34 +1303,36 @@ static void info_tab_build(void)
         int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
         snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
                  kiss_testnet() ? 1 : 0);
-        wt_line_row(p, X, 288, W, H, tr(STR_I_SEC_TYPE),
+        wt_line_row_stage(wt_line_row(p, X, 288, W, H, tr(STR_I_SEC_TYPE),
                     tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
                                               : STR_S_TY_NATIVE),
                     wt_font28(), WT_INK, buf, wt_font_mono23(),
-                    row_help_cb, (void *)"type");
-        wt_line_rule(p, X, 288 + H, W);
+                    row_help_cb, (void *)"type"), 2);
+        wt_line_rule_draw(wt_line_rule(p, X, 288 + H, W), 194, 320);
 
         return;
     }
 
     const int H = 76;
-    wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING), tr(STR_I_PAIR_T),
-                wt_font23(), WT_INK, tr(STR_K_PAIR_SUB), NULL,
-                pair_open_cb, NULL);
-    wt_line_rule(p, X, 120 + H, W);
+    wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING),
+                                  tr(STR_I_PAIR_T), wt_font28(), WT_INK,
+                                  tr(STR_K_PAIR_SUB), NULL,
+                                  pair_open_cb, NULL), 0);
+    wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
     // "Scan" elsewhere on this device means the camera. Here it means searching
     // the chain, and the caption above the value is what says which.
-    wt_line_row(p, X, 196, W, H, tr(STR_R_SP_BTN), tr(STR_R_SP_SCAN_BTN),
-                wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
-                sp_key_warn_cb, NULL);
-    wt_line_rule(p, X, 196 + H, W);
+    wt_line_row_stage(wt_line_row(p, X, 196, W, H, tr(STR_R_SP_BTN),
+                                  tr(STR_R_SP_SCAN_BTN), wt_font28(), WT_INK,
+                                  tr(STR_K_SP_SUB), NULL,
+                                  sp_key_warn_cb, NULL), 1);
+    wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
 
     lv_obj_t *ar = wt_line_row(p, X, 272, W, H, tr(STR_I_SEC_FIRST), NULL,
                    NULL, WT_INK, tr(STR_S_CMP_8), NULL,
                    row_help_cb, (void *)"addr");
     info_addr_value(ar);
-    wt_line_rule(p, X, 272 + H, W);
+    wt_line_rule_draw(wt_line_rule(p, X, 272 + H, W), 194, 320);
     // 368, thirty clear of the floor. No explainer on this tab: four lines
     // IS the explanation, and a sentence under them would be the page
     // telling an owner what they have just read.

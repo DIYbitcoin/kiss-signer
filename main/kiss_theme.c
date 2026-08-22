@@ -2299,6 +2299,53 @@ lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w)
     return r;
 }
 
+void wt_line_rule_draw(lv_obj_t *rule, int delay_ms, int ms)
+{
+    if (!rule) return;
+    lv_obj_update_layout(rule);
+    const int w = lv_obj_get_width(rule);
+    if (w <= 0) return;
+    lv_obj_set_width(rule, 0);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, rule);
+    lv_anim_set_exec_cb(&a, an_w);
+    lv_anim_set_values(&a, 0, w);
+    lv_anim_set_duration(&a, ms);
+    lv_anim_set_delay(&a, delay_ms);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_start(&a);
+}
+
+void wt_line_row_stage(lv_obj_t *row, int k)
+{
+    if (!row) return;
+    // The VALUE, which is the tagged one: a row also holds a caption, a sub and
+    // an arrow, and all three belong to the line rather than to the reading.
+    lv_obj_t *v = NULL;
+    const uint32_t n = lv_obj_get_child_count(row);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(row, i);
+        if (lv_obj_get_user_data(c) == (void *)WT_LINE_VAL_TAG) { v = c; break; }
+    }
+    if (!v) return;
+    const int delay = 42 * k + 90;
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, v);
+    lv_anim_set_duration(&a, 220);
+    lv_anim_set_delay(&a, delay);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_values(&a, 7, 0);
+    lv_anim_set_exec_cb(&a, an_tx);
+    lv_anim_start(&a);
+    lv_obj_set_style_opa(v, LV_OPA_TRANSP, 0);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_set_path_cb(&a, lv_anim_path_linear);
+    lv_anim_set_exec_cb(&a, an_opa);
+    lv_anim_start(&a);
+}
+
 lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y)
 {
     lv_obj_t *m = lv_obj_create(par);
@@ -2452,6 +2499,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
                              vf ? vf : wt_font23(), vcol);
+        lv_obj_set_user_data(v, (void *)WT_LINE_VAL_TAG);
         lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
         lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
