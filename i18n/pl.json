@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "JUZ PODPISANE",
   "S_ROW_SIGNATURE": "PODPIS",
   "S_RM_SIGNED": "USUN PODPISANE",
-  "S_RM_C_B": "te znikna z karty.\n\nnic niepodpisanego nie zostanie ruszone.",
+  "S_RM_C_B": "te znikna z karty. nic niepodpisanego nie zostanie ruszone.",
   "S_RM_ALL": "USUN WSZYSTKIE",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

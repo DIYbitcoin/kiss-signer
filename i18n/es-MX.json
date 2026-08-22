@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "YA FIRMADO",
   "S_ROW_SIGNATURE": "FIRMA",
   "S_RM_SIGNED": "BORRAR FIRMADOS",
-  "S_RM_C_B": "estos desaparecen de la tarjeta.\n\nnada sin firmar se toca.",
+  "S_RM_C_B": "estos desaparecen de la tarjeta. nada sin firmar se toca.",
   "S_RM_ALL": "BORRAR TODOS",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

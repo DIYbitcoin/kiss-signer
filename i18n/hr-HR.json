@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "VEC POTPISANO",
   "S_ROW_SIGNATURE": "POTPIS",
   "S_RM_SIGNED": "OBRISI POTPISANE",
-  "S_RM_C_B": "ovi nestaju s kartice.\n\nnista nepotpisano se ne dira.",
+  "S_RM_C_B": "ovi nestaju s kartice. nista nepotpisano se ne dira.",
   "S_RM_ALL": "OBRISI SVE",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

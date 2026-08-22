@@ -1083,11 +1083,17 @@ lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
     return l;
 }
 
-lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w)
+lv_obj_t *wt_wrap(lv_obj_t *scr, const char *txt, int x, int y, int w, int max_h)
 {
+    // The TEXT comes in, so the size can be chosen. It used to hard-code
+    // font14 and return an empty label for the caller to fill, which is the
+    // font14-is-a-bug shape with the ladder missing rather than overruled:
+    // its three callers are the sentences that explain why an address did not
+    // match, on the screen where an owner decides whether to trust one.
     lv_obj_t *l = lv_label_create(scr);
     lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
+    lv_label_set_text(l, txt ? txt : "");
+    lv_obj_set_style_text_font(l, wt_body_font(txt ? txt : "", w, max_h), 0);
     lv_obj_set_width(l, w);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(l, x, y);
@@ -2936,6 +2942,15 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
     lv_obj_set_size(rule, 3, hgt);
     lv_obj_set_style_radius(rule, 2, 0);
     lv_obj_set_style_bg_color(rule, col, 0);
+    // Nine callers pass wt_accent() here, and without the flag every one of
+    // them kept the OLD accent after a theme change -- a pink rule beside
+    // orange chrome until the screen was rebuilt. accent_walk needs telling,
+    // and a fill needs the FILL flag: the plain one only repaints text.
+    //
+    // Only when the colour IS the accent. The status colours never move, so
+    // flagging a WT_WARN rule would repaint a caution the theme's colour.
+    if (lv_color_eq(col, wt_accent()))
+        lv_obj_add_flag(rule, WT_FLAG_ACCENT_FILL);
     lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
     lv_obj_remove_flag(rule, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(rule, LV_OBJ_FLAG_SCROLLABLE);

@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "REDAN SIGNERAD",
   "S_ROW_SIGNATURE": "SIGNATUR",
   "S_RM_SIGNED": "RADERA SIGNERADE",
-  "S_RM_C_B": "dessa forsvinner fran kortet.\n\ninget osignerat rors.",
+  "S_RM_C_B": "dessa forsvinner fran kortet. inget osignerat rors.",
   "S_RM_ALL": "RADERA ALLA",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

@@ -3436,7 +3436,14 @@ static void rm_screen(void)
     mk_screen(s_parent, tr(STR_S_RM_SIGNED), NULL);
     // Both claims, above the list they describe. The second one is the reason
     // this screen is safe and it is the sentence that has to be here.
-    lv_obj_t *h = mk_lbl(tr(STR_S_RM_C_B), 48, 74, wt_font14(), MUT_COL);
+    //
+    // ONE paragraph, and that is what buys the size. The box is 74 to the
+    // list at 132 -- 58px -- and a blank line costs a whole line of type, so
+    // two paragraphs plus the gap is three line heights and only font14 fits
+    // three of those. Merged, it is one line, and one line of font23 is 31.
+    // Count the paragraphs before cutting words.
+    lv_obj_t *h = mk_lbl(tr(STR_S_RM_C_B), 48, 74,
+                         wt_body_font(tr(STR_S_RM_C_B), 704, 132 - 74), MUT_COL);
     lv_obj_set_width(h, 704);
     lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
 

@@ -343,8 +343,13 @@ static void pair_refresh(void)
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         wt_pill_select(s_pair_pill[i], on);
+        // The flag rides with the paint, or the selected app name keeps the
+        // OLD accent after a theme change -- this runs on every pick, so the
+        // stale colour survives until the pill is tapped again.
         lv_obj_set_style_text_color(s_pair_app[i],   // app name above the category
                                     on ? wt_accent() : lv_color_hex(0x525C6E), 0);
+        if (on) lv_obj_add_flag(s_pair_app[i], WT_FLAG_ACCENT);
+        else    lv_obj_remove_flag(s_pair_app[i], WT_FLAG_ACCENT);
     }
 }
 
@@ -843,17 +848,23 @@ static void wtab_paper(void)
     // ritual, and this is the screen someone opens to copy words onto paper,
     // which is the last moment redoing the seed is still cheap.
     //
-    // A row rather than a chip now, so the page has one idiom instead of two,
-    // and INERT because there is nothing to tap -- it is a fact about a seed
-    // that already exists. Reuses the string the warning screen wears, so it
-    // costs no new key in 21 locales.
+    // A row rather than a chip now, so the page has one idiom instead of two.
+    // Reuses the string the warning screen wears, so it costs no new key in 21
+    // locales.
+    //
+    // NOT WT_WIDE_INERT, which was a straight contradiction: wt_row_wide
+    // computes vcol as `inert ? WT_DIM : col_or(...)`, so the WT_WARN below was
+    // thrown away and the row drew a GREY warning sign inside an amber card.
+    // Inert means present and dead. This is a live caution about the seed the
+    // signer is holding; it simply has nothing to tap, which is what OPEN with
+    // no callback says.
     int rows = 2;
     const int note = kiss_seed_entropy_note();
     if (note != 0) {
         wt_row_wide(w_pane, WT_WIDE_Y(2), &(wt_wide_t){
             .label = tr(WSEED_ENTQ_IS_CARDS(note) ? STR_W_CARDS_WARN_T
                                                   : STR_W_DICE_WARN_T),
-            .kind  = WT_WIDE_INERT,
+            .kind  = WT_WIDE_OPEN,
             .val   = LV_SYMBOL_WARNING,
             .vcol  = WT_WARN,
             .sev   = WT_SEV_WARN,

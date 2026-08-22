@@ -299,7 +299,10 @@ void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled whe
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col);
-lv_obj_t *wt_wrap(lv_obj_t *scr, int x, int y, int w);      // muted wrapping body text
+// Muted wrapping body text, at the largest size that fits max_h. The text is a
+// parameter because the size depends on it: this used to hand back an empty
+// font14 label for the caller to fill.
+lv_obj_t *wt_wrap(lv_obj_t *scr, const char *txt, int x, int y, int w, int max_h);
 // Same, but auto-sized to a known gap: prefer this. wt_wrap is fixed-small and
 // only right where the caller genuinely has no vertical room to give.
 lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h);

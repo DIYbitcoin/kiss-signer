@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "SCHON SIGNIERT",
   "S_ROW_SIGNATURE": "SIGNATUR",
   "S_RM_SIGNED": "SIGNIERTE LÖSCHEN",
-  "S_RM_C_B": "diese verschwinden von der Karte.\n\nnichts Unsigniertes wird angerührt.",
+  "S_RM_C_B": "diese verschwinden von der Karte. nichts Unsigniertes wird angerührt.",
   "S_RM_ALL": "ALLE LÖSCHEN",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

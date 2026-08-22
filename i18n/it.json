@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "GIA FIRMATO",
   "S_ROW_SIGNATURE": "FIRMA",
   "S_RM_SIGNED": "ELIMINA I FIRMATI",
-  "S_RM_C_B": "questi spariscono dalla scheda.\n\nnulla di non firmato viene toccato.",
+  "S_RM_C_B": "questi spariscono dalla scheda. nulla di non firmato viene toccato.",
   "S_RM_ALL": "ELIMINA TUTTI",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",

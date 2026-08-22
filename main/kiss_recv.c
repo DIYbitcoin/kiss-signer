@@ -415,13 +415,12 @@ static void vfy_result(const char *txt, size_t len) {
     lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
                                 wt_body_font(buf, 700, 44), WT_WARN);
     lv_label_set_text_fmt(headline, LV_SYMBOL_WARNING " %s", buf);
-    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
-    lv_label_set_text(n, tr(STR_R_NOT_FOUND_B));
+    lv_obj_t *n = wt_wrap(s_scr, tr(STR_R_NOT_FOUND_B), 48, note_y, 700,
+                          WT_CONTENT_BOTTOM - note_y);
     lv_obj_set_style_text_color(n, WT_WARN, 0);
   } else if (validity == WADDR_WRONG_NETWORK) {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_WRONG_NET),
            48, 130, wt_font28(), WT_STOP);
-    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
     // Name both networks. The %s placeholders in STR_R_WRONG_NET_B are
     // (address_network, kiss_network) so the reader learns what was scanned
     // and what the device is set to in one sentence. "mainnet" and "testnet"
@@ -436,12 +435,12 @@ static void vfy_result(const char *txt, size_t len) {
                          : kiss_testnet()                    ? "testnet"
                                                              : "mainnet";
     snprintf(buf, sizeof buf, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
-    lv_label_set_text(n, buf);
+    wt_wrap(s_scr, buf, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
   } else {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_INVALID),
            48, 130, wt_font28(), WT_STOP);
-    lv_obj_t *n = wt_wrap(s_scr, 48, note_y, 700);
-    lv_label_set_text(n, tr(STR_R_INVALID_B));
+    wt_wrap(s_scr, tr(STR_R_INVALID_B), 48, note_y, 700,
+            WT_CONTENT_BOTTOM - note_y);
   }
 
   lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, WT_ACTION_Y, 220, vfy_scan, NULL);

@@ -650,7 +650,7 @@
   "S_SIGNED_ALREADY": "ALLEREDE SIGNERET",
   "S_ROW_SIGNATURE": "SIGNATUR",
   "S_RM_SIGNED": "SLET SIGNEREDE",
-  "S_RM_C_B": "disse forsvinder fra kortet.\n\nintet usigneret roeres.",
+  "S_RM_C_B": "disse forsvinder fra kortet. intet usigneret roeres.",
   "S_RM_ALL": "SLET ALLE",
   "G_FW_PILL": "FIRMWARE",
   "G_FW_T": "FIRMWARE",
