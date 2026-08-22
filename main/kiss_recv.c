@@ -608,9 +608,13 @@ static wt_pane_t s_rctx;
 // The kit keeps its own exec callbacks private, and these two are a line each.
 static void wt_anim_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
 static void wt_anim_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
-static lv_obj_t *s_lamp_dot, *s_lamp_lbl;
+static lv_obj_t *s_lamp_dot, *s_lamp_lbl, *s_idx_chev;
 static lv_obj_t *s_expl;              // the line under the path row, tab 1
 static lv_obj_t *s_pop;               // the index popover, or NULL
+// Its tap-away catcher, which is a SIBLING and therefore does not die with it.
+// Held here because a catcher that outlives the popover covers the whole pane
+// and silently eats every tap on the screen behind it.
+static lv_obj_t *s_pop_away;
 static void recv_tab_build(void);
 static void recv_detail_open(void);
 
@@ -619,7 +623,10 @@ static void recv_detail_open(void);
 #define RECV_PAGE_N 4                 // lines on ALL ADDRESSES, one page
 
 static void pop_close(void) {
-  if (s_pop) { lv_obj_delete(s_pop); s_pop = NULL; }
+  // The scrim OWNS the box, so one delete takes both. Deleting the box alone
+  // is what left a full screen catcher on the page eating every later tap.
+  if (s_pop_away) lv_obj_delete(s_pop_away);
+  s_pop = s_pop_away = NULL;
 }
 
 static void recv_tab_cb(lv_event_t *e) {
@@ -649,7 +656,7 @@ static void lamp_set(bool used) {
   // Right aligned to 752 and recomputed every refresh: the two words are
   // different lengths, and more so per locale.
   lv_obj_set_pos(s_lamp_lbl, 752 - lv_obj_get_width(s_lamp_lbl), 120);
-  lv_obj_set_pos(s_lamp_dot, 752 - lv_obj_get_width(s_lamp_lbl) - 8 - 14, 126);
+  lv_obj_set_pos(s_lamp_dot, 752 - lv_obj_get_width(s_lamp_lbl) - 8 - 14, 131);
 }
 
 static bool recv_used(uint32_t idx) {
@@ -696,8 +703,12 @@ static void recv_refresh(void) {
     else         lv_obj_remove_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
   }
 
-  if (s_idx_lbl) lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT),
-                                       (unsigned)s_idx);
+  if (s_idx_lbl) {
+    lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
+    lv_obj_update_layout(s_idx_lbl);
+    if (s_idx_chev)
+      lv_obj_set_pos(s_idx_chev, lv_obj_get_width(s_idx_lbl) + 8, 7);
+  }
   if (s_path_lbl) {
     int purpose = kiss_script() == WSCRIPT_LEGACY ? 44
                 : kiss_script() == WSCRIPT_NESTED ? 49 : 84;
@@ -776,22 +787,18 @@ static void pop_open(void) {
   const int n = hi - lo + 1;
   const int item_h = 44;
 
-  s_pop = lv_obj_create(par);
-  lv_obj_remove_style_all(s_pop);
-  lv_obj_set_pos(s_pop, RECV_COL_X, 148);
-  lv_obj_set_size(s_pop, 300, n * item_h);
-  lv_obj_set_style_radius(s_pop, 8, 0);
-  lv_obj_set_style_bg_color(s_pop, WT_BAR, 0);
-  lv_obj_set_style_bg_opa(s_pop, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(s_pop, 1, 0);
+  // wt_overlay_box, not a bare box: the scrim is what closes the popover on a
+  // tap outside AND what says the column underneath is behind something. Built
+  // by hand the first time, the catcher was a transparent sibling -- so the
+  // page still read as one plane, overlapcheck reported the popover colliding
+  // with every line it was sitting on top of, and the catcher outlived the
+  // popover and silently ate every later tap on the screen.
+  s_pop = wt_overlay_box(par, &s_pop_away, RECV_COL_X, 148, 300, n * item_h,
+                         8, pop_dismiss_cb);
+  // The accent rim the KEYS/RECEIVE weight asks for, in place of WT_EDGE.
   lv_obj_set_style_border_color(s_pop, wt_accent(), 0);
   lv_obj_set_style_border_opa(s_pop, 115, 0);
   lv_obj_add_flag(s_pop, WT_FLAG_ACCENT_BORDER);
-  lv_obj_set_style_shadow_width(s_pop, 40, 0);
-  lv_obj_set_style_shadow_offset_y(s_pop, 18, 0);
-  lv_obj_set_style_shadow_color(s_pop, lv_color_black(), 0);
-  lv_obj_set_style_shadow_opa(s_pop, LV_OPA_60, 0);
-  lv_obj_remove_flag(s_pop, LV_OBJ_FLAG_SCROLLABLE);
 
   for (int i = 0; i < n; i++) {
     const uint32_t idx = (uint32_t)(lo + i);
@@ -809,8 +816,7 @@ static void pop_open(void) {
     // The tick is built on EVERY item and hidden with opacity, the same
     // discipline as the tab brackets: an item that gains a glyph on selection
     // reflows the row under the finger that just picked it.
-    lv_obj_t *ok = wt_lbl(it, LV_SYMBOL_OK, 12, 0, wt_font14(),
-                          wt_accent());
+    lv_obj_t *ok = wt_lbl(it, LV_SYMBOL_OK, 12, 0, wt_font14(), wt_accent());
     lv_obj_set_style_text_opa(ok, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     if (sel) lv_obj_add_flag(ok, WT_FLAG_ACCENT);
     lv_obj_align(ok, LV_ALIGN_LEFT_MID, 12, 0);
@@ -821,22 +827,10 @@ static void pop_open(void) {
     lv_obj_align(nl, LV_ALIGN_LEFT_MID, 40, 0);
     const bool u = recv_used(idx);
     lv_obj_t *st = wt_lbl(it, tr(u ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED),
-                          0, 0, wt_font_mono14(), u ? WT_DIM : WT_OK);
-    lv_obj_set_style_text_letter_space(st, 2, 0);
+                          0, 0, wt_font_mono23(), u ? WT_DIM : WT_OK);
     lv_obj_align(st, LV_ALIGN_RIGHT_MID, -14, 0);
     if (i < n - 1) wt_line_rule(it, 0, item_h - 1, 300);
   }
-  // A tap anywhere else closes it. The catcher is built LAST so it sits under
-  // nothing and over everything else on the pane, and it is a sibling of the
-  // popover rather than its parent so a pick lands on the item.
-  lv_obj_t *away = lv_obj_create(par);
-  lv_obj_remove_style_all(away);
-  lv_obj_set_pos(away, 0, 0);
-  lv_obj_set_size(away, 800, 480);
-  lv_obj_add_flag(away, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_remove_flag(away, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(away, pop_dismiss_cb, LV_EVENT_CLICKED, NULL);
-  lv_obj_move_to_index(away, lv_obj_get_index(s_pop));
 
   lv_anim_t a;
   lv_anim_init(&a);
@@ -884,7 +878,16 @@ static void page_cb(lv_event_t *e) {
   int base = (int)s_list_base + step * RECV_PAGE_N;
   if (base < 0 || base >= RECV_LIST_CAP) return;     // ends of the range: no wrap
   s_list_base = (uint32_t)base;
-  wt_pane_go(&s_rctx, 2, false, recv_tab_build);     // same tab: rebuild in place
+  // NOT wt_pane_go: it refuses a same-tab call by design, because a tab change
+  // carries a direction along the strip and a page change has none. The lines
+  // are rebuilt in place and rise the way they do on any other entry, which is
+  // what says the content under the strip changed while the strip did not.
+  wt_pane_stop(&s_rctx);
+  if (s_rctx.pane) { lv_obj_delete(s_rctx.pane); s_rctx.pane = NULL; }
+  s_rctx.pane = wt_pane_new(&s_rctx);
+  recv_tab_build();
+  wt_accent_restyle(s_rctx.pane);
+  wt_pane_enter(&s_rctx, 1, false);
 }
 
 // ---- tab 3: SILENT PAYMENT ----
@@ -907,9 +910,11 @@ static void sp_key_export_cb(lv_event_t *e) {
 // ---- the three groups ----
 static void recv_tab_build(void) {
   lv_obj_t *p = s_rctx.pane;
+  // The old pane took the popover and its catcher with it.
+  s_pop = s_pop_away = NULL;
   const int X = 48, W = 704;
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;
-  s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_expl = NULL;
+  s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_expl = s_idx_chev = NULL;
   s_state_chip = NULL;
 
   if (s_rctx.tab == 0) {
@@ -917,8 +922,8 @@ static void recv_tab_build(void) {
     wt_qr_card(p, &s_qr, X, 120, 216, 180);
     lv_obj_t *hit = lv_obj_create(p);
     lv_obj_remove_style_all(hit);
-    lv_obj_set_pos(hit, X, 340);
-    lv_obj_set_size(hit, 216, 26);
+    lv_obj_set_pos(hit, X, 342);
+    lv_obj_set_size(hit, 236, 32);
     lv_obj_remove_flag(hit, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(hit, enlarge_cb, LV_EVENT_CLICKED, NULL);
@@ -926,14 +931,12 @@ static void recv_tab_build(void) {
     // scale: this line is a direction too.
     lv_obj_set_style_translate_x(hit, 0, 0);
     lv_obj_set_style_translate_x(hit, 4, LV_STATE_PRESSED);
-    lv_obj_t *ic = wt_lbl(hit, LV_SYMBOL_EYE_OPEN, 0, 3, wt_font14(),
+    lv_obj_t *ic = wt_lbl(hit, LV_SYMBOL_EYE_OPEN, 0, 6, wt_font14(),
                           wt_accent());
     lv_obj_add_flag(ic, WT_FLAG_ACCENT);
     lv_obj_update_layout(ic);
-    lv_obj_t *el = wt_lbl(hit, tr(STR_R_ENLARGE),
-                          lv_obj_get_width(ic) + 10, 3, wt_font_mono14(),
-                          WT_MUT);
-    lv_obj_set_style_text_letter_space(el, 3, 0);
+    wt_lbl(hit, tr(STR_R_ENLARGE), lv_obj_get_width(ic) + 10, 0, wt_font23(),
+           WT_MUT);
 
     // Right column. The caption is the popover's control, so it carries the
     // chevron that says so and the whole pair is one target.
@@ -948,9 +951,12 @@ static void recv_tab_build(void) {
     lv_obj_set_style_text_letter_space(s_idx_lbl, 3, 0);
     lv_obj_add_flag(s_idx_lbl, WT_FLAG_ACCENT);
     lv_obj_update_layout(s_idx_lbl);
+    // Placed after the caption is MEASURED, not at a guessed x: "ADDRESS #0"
+    // and "ADDRESS #12" are different widths, and so is every locale's word
+    // for address. A fixed x drew the chevron through the index.
     lv_obj_t *cv = wt_lbl(ih, LV_SYMBOL_DOWN, 0, 7, wt_font14(), wt_accent());
     lv_obj_add_flag(cv, WT_FLAG_ACCENT);
-    lv_obj_set_pos(cv, 112, 7);
+    s_idx_chev = cv;
 
     s_lamp_dot = lv_obj_create(p);
     lv_obj_remove_style_all(s_lamp_dot);
@@ -963,10 +969,9 @@ static void recv_tab_build(void) {
     lv_obj_set_style_shadow_opa(s_lamp_dot, 60, 0);
     lv_obj_remove_flag(s_lamp_dot, LV_OBJ_FLAG_CLICKABLE);
     // A readout, not a control. Tapping it does nothing on purpose.
-    s_lamp_lbl = wt_lbl(p, "", 0, 120, wt_font_mono14(), WT_OK);
-    lv_obj_set_style_text_letter_space(s_lamp_lbl, 3, 0);
+    s_lamp_lbl = wt_lbl(p, "", 0, 120, wt_font_mono23(), WT_OK);
 
-    s_cmp_lbl = wt_lbl(p, tr(STR_S_CMP_8), RECV_COL_X, 200, wt_font14(),
+    s_cmp_lbl = wt_lbl(p, tr(STR_S_CMP_8), RECV_COL_X, 198, wt_font23(),
                        WT_DIM);
     lv_obj_set_width(s_cmp_lbl, RECV_COL_W);
     lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
@@ -1018,7 +1023,7 @@ static void recv_tab_build(void) {
       lv_obj_t *row = wt_line_row(p, X, y, W, H, cap, NULL, NULL, WT_INK,
                                   tr(u ? STR_R_HANDED_ALREADY
                                        : STR_R_NEVER_HANDED),
-                                  wt_font_mono14(), row_tap_cb,
+                                  wt_font_mono23(), row_tap_cb,
                                   (void *)(uintptr_t)idx);
       // The sub is the state, so it wears the state's colour rather than the
       // sub's grey. UNUSED is the only green on this page and it means the
@@ -1034,6 +1039,10 @@ static void recv_tab_build(void) {
     }
     lv_obj_t *note = wt_lbl(p, "", X, 356, wt_font23(), WT_MUT);
     lv_obj_set_width(note, W - 110);
+    // Pinned to ONE line. Unpinned it wrapped to two and the second ran under
+    // the action bar -- and a label allowed to grow is how a budget gets given
+    // away without anything saying so.
+    lv_obj_set_height(note, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
     lv_label_set_text_fmt(note, tr(STR_R_LIST_COUNT),
                           (unsigned)(s_list_base + 1),
@@ -1092,7 +1101,7 @@ static void recv_tab_build(void) {
 
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
-  s_pop = NULL;
+  s_pop = s_pop_away = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
   wt_title_fit(s_scr, 704);
   wt_title_cursor(s_scr);
@@ -1150,7 +1159,7 @@ void kiss_recv_open(lv_obj_t *parent) {
   // so the ALL ADDRESSES list still lands on the right page if the user asks
   // for it from the detail screen ("21 - 40 OF 100" reads round).
   uint32_t fresh = s_idx < RECV_LIST_CAP ? s_idx : RECV_LIST_CAP - 1;
-  s_list_base = (fresh / RECV_LIST_N) * RECV_LIST_N;
+  s_list_base = (fresh / RECV_PAGE_N) * RECV_PAGE_N;
 
   // Per HANDOFF-03: RECEIVE lands on one address, not on a hundred. The list
   // is one tap away behind ALL ADDRESSES; the default is the freshest.

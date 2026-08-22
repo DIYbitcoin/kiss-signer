@@ -1308,7 +1308,7 @@ static void info_tab_build(void)
                     tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
                                               : STR_S_TY_NATIVE),
-                    wt_font23(), WT_INK, buf, wt_font_mono14(),
+                    wt_font23(), WT_INK, buf, wt_font_mono23(),
                     row_help_cb, (void *)"type");
         wt_line_rule(p, X, 244 + H, W);
 

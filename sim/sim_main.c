@@ -2340,8 +2340,12 @@ int main(void) {
   // frame taken between touch and release is a picture of the home screen and
   // check_sim_taps would rightly call it a dead interaction.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
-  save("/tmp/sim_recv.ppm");                        // HANDOFF-03 landing: single-address detail
-  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row -> SP address view
+  save("/tmp/sim_recv.ppm");                        // THIS ADDRESS, the landing tab
+  // The bracket strip: THIS ADDRESS 48..244, ALL ADDRESSES 248..444, SILENT
+  // PAYMENT 448..644, all 30 tall from y=70.
+  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab
+  save("/tmp/sim_recv_sptab.ppm");                  // two lines and the sentence
+  touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> SP view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
   save("/tmp/sim_recv_sp_zoom.ppm");
@@ -2352,23 +2356,41 @@ int main(void) {
   touch(730, 50); pump(3); release(); pump(30);     // ? -> sp1/bc1p explanation
   save("/tmp/sim_recv_sp_help.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the explanation
-  tap_str(STR_C_BACK, 3, 6);     // BACK from SP -> detail again
-  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> the list
-  save("/tmp/sim_recv_list.ppm");                   // paginated list, one tap away now
-  // Actually DRAG it. This is the first scrolling surface in the whole wallet
-  // -- every other container turns scrolling off -- so the walk flicks it for
-  // real rather than trusting that a scrollable flag implies a list that moves.
-  touch(400, 300); pump(2);
-  touch(400, 200); pump(2);
-  touch(400, 120); pump(2);                         // finger travels up: later indices
-  release(); pump(20);                              // let the throw and snap settle
-  save("/tmp/sim_recv_scrolled.ppm");
-  touch(400, 120); pump(3); release(); pump(6);     // tap a row -> that one address
-  save("/tmp/sim_recv_detail.ppm");                 // QR + body + lit tail + compare-8
-  touch(167, 231); pump(3); release(); pump(6);     // QR card -> zoom
+  tap_str(STR_C_BACK, 3, 6);     // BACK from SP -> RECEIVE, still on tab 3
+  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
+  save("/tmp/sim_recv_list.ppm");                   // four lines and the count
+  // Mid-flight: the second tab change is photographed before it settles, so
+  // one frame in the repo shows a line risen with its rule still drawing.
+  touch(145, 85); pump(3); release(); pump(4);
+  save("/tmp/sim_recv_tabmid.ppm");
+  pump(40);
+  touch(340, 85); pump(3); release(); pump(40);     // back to the list
+  // The page arrows live IN the content at the count line's right edge: back
+  // at 672, forward at 734, both on y=370. Forward is the live one on page 1.
+  touch(734, 370); pump(3); release(); pump(40);
+  save("/tmp/sim_recv_page2.ppm");
+  touch(672, 370); pump(3); release(); pump(40);    // and back to page 1
+  // A line HELD, so one frame shows the accent rail and the pressed wash --
+  // the entire affordance of a row with no border. The release is the tap that
+  // opens it, so this is the same gesture the next frame is the result of:
+  // there is no way to photograph a press without eventually completing it.
+  touch(400, 204); pump(12);
+  save("/tmp/sim_recv_held.ppm");
+  release(); pump(40);                              // -> that address on tab 1
+  save("/tmp/sim_recv_detail.ppm");                 // QR + address + lamp + path
+  touch(156, 228); pump(3); release(); pump(6);     // QR card -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  tap_str(STR_R_NEXT, 3, 4);     // NEXT ADDRESS pill -> next index
+  touch(156, 353); pump(3); release(); pump(6);     // TAP TO ENLARGE -> the same zoom
+  save("/tmp/sim_recv_zoom_line.ppm");
+  touch(763, 35); pump(3); release(); pump(6);      // close zoom
+  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
+  save("/tmp/sim_recv_pop.ppm");
+  touch(446, 170); pump(3); release(); pump(20);    // pick the first offered index
+  touch(500, 272); pump(3); release(); pump(30);    // the path row -> its explainer
+  save("/tmp/sim_recv_path_help.ppm");
+  tap_str(STR_C_OK, 3, 6);
+  tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     tap_str(STR_R_VERIFY, 3, 6);   // VERIFY pill -> raw scan screen
@@ -3263,15 +3285,16 @@ int main(void) {
   // knows whether this particular address received a payment.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> detail landing
   save("/tmp/sim_recv_fresh.ppm");                  // freshest address, one screen
-  // The address card folds. Tap it once for every character grouped in fours,
-  // tap it again to go back to the eight that matter. Both states get a frame:
-  // the fold is the only way to read the whole address off this screen.
-  touch(530, 190); pump(3); release(); pump(6);     // address card -> full address
+  // The whole address is on the QR beside it and one tap away on the list, so
+  // this tab does not fold: the line shows the eight it asks you to compare
+  // and stays one line. What gets a frame instead is the popover, which is the
+  // only way to go BACK an index without leaving the tab.
+  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> index popover
   save("/tmp/sim_recv_full.ppm");
-  touch(530, 190); pump(3); release(); pump(6);     // and back to folded
-  tap_str(STR_R_NEXT, 3, 6);     // NEXT ADDRESS -> next index
+  touch(446, 170); pump(3); release(); pump(20);    // pick the first offered
+  tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT ADDRESS -> next unused index
   save("/tmp/sim_recv_reminder.ppm");               // same layout, different address text
-  tap_str(STR_R_NEXT, 3, 4);     // NEXT ADDRESS again
+  tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT ADDRESS again
   save("/tmp/sim_recv_next.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> home
 
@@ -3833,17 +3856,16 @@ int main(void) {
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
-  // The list is one pill away now. Capture it on testnet so the tb1 rows and
-  // page counter render at least once outside the fresh-landing default.
-  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES row -> list
+  // The list is one tab away. Capture it on testnet so the tb1 lines and the
+  // count render at least once outside the fresh-landing default.
+  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
   save("/tmp/sim_recv_detail_tn.ppm");              // reused filename: now the list
-  touch(680, 430); pump(3); release(); pump(6);     // BACK from list -> home
-  touch(310, 240); pump(3); release(); pump(6);     // Receive again -> detail
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row (testnet)
+  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab (testnet)
+  touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> the QR view
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
   save("/tmp/sim_recv_sp_zoom_tn.ppm");
@@ -3885,20 +3907,23 @@ int main(void) {
   save("/tmp/sim_wallet_mainnet.ppm");              // home: NO testnet badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive -> bc1 detail
   save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
-  touch(530, 366); pump(3); release(); pump(6);     // SILENT PAYMENT row
+  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab
+  touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> SP view
   save("/tmp/sim_recv_sp_mainnet.ppm");             // sp1, a character shorter
   tap_str(STR_C_BACK, 3, 6);
+  touch(145, 85); pump(3); release(); pump(40);     // back to THIS ADDRESS
   // The refusals, on the same screens that just rendered working: flip the
   // lock, rebuild each, and the QR must be GONE -- not a code encoding the
   // words SESSION LOCKED, which is what these drew before the fix.
   s_sim_session_locked = 1;
-  tap_str(STR_R_NEXT, 3, 6);     // NEXT rebuilds the detail via recv_refresh
-  save("/tmp/sim_recv_locked.ppm");                 // state in the card, no QR
-  touch(530, 300); pump(3); release(); pump(6);     // ALL ADDRESSES -> the list
-  save("/tmp/sim_recv_list_locked.ppm");            // one chip, not twenty rows
+  tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT rebuilds tab 1 via recv_refresh
+  save("/tmp/sim_recv_locked.ppm");                 // the state as words, no QR
+  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
+  save("/tmp/sim_recv_list_locked.ppm");            // the state on every line
   s_sim_session_locked = 0;
-  tap_str(STR_C_BACK, 3, 6);
-  tap_str(STR_C_BACK, 3, 4);     // -> home
+  // ONE back: the list is a tab now, not a screen on top of one, so BACK from
+  // it leaves RECEIVE rather than climbing a level that no longer exists.
+  tap_str(STR_C_BACK, 3, 6);     // -> home
   // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
   // network note lives on the section home, and the coordinates differ.
   touch(490, 240); pump(3); release(); pump(6);     // KEYS tile -> section home

@@ -2251,7 +2251,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                       lv_color_t vcol, const char *sub, const lv_font_t *sf,
                       lv_event_cb_t cb, void *ud)
 {
-    if (!sf) sf = wt_font14();
+    if (!sf) sf = wt_font23();
     lv_obj_t *row = lv_obj_create(par);
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
@@ -2286,12 +2286,24 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                          wt_font_mono14(), WT_MUT);
     lv_obj_set_style_text_letter_space(c, 3, 0);
 
+    // font23, and NOT font14. A sub-line here is a SENTENCE -- "names these
+    // keys", "compare the last 8", "so it finds these payments" -- and the
+    // house rule about tiny type is about exactly these. It shipped at 14 on
+    // the argument that a sub beside a font23 value is metadata; that argument
+    // came back off the bench as "its fucking tiny", which is the fifth time
+    // the same rule has been reported. There is no version of this where the
+    // reader is wrong.
+    //
+    // The lane grows to 300 to pay for it and the VALUE gives up the width,
+    // which is the right way round: a value is one short string and a sub is
+    // the sentence explaining it.
+    //
     // The SUB is measured before either it or the value is placed, and its box
     // is sized to the text rather than to the lane. A label pinned to a fixed
     // 200 and right-aligned inside it leaves an empty box reaching back across
     // the row, and overlapcheck compares BOXES -- so a short sub beside a long
     // value read as an overlap that nothing on the glass could show.
-    const int lane = 200;
+    const int lane = 300;
     int subw = 0;
     if (sub && *sub) {
         lv_point_t ss;
