@@ -213,6 +213,12 @@ int test_pq(void)
         }
         ok("test release key", slh_keygen_internal(sk, pk, seed, prf, pseed, p) == 0);
 
+        // An explicit all zero key, not whatever main/pq_release_pubkey.h
+        // happens to hold. That header carries the real release key now, so a
+        // test asserting the placeholder was a test that passed only until
+        // somebody minted one -- which is exactly what it did.
+        static const uint8_t nokey[32] = {0};
+        kiss_pqsig_test_set_pubkey(nokey);
         ok("no key means the check refuses rather than passes",
            kiss_pqsig_available() == false);
         kiss_pqsig_test_set_pubkey(pk);
@@ -349,9 +355,10 @@ int test_pq(void)
            kiss_pqsig_stream_end(&st, d0, NULL, NULL) == -77);
         pq_sink_refuse_after = -1;
 
-        kiss_pqsig_test_set_pubkey(NULL);
+        kiss_pqsig_test_set_pubkey(nokey);
         ok("without a key nothing verifies at all",
            kiss_pqsig_check(want, trailer, sizeof trailer) == KISS_PQSIG_ERR_NO_KEY);
+        kiss_pqsig_test_set_pubkey(NULL);   // back to the compiled in key
 
         // The selftest the device runs at startup, run here too. It cannot see
         // the accelerator from a laptop, but it can catch a vector header that

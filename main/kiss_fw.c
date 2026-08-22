@@ -477,28 +477,33 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
         return rc;
     }
 
-    // Two gates now, and an image has to pass BOTH. esp_ota_end verifies the
-    // image against the key in the running app's signature block;
-    // ESP_ERR_OTA_VALIDATE_FAILED is a real refusal, not an IO problem, and the
-    // screen says so in those words.
-    esp_err_t err = esp_ota_end(h);
-    if (err == ESP_ERR_OTA_VALIDATE_FAILED) { free(ps); return WFW_ERR_REJECTED; }
-    if (err != ESP_OK) { free(ps); return WFW_ERR_WRITE; }
-
-    // The second lock on the same door: an SLH-DSA signature over the same
-    // bytes, which nobody forges by breaking an elliptic curve. About 2100
-    // SHA-256 compressions, so a few milliseconds after a write that took a
-    // minute.
+    // Two gates, and an image has to pass BOTH. The post quantum one goes
+    // FIRST, and the order is not a preference -- it is the difference between
+    // a refusal that reads true and one that lies.
     //
-    // After the write rather than before it for the same reason the ECDSA check
-    // is: platform_sd cannot seek, so checking first would mean reading the
-    // whole card twice. It costs the idle slot either way -- an image failing
-    // EITHER signature has already overwritten the rollback copy, which was true
-    // of this function before any of this existed. Nothing becomes bootable;
-    // esp_ota_set_boot_partition is below both.
+    // Found on a bench: an image from before the trailer existed was refused
+    // with "the signature did not check out". It is a genuine release, signed
+    // with the release key, and that message sends its owner hunting for a
+    // corrupt download. What actually happened is that the splitter held back
+    // its last 8192 bytes -- which on a file with no trailer are the END OF THE
+    // IMAGE, ECDSA signature block included -- so esp_ota_end was handed a
+    // truncated image and said the only thing it could.
+    //
+    // Holding those bytes back is not optional and cannot be conditional: the
+    // card does not seek, so nothing can know whether a trailer is there until
+    // the file has gone past. What CAN change is which gate speaks first. Ask
+    // the question that is actually wrong with the file, and the ECDSA check
+    // only ever runs on an image that really did keep its own last 8 KB.
     const int pq = kiss_pqsig_check(digest, trailer, tlen);
     free(ps);                      // trailer pointed into it
-    if (pq != KISS_PQSIG_OK) return WFW_ERR_PQ_REJECTED;
+    if (pq != KISS_PQSIG_OK) { esp_ota_abort(h); return WFW_ERR_PQ_REJECTED; }
+
+    // Now the first lock. esp_ota_end verifies the image against the key in the
+    // running app's signature block; ESP_ERR_OTA_VALIDATE_FAILED is a real
+    // refusal, not an IO problem, and the screen says so in those words.
+    esp_err_t err = esp_ota_end(h);
+    if (err == ESP_ERR_OTA_VALIDATE_FAILED) return WFW_ERR_REJECTED;
+    if (err != ESP_OK) return WFW_ERR_WRITE;
 
     if (esp_ota_set_boot_partition(dst) != ESP_OK) return WFW_ERR_WRITE;
     return WFW_OK;
