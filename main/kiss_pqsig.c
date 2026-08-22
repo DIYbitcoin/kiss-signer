@@ -3,6 +3,12 @@
 
 #include <string.h>
 
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#include "esp_timer.h"
+static const char *TAG = "kisspq";
+#endif
+
 #include "slh_dsa.h"
 #include "pq_hw_sha.h"
 #include "pq_release_pubkey.h"
@@ -37,7 +43,23 @@ bool kiss_pqsig_available(void)
     // the card. Run once, cached: it is a few milliseconds, and the answer
     // cannot change while this firmware is running.
     static int st = -1;
-    if (st < 0) st = kiss_pqsig_selftest();
+    if (st < 0) {
+#ifdef ESP_PLATFORM
+        // The one measurement of the accelerator this firmware ever takes, and
+        // the only place the P4 number can come from: no desktop gate compiles
+        // the hardware path at all. Costs a subtraction, once, and prints the
+        // figure a bench run is looking for.
+        const int64_t t0 = esp_timer_get_time();
+        st = kiss_pqsig_selftest();
+        ESP_LOGI(TAG, "SLH-DSA-SHA2-128s selftest %s in %lld us "
+                      "(%u compressions, held SHA)",
+                 st == 0 ? "passed" : "FAILED",
+                 (long long)(esp_timer_get_time() - t0),
+                 (unsigned)pq_hw_sha_compressions());
+#else
+        st = kiss_pqsig_selftest();
+#endif
+    }
     return st == 0;
 }
 

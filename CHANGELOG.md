@@ -143,6 +143,29 @@ wording of the warning are theirs.
 
 ### Added
 
+- **A firmware update now needs two signatures, and one of them is post
+  quantum.** The key that decides whether firmware installs on this signer was
+  an elliptic curve key, and elliptic curve keys are what a quantum computer
+  breaks. Whoever could forge that one could hand every KISS signer an image it
+  would install and trust. Update images now carry a second signature over the
+  same bytes — SLH-DSA-SHA2-128s, the hash based scheme NIST standardised as
+  FIPS 205 — and the device checks both before anything becomes bootable. It is
+  a second lock on the same door, never a replacement for the first.
+
+  Checking it costs a few milliseconds, because the P4's SHA accelerator is held
+  for the whole operation rather than picked up and put down for each of the two
+  thousand hashes involved.
+
+  **This does not let you spend bitcoin with a post quantum key, and nothing
+  can yet.** No consensus rule accepts a hash based signature. What it protects
+  is the firmware that holds your keys.
+
+  One consequence to know about: a release published before this existed carries
+  no post quantum signature, so this firmware refuses to install one. The screen
+  says which of the two signatures was missing rather than telling you the
+  signature failed, because that release is genuine and a corrupt download is
+  the wrong thing to go looking for.
+
 - **The signer now tells you how your keys were made, and keeps telling you.**
   Settings > AUDIT > HOW YOUR KEYS WERE MADE names the path that produced the
   seed this device is holding: the camera and taps, dice, your own blind draw,

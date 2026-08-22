@@ -70,6 +70,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 | minisign second signature | optional | Emitted when the key exists; `release.json` reports honestly which signatures are present |
 | Installer artifacts gated on VERSION | done | `tools/check_installer_version.py` in CI |
 | Firmware update from the SD card | done | `main/kiss_fw.c`. The running app verifies the image's signature with its own key before the slot is made bootable, and newest wins so a correctly signed older build cannot be offered as the update |
+| Post quantum firmware signature | done | A second signature over the same image, SLH-DSA-SHA2-128s (FIPS 205), checked alongside the secp256r1 one and never instead of it. `main/kiss_pqsig.c`, `components/slhdsa`. Verifying costs about 2100 SHA-256 compressions on the P4's held accelerator. It does not make a post quantum bitcoin signature and nothing can: BIP-360 merged without them |
 | Flash encryption, RELEASE mode | in progress | Build profile complete, hardware testing underway. First boot burns eFuses and cannot be undone. Staged plan: [`docs/specs/flash-encryption-rollout.md`](docs/specs/flash-encryption-rollout.md) |
 | NVS encryption | in progress | Ships with the same encrypted profile, since the words live in NVS |
 | OTA rollback | done | A slot installed from the card stays on trial until this boot proves it can sign, draw, take touch and open storage; anything that reboots first hands the device back to the firmware that worked |

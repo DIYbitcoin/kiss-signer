@@ -18,6 +18,7 @@ recipient receives the required attributions and license texts.
 | ccan modules | helper routines (bundled in libwally) | CC0 / BSD-MIT | [`components/libwally-core/upstream/src/ccan/licenses/`](components/libwally-core/upstream/src/ccan/licenses) |
 | cUR | Uniform Resources (UR) codec | BSD-2-Clause-Plus-Patent | [`components/cUR/LICENSE`](components/cUR/LICENSE) |
 | k_quirc (quirc) | QR decoding | MIT | [`components/k_quirc/LICENSE`](components/k_quirc/LICENSE) |
+| slhdsa-c | SLH-DSA (FIPS 205), post quantum firmware signature | Apache-2.0 OR ISC OR MIT | [`components/slhdsa/upstream/LICENSE`](components/slhdsa/upstream/LICENSE) |
 | esp_cam_sensor | camera sensor driver | Apache-2.0 | [`components/esp_cam_sensor/LICENSE`](components/esp_cam_sensor/LICENSE) |
 
 ## Software components (fetched at build, not in this tree)

@@ -173,6 +173,82 @@ replacement for the first.
 **Publish both fingerprints.** A release carries two signatures now, and a user
 who checks one and assumes the other is a user who has checked half of it.
 
+## The third key: post quantum
+
+The key above is a secp256r1 key, and it is the only thing that decides whether
+firmware installs on a KISS signer. Whoever can forge it can hand every device
+in the field an image it installs and trusts, and forging elliptic curve
+signatures is the thing a cryptographically relevant quantum computer does.
+
+So an update image carries a second signature the device also checks:
+**SLH-DSA-SHA2-128s** (FIPS 205), which rests on SHA-256 preimage resistance
+rather than on a discrete log. The best known quantum attack there is Grover's,
+which halves an exponent instead of collapsing it.
+
+Both signatures are checked and both must pass. This is a second lock on the
+same door, never a replacement for the first — a bug in the new code cannot open
+the old one.
+
+It is **not** a way to spend bitcoin with a post quantum key. No consensus rule
+accepts a hash based signature: BIP-360 merged as Pay to Merkle Root with the
+post quantum signatures taken out of it in July 2025, and BIP-361 is a legacy
+sunset proposal rather than an activation. Nothing here goes near a key that
+holds coins.
+
+```sh
+# one time, kept offline exactly like the other two
+bash sim/build_pqtool.sh
+/tmp/pq_tool keygen ~/.kiss-signer/pq_release.key
+/tmp/pq_tool header ~/.kiss-signer/pq_release.key > main/pq_release_pubkey.h
+```
+
+Commit `main/pq_release_pubkey.h` and rebuild. The committed placeholder is all
+zeroes, which is not a key: `kiss_pqsig_available()` answers false and the
+update screen says the image cannot be checked, rather than installing whatever
+it is handed. `pq_tool keygen` refuses to overwrite an existing key — there is
+no second copy, and a device carrying the old public half has no way back.
+
+`tools/make_web_release.sh` appends the signature to
+`kiss-signer-<version>-update.bin` after `espsecure` has signed it, then reads
+it back through the device's own splitter. It refuses to publish unless
+`main/pq_release_pubkey.h` is the public half of the key that just signed:
+nothing downstream can notice otherwise, and the release would be correctly
+signed, hashed, served, and refused by every device that installed it.
+
+### Where the signature rides
+
+The last **8192 bytes** of the update `.bin`:
+
+```
+magic "KPQ1" | scheme le16 | siglen le16 | 7856 byte signature | zero padding
+```
+
+The image is everything before that, and it is byte identical to what
+`espsecure` signed — the device hands `esp_ota_write` the image and holds the
+trailer back, so `esp_ota_end` judges exactly the file it always did. The
+signature covers `SHA-256(image)` with the context string `kiss-signer fw v1`.
+The padding must be zero: it rides inside a signed release and reaches flash, so
+anything alive in it is a channel whether or not it was meant as one.
+
+This costs nothing at install time. Verification is about 2100 SHA-256
+compressions — a few milliseconds — against roughly 2.2 million to produce one,
+which is the shape of every hash based scheme. It is fast on this board because
+`components/slhdsa/pq_hw_sha.c` holds the ESP32-P4's SHA accelerator for a whole
+operation instead of acquiring it per hash; the P4 sets `SOC_SHA_SUPPORT_RESUME`,
+so an arbitrary midstate can be loaded, which is what every SLH-DSA hash needs.
+
+The merged USB image does **not** carry a trailer. It is flashed by esptool at
+offset 0, never judged by a running device, and appending to it would break the
+offsets.
+
+### What an owner sees
+
+An image with no trailer, or a wrong one, gets its own refusal: *the post
+quantum signature is missing or wrong*, distinct from *the signature did not
+check out*. Every release published before this existed lands there, and it
+really is a KISS release correctly signed with the release key — telling that
+owner the signature failed would send them hunting for a corrupt download.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which
