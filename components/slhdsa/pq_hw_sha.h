@@ -21,8 +21,12 @@
 // byteswaps on this target. The 24 rev8_be32() calls the software compression
 // performs disappear along with the compression.
 //
-// Ported from Blockstream's Jade branch, which measured 48583 ms -> 10971 ms for
-// one SLH-DSA-SHA2-128s signature on an ESP32-S3 at 240 MHz.
+// Ported from odudex's work on Blockstream Research's hash_based_signatures
+// branch of Jade -- DmitriiKJ/Jade#1, "held-hardware accelerated SHA-256" --
+// which measured 48583 ms -> 10971 ms for one SLH-DSA-SHA2-128s signature on an
+// ESP32-S3 at 240 MHz. The idea below is that PR's; what is new here is the P4,
+// which runs at 400 MHz and whose HAL does not byteswap either half of the
+// mapping, and the direction, which is verifying rather than signing.
 #ifndef PQ_HW_SHA_H
 #define PQ_HW_SHA_H
 

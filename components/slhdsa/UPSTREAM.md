@@ -37,6 +37,13 @@ correct digests, and is four times slower.
 `pq_hw_sha.c` supplies `sha2_256_compress` under the old name and decides per
 call whether the peripheral is held.
 
+That file is not upstream's either. It is a port of odudex's held-accelerator
+work on Blockstream Research's `hash_based_signatures` branch of Jade
+([DmitriiKJ/Jade#1](https://github.com/DmitriiKJ/Jade/pull/1)), which is where
+the measurement in its header comes from and where the reason the peripheral is
+held rather than acquired was worked out. The P4 details are ours; the design
+is that PR's.
+
 ## Re-vendoring
 
     git clone --depth 1 https://github.com/pq-code-package/slhdsa-c
