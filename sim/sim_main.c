@@ -5169,30 +5169,55 @@ int main(void) {
     if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
   }
 
-  // 1. the state a build without the release key reaches: two blocks, no rows.
+  // Every screen on this chain arrives: the trade block, each line and each
+  // rule animate in, and the last rule is still drawing at 662ms. 60 frames is
+  // 960ms, which is the first count that photographs a settled page rather
+  // than one mid flight -- at 20 the rules were simply absent from the frame,
+  // in every locale, and nothing said so.
+#define FW_SETTLE 60
+
+  // 1. the state a build without the release key reaches: one claim, one line.
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
+  pump(FW_SETTLE);
   save("/tmp/sim_fw_unsigned.ppm");                 // cannot be checked + where it goes
 
-  // 2. the ordinary one: version card, four marked rows, INSTALL primary.
+  // 2. the ordinary one: the trade as the headline, two lines, INSTALL.
   kiss_fw_test_set_available(WFW_OK);
   kiss_fw_test_set_install(WFW_OK, 4);
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
-  save("/tmp/sim_fw_found.ppm");                    // 99.0.0 framed, newer, checked
+  pump(FW_SETTLE);
+  save("/tmp/sim_fw_found.ppm");                    // 0.1.0 -> 99.0.0, NEWER
+  must_show("fw/newer lamp", tr(STR_G_FW_NEWER_LAMP));
 
-  // The signature row's "?". It was a chevron and the owner read the row as
-  // inert: a chevron promises a destination, not an answer. The mark is the
-  // row's value now, and the whole card is the target -- so this taps the
-  // card's middle, which no translation can move. WT_LIST_R_X + half of
-  // WT_LIST_W across, WT_LIST_Y(2) + half a row down.
-  touch(594, 269); pump(3); release(); pump(20);
+  // The signature line's "?". The whole LINE is the target and the mark is
+  // only the sign that says so, so this taps the middle of the row: x is the
+  // pane's own centre and y is the second line's top plus half its height,
+  // neither of which a translation can move.
+  touch(400, 351); pump(3); release(); pump(20);
   save("/tmp/sim_fw_sig_help.ppm");                 // what a signature buys, in prose
   tap_str(STR_C_OK, 3, 8);             // OK closes the card
 
-  tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
-  save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold row
+  tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);   // INSTALL -> confirm
+  save("/tmp/sim_fw_confirm.ppm");                  // the why/risk pair + hold rule
+
+  // The hold, part drawn. The pill is gone and the progress is a fill running
+  // along a 330x2 rule, which is the one part of this redesign that only a
+  // frame taken DURING the gesture can show -- at rest and at done it is a
+  // plain rule either way. 45 frames is 720ms of a 1500ms hold, so the fill is
+  // about half across and the label reads KEEP HOLDING.
+  {
+    lv_obj_t *hp = pill_for(STR_G_FW_HOLD, "mid-hold");
+    if (hp) {
+      lv_area_t a; lv_obj_get_coords(hp, &a);
+      touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+      pump(45);
+      save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP HOLDING
+      must_show("fw/holding", tr(STR_G_FW_KEEP_HOLDING));
+      release();
+      pump(30);                                     // the fill runs back to 0
+    }
+  }
 
   // Hold well past the 1500ms rather than to the frame it completes on. 95 was
   // 1520ms against a 1500ms hold, and the indev samples the press about every
@@ -5219,8 +5244,8 @@ int main(void) {
   // not check out has to read as "nothing was written", not as a vague error.
   kiss_fw_test_set_install(WFW_ERR_REJECTED, 2);
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
-  tap_str(STR_G_FW_INSTALL, 3, 20);    // INSTALL -> confirm
+  pump(FW_SETTLE);
+  tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);   // INSTALL -> confirm
   // 110 pumps, same as the replaced-firmware hold above: 95 was enough only
   // at one indev phase, and any walk insertion upstream shifts the phase —
   // at the wrong one the hold never completed, nothing installed, and this
@@ -5240,8 +5265,8 @@ int main(void) {
   // would send them hunting for a corrupt download.
   kiss_fw_test_set_install(WFW_ERR_PQ_REJECTED, 2);
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
-  tap_str(STR_G_FW_INSTALL, 3, 20);
+  pump(FW_SETTLE);
+  tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);
   tap_str(STR_G_FW_HOLD, 110, 1);
   pump(100);
   save("/tmp/sim_fw_pq_rejected.ppm");
@@ -5274,7 +5299,7 @@ int main(void) {
     }
   }
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
+  pump(FW_SETTLE);
   save("/tmp/sim_fw_crowded.ppm");
   {
     // Counted, not assumed. Earlier steps of this same walk can leave their
@@ -5308,11 +5333,93 @@ int main(void) {
     unlink(p);
   }
 
-  // 4. no card at all: the same two block shape, different left hand claim.
+  // 4. the offer going BACKWARDS, and then the four refusals nothing had ever
+  // photographed.
+  //
+  // All five are reached by writing a different fixture rather than by a new
+  // seam. kiss_fw_scan decides all of this from what is actually on the card,
+  // so a seam would be testing the seam; and the downgrade branch in
+  // particular is the one state overlapcheck HAS to see, because it is the
+  // only one carrying the caution line at 208 and it collided with the rule
+  // under it before that line was pinned.
+  //
+  // A helper rather than five copies: the descriptor is 0xE9, the ABCD5432
+  // magic at 32, a version at 48 and a project at 80, and only the version
+  // ever changes.
   sd_unlink("kiss-signer-99.0.0.bin");
+  {
+    static unsigned char fx[512 + 8192];
+    memset(fx, 0, sizeof fx);
+    fx[0] = 0xE9;
+    fx[32] = 0x32; fx[33] = 0x54; fx[34] = 0xCD; fx[35] = 0xAB;
+    memcpy(fx + 32 + 48, "kiss", 4);
+
+    // 4a. older. The lamp says OLDER in amber, the arrow and the version go
+    // amber with it, and the caution line appears.
+    memcpy(fx + 32 + 16, "0.0.1", 6);
+    FILE *f = sd_fopen("kiss-signer-0.0.1.bin", "wb");
+    if (f) { fwrite(fx, 1, sizeof fx, f); fclose(f); }
+    kiss_fw_ui_open(lv_screen_active(), NULL);
+    pump(FW_SETTLE);
+    save("/tmp/sim_fw_older.ppm");                  // OLDER + the one line note
+    must_show("fw/older lamp", tr(STR_G_FW_OLDER_LAMP));
+    must_show("fw/older note", tr(STR_G_FW_DOWN_SHORT));
+    tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);        // the confirm it warns on
+    save("/tmp/sim_fw_confirm_down.ppm");           // both rules amber
+    must_show("fw/down claim", tr(STR_G_FW_DOWN_H));
+    sd_unlink("kiss-signer-0.0.1.bin");
+
+    // 4b. already running. The one refusal that is not a fault: accent and a
+    // tick, where the other four wear WT_WARN and a warning triangle.
+    memset(fx + 32 + 16, 0, 32);
+    snprintf((char *)fx + 32 + 16, 32, "%s", kiss_fw_running_version());
+    f = sd_fopen("kiss-signer-same.bin", "wb");
+    if (f) { fwrite(fx, 1, sizeof fx, f); fclose(f); }
+    kiss_fw_ui_open(lv_screen_active(), NULL);
+    pump(FW_SETTLE);
+    save("/tmp/sim_fw_same.ppm");                   // already running, in the accent
+    must_show("fw/same", tr(STR_G_FW_SAME_H));
+    sd_unlink("kiss-signer-same.bin");
+
+    // 4c. too big for the receiving slot. Sparse: the descriptor is real and
+    // the length is what kiss_fw_scan measures, so one byte past the end is
+    // enough and eight megabytes of writes is not.
+    memcpy(fx + 32 + 16, "98.0.0", 7);
+    f = sd_fopen("kiss-signer-98.0.0.bin", "wb");
+    if (f) {
+      fwrite(fx, 1, sizeof fx, f);
+      fseek(f, 0x800000 + 8192, SEEK_SET);
+      fputc(0, f);
+      fclose(f);
+    }
+    kiss_fw_ui_open(lv_screen_active(), NULL);
+    pump(FW_SETTLE);
+    save("/tmp/sim_fw_toobig.ppm");                 // a fact about this device
+    must_show("fw/too big", tr(STR_G_FW_BIG_H));
+    sd_unlink("kiss-signer-98.0.0.bin");
+
+    // 4d. a .bin that is not an image at all. No magic, so the scan reads
+    // every name and comes back with nothing it can judge.
+    f = sd_fopen("kiss-signer-junk.bin", "wb");
+    if (f) { fwrite("not an image at all", 1, 19, f); fclose(f); }
+    kiss_fw_ui_open(lv_screen_active(), NULL);
+    pump(FW_SETTLE);
+    save("/tmp/sim_fw_notfirmware.ppm");            // not firmware
+    must_show("fw/not firmware", tr(STR_G_FW_BAD_H));
+    sd_unlink("kiss-signer-junk.bin");
+  }
+
+  // 4e. a card with no image on it, which is not the same answer as no card.
+  kiss_fw_ui_open(lv_screen_active(), NULL);
+  pump(FW_SETTLE);
+  save("/tmp/sim_fw_nofile.ppm");                   // nothing to install
+  must_show("fw/no file", tr(STR_G_FW_NOFILE_H));
+
+  // 5. no card at all: the same shape again, different left hand claim.
+
   platform_sd_test_set_present(0);
   kiss_fw_ui_open(lv_screen_active(), NULL);
-  pump(20);
+  pump(FW_SETTLE);
   save("/tmp/sim_fw_nocard.ppm");
   platform_sd_test_set_present(1);
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seam as found
