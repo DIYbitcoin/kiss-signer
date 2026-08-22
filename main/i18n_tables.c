@@ -750,6 +750,12 @@ static const char *const tbl_en[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "free space, PSBT, firmware, backups",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -1501,6 +1507,12 @@ static const char *const tbl_de[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -2252,6 +2264,12 @@ static const char *const tbl_es[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -3003,6 +3021,12 @@ static const char *const tbl_fr[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -3754,6 +3778,12 @@ static const char *const tbl_it[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -4505,6 +4535,12 @@ static const char *const tbl_ja[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -5256,6 +5292,12 @@ static const char *const tbl_ko[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -6007,6 +6049,12 @@ static const char *const tbl_nl[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -6758,6 +6806,12 @@ static const char *const tbl_pl[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -7509,6 +7563,12 @@ static const char *const tbl_pt[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -8260,6 +8320,12 @@ static const char *const tbl_ru[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -9011,6 +9077,12 @@ static const char *const tbl_tr[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -9762,6 +9834,12 @@ static const char *const tbl_vi[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -10513,6 +10591,12 @@ static const char *const tbl_zh[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -11264,6 +11348,12 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -12015,6 +12105,12 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -12766,6 +12862,12 @@ static const char *const tbl_nb[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -13517,6 +13619,12 @@ static const char *const tbl_sv[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -14268,6 +14376,12 @@ static const char *const tbl_da[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -15019,6 +15133,12 @@ static const char *const tbl_cs[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -15770,6 +15890,12 @@ static const char *const tbl_hr[STR_N] = {
     [STR_I_TAB_DEVICE] = "DEVICE",
     [STR_I_ROW_AUDIT] = "Audit",
     [STR_I_CARD_SUB] = "space, and what is on it",
+    [STR_R_USAGE_UNKNOWN] = "USAGE UNKNOWN",
+    [STR_R_CHAIN_UPTO_FMT] = "coordinator: used up to #%u",
+    [STR_R_CHAIN_CLEAN] = "coordinator: none used yet",
+    [STR_R_CHAIN_ASK] = "VERIFY with your coordinator",
+    [STR_R_UM_OTHER_KEYS] = "that coordinator is watching different keys",
+    [STR_R_UM_NO_CHANGE] = "already up to date; nothing moved",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {
