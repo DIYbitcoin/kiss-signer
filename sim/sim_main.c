@@ -5230,13 +5230,25 @@ int main(void) {
   // stays up FW_LIT_MS (1200ms, 75 frames) before the result replaces it, and
   // the write itself is deferred 30ms behind it.
   tap_str(STR_G_FW_HOLD, 110, 4);
+  // 55 frames into the 1200ms screen, which is where the light band is near
+  // the top of its breath. Saved on frame 0 it is at the BOTTOM: bg_opa 64
+  // against stop opacities of 26 and 5 quantises a 704px ramp into a single
+  // 4-level step, and the frame shows a hard edged rectangle over the left
+  // half rather than a wash. Nothing is wrong with the band; the walk was
+  // photographing the one moment it cannot be seen.
+  //
+  // The 55 comes back off the pump below rather than being added to the walk.
+  // Total frames through this block is what sets the indev sampling phase for
+  // every hold after it, and the comment above is the account of what moving
+  // that costs.
+  pump(55);
   save("/tmp/sim_fw_writing.ppm");                  // the DARK -> DONE band + the pair
   // 100, not 20. The install is deferred FW_LIT_MS (1200ms, 75 frames) behind
   // the screen that announces it, so the panel can go dark on purpose rather
   // than mid-paint. It used to be one LVGL tick, and 20 frames cleared that
   // easily; at 75 the walk was still on WRITING when it saved the frame it
   // calls sim_fw_done, and check_sim_taps rightly called the two identical.
-  pump(100);
+  pump(45);   // 55 of the original 100 are spent above, waiting for the band
   must_show("fw/replaced", tr(STR_G_FW_OK_T));   // the screen, not a hopeful name
   save("/tmp/sim_fw_done.ppm");                     // FIRMWARE REPLACED + RESTART
 

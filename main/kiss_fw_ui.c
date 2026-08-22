@@ -49,12 +49,27 @@ static lv_obj_t *s_band;
 #define FW_HRULE_Y 105
 #define FW_PANE_Y 120
 
+// A line row is a font23 caption over a font28 value now, and 58 does not hold
+// one: the kit measures the value at wt_line_val_y() + the value's own line
+// height, which lands 4px past the old row's floor and clips the descenders.
+// 76 is what KEYS and RECEIVE use, and matching it matters more than the
+// drawing's 58 -- three screens whose rows are different heights read as three
+// different components.
+//
+// Two of them plus the closing rule is 152px, so the last rule sits at 396 and
+// the block starts at 240. That is 20px higher than the drawing puts it, and
+// the caution line above moves the same 16 to keep its gap.
+#define FW_ROW_H    76
+#define FW_ROW1_Y   240
+#define FW_ROW2_Y   (FW_ROW1_Y + FW_ROW_H + 4)
+#define FW_CAUTION_Y 192
+
 // The claim pair, in the borderless geometry: two blocks inside the pane
 // rather than the 48/408 columns the card screens use. wt_why_block spends 14
 // on its rule and its padding, which is what the body is measured against.
-#define FW_BLK_W   330
+#define FW_BLK_W   320
 #define FW_BLK_L_X (FW_TXT_X)
-#define FW_BLK_R_X (FW_TXT_X + 346)
+#define FW_BLK_R_X (FW_TXT_X + 360)
 
 static void fw_screen(void);
 
@@ -84,6 +99,7 @@ void kiss_fw_ui_close(void)
 
 static void an_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
 static void an_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
+static void an_bgopa(void *v, int32_t o) { lv_obj_set_style_bg_opa(v, (lv_opa_t)o, 0); }
 static void an_w(void *v, int32_t w)   { lv_obj_set_width(v, w); }
 
 // Everything on these screens arrives the same way: up nine pixels and in.
@@ -341,8 +357,12 @@ static void fw_mark_after_cap(lv_obj_t *row)
     }
     if (!cap) return;
     lv_obj_update_layout(row);
+    // Centred on the caption, measured rather than nudged. The mark is 19px
+    // and the caption is whatever rung the kit is on this week -- it was
+    // font14 when this was written and is font23 now, and a hand offset that
+    // looked right against the first sat 8px high against the second.
     wt_help_mark(row, WT_LINE_PAD + lv_obj_get_width(cap) + 10,
-                 WT_LINE_CAP_Y - 3);
+                 WT_LINE_CAP_Y + (lv_obj_get_height(cap) - 19) / 2);
 }
 
 // ---- 5. the verdict --------------------------------------------------------
@@ -494,6 +514,14 @@ static void fw_light_band(int y)
     lv_obj_set_style_bg_color(b, WT_INK, 0);
     lv_obj_set_style_bg_grad_color(b, WT_INK, 0);
     lv_obj_set_style_bg_grad_dir(b, LV_GRAD_DIR_HOR, 0);
+    // bg_opa, and not only the two stop opacities. remove_style_all leaves
+    // bg_opa at TRANSP, and LVGL skips the whole background draw before it
+    // ever looks at a gradient -- so this band was an invisible rectangle
+    // breathing invisibly for as long as it has existed, and the frame proved
+    // it: every pixel of the band's 704x58 read exactly the page background.
+    // Nothing in the source looked wrong, which is the argument for the
+    // picture rule.
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_main_opa(b, 26, 0);
     lv_obj_set_style_bg_grad_opa(b, 5, 0);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
@@ -506,7 +534,13 @@ static void fw_light_band(int y)
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, b);
-    lv_anim_set_exec_cb(&a, an_opa);
+    // The BACKGROUND's opacity, not the object's. Object opa scales the
+    // children too, and in the drawing the caption is the band's SIBLING and
+    // holds still while the wash moves -- a line of type fading in and out is
+    // the one thing on this screen an owner might try to read. It also keeps
+    // LVGL off the layer path: a 704x58 layer is 163KB against a 128KB heap,
+    // which is the same wall the rules hit when they animated by transform.
+    lv_anim_set_exec_cb(&a, an_bgopa);
     lv_anim_set_values(&a, 64, 191);
     lv_anim_set_duration(&a, 1200);
     lv_anim_set_playback_duration(&a, 1200);
@@ -622,7 +656,7 @@ static void confirm_screen(void)
     // Two claims, not one paragraph. A downgrade swaps the left block for the
     // one that says so and turns its rule amber: on that path the interesting
     // claim is not how the check works but that this goes backwards.
-    fw_claims(206,
+    fw_claims(216,
               tr(down ? STR_G_FW_DOWN_H : STR_G_FW_WHY_H),
               tr(down ? STR_G_FW_DOWN_B : STR_G_FW_WHY_B),
               down ? WT_WARN : wt_accent());
@@ -696,13 +730,13 @@ static void nothing_to_install(int rc)
     // screen this replaces printed the whole "where the file goes" explainer
     // beside the refusal, which is the wall of text its own comment said it
     // was trying to avoid.
-    lv_obj_t *row = wt_line_row(s_scr, FW_X, 282, FW_W, 62,
+    lv_obj_t *row = wt_line_row(s_scr, FW_X, 282, FW_W, FW_ROW_H,
                                 tr(STR_G_FW_WHERE_CAP),
                                 tr(STR_G_FW_WHERE_SHORT), wt_font23(), WT_INK,
                                 NULL, NULL, where_help_cb, NULL);
     fw_mark_after_cap(row);
     fw_enter(row, 260, 190);
-    fw_rule_in(344, 300);
+    fw_rule_in(282 + FW_ROW_H, 300);
 }
 
 // ---- 1. the offer ----------------------------------------------------------
@@ -765,7 +799,7 @@ static void fw_screen(void)
     //
     // The downgrade sentence is only the SECOND clause of STR_G_FW_DOWN_B --
     // the first ("this card is older than what is running") is what the lamp
-    // says. Pinned to one line either way: at two it reaches the rule at 248,
+    // says. Pinned to one line either way: at two it reaches the section rule,
     // and the German string runs to three and lands inside the first row.
     char more[224];
     const bool narrowed = s_img.on_card > s_img.examined;
@@ -774,24 +808,24 @@ static void fw_screen(void)
                  s_img.examined, s_img.on_card);
     if (narrowed || down) {
         lv_obj_t *n = wt_lbl(s_scr, narrowed ? more : tr(STR_G_FW_DOWN_SHORT),
-                             FW_TXT_X, 208, wt_font23(), WT_WARN);
+                             FW_TXT_X, FW_CAUTION_Y, wt_font23(), WT_WARN);
         lv_obj_set_width(n, FW_W - WT_LINE_PAD * 2);
         lv_obj_set_height(n, lv_font_get_line_height(wt_font23()));
         lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
         fw_enter(n, 240, 40);
     }
 
-    fw_rule_in(248, 150);
+    fw_rule_in(FW_ROW1_Y - 12, 150);
 
     // The file, and how big it is. No arrow: this line opens nothing, and an
     // arrow on it would promise a screen that does not exist.
     char sz[24];
     wt_fmt_bytes(s_img.size, sz, sizeof sz);
-    lv_obj_t *r1 = wt_line_row(s_scr, FW_X, 260, FW_W, 58,
+    lv_obj_t *r1 = wt_line_row(s_scr, FW_X, FW_ROW1_Y, FW_W, FW_ROW_H,
                                tr(STR_G_FW_ROW_FILE), s_img.name,
-                               wt_font_mono23(), WT_INK, sz, NULL, NULL, NULL);
+                               wt_font_mono28(), WT_INK, sz, NULL, NULL, NULL);
     fw_enter(r1, 260, 190);
-    fw_rule_in(318, 300);
+    fw_rule_in(FW_ROW1_Y + FW_ROW_H, 300);
 
     // A PROMISE, not a verdict, because at this point nothing has checked
     // anything. rc comes from kiss_fw_scan, which reads the descriptor --
@@ -813,13 +847,13 @@ static void fw_screen(void)
     // "checked before anything is written" here has nowhere else to learn what
     // a signature buys them, and the two paragraphs that explain it are
     // already translated on the confirm screen.
-    lv_obj_t *r2 = wt_line_row(s_scr, FW_X, 322, FW_W, 58,
+    lv_obj_t *r2 = wt_line_row(s_scr, FW_X, FW_ROW2_Y, FW_W, FW_ROW_H,
                                tr(STR_G_FW_ROW_SIG), tr(STR_G_FW_SIG_PROMISE),
-                               wt_font23(), WT_INK, NULL, NULL,
+                               wt_font28(), WT_INK, NULL, NULL,
                                sig_row_help_cb, NULL);
     fw_mark_after_cap(r2);
     fw_enter(r2, 260, 232);
-    fw_rule_in(380, 342);
+    fw_rule_in(FW_ROW2_Y + FW_ROW_H, 342);
 
     // INSTALL is safe in the primary slot because install_cb only opens the
     // confirm. BACK keeps the corner in both branches: whether there is an
