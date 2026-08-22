@@ -70,7 +70,7 @@ FILE_CALLS = {
     "kiss_setup.c": (("mk_screen", 0), ("mk_screen2", 0),
                      ("cards_verdict_screen", 0)),
     "kiss_sign.c": (("mk_screen", 1),),
-    "kiss_fw_ui.c": (("fresh", 0),),
+    "kiss_fw_ui.c": (("fw_head", 0), ("fw_head_running", 0)),
 }
 
 # (file, callee, normalized title expression) -> keys chosen in the enclosing
@@ -80,9 +80,6 @@ DYNAMIC_TITLES = {
     ("kiss_settings.c", "wt_screen", "title"): {
         "G_STORAGE_OK_T", "G_STORAGE_CLEANUP_T", "G_STORAGE_FAIL_T",
     },
-    ("kiss_fw_ui.c", "fresh", "title"): {
-        "G_FW_OK_T", "G_FW_FAIL_T",
-    },
 }
 
 # Verified forwarding bodies. Their callers are covered by FILE_CALLS above.
@@ -90,6 +87,7 @@ FORWARDER_IMPLS = {
     ("kiss_setup.c", "wt_screen", "title"),
     ("kiss_sign.c", "wt_screen", "title"),
     ("kiss_fw_ui.c", "wt_screen", "title"),
+    ("kiss_fw_ui.c", "fw_head", "title"),
     ("kiss_setup.c", "mk_screen", "tr(title)"),
 }
 KEY = re.compile(r"\bSTR_([A-Z0-9_]+)\b")

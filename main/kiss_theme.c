@@ -849,7 +849,7 @@ typedef struct {
     // wt_hold_rule only: the label to swap, the two words to swap between, and
     // how long the fill takes to run back. Zero release_ms is wt_hold_pill,
     // which clears its sweep in a frame because a pill already looks pressed.
-    lv_obj_t *lbl;
+    lv_obj_t *lbl, *arrow;
     const char *txt, *held;
     int release_ms;
     void (*done)(void *);
@@ -858,6 +858,19 @@ typedef struct {
 
 static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
 
+// The label and its arrow are two objects, not one formatted string. The walk
+// finds a control by the WORDS on it -- exactly, or as the "icon  LABEL" form
+// wt_pill_icon builds -- so a trailing arrow baked into the text makes the
+// control unfindable, and every hold on this screen would silently do nothing.
+// wt_arrow_action splits them for the same reason.
+static void hold_rule_say(wt_hold_t *h, const char *txt)
+{
+    lv_label_set_text(h->lbl, txt);
+    if (!h->arrow) return;
+    lv_obj_update_layout(h->lbl);
+    lv_obj_set_pos(h->arrow, lv_obj_get_width(h->lbl) + 12, 2);
+}
+
 // `animate` is false on the two paths where the object is going away or the
 // screen is being replaced under it -- DELETE, and the tick that fires done().
 // Starting an animation on either is the use-after-free this whole idiom has
@@ -865,8 +878,7 @@ static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
 static void hold_reset(wt_hold_t *h, bool animate)
 {
     if (h->tmr) { lv_timer_delete(h->tmr); h->tmr = NULL; }
-    if (h->lbl && h->txt) lv_label_set_text_fmt(h->lbl, "%s  %s", h->txt,
-                                                LV_SYMBOL_RIGHT);
+    if (h->lbl && h->txt) hold_rule_say(h, h->txt);
     if (!h->fill) return;
     lv_anim_delete(h->fill, an_w);
     int32_t at = lv_obj_get_width(h->fill);
@@ -904,8 +916,7 @@ static void hold_press_cb(lv_event_t *e)
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
         h->t0 = lv_tick_get();
-        if (h->lbl && h->held) lv_label_set_text_fmt(h->lbl, "%s  %s", h->held,
-                                                     LV_SYMBOL_RIGHT);
+        if (h->lbl && h->held) hold_rule_say(h, h->held);
         if (!h->tmr) h->tmr = lv_timer_create(hold_tick_cb, 30, h);
     } else {                           // RELEASED, PRESS_LOST, or DELETE
         hold_reset(h, c != LV_EVENT_DELETE);
@@ -980,8 +991,11 @@ lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
     lv_obj_t *l = wt_lbl(p, "", 0, 0, wt_font23(), wt_accent());
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_add_flag(l, WT_FLAG_ACCENT);
-    lv_label_set_text_fmt(l, "%s  %s", txt, LV_SYMBOL_RIGHT);
     h->lbl = l;
+    lv_obj_t *ar = wt_lbl(p, LV_SYMBOL_RIGHT, 0, 2, wt_font23(), wt_accent());
+    lv_obj_add_flag(ar, WT_FLAG_ACCENT);
+    h->arrow = ar;
+    hold_rule_say(h, txt);
     lv_obj_update_layout(l);
 
     const int ty = lv_obj_get_height(l) + 8;
@@ -2430,26 +2444,6 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -46, 0);
     }
     return row;
-}
-
-// The caption is the first child on a row with no arrow and the second on one
-// that has it; the sub is always last. Both are labels, and nothing else on
-// the row is, so the walk is by type rather than by index -- a row with no sub
-// then simply repaints its caption and stops.
-void wt_line_warn(lv_obj_t *row)
-{
-    if (!row) return;
-    uint32_t n = lv_obj_get_child_count(row);
-    for (uint32_t i = 0; i < n; i++) {
-        lv_obj_t *c = lv_obj_get_child(row, i);
-        if (!lv_obj_check_type(c, &lv_label_class)) continue;
-        lv_color_t cur = lv_obj_get_style_text_color(c, LV_PART_MAIN);
-        // The caption is WT_MUT and the sub is WT_DIM. The VALUE keeps its own
-        // colour: it is the answer, and the warning is about where the answer
-        // came from.
-        if (lv_color_eq(cur, WT_MUT) || lv_color_eq(cur, WT_DIM))
-            lv_obj_set_style_text_color(c, WT_WARN, 0);
-    }
 }
 
 // ---- the bracket tab strip ----
