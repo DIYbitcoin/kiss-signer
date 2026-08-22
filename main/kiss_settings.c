@@ -29,9 +29,6 @@
 #ifndef SIMULATOR
 #include "nvs.h"
 #include "nvs_flash.h"
-// main.c: reads back the C6 reset pad (GPIO54). THIS DEVICE states it beside
-// the encryption fact, and both are read at build time rather than assumed.
-bool radio_is_held(void);
 #endif
 
 // Handed in by the build; "dev" is what a bare compile of this file gets, the
@@ -2011,37 +2008,38 @@ static void tab_device(void)
         .cb     = theme_cb,
     });
 
+    // The version is a FACT, in the page's own ink. It was amber, with no
+    // predicate behind it, so a device with nothing wrong wore a caution
+    // colour on the one row that states what it is -- and amber on this page
+    // means a dot and a count, both of which this row has never had.
     wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
         .label = tr(STR_I_ROW_FW),
         .sub   = tr(STR_I_FW_SUB),
         .kind  = WT_WIDE_OPEN,
         .val   = KISS_VERSION_STR,
         .vf    = wt_font_mono23(),
-        .vcol  = WT_WARN,
         .cb    = fw_open_cb,
     });
 
-    // Two facts, not a sentence, so they are placed side by side rather than
-    // joined: the encryption state the chip reports, and the C6 radio reset pad
-    // read back from the GPIO. Both are ASCII on purpose -- the build identity
-    // line behind this row is untranslated for the same reason, and a
-    // diagnostic is the wrong place to spend a glyph on the chance one is
-    // missing from a locale's font.
-    bool enc = kiss_seed_flash_encrypted();
-    bool radio_held = true;                  // the simulator has no radio
-#ifndef SIMULATOR
-    radio_held = radio_is_held();
-#endif
-    char efact[32];
-    snprintf(efact, sizeof efact, "encryption %s", enc ? "ON" : "OFF");
-    lv_obj_t *drow = wt_row_wide(s_pane, WT_WIDE_Y(3), &(wt_wide_t){
+    // The sub says what the row OPENS. It carried the encryption state and the
+    // C6 radio pad instead, two diagnostics in untranslated ASCII, and both are
+    // already printed by kiss_build_id_make on the screen this row leads to --
+    // so the row spent its whole lane restating the page behind it and never
+    // once said that the card is back there. It was reported from the bench in
+    // exactly those terms: nothing in the button hints anything about the card.
+    //
+    // The amber went with them. It hung off !kiss_seed_flash_encrypted() while
+    // the attention chip counts words_unencrypted(), which additionally wants
+    // WSEED_MODE_KEEP -- so on SD or AMNESIC storage this row went amber with
+    // no dot on the strip and nothing in the count, which is the same fault as
+    // a chip disagreeing with its dots. The BACKUP tab owns that fact, marks it
+    // and counts it. One place.
+    wt_row_wide(s_pane, WT_WIDE_Y(3), &(wt_wide_t){
         .label   = tr(STR_I_ROW_DEVICE),
-        .sub     = efact,
-        .sub_col = enc ? WT_MUT : WT_WARN,
+        .sub     = tr(STR_I_ROW_DEVICE_SUB),
         .kind    = WT_WIDE_OPEN,
         .cb      = device_open_cb,
     });
-    wt_row_wide_sub_add(drow, radio_held ? "radio HELD" : "radio FREE", WT_MUT);
 
     // No explainer: the fourth row already reaches 384 and the line would land
     // in the action bar.

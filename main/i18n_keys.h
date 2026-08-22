@@ -719,6 +719,7 @@ enum {
     STR_I_ROW_FW,
     STR_I_FW_SUB,
     STR_I_ROW_DEVICE,
+    STR_I_ROW_DEVICE_SUB,
     STR_I_DEVICE_T,
     STR_I_ERASE_B,
     STR_I_ERASE_BTN,

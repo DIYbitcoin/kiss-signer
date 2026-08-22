@@ -154,6 +154,10 @@ UNTRANSLATED_OK = {
     # What the envelope does NOT hold, shown only when a passphrase is in use.
     # Born under the English-only rule, like the block it sits in.
     "I_KEF_PP_H", "I_KEF_PP_B", "I_KEF_WARN_S_PP",
+    # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
+    # the screen behind it already prints, and never said the card was back
+    # there. Born under the English-only rule; English until the sweep.
+    "I_ROW_DEVICE_SUB",
     # The locked-backup scan, which replaced the seed-QR scan on both restore
     # doors. The old key's translations named a feature this signer no longer
     # has, so it was renamed rather than overwritten; English until the sweep.

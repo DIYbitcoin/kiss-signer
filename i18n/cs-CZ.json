@@ -716,6 +716,7 @@
   "I_ROW_FW": "Firmware",
   "I_FW_SUB": "install from SD card",
   "I_ROW_DEVICE": "This device",
+  "I_ROW_DEVICE_SUB": "what is on the card, and this build",
   "I_DEVICE_T": "THIS DEVICE",
   "I_ERASE_B": "This signer forgets its keys. Your paper words and passphrase are the only way back. The next screen asks again and needs a held press.",
   "I_ERASE_BTN": "ERASE SEED WORDS",
