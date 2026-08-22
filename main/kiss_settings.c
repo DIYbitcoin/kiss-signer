@@ -910,7 +910,10 @@ static void help_open_cb(lv_event_t *e)
     const int NOTE[3] = { STR_I_BIP_44_NOTE, STR_I_BIP_49_NOTE,
                           STR_I_BIP_84_NOTE };
 
-    const lv_font_t *hf = wt_font23(), *nf = wt_font14(),
+    // nf is the note beside each type, and the note is the whole answer this
+    // card exists to give -- "which one" as much as "what are they". It was
+    // font14, which is the size this page keeps for marks.
+    const lv_font_t *hf = wt_font23(), *nf = wt_font23(),
                     *pf = wt_font_mono23();
     const int hh = lv_font_get_line_height(hf);
     const int rh = lv_font_get_line_height(pf);
@@ -1401,7 +1404,7 @@ static void do_wipe(void *ud)
         lv_obj_t *okl = lv_label_create(ok);
         lv_label_set_text(okl, tr(STR_C_BACK));
         lv_obj_set_style_text_color(okl, INK_COL, 0);
-        lv_obj_set_style_text_font(okl, wt_font14(), 0);
+        lv_obj_set_style_text_font(okl, wt_font23(), 0);   // a button, never font14
         lv_obj_center(okl);
         return;
     }
@@ -1495,7 +1498,7 @@ static void erase_screen(void)
             char warn[96];
             snprintf(warn, sizeof warn, "%s  %s", LV_SYMBOL_WARNING,
                      tr(STR_I_WORDS_UNVERIFIED));
-            lv_obj_t *l = wt_lbl(s_scr, warn, 0, 0, wt_font14(), WT_WARN);
+            lv_obj_t *l = wt_lbl(s_scr, warn, 0, 0, wt_font23(), WT_WARN);
             lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 200);
         }
     }
@@ -2141,8 +2144,8 @@ static void tab_noundo(void)
     lv_obj_center(bl);
 
     lv_obj_t *cap = wt_lbl(card, tr(STR_I_ERASE_CAP), 24 + bw + 14, 0,
-                           wt_font14(), WT_DIM);
-    lv_obj_set_y(cap, byy + (WT_ACTION_H - lv_font_get_line_height(wt_font14())) / 2);
+                           wt_font23(), WT_MUT);
+    lv_obj_set_y(cap, byy + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2);
 }
 
 // The group the strip is pointing at, drawn into whatever pane is current.

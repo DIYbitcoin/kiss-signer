@@ -768,11 +768,17 @@ static char s_fit_kind[OC_FIT_MAX][8];
 static char s_fit_txt[OC_FIT_MAX][96];
 static int  s_fit_n;
 
-// Only where font14 is a fault. The house rules keep it for chip labels, row
-// sublines and unit suffixes, and a fit helper handed a chip-sized box is doing
-// exactly its job -- "dust attack" in a 110px caution chip is not the bug. A
+// Only where font14 is a fault. The house rules keep it for chip labels and
+// unit suffixes -- MARKS -- and a fit helper handed a chip-sized box is doing
+// exactly its job: "dust attack" in a 110px caution chip is not the bug. A
 // BODY that fell to font14 is, and so is a pill: a button in the smallest type
 // the device owns is the shape the pill comment rejects outright.
+//
+// Row sub-lines used to be on the exempt list here and in the house rules, and
+// they were the wrong thing to exempt: every teaching line on the settings page
+// is a row sub-line, and the page came off the bench as text nobody could read.
+// They are font23 now, and what goes wrong at that size is an ellipsis rather
+// than a rung -- which is check 9, CUT.
 //
 // 300 and 240 are read off the kit, not guessed: wt_why_block bodies are 344
 // wide and the narrowest real body column is 330, while the action row's own
@@ -938,6 +944,60 @@ static void oc_check_wall(const char *tag)
              t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
              (int)(wall->vis.y2 - wall->vis.y1 + 1));
     oc_report_one(tag, sig, detail);
+}
+
+// ---- 9. CUT: a sub-line that has dropped words -----------------------------
+//
+// Row sub-lines are pinned to one line with LV_LABEL_LONG_DOT, so copy too long
+// for its lane does not overflow -- it ELLIPSISES, and says nothing. That is
+// silent in exactly the way wt_note_fit is silent: the source looks correct,
+// every box stays inside every other box, and the screen ships with the second
+// half of a sentence replaced by three dots.
+//
+// It went unseen while the sub-line was font14, because at that size almost
+// nothing reached its lane's edge. Lifting it to font23 -- which is what these
+// lines are, teaching copy the owner has to read -- made the lanes tight, and
+// the settings storage row rendered "on this chip, not encr..." in the first
+// frame after the change with every gate green.
+//
+// The measurement is taken in kiss_theme.c as the label is BUILT, and arrives
+// here through a sink, for the same reason the fit strings do: LVGL rewrites
+// the label's text to insert the dots, so a gate walking the finished tree
+// finds a string that measures exactly one lane wide and no evidence at all.
+//
+// An ellipsis here means CUT THE COPY. The lane cannot grow -- it is what the
+// label's 250px cap and the value chip leave behind, and both of those are load
+// bearing. Shrinking the type back is the move this check exists to stop.
+#define OC_CUT_MAX 24
+static char s_cut_txt[OC_CUT_MAX][96];
+static int  s_cut_want[OC_CUT_MAX];
+static int  s_cut_lane[OC_CUT_MAX];
+static int  s_cut_n;
+
+static void oc_cut_sink(const char *txt, int want, int lane)
+{
+    if (s_cut_n >= OC_CUT_MAX) return;
+    snprintf(s_cut_txt[s_cut_n], sizeof s_cut_txt[0], "%s", txt ? txt : "");
+    s_cut_want[s_cut_n] = want;
+    s_cut_lane[s_cut_n] = lane;
+    s_cut_n++;
+}
+
+__attribute__((constructor))
+static void oc_cut_install(void) { wt_cut_set_sink(oc_cut_sink); }
+
+static void oc_check_cut(const char *tag)
+{
+    char sig[192], detail[320];
+    for (int i = 0; i < s_cut_n; i++) {
+        snprintf(sig, sizeof sig, "CUT|%s", s_cut_txt[i]);
+        snprintf(detail, sizeof detail,
+                 "CUT      sub-line \"%s\" wants %dpx of a %dpx lane, so it "
+                 "ships ellipsised -- cut the copy, the lane cannot grow",
+                 s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+        oc_report_one(tag, sig, detail);
+    }
+    s_cut_n = 0;
 }
 
 static void oc_check_colour_roles(const char *tag)
@@ -1173,6 +1233,7 @@ void oc_check(const char *tag)
     oc_check_bare(tag);
     oc_check_wall(tag);
     oc_check_fit(tag);
+    oc_check_cut(tag);
 }
 
 int oc_report(void)

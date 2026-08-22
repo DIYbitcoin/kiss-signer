@@ -248,8 +248,21 @@ static wt_fit_sink_t s_fit_sink;
 void wt_fit_set_sink(wt_fit_sink_t fn) { s_fit_sink = fn; }
 #define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) \
     do { if (s_fit_sink) s_fit_sink((kind_), (txt_), (w_), (h_)); } while (0)
+
+static wt_cut_sink_t s_cut_sink;
+void wt_cut_set_sink(wt_cut_sink_t fn) { s_cut_sink = fn; }
+// Measured before the label is handed the string, because LVGL replaces the
+// text with the dotted form and the original is unrecoverable afterwards.
+static void wt_sub_measure(const char *txt, const lv_font_t *f, int lane)
+{
+    if (!s_cut_sink || !txt || !*txt) return;
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (sz.x > lane) s_cut_sink(txt, (int)sz.x, lane);
+}
 #else
 #define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
+#define wt_sub_measure(txt_, f_, lane_) ((void)0)
 #endif
 
 #define SUB_ROW_H 22        // font14 line + breathing room, for two-line pills
@@ -2038,7 +2051,17 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
 {
     const bool inert = r->kind == WT_WIDE_INERT;
     const lv_font_t *lf = wt_font23();
-    const lv_font_t *sf = wt_font14();
+    // The sub-line is the page's TEACHING copy -- "not real bitcoin", "what
+    // opens your real keys", "amount in sats or BTC" -- and it sat at font14
+    // on every row of the settings page because the house rules listed row
+    // sublines as metadata and the FIT gate carved them out on the strength of
+    // that line. Both were wrong, and it came off the bench as text nobody
+    // could read. Metadata is a unit suffix or a chevron. A sentence is not.
+    //
+    // font23, the next rung up: there is no 18, and adding one is a font
+    // rebuild across four scripts. The lane is narrower than the copy at this
+    // size, which is a reason to cut words, never to go back down.
+    const lv_font_t *sf = wt_font23();
     const lv_font_t *vf = r->vf ? r->vf : wt_font23();
     const lv_font_t *cf = wt_font14();       // chevrons, at the size every row
                                              // on the device already wears
@@ -2179,6 +2202,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         int sx = WT_WIDE_LX + WT_WIDE_LW;    // 268: where the label's box ends
         int sw = lane_end - sx;
         if (sw < 40) sw = 40;
+        wt_sub_measure(r->sub, sf, sw);
         lv_obj_t *s = wt_lbl(row, r->sub, sx, 0, sf, subc);
         lv_obj_set_width(s, sw);
         lv_obj_set_height(s, lv_font_get_line_height(sf));
@@ -2218,30 +2242,6 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     lv_obj_t *chip = wt_help_chip(row, 0, 0, WT_MUT, cb, ud);
     lv_obj_align(chip, LV_ALIGN_LEFT_MID, WT_WIDE_LX + lw + 10, 0);
     return chip;
-}
-
-void wt_row_wide_sub_add(lv_obj_t *row, const char *txt, lv_color_t col)
-{
-    lv_obj_t *s = wt_tagged(row, WT_SUB_TAG);
-    if (!s || !txt || !*txt) return;
-    const lv_font_t *f = wt_font14();
-
-    lv_obj_update_layout(s);
-    int x0 = lv_obj_get_x(s), y0 = lv_obj_get_y(s);
-    int lane = lv_obj_get_width(s);
-
-    // The first fact hands back whatever it is not using. These are two
-    // separate facts, not a sentence, so they are measured and spaced rather
-    // than joined -- a separator between them would be punctuation doing the
-    // job of a gap.
-    lv_point_t sz;
-    lv_text_get_size(&sz, lv_label_get_text(s), f, 0, 0, LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
-    if (sz.x < lane) { lv_obj_set_width(s, sz.x); lane = sz.x; }
-
-    lv_obj_t *b = wt_lbl(row, txt, x0 + lane + 16, y0, f, col);
-    lv_obj_set_height(b, lv_font_get_line_height(f));
-    lv_label_set_long_mode(b, LV_LABEL_LONG_DOT);
 }
 
 // ---- overlays (see kiss_theme.h) ----

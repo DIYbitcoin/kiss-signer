@@ -57,9 +57,9 @@ Rules:
    budget given away in all 21 locales. That is a third of the room, and a third
    of the room is the difference between font23 and font14.
 
-   **font14 is metadata: chip labels, row sublines, unit suffixes. Nothing an
-   owner has to READ is ever font14.** It has now been reported from the bench
-   three separate times, and the third was not a `wt_body_font2` budget at all
+   **font14 is metadata: chip labels, unit suffixes, chevrons. MARKS. Nothing
+   an owner has to READ is ever font14.** It has now been reported from the
+   bench four separate times, and the third was not a `wt_body_font2` budget at all
    — it was the SIGNED screen's "what to do next" line, the single most
    important sentence on that screen, set through `wt_note` in a 48px box it
    could not fit at any larger size.
@@ -72,6 +72,23 @@ Rules:
    filename that is already on screen in font28 directly below it, which the
    copy rule says to cut anyway; cutting it took the line from font14 to font28
    with no layout change at all.
+
+   **"row sublines" used to be on that exempt list and it was the fourth
+   report.** Every teaching line on the settings page is a row subline — "not
+   real bitcoin", "opens your real keys", "amount in sats or BTC" — so the
+   carve-out exempted the page's entire body copy, in `wt_row_wide` and in the
+   FIT gate both, and it came back from the bench as *"no more tiny text
+   anywhere"*. A subline is a SENTENCE and sits at font23.
+
+   What goes wrong at font23 is not a rung, it is an **ellipsis**: a subline is
+   pinned to one line with `LV_LABEL_LONG_DOT`, so copy too long for its lane
+   loses its second half and says nothing about it. LVGL rewrites the label's
+   own text to insert the dots, so a gate walking the finished tree finds a
+   string that measures exactly one lane wide and no evidence at all — which is
+   why `overlapcheck`'s **CUT** check measures in `kiss_theme.c` as the label is
+   built and reports through a sink, the same shape FIT uses. An ellipsis there
+   means cut the copy: the lane is what the label's 250px cap and the value chip
+   leave behind, and both of those are load bearing.
 
    **font14 is a BUG in a body, not a translation being long.** It was reported from the bench as "WHY IS THE TEXT
    SO SMALL, LITERALLY, I KEEP ASKING" — about the confirm screen for replacing
@@ -254,7 +271,7 @@ printed and do NOT fail: font bytes are cheap next to deleting a glyph a
 half-written screen is waiting for.
 
 `check_screen_coverage.py` answers the question the others cannot: **which
-screens has nothing ever looked at.** overlapcheck asks eight questions per
+screens has nothing ever looked at.** overlapcheck asks nine questions per
 STOP, so a screen with no stop is a screen with no opinion attached. It reports
 two kinds:
 
@@ -290,9 +307,9 @@ Two harness numbers, both measured, neither about the device: a drag needs
 `release()`. At `pump(4)` the lift is seen but the next press is folded into
 it, so strokes merge and fall through.
 
-`overlapcheck` asks eight questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
-ROLE, **BARE**, **WALL** and **FIT**. The first two of those three are rule 1
-above, enforced; the third is the font14 rule:
+`overlapcheck` asks nine questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
+ROLE, **BARE**, **WALL**, **FIT** and **CUT**. The first two of those four are
+rule 1 above, enforced; the last two are the font14 rule and what replaced it:
 
 - **BARE** — a wide paragraph and no framed element at all.
 - **WALL** — a wide paragraph where every frame on the screen is a box drawn
@@ -304,8 +321,15 @@ above, enforced; the third is the font14 rule:
   looks like a bug in the source, and this has come off the bench three separate
   times. They report it now. Only where the size is a CHOICE — a body at least
   300 wide and 36 tall, or a pill at least 240 — because font14 in a caution
-  row's 24px subline is the box deciding, not the copy, and that is the one
-  place the rules keep it.
+  row's 24px subline is the box deciding, not the copy.
+
+- **CUT** — a row subline that has been ELLIPSISED. Sublines are pinned to one
+  line, so copy too long for its lane loses its second half silently, and LVGL
+  rewrites the label's own text to insert the dots — so this is measured in
+  `kiss_theme.c` as the label is built and reported through a sink, exactly as
+  FIT is. It found four on the day it landed, all four on the settings page, all
+  four fixed by cutting words. The lane cannot grow: it is what the label's
+  250px cap and the value chip leave behind.
 
 Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
 `OC_FIT_BACKLOG` in `sim/overlapcheck.c`) and the run prints how many are left.

@@ -328,6 +328,17 @@ void      wt_note_fit(lv_obj_t *l, const char *txt, int w, int h);
 typedef void (*wt_fit_sink_t)(const char *kind, const char *txt,
                               int w, int h);
 void wt_fit_set_sink(wt_fit_sink_t fn);
+
+// The same idea for a sub-line that has been ELLIPSISED. A sub-line is pinned
+// to one line with LV_LABEL_LONG_DOT, so copy too long for its lane does not
+// overflow -- it silently loses its second half, and nothing on the screen or
+// in the source says so.
+//
+// It has to be measured HERE, as the label is built. LVGL rewrites the label's
+// own text to insert the dots, so by the time a gate walks the tree the
+// original string is gone and what is left measures exactly one lane wide.
+typedef void (*wt_cut_sink_t)(const char *txt, int want, int lane);
+void wt_cut_set_sink(wt_cut_sink_t fn);
 #endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
@@ -780,9 +791,6 @@ lv_obj_t *wt_row_wide_ctrl(lv_obj_t *row);
 // defines. Shrinks the label's box to its text first, so the chip lands after
 // the words instead of inside the label's 250px box.
 lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud);
-// A SECOND fact in the sub lane, 16px after the first, in its own colour. For
-// the one row that states two: "encryption OFF" beside "radio HELD".
-void wt_row_wide_sub_add(lv_obj_t *row, const char *txt, lv_color_t col);
 
 // ---- overlays: the popover and the help card ---------------------------
 // A full screen scrim with a floating box on it. The scrim is black at
