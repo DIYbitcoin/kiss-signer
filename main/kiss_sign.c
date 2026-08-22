@@ -880,7 +880,15 @@ static void mark_paid_recipients(void)
 // 34px line, 6 of air and a 17px caption is 57 -- centred in 66 that left 4px
 // top and bottom, which reads as a line jammed into a box. The card starts at
 // 316 and WT_CONTENT_BOTTOM is 398, so the extra 8 is room the screen had.
-#define ADDR_CARD_H 74
+// 82, up from 74. The card centres a mono28 fold (32) over its caption with 6
+// between, and the top clamp at 8 left the caption 28px -- one pixel under a
+// font23 line, so "compare the lit characters" was set at font14 on the screen
+// a signature is authorised from.
+//
+// The card sits at ay+16 = 316, so 316 + 82 is EXACTLY WT_CONTENT_BOTTOM. That
+// is legal and it is also the end of the road: nothing in this band may grow
+// after this without moving ay.
+#define ADDR_CARD_H 82
 // The bar holding full while its fill crosses from the stop red to the accent.
 // The sweep measured a finger and there is no longer a finger to measure, but
 // snapping it to zero at the instant it fills takes the answer away in the
@@ -2476,7 +2484,7 @@ static void verify_screen(lv_obj_t *parent)
                 break;
             }
             lv_obj_t *cmp = wt_lbl(box, tr(STR_S_CMP_8), 14, 0,
-                                   wt_font14(), MUT_COL);
+                                   wt_font23(), MUT_COL);
             // Block centred in a fixed height card, the same arithmetic
             // recv_refresh uses: top aligning would leave one line floating in
             // a box sized for the taller state.
@@ -3035,7 +3043,12 @@ static void details_cb(lv_event_t *e)
         // characters it drops have to stay reachable from the place they were
         // dropped. Two taps from the graph to every character of any output,
         // change included -- which the verify screen cannot show at all.
-        lv_obj_t *ao = wt_addr_short(row, s_sum.outs[i].addr, wt_font14());
+        // mono23, like every other address on the device. This was the one
+        // place an address was set in a PROPORTIONAL face, which is the
+        // opposite of what the fold is for: the digits have to line up to be
+        // compared. The fold is ~28 characters and mono23 measures 387 against
+        // the row's 388 lane.
+        lv_obj_t *ao = wt_addr_short(row, s_sum.outs[i].addr, wt_font_mono23());
         lv_obj_add_flag(ao, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(ao, 8);
         lv_obj_add_event_cb(ao, addr_tap_cb, LV_EVENT_CLICKED,
@@ -3048,8 +3061,14 @@ static void details_cb(lv_event_t *e)
             lv_obj_t *spn = lv_label_create(row);
             lv_label_set_text(spn, sp_onchain_note());
             lv_obj_set_style_text_color(spn, MUT_COL, 0);
-            lv_obj_set_style_text_font(spn, wt_font14(), 0);
-            lv_obj_set_width(spn, 248);
+            // The row's own lane is 388; the 248 was arbitrary and cost this
+            // note two extra lines before the font was even chosen. It is the
+            // sentence explaining why the address on screen is not the one the
+            // owner was handed, which is the most confusing fact on the page.
+            // The list scrolls, so there is no height to run out of.
+            lv_obj_set_width(spn, 388);
+            lv_obj_set_style_text_font(spn,
+                wt_body_font(sp_onchain_note(), 388, 200), 0);
             lv_label_set_long_mode(spn, LV_LABEL_LONG_WRAP);
         }
     }
@@ -3536,9 +3555,16 @@ static void sd_open(lv_obj_t *parent)
     if (total > n) {
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), n, total);
-        mk_lbl(more, 48, 98, wt_font14(), WARN_COL);
+        mk_lbl(more, 48, 96, wt_body_font(more, 704, 126 - 96), WARN_COL);
     } else {
-        mk_lbl(tr(STR_S_FILES_HINT), 48, 98, wt_font14(), MUT_COL);
+        // 96, not 98, and that two pixels is the whole fix: wt_screen's content
+        // line is 96 and the list starts at 126, so one font23 line runs
+        // 96..125 with a pixel to spare. The comment here used to say this
+        // "stays at 14, and stays a hint" -- which is the row-subline carve-out
+        // the house rules struck out after the fourth bench report. The list
+        // cannot move: four whole rows bottom out at 394.
+        mk_lbl(tr(STR_S_FILES_HINT), 48, 96,
+               wt_body_font(tr(STR_S_FILES_HINT), 704, 126 - 96), MUT_COL);
     }
 
     // All discovered files fit in one scrollable, deterministic list. Unsigned

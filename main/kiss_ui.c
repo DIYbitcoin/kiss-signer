@@ -292,12 +292,18 @@ void kiss_ui_drop_indev_for_test(void) {
 }
 #endif
 
-// long-passphrase fitting: 28pt holds ~40 glyphs in the 704px slot; past that
-// drop to 14pt, and past ~78 show "..." + the tail (the newest chars are what
-// the user is checking). Never scroll-animate a masked secret.
+// long-passphrase fitting: past ~78 chars show "..." + the tail (the newest
+// chars are what the user is checking). Never scroll-animate a masked secret.
+//
+// The SIZE is the ladder's, not a ternary's. This read `chars > 40 ? font14 :
+// font28` -- the 28 to 14 fall with 23 skipped, which is the exact shape
+// wt_body_font was written to stop, on the one screen where an owner checks a
+// value character by character. The slot is 704x40 and one font23 line is 29,
+// so every secret between 41 and about 62 glyphs was dropping two rungs for
+// nothing.
 static void entry_apply(const char *txt, int chars) {
-  lv_obj_set_style_text_font(s_entry, chars > 40 ? wt_font14()
-                                                 : wt_font28(), 0);
+  (void)chars;
+  lv_obj_set_style_text_font(s_entry, wt_body_font(txt ? txt : "", 704, 40), 0);
   // SHOW means the user has already decided nobody is looking, so showing only
   // the tail buys nothing and hides the half they are trying to check (and the
   // half they are about to backspace through). Wrap instead: 128 chars of
@@ -434,8 +440,12 @@ static void cap_set(const char *txt, lv_color_t col, bool alert) {
   if (!s_cap) return;
   lv_label_set_text(s_cap, txt);
   lv_obj_set_style_text_color(s_cap, col, 0);
-  lv_obj_set_style_text_font(s_cap, alert ? wt_body_font(txt, CAP_W, 58)
-                                          : wt_font14(), 0);
+  // The ladder on EVERY path. This branched on `alert`, which is a colour
+  // decision, not a question about whether the string is an eyebrow -- and two
+  // of the strings coming through the quiet branch are instructions: "CREATE
+  // YOUR PASSPHRASE" and "CREATE A BACKUP PASSWORD", both landing at font14 in
+  // a 64px band.
+  lv_obj_set_style_text_font(s_cap, wt_body_font(txt, CAP_W, 58), 0);
   lv_obj_set_pos(s_cap, 48, alert ? 22 : 28);
 }
 

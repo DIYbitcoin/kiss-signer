@@ -380,6 +380,16 @@ static void vfy_result(const char *txt, size_t len) {
   // Arbitrary QR text is not grouped address data; feeding a short malformed
   // string through the span formatter also left LVGL with a broken short-span
   // layout on the error screen.
+  // The address gets a CARD. It is the figure the whole screen is about, and
+  // it was a bare label under a bare paragraph -- which the BARE gate started
+  // reporting the moment the explanation below stopped being font14 and became
+  // a paragraph the check can see. Rule 1: something framed, above the action
+  // row, and a headline does not count.
+  //
+  // Sized to the address after it is laid out, because a grouped silent
+  // payment address is three lines where a bech32 one is two.
+  lv_obj_t *acard = wt_card(s_scr, 24, 170, 752, 0);
+
   lv_obj_t *shown;
   if (validity == WADDR_INVALID) {
     shown = wt_lbl(s_scr, addr, 48, 186, wt_font_mono28(), WT_MUT);
@@ -396,6 +406,8 @@ static void vfy_result(const char *txt, size_t len) {
     lv_obj_set_pos(shown, 48, 186);
   }
   lv_obj_update_layout(shown);
+  lv_obj_set_size(acard, 752, lv_obj_get_height(shown) + 32);
+  lv_obj_move_to_index(acard, 0);        // behind the address, not over it
   int note_y = 186 + lv_obj_get_height(shown) + 16;
   if (note_y < 280) note_y = 280;
 
