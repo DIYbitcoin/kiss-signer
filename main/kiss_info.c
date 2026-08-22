@@ -37,12 +37,18 @@ static void info_screen(void);
 static void kef_warn_screen(lv_event_t *e);
 static void kef_wipe(void);
 
+// RECOVERY WORDS is a tabbed page; this is its two-lane group state. Declared
+// up here because swap_screen() and the idle close both have to stop its
+// motion before the screen goes, and both run above the page that owns it.
+static wt_pane_t s_wctx;
+
 bool kiss_info_active(void) { return s_scr != NULL; }
 
 static void close_cb(lv_event_t *e)
 {
     (void)e;
     kef_wipe();       // the idle close must never leave an envelope behind
+    wt_pane_stop(&s_wctx);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -50,6 +56,11 @@ void kiss_info_close(void) { close_cb(NULL); }
 
 static void swap_screen(void)           // replace the current section screen
 {
+    // Everything moving, stopped, before the screen under it is scheduled to
+    // die. The delete is async, so the animation timer would otherwise keep
+    // running against a screen already on its way out -- and the idle
+    // auto-lock lands in exactly that window.
+    wt_pane_stop(&s_wctx);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -764,91 +775,218 @@ static void verify_copy_cb(lv_event_t *e)
     kiss_setup_open_verify(s_parent, winfo_after_verify);
 }
 
+// ---- RECOVERY WORDS: two groups, PAPER and ENCRYPTED --------------------
+// The page used to put five idioms on one screen -- two state chips, a
+// destination row wedged into whatever width the first chip left over, a
+// conditional third chip, and a three paragraph body taking 226 of the 302
+// usable pixels under the header. Three quarters of the page was one amber
+// paragraph, and the encrypted backup was an afterthought BY CONSTRUCTION:
+// its x was computed from the measured width of the chip beside it.
+//
+// Underneath that it was asking three unlabelled questions at once -- is my
+// paper proven, do I want the words on the glass now, and do I want a second
+// encrypted backup that does not contain my passphrase. Two of those are the
+// paper copy and one is not, so there are two groups, and the strip names
+// them.
+//
+// The body is gone rather than moved. The words screen itself already says
+// "copy them onto paper, in order. never a photo, never a file." at the moment
+// the words are actually on the glass; the landing page was restating it one
+// screen early, which the copy rule says to cut. What survives is one muted
+// line per group.
+enum { WTAB_PAPER = 0, WTAB_ENC, WTAB_N };
+
+#define w_pane  s_wctx.pane
+#define w_tab   s_wctx.tab
+
+// The eight characters the keys are CALLED, framed, or nothing at all. An
+// all-zero fingerprint is not an id -- it is the absence of one, which is what
+// this page shows after the walk swaps the stored mnemonic out from under it,
+// and a value card reading 00000000 states a fact the device does not have.
+// The band stays empty in that case, which is honest and rare.
+static bool words_fp_card(lv_obj_t *parent, int y)
+{
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    if (!(fp[0] | fp[1] | fp[2] | fp[3])) return false;
+    char id[16];
+    snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+    wt_value_card(parent, tr(STR_L_FP_CAP), id, 231, y, 340, true);
+    return true;
+}
+
+static void wtab_paper(void)
+{
+    const bool ok = kiss_ui_backup_checked();
+
+    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
+        .label = tr(STR_I_WROW_SHOW),
+        .sub   = tr(STR_I_WROW_SHOW_SUB),
+        .kind  = WT_WIDE_OPEN,
+        .cb    = words_show_cb,
+    });
+
+    // The same two facts the SETTINGS backup row states, in the same shape: a
+    // glyph for the value and the state in the sub, so a long locale grows the
+    // lane it has rather than the chip it does not.
+    char wsub[96], wval[8];
+    if (ok) {
+        uint8_t fp[4];
+        kiss_ui_last_fp(fp);
+        char idstr[16];
+        snprintf(idstr, sizeof idstr, "%02X%02X%02X%02X",
+                 fp[0], fp[1], fp[2], fp[3]);
+        snprintf(wsub, sizeof wsub, tr(STR_I_WORDS_VERIFIED_FMT), idstr);
+        snprintf(wval, sizeof wval, "%s", LV_SYMBOL_OK);
+    } else {
+        snprintf(wsub, sizeof wsub, "%s", tr(STR_I_WORDS_UNVERIFIED));
+        snprintf(wval, sizeof wval, "%s", LV_SYMBOL_WARNING);
+    }
+    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+        .label   = tr(STR_I_WROW_CHECK),
+        .sub     = wsub,
+        .sub_col = ok ? WT_OK : WT_WARN,
+        .kind    = WT_WIDE_OPEN,
+        .val     = wval,
+        .vcol    = ok ? WT_OK : WT_WARN,
+        .sev     = ok ? WT_SEV_OK : WT_SEV_WARN,
+        .cb      = verify_copy_cb,
+    });
+
+    // The entropy judge's verdict, carried forward from the seed that was
+    // made. It belongs on THIS page and not on the one that showed it first:
+    // the warning during setup arrives at the most excited moment of the
+    // ritual, and this is the screen someone opens to copy words onto paper,
+    // which is the last moment redoing the seed is still cheap.
+    //
+    // A row rather than a chip now, so the page has one idiom instead of two,
+    // and INERT because there is nothing to tap -- it is a fact about a seed
+    // that already exists. Reuses the string the warning screen wears, so it
+    // costs no new key in 21 locales.
+    int rows = 2;
+    const int note = kiss_seed_entropy_note();
+    if (note != 0) {
+        wt_row_wide(w_pane, WT_WIDE_Y(2), &(wt_wide_t){
+            .label = tr(WSEED_ENTQ_IS_CARDS(note) ? STR_W_CARDS_WARN_T
+                                                  : STR_W_DICE_WARN_T),
+            .kind  = WT_WIDE_INERT,
+            .val   = LV_SYMBOL_WARNING,
+            .vcol  = WT_WARN,
+            .sev   = WT_SEV_WARN,
+        });
+        rows = 3;
+    }
+
+    wt_group_note(w_pane, rows, tr(STR_I_EXPL_BACKUP));
+
+    // WHICH keys, in the band the two rows leave under them. Every row in this
+    // group is about a set of keys and none of them says whose; the
+    // fingerprint is the only thing an owner can hold against the paper
+    // already in their hand, and it is what the words on the next screen are
+    // CALLED. On the value-card idiom, so the same eight characters sit where
+    // they sit on the fingerprint reveal and the pairing screen, and on
+    // STR_L_FP_CAP, which those screens already ship in 21 locales.
+    //
+    // Only when the group left room. A third row pushes the note to 336 and
+    // there is no band to earn.
+    if (rows == 2) words_fp_card(w_pane, 302);
+}
+
+static void wtab_enc(void)
+{
+    // kiss_session_decoy() is 1 for the EMPTY-passphrase session, so pp true
+    // means the owner HAS a passphrase -- and the envelope then holds half of
+    // what restores them.
+    const bool pp = !kiss_session_decoy();
+
+    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
+        .label = tr(STR_I_WROW_KEF),
+        .sub   = tr(STR_I_ROW_KEF_SUB),
+        .kind  = WT_WIDE_OPEN,
+        .cb    = kef_warn_screen,
+    });
+
+    // What is in it, framed and amber, before the owner taps the row above.
+    // The consent screen states this too, but as one of two blocks weighted
+    // the same as the reassuring one -- and the thing that bites is that this
+    // QR rebuilds DIFFERENT keys on its own. It leads here.
+    // WT_WIDE_OPEN with no callback, NOT WT_WIDE_INERT. Inert is for something
+    // present and dead, and it greys the whole row -- which took the one
+    // sentence on this page that bites and painted it the colour of a setting
+    // nobody can reach. This row is a statement, in full ink, with its caution
+    // in WT_WARN. No cb, so no chevron and no tap.
+    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+        .label   = tr(STR_I_WROW_HOLDS),
+        .sub     = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_WARN_S),
+        .sub_col = pp ? WT_WARN : WT_MUT,
+        .kind    = WT_WIDE_OPEN,
+        .val     = pp ? LV_SYMBOL_WARNING : LV_SYMBOL_OK,
+        .vcol    = pp ? WT_WARN : WT_OK,
+        .sev     = pp ? WT_SEV_WARN : WT_SEV_PLAIN,
+    });
+
+    wt_group_note(w_pane, 2, tr(STR_I_KEF_W2_H));
+
+    // The same fingerprint the PAPER group frames, for the same reason and in
+    // the same place: this is a backup OF a set of keys, the owner is entitled
+    // to know which, and the sealed file is named by it. Two rows leave the
+    // band; the subject earns it.
+    words_fp_card(w_pane, 302);
+}
+
+static void wtab_build(void)
+{
+    if (w_tab == WTAB_ENC) wtab_enc();
+    else                   wtab_paper();
+}
+
+static void wtab_cb(lv_event_t *e)
+{
+    // No stop group here: neither of these two is destructive, so nothing
+    // rises and nothing reddens.
+    wt_pane_go(&s_wctx, (int)(intptr_t)lv_event_get_user_data(e), false,
+               wtab_build);
+}
+
+static void words_page(void)
+{
+    swap_screen();
+    s_wctx.pane = s_wctx.pane_out = s_wctx.tabs = NULL;
+    s_wctx.entering = false;
+    if (w_tab < 0 || w_tab >= WTAB_N) w_tab = WTAB_PAPER;
+
+    // NO SUBTITLE, and that is what frees y=68 for the strip -- the same trade
+    // SETTINGS makes. What the subtitle said ("the seed words that rebuild
+    // your keys") is what the groups now say by being named.
+    //
+    // The title keeps STR_I_WORDS_BTN: check_screen_coverage.py tracks a page
+    // by its title's string id, and a literal one silently drops out of the
+    // count.
+    s_scr = s_wctx.scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), NULL);
+
+    const wt_tab_t tabs[WTAB_N] = {
+        { WT_ICON_SECRET, tr(STR_I_WTAB_PAPER),
+          !kiss_ui_backup_checked(), false },
+        { WT_ICON_LOCK,   tr(STR_I_WTAB_ENC),   false, false },
+    };
+    s_wctx.tabs = wt_tabs(s_scr, tabs, WTAB_N, w_tab, WT_WIDE_X, 68, wtab_cb);
+    wt_pane_tabs_watch(&s_wctx);
+
+    s_wctx.pane = wt_pane_new(&s_wctx);
+    wtab_build();
+
+    // BACK and nothing else. SHOW THE WORDS and VERIFY WORDS are rows now, so
+    // the action bar stops competing with the page for the same subject. No
+    // attention chip either: wt_alert_chip plants itself at WT_ACT_X, which is
+    // exactly where those two pills used to sit.
+    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
+            words_back_cb, NULL);
+}
+
 static void words_warn_screen(lv_event_t *e)
 {
     (void)e;
-    swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WARN_S));
-
-    // SETTINGS folded its two backup cards into one, so this page inherits the
-    // subject: it is where the paper check gets stated and where it gets done.
-    // The chip sits on the content line rather than beside the title, so the
-    // page title keeps its full 34 -- a 36 character Dutch chip up there would
-    // shrink it two rungs.
-    //
-    // Glyph AND colour, per ADDENDUM-02: GREEN theme's accent is byte identical
-    // to WT_OK, so a green chip alone says nothing in that theme.
-    bool ok = kiss_ui_backup_checked();
-    lv_obj_t *chip = wt_state_chip(s_scr,
-                                   tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
-                                          ok ? STR_L_BACKUP_VERIFIED
-                                             : STR_L_BACKUP_UNVERIFIED),
-                                   ok ? WT_OK : WT_WARN);
-    // Measure it rather than budget for it: the chip is self sizing and its
-    // height follows the locale's font, so everything laid against it uses
-    // the real box.
-    lv_obj_update_layout(chip);
-    int chip_w = lv_obj_get_width(chip);
-    // The chip SHARES the 96 line with the encrypted-backup row: stacking
-    // them cost the body below a font rung (a 64px row plus its gap is
-    // exactly the difference between a 226px and a 174px body budget), and
-    // the two are one subject read left to right — the paper's state, then
-    // the other backup. The chip centres on the row's 64px band.
-    lv_obj_set_pos(chip, 48,
-                   96 + (WT_ROW_H - lv_obj_get_height(chip)) / 2);
-    int rx = 48 + chip_w + 12;
-    // The OTHER backup: the same keys, leaving locked. It lives on this page
-    // because this IS the backup page — and because Settings' right column is
-    // full (words row, NO UNDO, the theme card; measured, not assumed). A
-    // long locale's chip narrows the row; the row ellipsises by design.
-    wt_row(s_scr, tr(STR_I_ROW_KEF),
-           tr_sym(WT_ICON_LOCK, STR_I_ROW_KEF_SUB), NULL, WT_INK,
-           rx, 96, 752 - rx, kef_warn_screen, NULL);
-    int below = 96 + WT_ROW_H;
-
-    // The dice judge's verdict, carried forward from the seed that was made.
-    // It belongs on THIS page and not on the one that showed it first: the
-    // warning during setup arrives at the most excited moment of the ritual,
-    // and this is the screen someone opens to copy words onto paper, which is
-    // the last moment redoing the seed is still cheap.
-    //
-    // Reuses the string the warning screen already wears, so this costs no
-    // new key in 21 locales, and the same mark: glyph AND colour, per
-    // ADDENDUM-02, because an amber chip alone says nothing in some themes.
-    //
-    // Which warning screen depends on which path made the seed. Dice can no
-    // longer produce a note at all -- it refuses instead -- so a dice title
-    // here only ever comes from a seed made before that changed.
-    int note = kiss_seed_entropy_note();
-    if (note != 0) {
-        lv_obj_t *ent = wt_state_chip(s_scr,
-                                      tr_sym(LV_SYMBOL_WARNING,
-                                             WSEED_ENTQ_IS_CARDS(note)
-                                                 ? STR_W_CARDS_WARN_T
-                                                 : STR_W_DICE_WARN_T),
-                                      WT_WARN);
-        lv_obj_update_layout(ent);
-        // The 96 line belongs to the chip + row pair now, so this verdict
-        // always stacks under them rather than measuring for a free slot.
-        lv_obj_set_pos(ent, 48, below + 8);
-        below += 8 + lv_obj_get_height(ent);
-    }
-
-    wt_why_body(s_scr, tr(STR_I_WARN_B), below + 12, WT_WARN, true);
-
-    // The exit takes the corner; the two actions run left to right from 48.
-    // SHOW WORDS puts the live mnemonic on the glass with a plain tap, which is
-    // the reason it does not get the corner. The order they are READ in is
-    // unchanged; only where the row sits is.
-    lv_obj_t *sp = wt_pill(s_scr, tr(STR_I_SHOW_WORDS), 310, WT_ACTION_Y, 240, words_show_cb, NULL);
-    wt_pill_primary(sp);
-    // The unchecked chip names the gap; this is the button that closes it, so
-    // it wears the same amber until it has been used (as the setup warning
-    // screen's VERIFY FULL BACKUP does).
-    lv_obj_t *vp = wt_pill(s_scr, tr(STR_I_VERIFY_COPY), WT_ACT_X, WT_ACTION_Y, 240,
-                           verify_copy_cb, NULL);
-    if (!ok) lv_obj_set_style_border_color(vp, WT_WARN, 0);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
+    words_page();
 }
 
 // ---- ENCRYPTED BACKUP (KEF): consent -> password -> locked QR / SD ----
@@ -973,23 +1111,29 @@ static void kef_warn_screen(lv_event_t *e)
     wt_chip(row, tr_sym(WT_ICON_QR, STR_I_KEF_CHIP_QR), false);
     lv_obj_center(row);
 
-    // Two claims, split: the accent rule on what the format buys, WT_WARN on
-    // the one way it goes wrong. The password never has a reset.
+    // Two claims, split. Without a passphrase this is the kit's usual pairing:
+    // the accent rule on how it works, WT_WARN on where it goes wrong.
     //
-    // With a passphrase the first claim changes, because the shipped one is
-    // FALSE for that owner: "type the password, and your keys are back" is
-    // true only when the words alone are the keys. The passphrase is wiped at
-    // login by design (kiss_crypto.h), so it is not in the envelope and no
-    // future version can quietly put it there -- which makes this the one
-    // sentence standing between a passphrase owner and a backup that restores
-    // an empty wallet.
+    // WITH a passphrase there is no "how it works" claim left to make, because
+    // the shipped one is FALSE for that owner: "type the password, and your
+    // keys are back" is true only when the words alone are the keys. The
+    // passphrase is wiped at login by design (kiss_crypto.h), so it is not in
+    // the envelope and no future version can quietly put it there.
+    //
+    // That sentence used to lead in the ACCENT colour -- the colour this kit
+    // uses for how a thing works -- beside a WT_WARN block about a lesser
+    // risk, so the page said "here is a feature, and by the way" about the one
+    // fact standing between a passphrase owner and a backup that restores an
+    // empty wallet. For that owner BOTH claims are where it goes wrong, and
+    // both wear WT_WARN. The diagram above already carries the mechanism.
     {
         const char *h1 = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_W1_H);
         const char *b1 = tr(pp ? STR_I_KEF_PP_B : STR_I_KEF_W1_B);
         const char *h2 = tr(STR_I_KEF_W2_H), *b2 = tr(STR_I_KEF_W2_B);
         const int BW = 344, BY = 176, BH = WT_CONTENT_BOTTOM - BY;
         const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, BW - 14, BH);
-        wt_why_block(s_scr, h1, b1,  48, BY, BW, BH, f, wt_accent());
+        wt_why_block(s_scr, h1, b1,  48, BY, BW, BH, f,
+                     pp ? WT_WARN : wt_accent());
         wt_why_block(s_scr, h2, b2, 408, BY, BW, BH, f, WT_WARN);
     }
 

@@ -726,6 +726,54 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 #define WT_TAB_MS 200
 void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop);
 
+// The one line under a group of wide rows, at font23 in the page's margin.
+// `rows` is how many the group drew, so the line lands under the last one.
+void wt_group_note(lv_obj_t *pane, int rows, const char *txt);
+
+// ---- the group that MOVES ----------------------------------------------
+// A tabbed page holds ONE group at a time, and a tab change slides the old one
+// out while the new one arrives. That needs two panes alive at once, a latch
+// saying the arriving one has not settled, and the strip's highlight -- five
+// pieces of state that lived as statics in kiss_settings.c until a second page
+// wanted the same chrome. They are a context now, owned by the page's module.
+//
+// Nothing captures a pointer to a pane. The two animation callbacks that reach
+// past their own object take THIS, through the animation's user_data: by the
+// time either fires the pane it meant may already have been deleted, by a
+// second tab tap or by the screen closing over it, and the context is the only
+// thing that reliably outlives both.
+typedef struct {
+    lv_obj_t *scr;        // the page the groups are built on
+    lv_obj_t *pane;       // the group on screen
+    lv_obj_t *pane_out;   // the group leaving, alive for its own 200ms
+    lv_obj_t *tabs;       // the strip's highlight, from wt_tabs
+    int       tab;        // which group is open. Survives a page rebuild.
+    bool      entering;   // the arriving group has not settled yet
+} wt_pane_t;
+
+// A transparent, unclipped, untappable 800x480 layer to build a group into.
+// Does NOT assign p->pane -- the caller does, because a tab change wants the
+// old one held in p->pane_out first.
+lv_obj_t *wt_pane_new(wt_pane_t *p);
+// Mark a child as scenery rather than a row: it fades on its own schedule and
+// is never dealt a row's slide. The stop group's wash is the only one.
+void wt_pane_scenery(lv_obj_t *child);
+// Watch the strip so the context forgets it when the screen takes it.
+void wt_pane_tabs_watch(wt_pane_t *p);
+// The whole tab change: `stop` is the destructive group's tint and its rise,
+// `build` is the page's own switch over p->tab. Safe to call mid-flight.
+void wt_pane_go(wt_pane_t *p, int tab, bool stop, void (*build)(void));
+// Point at the cautions in a group already on the glass, without moving it.
+// The attention chip's second tap wants this and not a whole entry: the group
+// is not arriving, it is being indicated.
+void wt_pane_point(const wt_pane_t *p);
+// Everything moving, stopped, and both lanes accounted for. Every route off
+// the page calls this before dropping the screen.
+void wt_pane_stop(wt_pane_t *p);
+// The two halves of wt_pane_go, for a page that needs them apart.
+void wt_pane_enter(wt_pane_t *p, int dir, bool rise);
+void wt_pane_exit(wt_pane_t *p, int dir);
+
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal
 // geometry and sharing one function would mean a branch in every measurement.

@@ -40,7 +40,6 @@ static const slot_t SLOTS[] = {
     { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
     { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, 482, 29 },
     { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  482, 29 },
-    { "wallet/words-warn",STR_I_WARN_B,     700, 270 },
     // kiss_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
@@ -168,7 +167,6 @@ static const slot_t SLOTS[] = {
     { "sub/receive",      STR_R_S,            704, 30, 0 },
     { "sub/wallet",       STR_I_S,            340, 58, 0 },
     { "sub/verify",       STR_R_VS,           704, 30, 0 },
-    { "sub/words-warn",   STR_I_WARN_S,       704, 30, 0 },
     { "sub/sp-export",    STR_R_SP_EXPORT_S,  704, 30, 0 },
     { "sub/sp-warn",      STR_R_SP_WARN_S,    704, 30, 0 },
     { "sub/pair",         STR_I_PAIR_S,       704, 30, 0 },

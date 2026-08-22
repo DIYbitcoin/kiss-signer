@@ -1228,6 +1228,21 @@ static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(
 // A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
 // this is n whole renders and not a gesture -- which is exactly what a finger
 // does to it.
+// ---- RECOVERY WORDS, on the same chrome ---------------------------------
+// Two groups instead of five, and the same geometry, so the same numbers work:
+// the strip sits at y=68 and the rows on WT_WIDE_Y(i). The settle is the same
+// 50 frames for the same reason -- a tab change is the one thing this page
+// animates, and eight frames photographs it mid flight.
+//
+// The ENCRYPTED BACKUP row used to be reached by touch(650, 128), a raw
+// coordinate three times over, because the row was wedged into whatever width
+// the status chip beside it left. It is a group of its own now and the strip
+// opens it.
+enum { WORDS_PAPER = 0, WORDS_ENC };
+#define WORDS_TAB_X(i)  (97 + 152 * (i))
+static void words_tab(int i) { touch(WORDS_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(50); }
+static void words_row(int i) { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
+
 static void set_cycle(int row, int n)
 {
   for (int i = 0; i < n; i++) set_chip(row);
@@ -3536,10 +3551,10 @@ int main(void) {
   // Settings, then separately exercise the sensitive word reveal.
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> warning
-  save("/tmp/sim_words_warn.ppm");                  // SHOW / VERIFY MY COPY / BACK
+  save("/tmp/sim_words_warn.ppm");                  // PAPER: show, check, note
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  tap_str(STR_I_VERIFY_COPY, 3, 6);     // VERIFY MY COPY -> intro
+  words_row(1);                         // Check my copy -> intro
   save("/tmp/sim_verify_intro.ppm");
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
@@ -3571,7 +3586,7 @@ int main(void) {
   kiss_ui_forget_fp();
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words
-  tap_str(STR_I_VERIFY_COPY, 3, 6);  // VERIFY MY COPY -> intro
+  words_row(1);                      // Check my copy -> intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
     touch(44, 314); pump(3); release(); pump(3);
@@ -3594,7 +3609,7 @@ int main(void) {
 
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> warning again
-  tap_str(STR_I_SHOW_WORDS, 3, 6);     // SHOW THE WORDS (rightmost now)
+  words_row(0);                        // Show the words
   save("/tmp/sim_words.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
 
@@ -3610,7 +3625,7 @@ int main(void) {
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     set_tab(SET_BACKUP);
     set_row(0);                                     // Recovery words -> warning
-    tap_str(STR_I_SHOW_WORDS, 3, 6);   // SHOW THE WORDS
+    words_row(0);                      // Show the words
     save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
     tap_str(STR_R_NEXT, 3, 6);   // NEXT
     save("/tmp/sim_words24_p2.ppm");                // 13-24 / 24, BACK but no NEXT
@@ -3626,7 +3641,9 @@ int main(void) {
   // the fingerprint on it, and the card write's verdict chip.
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> backup page
-  touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row -> consent
+  words_tab(WORDS_ENC);                            // the group, not a wedged row
+  save("/tmp/sim_words_enc.ppm");                  // what it holds, before tapping
+  words_row(0);                                    // Encrypted backup -> consent
   save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
   must_show("kef/with passphrase", tr(STR_I_KEF_PP_H));
 
@@ -3642,14 +3659,16 @@ int main(void) {
   // and this is a branch inside one, so nothing would have said a word.
   kiss_session_open("");                            // decoy: no passphrase
   tap_str(STR_C_BACK, 3, 8);                        // BACK -> the backup page
-  touch(650, 128); pump(3); release(); pump(6);     // ENCRYPTED BACKUP row again
+  words_tab(WORDS_ENC);
+  words_row(0);                                    // Encrypted backup again
   save("/tmp/sim_kef_warn_nopass.ppm");             // YOUR KEYS, and no caveat
   must_show("kef/no passphrase", tr(STR_I_KEF_W1_H));
   must_not_show("kef/no passphrase says nothing about one",
                 tr(STR_I_KEF_PP_H));
   kiss_session_open("x");                           // back to the truth
   tap_str(STR_C_BACK, 3, 8);
-  touch(650, 128); pump(3); release(); pump(6);
+  words_tab(WORDS_ENC);
+  words_row(0);
 
   tap_str(STR_I_KEF_MAKE_BTN, 65, 8);               // hold CHOOSE A PASSWORD
   save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD

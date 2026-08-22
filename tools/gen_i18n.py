@@ -154,6 +154,13 @@ UNTRANSLATED_OK = {
     # What the envelope does NOT hold, shown only when a passphrase is in use.
     # Born under the English-only rule, like the block it sits in.
     "I_KEF_PP_H", "I_KEF_PP_B", "I_KEF_WARN_S_PP",
+    # RECOVERY WORDS rebuilt on the section-tab chrome: two groups, PAPER and
+    # ENCRYPTED, in place of two chips, a row wedged beside one of them and a
+    # three paragraph body. Born under the English-only rule; English until the
+    # sweep. Everything the page could reuse, it reuses -- these seven are the
+    # tab labels and the row names that had no equivalent.
+    "I_WTAB_PAPER", "I_WTAB_ENC", "I_WROW_SHOW", "I_WROW_SHOW_SUB",
+    "I_WROW_CHECK", "I_WROW_KEF", "I_WROW_HOLDS",
     # The THIS DEVICE row's sub-line. It used to carry two ASCII diagnostics
     # the screen behind it already prints, and never said the card was back
     # there. Born under the English-only rule; English until the sweep.

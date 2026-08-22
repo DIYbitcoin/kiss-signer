@@ -2244,6 +2244,405 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     return chip;
 }
 
+
+// The explainer under a group: ONE line, at font23, in the page's own margin.
+// Never two, and never smaller: a translation that does not fit on one line at
+// this size is copy to shorten, not a paragraph to wrap. This is the shape that
+// replaced RECOVERY WORDS' three paragraph body -- one muted line per group
+// says what the group is for, and the group itself says the rest.
+void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
+{
+    lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows),
+                         wt_font23(), WT_MUT);
+    lv_obj_set_width(l, WT_WIDE_W);
+    lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+}
+
+// ---- the group that MOVES ----------------------------------------------
+// Lifted out of kiss_settings.c when a second page wanted the same chrome.
+// Everything here was already page-agnostic -- it only ever reached four
+// statics and one tag -- so the move is those five things becoming a context
+// the caller owns. Nothing about the timing or the curves changed.
+//
+// Three jobs, in the order they matter. If any of this ever has to be cut,
+// cut from the bottom:
+//
+//   1. the caution on a flagged row is pointed AT, once, after the row lands.
+//      This is the reason a page animates rather than decorating it.
+//   2. the destructive group arrives unlike its neighbours -- it rises rather
+//      than sliding, slower, without the overshoot, and the pane reddens. The
+//      owner knows which group they are in before reading a word.
+//   3. the value lands a beat after its label, so the eye reads the setting's
+//      NAME and then what it is set to, instead of a grid arriving at once.
+//
+// Confined to a TAB CHANGE. Walking in from elsewhere, and coming back from
+// any screen a row opens, paint settled: a value chip rebuilds the whole page
+// on every tap, and three taps to reach SIGNET replaying the entry under the
+// owner's finger is not a design, it is a flicker.
+#define MO_IN_MS      260   // a row arriving
+#define MO_IN_DX       56
+#define MO_IN_STEP     38   // and the beat between rows down the group
+#define MO_UP_MS      320   // ...except in the stop group, which rises
+#define MO_UP_DY       14
+#define MO_UP_STEP     44
+#define MO_OUT_MS     200   // a row leaving
+#define MO_OUT_DX      44
+#define MO_OUT_STEP    26
+#define MO_FADE_IN     200
+#define MO_FADE_UP     240
+#define MO_FADE_OUT    160
+#define MO_CTRL_MS    220   // the value, a beat behind its label
+#define MO_CTRL_DX      7
+#define MO_CTRL_LAG    90
+#define MO_FLARE_UP   220   // the caution, pointed at once and let go
+#define MO_FLARE_DOWN 200   // 200 and not the 420 the handoff drew: at 420 the
+                            // page is still moving at 976ms, past the 800 the
+                            // kit allows a page change
+#define MO_FLARE_LAG  260
+#define MO_WASH_MS    280
+
+// A child of a pane that is scenery rather than a row -- the stop group's
+// wash. It fades on its own schedule and must not be dealt a row's slide.
+static const char WT_PANE_SCENERY[] = "wt_pane_scenery";
+
+void wt_pane_scenery(lv_obj_t *child)
+{
+    if (child) lv_obj_set_user_data(child, (void *)WT_PANE_SCENERY);
+}
+
+static void an_tx(void *v, int32_t x)  { lv_obj_set_style_translate_x(v, x, 0); }
+static void an_ty(void *v, int32_t y)  { lv_obj_set_style_translate_y(v, y, 0); }
+static void an_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
+
+// The prototype's ease, cubic-bezier(.17,.84,.32,1.05), typed in as itself.
+//
+// The handoff calls this "about 5% past the mark, then back" and spends a
+// paragraph on how to reproduce the overshoot without LVGL's stock one, which
+// is far stronger and reads as bouncy on a page of settings. There is no
+// overshoot to reproduce: 1.05 is a CONTROL POINT, not the curve's maximum,
+// and the curve it controls peaks at 1.0069 -- four tenths of a pixel on a
+// 56px travel, in the browser as much as here. Measured off the frames, the
+// row arrives at 25 and stays at 25.
+//
+// The curve is still not ease_out. It is front loaded: most of the distance is
+// gone in the first third, so a row reads as arriving rather than as being
+// slid. That is what it is here for, and the overshoot never existed.
+static void an_path_settle(lv_anim_t *a)
+{
+    lv_anim_set_path_cb(a, lv_anim_path_custom_bezier3);
+    lv_anim_set_bezier3_param(a, LV_BEZIER_VAL_FLOAT(0.17),
+                                 LV_BEZIER_VAL_FLOAT(0.84),
+                                 LV_BEZIER_VAL_FLOAT(0.32),
+                                 LV_BEZIER_VAL_FLOAT(1.05));
+}
+
+// The caution, and it is a RING rather than the dot the prototype draws. The
+// rows already carry a warning glyph and an amber rim; a 7px dot growing to 14
+// beside them is a detail nobody at the bench would see, and it would be a
+// fifth mark on a row that has four. The ring is the row's own edge,
+// brightened once. It is a separate object so an interrupted pulse is deleted
+// rather than unwound -- there is no half-restored border colour to put back.
+static void flare_del(lv_anim_t *a) { lv_obj_delete(a->var); }
+
+static void flare_down(lv_anim_t *a)
+{
+    lv_anim_t b;
+    lv_anim_init(&b);
+    lv_anim_set_var(&b, a->var);
+    lv_anim_set_exec_cb(&b, an_opa);
+    lv_anim_set_values(&b, LV_OPA_COVER, LV_OPA_TRANSP);
+    lv_anim_set_duration(&b, MO_FLARE_DOWN);
+    lv_anim_set_path_cb(&b, lv_anim_path_ease_in_out);
+    lv_anim_set_completed_cb(&b, flare_del);
+    lv_anim_start(&b);
+}
+
+static void flare(lv_obj_t *row, int delay)
+{
+    lv_obj_t *ring = lv_obj_create(row);
+    lv_obj_remove_style_all(ring);
+    lv_obj_set_pos(ring, 0, 0);
+    lv_obj_set_size(ring, WT_WIDE_W, WT_WIDE_H);
+    lv_obj_set_style_radius(ring, 10, 0);
+    lv_obj_set_style_border_width(ring, 1, 0);
+    lv_obj_set_style_border_color(ring, WT_WARN, 0);
+    lv_obj_set_style_opa(ring, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(ring, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(ring, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, ring);
+    lv_anim_set_exec_cb(&a, an_opa);
+    lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_duration(&a, MO_FLARE_UP);
+    lv_anim_set_delay(&a, delay);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, flare_down);
+    lv_anim_start(&a);
+}
+
+// The two callbacks that reach past their own object. They go through the
+// animation's user_data and never a captured pointer: by the time either
+// fires, the pane it meant may already have been deleted, by a second tab tap
+// or by the screen closing over it. The CONTEXT outlives both -- it belongs to
+// the page's module, not to the objects -- so it is the safe thing to hold.
+static void enter_done(lv_anim_t *a)
+{
+    wt_pane_t *p = lv_anim_get_user_data(a);
+    if (p) p->entering = false;
+}
+
+static void pane_out_done(lv_anim_t *a)
+{
+    wt_pane_t *p = a ? lv_anim_get_user_data(a) : NULL;
+    if (p && p->pane_out) { lv_obj_delete(p->pane_out); p->pane_out = NULL; }
+}
+
+// Asked of the ROW rather than of the page's state, so the pulse and the amber
+// card can never disagree about which row it is: WT_SEV_WARN is the page's own
+// answer to "does this want reading", and this reads the answer back off the
+// object it was written on.
+static bool row_wants_reading(lv_obj_t *c)
+{
+    return lv_obj_get_style_border_opa(c, LV_PART_MAIN) == 77
+        && lv_color_eq(lv_obj_get_style_border_color(c, LV_PART_MAIN), WT_WARN);
+}
+
+void wt_pane_point(const wt_pane_t *p)
+{
+    if (!p || !p->pane) return;
+    uint32_t n = lv_obj_get_child_count(p->pane);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(p->pane, i);
+        if (row_wants_reading(c)) flare(c, 0);
+    }
+}
+
+void wt_pane_enter(wt_pane_t *p, int dir, bool rise)
+{
+    if (!p || !p->pane) return;
+    uint32_t n = lv_obj_get_child_count(p->pane);
+    int k = 0;
+    lv_obj_t *last = NULL;       // the last row DEALT, which the latch hangs on
+    p->entering = true;
+
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(p->pane, i);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, c);
+
+        // The wash is not a row. It has no lane to come in from: it is the
+        // colour of the page changing, so it only deepens.
+        if (lv_obj_get_user_data(c) == (void *)WT_PANE_SCENERY) {
+            lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
+            lv_anim_set_exec_cb(&a, an_opa);
+            lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+            lv_anim_set_duration(&a, MO_WASH_MS);
+            lv_anim_set_path_cb(&a, lv_anim_path_linear);
+            lv_anim_start(&a);
+            continue;
+        }
+
+        const int delay = k * (rise ? MO_UP_STEP : MO_IN_STEP);
+        lv_anim_set_delay(&a, delay);
+        if (rise) {
+            lv_anim_set_exec_cb(&a, an_ty);
+            lv_anim_set_values(&a, MO_UP_DY, 0);
+            lv_anim_set_duration(&a, MO_UP_MS);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);   // never overshoot
+        } else {
+            lv_anim_set_exec_cb(&a, an_tx);
+            lv_anim_set_values(&a, dir > 0 ? MO_IN_DX : -MO_IN_DX, 0);
+            lv_anim_set_duration(&a, MO_IN_MS);
+            an_path_settle(&a);
+        }
+        // The flag comes off the LAST ROW DEALT, which is not the same as the
+        // last child: the wash `continue`s above without an entry animation,
+        // and a group whose scenery happened to be built last would leave
+        // p->entering true for ever. The symptom of that is silent -- every
+        // later tab change would drop its outgoing group instead of sliding
+        // it -- so it is guarded here rather than by remembering the order a
+        // group builds in.
+        lv_anim_set_completed_cb(&a, NULL);
+        lv_anim_start(&a);
+        last = c;
+
+        lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
+        lv_anim_set_completed_cb(&a, NULL);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+        lv_anim_set_duration(&a, rise ? MO_FADE_UP : MO_FADE_IN);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_start(&a);
+
+        // The value, 90ms behind the label it belongs to. Its own opacity, on
+        // top of the row's, so it is still climbing after the row has arrived.
+        lv_obj_t *ctrl = wt_row_wide_ctrl(c);
+        if (ctrl) {
+            lv_obj_set_style_opa(ctrl, LV_OPA_TRANSP, 0);
+            lv_anim_set_var(&a, ctrl);
+            lv_anim_set_delay(&a, delay + MO_CTRL_LAG);
+            lv_anim_set_duration(&a, MO_CTRL_MS);
+            lv_anim_start(&a);
+            lv_anim_set_exec_cb(&a, an_tx);
+            lv_anim_set_values(&a, MO_CTRL_DX, 0);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_start(&a);
+        }
+
+        if (row_wants_reading(c)) flare(c, delay + MO_FLARE_LAG);
+
+        k++;
+    }
+
+    // A group of nothing but scenery never settles, so it is already settled.
+    if (!last) { p->entering = false; return; }
+
+    // Re-armed on the row that actually finishes last, over its own travel:
+    // restarting the same (var, exec_cb) pair replaces the animation LVGL is
+    // already running for it rather than adding a second one.
+    lv_anim_t z;
+    lv_anim_init(&z);
+    lv_anim_set_var(&z, last);
+    lv_anim_set_exec_cb(&z, rise ? an_ty : an_tx);
+    lv_anim_set_values(&z, rise ? MO_UP_DY : (dir > 0 ? MO_IN_DX : -MO_IN_DX), 0);
+    lv_anim_set_duration(&z, rise ? MO_UP_MS : MO_IN_MS);
+    lv_anim_set_delay(&z, (k - 1) * (rise ? MO_UP_STEP : MO_IN_STEP));
+    if (rise) lv_anim_set_path_cb(&z, lv_anim_path_ease_out);
+    else      an_path_settle(&z);
+    lv_anim_set_user_data(&z, p);
+    lv_anim_set_completed_cb(&z, enter_done);
+    lv_anim_start(&z);
+}
+
+void wt_pane_exit(wt_pane_t *p, int dir)
+{
+    if (!p) return;
+    lv_obj_t *pane = p->pane_out;
+    if (!pane) return;
+    uint32_t n = lv_obj_get_child_count(pane);
+    if (!n) { lv_obj_delete(pane); p->pane_out = NULL; return; }
+
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(pane, i);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, c);
+        lv_anim_set_delay(&a, i * MO_OUT_STEP);
+        lv_anim_set_exec_cb(&a, an_tx);
+        lv_anim_set_values(&a, 0, dir > 0 ? -MO_OUT_DX : MO_OUT_DX);
+        lv_anim_set_duration(&a, MO_OUT_MS);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+        // The slide outlasts the fade, so the pane goes when the LAST row has
+        // finished travelling and not when it stopped being visible.
+        if (i + 1 == n) {
+            lv_anim_set_user_data(&a, p);
+            lv_anim_set_completed_cb(&a, pane_out_done);
+        }
+        lv_anim_start(&a);
+
+        lv_anim_set_completed_cb(&a, NULL);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_duration(&a, MO_FADE_OUT);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_start(&a);
+    }
+}
+
+// Everything moving, stopped, and both lanes accounted for. Deleting a pane
+// takes its animations with it -- lv_obj's destructor calls lv_anim_delete --
+// which is what makes the callback that would have deleted it never fire.
+void wt_pane_stop(wt_pane_t *p)
+{
+    if (!p) return;
+    if (p->pane_out) { lv_obj_delete(p->pane_out); p->pane_out = NULL; }
+    p->entering = false;
+}
+
+// Every route off a tabbed page drops the screen, and a dozen of them do it
+// without a word to the context: the exit, the idle lock, and every row that
+// opens a screen of its own. Each deletes the screen and builds its own into
+// the same parent, and the pane goes with it while the context still names it.
+// The next reopen then deletes a freed object.
+//
+// So the OBJECT says when it is gone, rather than ten call sites remembering
+// to. Comparing against the context is what makes it safe when a page has
+// already been replaced: an older pane's delete arrives after the new one has
+// been named, matches nothing, and does nothing.
+static void pane_gone(lv_event_t *e)
+{
+    wt_pane_t *p = lv_event_get_user_data(e);
+    lv_obj_t  *o = lv_event_get_target(e);
+    if (!p) return;
+    if (o == p->pane)     p->pane = NULL;
+    if (o == p->pane_out) p->pane_out = NULL;
+}
+
+static void tabs_gone(lv_event_t *e)
+{
+    wt_pane_t *p = lv_event_get_user_data(e);
+    if (p && lv_event_get_target(e) == p->tabs) p->tabs = NULL;
+}
+
+lv_obj_t *wt_pane_new(wt_pane_t *p)
+{
+    lv_obj_t *o = lv_obj_create(p->scr);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_pos(o, 0, 0);
+    // The whole page, and never clipped: a row leaving travels 44px past the
+    // lane, and a container sized to the rows would cut it in half. It takes
+    // no taps of its own, so the strip and the exit under it stay reachable --
+    // LVGL only ever hands a press to a CLICKABLE object and walks past this
+    // one to the siblings beneath.
+    lv_obj_set_size(o, 800, 480);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(o, pane_gone, LV_EVENT_DELETE, p);
+    return o;
+}
+
+void wt_pane_tabs_watch(wt_pane_t *p)
+{
+    if (p && p->tabs) lv_obj_add_event_cb(p->tabs, tabs_gone, LV_EVENT_DELETE, p);
+}
+
+// The whole tab change, which both pages were going to write identically:
+// close what the old group owned, drop a group that never finished arriving,
+// slide the highlight, build the new one, and send the old one out. `build` is
+// the page's own switch over p->tab.
+void wt_pane_go(wt_pane_t *p, int tab, bool stop, void (*build)(void))
+{
+    if (!p || tab == p->tab) return;
+    const int dir  = tab > p->tab ? 1 : -1;
+    const int from = p->tab;
+    p->tab = tab;
+
+    const bool was_moving = p->entering;
+    wt_pane_stop(p);
+    if (was_moving && p->pane) {
+        // Tapping faster than the page settles: the group that never finished
+        // arriving is dropped outright rather than sent back out. Sliding a
+        // row that has not appeared yet is a flicker, not a transition.
+        lv_obj_delete(p->pane);
+        p->pane = NULL;
+    }
+
+    p->pane_out = p->pane;
+    p->pane = wt_pane_new(p);
+    build();
+    // The new rows were built after the page's own restyle() had already run,
+    // so the accent flags on them have never been walked.
+    wt_accent_restyle(p->pane);
+
+    wt_tabs_select(p->tabs, from, tab, stop);
+    wt_pane_enter(p, dir, stop);
+    wt_pane_exit(p, dir);
+}
+
 // ---- overlays (see kiss_theme.h) ----
 lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim_out, int x, int y,
                          int w, int h, int radius, lv_event_cb_t close_cb)
