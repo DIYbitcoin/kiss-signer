@@ -178,7 +178,7 @@ UNTRANSLATED_OK = {
     # sweep. Everything either screen could reuse, it reuses -- I_SEC_THIS_WALLET,
     # R_NEVER_HANDED, R_HANDED_ALREADY, R_SP_BTN and S_CMP_8 all ship already.
     # These eighteen are the ones with no equivalent.
-    "K_FP_SUB", "K_ADDR_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
+    "K_FP_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
     "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
     "R_NEXT_ADDR", "R_LIST_COUNT", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
@@ -262,6 +262,17 @@ UNTRANSLATED_OK = {
     "I_BIP_84_NOTE",
     "I_POP_CHIP", "I_POP_NOTHING", "I_POP_KEEP", "I_POP_ERASE",
     "I_ATTN_1", "I_ATTN_N_FMT",
+    # FIRMWARE rebuilt on the same borderless chrome as KEYS and RECEIVE. The
+    # screen's subject is now WHICH VERSION REPLACES WHICH, drawn once and
+    # reused on the offer, the confirm and the verdict, so the lines under it
+    # needed captions and the trade needed a lamp. Born under the English-only
+    # rule; English until the sweep. Everything the chain could reuse, it
+    # reuses -- every G_FW_* heading and body, S_FILES_MORE_FMT, C_BACK and
+    # C_CANCEL all ship in 21 locales already. These eleven had no equivalent.
+    "G_FW_ROW_FILE", "G_FW_ROW_SIG", "G_FW_SIG_PROMISE",
+    "G_FW_NEWER_LAMP", "G_FW_OLDER_LAMP",
+    "G_FW_WHERE_CAP", "G_FW_WHERE_SHORT", "G_FW_DOWN_SHORT",
+    "G_FW_KEEP_HOLDING", "G_FW_WRITING_FMT", "G_FW_BACKLIGHT",
 }
 
 

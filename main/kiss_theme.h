@@ -846,6 +846,12 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
 // the row's box -- and so overlapcheck, which reads real positions, never sees
 // it move. Returns it because the animation needs the handle.
 lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w);
+// Paint a finished line row's caption and sub WT_WARN. For the row whose
+// answer was picked from a SUBSET -- the firmware offer when the card holds
+// more .bin files than the scan opened. A function rather than two more
+// parameters because it knows the row's own child order, which is the kind of
+// thing that belongs in here and not at a call site.
+void wt_line_warn(lv_obj_t *row);
 
 // The 19px round "?" that marks a row whose whole box opens an explainer.
 // wt_help_chip is the same idiom at 30px, which is the size of a chip you aim

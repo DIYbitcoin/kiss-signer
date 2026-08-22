@@ -2432,6 +2432,26 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     return row;
 }
 
+// The caption is the first child on a row with no arrow and the second on one
+// that has it; the sub is always last. Both are labels, and nothing else on
+// the row is, so the walk is by type rather than by index -- a row with no sub
+// then simply repaints its caption and stops.
+void wt_line_warn(lv_obj_t *row)
+{
+    if (!row) return;
+    uint32_t n = lv_obj_get_child_count(row);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(row, i);
+        if (!lv_obj_check_type(c, &lv_label_class)) continue;
+        lv_color_t cur = lv_obj_get_style_text_color(c, LV_PART_MAIN);
+        // The caption is WT_MUT and the sub is WT_DIM. The VALUE keeps its own
+        // colour: it is the answer, and the warning is about where the answer
+        // came from.
+        if (lv_color_eq(cur, WT_MUT) || lv_color_eq(cur, WT_DIM))
+            lv_obj_set_style_text_color(c, WT_WARN, 0);
+    }
+}
+
 // ---- the bracket tab strip ----
 #define WT_BR_SPACE 2    // the tracking a mono14 tab label wears
 #define WT_BR_GAP   7    // icon to label, and bracket to either

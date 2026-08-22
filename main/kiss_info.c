@@ -1313,7 +1313,7 @@ static void info_tab_build(void)
         wt_line_rule(p, X, 244 + H, W);
 
         lv_obj_t *ar = wt_line_row(p, X, 306, W, H, tr(STR_I_SEC_FIRST), NULL,
-                                   NULL, WT_INK, tr(STR_K_ADDR_SUB), NULL,
+                                   NULL, WT_INK, tr(STR_S_CMP_8), NULL,
                                    row_help_cb, (void *)"addr");
         info_addr_value(ar);
         wt_line_rule(p, X, 306 + H, W);

@@ -620,7 +620,6 @@ static void recv_detail_open(void);
 
 #define RECV_COL_X 296
 #define RECV_COL_W 456
-#define RECV_PAGE_N 4                 // lines on ALL ADDRESSES, one page
 
 static void pop_close(void) {
   // The scrim OWNS the box, so one delete takes both. Deleting the box alone
@@ -646,7 +645,23 @@ static void recv_tab_cb(lv_event_t *e) {
 // the lane and too wordy for the reader.
 static void lamp_set(bool used) {
   if (!s_lamp_dot || !s_lamp_lbl) return;
+  // GREEN's accent is byte identical to WT_OK and ORANGE is a near match for
+  // WT_WARN, so on those two themes the lamp's colour says nothing the rest of
+  // the page is not already saying, and a readout that cannot be told from
+  // chrome has stopped being a readout.
+  //
+  // The kit's rule for this is that the ACCENT stands aside, never the status
+  // -- a state must keep its colour or it stops meaning anything. So what
+  // stands aside here is the accent-painted caption sitting beside the lamp:
+  // ADDRESS #N drops to WT_MUT whenever the accent would collide with the
+  // state it sits next to, and the lamp keeps WT_OK and WT_WARN in all four.
   lv_color_t col = used ? WT_WARN : WT_OK;
+  if (s_idx_lbl) {
+    const bool clash = lv_color_eq(wt_accent(), col);
+    lv_obj_set_style_text_color(s_idx_lbl, clash ? WT_MUT : wt_accent(), 0);
+    if (clash) lv_obj_remove_flag(s_idx_lbl, WT_FLAG_ACCENT);
+    else       lv_obj_add_flag(s_idx_lbl, WT_FLAG_ACCENT);
+  }
   lv_obj_set_style_bg_color(s_lamp_dot, col, 0);
   lv_obj_set_style_shadow_color(s_lamp_dot, col, 0);
   lv_label_set_text(s_lamp_lbl, tr(used ? STR_R_HANDED_ALREADY
@@ -875,7 +890,7 @@ static void row_tap_cb(lv_event_t *e) {
 
 static void page_cb(lv_event_t *e) {
   int step = (int)(intptr_t)lv_event_get_user_data(e);
-  int base = (int)s_list_base + step * RECV_PAGE_N;
+  int base = (int)s_list_base + step * RECV_LIST_N;
   if (base < 0 || base >= RECV_LIST_CAP) return;     // ends of the range: no wrap
   s_list_base = (uint32_t)base;
   // NOT wt_pane_go: it refuses a same-tab call by design, because a tab change
@@ -960,13 +975,13 @@ static void recv_tab_build(void) {
 
     s_lamp_dot = lv_obj_create(p);
     lv_obj_remove_style_all(s_lamp_dot);
-    lv_obj_set_size(s_lamp_dot, 8, 8);
-    lv_obj_set_style_radius(s_lamp_dot, 4, 0);
+    lv_obj_set_size(s_lamp_dot, 10, 10);
+    lv_obj_set_style_radius(s_lamp_dot, 5, 0);
     lv_obj_set_style_bg_opa(s_lamp_dot, LV_OPA_COVER, 0);
     // The glow. If it is ever expensive on glass, this goes before the dot
     // does: the dot is the readout, the glow is what makes it look lit.
-    lv_obj_set_style_shadow_width(s_lamp_dot, 10, 0);
-    lv_obj_set_style_shadow_opa(s_lamp_dot, 60, 0);
+    lv_obj_set_style_shadow_width(s_lamp_dot, 14, 0);
+    lv_obj_set_style_shadow_opa(s_lamp_dot, 90, 0);
     lv_obj_remove_flag(s_lamp_dot, LV_OBJ_FLAG_CLICKABLE);
     // A readout, not a control. Tapping it does nothing on purpose.
     s_lamp_lbl = wt_lbl(p, "", 0, 120, wt_font_mono23(), WT_OK);
@@ -1008,35 +1023,63 @@ static void recv_tab_build(void) {
     // Four lines at 56, not the 60 the handoff draws. 60 puts the last rule on
     // 360 and leaves the count line 26px, which is one font14 line -- and the
     // second half of that string is the sentence explaining what the list IS.
-    // Four pixels a row buys it 42 and the readable rung. The rule about not
-    // shrinking type to fit a layout wins over four pixels of gap.
+    // Four pixels a row buys it 42 and the readable rung.
+    //
+    // And the four SCROLL, over a page of twenty. Four lines with arrows that
+    // step four is twenty five pages across the hundred this list reaches, so
+    // getting to #90 was twenty two taps where the old list took five. The
+    // window shows the handoff's four; a flick crosses the page; the arrows
+    // still page, by twenty, exactly as they did before this redesign.
     const int H = 56;
+    const int VIEW = 4 * H;             // 120..344, four whole lines, never half
     char addr[91];
     uint32_t shown = 0;
-    for (int i = 0; i < RECV_PAGE_N; i++) {
+
+    lv_obj_t *list = lv_obj_create(p);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, X, 120);
+    lv_obj_set_size(list, W, VIEW);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    // NO snap. LV_SCROLL_SNAP_START aligns the nearest CHILD's top to the
+    // viewport top, which is right in the middle of a list and wrong at the
+    // end of one: at the bottom it pulls the LAST row up to the top and leaves
+    // three empty lanes under it. Plain scrolling stops at the content's own
+    // bottom, so the last four land whole, which is the case the snap was
+    // wanted for in the first place.
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
+    wt_list_scrollbar(list);
+
+    for (int i = 0; i < RECV_LIST_N; i++) {
       const uint32_t idx = s_list_base + (uint32_t)i;
       if (idx >= RECV_LIST_CAP) break;
-      const int y = 120 + i * H;
+      const int y = i * H;
       char cap[24];
       snprintf(cap, sizeof cap, tr(STR_R_ADDR_N_FMT), (unsigned)idx);
       const bool u = recv_used(idx);
-      lv_obj_t *row = wt_line_row(p, X, y, W, H, cap, NULL, NULL, WT_INK,
+      lv_obj_t *row = wt_line_row(list, 0, y, W, H, cap, NULL, NULL, WT_INK,
                                   tr(u ? STR_R_HANDED_ALREADY
                                        : STR_R_NEVER_HANDED),
                                   wt_font_mono23(), row_tap_cb,
                                   (void *)(uintptr_t)idx);
       // The sub is the state, so it wears the state's colour rather than the
-      // sub's grey. UNUSED is the only green on this page and it means the
-      // same thing it means in the lamp.
+      // sub's grey. UNUSED means here what it means in the lamp.
       lv_obj_t *sub = lv_obj_get_child(row, -1);
       lv_obj_set_style_text_color(sub, u ? WT_MUT : WT_OK, 0);
       if (kiss_session_address(0, idx, addr, sizeof addr) != 0)
         snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
       lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono23());
       lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
-      wt_line_rule(p, X, y + H, W);
+      // The rule belongs to the ROW here, not to the container. Snap aligns
+      // the nearest CHILD's top to the viewport, and a 1px rule sitting a
+      // pixel below each row is a child too -- so the window snapped to a rule
+      // and came to rest with the top line cut through its own caption. With
+      // the pitch equal to the height, the row's last pixel row and "one below
+      // the row" are the same line anyway.
+      wt_line_rule(row, 0, H - 1, W);
       shown++;
     }
+
     lv_obj_t *note = wt_lbl(p, "", X, 356, wt_font23(), WT_MUT);
     lv_obj_set_width(note, W - 110);
     // Pinned to ONE line. Unpinned it wrapped to two and the second ran under
@@ -1054,7 +1097,7 @@ static void recv_tab_build(void) {
     for (int i = 0; i < 2; i++) {
       const bool fwd = i == 1;
       const int step = fwd ? 1 : -1;
-      const int base = (int)s_list_base + step * RECV_PAGE_N;
+      const int base = (int)s_list_base + step * RECV_LIST_N;
       lv_obj_t *pa = lv_obj_create(p);
       lv_obj_remove_style_all(pa);
       lv_obj_set_size(pa, 36, 36);
@@ -1159,7 +1202,7 @@ void kiss_recv_open(lv_obj_t *parent) {
   // so the ALL ADDRESSES list still lands on the right page if the user asks
   // for it from the detail screen ("21 - 40 OF 100" reads round).
   uint32_t fresh = s_idx < RECV_LIST_CAP ? s_idx : RECV_LIST_CAP - 1;
-  s_list_base = (fresh / RECV_PAGE_N) * RECV_PAGE_N;
+  s_list_base = (fresh / RECV_LIST_N) * RECV_LIST_N;
 
   // Per HANDOFF-03: RECEIVE lands on one address, not on a hundred. The list
   // is one tap away behind ALL ADDRESSES; the default is the freshest.
