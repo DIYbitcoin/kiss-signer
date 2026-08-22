@@ -598,7 +598,11 @@ static void sig_fp_help_cb(lv_event_t *e)
     sig_code_chip(r1, "3F00 C01D");
     wt_diagram_op(r1, "=");
     sig_code_chip(r1, "3F00 C01D");
+    // A VERDICT, not an operator, so it keeps its status colour and drops the
+    // accent flag the kit now puts on every op -- otherwise the next theme
+    // change repaints this tick, and on GREEN the accent is WT_OK to the byte.
     lv_obj_t *ok = wt_diagram_op(r1, LV_SYMBOL_OK);
+    lv_obj_remove_flag(ok, WT_FLAG_ACCENT);
     lv_obj_set_style_text_color(ok, OK_COL, 0);
     lv_obj_set_style_text_font(ok, wt_font23(), 0);   // the verdict is the payload
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 116);
@@ -608,6 +612,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     wt_diagram_op(r2, LV_SYMBOL_CLOSE);
     sig_code_chip(r2, "8A41 77E2");
     lv_obj_t *warn = wt_diagram_op(r2, LV_SYMBOL_WARNING);
+    lv_obj_remove_flag(warn, WT_FLAG_ACCENT);          // a verdict, as above
     lv_obj_set_style_text_color(warn, WARN_COL, 0);
     lv_obj_set_style_text_font(warn, wt_font23(), 0);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 162);

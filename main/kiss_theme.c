@@ -1666,11 +1666,21 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // because it floats on an open page with nothing else to hold it.
     const int lx = (icon && *icon) ? 52 : 14;
     if (icon && *icon) {
-        lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(),
-                              sel ? wt_accent() : WT_MUT);
-        // a selected icon is accent INK, so it repaints with the accent; see
-        // the sel branch above for why the flag rides with the paint
-        if (sel) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        // The badge takes the ACCENT, always. It used to be accent only when
+        // the row was SELECTED, which meant every list without a current item
+        // -- the sign chooser, the file list, the SD screen, the setup pickers
+        // -- painted its marks the colour this kit uses for a row that cannot
+        // be tapped. Three call sites had already reached for
+        // wt_row_icon_accent by hand to undo it.
+        //
+        // Unselected sits at the CHEVRON's opacity, not full: a page of six
+        // rows at full strength is six bright marks and the accent stops
+        // meaning anything, which is the argument written above the chevron
+        // and it applies here for the same reason. Selected stays at full, so
+        // "this is the one you are on" is still louder than "this is a row".
+        lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(), wt_accent());
+        if (!sel) lv_obj_set_style_text_opa(ic, 150, 0);
+        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         lv_obj_set_user_data(ic, (void *)WT_ROW_ICON_TAG);
         lv_obj_update_layout(ic);
         lv_obj_align(ic, LV_ALIGN_LEFT_MID, 14, 0);
@@ -1805,7 +1815,23 @@ void wt_row_icon_accent(lv_obj_t *row)
     lv_obj_t *ic = wt_tagged(row, WT_ROW_ICON_TAG);
     if (!ic) return;
     lv_obj_set_style_text_color(ic, wt_accent(), 0);
+    // FULL strength, which is what this call means now that every badge is
+    // already accent at the page tint: it lifts one row's mark above the rest.
+    lv_obj_set_style_text_opa(ic, LV_OPA_COVER, 0);
     lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+}
+
+// The opt-out, and it is not decoration: a row wearing WT_SEV_OK or WT_SEV_WARN
+// has already spent its colour, and on the GREEN theme the accent is WT_OK to
+// the byte -- an accent badge on a green card is a second verification tick
+// nobody wrote. Three rows need this and they are named where they are called.
+void wt_row_icon_mute(lv_obj_t *row)
+{
+    lv_obj_t *ic = wt_tagged(row, WT_ROW_ICON_TAG);
+    if (!ic) return;
+    lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
+    lv_obj_set_style_text_color(ic, WT_MUT, 0);
+    lv_obj_set_style_text_opa(ic, LV_OPA_COVER, 0);
 }
 
 // Tint a built row by severity. Redraw 05 colours the BOX, not just a note
@@ -2768,7 +2794,13 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     // wide empty right half. The value needs a width before it can be centred:
     // wt_lbl leaves it content sized, which is its own bounding box, so an
     // alignment inside it would mean nothing.
-    lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), WT_MUT);
+    // The caption takes the accent, the same fix wt_section already had: it is
+    // the eyebrow over a figure, which is furniture, and at font14 in WT_MUT it
+    // came off the bench as barely visible. Nine call sites in four files draw
+    // FINGERPRINT through here, so this has to be the theme's decision or the
+    // same caption reads as four different marks.
+    lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), wt_accent());
+    lv_obj_add_flag(c, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(c, 1, 0);
     lv_obj_set_width(c, w - 32);
     lv_label_set_long_mode(c, LV_LABEL_LONG_WRAP);
@@ -3480,7 +3512,12 @@ lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
 {
     lv_obj_t *l = lv_label_create(row);
     lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
+    // The operator is the only part of an equation that is pure grammar -- the
+    // plus and the arrow between chips that carry the terms -- so it is the
+    // part the theme should own. Three callers pass a STATUS glyph through
+    // here instead of an operator; they clear the flag at the call site.
+    lv_obj_set_style_text_color(l, wt_accent(), 0);
+    lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_obj_set_style_text_font(l, wt_font14(), 0);
     return l;
 }

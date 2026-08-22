@@ -726,7 +726,12 @@ static void cksum_diagram(lv_obj_t *col)
             lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
             lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
         }
-        wt_diagram_op(r2, LV_SYMBOL_OK);
+        // The checksum VERDICT, which had no colour of its own and would have
+        // taken the accent silently now that operators are themed. It is a
+        // tick, so it is WT_OK and not a theme colour.
+        lv_obj_t *ck = wt_diagram_op(r2, LV_SYMBOL_OK);
+        lv_obj_remove_flag(ck, WT_FLAG_ACCENT);
+        lv_obj_set_style_text_color(ck, WT_OK, 0);
         wt_diagram_op(r2, "=");
         wt_chip(r2, s_w[s_count - 1], false);
     }

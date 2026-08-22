@@ -408,6 +408,8 @@ static void fw_screen(void)
                                WT_WARN, false, WT_LIST_L_X, WT_LIST_Y(1),
                                WT_LIST_R_X + WT_LIST_W - WT_LIST_L_X, WT_ROW_H,
                                NULL, NULL);
+        // Amber card, so the badge stays muted: the row has spent its colour.
+        wt_row_icon_mute(w);
         wt_row_sev(w, WT_SEV_WARN);
     }
 
@@ -486,7 +488,7 @@ static void fw_screen(void)
                                s_img.cmp < 0 ? WT_WARN : WT_INK, false,
                                WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W, WT_ROW_H,
                                NULL, NULL);
-        if (s_img.cmp < 0) wt_row_sev(v, WT_SEV_WARN);
+        if (s_img.cmp < 0) { wt_row_icon_mute(v); wt_row_sev(v, WT_SEV_WARN); }
 
         lv_obj_t *p = wt_pill_icon(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_FW_INSTALL),
                                    WT_ACT_X, WT_ACTION_Y, 240, WT_ACTION_H,

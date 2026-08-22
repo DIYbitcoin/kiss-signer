@@ -512,6 +512,12 @@ static void sdinfo_screen(void)
                                  NULL, present ? WT_OK : WT_WARN, false,
                                  WT_LIST_R_X, WT_LIST_Y(3), WT_LIST_W,
                                  WT_ROW_H, NULL, NULL);
+        // The badge stays MUTED on this one row. The card already carries a
+        // severity tint and the value slot already carries a tick or a warning
+        // sign, and on GREEN the accent is WT_OK to the byte -- so an accented
+        // key here would be a third mark saying the same thing in the same
+        // colour, on the row that reports whether the sealed file is present.
+        wt_row_icon_mute(row);
         wt_row_sev(row, present ? WT_SEV_OK : WT_SEV_WARN);
         if (!present) wt_row_sub_color(row, WT_WARN);
     }
