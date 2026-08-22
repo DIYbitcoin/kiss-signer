@@ -2663,6 +2663,32 @@ void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop)
 }
 
 // ---- the arrow action ----
+void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt)
+{
+    if (!ctrl || !txt) return;
+    lv_obj_t *a = NULL, *l = NULL;
+    const uint32_t n = lv_obj_get_child_count(ctrl);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(ctrl, i);
+        if (!lv_obj_check_type(c, &lv_label_class)) continue;
+        const char *t = lv_label_get_text(c);
+        // The arrow is one glyph from the symbol range; the word is not.
+        if (!a && t && (unsigned char)t[0] == 0xEF) a = c;
+        else l = c;
+    }
+    if (!l || !a) return;
+    const lv_font_t *f = wt_font23();
+    lv_point_t ls, as;
+    lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&as, lv_label_get_text(a), f, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    const bool back = lv_obj_get_x(a) <= lv_obj_get_x(l);
+    lv_label_set_text(l, txt);
+    lv_obj_set_width(ctrl, ls.x + 12 + as.x);
+    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + 12, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + 12 : 0, 0);
+}
+
 lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
                           bool primary, int x, int y, int w, bool right,
                           lv_event_cb_t cb, void *ud)

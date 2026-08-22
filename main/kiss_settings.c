@@ -340,9 +340,11 @@ static void storage_result_screen(int rc, int target)
     // above it instead of being grey under a green or red heading.
     wt_why_body(s_scr, body, 136, title_col, true);
     // 552..752: a lone acknowledge is still the way off the screen.
-    lv_obj_t *ok = wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200,
-                           storage_result_ack_cb, NULL);
-    if (rc == WSEED_OK) wt_pill_primary(ok);
+    // A lone acknowledge is still the way off the screen, and it LEAVES, so
+    // its arrow leads. Right-aligned in 592..752 like every other exit rather
+    // than at the 552 the 200px pill needed.
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 592, WT_ACTION_Y, 160,
+                    true, storage_result_ack_cb, NULL);
 }
 
 static void storage_apply(void *ud)
@@ -424,8 +426,7 @@ static void sdinfo_screen(void)
                      f, WT_WARN);
         wt_why_block(s_scr, rh, rb, 408, 232, 344, WT_CONTENT_BOTTOM - 232,
                      f, wt_accent());
-        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                sdinfo_back_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
         return;
     }
 
@@ -522,8 +523,7 @@ static void sdinfo_screen(void)
         if (!present) wt_row_sub_color(row, WT_WARN);
     }
 
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            sdinfo_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
 }
 
 static void sdinfo_open_cb(lv_event_t *e)
@@ -722,8 +722,7 @@ static void storage_chooser_screen(void)
             .ud    = (void *)(intptr_t)i,
         });
     }
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            store_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, store_back_cb, NULL);
 }
 
 static void store_open_cb(lv_event_t *e) { (void)e; storage_chooser_screen(); }
@@ -883,8 +882,7 @@ static void made_open_cb(lv_event_t *e)
 
     wt_why_body(s_scr, note, by, wt_accent(), true);
     lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                made_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, made_back_cb, NULL), 10);
 }
 
 // Two things to look at again, so the chooser comes back -- with a different
@@ -909,8 +907,7 @@ static void audit_open_cb(lv_event_t *e)
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              audit_rng_cb, NULL);
     lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                audit_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, audit_back_cb, NULL), 10);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -961,19 +958,14 @@ static void duress_cb(lv_event_t *e)
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
     // than the 22px the roomier rows get.
-    lv_obj_t *row[3];
-    row[0] = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                     waysin_back_cb, NULL);
-    row[1] = wt_pill(s_scr, tr(STR_GD_SET_BTN), WT_ACT_X, WT_ACTION_Y, 270,
-                     waysin_stroke_cb, NULL);
-    row[2] = wt_pill(s_scr, tr(STR_GD_WORD_PILL), 330, WT_ACTION_Y, 270,
-                     waysin_word_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, waysin_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_GD_SET_BTN), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, waysin_stroke_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, 330, WT_ACTION_Y, 0, false, waysin_word_cb, NULL);
     // One size across the row. pill_label_fit is per pill, so the longest label
     // drops only its own pill a rung -- USE YOUR OWN DRAWING sat at font14
     // between two pills at 28 and read as a rendering mistake rather than as
     // three choices. That is the exact case wt_pill_row was written for and
     // this row was not calling it.
-    wt_pill_row(row, 3);
 }
 
 // ---- theme ----
@@ -1224,8 +1216,7 @@ static void erase_screen(void)
     // 292px lane. The row has the room: 48..448 with BACK still at 612.
     wt_hold_pill(s_scr, tr(STR_G_HOLD_WIPE), WT_ACT_X, WT_ACTION_Y, 400,
                  WT_ACTION_H, WIPE_HOLD_MS, do_wipe, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            erase_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, erase_back_cb, NULL);
 }
 
 static void endwords_cb(lv_event_t *e) { (void)e; erase_screen(); }
@@ -1357,8 +1348,7 @@ static void device_screen(void)
     });
 
     lv_obj_set_ext_click_area(
-        wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                device_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, device_back_cb, NULL), 10);
 }
 
 // ---- what wants reading ----

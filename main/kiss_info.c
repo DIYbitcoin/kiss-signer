@@ -416,8 +416,8 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, 30, 688, 96);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
-    wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, pair_qr_back_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
@@ -475,9 +475,8 @@ static void pair_screen(void)
     // Neither pairing bar holds a pager PAIR -- page 1 has only NEXT and page 2
     // only its page-back -- so the adjacency exemption has nothing to protect
     // here, and both pages agree on where the exit is.
-    wt_pill(s_scr, tr(STR_R_NEXT), WT_ACT_X, WT_ACTION_Y, 140,
-            pair_instructions_cb, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pair_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -534,7 +533,7 @@ static void sp_key_show(void *ud)
         // owner to fear a feature. Reassurance first, then the mechanism, then
         // the way back.
         wt_note(s_scr, tr(STR_C_LOCKED_B), 48, 296, 704, 90);
-        wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
         return;
     }
 
@@ -570,7 +569,7 @@ static void sp_key_show(void *ud)
             WT_CONTENT_BOTTOM - note_y);
 
     // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
-    wt_pill(s_scr, tr(STR_C_DONE), 592, WT_ACTION_Y, 160, sp_key_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e)
@@ -729,17 +728,15 @@ static void words_render_page(int page)
         char cnt[40];
         snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, n);
         if (page > 0)
-            wt_pill(s_scr, tr(STR_C_BACK), 48, WT_ACTION_Y, 140, words_page_cb,
-                    (void *)(intptr_t)-1);
+            wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, words_page_cb, (void *)(intptr_t)-1);
         // STR_R_NEXT ("NEXT") is the receive flow's page-forward label. Same
         // word, already translated in all 21 locales; borrowing it beats
         // adding a string that would have to reach every table to ship.
         if (page < pages - 1)
-            wt_pill(s_scr, tr(STR_R_NEXT), 208, WT_ACTION_Y, 140, words_page_cb,
-                    (void *)(intptr_t)1);
+            wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, 208, WT_ACTION_Y, 0, false, words_page_cb, (void *)(intptr_t)1);
         wt_lbl(s_scr, cnt, 380, 416, wt_font23(), WT_MUT);
     }
-    wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, words_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, words_back_cb, NULL);
 }
 
 static void words_show_cb(lv_event_t *e)
@@ -1021,8 +1018,7 @@ static void words_page(void)
     // the action bar stops competing with the page for the same subject. No
     // attention chip either: wt_alert_chip plants itself at WT_ACT_X, which is
     // exactly where those two pills used to sit.
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-            words_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, words_back_cb, NULL);
 }
 
 static void words_warn_screen(lv_event_t *e)
@@ -1113,9 +1109,7 @@ static void kef_show_screen(void)
 
     wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_I_KEF_SD_BTN), WT_ACT_X,
                  WT_ACTION_Y, 330, WT_ACTION_H, kef_sd_cb, NULL);
-    lv_obj_t *dp = wt_pill(s_scr, tr(STR_C_DONE), WT_EXIT_X, WT_ACTION_Y, 140,
-                           kef_finish_cb, NULL);
-    wt_pill_primary(dp);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, true, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
 }
 
 static void kef_warn_reopen(void) { kef_warn_screen(NULL); }
@@ -1183,8 +1177,7 @@ static void kef_warn_screen(lv_event_t *e)
     // later, so the entry is a deliberate hold, the scan-key precedent.
     wt_hold_pill(s_scr, tr(STR_I_KEF_MAKE_BTN), WT_ACT_X, WT_ACTION_Y, 330,
                  WT_ACTION_H, 900, kef_make, NULL);
-    wt_pill(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140,
-            kef_finish_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----

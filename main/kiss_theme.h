@@ -891,6 +891,13 @@ void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop);
 // WT_BACK_X for the exit. Pass `right` to right-align inside x..x+w instead of
 // left-aligning at x, which is what keeps BACK's arrow against the margin
 // when a translation changes the label's width.
+// Re-label one, for a control whose word CHANGES -- the silent payment
+// screen's fold toggle says FULL ADDRESS or SHORT ADDRESS depending on which
+// way the tap goes. It is not lv_label_set_text on a child: the control's box
+// IS its two labels, so the width and the arrow's position both have to move
+// with the word, and the arrow is child 0 on a forward action, which is what
+// made a naive setter re-label the arrow and draw the word twice.
+void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt);
 lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
                           bool primary, int x, int y, int w, bool right,
                           lv_event_cb_t cb, void *ud);

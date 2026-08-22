@@ -324,9 +324,8 @@ static void vfy_result(const char *txt, size_t len) {
             WT_CONTENT_BOTTOM - note_y);
   }
 
-  lv_obj_t *again = wt_pill(s_scr, tr(STR_R_SCAN_ANOTHER), 48, WT_ACTION_Y, 220, vfy_scan, NULL);
-  wt_pill_primary(again);
-  wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, vfy_done_cb, NULL);
+  wt_arrow_action(s_scr, tr(STR_R_SCAN_ANOTHER), true, false, 48, WT_ACTION_Y, 0, false, vfy_scan, NULL);
+  wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, vfy_done_cb, NULL);
 }
 
 static void vfy_cancel(void) {
@@ -510,14 +509,11 @@ static void sp_addr_render(void) {
     lv_obj_move_foreground(s_sp_addr_hit);
   }
 
-  lv_obj_t *toggle_lbl = lv_obj_get_child(s_sp_toggle_pill, 0);
-  const char *toggle_txt = tr(s_sp_full ? STR_R_SP_SHOW_SHORT
-                                        : STR_R_SP_SHOW_FULL);
-  lv_label_set_text(toggle_lbl, toggle_txt);
-  wt_pill_apply_fit(s_sp_toggle_pill,
-                    wt_pill_fit(toggle_txt, 280, 52, false), 280);
-  lv_obj_t *row[2] = {s_sp_back_pill, s_sp_toggle_pill};
-  wt_pill_row(row, 2);
+  // Through the kit's own setter. Reaching for child 0 relabelled the ARROW
+  // on a forward action and drew the word twice, one on top of the other.
+  wt_arrow_action_set_text(s_sp_toggle_pill,
+                           tr(s_sp_full ? STR_R_SP_SHOW_SHORT
+                                        : STR_R_SP_SHOW_FULL));
 }
 
 static void sp_toggle_cb(lv_event_t *e) {
@@ -575,10 +571,8 @@ static void sp_addr_open(lv_obj_t *parent) {
                         kiss_testnet() ? 1 : 0,
                         on_net_line());
 
-  s_sp_back_pill = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                           sp_back_cb, NULL);
-  s_sp_toggle_pill = wt_pill(s_scr, tr(STR_R_SP_SHOW_FULL),
-                             WT_ACT_X, WT_ACTION_Y, 280, sp_toggle_cb, NULL);
+  s_sp_back_pill = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sp_back_cb, NULL);
+  s_sp_toggle_pill = wt_arrow_action(s_scr, tr(STR_R_SP_SHOW_FULL), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
@@ -586,8 +580,6 @@ static void sp_addr_open(lv_obj_t *parent) {
   lv_obj_clear_flag(s_sp_addr_hit, LV_OBJ_FLAG_SCROLLABLE);
   wt_tap_feedback(s_sp_addr_hit);
   lv_obj_add_event_cb(s_sp_addr_hit, sp_toggle_cb, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *row[2] = {s_sp_back_pill, s_sp_toggle_pill};
-  wt_pill_row(row, 2);
   sp_addr_render();
 }
 
