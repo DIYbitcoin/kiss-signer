@@ -3552,6 +3552,14 @@ int main(void) {
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> warning
   save("/tmp/sim_words_warn.ppm");                  // PAPER: show, check, note
+  // The other group, captured HERE and not down in the KEF section: by then
+  // the 24-word block has swapped the stored mnemonic out and back, and the
+  // page has no fingerprint to frame -- so the stop would photograph a state
+  // no owner reaches, with the band under the rows empty for a reason that is
+  // an artefact of the walk.
+  words_tab(WORDS_ENC);
+  save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
+  words_tab(WORDS_PAPER);
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   words_row(1);                         // Check my copy -> intro
@@ -3642,7 +3650,6 @@ int main(void) {
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> backup page
   words_tab(WORDS_ENC);                            // the group, not a wedged row
-  save("/tmp/sim_words_enc.ppm");                  // what it holds, before tapping
   words_row(0);                                    // Encrypted backup -> consent
   save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
   must_show("kef/with passphrase", tr(STR_I_KEF_PP_H));
