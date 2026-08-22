@@ -41,6 +41,9 @@ static void kef_wipe(void);
 // up here because swap_screen() and the idle close both have to stop its
 // motion before the screen goes, and both run above the page that owns it.
 static wt_pane_t s_wctx;
+// KEYS' own lane, declared beside it for the same reason: close_cb and
+// swap_screen both run above the page that owns it and both must stop it.
+static wt_pane_t s_ictx;
 
 bool kiss_info_active(void) { return s_scr != NULL; }
 
@@ -49,6 +52,7 @@ static void close_cb(lv_event_t *e)
     (void)e;
     kef_wipe();       // the idle close must never leave an envelope behind
     wt_pane_stop(&s_wctx);
+    wt_pane_stop(&s_ictx);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -61,6 +65,7 @@ static void swap_screen(void)           // replace the current section screen
     // running against a screen already on its way out -- and the idle
     // auto-lock lands in exactly that window.
     wt_pane_stop(&s_wctx);
+    wt_pane_stop(&s_ictx);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -294,9 +299,12 @@ static void help_cb(lv_event_t *e)
     else if (!strcmp(key, "pair"))
         help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR,
                     PAIR_ICONS, sizeof PAIR_ICONS / sizeof PAIR_ICONS[0]);
-    else if (!strcmp(key, "scan"))
-        help_open_d(tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_WARN_B), DIAG_SCAN,
-                    NULL, 0);
+    // "scan" is gone with the card that carried its "?". It opened
+    // STR_R_SP_WARN_B, which is the SAME string the warn screen one tap away
+    // prints in full above the permission rows -- so the lesson was reachable
+    // as a sub-line, as a card and as a warn screen, and only the first of the
+    // three cost a tap. The warn screen is the one that also asks for consent,
+    // so it is the one that stays.
     else
         help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD,
                   NULL, 0);
@@ -1173,253 +1181,202 @@ static void pair_open_cb(lv_event_t *e)  { (void)e; pair_screen(); }
 // carries its key the way a help chip used to.
 static void row_help_cb(lv_event_t *e) { help_cb(e); }
 
+// RECOVERY WORDS is a different page with a different tab count, and a context
+// remembers WHICH tab is open -- one shared with s_wctx would land an owner
+// back from the words page on whichever KEYS tab matched the index.
+static void info_tab_build(void);
+
+static void info_tab_cb(lv_event_t *e)
+{
+    wt_pane_go(&s_ictx, (int)(intptr_t)lv_event_get_user_data(e), false,
+               info_tab_build);
+}
+
+// The address fold this lane can hold. wt_addr_short's own fold is 28 mono
+// cells and 28 at mono23 is 387px against the ~330 a line row's value lane
+// leaves, so the air around the ellipsis goes and nothing else does: same
+// blocks, same last eight lit. Cutting a BLOCK would change which characters
+// the row teaches an owner to check, and shrinking the font is the bug this
+// whole redesign was drawn to fix.
+static void info_addr_value(lv_obj_t *row)
+{
+    char buf[128];
+    size_t n = kiss_session_address(0, 0, buf, sizeof buf) == 0
+                   ? strlen(buf) : 0;
+    if (n < 20) {
+        // The state, as words, never through the fold: an ellipsis and a lit
+        // tail would turn LOCKED into an address-shaped fragment, and a state
+        // has to read as a state.
+        lv_obj_t *st = wt_lbl(row, tr(STR_C_SESSION_LOCKED), WT_LINE_PAD,
+                              wt_line_val_y(), wt_font23(), WT_MUT);
+        lv_obj_set_width(st, 300);
+        lv_obj_set_height(st, lv_font_get_line_height(wt_font23()));
+        lv_label_set_long_mode(st, LV_LABEL_LONG_DOT);
+        return;
+    }
+    int pre = !strncmp(buf, "tsp1", 4) ? 5
+            : (!strncmp(buf, "bc1", 3) || !strncmp(buf, "tb1", 3) ||
+               !strncmp(buf, "sp1", 3)) ? 4 : 0;
+    // Prefix, ellipsis, the last EIGHT in two blocks -- shorter than the
+    // receive screen's fold because this lane is ~330px, and the blocks that
+    // go are the ones no rule tells an owner to check. The eight that stay are
+    // the eight the sub-line names.
+    const char *t = buf + n - 8;
+    // The prefix through a bounded copy, not "%.*s": the device compiler's
+    // truncation gate cannot see that pre is at most 5, and a copy into a
+    // char[8] is a bound it can prove.
+    char pfx[8] = {0};
+    if (pre) { memcpy(pfx, buf, (size_t)pre); pfx[pre] = ' '; }
+    char head[24], tail[16];
+    snprintf(head, sizeof head, "%s\xE2\x80\xA6 ", pfx);
+    snprintf(tail, sizeof tail, "%.4s %.4s", t, t + 4);
+
+    lv_obj_t *sg = lv_spangroup_create(row);
+    // A spangroup is clickable out of the box and silently eats every press
+    // that lands on it -- inside a tappable row that kills the row exactly
+    // where the address is printed.
+    lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);
+    lv_obj_set_style_text_font(sg, wt_font_mono23(), 0);
+    lv_span_t *s1 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s1, head);
+    lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
+    lv_span_t *s2 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s2, tail);
+    // Brightness alone marks the compared run, the same as every other address
+    // on the device: no underline, no second hue.
+    lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
+    // accent_walk repaints the LAST span of a flagged group, which is the
+    // lit tail by construction here as everywhere else.
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
+    lv_spangroup_refresh(sg);
+    lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
+}
+
+// Four lines and two lines, both on the one full-width lane. The old screen
+// put four facts in a left column and two destinations in a right one, which
+// is four different shapes for six things that are all "a label, what it says,
+// and where it takes you". They are one shape now, and the tab strip is what
+// buys the room: the lane is 704 wide instead of 365, so an address fits at
+// mono23 and a path fits beside its own type.
+static void info_tab_build(void)
+{
+    lv_obj_t *p = s_ictx.pane;
+    char buf[128];
+    const int X = 48, W = 704;
+
+    if (s_ictx.tab == 0) {
+        uint8_t fp[4];
+        kiss_ui_last_fp(fp);
+        const int H = 62;
+
+        // Mono. This is a code you hold beside a coordinator's screen and
+        // compare digit by digit, and the proportional face is the one that
+        // makes 0 and O and 8 and B argue.
+        snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+        wt_line_row(p, X, 120, W, H, tr(STR_D_FINGERPRINT), buf,
+                    wt_font_mono23(), WT_INK, tr(STR_K_FP_SUB), NULL,
+                    row_help_cb, (void *)"fp");
+        wt_line_rule(p, X, 120 + H, W);
+
+        // The one line with nothing to open, so the one line with no arrow at
+        // all. Not a dimmed arrow: a mark at low opacity still says there is
+        // something under it.
+        wt_line_row(p, X, 182, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
+                    wt_font23(), kiss_testnet() ? WT_WARN : WT_INK,
+                    tr(kiss_testnet() ? STR_G_TESTNET_NOTE
+                                      : STR_G_MAINNET_NOTE), NULL, NULL, NULL);
+        wt_line_rule(p, X, 182 + H, W);
+
+        // h, not an apostrophe, and this is correctness rather than style: at
+        // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
+        // the line reads as m/84/0/0. Those are DIFFERENT PATHS, and a
+        // coordinator handed the unhardened one finds none of these keys.
+        int sc = kiss_script();
+        int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
+        snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
+                 kiss_testnet() ? 1 : 0);
+        wt_line_row(p, X, 244, W, H, tr(STR_I_SEC_TYPE),
+                    tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
+                       : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
+                                              : STR_S_TY_NATIVE),
+                    wt_font23(), WT_INK, buf, wt_font_mono14(),
+                    row_help_cb, (void *)"type");
+        wt_line_rule(p, X, 244 + H, W);
+
+        lv_obj_t *ar = wt_line_row(p, X, 306, W, H, tr(STR_I_SEC_FIRST), NULL,
+                                   NULL, WT_INK, tr(STR_K_ADDR_SUB), NULL,
+                                   row_help_cb, (void *)"addr");
+        info_addr_value(ar);
+        wt_line_rule(p, X, 306 + H, W);
+        // 368, thirty clear of the floor. No explainer on this tab: four lines
+        // IS the explanation, and a sentence under them would be the page
+        // telling an owner what they have just read.
+        return;
+    }
+
+    const int H = 66;
+    wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING), tr(STR_I_PAIR_T),
+                wt_font23(), WT_INK, tr(STR_K_PAIR_SUB), NULL,
+                pair_open_cb, NULL);
+    wt_line_rule(p, X, 120 + H, W);
+    // "Scan" elsewhere on this device means the camera. Here it means searching
+    // the chain, and the caption above the value is what says which.
+    wt_line_row(p, X, 186, W, H, tr(STR_R_SP_BTN), tr(STR_R_SP_SCAN_BTN),
+                wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
+                sp_key_warn_cb, NULL);
+    wt_line_rule(p, X, 186 + H, W);
+
+    // The card that held SCAN KEY is gone, and its note with it: the note is
+    // already repeated on the warn screen this line opens, which is where a
+    // caution about handing out a key belongs. What replaces it is the one
+    // sentence neither screen ever said -- what the coordinator can and cannot
+    // do -- and it is the tab's whole point in two clauses.
+    wt_note(p, tr(STR_K_EXPL_COORD), X + 14, 274, W - 28,
+            WT_CONTENT_BOTTOM - 274);
+}
+
 static void info_screen(void)
 {
     s_pair_qr = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
+    wt_title_fit(s_scr, 704);
+    wt_title_cursor(s_scr);
 
-    // ---- the same list Settings is drawn on ----
-    // This screen was one 366x278 fact card with four eyebrow-and-value pairs
-    // stacked inside it, beside two pills each trailing a loose paragraph. Four
-    // different shapes for six things that are all "a label, what it says, and
-    // where it takes you". Settings had already solved that, and the owner reads
-    // Settings without effort, so this is the same wt_row list on the same
-    // geometry rather than a second idiom for the same job. WT_LIST_* lives in
-    // the theme now precisely so the two cannot drift apart.
-    //
-    // No subtitle. "fingerprint, network, addresses" named the three rows
-    // directly underneath it, and dropping it is what puts the first eyebrow on
-    // the same y=72 line Settings starts on.
-    //
-    // The help chips are gone with it. A row that opens an explainer opens it
-    // when you tap the ROW, which is the gesture this device already teaches on
-    // every Settings line, and a 365x64 target needs no aiming at a 20px circle.
-    // The labels stay in the eyebrow's upper case: they are the strings the 21
-    // locales already carry for these four facts, and inventing sentence case
-    // for them would mean English saying something no other language says.
-    char buf[128];
-    uint8_t fp[4];
-    kiss_ui_last_fp(fp);
+    static const wt_tab_t tabs[2] = {
+        { .icon = WT_ICON_KEY,        .label = "THIS SIGNER" },
+        { .icon = LV_SYMBOL_UPLOAD,   .label = "COORDINATOR" },
+    };
+    // The label strings are per-locale, so the array's two are placeholders
+    // that never reach the glass: wt_brackets is handed the translated pair.
+    wt_tab_t t[2] = { tabs[0], tabs[1] };
+    t[0].label = tr(STR_I_SEC_THIS_WALLET);
+    t[1].label = tr(STR_D_ONLINE_APP);
 
-    wt_row_head(s_scr, tr(STR_I_SEC_THIS_WALLET), WT_LIST_L_X, WT_LIST_TOP,
-                WT_LIST_W);
+    s_ictx.scr    = s_scr;
+    s_ictx.select = wt_brackets_select;
+    s_ictx.tabs   = wt_brackets(s_scr, t, 2, s_ictx.tab, 48, 70, 704,
+                                info_tab_cb);
+    wt_pane_tabs_watch(&s_ictx);
+    s_ictx.pane = wt_pane_new(&s_ictx);
+    info_tab_build();
 
-    // Mono, through wt_row_f. This is a code you hold beside a coordinator's
-    // screen and compare digit by digit, and the proportional face is the one
-    // that makes 0 and O and 8 and B argue.
-    snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    wt_row_f(s_scr, tr(STR_D_FINGERPRINT), NULL, NULL, buf, wt_font_mono23(),
-             WT_INK, WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W,
-             row_help_cb, (void *)"fp");
-
-    // The one row with nothing to open, so the one row with no chevron. Same
-    // pair of strings Settings puts on its own network row.
-    wt_row(s_scr, tr(STR_I_SEC_NET),
-           kiss_testnet() ? tr(STR_G_TESTNET_NOTE) : tr(STR_G_MAINNET_NOTE),
-           kiss_net_name(),
-           kiss_testnet() ? WT_WARN : WT_INK,
-           WT_LIST_L_X, WT_LIST_Y(1), WT_LIST_W, NULL, NULL);
-
-    // Type and path BOTH on the sub-line, and no value at all. The path was the
-    // value at mono23 first, and "ADDRESS TYPE" beside it ellipsised to
-    // "ADDRESS T..." -- a row's label and its value share one line, and these
-    // two are each about 170px in a 365 card. The rows in this column split
-    // cleanly in two anyway: a short fact goes in the value slot, a long
-    // reference goes on the sub-line, and this row and the address under it are
-    // both references.
-    //
-    // h, not an apostrophe, and this is correctness rather than style: at small
-    // sizes the apostrophes in m/84'/0'/0' render as tick marks and the line
-    // reads as m/84/0/0. Those are DIFFERENT PATHS, and a coordinator handed the
-    // unhardened one finds none of this wallet's addresses.
-    int sc = kiss_script();
-    int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
-    snprintf(buf, sizeof buf, "%s   m/%dh/%dh/0h",
-             tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
-                : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED : STR_S_TY_NATIVE),
-             purpose, kiss_testnet() ? 1 : 0);
-    wt_row_f(s_scr, tr(STR_I_SEC_TYPE), buf, wt_font_mono14(), NULL, NULL,
-             WT_INK, WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W,
-             row_help_cb, (void *)"type");
-
-    // The address on its own line at mono23, with the last EIGHT lit -- the
-    // same eight every receive and verify screen marks. It was a mono14
-    // sub-line with nothing lit, and both halves of that were wrong: an
-    // address is compare material, read character by character against a
-    // coordinator's screen, and font14 on it was a layout budget thrown away.
-    // This is the last row of its column, so it grows to 76 (bottom 384,
-    // above the 396 floor) instead of shrinking the one string on this page
-    // an owner actually has to READ.
-    {
-        lv_obj_t *arow = wt_row_x(s_scr, NULL, tr(STR_I_SEC_FIRST), NULL, NULL,
-                                  NULL, NULL, WT_INK, false, WT_LIST_L_X,
-                                  WT_LIST_Y(3), WT_LIST_W, 76,
-                                  row_help_cb, (void *)"addr");
-        // With no sub the row centres its label; this row builds its second
-        // line below, so the label takes the top lane every two-line row uses.
-        // The label is the row's last child: no icon, no value and no sub
-        // means only the chevron is built before it.
-        lv_obj_set_y(lv_obj_get_child(arow, -1), 7);
-
-        size_t n = kiss_session_address(0, 0, buf, sizeof buf) == 0
-                       ? strlen(buf) : 0;
-        if (n < 20) {
-            // The state, as words. Never through the address fold: an ellipsis
-            // and a lit tail would turn LOCKED into an address-shaped fragment,
-            // and a state must read as a state. font23, because it is the one
-            // thing on the row an owner is being told -- not metadata.
-            lv_obj_t *st = wt_lbl(arow, tr(STR_C_SESSION_LOCKED), 14, 43,
-                                  wt_font23(), WT_MUT);
-            lv_obj_set_width(st, 300);   // stops short of the chevron's lane
-            lv_obj_set_height(st, lv_font_get_line_height(wt_font23()));
-            lv_label_set_long_mode(st, LV_LABEL_LONG_DOT);
-        } else {
-            // wt_addr_short's fold, drawn locally: its double-spaced ellipsis
-            // is 28 mono cells, and 28 at mono23 (13.8px a cell) is 387px
-            // against the ~330 this card has. Same blocks, same last eight
-            // lit; only the air around the ellipsis goes. Cutting a BLOCK
-            // instead would change which characters the row teaches an owner
-            // to check, and shrinking the font is the bug being fixed.
-            int pre = !strncmp(buf, "tsp1", 4) ? 5
-                    : (!strncmp(buf, "bc1", 3) || !strncmp(buf, "tb1", 3) ||
-                       !strncmp(buf, "sp1", 3)) ? 4 : 0;
-            const char *t = buf + n - 12;
-            // The prefix through a bounded copy, not "%.*s": the device
-            // compiler's truncation gate cannot see that pre is at most 5,
-            // and a copy into a char[8] is a bound it can prove.
-            char pfx[8] = {0};
-            if (pre) { memcpy(pfx, buf, (size_t)pre); pfx[pre] = ' '; }
-            char head[24], tail[16];
-            snprintf(head, sizeof head, "%s%.4s\xE2\x80\xA6%.4s ",
-                     pfx, buf + pre, t);
-            snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
-
-            lv_obj_t *sg = lv_spangroup_create(arow);
-            // A spangroup is clickable out of the box and silently eats every
-            // press that lands on it -- inside a tappable row that kills the
-            // row exactly where the address is printed.
-            lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
-            lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);
-            lv_obj_set_style_text_font(sg, wt_font_mono23(), 0);
-            lv_span_t *s1 = lv_spangroup_new_span(sg);
-            lv_span_set_text(s1, head);
-            lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
-            lv_span_t *s2 = lv_spangroup_new_span(sg);
-            lv_span_set_text(s2, tail);
-            // Brightness alone marks the compared run, the same as every
-            // other address on the device: no underline, no second hue.
-            lv_style_set_text_color(lv_span_get_style(s2), wt_accent());
-            lv_spangroup_refresh(sg);
-            // Below the chevron's band, so the tail can run past the
-            // chevron's x lane without the two boxes sharing a pixel.
-            lv_obj_set_pos(sg, 14, 47);
-        }
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
+    // The network chip: a mark and its word, no box. It is the one thing on
+    // this page that is amber, and it is amber because it is a caution rather
+    // than a colour -- an owner on a test network is looking at money that is
+    // not money. Absent on mainnet; a chip reading MAINNET would be the device
+    // congratulating itself on the normal case.
+    if (kiss_testnet()) {
+        lv_obj_t *w = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_ACT_X,
+                             WT_ACTION_Y + 18, wt_font14(), WT_WARN);
+        lv_obj_update_layout(w);
+        lv_obj_t *l = wt_lbl(s_scr, tr(STR_G_TEST_CHIP),
+                             WT_ACT_X + lv_obj_get_width(w) + 10,
+                             WT_ACTION_Y + 16, wt_font_mono14(), WT_WARN);
+        lv_obj_set_style_text_letter_space(l, 2, 0);
     }
-
-    // ---- right column ----
-    // Two exports. They were pills, which said "button" about two things
-    // that are really destinations: both open a screen and neither does anything
-    // by itself. Their notes were loose paragraphs floating beside them; a note
-    // that belongs to a control belongs INSIDE it, which is the whole point of a
-    // row's sub-line.
-    wt_row_head(s_scr, tr(STR_D_ONLINE_APP), WT_LIST_R_X, WT_LIST_TOP,
-                WT_LIST_W);
-    // STR_I_PAIR_S, not STR_I_PAIR_BTN_NOTE. A row's sub-line is pinned to one
-    // line and ellipsised, and the note is "the coordinator wallet that watches.
-    // it cannot sign." -- the half that gets cut is the half that matters. This
-    // string says what the row DOES, which is what a row's sub-line is for, and
-    // "it cannot sign" is still on the pairing screen and in its explainer.
-    wt_row(s_scr, tr(STR_I_PAIR_T), tr(STR_I_PAIR_S), NULL, WT_INK,
-           WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, pair_open_cb, NULL);
-    // "Scan" elsewhere on this device means the camera. Here it means searching
-    // the chain, and the badge under the label is what says which.
-    //
-    // ONE card, where a row and an explainer card used to stack. The row's
-    // sub-line said "silent payment", the note in the box under it explained
-    // the export, and the warn screen the row opened explained it again -- a
-    // reader met the same lesson as a sub-line, as a card, and as a warn
-    // screen, and only the first of the three took a tap. Worse, the box and
-    // the row wore the same fill and border, so nothing on the page said which
-    // of two identical panels was the control. Merged, the card IS the
-    // destination: the row's label and sub-line sit beside the badge, the note
-    // keeps the full width below them, and the whole panel opens the export
-    // the way the row did. It runs from the row's old slot down to the 396
-    // floor the explainer already stood on, one pixel clear of
-    // WT_CONTENT_BOTTOM, so the right column still reaches the bottom the way
-    // the four rows on the left do.
-    {
-        const int card_h = 396 - WT_LIST_Y(1);
-        lv_obj_t *why = wt_card(s_scr, WT_LIST_R_X, WT_LIST_Y(1),
-                                WT_LIST_W, card_h);
-        // The whole card is the control, like the receive screen's address
-        // card: the thing being explained is the thing you tap, and a 365x230
-        // target needs no aiming. The "?" chip stays its own clickable on top
-        // of it and wins the taps that land there.
-        lv_obj_add_flag(why, LV_OBJ_FLAG_CLICKABLE);
-        wt_tap_feedback(why);
-        lv_obj_add_event_cb(why, sp_key_warn_cb, LV_EVENT_CLICKED, NULL);
-        // The same badge the explainer this "?" opens wears in ITS top right
-        // corner: help_cb's "scan" branch goes through DIAG_SCAN, and DIAG_SCAN
-        // picks WT_ICON_SECRET. One mark on the card and on the page behind it
-        // is the entire reason wt_explain_open takes an icon at all -- a reader
-        // should recognise where they landed before reading a word of it.
-        lv_obj_t *badge = lv_obj_create(why);
-        lv_obj_remove_style_all(badge);
-        lv_obj_set_pos(badge, 14, 12);
-        lv_obj_set_size(badge, 34, 34);
-        lv_obj_set_style_radius(badge, 17, 0);
-        lv_obj_set_style_bg_color(badge, WT_KEY, 0);
-        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(badge, 1, 0);
-        lv_obj_set_style_border_color(badge, WT_EDGE, 0);
-        lv_obj_remove_flag(badge, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_center(wt_lbl(badge, WT_ICON_SECRET, 0, 0, wt_font23(),
-                             wt_accent()));
-        wt_help_chip(why, WT_LIST_W - 42, 12, WT_MUT, help_cb, (void *)"scan");
-        // A big target nobody knows to press is not an affordance, so the card
-        // says it opens the way a row does: a chevron on the title line. Built
-        // and measured FIRST, like wt_row builds its own, so the label's box
-        // can exclude it -- the overlap gate compares boxes, and a label
-        // allowed to span the card would contain the chevron whatever the
-        // translation does. It stops 10 short of the chip's box at 323, and
-        // sits on the title line rather than at the card's right mid, because
-        // the note below owns the full width and a mark dropped into its box
-        // would collide with it in every locale at once.
-        const int lh23 = lv_font_get_line_height(wt_font23());
-        const int lh14 = lv_font_get_line_height(wt_font14());
-        lv_obj_t *chev = wt_lbl(why, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
-                                WT_MUT);
-        lv_obj_update_layout(chev);
-        const int chx = WT_LIST_W - 42 - 10 - lv_obj_get_width(chev);
-        lv_obj_set_pos(chev, chx, 12 + (lh14 + 3) / 2);
-        // The row's label and sub-line, in the row's own type, in the lane the
-        // badge leaves: 14..48 plus the row's gutter. Both pinned to ONE line
-        // and stopped short of the chevron for the same reason a row's are --
-        // a translation too long to fit ellipsises rather than rearranging
-        // the card.
-        const int tx = 58;
-        lv_obj_t *tl = wt_lbl(why, tr(STR_R_SP_SCAN_BTN), tx, 12,
-                              wt_font23(), WT_INK);
-        lv_obj_set_width(tl, chx - 10 - tx);
-        lv_obj_set_height(tl, lh23);
-        lv_label_set_long_mode(tl, LV_LABEL_LONG_DOT);
-        lv_obj_t *sub = wt_lbl(why, tr(STR_S_SP_BADGE), tx, 12 + lh23 + 3,
-                               wt_font14(), WT_MUT);
-        lv_obj_set_width(sub, chx - 10 - tx);
-        lv_obj_set_height(sub, lh14);
-        lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
-        // UNDER the marks and the title band, not beside them: a note threaded
-        // between the badge and the chip would be 275 wide and back at font14.
-        // Full width and everything left of the card's height is what buys
-        // font23, measured from where the sub-line actually ends rather than
-        // from a constant, because the line heights differ per font class.
-        const int ny = 12 + lh23 + 3 + lh14 + 8;
-        wt_note(why, tr(STR_R_SP_EXPORT_NOTE), 14, ny,
-                WT_LIST_W - 28, card_h - ny - 12);
-    }
-
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
 }
 
 void kiss_info_open(lv_obj_t *parent)
@@ -1428,6 +1385,10 @@ void kiss_info_open(lv_obj_t *parent)
     s_parent = parent;
     s_words_done = NULL;
     s_pair_fmt = 0;
+    // A fresh entry lands on tab 1. The context keeps its tab across a screen
+    // rebuild on purpose -- that is what returns an owner to the tab they left
+    // when a row's screen goes BACK -- so entering the page has to say so.
+    s_ictx.tab = 0;
     info_screen();
 }
 

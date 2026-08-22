@@ -1480,6 +1480,10 @@ static lv_obj_t *addr_spans(lv_obj_t *par, const char *grouped, int w,
         if (f == wt_font_mono14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font_mono23());
         else if (f == wt_font14())      lv_style_set_text_font(lv_span_get_style(s2), wt_font23());
     }
+    // The last span is the lit one, and the flag is what makes accent_walk
+    // repaint it when the theme moves. Every address on this device comes
+    // through here, so this is the one place it needs saying.
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
     lv_spangroup_refresh(sg);
     return sg;
 }
@@ -1531,6 +1535,25 @@ static void accent_walk(lv_obj_t *o)
             lv_obj_set_style_line_color(o, wt_accent(), 0);
         else if (lv_obj_check_type(o, &lv_arc_class))
             lv_obj_set_style_arc_color(o, wt_accent(), LV_PART_INDICATOR);
+        else if (lv_obj_check_type(o, &lv_spangroup_class)) {
+            // A span carries its own style and a text colour on the group is
+            // invisible, exactly like the line above. Every lit address on
+            // this device is built the same way -- a grey head and the last
+            // eight as the FINAL span -- so the last span is the accented one
+            // by construction, and repainting it is the whole job. Without
+            // this the address tails were the one accent-painted thing on the
+            // device that a theme change left behind, on the screens that show
+            // the most of them.
+            uint32_t sn = lv_spangroup_get_span_count(o);
+            if (sn) {
+                lv_span_t *last = lv_spangroup_get_child(o, (int32_t)sn - 1);
+                if (last) {
+                    lv_style_set_text_color(lv_span_get_style(last),
+                                            wt_accent());
+                    lv_spangroup_refresh(o);
+                }
+            }
+        }
     }
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BORDER))
         lv_obj_set_style_border_color(o, wt_accent(), 0);
@@ -2130,11 +2153,51 @@ lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y)
     return m;
 }
 
+lv_obj_t *wt_title_cursor(lv_obj_t *scr)
+{
+    lv_obj_t *t = wt_screen_title(scr);
+    if (!t) return NULL;
+    lv_obj_update_layout(t);
+    lv_obj_t *cur = lv_obj_create(scr);
+    lv_obj_remove_style_all(cur);
+    lv_obj_set_size(cur, 10, 22);
+    // Centred on the title's cap height rather than its box: a font34 line box
+    // carries descender room no capital reaches into, so centring on the box
+    // sits the block visibly low against KEYS and RECEIVE, which have no
+    // descenders at all.
+    lv_obj_set_pos(cur, lv_obj_get_x(t) + lv_obj_get_width(t) + 12,
+                   lv_obj_get_y(t) + (lv_obj_get_height(t) - 22) / 2 - 2);
+    lv_obj_set_style_bg_color(cur, wt_accent(), 0);
+    lv_obj_set_style_bg_opa(cur, LV_OPA_COVER, 0);
+    lv_obj_add_flag(cur, WT_FLAG_ACCENT_FILL);
+    lv_obj_remove_flag(cur, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(cur, LV_OBJ_FLAG_SCROLLABLE);
+
+    // step, not a fade: a cursor BLINKS. An eased opacity ramp reads as a
+    // pulse, which is the device's "something is happening" language and this
+    // is not that -- it is the page saying it is waiting for you.
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, cur);
+    lv_anim_set_exec_cb(&a, an_opa);
+    // 850 out and 850 back is the handoff's 1700ms cycle: lv_anim_path_step
+    // holds the start value for the whole duration and only then jumps, so one
+    // 1700ms leg would be 1700ms lit and one frame dim.
+    lv_anim_set_values(&a, LV_OPA_COVER, 31);
+    lv_anim_set_duration(&a, 850);
+    lv_anim_set_playback_duration(&a, 850);
+    lv_anim_set_path_cb(&a, lv_anim_path_step);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+    return cur;
+}
+
 lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                       const char *cap, const char *val, const lv_font_t *vf,
-                      lv_color_t vcol, const char *sub,
+                      lv_color_t vcol, const char *sub, const lv_font_t *sf,
                       lv_event_cb_t cb, void *ud)
 {
+    if (!sf) sf = wt_font14();
     lv_obj_t *row = lv_obj_create(par);
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
@@ -2197,29 +2260,45 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                          wt_font_mono14(), WT_MUT);
     lv_obj_set_style_text_letter_space(c, 3, 0);
 
+    // The SUB is measured before either it or the value is placed, and its box
+    // is sized to the text rather than to the lane. A label pinned to a fixed
+    // 200 and right-aligned inside it leaves an empty box reaching back across
+    // the row, and overlapcheck compares BOXES -- so a short sub beside a long
+    // value read as an overlap that nothing on the glass could show.
+    const int lane = 200;
+    int subw = 0;
+    if (sub && *sub) {
+        lv_point_t ss;
+        lv_text_get_size(&ss, sub, sf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        subw = ss.x > lane ? lane : ss.x;
+    }
+    // 46 in from the row's right, ALWAYS: 4 of lane inset, the arrow's 24, and
+    // 18 of gap. Measured off the arrow instead, the one row with no arrow
+    // would hang its sub 14px right of every other and the column would not
+    // read straight down.
+    const int sub_x = w - 46 - subw;
+
     if (val) {
+        // Stops 18 clear of whatever is to its right -- the sub if there is
+        // one, the arrow's lane if there is not. The value is the row's
+        // subject and is never ellipsised by choice, but a locale that
+        // overruns has to lose letters rather than run under the sub.
+        const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
                              vf ? vf : wt_font23(), vcol);
-        // Stops short of the sub's lane. The value is the row's subject and is
-        // never ellipsised by choice, but a locale that overruns must lose
-        // letters rather than run under the sub and share pixels with it.
-        lv_obj_set_width(v, right - 18 - 140 - WT_LINE_PAD);
+        lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
         lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
     }
 
-    if (sub && *sub) {
-        // Right edge 18 clear of the arrow's lane, which is 4 + 24 in from the
-        // row's right. The handoff writes this as "24 + 18 = 42 short"; the
-        // lane's own 4px inset makes it 46, and 46 is what the drawing shows.
-        const int lane = 200;
-        lv_obj_t *sl = wt_lbl(row, sub, 0, 0, wt_font14(), WT_DIM);
-        wt_sub_measure(sub, wt_font14(), lane);
-        lv_obj_set_width(sl, lane);
-        lv_obj_set_height(sl, lv_font_get_line_height(wt_font14()));
+    if (subw) {
+        lv_obj_t *sl = wt_lbl(row, sub, 0, 0, sf, WT_DIM);
+        wt_sub_measure(sub, sf, lane);
+        lv_obj_set_width(sl, subw);
+        lv_obj_set_height(sl, lv_font_get_line_height(sf));
         lv_label_set_long_mode(sl, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(sl, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -(w - right) - 18, 0);
+        lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -46, 0);
     }
     return row;
 }
@@ -2283,9 +2362,16 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 
         // Measured as a group, brackets included, or the label sits off centre
         // by the width of a bracket on every unselected tab.
+        // The MARK comes off the Latin face, not the mono one. IoskeleyMono is
+        // built from 0x20-0x7E plus three punctuation marks and carries no
+        // FontAwesome at all, so a WT_ICON_* asked of it draws LVGL's
+        // missing-glyph box -- at the right size, in the right place, on every
+        // tab, which is exactly the failure the wt_tabs comment warns about
+        // and exactly as invisible to every gate.
+        const lv_font_t *icf = wt_font14();
         lv_point_t is = { 0, 0 }, ls, bs;
         if (t->icon && *t->icon)
-            lv_text_get_size(&is, t->icon, f, 0, 0, LV_COORD_MAX,
+            lv_text_get_size(&is, t->icon, icf, 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
         lv_text_get_size(&ls, t->label, f, WT_BR_SPACE, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
@@ -2303,7 +2389,7 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_add_flag(lb, WT_FLAG_ACCENT);
         lv_obj_align(lb, LV_ALIGN_LEFT_MID, px, 0);
         if (iw) {
-            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, f, WT_DIM);
+            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, icf, WT_DIM);
             lv_obj_align(ic, LV_ALIGN_LEFT_MID, px + bw, 0);
         }
         lv_obj_t *l = wt_lbl(b, t->label, 0, 0, f, WT_MUT);

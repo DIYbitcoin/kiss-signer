@@ -2407,7 +2407,12 @@ int main(void) {
   kiss_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
   save("/tmp/sim_winfo_type_help.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
-  touch(590, 130); pump(3); release(); pump(6);     // PAIR COORDINATOR
+  // KEYS is two tabs on one lane now. Tab 1 is four lines at 120/182/244/306;
+  // tab 2 is at x=248..444 on the bracket strip and holds PAIRING at 120 and
+  // SILENT PAYMENT at 186.
+  touch(340, 85); pump(3); release(); pump(40);     // COORDINATOR tab
+  save("/tmp/sim_winfo_coord.ppm");
+  touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
   save("/tmp/sim_pair_zoom.ppm");
@@ -2422,17 +2427,9 @@ int main(void) {
   tap_str(STR_R_NEXT, 3, 6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the QR page
-  // SCAN KEY is no longer buried in the pair screen: it is one tappable CARD
-  // in the WALLET screen's COORDINATOR column (title, badge, note and the "?"
-  // in one frame -- the row and the explainer under it said the same lesson
-  // twice), so back out of pairing first. The card runs y=166..396 at x=412;
-  // its "?" chip sits card-relative (323,12), absolute centre (752,195), and
-  // a tap anywhere else on the card opens the consent warning.
-  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost pill) -> WALLET
-  touch(748, 195); pump(3); release(); pump(40);    // "?" -> what SCAN KEY means
-  save("/tmp/sim_sp_help.ppm");
-  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(594, 300); pump(3); release(); pump(6);     // SCAN KEY card -> consent warning
+  // BACK lands on the tab it left, which is what the context remembers for.
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> KEYS, still on COORDINATOR
+  touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent warning
   save("/tmp/sim_sp_warn.ppm");
   tap_str(STR_R_SP_SHOW, 25, 6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
@@ -2447,7 +2444,7 @@ int main(void) {
   // DONE, not BACK: the refusal render carries the same exit the success one
   // does. Then take the row again for the working export below.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET
-  touch(594, 300); pump(3); release(); pump(6);     // SCAN KEY card -> consent
+  touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent
   tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom

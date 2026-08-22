@@ -830,7 +830,7 @@ void wt_pane_exit(wt_pane_t *p, int dir);
 int wt_line_val_y(void);
 lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                       const char *cap, const char *val, const lv_font_t *vf,
-                      lv_color_t vcol, const char *sub,
+                      lv_color_t vcol, const char *sub, const lv_font_t *sf,
                       lv_event_cb_t cb, void *ud);
 // The 1px WT_DIV rule that belongs to a line row, as its OWN object at y + h,
 // so the entry animation can draw it with transform_scale_x without touching
@@ -843,6 +843,14 @@ lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w);
 // at; this one is a SIGN on a target you cannot miss, so it is smaller and
 // takes no taps of its own -- the row under it does.
 lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y);
+
+// The blinking block after a page title. It is the one thing on either screen
+// that repeats for ever, and it does NOT need deleting by hand on the way out:
+// LVGL's object destructor calls lv_anim_delete(obj, NULL) on every object it
+// frees, so the animation goes with the screen. Written down because the
+// handoff asks for the delete, and a delete that duplicates the framework is
+// dead code that reads like a safety net.
+lv_obj_t *wt_title_cursor(lv_obj_t *scr);
 
 // The bracket tab strip. Same wt_tab_t as wt_tabs (`dot` and `stop` are
 // ignored -- neither screen has a destructive group or an unread one), and the
