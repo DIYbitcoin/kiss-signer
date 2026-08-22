@@ -42,11 +42,11 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 02c duress pick](green/02c-duress-pick.png)
 
-`sim_duress_pick_real`
+`sim_duress_pick`
 
 ![green, 02d duress draw](green/02d-duress-draw.png)
 
-`sim_duress_draw_real`
+`sim_duress_draw_again`
 
 ![green, 04 wallet facts](green/04-wallet-facts.png)
 
@@ -102,7 +102,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ## testnet
 
-Testnet, MONO, English. The walk already captures these near the end and they were published nowhere.
+The test networks, MONO, English. The walk already captures these near the end and they were published nowhere. SIGNET is a label: the same keys, the same tb1 addresses, a different chain.
 
 ![testnet, 01 island menu](testnet/01-island-menu.png)
 
@@ -138,11 +138,11 @@ Testnet, MONO, English. The walk already captures these near the end and they we
 
 ![testnet, 02c duress pick](testnet/02c-duress-pick.png)
 
-`sim_duress_pick_real`
+`sim_duress_pick`
 
 ![testnet, 02d duress draw](testnet/02d-duress-draw.png)
 
-`sim_duress_draw_real`
+`sim_duress_draw_again`
 
 ![testnet, 04 wallet facts](testnet/04-wallet-facts.png)
 
@@ -196,6 +196,18 @@ Testnet, MONO, English. The walk already captures these near the end and they we
 
 `sim_qr_out1`
 
+![testnet, t0 network](testnet/t0-network.png)
+
+`sim_settings_tn_first`
+
+![testnet, t0a signet settings](testnet/t0a-signet-settings.png)
+
+`sim_settings_signet`
+
+![testnet, t0b signet home](testnet/t0b-signet-home.png)
+
+`sim_wallet_signet`
+
 ![testnet, t1 home](testnet/t1-home.png)
 
 `sim_wallet_testnet`
@@ -224,97 +236,7 @@ Testnet, MONO, English. The walk already captures these near the end and they we
 
 Japanese. Every title and primary button drops from wt_font34 to wt_font28, since the 34 rung has no CJK face by design.
 
-![ja, 01 island menu](ja/01-island-menu.png)
-
-`sim_ja_menu_back`
-
-![ja, 02 kiss login](ja/02-kiss-login.png)
-
-`sim_ja_login`
-
-![ja, 03 wallet home](ja/03-wallet-home.png)
-
-`sim_ja_wallet`
-
-![ja, 03a setup storage](ja/03a-setup-storage.png)
-
-`sim_ja_setup_storage`
-
-![ja, 03b settings storage](ja/03b-settings-storage.png)
-
-`sim_ja_storage_choose`
-
-![ja, 03c settings](ja/03c-settings.png)
-
-`sim_ja_settings`
-
-![ja, 02a duress intro](ja/02a-duress-intro.png)
-
-`sim_ja_duress_intro`
-
-![ja, 02b duress fund](ja/02b-duress-fund.png)
-
-`sim_ja_duress_fund`
-
-![ja, 02c duress pick](ja/02c-duress-pick.png)
-
-`sim_ja_duress_pick_real`
-
-![ja, 02d duress draw](ja/02d-duress-draw.png)
-
-`sim_ja_duress_draw_real`
-
-![ja, 04 wallet facts](ja/04-wallet-facts.png)
-
-`sim_ja_winfo`
-
-![ja, 05 pair sparrow](ja/05-pair-sparrow.png)
-
-`sim_ja_pair`
-
-![ja, 06 pair explained](ja/06-pair-explained.png)
-
-`sim_ja_pair_help`
-
-![ja, 07 receive](ja/07-receive.png)
-
-`sim_ja_recv`
-
-![ja, 08 verify match](ja/08-verify-match.png)
-
-`sim_ja_vfy_yes`
-
-![ja, 09 verify wrong net](ja/09-verify-wrong-net.png)
-
-`sim_ja_vfy_wrong_net`
-
-![ja, 10 receive first](ja/10-receive-first.png)
-
-`sim_ja_recv1`
-
-![ja, 11 receive reuse](ja/11-receive-reuse.png)
-
-`sim_ja_recv_reminder`
-
-![ja, 12 sign choose](ja/12-sign-choose.png)
-
-`sim_ja_sign_files`
-
-![ja, 13 sign verify](ja/13-sign-verify.png)
-
-`sim_ja_sign_verify`
-
-![ja, 14 sign hold](ja/14-sign-hold.png)
-
-`sim_ja_sign_hold`
-
-![ja, 15 sign done](ja/15-sign-done.png)
-
-`sim_ja_sign_done`
-
-![ja, 16 sign qr out](ja/16-sign-qr-out.png)
-
-`sim_ja_qr_out1`
+**Not rendered:** translations are one sweep AFTER the UI stops moving; the walk's needles are English strings this locale has not been given yet.
 
 ---
 

@@ -238,9 +238,32 @@ AXES = {
              "label: the same keys, the same tb1 addresses, a different chain."),
     "ja": dict(
         env={"SIM_LANG": "ja"}, pfx="ja", extra=[],
+        # PARKED, and the reason is a rule this project already wrote down.
+        # English is the only locale that moves while the UI is still moving,
+        # so the other twenty carry wording that is going to be thrown away and
+        # the walk's needles are English strings those screens do not hold. Six
+        # of them fail here today and every one is that, not a device fault.
+        #
+        # This axis nevertheless GATED THE RELEASE, because gen_docs_shots.sh
+        # exits on any axis that fails. So the English-only rule and the release
+        # script disagreed, and the script won: no release could be cut at all.
+        # It is skipped until the translation sweep, and it says so rather than
+        # disappearing quietly.
+        #
+        # DOCS_SHOTS_ALL_AXES=1 runs it anyway, which is what the sweep will do.
+        parked="translations are one sweep AFTER the UI stops moving; the "
+               "walk's needles are English strings this locale has not been "
+               "given yet",
         note="Japanese. Every title and primary button drops from wt_font34 "
              "to wt_font28, since the 34 rung has no CJK face by design."),
 }
+
+
+def live_axes():
+    """Axis names the release actually renders. See the ja entry above."""
+    if os.environ.get("DOCS_SHOTS_ALL_AXES"):
+        return list(AXES)
+    return [a for a in AXES if not AXES[a].get("parked")]
 
 
 LEGACY = [
@@ -337,6 +360,11 @@ def write_review_index():
            "once, in [the walkthrough](walkthrough.md).", ""]
     for axis in AXES:
         out += ["## " + axis, "", AXES[axis]["note"], ""]
+        if axis not in live_axes():
+            # Named, not dropped. An axis that vanishes from this page reads as
+            # an axis nobody thought was worth reviewing.
+            out += ["**Not rendered:** " + AXES[axis]["parked"] + ".", ""]
+            continue
         for path, frame in review_targets(axis):
             name = os.path.basename(path)[:-4]
             out += ["![%s, %s](%s/%s.png)" % (axis, name.replace("-", " "),
@@ -701,8 +729,13 @@ def main():
         return check()
     if "--axis-list" in sys.argv:
         # For tools/gen_docs_shots.sh. Space separated so the shell can loop
-        # it without holding a copy of the axis names itself.
-        print(" ".join(AXES))
+        # it without holding a copy of the axis names itself. Parked axes go to
+        # stderr with their reason -- skipping one quietly is how a release ends
+        # up publishing a set nobody noticed had stopped being rendered.
+        for a in AXES:
+            if a not in live_axes():
+                sys.stderr.write("skipping axis %s: %s\n" % (a, AXES[a]["parked"]))
+        print(" ".join(live_axes()))
         return 0
     if "--axis-env" in sys.argv:
         # For tools/gen_docs_shots.sh. Printing KEY=VALUE lines that the shell
