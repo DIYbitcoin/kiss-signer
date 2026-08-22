@@ -86,6 +86,10 @@ plus NVS encryption. Plain flash encryption does not cover `nvs` data
 partitions and the words live in NVS, so both are needed; the XTS keys go in an
 `nvs_key` partition which is itself flash-encrypted.
 
+The key size is XTS-AES-128, chosen deliberately: it is not weak, the size is
+fixed by the first boot's eFuse burn, and AES-256 waits for the later pass
+with secure boot.
+
 The first boot burns eFuses. It cannot be undone, and the device can never be
 reflashed over serial afterwards. A separate rehearsal profile
 (`KISS_ENC_REHEARSAL=1`) leaves reflashing available but still burns a flash

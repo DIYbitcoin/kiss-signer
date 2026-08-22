@@ -85,6 +85,11 @@ static void wipe_buffers(k_quirc_t *q) {
 void k_quirc_destroy(k_quirc_t *q) {
   if (q) {
     wipe_buffers(q);
+    // The decoded text lives inside the context itself. Zero it before K_FREE
+    // takes the struct: the heap is not scrubbed on free, and that payload can
+    // be a mnemonic.
+    memset(&q->data_scratch, 0, sizeof q->data_scratch);
+    memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
     if (q->image)
       K_FREE(q->image);
     if (q->owns_pixels && q->pixels)
