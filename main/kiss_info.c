@@ -799,22 +799,6 @@ enum { WTAB_PAPER = 0, WTAB_ENC, WTAB_N };
 #define w_pane  s_wctx.pane
 #define w_tab   s_wctx.tab
 
-// The eight characters the keys are CALLED, framed, or nothing at all. An
-// all-zero fingerprint is not an id -- it is the absence of one, which is what
-// this page shows after the walk swaps the stored mnemonic out from under it,
-// and a value card reading 00000000 states a fact the device does not have.
-// The band stays empty in that case, which is honest and rare.
-static bool words_fp_card(lv_obj_t *parent, int y)
-{
-    uint8_t fp[4];
-    kiss_ui_last_fp(fp);
-    if (!(fp[0] | fp[1] | fp[2] | fp[3])) return false;
-    char id[16];
-    snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    wt_value_card(parent, tr(STR_L_FP_CAP), id, 231, y, 340, true);
-    return true;
-}
-
 static void wtab_paper(void)
 {
     const bool ok = kiss_ui_backup_checked();
@@ -889,7 +873,7 @@ static void wtab_paper(void)
     //
     // Only when the group left room. A third row pushes the note to 336 and
     // there is no band to earn.
-    if (rows == 2) words_fp_card(w_pane, 302);
+    if (rows == 2) kiss_fp_card(w_pane, 302);
 }
 
 static void wtab_enc(void)
@@ -931,7 +915,7 @@ static void wtab_enc(void)
     // the same place: this is a backup OF a set of keys, the owner is entitled
     // to know which, and the sealed file is named by it. Two rows leave the
     // band; the subject earns it.
-    words_fp_card(w_pane, 302);
+    kiss_fp_card(w_pane, 302);
 }
 
 static void wtab_build(void)

@@ -3607,13 +3607,17 @@ int main(void) {
   touch(163, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
   save("/tmp/sim_verify_ok_nofp.ppm");              // tall body, no code below
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
-  // The backup row in its OTHER state. The walk has always come back through
-  // here and never looked: while "Paper checked" was a second card the amber
-  // one was captured and the green one never was, and now that the two cards
-  // are one row that changes colour, glyph and sub-line, the unchecked frame
-  // covers half of what this row can draw.
+  // The backup group with NO FINGERPRINT, which is what kiss_ui_forget_fp
+  // above leaves behind: the check ran, but there was no id to record it
+  // against, so the row stays amber. The name is historical -- it was added
+  // expecting the green state and never looked at.
+  //
+  // It is the one frame that proves kiss_fp_card's guard. An all-zero
+  // fingerprint is the absence of an id, and this band used to frame
+  // "00000000" under a caption reading THE ID OF YOUR KEYS -- a code that
+  // looks real and gets copied onto paper. The band is empty here now.
   set_tab(SET_BACKUP);
-  save("/tmp/sim_settings_checked.ppm");            // green card, the keys' ID
+  save("/tmp/sim_settings_checked.ppm");            // amber row, and no id card
 
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> warning again

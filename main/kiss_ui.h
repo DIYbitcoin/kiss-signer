@@ -94,6 +94,23 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
 // Right edge of the row the call above drew. The version string grows between
 // build profiles, so anything placed beside it measures rather than guesses.
 int kiss_build_id_right(void);
+
+// The eight characters the open keys are CALLED, framed on the value-card
+// idiom at (231, y) x 340, or NOTHING. Two pages want it in the band their
+// rows leave behind and both want the same rule about the empty case.
+//
+// An all-zero fingerprint is the ABSENCE of an id, not an id -- it is what
+// kiss_ui_forget_fp leaves behind and what a failed derivation leaves behind.
+// Drawing it anyway frames "00000000" as a fact the device does not have, on
+// the one figure an owner is meant to hold against the paper in their hand,
+// and a code that looks real is a code that gets copied down. The BACKUP
+// VERIFIED screen and the fingerprint reveal both learned this already; this
+// is the same guard, kiss_fp_known, for the two pages that frame it in a band.
+// The band stays empty instead, which is honest and rare -- an unlocked signer
+// always has one.
+//
+// Returns whether it drew, for a caller that wants to know the band is spent.
+bool kiss_fp_card(lv_obj_t *parent, int y);
 void kiss_build_id_restyle(lv_obj_t *version_label);
 
 #ifndef ESP_PLATFORM

@@ -1606,13 +1606,7 @@ static void tab_backup(void)
     // off the glass already uses, so the same eight characters sit where they
     // sit on the fingerprint reveal and the pairing screen. STR_L_FP_CAP is
     // the caption those screens use and it already ships in 21 locales.
-    {
-        uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        char id[16];
-        snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_value_card(s_pane, tr(STR_L_FP_CAP), id, 231, 302, 340, true);
-    }
+    kiss_fp_card(s_pane, 302);
 }
 
 static void tab_device(void)

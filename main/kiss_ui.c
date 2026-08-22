@@ -2348,6 +2348,19 @@ static int s_build_id_right;   // measured right edge, see kiss_build_id_right
 // empty bottom edge to put them on, and stacking them there turned a quiet
 // one line signature into a two line block wedged into the corner, which is
 // what the device showed and what got this parameter written.
+bool kiss_fp_card(lv_obj_t *parent, int y)
+{
+  uint8_t fp[4];
+  kiss_ui_last_fp(fp);
+  // kiss_fp_known and not a fresh test of the same bytes: this is the third
+  // screen to need the question and the answer already had a name.
+  if (!kiss_fp_known(fp)) return false;
+  char id[16];
+  snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+  wt_value_card(parent, tr(STR_L_FP_CAP), id, 231, y, 340, true);
+  return true;
+}
+
 lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
                                bool stacked)
 {
