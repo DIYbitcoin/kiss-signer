@@ -207,6 +207,13 @@ echo "PASS: signed app verifies against the published public key"
 fi
 
 # ---- verify the release binary ----
+# The version comes first and on its own, because it is the one fault that
+# survives a green build: a build directory configured before VERSION last
+# changed keeps declaring the old number, and a substring test cannot tell the
+# difference between the version being present and the version being what the
+# image actually claims. check_fw_version.py reads the app descriptor.
+python3 tools/check_fw_version.py build-release || exit 1
+
 GIT_REV="$GIT_REV" python3 - <<'PY'
 import os, sys
 bin_path = "build-release/guition_kiss_bringup.bin"
@@ -225,11 +232,8 @@ if b"KISS %s dev (%s)" in blob:
     print("FAIL: dev build banner found in release binary"); fails += 1
 else:
     print("PASS: no dev banner in release binary")
-ver = open("VERSION").read().strip().encode()
-if ver in blob:
-    print(f"PASS: version {ver.decode()} present")
-else:
-    print(f"FAIL: version {ver.decode()} missing"); fails += 1
+# the version is checked against the app descriptor by check_fw_version.py,
+# above, which is stronger than asking whether the string appears anywhere
 if b"C6 radio held in reset" in blob:
     print("PASS: C6 radio-hold code present")
 else:

@@ -7,8 +7,12 @@ idf_component_register(
 # generated font_kiss_*.c include lvgl via the plain "lvgl.h" form
 target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_LVGL_H_INCLUDE_SIMPLE=1)
 
-# version string shown in Settings (single source: the VERSION file)
-file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/../VERSION KISS_VERSION_LINE LIMIT_COUNT 1)
+# version string shown in Settings. NOT a second read of the VERSION file: this
+# takes the value the root CMakeLists.txt already set as PROJECT_VER, which is
+# the same value the app descriptor carries. Reading the file again here made
+# the Settings line and the descriptor two independent pipelines that only
+# happened to agree, and nothing enforced it.
+idf_build_get_property(KISS_VERSION_LINE PROJECT_VER)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_VERSION_STR="${KISS_VERSION_LINE}")
 
 # short commit for verifier matching. Passed by tools/build_release.sh from the
