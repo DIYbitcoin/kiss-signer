@@ -181,7 +181,7 @@ static void fw_head(const char *title, const char *band, bool accent)
     lv_obj_update_layout(m);
 
     lv_obj_t *l = wt_lbl(s_scr, band, FW_X + lv_obj_get_width(m) + 8, FW_BAND_Y,
-                         wt_font_mono14(), accent ? wt_accent() : WT_MUT);
+                         wt_font14(), accent ? wt_accent() : WT_MUT);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
 
@@ -264,7 +264,7 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
         lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, x, -10);
 
-        lv_obj_t *w = wt_lbl(box, t->lamp, 0, 0, wt_font_mono14(), t->lampc);
+        lv_obj_t *w = wt_lbl(box, t->lamp, 0, 0, wt_font14(), t->lampc);
         lv_obj_set_style_text_letter_space(w, 2, 0);
         lv_obj_align(w, LV_ALIGN_BOTTOM_LEFT, x + 16, -4);
     }
@@ -500,7 +500,7 @@ static void fw_light_band(int y)
     lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 18,
-                         wt_font_mono14(), WT_MUT);
+                         wt_font14(), WT_MUT);
     lv_obj_set_style_text_letter_space(l, 4, 0);
 
     lv_anim_t a;
@@ -729,7 +729,7 @@ static void fw_screen(void)
 
     // The caption over the trade, and the only thing above it on the screen.
     lv_obj_t *cap = wt_lbl(s_scr, tr(STR_G_FW_ON_CARD), FW_TXT_X, FW_PANE_Y,
-                           wt_font_mono14(), wt_accent());
+                           wt_font14(), wt_accent());
     lv_obj_set_style_text_letter_space(cap, 2, 0);
     lv_obj_add_flag(cap, WT_FLAG_ACCENT);
     fw_enter(cap, 280, 40);

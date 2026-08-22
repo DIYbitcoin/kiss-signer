@@ -2269,7 +2269,7 @@ void wt_line_press(lv_obj_t *row)
 
 int wt_line_val_y(void)
 {
-    return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font_mono14()) + 4;
+    return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font14()) + 4;
 }
 
 lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w)
@@ -2387,9 +2387,17 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         right = w - 4 - 24;
     }
 
+    // The page font, not the mono one. The mono face is for DATA -- a version,
+    // an address, a fingerprint, a path -- where fixed pitch is what lets an
+    // owner compare two of them character by character. A caption is a WORD,
+    // and a word set in a second typeface next to a page of Montserrat reads
+    // as a rendering fault rather than as a distinction. Reported from the
+    // bench as exactly that: "idk why smaller fonts are different fonts".
+    // Letter space 2, which is what wt_row_head has always used for the same
+    // kind of label.
     lv_obj_t *c = wt_lbl(row, cap, WT_LINE_PAD, WT_LINE_CAP_Y,
-                         wt_font_mono14(), WT_MUT);
-    lv_obj_set_style_text_letter_space(c, 3, 0);
+                         wt_font14(), WT_MUT);
+    lv_obj_set_style_text_letter_space(c, 2, 0);
 
     // font23, and NOT font14. A sub-line here is a SENTENCE -- "names these
     // keys", "compare the last 8", "so it finds these payments" -- and the
@@ -2447,7 +2455,13 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
 }
 
 // ---- the bracket tab strip ----
-#define WT_BR_SPACE 2    // the tracking a mono14 tab label wears
+// The tracking a tab label wears. 1, not 2, since the label moved off the mono
+// face: Montserrat's caps are wider than Ioskeley's at the same pixel size, and
+// at 2 the product's own English "SILENT PAYMENT" lost its last three letters
+// to the ellipsis. The tab cannot widen -- 196 on a 200 pitch is what puts
+// three groups in the 704 lane -- so the tracking is what gives the letters
+// back.
+#define WT_BR_SPACE 1
 #define WT_BR_GAP   7    // icon to label, and bracket to either
 
 // Every tab is built with both brackets and they are never created or
@@ -2480,7 +2494,11 @@ static void br_paint(lv_obj_t *tab, bool sel)
 lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                       int x, int y, int w, lv_event_cb_t cb)
 {
-    const lv_font_t *f = wt_font_mono14();
+    // One face across the strip. The MARK already comes off the Latin face --
+    // the mono one carries no FontAwesome and drew a blank box for every tab
+    // icon until that was fixed -- so a mono label meant every tab was set in
+    // two typefaces at once.
+    const lv_font_t *f = wt_font14();
 
     lv_obj_t *strip = lv_obj_create(scr);
     lv_obj_remove_style_all(strip);
