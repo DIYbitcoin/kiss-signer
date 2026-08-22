@@ -275,6 +275,41 @@ if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
   exit 1
 fi
 echo "PASS: signed app verifies against the published public key"
+
+# ---- and the post quantum signature, on the same image ----
+#
+# This lane's app can reach a card as an SD update the same way the plain lane's
+# can, and a device built from either refuses an image with no trailer. Skipping
+# it here would produce a correctly signed, correctly hashed image that says
+# "the post quantum signature is missing or wrong" on every board it is offered
+# to -- a readable refusal, which is the only reason this is a note in a script
+# and not a brick.
+#
+# After the ECDSA verify, never before: espsecure reads the file as a whole and
+# the trailer is not part of the image it signed. See docs/installer/SIGNING.md.
+KISS_PQ_KEY="${KISS_PQ_KEY:-$HOME/.kiss-signer/pq_release.key}"
+if [ ! -f "$KISS_PQ_KEY" ]; then
+  echo
+  echo "FAIL: post quantum release key not found at $KISS_PQ_KEY"
+  echo "      Mint it once (docs/installer/SIGNING.md). Without it this image"
+  echo "      carries one signature of the two a device asks for, and no board"
+  echo "      will install it from a card."
+  exit 1
+fi
+bash sim/build_pqtool.sh >/dev/null
+PQ_TOOL="${KISS_SIM_TMP:-/tmp}/pq_tool"
+if ! diff -q <("$PQ_TOOL" header "$KISS_PQ_KEY") main/pq_release_pubkey.h >/dev/null; then
+  echo "FAIL: main/pq_release_pubkey.h is not the public half of $KISS_PQ_KEY"
+  echo "      Regenerate it and rebuild:"
+  echo "        $PQ_TOOL header $KISS_PQ_KEY > main/pq_release_pubkey.h"
+  exit 1
+fi
+"$PQ_TOOL" sign "$KISS_PQ_KEY" "$BUILD_DIR/guition_kiss_bringup.bin"
+if ! "$PQ_TOOL" verify "$KISS_PQ_KEY" "$BUILD_DIR/guition_kiss_bringup.bin"; then
+  echo "FAIL: the image does not verify against its own post quantum signature"
+  exit 1
+fi
+echo "PASS: signed app carries a post quantum signature that verifies"
 fi
 
 # ---- verify: binary contents AND the security config that actually built ----
