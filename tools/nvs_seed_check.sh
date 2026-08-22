@@ -1,13 +1,16 @@
 #!/bin/bash
-# Is a mnemonic readable in the device's NVS partition right now?
+# Is signer recovery material recoverable from the device's NVS partition now?
 #
 # The only way to answer whether REPLACE actually destroyed the words it
 # replaced. NVS is log structured, so a logically deleted mnemonic stays on its
 # page until a compaction that may never come; nothing in the simulator can see
 # that, because the host build has no NVS at all.
 #
-# Prints FINGERPRINTS, never words. A seed phrase read off a chip is still a
-# seed phrase, and this runs on a terminal with scrollback.
+# Finds both legacy plaintext mnemonics and today's sealed wblob+nkey form,
+# including entries that NVS marks erased but has not physically overwritten.
+# The sealed form is authenticated, decrypted in memory and BIP39-validated.
+# Prints recovery IDs, never words or keys. A mnemonic read off a chip is still
+# signer key material, and this runs on a terminal with scrollback.
 #
 #   bash tools/nvs_seed_check.sh before
 #   ... do the thing on the device ...
@@ -32,14 +35,17 @@
 # legacy range gets its own labelled scan. That residue is real seed material
 # on real boards, and until now the only tool that read that address called it
 # the live partition.
-set -e
+set -euo pipefail
 cd "$(dirname "$0")/.."
 
 LABEL="${1:-dump}"
 PORT="${PORT:-/dev/cu.usbmodem1101}"
-OUT="/tmp/kiss_nvs_$LABEL.bin"
-TBL="/tmp/kiss_ptable_$LABEL.bin"
-LEGACY="/tmp/kiss_nvs_legacy_$LABEL.bin"
+umask 077
+SCAN_TMP=$(mktemp -d "${TMPDIR:-/tmp}/kiss-nvs.XXXXXX")
+trap 'rm -rf -- "$SCAN_TMP"' EXIT
+OUT="$SCAN_TMP/nvs.bin"
+TBL="$SCAN_TMP/ptable.bin"
+LEGACY="$SCAN_TMP/legacy.bin"
 ESPTOOL="${ESPTOOL:-$(command -v esptool || true)}"
 if [ -z "$ESPTOOL" ]; then
     echo "set ESPTOOL=/path/to/esptool (a venv with 'pip install esptool')" >&2
@@ -110,38 +116,7 @@ NVS_SZ=$(echo "$NVS_RANGE" | cut -d' ' -f2)
     read-flash 0x8000 0x8000 "$LEGACY" >/dev/null 2>&1
 
 scan() {  # scan <dump> <base-offset> <what>
-python3 - "$1" "$2" "$3" "$LABEL" <<'PY'
-import hashlib, re, sys
-
-blob = open(sys.argv[1], "rb").read()
-base = int(sys.argv[2], 16)
-what = sys.argv[3]
-label = sys.argv[4]
-
-# BIP39 words are 3..8 lowercase letters. A mnemonic is 12 or 24 of them with
-# single spaces. Scan the raw bytes, not the parsed key/value entries:
-# residue is exactly the thing NVS no longer lists.
-text = blob.decode("latin-1")
-found = {}
-for m in re.finditer(r"(?:[a-z]{3,8} ){11,23}[a-z]{3,8}", text):
-    s = m.group(0)
-    n = len(s.split())
-    if n not in (12, 24):
-        continue
-    fp = hashlib.sha256(s.encode()).hexdigest()[:12].upper()
-    found.setdefault(fp, {"n": n, "at": []})["at"].append(m.start())
-
-blank = all(b == 0xFF for b in blob)
-print(f"{what} [{label}]  {len(blob)} bytes from 0x{base:X}"
-      + ("  (all 0xFF: blank or never written)" if blank else ""))
-if not found:
-    print("  no mnemonic readable in this range")
-else:
-    for fp, d in found.items():
-        where = ", ".join(f"0x{base + a:X}" for a in d["at"])
-        print(f"  {fp}  {d['n']} words  x{len(d['at'])}  at {where}")
-print(f"  ({len(found)} distinct)")
-PY
+    python3 tools/nvs_seed_scan.py "$1" "$2" "$3" "$LABEL"
 }
 
 scan "$OUT" "$NVS_OFF" "NVS dump"

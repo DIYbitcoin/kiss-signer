@@ -42,6 +42,23 @@ jobs:
           /tmp/kisstest | tee /tmp/kisstest.log
           grep -q "PASS: BIP39 test vector -> 73C5DA0A" /tmp/kisstest.log
 
+      # tools/nvs_seed_check.sh is the only thing that can say whether REPLACE
+      # actually destroyed the words it replaced: NVS is log structured, so an
+      # erased key is two bitmap bits and the sealed blob stays on its page
+      # until a compaction that may never come. Nothing in the simulator has
+      # NVS at all, so this ran by hand or not at all -- and a forensic tool
+      # nobody re-runs is one whose false clean answer nobody notices.
+      #
+      # The fixture is an NVS page built byte for byte in the test, so there is
+      # no esptool, no device and no third-party package: stdlib plus the
+      # libcrypto Python already links. It authenticates and decrypts the
+      # sealed blob the same way the device does and checks the BIP39 sum, so
+      # a format drift in main/kiss_seed_sd.c turns this red.
+      - name: NVS forensic scanner (offline fixture)
+        run: |
+          python3 tools/test_nvs_seed_scan.py | tee /tmp/kissnvs.log
+          grep -q "PASS: recovery survives damaged NVS metadata" /tmp/kissnvs.log
+
       # The harness had silently stopped building (a source file was added to
       # the device component and never to the fuzz link line), so nobody
       # noticed it was gone. It only stays honest if CI runs it.
