@@ -197,7 +197,7 @@
   "K_CAP_PAIRING": "PAIRING",
   "K_PAIR_SUB": "show this QR to it",
   "K_SP_SUB": "so it finds payments",
-  "K_EXPL_COORD": "your coordinator sees every payment. it can never spend one.",
+  "K_EXPL_COORD": "it sees every payment. it can never spend one.",
   "I_NET_TEST": "TESTNET, deneme coinleri",
   "I_NET_MAIN": "MAINNET, gerçek bitcoin",
   "I_NET_SIGNET": "SIGNET, practice coins",

@@ -1245,7 +1245,7 @@ static void info_addr_value(lv_obj_t *row)
     // where the address is printed.
     lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
     lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);
-    lv_obj_set_style_text_font(sg, wt_font_mono23(), 0);
+    lv_obj_set_style_text_font(sg, wt_font_mono28(), 0);
     lv_span_t *s1 = lv_spangroup_new_span(sg);
     lv_span_set_text(s1, head);
     lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
@@ -1276,25 +1276,25 @@ static void info_tab_build(void)
     if (s_ictx.tab == 0) {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
-        const int H = 62;
+        const int H = 84;
 
         // Mono. This is a code you hold beside a coordinator's screen and
         // compare digit by digit, and the proportional face is the one that
         // makes 0 and O and 8 and B argue.
         snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
         wt_line_row(p, X, 120, W, H, tr(STR_D_FINGERPRINT), buf,
-                    wt_font_mono23(), WT_INK, tr(STR_K_FP_SUB), NULL,
+                    wt_font_mono28(), WT_INK, tr(STR_K_FP_SUB), NULL,
                     row_help_cb, (void *)"fp");
         wt_line_rule(p, X, 120 + H, W);
 
         // The one line with nothing to open, so the one line with no arrow at
         // all. Not a dimmed arrow: a mark at low opacity still says there is
         // something under it.
-        wt_line_row(p, X, 182, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
-                    wt_font23(), kiss_testnet() ? WT_WARN : WT_INK,
+        wt_line_row(p, X, 204, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
+                    wt_font28(), kiss_testnet() ? WT_WARN : WT_INK,
                     tr(kiss_testnet() ? STR_G_TESTNET_NOTE
                                       : STR_G_MAINNET_NOTE), NULL, NULL, NULL);
-        wt_line_rule(p, X, 182 + H, W);
+        wt_line_rule(p, X, 204 + H, W);
 
         // h, not an apostrophe, and this is correctness rather than style: at
         // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
@@ -1304,44 +1304,54 @@ static void info_tab_build(void)
         int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
         snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
                  kiss_testnet() ? 1 : 0);
-        wt_line_row(p, X, 244, W, H, tr(STR_I_SEC_TYPE),
+        wt_line_row(p, X, 288, W, H, tr(STR_I_SEC_TYPE),
                     tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
                                               : STR_S_TY_NATIVE),
-                    wt_font23(), WT_INK, buf, wt_font_mono23(),
+                    wt_font28(), WT_INK, buf, wt_font_mono23(),
                     row_help_cb, (void *)"type");
-        wt_line_rule(p, X, 244 + H, W);
+        wt_line_rule(p, X, 288 + H, W);
 
-        lv_obj_t *ar = wt_line_row(p, X, 306, W, H, tr(STR_I_SEC_FIRST), NULL,
-                                   NULL, WT_INK, tr(STR_S_CMP_8), NULL,
-                                   row_help_cb, (void *)"addr");
-        info_addr_value(ar);
-        wt_line_rule(p, X, 306 + H, W);
-        // 368, thirty clear of the floor. No explainer on this tab: four lines
-        // IS the explanation, and a sentence under them would be the page
-        // telling an owner what they have just read.
         return;
     }
 
-    const int H = 66;
+    const int H = 76;
     wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING), tr(STR_I_PAIR_T),
                 wt_font23(), WT_INK, tr(STR_K_PAIR_SUB), NULL,
                 pair_open_cb, NULL);
     wt_line_rule(p, X, 120 + H, W);
     // "Scan" elsewhere on this device means the camera. Here it means searching
     // the chain, and the caption above the value is what says which.
-    wt_line_row(p, X, 186, W, H, tr(STR_R_SP_BTN), tr(STR_R_SP_SCAN_BTN),
+    wt_line_row(p, X, 196, W, H, tr(STR_R_SP_BTN), tr(STR_R_SP_SCAN_BTN),
                 wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
                 sp_key_warn_cb, NULL);
-    wt_line_rule(p, X, 186 + H, W);
+    wt_line_rule(p, X, 196 + H, W);
+
+    lv_obj_t *ar = wt_line_row(p, X, 272, W, H, tr(STR_I_SEC_FIRST), NULL,
+                   NULL, WT_INK, tr(STR_S_CMP_8), NULL,
+                   row_help_cb, (void *)"addr");
+    info_addr_value(ar);
+    wt_line_rule(p, X, 272 + H, W);
+    // 368, thirty clear of the floor. No explainer on this tab: four lines
+    // IS the explanation, and a sentence under them would be the page
+    // telling an owner what they have just read.
 
     // The card that held SCAN KEY is gone, and its note with it: the note is
     // already repeated on the warn screen this line opens, which is where a
     // caution about handing out a key belongs. What replaces it is the one
     // sentence neither screen ever said -- what the coordinator can and cannot
     // do -- and it is the tab's whole point in two clauses.
-    wt_note(p, tr(STR_K_EXPL_COORD), X + 14, 274, W - 28,
-            WT_CONTENT_BOTTOM - 274);
+    // Pinned to ONE line at font23, not through wt_note: wt_note's ladder
+    // measures a WRAPPED block against the box, and a 42px band cannot hold
+    // two wrapped lines at 23, so it dropped the whole sentence to 14 -- the
+    // tiny-type bug, arrived at by a helper doing exactly what it says. One
+    // line at 23 fits the band with room; a locale too long for the lane loses
+    // its tail and CUT is what reports that.
+    lv_obj_t *ex = wt_lbl(p, tr(STR_K_EXPL_COORD), X, 358, wt_font23(),
+                          WT_MUT);
+    lv_obj_set_width(ex, W);
+    lv_obj_set_height(ex, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(ex, LV_LABEL_LONG_DOT);
 }
 
 static void info_screen(void)

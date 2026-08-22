@@ -2269,7 +2269,7 @@ void wt_line_press(lv_obj_t *row)
 
 int wt_line_val_y(void)
 {
-    return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font14()) + 4;
+    return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font23()) - 2;
 }
 
 lv_obj_t *wt_line_rule(lv_obj_t *par, int x, int y, int w)
@@ -2396,8 +2396,8 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     // Letter space 2, which is what wt_row_head has always used for the same
     // kind of label.
     lv_obj_t *c = wt_lbl(row, cap, WT_LINE_PAD, WT_LINE_CAP_Y,
-                         wt_font14(), WT_MUT);
-    lv_obj_set_style_text_letter_space(c, 2, 0);
+                         wt_font23(), WT_MUT);
+    lv_obj_set_style_text_letter_space(c, 1, 0);
 
     // font23, and NOT font14. A sub-line here is a SENTENCE -- "names these
     // keys", "compare the last 8", "so it finds these payments" -- and the

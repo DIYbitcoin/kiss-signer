@@ -1054,8 +1054,11 @@ static void recv_tab_build(void) {
     // getting to #90 was twenty two taps where the old list took five. The
     // window shows the handoff's four; a flick crosses the page; the arrows
     // still page, by twenty, exactly as they did before this redesign.
-    const int H = 56;
-    const int VIEW = 4 * H;             // 120..344, four whole lines, never half
+    // 76, because the caption is a WORD at font23 now and a row has to hold it
+    // over a mono23 value. Three whole lines fit the lane instead of four; the
+    // page of twenty is unchanged and one flick still crosses it.
+    const int H = 76;
+    const int VIEW = 3 * H;             // 120..348, three whole lines, never half
     char addr[91];
     uint32_t shown = 0;
 
@@ -1111,7 +1114,7 @@ static void recv_tab_build(void) {
       shown++;
     }
 
-    lv_obj_t *note = wt_lbl(p, "", X, 356, wt_font23(), WT_MUT);
+    lv_obj_t *note = wt_lbl(p, "", X, 358, wt_font23(), WT_MUT);
     lv_obj_set_width(note, W - 110);
     // Pinned to ONE line. Unpinned it wrapped to two and the second ran under
     // the action bar -- and a label allowed to grow is how a budget gets given
@@ -1132,7 +1135,7 @@ static void recv_tab_build(void) {
       lv_obj_t *pa = lv_obj_create(p);
       lv_obj_remove_style_all(pa);
       lv_obj_set_size(pa, 36, 36);
-      lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 352);
+      lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 354);
       lv_obj_remove_flag(pa, LV_OBJ_FLAG_SCROLLABLE);
       lv_obj_t *g = wt_lbl(pa, fwd ? LV_SYMBOL_RIGHT : LV_SYMBOL_LEFT, 0, 0,
                            wt_font23(), wt_accent());
@@ -1155,7 +1158,7 @@ static void recv_tab_build(void) {
 
   // Tab 3. Two lines and the sentence the current screen never says on the
   // screen itself: what a silent payment IS, in two clauses.
-  const int H = 66;
+  const int H = 76;
   char sp[128];
   if (kiss_session_sp_address(sp, sizeof sp) != 0)
     snprintf(sp, sizeof sp, "%s", tr(STR_C_SESSION_LOCKED));
@@ -1165,12 +1168,12 @@ static void recv_tab_build(void) {
   lv_obj_t *sg = wt_addr_short(r1, sp, wt_font_mono23());
   lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
   wt_line_rule(p, X, 120 + H, W);
-  wt_line_row(p, X, 186, W, H, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT),
+  wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT),
               wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
               sp_key_export_cb, NULL);
-  wt_line_rule(p, X, 186 + H, W);
-  wt_note(p, tr(STR_R_EXPL_SP), X + 14, 274, W - 28,
-          WT_CONTENT_BOTTOM - 274);
+  wt_line_rule(p, X, 196 + H, W);
+  wt_note(p, tr(STR_R_EXPL_SP), X, 286, W,
+          WT_CONTENT_BOTTOM - 286);
 }
 
 static void recv_detail_open(void) {
