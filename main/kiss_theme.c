@@ -2434,7 +2434,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     // still says "there is something here", which is the opposite of true.
     int right = w - WT_LINE_PAD;
     if (cb) {
-        lv_obj_t *ar = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+        lv_obj_t *ar = wt_lbl(row, WT_ICON_ARR_R, 0, 0, wt_font23(),
                               wt_accent());
         lv_obj_add_flag(ar, WT_FLAG_ACCENT);
         lv_obj_update_layout(ar);
@@ -2745,7 +2745,7 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
 
     const lv_font_t *f = wt_font23();
     lv_point_t ls, as;
-    const char *arrow = back ? LV_SYMBOL_LEFT : LV_SYMBOL_RIGHT;
+    const char *arrow = back ? WT_ICON_ARR_L : WT_ICON_ARR_R;
     lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&as, arrow, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     const int cw = ls.x + 12 + as.x;

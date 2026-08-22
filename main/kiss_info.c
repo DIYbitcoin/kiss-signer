@@ -1364,7 +1364,7 @@ static void info_screen(void)
 
     static const wt_tab_t tabs[2] = {
         { .icon = WT_ICON_KEY,        .label = "THIS SIGNER" },
-        { .icon = LV_SYMBOL_UPLOAD,   .label = "COORDINATOR" },
+        { .icon = WT_ICON_LINK,       .label = "COORDINATOR" },
     };
     // The label strings are per-locale, so the array's two are placeholders
     // that never reach the glass: wt_brackets is handed the translated pair.

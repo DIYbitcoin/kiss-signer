@@ -2453,7 +2453,12 @@ int main(void) {
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");
   touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  touch(490, 240); pump(3); release(); pump(6);     // Wallet tile -> section home
+  // 45, not 6. The lines rise and their VALUES land behind them on a delay --
+  // the handoff's motion 4 and 5 -- so six frames photographs a screen whose
+  // captions have arrived and whose values are still at opacity zero. The
+  // frame looked like a rendering fault and was really a frame taken early,
+  // which is the second time that has happened on this walk.
+  touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
   kiss_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
   save("/tmp/sim_winfo_help.ppm");

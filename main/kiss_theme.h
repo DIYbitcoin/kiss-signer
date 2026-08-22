@@ -200,6 +200,17 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // and LVGL already ships its codepoint, so it is spelled with LVGL's name.
 #define WT_ICON_LOCK    "\xEF\x80\xA3"   // U+F023 lock
 #define WT_ICON_REPLACE LV_SYMBOL_REFRESH
+// The KEYS/RECEIVE redesign's own marks, added to SYMS for it. The long arrows
+// are NOT LV_SYMBOL_LEFT/RIGHT: those are chevrons, which read as a list
+// disclosure, and the drawing uses a full arrow to say "this takes you
+// somewhere". All five live in the FontAwesome face merged into the Montserrat
+// ones -- IoskeleyMono carries 0x20-0x7E and three punctuation marks and none
+// of this touches it.
+#define WT_ICON_ARR_L  "\xEF\x81\xA0"   // U+F060 arrow-left
+#define WT_ICON_ARR_R  "\xEF\x81\xA1"   // U+F061 arrow-right
+#define WT_ICON_EXPAND "\xEF\x81\xA5"   // U+F065 expand
+#define WT_ICON_LIST   "\xEF\x80\xBA"   // U+F03A list
+#define WT_ICON_LINK   "\xEF\x83\x81"   // U+F0C1 link
 // The caution grid's dust attack badge: a drop, for the smallest amount of a
 // thing there is. Already in SYMS, so it costs no font rebuild.
 #define WT_ICON_DUST    "\xEF\x81\x83"   // U+F043 tint

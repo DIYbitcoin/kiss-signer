@@ -1017,7 +1017,7 @@ static void recv_tab_build(void) {
     // scale: this line is a direction too.
     lv_obj_set_style_translate_x(hit, 0, 0);
     lv_obj_set_style_translate_x(hit, 4, LV_STATE_PRESSED);
-    lv_obj_t *ic = wt_lbl(hit, LV_SYMBOL_EYE_OPEN, 0, 6, wt_font14(),
+    lv_obj_t *ic = wt_lbl(hit, WT_ICON_EXPAND, 0, 6, wt_font14(),
                           wt_accent());
     lv_obj_add_flag(ic, WT_FLAG_ACCENT);
     lv_obj_update_layout(ic);
@@ -1195,7 +1195,7 @@ static void recv_tab_build(void) {
       lv_obj_set_size(pa, 36, 36);
       lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 354);
       lv_obj_remove_flag(pa, LV_OBJ_FLAG_SCROLLABLE);
-      lv_obj_t *g = wt_lbl(pa, fwd ? LV_SYMBOL_RIGHT : LV_SYMBOL_LEFT, 0, 0,
+      lv_obj_t *g = wt_lbl(pa, fwd ? WT_ICON_ARR_R : WT_ICON_ARR_L, 0, 0,
                            wt_font23(), wt_accent());
       lv_obj_add_flag(g, WT_FLAG_ACCENT);
       lv_obj_center(g);
@@ -1246,7 +1246,7 @@ static void recv_detail_open(void) {
 
   wt_tab_t t[3] = {
       { .icon = WT_ICON_QR,      .label = tr(STR_R_TAB_THIS) },
-      { .icon = LV_SYMBOL_LIST,  .label = tr(STR_R_ALL_ADDR) },
+      { .icon = WT_ICON_LIST,    .label = tr(STR_R_ALL_ADDR) },
       // SILENT, not SILENT PAYMENT. 196px on a 200 pitch holds about eleven
       // proportional characters with a mark and two brackets, and the full
       // term ellipsised to "SILENT PAYM..." the moment the tab labels moved
