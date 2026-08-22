@@ -30,7 +30,8 @@ void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_settings.h"
 #include "kiss_word_ui.h"
 #include "kiss_theme.h"   // SIM_ACCENT picks the theme the walk renders in
-#include "kiss_ui.h"      // kiss_ui_drop_indev_for_test: cold-boot the decoy
+#include "kiss_ui.h"
+#include "kiss_usage.h"      // the reuse guard, so the walk can light the USED lamp
 
 // Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
 // (the device reaches it via a one-time panel rotation at boot).
@@ -2416,6 +2417,29 @@ int main(void) {
     kiss_scan_inject(sp, strlen(sp)); pump(6);
     save("/tmp/sim_vfy_sp.ppm");
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Receive
+  }
+  // The USED lamp, which nothing in the walk reaches on its own: an address is
+  // marked used by SIGNING a spend from it, three steps later and on a
+  // different key set. So it had no picture anywhere in the repo, and it is
+  // the state that matters -- UNUSED is the happy default nobody has to read.
+  //
+  // Mark one, reopen so the landing index is past it, then step BACK through
+  // the popover onto the marked one. That exercises the route an owner takes
+  // to reach a used address as well as the lamp it lights.
+  {
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    kiss_usage_mark(fp, kiss_testnet() ? 1 : 0, kiss_script(), 10);
+    tap_str(STR_C_BACK, 3, 6);                       // -> home
+    touch(310, 240); pump(3); release(); pump(20);   // Receive: lands on #11
+    touch(350, 128); pump(3); release(); pump(20);   // ADDRESS #11 -> popover
+    save("/tmp/sim_recv_pop_used.ppm");              // #9 and #10 read USED
+    touch(446, 170); pump(3); release(); pump(30);   // pick #9
+    save("/tmp/sim_recv_used.ppm");                  // the amber lamp and its line
+    touch(340, 85); pump(3); release(); pump(40);    // ALL ADDRESSES, mixed states
+    save("/tmp/sim_recv_list_used.ppm");
+    kiss_usage_wipe();                               // leave the walk as it was
+    touch(145, 85); pump(3); release(); pump(40);    // back to THIS ADDRESS
   }
   tap_str(STR_C_BACK, 3, 4);     // BACK (leftmost now) -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
