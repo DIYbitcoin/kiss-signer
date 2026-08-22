@@ -54,10 +54,18 @@ jobs:
       # libcrypto Python already links. It authenticates and decrypts the
       # sealed blob the same way the device does and checks the BIP39 sum, so
       # a format drift in main/kiss_seed_sd.c turns this red.
+      #
+      # The second test stands a fake esptool in front of the check script, so
+      # the half that used to need a board -- the partition table walk, the CSV
+      # fallback an encrypted board falls into, which ranges get read at all --
+      # is exercised here too. Only the USB layer and whether real NVS matches
+      # the format still need hardware.
       - name: NVS forensic scanner (offline fixture)
         run: |
           python3 tools/test_nvs_seed_scan.py | tee /tmp/kissnvs.log
           grep -q "PASS: recovery survives damaged NVS metadata" /tmp/kissnvs.log
+          bash tools/test_nvs_seed_check.sh | tee /tmp/kissnvscheck.log
+          grep -q "PASS: nvs_seed_check.sh plumbing" /tmp/kissnvscheck.log
 
       # The harness had silently stopped building (a source file was added to
       # the device component and never to the fuzz link line), so nobody
