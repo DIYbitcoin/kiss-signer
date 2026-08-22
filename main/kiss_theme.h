@@ -1129,6 +1129,26 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len);
 lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
                        int ms, void (*done)(void *), void *ud);
 
+// The same hold, drawn as a label over a rule instead of a fill inside a pill.
+// A SIBLING of wt_hold_pill and not a flag on it: every other hold on the
+// device -- the storage move, erasing the recovery words -- keeps its pill,
+// and a shared function would mean a branch in every measurement.
+//
+// The label sits at (x, y) with an arrow after it, and a `w` wide, 2px track
+// runs 8px under it with the progress filling left to right. `held` replaces
+// the label while the finger is down, so the screen answers the press with a
+// word as well as a bar.
+//
+// Letting go returns the fill to 0 over 180ms rather than clearing it: a fill
+// that VANISHES on release reads as an action that completed. A fill that runs
+// back reads as one that did not.
+//
+// This belongs on WT_ACTION_Y, not WT_ACTION_Y_TALL. The tall row exists to
+// give a fat pill room, and the label plus its 2px rule fits the standard 52.
+lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
+                       int x, int y, int w, int ms,
+                       void (*done)(void *), void *ud);
+
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4
 // Display unit. A preference about rendering only: amounts are satoshis

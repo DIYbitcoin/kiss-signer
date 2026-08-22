@@ -846,14 +846,42 @@ typedef struct {
     lv_timer_t *tmr;
     uint32_t t0;
     int ms, w;
+    // wt_hold_rule only: the label to swap, the two words to swap between, and
+    // how long the fill takes to run back. Zero release_ms is wt_hold_pill,
+    // which clears its sweep in a frame because a pill already looks pressed.
+    lv_obj_t *lbl;
+    const char *txt, *held;
+    int release_ms;
     void (*done)(void *);
     void *ud;
 } wt_hold_t;
 
-static void hold_reset(wt_hold_t *h)
+static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
+
+// `animate` is false on the two paths where the object is going away or the
+// screen is being replaced under it -- DELETE, and the tick that fires done().
+// Starting an animation on either is the use-after-free this whole idiom has
+// to avoid, and neither would ever be seen.
+static void hold_reset(wt_hold_t *h, bool animate)
 {
     if (h->tmr) { lv_timer_delete(h->tmr); h->tmr = NULL; }
-    if (h->fill) lv_obj_set_width(h->fill, 0);
+    if (h->lbl && h->txt) lv_label_set_text_fmt(h->lbl, "%s  %s", h->txt,
+                                                LV_SYMBOL_RIGHT);
+    if (!h->fill) return;
+    lv_anim_delete(h->fill, an_w);
+    int32_t at = lv_obj_get_width(h->fill);
+    if (!animate || h->release_ms <= 0 || at <= 0) {
+        lv_obj_set_width(h->fill, 0);
+        return;
+    }
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, h->fill);
+    lv_anim_set_exec_cb(&a, an_w);
+    lv_anim_set_values(&a, at, 0);
+    lv_anim_set_duration(&a, h->release_ms);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_start(&a);
 }
 
 static void hold_tick_cb(lv_timer_t *t)
@@ -863,7 +891,7 @@ static void hold_tick_cb(lv_timer_t *t)
     if (el >= (uint32_t)h->ms) {
         void (*done)(void *) = h->done;
         void *ud = h->ud;
-        hold_reset(h);
+        hold_reset(h, false);
         if (done) done(ud);            // may delete the pill: touch nothing after
         return;
     }
@@ -876,9 +904,11 @@ static void hold_press_cb(lv_event_t *e)
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
         h->t0 = lv_tick_get();
+        if (h->lbl && h->held) lv_label_set_text_fmt(h->lbl, "%s  %s", h->held,
+                                                     LV_SYMBOL_RIGHT);
         if (!h->tmr) h->tmr = lv_timer_create(hold_tick_cb, 30, h);
     } else {                           // RELEASED, PRESS_LOST, or DELETE
-        hold_reset(h);
+        hold_reset(h, c != LV_EVENT_DELETE);
         if (c == LV_EVENT_DELETE) lv_free(h);
     }
 }
@@ -910,6 +940,67 @@ lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int 
     lv_obj_set_style_bg_opa(f, 90, 0);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_move_background(f);
+    h->fill = f;
+
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
+    return p;
+}
+
+lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
+                       int x, int y, int w, int ms,
+                       void (*done)(void *), void *ud)
+{
+    if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
+
+    wt_hold_t *h = lv_malloc(sizeof *h);
+    if (!h) return NULL;
+    lv_memzero(h, sizeof *h);
+    h->ms = ms > 0 ? ms : 1200;
+    h->w = w;
+    h->txt = txt;
+    h->held = held;
+    h->release_ms = 180;
+    h->done = done;
+    h->ud = ud;
+
+    // The hit box is the rule's whole width and the action row's height. No
+    // fill, no border, no radius: the control IS the label and the bar, and
+    // anything drawn around them would be the pill this replaces.
+    lv_obj_t *p = lv_obj_create(scr);
+    lv_obj_remove_style_all(p);
+    lv_obj_set_size(p, w, WT_ACTION_H);
+    lv_obj_set_pos(p, x, y);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    h->pill = p;
+
+    lv_obj_t *l = wt_lbl(p, "", 0, 0, wt_font23(), wt_accent());
+    lv_obj_set_style_text_letter_space(l, 2, 0);
+    lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    lv_label_set_text_fmt(l, "%s  %s", txt, LV_SYMBOL_RIGHT);
+    h->lbl = l;
+    lv_obj_update_layout(l);
+
+    const int ty = lv_obj_get_height(l) + 8;
+    lv_obj_t *track = lv_obj_create(p);
+    lv_obj_remove_style_all(track);
+    lv_obj_set_size(track, w, 2);
+    lv_obj_set_pos(track, 0, ty);
+    lv_obj_set_style_bg_color(track, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t *f = lv_obj_create(p);
+    lv_obj_remove_style_all(f);
+    lv_obj_set_size(f, 0, 2);
+    lv_obj_set_pos(f, 0, ty);
+    lv_obj_set_style_bg_color(f, wt_accent(), 0);
+    lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
+    lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
+    lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     h->fill = f;
 
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
