@@ -1154,10 +1154,44 @@ static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
     return got == want_finding ? 0 : 1;
 }
 
+// CUT reports nothing today, which is the same standing WALL has: the shape it
+// looks for is one the product no longer contains. A clean sweep means nothing
+// without proof the check still fires, so this builds a wide row whose sub is
+// far too long for its lane and asserts the sink saw it -- and a second with a
+// short one, so a check that fired on everything would fail too.
+static int oc_selftest_cut(const char *name, const char *sub, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    s_cut_n = 0;
+    wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
+        .label = "Label",
+        .sub   = sub,
+        .kind  = WT_WIDE_CYCLE,
+        .val   = "VALUE",
+    });
+    lv_refr_now(NULL);
+
+    bool got = s_cut_n > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_cut_n,
+           s_cut_n == 1 ? "" : "s");
+    s_cut_n = 0;
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
     int bad = 0;
+
+    printf("CUT check self test\n");
+    bad += oc_selftest_cut("a sub far longer than its lane, fires",
+                           "a sub-line so long that no lane on this page could "
+                           "ever hold it at font23", true);
+    bad += oc_selftest_cut("a sub that fits, clear", "not encrypted", false);
+    if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
+    else     printf("CUT self test: 2 cases, all as expected\n");
+    printf("\n");
 
     printf("WALL check self test\n");
     bad += oc_selftest_wall("card wrapped round a paragraph, fires", false, true);

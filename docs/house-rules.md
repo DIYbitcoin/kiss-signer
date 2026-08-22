@@ -335,10 +335,15 @@ Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
 `OC_FIT_BACKLOG` in `sim/overlapcheck.c`) and the run prints how many are left.
 The first two are empty. FIT carries the two it found on the day it landed: the
 camera-proof screen's one instruction, and a settings pill — which the comment
-above `wt_pill_fit` says outright should never happen. WALL fires on a shape the product no longer contains, so
-`OVERLAPCHECK_SELFTEST=1` builds that shape and proves the gate still reports
-it — a clean sweep means nothing without that, which is why `run_overlapcheck.sh`
-runs the self test first and refuses to continue if it fails.
+above `wt_pill_fit` says outright should never happen.
+
+**WALL and CUT both fire on shapes the product no longer contains**, so
+`OVERLAPCHECK_SELFTEST=1` builds each of those shapes and proves the gate still
+reports it — a clean sweep means nothing without that, which is why
+`run_overlapcheck.sh` runs the self test first and refuses to continue unless it
+sees every expected marker. CUT's two cases are a sub far longer than its lane
+(must fire) and one that fits (must not); a check that fired on everything would
+fail the second exactly as a dead one fails the first.
 
 ## Show the screen
 
