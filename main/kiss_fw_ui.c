@@ -304,8 +304,11 @@ static void fw_claims(int y, const char *lh, const char *lb, lv_color_t lcol)
     lv_obj_t *a = wt_why_block(s_scr, lh, lb, FW_BLK_L_X, y, FW_BLK_W, h, f, lcol);
     lv_obj_t *b = wt_why_block(s_scr, rh, rb, FW_BLK_R_X, y, FW_BLK_W, h, f,
                                WT_WARN);
-    fw_enter(a, 260, 190);
-    fw_enter(b, 260, 232);
+    // 160 and 220, which is what the drawing stages them at. The 190/232 they
+    // ran at is the LINE ladder -- right for a column of rows, 30ms late for a
+    // pair that has no rows above it to follow.
+    fw_enter(a, 260, 160);
+    fw_enter(b, 260, 220);
 }
 
 // What the signature row's "?" answers: what a signature buys, in the two
