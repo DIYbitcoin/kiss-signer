@@ -934,7 +934,11 @@ static void list_settle_cb(lv_event_t *e) {
   int want = ((y + pitch / 2) / pitch) * pitch;
   if (want > max) want = (max / pitch) * pitch;
   if (want < 0) want = 0;
-  if (want != y) lv_obj_scroll_to_y(list, want, LV_ANIM_ON);
+  // ANIM_OFF. This is a CORRECTION, not a gesture -- the finger has already
+  // let go and the throw has already stopped, so animating it reads as the
+  // list twitching, and the walk photographed the twitch mid flight with the
+  // top line still cut.
+  if (want != y) lv_obj_scroll_to_y(list, want, LV_ANIM_OFF);
 }
 
 // ---- the three groups ----

@@ -2372,7 +2372,7 @@ int main(void) {
   touch(400, 320); pump(3);
   touch(400, 270); pump(3);
   touch(400, 225); pump(3);                         // finger up: later indices
-  release(); pump(45);                              // let the throw settle
+  release(); pump(120);   // the throw, THEN the settle that rounds it to a line
   save("/tmp/sim_recv_scrolled.ppm");
   // The page arrows live IN the content at the count line's right edge: back
   // at 672, forward at 734, both on y=370. Forward is the live one on page 1.

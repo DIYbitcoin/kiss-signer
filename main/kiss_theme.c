@@ -2416,7 +2416,13 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     // 200 and right-aligned inside it leaves an empty box reaching back across
     // the row, and overlapcheck compares BOXES -- so a short sub beside a long
     // value read as an overlap that nothing on the glass could show.
-    const int lane = 300;
+    // 320, not 300. STR_S_CMP_8 -- "compare the lit characters", the one
+    // sentence three screens share -- wants 308 at font23, and CUT reported it
+    // ellipsised. The lane is a constant chosen here, not a geometry the page
+    // is stuck with like the 196px tab, so it gives the eight pixels and the
+    // value gives them up. A 21 locale string does not get cut to save a
+    // number that was picked round.
+    const int lane = 320;
     int subw = 0;
     if (sub && *sub) {
         lv_point_t ss;
