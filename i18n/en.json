@@ -652,7 +652,7 @@
   "G_FW_SAME_H": "already running",
   "G_FW_SAME_B": "the card holds the version this device is running.",
   "G_FW_CONFIRM_T": "REPLACE THE FIRMWARE?",
-  "G_FW_WHY_H": "two signatures",
+  "G_FW_WHY_H": "ecdsa + post quantum",
   "G_FW_WHY_B": "checked against two keys, one of them post quantum. written to the half that is not running. your keys are untouched.",
   "G_FW_RISK_H": "power throughout",
   "G_FW_RISK_B": "this takes about a minute. if it stops early the device starts up on the firmware it has now.",
