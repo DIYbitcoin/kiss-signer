@@ -57,6 +57,8 @@ int test_lastword(void);
 int test_cards_q(void);
 // sim/test_fw.c — SD firmware update: version ordering and image descriptors
 int test_fw(void);
+// sim/test_pq.c — SLH-DSA against NIST's own FIPS 205 vectors
+int test_pq(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -788,6 +790,7 @@ int main(int argc, char **argv) {
     fails += test_lastword();
     fails += test_cards_q();
     fails += test_fw();
+    fails += test_pq();
 
     test_boot_sign_selftest();
     test_secp_randomize();
