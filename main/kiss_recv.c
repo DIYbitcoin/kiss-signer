@@ -842,7 +842,7 @@ static void pop_open(void) {
     lv_obj_align(nl, LV_ALIGN_LEFT_MID, 40, 0);
     const bool u = recv_used(idx);
     lv_obj_t *st = wt_lbl(it, tr(u ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED),
-                          0, 0, wt_font_mono23(), u ? WT_DIM : WT_OK);
+                          0, 0, wt_font23(), u ? WT_DIM : WT_OK);
     lv_obj_align(st, LV_ALIGN_RIGHT_MID, -14, 0);
     if (i < n - 1) wt_line_rule(it, 0, item_h - 1, 300);
   }
@@ -1087,7 +1087,7 @@ static void recv_tab_build(void) {
       lv_obj_t *row = wt_line_row(list, 0, y, W, H, cap, NULL, NULL, WT_INK,
                                   tr(u ? STR_R_HANDED_ALREADY
                                        : STR_R_NEVER_HANDED),
-                                  wt_font_mono23(), row_tap_cb,
+                                  wt_font23(), row_tap_cb,
                                   (void *)(uintptr_t)idx);
       // The sub is the state, so it wears the state's colour rather than the
       // sub's grey. UNUSED means here what it means in the lamp.

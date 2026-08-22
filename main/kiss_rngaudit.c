@@ -89,7 +89,9 @@ static void intro_screen(void)
     // switched on. Value in a status colour -- this is a state, not a theme.
     wt_row_x(s_scr, LV_SYMBOL_POWER, tr(STR_W_RNG_SRC), tr(STR_W_RNG_SRC_SUB),
              NULL, live ? tr(STR_W_RNG_ON) : tr(STR_W_RNG_OFF),
-             wt_font_mono23(), live ? OK_COL : WARN_COL, false,
+             // ON and OFF are words, not a reading. The mono face on this page
+             // belongs to the counter under the bars.
+             wt_font23(), live ? OK_COL : WARN_COL, false,
              WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
 
