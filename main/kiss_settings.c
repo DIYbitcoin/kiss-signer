@@ -1854,7 +1854,13 @@ void kiss_settings_open(lv_obj_t *parent)
         { LV_SYMBOL_SETTINGS, tr(STR_I_TAB_DEVICE),   false,          false },
         { LV_SYMBOL_TRASH,    tr(STR_I_SEC_NO_UNDO),  false,          true  },
     };
-    s_tabs = wt_tabs(s_scr, tabs, TAB_N, s_tab, WT_WIDE_X, 68, tab_cb);
+    // The bracket strip KEYS and RECEIVE wear, on the full 752 lane: five tabs
+    // at a 150px pitch, which the strip works out from the lane and the count
+    // rather than from the 200 the three-tab screens use. The highlight slab
+    // goes with it -- a slab is a box, and the box is what this look removes.
+    s_pane_ctx.select = wt_brackets_select;
+    s_tabs = wt_brackets(s_scr, tabs, TAB_N, s_tab, WT_WIDE_X, 68, WT_WIDE_W,
+                         tab_cb);
     wt_pane_tabs_watch(&s_pane_ctx);
 
     // The group lives in a pane of its own so that a tab change can hold TWO
@@ -1864,10 +1870,10 @@ void kiss_settings_open(lv_obj_t *parent)
     s_pane = wt_pane_new(&s_pane_ctx);
     build_tab();
 
-    // BACK takes the bottom RIGHT corner, in the standard 140x52 pill every
-    // other lone-exit screen uses, and it is what builds the action bar the
-    // attention chip stands on.
-    wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb, NULL);
+    // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
+    // it is still what builds the action bar the attention chip stands on.
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.

@@ -2478,22 +2478,37 @@ typedef struct { lv_obj_t *l, *r, *ic, *lbl; } br_tab_t;
 
 static void br_paint(lv_obj_t *tab, bool sel)
 {
-    // The four children in build order: [ , icon (or NULL), label, ].
-    lv_obj_t *lb = lv_obj_get_child(tab, 0);
-    lv_obj_t *rb = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 1);
-    lv_obj_t *lbl = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 2);
-    lv_obj_t *ic = lv_obj_get_child_count(tab) > 3 ? lv_obj_get_child(tab, 1)
-                                                   : NULL;
-    lv_obj_set_style_text_opa(lb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_opa(rb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_color(lbl, sel ? WT_INK : WT_MUT, 0);
+    // Found, not indexed. This walked children by position until the unread
+    // dot was added and shifted every one of them -- and the symptom of that
+    // is a strip that paints the wrong object, silently, on the one tab that
+    // has something to say.
+    const bool stop = lv_obj_get_user_data(tab) != NULL;
+    lv_obj_t *lb = NULL, *rb = NULL, *lbl = NULL, *ic = NULL;
+    const uint32_t n = lv_obj_get_child_count(tab);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(tab, i);
+        if (!lv_obj_check_type(c, &lv_label_class)) continue;   // the dot
+        const char *t = lv_label_get_text(c);
+        if (t && !strcmp(t, "["))      lb = c;
+        else if (t && !strcmp(t, "]")) rb = c;
+        else if (!ic && lb && !lbl)    ic = c;   // the mark, between [ and the word
+        else                           lbl = c;
+    }
+    if (!lbl && ic) { lbl = ic; ic = NULL; }     // a tab with no mark
+    if (lb) lv_obj_set_style_text_opa(lb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    if (rb) lv_obj_set_style_text_opa(rb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    // The destructive group keeps its own ink whether or not it is the one you
+    // are on: NO UNDO is a warning before it is a location.
+    if (lbl) lv_obj_set_style_text_color(lbl, stop ? WT_STOP_INK
+                                                   : (sel ? WT_INK : WT_MUT), 0);
     if (ic) {
-        lv_obj_set_style_text_color(ic, sel ? wt_accent() : WT_DIM, 0);
+        lv_obj_set_style_text_color(ic, stop ? WT_STOP
+                                             : (sel ? wt_accent() : WT_DIM), 0);
         // Only the SELECTED icon is accent-painted, so only it may carry the
         // flag: a restyle that repainted every icon would put the accent on
-        // three tabs at once and the marker would stop marking anything.
-        if (sel) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
-        else     lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
+        // every tab at once and the marker would stop marking anything.
+        if (sel && !stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        else              lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
     }
 }
 
@@ -2513,12 +2528,20 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
 
+    // The drawing's 196-on-200 wherever it FITS, and only then the lane
+    // divided by the count. Dividing unconditionally looked harmless and
+    // silently re-laid KEYS: two tabs in 704 became 352 apart, so every tap
+    // the walk aimed at the second one landed on the first.
+    const int pitch = (n > 0 && n * WT_BR_PITCH <= w) ? WT_BR_PITCH
+                    : (n > 0 ? w / n : w);
+    const int tw = pitch - (pitch > WT_BR_W ? pitch - WT_BR_W : 0);
+
     for (int i = 0; i < n; i++) {
         const wt_tab_t *t = &tabs[i];
         lv_obj_t *b = lv_obj_create(strip);
         lv_obj_remove_style_all(b);
-        lv_obj_set_pos(b, i * WT_BR_PITCH, 0);
-        lv_obj_set_size(b, WT_BR_W, WT_BR_H);
+        lv_obj_set_pos(b, i * pitch, 0);
+        lv_obj_set_size(b, tw, WT_BR_H);
         lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
         // No pressed fill. A wash here would be a box appearing on the one
@@ -2545,11 +2568,12 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_text_get_size(&bs, "[", f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         int iw = is.x ? is.x + WT_BR_GAP : 0;
         int bw = bs.x + WT_BR_GAP;
+        int dw = t->dot ? WT_BR_GAP + 7 : 0;
         // A locale whose word does not fit LOSES LETTERS. The tab does not
         // widen: 196 on a 200 pitch is what puts three groups in the 704 lane.
-        int room = WT_BR_W - 8 - iw - 2 * bw;
+        int room = tw - 8 - iw - 2 * bw - dw;
         int lw = ls.x > room ? room : ls.x;
-        int px = (WT_BR_W - (2 * bw + iw + lw)) / 2;
+        int px = (tw - (2 * bw + iw + lw + dw)) / 2;
         if (px < 2) px = 2;
 
         lv_obj_t *lb = wt_lbl(b, "[", 0, 0, f, wt_accent());
@@ -2567,8 +2591,23 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_align(l, LV_ALIGN_LEFT_MID, px + bw + iw, 0);
         lv_obj_t *rb = wt_lbl(b, "]", 0, 0, f, wt_accent());
         lv_obj_add_flag(rb, WT_FLAG_ACCENT);
-        lv_obj_align(rb, LV_ALIGN_LEFT_MID, px + bw + iw + lw + WT_BR_GAP, 0);
+        lv_obj_align(rb, LV_ALIGN_LEFT_MID, px + bw + iw + lw + dw + WT_BR_GAP, 0);
 
+        // The unread mark, and the destructive group's ink. wt_tabs carries
+        // both and this strip dropped them on the floor -- SETTINGS' SECURITY
+        // and BACKUP tabs say something wants reading, and NO UNDO says what
+        // it is, and neither survived the move to brackets.
+        if (t->dot) {
+            lv_obj_t *d = lv_obj_create(b);
+            lv_obj_remove_style_all(d);
+            lv_obj_set_size(d, 7, 7);
+            lv_obj_set_style_radius(d, 4, 0);
+            lv_obj_set_style_bg_color(d, WT_WARN, 0);
+            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_align(d, LV_ALIGN_LEFT_MID, px + bw + iw + lw + WT_BR_GAP, 0);
+        }
+        lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
         br_paint(b, i == sel);
     }
 
@@ -2706,24 +2745,26 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, WT_WIDE_X, y);
     lv_obj_set_size(row, WT_WIDE_W, WT_WIDE_H);
-    lv_obj_set_style_radius(row, 10, 0);
-    lv_obj_set_style_bg_color(row, WT_PANEL, 0);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(row, 1, 0);
-    // An inert row keeps its fill and takes the QUIETER edge. It is not hidden
-    // and not greyed into illegibility: it is present, stated, and dead, which
-    // is the whole point of drawing it at all.
-    lv_obj_set_style_border_color(row, inert ? WT_DIV : WT_HAIR, 0);
+    // BORDERLESS, like every other row on the device now. This was a card --
+    // a WT_PANEL fill, a WT_HAIR edge and a 10px radius -- and a page of six
+    // cards is six boxes competing before a word is read. What replaces the
+    // edge is a 1px rule UNDER the row and, under a finger, the accent rail
+    // and wash wt_line_row wears. Same information, same one-line geometry
+    // that lets the page be read straight down the value column; the boxes go.
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     if (r->cb && !inert) {
-        lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        wt_tap_feedback(row);
+        wt_line_press(row);
         lv_obj_add_event_cb(row, r->cb, LV_EVENT_CLICKED, r->ud);
     } else {
         lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
     }
+    // An inert row is present, stated and dead. With no fill left to keep, what
+    // says so is its ink, which the colours below already handle -- and it
+    // still gets the rule, because a missing rule would read as a missing row.
+    wt_line_rule(scr, WT_WIDE_X, y + WT_WIDE_H, WT_WIDE_W);
     if (r->sev) wt_row_sev(row, r->sev);
 
     lv_color_t ink  = inert ? WT_DIM : WT_INK;
@@ -2752,7 +2793,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         // The chip grows LEFTWARDS out of its minimum, taking the room from
         // the sub-line rather than from the page margin: the right edge is
         // where the eye reads the value column down, so it does not move.
-        int cw = 12 + sw + vs.x + 12 + cs.x + 12;
+        int cw = sw + vs.x + 12 + cs.x + 12;
         if (cw < WT_WIDE_CHIP_W) cw = WT_WIDE_CHIP_W;
         int cx = WT_WIDE_W - 12 - cw;
 
@@ -2760,16 +2801,18 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         lv_obj_remove_style_all(chip);
         lv_obj_set_pos(chip, cx, (WT_WIDE_H - WT_WIDE_CHIP_H) / 2);
         lv_obj_set_size(chip, cw, WT_WIDE_CHIP_H);
-        lv_obj_set_style_radius(chip, 8, 0);
-        lv_obj_set_style_bg_color(chip, WT_KEY, 0);
-        lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(chip, 1, 0);
-        lv_obj_set_style_border_color(chip, WT_EDGE, 0);
+        // No box. The WHOLE ROW is the control -- it carries the callback and
+        // the pressed rail -- so an edge drawn around the value was a second
+        // control drawn inside the first, and the page read as boxes inside
+        // boxes. What says "this one changes" is the mark beside the value,
+        // which is what it always was; the border was only ever holding it.
+        lv_obj_set_style_bg_opa(chip, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(chip, 0, 0);
         lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE);   // the row takes the tap
         lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_user_data(chip, (void *)WT_ROW_CTRL_TAG);
 
-        int vx = 12;
+        int vx = 0;
         if (r->swatch) {
             lv_obj_t *d = lv_obj_create(chip);
             lv_obj_remove_style_all(d);
@@ -3353,31 +3396,36 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
     lv_text_get_size(&ls, txt, lf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&cs, LV_SYMBOL_RIGHT, mf, 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    int w = 18 + is.x + 12 + ls.x + 12 + cs.x + 18;
+    int w = is.x + 12 + ls.x + 12 + cs.x;
 
     lv_obj_t *c = lv_obj_create(scr);
     lv_obj_remove_style_all(c);
     lv_obj_set_pos(c, WT_ACT_X, WT_ACTION_Y);
     lv_obj_set_size(c, w, WT_ACTION_H);
-    lv_obj_set_style_radius(c, 10, 0);
-    lv_obj_set_style_bg_color(c, WT_WARN, 0);
-    lv_obj_set_style_bg_opa(c, 18, 0);
-    lv_obj_set_style_border_width(c, 1, 0);
-    lv_obj_set_style_border_color(c, WT_WARN, 0);
-    lv_obj_set_style_border_opa(c, 90, 0);
+    // No box, like everything else in an action bar now. It was a tinted fill
+    // and an amber edge, which is a BOX -- the one shape this look removes --
+    // and it was the last one left on the settings page. The mark carries the
+    // caution; amber ink says the rest. It still shifts under a finger the way
+    // an arrow action does, because it is still a control.
+    lv_obj_set_style_bg_opa(c, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(c, 0, 0);
     lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-    wt_tap_feedback(c);
+    lv_obj_set_style_translate_x(c, 0, 0);
+    lv_obj_set_style_translate_x(c, 5, LV_STATE_PRESSED);
     if (cb) lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
 
     lv_obj_t *ic = wt_lbl(c, LV_SYMBOL_WARNING, 0, 0, mf, WT_WARN);
-    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 18, 0);
+    // Placed from ZERO, not from the 18px inset the border used to hold. The
+    // inset went with the box and the three parts have to close up behind it,
+    // or the chevron sits on top of the last letter of the label.
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_t *l = wt_lbl(c, txt, 0, 0, lf, WT_WARN);
     lv_obj_set_style_text_letter_space(l, 1, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 18 + is.x + 12, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, is.x + 12, 0);
     lv_obj_t *ch = wt_lbl(c, LV_SYMBOL_RIGHT, 0, 0, mf, WT_WARN);
     lv_obj_set_style_text_opa(ch, 180, 0);
-    lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -18, 0);
+    lv_obj_align(ch, LV_ALIGN_RIGHT_MID, 0, 0);
     return c;
 }
 
