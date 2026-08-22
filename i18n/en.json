@@ -746,5 +746,11 @@
   "I_TAB_BACKUP": "BACKUP",
   "I_TAB_DEVICE": "DEVICE",
   "I_ROW_AUDIT": "Audit",
-  "I_CARD_SUB": "free space, PSBT, firmware, backups"
+  "I_CARD_SUB": "free space, PSBT, firmware, backups",
+  "R_USAGE_UNKNOWN": "USAGE UNKNOWN",
+  "R_CHAIN_UPTO_FMT": "coordinator: used up to #%u",
+  "R_CHAIN_CLEAN": "coordinator: none used yet",
+  "R_CHAIN_ASK": "VERIFY with your coordinator",
+  "R_UM_OTHER_KEYS": "that coordinator is watching different keys",
+  "R_UM_NO_CHANGE": "already up to date; nothing moved"
 }

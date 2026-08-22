@@ -2403,7 +2403,13 @@ int main(void) {
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
     tap_str(STR_R_VERIFY, 3, 6);   // VERIFY pill -> raw scan screen
-    const char *good = "BITCOIN:BC1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q07?amount=0.001";
+    // TESTNET, because the walk is on testnet here. This was the mainnet form
+    // of the same key, so the frame named "yes" rendered WRONG NETWORK -- the
+    // same red screen sim_vfy_wrong_net.ppm already photographs, published
+    // under a caption promising green. The URI wrapper and the amount param
+    // stay: stripping those is what vfy_norm is for and this is where it is
+    // exercised.
+    const char *good = "BITCOIN:TB1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q00?amount=0.001";
     kiss_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
@@ -2424,6 +2430,40 @@ int main(void) {
                      "h6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
     kiss_scan_inject(sp, strlen(sp)); pump(6);
     save("/tmp/sim_vfy_sp.ppm");
+
+    // A coordinator's usage payload, which rides in the SAME square as the
+    // address. The fingerprint is read rather than written down: a literal
+    // would stop matching the moment the walk opened a different session, and
+    // it would fail as a passing test of the "other keys" branch rather than as
+    // a failing test of this one.
+    uint8_t ufp[4];
+    kiss_ui_last_fp(ufp);
+    char um[160];
+    snprintf(um, sizeof um, "KISSU1 %02X%02X%02X%02X %d %d 29 1234567 %s",
+             ufp[0], ufp[1], ufp[2], ufp[3],
+             kiss_testnet() ? 1 : 0, kiss_script(),
+             "TB1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q00");
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);
+    kiss_scan_inject(um, strlen(um)); pump(6);
+    save("/tmp/sim_vfy_usage.ppm");          // ownership answered AND usage recorded
+
+    // The same square again. Nothing may move: the height gate has already seen
+    // this one, and a re-scan that silently rolled the badge back would be the
+    // privacy-harmful direction.
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);
+    kiss_scan_inject(um, strlen(um)); pump(6);
+    save("/tmp/sim_vfy_usage_again.ppm");
+
+    // Someone else's coordinator. The ownership answer must still land -- that
+    // is what the owner came for and it needs nothing from the payload.
+    char umx[160];
+    snprintf(umx, sizeof umx, "KISSU1 00112233 %d %d 5 2000000 %s",
+             kiss_testnet() ? 1 : 0, kiss_script(),
+             "TB1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q00");
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);
+    kiss_scan_inject(umx, strlen(umx)); pump(6);
+    save("/tmp/sim_vfy_usage_other.ppm");
+
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Receive
   }
   // The USED lamp, which nothing in the walk reaches on its own: an address is
@@ -2449,6 +2489,9 @@ int main(void) {
     kiss_usage_wipe();                               // leave the walk as it was
     touch(145, 85); pump(3); release(); pump(40);    // back to THIS ADDRESS
   }
+  // And the same lamp once a COORDINATOR has spoken: their number wins when it
+  // is larger, because this signer has no chain view and theirs does.
+  save("/tmp/sim_recv_told.ppm");   // the chip, now that a coordinator has spoken
   tap_str(STR_C_BACK, 3, 4);     // BACK (leftmost now) -> home
   touch(680, 60); pump(3); release(); pump(40);     // fingerprint chip -> education card
   save("/tmp/sim_home_fp.ppm");

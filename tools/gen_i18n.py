@@ -221,6 +221,12 @@ UNTRANSLATED_OK = {
     # rule, like the KEF block above: the other twenty carry the English as a
     # placeholder the sweep replaces.
     "W_AUD_T", "W_AUD_S",
+    # What a coordinator says about which addresses the chain shows used, and
+    # the Receive chip's third state for when none has said. Born under the
+    # English-only rule, like the KEF block above: the other twenty carry the
+    # English as a placeholder the sweep replaces.
+    "R_USAGE_UNKNOWN", "R_CHAIN_UPTO_FMT", "R_CHAIN_CLEAN", "R_CHAIN_ASK",
+    "R_UM_OTHER_KEYS", "R_UM_NO_CHANGE",
     # HOW YOUR KEYS WERE MADE: the record of which path produced this seed.
     # Born under the English-only rule, like the KEF block above.
     "W_MADE_T", "W_MADE_S", "W_MADE_CAP", "W_MADE_NONE", "W_MADE_ELSE",
