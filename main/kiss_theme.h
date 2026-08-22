@@ -349,6 +349,10 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // card is tappable and has an external "+" cue; tapping opens a crisp,
 // re-encoded full-screen view rather than scaling the original bitmap.
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
+// Open the zoom overlay from somewhere that is not the card: RECEIVE's
+// "TAP TO ENLARGE" line is a second way into the same overlay, and the state
+// the opener needs already hangs off the QR.
+void wt_qr_zoom(lv_obj_t *qr);
 // Hide/show a wt_qr_card by its qr when the payload could not be derived.
 void wt_qr_refusal(lv_obj_t *qr, bool locked);
 // Update a QR created by wt_qr_card. This caches the exact payload for zoom and
@@ -828,6 +832,11 @@ void wt_pane_exit(wt_pane_t *p, int dir);
 // rather than a constant because the mono14 line height is what it is measured
 // from, and that moves with the face.
 int wt_line_val_y(void);
+// The pressed rail on its own, for a row that is not a caption-over-value line
+// -- RECEIVE's derivation path is one line with its value on the right, and it
+// has to answer a press exactly the way the lines above it do or the page has
+// two kinds of touchable.
+void wt_line_press(lv_obj_t *row);
 lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                       const char *cap, const char *val, const lv_font_t *vf,
                       lv_color_t vcol, const char *sub, const lv_font_t *sf,

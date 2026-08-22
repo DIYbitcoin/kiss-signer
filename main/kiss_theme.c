@@ -1195,9 +1195,13 @@ static void qr_zoom_close_cb(lv_event_t *e)
     lv_obj_delete_async(zoom);
 }
 
-static void qr_zoom_open_cb(lv_event_t *e)
+static void qr_zoom_open_cb(lv_event_t *e);
+
+// The overlay itself, reachable without an event: RECEIVE's "TAP TO ENLARGE"
+// line is a second way in, and lv_event_t is opaque outside LVGL's private
+// header, so a synthesised event is not an option.
+static void qr_zoom_open(wt_qr_state_t *s)
 {
-    wt_qr_state_t *s = lv_event_get_user_data(e);
     if (!s || s->zoom || !s->data || !s->data_len) return;
 
     lv_obj_t *parent = lv_obj_get_parent(s->card);
@@ -1276,6 +1280,23 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
 
     if (qr) *qr = q;
     return card;
+}
+
+static void qr_zoom_open_cb(lv_event_t *e)
+{
+    qr_zoom_open(lv_event_get_user_data(e));
+}
+
+void wt_qr_zoom(lv_obj_t *qr)
+{
+    // The zoom, from a control that is not the card. RECEIVE's "TAP TO
+    // ENLARGE" line is a second way into the same overlay, and the state the
+    // opener needs is already hanging off the QR -- so this is one lookup, not
+    // a second implementation of the overlay.
+    if (!qr) return;
+    wt_qr_state_t *s = lv_obj_get_user_data(qr);
+    if (!s) return;
+    qr_zoom_open(s);
 }
 
 lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len)
@@ -2108,6 +2129,39 @@ void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop)
 static void an_tx(void *v, int32_t x);
 static void an_opa(void *v, int32_t o);
 
+void wt_line_press(lv_obj_t *row)
+{
+    // The rail. A left border already present at opacity 0 costs one style
+    // property and no second object; the pressed state flips its opa and
+    // lights a 3px accent edge down the row under the finger. That plus the
+    // wash is the only feedback a borderless row can give, so it is not
+    // decoration -- without it the row is an unmarked target.
+    lv_obj_set_style_radius(row, 6, LV_STATE_PRESSED);
+    lv_obj_set_style_border_side(row, LV_BORDER_SIDE_LEFT, 0);
+    lv_obj_set_style_border_width(row, 3, 0);
+    lv_obj_set_style_border_color(row, wt_accent(), 0);
+    lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(row, wt_accent_pressed(), 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_add_flag(row, WT_FLAG_ACCENT_BORDER);
+    lv_obj_add_flag(row, WT_FLAG_ACCENT_BG);
+    // A style transition, not an lv_anim: LVGL runs it on the state change
+    // itself, so a press released mid-fade reverses rather than finishing and
+    // snapping back.
+    static const lv_style_prop_t props[] = {
+        LV_STYLE_BG_OPA, LV_STYLE_BORDER_OPA, LV_STYLE_PROP_INV
+    };
+    static lv_style_transition_dsc_t tr;
+    static bool tr_ready;
+    if (!tr_ready) {
+        lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
+                                     160, 0, NULL);
+        tr_ready = true;
+    }
+    lv_obj_set_style_transition(row, &tr, 0);
+}
+
 int wt_line_val_y(void)
 {
     return WT_LINE_CAP_Y + lv_font_get_line_height(wt_font_mono14()) + 4;
@@ -2209,35 +2263,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     if (cb) {
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, cb, LV_EVENT_CLICKED, ud);
-        // The rail. A left border already present at opacity 0 costs one style
-        // property and no second object; the pressed state flips its opa and
-        // lights a 3px accent edge down the row under the finger. That plus
-        // the wash is the only feedback a borderless row can give, so it is
-        // not decoration -- without it the row is an unmarked target.
-        lv_obj_set_style_radius(row, 6, LV_STATE_PRESSED);
-        lv_obj_set_style_border_side(row, LV_BORDER_SIDE_LEFT, 0);
-        lv_obj_set_style_border_width(row, 3, 0);
-        lv_obj_set_style_border_color(row, wt_accent(), 0);
-        lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_set_style_bg_color(row, wt_accent_pressed(), 0);
-        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_add_flag(row, WT_FLAG_ACCENT_BORDER);
-        lv_obj_add_flag(row, WT_FLAG_ACCENT_BG);
-        // A style transition, not an lv_anim: LVGL runs it on the state change
-        // itself, so a press that is released mid-fade reverses rather than
-        // finishing and snapping back.
-        static const lv_style_prop_t props[] = {
-            LV_STYLE_BG_OPA, LV_STYLE_BORDER_OPA, LV_STYLE_PROP_INV
-        };
-        static lv_style_transition_dsc_t tr;
-        static bool tr_ready;
-        if (!tr_ready) {
-            lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
-                                         160, 0, NULL);
-            tr_ready = true;
-        }
-        lv_obj_set_style_transition(row, &tr, 0);
+        wt_line_press(row);
     } else {
         lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
     }

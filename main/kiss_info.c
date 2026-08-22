@@ -30,6 +30,9 @@
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static void (*s_words_done)(void);
+// Where the SCAN KEY export returns to. NULL means KEYS, which is where it
+// has always gone; RECEIVE's silent payment tab sets its own.
+static void (*s_scan_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
 static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
@@ -495,7 +498,12 @@ static void sp_key_back_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    info_screen();
+    // Where it came from, which is not always here any more: RECEIVE's silent
+    // payment tab offers the same export, and landing that owner on KEYS would
+    // be the device having moved them somewhere they never asked to go, in the
+    // middle of exporting a key.
+    if (s_scan_done) { void (*d)(void) = s_scan_done; s_scan_done = NULL; d(); }
+    else info_screen();
 }
 
 static void sp_key_show(void *ud)
@@ -1389,7 +1397,15 @@ void kiss_info_open(lv_obj_t *parent)
     // rebuild on purpose -- that is what returns an owner to the tab they left
     // when a row's screen goes BACK -- so entering the page has to say so.
     s_ictx.tab = 0;
+    s_scan_done = NULL;
     info_screen();
+}
+
+void kiss_info_open_scan_key(lv_obj_t *parent, void (*done_cb)(void))
+{
+    s_parent = parent;
+    s_scan_done = done_cb;
+    sp_key_warn_cb(NULL);
 }
 
 void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
