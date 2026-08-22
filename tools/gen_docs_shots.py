@@ -133,8 +133,10 @@ SECTIONS = [
      "that can spend.",
      [
          ("04-wallet-facts", "sim_winfo",
-          "WALLET carries the facts you check against the coordinator: "
-          "fingerprint, network, address type and the first address."),
+          "KEYS carries the four facts you check against the coordinator: "
+          "fingerprint, network, address type and the first address. Each "
+          "line opens a plain-words explainer; COORDINATOR is the second "
+          "tab."),
          ("05-pair-sparrow", "sim_pair",
           "PAIR COORDINATOR with DESKTOP selected shows the descriptor "
           "Sparrow reads. Scan it with Sparrow's webcam, or export to SD. "
@@ -149,9 +151,10 @@ SECTIONS = [
      "computer showing you an address that is not yours.",
      [
          ("07-receive", "sim_recv",
-          "RECEIVE lists addresses KISS derived on the device. Tap any of "
-          "them for its QR. Read them here, on the device, never off the "
-          "computer."),
+          "RECEIVE opens on the freshest address KISS derived on the "
+          "device: its QR, the eight characters to compare, and whether "
+          "this signer has handed it out before. Read it here, on the "
+          "device, never off the computer."),
          ("08-verify-match", "sim_vfy_yes",
           "VERIFY re-derives whatever address you type in. Green means KISS "
           "found it in this wallet, independently of whatever displayed it."),
@@ -165,11 +168,13 @@ SECTIONS = [
      "arrives, before the wallet holds anything real.",
      [
          ("10-receive-first", "sim_recv1",
-          "Page to the address you want paying. The counter says which "
-          "address you are looking at. Tap its QR for a full-screen scan view."),
-         ("11-receive-reuse", "sim_recv_reminder",
-          "Every address keeps the standing privacy reminder in view: use a "
-          "new one for each payment, because reuse links payments in public."),
+          "NEXT ADDRESS steps to the next one this signer has not handed "
+          "out. Tap ADDRESS #N to step back through the recent ones, or the "
+          "QR for a full-screen scan view."),
+         ("11-receive-reuse", "sim_recv_used",
+          "The lamp reads UNUSED until this signer has handed the address "
+          "out. On one it has, it turns amber and says to take the next: "
+          "reusing an address links the payments in public."),
      ]),
 
     # The order of these five is the safety argument: see what you are
