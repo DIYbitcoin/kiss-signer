@@ -219,7 +219,12 @@ AXES = {
              "MONO hides because MONO's accent is ink."),
     "testnet": dict(
         env={}, pfx="",
-        extra=[("t0-network", "sim_net_choose"),
+        # sim_net_choose was the network DROPDOWN, and there is no dropdown
+        # any more -- 5482bc7 made five settings rows resolve their own pick in
+        # place. The frame it left behind is the row itself on its first
+        # testnet value, and this reference kept naming the dead one, so every
+        # release since has died here before it built anything.
+        extra=[("t0-network", "sim_settings_tn_first"),
                ("t0a-signet-settings", "sim_settings_signet"),
                ("t0b-signet-home", "sim_wallet_signet"),
                ("t1-home", "sim_wallet_testnet"),

@@ -287,6 +287,22 @@ if ! diff -q <("$PQ_TOOL" header "$KISS_PQ_KEY") main/pq_release_pubkey.h >/dev/
   exit 1
 fi
 
+# And the IMAGE has to carry it, which is a different question. The check above
+# compares two files on disk, so a header regenerated after the build passes it
+# while the binary still holds whatever key it was compiled with -- the all zero
+# placeholder, most likely, which is the state every first release starts from.
+# That release would sign, hash, publish and then refuse itself on every board.
+PQ_PUB_HEX="$("$PQ_TOOL" pubkey "$KISS_PQ_KEY")" \
+  UPDATE="$OUT/firmware/$UPDATE_NAME" "$PY" - <<'PYCHK'
+import os, sys
+pub = bytes.fromhex(os.environ["PQ_PUB_HEX"].strip())
+blob = open(os.environ["UPDATE"], "rb").read()
+if pub not in blob:
+    sys.exit("FAIL: the built image does not carry this post quantum public key.\n"
+             "      main/pq_release_pubkey.h was changed after the build. Rebuild.")
+print("PASS: the built image carries the post quantum public key")
+PYCHK
+
 "$PQ_TOOL" sign "$KISS_PQ_KEY" "$OUT/firmware/$UPDATE_NAME"
 # Read back what was written, with the device's own kiss_pqsig.c. The file on
 # the card is the only copy that matters and this is the last thing that touches
