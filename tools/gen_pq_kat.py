@@ -176,11 +176,14 @@ def main():
 // Verify, not sign: 2199 compressions against 2.2 million, so this costs
 // milliseconds at startup instead of seconds.
 """.strip("\n"))
+    # Explicit lengths, never sizeof. An empty field would still be a one byte
+    # array here, and sizeof would call it a length of one -- which for a context
+    # string is a different message and a signature that stops verifying.
     d.append("#define PQ_SELFTEST_TC_ID %d" % tc)
-    d.append("static const uint8_t PQ_SELFTEST_MSG[] = %s;" % cbytes(t["message"]))
-    d.append("static const uint8_t PQ_SELFTEST_CTX[] = %s;" % cbytes(t.get("context", "")))
-    d.append("static const uint8_t PQ_SELFTEST_PK[] = %s;" % cbytes(t["pk"]))
-    d.append("static const uint8_t PQ_SELFTEST_SIG[] = %s;" % cbytes(t["signature"]))
+    for name, hexs in (("MSG", t["message"]), ("CTX", t.get("context", "")),
+                       ("PK", t["pk"]), ("SIG", t["signature"])):
+        d.append("#define PQ_SELFTEST_%s_LEN %d" % (name, len(hexs) // 2))
+        d.append("static const uint8_t PQ_SELFTEST_%s[] = %s;" % (name, cbytes(hexs)))
     write("main/pq_selftest_vectors.h", "\n".join(d) + "\n")
 
 
