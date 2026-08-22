@@ -3862,12 +3862,23 @@ void kiss_sign_open(lv_obj_t *parent)
     // the screen that opens every signing session. The strings are now both
     // about thirty characters and the rung they share is one an owner can read
     // at arm's length. A long translation still falls back inside wt_row_x.
-    wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR), tr(STR_S_POINT_CAM),
+    //
+    // Both marks take the ACCENT. wt_row_x paints an icon badge WT_MUT unless
+    // the row is selected, and neither of these ever is -- this is a chooser,
+    // not a list with a current item -- so the two glyphs that say WHICH WAY
+    // the transaction comes in sat the same grey as a disabled row, on the
+    // screen that opens every signing session. wt_row_icon_accent also flags
+    // them, so they follow a theme change with everything else.
+    lv_obj_t *qrow = wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR),
+             tr(STR_S_POINT_CAM),
              wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
              SGC_ROW0, WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
-    wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), tr(STR_S_OR_LOAD),
+    wt_row_icon_accent(qrow);
+    lv_obj_t *srow = wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD),
+             tr(STR_S_OR_LOAD),
              wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
              SGC_ROW1, WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
+    wt_row_icon_accent(srow);
     // A labelled help target teaches the acronym at first sight. An anonymous
     // "?" made users guess whether it explained QR, SD, or the coordinator.
     lv_obj_t *hc = lv_obj_create(s_scr);
