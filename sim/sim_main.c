@@ -4415,7 +4415,7 @@ int main(void) {
   //   sim_setup_dice_99      -- the 24 word branch reached DICE_FLOOR_256 and
   //       there is no longer a way to ask for 24 while creating. kisstest still
   //       pins the floor arithmetic; what is gone is the SCREEN that showed it.
-  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad, at 12
+  tap_str(STR_W_METHOD_DICE_T, 3, 4);   // DICE row -> the keypad, at 12
   save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
 
   // The coin, which is the same screen in base 2. Visited FIRST and left by
@@ -4425,18 +4425,17 @@ int main(void) {
   // 128 flips, checked in and asserted by kisstest: face bits 127382 (floor
   // 110080), step bits 125408 (floor 109220), counts 59/69, no period.
   //
-  // A key is tapped by the character ON it, which is also the character it
-  // records: SIM_COIN_OK is read straight into tap_lbl with no coordinate in
-  // between. That is the point of the helper -- the previous form carried the
-  // key centres as literals (x=228 and x=572, row middle y=142) and every one
-  // of them was wrong the moment the card moved to the 704 page lane.
+  // A key is tapped by the words ON it. SIM_COIN_OK is the string the device
+  // records, HEADS is the key that records a 0, and the walk maps one to the
+  // other here -- with no coordinate in between, which is the point: the
+  // previous form carried the key centres as literals (x=228 and x=572, row
+  // middle y=142) and every one of them was wrong the moment the card moved to
+  // the 704 page lane.
   static const char SIM_COIN_OK[] =
       "01010110101000001111111101000011111001110010000010100001100101001"
       "011100011111100111100110001001011110011110111111111100000010101";
-  for (int i = 0; i < 128; i++) {
-    const char k[2] = { SIM_COIN_OK[i], 0 };
-    tap_lbl(k, 4, 4);
-  }
+  for (int i = 0; i < 128; i++)
+    tap_str(SIM_COIN_OK[i] == '0' ? STR_W_COIN_HEADS : STR_W_COIN_TAILS, 4, 4);
   save("/tmp/sim_setup_coin_full.ppm");             // 128, tick chip, DONE live
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows, flips dropped
 
@@ -4445,18 +4444,16 @@ int main(void) {
   // is the case a count test cannot see: 64/64 dead level, and every step a
   // change. The verdict screen's two columns are CENTRED in the 704 lane, which
   // is geometry no other stop renders.
-  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad
+  tap_str(STR_W_METHOD_DICE_T, 3, 4);   // DICE row -> the keypad
   tap_str(STR_W_COIN, 3, 6);          // COIN, empty again
-  for (int i = 0; i < 128; i++) {
-    const char k[2] = { (char)('0' + (i & 1)), 0 };
-    tap_lbl(k, 4, 4);
-  }
+  for (int i = 0; i < 128; i++)
+    tap_str((i & 1) ? STR_W_COIN_TAILS : STR_W_COIN_HEADS, 4, 4);
   save("/tmp/sim_setup_coin_flag.ppm");             // PATTERN chip, level columns
   tap_str(STR_C_DONE, 3, 6);          // DONE -> refused
   save("/tmp/sim_setup_coin_warn.ppm");             // two centred columns, 2 pills
   tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad, 128 banked
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows
-  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad, back at base 6
+  tap_str(STR_W_METHOD_DICE_T, 3, 4);   // DICE row -> the keypad, back at base 6
   // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
   // real judge this loop is a textbook ramp — so instead of dodging that, it
   // IS the flagged run: perfectly level columns wearing a PATTERN chip, which

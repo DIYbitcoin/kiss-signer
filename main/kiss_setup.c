@@ -1626,12 +1626,17 @@ static void method_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
-    // Its OWN subline, not W_DICE_NOTE: that key is also the note under MADE
-    // WITH / DICE in settings, where naming the coin as well would describe a
-    // path this seed did not take. Here the row leads to both, and the two
-    // costs belong on it -- 128 flips is 2.6x the taps of 50 rolls, and nobody
-    // should meet that number for the first time on tap 60.
-    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_METHOD_DICE_S),
+    // Its OWN title and subline, not W_CHOOSE_DICE and W_DICE_NOTE: both of
+    // those are also what settings prints under MADE WITH for a seed that was
+    // rolled, where naming the coin would describe a path this seed did not
+    // take. Here the row leads to both, and it has to SAY so in the title --
+    // somebody who owns a coin and no die reads three titles down this page,
+    // and a row called DICE is a row they never open.
+    //
+    // The two costs belong on the subline for the same reason: 128 flips is
+    // 2.6x the taps of 50 rolls, and nobody should meet that number for the
+    // first time on tap 60.
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_METHOD_DICE_T), tr(STR_W_METHOD_DICE_S),
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
     // KEYBOARD, not SHUFFLE. This row's whole subject is a word LIST the owner
@@ -2137,16 +2142,29 @@ static void dice_screen_build(void)
     s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
     // The keys, each directly over the column it feeds: six for a die, two for
-    // a coin. A key's label IS the character that goes into the SHA256 string,
-    // so the strip below and the hash above are reading the same thing back.
+    // a coin.
+    //
+    // A die's key is the FACE, because that is what is printed on the thing in
+    // the owner's hand and it is also the character recorded. A coin has no
+    // digits on it, and the keys used to say 0 and 1 -- which made the first
+    // act of the flow an invented convention the owner had to hold in their
+    // head for 128 taps, before they had done anything. They say HEADS and
+    // TAILS now: nothing to decide, nothing to remember, and the words on the
+    // keys are the words on the coin.
+    //
+    // The recorded character is still 0 and 1, so the preimage is still the bit
+    // string. The mapping that makes it checkable does not live in anyone's
+    // head either -- W_COIN_VERIFY_NOTE prints it directly above the hash, on
+    // the one line written for the reader who is going to recompute it.
     for (int i = 0; i < faces; i++) {
         lv_obj_t *k = lv_button_create(s_dice_card);
         lv_obj_set_pos(k, 18 + i * pitch, DICE_KEY_Y);
         lv_obj_set_size(k, kw, DICE_KEY_H);
         lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_obj_t *lbl = lv_label_create(k);
-        char d[2] = { (char)((coin ? '0' : '1') + i), 0 };
-        lv_label_set_text(lbl, d);
+        char d[2] = { (char)('1' + i), 0 };
+        lv_label_set_text(lbl, coin ? tr(i ? STR_W_COIN_TAILS : STR_W_COIN_HEADS)
+                                    : d);
         // The one character on the key IS the target, and at the button
         // default it sat lost in a 272px coin key. font34 is the biggest face
         // that clears the 60px key at both widths.
@@ -2177,8 +2195,10 @@ static void dice_screen_build(void)
     // on the device by hand, in a card with the room for two rungs more. The
     // helper takes the largest that fits the box, and because the box is 38
     // tall the FIT gate now fails the build if it ever lands back on font14.
-    lv_obj_t *note = wt_note(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18,
-                             DICE_NOTE_Y, DICE_LANE, DICE_NOTE_H);
+    lv_obj_t *note = wt_note(s_dice_card,
+                             tr(coin ? STR_W_COIN_VERIFY_NOTE
+                                     : STR_W_DICE_VERIFY_NOTE),
+                             18, DICE_NOTE_Y, DICE_LANE, DICE_NOTE_H);
     (void)note;
 
     // live SHA256 fingerprint: first 8 bytes, tap to reveal all 64 hex. The
