@@ -36,6 +36,9 @@ jobs:
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c 'tools/fonts/glyphs_*.txt'
 
+      - name: no new unreferenced i18n keys
+        run: python3 tools/check_i18n_orphans.py
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
