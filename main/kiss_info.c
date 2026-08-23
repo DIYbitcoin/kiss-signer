@@ -30,9 +30,6 @@
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static void (*s_words_done)(void);
-// Where the SCAN KEY export returns to. NULL means KEYS, which is where it
-// has always gone; RECEIVE's silent payment tab sets its own.
-static void (*s_scan_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
 static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
@@ -488,21 +485,20 @@ static void pair_screen(void)
 // Hands a coordinator the scan PRIVATE key so it can DETECT payments to this
 // wallet's silent-payment address. It can never spend. Deliberate two-step
 // behind an honest warning, not bundled silently into a wallet import.
-// Back to the WALLET screen, not the pair screen. SCAN KEY is launched from
-// info_screen() now; while it lived inside PAIR COORDINATOR this returned to
+// Back to the KEYS screen, not the pair screen. SCAN KEY is launched from
+// info_screen(); while it lived inside PAIR COORDINATOR this returned to
 // pair_screen(), and leaving it that way would drop the user somewhere they
 // never came from -- the kind of navigation bug that reads as the device
 // having done something unexpected with a key export.
+//
+// One launcher means one destination, so this is a plain call again. RECEIVE's
+// silent payment tab used to offer the same export and set its own return, and
+// the indirection existed only for that.
 static void sp_key_back_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    // Where it came from, which is not always here any more: RECEIVE's silent
-    // payment tab offers the same export, and landing that owner on KEYS would
-    // be the device having moved them somewhere they never asked to go, in the
-    // middle of exporting a key.
-    if (s_scan_done) { void (*d)(void) = s_scan_done; s_scan_done = NULL; d(); }
-    else info_screen();
+    info_screen();
 }
 
 static void sp_key_show(void *ud)
@@ -1322,6 +1318,12 @@ static void info_tab_build(void)
     wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
     // "Scan" elsewhere on this device means the camera. Here it means searching
     // the chain, and the caption above the value is what says which.
+    //
+    // The export's strings are R_ (RECEIVE) keys -- STR_R_SP_SCAN_BTN and the
+    // warn/reveal set with it -- because the row it replaced lived on RECEIVE's
+    // silent payment tab. This is the only launcher now and the screens are
+    // owned here. The prefix is historical; there is no RECEIVE screen to go
+    // looking for, and renaming a key is 21 locale files for an internal name.
     wt_line_row_stage(wt_line_row(p, X, 196, W, H, tr(STR_R_SP_BTN),
                                   tr(STR_R_SP_SCAN_BTN), wt_font28(), WT_INK,
                                   tr(STR_K_SP_SUB), NULL,
@@ -1408,15 +1410,7 @@ void kiss_info_open(lv_obj_t *parent)
     // rebuild on purpose -- that is what returns an owner to the tab they left
     // when a row's screen goes BACK -- so entering the page has to say so.
     s_ictx.tab = 0;
-    s_scan_done = NULL;
     info_screen();
-}
-
-void kiss_info_open_scan_key(lv_obj_t *parent, void (*done_cb)(void))
-{
-    s_parent = parent;
-    s_scan_done = done_cb;
-    sp_key_warn_cb(NULL);
 }
 
 void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))

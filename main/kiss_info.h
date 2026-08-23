@@ -35,11 +35,6 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // password typed twice, then the keys as a KEF envelope — a locked QR and
 // optionally a .kef file on the card.
 void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void));
-// The SCAN KEY export: consent, the permission model, then a held reveal.
-// KEYS and RECEIVE both offer it and there is one implementation, so the
-// caller says where BACK goes -- without that, leaving the warn screen from
-// RECEIVE landed on KEYS, which is not where the owner came from.
-void kiss_info_open_scan_key(lv_obj_t *parent, void (*done_cb)(void));
 void kiss_info_close(void);             // idle auto-lock: drop whichever is up
 #ifdef SIMULATOR
 // Deterministic visual-QA captures. The walk used to tap the "?" chips by

@@ -1031,21 +1031,9 @@ static void page_cb(lv_event_t *e) {
 }
 
 // ---- tab 3: SILENT PAYMENT ----
-// Coming back from either destination lands on the tab it left from, which is
-// what the context remembers the tab for.
-static void sp_return(void) {
-  s_rctx.tab = 2;
-  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-  recv_detail_open();
-}
-
-static void sp_key_export_cb(lv_event_t *e) {
-  (void)e;
-  // One implementation of the export, in kiss_info.c, told where BACK goes.
-  s_addr_sg = NULL;
-  if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-  kiss_info_open_scan_key(s_parent, sp_return);
-}
+// The SCAN KEY export used to be launched from here as well as from KEYS, and
+// the return path that served it lived in kiss_info.c. Both are gone; the tab
+// names the export and does not open it. See recv_tab_build().
 
 // A throw comes to rest on a whole line. LVGL rounds nothing by itself and its
 // own snap overshoots the content at the end of a list, so this rounds the
@@ -1299,9 +1287,22 @@ static void recv_tab_build(void) {
   lv_obj_t *sg = wt_addr_short(r1, sp, wt_font_mono23());
   lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
   wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
-  wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT),
-              wt_font23(), WT_INK, tr(STR_K_SP_SUB), NULL,
-              sp_key_export_cb, NULL);
+  // A fact with no door. The export hands a coordinator a PRIVATE key, and it
+  // has ONE launcher, in KEYS. A second one here is a second consent flow to
+  // keep in sync, and this screen is for showing someone an address -- pairing
+  // a coordinator is setup, not receiving. The line stays so an owner reading
+  // their silent address still learns the export exists and where it lives.
+  //
+  // No cb, so wt_line_row draws no arrow, no radius and no pressed style: it is
+  // not a dimmed control, it is not a control. KEYS' NETWORK line is the other
+  // one. Do not put an arrow glyph in the value to "help" -- an arrow on this
+  // device means there is something under the row, and there is not.
+  // The mark, because "KEYS" under "SCAN KEY" could be read as a plural and
+  // not as the place to go. WT_ICON_KEY is what the home tile and the KEYS
+  // page wear, so it names the section rather than decorating the word.
+  wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN),
+              tr_sym(WT_ICON_KEY, STR_I_T),
+              wt_font28(), WT_INK, tr(STR_K_SP_SUB), NULL, NULL, NULL);
   wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
   wt_note(p, tr(STR_R_EXPL_SP), X, 286, W,
           WT_CONTENT_BOTTOM - 286);
