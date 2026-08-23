@@ -174,7 +174,7 @@ python3 tools/check_glyphs.py                      # icons the fonts do not cont
 
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
-  espressif/idf:v6.0.1 idf.py -B /tmp/idfbuild build     # the device compiler
+  espressif/idf:v6.0.1 idf.py -B /project/build-docker build     # the device compiler
 ```
 
 **The last one is on this list now, not only in a paragraph below it.** It was
@@ -245,8 +245,20 @@ above is it:
 ```bash
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
-  espressif/idf:v6.0.1 idf.py -B /tmp/idfbuild build
+  espressif/idf:v6.0.1 idf.py -B /project/build-docker build
 ```
+
+`-B /project/build-docker` rather than a path in the container's own `/tmp`:
+with `--rm` the container filesystem goes when the run ends, so a build
+directory there is written once and thrown away, and every invocation pays a
+full 1774 target rebuild. `/project` is the mounted repo and `/build*/` is
+already ignored, so the work is kept and the next run is incremental.
+
+The other half of the same lesson: an interrupted `docker run` does not stop the
+build. The container carries on compiling with nothing watching it, and a second
+attempt starts a second full rebuild beside the first. Three of them at once on
+a 7.7GB daemon is how a build comes back as exit 137 with no error in the log --
+`docker ps`, then `docker kill`, before starting another.
 
 The desktop build is clang and the device build is gcc with `-Werror`, and they
 do not refuse the same code. A 64 byte buffer holding a 160 byte translated
