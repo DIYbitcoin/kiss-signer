@@ -1278,6 +1278,15 @@ static lv_obj_t *s_hit;
 static int       s_hits;
 static lv_obj_t *s_bar_hit;
 static int       s_bar_hits;
+// Clickable is not the same as tappable. lv_obj_create hands out
+// LV_OBJ_FLAG_CLICKABLE by default, so every plain container -- a wt_card, the
+// column a histogram is drawn in -- is a clickable ancestor of whatever sits
+// inside it. That is harmless while a walk asks for words nothing else says,
+// and stops being harmless the moment it asks for "0": the per face count
+// under a coin's first column reads "0" too, and its clickable ancestor is the
+// card. So a literal lookup requires the ancestor to have an event handler
+// WIRED to it -- which the key does, the "?" chip does, and a card never does.
+static bool      s_wired_only;
 
 static void find_pill(lv_obj_t *o, const char *txt)
 {
@@ -1294,7 +1303,8 @@ static void find_pill(lv_obj_t *o, const char *txt)
                                        t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
         if (hit) {
             for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
-                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) {
+                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE) &&
+                    (!s_wired_only || lv_obj_get_event_count(p) > 0)) {
                     if (p != s_hit) { s_hit = p; s_hits++; }
                     // A label often appears twice: once on a content row that
                     // opens the thing, once on the pill in the action bar that
@@ -1333,10 +1343,40 @@ static lv_obj_t *find_accent_line(lv_obj_t *o)
     return NULL;
 }
 
+// By LITERAL text rather than by translation key. Some controls carry a
+// character instead of a word: the keypad's die faces are "1".."6" and a coin's
+// sides are "0"/"1", which are the characters recorded into the SHA256 string,
+// not copy, so tr() has no key for them. Same finder, same refusal to guess
+// between two matches -- and the clickable-ancestor rule is what keeps the
+// per-face COUNT labels under the columns out of it: they read "1" too, and
+// nothing above them is clickable.
+static lv_obj_t *ctrl_for(const char *txt, const char *how)
+{
+    s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
+    s_wired_only = true;
+    find_pill(lv_screen_active(), txt);
+    if (s_bar_hits >= 1) {
+        if (s_bar_hits > 1)
+            printf("note: %d pills say \"%s\"; taking the topmost\n", s_bar_hits, txt);
+        s_hit = s_bar_hit; s_hits = 1;
+    }
+    if (!s_hit || s_hits != 1) {
+        printf("FAIL: %s \"%s\": %s\n", how, txt,
+               !s_hit ? "no visible pill says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    return s_hit;
+}
+
+// Pills keep the looser rule they have always had: their labels are words, the
+// ambiguity check already covers them, and narrowing it now would be a change
+// to two hundred existing taps for no fault anyone has seen.
 static lv_obj_t *pill_for(int key, const char *how)
 {
     const char *txt = tr(key);
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
+    s_wired_only = false;
     find_pill(lv_screen_active(), txt);
     if (s_bar_hits >= 1) {
         if (s_bar_hits > 1)
@@ -1485,15 +1525,31 @@ static void tap_label_exact(const char *txt)
     pump(10);
 }
 
-static void tap_str(int key, int hold, int settle)
+// Tap a control by the text on it. Everything a walk taps this way survives a
+// layout change; everything it taps by pixel does not, and does not say so --
+// moving the dice card onto the 704 page lane silently moved four taps at once,
+// and CLAUDE.md's account of the coverage checker is that the usual outcome is
+// worse than a loud failure: a tap that misses leaves every later save()
+// photographing whatever is on screen instead, and the sweep comes back clean
+// having checked the wrong thing.
+static void tap_obj(lv_obj_t *p, int hold, int settle)
 {
-    lv_obj_t *p = pill_for(key, "tap");
     if (!p) return;
     lv_area_t a; lv_obj_get_coords(p, &a);
     touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
     pump(hold);
     release();
     pump(settle);
+}
+
+static void tap_lbl(const char *txt, int hold, int settle)
+{
+    tap_obj(ctrl_for(txt, "tap"), hold, settle);
+}
+
+static void tap_str(int key, int hold, int settle)
+{
+    tap_obj(pill_for(key, "tap"), hold, settle);
 }
 
 // Tap the "?" chip that sits immediately after a caption. The chip's x is
@@ -4359,23 +4415,27 @@ int main(void) {
   //   sim_setup_dice_99      -- the 24 word branch reached DICE_FLOOR_256 and
   //       there is no longer a way to ask for 24 while creating. kisstest still
   //       pins the floor arithmetic; what is gone is the SCREEN that showed it.
-  touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> the keypad, at 12
+  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad, at 12
   save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
 
   // The coin, which is the same screen in base 2. Visited FIRST and left by
   // BACK, so the dice run below is byte for byte the one that was here before.
-  // The chooser sits on the title's row: DICE at 500..622, COIN at 630..752.
-  touch(691, 44); pump(3); release(); pump(6);      // COIN -> two keys, base 2
+  tap_str(STR_W_COIN, 3, 6);          // COIN -> two keys, base 2
   save("/tmp/sim_setup_coin.ppm");                  // 0 / 128, two zero columns
   // 128 flips, checked in and asserted by kisstest: face bits 127382 (floor
-  // 110080), step bits 125408 (floor 109220), counts 59/69, no period. Keys are
-  // 324 wide at card relative 18 and 362 on a card at x=48, so their centres
-  // are x=228 and x=572, and the key row is 112..172 with its middle at 142.
+  // 110080), step bits 125408 (floor 109220), counts 59/69, no period.
+  //
+  // A key is tapped by the character ON it, which is also the character it
+  // records: SIM_COIN_OK is read straight into tap_lbl with no coordinate in
+  // between. That is the point of the helper -- the previous form carried the
+  // key centres as literals (x=228 and x=572, row middle y=142) and every one
+  // of them was wrong the moment the card moved to the 704 page lane.
   static const char SIM_COIN_OK[] =
       "01010110101000001111111101000011111001110010000010100001100101001"
       "011100011111100111100110001001011110011110111111111100000010101";
   for (int i = 0; i < 128; i++) {
-    touch(SIM_COIN_OK[i] == '0' ? 228 : 572, 142); pump(4); release(); pump(4);
+    const char k[2] = { SIM_COIN_OK[i], 0 };
+    tap_lbl(k, 4, 4);
   }
   save("/tmp/sim_setup_coin_full.ppm");             // 128, tick chip, DONE live
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows, flips dropped
@@ -4385,28 +4445,28 @@ int main(void) {
   // is the case a count test cannot see: 64/64 dead level, and every step a
   // change. The verdict screen's two columns are CENTRED in the 704 lane, which
   // is geometry no other stop renders.
-  touch(394, 240); pump(3); release(); pump(4);     // DICE keypad
-  touch(691, 44); pump(3); release(); pump(6);      // COIN, empty again
+  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad
+  tap_str(STR_W_COIN, 3, 6);          // COIN, empty again
   for (int i = 0; i < 128; i++) {
-    touch((i & 1) ? 572 : 228, 142); pump(4); release(); pump(4);
+    const char k[2] = { (char)('0' + (i & 1)), 0 };
+    tap_lbl(k, 4, 4);
   }
   save("/tmp/sim_setup_coin_flag.ppm");             // PATTERN chip, level columns
   tap_str(STR_C_DONE, 3, 6);          // DONE -> refused
   save("/tmp/sim_setup_coin_warn.ppm");             // two centred columns, 2 pills
   tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad, 128 banked
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows
-  touch(394, 240); pump(3); release(); pump(4);     // DICE again, back at base 6
+  tap_str(STR_W_CHOOSE_DICE, 3, 4);   // DICE row -> the keypad, back at base 6
   // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
   // real judge this loop is a textbook ramp — so instead of dodging that, it
   // IS the flagged run: perfectly level columns wearing a PATTERN chip, which
-  // is the whole argument for judging order and not just counts. Keys sit at
-  // y=142 (card at 96, keys 16..76 inside); face i centre x = 117 + i*113.
+  // is the whole argument for judging order and not just counts.
   for (int i = 0; i < 50; i++) {
-    int kx = 117 + (i % 6) * 113;
-    touch(kx, 146); pump(4); release(); pump(4);
+    const char k[2] = { (char)('1' + i % 6), 0 };
+    tap_lbl(k, 4, 4);
   }
   save("/tmp/sim_setup_dice_flag.ppm");             // PATTERN chip over LEVEL bars
-  touch(723, 275); pump(3); release(); pump(40);    // "?" beside the chip; 40 =
+  tap_lbl("?", 3, 40);                // the "?" beside the chip; 40 pumps =
                                                     // the card intro settled
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
@@ -4429,8 +4489,8 @@ int main(void) {
   static const char SIM_DICE_OK[] =
       "14464111145452332224636431261353544615153616323265";
   for (int i = 0; i < 50; i++) {
-    int kx = 117 + (SIM_DICE_OK[i] - '1') * 113;
-    touch(kx, 146); pump(4); release(); pump(4);
+    const char k[2] = { SIM_DICE_OK[i], 0 };
+    tap_lbl(k, 4, 4);
   }
   save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live
   tap_str(STR_C_DONE, 3, 4);     // DONE -> words
