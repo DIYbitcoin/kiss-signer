@@ -1758,17 +1758,23 @@ static unsigned dice_need(void) { return s_count == 24 ? 32 : 16; }
 // attached. That line cannot live on the note itself: DICE_NOTE_Y 210 to
 // DICE_FP_Y 250 is 40px, two font14 lines, and a longer locale would land on
 // the fingerprint. The card has the room, so the reason goes here.
-// Two claims, two marks. This was four glossary terms -- COUNTS, ORDER,
-// REFUSED, YOURS TO CHECK -- which is a reference card for someone who already
-// knows, on a page a newcomer opens because their fifty rolls were rejected and
-// they do not know why. The two things they need are what gets refused and
-// whether they lost anything; both other terms were describing the mechanism
-// behind those, and YOURS TO CHECK told a beginner to recompute a SHA256.
+// Three claims, three marks, and the count went 4 -> 2 -> 3 for a reason each
+// time. Four was a glossary -- COUNTS, ORDER, REFUSED, YOURS TO CHECK -- which
+// is a reference card for somebody who already knows. Two was what a reader
+// needs AFTER a refusal: what gets refused, and whether they lost anything.
+//
+// The third is what a reader needs BEFORE one, and it was the only question the
+// card never answered: why am I doing this by hand at all. It goes first
+// because a newcomer taps "?" on tap three, not on tap fifty, and the honest
+// answer -- the randomness is yours, so you do not have to take the device's
+// word for its own -- is the whole reason this path exists. The title says so
+// now too; it used to name the checker, which is rows two and three.
 //
 // That line is not gone, it is where it belongs: the dice screen already prints
 // "SHA256 of your rolls. recompute it offline to check." under the strip, for
 // the reader who wants it.
 static const char *const DICE_HELP_ICONS[] = {
+    WT_ICON_KEY,
     LV_SYMBOL_WARNING,
     LV_SYMBOL_OK,
 };

@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "cách khắc phục",
   "W_DICE_W2_B": "các lần gieo vẫn được giữ. gieo tiếp cho đến khi đều.",
   "W_DICE_HELP_T": "VÌ SAO KIỂM TRA CÁC LẦN GIEO",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "RÚT KHÔNG NHÌN",
   "W_CARDS_NOTE": "rút không nhìn từ danh sách BIP39 đã trộn. không có ngẫu nhiên của máy.",
   "W_CARDS_T": "RÚT KHÔNG NHÌN",

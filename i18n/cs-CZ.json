@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "jak to napravit",
   "W_DICE_W2_B": "tvé hody zůstávají. házej dál a tvar se vyrovná.",
   "W_DICE_HELP_T": "PROČ SE HODY KONTROLUJÍ",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "LOSOVÁNÍ NASLEPO",
   "W_CARDS_NOTE": "slova tažená naslepo ze zamíchaného seznamu BIP39. žádná náhoda stroje.",
   "W_CARDS_T": "LOSOVÁNÍ NASLEPO",

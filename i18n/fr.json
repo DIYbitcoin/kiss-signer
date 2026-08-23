@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "comment corriger",
   "W_DICE_W2_B": "vos lancers sont conservés. continuez et la forme s'égalise.",
   "W_DICE_HELP_T": "POURQUOI ON VÉRIFIE VOS LANCERS",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "TIRAGE AVEUGLE",
   "W_CARDS_NOTE": "des mots tirés à l'aveugle d'une liste BIP39 mélangée. aucun hasard machine.",
   "W_CARDS_T": "TIRAGE AVEUGLE",

@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "kako popraviti",
   "W_DICE_W2_B": "tvoja bacanja ostaju. bacaj dalje dok se ne izravna.",
   "W_DICE_HELP_T": "ZAŠTO SE BACANJA PROVJERAVAJU",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "IZVLAČENJE NASLIJEPO",
   "W_CARDS_NOTE": "riječi izvučene naslijepo s promiješanog popisa BIP39. bez strojne slučajnosti.",
   "W_CARDS_T": "IZVLAČENJE NASLIJEPO",

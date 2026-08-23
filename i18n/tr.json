@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "nasıl düzeltilir",
   "W_DICE_W2_B": "atışların duruyor. dengelenene kadar atmaya devam et.",
   "W_DICE_HELP_T": "ATIŞLARIN NEDEN KONTROL EDİLİR",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "GÖRMEDEN ÇEK",
   "W_CARDS_NOTE": "karıştırılmış BIP39 listesinden görmeden çekildi. makine rastgeleliği yok.",
   "W_CARDS_T": "GÖRMEDEN ÇEK",

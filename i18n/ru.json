@@ -131,7 +131,7 @@
   "W_DICE_W2_H": "как исправить",
   "W_DICE_W2_B": "ваши броски сохранены. бросайте дальше, пока не выровняется.",
   "W_DICE_HELP_T": "ЗАЧЕМ БРОСКИ ПРОВЕРЯЮТСЯ",
-  "W_DICE_HELP_B2": "WHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
+  "W_DICE_HELP_B2": "YOURS, NOT ITS: the randomness comes from your own hand, so you do not have to take this signer's word for its.\nWHAT GETS REFUSED: rolls that lean one way, or run in order. both are shapes someone could guess.\nNOTHING IS LOST: your rolls are kept. keep rolling and the shape evens out.",
   "W_CHOOSE_CARDS": "ТЯНУТЬ ВСЛЕПУЮ",
   "W_CARDS_NOTE": "слова, вытянутые вслепую из перемешанного списка BIP39. без машинной случайности.",
   "W_CARDS_T": "ТЯНУТЬ ВСЛЕПУЮ",
