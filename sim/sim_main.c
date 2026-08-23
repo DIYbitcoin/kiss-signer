@@ -2346,6 +2346,14 @@ int main(void) {
   // PAYMENT 448..644, all 30 tall from y=70.
   touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab
   save("/tmp/sim_recv_sptab.ppm");                  // two lines and the sentence
+  // The SCAN KEY line on this tab is a POINTER, not a door: the export of the
+  // private scan key has one launcher and it is in KEYS. A row with no cb also
+  // has no arrow and no pressed style, so a callback added back here would look
+  // identical in every frame the walk saves -- which is why this is a tap and
+  // an assertion rather than a picture. Nothing may open.
+  touch(400, 229); pump(3); release(); pump(8);     // SCAN KEY row: opens nothing
+  must_not_show("recv/sp-scan-has-no-door", tr(STR_R_SP_WARN_S));
+  must_show("recv/sp-tab-still-up", tr(STR_R_SP_ADDR_CAP));
   touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> SP view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
