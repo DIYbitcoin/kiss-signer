@@ -36,6 +36,7 @@ static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 static void info_screen(void);
 static void kef_warn_screen(lv_event_t *e);
 static void kef_wipe(void);
+static void sp_key_wipe(void);   // the exported scan key, out of the label's heap
 
 // RECOVERY WORDS is a tabbed page; this is its two-lane group state. Declared
 // up here because swap_screen() and the idle close both have to stop its
@@ -51,6 +52,7 @@ static void close_cb(lv_event_t *e)
 {
     (void)e;
     kef_wipe();       // the idle close must never leave an envelope behind
+    sp_key_wipe();    // nor a scan key in the label's heap block
     wt_pane_stop(&s_wctx);
     wt_pane_stop(&s_ictx);
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -494,9 +496,31 @@ static void pair_screen(void)
 // One launcher means one destination, so this is a plain call again. RECEIVE's
 // silent payment tab used to offer the same export and set its own return, and
 // the indirection existed only for that.
+// The exported key, as it exists on the SCREEN. kiss_session_sp_scan_export
+// wipes its own working buffers (wally_bzero, kiss_crypto.c), and this file
+// wipes the stack copy the moment the QR and the label have taken theirs --
+// but the LABEL then holds the only remaining copy, in a heap block LVGL frees
+// without scrubbing when the screen goes. That is the shape of the mnemonic
+// left in freed heap by the QR decoder, and this one is a PRIVATE key.
+//
+// So the label is remembered and its own buffer is zeroed in place before the
+// delete, on every way out: DONE, and the idle auto-lock. KEF does exactly
+// this for its envelope one page down; the SCAN KEY screen never did.
+static lv_obj_t *s_sp_key_lbl;
+
+static void sp_key_wipe(void)
+{
+    if (s_sp_key_lbl) {
+        char *t = lv_label_get_text(s_sp_key_lbl);
+        if (t) kiss_wipe(t, strlen(t));
+        s_sp_key_lbl = NULL;
+    }
+}
+
 static void sp_key_back_cb(lv_event_t *e)
 {
     (void)e;
+    sp_key_wipe();
     swap_screen();
     info_screen();
 }
@@ -517,6 +541,8 @@ static void sp_key_show(void *ud)
     //
     // First rendered by the walk's failure stop; every frame before that was
     // the success path, which is how the fall-through survived.
+    // 256 bytes of PRIVATE key on the stack. Wiped on both exits below, not
+    // left for whatever reuses this frame.
     char key[256];
     if (kiss_session_sp_scan_export(key, sizeof key) != 0) {
         lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 140);
@@ -530,6 +556,8 @@ static void sp_key_show(void *ud)
         // the way back.
         wt_note(s_scr, tr(STR_C_LOCKED_B), 48, 296, 704, 90);
         wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
+        // A refusal can still have written part of a key before it gave up.
+        kiss_wipe(key, sizeof key);
         return;
     }
 
@@ -555,6 +583,7 @@ static void sp_key_show(void *ud)
     lv_obj_t *k = wt_lbl(s_scr, key, 400, 96, wt_font_mono23(), WT_INK);
     lv_obj_set_width(k, 360);
     lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
+    s_sp_key_lbl = k;
 
     // Placed off the key's MEASURED height rather than a y decided in advance:
     // the wrap depends on where LVGL takes its breaks, and a hard 250 is how
@@ -566,6 +595,10 @@ static void sp_key_show(void *ud)
 
     // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
     wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
+
+    // The QR and the label hold their own copies now, so the stack one has no
+    // reader left. Here rather than at a single exit, because there is none.
+    kiss_wipe(key, sizeof key);
 }
 
 static void sp_key_warn_cb(lv_event_t *e)
