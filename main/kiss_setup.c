@@ -96,6 +96,9 @@ static lv_obj_t *s_word_lbl, *s_sug[3];
 // printed as tiles and shaken in a bag, and "deck" was read as playing cards.
 static bool s_cards;
 static bool s_dice;                     // the count screen is on the way to the keypad
+static unsigned s_base = 6;             // 6 for a die, 2 for a coin. The hand
+                                        // entered path is ONE path in two bases;
+                                        // this is the only thing that differs.
 static void (*s_whatseed_ret)(void);    // where the seed explainer's BACK returns
 static uint16_t s_cand[WLAST_MAX];   // checksum valid last word indices
 static int s_ncand, s_cpage;
@@ -159,6 +162,7 @@ static void wipe_state(void)
     // a seed the owner may still finish elsewhere, so it wipes with the words.
     s_cards = false;
     s_dice = false;
+    s_base = 6;
     s_whatseed_ret = NULL;
     memset(s_cand, 0, sizeof s_cand);
     s_ncand = 0;
@@ -880,7 +884,8 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
     // Where the draw came from, beside what the device thought of it. s_dice is
     // still set here: this is the one funnel both machine paths use, and it runs
     // before the words screen exists.
-    kiss_seed_set_source(s_dice ? WSEED_SRC_DICE : WSEED_SRC_MIX);
+    kiss_seed_set_source(!s_dice ? WSEED_SRC_MIX
+                                 : s_base == 2 ? WSEED_SRC_COIN : WSEED_SRC_DICE);
     // split into the word array for the reveal grid + quiz
     s_nw = 0;
     const char *p = words;
@@ -1596,7 +1601,7 @@ static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_dice = f
 // to choose between two numbers neither of which they can evaluate, on the way
 // to making the only key they will ever have. Restore still offers both, where
 // the count is not a choice but a fact about the paper in the owner's hand.
-static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_dice = true;  s_count = 12; dice_screen(); }
+static void method_dice_cb(lv_event_t *e) { (void)e; s_cards = false; s_dice = true;  s_base = 6; s_count = 12; dice_screen(); }
 // Cards goes to 12 as well, so all three creation paths now make the same
 // thing. It had the best case for keeping the choice -- the count decides how
 // many cards the OWNER physically draws, which is their cost and not the
@@ -1621,7 +1626,12 @@ static void method_screen(void)
     wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), NULL,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
-    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_DICE_NOTE),
+    // Its OWN subline, not W_DICE_NOTE: that key is also the note under MADE
+    // WITH / DICE in settings, where naming the coin as well would describe a
+    // path this seed did not take. Here the row leads to both, and the two
+    // costs belong on it -- 128 flips is 2.6x the taps of 50 rolls, and nobody
+    // should meet that number for the first time on tap 60.
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_CHOOSE_DICE), tr(STR_W_METHOD_DICE_S),
              NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
     // KEYBOARD, not SHUFFLE. This row's whole subject is a word LIST the owner
@@ -1645,6 +1655,11 @@ static void method_screen(void)
 #define DICE_KEY_W     84
 #define DICE_KEY_H     60
 #define DICE_KEY_GAP   10
+// Base 2 spends the four key slots a coin does not need on the two it does:
+// 18..290 and 310..582, which is the same 564 lane the six keys fill. 128 taps
+// is a long session and a 272px key is the difference between it being one.
+#define DICE_KEY_W2   272
+#define DICE_KEY_GAP2  20
 #define DICE_KEY_Y     20   // keys 20..80, card relative
 #define DICE_BAR_TOP   92   // tracks 92..136
 #define DICE_BAR_H     44   // full height = TWICE the fair share, so the fair
@@ -1669,6 +1684,17 @@ static lv_obj_t *s_dice_fill[6];   // histogram fills, grown up from the base
 static lv_obj_t *s_dice_cnt[6];    // exact count under each column
 static lv_obj_t *s_dice_chip;      // the one status coloured element on the screen
 static int      s_dice_last_verdict;
+static lv_obj_t *s_dice_mode[2];   // DICE / COIN, on the title's row
+static int      s_dice_last_live;  // whether they were last drawn live
+
+// How many keys, and how wide. The module owns the base for the run, so the
+// screen asks it rather than keeping a second copy that can disagree.
+static int dice_faces(void) { return kiss_dice_base() == 2 ? 2 : 6; }
+static int dice_key_w(void) { return dice_faces() == 2 ? DICE_KEY_W2 : DICE_KEY_W; }
+static int dice_pitch(void)
+{
+    return dice_key_w() + (dice_faces() == 2 ? DICE_KEY_GAP2 : DICE_KEY_GAP);
+}
 
 // See the forward declaration above mk_screen. Arrays as well as scalars: the
 // bit strips are read by their own screens' refreshes through s_tap_bits[0] /
@@ -1687,6 +1713,7 @@ static void widgets_drop(void)
     memset(s_dice_cnt, 0, sizeof s_dice_cnt);
     s_dice_card = NULL; s_dice_tally = NULL; s_dice_done = NULL;
     s_dice_fp = NULL; s_dice_chip = NULL;
+    s_dice_mode[0] = s_dice_mode[1] = NULL;
 }
 
 // The floor is not derived here any more: kiss_dice_judge computes it from
@@ -1789,9 +1816,9 @@ static void dice_help_cb(lv_event_t *e)
 // On the tap screen's rule that a continuous bar would claim a measurement of
 // quality: each column here is a COUNT, printed in figures directly under it.
 // It claims nothing the number does not already state.
-static void dice_bars_make(lv_obj_t *par, int x0, int pitch, int y)
+static void dice_bars_make(lv_obj_t *par, int faces, int x0, int pitch, int y)
 {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < faces; i++) {
         lv_obj_t *tr = lv_obj_create(par);
         lv_obj_remove_style_all(tr);
         lv_obj_set_pos(tr, x0 + i * pitch, y);
@@ -1814,21 +1841,24 @@ static void dice_bars_make(lv_obj_t *par, int x0, int pitch, int y)
     lv_obj_t *tick = lv_obj_create(par);
     lv_obj_remove_style_all(tick);
     lv_obj_set_pos(tick, x0 - DICE_KEY_GAP - 12, y + DICE_BAR_H / 2);
-    lv_obj_set_size(tick, 5 * pitch + DICE_BAR_W + 2 * (DICE_KEY_GAP + 12), 1);
+    lv_obj_set_size(tick, (faces - 1) * pitch + DICE_BAR_W
+                          + 2 * (DICE_KEY_GAP + 12), 1);
     lv_obj_set_style_bg_color(tick, WT_DIV, 0);
     lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
 }
 
 static void dice_bars_set(const kiss_dice_q_t *q)
 {
-    // Full height is twice the fair share: count = n/6 lands on the tick at
-    // half, count = n/3 tops out. Nothing references the floor, so the scale
-    // is honest at roll 7 and at roll 180 alike.
-    for (int i = 0; i < 6; i++) {
+    // Full height is twice the fair share: count = n/base lands on the tick at
+    // half, twice that tops out. Nothing references the floor, so the scale is
+    // honest at roll 7 and at roll 320 alike. The base has to be in it or a
+    // coin's two columns, whose fair share is n/2, would start clipped: at
+    // base 6 this is the face*3*BAR_H/n it has always been.
+    for (unsigned i = 0; i < q->base; i++) {
         if (!s_dice_fill[i]) continue;
         int h = 0;
         if (q->n) {
-            h = (int)(q->face[i] * 3 * DICE_BAR_H / q->n);
+            h = (int)(q->face[i] * q->base * DICE_BAR_H / (2 * q->n));
             if (h > DICE_BAR_H) h = DICE_BAR_H;
         }
         lv_obj_set_pos(s_dice_fill[i], 0, DICE_BAR_H - h);
@@ -1845,7 +1875,7 @@ static void dice_refresh(void)
 {
     unsigned n = kiss_dice_count();
     kiss_dice_q_t q;
-    kiss_dice_judge(kiss_dice_digits(), n, dice_need(), &q);
+    kiss_dice_judge(kiss_dice_digits(), n, kiss_dice_base(), dice_need(), &q);
     dice_bars_set(&q);
 
     if (s_dice_tally) {
@@ -1877,6 +1907,19 @@ static void dice_refresh(void)
             lv_obj_set_style_bg_color(s_dice_bits[b], on ? wt_accent() : WT_DIV, 0);
         }
         kiss_wipe(e, sizeof e);
+    }
+    // The source chooser is live only while the buffer is empty. The two bases
+    // cannot be mixed, so a swap has to discard -- and a control that throws
+    // away forty flips on a stray tap is exactly what the corner rule exists to
+    // refuse. Greyed rather than hidden, the same argument DONE makes below:
+    // UNDO back to nothing brings them back, and BACK is the way out regardless.
+    if (s_dice_mode[0] && (int)(n == 0) != s_dice_last_live) {
+        s_dice_last_live = (n == 0);
+        for (int i = 0; i < 2; i++) {
+            lv_obj_set_style_opa(s_dice_mode[i], n ? LV_OPA_40 : LV_OPA_COVER, 0);
+            if (n) lv_obj_remove_flag(s_dice_mode[i], LV_OBJ_FLAG_CLICKABLE);
+            else   lv_obj_add_flag(s_dice_mode[i], LV_OBJ_FLAG_CLICKABLE);
+        }
     }
     if (s_dice_done) {
         // Disabled, not hidden: a control that pops into existence at roll 50
@@ -1934,12 +1977,12 @@ static void dice_commit(void)
         // Judge the digits one last time, BEFORE reset() drops them. This is
         // the only moment the raw rolls and the decision to keep them exist
         // together, and after the hash nothing can ever tell.
-        // A flagged run can no longer reach here: DONE refuses it and ROLL MORE
+        // A flagged run can no longer reach here: DONE refuses it and KEEP GOING
         // is the way through. So the note this path writes is always "nothing
         // to say", and writing it is still what CLEARS a previous device's
         // verdict when a seed is rebuilt.
         kiss_setup_entropy_note(0);
-        kiss_dice_reset();
+        kiss_dice_reset(s_base);
         kiss_setup_entropy(entropy, need);
     } else {
         // Cannot happen once the floor is met, but never leave a dead button.
@@ -1949,7 +1992,8 @@ static void dice_commit(void)
 }
 
 static void dice_screen_build(void);
-// ROLL MORE: back to the keypad WITH the rolls banked. This pill is the whole
+static void dice_mode_cb(lv_event_t *e);
+// KEEP GOING: back to the keypad WITH the rolls banked. This pill is the whole
 // point of the warning — the old samey screen's only way back went through
 // dice_screen(), which reset the module and silently threw away fifty rolls.
 static void dice_keep_cb(lv_event_t *e) { (void)e; dice_screen_build(); }
@@ -1966,9 +2010,15 @@ static void dice_warn_screen(int verdict)
                                         : STR_W_DICE_PATTERN_S));
     lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
     for (int i = 0; i < 6; i++) s_dice_cnt[i] = NULL;
-    dice_bars_make(card, 58, 117, 24);
+    // Two columns are centred in the 704 lane rather than left where six start:
+    // a pair hard against the left edge reads as four that failed to draw.
+    int faces = dice_faces(), wpitch = faces == 2 ? 292 : 117;
+    dice_bars_make(card, faces,
+                   faces == 2 ? (704 - (wpitch + DICE_BAR_W)) / 2 : 58,
+                   wpitch, 24);
     kiss_dice_q_t q;
-    kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), dice_need(), &q);
+    kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), kiss_dice_base(),
+                    dice_need(), &q);
     dice_bars_set(&q);
 
     // wt_body_font2_HEAD: it measures the two headings instead of a flat
@@ -1986,10 +2036,10 @@ static void dice_warn_screen(int verdict)
     wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
                  408, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
 
-    // No USE ANYWAY. ROLL MORE keeps the right hand slot it already had, so the
+    // No USE ANYWAY. KEEP GOING keeps the right hand slot it already had, so the
     // muscle memory survives the pill count dropping to two, and it is primary
     // because it is the way through: the rolls are all still banked, which is
-    // the whole reason DICE_MAX is 180.
+    // the whole reason DICE_MAX is what it is.
     lv_obj_t *p[2];
     p[0] = wt_pillh(s_scr, tr(STR_W_START_OVER), 48, WT_ACTION_Y_TALL, 330, 66,
                     method_dice_cb, NULL);
@@ -2006,7 +2056,7 @@ static void dice_done_cb(lv_event_t *e)
     //
     // This used to warn and then honour a USE ANYWAY, on the argument that dice
     // entropy is the owner's and a device overriding it takes back the trust
-    // root the path exists to hand over. The owner still owns it — ROLL MORE is
+    // root the path exists to hand over. The owner still owns it — KEEP GOING is
     // how they exercise that, and it keeps every roll already banked, so a
     // refusal is never a dead end for anyone actually rolling a die. What the
     // old shape really offered was one tap between a shape nobody rolled and a
@@ -2017,7 +2067,8 @@ static void dice_done_cb(lv_event_t *e)
     // bits: the plug-in estimator reads ~3.6 bits low at fifty rolls, so a
     // 126 bit gate refuses about half of honest sessions. See kiss_dice_q.c.
     kiss_dice_q_t q;
-    kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), dice_need(), &q);
+    kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), kiss_dice_base(),
+                    dice_need(), &q);
     if (kiss_dice_blocked(q.verdict)) {
         dice_warn_screen(q.verdict);
         return;
@@ -2027,37 +2078,60 @@ static void dice_done_cb(lv_event_t *e)
 
 // Rolls are discarded, the same as the taps and the typed words the other two
 // methods drop on their way out. See ent_back_cb.
-static void dice_back_cb(lv_event_t *e) { kiss_dice_reset(); goto_method_cb(e); }
+static void dice_back_cb(lv_event_t *e) { kiss_dice_reset(s_base); goto_method_cb(e); }
 
 static void dice_screen_build(void)
 {
     s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_fp_full = false;
     for (int b = 0; b < DICE_BITS_N; b++) s_dice_bits[b] = NULL;
     s_dice_chip = NULL; s_dice_last_verdict = -1;
+    s_dice_mode[0] = s_dice_mode[1] = NULL; s_dice_last_live = -1;
     for (int i = 0; i < 6; i++) { s_dice_fill[i] = NULL; s_dice_cnt[i] = NULL; }
-    mk_screen(tr(STR_W_DICE_T), tr(STR_W_DICE_S));
+    const int faces = dice_faces(), kw = dice_key_w(), pitch = dice_pitch();
+    const bool coin = faces == 2;
+    mk_screen(tr(coin ? STR_W_COIN_T : STR_W_DICE_T),
+              tr(coin ? STR_W_COIN_S : STR_W_DICE_S));
+
+    // The source chooser, on the title's row. It is here and not on the method
+    // screen because a fourth choice row does not exist: WT_CHOICE_Y(3) is 402
+    // and WT_CONTENT_BOTTOM is 398. The geometry is the first boot language
+    // pill's, moved up to 22 so its 44px clears the subtitle band at 66.
+    wt_title_fit(s_scr, 436);
+    for (int i = 0; i < 2; i++) {
+        unsigned b = i ? 2u : 6u;
+        s_dice_mode[i] = wt_pillh(s_scr, tr(i ? STR_W_COIN : STR_W_CHOOSE_DICE),
+                                  500 + i * 130, 22, 122, 44, dice_mode_cb,
+                                  (void *)(intptr_t)b);
+        wt_pill_select(s_dice_mode[i], b == kiss_dice_base());
+    }
 
     s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
-    // six d6 keys, 1..6, in a row, each directly over the column it feeds
-    for (int i = 0; i < 6; i++) {
+    // The keys, each directly over the column it feeds: six for a die, two for
+    // a coin. A key's label IS the character that goes into the SHA256 string,
+    // so the strip below and the hash above are reading the same thing back.
+    for (int i = 0; i < faces; i++) {
         lv_obj_t *k = lv_button_create(s_dice_card);
-        lv_obj_set_pos(k, 18 + i * (DICE_KEY_W + DICE_KEY_GAP), DICE_KEY_Y);
-        lv_obj_set_size(k, DICE_KEY_W, DICE_KEY_H);
+        lv_obj_set_pos(k, 18 + i * pitch, DICE_KEY_Y);
+        lv_obj_set_size(k, kw, DICE_KEY_H);
         lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_obj_t *lbl = lv_label_create(k);
-        char d[2] = { (char)('1' + i), 0 };
+        char d[2] = { (char)((coin ? '0' : '1') + i), 0 };
         lv_label_set_text(lbl, d);
+        // The one character on the key IS the target, and at the button
+        // default it sat lost in a 272px coin key. font34 is the biggest face
+        // that clears the 60px key at both widths.
+        lv_obj_set_style_text_font(lbl, wt_font34(), 0);
         lv_obj_center(lbl);
     }
 
     // the live histogram under the keys, one exact count under each column
-    dice_bars_make(s_dice_card, 18 + (DICE_KEY_W - DICE_BAR_W) / 2,
-                   DICE_KEY_W + DICE_KEY_GAP, DICE_BAR_TOP);
-    for (int i = 0; i < 6; i++) {
-        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", 18 + i * (DICE_KEY_W + DICE_KEY_GAP),
+    dice_bars_make(s_dice_card, faces, 18 + (kw - DICE_BAR_W) / 2, pitch,
+                   DICE_BAR_TOP);
+    for (int i = 0; i < faces; i++) {
+        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", 18 + i * pitch,
                                DICE_CNT_Y, wt_font14(), MUT_COL);
-        lv_obj_set_width(s_dice_cnt[i], DICE_KEY_W);
+        lv_obj_set_width(s_dice_cnt[i], kw);
         lv_obj_set_style_text_align(s_dice_cnt[i], LV_TEXT_ALIGN_CENTER, 0);
     }
 
@@ -2117,8 +2191,18 @@ static void dice_screen_build(void)
 
 static void dice_screen(void)
 {
-    kiss_dice_reset();
+    kiss_dice_reset(s_base);
     dice_screen_build();
+}
+
+// The source chooser. It only ever fires with the buffer empty (dice_refresh
+// greys it otherwise), so the reset inside dice_screen throws nothing away.
+static void dice_mode_cb(lv_event_t *e)
+{
+    unsigned base = (unsigned)(intptr_t)lv_event_get_user_data(e);
+    if (base == s_base) return;
+    s_base = base;
+    dice_screen();
 }
 
 static void entropy_screen(void)

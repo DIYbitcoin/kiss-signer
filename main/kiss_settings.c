@@ -809,6 +809,8 @@ static void made_labels(int src, const char **label, const char **note)
                                 *note  = tr(STR_W_MIX_NOTE);      break;
         case WSEED_SRC_DICE:    *label = tr(STR_W_CHOOSE_DICE);
                                 *note  = tr(STR_W_DICE_NOTE);     break;
+        case WSEED_SRC_COIN:    *label = tr(STR_W_COIN);
+                                *note  = tr(STR_W_COIN_NOTE);     break;
         case WSEED_SRC_CARDS:   *label = tr(STR_W_CHOOSE_CARDS);
                                 *note  = tr(STR_W_CARDS_NOTE);    break;
         // The caption reads MADE WITH, so an imported path names the THING it
@@ -850,7 +852,7 @@ static void made_open_cb(lv_event_t *e)
     // show: the fold happened on somebody else's device and claiming otherwise
     // would be the screen inventing a provenance it does not have.
     int by = 232;
-    if (src == WSEED_SRC_MIX || src == WSEED_SRC_DICE) {
+    if (src == WSEED_SRC_MIX || src == WSEED_SRC_DICE || src == WSEED_SRC_COIN) {
         lv_obj_t *card = wt_card(s_scr, 48, 208, 704, 96);
         lv_obj_t *col = lv_obj_create(card);
         lv_obj_remove_style_all(col);

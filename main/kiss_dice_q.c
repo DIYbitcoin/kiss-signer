@@ -21,13 +21,20 @@
 // onto equally fair values, so the step histogram is judged by the SAME
 // statistic at N-1 — no second theory, no second constant. That is what
 // catches 1,2,3,4,5,6 repeating: perfectly level faces, zero level steps.
+//
+// A coin is the same three tests over Z2 and not a second judge: the parse,
+// the step modulus and the bar are the only things that know the base. The
+// bijection above holds over any Zb, so the step test needs no new argument,
+// and at base 2 it is the one doing the work — with two bins the count test
+// only sees a heavy lean, while an alternating string reads as level counts
+// and zero level steps. WD_RATE_2 in kiss_dice.h carries the enumeration.
 #include "kiss_dice.h"
 
 // log2(n) * 1000, rounded to nearest, n = 0..DICE_MAX. Regenerate with:
-//   python3 -c "import math;print([0]+[int(math.log2(n)*1000+0.5) for n in range(1,181)])"
+//   python3 -c "import math;print([0]+[int(math.log2(n)*1000+0.5) for n in range(1,321)])"
 // That one line is the whole table, and the table is the whole log2 — no
 // libm, no float, nothing that can round differently on the device than on
-// the owner's computer. uint16_t is exact: the largest entry is 7492.
+// the owner's computer. uint16_t is exact: the largest entry is 8322.
 static const uint16_t WD_L2[DICE_MAX + 1] = {
     0, 0, 1000, 1585, 2000, 2322, 2585, 2807, 3000, 3170,
     3322, 3459, 3585, 3700, 3807, 3907, 4000, 4087, 4170, 4248,
@@ -47,14 +54,28 @@ static const uint16_t WD_L2[DICE_MAX + 1] = {
     7229, 7238, 7248, 7257, 7267, 7276, 7285, 7295, 7304, 7313,
     7322, 7331, 7340, 7349, 7358, 7366, 7375, 7384, 7392, 7401,
     7409, 7418, 7426, 7435, 7443, 7451, 7459, 7468, 7476, 7484,
-    7492
+    7492, 7500, 7508, 7516, 7524, 7531, 7539, 7547, 7555, 7562,
+    7570, 7577, 7585, 7592, 7600, 7607, 7615, 7622, 7629, 7637,
+    7644, 7651, 7658, 7665, 7672, 7679, 7687, 7693, 7700, 7707,
+    7714, 7721, 7728, 7735, 7741, 7748, 7755, 7762, 7768, 7775,
+    7781, 7788, 7794, 7801, 7807, 7814, 7820, 7827, 7833, 7839,
+    7845, 7852, 7858, 7864, 7870, 7877, 7883, 7889, 7895, 7901,
+    7907, 7913, 7919, 7925, 7931, 7937, 7943, 7948, 7954, 7960,
+    7966, 7972, 7977, 7983, 7989, 7994, 8000, 8006, 8011, 8017,
+    8022, 8028, 8033, 8039, 8044, 8050, 8055, 8061, 8066, 8071,
+    8077, 8082, 8087, 8093, 8098, 8103, 8109, 8114, 8119, 8124,
+    8129, 8134, 8140, 8145, 8150, 8155, 8160, 8165, 8170, 8175,
+    8180, 8185, 8190, 8195, 8200, 8205, 8209, 8214, 8219, 8224,
+    8229, 8234, 8238, 8243, 8248, 8253, 8257, 8262, 8267, 8271,
+    8276, 8281, 8285, 8290, 8295, 8299, 8304, 8308, 8313, 8317,
+    8322
 };
 
 int32_t kiss_dice_bits(const unsigned c[6])
 {
     unsigned n = c[0] + c[1] + c[2] + c[3] + c[4] + c[5];
     if (n == 0 || n > DICE_MAX) return 0;
-    // Largest intermediate is 180 * 7492 = 1,348,560: int32 with room over.
+    // Largest intermediate is 320 * 8322 = 2,663,040: int32 with room over.
     int32_t b = (int32_t)n * WD_L2[n];
     for (int i = 0; i < 6; i++) b -= (int32_t)c[i] * WD_L2[c[i]];
     return b;
@@ -63,8 +84,9 @@ int32_t kiss_dice_bits(const unsigned c[6])
 // The whole string is one block typed twice or more: returns the block
 // length, or 0. This is the case both entropy tests are blind to — roll ten
 // honestly, type them five times, and the faces AND the steps come out level
-// while the string carries ~26 real bits. Cost is at most ~16k comparisons at
-// N=180; the chance of honest rolls forming any period is ~6^-25, never.
+// while the string carries ~26 real bits. Cost is at most ~51k comparisons at
+// N=320; the chance of honest rolls forming any period is ~6^-25 for a die and
+// ~2^-63 for 128 flips, never either way.
 static unsigned wd_period(const char *d, unsigned n)
 {
     for (unsigned p = 1; p * 2 <= n; p++) {
@@ -75,26 +97,38 @@ static unsigned wd_period(const char *d, unsigned n)
     return 0;
 }
 
+// The floor lives here, beside the judge, and not in kiss_dice.c: that file is
+// stubbed out by the simulator, and a floor the stub owned could drift from the
+// one the verdict is measured against.
+unsigned kiss_dice_floor(unsigned base, unsigned len)
+{
+    if (base == 2) return (len == 32) ? COIN_FLOOR_256 : COIN_FLOOR_128;
+    return (len == 32) ? DICE_FLOOR_256 : DICE_FLOOR_128;
+}
+
 int kiss_dice_blocked(int verdict)
 {
     return verdict == WD_Q_UNEVEN || verdict == WD_Q_PATTERN;
 }
 
-void kiss_dice_judge(const char *digits, unsigned n, unsigned len,
-                       kiss_dice_q_t *out)
+void kiss_dice_judge(const char *digits, unsigned n, unsigned base,
+                       unsigned len, kiss_dice_q_t *out)
 {
     if (!out) return;
     *out = (kiss_dice_q_t){0};
-    out->floor = (len == 32) ? DICE_FLOOR_256 : DICE_FLOOR_128;
+    base = (base == 2) ? 2 : 6;
+    out->base  = base;
+    out->floor = kiss_dice_floor(base, len);
     if (!digits) { out->verdict = WD_Q_SHORT; return; }
     if (n > DICE_MAX) n = DICE_MAX;
     out->n = n;
 
+    const char zero = (base == 2) ? '0' : '1';   // the char face 1 records as
     for (unsigned i = 0; i < n; i++) {
-        int f = digits[i] - '1';                // '1'..'6' -> 0..5
-        if (f < 0 || f > 5) continue;           // roll() never stores anything else
+        int f = digits[i] - zero;               // '1'..'6' -> 0..5, '0'/'1' -> 0/1
+        if (f < 0 || (unsigned)f >= base) continue;  // roll() stores nothing else
         out->face[f]++;
-        if (i) out->step[(digits[i] - digits[i - 1] + 6) % 6]++;
+        if (i) out->step[(digits[i] - digits[i - 1] + base) % base]++;
     }
     out->bits      = kiss_dice_bits(out->face);
     out->step_bits = kiss_dice_bits(out->step);
@@ -105,9 +139,10 @@ void kiss_dice_judge(const char *digits, unsigned n, unsigned len,
     // appears exactly when DONE becomes usable and not a roll sooner.
     if (n < out->floor) { out->verdict = WD_Q_SHORT; return; }
 
-    if (out->bits < (int32_t)WD_RATE * (int32_t)n)
+    const int32_t rate = (base == 2) ? WD_RATE_2 : WD_RATE;
+    if (out->bits < rate * (int32_t)n)
         out->verdict = WD_Q_UNEVEN;
-    else if (out->step_bits < (int32_t)WD_RATE * (int32_t)(n - 1) || out->period)
+    else if (out->step_bits < rate * (int32_t)(n - 1) || out->period)
         out->verdict = WD_Q_PATTERN;
     else
         out->verdict = WD_Q_OK;

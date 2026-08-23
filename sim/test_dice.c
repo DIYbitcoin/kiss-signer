@@ -1,5 +1,6 @@
-// Host tests for the dice-entropy module. The SHA256 vectors are the proof of
-// verifiability: they must equal `printf '<rolls>' | sha256sum`.
+// Host tests for the dice-entropy module, in both bases. The SHA256 vectors
+// are the proof of verifiability: they must equal
+// `printf '<rolls>' | sha256sum`.
 // Build: sim/build_test.sh -> /tmp/kisstest
 #include <math.h>    // ONLY for proving WD_L2 equals its one-liner; the module
 #include <stdio.h>   // under test must never include it.
@@ -23,8 +24,15 @@ static void hex(const uint8_t *b, unsigned n, char *out)
 
 static void roll_str(const char *s)
 {
-    kiss_dice_reset();
+    kiss_dice_reset(6);
     for (const char *p = s; *p; p++) kiss_dice_roll(*p - '0');
+}
+
+// The same for a coin: '0'/'1' on the wire, faces 1/2 at the API.
+static void flip_str(const char *s)
+{
+    kiss_dice_reset(2);
+    for (const char *p = s; *p; p++) kiss_dice_roll(*p - '0' + 1);
 }
 
 // printf '12345'*10 (50 chars) | sha256sum
@@ -51,7 +59,12 @@ static const char *R99 =
 
 static void judge_str(const char *s, unsigned need, kiss_dice_q_t *q)
 {
-    kiss_dice_judge(s, (unsigned)strlen(s), need, q);
+    kiss_dice_judge(s, (unsigned)strlen(s), 6, need, q);
+}
+
+static void judge_flips(const char *s, unsigned need, kiss_dice_q_t *q)
+{
+    kiss_dice_judge(s, (unsigned)strlen(s), 2, need, q);
 }
 
 // Deterministic xorshift32: fixture generation must never depend on libc rand.
@@ -72,12 +85,12 @@ static int test_dice_q(void)
     // ---- the table equals its one-liner ----
     // WD_L2 is private, but bits({1, n-1, 0..}) = n*L2[n] - (n-1)*L2[n-1]
     // (L2[1] = 0), so the prefix sum telescopes to n*L2[n] exactly. Checking
-    // that against host log2 for every n proves all 181 entries. The ONLY
+    // that against host log2 for every n proves all 321 entries. The ONLY
     // float allowed near this feature lives right here.
     {
         int bad = 0;
         int32_t acc = 0;
-        for (unsigned n = 2; n <= 180; n++) {
+        for (unsigned n = 2; n <= DICE_MAX; n++) {
             unsigned c[6] = { 1, n - 1, 0, 0, 0, 0 };
             acc += kiss_dice_bits(c);
             int32_t want = (int32_t)n * (int32_t)(log2((double)n) * 1000.0 + 0.5);
@@ -163,7 +176,7 @@ static int test_dice_q(void)
         for (int t = 0; t < 20000; t++) {
             for (int i = 0; i < 50; i++) s[i] = (char)('1' + xs32() % 6);
             s[50] = 0;
-            kiss_dice_judge(s, 50, 16, &q);
+            kiss_dice_judge(s, 50, 6, 16, &q);
             if (q.verdict != WD_Q_OK) bad++;
             int32_t m = q.bits - 2050 * 50;
             if (m < worst) worst = m;
@@ -171,7 +184,7 @@ static int test_dice_q(void)
         for (int t = 0; t < 20000; t++) {
             for (int i = 0; i < 99; i++) s[i] = (char)('1' + xs32() % 6);
             s[99] = 0;
-            kiss_dice_judge(s, 99, 32, &q);
+            kiss_dice_judge(s, 99, 6, 32, &q);
             if (q.verdict != WD_Q_OK) bad++;
         }
         printf("  fp sweep: %d flagged of 40000, worst 50-roll face margin %d milli-bits\n",
@@ -180,6 +193,83 @@ static int test_dice_q(void)
         // and now costs the session, so "under 1 in 1000" no longer describes
         // what is being promised. The measured value has always been 0.
         ok("honest rolls: none flagged", bad == 0);
+    }
+
+    // ---- base 2: the same three tests over Z2 ----
+    // The bar is WD_RATE_2 = 860, from the same exact enumeration: only 129
+    // histograms exist at 128 flips, so the binomial sum is not a simulation.
+    // 860 fires at |heads - 64| >= 28, which is 1 in 1,268,778 honest sessions
+    // -- the dice path's own rate. The boundary is asserted, not implied.
+    { unsigned c[6] = {92,36,0,0,0,0};
+      ok("coin: 92/36 at 128 is under the bar",  kiss_dice_bits(c) <  860 * 128); }
+    { unsigned c[6] = {91,37,0,0,0,0};
+      ok("coin: 91/37 at 128 is over the bar",   kiss_dice_bits(c) >= 860 * 128); }
+    { unsigned c[6] = {64,64,0,0,0,0};
+      ok("coin: 64/64 is exactly 128000 milli-bits", kiss_dice_bits(c) == 128000); }
+    // A biased coin is NOT what this refuses, and saying so out loud is the
+    // point: 60/40 still carries 124 of the promised 128 bits.
+    { unsigned c[6] = {77,51,0,0,0,0};
+      ok("coin: 60/40 passes, as it should",     kiss_dice_bits(c) >= 860 * 128); }
+
+    {
+        // The healthy run the sim walk flips (SIM_COIN_OK in sim/sim_main.c).
+        static const char F128[] =
+            "01010110101000001111111101000011111001110010000010100001100101001"
+            "011100011111100111100110001001011110011110111111111100000010101";
+        ok("coin fixture is 128 flips", strlen(F128) == 128);
+        judge_flips(F128, 16, &q);
+        ok("coin: sim walk healthy string -> OK",
+           q.verdict == WD_Q_OK && q.base == 2 && q.floor == 128 &&
+           q.bits == 127382 && q.step_bits == 125408 && q.period == 0);
+
+        char s2[257];
+        memset(s2, '0', 128); s2[128] = 0;
+        judge_flips(s2, 16, &q);
+        ok("coin: all heads -> UNEVEN", q.verdict == WD_Q_UNEVEN && q.bits == 0);
+
+        for (int i = 0; i < 128; i++) s2[i] = (char)('0' + (i & 1));
+        s2[128] = 0;
+        judge_flips(s2, 16, &q);
+        // Level counts, zero level steps: the case a count test alone cannot
+        // see, and the reason the step test carries base 2.
+        ok("coin: alternating -> PATTERN with level counts",
+           q.verdict == WD_Q_PATTERN && q.bits == 128000 && q.step_bits == 0);
+
+        // 64 honest flips typed twice: faces and steps both pass, period alone
+        // refuses it. Same argument as the dice block above.
+        memcpy(s2, F128, 64); memcpy(s2 + 64, F128, 64); s2[128] = 0;
+        judge_flips(s2, 16, &q);
+        ok("coin: 64 flip block x2 -> PATTERN by period alone",
+           q.verdict == WD_Q_PATTERN && q.period == 64 &&
+           q.bits >= 860 * 128 && q.step_bits >= 860 * 127);
+
+        judge_flips(F128, 32, &q);
+        ok("coin: 128 flips is SHORT for 24 words", q.verdict == WD_Q_SHORT &&
+           q.floor == 256);
+        memcpy(s2, F128, 128); memcpy(s2 + 128, F128, 127); s2[255] = 0;
+        judge_flips(s2, 32, &q);
+        ok("coin: 255 flips is still SHORT for 24 words", q.verdict == WD_Q_SHORT);
+    }
+
+    // ---- floors, in one place, for both bases ----
+    ok("floor: die 12 words", kiss_dice_floor(6, 16) == 50);
+    ok("floor: die 24 words", kiss_dice_floor(6, 32) == 99);
+    ok("floor: coin 12 words is the bit count", kiss_dice_floor(2, 16) == 128);
+    ok("floor: coin 24 words is the bit count", kiss_dice_floor(2, 32) == 256);
+
+    // ---- coin false positive rate, measured ----
+    {
+        int bad = 0;
+        char s2[300];
+        s_xs = 0xC01FA11;
+        for (int t = 0; t < 20000; t++) {
+            for (int i = 0; i < 128; i++) s2[i] = (char)('0' + (xs32() & 1));
+            s2[128] = 0;
+            kiss_dice_judge(s2, 128, 2, 16, &q);
+            if (q.verdict != WD_Q_OK) bad++;
+        }
+        printf("  coin fp sweep: %d flagged of 20000 honest 128 flip strings\n", bad);
+        ok("honest flips: none flagged", bad == 0);
     }
 
     // ---- what a block is, in one place ----
@@ -194,12 +284,16 @@ static int test_dice_q(void)
     ok("same string -> identical judgement", memcmp(&q, &q2, sizeof q) == 0);
 
     // ---- the raised ceiling ----
-    kiss_dice_reset();
+    kiss_dice_reset(6);
     { int accepted = 0;
-      for (int i = 0; i < 200; i++) accepted += kiss_dice_roll(1 + i % 6);
-      ok("ceiling: exactly DICE_MAX rolls accepted", accepted == DICE_MAX && DICE_MAX == 180); }
-    ok("ceiling: roll 181 refused", kiss_dice_roll(3) == 0);
-    kiss_dice_reset();
+      for (int i = 0; i < 400; i++) accepted += kiss_dice_roll(1 + i % 6);
+      ok("ceiling: exactly DICE_MAX rolls accepted", accepted == DICE_MAX && DICE_MAX == 320); }
+    ok("ceiling: one past DICE_MAX refused", kiss_dice_roll(3) == 0);
+    // The ceiling has to clear the LARGEST floor with room to rescue a flagged
+    // run, and the largest floor is now a coin's 256 rather than a die's 99.
+    ok("ceiling clears the coin 256 floor with rescue room",
+       DICE_MAX >= (int)kiss_dice_floor(2, 32) + 50);
+    kiss_dice_reset(6);
 
     return fails;
 }
@@ -210,7 +304,7 @@ int test_dice(void)
     printf("\n-- dice entropy --\n");
 
     // roll / count / invalid / undo
-    kiss_dice_reset();
+    kiss_dice_reset(6);
     ok("starts empty", kiss_dice_count() == 0);
     ok("valid face accepted", kiss_dice_roll(4) == 1);
     ok("count is 1", kiss_dice_count() == 1);
@@ -255,10 +349,51 @@ int test_dice(void)
        kiss_seed_from_entropy(e, 32, words2, sizeof words2) == 0 &&
        strcmp(words, words2) == 0);
 
+    // ---- base 2: the same module, the same proof ----
+    // printf '<the 128 flip fixture>' | sha256sum
+    static const char F128[] =
+        "01010110101000001111111101000011111001110010000010100001100101001"
+        "011100011111100111100110001001011110011110111111111100000010101";
+    static const char *KAT128 =
+        "59e1e33f0873cedb41e1e563a4cb86a62ffd39292c9a9982359682d32643f173";
+    flip_str(F128);
+    ok("coin: base is 2", kiss_dice_base() == 2);
+    ok("coin: 128 flips counted", kiss_dice_count() == 128);
+    ok("coin: digits are the bit string", strcmp(kiss_dice_digits(), F128) == 0);
+    ok("coin: face 3 rejected in base 2", kiss_dice_roll(3) == 0);
+    ok("coin: 12-word take ok", kiss_dice_take(e, 16) == 0);
+    ok("coin: 24-word take refused at 128", kiss_dice_take(e, 32) == -1);
+    kiss_dice_undo();
+    ok("coin: 127 flips refused", kiss_dice_take(e, 16) == -1);
+    flip_str(F128);
+    kiss_dice_take(e, 16); hex(e, 16, got);
+    ok("coin: 12-word entropy == SHA256(flips)[0..16]",
+       strncmp(got, KAT128, 32) == 0);
+    if (strncmp(got, KAT128, 32) != 0) printf("  got %s\n  want %.32s\n", got, KAT128);
+    // The offline check the screen promises, checked in: those 16 bytes ARE
+    // these twelve words. Derived independently from the wordlist, not read
+    // back out of this module, so the two can never agree by construction.
+    {
+        char cw[256];
+        ok("coin: entropy -> mnemonic rc",
+           kiss_seed_from_entropy(e, 16, cw, sizeof cw) == 0);
+        ok("coin: SHA256(flips)[0..16] -> the expected twelve words",
+           strcmp(cw, "fly audit sound axis diagram horror always device "
+                      "glove chaos ticket evidence") == 0);
+        if (strcmp(cw, "fly audit sound axis diagram horror always device "
+                       "glove chaos ticket evidence") != 0)
+            printf("  got %s\n", cw);
+    }
+
+    // The base belongs to the RUN, and reset is where it is declared: a die
+    // after a coin must not inherit two faces.
+    kiss_dice_reset(6);
+    ok("reset(6) restores the die", kiss_dice_base() == 6 && kiss_dice_roll(6) == 1);
+
     // ---- length validation + wipe ----
     ok("bad len rejected", kiss_dice_take(e, 20) == -1);
     ok("NULL out rejected", kiss_dice_take(NULL, 32) == -1);
-    kiss_dice_reset();
+    kiss_dice_reset(6);
     ok("reset clears count", kiss_dice_count() == 0);
     ok("reset clears digits", kiss_dice_digits()[0] == '\0');
 

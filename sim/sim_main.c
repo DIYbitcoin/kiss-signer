@@ -207,11 +207,17 @@ void kiss_tapent_peek(uint8_t out[32]) {
 #include "kiss_dice.h"
 static char     s_sim_dice[DICE_MAX + 1];
 static unsigned s_sim_dn;
-void kiss_dice_reset(void) { s_sim_dn = 0; s_sim_dice[0] = 0; }
+static unsigned s_sim_dbase = 6;
+void kiss_dice_reset(unsigned base) {
+  s_sim_dn = 0; s_sim_dice[0] = 0; s_sim_dbase = (base == 2) ? 2 : 6;
+}
+unsigned kiss_dice_base(void) { return s_sim_dbase; }
 int kiss_dice_roll(int face) {
-  if (face < 1 || face > 6) return 0;
+  if (face < 1 || (unsigned)face > s_sim_dbase) return 0;
   if (s_sim_dn >= DICE_MAX) return 0;
-  s_sim_dice[s_sim_dn++] = (char)('0' + face);
+  // The digit map is the device's, not an approximation of it: base 2 records
+  // '0'/'1' so the strings the walk builds are the strings the judge grades.
+  s_sim_dice[s_sim_dn++] = (char)((s_sim_dbase == 2 ? '0' : '1') + face - 1);
   s_sim_dice[s_sim_dn] = 0;
   return 1;
 }
@@ -224,8 +230,7 @@ unsigned kiss_dice_count(void) { return s_sim_dn; }
 const char *kiss_dice_digits(void) { return s_sim_dice; }
 int kiss_dice_take(uint8_t *out, unsigned len) {
   if (!out || (len != 16 && len != 32)) return -1;
-  unsigned floor = (len == 32) ? DICE_FLOOR_256 : DICE_FLOOR_128;
-  if (s_sim_dn < floor) return -1;
+  if (s_sim_dn < kiss_dice_floor(s_sim_dbase, len)) return -1;
   for (unsigned i = 0; i < len; i++) out[i] = (uint8_t)(i * 3 + 1);
   return 0;
 }
@@ -4298,6 +4303,40 @@ int main(void) {
   //       pins the floor arithmetic; what is gone is the SCREEN that showed it.
   touch(394, 240); pump(3); release(); pump(4);     // DICE (row 1) -> the keypad, at 12
   save("/tmp/sim_setup_dice.ppm");                  // empty keypad, six zero columns
+
+  // The coin, which is the same screen in base 2. Visited FIRST and left by
+  // BACK, so the dice run below is byte for byte the one that was here before.
+  // The chooser sits on the title's row: DICE at 500..622, COIN at 630..752.
+  touch(691, 44); pump(3); release(); pump(6);      // COIN -> two keys, base 2
+  save("/tmp/sim_setup_coin.ppm");                  // 0 / 128, two zero columns
+  // 128 flips, checked in and asserted by kisstest: face bits 127382 (floor
+  // 110080), step bits 125408 (floor 109220), counts 59/69, no period. Keys are
+  // 272 wide at card relative 18 and 310, so their centres are x=254 and x=546.
+  static const char SIM_COIN_OK[] =
+      "01010110101000001111111101000011111001110010000010100001100101001"
+      "011100011111100111100110001001011110011110111111111100000010101";
+  for (int i = 0; i < 128; i++) {
+    touch(SIM_COIN_OK[i] == '0' ? 254 : 546, 146); pump(4); release(); pump(4);
+  }
+  save("/tmp/sim_setup_coin_full.ppm");             // 128, tick chip, DONE live
+  tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows, flips dropped
+
+  // The refusal, in base 2. Its own visit rather than more flips on the run
+  // above, because the shot worth keeping there is the healthy one. Alternating
+  // is the case a count test cannot see: 64/64 dead level, and every step a
+  // change. The verdict screen's two columns are CENTRED in the 704 lane, which
+  // is geometry no other stop renders.
+  touch(394, 240); pump(3); release(); pump(4);     // DICE keypad
+  touch(691, 44); pump(3); release(); pump(6);      // COIN, empty again
+  for (int i = 0; i < 128; i++) {
+    touch((i & 1) ? 546 : 254, 146); pump(4); release(); pump(4);
+  }
+  save("/tmp/sim_setup_coin_flag.ppm");             // PATTERN chip, level columns
+  tap_str(STR_C_DONE, 3, 6);          // DONE -> refused
+  save("/tmp/sim_setup_coin_warn.ppm");             // two centred columns, 2 pills
+  tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad, 128 banked
+  tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows
+  touch(394, 240); pump(3); release(); pump(4);     // DICE again, back at base 6
   // Roll 50 cycling the six faces. The quality judge links REAL here, and to a
   // real judge this loop is a textbook ramp — so instead of dodging that, it
   // IS the flagged run: perfectly level columns wearing a PATTERN chip, which
@@ -4314,9 +4353,9 @@ int main(void) {
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
   tap_str(STR_C_DONE, 3, 6);     // DONE -> the verdict screen
   save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
-  // ROLL MORE is the way through a refusal, and it keeps every banked roll --
-  // the whole argument for DICE_MAX = 180, which no gate rendered until now.
-  tap_str(STR_W_DICE_MORE, 3, 4);     // ROLL MORE -> the keypad
+  // KEEP GOING is the way through a refusal, and it keeps every banked roll --
+  // the whole argument for DICE_MAX, which no gate rendered until now.
+  tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad
   save("/tmp/sim_setup_dice_kept.ppm");             // still 50, bars unchanged
   tap_str(STR_C_DONE, 3, 6);     // DONE -> refused again
   // START OVER is method_dice_cb, which now asks the count before the keypad,
@@ -4848,6 +4887,12 @@ int main(void) {
   tap_str(STR_W_MADE_T, 3, 8);
   save("/tmp/sim_made_import.ppm");                 // no fold to show, and says so
   must_show("made/import", tr(STR_W_MADE_ELSE));
+  tap_str(STR_C_BACK, 3, 8);
+  // A coin does not report DICE. Forced for the same reason as the two above:
+  // the walk creates one seed, and which source it names is the record talking.
+  kiss_seed_set_source(WSEED_SRC_COIN);
+  tap_str(STR_W_MADE_T, 3, 8);
+  must_show("made/coin", tr(STR_W_COIN));
   tap_str(STR_C_BACK, 3, 8);
   kiss_seed_set_source(WSEED_SRC_DICE);             // back to the truth
   tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro

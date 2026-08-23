@@ -222,6 +222,11 @@ int  kiss_seed_entropy_note(void);
 // flash, and made_labels answers it the way it answers any source it does not
 // recognise -- not recorded -- instead of naming whatever took its slot.
 #define WSEED_SRC_KEF      6   // an encrypted backup
+#define WSEED_SRC_COIN     7   // coin flips, hashed: the dice path in base 2.
+                               // Its own number rather than folded into DICE,
+                               // because which one the owner actually did is
+                               // exactly the kind of fact this record exists
+                               // for and the words can never say it.
 
 void kiss_seed_set_source(int v);
 int  kiss_seed_source(void);

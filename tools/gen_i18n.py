@@ -140,6 +140,9 @@ UNTRANSLATED_OK = {
     "N_PARTS_FMT",     # %d/%d: digits and a slash, deliberately locale neutral
     "S_QR_PART_FMT",   # (SWEEP-03); ja/ko/tr/vi/zh already wrote "of" as "/"
     "W_WORD_N_FMT",    # %d/%d  %s_: same counter plus the typed-prefix echo
+    # The coin path beside the dice one: same module, same judge, base 2. Born
+    # under the English-only rule; English in the other twenty until the sweep.
+    "W_METHOD_DICE_S", "W_COIN", "W_COIN_NOTE", "W_COIN_T", "W_COIN_S",
     # KEF backup strings: born under the English-only rule (translation is one
     # sweep AFTER the UI stops moving), so the other twenty carry the English
     # as a placeholder the sweep replaces. Remove these lines in that sweep.
