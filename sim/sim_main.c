@@ -4311,12 +4311,13 @@ int main(void) {
   save("/tmp/sim_setup_coin.ppm");                  // 0 / 128, two zero columns
   // 128 flips, checked in and asserted by kisstest: face bits 127382 (floor
   // 110080), step bits 125408 (floor 109220), counts 59/69, no period. Keys are
-  // 272 wide at card relative 18 and 310, so their centres are x=254 and x=546.
+  // 324 wide at card relative 18 and 362 on a card at x=48, so their centres
+  // are x=228 and x=572, and the key row is 112..172 with its middle at 142.
   static const char SIM_COIN_OK[] =
       "01010110101000001111111101000011111001110010000010100001100101001"
       "011100011111100111100110001001011110011110111111111100000010101";
   for (int i = 0; i < 128; i++) {
-    touch(SIM_COIN_OK[i] == '0' ? 254 : 546, 146); pump(4); release(); pump(4);
+    touch(SIM_COIN_OK[i] == '0' ? 228 : 572, 142); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_coin_full.ppm");             // 128, tick chip, DONE live
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows, flips dropped
@@ -4329,7 +4330,7 @@ int main(void) {
   touch(394, 240); pump(3); release(); pump(4);     // DICE keypad
   touch(691, 44); pump(3); release(); pump(6);      // COIN, empty again
   for (int i = 0; i < 128; i++) {
-    touch((i & 1) ? 546 : 254, 146); pump(4); release(); pump(4);
+    touch((i & 1) ? 572 : 228, 142); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_coin_flag.ppm");             // PATTERN chip, level columns
   tap_str(STR_C_DONE, 3, 6);          // DONE -> refused
@@ -4341,13 +4342,13 @@ int main(void) {
   // real judge this loop is a textbook ramp — so instead of dodging that, it
   // IS the flagged run: perfectly level columns wearing a PATTERN chip, which
   // is the whole argument for judging order and not just counts. Keys sit at
-  // y=146 (card at 96, keys 20..80 inside); face i centre x = 160 + i*94.
+  // y=142 (card at 96, keys 16..76 inside); face i centre x = 117 + i*113.
   for (int i = 0; i < 50; i++) {
-    int kx = 160 + (i % 6) * 94;
+    int kx = 117 + (i % 6) * 113;
     touch(kx, 146); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_dice_flag.ppm");             // PATTERN chip over LEVEL bars
-  touch(671, 277); pump(3); release(); pump(40);    // "?" beside the chip; 40 =
+  touch(723, 275); pump(3); release(); pump(40);    // "?" beside the chip; 40 =
                                                     // the card intro settled
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
@@ -4370,7 +4371,7 @@ int main(void) {
   static const char SIM_DICE_OK[] =
       "14464111145452332224636431261353544615153616323265";
   for (int i = 0; i < 50; i++) {
-    int kx = 160 + (SIM_DICE_OK[i] - '1') * 94;
+    int kx = 117 + (SIM_DICE_OK[i] - '1') * 113;
     touch(kx, 146); pump(4); release(); pump(4);
   }
   save("/tmp/sim_setup_dice_full.ppm");             // 50 / 50, tick chip, DONE live

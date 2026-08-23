@@ -115,7 +115,7 @@
   "W_DICE_T": "ROLL A DIE",
   "W_DICE_S": "enter each roll. the words come only from these.",
   "W_DICE_UNDO": "UNDO",
-  "W_DICE_VERIFY_NOTE": "SHA256 of what you entered. recompute it offline to check.",
+  "W_DICE_VERIFY_NOTE": "SHA256. recompute it offline to check.",
   "W_DICE_UNEVEN": "UNEVEN",
   "W_DICE_PATTERN": "PATTERN",
   "W_DICE_MORE": "KEEP GOING",

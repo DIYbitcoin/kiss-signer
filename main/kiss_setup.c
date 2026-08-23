@@ -1648,37 +1648,56 @@ static void method_screen(void)
 // The card sits on the y=96 content line and runs to 394, four clear of
 // WT_CONTENT_BOTTOM: the histogram needs the height, and the only direction
 // with any was up.
-#define DICE_CARD_X   100
+// The card is on the 704 page lane now (48..752), not the 600 it was drawn at.
+// Nothing else on the device is 600 wide, and the 100px gutters it left were
+// paid for by every element inside it: the keys, the columns, the bit strip and
+// the one sentence explaining the hash all ran narrow so a margin could be
+// wide. 704 is +104px of key and +104px of reading width for no layout risk,
+// since the lane is the one every other screen already builds against.
+#define DICE_CARD_X    48
 #define DICE_CARD_Y    96
-#define DICE_CARD_W   600
+#define DICE_CARD_W   704
 #define DICE_CARD_H   298
-#define DICE_KEY_W     84
+#define DICE_LANE     (DICE_CARD_W - 36)   // 18px inset each side: 668
+#define DICE_KEY_W    103   // (668 - 5*10) / 6
 #define DICE_KEY_H     60
 #define DICE_KEY_GAP   10
 // Base 2 spends the four key slots a coin does not need on the two it does:
-// 18..290 and 310..582, which is the same 564 lane the six keys fill. 128 taps
-// is a long session and a 272px key is the difference between it being one.
-#define DICE_KEY_W2   272
+// 18..342 and 362..686, the same lane the six keys fill. 128 taps is a long
+// session and a 324px key is the difference between it being one.
+#define DICE_KEY_W2   324   // (668 - 20) / 2
 #define DICE_KEY_GAP2  20
-#define DICE_KEY_Y     20   // keys 20..80, card relative
-#define DICE_BAR_TOP   92   // tracks 92..136
+// The rows, top to bottom, with what each one costs. Every gap here was spent
+// buying the note below a readable size: it was a font14 sentence in a 44px
+// band, which is the bug this file's house rules name four times over.
+#define DICE_KEY_Y     16   // keys   16..76
+#define DICE_BAR_TOP   84   // tracks 84..128
 #define DICE_BAR_H     44   // full height = TWICE the fair share, so the fair
-#define DICE_BAR_W     40   //   share tick always sits at exactly half height
+                            //   share tick always sits at exactly half height
+// A column is HALF the key it belongs to, rather than a fixed 40. Under a
+// coin's 324px key a 40px stub read as a column that had failed to draw, and
+// the histogram is the evidence this screen exists to show.
+#define DICE_BAR_W    (DICE_KEY_W / 2)
 #define DICE_BAR_BASE (DICE_BAR_TOP + DICE_BAR_H)
 #define DICE_TICK_Y   (DICE_BAR_TOP + DICE_BAR_H / 2)
-#define DICE_CNT_Y    140   // per face counts under the columns
-#define DICE_TALLY_Y  168
-#define DICE_NOTE_Y   210
-#define DICE_FP_Y     254
-#define DICE_BITS_Y   234   // the same 8 bytes as the hex above, drawn
+#define DICE_CNT_Y    132   // counts 132..163 at font23. A count under a column
+                            // is the evidence the histogram exists to show, so
+                            // it is read, so it is not font14.
+#define DICE_TALLY_Y  166   // tally  166..204 at mono28
+#define DICE_NOTE_Y   206   // note   206..244: 38 tall, which is both enough
+#define DICE_NOTE_H    38   //   for font23 and enough that the FIT gate polices
+                            //   it (a body under 36 tall is the box deciding).
+#define DICE_BITS_Y   248   // strip  248..260
+#define DICE_FP_Y     264   // hash   264..295 at mono23, 3 clear of the card
 #define DICE_BITS_N    64
-#define DICE_BITS_P     6   // 5px cell, 1px gap: 64 of them span 383 of 564
+#define DICE_BITS_P    10   // 9px cell, 1px gap: 64 of them span 639 of 668
 
 static lv_obj_t *s_dice_card;
 static lv_obj_t *s_dice_tally;
 static lv_obj_t *s_dice_done;
 static lv_obj_t *s_dice_fp;        // live SHA256 fingerprint, for the owner to check
-static bool     s_dice_fp_full;    // tap the fingerprint to reveal all 64 hex
+static lv_obj_t *s_dice_eye;       // the mark that says the line above can be tapped
+static bool     s_dice_fp_full;    // tap it to reveal every byte that becomes the seed
 static lv_obj_t *s_dice_bits[DICE_BITS_N];  // the hex above, as bits
 static lv_obj_t *s_dice_fill[6];   // histogram fills, grown up from the base
 static lv_obj_t *s_dice_cnt[6];    // exact count under each column
@@ -1695,6 +1714,8 @@ static int dice_pitch(void)
 {
     return dice_key_w() + (dice_faces() == 2 ? DICE_KEY_GAP2 : DICE_KEY_GAP);
 }
+static int dice_bar_w(void) { return dice_key_w() / 2; }
+static int s_dice_bar_w = DICE_BAR_W;   // what the live columns were built at
 
 // See the forward declaration above mk_screen. Arrays as well as scalars: the
 // bit strips are read by their own screens' refreshes through s_tap_bits[0] /
@@ -1712,7 +1733,7 @@ static void widgets_drop(void)
     memset(s_dice_fill, 0, sizeof s_dice_fill);
     memset(s_dice_cnt, 0, sizeof s_dice_cnt);
     s_dice_card = NULL; s_dice_tally = NULL; s_dice_done = NULL;
-    s_dice_fp = NULL; s_dice_chip = NULL;
+    s_dice_fp = NULL; s_dice_eye = NULL; s_dice_chip = NULL;
     s_dice_mode[0] = s_dice_mode[1] = NULL;
 }
 
@@ -1816,13 +1837,15 @@ static void dice_help_cb(lv_event_t *e)
 // On the tap screen's rule that a continuous bar would claim a measurement of
 // quality: each column here is a COUNT, printed in figures directly under it.
 // It claims nothing the number does not already state.
-static void dice_bars_make(lv_obj_t *par, int faces, int x0, int pitch, int y)
+static void dice_bars_make(lv_obj_t *par, int faces, int bw, int x0, int pitch,
+                           int y)
 {
+    s_dice_bar_w = bw;
     for (int i = 0; i < faces; i++) {
         lv_obj_t *tr = lv_obj_create(par);
         lv_obj_remove_style_all(tr);
         lv_obj_set_pos(tr, x0 + i * pitch, y);
-        lv_obj_set_size(tr, DICE_BAR_W, DICE_BAR_H);
+        lv_obj_set_size(tr, bw, DICE_BAR_H);
         lv_obj_set_style_bg_color(tr, WT_DIV, 0);
         lv_obj_set_style_bg_opa(tr, LV_OPA_COVER, 0);
         lv_obj_remove_flag(tr, LV_OBJ_FLAG_SCROLLABLE);
@@ -1831,7 +1854,7 @@ static void dice_bars_make(lv_obj_t *par, int faces, int x0, int pitch, int y)
         lv_obj_t *f = lv_obj_create(tr);
         lv_obj_remove_style_all(f);
         lv_obj_set_pos(f, 0, DICE_BAR_H);
-        lv_obj_set_size(f, DICE_BAR_W, 0);
+        lv_obj_set_size(f, bw, 0);
         lv_obj_set_style_bg_color(f, wt_accent(), 0);
         lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
         s_dice_fill[i] = f;
@@ -1841,8 +1864,7 @@ static void dice_bars_make(lv_obj_t *par, int faces, int x0, int pitch, int y)
     lv_obj_t *tick = lv_obj_create(par);
     lv_obj_remove_style_all(tick);
     lv_obj_set_pos(tick, x0 - DICE_KEY_GAP - 12, y + DICE_BAR_H / 2);
-    lv_obj_set_size(tick, (faces - 1) * pitch + DICE_BAR_W
-                          + 2 * (DICE_KEY_GAP + 12), 1);
+    lv_obj_set_size(tick, (faces - 1) * pitch + bw + 2 * (DICE_KEY_GAP + 12), 1);
     lv_obj_set_style_bg_color(tick, WT_DIV, 0);
     lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
 }
@@ -1862,7 +1884,7 @@ static void dice_bars_set(const kiss_dice_q_t *q)
             if (h > DICE_BAR_H) h = DICE_BAR_H;
         }
         lv_obj_set_pos(s_dice_fill[i], 0, DICE_BAR_H - h);
-        lv_obj_set_size(s_dice_fill[i], DICE_BAR_W, h);
+        lv_obj_set_size(s_dice_fill[i], s_dice_bar_w, h);
         if (s_dice_cnt[i]) {
             char b[8];
             snprintf(b, sizeof b, "%u", q->face[i]);
@@ -1887,12 +1909,16 @@ static void dice_refresh(void)
         lv_label_set_text(s_dice_tally, buf);
     }
     if (s_dice_fp) {
-        // first 8 bytes by default (enough to spot a mismatch), all 32 on tap.
-        char fp[65] = "";
+        // First 8 bytes by default, enough to spot a mismatch. On tap, the
+        // bytes that ACTUALLY become the seed -- 16 of them for twelve words,
+        // not all 32. That is what an owner recomputing this offline has to
+        // compare against, and showing the other half invited them to compare
+        // a number the words were never made from.
+        char fp[80] = "";
         uint8_t e[32];
         if (n > 0 && kiss_dice_peek(e) == 0) {
-            int bytes = s_dice_fp_full ? 32 : 8;
-            for (int i = 0; i < bytes; i++) snprintf(fp + i * 2, 3, "%02x", e[i]);
+            unsigned bytes = s_dice_fp_full ? dice_need() : 8;
+            for (unsigned i = 0; i < bytes; i++) snprintf(fp + i * 2, 3, "%02x", e[i]);
         }
         lv_label_set_text(s_dice_fp, fp);
         // Same eight bytes, drawn. The hex line is for a doubter with a laptop
@@ -1947,8 +1973,10 @@ static void dice_refresh(void)
                                                      : STR_W_DICE_PATTERN));
             wt_state_chip_set(s_dice_chip, b,
                               q.verdict == WD_Q_OK ? OK_COL : WARN_COL);
-            lv_obj_align(s_dice_chip, LV_ALIGN_TOP_RIGHT, -(DICE_CARD_W - 540),
-                         DICE_TALLY_Y + 2);
+            // A fixed inset, not one derived from the card width: this was
+            // -(DICE_CARD_W - 540), which read as 60 only while the card was
+            // 600 wide and silently became 164 when it grew.
+            lv_obj_align(s_dice_chip, LV_ALIGN_TOP_RIGHT, -60, DICE_TALLY_Y + 2);
             lv_obj_remove_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
         }
     }
@@ -2013,9 +2041,9 @@ static void dice_warn_screen(int verdict)
     // Two columns are centred in the 704 lane rather than left where six start:
     // a pair hard against the left edge reads as four that failed to draw.
     int faces = dice_faces(), wpitch = faces == 2 ? 292 : 117;
-    dice_bars_make(card, faces,
-                   faces == 2 ? (704 - (wpitch + DICE_BAR_W)) / 2 : 58,
-                   wpitch, 24);
+    int wbw = dice_bar_w();
+    dice_bars_make(card, faces, wbw,
+                   faces == 2 ? (704 - (wpitch + wbw)) / 2 : 58, wpitch, 24);
     kiss_dice_q_t q;
     kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), kiss_dice_base(),
                     dice_need(), &q);
@@ -2082,7 +2110,8 @@ static void dice_back_cb(lv_event_t *e) { kiss_dice_reset(s_base); goto_method_c
 
 static void dice_screen_build(void)
 {
-    s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_fp_full = false;
+    s_dice_tally = NULL; s_dice_done = NULL; s_dice_fp = NULL; s_dice_eye = NULL;
+    s_dice_fp_full = false;
     for (int b = 0; b < DICE_BITS_N; b++) s_dice_bits[b] = NULL;
     s_dice_chip = NULL; s_dice_last_verdict = -1;
     s_dice_mode[0] = s_dice_mode[1] = NULL; s_dice_last_live = -1;
@@ -2126,11 +2155,11 @@ static void dice_screen_build(void)
     }
 
     // the live histogram under the keys, one exact count under each column
-    dice_bars_make(s_dice_card, faces, 18 + (kw - DICE_BAR_W) / 2, pitch,
-                   DICE_BAR_TOP);
+    dice_bars_make(s_dice_card, faces, dice_bar_w(),
+                   18 + (kw - dice_bar_w()) / 2, pitch, DICE_BAR_TOP);
     for (int i = 0; i < faces; i++) {
         s_dice_cnt[i] = wt_lbl(s_dice_card, "0", 18 + i * pitch,
-                               DICE_CNT_Y, wt_font14(), MUT_COL);
+                               DICE_CNT_Y, wt_font23(), MUT_COL);
         lv_obj_set_width(s_dice_cnt[i], kw);
         lv_obj_set_style_text_align(s_dice_cnt[i], LV_TEXT_ALIGN_CENTER, 0);
     }
@@ -2143,18 +2172,39 @@ static void dice_screen_build(void)
     wt_help_chip(s_dice_card, DICE_CARD_W - 44, DICE_TALLY_Y - 2, MUT_COL,
                  dice_help_cb, NULL);
 
-    lv_obj_t *note = wt_lbl(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18, DICE_NOTE_Y,
-                            wt_font14(), MUT_COL);
-    lv_obj_set_width(note, DICE_CARD_W - 36);
-    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    // wt_note, not wt_lbl at font14. This is the sentence that tells a doubter
+    // the number below is theirs to check, and it was set to the smallest face
+    // on the device by hand, in a card with the room for two rungs more. The
+    // helper takes the largest that fits the box, and because the box is 38
+    // tall the FIT gate now fails the build if it ever lands back on font14.
+    lv_obj_t *note = wt_note(s_dice_card, tr(STR_W_DICE_VERIFY_NOTE), 18,
+                             DICE_NOTE_Y, DICE_LANE, DICE_NOTE_H);
+    (void)note;
 
     // live SHA256 fingerprint: first 8 bytes, tap to reveal all 64 hex. The
     // value the owner can reproduce on any offline machine to check the device.
-    s_dice_fp = wt_lbl(s_dice_card, "", 18, DICE_FP_Y, wt_font14(), INK_COL);
-    lv_obj_set_width(s_dice_fp, DICE_CARD_W - 36);
+    // The hash, at mono23. It was font14: a hex string is only useful if it can
+    // be read off the glass against a laptop, and at 14 it could not be. 32 hex
+    // (the 16 bytes a twelve word seed is made from) is 416px of the 668 lane,
+    // so the revealed form still lands on one line.
+    //
+    // The eye is a SEPARATE label because the mono faces carry ASCII only --
+    // gen_fonts.sh gives them no FontAwesome plane, so a symbol inside this
+    // string would draw a placeholder box. It is the whole affordance: nothing
+    // else on the screen said the line could be tapped, and a mark says it in
+    // 21 locales for the cost of none.
+    s_dice_eye = wt_lbl(s_dice_card, LV_SYMBOL_EYE_OPEN, 18, DICE_FP_Y + 4,
+                        wt_font23(), MUT_COL);
+    s_dice_fp = wt_lbl(s_dice_card, "", 52, DICE_FP_Y, wt_font_mono23(), INK_COL);
+    lv_obj_set_width(s_dice_fp, DICE_LANE - 34);
     lv_label_set_long_mode(s_dice_fp, LV_LABEL_LONG_WRAP);
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(s_dice_eye, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_dice_eye, dice_fp_cb, LV_EVENT_CLICKED, NULL);
+    // The eye is a 23px glyph beside a 23px line; without a click area it is a
+    // 20px target on a screen whose other controls are 60 tall.
+    lv_obj_set_ext_click_area(s_dice_eye, 14);
 
     for (int b = 0; b < DICE_BITS_N; b++) {
         lv_obj_t *c = lv_obj_create(s_dice_card);
