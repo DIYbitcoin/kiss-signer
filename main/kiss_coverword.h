@@ -37,3 +37,33 @@
 // tap or one flat swipe must never fire it.
 bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
                 int n, int strokes);
+
+// ---- the two tap way in, on a test network only ----------------------------
+//
+// Drawing the word is the right cost for a device holding coins and the wrong
+// one for the twentieth lock/unlock of a testing afternoon. So when the network
+// setting is not mainnet, two taps in the top left corner of the game menu open
+// the same door the bare word opens. main.c owns that condition; this file owns
+// the pair, because main.c links into no test binary and the header above
+// explains at length what that costs.
+//
+// Deliberately NOT a shape, a hold, or anything the recogniser could confuse
+// with ink: a tap is already a distinct answer in the collector (one stroke,
+// bbox under 22px) and the corner is already spoken for -- it is where the logo
+// sits on the home screen, so lock and unlock end up the same place.
+#define CW_QT_BOX 120     // the corner, px from the top left
+#define CW_QT_MS  800     // the second tap has this long to land
+
+// Is this tap inside the corner? main.c asks BEFORE cw_quick_tap, because a tap
+// in the corner must also stop starting the game, and a tap outside it must not.
+bool cw_quick_zone(int x, int y);
+
+// Feed every tap. True exactly once, on the tap that closes a pair. A tap
+// outside the corner, or one that arrives late, is the first of a fresh pair
+// rather than nothing -- a stale arm must never make the NEXT single tap open
+// the signer.
+bool cw_quick_tap(int x, int y, uint32_t now_ms);
+
+// Disarm. Called when the signer locks, so a tap from an earlier session cannot
+// pair with a fresh one.
+void cw_quick_reset(void);

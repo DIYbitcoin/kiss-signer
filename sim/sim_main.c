@@ -1677,6 +1677,14 @@ static void draw_cover_underlined(void)
   pump(40);
 }
 
+// The two tap way in, drawn where a finger draws it: the same corner twice,
+// well inside CW_QT_MS. Coordinates are the top left box kiss_coverword.h
+// defines, which is also where the logo sits on the home screen.
+static void quick_tap(void)
+{
+  touch(40, 40); pump(3); release(); pump(6);
+}
+
 // kiss_lock() sets s_gest_swallow so the rest of the closing tap cannot
 // become the first stroke of a word, and it clears on the next lift. Without a
 // throwaway lift the K's spine is eaten and the word never completes. The
@@ -2173,6 +2181,56 @@ int main(void) {
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
       printf("ok: a written word replaces KISS, and a wrong draw opens nothing\n");
+    }
+
+    // ---- two taps, and only where the coins are not real --------------------
+    //
+    // Reachable from no unit test for the same reason the routing above is not:
+    // the network condition and the corner both live in main.c. cw_quick_tap
+    // itself is under test in sim/test_coverword.c; what this proves is that
+    // the panel, the collector and kiss_testnet() are wired to it.
+    {
+      lock_to_menu();
+      pump(4);
+      quick_tap(); quick_tap();
+      pump(40);
+      uint8_t fp[4];
+      kiss_ui_last_fp(fp);
+      if (!(fp[0] || fp[1] || fp[2] || fp[3])) {
+        printf("FAIL: two taps on testnet opened nothing\n");
+        g_walk_fails++;
+      }
+      must_not_show("quicktap/no-keyboard", tr(STR_L_TYPE_PROMPT));
+      save("/tmp/sim_quick_unlock.ppm");   // the home, opened by two taps
+
+      // MAINNET: the corner is not a door, it is the game. One tap starts
+      // Fruit Island exactly as it always has, and the pair opens nothing --
+      // which is the only property here worth a device holding real coins.
+      lock_to_menu();
+      kiss_set_network(KISS_NET_MAIN);
+      pump(4);
+      quick_tap(); quick_tap();
+      pump(40);
+      kiss_ui_last_fp(fp);
+      if (fp[0] || fp[1] || fp[2] || fp[3]) {
+        printf("FAIL: two taps opened the signer on MAINNET\n");
+        g_walk_fails++;
+      }
+      save("/tmp/sim_quick_mainnet.ppm");  // the game, started by the first tap
+      kiss_set_network(KISS_NET_TESTNET);
+
+      // The first tap started a game, so come back the way the walk already
+      // does: let the fruit fall unsliced, then the MENU pill.
+      for (int i = 0; i < 700; i++) pump(1);
+      touch(682, 57); pump(3); release(); pump(120);
+
+      // Hand the walk back the session the rest of it expects.
+      draw_cover_underlined();
+      type_pass9();
+      touch(725, 430); pump(3); release(); pump(25);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
+      pump(120);
+      printf("ok: two taps open a testnet signer and nothing on mainnet\n");
     }
 
     // Identical expectations for both configurations is the whole test: if

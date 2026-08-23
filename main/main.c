@@ -1656,6 +1656,7 @@ static void kiss_lock(void) {            // back to the game cover (tap the KISS
   s_state = ST_MENU;
   lv_obj_clear_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
   s_gest_swallow = true;                   // ignore the rest of this tap so we land on the menu
+  cw_quick_reset();                        // a tap from the last session pairs with nothing
   menu_intro();
 }
 
@@ -1877,6 +1878,66 @@ static int unlock_kind(void) {
   if (k != WDR_NONE) g_last_unlock_kind = k;   // a non-word is not an answer
 #endif
   return k;
+}
+
+// Where a finished way in actually lands.
+//
+// Every gesture that opens something comes through here, which is the whole
+// reason it exists: the two tap shortcut must not reinvent the checks the draw
+// already makes. No seed on here means one of two things -- an AMNESIC device
+// (nothing is ever stored, so every power-on loads the seed first, then the
+// normal one-passphrase login), or a fresh device that needs the whole setup
+// wizard. Neither has a decoy to open, whichever gesture asked.
+//
+// `immediate` decides whether a decoy opens now or after the settling wait.
+// COVER_OPEN_DELAY_MS exists so the bare word can still collect a modifier
+// stroke, and so both doors open on the same beat and cannot be told apart by
+// timing. A shortcut with one door has neither problem: nothing can follow a
+// tap, and there is no second door to compare it to.
+static void open_door(int kind, bool immediate) {
+  int seed_mode = kiss_seed_mode();
+  if (seed_mode == WSEED_MODE_SD) {
+    // An SD seed with its card removed/corrupt is still a configured seed.
+    // Check it BEFORE generic seed existence; never mistake removable storage
+    // for a factory-fresh device and silently offer to create over it.
+    int sd_rc = kiss_setup_sd_status();
+    if (sd_rc != WSEED_OK) {
+      kiss_setup_open_sd_missing(lv_screen_active(), sd_rc, stored_seed_ready);
+      gesture_swallow();
+      s_cover_pending = false;
+      s_gn = 0; s_strokes = 0;
+      return;                        // the retry screen owns the hand-off now
+    }
+  }
+  if (!kiss_seed_exists()) {
+    if (seed_mode == WSEED_MODE_AMNESIC)
+      kiss_setup_open_load(lv_screen_active(), stored_seed_ready);
+    else kiss_setup_open(lv_screen_active(), setup_done_login);
+    gesture_swallow();               // the finger is still on the panel
+    s_cover_pending = false;
+    s_gn = 0; s_strokes = 0;
+    return;
+  }
+  if (kind == WDR_REAL) {            // a modifier stroke: ask for the passphrase
+    s_cover_pending = false;
+    s_real_pending = true;           // same beat as the decoy: see COVER_OPEN_DELAY_MS
+    s_real_at = lv_tick_get();
+    gesture_swallow();
+    s_gn = 0; s_strokes = 0;
+    return;
+  }
+  if (immediate) {
+    s_cover_pending = false;
+    kiss_open_decoy();
+    s_gn = 0; s_strokes = 0;
+    return;
+  }
+  // Bare KISS on a signer that HAS a stroke configured. Do not open anything
+  // yet -- the modifier may still be coming. game_tick's idle branch opens the
+  // decoy once the panel has been quiet for COVER_OPEN_DELAY_MS, and the points
+  // are kept meanwhile so the next stroke can still be classified against the
+  // word.
+  s_cover_pending = true;
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
@@ -2414,58 +2475,19 @@ static void game_tick(lv_timer_t *t) {
             else go_menu();
             s_gn = 0; s_strokes = 0;
           } else if (tap) {
-            start_game(); s_gn = 0; s_strokes = 0;            // menu: a tap -> play
-          } else {
-            // No seed on here means one of two things: an AMNESIC device
-            // (nothing is ever stored, so every power-on loads the seed first,
-            // then the normal one-passphrase login), or a fresh device that
-            // needs the whole setup wizard. Neither has a decoy to open.
-            int kind = unlock_kind();
-            if (kind >= 0) {
-              int seed_mode = kiss_seed_mode();
-              bool sd_blocked = false;
-              if (seed_mode == WSEED_MODE_SD) {
-                // An SD seed with its card removed/corrupt is still a
-                // configured seed. Check it BEFORE generic seed existence;
-                // never mistake removable storage for a factory-fresh device
-                // and silently offer to create over it.
-                int sd_rc = kiss_setup_sd_status();
-                if (sd_rc != WSEED_OK) {
-                  kiss_setup_open_sd_missing(lv_screen_active(), sd_rc,
-                                               stored_seed_ready);
-                  gesture_swallow();
-                  s_cover_pending = false;
-                  s_gn = 0; s_strokes = 0;
-                  sd_blocked = true;
-                }
-              }
-              if (sd_blocked) {
-                // The retry/recovery screen owns the hand-off from here.
-              }
-              else if (!kiss_seed_exists()) {
-                if (seed_mode == WSEED_MODE_AMNESIC)
-                  kiss_setup_open_load(lv_screen_active(), stored_seed_ready);
-                else kiss_setup_open(lv_screen_active(), setup_done_login);
-                gesture_swallow();           // the finger is still on the panel
-                s_cover_pending = false;
-                s_gn = 0; s_strokes = 0;
-              }
-              else if (kind == 1) {          // a modifier stroke: ask for the passphrase
-                s_cover_pending = false;
-                s_real_pending = true;       // same beat as the decoy: see COVER_OPEN_DELAY_MS
-                s_real_at = lv_tick_get();
-                gesture_swallow();
-                s_gn = 0; s_strokes = 0;
-              }
-              else {
-                // Bare KISS on a signer that HAS a stroke configured. Do not
-                // open anything yet -- the modifier may still be coming. The
-                // idle branch below opens the decoy once the panel has been
-                // quiet for COVER_OPEN_DELAY_MS, and the points are kept meanwhile so
-                // the next stroke can still be classified against the word.
-                s_cover_pending = true;
-              }
+            // The two tap way in, and only where the coins are not real. The
+            // corner has to stop starting the game as well as answer the pair:
+            // a first tap that launched Fruit Island would leave ST_MENU before
+            // the second one arrived, and the collector is skipped in ST_PLAY.
+            if (kiss_testnet() && s_state == ST_MENU && cw_quick_zone(x1, y1)) {
+              if (cw_quick_tap(x1, y1, lv_tick_get())) open_door(WDR_DECOY, true);
+              s_gn = 0; s_strokes = 0;
+            } else {
+              start_game(); s_gn = 0; s_strokes = 0;          // menu: a tap -> play
             }
+          } else {
+            int kind = unlock_kind();
+            if (kind >= 0) open_door(kind, false);
           }                                                  // else: keep, await more strokes (3s clears)
         }
         s_gest_idle = 0;

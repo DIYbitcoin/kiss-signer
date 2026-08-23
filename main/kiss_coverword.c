@@ -117,3 +117,32 @@ bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
         if (xs[i] <= kcut) { lx[ln] = xs[i]; ly[ln] = ys[i]; ln++; }
     return cw_is_k(lx, ly, ln);
 }
+
+// ---- the two tap way in ----------------------------------------------------
+//
+// One tick, and it is the FIRST tap's. Nothing here knows about the network:
+// main.c holds that condition, so this stays a pure pair detector the desktop
+// runner can hammer with taps and clocks.
+static uint32_t cw_qt_t;
+static bool     cw_qt_armed;
+
+bool cw_quick_zone(int x, int y)
+{
+    return x >= 0 && y >= 0 && x < CW_QT_BOX && y < CW_QT_BOX;
+}
+
+void cw_quick_reset(void) { cw_qt_armed = false; }
+
+bool cw_quick_tap(int x, int y, uint32_t now_ms)
+{
+    if (!cw_quick_zone(x, y)) { cw_qt_armed = false; return false; }
+    // Unsigned subtraction, so the ~49 day tick wrap is not a way in and not a
+    // way out either.
+    if (cw_qt_armed && (uint32_t)(now_ms - cw_qt_t) <= CW_QT_MS) {
+        cw_qt_armed = false;
+        return true;
+    }
+    cw_qt_armed = true;
+    cw_qt_t = now_ms;
+    return false;
+}

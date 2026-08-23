@@ -177,5 +177,55 @@ int test_coverword(void) {
     s_to(422, 250); s_to(362, 286); s_to(342, 272);
     kchk("...minus the last S -> refused", !ask());
 
+    // ---- the two tap way in ----
+    // Same asymmetry as the word above, and stronger. A false negative costs a
+    // tester one more tap. A false positive is the corner opening on a SINGLE
+    // tap, which on a device that has been switched to mainnet and back is a
+    // way in nobody drew.
+    cw_quick_reset();
+    kchk("corner box", cw_quick_zone(0, 0) && cw_quick_zone(119, 119));
+    kchk("...and what is outside it",
+         !cw_quick_zone(120, 60) && !cw_quick_zone(60, 120) && !cw_quick_zone(-1, 0));
+
+    kchk("one tap alone opens nothing", !cw_quick_tap(40, 40, 1000));
+    kchk("the second closes the pair", cw_quick_tap(40, 40, 1400));
+    kchk("a third does not re-fire it", !cw_quick_tap(40, 40, 1500));
+    kchk("...but a fourth pairs with the third", cw_quick_tap(40, 40, 1900));
+
+    // Late: the second tap becomes the first of a fresh pair rather than
+    // nothing, so the tap AFTER it must not be the one that opens the signer.
+    cw_quick_reset();
+    kchk("arm", !cw_quick_tap(40, 40, 5000));
+    kchk("900ms later -> too late", !cw_quick_tap(40, 40, 5900));
+    kchk("...and it re-armed rather than pairing", cw_quick_tap(40, 40, 6100));
+
+    // Exactly on the window is in; one past it is not.
+    cw_quick_reset();
+    (void)cw_quick_tap(40, 40, 100);
+    kchk("the window is inclusive", cw_quick_tap(40, 40, 100 + CW_QT_MS));
+    cw_quick_reset();
+    (void)cw_quick_tap(40, 40, 100);
+    kchk("one ms past it is not", !cw_quick_tap(40, 40, 101 + CW_QT_MS));
+
+    // A tap outside the corner disarms: the pair is two taps in the SAME place,
+    // not two taps of which one happened to be in the corner.
+    cw_quick_reset();
+    (void)cw_quick_tap(40, 40, 200);
+    kchk("a tap elsewhere is not a pair", !cw_quick_tap(400, 240, 300));
+    kchk("...and it disarmed the first", !cw_quick_tap(40, 40, 400));
+
+    // The lock clears it. Without this a tap left armed before a lock pairs
+    // with the first tap of the next session.
+    cw_quick_reset();
+    (void)cw_quick_tap(40, 40, 700);
+    cw_quick_reset();
+    kchk("the lock disarms", !cw_quick_tap(40, 40, 800));
+
+    // The tick wraps at ~49 days. Unsigned subtraction, so the wrap is neither
+    // a way in (a huge elapsed reading) nor a way out.
+    cw_quick_reset();
+    (void)cw_quick_tap(40, 40, 0xFFFFFF00u);
+    kchk("across the tick wrap", cw_quick_tap(40, 40, 0x00000100u));
+
     return kfails;
 }
