@@ -1352,7 +1352,25 @@ static void fp_scramble_cb(lv_timer_t *t) {
   }
 }
 static void fp_fly_start(void) {
-  s_fp_fly = lv_label_create(lv_layer_top());
+  // A second unlock inside the ~1.25s flight would overwrite the pointer and
+  // strand the first flier on the glass forever. Nothing deleted it before.
+  if (s_fp_fly) { lv_obj_delete(s_fp_fly); s_fp_fly = NULL; }
+  if (s_fp_scr_tmr) { lv_timer_delete(s_fp_scr_tmr); s_fp_scr_tmr = NULL; }
+  // The home screen, NOT lv_layer_top(). The top layer draws above every
+  // screen there is, so a flight still in the air when anything opened over
+  // the home -- a tile, the fingerprint card, the setup wizard, the lock --
+  // kept painting the fingerprint of those keys across it. The walk caught it
+  // as an 800px "12A4BB6B" lying over NEW SEED WORDS, one screen after a wipe
+  // that had just erased the wallet it names; kiss_lock is the worse one,
+  // because it calls kiss_ui_forget_fp to stop remembering WHICH keys those
+  // were and the flier went on drawing them over the game.
+  //
+  // As a child of s_home it is covered by whatever covers the home and hidden
+  // with it, by construction -- no call site to add, and none for a future
+  // screen to forget. Everything else on this screen (the chip, the tile
+  // titles, the motes) is already a child of it, and it is created last so it
+  // still draws over them.
+  s_fp_fly = lv_label_create(s_home);
   lv_label_set_text(s_fp_fly, s_fp_hex);      // real code first: size the label off it
   lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
   lv_obj_set_style_text_font(s_fp_fly, &lv_font_montserrat_48, 0);
