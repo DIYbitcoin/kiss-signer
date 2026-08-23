@@ -369,6 +369,13 @@ void wt_qr_refusal(lv_obj_t *qr, bool locked);
 // Update a QR created by wt_qr_card. This caches the exact payload for zoom and
 // keeps animated QRs moving while enlarged. Use instead of lv_qrcode_update().
 lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len);
+// Take a secret OUT of a QR before its screen goes. wt_qr_update already keeps
+// the cached payload in a wiped-on-free block, but the drawn code is the same
+// secret in another form: the module bitmap lives in an lv_draw_buf that LVGL
+// frees without scrubbing, and a QR is machine readable by construction. This
+// zeroes the cache and clears the bitmap, on the QR and on its zoom if one is
+// open. For payloads that are actually secret -- the silent-payment scan key.
+void wt_qr_scrub(lv_obj_t *qr);
 
 // Explainer-card entrance: fade the dim backdrop in, then stagger the card's
 // direct children (title, body, OK) rising up and fading in with an ease-out

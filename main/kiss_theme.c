@@ -1432,6 +1432,28 @@ lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len)
     return lv_qrcode_update(s->zoom_qr ? s->zoom_qr : qr, data, data_len);
 }
 
+// The bitmap, not just the cache. lv_qrcode draws into an I1 lv_draw_buf and
+// lv_draw_buf_clear is what lv_qrcode_update itself uses before re-encoding,
+// so this leaves the object in the state it has before any payload -- valid to
+// draw, holding nothing. The zoom's own qr is a second encoding of the same
+// secret and is cleared with it.
+void wt_qr_scrub(lv_obj_t *qr)
+{
+    if (!qr) return;
+    wt_qr_state_t *s = lv_obj_get_user_data(qr);
+    if (s) {
+        qr_payload_free(s);
+        if (s->zoom_qr) {
+            lv_draw_buf_t *zb = lv_canvas_get_draw_buf(s->zoom_qr);
+            if (zb) lv_draw_buf_clear(zb, NULL);
+            lv_obj_invalidate(s->zoom_qr);
+        }
+    }
+    lv_draw_buf_t *b = lv_canvas_get_draw_buf(qr);
+    if (b) lv_draw_buf_clear(b, NULL);
+    lv_obj_invalidate(qr);
+}
+
 // Only the TAIL is lit. The first characters of a bech32 address are the human
 // readable part and the witness version: every Native SegWit mainnet address
 // starts bc1q and every testnet/signet one tb1q. Highlighting them taught

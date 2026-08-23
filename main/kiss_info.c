@@ -507,6 +507,7 @@ static void pair_screen(void)
 // delete, on every way out: DONE, and the idle auto-lock. KEF does exactly
 // this for its envelope one page down; the SCAN KEY screen never did.
 static lv_obj_t *s_sp_key_lbl;
+static lv_obj_t *s_sp_key_qr;
 
 static void sp_key_wipe(void)
 {
@@ -515,6 +516,9 @@ static void sp_key_wipe(void)
         if (t) kiss_wipe(t, strlen(t));
         s_sp_key_lbl = NULL;
     }
+    // The QR is the same key in the form a camera can read. wt_qr_scrub zeroes
+    // the cached payload and the drawn modules both.
+    if (s_sp_key_qr) { wt_qr_scrub(s_sp_key_qr); s_sp_key_qr = NULL; }
 }
 
 static void sp_key_back_cb(lv_event_t *e)
@@ -528,6 +532,11 @@ static void sp_key_back_cb(lv_event_t *e)
 static void sp_key_show(void *ud)
 {
     (void)ud;
+    // Both handles belong to the screen that is about to be replaced. Cleared
+    // on entry as well as on exit, so no later wipe can reach a deleted object
+    // if a future way off this screen forgets to call sp_key_wipe.
+    s_sp_key_lbl = NULL;
+    s_sp_key_qr = NULL;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
 
@@ -565,6 +574,7 @@ static void sp_key_show(void *ud)
     wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
+    s_sp_key_qr = qr;
 
     // Machine-import string: still wrapped whole, not grouped like an address,
     // because a descriptor is one token and blocking it invites someone to type
