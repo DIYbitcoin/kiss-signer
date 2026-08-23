@@ -42,7 +42,8 @@ bash sim/build_overlapcheck.sh || {
     exit 1
 }
 
-# WALL and ROLE both report nothing on the current UI, so prove they can still
+# WALL, CUT, LAYER and ROLE all report nothing on the current UI, so prove they
+# can still
 # report anything at all before trusting a clean run. See oc_selftest in
 # sim/overlapcheck.c for why these two need that and the other five do not.
 # The exit status is not enough on its own: the checks print a marker when
@@ -52,6 +53,7 @@ st=$(OVERLAPCHECK_SELFTEST=1 "$KISS_SIM_TMP/kissoverlap" 2>&1)
 if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'CUT self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected'; then
     echo
     echo "FAILED: the self test no longer reports its expected markers, so a"

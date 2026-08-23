@@ -1076,6 +1076,7 @@ static void oc_check_colour_roles(const char *tag)
 //
 // Run: OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap
 int oc_selftest(void);
+static void oc_check_layer(const char *tag);   // defined with the entry points
 
 static int oc_selftest_case(const char *name, int accent,
                             lv_color_t fill, lv_color_t border,
@@ -1200,6 +1201,59 @@ int oc_selftest(void)
     else     printf("WALL self test: 2 cases, all as expected\n");
     printf("\n");
 
+    printf("LAYER check self test\n");
+    {
+        // Nothing lives on either layer in the product today, which is the same
+        // standing WALL and CUT have: a clean sweep says nothing until the
+        // check is shown to still fire. One resident must report, an empty
+        // layer must not -- a check that fired on everything would fail the
+        // second exactly as a dead one fails the first.
+        lv_obj_t *scr = lv_obj_create(NULL);
+        lv_screen_load(scr);
+        lv_obj_t *stray = lv_label_create(lv_layer_top());
+        lv_label_set_text(stray, "STRAY");
+        lv_obj_set_pos(stray, 100, 100);
+        lv_refr_now(NULL);
+
+        s_findings = 0; s_seen_n = 0;
+        oc_check_layer("selftest");
+        int got = s_findings > 0;
+        printf("  %-46s %s (%d finding%s)\n", "a label on lv_layer_top, fires",
+               got ? "ok" : "FAILED", s_findings, s_findings == 1 ? "" : "s");
+        bad += got ? 0 : 1;
+
+        lv_obj_delete(stray);
+        lv_refr_now(NULL);
+        s_findings = 0; s_seen_n = 0;
+        oc_check_layer("selftest");
+        got = s_findings > 0;
+        printf("  %-46s %s (%d finding%s)\n", "both layers empty, clear",
+               got ? "FAILED" : "ok", s_findings, s_findings == 1 ? "" : "s");
+        bad += got ? 1 : 0;
+
+        // The exemption, asserted rather than assumed: the auto-lock warning is
+        // a full screen dimmer with a card inside it, and neither may report.
+        lv_obj_t *ovl = lv_obj_create(lv_layer_top());
+        lv_obj_set_size(ovl, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_pos(ovl, 0, 0);
+        lv_obj_t *inner = lv_label_create(ovl);
+        lv_label_set_text(inner, "LOCKING SOON");
+        lv_obj_set_pos(inner, 300, 220);
+        lv_refr_now(NULL);
+        s_findings = 0; s_seen_n = 0;
+        oc_check_layer("selftest");
+        got = s_findings > 0;
+        printf("  %-46s %s (%d finding%s)\n",
+               "a full screen overlay and its card, clear",
+               got ? "FAILED" : "ok", s_findings, s_findings == 1 ? "" : "s");
+        bad += got ? 1 : 0;
+        lv_obj_delete(ovl);
+        lv_refr_now(NULL);
+    }
+    if (bad) printf("LAYER self test: %d case(s) wrong\n", bad);
+    else     printf("LAYER self test: 3 cases, all as expected\n");
+    printf("\n");
+
     printf("ROLE check self test\n");
     wt_accent_set(WT_ACC_ORANGE);
     bad += oc_selftest_case("ORANGE accent fill + WT_STOP border, fires",
@@ -1216,6 +1270,66 @@ int oc_selftest(void)
     if (bad) printf("ROLE self test: %d case(s) wrong\n", bad);
     else     printf("ROLE self test: 4 cases, all as expected\n");
     return bad ? 1 : 0;
+}
+
+
+// ---------------------------------------------------------------- LAYER
+// What every other check in this file cannot see.
+//
+// All nine of them walk lv_screen_active(). LVGL draws two more layers ABOVE
+// it -- lv_layer_top() and lv_layer_sys() -- and an object parented there is
+// painted over every screen there is while being invisible to a tree walk that
+// starts at the screen. So a stray one is not merely missed: it is missed by
+// TEXT, by CONTENT, by CLIPPED and by the six others at once, on every stop,
+// forever.
+//
+// That is not hypothetical. The home screen's unlock hand off -- the
+// fingerprint that decrypts centre screen and glides into the corner chip --
+// lived on lv_layer_top() for its whole life, so a flight still in the air when
+// anything opened over the home kept painting the fingerprint across it. The
+// walk had been shipping the proof the entire time: sim_setup_method.ppm was
+// NEW SEED WORDS with an 800px "12A4BB6B" lying over the first row, one screen
+// after the wipe that erased the wallet it names, and every gate called it
+// clean because no gate was looking at that layer.
+//
+// The rule this enforces is that a settled stop has nothing up there EXCEPT a
+// full screen overlay. That exemption is the auto-lock warning (main.c), and it
+// is written as a shape rather than as a stop name on purpose: the toast is
+// driven by a clock, so the stop it lands on can move, and the thing that makes
+// it legitimate is precisely that it is a deliberate dimmer covering the whole
+// glass. Nothing stranded is ever 800x480 -- a leftover label, card, pill or
+// chip is a fragment of a screen and reports.
+static void oc_layer_walk(lv_obj_t *o, const char *tag, const char *layer,
+                          int depth)
+{
+    if (depth && oc_visible(o)) {
+        lv_area_t c;
+        lv_obj_get_coords(o, &c);
+        // The deliberate full screen overlay, and everything it contains: an
+        // element that outranks every screen is what the top layer is FOR.
+        if (c.x1 <= 0 && c.y1 <= 0 &&
+            area_w(&c) >= LV_HOR_RES && area_h(&c) >= LV_VER_RES) return;
+        if (area_w(&c) > 0 && area_h(&c) > 0) {
+            char t[64], sig[192], detail[320];
+            oc_text(o, t, sizeof t);
+            snprintf(sig, sizeof sig, "LAYER|%s|%s", layer, t);
+            snprintf(detail, sizeof detail,
+                     "LAYER    %s holds \"%s\" at %d,%d %dx%d -- it draws over "
+                     "EVERY screen and no other check in this file can see it; "
+                     "parent it to the screen that owns it",
+                     layer, t, (int)c.x1, (int)c.y1, area_w(&c), area_h(&c));
+            oc_report_one(tag, sig, detail);
+            return;                  // one finding per resident, not per child
+        }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        oc_layer_walk(lv_obj_get_child(o, i), tag, layer, depth + 1);
+}
+
+static void oc_check_layer(const char *tag)
+{
+    oc_layer_walk(lv_layer_top(), tag, "lv_layer_top", 0);
+    oc_layer_walk(lv_layer_sys(), tag, "lv_layer_sys", 0);
 }
 
 // ---------------------------------------------------------------- entry points
@@ -1268,6 +1382,7 @@ void oc_check(const char *tag)
     oc_check_wall(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
+    oc_check_layer(tag);
 }
 
 int oc_report(void)
