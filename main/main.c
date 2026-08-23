@@ -295,9 +295,10 @@ static uint32_t s_home_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
 #define IDLE_MS 300000             // show the screensaver after 5min with no touch (menu/game-over).
-                                   // Cosmetic only. KISS_AUTOLOCK_MS is the security timeout; the
-                                   // two are the same 5 min today, so change one deliberately, not
-                                   // by assuming this one is the longer of the pair.
+                                   // Cosmetic only, and it runs on the LOCKED cover, so it never
+                                   // races the security timeout. That one is autolock_ms(): the
+                                   // same 5 min on mainnet, an hour on a test network. Never assume
+                                   // either is the longer of the pair.
 #define SAVER_N 6
 static lv_obj_t *s_saver;          // full-screen backdrop (img_saver)
 static lv_obj_t *s_saver_fruit[SAVER_N];
@@ -1948,6 +1949,24 @@ static void open_door(int kind, bool immediate) {
 // This is the SECURITY timeout, not the screensaver -- it drops the session key.
 #define KISS_AUTOLOCK_MS 300000
 
+// An hour where the coins are not real, for the same reason the corner opens on
+// two taps there: five minutes is a timeout a testing afternoon hits over and
+// over, and every one of them costs a re-entry to reach keys that guard
+// nothing. It is the only knob in this file that trades security for
+// convenience, so it is spelled out: on MAINNET nothing here changes.
+#define KISS_AUTOLOCK_TEST_MS 3600000
+
+static uint32_t autolock_ms(void) {
+  return kiss_testnet() ? KISS_AUTOLOCK_TEST_MS : KISS_AUTOLOCK_MS;
+}
+
+#ifdef SIMULATOR
+// The walk runs the real clock down rather than mocking it, so it has to know
+// which deadline it is waiting for -- and asserting the two differ is what
+// stops a future edit quietly giving mainnet the hour.
+uint32_t sim_autolock_ms(void) { return autolock_ms(); }
+#endif
+
 // The four home tiles answer a press with NOTHING drawn.
 //
 // This is the third and last version of that decision, so the reasoning is
@@ -2210,7 +2229,7 @@ static void game_tick(lv_timer_t *t) {
       s_home_act_t = lv_tick_get();  // any touch anywhere resets the clock
       if (s_lock_warn) { lv_obj_delete(s_lock_warn); s_lock_warn = NULL; }
     }
-    else if (lv_tick_elaps(s_home_act_t) > KISS_AUTOLOCK_MS) {
+    else if (lv_tick_elaps(s_home_act_t) > autolock_ms()) {
       if (s_lock_warn) { lv_obj_delete(s_lock_warn); s_lock_warn = NULL; }
       // Everything the registry says the lock owns, in the order it lists them:
       // the camera stops first, and firmware goes before settings because its
@@ -2223,7 +2242,7 @@ static void game_tick(lv_timer_t *t) {
       s_prev_press = pressed;
       return;
     }
-    else if (lv_tick_elaps(s_home_act_t) > KISS_AUTOLOCK_MS - 30000 &&
+    else if (lv_tick_elaps(s_home_act_t) > autolock_ms() - 30000 &&
              !s_lock_warn) {
       // The lock announces itself. Without this, five quiet minutes ended in
       // the screen simply becoming the game -- correct, and indistinguishable

@@ -4768,6 +4768,23 @@ int main(void) {
   // Worth the second 20000 frames. This is the one flow where a gate can stand
   // in for the hardware: nothing here is display, timing or IO, it is only
   // which screens the lock can see.
+  //
+  // Run on MAINNET, and that is not a detail: a test network gets an hour
+  // (KISS_AUTOLOCK_TEST_MS), which at 16ms a pump is 225,000 frames nobody is
+  // waiting for. Mainnet is the deadline worth proving anyway -- it is the one
+  // guarding coins -- and the two values are asserted against each other here
+  // so a future edit cannot quietly hand mainnet the hour instead.
+  {
+    extern uint32_t sim_autolock_ms(void);
+    uint32_t tn = sim_autolock_ms();                // still testnet at this point
+    kiss_set_network(KISS_NET_MAIN);
+    uint32_t mn = sim_autolock_ms();
+    if (mn != 300000 || tn <= mn) {
+      printf("FAIL: auto-lock deadlines: mainnet %u, test network %u\n",
+             (unsigned)mn, (unsigned)tn);
+      g_walk_fails++;
+    }
+  }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
   set_row(2);                                       // Firmware
@@ -4802,6 +4819,7 @@ int main(void) {
 
   pump(20000);                                      // 320s > 300s + intro settle
   save("/tmp/sim_autolock.ppm");                    // must be the game MENU again
+  kiss_set_network(KISS_NET_TESTNET);               // back to what the walk runs on
 
   // The dead-touch banner, worn by the game cover when the GT911 never came
   // up. Here because this is a locked device showing the menu, which is the
