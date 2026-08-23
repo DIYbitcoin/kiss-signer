@@ -107,7 +107,7 @@
   "W_ENT_FAIL_B": "the sources did not combine, so nothing was saved. you had no keys yet, so nothing was lost.",
   "W_CHOOSE_DICE": "DICE",
   "W_DICE_NOTE": "you roll a die 50 times.",
-  "W_METHOD_DICE_S": "you roll a die 50 times, or flip a coin 128.",
+  "W_METHOD_DICE_S": "50 rolls or 128 flips. a power cut starts over.",
   "W_COIN": "COIN",
   "W_COIN_NOTE": "you flip a coin 128 times.",
   "W_METHOD_DICE_T": "DICE OR COIN",
