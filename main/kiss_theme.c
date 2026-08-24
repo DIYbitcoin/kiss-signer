@@ -20,6 +20,14 @@ static const char WT_BAR_TAG[]    = "wt_action_bar";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
 static const char WT_BR_RULE_TAG[] = "wt_br_rule";   // the strip's own floor
+
+// The screen system's glyph guard and its guarded faces (defined with the
+// chrome block below, used by every control that takes the mono scale).
+static bool mono_can(const char *s);
+static const lv_font_t *chrome18(const char *s);
+static const lv_font_t *chrome21(const char *s);
+static const lv_font_t *chrome23(const char *s);
+static const lv_font_t *chrome28(const char *s);
 static const char WT_DECOR_TAG[]  = "wt_decor";
 static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
 // The wide row's label, so the "?" chip can be measured against the TEXT
@@ -1017,8 +1025,12 @@ static lv_obj_t *hold_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
     h->pill = p;
 
-    lv_obj_t *l = wt_lbl(p, "", 0, 0, wt_font23(),
-                         ink ? *ink : wt_accent());
+    // The label swaps between its word and KEEP HOLDING mid-press, so the
+    // mono rung is taken only when BOTH fit the face -- a font swap on a
+    // held control would make the track jump under the finger.
+    const lv_font_t *lf2 = (mono_can(txt) && mono_can(held))
+                               ? wt_font_mono23() : wt_font23();
+    lv_obj_t *l = wt_lbl(p, "", 0, 0, lf2, ink ? *ink : wt_accent());
     lv_obj_set_style_text_letter_space(l, 2, 0);
     if (!ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     h->lbl = l;
@@ -2797,11 +2809,12 @@ void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt)
         else l = c;
     }
     if (!l || !a) return;
-    const lv_font_t *f = wt_font23();
+    const lv_font_t *f = chrome23(txt);
+    lv_obj_set_style_text_font(l, f, 0);
     lv_point_t ls, as;
     lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_text_get_size(&as, lv_label_get_text(a), f, 0, 0, LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&as, lv_label_get_text(a), wt_font23(), 0, 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     const bool back = lv_obj_get_x(a) <= lv_obj_get_x(l);
     lv_label_set_text(l, txt);
     lv_obj_set_width(ctrl, ls.x + 12 + as.x);
@@ -2815,11 +2828,16 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
 {
     if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
 
-    const lv_font_t *f = wt_font23();
+    // Two faces on one control, on purpose: the WORD takes the pass's mono23
+    // (with the locale guard), and the arrow stays on the Latin face because
+    // IoskeleyMono carries no FontAwesome at all -- the same split every tab
+    // strip already makes.
+    const lv_font_t *f  = chrome23(txt);
+    const lv_font_t *af = wt_font23();
     lv_point_t ls, as;
     const char *arrow = back ? WT_ICON_ARR_L : WT_ICON_ARR_R;
     lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_text_get_size(&as, arrow, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&as, arrow, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     const int cw = ls.x + 12 + as.x;
 
     lv_obj_t *p = lv_obj_create(scr);
@@ -2855,7 +2873,7 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
 
     // The arrow points WHERE THE TAP TAKES YOU: leading the label on the way
     // out, trailing it on the way in.
-    lv_obj_t *a = wt_lbl(p, arrow, 0, 0, f, wt_accent());
+    lv_obj_t *a = wt_lbl(p, arrow, 0, 0, af, wt_accent());
     lv_obj_add_flag(a, WT_FLAG_ACCENT);
     lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + 12, 0);
 
@@ -2911,6 +2929,10 @@ static const lv_font_t *chrome18(const char *s)
 static const lv_font_t *chrome21(const char *s)
 {
     return mono_can(s) ? wt_font_mono21() : wt_font23();
+}
+static const lv_font_t *chrome23(const char *s)
+{
+    return mono_can(s) ? wt_font_mono23() : wt_font23();
 }
 static const lv_font_t *chrome28(const char *s)
 {
@@ -3945,21 +3967,18 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
 lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
 {
     const bool inert = r->kind == WT_WIDE_INERT;
-    const lv_font_t *lf = wt_font23();
-    // The sub-line is the page's TEACHING copy -- "not real bitcoin", "what
-    // opens your real keys", "amount in sats or BTC" -- and it sat at font14
-    // on every row of the settings page because the house rules listed row
-    // sublines as metadata and the FIT gate carved them out on the strength of
-    // that line. Both were wrong, and it came off the bench as text nobody
-    // could read. Metadata is a unit suffix or a chevron. A sentence is not.
-    //
-    // font23, the next rung up: there is no 18, and adding one is a font
-    // rebuild across four scripts. The lane is narrower than the copy at this
-    // size, which is a reason to cut words, never to go back down.
-    const lv_font_t *sf = wt_font23();
-    const lv_font_t *vf = r->vf ? r->vf : wt_font23();
-    const lv_font_t *cf = wt_font14();       // chevrons, at the size every row
-                                             // on the device already wears
+    // The screen system's scale, with the locale guard every chrome string
+    // carries: caption and sub at mono18 (the size the pass added for exactly
+    // these), the value at mono21, and the marks at the font23 the def rows'
+    // arrows already wear. The sub is still the page's TEACHING copy -- "not
+    // real bitcoin", "opens your real keys" -- and 18 in the mono face is a
+    // reading size, not the font14 that once came off the bench as text
+    // nobody could read. A translation the mono faces cannot draw falls one
+    // rung DOWN in the sans family, never up into the hairline.
+    const lv_font_t *lf = chrome18(r->label);
+    const lv_font_t *sf = chrome18(r->sub);
+    const lv_font_t *vf = r->vf ? r->vf : chrome21(r->val);
+    const lv_font_t *cf = wt_font23();       // marks: the def rows' own size
 
     lv_obj_t *row = lv_obj_create(scr);
     lv_obj_remove_style_all(row);
@@ -3987,8 +4006,12 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     wt_line_rule(scr, WT_WIDE_X, y + WT_WIDE_H, WT_WIDE_W);
     if (r->sev) wt_row_sev(row, r->sev);
 
-    lv_color_t ink  = inert ? WT_DIM : WT_INK;
-    lv_color_t subc = inert ? WT_DIM : col_or(r->sub_col, WT_MUT);
+    // Caption MUT and sub DIM, the def rows' own ranks: the caption labels a
+    // readout, the sub is the quiet sentence under it, and the VALUE is the
+    // thing in ink. A stated sub_col (the amber network note, the green
+    // verified line) still outranks the default -- a state keeps its colour.
+    lv_color_t ink  = inert ? WT_DIM : WT_MUT;
+    lv_color_t subc = inert ? WT_DIM : col_or(r->sub_col, WT_DIM);
     lv_color_t vcol = inert ? WT_DIM : col_or(r->vcol, WT_INK);
 
     // THE CONTROL FIRST, so the sub-line's lane can be measured against what
@@ -4053,7 +4076,6 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
             lv_obj_align(v, LV_ALIGN_LEFT_MID, vx, 0);
         }
         lv_obj_t *ch = wt_lbl(chip, mark, 0, 0, cf, wt_accent());
-        lv_obj_set_style_text_opa(ch, 150, 0);
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
 
@@ -4062,7 +4084,6 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         int right = WT_WIDE_W - 12;
         if (r->cb) {
             lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, cf, wt_accent());
-            lv_obj_set_style_text_opa(ch, 150, 0);
             lv_obj_add_flag(ch, WT_FLAG_ACCENT);
             lv_obj_update_layout(ch);
             lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
@@ -4091,6 +4112,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // label's BOX off the value's, and the pin stops a long translation
     // growing a second line into the sub-line beside it.
     lv_obj_t *l = wt_lbl(row, r->label, WT_WIDE_LX, 0, lf, ink);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_width(l, WT_WIDE_LW);
     lv_obj_set_height(l, lv_font_get_line_height(lf));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -4128,7 +4150,7 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     // long translation ellipsises, so asking the object how wide it is answers
     // 250 for every row in every locale and puts the chip on top of the words.
     lv_point_t sz;
-    lv_text_get_size(&sz, txt, wt_font23(), 0, 0, LV_COORD_MAX,
+    lv_text_get_size(&sz, txt, chrome18(txt), 2, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     int lw = sz.x;
     int cap = WT_WIDE_LW - WT_HELP_CHIP_W - 10;
@@ -4154,10 +4176,13 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
 // says what the group is for, and the group itself says the rest.
 void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
 {
-    lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows),
-                         wt_font23(), WT_MUT);
+    // Prose rides the pass's mono18 rung with the locale guard, so the one
+    // sentence under a group is set in the same face as the subs above it.
+    const lv_font_t *f = chrome18(txt);
+    lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows), f,
+                         WT_MUT);
     lv_obj_set_width(l, WT_WIDE_W);
-    lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
+    lv_obj_set_height(l, lv_font_get_line_height(f));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
 }
 
