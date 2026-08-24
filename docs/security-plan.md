@@ -278,34 +278,37 @@ KISS signature from the seed:
   `EC_FLAG_GRIND_R` and it matches Bitcoin Core, so a Core signer with the same
   key produces the same bytes. KISS refuses any sighash that is not ALL or
   DEFAULT, so the message is unambiguous.
-- **Schnorr** (silent-payment spends, the only Schnorr path): BIP340 with
-  `aux_rand = sha256(spend_priv || sha256(psbt_bytes))`. Deterministic, and
-  bound to both the wallet and the whole transaction. This aux is KISS-specific,
-  so a KISS-aware verifier or a second KISS reproduces it; a generic BIP340
-  signer using a different aux produces a different, still valid, signature.
+- **Schnorr** (silent-payment spends, the only Schnorr path): plain BIP340 with
+  `aux_rand` all zero, the standard deterministic nonce. Nothing about it is
+  KISS-specific, so any conforming BIP340 signer holding the same key produces
+  the same bytes. `sp_schnorr_sign` takes no aux argument at all: there is no
+  call site at which a nonce input could be chosen.
 
 **Pinned in CI.** `sim/sign_vectors.h` holds the exact signature bytes for the
 ECDSA cases (computed independently with embit,
 `tools/sign_fixtures/gen_sign_vectors.py`) and the silent-payment Schnorr spends
 (computed with the BIP340 reference signer,
 `tools/sign_fixtures/gen_sp_sign_vectors.py`), never copied from KISS's own
-output. The test suite asserts them, so any drift in nonce derivation or the
-Schnorr aux fails the build. A determinism check signs the same PSBT twice and
-requires identical bytes.
+output. The test suite asserts them, so any drift in nonce derivation fails the
+build. A determinism check signs the same PSBT twice and requires identical
+bytes. The device re-signs two of the vectors at boot on its own field
+arithmetic, and a unit that cannot reproduce them signs nothing at all.
 
 **Checking a unit yourself.** Sign the same PSBT, with the same seed, on a
 second signer you trust independently: a second KISS you compiled yourself from
-audited source, or any tool that implements the rules above. Compare the
-signature bytes. Deterministic signing means they must be identical; a single
-differing byte means one signer chose its nonce, which is the Dark Skippy tell.
-The strength of this check is the independence of the second signer. Two units
-running the same untrusted build prove nothing: they leak identically and still
-match.
+audited source, Bitcoin Core for the ECDSA inputs, or any stock BIP340 signer
+for the taproot ones -- the rules above are the standard ones, so the second
+signer needs no KISS-aware code. Both signed screens show a `SIGNATURE` code, so
+the comparison is a glance rather than a file diff. Deterministic signing means
+the two must be identical; a single differing byte means one signer chose its
+nonce, which is the Dark Skippy tell.
 
-Deferred: the Schnorr aux is KISS-specific, so only a KISS-aware verifier
-reproduces taproot signatures. Switching to a fully standard BIP340 deterministic
-nonce would let any conforming tool verify them, at the cost of changing every
-silent-payment signature. Revisit when a concrete external verifier needs it.
+**What this does not do is stop malice.** Firmware willing to grind a nonce is
+willing to delete the boot selftest and print whatever code it likes, and there
+is no secure boot on this hardware. Determinism makes the leak CHECKABLE, and
+the check is the comparison above -- whose entire strength is the independence
+of the second signer. Two units running the same untrusted build prove nothing:
+they leak identically and still match.
 See [`specs/verifiable-determinism.md`](specs/verifiable-determinism.md).
 
 ## Reporting

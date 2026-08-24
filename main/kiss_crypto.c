@@ -718,9 +718,11 @@ int kiss_sign_selftest(void)
         return s_sign_selftest = 2;
     if (memcmp(sig, BSV_ECDSA, sizeof sig) != 0)
         return s_sign_selftest = 3;
-    // Schnorr: BIP340 with an explicit aux, the shape sp_schnorr_sign uses.
+    // Schnorr: BIP340 with no aux, the shape sp_schnorr_sign uses. A NULL aux
+    // is BIP340's aux_rand = 0, so these bytes are what the reference signer
+    // produces and what a second signer that has never heard of KISS produces.
     if (wally_ec_sig_from_bytes_aux(BSV_KEY, sizeof BSV_KEY, BSV_MSG, sizeof BSV_MSG,
-                                    BSV_AUX, sizeof BSV_AUX,
+                                    NULL, 0,
                                     EC_FLAG_SCHNORR, sig, sizeof sig) != WALLY_OK)
         return s_sign_selftest = 4;
     if (memcmp(sig, BSV_SCHNORR, sizeof sig) != 0)

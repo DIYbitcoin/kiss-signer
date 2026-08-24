@@ -49,10 +49,14 @@ int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[3
                          const uint8_t output_xonly32[32], uint8_t d_out32[32]);
 
 // BIP340 Schnorr signature of msg32 under scalar d32 (keypair handles Y parity).
-// aux32 = deterministic-per-psbt randomness (never NULL). Self-verifies before
-// returning. Returns 0 on success, negative on failure.
+// There is deliberately NO aux parameter: the nonce is BIP340's standard
+// deterministic one (aux_rand all zero), so any conforming BIP340 signer
+// holding the same key reproduces these bytes and can act as the independent
+// second signer of docs/specs/verifiable-determinism.md. A caller that could
+// choose the aux could choose the nonce, which is the whole attack. Self-
+// verifies before returning. Returns 0 on success, negative on failure.
 int sp_schnorr_sign(const uint8_t d32[32], const uint8_t msg32[32],
-                    const uint8_t aux32[32], uint8_t sig64[64]);
+                    uint8_t sig64[64]);
 
 // Blind this file's secp context against side channels. Separate from
 // libwally's, hence its own entry point; kiss_secp_randomize calls both.

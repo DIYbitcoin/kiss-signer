@@ -4,9 +4,11 @@ Status: implemented 2026-07-30. Golden signature vectors for the ECDSA inputs
 (legacy, nested, native) and the silent-payment Schnorr spends (even-Y and
 odd-Y, SIGHASH_DEFAULT) are pinned in `sim/sign_vectors.h`, each reproduced by
 an independent signer (embit for ECDSA, the BIP340 reference for Schnorr) and
-asserted by the suite, with a determinism re-sign check. Remaining: the
-explicit-SIGHASH_ALL 65-byte Schnorr form (encoding already tested, exact bytes
-not yet pinned) and the deferred aux-standardization question below.
+asserted by the suite, with a determinism re-sign check. The Schnorr aux was
+standardized to BIP340's `aux_rand = 0` on 2026-08-24 (see "The aux, and why it
+is now zero" below), which is what lets an off-the-shelf signer perform the
+part 2 check. Remaining: the explicit-SIGHASH_ALL 65-byte Schnorr form
+(encoding already tested, exact bytes not yet pinned).
 
 Dark Skippy is a signing-time attack. Malicious firmware picks the nonce of a
 signature so that it leaks bits of the master seed, and an attacker reads those
@@ -35,9 +37,9 @@ KISS signs deterministically on both curves:
   The nonce is RFC6979 and the counter is ground until R is low, which is
   exactly what Bitcoin Core does, so a Core signer with the same key produces
   the same signature.
-- Schnorr: `sp_schnorr_sign` at kiss_sp.c:614 with a non-null aux, derived at
-  kiss_psbt.c:938 as `aux = sha256(spend_priv || psbt_hash)`. Deterministic,
-  and bound to both the wallet and the whole transaction.
+- Schnorr: `sp_schnorr_sign` in kiss_sp.c, BIP340 with `aux_rand = 0`. The
+  function takes no aux parameter at all, so there is no call site at which a
+  nonce input could be chosen.
 
 Determinism is the lever. If a signature is a fixed function of (key, message),
 then the nonce is not free, and firmware that varies the nonce to leak the seed
@@ -99,8 +101,7 @@ So `kiss_sign_selftest` (kiss_crypto.c) re-signs two golden vectors on the
 device at boot and compares exact bytes:
 
 - ECDSA over a fixed test key and message, `EC_FLAG_ECDSA | EC_FLAG_GRIND_R`;
-- Schnorr over the same key with a fixed explicit aux, the shape
-  `sp_schnorr_sign` uses.
+- Schnorr over the same key with no aux, the shape `sp_schnorr_sign` uses.
 
 Both are in `main/boot_sign_vectors.h`, computed by
 `tools/sign_fixtures/gen_boot_vectors.py` — pure Python, hashlib only, no
@@ -109,7 +110,10 @@ RFC6979 counter-0 nonce yields a *high* R and the grind loop must run five
 rounds; a vector reachable at counter 0 would be satisfied by plain RFC6979 and
 would pin only half the rule. The generator asserts this, and kisstest asserts
 the discrimination directly: signing the same fixture without `EC_FLAG_GRIND_R`
-must not match, and BIP340 with a zero aux must not match.
+must not match, and BIP340 with any caller-supplied aux must not match. The
+same test pins the equivalence the C code leans on -- an explicit all-zero aux
+and no aux at all are the same signature -- so dropping the parameter is
+provably a no-op on the bytes.
 
 Failure is not advisory. `kiss_psbt_sign` calls the selftest (cached after
 the first run) and returns -6 if it did not pass, so a unit whose curve code
@@ -135,7 +139,9 @@ The workflow, documented for the user:
 1. Sign the real PSBT on the KISS unit in question.
 2. Sign the same PSBT, with the same seed, on a second signer that is trusted
    independently: a second KISS the user compiled themselves from audited
-   source, or any tool that implements the frozen rules.
+   source, or any tool that implements the frozen rules. Since the Schnorr aux
+   was standardized, "any tool" includes a stock BIP340 signer for the taproot
+   inputs and Bitcoin Core for the ECDSA ones -- no KISS-aware code needed.
 3. Compare the signature bytes. Deterministic signing means they must be
    identical. A single differing byte means one signer chose its nonce, which
    is the Dark Skippy tell.
@@ -148,11 +154,14 @@ both leak identically and still match. The spec says this plainly so no one
 mistakes a two-unit match for a proof when both units run the same untrusted
 build.
 
-What KISS ships for part 2 is documentation, not code: the workflow above and
-the frozen rules that make an independent signer possible. A convenience helper
-(display a short fingerprint of the signature so two units are compared by
-eye rather than by exporting both files) is optional and deferred; the file
-comparison works today with the signed PSBTs KISS already writes.
+What KISS ships for part 2 is the workflow above, the frozen rules that make an
+independent signer possible, and one aid: both signed screens show a `SIGNATURE`
+code -- eight hex characters of a hash over the signature bytes alone
+(`kiss_psbt_sig_fingerprint`, kiss_psbt.c) -- so two signers are compared by eye
+instead of by exporting and diffing two files. It hashes signatures and not the
+PSBT framing, so a different tool that signed the same way still agrees. See
+`specs/signature-fingerprint.md`. The file comparison works too, on the signed
+PSBTs KISS already writes.
 
 ## The frozen rules
 
@@ -165,31 +174,45 @@ under the curve order half (a 32-byte, i.e. low, R). Low-S is enforced. This is
 BIP143 (segwit) or legacy sighash over the PSBT's declared type; KISS refuses
 any sighash that is not ALL or DEFAULT at load, so the message is unambiguous.
 
-**Schnorr (silent-payment spends, the only Schnorr path).** BIP340, with
-`aux_rand = sha256(spend_priv || psbt_hash)`, where `spend_priv` is the 32-byte
-key that signs the input and `psbt_hash` is KISS's transaction hash used as the
-per-PSBT domain separator. The signature is 64 bytes for SIGHASH_DEFAULT; when
-an explicit SIGHASH_ALL is present the type byte 0x01 is appended, giving 65.
+**Schnorr (silent-payment spends, the only Schnorr path).** Plain BIP340 with
+`aux_rand` all zero. Nothing about the derivation is KISS-specific, so any
+conforming BIP340 signer holding the same key produces the same 64 bytes. The
+signature is 64 bytes for SIGHASH_DEFAULT; when an explicit SIGHASH_ALL is
+present the type byte 0x01 is appended, giving 65.
 
-This aux rule is KISS-specific: it is deterministic and reproducible by a holder
-of the seed running these rules, but it is not the BIP340 default, so a generic
-BIP340 signer that uses `aux_rand = 0` or fresh randomness produces a different
-(still valid) signature. A KISS-aware verifier, or a second KISS, reproduces it.
+`sp_schnorr_sign` takes no aux argument. It passes NULL to
+`secp256k1_schnorrsig_sign32`, which masks the key with the precomputed
+`TaggedHash("BIP0340/aux", 0x00..00)` -- byte for byte the same as passing 32
+zero bytes, and the same as the BIP340 reference signer with `aux_rand = 0`.
+kisstest asserts that equivalence rather than asserting it in prose.
 
-## Open question, deferred: standardize the Schnorr aux
+## The aux, and why it is now zero
 
-Because the aux rule is KISS-specific, part 2's second signer must implement it,
-rather than being any off-the-shelf BIP340 tool. Switching to a fully standard
-deterministic nonce (BIP340 with `aux_rand` all zero) would let any conforming
-implementation reproduce KISS's taproot signatures, strengthening independent
-verifiability.
+Adopted 2026-08-24. This section was an open question for three weeks, deferred
+on the grounds that changing it rewrites every taproot signature KISS produces.
 
-It is deferred, not adopted, because it changes every taproot and
-silent-payment signature KISS produces, which is a signing-behavior change that
-wants its own justification and its own golden-vector regeneration, and because
-the current aux binds the nonce to the whole transaction, which is a defensible
-property to keep. Revisit only when a concrete external verifier needs it. Until
-then, publishing the rule precisely (above) is enough for a KISS-aware checker.
+The old rule was `aux_rand = sha256(spend_priv || psbt_hash)`: deterministic,
+and bound to the whole transaction, which is a real property. The cost was that
+only a KISS-aware tool could reproduce a taproot signature, so part 2's second
+signer had to be a second KISS or a script implementing a house rule -- on the
+one path where an independent verifier is worth the most, and where "two units
+running the same untrusted build" is the failure mode part 2 exists to avoid.
+Publishing the rule precisely was never the same as not needing to.
+
+Binding the nonce to the transaction bought nothing that BIP340 does not already
+give: the nonce commits to the message through the `BIP0340/nonce` hash whatever
+the aux is. So the transaction binding was a second lock on a door that was
+already locked, and it was the thing keeping every off-the-shelf signer out.
+
+What it cost to adopt: every silent-payment signature KISS produces changes
+bytes. Nothing on chain breaks and no key changes, but a `SIGNATURE` fingerprint
+recorded from an older build no longer matches a re-sign on a current one. The
+golden vectors in `sim/sign_vectors.h` and the Schnorr boot vector in
+`main/boot_sign_vectors.h` were regenerated by their own generators, both of
+which now pass `aux_rand = 0`.
+
+What it bought: part 2 works with a signer that has never heard of this project.
+That is the whole value of the check.
 
 ## Testing
 
@@ -240,3 +263,11 @@ log line `signing selftest: PASS (stage 0)`, then sign one PSBT to confirm the
 new gate in `kiss_psbt_sign` does not block a healthy unit. Nothing else in
 the flow changes. Passing kisstest is not this verdict: kisstest cannot compile
 the 32-bit field backend at all.
+
+**DEVICE TEST: REQUIRED, 2026-08-24 (the zero-aux change).** Same reason, same
+gap: the Schnorr boot vector was regenerated, and a wrong regenerated vector
+fails `kiss_sign_selftest` on the riscv32 field backend that no host gate
+compiles -- which now means the unit signs NOTHING, while every desktop gate
+stays green. Flash, confirm `signing selftest: PASS (stage 0)`, sign one
+silent-payment spend, and confirm the `SIGNATURE` fingerprint still renders on
+the signed screen. Passing kisstest is not this verdict.

@@ -465,8 +465,9 @@ static void sp_test_spend_one(const char *tag, const char *b64,
         snprintf(name, sizeof name, "%s carries a 64-byte taproot key sig", tag);
         spchk(name, have);
         // Golden vector: the exact Schnorr bytes the BIP340 reference signer
-        // produced independently for this spend (KISS's aux applied to the
-        // embit-computed sighash). A drift in KISS's nonce or aux fails here.
+        // produced independently for this spend, plain aux_rand = 0 over the
+        // embit-computed sighash. Any conforming BIP340 signer reaches the same
+        // bytes, which is the point; a drift in KISS's nonce fails here.
         char sighex[130] = {0};
         if (have) {
             char *sh = NULL; wally_hex_from_bytes(sig, 64, &sh);

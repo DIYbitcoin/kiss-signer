@@ -13,12 +13,17 @@ Independence has three legs, none of which touch KISS's signer:
     and the BIP376 tweak is read straight out of the PSBT;
   - the signature itself is produced by the BIP340 reference implementation
     below (from the BIP340 spec, pure Python, independent of libsecp256k1),
-    using KISS's aux rule aux = sha256(spend_priv || sha256(psbt_bytes)).
+    with aux_rand all zero -- BIP340's standard deterministic nonce, which is
+    the only shape sp_schnorr_sign can produce.
 
-If KISS's nonce derivation, tweak math, or aux ever drift, these bytes stop
-matching and the build fails. Only the 64-byte SIGHASH_DEFAULT form is produced;
-the explicit-SIGHASH_ALL variant would need an independently computed ALL
-sighash and is left to the existing encoding tests in sim/test_sp.c.
+Because the aux is the standard one, this script is no longer the only thing
+that can reproduce a KISS taproot signature: any conforming BIP340 signer with
+the same key does. If KISS's nonce derivation or tweak math ever drift, these
+bytes stop matching and the build fails.
+
+Only the 64-byte SIGHASH_DEFAULT form is produced; the explicit-SIGHASH_ALL
+variant would need an independently computed ALL sighash and is left to the
+existing encoding tests in sim/test_sp.c.
 
 Setup:
   python3 -m venv venv && ./venv/bin/pip install embit
@@ -121,8 +126,7 @@ def main():
         tweak = raw[i + 3:i + 3 + 32]
         d = (int.from_bytes(spend_priv, "big") + int.from_bytes(tweak, "big")) % N
         assert _xb(_mul(G, d)[0]) == outkey, f"{tag}: d*G x != output key"
-        aux = hashlib.sha256(spend_priv + hashlib.sha256(raw).digest()).digest()
-        sig = schnorr_sign(sighash, d.to_bytes(32, "big"), aux).hex()
+        sig = schnorr_sign(sighash, d.to_bytes(32, "big"), bytes(32)).hex()
         print(f'#define {macro} "{sig}"')
 
 

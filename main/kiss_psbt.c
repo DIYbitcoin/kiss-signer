@@ -39,7 +39,6 @@ static struct {
     uint8_t tweak[WPSBT_MAX_INS][32];
 } s_sp_in;
 
-static uint8_t s_psbt_hash[32];   // sha256(psbt bytes): deterministic-sign aux seed
 
 // v0 keeps its embedded global tx; v2 uses the view extracted after sp_fill.
 // A v2 psbt is authoritative ONLY through s_txv (built from its own fields, the
@@ -656,13 +655,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         kiss_psbt_free();
         return -2;
     }
-    uint8_t psbt_hash[32];                         // deterministic-DLEQ / -sign seed
+    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
     wally_sha256(bytes, len, psbt_hash, 32);
-    memcpy(s_psbt_hash, psbt_hash, 32);            // BIP376 sign-time aux uses it too
     // NOW the decode buffer is dead, and not one line sooner: `bytes` still
     // points INTO it for a base64 PSBT, and the hash above is the seed for the
-    // deterministic signature. Wiping before this point silently reseeded every
-    // signature off 4096 zero bytes -- which is what the golden BIP340 vectors
+    // deterministic DLEQ proof. Wiping before this point silently reseeded every
+    // proof off 4096 zero bytes -- which is what the golden BIP340 vectors
     // in sim/test_sp.c caught, and the only thing that would have.
     //
     // Every later return is an error path that would otherwise leave a whole
@@ -1157,8 +1155,9 @@ int kiss_psbt_details(wpsbt_details_t *d)
 // BIP376: sign every input that spends a received silent payment, using the
 // tweaked spend key d = b_spend + tweak. wally can't do this (the key is not a
 // bip32 child), so compute the taproot key-path sighash + Schnorr-sign here.
-// aux is deterministic per (wallet, psbt) so signing is reproducible. Returns 0,
-// or negative on any failure (the whole sign then fails - no partial result).
+// The signature is plain BIP340 with a zero aux, so any conforming signer
+// holding the same key reproduces it byte for byte. Returns 0, or negative on
+// any failure (the whole sign then fails - no partial result).
 static int sign_sp_spends(const struct ext_key *master)
 {
     bool any = false;
@@ -1167,17 +1166,14 @@ static int sign_sp_spends(const struct ext_key *master)
     if (!any)
         return 0;
 
-    uint8_t spend_priv[32], aux[32];
+    uint8_t spend_priv[32];
     int rc = -1;
     if (sp_spend_privkey(master, kiss_testnet(), spend_priv) != 0)
         return -1;
-    {   // aux = sha256(spend_priv || psbt_hash): deterministic + wallet-specific
-        uint8_t seed[32 + 32];
-        memcpy(seed, spend_priv, 32);
-        memcpy(seed + 32, s_psbt_hash, 32);
-        wally_sha256(seed, sizeof seed, aux, 32);
-        wally_bzero(seed, sizeof seed);
-    }
+    // No aux is derived here on purpose. sp_schnorr_sign takes none: the nonce
+    // is BIP340's standard deterministic one, so a second signer that has never
+    // heard of KISS produces the same 64 bytes. That comparison is the only
+    // check that catches firmware choosing its own nonce.
     for (size_t i = 0; i < s_psbt->num_inputs && i < WPSBT_MAX_INS; i++) {
         if (!s_sp_in.present[i])
             continue;
@@ -1196,7 +1192,7 @@ static int sign_sp_spends(const struct ext_key *master)
         if (u && u->script_len == 34 &&
             sp_spend_signing_key(spend_priv, s_sp_in.tweak[i], u->script + 2, d) == 0 &&
             wally_psbt_get_input_signature_hash(s_psbt, i, s_txv, NULL, 0, 0, sh, 32) == WALLY_OK &&
-            sp_schnorr_sign(d, sh, aux, sig) == 0) {
+            sp_schnorr_sign(d, sh, sig) == 0) {
             if (sh_type != 0)
                 sig[siglen++] = (uint8_t)(sh_type & 0xff);
             if (wally_psbt_input_set_taproot_signature(&s_psbt->inputs[i],
@@ -1210,7 +1206,6 @@ static int sign_sp_spends(const struct ext_key *master)
             break;
     }
     wally_bzero(spend_priv, sizeof spend_priv);
-    wally_bzero(aux, sizeof aux);
     return rc;
 }
 
@@ -1323,6 +1318,5 @@ void kiss_psbt_free(void)
     }
     memset(&s_sp, 0, sizeof s_sp);
     memset(&s_sp_in, 0, sizeof s_sp_in);
-    memset(s_psbt_hash, 0, sizeof s_psbt_hash);
     s_status = WPSBT_STOP;
 }

@@ -621,14 +621,17 @@ out:
 }
 
 int sp_schnorr_sign(const uint8_t d32[32], const uint8_t msg32[32],
-                    const uint8_t aux32[32], uint8_t sig64[64])
+                    uint8_t sig64[64])
 {
     secp256k1_context *ctx = sp_ctx();
     secp256k1_keypair kp;
     int ret = -1;
     if (!secp256k1_keypair_create(ctx, &kp, d32)) { ret = -1; goto out; }
-    // aux_rand is deterministic-per-psbt (never NULL): reproducible signatures.
-    if (!secp256k1_schnorrsig_sign32(ctx, sig64, msg32, &kp, aux32)) { ret = -2; goto out; }
+    // NULL aux_rand is BIP340's aux_rand = 0: nonce_function_bip340 masks the
+    // key with the precomputed TaggedHash("BIP0340/aux", 0x00..00) instead of
+    // hashing caller bytes, so this is the standard deterministic nonce and not
+    // a house rule. Nothing here can vary it, which is the point.
+    if (!secp256k1_schnorrsig_sign32(ctx, sig64, msg32, &kp, NULL)) { ret = -2; goto out; }
     // spec-style self-verify before returning
     secp256k1_xonly_pubkey xo;
     if (secp256k1_keypair_xonly_pub(ctx, &xo, NULL, &kp) &&

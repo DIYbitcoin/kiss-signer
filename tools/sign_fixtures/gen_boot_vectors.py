@@ -11,7 +11,8 @@ hashlib. Nothing here traces back to KISS's own signer.
     counter ground in 32-byte little-endian extra entropy until R is low, and
     S normalised low. That is what EC_FLAG_GRIND_R does and what Core does.
   - Schnorr is the BIP340 reference signer from the spec, same code as the
-    sibling gen_sp_sign_vectors.py, over a fixed aux.
+    sibling gen_sp_sign_vectors.py, with aux_rand all zero -- the standard
+    deterministic nonce, and the only shape sp_schnorr_sign can produce.
 
 The key and messages are derived from fixed ASCII labels so they are visibly
 test values with no wallet behind them. They are NOT secret and NOT a seed.
@@ -140,7 +141,10 @@ def schnorr_sign(msg, seckey, aux):
 # so reproducing this vector requires the grind loop. main() asserts that.
 KEY = hashlib.sha256(b"KISS boot selftest key v1").digest()
 MSG = hashlib.sha256(b"KISS boot selftest message v2").digest()
-AUX = hashlib.sha256(b"KISS boot selftest aux v1").digest()
+# BIP340's aux_rand = 0. libsecp256k1 reaches the same masked key from a NULL
+# aux via its precomputed TaggedHash("BIP0340/aux", 0x00..00), so the device
+# passing no aux at all must land on these bytes.
+AUX = bytes(32)
 
 
 def _carr(name, b):
@@ -158,7 +162,6 @@ def main():
     assert counter > 0, "message needs grinding to be a grind-R vector"
     print(_carr("BSV_KEY", KEY))
     print(_carr("BSV_MSG", MSG))
-    print(_carr("BSV_AUX", AUX))
     print(f"// grind counter {counter}: plain RFC6979 alone cannot reach this R.")
     print(_carr("BSV_ECDSA", ecdsa))
     print(_carr("BSV_SCHNORR", schnorr_sign(MSG, KEY, AUX)))
