@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "lvgl.h"
+#include "kiss_defrow.h"   // the definition rows' lane arithmetic
 
 // fixed palette (identical to what every screen used before the kit)
 #define WT_BG   lv_color_hex(0x070A10)
@@ -210,6 +211,10 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // of this touches it.
 #define WT_ICON_ARR_L  "\xEF\x81\xA0"   // U+F060 arrow-left
 #define WT_ICON_ARR_R  "\xEF\x81\xA1"   // U+F061 arrow-right
+// The screen system's three marks (tools/fonts/gen_fonts.sh names them too).
+#define WT_ICON_WHAT   "\xEF\x84\xA8"   // U+F128 question: the [ ? ] tab's mark
+#define WT_ICON_CAMERA "\xEF\x80\xB0"   // U+F030 camera: the SCANNING trail
+#define WT_ICON_SIGN   "\xEF\x95\xB3"   // U+F573 file-signature: the SIGN trail
 #define WT_ICON_EXPAND "\xEF\x81\xA5"   // U+F065 expand
 #define WT_ICON_LIST   "\xEF\x80\xBA"   // U+F03A list
 #define WT_ICON_LINK   "\xEF\x83\x81"   // U+F0C1 link
@@ -937,6 +942,102 @@ void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt);
 lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
                           bool primary, int x, int y, int w, bool right,
                           lv_event_cb_t cb, void *ud);
+
+// ---- the SCREEN SYSTEM: chrome contract, [ ? ] tab, definition rows -----
+// design_handoff_system/ Parts 1-3. Five fixed parts of chrome that no
+// content shape may move, and the two idioms every page in that pass shares.
+// Additive, like the KEYS/RECEIVE block above: wt_screen and everything on it
+// are untouched, and screens move onto this one at a time.
+//
+// The lane arithmetic lives in kiss_defrow.h (pure integers, proven by
+// kisstest); the geometry here is the rest of the contract.
+#define WT_CHROME_TITLE_Y  14   // title top; mono28 ls3, WT_INK, at x=48
+#define WT_CHROME_STRIP_Y  70   // the 30px row that carries tabs OR the trail
+#define WT_CHROME_RULE_Y   99   // the static header hairline
+#define WT_LANE_X          48   // the content lane -- the ONE part shapes use
+#define WT_LANE_Y         114
+#define WT_LANE_W         704   // its height is WT_DEF_LANE (kiss_defrow.h):
+                                // 114 + 284 = 398 = WT_CONTENT_BOTTOM exactly
+// The contract: bezel (wt_screen's card), title + blinking cursor, the strip
+// row, the hairline, the lane, and the action band -- which is built HERE,
+// unconditionally, because under the contract even a page with no control
+// keeps the band (it carries the standing statement or the first-run hint).
+// The title is WT_INK under this contract, not the accent: the cursor is the
+// accent's one appearance in the header, and it is what makes the title read
+// as a prompt rather than a decoration.
+lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title);
+
+// The trail: where the owner is, said as how they got there. An icon in the
+// accent, then "PARENT / CHILD" at mono18 ls2 WT_DIM, on the strip row.
+// Replaces the subtitle idiom on every page that was opened FROM somewhere;
+// a page with sibling views puts wt_brackets on that row instead, never both.
+lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path);
+
+// The standing statement: the action band's left lane on a page that has no
+// action of its own. An 8px dot then one mono18 ls2 line, both in `col`
+// (WT_DIM for a background fact, WT_WARN on the word grid), saying something
+// permanently true about the page. It never changes while the page is open.
+// `pulse` breathes the dot -- the grid's caution earns it, nothing else does.
+lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
+                      bool pulse);
+
+// The [ ? ] explainer tab (Part 2). Not a content tab: it teaches instead of
+// switching, so it is held off the real tabs by a 1px divider at x=668 and
+// pinned by its RIGHT edge to x=752 -- the mark's rendered width varies with
+// the glyph metrics, so a computed left edge drifts. All three parts wear the
+// accent in every state; unlike a content tab its brackets never dim, because
+// it is always available.
+//
+// `hint_lane_free`: until [ ? ] has been opened once on this device, the mark
+// breathes and the band's left lane says so in lowercase -- but only a page
+// whose left lane is empty may say it, so a page with its own action passes
+// false and keeps the breathing mark alone. Both stop for good on the first
+// open, wherever it happens: the tab flips wt_help_seen itself, then calls
+// `cb` to let the page swap its lane for the explainer.
+lv_obj_t *wt_help_tab(lv_obj_t *scr, bool hint_lane_free,
+                      lv_event_cb_t cb, void *ud);
+// Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
+// kiss_settings_load restores it at boot via _set, and the hook (registered
+// once, at boot) is how the first open reaches the store without the theme
+// ever including nvs.h -- the same split the accent id already uses.
+bool wt_help_seen(void);
+void wt_help_seen_set(bool seen);
+void wt_help_seen_hook(void (*persist)(void));
+
+// What the tab shows: the content lane, replaced -- not a card, not an
+// overlay. One headline sentence at mono28, one paragraph at mono18 (two
+// lines max at 690), then 2-4 labelled facts on a 200px caption lane that
+// never wraps and never widens: a caption that would wrap gets shorter copy.
+// Nothing on it is interactive; BACK is how the owner leaves, same as ever.
+typedef struct {
+    const char *cap;   // upper case, mono18 ls2, the accent
+    const char *val;   // mono18, WT_MUT
+} wt_fact_t;
+void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
+                const wt_fact_t *facts, int n);
+
+// The in-place definition (Part 3). Tap a row and its explanation opens where
+// the row already is; the others collapse to 34px ghosts to make the room.
+// One list owns all of its rows because the height sums must agree to the
+// pixel and the open/close animation moves every row in the same tick.
+typedef struct {
+    const char *cap;     // upper case caption, 168px lane, fixed
+    const char *val;     // the value: never yields, never wraps
+    const char *sub;     // lower-case fragment; the element that YIELDS
+    const char *plain;   // the definition: a plain sentence, 2 lines max
+    const char *term;    // the real term, shown as "CALLED: <term>" -- never
+                         // alone and never first
+    bool        lamp;    // lead the value with an 8px state lamp
+    lv_color_t  lamp_col;
+    bool        lamp_pulse;
+} wt_def_t;
+// Builds the rows across the whole content lane, closed. Entry runs the
+// KEYS/RECEIVE stagger (rise, fade, rule draws itself in). Returns the list
+// handle; rows open and close themselves on tap.
+lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n);
+// Open row `idx` (-1 closes everything), animating every row's height in the
+// same tick -- the walk uses it to photograph settled open states.
+void wt_def_list_open(lv_obj_t *list, int idx);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal
