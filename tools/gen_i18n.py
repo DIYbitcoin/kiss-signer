@@ -314,6 +314,7 @@ UNTRANSLATED_OK = {
     "W_GRID_WARN", "W_SHOW_SENT", "W_SHOW_SURV", "W_SHOW_GOES",
     "W_HOLD_SHOW",
     "K_SPGATE_SENT", "K_SPGATE_SURV", "K_SPGATE_GOES",
+    "K_COORD_NONE", "K_COORD_NONE_B",
     # The SETTINGS [ ? ] explainer. Born under the English-only rule;
     # English until the sweep.
     "G_HELP_HEAD", "G_HELP_BODY", "G_HELP_F1C", "G_HELP_F1V",

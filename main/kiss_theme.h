@@ -64,6 +64,13 @@ const lv_font_t *wt_font34(void);
 // and no fallback, so a localised glyph draws LVGL's placeholder box.
 const lv_font_t *wt_font_mono14(void);
 const lv_font_t *wt_font_mono18(void);
+// The scale's GUARDED faces: the mono rung when every glyph of `s` fits the
+// mono set, one sans rung DOWN otherwise -- never up into the hairline. For
+// pages composing their own chrome content; the kit uses the same guards
+// internally.
+const lv_font_t *wt_chrome18(const char *s);
+const lv_font_t *wt_chrome21(const char *s);
+const lv_font_t *wt_chrome28(const char *s);
 const lv_font_t *wt_font_mono21(void);
 const lv_font_t *wt_font_mono23(void);
 const lv_font_t *wt_font_mono28(void);

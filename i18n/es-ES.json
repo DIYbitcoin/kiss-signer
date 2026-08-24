@@ -241,6 +241,8 @@
   "K_SPGATE_SENT": "This key leaves this signer.",
   "K_SPGATE_SURV": "your coins · this key can never spend",
   "K_SPGATE_GOES": "payment privacy · it sees them forever",
+  "K_COORD_NONE": "NO APP PAIRED YET",
+  "K_COORD_NONE_B": "Pair a wallet app to see your balance and build payments. Signing stays here.",
   "G_HELP_HEAD": "Everything this signer can be told.",
   "G_HELP_BODY": "Five groups: the keys' shape, ways in, backups, this device, and the one door with no undo.",
   "G_HELP_F1C": "CHANGES",

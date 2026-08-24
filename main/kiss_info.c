@@ -22,6 +22,7 @@
 #include "kiss_seed.h"
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
 #include "kiss_theme.h"
+#include "kiss_usage.h"   // has a coordinator ever spoken: the 5c empty state
 #include "kiss_wipe.h"
 #include "kiss_rehearse.h"
 #include "kiss_ui.h"   // kiss_ui_last_fp; the borrowed KEF password keyboard
@@ -1452,6 +1453,38 @@ static void info_tab_build(void)
     }
 
     const int H = 76;
+
+    // The empty state (frame 5c): one shape for an absence -- a headline
+    // naming it, a sentence saying what filling it would give, and the row
+    // that fills it sitting right underneath. No illustration, no shrug.
+    // "Has a coordinator ever spoken" is the device's only honest signal for
+    // paired-ness, and it is the same store RECEIVE's lamp reads.
+    {
+        uint8_t cfp[4];
+        kiss_ui_last_fp(cfp);
+        int chigh;
+        uint32_t cheight;
+        if (!kiss_usage_chain_known(cfp, kiss_testnet() ? 1 : 0,
+                                    kiss_script(), &chigh, &cheight)) {
+            lv_obj_t *hl = wt_lbl(p, tr(STR_K_COORD_NONE), X, 130,
+                                  wt_chrome28(tr(STR_K_COORD_NONE)), WT_INK);
+            lv_obj_set_width(hl, W);
+            lv_label_set_long_mode(hl, LV_LABEL_LONG_DOT);
+            lv_obj_t *b = wt_lbl(p, tr(STR_K_COORD_NONE_B), X, 172,
+                                 wt_chrome18(tr(STR_K_COORD_NONE_B)), WT_MUT);
+            lv_obj_set_width(b, 690);
+            lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+            wt_line_rule_draw(wt_line_rule(p, X, 244, W), 80, 320);
+            wt_line_row_stage(wt_line_row(p, X, 252, W, H,
+                                          tr(STR_K_CAP_PAIRING),
+                                          tr(STR_I_PAIR_T), wt_font28(),
+                                          WT_INK, tr(STR_K_PAIR_SUB), NULL,
+                                          pair_open_cb, NULL), 0);
+            wt_line_rule_draw(wt_line_rule(p, X, 252 + H, W), 152, 320);
+            return;
+        }
+    }
+
     wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING),
                                   tr(STR_I_PAIR_T), wt_font28(), WT_INK,
                                   tr(STR_K_PAIR_SUB), NULL,

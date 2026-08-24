@@ -28,6 +28,11 @@ static const lv_font_t *chrome18(const char *s);
 static const lv_font_t *chrome21(const char *s);
 static const lv_font_t *chrome23(const char *s);
 static const lv_font_t *chrome28(const char *s);
+// The public faces of the same guards, for pages composing their own
+// chrome content.
+const lv_font_t *wt_chrome18(const char *s) { return chrome18(s); }
+const lv_font_t *wt_chrome21(const char *s) { return chrome21(s); }
+const lv_font_t *wt_chrome28(const char *s) { return chrome28(s); }
 static const char WT_DECOR_TAG[]  = "wt_decor";
 static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
 // The wide row's label, so the "?" chip can be measured against the TEXT
@@ -2764,11 +2769,19 @@ void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop)
 {
     (void)stop;
     if (!strip) return;
-    const uint32_t n = lv_obj_get_child_count(strip);
-    // The last child is the rule, so the tabs are 0..n-2.
-    if (from >= 0 && (uint32_t)from < n - 1)
+    uint32_t n = lv_obj_get_child_count(strip);
+    // The floor rule is the last child WHEN it exists -- under the chrome
+    // contract wt_chrome_tabs deletes it, because the hairline at 99 owns
+    // the floor. Counting by "last child is the rule" therefore refused the
+    // LAST TAB of every chrome strip in silence: selecting COORDINATOR
+    // painted nothing and both tabs sat unbracketed. Ask the tag, never the
+    // arithmetic.
+    if (n && lv_obj_get_user_data(lv_obj_get_child(strip, n - 1)) ==
+                 (void *)WT_BR_RULE_TAG)
+        n--;
+    if (from >= 0 && (uint32_t)from < n)
         br_paint(lv_obj_get_child(strip, from), false);
-    if (to < 0 || (uint32_t)to >= n - 1) return;
+    if (to < 0 || (uint32_t)to >= n) return;
     lv_obj_t *tab = lv_obj_get_child(strip, to);
     br_paint(tab, true);
 

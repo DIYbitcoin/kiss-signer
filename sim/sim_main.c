@@ -2646,7 +2646,12 @@ int main(void) {
   // fingerprint hero collapses to a one-line ghost, the other rows drop to
   // 34px, and the plain sentence lands inside the grown row. 30 pumps: the
   // height animation is 240ms and the body rides in 90ms behind it.
-  touch(400, 278); pump(3); release(); pump(30);    // NETWORK row -> opens
+  touch(400, 278); pump(3); release(); pump(8);     // NETWORK row -> opening
+  // Heights in transit: the open row growing and the ghosts collapsing in
+  // the same tick. Raw, not saved -- a mid-flight frame must never become a
+  // stop the settled-state gates compare against.
+  shot_raw("sim_winfo_def_mid.ppm");
+  pump(22);                                         // and let it settle
   save("/tmp/sim_winfo_def.ppm");
   must_show("keys/def plain", tr(STR_K_NET_PLAIN_TEST));
   touch(400, 240); pump(3); release(); pump(30);    // the open row -> all closed
@@ -2660,6 +2665,20 @@ int main(void) {
   // tab 2 is at x=248..444 on the bracket strip and holds PAIRING at 120 and
   // SILENT PAYMENT at 186.
   touch(340, 85); pump(3); release(); pump(40);     // COORDINATOR tab
+  // No coordinator has ever spoken at this point -- the recv test wiped its
+  // usage record on the way out -- so the tab shows the 5c empty state: the
+  // absence named, what pairing gives, and the row that fills it.
+  save("/tmp/sim_winfo_coord_empty.ppm");
+  must_show("coord empty", tr(STR_K_COORD_NONE));
+  {
+    // Give this signer a coordinator's word -- the same store RECEIVE's lamp
+    // reads -- and bounce the tab so the populated page renders.
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
+  }
+  touch(145, 85); pump(3); release(); pump(40);     // THIS SIGNER
+  touch(340, 85); pump(3); release(); pump(40);     // COORDINATOR, populated
   save("/tmp/sim_winfo_coord.ppm");
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
@@ -2704,6 +2723,7 @@ int main(void) {
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
   touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
   save("/tmp/sim_home_end.ppm");
+  kiss_usage_wipe();             // the coordinator's word was the walk's, not the owner's
 
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
