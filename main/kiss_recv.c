@@ -1312,8 +1312,7 @@ static void recv_detail_open(void) {
   s_addr_sg = NULL;
   s_pop = s_pop_away = NULL;
   s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
-  wt_title_fit(s_scr, 704);
-  wt_title_cursor(s_scr);
+  wt_chrome_head(s_scr);
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address, and the line under the path row
   // now says the thing this screen actually needs said, where it is needed.

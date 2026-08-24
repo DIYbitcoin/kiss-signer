@@ -2902,21 +2902,27 @@ static const lv_font_t *chrome28(const char *s)
     return mono_can(s) ? wt_font_mono28() : wt_font28();
 }
 
-lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title)
+void wt_chrome_head(lv_obj_t *scr)
 {
-    lv_obj_t *scr = wt_screen(parent, title, NULL);
     lv_obj_t *t = wt_screen_title(scr);
     if (t) {
         // The contract restyles what wt_screen built rather than building a
         // second header: one code path keeps the walk's screen bookkeeping,
         // and the title keeps its tag so nothing downstream loses it. INK,
         // not the accent: the cursor is the accent's one appearance up here.
-        lv_obj_set_style_text_font(t, chrome28(title), 0);
+        const char *txt = lv_label_get_text(t);
+        lv_obj_set_style_text_font(t, chrome28(txt), 0);
         lv_obj_set_style_text_letter_space(t, 3, 0);
         lv_obj_set_style_text_color(t, WT_INK, 0);
         lv_obj_set_pos(t, WT_LANE_X, WT_CHROME_TITLE_Y);
     }
     wt_title_cursor(scr);
+}
+
+lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title)
+{
+    lv_obj_t *scr = wt_screen(parent, title, NULL);
+    wt_chrome_head(scr);
     wt_line_rule(scr, WT_LANE_X, WT_CHROME_RULE_Y, WT_LANE_W);
     // The band exists on every chrome page, control or no control: it carries
     // the standing statement and the first-run hint, and a page whose band

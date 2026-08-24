@@ -183,8 +183,10 @@ static void fw_head(const char *title, const char *band, bool accent)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_band = NULL;
     s_scr = wt_screen(s_parent, title, NULL);
-    wt_title_fit(s_scr, FW_W);
-    wt_title_cursor(s_scr);
+    // The chrome head is the fit AND the cursor now: INK mono28 at 14, the
+    // one header identity the whole device wears. The band and rule below
+    // keep this chain's shipped rhythm.
+    wt_chrome_head(s_scr);
 
     // wt_font14, not the mono face beside it. IoskeleyMono is built from
     // 0x20-0x7E and carries no FontAwesome at all, so a WT_ICON_* asked of it

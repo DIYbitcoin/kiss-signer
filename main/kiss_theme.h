@@ -968,6 +968,14 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
 // as a prompt rather than a decoration.
 lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title);
 
+// The contract's TITLE treatment alone -- INK mono28 at (48,14) with the
+// blinking cursor -- for a screen whose content cannot take the full
+// contract: the sign chain's hero, facts strip and graph fill 64..390 and
+// are device-tested, so the hairline at 99 and the 114 lane would cut
+// straight through what the owner is approving. The header identity still
+// lands; the middle does not move by a pixel.
+void wt_chrome_head(lv_obj_t *scr);
+
 // wt_brackets on the strip row, minus the strip's own floor rule: under the
 // contract the header hairline at y=99 is the floor, drawn once by wt_chrome,
 // and the strip's rule 6px under it would double the line. Pages with sibling

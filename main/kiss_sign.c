@@ -358,6 +358,12 @@ static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
         lv_obj_delete_async(s_scr);
     }
     s_scr = wt_screen(parent, title, sub);
+    // The chrome contract's HEADER only. The rest of the contract stops at
+    // this chain's door on purpose: the hero, the facts strip and the graph
+    // fill 64..390, they are device-tested, and the middle of the sign flow
+    // does not move for a hairline. The title identity still lands, so SIGN
+    // reads as the same device as every page around it.
+    wt_chrome_head(s_scr);
 }
 
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
@@ -1729,10 +1735,12 @@ static void verify_screen(lv_obj_t *parent)
     // Sized rather than assumed: this band is shared with the header chip at
     // x=540, and a long filename used to be free to run under it.
     {
-        lv_point_t ts;
-        lv_text_get_size(&ts, tr(STR_S_T), wt_font34(), 3, 0,
-                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        int fx = 48 + ts.x + 18, fr = 530;      // 10 clear of the chip at 540
+        // Measured off the LABEL, not a font guess: the chrome head decides
+        // the title's face now, and a measurement against the old font34 put
+        // the filename 20px adrift the day the face changed.
+        lv_obj_t *tl = wt_screen_title(s_scr);
+        lv_obj_update_layout(tl);
+        int fx = 48 + (tl ? lv_obj_get_width(tl) : 120) + 30, fr = 530;
         if (s_src == SRC_SD && s_cur_signed) {
             // The badge has to say the SAME thing the row said. The list draws
             // the two signed states apart on purpose -- a *-signed.psbt IS the
