@@ -692,10 +692,42 @@ static void pop_close(void) {
   pop_chevron(false);
 }
 
-static void recv_tab_cb(lv_event_t *e) {
+// Whether the content lane is showing the page's [ ? ] explainer instead of
+// the selected tab. Reset on every open of the page: it is a view, not a
+// remembered state.
+static bool s_help_open;
+
+static void recv_help_cb(lv_event_t *e) {
+  (void)e;
   pop_close();
-  wt_pane_go(&s_rctx, (int)(intptr_t)lv_event_get_user_data(e), false,
-             recv_tab_build);
+  s_help_open = !s_help_open;
+  // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
+  // same hand swap the KEYS page does. The strip does not move: [ ? ] is
+  // not a section and never highlights.
+  const bool was_moving = s_rctx.entering;
+  wt_pane_stop(&s_rctx);
+  if (was_moving && s_rctx.pane) {
+    lv_obj_delete(s_rctx.pane);
+    s_rctx.pane = NULL;
+  }
+  s_rctx.pane_out = s_rctx.pane;
+  s_rctx.pane = wt_pane_new(&s_rctx);
+  recv_tab_build();
+  wt_accent_restyle(s_rctx.pane);
+  const int dir = s_help_open ? 1 : -1;
+  wt_pane_enter(&s_rctx, dir, false);
+  wt_pane_exit(&s_rctx, dir);
+}
+
+static void recv_tab_cb(lv_event_t *e) {
+  int tab = (int)(intptr_t)lv_event_get_user_data(e);
+  pop_close();
+  // A real tab is also the way back from [ ? ]: tapping the one already
+  // selected re-lands on its rows, which wt_pane_go's same-tab refusal
+  // would otherwise swallow.
+  if (s_help_open && tab == s_rctx.tab) { recv_help_cb(NULL); return; }
+  s_help_open = false;
+  wt_pane_go(&s_rctx, tab, false, recv_tab_build);
 }
 
 // ---- tab 1: the lamp ----
@@ -1066,6 +1098,18 @@ static void recv_tab_build(void) {
   s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_expl = s_idx_chev = NULL;
   s_state_chip = NULL;
 
+  if (s_help_open) {
+    // The [ ? ] content: the lane replaced, not a card and not an overlay.
+    // Nothing on it is interactive; the strip is the way back.
+    wt_fact_t facts[3] = {
+        { tr(STR_R_HELP_F1C), tr(STR_R_HELP_F1V) },
+        { tr(STR_R_HELP_F2C), tr(STR_R_HELP_F2V) },
+        { tr(STR_R_HELP_F3C), tr(STR_R_HELP_F3V) },
+    };
+    wt_explain(p, tr(STR_R_HELP_HEAD), tr(STR_R_HELP_BODY), facts, 3);
+    return;
+  }
+
   if (s_rctx.tab == 0) {
     // Left column: the QR and the one line that says it opens.
     wt_qr_card(p, &s_qr, X, 120, 216, 180);
@@ -1313,8 +1357,8 @@ static void recv_tab_build(void) {
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
   s_pop = s_pop_away = NULL;
-  s_scr = wt_screen(s_parent, tr(STR_R_T), NULL);
-  wt_chrome_head(s_scr);
+  s_help_open = false;
+  s_scr = wt_chrome(s_parent, tr(STR_R_T));
   // No subtitle. "trust what you see here, not your computer screen" is
   // anti-phishing advice about ONE address, and the line under the path row
   // now says the thing this screen actually needs said, where it is needed.
@@ -1322,18 +1366,18 @@ static void recv_detail_open(void) {
   wt_tab_t t[3] = {
       { .icon = WT_ICON_QR,      .label = tr(STR_R_TAB_THIS) },
       { .icon = WT_ICON_LIST,    .label = tr(STR_R_ALL_ADDR) },
-      // SILENT, not SILENT PAYMENT. 196px on a 200 pitch holds about eleven
-      // proportional characters with a mark and two brackets, and the full
-      // term ellipsised to "SILENT PAYM..." the moment the tab labels moved
-      // off the mono face. The handoff's own rule for this is to shrink the
-      // label, never the tab: 196 is what puts three groups in the 704 lane.
+      // SILENT, not SILENT PAYMENT: the flex strip sizes its brackets to the
+      // words, but three labels still share the 620 the [ ? ] divider
+      // leaves, and the full term is the one that starves the other two.
       { .icon = WT_ICON_SECRET,  .label = tr(STR_R_TAB_SP) },
   };
   s_rctx.scr    = s_scr;
-  s_rctx.select = wt_brackets_select;
-  s_rctx.tabs   = wt_brackets(s_scr, t, 3, s_rctx.tab, 48, 70, 704,
-                              recv_tab_cb);
+  s_rctx.select = wt_tabs_flex_select;
+  s_rctx.tabs   = wt_tabs_flex(s_scr, t, 3, s_rctx.tab, recv_tab_cb);
   wt_pane_tabs_watch(&s_rctx);
+  // No band hint: this band's left lane belongs to VERIFY, so the mark's
+  // breathing is the whole first-run invitation here.
+  wt_help_tab(s_scr, NULL, recv_help_cb, NULL);
   s_rctx.pane = wt_pane_new(&s_rctx);
   recv_tab_build();
 

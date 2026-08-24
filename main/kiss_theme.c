@@ -3033,6 +3033,25 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     const lv_font_t *bf = wt_font_mono18();
+    // The overflow cap, from load rather than by fiat. This was a flat 140
+    // ("a fifth of the lane less the brackets' keep"), sized for the five-up
+    // settings strip -- and the moment a THREE tab page borrowed the strip,
+    // 140 ellipsised two of its three labels in a lane with 120px to spare.
+    // So measure first: if every label plus the bracket keep fits the 620,
+    // nothing is capped; only when the strip genuinely overflows does each
+    // oversized label fall back to its fair share. 34 is two brackets and
+    // their pads. No minimum air between tabs: the brackets ARE the
+    // separation, and the shipped five-up strip already runs at 30px of
+    // total slack -- an air term here is what capped it.
+    int need = 34 * n;
+    for (int i = 0; i < n; i++) {
+        lv_point_t ls;
+        lv_text_get_size(&ls, tabs[i].label, chrome18(tabs[i].label), 2, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        need += ls.x;
+    }
+    const int fair = (620 - 34 * n) / n;
+    const bool over = need > 620;
     for (int i = 0; i < n; i++) {
         const wt_tab_t *t = &tabs[i];
         lv_obj_t *b = lv_obj_create(strip);
@@ -3054,13 +3073,14 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_t *l = wt_lbl(b, t->label, 0, 0, lf, WT_DIM);
         lv_obj_set_style_text_letter_space(l, 2, 0);
         // A translation too wide for its share loses letters; the lane never
-        // widens and the strip never wraps. 140 is a fifth of the lane less
-        // the brackets' keep.
+        // widens and the strip never wraps. But only when the strip as a
+        // whole overflows: a label under the fair share never pays for one
+        // over it, and a strip that fits is never cut at all.
         lv_point_t ls;
         lv_text_get_size(&ls, t->label, lf, 2, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
-        if (ls.x > 140) {
-            lv_obj_set_width(l, 140);
+        if (over && ls.x > fair) {
+            lv_obj_set_width(l, fair);
             lv_obj_set_height(l, lv_font_get_line_height(lf));
             lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         }

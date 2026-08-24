@@ -1570,6 +1570,10 @@ static void info_tab_build(void)
 static void info_screen(void)
 {
     s_pair_qr = NULL;
+    // Not a remembered state: leaving the page with [ ? ] open must not
+    // re-land the next visit on the explainer under a strip whose brackets
+    // claim a section is selected.
+    s_help_open = false;
     s_scr = wt_chrome(s_parent, tr(STR_I_T));
 
     static const wt_tab_t tabs[2] = {

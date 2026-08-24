@@ -2472,9 +2472,19 @@ int main(void) {
   // check_sim_taps would rightly call it a dead interaction.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile
   save("/tmp/sim_recv.ppm");                        // THIS ADDRESS, the landing tab
-  // The bracket strip: THIS ADDRESS 48..244, ALL ADDRESSES 248..444, SILENT
-  // PAYMENT 448..644, all 30 tall from y=70.
-  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab
+  // The page's [ ? ]: the lane replaced by the explainer, and back out by
+  // the mark. help_seen is put back afterwards so every later frame keeps
+  // its meaning -- the KEYS stop further down is the walk's canonical
+  // first-run hint and its band must still read as a first run.
+  touch(720, 85); pump(3); release(); pump(30);
+  save("/tmp/sim_recv_what.ppm");
+  must_show("recv/help head", tr(STR_R_HELP_HEAD));
+  touch(720, 85); pump(3); release(); pump(30);
+  must_show("recv/help closed", tr(STR_R_NEXT_ADDR));
+  wt_help_seen_set(false);
+  // The flex strip sizes its brackets to the words, so the tabs are tapped
+  // by their labels rather than by a pitch that no longer exists.
+  tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab
   save("/tmp/sim_recv_sptab.ppm");                  // two lines and the sentence
   // The SCAN KEY line on this tab is a POINTER, not a door: the export of the
   // private scan key has one launcher and it is in KEYS. A row with no cb also
@@ -2496,14 +2506,14 @@ int main(void) {
   save("/tmp/sim_recv_sp_help.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the explanation
   tap_str(STR_C_BACK, 3, 6);     // BACK from SP -> RECEIVE, still on tab 3
-  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
+  tap_str(STR_R_ALL_ADDR, 3, 40);                   // ALL ADDRESSES tab
   save("/tmp/sim_recv_list.ppm");                   // four lines and the count
   // Mid-flight: the second tab change is photographed before it settles, so
   // one frame in the repo shows a line risen with its rule still drawing.
-  touch(145, 85); pump(3); release(); pump(4);
+  tap_str(STR_R_TAB_THIS, 3, 4);
   save("/tmp/sim_recv_tabmid.ppm");
   pump(40);
-  touch(340, 85); pump(3); release(); pump(40);     // back to the list
+  tap_str(STR_R_ALL_ADDR, 3, 40);                   // back to the list
   // Actually DRAG it. This is the one scrolling surface in the whole signer --
   // every other container turns scrolling off -- so the walk flicks it for
   // real rather than trusting that a scrollable flag implies a list that moves.
@@ -2622,10 +2632,10 @@ int main(void) {
     save("/tmp/sim_recv_pop_used.ppm");              // #9 and #10 read USED
     touch(446, 170); pump(3); release(); pump(30);   // pick #9
     save("/tmp/sim_recv_used.ppm");                  // the amber lamp and its line
-    touch(340, 85); pump(3); release(); pump(40);    // ALL ADDRESSES, mixed states
+    tap_str(STR_R_ALL_ADDR, 3, 40);                  // ALL ADDRESSES, mixed states
     save("/tmp/sim_recv_list_used.ppm");
     kiss_usage_wipe();                               // leave the walk as it was
-    touch(145, 85); pump(3); release(); pump(40);    // back to THIS ADDRESS
+    tap_str(STR_R_TAB_THIS, 3, 40);                  // back to THIS ADDRESS
   }
   // And the same lamp once a COORDINATOR has spoken: their number wins when it
   // is larger, because this signer has no chain view and theirs does.
@@ -4121,13 +4131,13 @@ int main(void) {
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
   // The list is one tab away. Capture it on testnet so the tb1 lines and the
   // count render at least once outside the fresh-landing default.
-  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
+  tap_str(STR_R_ALL_ADDR, 3, 40);                   // ALL ADDRESSES tab
   save("/tmp/sim_recv_detail_tn.ppm");              // reused filename: now the list
   // The testnet silent-payment address is one character longer than mainnet
   // (tsp1 vs sp1) and was the only receive QR the walk never rendered, which
   // is where a truncation report landed. Capture both sizes so their decoded
   // payloads can be compared byte-for-byte.
-  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab (testnet)
+  tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab (testnet)
   touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> the QR view
   save("/tmp/sim_recv_sp_tn.ppm");                  // folded tsp1, prefix skipped correctly
   touch(196, 248); pump(3); release(); pump(6);     // longest receive payload -> zoom
@@ -4176,18 +4186,18 @@ int main(void) {
   save("/tmp/sim_wallet_mainnet.ppm");              // home: NO testnet badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive -> bc1 detail
   save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
-  touch(540, 85); pump(3); release(); pump(40);     // SILENT PAYMENT tab
+  tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab
   touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> SP view
   save("/tmp/sim_recv_sp_mainnet.ppm");             // sp1, a character shorter
   tap_str(STR_C_BACK, 3, 6);
-  touch(145, 85); pump(3); release(); pump(40);     // back to THIS ADDRESS
+  tap_str(STR_R_TAB_THIS, 3, 40);                   // back to THIS ADDRESS
   // The refusals, on the same screens that just rendered working: flip the
   // lock, rebuild each, and the QR must be GONE -- not a code encoding the
   // words SESSION LOCKED, which is what these drew before the fix.
   s_sim_session_locked = 1;
   tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT rebuilds tab 1 via recv_refresh
   save("/tmp/sim_recv_locked.ppm");                 // the state as words, no QR
-  touch(340, 85); pump(3); release(); pump(40);     // ALL ADDRESSES tab
+  tap_str(STR_R_ALL_ADDR, 3, 40);                   // ALL ADDRESSES tab
   save("/tmp/sim_recv_list_locked.ppm");            // the state on every line
   s_sim_session_locked = 0;
   // ONE back: the list is a tab now, not a screen on top of one, so BACK from

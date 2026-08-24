@@ -187,6 +187,10 @@ UNTRANSLATED_OK = {
     "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
     "R_NEXT_ADDR", "R_LIST_COUNT", "R_TAB_SP", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
+    # RECEIVE's [ ? ] explainer, the last page to grow the mark. Born under
+    # the English-only rule, like the block above.
+    "R_HELP_HEAD", "R_HELP_BODY", "R_HELP_F1C", "R_HELP_F1V",
+    "R_HELP_F2C", "R_HELP_F2V", "R_HELP_F3C", "R_HELP_F3V",
     # The erase card's paragraph, split into the claim PAIR the house rules
     # ask for -- one sentence stacking three claims was a wall of text and
     # overlapcheck said so. English until the sweep.
