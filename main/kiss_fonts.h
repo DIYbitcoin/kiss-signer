@@ -20,6 +20,8 @@ LV_FONT_DECLARE(font_kiss_lat34);
 // Fixed pitch, Latin only, no CJK variant and no fallback by design.
 // Addresses, fingerprints, derivation paths and amounts are never translated.
 LV_FONT_DECLARE(font_kiss_mono14);
+LV_FONT_DECLARE(font_kiss_mono18);  // screen-system captions, subs, prose
+LV_FONT_DECLARE(font_kiss_mono21);  // screen-system closed-row values
 LV_FONT_DECLARE(font_kiss_mono23);
 LV_FONT_DECLARE(font_kiss_mono28);
 LV_FONT_DECLARE(font_kiss_num48);   // 13 glyphs: digits, space, full stop

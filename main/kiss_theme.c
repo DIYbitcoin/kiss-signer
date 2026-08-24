@@ -151,6 +151,8 @@ const lv_font_t *wt_font34(void)
 // the wiring is wrong. (The renderer does not hang on a missing glyph; the
 // comment above about s_font34 predates LV_USE_FONT_PLACEHOLDER being on.)
 const lv_font_t *wt_font_mono14(void) { return &font_kiss_mono14; }
+const lv_font_t *wt_font_mono18(void) { return &font_kiss_mono18; }
+const lv_font_t *wt_font_mono21(void) { return &font_kiss_mono21; }
 const lv_font_t *wt_font_mono23(void) { return &font_kiss_mono23; }
 const lv_font_t *wt_font_mono28(void) { return &font_kiss_mono28; }
 

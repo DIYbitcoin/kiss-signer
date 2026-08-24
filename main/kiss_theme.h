@@ -62,6 +62,8 @@ const lv_font_t *wt_font34(void);
 // Fixed pitch. Never hand one a translated string: they have no CJK variant
 // and no fallback, so a localised glyph draws LVGL's placeholder box.
 const lv_font_t *wt_font_mono14(void);
+const lv_font_t *wt_font_mono18(void);
+const lv_font_t *wt_font_mono21(void);
 const lv_font_t *wt_font_mono23(void);
 const lv_font_t *wt_font_mono28(void);
 const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only

@@ -46,10 +46,14 @@ LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490
 #   62445 F3ED shield-halved (the SETTINGS SECURITY tab. Deliberately NOT
 #                     F21B user-secret, which means silent payments elsewhere
 #                     in the app and would have said two things at once.)
+# The screen-system pass adds three:
+#   61736 F128 question  (the [ ? ] explainer tab's mark)
+#   61488 F030 camera    (the SCANNING page's trail icon)
+#   62835 F573 file-signature (the SIGN pages' trail icon)
 # (63426 F7C2 sd-card was already here as LV_SYMBOL_SD_CARD.)
 # Only the Latin faces need these: every locale's font is a Latin base with the
 # CJK face as its FALLBACK, so an icon resolves in the base whatever the language.
-SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61478,61479,61480,61481,61498,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61536,61537,61541,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61572,61587,61589,61633,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,61979,62016,62017,62018,62019,62020,62087,62099,62189,62212,62445,62810,63426,63650"
+SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61478,61479,61480,61481,61488,61498,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61536,61537,61541,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61572,61587,61589,61633,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61736,61787,61931,61979,62016,62017,62018,62019,62020,62087,62099,62189,62212,62445,62810,62835,63426,63650"
 
 conv() { npx lv_font_conv --no-compress --no-prefilter --bpp 4 --format lvgl \
                           --force-fast-kern-format "$@"; }
@@ -171,7 +175,10 @@ conv --size 34 \
 MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 [ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 
-for SZ in 14 23 28; do
+# 18 and 21 are the screen-system pass's two additions: 18 carries captions,
+# subs, prose, tab labels, the trail and the band; 21 is a closed row's value.
+# Together about 4KB. 14 stays for screens outside that pass.
+for SZ in 14 18 21 23 28; do
   echo "== font_kiss_mono$SZ"
   conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
     -o "$OUT/font_kiss_mono$SZ.c"
