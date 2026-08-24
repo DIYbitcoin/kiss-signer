@@ -214,6 +214,7 @@ static void mk_screen(const char *title, const char *sub)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     widgets_drop();
     s_scr = wt_screen(s_parent, title, sub);
+    wt_chrome_head(s_scr);
 }
 
 // wt_screen's subtitle is deliberately one line: it has to land clear of the
@@ -227,9 +228,11 @@ static void mk_screen2(const char *title, const char *sub)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     widgets_drop();
     s_scr = wt_screen(s_parent, title, NULL);
+    wt_chrome_head(s_scr);
     // The quiz puts its round counter at x=500 on the title's own row, so the
     // title gets 436 rather than the full 704. Without this the Italian and
-    // Scandinavian titles ran straight through "spot check 1 of 3".
+    // Scandinavian titles ran straight through "spot check 1 of 3" -- and the
+    // fit now steps inside the mono ladder the chrome head just set.
     wt_title_fit(s_scr, 436);
     lv_obj_t *l = wt_note(s_scr, sub, 48, 66, 704, 58);
     lv_obj_set_style_text_color(l, MUT_COL, 0);

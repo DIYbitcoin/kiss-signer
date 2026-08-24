@@ -464,6 +464,7 @@ static void sdinfo_screen(void)
         // no-card pair already says what to do in 21 locales; the right block
         // says what this screen would have shown.
         s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
+        wt_chrome_head(s_scr);
         const char *lh = tr(STR_G_FW_NOCARD_H), *lb = tr(STR_G_FW_NOCARD_B);
         const char *rh = tr(STR_G_SD_ABOUT_H), *rb = tr(STR_G_SD_ABOUT_B);
         const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, 344 - 14,
@@ -479,6 +480,7 @@ static void sdinfo_screen(void)
     // The CID product name is the card introducing itself; it is the subtitle
     // so the title stays the word the chooser's pill promised.
     s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), inf.name);
+    wt_chrome_head(s_scr);
 
     // The unit ONCE when both numbers carry the same one, which is how a person
     // says it and what keeps the pair inside the card. mono28 with its letter
@@ -738,6 +740,7 @@ static void storage_chooser_screen(void)
 
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current);
+    wt_chrome_head(s_scr);
 
     for (int i = 0; i < 3; i++) {
         bool on = kiss_seed_mode() == STORE_MODE[i];
@@ -888,6 +891,7 @@ static void made_open_cb(lv_event_t *e)
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_W_MADE_T), tr(STR_W_MADE_S));
+    wt_chrome_head(s_scr);
 
     int src = kiss_seed_source();
     const char *label = NULL, *note = NULL;
@@ -941,6 +945,7 @@ static void audit_open_cb(lv_event_t *e)
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), tr(STR_W_AUD_S));
+    wt_chrome_head(s_scr);
     {
         int src = kiss_seed_source();
         const char *label = NULL, *note = NULL;
@@ -963,6 +968,7 @@ static void duress_cb(lv_event_t *e)
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
+    wt_chrome_head(s_scr);
 
     // What is true today, as chips: what opens the spare (KISS, or the
     // owner's drawing), and what has to follow it.
@@ -1363,6 +1369,7 @@ static void device_screen(void)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_I_DEVICE_T), NULL);
+    wt_chrome_head(s_scr);
 
     // Framed, not floating. kiss_build_id_make draws three sibling labels at
     // font14 and nothing else; on an open page that is a bare paragraph, and

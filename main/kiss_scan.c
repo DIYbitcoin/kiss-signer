@@ -423,6 +423,7 @@ static void scan_open_common(lv_obj_t *parent)
     // object and so was the one wallet surface that did not wear the card frame,
     // the title treatment or the action bar the rest of the device has.
     s_scr = wt_screen(parent, tr(STR_N_T), tr(STR_N_S));
+    wt_chrome_head(s_scr);
     lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_scr, cancel_cb, LV_EVENT_CLICKED, NULL);
 #ifndef SIMULATOR

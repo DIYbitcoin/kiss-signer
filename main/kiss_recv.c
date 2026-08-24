@@ -265,6 +265,7 @@ static void vfy_result(const char *txt, size_t len) {
                                    : kiss_address_validate(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
+  wt_chrome_head(s_scr);
   // Only format and tail-highlight something that really is an address.
   // Arbitrary QR text is not grouped address data; feeding a short malformed
   // string through the span formatter also left LVGL with a broken short-span
@@ -577,6 +578,7 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_parent = parent;
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
+  wt_chrome_head(s_scr);
   // The longer tsp1 full view can make LVGL auto-scroll a default container
   // to its newest child, shifting the fixed 800x480 composition off-screen.
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);

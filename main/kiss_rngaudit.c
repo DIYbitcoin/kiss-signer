@@ -81,6 +81,7 @@ static void intro_screen(void)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wipe_widgets();
     s_scr = wt_screen(s_parent, tr(STR_W_RNG_T), tr(STR_W_RNG_S));
+    wt_chrome_head(s_scr);
 
     bool live = kiss_trng_live();
 
@@ -218,6 +219,7 @@ static void run_screen(void)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wipe_widgets();
     s_scr = wt_screen(s_parent, tr(STR_W_RNG_T), NULL);
+    wt_chrome_head(s_scr);
     // The sub lane, empty until a miss puts the once-in-500 line there.
     s_note = wt_note(s_scr, "", 48, 60, 704, 34);
 

@@ -281,6 +281,7 @@ static void write_screen(bool again)
     s_scr = wt_screen(s_parent,
                       tr(again ? STR_GD_DRAW_AGAIN_T : STR_GD_WORD_T),
                       tr(again ? STR_GD_WORD_AGAIN_S : STR_GD_WORD_S));
+    wt_chrome_head(s_scr);
 
     for (int i = 0; i < DSTROKES; i++) {
         s_line[i] = lv_line_create(s_scr);
@@ -329,6 +330,7 @@ static void write_screen(bool again)
 static void confirm_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_GD_WORD_C_T), NULL);
+    wt_chrome_head(s_scr);
 
     // What is about to change, drawn, in the SAME card the screen after this
     // one draws it in. This band was 165px of nothing: a title at font34 over
@@ -409,6 +411,7 @@ static void confirm_screen(void)
 static void fail_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_C_TRY_AGAIN), NULL);
+    wt_chrome_head(s_scr);
     wt_why_body(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150, WT_WARN, true);
     wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
 }
@@ -426,6 +429,7 @@ static void fail_screen(void)
 static void done_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_GD_WORD_OK_T), NULL);
+    wt_chrome_head(s_scr);
 
     // No passphrase on this session means there is no second wallet for the
     // mark to route to: the letters alone open the funded one. The two rows

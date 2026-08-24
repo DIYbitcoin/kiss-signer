@@ -317,6 +317,7 @@ static void stage_build(int stage)
     // body no longer needs a height budget guessed against English.
     case ST_INTRO: {
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
+        wt_chrome_head(s_scr);
         diagram_two_ways();
         wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
         // The only TALL action row in this flow, and the only one that needs to
@@ -367,6 +368,7 @@ static void stage_build(int stage)
     }
     case ST_FUND: {
         s_scr = wt_screen(s_parent, tr(STR_GD_FUND_T), NULL);
+        wt_chrome_head(s_scr);
         // The spare has an identity of its own, which is the half of this
         // screen that is a fact rather than an instruction -- and the diagram
         // now says SO. It drew SPARE -> FINGERPRINT, which reads as though the
@@ -406,6 +408,7 @@ static void stage_build(int stage)
     // second rule once. Nothing new was authored for this screen.
     case ST_ACK: {
         s_scr = wt_screen(s_parent, tr(STR_L_WARN_T), NULL);
+        wt_chrome_head(s_scr);
         lv_obj_t *row = wt_diagram_row(diagram_box(112));
         chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
         wt_diagram_op(row, "+");
@@ -438,6 +441,7 @@ static void stage_build(int stage)
     case ST_PICK: {
         s_scr = wt_screen(s_parent, tr(STR_GD_PICK_REAL_T),
                           tr(STR_GD_PICK_REAL_S));
+        wt_chrome_head(s_scr);
         for (int g = WDG_UNDERLINE, i = 0; g < WDG_N; g++, i++) {
             const int key = kiss_duress_label_key(g);
             if (key < 0) continue;
@@ -455,6 +459,7 @@ static void stage_build(int stage)
     }
     case ST_DRAW: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DRAW_T), tr(STR_GD_DRAW_S));
+        wt_chrome_head(s_scr);
         // The shape being asked for, named, because by here the owner has left
         // the screen that named it.
         const int key = kiss_duress_label_key(s_pick);
@@ -506,6 +511,7 @@ static void stage_build(int stage)
     }
     case ST_NOPASS: {
         s_scr = wt_screen(s_parent, tr(STR_GD_NOPASS_T), NULL);
+        wt_chrome_head(s_scr);
         // Why there is nothing to hide behind, in two chips: the layer this
         // feature stands on is missing. GD_OFF is the same "NOT SET" the ways
         // in row on Settings shows, so the reader has met it already.
@@ -535,6 +541,7 @@ static void stage_build(int stage)
     }
     default: {
         s_scr = wt_screen(s_parent, tr(STR_GD_DONE_T), NULL);
+        wt_chrome_head(s_scr);
         // Same shape as ST_INTRO: the mapping is drawn, and the body keeps
         // only what the diagram cannot say — the stroke routes, it does not
         // unlock, and this is the last screen in the flow that says so.

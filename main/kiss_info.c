@@ -365,6 +365,7 @@ static void pair_instructions_cb(lv_event_t *e)
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       s_pair_fmt ? tr(STR_I_APP_MOBILE)
                                  : tr(STR_I_APP_DESKTOP));
+    wt_chrome_head(s_scr);
 
     // Page two is intentionally static: first the exact import steps, then
     // the independent address proof. The raw descriptor is already encoded in
@@ -400,6 +401,7 @@ static void pair_screen(void)
     s_pair_qr = s_pair_note = NULL;
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
                       tr(STR_I_PAIR_S));
+    wt_chrome_head(s_scr);
     if (kiss_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(), WT_WARN);
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -512,6 +514,7 @@ static void sp_key_show(void *ud)
     s_sp_key_qr = NULL;
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+    wt_chrome_head(s_scr);
 
     // The refusal is its OWN render, decided before anything is drawn. This
     // used to fall through the success path with the failure string in the
@@ -1136,6 +1139,7 @@ static void kef_show_screen(void)
 {
     swap_screen();
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), tr(STR_I_KEF_SHOW_S));
+    wt_chrome_head(s_scr);
     s_kef_sd_chip = NULL;
 
     lv_obj_t *qr = NULL;
@@ -1176,6 +1180,7 @@ static void kef_warn_screen(lv_event_t *e)
     const bool pp = !kiss_session_decoy();
     s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF),
                       tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S));
+    wt_chrome_head(s_scr);
 
     // The mechanism, drawn before it is explained: what goes in, plus one
     // password, becomes a QR that only the password opens. With a passphrase

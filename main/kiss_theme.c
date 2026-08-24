@@ -583,16 +583,31 @@ void wt_title_fit(lv_obj_t *scr, int w)
     const char *txt = lv_label_get_text(cap);
     if (!txt || !*txt) return;
 
-    // 34 -> 28 -> 23, one line the whole way. A title is the one label that
-    // must not wrap: wt_screen puts the subtitle 3px under its 45px box, so a
-    // second line lands on top of the subtitle rather than pushing it down.
-    // Measured unwrapped (LV_COORD_MAX) so the answer is the real width the
-    // words need, not the widest line of a wrap that already went wrong.
+    // One line the whole way. A title is the one label that must not wrap:
+    // wt_screen puts the subtitle 3px under its box, so a second line lands
+    // on top of the subtitle rather than pushing it down. Measured unwrapped
+    // (LV_COORD_MAX) so the answer is the real width the words need, not the
+    // widest line of a wrap that already went wrong.
+    //
+    // TWO ladders, picked by what the title already wears: a chrome head is
+    // mono and steps 28 -> 23 -> 18 inside its own family, because a fit
+    // that reached for the sans faces would quietly undo the contract on
+    // whichever locale happened to be long. The sans ladder is 34 -> 28 ->
+    // 23, as it has always been.
     //
     // The tracking shrinks with the size for the same reason pill labels do:
-    // 3px between letters is presence at 34 and just lost width at 23.
+    // 3px between letters is presence at the top rung and lost width below.
     static const int space[3] = { 3, 2, 2 };
-    const lv_font_t *f[3] = { wt_font34(), wt_font28(), wt_font23() };
+    const lv_font_t *cur = lv_obj_get_style_text_font(cap, 0);
+    const bool mono = cur == wt_font_mono28() || cur == wt_font_mono23() ||
+                      cur == wt_font_mono18();
+    const lv_font_t *f[3];
+    if (mono) {
+        f[0] = wt_font_mono28(); f[1] = wt_font_mono23();
+        f[2] = wt_font_mono18();
+    } else {
+        f[0] = wt_font34(); f[1] = wt_font28(); f[2] = wt_font23();
+    }
     int pick = 2;
     for (int i = 0; i < 3; i++) {
         lv_point_t sz;
