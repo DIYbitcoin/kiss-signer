@@ -3704,8 +3704,15 @@ void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
     for (int k = 0; k < n; k++) {
         const int cx = 62 + (k / 4) * 232;
         const int cy = 126 + (k % 4) * 62;
+        // Clamped, so the device compiler can PROVE the buffer: a word number
+        // is 1..24 by construction, but "first + k + 1" is unbounded to the
+        // truncation gate, and that gate is the one lane that has caught
+        // every silent cut in this file's history.
+        int wnum = first + k + 1;
+        if (wnum < 1) wnum = 1;
+        if (wnum > 99) wnum = 99;
         char num[8];
-        snprintf(num, sizeof num, "%d", first + k + 1);
+        snprintf(num, sizeof num, "%d", wnum);
         // The number right-aligned in its 30px lane, dim: it keeps the
         // owner's place and then gets out of the word's way.
         lv_obj_t *nl = wt_lbl(scr, num, cx, 0, nf, WT_DIM);
