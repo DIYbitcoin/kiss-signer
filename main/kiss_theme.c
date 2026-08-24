@@ -19,6 +19,7 @@ static const char WT_SCREEN_TAG[] = "wt_screen";
 static const char WT_BAR_TAG[]    = "wt_action_bar";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
+static const char WT_BR_RULE_TAG[] = "wt_br_rule";   // the strip's own floor
 static const char WT_DECOR_TAG[]  = "wt_decor";
 static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
 // The wide row's label, so the "?" chip can be measured against the TEXT
@@ -975,7 +976,13 @@ lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
     h->w = w;
     h->txt = txt;
     h->held = held;
-    h->release_ms = 180;
+    // 200, once, for every hold on a rule. The firmware handoff wrote 180 and
+    // the screen system wrote 200 for the same gesture; a 20ms disagreement
+    // is not two designs, it is one number written twice, and the system pass
+    // is the one that covers the whole device. What is load bearing is that
+    // the fill RUNS back instead of vanishing -- a fill that disappears reads
+    // as a completed action.
+    h->release_ms = 200;
     h->done = done;
     h->ud = ud;
 
@@ -2695,8 +2702,11 @@ lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     // The rule under the strip: full lane, static, and NOT a line row's rule.
     // It does not move with the selection and it does not draw on a tab change
     // -- it is the floor the strip stands on, and a floor that redrew itself
-    // every tap would be the loudest thing on the page.
-    wt_line_rule(strip, 0, WT_BR_STRIP_H - 1, w);
+    // every tap would be the loudest thing on the page. Tagged so wt_chrome_tabs
+    // can drop it: under the chrome contract the header hairline at y=99 is the
+    // floor, and a second rule 6px under it would be a smudge.
+    lv_obj_set_user_data(wt_line_rule(strip, 0, WT_BR_STRIP_H - 1, w),
+                         (void *)WT_BR_RULE_TAG);
     return strip;
 }
 
@@ -2818,6 +2828,668 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     if (primary) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + 12 : 0, 0);
     return p;
+}
+
+// ---- the SCREEN SYSTEM: chrome, [ ? ], definition rows (see kiss_theme.h) --
+
+static void an_ty(void *v, int32_t y);
+static void an_h(void *v, int32_t h)   { lv_obj_set_height(v, h); }
+static void an_y(void *v, int32_t y)   { lv_obj_set_y(v, y); }
+static void an_rot(void *v, int32_t r)
+{
+    lv_obj_set_style_transform_rotation(v, r, 0);
+}
+
+// Whether the mono faces can draw every glyph of `s`: ASCII 0x20-0x7E plus
+// the three marks gen_fonts.sh gives them. The chrome is specified in mono,
+// but the OTHER twenty locales still carry their shipped strings under the
+// English-only rule, and an accented or CJK title pointed at IoskeleyMono
+// draws placeholder boxes on a screen the owner cannot file a bug from. So
+// every chrome string checks itself and degrades to the locale face -- the
+// same second line of defence wt_font34 keeps for CJK titles. The sweep
+// decides the real per-locale answer; until then the device stays readable.
+static bool mono_can(const char *s)
+{
+    if (!s) return true;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        if (*p == '\n' || (*p >= 0x20 && *p < 0x7F)) continue;
+        if (*p == 0xC2 && p[1] == 0xB7) { p++; continue; }               /* · */
+        if (*p == 0xE2 && p[1] == 0x80 && (p[2] == 0xA2 || p[2] == 0xA6)) {
+            p += 2;                                                  /* • … */
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+// The contract's faces, each with its locale fallback. 18 and 21 fall to the
+// 14 and 23 sans rungs -- one size DOWN, not up, so a translated string can
+// never grow into the hairline under it.
+static const lv_font_t *chrome18(const char *s)
+{
+    return mono_can(s) ? wt_font_mono18() : wt_font14();
+}
+static const lv_font_t *chrome21(const char *s)
+{
+    return mono_can(s) ? wt_font_mono21() : wt_font23();
+}
+static const lv_font_t *chrome28(const char *s)
+{
+    return mono_can(s) ? wt_font_mono28() : wt_font28();
+}
+
+lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title)
+{
+    lv_obj_t *scr = wt_screen(parent, title, NULL);
+    lv_obj_t *t = wt_screen_title(scr);
+    if (t) {
+        // The contract restyles what wt_screen built rather than building a
+        // second header: one code path keeps the walk's screen bookkeeping,
+        // and the title keeps its tag so nothing downstream loses it. INK,
+        // not the accent: the cursor is the accent's one appearance up here.
+        lv_obj_set_style_text_font(t, chrome28(title), 0);
+        lv_obj_set_style_text_letter_space(t, 3, 0);
+        lv_obj_set_style_text_color(t, WT_INK, 0);
+        lv_obj_set_pos(t, WT_LANE_X, WT_CHROME_TITLE_Y);
+    }
+    wt_title_cursor(scr);
+    wt_line_rule(scr, WT_LANE_X, WT_CHROME_RULE_Y, WT_LANE_W);
+    // The band exists on every chrome page, control or no control: it carries
+    // the standing statement and the first-run hint, and a page whose band
+    // appeared only once a button did would visibly re-floor itself.
+    action_bar_ensure(scr);
+    return scr;
+}
+
+lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                         lv_event_cb_t cb)
+{
+    lv_obj_t *strip = wt_brackets(scr, tabs, n, sel, WT_LANE_X,
+                                  WT_CHROME_STRIP_Y, WT_LANE_W, cb);
+    // The contract's hairline at 99 is the strip's floor; the strip's own
+    // rule would draw a second one 6px under it.
+    lv_obj_t *rule = wt_tagged(strip, WT_BR_RULE_TAG);
+    if (rule) lv_obj_delete(rule);
+    return strip;
+}
+
+lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path)
+{
+    int x = WT_LANE_X;
+    if (icon && *icon) {
+        // The mark comes off the Latin face; IoskeleyMono carries no
+        // FontAwesome, same as the tab strip's marks.
+        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font14(), wt_accent());
+        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        lv_obj_update_layout(ic);
+        lv_obj_set_y(ic, WT_CHROME_STRIP_Y +
+                         (WT_BR_H - lv_obj_get_height(ic)) / 2);
+        x += lv_obj_get_width(ic) + 10;
+    }
+    const lv_font_t *f = chrome18(path);
+    lv_obj_t *l = wt_lbl(scr, path, x, 0, f, WT_DIM);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
+    lv_obj_set_y(l, WT_CHROME_STRIP_Y +
+                    (WT_BR_H - lv_font_get_line_height(f)) / 2);
+    // One line, pinned: a trail that wrapped would walk into the hairline,
+    // and a trail is a place name, not a sentence.
+    lv_obj_set_width(l, 752 - x);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    return l;
+}
+
+// The dot both band idioms share: 8px, `col`, optionally breathing. The
+// breath is ease_in_out opacity -- the device's "alive" language -- and it
+// dies with the object, so no screen has to remember it on the way out.
+static lv_obj_t *band_dot(lv_obj_t *scr, int x, int y, lv_color_t col,
+                          bool pulse)
+{
+    lv_obj_t *d = lv_obj_create(scr);
+    lv_obj_remove_style_all(d);
+    lv_obj_set_pos(d, x, y);
+    lv_obj_set_size(d, 8, 8);
+    lv_obj_set_style_radius(d, 4, 0);
+    lv_obj_set_style_bg_color(d, col, 0);
+    lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
+    if (pulse) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, d);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_set_values(&a, 100, 255);
+        lv_anim_set_duration(&a, 1200);
+        lv_anim_set_playback_duration(&a, 1200);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&a);
+    }
+    return d;
+}
+
+lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
+                      bool pulse)
+{
+    action_bar_ensure(scr);
+    const lv_font_t *f = chrome18(txt);
+    int lh = lv_font_get_line_height(f);
+    int y  = WT_ACTION_Y + (WT_ACTION_H - lh) / 2;
+    band_dot(scr, WT_ACT_X, y + (lh - 8) / 2, col, pulse);
+    lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + 8 + 10, y, f, col);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
+    // One line: the statement shares the band with BACK, and a second line
+    // would leave the card. 592 is where the exit's lane begins.
+    lv_obj_set_width(l, 592 - 12 - (WT_ACT_X + 18));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    return l;
+}
+
+// ---- the [ ? ] explainer tab ----
+
+static bool s_help_seen;
+static void (*s_help_persist)(void);
+
+bool wt_help_seen(void)               { return s_help_seen; }
+void wt_help_seen_set(bool seen)      { s_help_seen = seen; }
+void wt_help_seen_hook(void (*persist)(void)) { s_help_persist = persist; }
+
+typedef struct {
+    lv_obj_t *tab;    // what breathes
+    lv_obj_t *hint;   // the band line, or NULL
+} wt_help_ctx_t;
+
+static void help_free_cb(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
+
+// Runs BEFORE the page's own handler (registered first), so by the time the
+// page swaps its lane in, the hint is already gone for good.
+static void help_first_cb(lv_event_t *e)
+{
+    wt_help_ctx_t *c = lv_event_get_user_data(e);
+    if (s_help_seen) return;
+    s_help_seen = true;
+    if (c->tab) {
+        lv_anim_delete(c->tab, an_opa);
+        lv_obj_set_style_opa(c->tab, LV_OPA_COVER, 0);
+    }
+    if (c->hint) lv_obj_add_flag(c->hint, LV_OBJ_FLAG_HIDDEN);
+    if (s_help_persist) s_help_persist();
+}
+
+lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
+                      lv_event_cb_t cb, void *ud)
+{
+    // The divider that holds the mark off the real tabs: it is not a third
+    // section and the 1px line is what says so.
+    lv_obj_t *dv = lv_obj_create(scr);
+    lv_obj_remove_style_all(dv);
+    lv_obj_set_pos(dv, 668, 75);
+    lv_obj_set_size(dv, 1, 20);
+    lv_obj_set_style_bg_color(dv, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(dv, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(dv, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(dv, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Brackets off the mono face -- they are ASCII -- and the mark off the
+    // Latin face, which is where FontAwesome lives. 18-ish brackets, 14 mark:
+    // the two rungs the ladder offers around the drawing's 18 and 17.
+    const lv_font_t *bf = wt_font_mono18();
+    const lv_font_t *mf = wt_font14();
+    lv_point_t bs, ms;
+    lv_text_get_size(&bs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ms, WT_ICON_WHAT, mf, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    const int gap = 6, pad = 8;
+    int w = 2 * pad + 2 * bs.x + 2 * gap + ms.x;
+
+    lv_obj_t *b = lv_obj_create(scr);
+    lv_obj_remove_style_all(b);
+    // Pinned by the RIGHT edge: the mark's rendered width moves with the
+    // accent's glyph metrics, and a computed left edge drifts.
+    lv_obj_set_pos(b, 752 - w, WT_CHROME_STRIP_Y);
+    lv_obj_set_size(b, w, WT_BR_H);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    wt_tap_feedback(b);
+
+    // All three parts wear the accent in EVERY state: unlike a content tab
+    // its brackets never dim, because it is always available.
+    lv_obj_t *lb = wt_lbl(b, "[", 0, 0, bf, wt_accent());
+    lv_obj_add_flag(lb, WT_FLAG_ACCENT);
+    lv_obj_align(lb, LV_ALIGN_LEFT_MID, pad, 0);
+    lv_obj_t *mk = wt_lbl(b, WT_ICON_WHAT, 0, 0, mf, wt_accent());
+    lv_obj_add_flag(mk, WT_FLAG_ACCENT);
+    lv_obj_align(mk, LV_ALIGN_LEFT_MID, pad + bs.x + gap, 0);
+    lv_obj_t *rb = wt_lbl(b, "]", 0, 0, bf, wt_accent());
+    lv_obj_add_flag(rb, WT_FLAG_ACCENT);
+    lv_obj_align(rb, LV_ALIGN_LEFT_MID, pad + bs.x + gap + ms.x + gap, 0);
+
+    wt_help_ctx_t *c = lv_calloc(1, sizeof *c);
+    if (c) {
+        c->tab = b;
+        if (!s_help_seen) {
+            // Motion 19: the mark breathes until the first open, ever.
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, b);
+            lv_anim_set_exec_cb(&a, an_opa);
+            lv_anim_set_values(&a, 71, 230);
+            lv_anim_set_duration(&a, 1200);
+            lv_anim_set_playback_duration(&a, 1200);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_start(&a);
+            if (hint && *hint) {
+                action_bar_ensure(scr);
+                const lv_font_t *hf = chrome18(hint);
+                int lh = lv_font_get_line_height(hf);
+                c->hint = wt_lbl(scr, hint, WT_ACT_X,
+                                 WT_ACTION_Y + (WT_ACTION_H - lh) / 2, hf,
+                                 WT_DIM);
+                lv_obj_set_width(c->hint, 592 - 12 - WT_ACT_X);
+                lv_label_set_long_mode(c->hint, LV_LABEL_LONG_DOT);
+            }
+        }
+        lv_obj_add_event_cb(b, help_first_cb, LV_EVENT_CLICKED, c);
+        lv_obj_add_event_cb(b, help_free_cb, LV_EVENT_DELETE, c);
+    }
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
+
+void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
+                const wt_fact_t *facts, int n)
+{
+    lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, chrome28(headline),
+                         WT_INK);
+    lv_obj_set_width(h, WT_LANE_W);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+
+    const lv_font_t *pf = chrome18(para);
+    lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, 152, pf, WT_MUT);
+    lv_obj_set_width(p, 690);
+    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+    lv_point_t ps;
+    lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+
+    // The facts start where the paragraph ends, never above 200: the drawing
+    // gives the paragraph two lines of air and the caption lane holds still
+    // whether it used one or both.
+    int y = 152 + ps.y + 14;
+    if (y < 200) y = 200;
+    for (int i = 0; i < n && facts; i++) {
+        const lv_font_t *cf = chrome18(facts[i].cap);
+        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf,
+                               wt_accent());
+        lv_obj_add_flag(cap, WT_FLAG_ACCENT);
+        lv_obj_set_style_text_letter_space(cap, 2, 0);
+        // 200 wide and NO wrapping: a caption that would wrap gets shorter
+        // copy for that locale. The lane never widens.
+        lv_obj_set_width(cap, 200);
+        lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 214, y,
+                               chrome18(facts[i].val), WT_MUT);
+        lv_obj_set_width(val, 752 - (WT_LANE_X + 214));
+        lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+        y += lv_font_get_line_height(cf) + 14;
+    }
+}
+
+// ---- the in-place definition ----
+
+#define WT_DEF_MAX    6
+#define DEF_CAP_W   168    // the caption lane, fixed
+#define DEF_VAL_X   196    // WT_LINE_PAD + 168 + 14
+#define DEF_ARR_W    26    // the arrow's lane, fixed
+#define DEF_HEAD_PAD 18    // the open row's head, down from the top
+
+enum { DEF_CLOSED, DEF_OPEN, DEF_GHOST };
+
+typedef struct {
+    wt_def_t   def;
+    lv_obj_t  *row, *cap, *lamp, *val, *sub, *arrow, *rail, *plain, *term;
+    lv_obj_t  *rule;
+    int        val_x;      // DEF_VAL_X, plus the lamp's lane when it has one
+} wt_defrow_t;
+
+typedef struct {
+    int  n;
+    int  open;                        // -1: everything closed
+    void (*on_change)(int, void *);
+    void *ud;
+    wt_defrow_t r[WT_DEF_MAX];
+} wt_defs_t;
+
+static void defs_free_cb(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
+
+// One row's dress for one state. Fonts, colours and visibility only --
+// heights and y belong to the animation, and the font swap happens HERE, on
+// the animation's ready, never mid-flight (motion 22).
+static void def_apply(wt_defs_t *d, int k, int mode)
+{
+    wt_defrow_t *r = &d->r[k];
+    const wt_def_t *def = &r->def;
+
+    const lv_font_t *vf = mode == DEF_OPEN  ? chrome28(def->val)
+                        : mode == DEF_GHOST ? chrome18(def->val)
+                                            : chrome21(def->val);
+    lv_obj_set_style_text_font(r->val, vf, 0);
+    lv_obj_set_style_text_color(r->val, mode == DEF_GHOST ? WT_DIM : WT_INK,
+                                0);
+    lv_obj_set_style_text_color(r->cap, mode == DEF_GHOST ? WT_DIM : WT_MUT,
+                                0);
+
+    // The sub is the closed row's extra; open hides it because the definition
+    // says more, and a ghost hides it because a ghost is a name, not a row.
+    if (r->sub) {
+        if (mode == DEF_CLOSED) lv_obj_remove_flag(r->sub, LV_OBJ_FLAG_HIDDEN);
+        else                    lv_obj_add_flag(r->sub, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // The arrow: the accent everywhere except ghost, where it is furniture --
+    // and the FLAG moves with the colour, or the next accent change would
+    // repaint a ghost's arrow back to life.
+    if (mode == DEF_GHOST) {
+        lv_obj_remove_flag(r->arrow, WT_FLAG_ACCENT);
+        lv_obj_set_style_text_color(r->arrow, WT_DIV, 0);
+    } else {
+        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+        lv_obj_set_style_text_color(r->arrow, wt_accent(), 0);
+    }
+
+    // Vertical: a closed or ghost row CENTRES its head; only an open row
+    // top-pads. Top-padding a ghost crops it -- the spec's own warning.
+    if (mode == DEF_OPEN) {
+        lv_obj_update_layout(r->val);
+        int vh = lv_font_get_line_height(vf);
+        int cy = DEF_HEAD_PAD +
+                 (vh - lv_font_get_line_height(
+                           lv_obj_get_style_text_font(r->cap, 0))) / 2;
+        lv_obj_align(r->cap, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, cy);
+        if (r->lamp)
+            lv_obj_align(r->lamp, LV_ALIGN_TOP_LEFT, DEF_VAL_X,
+                         DEF_HEAD_PAD + (vh - 8) / 2);
+        lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, r->val_x, DEF_HEAD_PAD);
+        lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
+                     DEF_HEAD_PAD);
+    } else {
+        lv_obj_align(r->cap, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
+        if (r->lamp) lv_obj_align(r->lamp, LV_ALIGN_LEFT_MID, DEF_VAL_X, 0);
+        lv_obj_align(r->val, LV_ALIGN_LEFT_MID, r->val_x, 0);
+        lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
+    }
+
+    // The open dressing: the pressed-accent wash, the 2px rail, the body.
+    bool open = mode == DEF_OPEN;
+    lv_obj_set_style_bg_opa(r->row, open ? 18 : LV_OPA_TRANSP, 0);
+    if (r->rail) {
+        if (open) lv_obj_remove_flag(r->rail, LV_OBJ_FLAG_HIDDEN);
+        else      lv_obj_add_flag(r->rail, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (!open) {
+        if (r->plain) lv_obj_add_flag(r->plain, LV_OBJ_FLAG_HIDDEN);
+        if (r->term)  lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// Motion 20's path, shared by every height and travel in the transition.
+static void def_anim(lv_obj_t *var, lv_anim_exec_xcb_t exec, int32_t from,
+                     int32_t to, lv_anim_completed_cb_t done)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, var);
+    lv_anim_set_exec_cb(&a, exec);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_duration(&a, 240);
+    lv_anim_set_path_cb(&a, lv_anim_path_custom_bezier3);
+    lv_anim_set_bezier3_param(&a, 205, 717, 307, 1024);
+    if (done) lv_anim_set_completed_cb(&a, done);
+    lv_anim_start(&a);
+}
+
+static void def_h_done(lv_anim_t *a)
+{
+    lv_obj_t *row = a->var;
+    lv_obj_t *list = lv_obj_get_parent(row);
+    wt_defs_t *d = lv_obj_get_user_data(list);
+    if (!d) return;
+    int k = (int)lv_obj_get_index(row);
+    def_apply(d, k, d->open < 0 ? DEF_CLOSED
+                                : (k == d->open ? DEF_OPEN : DEF_GHOST));
+}
+
+static void def_tap_cb(lv_event_t *e)
+{
+    lv_obj_t *row = lv_event_get_current_target(e);
+    lv_obj_t *list = lv_obj_get_parent(row);
+    wt_defs_t *d = lv_obj_get_user_data(list);
+    if (!d) return;
+    int k = (int)lv_obj_get_index(row);
+    wt_def_list_open(list, d->open == k ? -1 : k);
+}
+
+void wt_def_list_open(lv_obj_t *list, int idx)
+{
+    wt_defs_t *d = lv_obj_get_user_data(list);
+    if (!d || idx == d->open || idx >= d->n) return;
+    d->open = idx;
+
+    int y = 0;
+    for (int k = 0; k < d->n; k++) {
+        wt_defrow_t *r = &d->r[k];
+        int mode = idx < 0 ? DEF_CLOSED : (k == idx ? DEF_OPEN : DEF_GHOST);
+        int h = mode == DEF_OPEN   ? wt_def_h_open(d->n)
+              : mode == DEF_GHOST  ? wt_def_h_ghost()
+                                   : wt_def_h_closed(d->n);
+
+        // Every row's height moves in the SAME tick -- the open one growing,
+        // the rest collapsing. Real height and real y, not translates: the
+        // gates read settled positions, and settled is what these leave.
+        def_anim(r->row, an_h, lv_obj_get_height(r->row), h, def_h_done);
+        def_anim(r->row, an_y, lv_obj_get_y(r->row), y, NULL);
+
+        // The arrow turns as the row opens (motion 23), on the same curve.
+        def_anim(r->arrow, an_rot,
+                 lv_obj_get_style_transform_rotation(r->arrow, 0),
+                 mode == DEF_OPEN ? 900 : 0, NULL);
+
+        // The definition body rides in behind the growing row (motion 21):
+        // unhidden now, clipped by the still-short row, drawn in on a 90ms
+        // delay. The row clips its children, so nothing leaks onto a ghost.
+        if (mode == DEF_OPEN && r->plain) {
+            lv_obj_remove_flag(r->plain, LV_OBJ_FLAG_HIDDEN);
+            if (r->term) lv_obj_remove_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *body[2] = { r->plain, r->term };
+            for (int i = 0; i < 2; i++) {
+                if (!body[i]) continue;
+                lv_anim_t a;
+                lv_anim_init(&a);
+                lv_anim_set_var(&a, body[i]);
+                lv_anim_set_duration(&a, 260);
+                lv_anim_set_delay(&a, 90);
+                lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+                lv_anim_set_values(&a, 9, 0);
+                lv_anim_set_exec_cb(&a, an_ty);
+                lv_anim_start(&a);
+                lv_obj_set_style_opa(body[i], LV_OPA_TRANSP, 0);
+                lv_anim_set_values(&a, 0, 255);
+                lv_anim_set_path_cb(&a, lv_anim_path_linear);
+                lv_anim_set_exec_cb(&a, an_opa);
+                lv_anim_start(&a);
+            }
+        }
+        y += h;
+    }
+    if (d->on_change) d->on_change(idx, d->ud);
+}
+
+lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
+{
+    if (n > WT_DEF_MAX) n = WT_DEF_MAX;
+
+    lv_obj_t *list = lv_obj_create(scr);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_pos(list, WT_LANE_X, WT_LANE_Y);
+    lv_obj_set_size(list, WT_LANE_W, WT_DEF_LANE);
+    lv_obj_remove_flag(list, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+
+    wt_defs_t *d = lv_calloc(1, sizeof *d);
+    if (!d) { lv_obj_delete(list); return NULL; }
+    d->n = n;
+    d->open = -1;
+    lv_obj_set_user_data(list, d);
+    lv_obj_add_event_cb(list, defs_free_cb, LV_EVENT_DELETE, d);
+
+    const int ch = wt_def_h_closed(n);
+    const int oh = wt_def_h_open(n);
+    for (int k = 0; k < n; k++) {
+        wt_defrow_t *r = &d->r[k];
+        r->def = defs[k];
+
+        lv_obj_t *row = lv_obj_create(list);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, 0, k * ch);
+        lv_obj_set_size(row, WT_LANE_W, ch);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        // The open wash: the accent at seven percent. The colour is kept
+        // fresh by the FILL flag; the opacity is this row's own and stays
+        // zero until def_apply raises it.
+        lv_obj_set_style_bg_color(row, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+        lv_obj_add_flag(row, WT_FLAG_ACCENT_FILL);
+        wt_line_press(row);
+        lv_obj_add_event_cb(row, def_tap_cb, LV_EVENT_CLICKED, NULL);
+        r->row = row;
+
+        // The head, on the four fixed lanes: caption 168, value never
+        // yielding, sub taking what is left and yielding first, arrow 26.
+        r->cap = wt_lbl(row, defs[k].cap, 0, 0, chrome18(defs[k].cap),
+                        WT_MUT);
+        lv_obj_set_style_text_letter_space(r->cap, 2, 0);
+        lv_obj_set_width(r->cap, DEF_CAP_W);
+        lv_label_set_long_mode(r->cap, LV_LABEL_LONG_DOT);
+
+        r->val_x = DEF_VAL_X;
+        if (defs[k].lamp) {
+            r->lamp = band_dot(row, DEF_VAL_X, 0, defs[k].lamp_col,
+                               defs[k].lamp_pulse);
+            // The lamp's glow, RECEIVE's own: the same colour, wider than
+            // the dot, read as light rather than as a second ring.
+            lv_obj_set_style_shadow_color(r->lamp, defs[k].lamp_col, 0);
+            lv_obj_set_style_shadow_width(r->lamp, 10, 0);
+            lv_obj_set_style_shadow_opa(r->lamp, 140, 0);
+            r->val_x += 8 + 12;
+        }
+
+        const lv_font_t *vf = chrome21(defs[k].val);
+        r->val = wt_lbl(row, defs[k].val, 0, 0, vf, WT_INK);
+        lv_point_t vs;
+        lv_text_get_size(&vs, defs[k].val, vf, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+
+        r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+                          wt_accent());
+        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+        lv_obj_update_layout(r->arrow);
+        lv_obj_set_style_transform_pivot_x(r->arrow,
+                                           lv_obj_get_width(r->arrow) / 2, 0);
+        lv_obj_set_style_transform_pivot_y(r->arrow,
+                                           lv_obj_get_height(r->arrow) / 2,
+                                           0);
+
+        if (defs[k].sub && *defs[k].sub) {
+            // Measured against the CLOSED value, the widest layout the sub
+            // shares a line with; the other two states hide it.
+            int lane = WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
+                       - (r->val_x + vs.x + 16);
+            if (lane > 40) {
+                r->sub = wt_lbl(row, defs[k].sub, 0, 0,
+                                chrome18(defs[k].sub), WT_DIM);
+                lv_obj_set_width(r->sub, lane);
+                lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
+                lv_label_set_long_mode(r->sub, LV_LABEL_LONG_DOT);
+                lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
+                             -(WT_LINE_PAD + DEF_ARR_W + 8), 0);
+            }
+        }
+
+        // The open dressing, built once and hidden: the rail rides the row's
+        // height as a percentage, so the animation never has to know it.
+        r->rail = lv_obj_create(row);
+        lv_obj_remove_style_all(r->rail);
+        lv_obj_set_pos(r->rail, 0, 0);
+        lv_obj_set_size(r->rail, 2, lv_pct(100));
+        lv_obj_set_style_bg_color(r->rail, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(r->rail, LV_OPA_COVER, 0);
+        lv_obj_add_flag(r->rail, WT_FLAG_ACCENT_FILL);
+        lv_obj_add_flag(r->rail, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(r->rail, LV_OBJ_FLAG_CLICKABLE);
+
+        if (defs[k].plain && *defs[k].plain) {
+            // The definition: plain sentence first, the real term
+            // underneath, never the term alone. Geometry computed against
+            // the OPEN height, where it will be seen.
+            const lv_font_t *pf = chrome18(defs[k].plain);
+            int hy = DEF_HEAD_PAD +
+                     lv_font_get_line_height(chrome28(defs[k].val)) + 14;
+            r->plain = wt_lbl(row, defs[k].plain, WT_LINE_PAD, hy, pf,
+                              WT_INK);
+            lv_obj_set_style_text_opa(r->plain, 200, 0);
+            lv_obj_set_width(r->plain, 646);
+            lv_label_set_long_mode(r->plain, LV_LABEL_LONG_WRAP);
+            lv_obj_add_flag(r->plain, LV_OBJ_FLAG_HIDDEN);
+            lv_point_t ps;
+            lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, 646,
+                             LV_TEXT_FLAG_NONE);
+            if (defs[k].term && *defs[k].term) {
+                r->term = wt_lbl(row, defs[k].term, WT_LINE_PAD,
+                                 hy + ps.y + 14, chrome18(defs[k].term),
+                                 wt_accent());
+                lv_obj_add_flag(r->term, WT_FLAG_ACCENT);
+                lv_obj_set_style_text_letter_space(r->term, 2, 0);
+                lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+            }
+            (void)oh;
+        }
+
+        // The rule under the row, aligned to its bottom so the height
+        // animation carries it; drawn in on the entry beat below.
+        r->rule = wt_line_rule(row, 0, 0, WT_LANE_W);
+        lv_obj_align(r->rule, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+
+        def_apply(d, k, DEF_CLOSED);
+
+        // The entry: rise and fade on the row's beat, the rule drawing in
+        // behind it -- KEYS/RECEIVE's own welcome, motions 1 to 3.
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, row);
+        lv_anim_set_duration(&a, 260);
+        lv_anim_set_delay(&a, 42 * k);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_values(&a, 9, 0);
+        lv_anim_set_exec_cb(&a, an_ty);
+        lv_anim_start(&a);
+        lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
+        lv_anim_set_values(&a, 0, 255);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_set_exec_cb(&a, an_opa);
+        lv_anim_start(&a);
+        wt_line_rule_draw(r->rule, 42 * k + 110, 320);
+    }
+    return list;
+}
+
+void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)
+{
+    wt_defs_t *d = lv_obj_get_user_data(list);
+    if (!d) return;
+    d->on_change = cb;
+    d->ud = ud;
 }
 
 // ---- SETTINGS: the full-lane row (see kiss_theme.h) ----

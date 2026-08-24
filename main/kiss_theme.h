@@ -967,6 +967,13 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
 // as a prompt rather than a decoration.
 lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title);
 
+// wt_brackets on the strip row, minus the strip's own floor rule: under the
+// contract the header hairline at y=99 is the floor, drawn once by wt_chrome,
+// and the strip's rule 6px under it would double the line. Pages with sibling
+// views call this instead of placing wt_brackets by hand.
+lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                         lv_event_cb_t cb);
+
 // The trail: where the owner is, said as how they got there. An icon in the
 // accent, then "PARENT / CHILD" at mono18 ls2 WT_DIM, on the strip row.
 // Replaces the subtitle idiom on every page that was opened FROM somewhere;
@@ -988,13 +995,14 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
 // accent in every state; unlike a content tab its brackets never dim, because
 // it is always available.
 //
-// `hint_lane_free`: until [ ? ] has been opened once on this device, the mark
-// breathes and the band's left lane says so in lowercase -- but only a page
+// `hint`: until [ ? ] has been opened once on this device, the mark breathes
+// and the band's left lane carries this lowercase line -- but only a page
 // whose left lane is empty may say it, so a page with its own action passes
-// false and keeps the breathing mark alone. Both stop for good on the first
-// open, wherever it happens: the tab flips wt_help_seen itself, then calls
-// `cb` to let the page swap its lane for the explainer.
-lv_obj_t *wt_help_tab(lv_obj_t *scr, bool hint_lane_free,
+// NULL and keeps the breathing mark alone. The kit stays string-free: the
+// caller translates. Both stop for good on the first open, wherever it
+// happens: the tab flips wt_help_seen itself, then calls `cb` to let the
+// page swap its lane for the explainer.
+lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                       lv_event_cb_t cb, void *ud);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
@@ -1038,6 +1046,11 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n);
 // Open row `idx` (-1 closes everything), animating every row's height in the
 // same tick -- the walk uses it to photograph settled open states.
 void wt_def_list_open(lv_obj_t *list, int idx);
+// Told after every open/close with the new open index (-1 for none). The
+// WALLET page collapses its fingerprint hero to a line when any row opens,
+// and this is how it hears about it without owning the rows.
+void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int open_idx, void *ud),
+                           void *ud);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal

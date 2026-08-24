@@ -125,6 +125,15 @@ static const char *type_name(int sc)
 bool kiss_settings_active(void) { return s_scr != NULL; }
 
 static void store_u8(const char *key, uint8_t v);
+// The [ ? ] first-run hint's one byte: written the first time the tab is
+// opened, anywhere, so the breathing stops for good. The theme owns the RAM
+// bool and this hook is how the moment reaches the store without the kit
+// including nvs.h -- registered once, at load, beside the accent it mirrors.
+// Device only: the sim's load returns before the hook would register, which
+// is also what keeps every walk starting from the first-run state.
+#ifndef SIMULATOR
+static void help_seen_persist(void) { store_u8("hlps", 1); }
+#endif
 
 // The unit amounts are shown in. Changed by tapping the total on the sign
 // screen -- the amount IS the control, which is how every wallet that offers
@@ -212,6 +221,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     uint8_t tn = KISS_NET_DEFAULT_TESTNET, sc = 0, ac = 0, lg = 0;
     uint8_t dn = WT_DENOM_SATS;   // sats unless a previous run said otherwise
     uint8_t ps = 1;               // the signer saves what it saves, unless told not
+    uint8_t hs = 0;               // [ ? ] never opened until a byte says it was
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -225,7 +235,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
                   get_optional_u8(h, "accent", &ac) &&
                   get_optional_u8(h, "denom", &dn) &&
                   get_optional_u8(h, "lang", &lg) &&
-                  get_optional_u8(h, "prst", &ps);
+                  get_optional_u8(h, "prst", &ps) &&
+                  get_optional_u8(h, "hlps", &hs);
         nvs_close(h);
         if (!ok)
             return WSETTINGS_LOAD_NVS_READ_FAILED;
@@ -240,6 +251,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
     wt_denom_set(dn);
     i18n_set_lang(lg);
     kiss_persist_set_enabled(ps);   // raw setter: a load is not the switch
+    wt_help_seen_set(hs != 0);
+    wt_help_seen_hook(help_seen_persist);
     return WSETTINGS_LOAD_OK;
 #endif
 }
