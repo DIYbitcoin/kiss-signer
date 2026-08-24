@@ -85,6 +85,9 @@ static wt_pane_t s_pane_ctx;
 #define s_pane      s_pane_ctx.pane
 #define s_tabs      s_pane_ctx.tabs
 #define s_tab       s_pane_ctx.tab
+// The [ ? ] tab, open: the content lane replaced by the page's explainer.
+// Cleared by any real tab tap, so the strip is also the way back.
+static bool s_what_open;
 #define s_entering  s_pane_ctx.entering
 
 static void build_tab(void);   // the group the strip points at, into s_pane
@@ -265,7 +268,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
 // and a loop that had to tell them apart from the chevron.
 static void restyle(void)
 {
-    lv_obj_set_style_text_color(wt_screen_title(s_scr), wt_accent(), 0);
+    // The chrome title is INK by contract -- the cursor is the accent's one
+    // appearance in the header -- so the walk is the whole job now.
     wt_accent_restyle(s_scr);
 }
 
@@ -1416,8 +1420,15 @@ static void attn_cb(lv_event_t *e)
     go_tab(want);
 }
 
+static void settings_what_cb(lv_event_t *e);
+
 static void go_tab(int tab)
 {
+    // A real tab is also the way back from [ ? ]: tapping the one already
+    // selected re-lands on its rows, which the same-tab refusal below would
+    // otherwise swallow.
+    if (s_what_open && tab == s_tab) { settings_what_cb(NULL); return; }
+    s_what_open = false;
     if (tab == s_tab) return;
     // A tab change no longer rebuilds the SCREEN, only the group. Nothing on
     // the strip or the action bar depends on which tab is open -- the dots and
@@ -1824,6 +1835,16 @@ static void tab_noundo(void)
 // The group the strip is pointing at, drawn into whatever pane is current.
 static void build_tab(void)
 {
+    if (s_what_open) {
+        wt_fact_t facts[3] = {
+            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V) },
+            { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V) },
+            { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V) },
+        };
+        wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY), facts,
+                   3);
+        return;
+    }
     switch (s_tab) {
     case TAB_SECURITY: tab_security(); break;
     case TAB_BACKUP:   tab_backup();   break;
@@ -1831,6 +1852,28 @@ static void build_tab(void)
     case TAB_NOUNDO:   tab_noundo();   break;
     default:           tab_signer();   break;
     }
+}
+
+// The same same-tab pane swap KEYS does by hand, for the same reason:
+// wt_pane_go refuses a same-tab call and [ ? ] is not a section, so the
+// strip's marker never moves for it.
+static void settings_what_cb(lv_event_t *e)
+{
+    (void)e;
+    s_what_open = !s_what_open;
+    const bool was_moving = s_pane_ctx.entering;
+    wt_pane_stop(&s_pane_ctx);
+    if (was_moving && s_pane) {
+        lv_obj_delete(s_pane);
+        s_pane = NULL;
+    }
+    s_pane_ctx.pane_out = s_pane;
+    s_pane = wt_pane_new(&s_pane_ctx);
+    build_tab();
+    wt_accent_restyle(s_pane);
+    const int dir = s_what_open ? 1 : -1;
+    wt_pane_enter(&s_pane_ctx, dir, false);
+    wt_pane_exit(&s_pane_ctx, dir);
 }
 
 void kiss_settings_open(lv_obj_t *parent)
@@ -1842,13 +1885,9 @@ void kiss_settings_open(lv_obj_t *parent)
     s_help = NULL;
     s_pane = s_pane_ctx.pane_out = s_tabs = NULL;
     s_entering = false;
+    s_what_open = false;
     if (s_tab < 0 || s_tab >= TAB_N) s_tab = TAB_SIGNER;
-    s_scr = s_pane_ctx.scr = wt_screen(parent, tr(STR_G_T), NULL);
-
-    // Nothing else lives in the header. The FIRMWARE, LANGUAGE and theme pills
-    // that used to sit at y=18 are rows on the DEVICE tab, so the title has the
-    // whole 704px lane back -- which is what wt_screen already fits it to, and
-    // why the narrowed wt_title_fit this page used to make is gone.
+    s_scr = s_pane_ctx.scr = wt_chrome(parent, tr(STR_G_T));
 
     // The dots are what a collapsed group costs, paid back. Every condition
     // the attention chip counts lights the dot on the tab that holds it:
@@ -1863,14 +1902,21 @@ void kiss_settings_open(lv_obj_t *parent)
         { LV_SYMBOL_SETTINGS, tr(STR_I_TAB_DEVICE),   false,          false },
         { LV_SYMBOL_TRASH,    tr(STR_I_SEC_NO_UNDO),  false,          true  },
     };
-    // The bracket strip KEYS and RECEIVE wear, on the full 752 lane: five tabs
-    // at a 150px pitch, which the strip works out from the lane and the count
-    // rather than from the 200 the three-tab screens use. The highlight slab
-    // goes with it -- a slab is a box, and the box is what this look removes.
-    s_pane_ctx.select = wt_brackets_select;
-    s_tabs = wt_brackets(s_scr, tabs, TAB_N, s_tab, WT_WIDE_X, 68, WT_WIDE_W,
-                         tab_cb);
+    // The five-up flex strip (frame 7a): content-sized labels spread across
+    // the 620 the [ ? ] divider leaves. Five of the 196px bracket boxes need
+    // 980px, so the widest strip on the device is the one that lets the
+    // words size themselves -- and drops the icons the drawing drops.
+    s_pane_ctx.select = wt_tabs_flex_select;
+    s_tabs = wt_tabs_flex(s_scr, tabs, TAB_N, s_tab, tab_cb);
     wt_pane_tabs_watch(&s_pane_ctx);
+
+    // The band's left lane by rank: the attention chip outranks everything,
+    // the first-run hint speaks until [ ? ] has been opened once, and this
+    // page keeps no standing statement -- what is permanently true of it
+    // depends on the PERSIST switch, which is the opposite of standing.
+    const char *hint = (attention_count() == 0 && !wt_help_seen())
+                           ? tr(STR_C_HELP_HINT) : NULL;
+    wt_help_tab(s_scr, hint, settings_what_cb, NULL);
 
     // The group lives in a pane of its own so that a tab change can hold TWO
     // of them for the 200ms the outgoing one takes to leave. Built here and

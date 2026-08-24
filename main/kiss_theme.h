@@ -975,6 +975,17 @@ lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title);
 lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                          lv_event_cb_t cb);
 
+// The five-up strip (frame 7a): content-sized bracketed labels SPREAD across
+// the 620 lane, no icons and no boxes -- five of wt_brackets' 196px tabs need
+// 980px that a 620 lane does not have, and the drawing's answer is to let the
+// words size themselves. Unselected tabs keep TRANSPARENT brackets, so the
+// space is reserved and nothing shifts as selection moves; the destructive
+// tab's label is the only WT_STOP text in any header. Same wt_tab_t and the
+// same select-hook signature as the others, so wt_pane_t can hold it.
+lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                       lv_event_cb_t cb);
+void wt_tabs_flex_select(lv_obj_t *strip, int from, int to, bool stop);
+
 // The trail: where the owner is, said as how they got there. An icon in the
 // accent, then "PARENT / CHILD" at mono18 ls2 WT_DIM, on the strip row.
 // Replaces the subtitle idiom on every page that was opened FROM somewhere;

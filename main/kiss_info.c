@@ -1039,26 +1039,19 @@ static void words_page(void)
     s_wctx.entering = false;
     if (w_tab < 0 || w_tab >= WTAB_N) w_tab = WTAB_PAPER;
 
-    // NO SUBTITLE, and that is what frees y=68 for the strip -- the same trade
-    // SETTINGS makes. What the subtitle said ("the seed words that rebuild
-    // your keys") is what the groups now say by being named.
-    //
     // The title keeps STR_I_WORDS_BTN: check_screen_coverage.py tracks a page
     // by its title's string id, and a literal one silently drops out of the
     // count.
-    s_scr = s_wctx.scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), NULL);
+    s_scr = s_wctx.scr = wt_chrome(s_parent, tr(STR_I_WORDS_BTN));
 
     const wt_tab_t tabs[WTAB_N] = {
         { WT_ICON_SECRET, tr(STR_I_WTAB_PAPER),
           !kiss_ui_backup_checked(), false },
         { WT_ICON_LOCK,   tr(STR_I_WTAB_ENC),   false, false },
     };
-    // Brackets, like the page one tap above it. This file built a slab strip
-    // here and a bracket strip in info_screen -- two tab idioms, one file, two
-    // taps apart, which is the worst place on the device to have had them.
+    // Brackets on the contract's own row, like the page one tap above it.
     s_wctx.select = wt_brackets_select;
-    s_wctx.tabs = wt_brackets(s_scr, tabs, WTAB_N, w_tab, WT_WIDE_X, 68,
-                              WT_WIDE_W, wtab_cb);
+    s_wctx.tabs = wt_chrome_tabs(s_scr, tabs, WTAB_N, w_tab, wtab_cb);
     wt_pane_tabs_watch(&s_wctx);
 
     s_wctx.pane = wt_pane_new(&s_wctx);

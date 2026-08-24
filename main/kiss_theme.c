@@ -2928,13 +2928,110 @@ lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title)
 lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                          lv_event_cb_t cb)
 {
+    // 620, not the full lane: the [ ? ] tab's divider stands at 668 on every
+    // page, so the real tabs stop short of it whether or not this page has
+    // grown its mark yet. Two tabs still take the 200 pitch; five divide the
+    // 620 and their labels ellipsize before the lane widens.
     lv_obj_t *strip = wt_brackets(scr, tabs, n, sel, WT_LANE_X,
-                                  WT_CHROME_STRIP_Y, WT_LANE_W, cb);
+                                  WT_CHROME_STRIP_Y, 620, cb);
     // The contract's hairline at 99 is the strip's floor; the strip's own
     // rule would draw a second one 6px under it.
     lv_obj_t *rule = wt_tagged(strip, WT_BR_RULE_TAG);
     if (rule) lv_obj_delete(rule);
     return strip;
+}
+
+// One flex tab's dress. The brackets go TRANSPARENT rather than away when
+// unselected -- the space stays reserved, so nothing shifts as selection
+// moves -- and the destructive tab's label keeps its full WT_STOP in every
+// state: the red is the tab's meaning, not its selection.
+static void tabs_flex_paint(lv_obj_t *b, bool selected)
+{
+    const bool stop = lv_obj_get_user_data(b) == (void *)(intptr_t)1;
+    lv_obj_t *lb = lv_obj_get_child(b, 0);
+    lv_obj_t *l  = lv_obj_get_child(b, 1);
+    lv_obj_t *rb = lv_obj_get_child(b, 2);
+    lv_obj_set_style_text_color(l, stop ? WT_STOP
+                                        : (selected ? WT_INK : WT_DIM), 0);
+    lv_obj_t *br[2] = { lb, rb };
+    for (int i = 0; i < 2; i++) {
+        lv_obj_set_style_opa(br[i], selected ? LV_OPA_COVER : LV_OPA_TRANSP,
+                             0);
+        lv_obj_set_style_text_color(br[i], wt_accent(), 0);
+        if (selected) lv_obj_add_flag(br[i], WT_FLAG_ACCENT);
+        else          lv_obj_remove_flag(br[i], WT_FLAG_ACCENT);
+    }
+}
+
+lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
+                       lv_event_cb_t cb)
+{
+    lv_obj_t *strip = lv_obj_create(scr);
+    lv_obj_remove_style_all(strip);
+    lv_obj_set_pos(strip, WT_LANE_X, WT_CHROME_STRIP_Y);
+    lv_obj_set_size(strip, 620, WT_BR_H);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(strip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    const lv_font_t *bf = wt_font_mono18();
+    for (int i = 0; i < n; i++) {
+        const wt_tab_t *t = &tabs[i];
+        lv_obj_t *b = lv_obj_create(strip);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_size(b, LV_SIZE_CONTENT, WT_BR_H);
+        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+        wt_tap_feedback(b);
+        if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED,
+                                    (void *)(intptr_t)i);
+        lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(b, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(b, 6, 0);
+        lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
+
+        wt_lbl(b, "[", 0, 0, bf, wt_accent());
+        const lv_font_t *lf = chrome18(t->label);
+        lv_obj_t *l = wt_lbl(b, t->label, 0, 0, lf, WT_DIM);
+        lv_obj_set_style_text_letter_space(l, 2, 0);
+        // A translation too wide for its share loses letters; the lane never
+        // widens and the strip never wraps. 140 is a fifth of the lane less
+        // the brackets' keep.
+        lv_point_t ls;
+        lv_text_get_size(&ls, t->label, lf, 2, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (ls.x > 140) {
+            lv_obj_set_width(l, 140);
+            lv_obj_set_height(l, lv_font_get_line_height(lf));
+            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        }
+        wt_lbl(b, "]", 0, 0, bf, wt_accent());
+        if (t->dot) {
+            lv_obj_t *d = lv_obj_create(b);
+            lv_obj_remove_style_all(d);
+            lv_obj_set_size(d, 7, 7);
+            lv_obj_set_style_radius(d, 4, 0);
+            lv_obj_set_style_bg_color(d, WT_WARN, 0);
+            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+        }
+        tabs_flex_paint(b, i == sel);
+    }
+    return strip;
+}
+
+void wt_tabs_flex_select(lv_obj_t *strip, int from, int to, bool stop)
+{
+    (void)stop;
+    if (!strip) return;
+    int n = (int)lv_obj_get_child_count(strip);
+    if (from >= 0 && from < n)
+        tabs_flex_paint(lv_obj_get_child(strip, from), false);
+    if (to >= 0 && to < n)
+        tabs_flex_paint(lv_obj_get_child(strip, to), true);
 }
 
 lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,

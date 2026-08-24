@@ -1221,7 +1221,8 @@ static void release(void) { g_pressed = false; }
 // coordinate, and the one pick that opens a screen puts its options on the
 // very same row grid.
 enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
-#define SET_TAB_X(i)      (97 + 152 * (i))
+// The flex strip sizes each tab to its label, so a coordinate would only
+// prove the English layout: the walk taps tabs by their STRINGS.
 #define SET_TAB_Y          91
 #define SET_ROW_Y(i)      (156 + 66 * (i))
 #define SET_LABEL_X       200
@@ -1238,7 +1239,11 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 // as thirty overlaps. Nothing else here is affected, because nothing else
 // moves: the fresh open, every value chip's rebuild and every return from a
 // screen a row opens all paint at rest by construction.
-static void set_tab(int i)  { touch(SET_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(50); }
+static void tap_str(int key, int hold, int settle);
+static const int SET_TAB_KEY[] = { STR_I_TAB_SIGNER, STR_I_TAB_SECURITY,
+                                   STR_I_TAB_BACKUP, STR_I_TAB_DEVICE,
+                                   STR_I_SEC_NO_UNDO };
+static void set_tab(int i)  { tap_str(SET_TAB_KEY[i], 3, 50); }
 static void set_row(int i)  { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 // A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
@@ -1255,7 +1260,7 @@ static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(
 // the status chip beside it left. It is a group of its own now and the strip
 // opens it.
 enum { WORDS_PAPER = 0, WORDS_ENC };
-#define WORDS_TAB_X(i)  (97 + 152 * (i))
+#define WORDS_TAB_X(i)  (146 + 200 * (i))   // two tabs, 200 pitch, from x=48
 static void words_tab(int i) { touch(WORDS_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(50); }
 static void words_row(int i) { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 
@@ -3536,6 +3541,14 @@ int main(void) {
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
 
+  // The [ ? ] on SETTINGS -- the second page carrying one, which is what
+  // proves the idiom is an idiom and not a KEYS feature. Toggling back lands
+  // on the tab it left, NO UNDO, because [ ? ] is not a section.
+  touch(720, 85); pump(3); release(); pump(30);
+  save("/tmp/sim_settings_what.ppm");
+  must_show("settings/help head", tr(STR_G_HELP_HEAD));
+  touch(720, 85); pump(3); release(); pump(30);
+
   // The attention chip, which nothing had ever tapped. It is the one thing
   // paying for a collapsed group -- a caution two tabs away is invisible
   // without it -- and check_screen_coverage.py counts SCREENS, so a control
@@ -3562,12 +3575,12 @@ int main(void) {
   // at once, the arriving group coming in from the side of the strip the
   // finger moved towards while the one it replaces leaves the other way.
   // Written raw and not saved, for the reason shot_raw gives.
-  touch(SET_TAB_X(SET_DEVICE), SET_TAB_Y); pump(3); release(); pump(10);
+  tap_str(SET_TAB_KEY[SET_DEVICE], 3, 10);
   shot_raw("sim_settings_mid.ppm");
   pump(50);                                         // and let it settle again
   // And the caution, at the top of its one pulse: 260ms after the row it
   // belongs to has landed, which on the first row of SECURITY is 480ms in.
-  touch(SET_TAB_X(SET_SECURITY), SET_TAB_Y); pump(3); release(); pump(30);
+  tap_str(SET_TAB_KEY[SET_SECURITY], 3, 30);
   shot_raw("sim_settings_pulse.ppm");
   pump(50);
 
@@ -3587,7 +3600,7 @@ int main(void) {
       uint32_t base = 0, peak = 0;
       int first = -1, last = -1;
       set_tab(SET_SIGNER);
-      touch(SET_TAB_X(REC[r].to), SET_TAB_Y); pump(3); release();
+      tap_str(SET_TAB_KEY[REC[r].to], 3, 0);
       for (int i = 0; i < 56; i++) {
         char nm[48];
         snprintf(nm, sizeof nm, REC[r].fmt, i);
@@ -3623,7 +3636,7 @@ int main(void) {
   // afterwards is the assertion -- if anything were left animating, or freed
   // and still animated, this is not a settled DEVICE page.
   for (int t = SET_SECURITY; t <= SET_NOUNDO; t++) {
-    touch(SET_TAB_X(t), SET_TAB_Y); pump(2); release(); pump(2);
+    tap_str(SET_TAB_KEY[t], 2, 2);
   }
   set_tab(SET_DEVICE);
   save("/tmp/sim_settings_fasttab.ppm");            // four tabs in 250ms, then DEVICE
