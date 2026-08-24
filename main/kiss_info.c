@@ -1373,9 +1373,17 @@ static void info_tab_build(void)
         // code compared digit by digit, and the proportional face is the one
         // that makes 0 and O and 8 and B argue. The rest are lines under it,
         // and each opens its plain-sentence definition where it stands.
+        // Guarded like every fingerprint on the device: all zeros is the
+        // absence of an id, and a hero printing "0000 0000" at num48 is a
+        // code that looks real and gets copied onto paper. LOCKED is not
+        // hex, so hero48's own guard drops it to the sentence face.
         char fpb[16];
-        snprintf(fpb, sizeof fpb, "%02X%02X %02X%02X",
-                 fp[0], fp[1], fp[2], fp[3]);
+        bool fpk = kiss_fp_known(fp);
+        if (fpk)
+            snprintf(fpb, sizeof fpb, "%02X%02X %02X%02X",
+                     fp[0], fp[1], fp[2], fp[3]);
+        else
+            snprintf(fpb, sizeof fpb, "%s", tr(STR_C_SESSION_LOCKED));
 
         // h, not an apostrophe, and this is correctness rather than style: at
         // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
@@ -1417,7 +1425,11 @@ static void info_tab_build(void)
         bool tn = kiss_testnet();
         wt_def_t defs[4] = {
             { .cap = tr(STR_K_FP_HERO_CAP), .val = fpb,
-              .sub = tr(STR_K_FP_HERO_SUB), .hero = true, .closed_h = 140 },
+              // The sub is a promise about the code above it, so it goes
+              // with the code: "your wallet app shows these same eight
+              // characters" over LOCKED is a false sentence.
+              .sub = fpk ? tr(STR_K_FP_HERO_SUB) : NULL,
+              .hero = true, .closed_h = 140 },
             { .cap = tr(STR_I_SEC_NET), .val = kiss_net_name(),
               .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
               .plain = tr(tn ? STR_K_NET_PLAIN_TEST : STR_K_NET_PLAIN_MAIN),

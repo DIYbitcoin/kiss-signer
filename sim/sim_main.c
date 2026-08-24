@@ -4133,7 +4133,13 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_SIGNER);
-  set_cycle(0, 2);                                  // TESTNET -> SIGNET -> MAINNET
+  // By STATE, not by count. The relative "+2 lands on MAINNET" drifted the
+  // day SIGNET joined the rotation, and every "mainnet" frame after it had
+  // been photographing a test network in silence -- caught only when the
+  // KEYS hint stop below became the first CHECK on this leg. Tap until the
+  // device itself says mainnet, and say so loudly if it never does.
+  for (int i = 0; i < 4 && kiss_testnet(); i++) set_chip(0);
+  if (kiss_testnet()) { fprintf(stderr, "FAIL: network never reached mainnet\n"); exit(1); }
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // MAINNET, and this is the whole point of the excursion. 120 stops run after
@@ -4170,7 +4176,22 @@ int main(void) {
   // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
   // network note lives on the section home, and the coordinates differ.
   touch(490, 240); pump(3); release(); pump(6);     // KEYS tile -> section home
-  save("/tmp/sim_winfo_mainnet.ppm");               // MAINNET note, INK not WARN
+  save("/tmp/sim_winfo_mainnet.ppm");               // MAINNET note, INK not WARN;
+                                                    // and the POST-OPEN band: the
+                                                    // standing statement, because
+                                                    // the walk opened [ ? ] long ago
+  tap_str(STR_C_BACK, 3, 4);     // -> home
+  // The FIRST-RUN state, forced: on mainnet with the hint lane free, an owner
+  // who has never opened [ ? ] gets the lowercase line and the breathing mark.
+  // The walk consumed its own first open back on the testnet leg, so the seen
+  // bit is reset for one frame -- this is the deliverable's other half, and
+  // the pair proves the hint STOPS.
+  wt_help_seen_set(false);
+  touch(490, 240); pump(3); release(); pump(45);    // KEYS tile again, settled
+  save("/tmp/sim_winfo_hint.ppm");                  // "new here? that mark..."
+  must_show("keys/first-run hint", tr(STR_C_HELP_HINT));
+  touch(720, 85); pump(3); release(); pump(30);     // open [ ? ]: hint dies for good
+  touch(720, 85); pump(3); release(); pump(30);     // and back to the rows
   tap_str(STR_C_BACK, 3, 4);     // -> home
 
   // step 7: seed wizard — lock, wipe the seed, KISS again -> first-boot flow
@@ -4869,7 +4890,12 @@ int main(void) {
   // so a future edit cannot quietly hand mainnet the hour instead.
   {
     extern uint32_t sim_autolock_ms(void);
-    uint32_t tn = sim_autolock_ms();                // still testnet at this point
+    // Both networks set EXPLICITLY: this used to read "still testnet at this
+    // point", which was only true while the drifted cycle above left the walk
+    // on a test network through its whole mainnet leg. State the walk assumes
+    // is state the walk sets.
+    kiss_set_network(KISS_NET_TESTNET);
+    uint32_t tn = sim_autolock_ms();
     kiss_set_network(KISS_NET_MAIN);
     uint32_t mn = sim_autolock_ms();
     if (mn != 300000 || tn <= mn) {
