@@ -57,6 +57,8 @@ int test_lastword(void);
 int test_cards_q(void);
 // sim/test_usage.c — the coordinator's address usage payload
 int test_usage(void);
+// sim/test_defrow.c — the in-place definition's lane arithmetic
+int test_defrow(void);
 // sim/test_fw.c — SD firmware update: version ordering and image descriptors
 int test_fw(void);
 // sim/test_pq.c — SLH-DSA against NIST's own FIPS 205 vectors
@@ -681,14 +683,26 @@ static void test_boot_sign_selftest(void) {
                                  EC_FLAG_ECDSA, sig, sizeof sig) == WALLY_OK &&
          memcmp(sig, BSV_ECDSA, sizeof sig) != 0);
 
-    // Discrimination 2: BIP340 with the default all-zero aux is a different
-    // signature, so the vector pins our aux rule and not merely "some BIP340".
+    // Discrimination 2: the vector is the zero-aux one, so ANY caller-supplied
+    // aux must miss it. That is the direction worth pinning now -- the rule is
+    // standard BIP340, and this is what fires if an aux is ever fed back in.
+    uint8_t some_aux[32];
+    memset(some_aux, 0x33, sizeof some_aux);
+    chkb("Schnorr vector is unreachable with a caller-supplied aux",
+         wally_ec_sig_from_bytes_aux(BSV_KEY, 32, BSV_MSG, 32,
+                                     some_aux, sizeof some_aux,
+                                     EC_FLAG_SCHNORR, sig, sizeof sig) == WALLY_OK &&
+         memcmp(sig, BSV_SCHNORR, sizeof sig) != 0);
+
+    // And the same signature reached the standard way: an explicit all-zero aux
+    // and no aux at all are the same rule, which is why sp_schnorr_sign can
+    // drop the parameter without changing a byte.
     uint8_t zero_aux[32] = {0};
-    chkb("Schnorr vector is unreachable with a zero aux",
+    chkb("zero aux and no aux are the same BIP340 signature",
          wally_ec_sig_from_bytes_aux(BSV_KEY, 32, BSV_MSG, 32,
                                      zero_aux, sizeof zero_aux,
                                      EC_FLAG_SCHNORR, sig, sizeof sig) == WALLY_OK &&
-         memcmp(sig, BSV_SCHNORR, sizeof sig) != 0);
+         memcmp(sig, BSV_SCHNORR, sizeof sig) == 0);
 }
 
 // Blinding. secp256k1 multiplies the secret by a random scalar and divides it
@@ -708,14 +722,13 @@ static void test_secp_randomize(void) {
     // libwally's context: the boot selftest re-signs golden ECDSA + BIP340
     chki("boot sign selftest survives randomize", kiss_sign_selftest(), 0);
 
-    // kiss_sp's context: BIP340 over a fixed key, message and aux
-    uint8_t d[32], msg[32], aux[32], sig1[64], sig2[64];
+    // kiss_sp's context: BIP340 over a fixed key and message
+    uint8_t d[32], msg[32], sig1[64], sig2[64];
     memset(d, 0x11, sizeof d);
     memset(msg, 0x22, sizeof msg);
-    memset(aux, 0x33, sizeof aux);
-    int ok1 = sp_schnorr_sign(d, msg, aux, sig1) == 0;
+    int ok1 = sp_schnorr_sign(d, msg, sig1) == 0;
     chki("secp randomize between signings", kiss_secp_randomize(), 0);
-    int ok2 = sp_schnorr_sign(d, msg, aux, sig2) == 0;
+    int ok2 = sp_schnorr_sign(d, msg, sig2) == 0;
     chkb("schnorr is identical either side of a randomize",
          ok1 && ok2 && memcmp(sig1, sig2, sizeof sig1) == 0);
 }
@@ -781,6 +794,7 @@ int main(int argc, char **argv) {
     fails += test_sdseed_layer();
     fails += test_kef();
     fails += test_usage();
+    fails += test_defrow();
     fails += test_duress();
     fails += test_gword();
     fails += test_coverword();
