@@ -1031,6 +1031,10 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
 typedef struct {
     const char *cap;     // upper case caption, 168px lane, fixed
     const char *val;     // the value: never yields, never wraps
+    const char *val_tail;// the value's LIT run: non-NULL renders the value as
+                         // the device's address idiom -- a grey head and this
+                         // tail as the final span of a flagged spangroup, so
+                         // accent_walk repaints it like every other tail
     const char *sub;     // lower-case fragment; the element that YIELDS
     const char *plain;   // the definition: a plain sentence, 2 lines max
     const char *term;    // the real term, shown as "CALLED: <term>" -- never
@@ -1038,6 +1042,17 @@ typedef struct {
     bool        lamp;    // lead the value with an 8px state lamp
     lv_color_t  lamp_col;
     bool        lamp_pulse;
+    // The WALLET page's weighting (frame 6a): the identity is the headline,
+    // so its row takes the top third closed and the others take 48px lines.
+    // `closed_h` overrides this row's share of the closed lane (0 = LANE/n;
+    // the overrides must still sum to the lane). `hero` renders the closed
+    // row as a stack -- caption, the value at num48, the sub under it -- and
+    // makes the row inert: it has no definition to open, it only collapses
+    // to a one-line ghost when a row below it opens. The OPEN arithmetic is
+    // untouched: a hero ghosts to the same 34px as everything else, which is
+    // exactly what lets the open row keep its 182.
+    int         closed_h;
+    bool        hero;
 } wt_def_t;
 // Builds the rows across the whole content lane, closed. Entry runs the
 // KEYS/RECEIVE stagger (rise, fade, rule draws itself in). Returns the list

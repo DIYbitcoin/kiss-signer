@@ -288,6 +288,21 @@ UNTRANSLATED_OK = {
     "G_FW_NEWER_LAMP", "G_FW_OLDER_LAMP",
     "G_FW_WHERE_CAP", "G_FW_WHERE_SHORT", "G_FW_DOWN_SHORT",
     "G_FW_KEEP_HOLDING", "G_FW_WRITING_FMT", "G_FW_BACKLIGHT",
+    # The screen system's first page: KEYS re-weighted so the fingerprint is
+    # the headline (the hero, its caption and the line naming who to check it
+    # against), the other facts opening plain-sentence definitions in place,
+    # a standing statement in the band, and the [ ? ] explainer tab with its
+    # one-time hint. Born under the English-only rule; English until the
+    # sweep. C_CALLED_FMT and C_HELP_HINT are device-wide: every definition
+    # ends on a CALLED: line and every page grows the same [ ? ].
+    "K_FP_HERO_CAP", "K_FP_HERO_SUB", "K_STANDING",
+    "K_NET_PLAIN_MAIN", "K_NET_PLAIN_TEST",
+    "K_TYPE_PLAIN", "K_TYPE_TERM_FMT", "K_ADDR_PLAIN", "K_ADDR_TERM",
+    "K_ADDR_SUB",
+    "K_HELP_HEAD", "K_HELP_BODY",
+    "K_HELP_F1C", "K_HELP_F1V", "K_HELP_F2C", "K_HELP_F2V",
+    "K_HELP_F3C", "K_HELP_F3V",
+    "C_HELP_HINT", "C_CALLED_FMT",
 }
 
 

@@ -2630,12 +2630,21 @@ int main(void) {
   // which is the second time that has happened on this walk.
   touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
   save("/tmp/sim_winfo.ppm");
-  kiss_info_sim_open_fp_help(); pump(40);         // full staggered card intro settles
-  save("/tmp/sim_winfo_help.ppm");
-  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
-  kiss_info_sim_open_type_help(); pump(30);       // deterministic: chip x varies by locale
-  save("/tmp/sim_winfo_type_help.ppm");
-  touch(400, 414); pump(3); release(); pump(6);     // OK closes the type card
+  // The in-place definition, the pass's central interaction and the reason
+  // the fp/type help cards left this page: NETWORK opens where it stands, the
+  // fingerprint hero collapses to a one-line ghost, the other rows drop to
+  // 34px, and the plain sentence lands inside the grown row. 30 pumps: the
+  // height animation is 240ms and the body rides in 90ms behind it.
+  touch(400, 278); pump(3); release(); pump(30);    // NETWORK row -> opens
+  save("/tmp/sim_winfo_def.ppm");
+  must_show("keys/def plain", tr(STR_K_NET_PLAIN_TEST));
+  touch(400, 240); pump(3); release(); pump(30);    // the open row -> all closed
+  // The [ ? ] tab: the content lane replaced by the page's explainer, and
+  // the first-run hint stopped for good (this is the walk's first open).
+  touch(720, 85); pump(3); release(); pump(30);
+  save("/tmp/sim_winfo_what.ppm");
+  must_show("keys/help head", tr(STR_K_HELP_HEAD));
+  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the rows
   // KEYS is two tabs on one lane now. Tab 1 is four lines at 120/182/244/306;
   // tab 2 is at x=248..444 on the bracket strip and holds PAIRING at 120 and
   // SILENT PAYMENT at 186.

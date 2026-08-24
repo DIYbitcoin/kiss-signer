@@ -200,7 +200,6 @@ static const char *const PAIR_ICONS[] = {
     WT_ICON_LOCK,
     LV_SYMBOL_GPS,       // the bitcoin is on the network, not in either device
 };
-static const char *const TYPE_ICONS[] = { LV_SYMBOL_OK, LV_SYMBOL_DIRECTORY };
 
 _Static_assert(sizeof PAIR_ICONS / sizeof PAIR_ICONS[0] == 3,
                "the pairing explainer supplies three semantic badges");
@@ -278,27 +277,15 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // showing a picture without its number is met by the PAGE rather than by the
 // card: the fingerprint row behind this overlay is already showing the eight
 // characters in mono, and that row is what the reader tapped to get here.
-static void fp_help_open(void)
-{
-    uint8_t fp[4];
-    char fpbuf[16];
-    kiss_ui_last_fp(fp);
-    snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-    kiss_info_fp_card_open(s_scr, fpbuf, false);
-}
-
 static void help_cb(lv_event_t *e)
 {
     const char *key = (const char *)lv_event_get_user_data(e);
-    if (!strcmp(key, "fp"))
-        fp_help_open();
-    // DIRECTORY for the address type, because what it is really about is the
-    // derivation branch under the name; DOWNLOAD for the first address, because
-    // an address is where money arrives. Both are in the baked symbol set.
-    else if (!strcmp(key, "type"))
-        help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B), LV_SYMBOL_DIRECTORY,
-                  TYPE_ICONS, sizeof TYPE_ICONS / sizeof TYPE_ICONS[0]);
-    else if (!strcmp(key, "pair"))
+    // "fp" and "type" are gone with the rows that carried them: both facts
+    // open their definitions IN PLACE on THIS SIGNER now, so the cards were
+    // a second copy of a lesson one tap closer to the fact it teaches. The
+    // fingerprint card itself lives on -- the reveal screen and the home
+    // chip still open it through kiss_info_fp_card_open.
+    if (!strcmp(key, "pair"))
         help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR,
                     PAIR_ICONS, sizeof PAIR_ICONS / sizeof PAIR_ICONS[0]);
     // "scan" is gone with the card that carried its "?". It opened
@@ -311,20 +298,6 @@ static void help_cb(lv_event_t *e)
         help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD,
                   NULL, 0);
 }
-
-#ifdef SIMULATOR
-void kiss_info_sim_open_type_help(void)
-{
-    if (s_scr) help_open(tr(STR_I_SEC_TYPE), tr(STR_I_H_TYPE_B),
-                         LV_SYMBOL_DIRECTORY, TYPE_ICONS,
-                         sizeof TYPE_ICONS / sizeof TYPE_ICONS[0]);
-}
-
-void kiss_info_sim_open_fp_help(void)
-{
-    if (s_scr) fp_help_open();   // the row's own path, so the shot matches the device
-}
-#endif
 
 static lv_obj_t *mk_help_chip(int x, int y, const char *key)
 {
@@ -1231,10 +1204,41 @@ static void row_help_cb(lv_event_t *e) { help_cb(e); }
 // back from the words page on whichever KEYS tab matched the index.
 static void info_tab_build(void);
 
+// The [ ? ] tab, open: the content lane replaced by the page's explainer.
+// Cleared by any real tab tap, so the strip is also the way back.
+static bool s_help_open;
+
+static void info_help_cb(lv_event_t *e)
+{
+    (void)e;
+    s_help_open = !s_help_open;
+    // wt_pane_go refuses a same-tab call, so this is its swap by hand: stop
+    // whatever is mid-flight, send the old group out, build the new one in.
+    // The strip does not move -- [ ? ] is not a section and never highlights.
+    const bool was_moving = s_ictx.entering;
+    wt_pane_stop(&s_ictx);
+    if (was_moving && s_ictx.pane) {
+        lv_obj_delete(s_ictx.pane);
+        s_ictx.pane = NULL;
+    }
+    s_ictx.pane_out = s_ictx.pane;
+    s_ictx.pane = wt_pane_new(&s_ictx);
+    info_tab_build();
+    wt_accent_restyle(s_ictx.pane);
+    const int dir = s_help_open ? 1 : -1;
+    wt_pane_enter(&s_ictx, dir, false);
+    wt_pane_exit(&s_ictx, dir);
+}
+
 static void info_tab_cb(lv_event_t *e)
 {
-    wt_pane_go(&s_ictx, (int)(intptr_t)lv_event_get_user_data(e), false,
-               info_tab_build);
+    int tab = (int)(intptr_t)lv_event_get_user_data(e);
+    // A real tab is also the way back from [ ? ]: tapping the one already
+    // selected re-lands on its rows, which wt_pane_go's same-tab refusal
+    // would otherwise swallow.
+    if (s_help_open && tab == s_ictx.tab) { info_help_cb(NULL); return; }
+    s_help_open = false;
+    wt_pane_go(&s_ictx, tab, false, info_tab_build);
 }
 
 // The address fold this lane can hold. wt_addr_short's own fold is 28 mono
@@ -1310,46 +1314,92 @@ static void info_tab_build(void)
     char buf[128];
     const int X = 48, W = 704;
 
+    if (s_help_open) {
+        // The [ ? ] content: the lane replaced, not a card and not an
+        // overlay. Nothing on it is interactive; the strip is the way back.
+        wt_fact_t facts[3] = {
+            { tr(STR_K_HELP_F1C), tr(STR_K_HELP_F1V) },
+            { tr(STR_K_HELP_F2C), tr(STR_K_HELP_F2V) },
+            { tr(STR_K_HELP_F3C), tr(STR_K_HELP_F3V) },
+        };
+        wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
+        return;
+    }
+
     if (s_ictx.tab == 0) {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
-        const int H = 84;
 
-        // Mono. This is a code you hold beside a coordinator's screen and
-        // compare digit by digit, and the proportional face is the one that
-        // makes 0 and O and 8 and B argue.
-        snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_D_FINGERPRINT),
-                                      buf, wt_font_mono28(), WT_INK,
-                                      tr(STR_K_FP_SUB), NULL,
-                                      row_help_cb, (void *)"fp"), 0);
-        wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
-
-        // The one line with nothing to open, so the one line with no arrow at
-        // all. Not a dimmed arrow: a mark at low opacity still says there is
-        // something under it.
-        wt_line_row_stage(wt_line_row(p, X, 204, W, H, tr(STR_I_SEC_NET), kiss_net_name(),
-                    wt_font28(), kiss_testnet() ? WT_WARN : WT_INK,
-                    tr(kiss_testnet() ? STR_G_TESTNET_NOTE
-                                      : STR_G_MAINNET_NOTE), NULL, NULL, NULL), 1);
-        wt_line_rule_draw(wt_line_rule(p, X, 204 + H, W), 152, 320);
+        // The identity given the top third (frame 6a): the fact an owner is
+        // asked to DO something with is the headline, at a size that makes
+        // the check possible across a desk, in two blocks of four, which is
+        // how a person reads eight characters aloud. Mono because this is a
+        // code compared digit by digit, and the proportional face is the one
+        // that makes 0 and O and 8 and B argue. The rest are lines under it,
+        // and each opens its plain-sentence definition where it stands.
+        char fpb[16];
+        snprintf(fpb, sizeof fpb, "%02X%02X %02X%02X",
+                 fp[0], fp[1], fp[2], fp[3]);
 
         // h, not an apostrophe, and this is correctness rather than style: at
         // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
         // the line reads as m/84/0/0. Those are DIFFERENT PATHS, and a
         // coordinator handed the unhardened one finds none of these keys.
         int sc = kiss_script();
-        int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49 : 84;
+        int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49
+                                                                       : 84;
         snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
                  kiss_testnet() ? 1 : 0);
-        wt_line_row_stage(wt_line_row(p, X, 288, W, H, tr(STR_I_SEC_TYPE),
-                    tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
-                       : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
-                                              : STR_S_TY_NATIVE),
-                    wt_font28(), WT_INK, buf, wt_font_mono23(),
-                    row_help_cb, (void *)"type"), 2);
-        wt_line_rule_draw(wt_line_rule(p, X, 288 + H, W), 194, 320);
+        char term_type[64];
+        snprintf(term_type, sizeof term_type, tr(STR_K_TYPE_TERM_FMT),
+                 purpose);
+        char called_type[96], called_addr[96];
+        snprintf(called_type, sizeof called_type, tr(STR_C_CALLED_FMT),
+                 term_type);
+        snprintf(called_addr, sizeof called_addr, tr(STR_C_CALLED_FMT),
+                 tr(STR_K_ADDR_TERM));
 
+        // The first address, folded to the device's own idiom: prefix, the
+        // gap, the last eight in two blocks -- or the session-locked state,
+        // as words, never as an address-shaped fragment.
+        char ahead[24] = {0}, atail[16] = {0};
+        char abuf[128];
+        size_t n = kiss_session_address(0, 0, abuf, sizeof abuf) == 0
+                       ? strlen(abuf) : 0;
+        bool locked = n < 20;
+        if (!locked) {
+            int pre = !strncmp(abuf, "tsp1", 4) ? 5
+                    : (!strncmp(abuf, "bc1", 3) || !strncmp(abuf, "tb1", 3) ||
+                       !strncmp(abuf, "sp1", 3)) ? 4 : 0;
+            const char *t = abuf + n - 8;
+            char pfx[8] = {0};
+            if (pre) { memcpy(pfx, abuf, (size_t)pre); pfx[pre] = ' '; }
+            snprintf(ahead, sizeof ahead, "%s\xE2\x80\xA6 ", pfx);
+            snprintf(atail, sizeof atail, "%.4s %.4s", t, t + 4);
+        }
+
+        bool tn = kiss_testnet();
+        wt_def_t defs[4] = {
+            { .cap = tr(STR_K_FP_HERO_CAP), .val = fpb,
+              .sub = tr(STR_K_FP_HERO_SUB), .hero = true, .closed_h = 140 },
+            { .cap = tr(STR_I_SEC_NET), .val = kiss_net_name(),
+              .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
+              .plain = tr(tn ? STR_K_NET_PLAIN_TEST : STR_K_NET_PLAIN_MAIN),
+              .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK,
+              .lamp_pulse = tn, .closed_h = 48 },
+            { .cap = tr(STR_I_SEC_TYPE),
+              .val = tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
+                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
+                                               : STR_S_TY_NATIVE),
+              .sub = buf, .plain = tr(STR_K_TYPE_PLAIN),
+              .term = called_type, .closed_h = 48 },
+            { .cap = tr(STR_I_SEC_FIRST),
+              .val = locked ? tr(STR_C_SESSION_LOCKED) : ahead,
+              .val_tail = locked ? NULL : atail,
+              .sub = tr(STR_K_ADDR_SUB), .plain = tr(STR_K_ADDR_PLAIN),
+              .term = called_addr, .closed_h = 48 },
+        };
+        wt_def_list(p, defs, 4);
         return;
     }
 
@@ -1403,35 +1453,28 @@ static void info_tab_build(void)
 static void info_screen(void)
 {
     s_pair_qr = NULL;
-    s_scr = wt_screen(s_parent, tr(STR_I_T), NULL);
-    wt_title_fit(s_scr, 704);
-    wt_title_cursor(s_scr);
+    s_scr = wt_chrome(s_parent, tr(STR_I_T));
 
     static const wt_tab_t tabs[2] = {
         { .icon = WT_ICON_KEY,        .label = "THIS SIGNER" },
         { .icon = WT_ICON_LINK,       .label = "COORDINATOR" },
     };
     // The label strings are per-locale, so the array's two are placeholders
-    // that never reach the glass: wt_brackets is handed the translated pair.
+    // that never reach the glass: the strip is handed the translated pair.
     wt_tab_t t[2] = { tabs[0], tabs[1] };
     t[0].label = tr(STR_I_SEC_THIS_WALLET);
     t[1].label = tr(STR_D_ONLINE_APP);
 
     s_ictx.scr    = s_scr;
     s_ictx.select = wt_brackets_select;
-    s_ictx.tabs   = wt_brackets(s_scr, t, 2, s_ictx.tab, 48, 70, 704,
-                                info_tab_cb);
+    s_ictx.tabs   = wt_chrome_tabs(s_scr, t, 2, s_ictx.tab, info_tab_cb);
     wt_pane_tabs_watch(&s_ictx);
-    s_ictx.pane = wt_pane_new(&s_ictx);
-    info_tab_build();
 
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, close_cb, NULL);
-    // The network chip: a mark and its word, no box. It is the one thing on
-    // this page that is amber, and it is amber because it is a caution rather
-    // than a colour -- an owner on a test network is looking at money that is
-    // not money. Absent on mainnet; a chip reading MAINNET would be the device
-    // congratulating itself on the normal case.
+    // The band's left lane holds ONE line, by rank: the test network caution
+    // beats everything, the first-run hint speaks until [ ? ] has been opened
+    // once, and the standing statement -- what is permanently true of this
+    // page -- is what the lane says for the rest of the device's life.
+    const char *hint = NULL;
     if (kiss_testnet()) {
         lv_obj_t *w = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_ACT_X,
                              WT_ACTION_Y + 18, wt_font14(), WT_WARN);
@@ -1440,7 +1483,18 @@ static void info_screen(void)
                              WT_ACT_X + lv_obj_get_width(w) + 10,
                              WT_ACTION_Y + 16, wt_font14(), WT_WARN);
         lv_obj_set_style_text_letter_space(l, 2, 0);
+    } else if (!wt_help_seen()) {
+        hint = tr(STR_C_HELP_HINT);
+    } else {
+        wt_standing(s_scr, tr(STR_K_STANDING), WT_DIM, false);
     }
+    wt_help_tab(s_scr, hint, info_help_cb, NULL);
+
+    s_ictx.pane = wt_pane_new(&s_ictx);
+    info_tab_build();
+
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
 }
 
 void kiss_info_open(lv_obj_t *parent)

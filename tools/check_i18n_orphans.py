@@ -69,6 +69,10 @@ BACKLOG = frozenset({
     "STR_I_SEC_HISTORY",
     "STR_R_SP_EXPORT",
     "STR_R_USAGE_UNKNOWN",
+    # KEYS re-weighted to the identity-as-headline shape: the fingerprint
+    # became the hero and its old row sub went with the row. Translated in 21
+    # locales, so it waits for the sweep like the rest of this list.
+    "STR_K_FP_SUB",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

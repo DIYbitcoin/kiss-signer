@@ -36,11 +36,3 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // optionally a .kef file on the card.
 void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void));
 void kiss_info_close(void);             // idle auto-lock: drop whichever is up
-#ifdef SIMULATOR
-// Deterministic visual-QA captures. The walk used to tap the "?" chips by
-// coordinate, but they sit after their section label, so the x moves with the
-// translation and the y moves whenever this column is re-laid out. A missed
-// tap saves the unchanged screen instead of the card, which looks like a pass.
-void kiss_info_sim_open_type_help(void);
-void kiss_info_sim_open_fp_help(void);
-#endif

@@ -3124,13 +3124,17 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                                wt_accent());
         lv_obj_add_flag(cap, WT_FLAG_ACCENT);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
-        // 200 wide and NO wrapping: a caption that would wrap gets shorter
-        // copy for that locale. The lane never widens.
+        // 200 wide, ONE line, no wrapping: a caption that would wrap gets
+        // shorter copy for that locale. The lane never widens, and the
+        // height is what makes LONG_DOT elide instead of stacking.
         lv_obj_set_width(cap, 200);
+        lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 214, y,
-                               chrome18(facts[i].val), WT_MUT);
+        const lv_font_t *vf = chrome18(facts[i].val);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 214, y, vf,
+                               WT_MUT);
         lv_obj_set_width(val, 752 - (WT_LANE_X + 214));
+        lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
         y += lv_font_get_line_height(cf) + 14;
     }
@@ -3151,6 +3155,12 @@ typedef struct {
     lv_obj_t  *row, *cap, *lamp, *val, *sub, *arrow, *rail, *plain, *term;
     lv_obj_t  *rule;
     int        val_x;      // DEF_VAL_X, plus the lamp's lane when it has one
+    int        ghost_vx;   // a hero's ghost: the value clears the measured
+                           // caption instead of the 168 lane it never used
+    // The value's face per state, decided at build. The caller's strings are
+    // free to live on its stack -- labels copy them, and nothing here reads
+    // a def's pointer after wt_def_list returns.
+    const lv_font_t *vf_closed, *vf_open, *vf_ghost;
 } wt_defrow_t;
 
 typedef struct {
@@ -3163,6 +3173,20 @@ typedef struct {
 
 static void defs_free_cb(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
 
+// The across-the-room face, when the value can wear it: num48 carries digits,
+// A-F, space and full stop -- a hex fingerprint and nothing else -- so the
+// check is the whole character set, and anything outside it falls to 28.
+static const lv_font_t *hero48(const char *s)
+{
+    for (const char *p = s ? s : ""; *p; p++) {
+        if ((*p >= '0' && *p <= '9') || (*p >= 'A' && *p <= 'F') ||
+            *p == ' ' || *p == '.')
+            continue;
+        return chrome28(s);
+    }
+    return wt_font_num48();
+}
+
 // One row's dress for one state. Fonts, colours and visibility only --
 // heights and y belong to the animation, and the font swap happens HERE, on
 // the animation's ready, never mid-flight (motion 22).
@@ -3170,13 +3194,30 @@ static void def_apply(wt_defs_t *d, int k, int mode)
 {
     wt_defrow_t *r = &d->r[k];
     const wt_def_t *def = &r->def;
+    const bool hero = def->hero && mode == DEF_CLOSED;
 
-    const lv_font_t *vf = mode == DEF_OPEN  ? chrome28(def->val)
-                        : mode == DEF_GHOST ? chrome18(def->val)
-                                            : chrome21(def->val);
+    const lv_font_t *vf = mode == DEF_OPEN  ? r->vf_open
+                        : mode == DEF_GHOST ? r->vf_ghost
+                                            : r->vf_closed;
     lv_obj_set_style_text_font(r->val, vf, 0);
-    lv_obj_set_style_text_color(r->val, mode == DEF_GHOST ? WT_DIM : WT_INK,
-                                0);
+    if (lv_obj_check_type(r->val, &lv_spangroup_class)) {
+        // The address idiom: the head span grey, the tail span lit. A ghost
+        // dims both and gives up its ACCENT flag, exactly as the arrow does,
+        // or the next theme change would relight a ghost's tail.
+        lv_span_t *hd = lv_spangroup_get_child(r->val, 0);
+        lv_span_t *tl = lv_spangroup_get_child(r->val, 1);
+        if (hd) lv_style_set_text_color(lv_span_get_style(hd),
+                                        mode == DEF_GHOST ? WT_DIM : WT_MUT);
+        if (tl) lv_style_set_text_color(lv_span_get_style(tl),
+                                        mode == DEF_GHOST ? WT_DIM
+                                                          : wt_accent());
+        if (mode == DEF_GHOST) lv_obj_remove_flag(r->val, WT_FLAG_ACCENT);
+        else                   lv_obj_add_flag(r->val, WT_FLAG_ACCENT);
+        lv_spangroup_refresh(r->val);
+    } else {
+        lv_obj_set_style_text_color(r->val,
+                                    mode == DEF_GHOST ? WT_DIM : WT_INK, 0);
+    }
     lv_obj_set_style_text_color(r->cap, mode == DEF_GHOST ? WT_DIM : WT_MUT,
                                 0);
 
@@ -3189,18 +3230,29 @@ static void def_apply(wt_defs_t *d, int k, int mode)
 
     // The arrow: the accent everywhere except ghost, where it is furniture --
     // and the FLAG moves with the colour, or the next accent change would
-    // repaint a ghost's arrow back to life.
-    if (mode == DEF_GHOST) {
-        lv_obj_remove_flag(r->arrow, WT_FLAG_ACCENT);
-        lv_obj_set_style_text_color(r->arrow, WT_DIV, 0);
-    } else {
-        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
-        lv_obj_set_style_text_color(r->arrow, wt_accent(), 0);
+    // repaint a ghost's arrow back to life. A hero has none: it opens nothing.
+    if (r->arrow) {
+        if (mode == DEF_GHOST) {
+            lv_obj_remove_flag(r->arrow, WT_FLAG_ACCENT);
+            lv_obj_set_style_text_color(r->arrow, WT_DIV, 0);
+        } else {
+            lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+            lv_obj_set_style_text_color(r->arrow, wt_accent(), 0);
+        }
     }
 
     // Vertical: a closed or ghost row CENTRES its head; only an open row
-    // top-pads. Top-padding a ghost crops it -- the spec's own warning.
-    if (mode == DEF_OPEN) {
+    // top-pads. Top-padding a ghost crops it -- the spec's own warning. The
+    // hero is the second exception: its closed state is a STACK, caption over
+    // the across-the-room value over the line that says who to check against.
+    if (hero) {
+        lv_obj_set_width(r->cap, 646);
+        lv_obj_align(r->cap, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, 10);
+        lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, 36);
+        if (r->sub)
+            lv_obj_align(r->sub, LV_ALIGN_TOP_LEFT, WT_LINE_PAD,
+                         36 + lv_font_get_line_height(vf) + 6);
+    } else if (mode == DEF_OPEN) {
         lv_obj_update_layout(r->val);
         int vh = lv_font_get_line_height(vf);
         int cy = DEF_HEAD_PAD +
@@ -3211,13 +3263,25 @@ static void def_apply(wt_defs_t *d, int k, int mode)
             lv_obj_align(r->lamp, LV_ALIGN_TOP_LEFT, DEF_VAL_X,
                          DEF_HEAD_PAD + (vh - 8) / 2);
         lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, r->val_x, DEF_HEAD_PAD);
-        lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
-                     DEF_HEAD_PAD);
+        if (r->arrow)
+            lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
+                         DEF_HEAD_PAD);
     } else {
+        int vx = (def->hero && r->ghost_vx) ? r->ghost_vx : r->val_x;
+        // A ghosted hero also gives back its caption's BOX: the closed stack
+        // gave it the sentence lane, and the overlap gate reads boxes, so a
+        // 646px caption under a value at 200 is a finding even when the ink
+        // never touches.
+        if (def->hero && r->ghost_vx)
+            lv_obj_set_width(r->cap, r->ghost_vx - WT_LINE_PAD - 14);
         lv_obj_align(r->cap, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
         if (r->lamp) lv_obj_align(r->lamp, LV_ALIGN_LEFT_MID, DEF_VAL_X, 0);
-        lv_obj_align(r->val, LV_ALIGN_LEFT_MID, r->val_x, 0);
-        lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
+        lv_obj_align(r->val, LV_ALIGN_LEFT_MID, vx, 0);
+        if (r->sub && mode == DEF_CLOSED)
+            lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
+                         -(WT_LINE_PAD + DEF_ARR_W + 8), 0);
+        if (r->arrow)
+            lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
     }
 
     // The open dressing: the pressed-accent wash, the 2px rail, the body.
@@ -3282,6 +3346,7 @@ void wt_def_list_open(lv_obj_t *list, int idx)
         int mode = idx < 0 ? DEF_CLOSED : (k == idx ? DEF_OPEN : DEF_GHOST);
         int h = mode == DEF_OPEN   ? wt_def_h_open(d->n)
               : mode == DEF_GHOST  ? wt_def_h_ghost()
+              : r->def.closed_h    ? r->def.closed_h
                                    : wt_def_h_closed(d->n);
 
         // Every row's height moves in the SAME tick -- the open one growing,
@@ -3291,9 +3356,10 @@ void wt_def_list_open(lv_obj_t *list, int idx)
         def_anim(r->row, an_y, lv_obj_get_y(r->row), y, NULL);
 
         // The arrow turns as the row opens (motion 23), on the same curve.
-        def_anim(r->arrow, an_rot,
-                 lv_obj_get_style_transform_rotation(r->arrow, 0),
-                 mode == DEF_OPEN ? 900 : 0, NULL);
+        if (r->arrow)
+            def_anim(r->arrow, an_rot,
+                     lv_obj_get_style_transform_rotation(r->arrow, 0),
+                     mode == DEF_OPEN ? 900 : 0, NULL);
 
         // The definition body rides in behind the growing row (motion 21):
         // unhidden now, clipped by the still-short row, drawn in on a 90ms
@@ -3343,35 +3409,57 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
     lv_obj_set_user_data(list, d);
     lv_obj_add_event_cb(list, defs_free_cb, LV_EVENT_DELETE, d);
 
-    const int ch = wt_def_h_closed(n);
     const int oh = wt_def_h_open(n);
+    int ry = 0;
     for (int k = 0; k < n; k++) {
         wt_defrow_t *r = &d->r[k];
         r->def = defs[k];
+        const bool hero = defs[k].hero;
+        const int ch = defs[k].closed_h ? defs[k].closed_h
+                                        : wt_def_h_closed(n);
 
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_remove_style_all(row);
-        lv_obj_set_pos(row, 0, k * ch);
+        lv_obj_set_pos(row, 0, ry);
         lv_obj_set_size(row, WT_LANE_W, ch);
+        ry += ch;
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         // The open wash: the accent at seven percent. The colour is kept
         // fresh by the FILL flag; the opacity is this row's own and stays
-        // zero until def_apply raises it.
+        // zero until def_apply raises it. A hero takes no taps at all: it
+        // has nothing to open, and a press answer on it would promise one.
         lv_obj_set_style_bg_color(row, wt_accent(), 0);
         lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
         lv_obj_add_flag(row, WT_FLAG_ACCENT_FILL);
-        wt_line_press(row);
-        lv_obj_add_event_cb(row, def_tap_cb, LV_EVENT_CLICKED, NULL);
+        if (!hero) {
+            lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+            wt_line_press(row);
+            lv_obj_add_event_cb(row, def_tap_cb, LV_EVENT_CLICKED, NULL);
+        } else {
+            lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        }
         r->row = row;
 
         // The head, on the four fixed lanes: caption 168, value never
         // yielding, sub taking what is left and yielding first, arrow 26.
-        r->cap = wt_lbl(row, defs[k].cap, 0, 0, chrome18(defs[k].cap),
-                        WT_MUT);
+        // Every pinned label gets ONE line of height as well as its lane --
+        // LONG_DOT only elides once the box stops growing, so a lane without
+        // a height is a lane that wraps into the row below it.
+        const lv_font_t *cf = chrome18(defs[k].cap);
+        r->cap = wt_lbl(row, defs[k].cap, 0, 0, cf, WT_MUT);
         lv_obj_set_style_text_letter_space(r->cap, 2, 0);
-        lv_obj_set_width(r->cap, DEF_CAP_W);
+        lv_obj_set_width(r->cap, hero ? 646 : DEF_CAP_W);
+        lv_obj_set_height(r->cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(r->cap, LV_LABEL_LONG_DOT);
+        if (hero) {
+            // The ghost line is the caption and the value as ONE phrase, so
+            // the value clears the caption's measured width, not the 168
+            // lane the hero never used.
+            lv_point_t cs;
+            lv_text_get_size(&cs, defs[k].cap, cf, 2, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            r->ghost_vx = WT_LINE_PAD + cs.x + 14;
+        }
 
         r->val_x = DEF_VAL_X;
         if (defs[k].lamp) {
@@ -3385,35 +3473,63 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
             r->val_x += 8 + 12;
         }
 
-        const lv_font_t *vf = chrome21(defs[k].val);
-        r->val = wt_lbl(row, defs[k].val, 0, 0, vf, WT_INK);
+        r->vf_closed = hero ? hero48(defs[k].val) : chrome21(defs[k].val);
+        r->vf_open   = chrome28(defs[k].val);
+        r->vf_ghost  = chrome18(defs[k].val);
+        const lv_font_t *vf = r->vf_closed;
         lv_point_t vs;
-        lv_text_get_size(&vs, defs[k].val, vf, 0, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
+        if (defs[k].val_tail && *defs[k].val_tail) {
+            // The address idiom: a spangroup, head then lit tail, the same
+            // two-span shape accent_walk repaints everywhere else. It eats
+            // presses out of the box, inside a row whose whole box is the
+            // control -- so it takes none.
+            lv_obj_t *sg = lv_spangroup_create(row);
+            lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+            lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);
+            lv_obj_set_style_text_font(sg, vf, 0);
+            lv_span_set_text(lv_spangroup_new_span(sg), defs[k].val);
+            lv_span_set_text(lv_spangroup_new_span(sg), defs[k].val_tail);
+            lv_spangroup_refresh(sg);
+            r->val = sg;
+            lv_point_t ts;
+            lv_text_get_size(&vs, defs[k].val, vf, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            lv_text_get_size(&ts, defs[k].val_tail, vf, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            vs.x += ts.x;
+        } else {
+            r->val = wt_lbl(row, defs[k].val, 0, 0, vf, WT_INK);
+            lv_text_get_size(&vs, defs[k].val, vf, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+        }
 
-        r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
-                          wt_accent());
-        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
-        lv_obj_update_layout(r->arrow);
-        lv_obj_set_style_transform_pivot_x(r->arrow,
-                                           lv_obj_get_width(r->arrow) / 2, 0);
-        lv_obj_set_style_transform_pivot_y(r->arrow,
-                                           lv_obj_get_height(r->arrow) / 2,
-                                           0);
+        if (!hero) {
+            r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+                              wt_accent());
+            lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+            lv_obj_update_layout(r->arrow);
+            lv_obj_set_style_transform_pivot_x(
+                r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
+            lv_obj_set_style_transform_pivot_y(
+                r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
+        }
 
         if (defs[k].sub && *defs[k].sub) {
-            // Measured against the CLOSED value, the widest layout the sub
-            // shares a line with; the other two states hide it.
-            int lane = WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
-                       - (r->val_x + vs.x + 16);
+            // A hero's sub is the line under the across-the-room value and
+            // takes the sentence lane; a row's sub is measured against the
+            // CLOSED value, the widest layout it shares a line with.
+            int lane = hero ? 646
+                            : WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
+                              - (r->val_x + vs.x + 16);
             if (lane > 40) {
-                r->sub = wt_lbl(row, defs[k].sub, 0, 0,
-                                chrome18(defs[k].sub), WT_DIM);
+                const lv_font_t *sf = chrome18(defs[k].sub);
+                r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, WT_DIM);
                 lv_obj_set_width(r->sub, lane);
-                lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
+                lv_obj_set_height(r->sub, lv_font_get_line_height(sf));
+                if (!hero)
+                    lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT,
+                                                0);
                 lv_label_set_long_mode(r->sub, LV_LABEL_LONG_DOT);
-                lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
-                             -(WT_LINE_PAD + DEF_ARR_W + 8), 0);
             }
         }
 
@@ -3429,7 +3545,7 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         lv_obj_add_flag(r->rail, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(r->rail, LV_OBJ_FLAG_CLICKABLE);
 
-        if (defs[k].plain && *defs[k].plain) {
+        if (!hero && defs[k].plain && *defs[k].plain) {
             // The definition: plain sentence first, the real term
             // underneath, never the term alone. Geometry computed against
             // the OPEN height, where it will be seen.
