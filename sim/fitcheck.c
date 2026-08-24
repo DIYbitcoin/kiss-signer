@@ -623,7 +623,10 @@ static const pill_t PILLS[] = {
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
     { "recv/sp-show-full",STR_R_SP_SHOW_FULL,  280, 52, 0, 0 },
     { "recv/sp-show-short",STR_R_SP_SHOW_SHORT,280, 52, 0, 0 },
-    { "wallet/sp-hold",   STR_R_SP_SHOW,       330, 66, 0, 1 },
+    // The scan key gate's hold shares HOLD TO SHOW with the word grid and
+    // renders on a rule at the standard 52 row -- the tall pill went with
+    // the label that restated the title.
+    { "wallet/sp-hold",   STR_W_HOLD_SHOW,     330, 52, 0, 1 },
     // Settings ADDRESS TYPE: one pill carrying the type NAME over the example
     // address. The example is a readable 23 now, so it reserves 35px of the
     // 72px pill and the name is fitted against what is left -- the same 29px

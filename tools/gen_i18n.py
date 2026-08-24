@@ -313,6 +313,7 @@ UNTRANSLATED_OK = {
     # the sweep.
     "W_GRID_WARN", "W_SHOW_SENT", "W_SHOW_SURV", "W_SHOW_GOES",
     "W_HOLD_SHOW",
+    "K_SPGATE_SENT", "K_SPGATE_SURV", "K_SPGATE_GOES",
 }
 
 

@@ -73,6 +73,9 @@ BACKLOG = frozenset({
     # became the hero and its old row sub went with the row. Translated in 21
     # locales, so it waits for the sweep like the rest of this list.
     "STR_K_FP_SUB",
+    # The scan key gate: its hold said the title over again in a lane the
+    # words could not fit, so it shares HOLD TO SHOW with the word grid.
+    "STR_R_SP_SHOW",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

@@ -588,34 +588,42 @@ static void sp_key_warn_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN),
-                      tr_sym(LV_SYMBOL_WARNING, STR_R_SP_WARN_S));
-    // Warning paragraph then the three permission rows, in a flex column: the
-    // paragraph is wt_body_font-sized, so the block under it cannot be placed
-    // at a y decided in advance. wt_body_font floors at font14 rather than
-    // guaranteeing the budget, so "it fits in 145" was an assumption and not a
-    // fact even before a translation was involved.
-    lv_obj_t *col = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, 48, 104);
-    lv_obj_set_size(col, 704, WT_CONTENT_BOTTOM - 104);
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 16, 0);
-    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    s_scr = wt_chrome(s_parent, tr(STR_R_SP_SCAN_BTN));
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
+             tr(STR_D_ONLINE_APP));
+    wt_trail(s_scr, WT_ICON_SECRET, trail, false);
 
-    lv_obj_t *wb = wt_lbl(col, tr(STR_R_SP_WARN_B), 0, 0,
-                          wt_body_font(tr(STR_R_SP_WARN_B), 700, 145), WT_MUT);
-    lv_obj_set_width(wb, 700);
-    lv_label_set_long_mode(wb, LV_LABEL_LONG_WRAP);
-    sp_permission_model(col);
-    // Revealing a reusable private scan key should not be one stray tap away.
-    // A short hold is deliberate without adding the friction of signing.
-    wt_pillh(s_scr, tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y_TALL, 140, WT_ACTION_H_TALL,
-             sp_key_back_cb, NULL);
-    wt_hold_pill(s_scr, tr(STR_R_SP_SHOW), WT_ACT_X, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL,
-                 900, sp_key_show, NULL);
+    // The gate shape, amber: sharing the key is a caution the owner can walk
+    // back from right up to the hold. The three-row permission model folds
+    // into the shape's own two answers -- CANNOT SPEND is what survives,
+    // SEES THEM FOREVER is what does not -- and FINDS PAYMENTS is what the
+    // paragraph already says the key is for. The passphrase note rides the
+    // warn slot: it is the one subtlety worth reading before sharing.
+    char para[224];
+    snprintf(para, sizeof para, "%s", tr(STR_R_SP_WARN_B));
+    char *cut = strstr(para, "\n\n");
+    const char *note = NULL;
+    if (cut) { *cut = '\0'; note = cut + 2; }
+    wt_gate_t g = {
+        .mark     = WT_ICON_SECRET,
+        .sentence = tr(STR_K_SPGATE_SENT),
+        .para     = para,
+        .warn     = note,
+        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_K_SPGATE_SURV),
+        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_K_SPGATE_GOES),
+        .stop     = false,
+    };
+    wt_gate(s_scr, &g);
+
+    // Revealing a reusable private scan key should not be one stray tap
+    // away. 1200 is the gate floor an accidental brush cannot cross; the
+    // old 900 sat under it for no reason a comment could give.
+    wt_hold_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
+                   WT_ACT_X, WT_ACTION_Y, 330, 1200, WT_WARN, WT_WARN,
+                   sp_key_show, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
+                    160, true, sp_key_back_cb, NULL);
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----

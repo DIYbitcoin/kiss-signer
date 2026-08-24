@@ -2675,21 +2675,21 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> KEYS, still on COORDINATOR
   touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent warning
   save("/tmp/sim_sp_warn.ppm");
-  tap_str(STR_R_SP_SHOW, 25, 6);    // early release: key stays hidden
+  tap_str(STR_W_HOLD_SHOW, 25, 6);    // early release: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
   // The failure branch first, because it is one hold away and nothing else in
   // the walk can reach it: kiss_info.c only draws the QR when the export
   // succeeds, so a derivation that fails renders a different screen that had
   // never been photographed in any locale.
   s_sim_sp_export_fail = 1;
-  tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export refuses
+  tap_str(STR_W_HOLD_SHOW, 90, 8);  // full hold (1200ms gate) -> export refuses
   save("/tmp/sim_sp_key_fail.ppm");                 // no QR: the refusal render
   s_sim_sp_export_fail = 0;
   // DONE, not BACK: the refusal render carries the same exit the success one
   // does. Then take the row again for the working export below.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET
   touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent
-  tap_str(STR_R_SP_SHOW, 65, 8);    // full hold -> export
+  tap_str(STR_W_HOLD_SHOW, 90, 8);  // full hold (1200ms gate) -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
   save("/tmp/sim_sp_key_zoom.ppm");
