@@ -3892,13 +3892,21 @@ int main(void) {
 
   set_tab(SET_BACKUP);
   set_row(0);                                       // Recovery words -> warning again
-  words_row(0);                        // Show the words
-  save("/tmp/sim_words.ppm");
+  words_row(0);                        // Show the words -> the WT_WARN gate
+  save("/tmp/sim_words_gate.ppm");                  // eye mark, the two captions
+  must_show("words gate", tr(STR_W_SHOW_SENT));
+  // a tap is NOT enough here either
+  tap_str(STR_W_HOLD_SHOW, 2, 4);
+  save("/tmp/sim_words_gate_noop.ppm");             // still the gate
+  touch(208, 430); pump(90); release(); pump(10);   // 1200ms hold -> the grid
+  save("/tmp/sim_words.ppm");                       // 3x4, dim numbers, WARN band
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
 
   // A 24-word seed is the only case that paginates, and 12-word wallets are
   // what the rest of this walk uses -- so swap the stored mnemonic directly
   // (same file, same statics) rather than typing 24 words through the keypad.
+  // Forward only: the grid has no page-back and no early DONE -- leaving is
+  // a decision and it happens on the last sheet.
   {
     char save_seed[sizeof s_sim_seed];
     snprintf(save_seed, sizeof save_seed, "%s", s_sim_seed);
@@ -3908,12 +3916,11 @@ int main(void) {
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     set_tab(SET_BACKUP);
     set_row(0);                                     // Recovery words -> warning
-    words_row(0);                      // Show the words
-    save("/tmp/sim_words24_p1.ppm");                // 1-12 / 24, NEXT but no BACK
+    words_row(0);                      // Show the words -> the gate
+    touch(208, 430); pump(90); release(); pump(10); // hold through
+    save("/tmp/sim_words24_p1.ppm");                // 1-12, one lit sheet dot
     tap_str(STR_R_NEXT, 3, 6);   // NEXT
-    save("/tmp/sim_words24_p2.ppm");                // 13-24 / 24, BACK but no NEXT
-    tap_str(STR_C_BACK, 3, 6);   // BACK -> page 1 again
-    save("/tmp/sim_words24_back.ppm");
+    save("/tmp/sim_words24_p2.ppm");                // 13-24, DONE appears
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Settings
     snprintf(s_sim_seed, sizeof s_sim_seed, "%s", save_seed);
   }

@@ -3006,9 +3006,11 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
     band_dot(scr, WT_ACT_X, y + (lh - 8) / 2, col, pulse);
     lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + 8 + 10, y, f, col);
     lv_obj_set_style_text_letter_space(l, 2, 0);
-    // One line: the statement shares the band with BACK, and a second line
-    // would leave the card. 592 is where the exit's lane begins.
+    // One line, in HEIGHT as well as width: the statement shares the band
+    // with the exit, and LONG_DOT only elides once the box stops growing.
+    // 592 is where the exit's lane begins.
     lv_obj_set_width(l, 592 - 12 - (WT_ACT_X + 18));
+    lv_obj_set_height(l, lh);
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     return l;
 }
@@ -3115,6 +3117,7 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                                  WT_ACTION_Y + (WT_ACTION_H - lh) / 2, hf,
                                  WT_DIM);
                 lv_obj_set_width(c->hint, 592 - 12 - WT_ACT_X);
+                lv_obj_set_height(c->hint, lh);
                 lv_label_set_long_mode(c->hint, LV_LABEL_LONG_DOT);
             }
         }
@@ -3691,6 +3694,55 @@ void wt_outcome(lv_obj_t *scr, const wt_outcome_t *o)
     }
 }
 
+// ---- shape 3: the grid you read aloud (see kiss_theme.h) ----
+
+void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
+{
+    if (n > 12) n = 12;
+    const lv_font_t *nf = wt_font_mono18();
+    const lv_font_t *wf = wt_font_mono28();
+    for (int k = 0; k < n; k++) {
+        const int cx = 62 + (k / 4) * 232;
+        const int cy = 126 + (k % 4) * 62;
+        char num[8];
+        snprintf(num, sizeof num, "%d", first + k + 1);
+        // The number right-aligned in its 30px lane, dim: it keeps the
+        // owner's place and then gets out of the word's way.
+        lv_obj_t *nl = wt_lbl(scr, num, cx, 0, nf, WT_DIM);
+        lv_obj_set_width(nl, 30);
+        lv_obj_set_height(nl, lv_font_get_line_height(nf));
+        lv_obj_set_style_text_align(nl, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_y(nl, cy + (lv_font_get_line_height(wf) -
+                               lv_font_get_line_height(nf)) / 2);
+        // BIP39 words are ASCII by construction, so the mono face is safe by
+        // the same argument as a fingerprint; the guard stays for the day a
+        // caller hands this something else.
+        lv_obj_t *wl = wt_lbl(scr, words[first + k], cx + 30 + 16, cy,
+                              chrome28(words[first + k]), WT_INK);
+        lv_obj_set_height(wl, lv_font_get_line_height(wf));
+    }
+}
+
+void wt_sheet_dots(lv_obj_t *scr, int n, int cur)
+{
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *d = lv_obj_create(scr);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_size(d, 6, 6);
+        lv_obj_set_style_radius(d, 3, 0);
+        lv_obj_set_pos(d, 524 + i * 14, WT_CHROME_STRIP_Y + (WT_BR_H - 6) / 2);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
+        if (i == cur) {
+            lv_obj_set_style_bg_color(d, wt_accent(), 0);
+            lv_obj_add_flag(d, WT_FLAG_ACCENT_FILL);
+        } else {
+            lv_obj_set_style_bg_color(d, WT_DIM, 0);
+        }
+    }
+}
+
 // ---- shape 4: the gate (see kiss_theme.h) ----
 
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
@@ -3701,8 +3753,8 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     // The mark and the sentence share a baseline at the top of the lane. The
     // mark takes the FULL danger colour; the sentence the readable tint --
     // full WT_STOP as text is the one combination that vibrates.
-    lv_obj_t *ic = wt_lbl(scr, WT_ICON_ERASE, WT_LANE_X, 0, wt_font23(),
-                          mark);
+    lv_obj_t *ic = wt_lbl(scr, g->mark ? g->mark : WT_ICON_ERASE, WT_LANE_X,
+                          0, wt_font23(), mark);
     lv_obj_update_layout(ic);
     const lv_font_t *sf = chrome28(g->sentence);
     lv_obj_set_y(ic, 124 + (lv_font_get_line_height(sf) -

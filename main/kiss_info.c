@@ -662,99 +662,129 @@ static void words_render_page(int page)
     char words[WSEED_MAX_MNEMONIC];
     if (kiss_seed_load(words, sizeof words) != 0)
         return;
-    int n = 1;
-    for (const char *p = words; *p; p++) if (*p == ' ') n++;
-    // A BIP39 mnemonic is 24 words at most. Clamping says so out loud: it keeps
-    // a malformed store from inventing pages, and it is what lets the counter
-    // below fit a fixed buffer (gcc's format-truncation check assumes INT_MAX
-    // otherwise, and -Werror stops the device build).
-    if (n > WSEED_MAX_WORDS) n = WSEED_MAX_WORDS;
+    // Split once: the grid takes pointers and the labels copy, so the split
+    // lives exactly as long as this frame and the wipe below reaches all of
+    // it. A BIP39 mnemonic is 24 words at most; clamping says so out loud
+    // and keeps a malformed store from inventing pages.
+    char wbuf[WSEED_MAX_WORDS][12];
+    const char *wp[WSEED_MAX_WORDS];
+    int n = 0;
+    for (const char *p = words; *p && n < WSEED_MAX_WORDS;) {
+        int wl = 0;
+        while (p[wl] && p[wl] != ' ' && wl < 11) wl++;
+        memcpy(wbuf[n], p, (size_t)wl);
+        wbuf[n][wl] = 0;
+        wp[n] = wbuf[n];
+        n++;
+        p += wl;
+        while (*p == ' ') p++;
+    }
 
     const int pages = (n + WORDS_PER_PAGE - 1) / WORDS_PER_PAGE;
     if (page < 0) page = 0;
     if (page >= pages) page = pages - 1;
     s_words_page = page;
-
     const int first = page * WORDS_PER_PAGE;
     int on = n - first;
     if (on > WORDS_PER_PAGE) on = WORDS_PER_PAGE;
-    const int rows = (on + 1) / 2;          // fill column one, then column two
 
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_I_WORDS_BTN), tr(STR_I_WORDS_S));
+    s_scr = wt_chrome(s_parent, tr(STR_I_WORDS_BTN));
 
-    // One card per column. This is the screen a holder photographs with their
-    // eyes and copies onto paper one line at a time, and twelve numbered words
-    // floating on the page gave them nothing to keep their place against. The
-    // cards are sized from `rows`, not from a constant: the last page of a 24
-    // word mnemonic has fewer rows than the first.
-    // 42, not 46. The four pixels a row gives back are what open the band under
-    // the cards, and the screen needed it: twelve words in two boxes and
-    // nothing else never said WHICH keys they are, on the one screen where
-    // that is the whole question. A holder with two signers, or a passphrase
-    // and a decoy, had no way to tell one word list from another.
-    const int WROW = 42;
-    const int card_h = rows * WROW + 12;
-    lv_obj_t *col[2] = { wt_card(s_scr, 48, 96, 344, card_h), NULL };
-    if (on > rows) col[1] = wt_card(s_scr, 408, 96, 344, card_h);
-
-    // The same verdict WRITE THESE DOWN carries. These words came off a stored
-    // seed, so their checksum holds by construction -- saying so is what stops
-    // a holder wondering whether a word they cannot read is a word gone wrong.
-    lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
-    lv_obj_update_layout(okc);
-    lv_obj_set_pos(okc, 752 - lv_obj_get_width(okc), 30);
-
-    const char *p = words;
-    for (int i = 0; i < n && *p; i++) {
-        char w[12], buf[32];   // BIP39 words are <= 8 chars; sized like the wizard
-        int wl = 0;
-        while (p[wl] && p[wl] != ' ' && wl < 11) wl++;
-        memcpy(w, p, (size_t)wl); w[wl] = 0;
-        p += wl; while (*p == ' ') p++;
-        if (i < first || i >= first + on) continue;
-        snprintf(buf, sizeof buf, "%2d. %s", i + 1, w);
-        const int k = i - first, c = k / rows, r = k % rows;
-        if (!col[c]) continue;                 // cannot happen: c is 0 or 1
-        wt_lbl(col[c], buf, 14, 12 + r * WROW, wt_font28(), WT_INK);
-    }
-    kiss_wipe(words, sizeof words);
-
-    // Which keys these words open, under the list, in the band the tighter rows
-    // paid for. Guarded the same way every other fingerprint on the device is:
+    // The trail answers the question the old fingerprint line answered --
+    // WHICH keys these words open -- as the place the owner is standing:
+    // a holder with two signers, or a passphrase and a decoy, tells one
+    // word list from another by this code. Guarded as every fingerprint is:
     // zero is "no keys open", never a code to copy down.
     {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
-        if (kiss_fp_known(fp)) {
-            char b[48];
-            snprintf(b, sizeof b, "%s  %02X%02X%02X%02X", tr(STR_L_FP_CAP),
-                     fp[0], fp[1], fp[2], fp[3]);
-            lv_obj_t *l = wt_lbl(s_scr, b, 48, 96 + card_h + 10, wt_font23(), WT_MUT);
-            lv_obj_set_width(l, 704);
-            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-        }
+        char trail[64];
+        if (kiss_fp_known(fp))
+            snprintf(trail, sizeof trail, "%s / %02X%02X%02X%02X",
+                     tr(STR_I_T), fp[0], fp[1], fp[2], fp[3]);
+        else
+            snprintf(trail, sizeof trail, "%s", tr(STR_I_T));
+        lv_obj_t *tl = wt_trail(s_scr, WT_ICON_KEY, trail, false);
+        // The trail gives up the lane the sheet dots and the verdict chip
+        // stand in -- the gate reads boxes, not ink.
+        lv_obj_set_width(tl, 524 - 12 - lv_obj_get_x(tl));
     }
+    if (pages > 1) wt_sheet_dots(s_scr, pages, page);
 
-    if (pages > 1) {
-        char cnt[40];
-        snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, n);
-        if (page > 0)
-            wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, words_page_cb, (void *)(intptr_t)-1);
-        // STR_R_NEXT ("NEXT") is the receive flow's page-forward label. Same
-        // word, already translated in all 21 locales; borrowing it beats
-        // adding a string that would have to reach every table to ship.
-        if (page < pages - 1)
-            wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, 208, WT_ACTION_Y, 0, false, words_page_cb, (void *)(intptr_t)1);
-        wt_lbl(s_scr, cnt, 380, 416, wt_font23(), WT_MUT);
-    }
-    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, words_back_cb, NULL);
+    // The same verdict WRITE THESE DOWN carries. These words came off a
+    // stored seed, so their checksum holds by construction -- saying so is
+    // what stops a holder wondering whether a word they cannot read is a
+    // word gone wrong.
+    lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
+    lv_obj_update_layout(okc);
+    lv_obj_set_pos(okc, 752 - lv_obj_get_width(okc),
+                   70 + (30 - lv_obj_get_height(okc)) / 2);
+
+    wt_word_grid(s_scr, wp, on, first);
+    kiss_wipe(words, sizeof words);
+    kiss_wipe(wbuf, sizeof wbuf);
+
+    // The band says the one thing that outranks navigation on this screen,
+    // and the pulsing amber dot is what earns the interruption.
+    wt_standing(s_scr, tr(STR_W_GRID_WARN), WT_WARN, true);
+
+    // Forward only, and DONE only on the last sheet: leaving is a decision,
+    // and it happens once the owner has seen every word. STR_R_NEXT is the
+    // receive flow's page-forward label, already in 21 locales.
+    if (page < pages - 1)
+        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, 592, WT_ACTION_Y,
+                        160, true, words_page_cb, (void *)(intptr_t)1);
+    else
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y,
+                        160, true, words_back_cb, NULL);
+}
+
+static void words_page(void);
+
+// The WT_WARN gate in front of the reveal (shape 4): words on screen is a
+// caution an owner can still walk back from, so it is amber, and the hold is
+// what makes a pocket press incapable of putting a seed on the glass.
+static void words_reveal(void *ud)
+{
+    (void)ud;
+    words_render_page(0);
+}
+
+static void words_gate_cancel_cb(lv_event_t *e)
+{
+    (void)e;
+    words_page();
+}
+
+static void words_gate_screen(void)
+{
+    swap_screen();
+    s_scr = wt_chrome(s_parent, tr(STR_I_WORDS_BTN));
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+             tr(STR_I_WTAB_PAPER));
+    wt_trail(s_scr, WT_ICON_KEY, trail, false);
+    wt_gate_t g = {
+        .mark     = LV_SYMBOL_EYE_OPEN,
+        .sentence = tr(STR_W_SHOW_SENT),
+        .para     = tr(STR_I_WORDS_S),
+        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_W_SHOW_SURV),
+        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_W_SHOW_GOES),
+        .stop     = false,
+    };
+    wt_gate(s_scr, &g);
+    wt_hold_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
+                   WT_ACT_X, WT_ACTION_Y, 330, 1200, WT_WARN, WT_WARN,
+                   words_reveal, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
+                    160, true, words_gate_cancel_cb, NULL);
 }
 
 static void words_show_cb(lv_event_t *e)
 {
     (void)e;
-    words_render_page(0);
+    words_gate_screen();
 }
 
 // VERIFY MY COPY: hand off to the setup module's paper-check flow, then return

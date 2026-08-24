@@ -308,6 +308,11 @@ UNTRANSLATED_OK = {
     # the English-only rule; English until the sweep.
     "C_SURVIVES", "C_NOT_SURVIVES", "G_WIPE_CANT", "G_WIPE_GOES_FMT",
     "G_ERASED_NEXT", "G_NOERASE_NEXT",
+    # The word grid (shape 3) and the WT_WARN gate now standing in front
+    # of SHOW THE WORDS. Born under the English-only rule; English until
+    # the sweep.
+    "W_GRID_WARN", "W_SHOW_SENT", "W_SHOW_SURV", "W_SHOW_GOES",
+    "W_HOLD_SHOW",
 }
 
 

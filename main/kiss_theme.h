@@ -1082,6 +1082,7 @@ void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int open_idx, void *ud),
 // back from is WT_WARN. Text on stop takes WT_STOP_INK so the sentence stays
 // legible; the mark takes the full colour.
 typedef struct {
+    const char *mark;       // the gate's glyph; NULL takes WT_ICON_ERASE
     const char *sentence;   // one line, mono28, the danger ink
     const char *para;       // two lines max at 690, mono18, WT_MUT
     const char *warn;       // optional one-liner under the para, WT_WARN
@@ -1116,6 +1117,21 @@ typedef struct {
     bool        ok;
 } wt_outcome_t;
 void wt_outcome(lv_obj_t *scr, const wt_outcome_t *o);
+
+// ---- shape 3: the grid you read aloud (frame 7c) -------------------------
+// Twelve to a sheet, three columns of four, columns filled top to bottom so
+// the numbers run 1-4 / 5-8 / 9-12. The number sits dim in a 30px lane so
+// the WORD carries -- this is the screen an owner copies onto paper one line
+// at a time and reads back across a desk. `first` is the sheet's first word
+// index (0-based), `n` how many of `words` to draw, 12 at most.
+//
+// The words come as pointers because every caller already has them split;
+// they are drawn and forgotten, never copied into the kit.
+void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first);
+
+// The sheet dots, in the trail line at x=524 -- the band under a word grid
+// is saying something more important. Current sheet in the accent.
+void wt_sheet_dots(lv_obj_t *scr, int n, int cur);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal
