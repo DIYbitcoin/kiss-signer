@@ -303,6 +303,10 @@ UNTRANSLATED_OK = {
     "K_HELP_F1C", "K_HELP_F1V", "K_HELP_F2C", "K_HELP_F2V",
     "K_HELP_F3C", "K_HELP_F3V",
     "C_HELP_HINT", "C_CALLED_FMT",
+    # The gate (shape 4): the two captions every gate shares, the erase
+    # gate's sentence, and the loss named by its fingerprint. Born under
+    # the English-only rule; English until the sweep.
+    "C_SURVIVES", "C_NOT_SURVIVES", "G_WIPE_CANT", "G_WIPE_GOES_FMT",
 }
 
 

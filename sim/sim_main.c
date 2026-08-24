@@ -3779,7 +3779,8 @@ int main(void) {
   set_tab(SET_NOUNDO);
   touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
-  tap_str(STR_C_BACK, 3, 8);     // BACK -> Settings, NO UNDO tab
+  tap_str(STR_C_CANCEL, 3, 8);   // CANCEL -> Settings, NO UNDO tab: a gate's
+                                 // exit names the refusal, not the direction
 
   // PERSIST: the marks this signer keeps between sessions. Two states, so the
   // chip IS the switch -- one tap flips it and applies it. The sub line under

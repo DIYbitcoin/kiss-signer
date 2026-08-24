@@ -1186,52 +1186,60 @@ static void erase_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 static void erase_screen(void)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_G_WIPEC_T), NULL);
+    s_scr = wt_chrome(s_parent, tr(STR_G_WIPEC_T));
 
-    // The keys this page is about to end, named. Every route into Settings has
-    // an open session behind it, so kiss_ui_last_fp is THIS signer's
-    // fingerprint rather than a stale one, and the owner can hold it against
-    // the card in their hand before touching the hold. That is the one check
-    // the confirmation cannot do on their behalf.
-    //
-    // No measure-and-shrink pass any more: wt_value_card centres its own
-    // caption and value now, so the loop that used to size the card to its
-    // widest child was both a no-op (the caption is forced to the full lane)
-    // and about to fight the centring.
-    {
-        uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        char id[16];
-        snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        wt_value_card(s_scr, tr(STR_D_FINGERPRINT), id, 228, 108, 344, false);
+    // The trail says how the owner got here, and its mark is the one
+    // breadcrumb on the device in full WT_STOP: the red reaches the header
+    // before the sentence does.
+    char trail[128];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+             tr(STR_I_SEC_NO_UNDO));
+    wt_trail(s_scr, WT_ICON_ERASE, trail, true);
 
-        // The block below promises the paper still opens these keys. The device
-        // knows when that has never been proven -- Settings says so on an amber
-        // card three rows up -- so it says so here too rather than letting an
-        // unchecked promise carry an erase.
-        if (!kiss_ui_backup_checked()) {
-            char warn[96];
-            snprintf(warn, sizeof warn, "%s  %s", LV_SYMBOL_WARNING,
-                     tr(STR_I_WORDS_UNVERIFIED));
-            lv_obj_t *l = wt_lbl(s_scr, warn, 0, 0, wt_font23(), WT_WARN);
-            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 200);
-        }
+    // The shape answers the only question an owner has at a gate. The keys
+    // being ended are NAMED, by fingerprint, in the loss line: every route
+    // into Settings has an open session behind it, so kiss_ui_last_fp is
+    // THIS signer's fingerprint, and the owner can hold it against the card
+    // in their hand before touching the hold. G_WIPEC_B was already the two
+    // halves -- what leaves, and what brings it back -- so the paragraph is
+    // its first clause and WHAT SURVIVES is its second; no new sentence had
+    // to be written, only stood where the shape wants it.
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    char goes[96], id[16];
+    snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+    snprintf(goes, sizeof goes, tr(STR_G_WIPE_GOES_FMT), id);
+
+    char para[192], surv[192];
+    snprintf(para, sizeof para, "%s", tr(STR_G_WIPEC_B));
+    char *cut = strstr(para, "\n\n");
+    if (cut) {
+        *cut = '\0';
+        snprintf(surv, sizeof surv, "%s", cut + 2);
+    } else {
+        snprintf(surv, sizeof surv, "%s", tr(STR_G_WIPEC_B));
     }
 
-    // G_WIPEC_B is already two paragraphs -- what leaves, and what brings it
-    // back -- so the pair geometry falls out of wt_why_body rather than being
-    // hand placed: STOP on the half that destroys, mut on the half that
-    // reassures. That is the same split the chooser drew, minus the door that
-    // led to the same room.
-    wt_why_body(s_scr, tr(STR_G_WIPEC_B), 232, STOP_COL, true);
+    wt_gate_t g = {
+        .sentence = tr(STR_G_WIPE_CANT),
+        .para     = para,
+        .warn     = kiss_ui_backup_checked() ? NULL
+                                             : tr(STR_I_WORDS_UNVERIFIED),
+        .surv_cap = tr(STR_C_SURVIVES),   .surv = surv,
+        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = goes,
+        .stop     = true,
+    };
+    wt_gate(s_scr, &g);
 
-    // 400, not 320. The hold pill was never measured while it lived on an
-    // overlay -- nothing in fitcheck pointed at it -- and at 320 the Russian,
-    // European Portuguese and Norwegian labels ran 357, 342 and 329px into a
-    // 292px lane. The row has the room: 48..448 with BACK still at 612.
-    wt_hold_pill(s_scr, tr(STR_G_HOLD_WIPE), WT_ACT_X, WT_ACTION_Y, 400,
-                 WT_ACTION_H, WIPE_HOLD_MS, do_wipe, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, erase_back_cb, NULL);
+    // The hold keeps its 2000ms: the spec's 1200 is the floor an accidental
+    // brush cannot cross, and the one erase on the device stays above it for
+    // the reason the old comment gave -- this one has no undo. The track
+    // fills in full WT_STOP; the label reads in the tint.
+    wt_hold_rule_c(s_scr, tr(STR_G_HOLD_WIPE), tr(STR_G_FW_KEEP_HOLDING),
+                   WT_ACT_X, WT_ACTION_Y, 330, WIPE_HOLD_MS,
+                   WT_STOP_INK, WT_STOP, do_wipe, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
+                    160, true, erase_back_cb, NULL);
 }
 
 static void endwords_cb(lv_event_t *e) { (void)e; erase_screen(); }

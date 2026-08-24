@@ -215,6 +215,7 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 #define WT_ICON_WHAT   "\xEF\x84\xA8"   // U+F128 question: the [ ? ] tab's mark
 #define WT_ICON_CAMERA "\xEF\x80\xB0"   // U+F030 camera: the SCANNING trail
 #define WT_ICON_SIGN   "\xEF\x95\xB3"   // U+F573 file-signature: the SIGN trail
+#define WT_ICON_ERASE  "\xEF\x8B\xAD"   // U+F2ED trash-alt: the gate's mark
 #define WT_ICON_EXPAND "\xEF\x81\xA5"   // U+F065 expand
 #define WT_ICON_LIST   "\xEF\x80\xBA"   // U+F03A list
 #define WT_ICON_LINK   "\xEF\x83\x81"   // U+F0C1 link
@@ -978,7 +979,10 @@ lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 // accent, then "PARENT / CHILD" at mono18 ls2 WT_DIM, on the strip row.
 // Replaces the subtitle idiom on every page that was opened FROM somewhere;
 // a page with sibling views puts wt_brackets on that row instead, never both.
-lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path);
+// `stop` paints the icon full WT_STOP: the erase gate's one deliberate
+// exception, so the red is in the breadcrumb before it is in the sentence.
+lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
+                   bool stop);
 
 // The standing statement: the action band's left lane on a page that has no
 // action of its own. An 8px dot then one mono18 ls2 line, both in `col`
@@ -1066,6 +1070,36 @@ void wt_def_list_open(lv_obj_t *list, int idx);
 // and this is how it hears about it without owning the rows.
 void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int open_idx, void *ud),
                            void *ud);
+
+// ---- shape 4: the gate (frame 7d) ---------------------------------------
+// One danger sentence under the mark, one paragraph, then the two lines that
+// answer the only question an owner actually has at a gate: what survives
+// this, and what does not. The kit stays string-free -- the exact captions
+// (C_SURVIVES / C_NOT_SURVIVES) come in with the values.
+//
+// `stop` is Part 6's whole rule: WT_STOP is the irreversible and the erase
+// gate is the only gate that gets it; every caution an owner can still walk
+// back from is WT_WARN. Text on stop takes WT_STOP_INK so the sentence stays
+// legible; the mark takes the full colour.
+typedef struct {
+    const char *sentence;   // one line, mono28, the danger ink
+    const char *para;       // two lines max at 690, mono18, WT_MUT
+    const char *warn;       // optional one-liner under the para, WT_WARN
+    const char *surv_cap, *surv;   // WHAT SURVIVES, and its answer
+    const char *goes_cap, *goes;   // WHAT DOES NOT, and its answer
+    bool        stop;
+} wt_gate_t;
+void wt_gate(lv_obj_t *scr, const wt_gate_t *g);
+
+// wt_hold_rule in a stated colour instead of the accent: the gate's hold
+// fills its track in the danger colour, and a danger never restyles with the
+// theme, so these carry no accent flags. `ink` is the label and the arrow,
+// `fill` the track's fill -- WT_STOP_INK over WT_STOP on the erase gate,
+// WT_WARN over WT_WARN everywhere retryable.
+lv_obj_t *wt_hold_rule_c(lv_obj_t *scr, const char *txt, const char *held,
+                         int x, int y, int w, int ms,
+                         lv_color_t ink, lv_color_t fill,
+                         void (*done)(void *), void *ud);
 
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal

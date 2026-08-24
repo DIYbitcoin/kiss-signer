@@ -963,9 +963,14 @@ lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int 
     return p;
 }
 
-lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
-                       int x, int y, int w, int ms,
-                       void (*done)(void *), void *ud)
+// One builder for both faces of the rule hold: `ink`/`fill` NULL means the
+// accent, flagged so the theme repaints it; a stated colour means a DANGER,
+// which never restyles, so the flags stay off.
+static lv_obj_t *hold_rule_build(lv_obj_t *scr, const char *txt,
+                                 const char *held, int x, int y, int w,
+                                 int ms, const lv_color_t *ink,
+                                 const lv_color_t *fill,
+                                 void (*done)(void *), void *ud)
 {
     if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
 
@@ -997,12 +1002,14 @@ lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
     h->pill = p;
 
-    lv_obj_t *l = wt_lbl(p, "", 0, 0, wt_font23(), wt_accent());
+    lv_obj_t *l = wt_lbl(p, "", 0, 0, wt_font23(),
+                         ink ? *ink : wt_accent());
     lv_obj_set_style_text_letter_space(l, 2, 0);
-    lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    if (!ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     h->lbl = l;
-    lv_obj_t *ar = wt_lbl(p, LV_SYMBOL_RIGHT, 0, 2, wt_font23(), wt_accent());
-    lv_obj_add_flag(ar, WT_FLAG_ACCENT);
+    lv_obj_t *ar = wt_lbl(p, LV_SYMBOL_RIGHT, 0, 2, wt_font23(),
+                          ink ? *ink : wt_accent());
+    if (!ink) lv_obj_add_flag(ar, WT_FLAG_ACCENT);
     h->arrow = ar;
     hold_rule_say(h, txt);
     lv_obj_update_layout(l);
@@ -1020,9 +1027,9 @@ lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
     lv_obj_remove_style_all(f);
     lv_obj_set_size(f, 0, 2);
     lv_obj_set_pos(f, 0, ty);
-    lv_obj_set_style_bg_color(f, wt_accent(), 0);
+    lv_obj_set_style_bg_color(f, fill ? *fill : wt_accent(), 0);
     lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
-    lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
+    if (!fill) lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     h->fill = f;
 
@@ -1031,6 +1038,22 @@ lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
     return p;
+}
+
+lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
+                       int x, int y, int w, int ms,
+                       void (*done)(void *), void *ud)
+{
+    return hold_rule_build(scr, txt, held, x, y, w, ms, NULL, NULL, done, ud);
+}
+
+lv_obj_t *wt_hold_rule_c(lv_obj_t *scr, const char *txt, const char *held,
+                         int x, int y, int w, int ms,
+                         lv_color_t ink, lv_color_t fill,
+                         void (*done)(void *), void *ud)
+{
+    return hold_rule_build(scr, txt, held, x, y, w, ms, &ink, &fill, done,
+                           ud);
 }
 
 void wt_pill_select(lv_obj_t *pill, bool on)
@@ -2914,14 +2937,18 @@ lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     return strip;
 }
 
-lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path)
+lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
+                   bool stop)
 {
     int x = WT_LANE_X;
     if (icon && *icon) {
         // The mark comes off the Latin face; IoskeleyMono carries no
-        // FontAwesome, same as the tab strip's marks.
-        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font14(), wt_accent());
-        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        // FontAwesome, same as the tab strip's marks. On the erase gate it
+        // is full WT_STOP -- the red reaches the breadcrumb before the
+        // sentence -- and a danger never wears the accent's flag.
+        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font14(),
+                              stop ? WT_STOP : wt_accent());
+        if (!stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         lv_obj_update_layout(ic);
         lv_obj_set_y(ic, WT_CHROME_STRIP_Y +
                          (WT_BR_H - lv_obj_get_height(ic)) / 2);
@@ -3606,6 +3633,71 @@ void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)
     if (!d) return;
     d->on_change = cb;
     d->ud = ud;
+}
+
+// ---- shape 4: the gate (see kiss_theme.h) ----
+
+void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
+{
+    const lv_color_t mark = g->stop ? WT_STOP : WT_WARN;
+    const lv_color_t ink  = g->stop ? WT_STOP_INK : WT_WARN;
+
+    // The mark and the sentence share a baseline at the top of the lane. The
+    // mark takes the FULL danger colour; the sentence the readable tint --
+    // full WT_STOP as text is the one combination that vibrates.
+    lv_obj_t *ic = wt_lbl(scr, WT_ICON_ERASE, WT_LANE_X, 0, wt_font23(),
+                          mark);
+    lv_obj_update_layout(ic);
+    const lv_font_t *sf = chrome28(g->sentence);
+    lv_obj_set_y(ic, 124 + (lv_font_get_line_height(sf) -
+                            lv_obj_get_height(ic)) / 2);
+    lv_obj_t *s = wt_lbl(scr, g->sentence,
+                         WT_LANE_X + lv_obj_get_width(ic) + 14, 124, sf,
+                         ink);
+    lv_obj_set_width(s, WT_LANE_W - lv_obj_get_width(ic) - 14);
+    lv_obj_set_height(s, lv_font_get_line_height(sf));
+    lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+
+    const lv_font_t *pf = chrome18(g->para);
+    lv_obj_t *p = wt_lbl(scr, g->para, WT_LANE_X, 176, pf, WT_MUT);
+    lv_obj_set_width(p, 690);
+    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+
+    if (g->warn && *g->warn) {
+        // The one amber line a stop gate may carry: a caution the owner can
+        // still walk back and fix -- paper never checked -- sitting beside
+        // the red it might spare them.
+        lv_point_t ps;
+        lv_text_get_size(&ps, g->para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+        char wtxt[128];
+        snprintf(wtxt, sizeof wtxt, "%s  %s", LV_SYMBOL_WARNING, g->warn);
+        lv_obj_t *w = wt_lbl(scr, wtxt, WT_LANE_X, 176 + ps.y + 12,
+                             wt_font14(), WT_WARN);
+        lv_obj_set_style_text_letter_space(w, 2, 0);
+    }
+
+    wt_line_rule(scr, WT_LANE_X, 260, WT_LANE_W);
+
+    // The two lines that ARE the shape: what survives this, and what does
+    // not. Caption lane 168, fixed; the answers in ink.
+    const struct { const char *cap, *val; } facts[2] = {
+        { g->surv_cap, g->surv }, { g->goes_cap, g->goes },
+    };
+    for (int i = 0; i < 2; i++) {
+        int y = i == 0 ? 278 : 318;
+        const lv_font_t *cf = chrome18(facts[i].cap);
+        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf, WT_MUT);
+        lv_obj_set_style_text_letter_space(cap, 2, 0);
+        lv_obj_set_width(cap, 168);
+        lv_obj_set_height(cap, lv_font_get_line_height(cf));
+        lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
+        const lv_font_t *vf = chrome18(facts[i].val);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 168 + 14, y,
+                               vf, WT_INK);
+        lv_obj_set_width(val, WT_LANE_W - 168 - 14);
+        lv_obj_set_height(val, lv_font_get_line_height(vf));
+        lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+    }
 }
 
 // ---- SETTINGS: the full-lane row (see kiss_theme.h) ----
