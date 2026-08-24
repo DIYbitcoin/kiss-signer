@@ -137,10 +137,10 @@ SECTIONS = [
      "that can spend.",
      [
          ("04-wallet-facts", "sim_winfo",
-          "KEYS carries the four facts you check against the coordinator: "
-          "fingerprint, network, address type and the first address. Each "
-          "line opens a plain-words explainer; COORDINATOR is the second "
-          "tab."),
+          "KEYS answers which device you are holding: the fingerprint takes "
+          "the top third, big enough to check across a desk, and the facts "
+          "under it open their plain-words definitions in place. The [ ? ] "
+          "mark explains the page; COORDINATOR is the second tab."),
          ("05-pair-sparrow", "sim_pair",
           "PAIR COORDINATOR with DESKTOP selected shows the descriptor "
           "Sparrow reads. Scan it with Sparrow's webcam, or export to SD. "

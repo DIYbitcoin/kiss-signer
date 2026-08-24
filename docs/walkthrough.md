@@ -66,7 +66,7 @@ Pairing hands Sparrow a watch-only map of the wallet so it can find your address
 
 ![KISS screen: wallet facts](shots/04-wallet-facts.png)
 
-WALLET carries the facts you check against the coordinator: fingerprint, network, address type and the first address.
+KEYS answers which device you are holding: the fingerprint takes the top third, big enough to check across a desk, and the facts under it open their plain-words definitions in place. The [ ? ] mark explains the page; COORDINATOR is the second tab.
 
 ![KISS screen: pair sparrow](shots/05-pair-sparrow.png)
 
@@ -82,7 +82,7 @@ Do this once, before any money moves. It is the step that catches a computer sho
 
 ![KISS screen: receive](shots/07-receive.png)
 
-RECEIVE lists addresses KISS derived on the device. Tap any of them for its QR. Read them here, on the device, never off the computer.
+RECEIVE opens on the freshest address KISS derived on the device: its QR, the eight characters to compare, and whether this signer has handed it out before. Read it here, on the device, never off the computer.
 
 ![KISS screen: verify match](shots/08-verify-match.png)
 
@@ -98,11 +98,11 @@ Send yourself an amount you would not mind losing, and confirm it arrives, befor
 
 ![KISS screen: receive first](shots/10-receive-first.png)
 
-Page to the address you want paying. The counter says which address you are looking at. Tap its QR for a full-screen scan view.
+NEXT ADDRESS steps to the next one this signer has not handed out. Tap ADDRESS #N to step back through the recent ones, or the QR for a full-screen scan view.
 
 ![KISS screen: receive reuse](shots/11-receive-reuse.png)
 
-Every address keeps the standing privacy reminder in view: use a new one for each payment, because reuse links payments in public.
+The lamp reads UNUSED until this signer has handed the address out. On one it has, it turns amber and says to take the next: reusing an address links the payments in public.
 
 ## Signing and broadcasting a tiny transaction
 
