@@ -318,6 +318,12 @@ UNTRANSLATED_OK = {
     # English until the sweep.
     "G_HELP_HEAD", "G_HELP_BODY", "G_HELP_F1C", "G_HELP_F1V",
     "G_HELP_F2C", "G_HELP_F2V", "G_HELP_F3C", "G_HELP_F3V",
+    # The storage gate and its outcomes. Born under the English-only
+    # rule; English until the sweep.
+    "G_STOGATE_SENT_SD", "G_STOGATE_SENT_AMN", "G_STOGATE_SENT_FLASH",
+    "G_STOGATE_SURV", "G_STOGATE_GOES", "G_STOGATE_GOES_AMN",
+    "G_STORAGE_OK_NEXT", "G_STORAGE_OK_NEXT_AMN",
+    "G_STORAGE_CLEANUP_NEXT", "G_STORAGE_FAIL_NEXT",
 }
 
 

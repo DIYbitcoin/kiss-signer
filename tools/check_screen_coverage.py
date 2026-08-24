@@ -80,7 +80,7 @@ FILE_CALLS = {
 # function. Each declaration must be consumed exactly once or strict mode
 # fails: a stale exception is only another silent hole.
 DYNAMIC_TITLES = {
-    ("kiss_settings.c", "wt_screen", "title"): {
+    ("kiss_settings.c", "wt_chrome", "title"): {
         "G_STORAGE_OK_T", "G_STORAGE_CLEANUP_T", "G_STORAGE_FAIL_T",
     },
 }

@@ -316,17 +316,22 @@ static void storage_result_ack_cb(lv_event_t *e)
 
 static void storage_result_screen(int rc, int target)
 {
-    const char *title;
-    const char *body;
-    lv_color_t title_col;
+    // The outcome shape: the lamp carries the verdict and the headline names
+    // the move, so the title stays in the page's own ink. A failure here is
+    // RETRYABLE -- nothing moved -- so it is amber, never the stop red the
+    // old title wore: red is the irreversible, and this is its opposite.
+    const char *title, *head, *body;
+    bool ok = false;
     char formatted[512];
 
     if (rc == WSEED_OK) {
+        ok = true;
         title = tr(STR_G_STORAGE_OK_T);
-        title_col = OK_COL;
         if (target == WSEED_MODE_AMNESIC) {
+            head = tr(STR_G_STORAGE_OK_NEXT_AMN);
             body = tr(STR_G_STORAGE_OK_AMNESIC_B);
         } else {
+            head = tr(STR_G_STORAGE_OK_NEXT);
             snprintf(formatted, sizeof formatted, tr(STR_G_STORAGE_OK_FMT),
                      storage_mode_name(target));
             body = formatted;
@@ -336,11 +341,11 @@ static void storage_result_screen(int rc, int target)
         // verified, old-source cleanup failed. Do not say "not changed" and do
         // not claim one-copy storage.
         title = tr(STR_G_STORAGE_CLEANUP_T);
-        title_col = WARN_COL;
-        body = tr(STR_G_STORAGE_CLEANUP_B);
+        head  = tr(STR_G_STORAGE_CLEANUP_NEXT);
+        body  = tr(STR_G_STORAGE_CLEANUP_B);
     } else {
         title = tr(STR_G_STORAGE_FAIL_T);
-        title_col = STOP_COL;
+        head  = tr(STR_G_STORAGE_FAIL_NEXT);
         if (rc == WSEED_ERR_SD_MISSING || rc == WSEED_ERR_SD_IO ||
             rc == WSEED_ERR_SD_CORRUPT)
             body = tr(STR_G_STORAGE_FAIL_CARD_B);
@@ -351,15 +356,11 @@ static void storage_result_screen(int rc, int target)
     }
 
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, title, NULL);
-    lv_obj_set_style_text_color(wt_screen_title(s_scr), title_col, 0);
-    // The rule colour carries the outcome, so the block agrees with the title
-    // above it instead of being grey under a green or red heading.
-    wt_why_body(s_scr, body, 136, title_col, true);
-    // 552..752: a lone acknowledge is still the way off the screen.
+    s_scr = wt_chrome(s_parent, title);
+    wt_outcome_t o = { .headline = head, .para = body, .ok = ok };
+    wt_outcome(s_scr, &o);
     // A lone acknowledge is still the way off the screen, and it LEAVES, so
-    // its arrow leads. Right-aligned in 592..752 like every other exit rather
-    // than at the 552 the 200px pill needed.
+    // its arrow leads.
     wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 592, WT_ACTION_Y, 160,
                     true, storage_result_ack_cb, NULL);
 }
@@ -384,31 +385,59 @@ static void storage_confirm_cancel_cb(lv_event_t *e)
 
 static void storage_confirm_screen(int target)
 {
+    // The gate shape, amber for all three targets: a storage move is a
+    // caution the owner can walk back right up to the hold, never the erase's
+    // red. The shipped body's first clause is the paragraph; its caution
+    // clause rides the warn slot where it has one; and the shape's two
+    // captions carry what the paragraphs used to say at length -- the paper
+    // words survive everything, the old stored copy does not.
+    const bool amn = target == WSEED_MODE_AMNESIC;
     const char *body = target == WSEED_MODE_SD
                      ? tr(STR_G_STORAGE_CONFIRM_SD_B)
-                     : target == WSEED_MODE_AMNESIC
-                     ? tr(STR_G_STORAGE_CONFIRM_AMNESIC_B)
-                     : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
-    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_CONFIRM_T), NULL);
-    wt_why_body(s_scr, body, 126,
-                target == WSEED_MODE_AMNESIC ? WARN_COL : wt_accent(), true);
+                     : amn ? tr(STR_G_STORAGE_CONFIRM_AMNESIC_B)
+                           : tr(STR_G_STORAGE_CONFIRM_FLASH_B);
+    char para[384];
+    snprintf(para, sizeof para, "%s", body);
+    char *cut = strstr(para, "\n\n");
+    const char *note = NULL;
+    if (cut) {
+        *cut = '\0';
+        if (target != WSEED_MODE_KEEP) {
+            note = cut + 2;
+            char *cut2 = strstr(cut + 2, "\n\n");
+            if (cut2) *cut2 = '\0';
+        }
+    }
 
-    // The tall row: this hold label wraps to two lines in most locales. It used
-    // to be a hand typed 392/66, a third convention beside the 404 everywhere
-    // else and the 398 on the sign screen, and 392 put its top 6px above the
-    // content line where it read as content rather than as a button. CANCEL
-    // takes the tall geometry too, because a row whose pills have different
-    // heights stops looking like a row.
-    wt_hold_pill(s_scr,
-                 tr(target == WSEED_MODE_AMNESIC
-                    ? STR_G_STORAGE_HOLD_AMNESIC
-                    : STR_G_STORAGE_HOLD_MOVE),
-                 48, WT_ACTION_Y_TALL, 330, WT_ACTION_H_TALL, 1500, storage_apply,
-                 (void *)(intptr_t)target);
-    lv_obj_t *cancel = wt_pillh(s_scr, tr(STR_C_CANCEL), 585, WT_ACTION_Y_TALL, 165,
-                                WT_ACTION_H_TALL, storage_confirm_cancel_cb, NULL);
-    lv_obj_set_ext_click_area(cancel, 10);
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_scr = wt_chrome(s_parent, tr(STR_G_STORAGE_CONFIRM_T));
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+             tr(STR_I_TAB_BACKUP));
+    wt_trail(s_scr, LV_SYMBOL_SAVE, trail, false);
+
+    wt_gate_t g = {
+        .mark     = target == WSEED_MODE_SD ? WT_ICON_SD : LV_SYMBOL_SAVE,
+        .sentence = tr(target == WSEED_MODE_SD ? STR_G_STOGATE_SENT_SD
+                       : amn ? STR_G_STOGATE_SENT_AMN
+                             : STR_G_STOGATE_SENT_FLASH),
+        .para     = para,
+        .warn     = note,
+        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_G_STOGATE_SURV),
+        .goes_cap = tr(STR_C_NOT_SURVIVES),
+        .goes     = tr(amn ? STR_G_STOGATE_GOES_AMN : STR_G_STOGATE_GOES),
+        .stop     = false,
+    };
+    wt_gate(s_scr, &g);
+
+    wt_hold_rule_c(s_scr,
+                   tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
+                          : STR_G_STORAGE_HOLD_MOVE),
+                   tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y, 330,
+                   1500, WT_WARN, WT_WARN, storage_apply,
+                   (void *)(intptr_t)target);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
+                    160, true, storage_confirm_cancel_cb, NULL);
 }
 
 // ---- the card itself: capacity, free space, and what is on it ----
