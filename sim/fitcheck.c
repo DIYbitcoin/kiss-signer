@@ -167,9 +167,7 @@ static const slot_t SLOTS[] = {
     { "sub/receive",      STR_R_S,            704, 30, 0 },
     { "sub/wallet",       STR_I_S,            340, 58, 0 },
     { "sub/verify",       STR_R_VS,           704, 30, 0 },
-    { "sub/sp-export",    STR_R_SP_EXPORT_S,  704, 30, 0 },
     { "sub/sp-warn",      STR_R_SP_WARN_S,    704, 30, 0 },
-    { "sub/pair",         STR_I_PAIR_S,       704, 30, 0 },
     // Every remaining wt_screen subtitle. One line at 23 or it drops to 14 --
     // the header geometry in wt_screen() is fixed, so the only lever here is
     // the length of the sentence.
@@ -181,7 +179,8 @@ static const slot_t SLOTS[] = {
     // lines their copy was written for.
     { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
     { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
-    { "sub/rng",          STR_W_RNG_S,           704,  30, 0 },
+    // W_RNG_S is no longer a subtitle; it survives as the audit chooser row's
+    // sub, where the CUT sink measures it as the label is built.
     { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
     // 330, not 344: the block's rule bar eats 14px of body width. Height is
     // the pair budget (194) minus a measured one-line heading (35).
@@ -418,11 +417,11 @@ typedef struct {
     const char *arg;       // the %s a _FMT sub is given, or NULL
 } sub_t;
 static const sub_t SUBROWS[] = {
-    // kiss_settings.c:1176 -- sits against GD_OFF, same as its label.
-    // The row's OWN sub. This measured STR_GD_SET_SUB, which is the WAYS IN
-    // button's caption on another screen -- so the one row the backlog calls
-    // its worst offender was never the string being measured.
-    { "set/duress",  STR_I_ROW_WAYSIN_SUB, NULL, NULL },
+    // The duress row's OWN sub. This has now been wrong twice: it measured
+    // STR_GD_SET_SUB (a caption from another screen), then the WAYS IN
+    // subtitle after that string had moved on to being the duress SCREEN's
+    // header. The row draws STR_I_WAYSIN_SHORT and this measures that.
+    { "set/duress",  STR_I_WAYSIN_SHORT, NULL, NULL },
     // kiss_settings.c:1195-1207 -- both branches prefix a mark and two
     // spaces, and the checked one interpolates the 8 hex digits of a
     // fingerprint. Measured with a real one, because "%s" is two characters

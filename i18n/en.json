@@ -685,6 +685,7 @@
   "W_MADE_NOREC": "NOT RECORDED",
   "W_MADE_ELSE": "brought in. it was made on another device.",
   "W_AUD_S": "two things you can check yourself. nothing leaves this device.",
+  "W_AUD_STAND": "NOTHING LEAVES THIS DEVICE",
   "W_RNG_T": "RANDOMNESS AUDIT",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",
   "W_RNG_SRC": "noise source",

@@ -465,6 +465,7 @@ static void sdinfo_screen(void)
         // says what this screen would have shown.
         s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
         wt_chrome_head(s_scr);
+        wt_trail(s_scr, WT_ICON_SD, tr(STR_I_DEVICE_T), false);
         const char *lh = tr(STR_G_FW_NOCARD_H), *lb = tr(STR_G_FW_NOCARD_B);
         const char *rh = tr(STR_G_SD_ABOUT_H), *rb = tr(STR_G_SD_ABOUT_B);
         const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, 344 - 14,
@@ -477,10 +478,17 @@ static void sdinfo_screen(void)
         return;
     }
 
-    // The CID product name is the card introducing itself; it is the subtitle
-    // so the title stays the word the chooser's pill promised.
-    s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), inf.name);
+    // The CID product name is the card introducing itself; it rides the trail
+    // as the path's last element -- the same shape the word grid gives the
+    // fingerprint -- so the title stays the word the chooser's pill promised.
+    s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_DEVICE_T),
+                 inf.name);
+        wt_trail(s_scr, WT_ICON_SD, trail, false);
+    }
 
     // The unit ONCE when both numbers carry the same one, which is how a person
     // says it and what keeps the pair inside the card. mono28 with its letter
@@ -734,13 +742,20 @@ static void storage_chooser_screen(void)
 {
     const int SUB[3] = { STR_I_STORE_FLASH_SUB, STR_I_STORE_SD_SUB,
                          STR_I_STORE_AMN_SUB };
-    char current[128];
-    snprintf(current, sizeof current, tr(STR_G_STORAGE_CURRENT_FMT),
-             storage_mode_name(kiss_seed_mode()));
 
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), current);
+    s_scr = wt_screen(s_parent, tr(STR_G_STORAGE_SEC), NULL);
     wt_chrome_head(s_scr);
+    // The trail matches the confirm gate one level deeper. "current: X" is
+    // gone from the header: the accent tick on the row already says which
+    // mode this signer is on, and a subtitle restating a value beside it is
+    // the copy rule's first cut.
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_BACKUP));
+        wt_trail(s_scr, LV_SYMBOL_SAVE, trail, false);
+    }
 
     for (int i = 0; i < 3; i++) {
         bool on = kiss_seed_mode() == STORE_MODE[i];
@@ -890,8 +905,16 @@ static void made_open_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_W_MADE_T), tr(STR_W_MADE_S));
+    // No subtitle: "what went into the keys this signer holds" restated the
+    // title one line under it, which is the copy rule's first cut.
+    s_scr = wt_screen(s_parent, tr(STR_W_MADE_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_W_AUD_T));
+        wt_trail(s_scr, WT_ICON_KEY, trail, false);
+    }
 
     int src = kiss_seed_source();
     const char *label = NULL, *note = NULL;
@@ -944,8 +967,17 @@ static void audit_open_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), tr(STR_W_AUD_S));
+    // The dropped subtitle's first clause restated the two rows below it; its
+    // second clause is the page's real claim and stands in the band now.
+    s_scr = wt_screen(s_parent, tr(STR_W_AUD_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_SECURITY));
+        wt_trail(s_scr, WT_ICON_SHIELD, trail, false);
+    }
+    wt_standing(s_scr, tr(STR_W_AUD_STAND), WT_DIM, false);
     {
         int src = kiss_seed_source();
         const char *label = NULL, *note = NULL;
@@ -967,8 +999,16 @@ static void duress_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), tr(STR_I_ROW_WAYSIN_SUB));
+    // No subtitle: the chips and the two blocks below teach exactly what
+    // "what opens the spare, and what opens your real keys" was saying.
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_WAYSIN), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_SECURITY));
+        wt_trail(s_scr, WT_ICON_SHIELD, trail, false);
+    }
 
     // What is true today, as chips: what opens the spare (KISS, or the
     // owner's drawing), and what has to follow it.
@@ -1370,6 +1410,12 @@ static void device_screen(void)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     s_scr = wt_screen(s_parent, tr(STR_I_DEVICE_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_DEVICE));
+        wt_trail(s_scr, LV_SYMBOL_SETTINGS, trail, false);
+    }
 
     // Framed, not floating. kiss_build_id_make draws three sibling labels at
     // font14 and nothing else; on an open page that is a bare paragraph, and

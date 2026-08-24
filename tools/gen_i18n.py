@@ -225,7 +225,7 @@ UNTRANSLATED_OK = {
     # The audit chooser and the randomness audit. Born under the English-only
     # rule, like the KEF block above: the other twenty carry the English as a
     # placeholder the sweep replaces.
-    "W_AUD_T", "W_AUD_S",
+    "W_AUD_T", "W_AUD_S", "W_AUD_STAND",
     # What a coordinator says about which addresses the chain shows used, and
     # the Receive chip's third state for when none has said. Born under the
     # English-only rule, like the KEF block above: the other twenty carry the

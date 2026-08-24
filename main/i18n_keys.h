@@ -688,6 +688,7 @@ enum {
     STR_W_MADE_NOREC,
     STR_W_MADE_ELSE,
     STR_W_AUD_S,
+    STR_W_AUD_STAND,
     STR_W_RNG_T,
     STR_W_RNG_S,
     STR_W_RNG_SRC,

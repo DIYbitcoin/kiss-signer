@@ -80,8 +80,16 @@ static void intro_screen(void)
     if (s_tmr) { lv_timer_delete(s_tmr); s_tmr = NULL; }
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     wipe_widgets();
-    s_scr = wt_screen(s_parent, tr(STR_W_RNG_T), tr(STR_W_RNG_S));
+    // No subtitle: the why blocks below carry the question the subtitle
+    // asked, and the audit row that opens this page still wears it as a sub.
+    s_scr = wt_screen(s_parent, tr(STR_W_RNG_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_W_AUD_T));
+        wt_trail(s_scr, LV_SYMBOL_SHUFFLE, trail, false);
+    }
 
     bool live = kiss_trng_live();
 

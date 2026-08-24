@@ -76,6 +76,17 @@ BACKLOG = frozenset({
     # The scan key gate: its hold said the title over again in a lane the
     # words could not fit, so it shares HOLD TO SHOW with the word grid.
     "STR_R_SP_SHOW",
+    # Subtitles retired by the trails pass: every opened-from page now names
+    # its path at y=70 instead of restating its title, its content or a value
+    # the screen already shows. Each waits for the sweep like the rest.
+    "STR_G_STORAGE_CURRENT_FMT",
+    "STR_I_KEF_SHOW_S",
+    "STR_I_KEF_WARN_S_PP",
+    "STR_I_PAIR_S",
+    "STR_I_ROW_WAYSIN_SUB",
+    "STR_R_SP_EXPORT_S",
+    "STR_W_AUD_S",
+    "STR_W_MADE_S",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

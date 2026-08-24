@@ -363,10 +363,16 @@ static void pair_instructions_cb(lv_event_t *e)
     (void)e;
     swap_screen();
     s_pair_qr = s_pair_note = NULL;
-    s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
-                      s_pair_fmt ? tr(STR_I_APP_MOBILE)
-                                 : tr(STR_I_APP_DESKTOP));
+    // The trail, not the app name: the card's own mark and steps already say
+    // which app these instructions are for.
+    s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
+                 tr(STR_D_ONLINE_APP));
+        wt_trail(s_scr, WT_ICON_QR, trail, false);
+    }
 
     // Page two is intentionally static: first the exact import steps, then
     // the independent address proof. The raw descriptor is already encoded in
@@ -400,9 +406,16 @@ static void pair_screen(void)
 {
     swap_screen();
     s_pair_qr = s_pair_note = NULL;
-    s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T),
-                      tr(STR_I_PAIR_S));
+    // No subtitle: a full screen QR under PAIR COORDINATOR is its own
+    // instruction, and the note lane below the format chooser says the rest.
+    s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
+                 tr(STR_D_ONLINE_APP));
+        wt_trail(s_scr, WT_ICON_QR, trail, false);
+    }
     if (kiss_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(), WT_WARN);
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
@@ -514,8 +527,16 @@ static void sp_key_show(void *ud)
     s_sp_key_lbl = NULL;
     s_sp_key_qr = NULL;
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), tr(STR_R_SP_EXPORT_S));
+    // The same trail as the gate in front of this screen: one path, told
+    // once. "watch only" is the gate's whole lesson and stays there.
+    s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
+                 tr(STR_D_ONLINE_APP));
+        wt_trail(s_scr, WT_ICON_SECRET, trail, false);
+    }
 
     // The refusal is its OWN render, decided before anything is drawn. This
     // used to fall through the success path with the failure string in the
@@ -1139,8 +1160,16 @@ static void kef_sd_cb(lv_event_t *e)
 static void kef_show_screen(void)
 {
     swap_screen();
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), tr(STR_I_KEF_SHOW_S));
+    // No subtitle: the note beside the QR already says only the password
+    // opens it.
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
     s_kef_sd_chip = NULL;
 
     lv_obj_t *qr = NULL;
@@ -1179,9 +1208,16 @@ static void kef_warn_screen(lv_event_t *e)
     // passphrase derives, so 0 here means the owner typed one -- and the
     // envelope holds the words alone, which is not the same thing.
     const bool pp = !kiss_session_decoy();
-    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF),
-                      tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S));
+    // No subtitle: the words-vs-keys distinction the pp variant carried is
+    // exactly what the diagram's left chip draws two lines below.
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), NULL);
     wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
 
     // The mechanism, drawn before it is explained: what goes in, plus one
     // password, becomes a QR that only the password opens. With a passphrase
