@@ -1101,6 +1101,22 @@ lv_obj_t *wt_hold_rule_c(lv_obj_t *scr, const char *txt, const char *held,
                          lv_color_t ink, lv_color_t fill,
                          void (*done)(void *), void *ud);
 
+// ---- shape 6: the outcome (frame 7f) ------------------------------------
+// A lamp, a headline that names the NEXT MOVE rather than the fact, one
+// paragraph, and the facts an owner will re-read. Never a full-page tick:
+// the result is information and the next action is the point. A failure uses
+// this exact geometry with `ok` false -- the lamp turns WT_WARN and the
+// headline says what to try -- so nothing jumps when a result turns out
+// badly. Facts are optional; the rule above them only draws when they exist.
+typedef struct {
+    const char *headline;   // one line, mono28, WT_INK
+    const char *para;       // mono18, WT_MUT
+    const char *f1c, *f1v;  // 168 caption lane; NULL to omit
+    const char *f2c, *f2v;
+    bool        ok;
+} wt_outcome_t;
+void wt_outcome(lv_obj_t *scr, const wt_outcome_t *o);
+
 // ---- SETTINGS: the full-lane row ---------------------------------------
 // A sibling of wt_row_x, not a mode flag on it: the two have different internal
 // geometry and sharing one function would mean a branch in every measurement.

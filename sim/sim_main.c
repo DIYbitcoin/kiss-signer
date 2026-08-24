@@ -122,7 +122,13 @@ int kiss_seed_load(char *out, size_t n) {
   snprintf(out, n, "%s", s_sim_seed);
   return 0;
 }
+// One-shot failure seam: NVS erase/commit CAN fail on the device, and the
+// COULD NOT ERASE screen is only reachable through that failure -- with no
+// seam it is a titled screen the walk never opens, which is exactly the
+// blindness the coverage gate exists to name.
+static int s_sim_wipe_fail;
 int kiss_seed_wipe(void) {
+  if (s_sim_wipe_fail) { s_sim_wipe_fail = 0; return -1; }
   s_sim_has_seed = 0;
   s_sim_has_pending = 0;
   return 0;
@@ -5138,6 +5144,15 @@ int main(void) {
   // a tap is NOT enough: press, release early, nothing must happen
   tap_str(STR_G_HOLD_WIPE, 2, 4);
   save("/tmp/sim_wipe_tap_noop.ppm");               // still the confirm screen
+  // The failure first, through the seam, because it is the branch nothing
+  // else can reach: the erase REFUSES, the outcome screen says so with the
+  // amber lamp and keeps "do not sell or give it away" whole, and BACK
+  // returns to the gate for the retry the headline names.
+  s_sim_wipe_fail = 1;
+  touch(208, 430); pump(160); release(); pump(10);  // full hold -> refusal
+  save("/tmp/sim_wipe_fail.ppm");
+  must_show("erase/fail headline", tr(STR_G_NOERASE_NEXT));
+  tap_str(STR_C_BACK, 3, 10);                       // -> the gate again
   // hold it: 2000ms at 16ms/frame is 125 frames, give it margin. The pill sits
   // on the action row now (48..368 x WT_ACTION_Y), not on an overlay at 372:
   // the confirmation IS the screen, so it uses the same row every other screen

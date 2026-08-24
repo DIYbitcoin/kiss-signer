@@ -1082,45 +1082,20 @@ static void do_wipe(void *ud)
     lv_obj_t *confirm = ud;
     if (confirm) lv_obj_delete_async(confirm);
     if (kiss_seed_wipe() != 0) {        // NVS erase/commit CAN fail: never claim
-        // "erased" unless it truly is — say so and change nothing
-        lv_obj_t *ovl = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(ovl);
-        lv_obj_set_size(ovl, 800, 480);
-        lv_obj_set_pos(ovl, 0, 0);
-        lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-        lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
-        lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_t *t = lv_label_create(ovl);
-        lv_label_set_text(t, tr(STR_G_NOERASE_T));
-        lv_obj_set_style_text_color(t, STOP_COL, 0);
-        lv_obj_set_style_text_font(t, wt_font28(), 0);
-        lv_obj_set_style_text_letter_space(t, 3, 0);
-        lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 150);
-        lv_obj_t *st = lv_label_create(ovl);
-        lv_label_set_text(st, tr(STR_G_NOERASE_B));
-        lv_obj_set_style_text_color(st, MUT_COL, 0);
-        lv_obj_set_style_text_font(st, wt_body_font(tr(STR_G_NOERASE_B), 704, 160), 0);
-        lv_obj_set_width(st, 704);
-        lv_label_set_long_mode(st, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_align(st, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(st, LV_ALIGN_TOP_MID, 0, 196);
-        lv_obj_t *ok = lv_obj_create(ovl);
-        lv_obj_remove_style_all(ok);
-        lv_obj_set_size(ok, 200, 52);
-        lv_obj_align(ok, LV_ALIGN_TOP_MID, 0, 386);
-        lv_obj_set_style_radius(ok, 10, 0);   // wt_pillh's radius: this is a button
-        lv_obj_set_style_bg_color(ok, KEY_COL, 0);
-        lv_obj_set_style_bg_opa(ok, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(ok, 1, 0);
-        lv_obj_set_style_border_color(ok, STOP_COL, 0);
-        lv_obj_add_flag(ok, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(ok, wipe_fail_ok_cb, LV_EVENT_CLICKED, ovl);
-        lv_obj_t *okl = lv_label_create(ok);
-        lv_label_set_text(okl, tr(STR_C_BACK));
-        lv_obj_set_style_text_color(okl, INK_COL, 0);
-        lv_obj_set_style_text_font(okl, wt_font23(), 0);   // a button, never font14
-        lv_obj_center(okl);
+        // "erased" unless it truly is — say so and change nothing. The
+        // outcome shape with the WT_WARN lamp: a retryable failure, in the
+        // same geometry success uses, so nothing jumps when it goes badly.
+        // The headline names the move; the shipped body keeps its "do not
+        // sell or give it away" whole.
+        lv_obj_t *ovl = wt_chrome(s_scr, tr(STR_G_NOERASE_T));
+        wt_outcome_t o = {
+            .headline = tr(STR_G_NOERASE_NEXT),
+            .para     = tr(STR_G_NOERASE_B),
+            .ok       = false,
+        };
+        wt_outcome(ovl, &o);
+        wt_arrow_action(ovl, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
+                        160, true, wipe_fail_ok_cb, ovl);
         return;
     }
     kiss_session_close();               // truly gone: session key leaves RAM too
@@ -1132,40 +1107,39 @@ static void do_wipe(void *ud)
     // seed would point at a wallet that no longer exists.
     kiss_duress_forget();
 
-    // full-screen confirmation as an overlay child (never delete the event
-    // target's ancestors mid-event)
-    lv_obj_t *ovl = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, 800, 480);
-    lv_obj_set_pos(ovl, 0, 0);
-    lv_obj_set_style_bg_color(ovl, BG_COL, 0);
-    lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
-    lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);   // swallow stray taps
-    lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *t = lv_label_create(ovl);
-    lv_label_set_text(t, tr(STR_G_ERASED_T));
-    lv_obj_set_style_text_color(t, INK_COL, 0);
-    lv_obj_set_style_text_font(t, wt_font28(), 0);
-    lv_obj_set_style_text_letter_space(t, 3, 0);
-    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 140);
-
-    lv_obj_t *s = lv_label_create(ovl);
-    lv_label_set_text(s, tr(STR_G_ERASED_B));
-    lv_obj_set_style_text_color(s, MUT_COL, 0);
-    lv_obj_set_style_text_font(s, wt_body_font(tr(STR_G_ERASED_B), 704, 160), 0);
-    lv_obj_set_width(s, 704);
-    lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(s, LV_ALIGN_TOP_MID, 0, 196);
+    // Full-screen confirmation as an overlay child (never delete the event
+    // target's ancestors mid-event) -- wt_chrome makes one, since a screen
+    // it builds IS a full-screen child of its parent. The outcome shape: the
+    // green lamp, a headline naming the two moves, and WHAT SURVIVES carrying
+    // the clause G_ERASED_B always ended on. Never a full-page tick.
+    lv_obj_t *ovl = wt_chrome(s_scr, tr(STR_G_ERASED_T));
+    char para[192], surv[96];
+    snprintf(para, sizeof para, "%s", tr(STR_G_ERASED_B));
+    char *cut = strstr(para, "\n\n");
+    if (cut) {
+        *cut = '\0';
+        snprintf(surv, sizeof surv, "%s", cut + 2);
+    } else {
+        surv[0] = '\0';
+    }
+    wt_outcome_t o = {
+        .headline = tr(STR_G_ERASED_NEXT),
+        .para     = para,
+        .f1c      = surv[0] ? tr(STR_C_SURVIVES) : NULL,
+        .f1v      = surv[0] ? surv : NULL,
+        .ok       = true,
+    };
+    wt_outcome(ovl, &o);
 
     // Two ways off this screen, because there are two reasons to have been
-    // here. The erase used to be half of a pair whose other half made new seed
-    // words; that pair is gone, so the offer moves to where it is actually
-    // true -- after the erase, on a device that now holds nothing. OK still
-    // locks, exactly as it did, for the owner who erased to hand the box on.
-    wt_pill(ovl, tr(STR_W_CHOOSE_NEW), 140, 386, 260, wiped_new_cb, NULL);
-    wt_pill(ovl, tr(STR_C_OK), 440, 386, 200, wiped_ok_cb, NULL);
+    // here. The erase used to be half of a pair whose other half made new
+    // seed words; that pair is gone, so the offer moves to where it is
+    // actually true -- after the erase, on a device that now holds nothing.
+    // OK still locks, exactly as it did, for the owner handing the box on.
+    wt_arrow_action(ovl, tr(STR_W_CHOOSE_NEW), false, true, WT_ACT_X,
+                    WT_ACTION_Y, 0, false, wiped_new_cb, NULL);
+    wt_arrow_action(ovl, tr(STR_C_OK), true, false, 592, WT_ACTION_Y, 160,
+                    true, wiped_ok_cb, NULL);
 }
 
 // ---- NO UNDO: one door ------------------------------------------------

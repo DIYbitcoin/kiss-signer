@@ -3635,6 +3635,62 @@ void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)
     d->ud = ud;
 }
 
+// ---- shape 6: the outcome (see kiss_theme.h) ----
+
+void wt_outcome(lv_obj_t *scr, const wt_outcome_t *o)
+{
+    const lv_color_t col = o->ok ? WT_OK : WT_WARN;
+    const lv_font_t *hf = chrome28(o->headline);
+    const int hh = lv_font_get_line_height(hf);
+
+    // The lamp: a 14px dot in an 18px glow, the state's own colour in all
+    // four themes -- RECEIVE's discipline, at the size a verdict earns.
+    lv_obj_t *d = lv_obj_create(scr);
+    lv_obj_remove_style_all(d);
+    lv_obj_set_size(d, 14, 14);
+    lv_obj_set_style_radius(d, 7, 0);
+    lv_obj_set_style_bg_color(d, col, 0);
+    lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+    lv_obj_set_style_shadow_color(d, col, 0);
+    lv_obj_set_style_shadow_width(d, 18, 0);
+    lv_obj_set_style_shadow_opa(d, 140, 0);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(d, WT_LANE_X, 138 + (hh - 14) / 2);
+
+    lv_obj_t *h = wt_lbl(scr, o->headline, WT_LANE_X + 14 + 16, 138, hf,
+                         WT_INK);
+    lv_obj_set_width(h, WT_LANE_W - 14 - 16);
+    lv_obj_set_height(h, hh);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+
+    lv_obj_t *p = wt_lbl(scr, o->para, WT_LANE_X, 196, chrome18(o->para),
+                         WT_MUT);
+    lv_obj_set_width(p, 690);
+    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+
+    if (!o->f1c || !o->f1v) return;
+    wt_line_rule(scr, WT_LANE_X, 262, WT_LANE_W);
+    const struct { const char *cap, *val; } facts[2] = {
+        { o->f1c, o->f1v }, { o->f2c, o->f2v },
+    };
+    for (int i = 0; i < 2 && facts[i].cap && facts[i].val; i++) {
+        int y = i == 0 ? 280 : 322;
+        const lv_font_t *cf = chrome18(facts[i].cap);
+        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf, WT_MUT);
+        lv_obj_set_style_text_letter_space(cap, 2, 0);
+        lv_obj_set_width(cap, 168);
+        lv_obj_set_height(cap, lv_font_get_line_height(cf));
+        lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
+        const lv_font_t *vf = chrome18(facts[i].val);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 168 + 14, y,
+                               vf, WT_INK);
+        lv_obj_set_width(val, WT_LANE_W - 168 - 14);
+        lv_obj_set_height(val, lv_font_get_line_height(vf));
+        lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+    }
+}
+
 // ---- shape 4: the gate (see kiss_theme.h) ----
 
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g)

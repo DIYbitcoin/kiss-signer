@@ -231,6 +231,8 @@
   "C_NOT_SURVIVES": "WHAT DOES NOT",
   "G_WIPE_CANT": "This cannot be undone.",
   "G_WIPE_GOES_FMT": "the keys called %s",
+  "G_ERASED_NEXT": "Erased. Set up again, or hand it on.",
+  "G_NOERASE_NEXT": "Not erased. Try again.",
   "I_NET_TEST": "TESTNET, øvingsmynter",
   "I_NET_MAIN": "MAINNET, ekte bitcoin",
   "I_NET_SIGNET": "SIGNET, practice coins",

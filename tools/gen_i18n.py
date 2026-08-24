@@ -307,6 +307,7 @@ UNTRANSLATED_OK = {
     # gate's sentence, and the loss named by its fingerprint. Born under
     # the English-only rule; English until the sweep.
     "C_SURVIVES", "C_NOT_SURVIVES", "G_WIPE_CANT", "G_WIPE_GOES_FMT",
+    "G_ERASED_NEXT", "G_NOERASE_NEXT",
 }
 
 

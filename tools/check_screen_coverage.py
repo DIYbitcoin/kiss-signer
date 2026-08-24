@@ -65,7 +65,10 @@ def gate_scratch():
 # are scanned at their call sites; their one forwarding implementation is then
 # ignored below so a variable named `title` is not mistaken for an unknown
 # screen.
-BASE_CALLS = (("wt_screen", 1),)
+# wt_chrome is the screen-system entry: same title-first-argument shape, and
+# it calls wt_screen underneath, so runtime tracking already sees it -- this
+# line is what keeps the SOURCE half seeing it too.
+BASE_CALLS = (("wt_screen", 1), ("wt_chrome", 1),)
 FILE_CALLS = {
     "kiss_setup.c": (("mk_screen", 0), ("mk_screen2", 0),
                      ("cards_verdict_screen", 0)),
