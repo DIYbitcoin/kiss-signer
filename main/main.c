@@ -173,9 +173,12 @@ typedef struct {
   bool active;
   kind_t kind;
   bool bomb;
+  bool gold;           // the rare frenzy fruit
   int defi;
   float x, y, vx, vy;
+  float rot, av;       // degrees, and degrees per frame
   int size;
+  int16_t rot_q;       // last angle actually pushed to LVGL
   lv_obj_t *obj;
 } ent_t;
 
@@ -675,6 +678,10 @@ void kiss_panel_black(void) { }
 static lv_obj_t *make_sprite(const lv_image_dsc_t *dsc) {
   lv_obj_t *o = lv_image_create(lv_screen_active());
   lv_image_set_src(o, dsc);  // pre-sized sprite -> no runtime scaling (fast path)
+  // The default pivot is the top-left corner, so a rotating sprite ORBITS
+  // rather than spins. art_unpack_all can leave a descriptor NULL on failure
+  // and that stays non-fatal, hence the guard.
+  if (dsc) lv_image_set_pivot(o, dsc->header.w / 2, dsc->header.h / 2);
   return o;
 }
 
@@ -804,8 +811,27 @@ static ent_t *alloc_ent(void) {
   return NULL;
 }
 
+// Rotation is the expensive path on this build (LV_DRAW_SW_ASM_NONE: scalar
+// C rotate, and a ~41% bigger invalidation box than the upright blit). Two
+// things keep it affordable. Angle is quantized to 15 degrees, so a fruit
+// spinning at 5 deg/frame only forces a re-render every third frame instead
+// of every frame. And av is zero for droplets, so the spray -- by far the
+// most numerous entity -- never takes the path at all.
+#ifndef KISS_GAME_SPIN
+#define KISS_GAME_SPIN 1
+#endif
+#define SPIN_STEP 15
+
 static void place(ent_t *e) {
-  if (e->obj) lv_obj_set_pos(e->obj, (int)e->x - e->size / 2, (int)e->y - e->size / 2);
+  if (!e->obj) return;
+  lv_obj_set_pos(e->obj, (int)e->x - e->size / 2, (int)e->y - e->size / 2);
+#if KISS_GAME_SPIN
+  if (e->av == 0.0f) return;
+  int16_t q = (int16_t)(((int)e->rot / SPIN_STEP) * SPIN_STEP);
+  if (q == e->rot_q) return;               // same step: nothing to redraw
+  e->rot_q = q;
+  lv_image_set_rotation(e->obj, (int32_t)q * 10);   // LVGL takes 0.1 deg
+#endif
 }
 
 static void clear_all(void) {
@@ -861,6 +887,7 @@ static void spawn_fruit_idx(int idx) {
   e->active = true;
   e->kind = K_FRUIT;
   e->bomb = d->bomb;
+  e->gold = false;
   e->defi = idx;
   e->size = d->size;
   e->x = pick_spawn_x();
@@ -871,17 +898,22 @@ static void spawn_fruit_idx(int idx) {
   place(e);
 }
 
-static void spawn_half(const lv_image_dsc_t *dsc, int size, float x, float y, float vx, float vy) {
+static void spawn_half(const lv_image_dsc_t *dsc, int size, float x, float y,
+                       float vx, float vy, float rot, float av) {
   ent_t *e = alloc_ent();
   if (!e) return;
   e->active = true;
   e->kind = K_HALF;
   e->bomb = false;
+  e->gold = false;
   e->size = size;
   e->x = x;
   e->y = y;
   e->vx = vx;
   e->vy = vy;
+  e->rot = rot;
+  e->av = av;
+  e->rot_q = INT16_MIN;                    // force the first apply
   e->obj = make_sprite(dsc);
   place(e);
 }
@@ -894,6 +926,10 @@ static void spawn_juice(float x, float y, uint32_t col, int n) {
     e->active = true;
     e->kind = K_JUICE;
     e->bomb = false;
+    e->gold = false;
+    e->rot = 0.0f;
+    e->av = 0.0f;                          // droplets never take the rotate path
+    e->rot_q = 0;
     e->size = 16;
     e->x = x;
     e->y = y;
@@ -1123,8 +1159,10 @@ static void slice(ent_t *e) {
   if (d->burst) {
     spawn_juice(e->x, e->y, d->juice, 3);  // cherries/grapes: burst, no halves
   } else {
-    spawn_half(d->hl, d->hsize, e->x - 8, e->y, -8.0f, -5.0f);  // halves fly apart fast so they clear quickly
-    spawn_half(d->hr, d->hsize, e->x + 8, e->y, 8.0f, -4.5f);
+    spawn_half(d->hl, d->hsize, e->x - 8, e->y, -8.0f, -5.0f,   // halves fly apart fast so they clear quickly
+               0.0f, -(float)rnd_range(2, 5));
+    spawn_half(d->hr, d->hsize, e->x + 8, e->y, 8.0f, -4.5f,
+               0.0f,  (float)rnd_range(2, 5));
     spawn_juice(e->x, e->y, d->juice, 2);
   }
   if (e->obj) lv_obj_delete(e->obj);
@@ -2562,6 +2600,11 @@ static void game_tick(lv_timer_t *t) {
     ent_t *e = &s_ent[i];
     if (!e->active) continue;
     e->vy += (e->kind == K_FRUIT) ? GRAVITY : GRAVITY * 1.7f;  // debris falls faster -> clears the play area sooner
+    if (e->av != 0.0f) {
+      e->rot += e->av;
+      if (e->rot >= 360.0f) e->rot -= 360.0f;
+      else if (e->rot < 0.0f) e->rot += 360.0f;
+    }
     e->x += e->vx;
     e->y += e->vy;
     place(e);
