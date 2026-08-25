@@ -939,7 +939,33 @@ static float pick_spawn_x(void) {
 
 // Split out so a wave pattern can place its own throw instead of taking the
 // one random lane spawn_fruit_idx picks.
+// The renderer's budget, measured on the board: the spawn period was swept
+// from 900ms down to 130ms while the 16ms physics tick was logged against the
+// live fruit count.
+//
+//   1..5 fruit   57 ticks/s   17ms mean      full speed
+//   6..7         46           21ms
+//   8            37           27ms
+//   12           28           35ms
+//   18           19           54ms
+//   28 (pool)    10           100ms          unplayable
+//
+// Five is a cliff, not a slope. Past it the blade stops tracking the finger,
+// which is what "it lags" has meant every time it came off the bench. There is
+// no tuning of waves or speeds that survives a frenzy throw landing on top of
+// a big wave, so the cap goes here, where every fruit in the game is born.
+#define MAX_LIVE_FRUIT 5
+
+static int live_fruit(void) {
+  int n = 0;
+  for (int i = 0; i < MAX_ENT; i++)
+    if (s_ent[i].active && s_ent[i].kind == K_FRUIT) n++;
+  return n;
+}
+
 static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
+  // The bomb is the threat, so it always gets its slot. Fruit are what flood.
+  if (!DEFS[idx].bomb && live_fruit() >= MAX_LIVE_FRUIT) return;
   ent_t *e = alloc_ent();
   if (!e) return;
   const def_t *d = &DEFS[idx];
@@ -2824,7 +2850,7 @@ static void spawn_tick(lv_timer_t *t) {
   float p = diff_progress();                   // 0 -> 1 smoothly over ~3.5 min
 
   if (s_frenzy_ms > 0) {                       // dense, no bombs, no patterns
-    lv_timer_set_period(t, 130);
+    lv_timer_set_period(t, live_fruit() >= MAX_LIVE_FRUIT ? 260 : 130);
     s_wave_xn = 0;
     spawn_fruit_idx(pick_fruit());
     return;
@@ -2837,6 +2863,14 @@ static void spawn_tick(lv_timer_t *t) {
 
   s_wave_xn = 0;                               // fresh set of separated lanes
   int w = pick_wave(p);
+
+  // Hold the line at MAX_LIVE_FRUIT. A pattern that will not fit is thrown as
+  // a single rather than half drawn, and with no room at all the wave is
+  // skipped and tried again shortly. A thin second beats a laggy one.
+  static const int WAVE_N[] = {1, 3, 3, 2, 5};
+  int room = MAX_LIVE_FRUIT - live_fruit();
+  if (room <= 0) { lv_timer_set_period(t, 260); return; }
+  if (WAVE_N[w] > room) w = WV_SINGLE;
   float vy0 = -(float)launch_speed(p);
   int n;                                       // fruit this wave throws
 
@@ -2897,9 +2931,11 @@ static void spawn_tick(lv_timer_t *t) {
                                                // harder wave, it is an
                                                // unreadable one
 
-  // Gold, rare, and never in the same wave as a big throw. Scaled by n for the
-  // same reason the bomb is.
-  if (s_score > 20 && w != WV_BIG && (int)rnd(100) < 4 * n)
+  // Gold, rare, and never in the same wave as a big throw. NOT scaled by n
+  // the way the bomb is: cutting one buys 3.2s of frenzy throw, so its rate is
+  // per wave on purpose. Scaling it tripled how often the densest thing in the
+  // game fired, and that is what "at 100 there is fruit everywhere" was.
+  if (s_score > 20 && w != WV_BIG && (int)rnd(100) < 4)
     spawn_fruit_at(3, true, pick_spawn_x(), 0.0f, vy0 - 1.0f);
 
   lv_timer_set_period(t, period);
