@@ -312,7 +312,14 @@ static bool s_home_swallow;      // ignore the rest of the gesture that opened t
 // never had to cover drawing the modifier itself, which is what made 900 too
 // generous. Do not cut it much further: too short and the configured stroke
 // starts being missed, which is the bug this whole mechanism exists to fix.
-#define COVER_OPEN_DELAY_MS 500
+// How long the bare word gets to collect a modifier stroke, and therefore the
+// whole cost of a successful unlock: everything else that used to be in the
+// way is now either hidden behind it or gone. It cannot be zero -- a window of
+// nothing is a passphrase door nobody can reach -- and it is not a security
+// margin either, so 150ms is the shortest that still catches a mark drawn on
+// purpose. Raise it if the mark starts being missed; nothing else depends on
+// the number.
+#define COVER_OPEN_DELAY_MS 150
 static bool s_cover_pending;
 
 // The owner's stroke landed. Points are already cleared, so this is not
@@ -342,6 +349,7 @@ enum { PREP_IDLE, PREP_RUN, PREP_DONE };
 static volatile int s_prep;
 static volatile int s_prep_rc;
 static bool s_prep_drop;           // asked for while it ran; done when it lands
+static bool s_open_pending;        // home is up, its keys are still landing
 static uint32_t s_home_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
@@ -1627,7 +1635,12 @@ static void fp_scramble_cb(lv_timer_t *t) {
     return;
   }
   static const char HEXD[] = "0123456789ABCDEF";
-  int resolved = s_fp_scr_step - 4;           // first 4 ticks: pure noise
+  // Held at pure noise while the keys are still being derived. The animation
+  // was always a decrypt that had nothing to decrypt -- the fingerprint was
+  // known before it started. Now it is honest, and it is what pays for opening
+  // the home before the session exists.
+  int resolved = s_open_pending ? 0 : s_fp_scr_step - 4;
+  if (s_open_pending) s_fp_scr_step = 4;      // ...and does not run out of steps
   if (resolved < 0) resolved = 0;
   if (resolved > 8) resolved = 8;
   char buf[9];
@@ -1888,6 +1901,18 @@ static void motes_stop(void) {
   }
 }
 
+// The four bytes the chip carries, read from wherever the last unlock left
+// them. Split out because the provisional open calls it twice: once with
+// nothing to say, and again when the derivation lands.
+static void home_fp_publish(void) {
+  uint8_t fp[4];
+  kiss_ui_last_fp(fp);
+  snprintf(s_fp_hex, sizeof(s_fp_hex), "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+  if (!s_fp_chip) return;
+  lv_label_set_text(s_fp_chip, s_fp_hex);
+  fp_chip_place();
+}
+
 static void kiss_start(void) {           // unlocked via login -> reveal the home
   if (s_home_on) return;
   // The LVGL pointer indev is created lazily, and until this release the ONLY
@@ -1906,12 +1931,8 @@ static void kiss_start(void) {           // unlocked via login -> reveal the hom
   kiss_ui_ensure_indev();
   s_home_on = true;
   {  // the home chip shows the fingerprint of the keys that were just unlocked
-    uint8_t fp[4];
-    kiss_ui_last_fp(fp);
-    snprintf(s_fp_hex, sizeof(s_fp_hex), "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
+    home_fp_publish();          // ...or of nothing yet, if they are still landing
     if (s_fp_chip) {
-      lv_label_set_text(s_fp_chip, s_fp_hex);
-      fp_chip_place();
       lv_obj_add_flag(s_fp_chip, LV_OBJ_FLAG_HIDDEN);  // revealed when the flight lands
       lv_obj_add_flag(s_fp_cap, LV_OBJ_FLAG_HIDDEN);
       kiss_home_restyle();
@@ -1987,10 +2008,21 @@ static void gesture_swallow(void) {
 }
 
 static void kiss_open_decoy(void) {
-  // Already derived, on the other core, during the window that had to be
-  // waited out anyway -- so this is a memcpy and a re-blind. The inline derive
-  // is still here for the ways in that have no window: the two tap shortcut,
-  // and a device whose prepare task would not start.
+  // Still deriving. Open anyway: the home does not need the keys to be drawn,
+  // only to be USED, and the fingerprint chip spends its first moments as a
+  // scramble that now genuinely has nothing to resolve to yet. session_land
+  // finishes the job when the other core is done, and the home refuses every
+  // touch until it has. Without this the door waited on a 530ms derivation and
+  // the window's length stopped mattering at all.
+  if (s_prep == PREP_RUN) {
+    s_open_pending = true;
+    gesture_swallow();
+    kiss_start();
+    return;
+  }
+  // Already derived, or never started. This is a memcpy and a re-blind; the
+  // inline derive is for the ways in that have no window at all -- the two tap
+  // shortcut, and a device whose prepare task would not start.
   int rc;
   if (s_prep == PREP_DONE) {
     rc = s_prep_rc ? s_prep_rc : kiss_session_activate_prepared();
@@ -2012,6 +2044,38 @@ static void kiss_open_decoy(void) {
   kiss_ui_set_last_fp(fp);
   gesture_swallow();                      // the finger may still be mid-word
   kiss_start();
+}
+
+// The other core finished while the home was already on the glass. Publish the
+// session, let the scramble resolve to something true, and hand the tiles back.
+static void session_land(void) {
+  s_open_pending = false;
+  int rc = s_prep_rc ? s_prep_rc : kiss_session_activate_prepared();
+  s_prep = PREP_IDLE;
+  s_prep_drop = false;
+  if (rc != 0) {
+    // The seed went bad between open_door's check and here -- corrupt storage,
+    // not a missing one. Take the home back down rather than leave a signer on
+    // screen with no keys behind it, and ask the ordinary way in.
+    //
+    // By hand rather than kiss_lock, which closes a SESSION and there is none to
+    // close: its kiss_session_close reaches kiss_seed_forget, and on an AMNESIC
+    // device that clears the only copy of the seed there is. The teardown for a
+    // derivation that failed would have destroyed the words a retry needs.
+    s_home_on = false;
+    s_home_swallow = false;
+    kiss_ui_forget_fp();              // do not go on naming keys nothing opened
+    motes_stop();
+    lv_obj_add_flag(s_home, LV_OBJ_FLAG_HIDDEN);
+    s_state = ST_MENU;
+    lv_obj_clear_flag(s_menu_panel, LV_OBJ_FLAG_HIDDEN);
+    kiss_login_open(kiss_start);      // the same hand-off stored_seed_ready makes
+    return;
+  }
+  uint8_t fp[4] = {0};
+  (void)kiss_session_fingerprint(fp);
+  kiss_ui_set_last_fp(fp);
+  home_fp_publish();
 }
 
 #ifdef SIMULATOR
@@ -2466,6 +2530,8 @@ static void game_tick(lv_timer_t *t) {
   // done writing it. Above every early return below: the ask can outlive the
   // menu (the login is already up by then), and the key must not outlive it.
   if (s_prep_drop && s_prep != PREP_RUN) prep_drop();
+  // ...and the opposite: a home already up, waiting for the same task.
+  if (s_open_pending && s_prep == PREP_DONE) session_land();
 
   // Swallow the rest of the touch that opened a screen. Above every early
   // return below, because the screens this protects -- the setup wizard, the
@@ -2564,10 +2630,10 @@ static void game_tick(lv_timer_t *t) {
   // it opens: the points are gone, so a tap landing in here would otherwise
   // reach the menu's "tap to play" branch and start a game under the login.
   if (s_real_pending) {
-    // ...and waits for the spare's derivation to finish too, even though it
-    // wants none of it. Opening while that task still runs would make this
-    // door the fast one on exactly the devices where a modifier was drawn.
-    if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS && s_prep != PREP_RUN) {
+    // Neither door waits on the spare's derivation now -- this one never wanted
+    // it, and the other opens over the top of it. Both are the window and
+    // nothing else, which is what made the window worth shortening.
+    if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS) {
       s_real_pending = false;
       s_gest_idle = 0;
       kiss_login_open(kiss_start);
@@ -2577,6 +2643,14 @@ static void game_tick(lv_timer_t *t) {
   }
 
   if (s_home_on) {                              // on the home: tap the KISS logo to lock
+    // Drawn, but not yet a signer. Every tile behind this reads a session that
+    // does not exist for another few hundred milliseconds. s_home_swallow would
+    // cover most of it by accident; this covers it on purpose.
+    if (s_open_pending) {
+      s_home_act_t = lv_tick_get();
+      s_prev_press = pressed;
+      return;
+    }
     // Waiting for a plain finger-lift is not enough: the decoy opens ON a lift
     // (the end of one stroke), so the flag would clear before the NEXT stroke
     // of the same word arrived -- and that stroke is the one that lands on a
@@ -2880,8 +2954,7 @@ static void game_tick(lv_timer_t *t) {
         // used lv_tick_elaps, so a stalled UI task already pushed this one
         // later than that one -- 540ms against 500ms with nothing else
         // running. It also has to survive the derivation now overlapping it.
-        if (s_cover_pending && lv_tick_elaps(s_cover_at) >= COVER_OPEN_DELAY_MS &&
-            s_prep != PREP_RUN) {
+        if (s_cover_pending && lv_tick_elaps(s_cover_at) >= COVER_OPEN_DELAY_MS) {
           s_cover_pending = false;                            // no modifier came: the spare
           kiss_open_decoy();                                  // ...whose keys are ready
           s_gn = 0; s_strokes = 0; s_gest_idle = 0;
