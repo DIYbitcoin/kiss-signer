@@ -205,6 +205,11 @@ static uint32_t s_combo_t;
 static float s_combo_x, s_combo_y;
 static const int COMBO_BONUS[] = {0, 0, 1, 3, 6, 10, 15, 21};
 #define COMBO_MAX ((int)(sizeof COMBO_BONUS / sizeof COMBO_BONUS[0]) - 1)
+
+// The rare gold fruit buys a few seconds of dense, bomb-free fruit. Largest
+// raise to the game's ceiling for the least code, and it needs no new art.
+#define FRENZY_MS 3200
+static uint32_t s_frenzy_ms;
 static int s_life_milestone; // highest 50-pt mark a bonus life was granted for
 enum { ST_MENU, ST_PLAY, ST_OVER };
 static int s_state = ST_MENU;
@@ -957,6 +962,7 @@ static void update_hearts(void) {
 
 static void show_game_over(void) {
   s_state = ST_OVER;
+  s_frenzy_ms = 0;
   bool newbest = s_score > s_best;
   if (newbest) s_best = s_score;
   clear_all();
@@ -981,6 +987,7 @@ static void start_game(void) {
   s_score = 0;
   s_lives = 3;
   s_combo_n = 0;      // an open window at game over would pay out on the next
+  s_frenzy_ms = 0;
   s_life_milestone = 0;
   s_state = ST_PLAY;
   if (s_spawn_timer) lv_timer_set_period(s_spawn_timer, 800);  // back to easy for a fresh run
@@ -1163,6 +1170,11 @@ static void slice(ent_t *e, float bdx, float bdy) {
       update_hearts();
       life_gain_fx(s_hearts[s_lives - 1]);     // subtle heart pop, not a screen flash
     }
+  }
+  if (e->gold) {
+    s_frenzy_ms = FRENZY_MS;
+    screen_flash(0xFFD23A);
+    score_popup(SCREEN_W/2 - 110, SCREEN_H/2 - 40, "FRENZY!", 0xFFD23A);
   }
   const def_t *d = &DEFS[e->defi];
   juice_splat(e->x, e->y, d->juice);  // big juicy splash on every slice
@@ -2692,6 +2704,9 @@ static void game_tick(lv_timer_t *t) {
     snprintf(b, sizeof b, "%d FRUIT  +%d", s_combo_n, bonus);
     score_popup((int)s_combo_x - 60, (int)s_combo_y - 30, b, 0xFFD23A);
     s_combo_n = 0;
+  }
+  if (s_frenzy_ms > 0) {
+    s_frenzy_ms = (s_frenzy_ms > TICK_MS) ? s_frenzy_ms - TICK_MS : 0;
   }
   s_prev_press = pressed;
 
