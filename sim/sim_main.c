@@ -523,12 +523,15 @@ int kiss_script(void) { return s_sim_script; }
 // step-4 session seams: plausible-looking fakes so the Receive/Export screens render
 static int s_sim_decoy;
 static int s_sim_prepared_decoy;
+static char s_sim_prep_pass[64], s_sim_sess_pass[64];
 int kiss_session_prepare(const char *passphrase) {
   s_sim_prepared_decoy = !(passphrase && passphrase[0]);
+  snprintf(s_sim_prep_pass, sizeof s_sim_prep_pass, "%s", passphrase ? passphrase : "");
   return 0;
 }
 int kiss_session_activate_prepared(void) {
   s_sim_decoy = s_sim_prepared_decoy;
+  memcpy(s_sim_sess_pass, s_sim_prep_pass, sizeof s_sim_sess_pass);
   return 0;
 }
 void kiss_session_discard_prepared(void) { s_sim_prepared_decoy = 0; }
@@ -541,6 +544,11 @@ void kiss_session_close(void) {
   kiss_seed_forget();          // real kiss_crypto.c does the same on lock
 }
 int kiss_session_decoy(void) { return s_sim_decoy; }
+// The device reads the fingerprint off the key the session holds; here the
+// session is a remembered passphrase, so it is the same fake by the same rule.
+int kiss_session_fingerprint(unsigned char out[4]) {
+  return kiss_fingerprint(s_sim_sess_pass, out);
+}
 // The refusal switch: a locked session refuses every derivation at once. The
 // refusal renders were introduced by fixes to five screens that used to encode
 // the failure string into their QRs; without this switch the sim derives

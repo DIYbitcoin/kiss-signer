@@ -170,6 +170,11 @@ void kiss_session_close(void);
 // signer. Screens that would reveal a second signer exists (the unlock-stroke
 // settings) must be absent, not disabled, whenever this is true.
 int kiss_session_decoy(void);
+// Master fingerprint of the OPEN session, taken from the key already in RAM.
+// kiss_fingerprint derives from the stored seed and costs a full PBKDF2; this
+// costs a hash, and returns the same four bytes whenever a session is open
+// because it is the same master key. 0 on success, non-zero with no session.
+int kiss_session_fingerprint(uint8_t out[4]);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int kiss_session_address(int change, uint32_t index, char *out, size_t out_len);
 

@@ -764,6 +764,31 @@ static void test_lock_drops_psbt(const uint8_t *psbt, size_t len)
     chki("lock: reopen for the rest of the suite", kiss_session_open(NULL), 0);
 }
 
+// The unlock stopped deriving the seed a second time just to learn what the
+// keys are called, and reads the fingerprint off the session key instead. The
+// whole claim is that those are the same four bytes; this is that claim, with
+// and without a passphrase, plus the refusal that keeps a stale answer from
+// being served after a lock.
+static void test_session_fingerprint(void) {
+    uint8_t want[4], got[4];
+
+    chki("fp: decoy session opens", kiss_session_open(NULL), 0);
+    chki("fp: derived from the seed", kiss_fingerprint(NULL, want), 0);
+    chki("fp: read off the session", kiss_session_fingerprint(got), 0);
+    chkb("fp: the decoy agrees with itself", memcmp(want, got, 4) == 0);
+
+    chki("fp: passphrase session opens", kiss_session_open("kiss"), 0);
+    chki("fp: derived from the seed", kiss_fingerprint("kiss", want), 0);
+    chki("fp: read off the session", kiss_session_fingerprint(got), 0);
+    chkb("fp: the passphrase agrees with itself", memcmp(want, got, 4) == 0);
+    chkb("fp: and is not the decoy's",
+         kiss_fingerprint(NULL, want) == 0 && memcmp(want, got, 4) != 0);
+
+    kiss_session_close();
+    chkb("fp: refused with no session", kiss_session_fingerprint(got) != 0);
+    chki("fp: reopen for the rest of the suite", kiss_session_open(NULL), 0);
+}
+
 // A selftest whose failure changes nothing is decoration. Force it to fail and
 // prove the signer refuses: the same shape as OVERLAPCHECK_SELFTEST, which
 // exists because a clean sweep means nothing without proof the gate can fire.
@@ -1512,6 +1537,7 @@ int main(int argc, char **argv) {
 
     pl = mk_psbt(MUT_NONE, pb, sizeof pb);
     test_sign_refused_when_selftest_fails(pb, pl);
+    test_session_fingerprint();
     test_lock_drops_psbt(pb, pl);
 
     kiss_session_close();

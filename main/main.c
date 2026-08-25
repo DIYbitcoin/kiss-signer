@@ -1971,9 +1971,11 @@ static void kiss_open_decoy(void) {
     return;
   }
   // Set it either way. A failed derivation used to leave whatever the last
-  // session put here, which on a decoy is the real keys' fingerprint.
+  // session put here, which on a decoy is the real keys' fingerprint. The
+  // open above is what can fail; by here there is a session, and asking IT
+  // costs a hash instead of a second PBKDF2 over the whole seed.
   uint8_t fp[4] = {0};
-  (void)kiss_fingerprint(NULL, fp);     // same empty passphrase = the decoy's own
+  (void)kiss_session_fingerprint(fp);
   kiss_ui_set_last_fp(fp);
   gesture_swallow();                      // the finger may still be mid-word
   kiss_start();
@@ -2009,7 +2011,7 @@ void sim_open_signer(const char *mnemonic, const char *passphrase)
     if (kiss_seed_store(mnemonic) != WSEED_OK) return;
     if (kiss_session_open(pass) != 0) return;
     uint8_t fp[4] = {0};
-    (void)kiss_fingerprint(pass, fp);
+    (void)kiss_session_fingerprint(fp);
     kiss_ui_set_last_fp(fp);
     gesture_swallow();
     kiss_start();
