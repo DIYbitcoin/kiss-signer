@@ -2763,15 +2763,15 @@ int main(void) {
 
   // step 5: Sign via SD — the tabbed page, file list, verify, hold, signed
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> SIGN page
-  save("/tmp/sim_sign_choose.ppm");                 // SCAN QR tab, the claims
-  must_show("sign page, scan tab", tr(STR_N_CAN));
+  save("/tmp/sim_sign_choose.ppm");                 // SCAN QR tab, the airgap
+  must_show("sign page, scan tab", tr(STR_S_POINT_CAM));
   // The [ ? ] tab. The explainer swaps the lane, so the way back is the mark
   // itself -- or the selected tab, both walked here.
   touch(720, 85); pump(3); release(); pump(30);     // [ ? ] -> signing explainer
   save("/tmp/sim_sign_help.ppm");
   must_show("sign [ ? ]", tr(STR_S_HELP_HEAD));
   touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the tab
-  must_show("sign [ ? ] closed", tr(STR_N_CAN));
+  must_show("sign [ ? ] closed", tr(STR_S_POINT_CAM));
   // The page's open flipped the first-run flag for the whole device; put it
   // back so the downstream KEYS stop stays the canonical first-run frame.
   wt_help_seen_set(false);
@@ -2796,7 +2796,7 @@ int main(void) {
   // crosses the tab boundary onto SCAN QR, and the tab strip follows.
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(40);
-  must_show("sign/deck crossed to scan tab", tr(STR_N_CAN));
+  must_show("sign/deck crossed to scan tab", tr(STR_S_POINT_CAM));
   tap_str(STR_S_FROM_SD, 3, 30);      // back in by the strip, page 1 fresh
   must_show("sign/deck return to list", "payment-01.psbt");
   // Row press feedback (wt_line_press). The device has no haptics, so a
@@ -3618,7 +3618,7 @@ int main(void) {
   save("/tmp/sim_settings_swipe.ppm");
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("settings/swipe back to signer", tr(STR_I_DENOM_SUB));
+  must_show("settings/swipe back to signer", tr(STR_I_ROW_DENOM));
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_security.ppm");           // duress unset: amber row + dot
   set_tab(SET_BACKUP);

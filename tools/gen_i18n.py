@@ -275,9 +275,8 @@ UNTRANSLATED_OK = {
     # help card and the attention chip. Born under the English-only rule, like
     # the KEF block above: the other twenty carry the English until the sweep.
     "I_TAB_SIGNER", "I_TAB_SECURITY", "I_TAB_BACKUP", "I_TAB_DEVICE",
-    "I_ROW_DENOM", "I_DENOM_SUB", "I_EXPL_SIGNER",
+    "I_ROW_DENOM",
     "I_WAYSIN_SHORT", "I_HIST_SHORT", "I_ROW_AUDIT", "I_AUDIT_SUB",
-    "I_EXPL_SECURITY",
     "I_PERSIST_DEAD_SUB", "I_PERSIST_DEAD_VAL",
     "I_STORE_FLASH_SUB", "I_STORE_FLASH_ENC_SUB", "I_STORE_SD_SUB",
     "I_STORE_AMN_SUB", "I_EXPL_BACKUP",

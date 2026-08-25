@@ -1583,15 +1583,15 @@ static void tab_signer(void)
     for (; u[ui] && ui + 1 < sizeof unit; ui++)
         unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
     unit[ui] = 0;
+    // No sub: "amount in sats or BTC" restated the SATS chip beside it, and
+    // no group note: the keys lesson lives in the [ ? ] now. The first look
+    // at every tab is rows, not a lecture -- the bench asked in those words.
     wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
         .label = tr(STR_I_ROW_DENOM),
-        .sub   = tr(STR_I_DENOM_SUB),
         .kind  = WT_WIDE_CYCLE,
         .val   = unit,
         .cb    = denom_cb,
     });
-
-    wt_group_note(s_pane, 3, tr(STR_I_EXPL_SIGNER));
 }
 
 static void tab_security(void)
@@ -1658,8 +1658,8 @@ static void tab_security(void)
         .kind  = WT_WIDE_OPEN,
         .cb    = audit_open_cb,
     });
-
-    wt_group_note(s_pane, 3, tr(STR_I_EXPL_SECURITY));
+    // No group note: the DURESS row already carries the lesson -- "opens
+    // your real keys" beside an amber NOT SET says what the sentence said.
 }
 
 static void tab_backup(void)
@@ -1710,9 +1710,8 @@ static void tab_backup(void)
         .cb      = store_open_cb,
     });
 
-    wt_group_note(s_pane, 2, tr(STR_I_EXPL_BACKUP));
-
-    // WHICH keys. This group has two rows where the others have three or four,
+    // No group note (the amber unverified row is the lesson), and WHICH
+    // keys. This group has two rows where the others have three or four,
     // so it ended at y=290 with 108px of glass doing nothing under it -- the
     // one tab that looked unfinished. What earns that band is not a third
     // setting invented to fill it: it is the subject the page was missing.

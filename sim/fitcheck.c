@@ -98,10 +98,10 @@ static const slot_t SLOTS[] = {
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at
     // font14 -- on the flow that moves money.
-    // The SCAN QR tab's foot line: one lane-wide line under the claim rows.
-    // may_be_small: it renders at a FIXED mono18 (pager_line), never on the
-    // ladder this slot models -- a long translation ellipsises rather than
-    // shrinking, and the sweep is where that gets caught and cut.
+    // The SCAN QR tab's one instruction, centered under the airgap diagram.
+    // may_be_small: it renders at a FIXED chrome23, never on the ladder this
+    // slot models -- a long translation ellipsises rather than shrinking,
+    // and the sweep is where that gets caught and cut.
     { "sign/point-cam",   STR_S_POINT_CAM,      704,  29, 1 },
     { "sign/read-fail",   STR_S_READ_FAIL,      704, 232 },
     { "sign/rm-confirm",  STR_S_RM_C_B,         704, 100 },

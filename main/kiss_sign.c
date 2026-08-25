@@ -3842,39 +3842,38 @@ static void scan_pick_cb(lv_event_t *e)
 // read as an unfinished page, and the bench said so.
 static void choose_help_cb(lv_event_t *e);
 
-// The SCAN QR tab's lane: what a scan can and cannot do, moved here from the
-// camera screen it used to crowd. Read before the camera opens, with the
-// dead time the camera page never really had.
+// The SCAN QR tab's lane: the airgap, drawn, and one instruction. It held a
+// WHAT A SCAN CAN DO list here and the bench called it a lecture -- every
+// fact on it is already behind the [ ? ] ("builds the transaction, cannot
+// sign", "nothing moves until this signer signs it"), so the first look is
+// now the picture and the one line the camera actually needs.
 static void scanteach_build(lv_obj_t *p)
 {
-    lv_obj_t *cap = wt_lbl(p, tr(STR_N_CAN_CAP), WT_LANE_X, 118,
-                           wt_chrome18(tr(STR_N_CAN_CAP)), WT_DIM);
-    lv_obj_set_style_text_letter_space(cap, 2, 0);
-    static const struct { const char *g; int s; } R[3] = {
-        { LV_SYMBOL_OK,    STR_N_CAN },
-        { LV_SYMBOL_CLOSE, STR_N_CANT_SPEND },
-        { LV_SYMBOL_CLOSE, STR_N_CANT_SIGN },
-    };
-    for (int i = 0; i < 3; i++) {
-        const int y = 150 + i * 66;
-        const lv_color_t col = i == 0 ? WT_OK : WT_STOP;
-        lv_obj_t *row = lv_obj_create(p);
-        lv_obj_remove_style_all(row);
-        lv_obj_set_pos(row, WT_LANE_X, y);
-        lv_obj_set_size(row, WT_LANE_W, 66);
-        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_t *g = wt_lbl(row, R[i].g, 0, 0, wt_font23(), col);
-        lv_obj_align(g, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
-        const lv_font_t *tf = wt_chrome21(tr(R[i].s));
-        lv_obj_t *t = wt_lbl(row, tr(R[i].s), 0, 0, tf, WT_INK);
-        lv_obj_set_width(t, WT_LANE_W - 52 - WT_LINE_PAD);
-        lv_obj_set_height(t, lv_font_get_line_height(tf));
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-        lv_obj_align(t, LV_ALIGN_LEFT_MID, 52, 0);
-        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + 65, WT_LANE_W),
-                          42 * i + 110, 320);
-    }
-    wt_pager_line(p, tr(STR_S_POINT_CAM), false, 0, 1);
+    lv_obj_t *row = lv_obj_create(p);
+    lv_obj_remove_style_all(row);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    wt_diagram_pair(row);
+    // Centered in the band with the instruction hanging under it: the pair
+    // sits a little above the middle so diagram + line read as one figure.
+    lv_obj_update_layout(row);
+    const int band = 118, bandh = WT_CONTENT_BOTTOM - band;
+    const lv_font_t *nf = wt_chrome23(tr(STR_S_POINT_CAM));
+    lv_point_t ns;
+    lv_text_get_size(&ns, tr(STR_S_POINT_CAM), nf, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    const int gap = 26;
+    const int total = lv_obj_get_height(row) + gap + ns.y;
+    const int top = band + (bandh - total) / 2;
+    lv_obj_set_pos(row, WT_LANE_X + (WT_LANE_W - lv_obj_get_width(row)) / 2,
+                   top);
+    lv_obj_t *note = wt_lbl(p, tr(STR_S_POINT_CAM), 0, 0, nf, WT_MUT);
+    const int nw = ns.x > WT_LANE_W ? WT_LANE_W : ns.x;   // a parked locale
+    lv_obj_set_width(note, nw);                           // may run long
+    lv_obj_set_height(note, lv_font_get_line_height(nf));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(note, WT_LANE_X + (WT_LANE_W - nw) / 2,
+                   top + lv_obj_get_height(row) + gap);
 }
 
 // The lane, per tab -- or the [ ? ] explainer over either: the numbered flow

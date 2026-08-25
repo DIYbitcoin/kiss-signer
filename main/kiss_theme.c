@@ -2879,15 +2879,14 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     lv_obj_set_size(strip, 620, WT_BR_H);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
-    // PACKED LEFT, not SPACE_BETWEEN. Spreading was fine while five tabs
-    // filled the lane, but two short tabs pushed to opposite ends of 620
-    // read as unrelated controls -- SIGN's pair sat 400px apart while KEYS'
-    // longer pair happened to look grouped, and the owner asked for the
-    // grouped look everywhere. The gap is set below, once the tabs are
-    // measured: 28 where the lane has it, the leftover where it does not,
-    // so a full strip renders exactly as it always did.
+    // CENTERED GROUP, not SPACE_BETWEEN and not packed left. Spreading pushed
+    // two short tabs to opposite ends of 620, packing left grouped them but
+    // left the pair hugging one edge of the lane -- and the bench asked for
+    // both halves: together AND centered. The gap is set below, once the
+    // tabs are measured: 28 where the lane has it, the leftover where it
+    // does not, so a full strip renders exactly as it always did.
     lv_obj_set_flex_flow(strip, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_START,
+    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     const lv_font_t *bf = wt_font_mono18();
