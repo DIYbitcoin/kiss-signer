@@ -2879,8 +2879,15 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     lv_obj_set_size(strip, 620, WT_BR_H);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+    // PACKED LEFT, not SPACE_BETWEEN. Spreading was fine while five tabs
+    // filled the lane, but two short tabs pushed to opposite ends of 620
+    // read as unrelated controls -- SIGN's pair sat 400px apart while KEYS'
+    // longer pair happened to look grouped, and the owner asked for the
+    // grouped look everywhere. The gap is set below, once the tabs are
+    // measured: 28 where the lane has it, the leftover where it does not,
+    // so a full strip renders exactly as it always did.
     lv_obj_set_flex_flow(strip, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_SPACE_BETWEEN,
+    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     const lv_font_t *bf = wt_font_mono18();
@@ -2923,6 +2930,16 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     const bool icons = ineed > 0 && need + ineed <= 620;
     const int fair = (620 - keep) / n;
     const bool over = need > 620;
+    // The inter-tab gap, from the room the measured tabs leave: 28 keeps a
+    // two or three tab strip reading as one group, and a strip that already
+    // fills the lane drops to whatever is left (the shipped five-up runs at
+    // ~3px, which is what SPACE_BETWEEN was giving it anyway).
+    if (n > 1) {
+        int gap = (620 - (need + (icons ? ineed : 0))) / (n - 1);
+        if (gap > 28) gap = 28;
+        if (gap < 2)  gap = 2;
+        lv_obj_set_style_pad_column(strip, gap, 0);
+    }
     for (int i = 0; i < n; i++) {
         const wt_tab_t *t = &tabs[i];
         lv_obj_t *b = lv_obj_create(strip);
@@ -2958,6 +2975,11 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         }
         wt_lbl(b, "]", 0, 0, bf, wt_accent());
         if (t->dot) {
+            // FLOATING: the layout skips it, so the unread mark costs the
+            // strip no width -- as a flex child its 7px plus a pad per dot
+            // is what pushed the packed five-up strip past 620 and clipped
+            // NO UNDO's bracket off the edge. It rides the tab's top right
+            // corner instead, the shape a badge already has.
             lv_obj_t *d = lv_obj_create(b);
             lv_obj_remove_style_all(d);
             lv_obj_set_size(d, 7, 7);
@@ -2965,6 +2987,8 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             lv_obj_set_style_bg_color(d, WT_WARN, 0);
             lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
             lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(d, LV_OBJ_FLAG_FLOATING);
+            lv_obj_align(d, LV_ALIGN_TOP_RIGHT, 0, 0);
         }
         tabs_flex_paint(b, i == sel);
     }

@@ -679,11 +679,17 @@ static void anim_del_cb(lv_anim_t *a) { lv_obj_delete((lv_obj_t *)a->var); }
 static void anim_y_cb(void *o, int32_t v) { lv_obj_set_y((lv_obj_t *)o, v); }
 
 // small "+1" / "COMBO xN" text that drifts up and fades, then self-deletes (Fruit-Ninja juice)
+//
+// THE COVER NEVER WEARS THE SIGNER'S FACE. IoskeleyMono is the signer's whole
+// visual identity now, so a game surface set in it links the "game" to the
+// device it is covering for -- the owner called it a giveaway from the bench.
+// Every label the game or its screensaver shows stays on stock Montserrat,
+// here and at the four sites below (score, game over, best, tap to play).
 static void score_popup(int x, int y, const char *txt, uint32_t color) {
   lv_obj_t *l = lv_label_create(lv_screen_active());
   lv_label_set_text(l, txt);
   lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
-  lv_obj_set_style_text_font(l, wt_font_mono28(), 0);
+  lv_obj_set_style_text_font(l, &lv_font_montserrat_28, 0);
   if (x < 6) x = 6;
   if (x > SCREEN_W - 120) x = SCREEN_W - 120;
   if (y < 28) y = 28;
@@ -2648,7 +2654,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_score_lbl = lv_label_create(scr);
   lv_label_set_text(s_score_lbl, "0");
   lv_obj_set_style_text_color(s_score_lbl, lv_color_hex(0xF6D157), LV_PART_MAIN);  // gold
-  lv_obj_set_style_text_font(s_score_lbl, wt_font_num48(), LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_score_lbl, &lv_font_montserrat_40, LV_PART_MAIN);
   lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, 22, 40);  // below top overscan, level with hearts
   lv_obj_add_flag(s_score_lbl, LV_OBJ_FLAG_HIDDEN);
 
@@ -2698,13 +2704,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_over_lbl = lv_label_create(s_over_panel);  // big score number (on the card)
   lv_label_set_text(s_over_lbl, "0");
   lv_obj_set_style_text_color(s_over_lbl, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_font(s_over_lbl, wt_font_num48(), 0);
+  lv_obj_set_style_text_font(s_over_lbl, &lv_font_montserrat_48, 0);
   lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);
 
   s_best_lbl = lv_label_create(s_over_panel);  // BEST n
   lv_label_set_text(s_best_lbl, "BEST  0");
   lv_obj_set_style_text_color(s_best_lbl, lv_color_hex(0xECC878), 0);
-  lv_obj_set_style_text_font(s_best_lbl, wt_font_mono28(), 0);
+  lv_obj_set_style_text_font(s_best_lbl, &lv_font_montserrat_28, 0);
   lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
 
   s_newbest = lv_image_create(s_over_panel);  // NEW BEST! ribbon (shown when beaten)
@@ -2941,7 +2947,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_saver_hint = lv_label_create(scr);   // direct child of the screen (shown/hidden with the saver)
   lv_label_set_text(s_saver_hint, "tap to play");
   lv_obj_set_style_text_color(s_saver_hint, lv_color_hex(0xFFF2CD), 0);
-  lv_obj_set_style_text_font(s_saver_hint, wt_font_mono28(), 0);
+  lv_obj_set_style_text_font(s_saver_hint, &lv_font_montserrat_28, 0);
   lv_obj_set_style_bg_color(s_saver_hint, lv_color_hex(0x10131C), 0);
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark pill so it reads on any backdrop
   lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
