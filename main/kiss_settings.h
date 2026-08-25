@@ -3,6 +3,7 @@
 // worthless coins. Persisted in NVS on device; theme switching lands later.
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 #include "lvgl.h"
 
 void kiss_settings_open(lv_obj_t *parent);
@@ -28,6 +29,11 @@ kiss_settings_load_status_t kiss_settings_load(void);
 // Display unit for amounts (WT_DENOM_SATS / WT_DENOM_BTC): applies it and
 // writes it, so the sign screen can offer the switch where the amounts are.
 void kiss_settings_set_denom(int d);
+
+// The decoy's high score. Read opportunistically, outside the boot gate
+// above: see the note on the reader in kiss_settings.c for why.
+uint16_t kiss_game_best_load(void);
+void kiss_game_best_store(uint16_t best);
 
 // Stable symbolic cause plus the underlying platform error (0 when there was
 // none). Kept ESP-independent so the simulator and host fault harnesses can

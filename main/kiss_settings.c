@@ -170,6 +170,40 @@ static void store_u8(const char *key, uint8_t v)
 #endif
 }
 
+// The decoy's high score. Deliberately NOT part of kiss_settings_load's
+// gate: a game score that will not read is a cosmetic loss and must never
+// be the reason a boot lands on STORAGE LOCKED. Read opportunistically,
+// default 0. Respects the persist switch like every other byte here.
+uint16_t kiss_game_best_load(void)
+{
+#ifndef SIMULATOR
+    nvs_handle_t h;
+    uint16_t v = 0;
+    if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_u16(h, "gbst", &v) != ESP_OK) v = 0;
+        nvs_close(h);
+    }
+    return v;
+#else
+    return 0;
+#endif
+}
+
+void kiss_game_best_store(uint16_t best)
+{
+#ifndef SIMULATOR
+    if (!kiss_persist_enabled()) return;
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u16(h, "gbst", best);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+#else
+    (void)best;
+#endif
+}
+
 const char *kiss_settings_load_status_name(kiss_settings_load_status_t status)
 {
     switch (status) {

@@ -993,7 +993,12 @@ static void show_game_over(void) {
   s_state = ST_OVER;
   s_frenzy_ms = 0;
   bool newbest = s_score > s_best;
-  if (newbest) s_best = s_score;
+  if (newbest) {
+    // Written only on a new best, which is rare enough to add no meaningful
+    // wear to the partition that also holds the KEEP seed.
+    s_best = s_score;
+    kiss_game_best_store((uint16_t)(s_score > 65535 ? 65535 : s_score));
+  }
   clear_all();
   s_trail_count = 0;
   lv_obj_add_flag(s_blade, LV_OBJ_FLAG_HIDDEN);
@@ -2910,6 +2915,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     storage_locked_screen(scr, settings_status);
     return;
   }
+  s_best = (int)kiss_game_best_load();   // opportunistic; never part of the gate
 
   // Match the signer's near-black blue and faint 46px grid. The tiny RGB565 tile
   // keeps flash use low; full-screen menu/saver/home artwork covers it outside PLAY.
