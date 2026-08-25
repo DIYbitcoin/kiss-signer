@@ -394,6 +394,7 @@
   "S_GET_TX": "hent transaktionen fra din koordinator",
   "S_SCAN_QR": "SCAN QR-KODE",
   "S_FROM_SD": "FRA SD-KORT",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "scan transaktionens QR fra koordinatortegnebogen",
   "S_OR_LOAD": "eller indlæs en .psbt-fil fra et kort",
   "S_COORD_T": "SÅDAN VIRKER SIGNERING",

@@ -220,8 +220,10 @@ static void width_one(const char *txt, const lv_font_t *f, const char *what,
 static int osdcheck_run(void)
 {
     // The strings the overlay draws, at every size the overlay uses them at.
+    // The scan page's subtitle came off this list with the page's chrome
+    // conversion: nothing draws it, on video or off.
     static const int keys[] = {
-        STR_C_OSD_SEARCH_S, STR_S_POINT_CAM, STR_N_T, STR_N_S,
+        STR_C_OSD_SEARCH_S, STR_S_POINT_CAM, STR_N_T,
     };
 
     for (int lang = 0; lang < I18N_LANG_N; lang++) {

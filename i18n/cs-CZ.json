@@ -394,6 +394,7 @@
   "S_GET_TX": "získejte transakci z koordinátoru",
   "S_SCAN_QR": "SKENOVAT QR KÓD",
   "S_FROM_SD": "Z SD KARTY",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "naskenujte QR transakce z koordinační peněženky",
   "S_OR_LOAD": "nebo načtěte soubor .psbt z karty",
   "S_COORD_T": "JAK FUNGUJE PODPIS",

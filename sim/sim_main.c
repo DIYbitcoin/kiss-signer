@@ -2735,50 +2735,49 @@ int main(void) {
   save("/tmp/sim_home_end.ppm");
   kiss_usage_wipe();             // the coordinator's word was the walk's, not the owner's
 
-  // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
-  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
-  save("/tmp/sim_sign_choose.ppm");
-  // The [ ? ] tab, where the "PSBT ?" chip used to be. The explainer swaps the
-  // lane, so the way back is the mark itself -- there is no OK on it.
+  // step 5: Sign via SD — the tabbed page, file list, verify, hold, signed
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> SIGN page
+  save("/tmp/sim_sign_choose.ppm");                 // SCAN QR tab, the claims
+  must_show("sign page, scan tab", tr(STR_N_CAN));
+  // The [ ? ] tab. The explainer swaps the lane, so the way back is the mark
+  // itself -- or the selected tab, both walked here.
   touch(720, 85); pump(3); release(); pump(30);     // [ ? ] -> signing explainer
   save("/tmp/sim_sign_help.ppm");
   must_show("sign [ ? ]", tr(STR_S_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the two rows
-  must_show("sign [ ? ] closed", tr(STR_S_SCAN_QR));
-  // The chooser's open flipped the first-run flag for the whole device; put it
+  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the tab
+  must_show("sign [ ? ] closed", tr(STR_N_CAN));
+  // The page's open flipped the first-run flag for the whole device; put it
   // back so the downstream KEYS stop stays the canonical first-run frame.
   wt_help_seen_set(false);
-  // Pill tap feedback (pill_tap_feedback in kiss_theme.c). The device has
-  // no haptics, so a press is answered optically or not at all, and "not at
-  // all" is the kind of thing a refactor takes away in silence. This is the
-  // walk's ordinary FROM SD CARD tap, just photographed twice on the way
-  // through, so it costs the walk nothing and still pins both halves: the
-  // ring exists ONLY in the first frame (it is outside the pill edge there and
-  // gone by the second), so if the animation ever stops rendering the two
-  // frames become identical and check_sim_taps.py fails.
-  // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
-  touch(218, 296); pump(5);                        // FROM SD CARD (row 1)
-  save("/tmp/sim_pill_ring.ppm");                  // ring still outside the edge
-  pump(14);
-  save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
-  release(); pump(6);                              // -> file list
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   save("/tmp/sim_sign_files.ppm");
-  // PAGED, with a finger, which replaces the drag this list used to need. The
-  // eight file fixture overflows one page of three, so the pager's arrows are
-  // live: forward must land on rows the first frame never showed, and back
-  // must return to the top. The frames are the check -- check_sim_taps.py
-  // requires consecutive saves to differ, so a pager that stops flipping
-  // fails here.
-  //
-  // The forward arrow is a 36px chip at (716..752, 354..390); back sits 44px
-  // left of it. Fixed coordinates, same as the strip taps: the pager is
-  // chrome, not content, and it never moves.
-  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  // SWIPED, with a finger: the eight file fixture overflows one page of
+  // three, and a horizontal stroke is now the ONLY way between pages, so the
+  // walk's swipe is the regression test for the gesture wiring itself. The
+  // stroke deliberately STARTS ON A ROW: crossing the 50px gesture limit has
+  // to flip the page and must NOT also open the file the finger touched
+  // first -- the frames differing (check_sim_taps.py) and the page-2 needle
+  // prove the flip, and landing on a list rather than a verify screen proves
+  // the click was swallowed.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(30);                              // swipe left -> page 2
   save("/tmp/sim_sign_files_p2.ppm");               // rows the fold used to hide
   must_show("file list page 2", "warn-COMBO.psbt");
-  touch(690, 372); pump(3); release(); pump(30);    // [ < ] -> page 1
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(30);                              // swipe right -> page 1
   must_show("file list page 1", "payment-01.psbt");
-  touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
+  // Row press feedback (wt_line_press). The device has no haptics, so a
+  // press is answered optically or not at all, and "not at all" is the kind
+  // of thing a refactor takes away in silence. This is the walk's ordinary
+  // first-file tap, photographed twice on the way through: the pressed rail
+  // exists ONLY while the finger is down, so if it stops rendering the two
+  // frames become identical and check_sim_taps.py fails.
+  // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
+  touch(328, 150); pump(5);                        // first file, held
+  save("/tmp/sim_pill_ring.ppm");                  // press answered
+  pump(14);
+  save("/tmp/sim_pill_held.ppm");                  // still held, settled
+  release(); pump(8);                              // -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");                 // FOLDED address + SHOW FULL
   // The fold, opened and closed. Both states are a screen an owner signs from,
   // so both have to be photographed in all 21 locales -- the folded one is a
@@ -3044,8 +3043,8 @@ int main(void) {
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
-  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
+  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   touch(328, 216); pump(3); release(); pump(8);     // the STOP file -> blocked verify
   save("/tmp/sim_sign_stop.ppm");
   // BACK is ONE STEP now: from a transaction it returns to the list that
@@ -3128,7 +3127,8 @@ int main(void) {
   // an orphan and the check passes on a build that leaks.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   // warn-COMBO leads page two now: nine files, three a page.
-  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(30);                              // swipe left -> page 2
   touch(328, 150); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
   // THE regression. Five cautions used to replace the output panels outright,
@@ -3188,10 +3188,9 @@ int main(void) {
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
-  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the SCAN/SD chooser
-  save("/tmp/sim_sign_back_choose.ppm");
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the list, page 2 kept
+  save("/tmp/sim_sign_back_choose.ppm");            // the page, still on SD
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home (the page IS the chooser now)
   // silent payment send: out0 renders as a tsp1 address with the SP badge+note.
   // the list shows only the first 4 files, so clear the others (all frames above
   // are already saved) to leave zsp-SPAY in row 0 and zzz-UNPRV in row 1.
@@ -3199,8 +3198,8 @@ int main(void) {
   sd_unlink("risky-STOP.psbt");
   sd_unlink("silly-FEE.psbt");    sd_unlink("silly-FEE-signed.psbt");
   sd_unlink("warn-COMBO.psbt");
-  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> chooser
-  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD -> list (only SPAY)
+  touch(130, 240); pump(3); release(); pump(6);     // Sign again -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   touch(328, 150); pump(3); release(); pump(8);     // zsp-SPAY (row 0) -> SP verify
   save("/tmp/sim_sign_sp.ppm");                      // SP output: the on-chain note
                                                       // moved to DETAILS, so the
@@ -3267,7 +3266,8 @@ int main(void) {
   // and their total is what stops "16 more" reading as loose change. Both come
   // from the summary, because ins[] holds sixteen of the twenty.
   // zzzzz-MERGE is alone on page two of the four remaining files.
-  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(30);                              // swipe left -> page 2
   touch(328, 150); pump(3); release(); pump(8);     // zzzzz-MERGE -> verify
   save("/tmp/sim_sign_merge.ppm");
   // Digits only. Every other needle here would be a translated word, and
@@ -3360,8 +3360,8 @@ int main(void) {
   // out with no width and no long mode at font28, which at 63 bytes is about
   // 900px on an 800px panel: it ran off both edges, taking the first and last
   // characters with it, which are the two an eye uses to match a name.
-  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
-  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD (row 1)
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   if (tap_row_prefix("zzzz-MANY")) {
     // The read-to-the-end gate is still in force, so the column has to be
     // dragged before HOLD TO SIGN is live. Same six flicks as the first visit.
@@ -3419,17 +3419,17 @@ int main(void) {
   // to say it. Nothing after this leg reads the two files removed here.
   sd_unlink("zzz-UNPRV.psbt");
   sd_unlink("zzzzz-MERGE.psbt");
-  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
-  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   save("/tmp/sim_sign_files_few.ppm");              // 2 rows + the hint line
   must_show("sparse file list", tr(STR_S_FILES_HINT));
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home (the page IS the chooser)
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
-  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
-  touch(218, 190); pump(3); release(); pump(6);     // SCAN QR -> scan screen
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_SCAN_QR, 3, 30);                    // SCAN QR tab (page was on SD)
+  tap_str(STR_S_OPEN_CAM, 3, 6);                    // OPEN CAMERA -> scan screen
   save("/tmp/sim_qr_scan.ppm");
 
   // A pMofN set too large for this device, refused at the first part. The
@@ -4169,11 +4169,10 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK from SP (leftmost) -> detail
   tap_str(STR_C_BACK, 3, 4);     // BACK from detail (leftmost) -> home
   touch(130, 240); pump(3); release(); pump(6);     // Sign -> chooser
-  touch(218, 296); pump(3); release(); pump(6);     // FROM SD
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
   touch(328, 150); pump(3); release(); pump(8);     // file -> verify: TESTNET row
   save("/tmp/sim_verify_tn.ppm");
-  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
+  tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the list page
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_SIGNER);

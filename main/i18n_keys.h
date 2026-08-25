@@ -397,6 +397,7 @@ enum {
     STR_S_GET_TX,
     STR_S_SCAN_QR,
     STR_S_FROM_SD,
+    STR_S_OPEN_CAM,
     STR_S_POINT_CAM,
     STR_S_OR_LOAD,
     STR_S_COORD_T,

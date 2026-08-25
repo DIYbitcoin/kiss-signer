@@ -97,8 +97,11 @@ static const slot_t SLOTS[] = {
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at
     // font14 -- on the flow that moves money.
-    { "sign/point-cam",   STR_S_POINT_CAM,      322, 116 },
-    { "sign/or-load",     STR_S_OR_LOAD,        322,  58 },
+    // The SCAN QR tab's foot line: one lane-wide line under the claim rows.
+    // may_be_small: it renders at a FIXED mono18 (pager_line), never on the
+    // ladder this slot models -- a long translation ellipsises rather than
+    // shrinking, and the sweep is where that gets caught and cut.
+    { "sign/point-cam",   STR_S_POINT_CAM,      704,  29, 1 },
     { "sign/read-fail",   STR_S_READ_FAIL,      704, 232 },
     { "sign/rm-confirm",  STR_S_RM_C_B,         704, 100 },
     { "sign/not-psbt",    STR_S_NOT_PSBT,       704, 232 },
@@ -275,7 +278,11 @@ static const slot_t SLOTS[] = {
     { "login/cap-verify", STR_L_VERIFY_PASS,    486,  58 },
     { "login/fp-note",    STR_L_FP_NOTE,        700,  58 },
     { "login/fp-note2",   STR_L_FP_NOTE2,       700,  58 },
-    { "scan/sub",         STR_N_S,              530,  29 },
+    // The scan page's right column: the safety sentence wraps freely in the
+    // 356 lane above the band, so its budget is the room down to 398.
+    // may_be_small for the same reason as sign/point-cam: it renders at a
+    // FIXED mono18, not on the ladder, and the sweep owns the long locales.
+    { "scan/no-sign",     STR_N_NOTHING_SIGNED, 356, 166, 1 },
     // kiss_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
     // with the raw "%s" in place, which is ~2px narrower per prefix than the
     // 3 to 4 characters that get substituted, so this reads slightly optimistic.

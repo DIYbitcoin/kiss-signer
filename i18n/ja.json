@@ -394,6 +394,7 @@
   "S_GET_TX": "コーディネーターからトランザクションを受け取ります",
   "S_SCAN_QR": "QRをスキャン",
   "S_FROM_SD": "SDカードから",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "コーディネーターアプリの取引QRをスキャンしてください",
   "S_OR_LOAD": "またはカードに保存した .psbt ファイルを読み込み",
   "S_COORD_T": "署名のしくみ",

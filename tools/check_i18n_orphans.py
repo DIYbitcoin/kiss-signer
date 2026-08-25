@@ -99,6 +99,13 @@ BACKLOG = frozenset({
     "STR_S_FLOW_3",
     "STR_S_GET_TX",
     "STR_S_SD_SUB",
+    # Retired when SIGN grew its tab strip and the camera page was de-boxed:
+    # the SD row's sub-line, the scan page's subtitle, and the PSBT help card
+    # the [ ? ] explainer replaced.
+    "STR_N_PSBT_B",
+    "STR_N_PSBT_T",
+    "STR_N_S",
+    "STR_S_OR_LOAD",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

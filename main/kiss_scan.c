@@ -12,7 +12,6 @@
 #endif
 
 #include "i18n.h"
-#include "kiss_info.h"   // the one "?" card implementation lives there
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
 
@@ -69,6 +68,11 @@ static void scan_teardown(void)
     if (s_tmr) { lv_timer_delete(s_tmr); s_tmr = NULL; }
 #ifndef SIMULATOR
     camera_scan_stop();
+    // The video wrote its rect straight into the framebuffer, past LVGL, so
+    // LVGL believes that area is already painted. Without this, whatever
+    // frame the camera left behind sits there until something else happens
+    // to dirty it -- the black box the bench reported on the way out.
+    lv_obj_invalidate(lv_screen_active());
 #endif
     if (s_parser) { qrt_parser_free(s_parser); s_parser = NULL; }
     // camera_scan_stop() has ended the producer. Wipe before publishing the
@@ -307,28 +311,15 @@ void kiss_scan_open_raw(lv_obj_t *parent,
     scan_open_common(parent);
 }
 
-// ---- ADDENDUM-01 section 3 geometry ----
-// The reticle column, and the card that answers the question nobody asks out
-// loud: somebody new to this is pointing a camera at a code they cannot read,
-// on a device holding their keys, wondering whether this is how people get
-// robbed. The screen has the space and the dead time to answer it.
-//
-// Both columns run 112 to WT_CONTENT_BOTTOM (398) and both are made of the same
-// cards the settings screen is made of. Everything on this screen used to float
-// on the page: an empty bordered rectangle for a viewport, two bare status lines
-// under it, a paragraph with a "?" adrift to the right of it. Cards are the
-// difference, and the status line is the clearest case -- "waiting for QR" is
-// the only thing on this screen that changes, and it had nothing around it to
-// change inside.
+// ---- geometry ----
+// The viewfinder keeps the rect the camera was device tested on; everything
+// around it is on the chrome contract now. The can/cannot cards that used to
+// crowd the right column moved to the SIGN page's SCAN QR tab, where they
+// can be read before the camera is even open -- what is left here is the
+// picture, the one line that changes while you wait, and the way out.
 #define SCN_CAM_X 48
 #define SCN_CAM_Y 112
 #define SCN_CAM_W 300
-// 188, not the 208 this column had while its status was two bare labels. The
-// status is a card now and the card has to hold the camera-failure case, whose
-// hint is a whole instruction ("tap the top left corner to go back and retry")
-// rather than a word. Two lines of it need 84, and the twenty pixels come from
-// the preview because the preview can spare them: the decoder always reads the
-// full sensor, so this rectangle only has to be big enough to aim with.
 #define SCN_CAM_H 188
 
 // The rect, for anything outside this file that has to put something in the
@@ -343,74 +334,12 @@ void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
 }
 #define SCN_COL_X 396
 #define SCN_COL_W 356
-// The status card, under the preview: a line of state at font23 over up to two
-// lines of detail at font14, in the box a settings row uses.
-#define SCN_STAT_Y (SCN_CAM_Y + SCN_CAM_H + 10)
-#define SCN_STAT_H 84
-// The right column's three cards. The CAN row, the two CANNOT rows, then the
-// paragraph that carries the "?" in its own corner instead of beside it.
-#define SCN_CAN_Y  136
-#define SCN_CAN_H   48
-#define SCN_CANT_Y 192
-#define SCN_CANT_H  84
-#define SCN_WHY_Y  284
-#define SCN_WHY_H  104
-
-// One permission row: a glyph in `col` and a line of text beside it.
-static void scan_perm(lv_obj_t *par, int y, const char *glyph, int str,
-                      lv_color_t col)
-{
-    wt_lbl(par, glyph, 14, y, wt_font14(), col);
-    lv_obj_t *t = wt_lbl(par, tr(str), 40, y, wt_font14(), WT_MUT);
-    lv_obj_set_width(t, SCN_COL_W - 54);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
-}
 
 static void scan_status(const char *state, const char *hint)
 {
     if (!s_prog || !s_hint) return;
     if (state) lv_label_set_text(s_prog, state);
     if (hint)  lv_label_set_text(s_hint, hint);
-    const char *h = lv_label_get_text(s_hint);
-    bool two = h && h[0];
-    lv_obj_set_pos(s_prog, 14, two ? 8
-                   : (SCN_STAT_H - lv_font_get_line_height(wt_font23())) / 2);
-    lv_obj_set_pos(s_hint, 14, 42);
-}
-
-#ifndef SIMULATOR
-static void help_closed_cb(lv_event_t *e)
-{
-    (void)e;
-    camera_spike_pause(false);
-}
-#endif
-
-// The one help card on this device that opens over a LIVE camera, and so the one
-// that has to say so. The video writes its rect straight into the framebuffer
-// being scanned out, past LVGL entirely, so without the pause the explainer
-// arrives with the picture punched through its left column AND the decoder keeps
-// reading: hold a QR up while reading about what a transaction is and the device
-// would walk itself to a transaction you never chose to scan.
-//
-// Resume hangs off the overlay's own deletion, not off the OK pill, because
-// wt_explain_open also closes on a tap anywhere and a camera left paused by the
-// other exit is a scan screen that never sees anything again.
-static void scan_psbt_help_cb(lv_event_t *e)
-{
-    (void)e;
-#ifndef SIMULATOR
-    camera_spike_pause(true);
-#endif
-    lv_obj_t *card = kiss_info_help_card_open(s_scr, tr(STR_N_PSBT_T),
-                                                tr(STR_N_PSBT_B),
-                                                LV_SYMBOL_FILE);
-#ifndef SIMULATOR
-    if (card) lv_obj_add_event_cb(card, help_closed_cb, LV_EVENT_DELETE, NULL);
-    else      camera_spike_pause(false);
-#else
-    (void)card;
-#endif
 }
 
 static void scan_open_common(lv_obj_t *parent)
@@ -419,17 +348,15 @@ static void scan_open_common(lv_obj_t *parent)
     kiss_wipe(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
 
-    // wt_screen, not a bare container: this screen used to build its own 800x480
-    // object and so was the one wallet surface that did not wear the card frame,
-    // the title treatment or the action bar the rest of the device has.
-    s_scr = wt_screen(parent, tr(STR_N_T), tr(STR_N_S));
-    wt_chrome_head(s_scr);
+    // The chrome contract: title and cursor, empty strip row, hairline, band.
+    // The subtitle went with it -- "show the coordinator's QR to the camera"
+    // restated what the viewfinder and the status line already say.
+    s_scr = wt_chrome(parent, tr(STR_N_T));
     lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_scr, cancel_cb, LV_EVENT_CLICKED, NULL);
 #ifndef SIMULATOR
     lv_obj_add_event_cb(s_scr, zoom_drag_cb, LV_EVENT_ALL, NULL);
 #endif
-
 
     // The preview column. A PANEL, not an empty outline: before the first camera
     // frame lands (and always, in the simulator) this is the largest object on
@@ -437,77 +364,59 @@ static void scan_open_common(lv_obj_t *parent)
     // as a viewport waiting for a picture.
     wt_viewfinder(s_scr, SCN_CAM_X, SCN_CAM_Y, SCN_CAM_W, SCN_CAM_H);
 
-    // Right column. One thing a scan CAN do, then the two it cannot.
-    wt_section(s_scr, tr(STR_N_CAN_CAP), SCN_COL_X, SCN_CAM_Y);
-
-    lv_obj_t *can = wt_card(s_scr, SCN_COL_X, SCN_CAN_Y, SCN_COL_W, SCN_CAN_H);
-    wt_row_sev(can, WT_SEV_OK);
-    scan_perm(can, (SCN_CAN_H - 18) / 2, LV_SYMBOL_OK, STR_N_CAN, WT_OK);
-
-    lv_obj_t *cant = wt_card(s_scr, SCN_COL_X, SCN_CANT_Y, SCN_COL_W, SCN_CANT_H);
-    // TWO crosses, not the three ADDENDUM-01 drew. It also listed "reach your
-    // recovery words" and "put this device online", and the owner cut both:
-    // nobody arriving at a scan screen fears either. The product is called an
-    // airgapped signer and the home screen says so, so "cannot go online" tells
-    // a reader something they already knew, and a QR reaching the recovery words
-    // is not a worry anybody has until this card invents it. Padding a safety
-    // card with risks the reader does not hold makes the one that matters read
-    // like boilerplate. What is actually being asked, camera pointed at a code
-    // you cannot read on a device holding your keys, is "can this spend my
-    // money", and these two answer exactly that.
-    scan_perm(cant, 16, LV_SYMBOL_CLOSE, STR_N_CANT_SPEND, WT_STOP);
-    scan_perm(cant, 48, LV_SYMBOL_CLOSE, STR_N_CANT_SIGN,  WT_STOP);
-
-    // The paragraph gets a card of its own and the "?" goes in its top right
-    // corner. The chip used to sit at x=752 beside the text, which is past the
-    // 752 page margin and belonged to nothing: a help affordance floating in the
-    // gutter reads as a stray control rather than as this paragraph's footnote.
-    lv_obj_t *why = wt_card(s_scr, SCN_COL_X, SCN_WHY_Y, SCN_COL_W, SCN_WHY_H);
-    lv_obj_t *note = wt_note(why, tr(STR_N_NOTHING_SIGNED), 14, 12,
-                             SCN_COL_W - 28 - 34, SCN_WHY_H - 24);
-    (void)note;
-    wt_help_chip(why, SCN_COL_W - 42, 12, MUT_COL, scan_psbt_help_cb, NULL);
-
-    // Status under the preview, as a ROW: the state at font23 over the detail at
-    // font14, in the same box a settings row uses, because that is what this is.
-    // It was two bare labels on the page, and the one thing on this screen that
-    // changes while you wait had nothing around it to change inside.
-    lv_obj_t *stat = wt_card(s_scr, SCN_CAM_X, SCN_STAT_Y, SCN_CAM_W, SCN_STAT_H);
-    s_prog = lv_label_create(stat);
+    // The right column: the one line that changes while you wait, at the size
+    // the wait deserves, then the driver detail under it, then the sentence
+    // that answers "can this rob me" -- de-boxed, on the glass, the way every
+    // converted page carries its claims.
+    s_prog = lv_label_create(s_scr);
     lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
-    lv_obj_set_style_text_font(s_prog, wt_font23(), 0);
-    lv_obj_set_width(s_prog, SCN_CAM_W - 28);
-    lv_obj_set_height(s_prog, lv_font_get_line_height(wt_font23()));
+    lv_obj_set_style_text_font(s_prog, wt_chrome28(tr(STR_N_WAIT_QR)), 0);
+    lv_obj_set_pos(s_prog, SCN_COL_X, 124);
+    lv_obj_set_width(s_prog, SCN_COL_W);
+    lv_obj_set_height(s_prog, lv_font_get_line_height(wt_chrome28(tr(STR_N_WAIT_QR))));
     lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
-    // Centred, because this card is a readout and not a row of settings. Both
-    // labels are already full card width and pinned at 14, so the alignment is
-    // the only thing that decides where the text sits: left put "waiting for QR"
-    // hard against the edge of a box whose only job is to hold that one phrase.
-    lv_obj_set_style_text_align(s_prog, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(s_prog, 14, 8);
 
-    // The camera-failure path writes the driver status here, which is technical
-    // metadata and belongs at font14. Two lines, height pinned: LONG_DOT on a
-    // sized label wraps and then ellipsises, so the longest translation of the
-    // retry instruction degrades inside the card instead of past its edge.
-    s_hint = lv_label_create(stat);
+    // The camera-failure path writes the driver status here: technical
+    // metadata, two lines, height pinned so the longest retry instruction
+    // degrades inside its box instead of past the column's edge.
+    s_hint = lv_label_create(s_scr);
     lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_hint, wt_font14(), 0);
-    lv_obj_set_width(s_hint, SCN_CAM_W - 28);
-    lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_font14()));
+    lv_obj_set_style_text_font(s_hint, wt_chrome18(tr(STR_N_RETRY)), 0);
+    lv_obj_set_pos(s_hint, SCN_COL_X, 168);
+    lv_obj_set_width(s_hint, SCN_COL_W);
+    lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_chrome18(tr(STR_N_RETRY))));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_CENTER, 0);
-    scan_status(NULL, NULL);            // places both lines for the one-line case
 
-    // CANCEL in the action row, and the SD alternative NAMED beside it: the
-    // person struggling to scan does not know they have another option, because
-    // that choice was two screens ago. Muted text, not a button, because it is
-    // not reachable from here without cancelling first.
-    // 552..752 rather than 612: this pill is 200 wide, not the standard 140.
-    wt_pill(s_scr, tr(STR_C_CANCEL), 552, WT_ACTION_Y, 200, cancel_btn_cb, NULL);
-    wt_lbl(s_scr, tr(STR_N_OR_SD), 48, WT_ACTION_Y + 16, wt_font14(), MUT_COL);
+    lv_obj_t *note = lv_label_create(s_scr);
+    lv_label_set_text(note, tr(STR_N_NOTHING_SIGNED));
+    lv_obj_set_style_text_color(note, MUT_COL, 0);
+    lv_obj_set_style_text_font(note, wt_chrome18(tr(STR_N_NOTHING_SIGNED)), 0);
+    lv_obj_set_pos(note, SCN_COL_X, 232);
+    lv_obj_set_width(note, SCN_COL_W);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+
+    scan_status(NULL, NULL);
+
+    // CANCEL as the band's exit, and the SD alternative NAMED beside it: the
+    // person struggling to scan does not know they have another option,
+    // because that choice was a tab ago. Muted text, not a control, because
+    // it is not reachable from here without cancelling first.
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 552, WT_ACTION_Y,
+                    200, true, cancel_btn_cb, NULL);
+    {
+        const lv_font_t *of = wt_chrome18(tr(STR_N_OR_SD));
+        lv_obj_t *or = lv_label_create(s_scr);
+        lv_label_set_text(or, tr(STR_N_OR_SD));
+        lv_obj_set_style_text_color(or, MUT_COL, 0);
+        lv_obj_set_style_text_font(or, of, 0);
+        lv_obj_set_pos(or, WT_ACT_X,
+                       WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(of)) / 2);
+        lv_obj_set_width(or, 480);
+        lv_obj_set_height(or, lv_font_get_line_height(of));
+        lv_label_set_long_mode(or, LV_LABEL_LONG_DOT);
+    }
 
     s_tmr = lv_timer_create(poll_cb, 80, NULL);
 

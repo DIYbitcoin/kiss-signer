@@ -394,6 +394,7 @@
   "S_GET_TX": "hol die Transaktion von deinem Koordinator",
   "S_SCAN_QR": "QR SCANNEN",
   "S_FROM_SD": "VON SD-KARTE",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "scanne den Transaktions-QR deiner Koordinator-App",
   "S_OR_LOAD": "oder lade eine .psbt-Datei von einer Karte",
   "S_COORD_T": "SO FUNKTIONIERT DAS SIGNIEREN",

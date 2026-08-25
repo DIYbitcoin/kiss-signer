@@ -394,6 +394,7 @@
   "S_GET_TX": "从你的协调器获取交易",
   "S_SCAN_QR": "扫二维码",
   "S_FROM_SD": "从 SD 卡",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "扫描协调器应用显示的交易二维码",
   "S_OR_LOAD": "或载入存在卡上的 .psbt 文件",
   "S_COORD_T": "签名是怎么回事",

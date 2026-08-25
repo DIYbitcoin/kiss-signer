@@ -195,7 +195,10 @@ UNTRANSLATED_OK = {
     # the paged file list's count line. Born under the English-only rule.
     "S_HELP_HEAD", "S_HELP_BODY", "S_HELP_F1C", "S_HELP_F1V",
     "S_HELP_F2C", "S_HELP_F2V", "S_HELP_F3C", "S_HELP_F3V",
-    "S_FILES_COUNT",
+    "S_FILES_COUNT", "S_OPEN_CAM",
+    # These two were reworded in English when FROM SD CARD became the SD CARD
+    # tab; the other twenty keep the old sense until the sweep.
+    "S_FROM_SD", "N_OR_SD",
     # The erase card's paragraph, split into the claim PAIR the house rules
     # ask for -- one sentence stacking three claims was a wall of text and
     # overlapcheck said so. English until the sweep.

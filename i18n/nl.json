@@ -394,6 +394,7 @@
   "S_GET_TX": "haal de transactie op bij je coördinator",
   "S_SCAN_QR": "SCAN QR",
   "S_FROM_SD": "VAN SD-KAART",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "scan de transactie-QR van je coördinator-app",
   "S_OR_LOAD": "of laad een .psbt-bestand van een kaart",
   "S_COORD_T": "ZO WERKT ONDERTEKENEN",

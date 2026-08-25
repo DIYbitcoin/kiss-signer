@@ -394,6 +394,7 @@
   "S_GET_TX": "코디네이터에서 거래를 가져오세요",
   "S_SCAN_QR": "QR 스캔",
   "S_FROM_SD": "SD 카드에서",
+  "S_OPEN_CAM": "OPEN CAMERA",
   "S_POINT_CAM": "코디네이터 앱의 거래 QR을 스캔하세요",
   "S_OR_LOAD": "또는 카드에 저장된 .psbt 파일을 불러오세요",
   "S_COORD_T": "서명이 되는 방식",

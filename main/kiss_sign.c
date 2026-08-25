@@ -296,7 +296,11 @@ void kiss_sign_close(void) { close_cb(NULL); }   // idle auto-lock path
 // SIGN > FROM SD CARD > pick the card > find the list. step_back() drops only
 // the current screen and whatever transaction it had loaded; the caller then
 // rebuilds the screen behind it.
-static void sd_open(lv_obj_t *parent);
+// The SIGN page's own context: two tabs and the [ ? ], the RECEIVE shape.
+// Declared this early because the one-step-back callbacks put the owner on
+// the tab they came from.
+static wt_pane_t s_cctx;
+static bool s_choose_help;         // the lane is showing [ ? ], not a tab
 
 static void step_back(void)
 {
@@ -305,20 +309,25 @@ static void step_back(void)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
-static void files_back_cb(lv_event_t *e)      // -> the PSBT file list
+static bool s_keep_page;   // one step back returns to the page you left
+
+static void files_back_cb(lv_event_t *e)      // -> the SIGN page, SD CARD tab
 {
     (void)e;
     lv_obj_t *parent = s_parent;
     step_back();
-    sd_open(parent);                          // the card stays mounted
+    s_cctx.tab = 1;                           // the card stays mounted
+    s_keep_page = true;                       // ...and so does the list page
+    kiss_sign_open(parent);
 }
 
-static void choose_back_cb(lv_event_t *e)     // -> SCAN QR / FROM SD CARD
+static void choose_back_cb(lv_event_t *e)     // -> the SIGN page, SCAN QR tab
 {
     (void)e;
     lv_obj_t *parent = s_parent;
     step_back();
     platform_sd_unmount();                    // leaving the SD path for good
+    s_cctx.tab = 0;
     kiss_sign_open(parent);
 }
 
@@ -3404,24 +3413,11 @@ static void file_tap_cb(lv_event_t *e)
 }
 
 // Both dead ends on the SD path: no card in the slot, and a card with no .psbt
-// on it. They were a bare 28px line and a grey paragraph floating on an empty
-// page -- the only two screens in SIGN with no card frame and no mark, which is
-// the wrong pair of screens to leave looking unfinished, because they are the
-// two the owner reaches when something has already gone wrong. Same card, same
-// amber SD glyph, same words.
-// The trail every screen on the SD branch wears: how the owner got here.
-static void sd_trail(void)
+// on it. They render in the SD CARD tab's lane -- same card, same amber SD
+// glyph, same words as when they owned a page of their own.
+static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
 {
-    char trail[96];
-    snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), tr(STR_S_FROM_SD));
-    wt_trail(s_scr, WT_ICON_SD, trail, false);
-}
-
-static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body)
-{
-    mk_chrome(parent, tr(STR_S_T));
-    sd_trail();
-    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, 140, WT_LANE_W, 200);
+    lv_obj_t *card = wt_card(p, WT_LANE_X, 140, WT_LANE_W, 200);
     lv_obj_t *ic = wt_lbl(card, WT_ICON_SD, 0, 0, wt_font28(), WARN_COL);
     lv_obj_align(ic, LV_ALIGN_TOP_LEFT, 28, 26);
     lv_obj_t *h = wt_lbl(card, head, 76, 22, wt_font28(), INK_COL);
@@ -3430,87 +3426,93 @@ static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body
     lv_obj_update_layout(h);
     wt_note_col(card, body, 28, 22 + lv_obj_get_height(h) + 14, 648,
                 200 - 58 - lv_obj_get_height(h), MUT_COL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, choose_back_cb, NULL);
+}
+
+// The trail the SD branch's opened-from screens wear: how the owner got here.
+static void sd_trail(void)
+{
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), tr(STR_S_FROM_SD));
+    wt_trail(s_scr, WT_ICON_SD, trail, false);
 }
 
 // ---- the paged list ----------------------------------------------------
 // The file list and the REMOVE list used to scroll behind an invisible
-// scrollbar; they PAGE now, three whole rows at a time, and a page flip
-// slides the rows in sideways -- the same idiom RECEIVE's address list
-// ships, moved onto lists that no longer scroll at all. Taps, not a swipe:
-// nothing else on this device drags, a gesture is invisible until
-// discovered, and the walk cannot photograph one.
+// scrollbar; they PAGE now, three whole rows at a time. A horizontal SWIPE
+// flips the page -- the stroke's own direction is the flip's -- and the dots
+// by the count line say where in the deck the owner is. The arrow chips this
+// replaces were 36px targets wedged between BACK and the row chevrons, and
+// the bench said so.
 #define SF_ROW_H 76                       // caption over a mono23 value
 #define SF_PAGE   3                       // 3 * 76 = 228 in the 284 lane,
-                                          // count line and arrows at its foot
+                                          // count line and dots at its foot
 static int s_file_page, s_rm_page;
-static int s_nfiles, s_ftotal;            // what sd_open read off the card
-static wt_pane_t s_fctx;                  // the rows, so a flip can slide
+static int s_nfiles, s_ftotal;            // what the SD tab read off the card
+static wt_pane_t s_fctx;                  // REMOVE's rows, so a flip can slide
 
 static int sf_pages(int n) { return n > 0 ? (n + SF_PAGE - 1) / SF_PAGE : 1; }
 
-// The count line and the two page arrows at the lane's foot. `warn` swaps the
-// count for the more-files-than-the-list warning, which matters more.
+// The count line and the page dots at the lane's foot. `warn` swaps the
+// count for the more-files-than-the-list warning, which matters more. The
+// dots are display only: the page moves under a finger, not a 36px chip.
 static void pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
-                       int npages, lv_event_cb_t cb)
+                       int npages)
 {
     const lv_font_t *nf = wt_chrome18(txt);
     lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, 358, nf,
                             warn ? WARN_COL : MUT_COL);
-    // The arrows' 110px lane comes off the note only when arrows exist: the
-    // sort hint on a sparse list is 4px longer than the shared lane, and DOT
-    // ate its last clause without a word from any gate.
-    lv_obj_set_width(note, npages < 2 ? WT_LANE_W : WT_LANE_W - 110);
+    // The dots' lane comes off the note only when dots exist: the sort hint
+    // on a sparse list is 4px longer than the shared lane, and DOT ate its
+    // last clause without a word from any gate.
+    lv_obj_set_width(note, npages < 2 ? WT_LANE_W : WT_LANE_W - 150);
     // Pinned to ONE line: a label allowed to grow is a budget given away.
     lv_obj_set_height(note, lv_font_get_line_height(nf));
     lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
     // Scenery, all of it: the pager is chrome, and chrome does not ride the
-    // slide it drives. Left as rows, the arrows entered from the side with
-    // everything else -- so for the first ~400ms after a flip the visible
-    // chip sat 24px from its own hit box, and a second tap landed on glass.
+    // slide it drives.
     wt_pane_scenery(note);
     if (npages < 2) return;
-    for (int i = 0; i < 2; i++) {
-        const bool fwd = i == 1;
-        const int to = page + (fwd ? 1 : -1);
-        lv_obj_t *pa = lv_obj_create(p);
-        lv_obj_remove_style_all(pa);
-        lv_obj_set_size(pa, 36, 36);
-        lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 354);
-        lv_obj_remove_flag(pa, LV_OBJ_FLAG_SCROLLABLE);
-        wt_pane_scenery(pa);
-        lv_obj_t *g = wt_lbl(pa, fwd ? WT_ICON_ARR_R : WT_ICON_ARR_L, 0, 0,
-                             wt_font23(), wt_accent());
-        lv_obj_add_flag(g, WT_FLAG_ACCENT);
-        lv_obj_center(g);
-        if (to < 0 || to >= npages) {
-            // Spent, not missing: no click flag, no feedback, and the dim
-            // goes on the GLYPH -- the chip's own opa is the wash's lane now
-            // that it is scenery, and the fade-in would overwrite it.
-            lv_obj_set_style_opa(g, LV_OPA_40, 0);
-        } else {
-            lv_obj_add_flag(pa, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_set_style_translate_x(pa, 0, 0);
-            lv_obj_set_style_translate_x(pa, fwd ? 5 : -5, LV_STATE_PRESSED);
-            lv_obj_add_event_cb(pa, cb, LV_EVENT_CLICKED,
-                                (void *)(intptr_t)(fwd ? 1 : -1));
-        }
+    const int pitch = 18;
+    const int x0 = WT_LANE_X + WT_LANE_W - (npages * pitch - 10);
+    for (int i = 0; i < npages; i++) {
+        lv_obj_t *d = lv_obj_create(p);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_size(d, 8, 8);
+        lv_obj_set_pos(d, x0 + i * pitch, 364);
+        lv_obj_set_style_radius(d, 5, 0);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(d, i == page ? wt_accent() : WT_DIM, 0);
+        if (i == page) lv_obj_add_flag(d, WT_FLAG_ACCENT);
+        wt_pane_scenery(d);
     }
 }
 
-// Rebuild the pane and slide it in from the side the flip came from. NOT
-// wt_pane_go: that refuses a same-tab call by design, because a tab change
-// carries a direction along a strip and a page change has none of its own --
-// the arrow that was tapped is the direction.
-static void list_flip(void (*build)(void), int dir)
+// Rebuild a context's pane and slide it in from the side the flip came from.
+// NOT wt_pane_go: that refuses a same-tab call by design, because a tab
+// change carries a direction along a strip and a page change has none of its
+// own -- the swipe is the direction.
+static void list_flip(wt_pane_t *ctx, void (*build)(void), int dir)
 {
-    wt_pane_stop(&s_fctx);
-    if (s_fctx.pane) { lv_obj_delete(s_fctx.pane); s_fctx.pane = NULL; }
-    s_fctx.pane = wt_pane_new(&s_fctx);
+    wt_pane_stop(ctx);
+    if (ctx->pane) { lv_obj_delete(ctx->pane); ctx->pane = NULL; }
+    ctx->pane = wt_pane_new(ctx);
     build();
-    wt_accent_restyle(s_fctx.pane);
-    wt_pane_enter(&s_fctx, dir, false);
+    wt_accent_restyle(ctx->pane);
+    wt_pane_enter(ctx, dir, false);
+}
+
+// A finished horizontal stroke, anywhere on the page that owns the list.
+// LV_EVENT_GESTURE fires mid-press the moment the stroke crosses the indev's
+// 50px limit; wait_release then swallows the rest of the press, so the same
+// stroke can never also CLICK the row it started on.
+static int swipe_step(lv_event_t *e)
+{
+    lv_indev_t *ind = lv_event_get_indev(e);
+    if (!ind) return 0;
+    lv_dir_t d = lv_indev_get_gesture_dir(ind);
+    int step = d == LV_DIR_LEFT ? 1 : d == LV_DIR_RIGHT ? -1 : 0;
+    if (step) lv_indev_wait_release(ind);
+    return step;
 }
 
 // ---- REMOVE SIGNED --------------------------------------------------------
@@ -3571,13 +3573,13 @@ static void rm_all(void *ud)
     rm_repaint();
 }
 
-static void rm_page_cb(lv_event_t *e)
+static void rm_gesture_cb(lv_event_t *e)
 {
-    const int step = (int)(intptr_t)lv_event_get_user_data(e);
+    const int step = swipe_step(e);
     const int to = s_rm_page + step;
-    if (to < 0 || to >= sf_pages(s_rmn)) return;
+    if (!step || to < 0 || to >= sf_pages(s_rmn)) return;
     s_rm_page = to;
-    list_flip(rm_build, step);
+    list_flip(&s_fctx, rm_build, step);
 }
 
 static void rm_build(void)
@@ -3622,14 +3624,14 @@ static void rm_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn,
                  s_rm_total);
-        pager_line(p, more, true, s_rm_page, npages, rm_page_cb);
+        pager_line(p, more, true, s_rm_page, npages);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_rmn);
-        pager_line(p, count, false, s_rm_page, npages, rm_page_cb);
+        pager_line(p, count, false, s_rm_page, npages);
     } else {
-        pager_line(p, tr(STR_S_RM_C_B), false, 0, 1, NULL);
+        pager_line(p, tr(STR_S_RM_C_B), false, 0, 1);
     }
 }
 
@@ -3649,6 +3651,8 @@ static void rm_screen(void)
 
     mk_chrome(s_parent, tr(STR_S_RM_SIGNED));
     sd_trail();
+    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_GESTURE_BUBBLE);   // see kiss_sign_open
+    lv_obj_add_event_cb(s_scr, rm_gesture_cb, LV_EVENT_GESTURE, NULL);
     memset(&s_fctx, 0, sizeof s_fctx);
     s_fctx.scr = s_scr;
     s_fctx.pane = wt_pane_new(&s_fctx);
@@ -3693,13 +3697,17 @@ static void sf_cap_col(lv_obj_t *row, const char *cap, lv_color_t col)
 
 static void files_build(void);
 
-static void files_page_cb(lv_event_t *e)
+// The swipe, on the SIGN page: live only while the SD CARD tab's list is on
+// the lane. The stroke can start anywhere -- a row, the glass under the
+// rows, the count line -- because the gesture bubbles to the page.
+static void files_gesture_cb(lv_event_t *e)
 {
-    const int step = (int)(intptr_t)lv_event_get_user_data(e);
+    if (s_cctx.tab != 1 || s_choose_help || s_nfiles <= 0) return;
+    const int step = swipe_step(e);
     const int to = s_file_page + step;
-    if (to < 0 || to >= sf_pages(s_nfiles)) return;
+    if (!step || to < 0 || to >= sf_pages(s_nfiles)) return;
     s_file_page = to;
-    list_flip(files_build, step);
+    list_flip(&s_cctx, files_build, step);
 }
 
 // One page of files, three line rows on the lane. The state is the caption
@@ -3719,7 +3727,7 @@ static void files_page_cb(lv_event_t *e)
 //   anything else        still to do            MUT
 static void files_build(void)
 {
-    lv_obj_t *p = s_fctx.pane;
+    lv_obj_t *p = s_cctx.pane;
     const int npages = sf_pages(s_nfiles);
     if (s_file_page >= npages) s_file_page = npages - 1;
     if (s_file_page < 0) s_file_page = 0;
@@ -3749,59 +3757,41 @@ static void files_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_nfiles,
                  s_ftotal);
-        pager_line(p, more, true, s_file_page, npages, files_page_cb);
+        pager_line(p, more, true, s_file_page, npages);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_nfiles);
-        pager_line(p, count, false, s_file_page, npages, files_page_cb);
+        pager_line(p, count, false, s_file_page, npages);
     } else {
-        pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1, NULL);
+        pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1);
     }
 }
 
-static void sd_open(lv_obj_t *parent)
+// The SD CARD tab's lane: mount, list, and either the rows or the reason
+// there are none. The "SD card ready" tick and the choose-the-file subtitle
+// are both gone -- a tab reading files off the card is the readiness.
+static void sd_tab_build(lv_obj_t *p)
 {
     s_src = SRC_SD;
     if (platform_sd_mount() != 0) {
-        sd_empty_screen(parent, tr(STR_S_NO_SD), tr(STR_S_INSERT_CARD));
+        s_nfiles = 0;
+        sd_lane_empty(p, tr(STR_S_NO_SD), tr(STR_S_INSERT_CARD));
         return;
     }
     s_nfiles = platform_sd_list_psbt(s_files, MAX_FILES, &s_ftotal);
     // Which of these have a signature already sitting on the card, and how many
     // signed outputs are there to sweep. ONE pass answers both, so the badges
-    // and the REMOVE pill's existence can never disagree with each other.
+    // and the REMOVE action's existence can never disagree with each other.
     s_nsig = platform_sd_signed_scan(s_files, s_sig, s_nfiles > 0 ? s_nfiles : 0,
                                      0);
     if (s_nsig < 0) s_nsig = 0;
     if (s_nfiles <= 0) {
         s_nfiles = 0;
-        sd_empty_screen(parent, tr(STR_S_NO_PSBT_FILES),
-                        tr(STR_S_SPARROW_SAVE));
+        sd_lane_empty(p, tr(STR_S_NO_PSBT_FILES), tr(STR_S_SPARROW_SAVE));
         return;
     }
-    // The full contract: the "SD card ready" tick and the choose-the-file
-    // subtitle both went with it -- a page reading files off the card is the
-    // readiness, and the trail says where the owner is.
-    mk_chrome(parent, tr(STR_S_T));
-    sd_trail();
-    memset(&s_fctx, 0, sizeof s_fctx);
-    s_fctx.scr = s_scr;
-    s_fctx.pane = wt_pane_new(&s_fctx);
     files_build();
-
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, choose_back_cb, NULL);
-    // Opens a confirm-by-hold screen, so a tap here is never irreversible;
-    // WT_WARN says what kind of door it is.
-    lv_obj_t *rm = wt_arrow_action(s_scr, tr(STR_S_RM_SIGNED), false, false,
-                                   WT_ACT_X, WT_ACTION_Y, 0, false,
-                                   rm_open_cb, NULL);
-    for (uint32_t i = 0; i < lv_obj_get_child_count(rm); i++) {
-        lv_obj_t *ch = lv_obj_get_child(rm, i);
-        lv_obj_set_style_text_color(ch, WARN_COL, 0);
-        lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
-    }
 }
 
 // What the device concluded about a PSBT, in one serial line.
@@ -3885,21 +3875,58 @@ static void scan_cancel_cb(void)
 static void scan_pick_cb(lv_event_t *e)
 {
     (void)e;
+    platform_sd_unmount();     // the QR path never reads the card, and the
+                               // SD tab may have left it mounted
     lv_obj_delete_async(s_scr); s_scr = NULL;
     kiss_scan_open(s_parent, scan_done_cb, scan_cancel_cb);
 }
 
-// ---- the chooser's [ ? ]: HOW SIGNING WORKS, in the lane ----
-// The explainer was a full screen overlay behind a bespoke "PSBT ?" chip. It
-// is the standard [ ? ] tab now, and its content swaps the lane the way KEYS
-// and RECEIVE do: the numbered flow survives as the fact rows -- who acts
-// first, what comes back, who broadcasts -- and the PSBT definition as the
-// paragraph above them.
-static wt_pane_t s_cctx;
-static bool s_choose_help;         // the lane is showing [ ? ], not the rows
-static void sd_pick_cb(lv_event_t *e);
+// ---- the SIGN page: two tabs and the [ ? ] --------------------------------
+// The RECEIVE shape, exactly: a bracket strip with the two ways a transaction
+// arrives, the [ ? ] pinned past the divider, and the lane swapping under
+// them. The old chooser -- two floating boxes under an empty strip row --
+// read as an unfinished page, and the bench said so.
+static void choose_help_cb(lv_event_t *e);
 
-static void choose_build(void)
+// The SCAN QR tab's lane: what a scan can and cannot do, moved here from the
+// camera screen it used to crowd. Read before the camera opens, with the
+// dead time the camera page never really had.
+static void scanteach_build(lv_obj_t *p)
+{
+    lv_obj_t *cap = wt_lbl(p, tr(STR_N_CAN_CAP), WT_LANE_X, 118,
+                           wt_chrome18(tr(STR_N_CAN_CAP)), WT_DIM);
+    lv_obj_set_style_text_letter_space(cap, 2, 0);
+    static const struct { const char *g; int s; } R[3] = {
+        { LV_SYMBOL_OK,    STR_N_CAN },
+        { LV_SYMBOL_CLOSE, STR_N_CANT_SPEND },
+        { LV_SYMBOL_CLOSE, STR_N_CANT_SIGN },
+    };
+    for (int i = 0; i < 3; i++) {
+        const int y = 150 + i * 66;
+        const lv_color_t col = i == 0 ? WT_OK : WT_STOP;
+        lv_obj_t *row = lv_obj_create(p);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, WT_LANE_X, y);
+        lv_obj_set_size(row, WT_LANE_W, 66);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_t *g = wt_lbl(row, R[i].g, 0, 0, wt_font23(), col);
+        lv_obj_align(g, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
+        const lv_font_t *tf = wt_chrome21(tr(R[i].s));
+        lv_obj_t *t = wt_lbl(row, tr(R[i].s), 0, 0, tf, WT_INK);
+        lv_obj_set_width(t, WT_LANE_W - 52 - WT_LINE_PAD);
+        lv_obj_set_height(t, lv_font_get_line_height(tf));
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_obj_align(t, LV_ALIGN_LEFT_MID, 52, 0);
+        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + 65, WT_LANE_W),
+                          42 * i + 110, 320);
+    }
+    pager_line(p, tr(STR_S_POINT_CAM), false, 0, 1);
+}
+
+// The lane, per tab -- or the [ ? ] explainer over either: the numbered flow
+// survives as the fact rows (who acts first, what comes back, who
+// broadcasts) and the PSBT definition as the paragraph above them.
+static void sign_tab_build(void)
 {
     lv_obj_t *p = s_cctx.pane;
     if (s_choose_help) {
@@ -3911,34 +3938,61 @@ static void choose_build(void)
         wt_explain(p, tr(STR_S_HELP_HEAD), tr(STR_S_HELP_BODY), facts, 3);
         return;
     }
-    // Two ways in, as rows. The way in is the label, what it does is the
-    // sub-line, the chevron says it opens something -- the same list idiom
-    // SETTINGS and KEYS use. The icons carry the distinction faster than the
-    // words do: a QR code and an SD card are recognised across a room.
-    //
-    // "QR first, card second" is said by being the first row, which is how
-    // every list on this device says what to reach for first.
-    //
-    // Both subs share ONE size rather than being sized apiece: wt_body_font
-    // answers per string, so the two rows of one choice came back at
-    // different sizes and one of them visibly shouted.
-    //
-    // Both marks take the ACCENT. wt_row_x paints an icon badge WT_MUT unless
-    // the row is selected, and neither of these ever is -- this is a chooser,
-    // not a list with a current item.
-    //
-    // Two 96px rows in the 284px lane: (284 - 192) / 3 gaps of 30, so 144
-    // and 270.
-    lv_obj_t *qrow = wt_row_x(p, WT_ICON_QR, tr(STR_S_SCAN_QR),
-             tr(STR_S_POINT_CAM),
-             wt_font23(), NULL, NULL, WT_INK, false, WT_LANE_X,
-             144, WT_LANE_W, WT_CHOICE_H, scan_pick_cb, NULL);
-    wt_row_icon_accent(qrow);
-    lv_obj_t *srow = wt_row_x(p, WT_ICON_SD, tr(STR_S_FROM_SD),
-             tr(STR_S_OR_LOAD),
-             wt_font23(), NULL, NULL, WT_INK, false, WT_LANE_X,
-             270, WT_LANE_W, WT_CHOICE_H, sd_pick_cb, NULL);
-    wt_row_icon_accent(srow);
+    if (s_cctx.tab == 0) scanteach_build(p);
+    else                 sd_tab_build(p);
+}
+
+// The band's LEFT action belongs to the tab -- OPEN CAMERA on one, REMOVE
+// FILES on the other -- so unlike RECEIVE's static band it rebuilds on every
+// tab change. BACK is built once and stays.
+static lv_obj_t *s_band_act;
+
+static void sign_band_update(void)
+{
+    if (s_band_act) { lv_obj_delete(s_band_act); s_band_act = NULL; }
+    if (s_choose_help) return;
+    if (s_cctx.tab == 0) {
+        s_band_act = wt_arrow_action(s_scr, tr(STR_S_OPEN_CAM), false, true,
+                                     WT_ACT_X, WT_ACTION_Y, 0, false,
+                                     scan_pick_cb, NULL);
+    } else if (s_nfiles > 0) {
+        // Opens a confirm-by-hold screen, so a tap here is never
+        // irreversible; WT_WARN says what kind of door it is.
+        s_band_act = wt_arrow_action(s_scr, tr(STR_S_RM_SIGNED), false, false,
+                                     WT_ACT_X, WT_ACTION_Y, 0, false,
+                                     rm_open_cb, NULL);
+        for (uint32_t i = 0; i < lv_obj_get_child_count(s_band_act); i++) {
+            lv_obj_t *ch = lv_obj_get_child(s_band_act, i);
+            lv_obj_set_style_text_color(ch, WARN_COL, 0);
+            lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
+        }
+    }
+}
+
+static void sign_go_build(void)
+{
+    sign_tab_build();
+    sign_band_update();
+}
+
+static void sign_tab_cb(lv_event_t *e)
+{
+    int tab = (int)(intptr_t)lv_event_get_user_data(e);
+    // A real tab is also the way back from [ ? ]: tapping the one already
+    // selected re-lands on its lane, which wt_pane_go's same-tab refusal
+    // would otherwise swallow.
+    if (s_choose_help && tab == s_cctx.tab) { choose_help_cb(NULL); return; }
+    s_choose_help = false;
+    if (tab == 1 && tab != s_cctx.tab) s_file_page = 0;  // fresh look
+    // Re-tapping SD CARD mid-deck goes back to the top of the list -- the
+    // one place a tap still moves the pages, and the way home from page
+    // three without three swipes.
+    if (tab == 1 && tab == s_cctx.tab && s_file_page > 0) {
+        s_file_page = 0;
+        list_flip(&s_cctx, files_build, -1);
+        return;
+    }
+    wt_pane_go(&s_cctx, tab, false, sign_go_build);
 }
 
 static void choose_help_cb(lv_event_t *e)
@@ -3946,7 +4000,7 @@ static void choose_help_cb(lv_event_t *e)
     (void)e;
     s_choose_help = !s_choose_help;
     // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
-    // same hand swap KEYS and RECEIVE do. There is no strip here; [ ? ] is
+    // same hand swap KEYS and RECEIVE do. The strip does not move: [ ? ] is
     // not a section and never highlights.
     const bool was_moving = s_cctx.entering;
     wt_pane_stop(&s_cctx);
@@ -3956,41 +4010,47 @@ static void choose_help_cb(lv_event_t *e)
     }
     s_cctx.pane_out = s_cctx.pane;
     s_cctx.pane = wt_pane_new(&s_cctx);
-    choose_build();
+    sign_tab_build();
     wt_accent_restyle(s_cctx.pane);
     const int dir = s_choose_help ? 1 : -1;
     wt_pane_enter(&s_cctx, dir, false);
     wt_pane_exit(&s_cctx, dir);
-}
-
-static void sd_pick_cb(lv_event_t *e)
-{
-    (void)e;
-    s_file_page = 0;                     // a fresh entry lands on page one
-    lv_obj_delete_async(s_scr); s_scr = NULL;
-    sd_open(s_parent);
+    sign_band_update();
 }
 
 void kiss_sign_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
-    // The chrome contract, whole: this page has no hero and no graph, so
-    // nothing here needs mk_screen's carve-out. The subtitle went with the
-    // contract -- "get the transaction from your coordinator" is what the
-    // explainer now teaches, and the two rows' own sub-lines already say
-    // which way it arrives.
     s_scr = wt_chrome(parent, tr(STR_S_T));
     s_choose_help = false;               // a view, not a remembered state
+    s_band_act = NULL;                   // died with the last screen
+    const int tab = s_cctx.tab == 1 ? 1 : 0;  // remembered across reopens
+    // A fresh entry starts the list at the top; only the one-step-back path
+    // returns to the page the owner was reading.
+    if (!s_keep_page) s_file_page = 0;
+    s_keep_page = false;
     memset(&s_cctx, 0, sizeof s_cctx);
     s_cctx.scr = s_scr;
-    // One [ ? ] on the strip row, where every page keeps it, in place of the
-    // hand built "PSBT ?" chip. The band's left lane is free here, so the
-    // first-run hint may speak.
-    wt_help_tab(s_scr, wt_help_seen() ? NULL : tr(STR_C_HELP_HINT),
-                choose_help_cb, NULL);
+    s_cctx.tab = tab;
+    wt_tab_t t[2] = {
+        { .icon = WT_ICON_QR, .label = tr(STR_S_SCAN_QR) },
+        { .icon = WT_ICON_SD, .label = tr(STR_S_FROM_SD) },
+    };
+    s_cctx.select = wt_tabs_flex_select;
+    s_cctx.tabs = wt_tabs_flex(s_scr, t, 2, s_cctx.tab, sign_tab_cb);
+    wt_pane_tabs_watch(&s_cctx);
+    // No band hint: the left lane belongs to the tab's action, so the mark's
+    // breathing is the whole first-run invitation, as on RECEIVE.
+    wt_help_tab(s_scr, NULL, choose_help_cb, NULL);
+    // The indev delivers LV_EVENT_GESTURE to the first ancestor WITHOUT
+    // GESTURE_BUBBLE -- with the whole chain bubbling it walks off the root
+    // and the event goes nowhere. The page is the stroke's terminus.
+    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(s_scr, files_gesture_cb, LV_EVENT_GESTURE, NULL);
     s_cctx.pane = wt_pane_new(&s_cctx);
-    choose_build();
+    sign_tab_build();
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                     true, close_cb, NULL);
+    sign_band_update();
 }
