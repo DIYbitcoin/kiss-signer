@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <math.h>
 
+/* ---- BENCH BUILD, NEVER COMMITTED: where the dead pause between the
+   unlock stroke and the home actually goes. ---- */
+static int64_t g_ub_lift, g_ub_open, g_ub_sess, g_ub_fp, g_ub_start, g_ub_p0;
+static int g_ub_paint;
+
+
 #ifndef SIMULATOR  // ESP-only hardware bring-up; the desktop simulator provides its own platform
 #include "esp_chip_info.h"
 #include "esp_flash.h"
@@ -534,6 +540,18 @@ static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map
   if (camera_spike_owns_panel()) {
     lv_display_flush_ready(disp);
     return;
+  }
+  if (g_ub_paint) {
+    int64_t now = esp_timer_get_time();
+    if (g_ub_paint == 1) { g_ub_p0 = now; g_ub_paint = 2; }
+    if (lv_display_flush_is_last(disp)) {
+      g_ub_paint = 0;
+      ESP_LOGI(TAG, "unlock: wait %d | sess %d fp %d start %d | paint idle %d draw %d | TOTAL %d ms",
+        (int)((g_ub_open - g_ub_lift) / 1000), (int)((g_ub_sess - g_ub_open) / 1000),
+        (int)((g_ub_fp - g_ub_sess) / 1000), (int)((g_ub_start - g_ub_fp) / 1000),
+        (int)((g_ub_p0 - g_ub_start) / 1000), (int)((now - g_ub_p0) / 1000),
+        (int)((now - g_ub_lift) / 1000));
+    }
   }
   uint16_t *src = (uint16_t *)px_map;
   int ah = area->y2 - area->y1 + 1;                 // rotated rect width (panel x)
@@ -1966,17 +1984,22 @@ static void gesture_swallow(void) {
 }
 
 static void kiss_open_decoy(void) {
+  g_ub_open = esp_timer_get_time();
   if (kiss_session_open(NULL) != 0) {   // no seed, or derivation failed
     kiss_login_open(kiss_start);      // fall back to the ordinary way in
     return;
   }
   // Set it either way. A failed derivation used to leave whatever the last
   // session put here, which on a decoy is the real keys' fingerprint.
+  g_ub_sess = esp_timer_get_time();
   uint8_t fp[4] = {0};
-  (void)kiss_fingerprint(NULL, fp);     // same empty passphrase = the decoy's own
+  (void)kiss_fingerprint(NULL, fp);
+  g_ub_fp = esp_timer_get_time();
   kiss_ui_set_last_fp(fp);
-  gesture_swallow();                      // the finger may still be mid-word
+  gesture_swallow();
   kiss_start();
+  g_ub_start = esp_timer_get_time();
+  g_ub_paint = 1;
 }
 
 #ifdef SIMULATOR
@@ -2210,6 +2233,7 @@ static void open_door(int kind, bool immediate) {
   // are kept meanwhile so the next stroke can still be classified against the
   // word.
   s_cover_pending = true;
+  g_ub_lift = esp_timer_get_time();
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
@@ -2475,6 +2499,22 @@ static void game_tick(lv_timer_t *t) {
   // The owner's door, held to the decoy's timing. Everything is swallowed until
   // it opens: the points are gone, so a tap landing in here would otherwise
   // reach the menu's "tap to play" branch and start a game under the login.
+  {   /* bench: unlock, wait, lock, repeat -- the measured path, no finger.
+       Above the s_home_on branch, which returns; s_gn fakes the ink the
+       cover-open branch needs to be reached at all. */
+    static int ub_ms;
+    ub_ms += TICK_MS;
+    if (!s_home_on && !s_cover_pending && !s_real_pending && ub_ms > 6000) {
+      ub_ms = 0;
+      s_gest_idle = 0;
+      s_gn = 1; s_strokes = 1; s_stroke_n0 = 0;
+      open_door(WDR_DECOY, false);   /* exactly what a matched word does */
+      if (!s_cover_pending) ESP_LOGI(TAG, "unlock: open_door took another exit");
+    } else if (s_home_on && ub_ms > 4000) {
+      ub_ms = 0;
+      kiss_lock();
+    }
+  }
   if (s_real_pending) {
     if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS) {
       s_real_pending = false;
