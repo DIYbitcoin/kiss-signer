@@ -153,17 +153,18 @@ typedef struct {
   int size, hsize;
   bool bomb, burst;
   uint32_t juice;
+  int points;
 } def_t;
 
 static const def_t DEFS[] = {
-    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C},
-    {&img_apple, &img_apple_half, &img_apple_halfr, 94, 94, false, false, 0xF3E8C6},
-    {&img_orange, &img_orange_half, &img_orange_halfr, 94, 94, false, false, 0xFF9E1B},
-    {&img_pineapple, &img_pineapple_half, &img_pineapple_halfr, 112, 112, false, false, 0xFFD23A},
-    {&img_strawberry, NULL, NULL, 100, 0, false, true, 0xFF466E},
-    {&img_cherries, NULL, NULL, 90, 0, false, true, 0xE01F2A},
-    {&img_grapes, NULL, NULL, 94, 0, false, true, 0x9C4DCC},
-    {&img_bomb, NULL, NULL, 92, 0, true, false, 0},
+    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C, 3},
+    {&img_apple, &img_apple_half, &img_apple_halfr, 94, 94, false, false, 0xF3E8C6, 1},
+    {&img_orange, &img_orange_half, &img_orange_halfr, 94, 94, false, false, 0xFF9E1B, 1},
+    {&img_pineapple, &img_pineapple_half, &img_pineapple_halfr, 112, 112, false, false, 0xFFD23A, 2},
+    {&img_strawberry, NULL, NULL, 100, 0, false, true, 0xFF466E, 1},
+    {&img_cherries, NULL, NULL, 90, 0, false, true, 0xE01F2A, 1},
+    {&img_grapes, NULL, NULL, 94, 0, false, true, 0x9C4DCC, 1},
+    {&img_bomb, NULL, NULL, 92, 0, true, false, 0, 0},
 };
 #define NUM_DEFS (sizeof(DEFS) / sizeof(DEFS[0]))
 #define BOMB_IDX (NUM_DEFS - 1)
@@ -194,7 +195,16 @@ static lv_obj_t *s_menu_fruit[MENU_FRUIT_N];  // accent fruit: hop in after the 
 static bool s_menu_idle_drift;     // ...forever, unless menu_idle_drift_stop ends it
 static lv_obj_t *s_over_panel, *s_over_lbl, *s_best_lbl, *s_newbest;
 static int s_score, s_best, s_lives = 3;
-static int s_swipe_n;        // fruit sliced in the current swipe (for combos)
+// Combo is a TIME window, not a touch. Resetting only on finger-lift meant
+// a fast player holding one long stroke accumulated a combo across four
+// seconds of unrelated fruit, and a player who lifted between two fruit
+// they clearly cut together got nothing.
+#define COMBO_MS 350
+static int s_combo_n;
+static uint32_t s_combo_t;
+static float s_combo_x, s_combo_y;
+static const int COMBO_BONUS[] = {0, 0, 1, 3, 6, 10, 15, 21};
+#define COMBO_MAX ((int)(sizeof COMBO_BONUS / sizeof COMBO_BONUS[0]) - 1)
 static int s_life_milestone; // highest 50-pt mark a bonus life was granted for
 enum { ST_MENU, ST_PLAY, ST_OVER };
 static int s_state = ST_MENU;
@@ -970,7 +980,7 @@ static void start_game(void) {
   s_idle_ms = 0;
   s_score = 0;
   s_lives = 3;
-  s_swipe_n = 0;
+  s_combo_n = 0;      // an open window at game over would pay out on the next
   s_life_milestone = 0;
   s_state = ST_PLAY;
   if (s_spawn_timer) lv_timer_set_period(s_spawn_timer, 800);  // back to easy for a fresh run
@@ -1135,16 +1145,16 @@ static void slice(ent_t *e, float bdx, float bdy) {
     lose_life();  // bomb: real explosion burst + flash + shake, costs a life
     return;
   }
-  s_score++;
-  s_swipe_n++;
-  if (s_swipe_n >= 2) {                       // 2+ fruit in one swipe = combo: bonus point + gold popup
-    s_score++;
-    char buf[20];
-    snprintf(buf, sizeof buf, "COMBO x%d", s_swipe_n);
-    score_popup((int)e->x - 36, (int)e->y - 24, buf, 0xFFD23A);
-  } else {
-    score_popup((int)e->x - 6, (int)e->y - 24, "+1", 0xFFFFFF);
-  }
+  const def_t *dd = &DEFS[e->defi];
+  if (lv_tick_elaps(s_combo_t) > COMBO_MS) s_combo_n = 0;   // window lapsed
+  s_combo_n++;
+  s_combo_t = lv_tick_get();
+  s_combo_x = e->x; s_combo_y = e->y;
+  int pts = e->gold ? 5 : dd->points;
+  s_score += pts;
+  { char b[8]; snprintf(b, sizeof b, "+%d", pts);
+    score_popup((int)e->x - 6, (int)e->y - 24, b,
+                e->gold ? 0xFFD23A : 0xFFFFFF); }
   lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
   if (s_score / 50 > s_life_milestone) {       // every 50 pts: earn a life back (handles combo jumps)
     s_life_milestone = s_score / 50;
@@ -2671,8 +2681,19 @@ static void game_tick(lv_timer_t *t) {
     return;
   }
   s_idle_ms = 0;
+  // The banner lands when the combo ENDS, so a four-fruit swipe reads as one
+  // "4 FRUIT +6" instead of four racing +1s.
+  if (s_combo_n >= 2 && lv_tick_elaps(s_combo_t) > COMBO_MS) {
+    int nn = s_combo_n > COMBO_MAX ? COMBO_MAX : s_combo_n;
+    int bonus = COMBO_BONUS[nn];
+    s_score += bonus;
+    lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
+    char b[28];
+    snprintf(b, sizeof b, "%d FRUIT  +%d", s_combo_n, bonus);
+    score_popup((int)s_combo_x - 60, (int)s_combo_y - 30, b, 0xFFD23A);
+    s_combo_n = 0;
+  }
   s_prev_press = pressed;
-  if (!pressed) s_swipe_n = 0;   // finger lifted -> combo chain ends
 
   update_blade(tx, ty, pressed);
   check_slices(pressed);
