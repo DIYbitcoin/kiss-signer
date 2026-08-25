@@ -72,7 +72,7 @@ BASE_CALLS = (("wt_screen", 1), ("wt_chrome", 1),)
 FILE_CALLS = {
     "kiss_setup.c": (("mk_screen", 0), ("mk_screen2", 0),
                      ("cards_verdict_screen", 0)),
-    "kiss_sign.c": (("mk_screen", 1),),
+    "kiss_sign.c": (("mk_screen", 1), ("mk_chrome", 1)),
     "kiss_fw_ui.c": (("fw_head", 0), ("fw_head_running", 0)),
 }
 
@@ -89,6 +89,7 @@ DYNAMIC_TITLES = {
 FORWARDER_IMPLS = {
     ("kiss_setup.c", "wt_screen", "title"),
     ("kiss_sign.c", "wt_screen", "title"),
+    ("kiss_sign.c", "wt_chrome", "title"),
     ("kiss_fw_ui.c", "wt_screen", "title"),
     ("kiss_fw_ui.c", "fw_head", "title"),
     ("kiss_setup.c", "mk_screen", "tr(title)"),

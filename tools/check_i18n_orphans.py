@@ -87,6 +87,18 @@ BACKLOG = frozenset({
     "STR_R_SP_EXPORT_S",
     "STR_W_AUD_S",
     "STR_W_MADE_S",
+    # Retired when SIGN joined the chrome system: the chooser's subtitle, the
+    # file list's subtitle, the SD empty states' subtitle, and the HOW SIGNING
+    # WORKS overlay whose three steps and definition became the page's [ ? ]
+    # explainer. All translated in 21 locales; they wait for the sweep.
+    "STR_S_CHOOSE_FILE",
+    "STR_S_COORD_B",
+    "STR_S_COORD_T",
+    "STR_S_FLOW_1",
+    "STR_S_FLOW_2",
+    "STR_S_FLOW_3",
+    "STR_S_GET_TX",
+    "STR_S_SD_SUB",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

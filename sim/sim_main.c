@@ -2738,9 +2738,16 @@ int main(void) {
   // step 5: Sign via SD — chooser, file list, verify, hold-to-sign, signed, STOP
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> QR/SD chooser
   save("/tmp/sim_sign_choose.ppm");
-  touch(702, 82); pump(3); release(); pump(30);     // "PSBT ?" -> signing explainer
+  // The [ ? ] tab, where the "PSBT ?" chip used to be. The explainer swaps the
+  // lane, so the way back is the mark itself -- there is no OK on it.
+  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] -> signing explainer
   save("/tmp/sim_sign_help.ppm");
-  tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  must_show("sign [ ? ]", tr(STR_S_HELP_HEAD));
+  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the two rows
+  must_show("sign [ ? ] closed", tr(STR_S_SCAN_QR));
+  // The chooser's open flipped the first-run flag for the whole device; put it
+  // back so the downstream KEYS stop stays the canonical first-run frame.
+  wt_help_seen_set(false);
   // Pill tap feedback (pill_tap_feedback in kiss_theme.c). The device has
   // no haptics, so a press is answered optically or not at all, and "not at
   // all" is the kind of thing a refactor takes away in silence. This is the
@@ -2756,30 +2763,21 @@ int main(void) {
   save("/tmp/sim_pill_held.ppm");                  // settled: accent fill, 2px down
   release(); pump(6);                              // -> file list
   save("/tmp/sim_sign_files.ppm");
-  // DRAGGED, with a finger, which this list had never been. The eight file
-  // fixture has always overflowed the viewport and the frame above has been
-  // captured in 21 locales every run since July -- but the only two ways the
-  // harness ever reached row five were a hard coded y that addresses rows 0..3
-  // and tap_row_prefix, which calls lv_obj_scroll_to_view and bypasses touch
-  // entirely. Nothing ever asked whether a FINGER can get down there, which is
-  // how a list with no visible scrollbar shipped.
+  // PAGED, with a finger, which replaces the drag this list used to need. The
+  // eight file fixture overflows one page of three, so the pager's arrows are
+  // live: forward must land on rows the first frame never showed, and back
+  // must return to the top. The frames are the check -- check_sim_taps.py
+  // requires consecutive saves to differ, so a pager that stops flipping
+  // fails here.
   //
-  // The assertion is the FRAME, not the scroll offset. Reading the offset back
-  // means finding the container, and this walk stacks its screens as siblings
-  // under one active screen -- every hidden page is still in the tree with real
-  // coordinates, so a search by point returns whichever leftover happens to
-  // contain it. check_sim_taps.py already requires consecutive saves to differ,
-  // so two frames around the drag ARE the check, and they are the check that
-  // fails if the bar or the rows stop moving.
-  //
-  // x=300 is inside the 48..608 lane and clear of the bar on the right edge.
-  // pump(3) per point and pump(10) after the lift, per the measured floor: at
-  // pump(4) the release folds into the next press and strokes merge.
-  for (int i = 0; i <= 8; i++) { touch(300, 340 - i * 12); pump(3); }
-  release(); pump(10);
-  save("/tmp/sim_sign_files_scrolled.ppm");         // rows below the fold
-  for (int i = 0; i <= 8; i++) { touch(300, 200 + i * 12); pump(3); }
-  release(); pump(10);                              // back to the top
+  // The forward arrow is a 36px chip at (716..752, 354..390); back sits 44px
+  // left of it. Fixed coordinates, same as the strip taps: the pager is
+  // chrome, not content, and it never moves.
+  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  save("/tmp/sim_sign_files_p2.ppm");               // rows the fold used to hide
+  must_show("file list page 2", "warn-COMBO.psbt");
+  touch(690, 372); pump(3); release(); pump(30);    // [ < ] -> page 1
+  must_show("file list page 1", "payment-01.psbt");
   touch(328, 150); pump(3); release(); pump(8);     // first file -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");                 // FOLDED address + SHOW FULL
   // The fold, opened and closed. Both states are a screen an owner signs from,
@@ -3100,8 +3098,8 @@ int main(void) {
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
   tap_str(STR_S_RM_SIGNED, 3, 8);
   save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
-  // Row 0's own hold pill: rows start at y=132, 64 tall, pill at local (543,12)
-  // 170x40, so 567..737 x 144..184. A tap is NOT enough.
+  // Row 0's own hold pill: rows start at y=114, 76 tall, pill at local
+  // (520,18) 170x40, so 568..738 x 132..172. A tap is NOT enough.
   touch(652, 164); pump(2); release(); pump(4);
   save("/tmp/sim_sign_rm_noop.ppm");                // still the list, nothing gone
   touch(652, 164); pump(40);                        // hold: partial red sweep
@@ -3129,7 +3127,9 @@ int main(void) {
   // without deleting it, so if the ack pill is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  touch(328, 348); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
+  // warn-COMBO leads page two now: nine files, three a page.
+  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  touch(328, 150); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
   save("/tmp/sim_sign_combo.ppm");
   // THE regression. Five cautions used to replace the output panels outright,
   // so the destination vanished from the transactions the device trusted least
@@ -3266,7 +3266,9 @@ int main(void) {
   // thinner line: sixteen coins is a count nothing else on the screen states,
   // and their total is what stops "16 more" reading as loose change. Both come
   // from the summary, because ins[] holds sixteen of the twenty.
-  touch(328, 348); pump(3); release(); pump(8);     // zzzzz-MERGE (row 3) -> verify
+  // zzzzz-MERGE is alone on page two of the four remaining files.
+  touch(734, 372); pump(3); release(); pump(30);    // [ > ] -> page 2
+  touch(328, 150); pump(3); release(); pump(8);     // zzzzz-MERGE -> verify
   save("/tmp/sim_sign_merge.ppm");
   // Digits only. Every other needle here would be a translated word, and
   // wt_fmt_sats groups with the same space in all 21 locales, so these two read
@@ -3411,6 +3413,18 @@ int main(void) {
       unlink(signed_out);
     }
   }
+
+  // The SPARSE list: two files, so no pager -- the rows keep their pitch and
+  // the sort hint takes the count line's slot, the only branch with the room
+  // to say it. Nothing after this leg reads the two files removed here.
+  sd_unlink("zzz-UNPRV.psbt");
+  sd_unlink("zzzzz-MERGE.psbt");
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> chooser
+  touch(218, 296); pump(3); release(); pump(6);     // FROM SD CARD
+  save("/tmp/sim_sign_files_few.ppm");              // 2 rows + the hint line
+  must_show("sparse file list", tr(STR_S_FILES_HINT));
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out

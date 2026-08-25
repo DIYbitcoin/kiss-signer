@@ -44,7 +44,6 @@ static const slot_t SLOTS[] = {
     { "sign/why",         -1,               720, 300 },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
     { "sign/?coins",      STR_S_COINS_HELP_B, 720, 230 },
-    { "sign/?coord",      STR_S_COORD_B,    720, 144 },
     // kiss_ui.c:469,769 — login warning + passphrase intro
     // The warn bodies render as ruled blocks split on their blank lines, so a
     // whole-key slot can only bound the single-claim key at the wide block's
@@ -240,10 +239,9 @@ static const slot_t SLOTS[] = {
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
-    // and the signing flow's own subtitles
-    { "sub/get-tx",       STR_S_GET_TX,       704, 30, 0 },
-    { "sub/choose-file",  STR_S_CHOOSE_FILE,  704, 30, 0 },
-    { "sub/sd",           STR_S_SD_SUB,       704, 30, 0 },
+    // and the signing flow's own subtitles. The chooser, the file list and
+    // the SD empty states swapped theirs for the trail, so only the signed
+    // pages still carry one.
     { "sub/qr-out",       STR_S_QR_SUB,       704, 30, 0 },
     { "sub/done-sd",      STR_S_DONE_SD_SUB,  704, 58, 0 },  // own 2-line subtitle
     { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  704, 30, 0 },
@@ -612,13 +610,6 @@ static const pill_t PILLS[] = {
     { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
     { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
-    // kiss_sign.c coord_step(): a 580px label at a FIXED font23 with
-    // LONG_CLIP. There is no font fallback here, so an over-long translation
-    // is silently cut off mid-word rather than shrinking. Registered as
-    // 580+28 so the reported budget is the real 580.
-    { "sign/flow1",       STR_S_FLOW_1,       672, 44, 0, 0 },
-    { "sign/flow2",       STR_S_FLOW_2,       672, 44, 0, 0 },
-    { "sign/flow3",       STR_S_FLOW_3,       672, 44, 0, 0 },
     { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
     { "recv/sp-show-full",STR_R_SP_SHOW_FULL,  280, 52, 0, 0 },
     { "recv/sp-show-short",STR_R_SP_SHOW_SHORT,280, 52, 0, 0 },

@@ -191,6 +191,11 @@ UNTRANSLATED_OK = {
     # the English-only rule, like the block above.
     "R_HELP_HEAD", "R_HELP_BODY", "R_HELP_F1C", "R_HELP_F1V",
     "R_HELP_F2C", "R_HELP_F2V", "R_HELP_F3C", "R_HELP_F3V",
+    # SIGN's [ ? ] explainer (it replaces the HOW SIGNING WORKS overlay) and
+    # the paged file list's count line. Born under the English-only rule.
+    "S_HELP_HEAD", "S_HELP_BODY", "S_HELP_F1C", "S_HELP_F1V",
+    "S_HELP_F2C", "S_HELP_F2V", "S_HELP_F3C", "S_HELP_F3V",
+    "S_FILES_COUNT",
     # The erase card's paragraph, split into the claim PAIR the house rules
     # ask for -- one sentence stacking three claims was a wall of text and
     # overlapcheck said so. English until the sweep.

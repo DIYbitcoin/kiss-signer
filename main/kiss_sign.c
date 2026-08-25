@@ -366,6 +366,22 @@ static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
     wt_chrome_head(s_scr);
 }
 
+// Same net, for the screens on the full contract: the chooser, the file
+// list, the REMOVE list and the empty states.
+static void mk_chrome(lv_obj_t *parent, const char *title)
+{
+    if (s_scr) {
+#ifdef SIMULATOR
+        g_sign_orphaned_screens++;
+        fprintf(stderr, "ORPHANED SIGN SCREEN: mk_chrome(\"%s\") ran with a "
+                        "live s_scr; the outgoing screen stays parented "
+                        "underneath\n", title ? title : "");
+#endif
+        lv_obj_delete_async(s_scr);
+    }
+    s_scr = wt_chrome(parent, title);
+}
+
 static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
 {
     return wt_pill(s_scr, txt, x, y, w, cb, NULL);
@@ -791,7 +807,8 @@ static void done_screen(const char *outname)
     // which read as a crash mid-test and stole a filename the owner was
     // meant to read back to the coordinator. DONE is the only exit; the idle
     // auto-lock still covers a walk-away (the registered close unmounts).
-    mk_pill(tr(STR_C_DONE), SG_BACK_X140, WT_ACTION_Y, 140, close_cb);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
 }
 
 // Every refusal on this screen answers the same second question, and it is the
@@ -817,9 +834,14 @@ static void fail_screen(const char *why)
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
-    mk_screen(parent, tr(STR_S_FAIL_T), NULL);
+    mk_chrome(parent, tr(STR_S_FAIL_T));
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
+             tr(s_src == SRC_SD ? STR_S_FROM_SD : STR_S_SCAN_QR));
+    wt_trail(s_scr, WT_ICON_SIGN, trail, false);
     fail_body(why);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive
@@ -3282,9 +3304,14 @@ static void qr_out_screen(size_t sw)
     s_qr_ez = false;
     s_out_len = sw;
     if (qr_enc_start() != 0) {
-        mk_screen(parent, tr(STR_S_FAIL_T), NULL);
+        mk_chrome(parent, tr(STR_S_FAIL_T));
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
+                 tr(STR_S_SCAN_QR));
+        wt_trail(s_scr, WT_ICON_SIGN, trail, false);
         fail_body(tr(STR_S_QR_FAIL_ENC));
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
+                        160, true, close_cb, NULL);
         return;
     }
 
@@ -3318,7 +3345,8 @@ static void qr_out_screen(size_t sw)
     wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
     s_ez_pill = wt_pill(s_scr, tr(STR_S_EASY_SCAN), 430, 244, 200, qr_ez_cb, NULL);
     wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
-    mk_pill(tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
 }
@@ -3338,11 +3366,18 @@ static void file_tap_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete_async(s_scr); s_scr = NULL;
     if (rrc != 0) {
-        mk_screen(parent, tr(STR_S_T), s_cur);
+        mk_chrome(parent, tr(STR_S_T));
+        // The filename the refusal is about, where every page names its
+        // path. The trail's mono face carries a filename better than the
+        // subtitle it replaces did.
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), s_cur);
+        wt_trail(s_scr, WT_ICON_SIGN, trail, false);
         // A refusal to sign, alone on an otherwise empty screen with 230px
         // of room under it. There is no reason for it to be the small type.
         wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
+                        160, true, files_back_cb, NULL);
         return;
     }
     SIGN_LOG("SD read: %s, %u bytes", s_cur, (unsigned)len);
@@ -3355,9 +3390,13 @@ static void file_tap_cb(lv_event_t *e)
     s_cur_signed = opened_signed;
     if (lrc != 0) {
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
-        mk_screen(parent, tr(STR_S_T), s_cur);
+        mk_chrome(parent, tr(STR_S_T));
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), s_cur);
+        wt_trail(s_scr, WT_ICON_SIGN, trail, false);
         wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, files_back_cb);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
+                        160, true, files_back_cb, NULL);
         return;
     }
     log_summary("SD");
@@ -3370,10 +3409,19 @@ static void file_tap_cb(lv_event_t *e)
 // the wrong pair of screens to leave looking unfinished, because they are the
 // two the owner reaches when something has already gone wrong. Same card, same
 // amber SD glyph, same words.
+// The trail every screen on the SD branch wears: how the owner got here.
+static void sd_trail(void)
+{
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), tr(STR_S_FROM_SD));
+    wt_trail(s_scr, WT_ICON_SD, trail, false);
+}
+
 static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body)
 {
-    mk_screen(parent, tr(STR_S_T), tr(STR_S_SD_SUB));
-    lv_obj_t *card = wt_card(s_scr, 48, 140, 704, 200);
+    mk_chrome(parent, tr(STR_S_T));
+    sd_trail();
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, 140, WT_LANE_W, 200);
     lv_obj_t *ic = wt_lbl(card, WT_ICON_SD, 0, 0, wt_font28(), WARN_COL);
     lv_obj_align(ic, LV_ALIGN_TOP_LEFT, 28, 26);
     lv_obj_t *h = wt_lbl(card, head, 76, 22, wt_font28(), INK_COL);
@@ -3382,7 +3430,87 @@ static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body
     lv_obj_update_layout(h);
     wt_note_col(card, body, 28, 22 + lv_obj_get_height(h) + 14, 648,
                 200 - 58 - lv_obj_get_height(h), MUT_COL);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, choose_back_cb, NULL);
+}
+
+// ---- the paged list ----------------------------------------------------
+// The file list and the REMOVE list used to scroll behind an invisible
+// scrollbar; they PAGE now, three whole rows at a time, and a page flip
+// slides the rows in sideways -- the same idiom RECEIVE's address list
+// ships, moved onto lists that no longer scroll at all. Taps, not a swipe:
+// nothing else on this device drags, a gesture is invisible until
+// discovered, and the walk cannot photograph one.
+#define SF_ROW_H 76                       // caption over a mono23 value
+#define SF_PAGE   3                       // 3 * 76 = 228 in the 284 lane,
+                                          // count line and arrows at its foot
+static int s_file_page, s_rm_page;
+static int s_nfiles, s_ftotal;            // what sd_open read off the card
+static wt_pane_t s_fctx;                  // the rows, so a flip can slide
+
+static int sf_pages(int n) { return n > 0 ? (n + SF_PAGE - 1) / SF_PAGE : 1; }
+
+// The count line and the two page arrows at the lane's foot. `warn` swaps the
+// count for the more-files-than-the-list warning, which matters more.
+static void pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
+                       int npages, lv_event_cb_t cb)
+{
+    const lv_font_t *nf = wt_chrome18(txt);
+    lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, 358, nf,
+                            warn ? WARN_COL : MUT_COL);
+    // The arrows' 110px lane comes off the note only when arrows exist: the
+    // sort hint on a sparse list is 4px longer than the shared lane, and DOT
+    // ate its last clause without a word from any gate.
+    lv_obj_set_width(note, npages < 2 ? WT_LANE_W : WT_LANE_W - 110);
+    // Pinned to ONE line: a label allowed to grow is a budget given away.
+    lv_obj_set_height(note, lv_font_get_line_height(nf));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
+    // Scenery, all of it: the pager is chrome, and chrome does not ride the
+    // slide it drives. Left as rows, the arrows entered from the side with
+    // everything else -- so for the first ~400ms after a flip the visible
+    // chip sat 24px from its own hit box, and a second tap landed on glass.
+    wt_pane_scenery(note);
+    if (npages < 2) return;
+    for (int i = 0; i < 2; i++) {
+        const bool fwd = i == 1;
+        const int to = page + (fwd ? 1 : -1);
+        lv_obj_t *pa = lv_obj_create(p);
+        lv_obj_remove_style_all(pa);
+        lv_obj_set_size(pa, 36, 36);
+        lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 354);
+        lv_obj_remove_flag(pa, LV_OBJ_FLAG_SCROLLABLE);
+        wt_pane_scenery(pa);
+        lv_obj_t *g = wt_lbl(pa, fwd ? WT_ICON_ARR_R : WT_ICON_ARR_L, 0, 0,
+                             wt_font23(), wt_accent());
+        lv_obj_add_flag(g, WT_FLAG_ACCENT);
+        lv_obj_center(g);
+        if (to < 0 || to >= npages) {
+            // Spent, not missing: no click flag, no feedback, and the dim
+            // goes on the GLYPH -- the chip's own opa is the wash's lane now
+            // that it is scenery, and the fade-in would overwrite it.
+            lv_obj_set_style_opa(g, LV_OPA_40, 0);
+        } else {
+            lv_obj_add_flag(pa, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_style_translate_x(pa, 0, 0);
+            lv_obj_set_style_translate_x(pa, fwd ? 5 : -5, LV_STATE_PRESSED);
+            lv_obj_add_event_cb(pa, cb, LV_EVENT_CLICKED,
+                                (void *)(intptr_t)(fwd ? 1 : -1));
+        }
+    }
+}
+
+// Rebuild the pane and slide it in from the side the flip came from. NOT
+// wt_pane_go: that refuses a same-tab call by design, because a tab change
+// carries a direction along a strip and a page change has none of its own --
+// the arrow that was tapped is the direction.
+static void list_flip(void (*build)(void), int dir)
+{
+    wt_pane_stop(&s_fctx);
+    if (s_fctx.pane) { lv_obj_delete(s_fctx.pane); s_fctx.pane = NULL; }
+    s_fctx.pane = wt_pane_new(&s_fctx);
+    build();
+    wt_accent_restyle(s_fctx.pane);
+    wt_pane_enter(&s_fctx, dir, false);
 }
 
 // ---- REMOVE SIGNED --------------------------------------------------------
@@ -3406,8 +3534,10 @@ static void sd_empty_screen(lv_obj_t *parent, const char *head, const char *body
 #define RM_MAX 16
 static char s_rmf[RM_MAX][SD_NAME_LEN];
 static int  s_rmn;
+static int  s_rm_total;                 // what the card holds, listed or not
 
 static void rm_screen(void);
+static void rm_build(void);
 
 static void rm_back_cb(lv_event_t *e)
 {
@@ -3441,93 +3571,193 @@ static void rm_all(void *ud)
     rm_repaint();
 }
 
+static void rm_page_cb(lv_event_t *e)
+{
+    const int step = (int)(intptr_t)lv_event_get_user_data(e);
+    const int to = s_rm_page + step;
+    if (to < 0 || to >= sf_pages(s_rmn)) return;
+    s_rm_page = to;
+    list_flip(rm_build, step);
+}
+
+static void rm_build(void)
+{
+    lv_obj_t *p = s_fctx.pane;
+    const int npages = sf_pages(s_rmn);
+    if (s_rm_page >= npages) s_rm_page = npages - 1;
+    if (s_rm_page < 0) s_rm_page = 0;
+    const int base = s_rm_page * SF_PAGE;
+    int shown = 0;
+    for (int i = 0; i < SF_PAGE && base + i < s_rmn; i++, shown++) {
+        const int idx = base + i;
+        const int y = WT_LANE_Y + i * SF_ROW_H;
+        lv_obj_t *row = lv_obj_create(p);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, WT_LANE_X, y);
+        lv_obj_set_size(row, WT_LANE_W, SF_ROW_H);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        const bool sgn = is_signed_name(s_rmf[idx]);
+        lv_obj_t *ic = wt_lbl(row, sgn ? LV_SYMBOL_OK : LV_SYMBOL_FILE, 0, 0,
+                              wt_font23(), sgn ? OK_COL : MUT_COL);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
+        lv_obj_t *nm = wt_lbl(row, s_rmf[idx], 0, 0, wt_font_mono23(),
+                              INK_COL);
+        lv_obj_set_width(nm, WT_LANE_W - 52 - 170 - 32);
+        lv_obj_set_height(nm, lv_font_get_line_height(wt_font_mono23()));
+        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+        lv_obj_align(nm, LV_ALIGN_LEFT_MID, 52, 0);
+        // The mark alone, no label: this pill is one of up to sixteen and a
+        // translated phrase on each would not fit. wt_hold_pill sweeps WT_STOP
+        // across it while held, which is the affordance doing the explaining.
+        wt_hold_pill(row, LV_SYMBOL_TRASH, WT_LANE_W - WT_LINE_PAD - 170,
+                     (SF_ROW_H - 40) / 2, 170, 40, 1200, rm_one,
+                     (void *)(intptr_t)idx);
+        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_ROW_H - 1,
+                                       WT_LANE_W), 42 * i + 110, 320);
+    }
+    // The lane's foot: the warning that the card holds more than the list
+    // can, else the page count, else the sentence that makes this screen
+    // safe -- each file needs its own hold.
+    if (s_rm_total > s_rmn) {
+        char more[96];
+        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn,
+                 s_rm_total);
+        pager_line(p, more, true, s_rm_page, npages, rm_page_cb);
+    } else if (npages > 1) {
+        char count[96];
+        snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
+                 base + shown, s_rmn);
+        pager_line(p, count, false, s_rm_page, npages, rm_page_cb);
+    } else {
+        pager_line(p, tr(STR_S_RM_C_B), false, 0, 1, NULL);
+    }
+}
+
 static void rm_screen(void)
 {
-    int total = 0;
     // Every .psbt on the card, not only our own -signed outputs. The old
     // signed-only list made this screen safe by construction and useless for
     // the other half of the job: a card full of stale unsigned drafts had no
     // way to be cleaned except a computer. Safety moved into the gesture --
     // each row is its own 1200ms hold -- and REMOVE ALL below stays scoped
     // to signed files, where a sweep cannot destroy unsigned work.
-    s_rmn = platform_sd_list_psbt(s_rmf, RM_MAX, &total);
+    s_rmn = platform_sd_list_psbt(s_rmf, RM_MAX, &s_rm_total);
     if (s_rmn <= 0) {                      // nothing left: the job is done
         files_back_cb(NULL);
         return;
     }
 
-    mk_screen(s_parent, tr(STR_S_RM_SIGNED), NULL);
-    // Both claims, above the list they describe. The second one is the reason
-    // this screen is safe and it is the sentence that has to be here.
-    //
-    // ONE paragraph, and that is what buys the size. The box is 74 to the
-    // list at 132 -- 58px -- and a blank line costs a whole line of type, so
-    // two paragraphs plus the gap is three line heights and only font14 fits
-    // three of those. Merged, it is one line, and one line of font23 is 31.
-    // Count the paragraphs before cutting words.
-    lv_obj_t *h = mk_lbl(tr(STR_S_RM_C_B), 48, 74,
-                         wt_body_font(tr(STR_S_RM_C_B), 704, 132 - 74), MUT_COL);
-    lv_obj_set_width(h, 704);
-    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    mk_chrome(s_parent, tr(STR_S_RM_SIGNED));
+    sd_trail();
+    memset(&s_fctx, 0, sizeof s_fctx);
+    s_fctx.scr = s_scr;
+    s_fctx.pane = wt_pane_new(&s_fctx);
+    rm_build();
 
-    lv_obj_t *list = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 24, 132);
-    // A whole number of rows, not 258px of them: the list can hold every
-    // .psbt on the card now, and a fourth row sliced mid-pill by the clip
-    // edge read as a rendering fault (the overlap gate flagged the sliver in
-    // all 21 locales). Row pitch is WT_ROW_H plus the 8px flex gap.
-    lv_obj_set_size(list, 752, 3 * (WT_ROW_H + 8) - 8);
-    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, 8, 0);
-    lv_obj_set_scroll_dir(list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(list, s_rmn > 3 ? LV_SCROLLBAR_MODE_ON
-                                              : LV_SCROLLBAR_MODE_OFF);
-    wt_list_scrollbar(list);
-
-    for (int i = 0; i < s_rmn; i++) {
-        lv_obj_t *row = sg_panel(0, 0, 752, WT_ROW_H, WT_EDGE);
-        lv_obj_set_parent(row, list);
-        lv_obj_set_width(row, lv_pct(100));
-        bool sgn = is_signed_name(s_rmf[i]);
-        sg_lbl(row, sgn ? LV_SYMBOL_OK : LV_SYMBOL_FILE, SG_PAD, 20,
-               wt_font23(), MUT_COL);
-        lv_obj_t *nm = lv_label_create(row);
-        lv_obj_set_pos(nm, 52, 22);
-        lv_obj_set_style_text_font(nm, wt_font_mono14(), 0);
-        lv_obj_set_style_text_color(nm, INK_COL, 0);
-        lv_obj_set_width(nm, 470);            // up to the pill's left edge
-        lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
-        lv_label_set_text(nm, s_rmf[i]);
-        // The mark alone, no label: this pill is one of up to sixteen and a
-        // translated phrase on each would not fit. wt_hold_pill sweeps WT_STOP
-        // across it while held, which is the affordance doing the explaining.
-        wt_hold_pill(row, LV_SYMBOL_TRASH, 543, 12, 170, 40, 1200,
-                     rm_one, (void *)(intptr_t)i);
-    }
-
-    if (total > s_rmn) {                    // more than the screen can hold
-        char more[96];
-        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn, total);
-        mk_lbl(more, 48, 108, wt_font14(), WARN_COL);
-    }
-
-    // Sweeping the card is what this screen is for, so it takes the corner and
-    // BACK moves to WT_EXIT_X. Safe there only because REMOVE ALL is a 1500ms
-    // hold: the corner invariant is that a TAP there is never irreversible.
-    mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, rm_back_cb);
-    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), WT_ACT_X, WT_ACTION_Y, 300, WT_ACTION_H,
-                 1500, rm_all, NULL);
+    // Sweeping the card is what this screen is for, so it takes the left lane
+    // and keeps its hold: the band invariant is that a TAP is never
+    // irreversible, and both controls here are holds or exits.
+    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), WT_ACT_X, WT_ACTION_Y, 300,
+                 WT_ACTION_H, 1500, rm_all, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, rm_back_cb, NULL);
 }
 
 static void rm_open_cb(lv_event_t *e)
 {
     (void)e;
+    s_rm_page = 0;                        // a fresh entry lands on page one
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_sweep = NULL;
     rm_screen();
+}
+
+// The caption wears the file's STATE colour, which wt_line_row does not
+// offer. Found by its text among the row's labels -- never by child index,
+// which shifts the day the kit grows a part (the bracket strip learned that
+// the hard way).
+static void sf_cap_col(lv_obj_t *row, const char *cap, lv_color_t col)
+{
+    for (uint32_t i = 0; i < lv_obj_get_child_count(row); i++) {
+        lv_obj_t *ch = lv_obj_get_child(row, i);
+        if (lv_obj_check_type(ch, &lv_label_class) &&
+            lv_obj_get_user_data(ch) != WT_LINE_VAL_TAG &&
+            strcmp(lv_label_get_text(ch), cap) == 0) {
+            lv_obj_set_style_text_color(ch, col, 0);
+            return;
+        }
+    }
+}
+
+static void files_build(void);
+
+static void files_page_cb(lv_event_t *e)
+{
+    const int step = (int)(intptr_t)lv_event_get_user_data(e);
+    const int to = s_file_page + step;
+    if (to < 0 || to >= sf_pages(s_nfiles)) return;
+    s_file_page = to;
+    list_flip(files_build, step);
+}
+
+// One page of files, three line rows on the lane. The state is the caption
+// and the filename is the value, which is what ends the fight the old rows
+// held between a long filename and its tag: each has a line of its own now,
+// and the filename gets the whole 704 at mono23.
+//
+// THREE states, because there are three kinds of file here and the first
+// version of this said the same words about two of them. Signing one
+// transaction turns its source amber AND drops its output in as a new row;
+// when both read SIGNED ALREADY in the same colour it looks like the device
+// contradicting itself. It never was: the source is a transaction that has
+// been signed, the output IS the signature.
+//
+//   *-signed.psbt        the signature itself   OK, a finished thing
+//   source with one      you already did this   WARN, do not redo it
+//   anything else        still to do            MUT
+static void files_build(void)
+{
+    lv_obj_t *p = s_fctx.pane;
+    const int npages = sf_pages(s_nfiles);
+    if (s_file_page >= npages) s_file_page = npages - 1;
+    if (s_file_page < 0) s_file_page = 0;
+    const int base = s_file_page * SF_PAGE;
+    int shown = 0;
+    for (int i = 0; i < SF_PAGE && base + i < s_nfiles; i++, shown++) {
+        const int idx = base + i;
+        const int y = WT_LANE_Y + i * SF_ROW_H;
+        const bool is_out = is_signed_name(s_files[idx]);
+        const char *tag = is_out ? tr(STR_S_ROW_SIGNATURE)
+                        : s_sig[idx] ? tr(STR_S_SIGNED_ALREADY)
+                                     : tr(STR_S_FILE_UNSIGNED);
+        lv_obj_t *row = wt_line_row(p, WT_LANE_X, y, WT_LANE_W, SF_ROW_H,
+                                    tag, s_files[idx], wt_font_mono23(),
+                                    INK_COL, NULL, NULL, file_tap_cb,
+                                    (void *)(intptr_t)idx);
+        if (is_out || s_sig[idx])
+            sf_cap_col(row, tag, is_out ? OK_COL : WARN_COL);
+        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_ROW_H - 1,
+                                       WT_LANE_W), 42 * i + 110, 320);
+    }
+    // The lane's foot, one line: the warning when the card holds more than
+    // the list window (the file that matters may be one of the missing), the
+    // page count when the list pages, else the sort-order hint -- the only
+    // time the hint earns the slot.
+    if (s_ftotal > s_nfiles) {
+        char more[96];
+        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_nfiles,
+                 s_ftotal);
+        pager_line(p, more, true, s_file_page, npages, files_page_cb);
+    } else if (npages > 1) {
+        char count[96];
+        snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
+                 base + shown, s_nfiles);
+        pager_line(p, count, false, s_file_page, npages, files_page_cb);
+    } else {
+        pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1, NULL);
+    }
 }
 
 static void sd_open(lv_obj_t *parent)
@@ -3537,158 +3767,40 @@ static void sd_open(lv_obj_t *parent)
         sd_empty_screen(parent, tr(STR_S_NO_SD), tr(STR_S_INSERT_CARD));
         return;
     }
-    int total = 0;
-    int n = platform_sd_list_psbt(s_files, MAX_FILES, &total);
+    s_nfiles = platform_sd_list_psbt(s_files, MAX_FILES, &s_ftotal);
     // Which of these have a signature already sitting on the card, and how many
     // signed outputs are there to sweep. ONE pass answers both, so the badges
     // and the REMOVE pill's existence can never disagree with each other.
-    s_nsig = platform_sd_signed_scan(s_files, s_sig, n > 0 ? n : 0, 0);
+    s_nsig = platform_sd_signed_scan(s_files, s_sig, s_nfiles > 0 ? s_nfiles : 0,
+                                     0);
     if (s_nsig < 0) s_nsig = 0;
-    if (n <= 0) {
+    if (s_nfiles <= 0) {
+        s_nfiles = 0;
         sd_empty_screen(parent, tr(STR_S_NO_PSBT_FILES),
                         tr(STR_S_SPARROW_SAVE));
         return;
     }
-    mk_screen(parent, tr(STR_S_T), tr(STR_S_CHOOSE_FILE));
-    lv_obj_t *sd = mk_lbl(tr_sym(LV_SYMBOL_OK, STR_S_SD_READY), 560, 38, wt_font14(), OK_COL);
-    lv_obj_set_style_text_letter_space(sd, 1, 0);
-    // Stays at 14, and stays a hint: it describes the SORT ORDER of the list
-    // below, which is not a decision anyone makes. y=98 because the subtitle is
-    // a readable 23 now and bottoms at 95; at 88 the two were overlapping.
-    //
-    // Unless the card holds more than the list: then this line's one slot goes
-    // to the fact that changes what the owner is looking at. A list that shows
-    // 24 of 31 files and describes only its sort order is quietly lying about
-    // the card, and the file that matters may be one of the seven.
-    if (total > n) {
-        char more[96];
-        snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), n, total);
-        mk_lbl(more, 48, 96, wt_body_font(more, 704, 126 - 96), WARN_COL);
-    } else {
-        // 96, not 98, and that two pixels is the whole fix: wt_screen's content
-        // line is 96 and the list starts at 126, so one font23 line runs
-        // 96..125 with a pixel to spare. The comment here used to say this
-        // "stays at 14, and stays a hint" -- which is the row-subline carve-out
-        // the house rules struck out after the fourth bench report. The list
-        // cannot move: four whole rows bottom out at 394.
-        mk_lbl(tr(STR_S_FILES_HINT), 48, 96,
-               wt_body_font(tr(STR_S_FILES_HINT), 704, 126 - 96), MUT_COL);
-    }
+    // The full contract: the "SD card ready" tick and the choose-the-file
+    // subtitle both went with it -- a page reading files off the card is the
+    // readiness, and the trail says where the owner is.
+    mk_chrome(parent, tr(STR_S_T));
+    sd_trail();
+    memset(&s_fctx, 0, sizeof s_fctx);
+    s_fctx.scr = s_scr;
+    s_fctx.pane = wt_pane_new(&s_fctx);
+    files_build();
 
-    // All discovered files fit in one scrollable, deterministic list. Unsigned
-    // work is sorted first; signed PSBTs stay listed so a signature can be
-    // re-verified, and every row that already has one says so.
-#define FILE_ROW_W 560
-    // A WHOLE number of rows. 264px against a 72px pitch showed three rows and
-    // 48px of a fourth, sliced through its own bottom border by the clip edge
-    // -- which the REMOVE screen one tap away already sizes itself to avoid,
-    // and which no gate reports: overlapcheck's CLIPPED check measures LABELS,
-    // and that row's label ends at 388 against a clip at 389. One pixel of
-    // headroom, and the box loses 16.
-    //
-    // The gap goes 8 -> 4 to buy the fourth row rather than give the space
-    // back: four whole rows at 68 of pitch bottom out at 394, inside the 398
-    // floor, where three whole rows would have left 64px of glass doing
-    // nothing on a screen whose entire job is showing a list.
-#define FILE_ROW_GAP 4
-#define FILE_ROWS_SHOWN 4
-    lv_obj_t *list = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, 48, 126);
-    lv_obj_set_size(list, FILE_ROW_W,
-                    FILE_ROWS_SHOWN * (WT_ROW_H + FILE_ROW_GAP) - FILE_ROW_GAP);
-    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, FILE_ROW_GAP, 0);
-    lv_obj_set_scroll_dir(list, LV_DIR_VER);
-    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    // remove_style_all above took the theme's scrollbar with it, and LVGL
-    // declines to draw a scrollbar part whose bg and border are both
-    // transparent (lv_obj_scroll.c) -- so this list has scrolled since the day
-    // it shipped and has never once shown that it does, in any mode, at any
-    // file count, before or during a drag. The walk has photographed an eight
-    // file list in a four row viewport in 21 locales every run since July.
-    //
-    // Same style and same reasoning as the address list in kiss_recv.c and the
-    // REMOVE screen next door.
-    // The bar takes the ACCENT, not WT_MUT. It is the one element on this page
-    // whose whole job is "there is more of this", which is chrome the theme
-    // should own -- and at OPA_50 it is a tint rather than a stripe. On MONO,
-    // where the accent IS the ink, it reads exactly as the muted one did.
-    wt_list_scrollbar(list);
-    // One wt_row per file. These were hand built at radius 26 -- pill shaped
-    // list items, which is the loudest form of the idiom this device has
-    // stopped using: a row of buttons reads as six things to press, a row of
-    // cards reads as six things to choose between, and choosing is what this
-    // screen is for. wt_row_x also brings the chevron, which is the one thing
-    // the old rows never said: that tapping a filename OPENS it.
-    //
-    // The file glyph does the work the border colour used to. UNSIGNED stays as
-    // the value in the row's right slot, in WT_WARN when the file has already
-    // been signed, so "this one is spent" is still said twice.
-    for (int i = 0; i < n; i++) {
-        // THREE states, because there are three kinds of file here and the
-        // first version of this said the same words about two of them.
-        //
-        // Signing one transaction turns its source amber AND drops its output
-        // in as a new row. When both read SIGNED ALREADY in the same colour it
-        // looks like two things were signed, and then REMOVE offers only one,
-        // which reads as the device contradicting itself. It never was: the
-        // source is a transaction that has been signed, the output IS the
-        // signature. Different facts, so different words and different colour.
-        //
-        //   *-signed.psbt        the signature itself   OK, a finished thing
-        //   source with one      you already did this   WARN, do not redo it
-        //   anything else        still to do            MUT
-        bool is_out = is_signed_name(s_files[i]);
-        const char *tag = is_out ? tr(STR_S_ROW_SIGNATURE)
-                        : s_sig[i] ? tr(STR_S_SIGNED_ALREADY)
-                                   : tr(STR_S_FILE_UNSIGNED);
-        lv_color_t tcol = is_out ? OK_COL : s_sig[i] ? WARN_COL : MUT_COL;
-        lv_obj_t *row = wt_row_x(list, LV_SYMBOL_FILE, s_files[i], NULL, NULL,
-                                 tag, wt_font14(), tcol, false,
-                                 0, 0, FILE_ROW_W, 0, file_tap_cb,
-                                 (void *)(intptr_t)i);
-        // The flex list places it, so the absolute x/y above are ignored, but
-        // the WIDTH is not: wt_row_x measures the label lane against it before
-        // flex ever runs. Passing the list's real width is what keeps a long
-        // filename ellipsising instead of running under the tag.
-        lv_obj_set_width(row, lv_pct(100));
-        // The file glyph is the mark that says WHAT these rows are, the same
-        // job WT_ICON_SD does on the chooser one screen back, so it takes the
-        // accent for the same reason. wt_row_x leaves a badge muted unless the
-        // row is selected, and a list of files has no selected item.
-        wt_row_icon_accent(row);
-    }
-
-    // ON when there is more below, OFF when there is not -- never AUTO, which
-    // hides the bar until you have already scrolled and so answers the wrong
-    // question. Measured rather than counted: the fourth row is whole now, but
-    // a row's height follows the locale's font and a count would be guessing at
-    // the boundary. lv_obj_update_layout first, or the scroll extent is zero
-    // because flex has not run.
-    lv_obj_update_layout(list);
-    lv_obj_set_scrollbar_mode(list, lv_obj_get_scroll_bottom(list) > 0
-                                        ? LV_SCROLLBAR_MODE_ON
-                                        : LV_SCROLLBAR_MODE_OFF);
-
-    // This used to read "BACK keeps the corner where the thumb rests; the
-    // destructive control does not go there" -- while replace-or-erase put
-    // ERASE THE WORDS in that same corner. Two destructive controls, opposite
-    // rules, both written down. The corner now does the screen's job
-    // everywhere; see kiss_theme.h.
-    //
-    // A tap in WT_WARN, not a hold in WT_STOP, because this only opens a
-    // confirm -- the project's rule is that the hold belongs to the act itself,
-    // and it is also what makes this safe in the corner. 412..752 against the
-    // way out at 48..188 leaves 224px of clear air.
-    mk_pill(tr(STR_C_BACK), WT_EXIT_X, WT_ACTION_Y, 140, choose_back_cb);
-    if (n > 0) {   // any file is deletable now, not only our signed outputs
-        lv_obj_t *rm = wt_pill_icon(s_scr, LV_SYMBOL_TRASH, tr(STR_S_RM_SIGNED),
-                                    WT_ACT_X, WT_ACTION_Y, 340, WT_ACTION_H,
-                                    rm_open_cb, NULL);
-        lv_obj_set_style_border_color(rm, WARN_COL, 0);
-        lv_obj_t *rl = lv_obj_get_child(rm, 0);
-        if (rl) lv_obj_set_style_text_color(rl, WARN_COL, 0);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, choose_back_cb, NULL);
+    // Opens a confirm-by-hold screen, so a tap here is never irreversible;
+    // WT_WARN says what kind of door it is.
+    lv_obj_t *rm = wt_arrow_action(s_scr, tr(STR_S_RM_SIGNED), false, false,
+                                   WT_ACT_X, WT_ACTION_Y, 0, false,
+                                   rm_open_cb, NULL);
+    for (uint32_t i = 0; i < lv_obj_get_child_count(rm); i++) {
+        lv_obj_t *ch = lv_obj_get_child(rm, i);
+        lv_obj_set_style_text_color(ch, WARN_COL, 0);
+        lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
     }
 }
 
@@ -3777,121 +3889,84 @@ static void scan_pick_cb(lv_event_t *e)
     kiss_scan_open(s_parent, scan_done_cb, scan_cancel_cb);
 }
 
-// ---- PSBT help: one plain-English card with the complete signing loop ----
-// A numbered sequence is intentionally used instead of the old
-// COORDINATOR <- QR -> KISS equation.  That equation showed transport, but not
-// which side acted first, what came back, or who actually broadcasts.  Those
-// are exactly the facts a first-time signer needs.
-//
-// Each step also carries an icon, for the same reason the scan key card does:
-// three rows of all caps type at the same size read as a wall, and the reader
-// has to parse every word to find out which row is the device. An icon is read
-// before the sentence is. The eye is deliberately the SAME glyph the scan key
-// card uses for watch only, because it means the same thing in both places.
-// Only one icon is coloured, and it is the key on step 2, which is the one row
-// where the private keys are involved and the only row this device performs.
-static void coord_step(lv_obj_t *parent, int y, const char *number,
-                       const char *icon, lv_color_t icon_color,
-                       const char *text, bool signer)
+// ---- the chooser's [ ? ]: HOW SIGNING WORKS, in the lane ----
+// The explainer was a full screen overlay behind a bespoke "PSBT ?" chip. It
+// is the standard [ ? ] tab now, and its content swaps the lane the way KEYS
+// and RECEIVE do: the numbered flow survives as the fact rows -- who acts
+// first, what comes back, who broadcasts -- and the PSBT definition as the
+// paragraph above them.
+static wt_pane_t s_cctx;
+static bool s_choose_help;         // the lane is showing [ ? ], not the rows
+static void sd_pick_cb(lv_event_t *e);
+
+static void choose_build(void)
 {
-    lv_obj_t *row = lv_obj_create(parent);
-    lv_obj_remove_style_all(row);
-    // 48/704 is this device's standard content width (the same one the body
-    // above uses), not the 80/640 these rows started at. Widened because step 3
-    // finally says "transaction" instead of "payment" in English, and the
-    // honest word is 4 characters longer than the vague one -- the fix for that
-    // is room, not a shorter word. Still centred on 400, so the connectors
-    // between the steps are unchanged.
-    lv_obj_set_pos(row, 48, y);
-    lv_obj_set_size(row, 704, 44);
-    lv_obj_set_style_radius(row, 12, 0);
-    lv_obj_set_style_bg_color(row, signer ? wt_accent_bg() : KEY_COL, 0);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(row, signer ? 2 : 1, 0);
-    lv_obj_set_style_border_color(row, signer ? wt_primary() : MUT_COL, 0);
-
-    lv_obj_t *n = lv_label_create(row);
-    lv_label_set_text(n, number);
-    lv_obj_set_style_text_color(n, signer ? INK_COL : MUT_COL, 0);
-    lv_obj_set_style_text_font(n, wt_font23(), 0);
-    lv_obj_align(n, LV_ALIGN_LEFT_MID, 18, 0);
-
-    lv_obj_t *ic = lv_label_create(row);
-    lv_label_set_text(ic, icon);
-    lv_obj_set_style_text_color(ic, icon_color, 0);
-    lv_obj_set_style_text_font(ic, wt_font23(), 0);
-    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 52, 0);
-
-    // Text starts at 92 rather than 50, which is the icon's 26px column plus
-    // the gap. The label loses the same 44px off its width so the right edge
-    // does not move: the longest translations were already using it.
-    lv_obj_t *l = lv_label_create(row);
-    lv_label_set_text(l, text);
-    lv_obj_set_width(l, 596);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_style_text_color(l, INK_COL, 0);
-    lv_obj_set_style_text_font(l, wt_font23(), 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 92, 0);
+    lv_obj_t *p = s_cctx.pane;
+    if (s_choose_help) {
+        wt_fact_t facts[3] = {
+            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V) },
+            { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V) },
+            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V) },
+        };
+        wt_explain(p, tr(STR_S_HELP_HEAD), tr(STR_S_HELP_BODY), facts, 3);
+        return;
+    }
+    // Two ways in, as rows. The way in is the label, what it does is the
+    // sub-line, the chevron says it opens something -- the same list idiom
+    // SETTINGS and KEYS use. The icons carry the distinction faster than the
+    // words do: a QR code and an SD card are recognised across a room.
+    //
+    // "QR first, card second" is said by being the first row, which is how
+    // every list on this device says what to reach for first.
+    //
+    // Both subs share ONE size rather than being sized apiece: wt_body_font
+    // answers per string, so the two rows of one choice came back at
+    // different sizes and one of them visibly shouted.
+    //
+    // Both marks take the ACCENT. wt_row_x paints an icon badge WT_MUT unless
+    // the row is selected, and neither of these ever is -- this is a chooser,
+    // not a list with a current item.
+    //
+    // Two 96px rows in the 284px lane: (284 - 192) / 3 gaps of 30, so 144
+    // and 270.
+    lv_obj_t *qrow = wt_row_x(p, WT_ICON_QR, tr(STR_S_SCAN_QR),
+             tr(STR_S_POINT_CAM),
+             wt_font23(), NULL, NULL, WT_INK, false, WT_LANE_X,
+             144, WT_LANE_W, WT_CHOICE_H, scan_pick_cb, NULL);
+    wt_row_icon_accent(qrow);
+    lv_obj_t *srow = wt_row_x(p, WT_ICON_SD, tr(STR_S_FROM_SD),
+             tr(STR_S_OR_LOAD),
+             wt_font23(), NULL, NULL, WT_INK, false, WT_LANE_X,
+             270, WT_LANE_W, WT_CHOICE_H, sd_pick_cb, NULL);
+    wt_row_icon_accent(srow);
 }
 
-static void coord_connector(lv_obj_t *parent, int y)
-{
-    lv_obj_t *line = lv_obj_create(parent);
-    lv_obj_remove_style_all(line);
-    lv_obj_set_pos(line, 399, y);
-    lv_obj_set_size(line, 2, 14);
-    lv_obj_set_style_bg_color(line, MUT_COL, 0);
-    lv_obj_set_style_bg_opa(line, LV_OPA_COVER, 0);
-}
-
-// The three step flow, as a wt_explain_open aside: draws into the lane it is
-// given and reports the height it used. coord_step places itself at the page's
-// own 48/704 content width, so the x and w it is handed are the full lane and it
-// ignores them; only the y matters.
-static int aside_coord_flow(lv_obj_t *par, int x, int y, int w)
-{
-    (void)x; (void)w;
-    const int ROW = 44, GAP = 14, H = 3 * ROW + 2 * GAP;
-    // ONE container, so the sequence enters as a unit. Five loose objects on
-    // the overlay would each take their own turn in the entrance stagger and
-    // the flow would assemble itself a step at a time in front of the reader,
-    // which is the opposite of what a diagram of a sequence should do.
-    lv_obj_t *box = lv_obj_create(par);
-    lv_obj_remove_style_all(box);
-    lv_obj_set_pos(box, 0, y);
-    lv_obj_set_size(box, 800, H);
-    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-    coord_step(box, 0, "1", LV_SYMBOL_EYE_OPEN, MUT_COL, tr(STR_S_FLOW_1), false);
-    coord_connector(box, ROW);
-    coord_step(box, ROW + GAP, "2", WT_ICON_KEY, wt_primary(),
-               tr(STR_S_FLOW_2), true);
-    coord_connector(box, 2 * ROW + GAP);
-    coord_step(box, 2 * (ROW + GAP), "3", LV_SYMBOL_UPLOAD, MUT_COL,
-               tr(STR_S_FLOW_3), false);
-    return H;
-}
-
-static void coord_help_cb(lv_event_t *e)
+static void choose_help_cb(lv_event_t *e)
 {
     (void)e;
-    // The numbered sequence leads and the sentence closes it. Every locale gets
-    // all three steps: the compact two-box fallback that used to stand in for
-    // them said far less than the sequence it replaced.
-    wt_explain_t x = {
-        .title  = tr(STR_S_COORD_T),
-        .icon   = WT_ICON_KEY,
-        .body   = tr(STR_S_COORD_B),
-        .ok_txt = tr(STR_C_OK),
-        .aside  = aside_coord_flow,
-    };
-    wt_explain_open(s_scr, &x);
+    s_choose_help = !s_choose_help;
+    // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
+    // same hand swap KEYS and RECEIVE do. There is no strip here; [ ? ] is
+    // not a section and never highlights.
+    const bool was_moving = s_cctx.entering;
+    wt_pane_stop(&s_cctx);
+    if (was_moving && s_cctx.pane) {
+        lv_obj_delete(s_cctx.pane);
+        s_cctx.pane = NULL;
+    }
+    s_cctx.pane_out = s_cctx.pane;
+    s_cctx.pane = wt_pane_new(&s_cctx);
+    choose_build();
+    wt_accent_restyle(s_cctx.pane);
+    const int dir = s_choose_help ? 1 : -1;
+    wt_pane_enter(&s_cctx, dir, false);
+    wt_pane_exit(&s_cctx, dir);
 }
 
 static void sd_pick_cb(lv_event_t *e)
 {
     (void)e;
+    s_file_page = 0;                     // a fresh entry lands on page one
     lv_obj_delete_async(s_scr); s_scr = NULL;
     sd_open(s_parent);
 }
@@ -3900,108 +3975,22 @@ void kiss_sign_open(lv_obj_t *parent)
 {
     if (s_scr) return;
     s_parent = parent;
-    mk_screen(parent, tr(STR_S_T), tr(STR_S_GET_TX));
-    // The PSBT help chip below sits at x=616, inside the subtitle's own lane.
-    // The subtitle's box is the full 704 whatever the translation does, so the
-    // two overlapped in every locale, English included. 544 stops the lane at
-    // x=592, 24px clear of the chip. Was 580 against a chip that started at
-    // 652; the chip grew left when its label went from font14 to font23.
-    wt_sub_fit(s_scr, 544);
-    // Two ways in, as rows. They were pills centred in cards with their
-    // explanations floating alongside: a button apiece for two things that are
-    // both destinations, each trailing a paragraph that belonged to it but was
-    // not attached to it. A row says all of that in one object -- the way in is
-    // the label, what it does is the sub-line, the chevron says it opens
-    // something -- and it says it in the same shape SETTINGS and WALLET use, so
-    // there is one list idiom on the device instead of two.
-    //
-    // The icons carry the distinction faster than the words do: a QR code and an
-    // SD card are recognised across a room. Both are in the baked SYMS set.
-    //
-    // The primary/secondary pair is gone with the pills, and nothing is lost.
-    // "QR first, card second" was said with fill and border weight; it is said
-    // now by being the first row, which is how every list on this device already
-    // says what to reach for first.
-    // This chooser has its own y, and the reason is the PSBT help chip. Only
-    // this screen carries one, it owns 64..108, and WT_CHOICE_Y(0) starts at the
-    // 96 content line -- so the shared grid puts the first row's top edge
-    // through it. Dropping to WT_CHOICE_Y(1) and (2) cleared the chip and left
-    // 90px of empty page above the pair instead, which is what came back off the
-    // device.
-    //
-    // Centred between the chip's bottom edge and the content floor, which is the
-    // only arrangement a two-row screen with a header actually wants:
-    // (398 - 108 - 2*96 - 20) / 2 = 39, so 148 and 252. The three-row choosers
-    // keep WT_CHOICE_Y; they have no chip and they fill the page.
-#define SGC_ROW0 148
-#define SGC_ROW1 252
-    // Both subs share ONE size rather than being sized apiece: wt_body_font
-    // answers per string, so the two rows of one choice came back at different
-    // sizes and one of them visibly shouted. A group shares a size or it stops
-    // being a group.
-    //
-    // font23, not font14. The shared size was pinned to the SMALLEST rung the
-    // longer of the two strings could reach, so shortening one string bought
-    // nothing and the pair stayed at the size reserved for chip labels -- on
-    // the screen that opens every signing session. The strings are now both
-    // about thirty characters and the rung they share is one an owner can read
-    // at arm's length. A long translation still falls back inside wt_row_x.
-    //
-    // Both marks take the ACCENT. wt_row_x paints an icon badge WT_MUT unless
-    // the row is selected, and neither of these ever is -- this is a chooser,
-    // not a list with a current item -- so the two glyphs that say WHICH WAY
-    // the transaction comes in sat the same grey as a disabled row, on the
-    // screen that opens every signing session. wt_row_icon_accent also flags
-    // them, so they follow a theme change with everything else.
-    lv_obj_t *qrow = wt_row_x(s_scr, WT_ICON_QR, tr(STR_S_SCAN_QR),
-             tr(STR_S_POINT_CAM),
-             wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
-             SGC_ROW0, WT_CHOICE_W, WT_CHOICE_H, scan_pick_cb, NULL);
-    wt_row_icon_accent(qrow);
-    lv_obj_t *srow = wt_row_x(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD),
-             tr(STR_S_OR_LOAD),
-             wt_font23(), NULL, NULL, WT_INK, false, WT_CHOICE_X,
-             SGC_ROW1, WT_CHOICE_W, WT_CHOICE_H, sd_pick_cb, NULL);
-    wt_row_icon_accent(srow);
-    // A labelled help target teaches the acronym at first sight. An anonymous
-    // "?" made users guess whether it explained QR, SD, or the coordinator.
-    lv_obj_t *hc = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(hc);
-    // 136x44 at font23, up from 100x36 at font14. The old chip was legible on a
-    // desk and not at arm's length, which is the only distance that counts on a
-    // screen you hold up to a coordinator. Right edge stays on the 752 page
-    // margin and the top stays on 64, so it grows left and down into empty
-    // space rather than into the title above it.
-    lv_obj_set_size(hc, 136, 44);
-    lv_obj_set_pos(hc, 616, 64);
-    // 10, like wt_pillh, wt_card and the two rows underneath it. It was 22 --
-    // exactly half the height, so a full lozenge -- and it was the last one on
-    // the device after the buttons became rectangles. A single rounded object on
-    // a screen of square-shouldered ones does not read as a different KIND of
-    // control, it reads as the one that was missed.
-    lv_obj_set_style_radius(hc, 10, 0);
-    lv_obj_set_style_bg_color(hc, KEY_COL, 0);
-    lv_obj_set_style_bg_opa(hc, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(hc, 1, 0);
-    lv_obj_set_style_border_color(hc, MUT_COL, 0);
-    lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(hc, 14);                // small chip, honest target
-    wt_tap_feedback(hc);
-    lv_obj_add_event_cb(hc, coord_help_cb, LV_EVENT_CLICKED, NULL);
-    // Two labels, not one recoloured string. The word carries the accent
-    // because the accent is what this UI uses for "this is live, touch it", and
-    // the word is the thing being explained. The "?" stays muted: it is the
-    // grammar of the chip, not its subject. One help target on this screen and
-    // one only, so there is never a question of which "?" opens what.
-    lv_obj_t *hl = lv_label_create(hc);
-    lv_label_set_text(hl, "PSBT");
-    lv_obj_set_style_text_color(hl, wt_accent(), 0);
-    lv_obj_set_style_text_font(hl, wt_font23(), 0);
-    lv_obj_align(hl, LV_ALIGN_LEFT_MID, 18, 0);
-    lv_obj_t *hq = lv_label_create(hc);
-    lv_label_set_text(hq, "?");
-    lv_obj_set_style_text_color(hq, MUT_COL, 0);
-    lv_obj_set_style_text_font(hq, wt_font23(), 0);
-    lv_obj_align(hq, LV_ALIGN_RIGHT_MID, -18, 0);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, close_cb);
+    // The chrome contract, whole: this page has no hero and no graph, so
+    // nothing here needs mk_screen's carve-out. The subtitle went with the
+    // contract -- "get the transaction from your coordinator" is what the
+    // explainer now teaches, and the two rows' own sub-lines already say
+    // which way it arrives.
+    s_scr = wt_chrome(parent, tr(STR_S_T));
+    s_choose_help = false;               // a view, not a remembered state
+    memset(&s_cctx, 0, sizeof s_cctx);
+    s_cctx.scr = s_scr;
+    // One [ ? ] on the strip row, where every page keeps it, in place of the
+    // hand built "PSBT ?" chip. The band's left lane is free here, so the
+    // first-run hint may speak.
+    wt_help_tab(s_scr, wt_help_seen() ? NULL : tr(STR_C_HELP_HINT),
+                choose_help_cb, NULL);
+    s_cctx.pane = wt_pane_new(&s_cctx);
+    choose_build();
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, close_cb, NULL);
 }
