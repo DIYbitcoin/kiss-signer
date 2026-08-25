@@ -844,21 +844,37 @@ static ent_t *alloc_ent(void) {
 // spinning at 5 deg/frame only forces a re-render every third frame instead
 // of every frame. And av is zero for droplets, so the spray -- by far the
 // most numerous entity -- never takes the path at all.
+// Tumbling WHOLE fruit is off, and this is the measurement that turned it off.
+// A non-zero rotation puts an image on LVGL's transform path for every redraw,
+// not just for the redraws where the angle changed, so SPIN_STEP cannot buy it
+// back. On the board, with the 16ms physics tick instrumented:
+//
+//   spin on   27.8 ticks/s, 38.2ms mean gap, 69ms worst, 23 late ticks/s
+//   spin off  58.0 ticks/s, 16.5ms mean gap, 24ms worst,  0 late ticks/s
+//
+// Half the physics rate, and it compounds: a fruit takes twice as long in wall
+// clock to finish its arc, so twice as many are alive, so it gets slower again.
+// The bench reported it as lag three times before this was measured properly.
+// The earlier flush-throughput number said rotation was free -- it was measuring
+// bandwidth, which was saturated either way, and could not see the frames.
+//
+// HALVES still carry their angle. That one is not decoration: it is the
+// direction of the cut the player just made, and it is two short lived sprites
+// per slice rather than everything in the air at once.
 #ifndef KISS_GAME_SPIN
-#define KISS_GAME_SPIN 1
+#define KISS_GAME_SPIN 0
 #endif
 #define SPIN_STEP 15
 
 static void place(ent_t *e) {
   if (!e->obj) return;
   lv_obj_set_pos(e->obj, (int)e->x - e->size / 2, (int)e->y - e->size / 2);
-#if KISS_GAME_SPIN
+  if (!KISS_GAME_SPIN && e->kind != K_HALF) return;
   if (e->av == 0.0f) return;
   int16_t q = (int16_t)(((int)e->rot / SPIN_STEP) * SPIN_STEP);
   if (q == e->rot_q) return;               // same step: nothing to redraw
   e->rot_q = q;
   lv_image_set_rotation(e->obj, (int32_t)q * 10);   // LVGL takes 0.1 deg
-#endif
 }
 
 static void clear_all(void) {
