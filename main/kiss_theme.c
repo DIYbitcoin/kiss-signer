@@ -5393,20 +5393,27 @@ lv_obj_t *wt_diagram_row(lv_obj_t *parent)
 
 lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent)
 {
+    // An UNDERLINED TERM, not a box. The bordered pill this used to be put
+    // every teaching diagram on the device in font14 fine print inside
+    // little frames, and the bench finally said so. The underline is the
+    // whole token mark now -- and it is still a border (bottom side only),
+    // so ent_chip_lit's border_color repaint and every caller that reads
+    // child 0 for the label keep working untouched.
     lv_obj_t *c = lv_obj_create(row);
     lv_obj_remove_style_all(c);
     lv_obj_set_size(c, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(c, 12, 0);
-    lv_obj_set_style_pad_ver(c, 6, 0);
-    lv_obj_set_style_radius(c, 8, 0);
-    lv_obj_set_style_bg_color(c, accent ? wt_accent_bg() : WT_KEY, 0);
-    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(c, accent ? 2 : 1, 0);
-    lv_obj_set_style_border_color(c, accent ? wt_primary() : WT_MUT, 0);
+    lv_obj_set_style_pad_hor(c, 6, 0);
+    lv_obj_set_style_pad_bottom(c, 5, 0);
+    lv_obj_set_style_border_side(c, LV_BORDER_SIDE_BOTTOM, 0);
+    lv_obj_set_style_border_width(c, 2, 0);
+    lv_obj_set_style_border_color(c, accent ? wt_primary() : WT_DIM, 0);
     lv_obj_t *l = lv_label_create(c);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, accent ? WT_INK : WT_MUT, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
+    // chrome21: the term is the payload of the diagram it sits in, and any
+    // icon composed into the string resolves through the nat fallback at
+    // the same size, exactly as the tab strip's marks do.
+    lv_obj_set_style_text_font(l, chrome21(txt), 0);
     lv_obj_center(l);
     return c;
 }
@@ -5421,7 +5428,7 @@ lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt)
     // here instead of an operator; they clear the flag at the call site.
     lv_obj_set_style_text_color(l, wt_accent(), 0);
     lv_obj_add_flag(l, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
+    lv_obj_set_style_text_font(l, wt_font23(), 0);
     return l;
 }
 
@@ -5456,10 +5463,15 @@ static void wt_chip_icon(lv_obj_t *row, const char *icon, const char *txt,
 // have to be untaught the first time the owner read anything else about bitcoin.
 void wt_diagram_fp(lv_obj_t *parent)
 {
+    // One mark, on the result. Three marked terms at chrome21 measured wider
+    // than the 704 card on the seed explainer and clipped at both ends; the
+    // key on YOUR KEYS is the icon doing work -- it is the same mark the
+    // KEYS page and the fingerprint badge wear -- and the two inputs say
+    // themselves.
     lv_obj_t *row = wt_diagram_row(parent);
-    wt_chip_icon(row, LV_SYMBOL_LIST, tr(STR_D_WORDS), false);
+    wt_chip(row, tr(STR_D_WORDS), false);
     wt_diagram_op(row, "+");
-    wt_chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
+    wt_chip(row, tr(STR_D_PASSPHRASE), false);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
     wt_chip_icon(row, WT_ICON_KEY, tr(STR_D_KEYS), true);
 }
@@ -5515,11 +5527,182 @@ void wt_diagram_verify(lv_obj_t *parent)
 
 void wt_diagram_pair(lv_obj_t *parent)
 {
-    // the airgap: an online app and the offline signer, bridged only by QR
-    lv_obj_t *row = wt_diagram_row(parent);
-    wt_chip(row, tr(STR_D_ONLINE_APP), false);
-    wt_diagram_op(row, LV_SYMBOL_RIGHT " QR " LV_SYMBOL_LEFT);
-    wt_chip(row, tr(STR_D_KISS_OFFLINE), true);
+    // the airgap: an online app and the offline signer, bridged only by QR.
+    // A COLUMN, not a row: its one home is the PAIR card's 344px aside, and
+    // COORDINATOR WALLET beside KISS OFFLINE stopped fitting a lane that
+    // narrow the day the chips grew to chrome21. Stacked, the op line reads
+    // the traffic too -- the unsigned PSBT comes down, the signed one goes
+    // back up, and nothing but QR light crosses either way.
+    lv_obj_t *col = lv_obj_create(parent);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 6, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    wt_chip(col, tr(STR_D_ONLINE_APP), false);
+    wt_diagram_op(col, LV_SYMBOL_DOWN " QR " LV_SYMBOL_UP);
+    wt_chip(col, tr(STR_D_KISS_OFFLINE), true);
+}
+
+// ---- the airgap, drawn ---------------------------------------------------
+//
+// The SIGN page's hero: a phone SHOWING a QR, this signer's camera FRAMING
+// it, and a dashed break between them that nothing but light crosses. The
+// same fact wt_diagram_pair states in words, drawn as the two machines --
+// because the chip row on that page was the first thing the bench saw and
+// it read as fine print, not a picture.
+//
+// Fixed geometry in figure coordinates, like the bundle graph: the figure is
+// AG_W x AG_H and the caller places it. The 60px side margins are load
+// bearing -- COORDINATOR WALLET at mono18 is ~194px, wider than the phone
+// it is centred under, and the spill has to land inside the figure.
+
+#define AG_PH_X   60    // phone left
+#define AG_PH_W   96
+#define AG_PH_H  150
+#define AG_GAP   130    // the airgap itself
+#define AG_SG_W  200    // this signer, landscape like the real panel
+#define AG_SG_H  120
+#define AG_LBL_Y (AG_PH_H + 12)
+#define AG_W     (AG_PH_X + AG_PH_W + AG_GAP + AG_SG_W + 60)
+#define AG_H     (AG_LBL_Y + 24)
+
+// A QR mark drawn rather than typed: three finder squares and a scatter of
+// modules, s pixels on a side. The font's QR glyph tops out at 28px, which
+// on a 150px phone reads as an app icon; this one scales with the machine
+// showing it.
+static void ag_qr(lv_obj_t *par, int x, int y, int s, lv_color_t col)
+{
+    const int f = s * 7 / 24;            // finder square side
+    const int m = s / 8;                 // one module
+    static const struct { int fx, fy; } F[3] = { {0,0}, {1,0}, {0,1} };
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *sq = lv_obj_create(par);
+        lv_obj_remove_style_all(sq);
+        lv_obj_set_pos(sq, x + F[i].fx * (s - f), y + F[i].fy * (s - f));
+        lv_obj_set_size(sq, f, f);
+        lv_obj_set_style_border_width(sq, 2, 0);
+        lv_obj_set_style_border_color(sq, col, 0);
+        lv_obj_t *dot = lv_obj_create(sq);
+        lv_obj_remove_style_all(dot);
+        lv_obj_set_size(dot, f - 8, f - 8);
+        lv_obj_set_style_bg_color(dot, col, 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+        lv_obj_center(dot);
+    }
+    // The data modules, a fixed constellation in the quadrant the finders
+    // leave open (and one straggler under the top right finder). Fractions
+    // of s so the mark scales as one shape.
+    static const struct { int mx, my; } D[6] = {
+        { 14, 14 }, { 19, 16 }, { 16, 19 }, { 21, 21 }, { 14, 21 }, { 21, 10 },
+    };
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t *d = lv_obj_create(par);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_pos(d, x + D[i].mx * s / 24, y + D[i].my * s / 24);
+        lv_obj_set_size(d, m, m);
+        lv_obj_set_style_bg_color(d, col, 0);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+    }
+}
+
+lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
+{
+    lv_obj_t *fig = lv_obj_create(parent);
+    lv_obj_remove_style_all(fig);
+    lv_obj_set_size(fig, AG_W, AG_H);
+    lv_obj_remove_flag(fig, LV_OBJ_FLAG_SCROLLABLE);
+
+    // The phone: portrait, muted stroke -- somebody else's machine.
+    lv_obj_t *ph = lv_obj_create(fig);
+    lv_obj_remove_style_all(ph);
+    lv_obj_set_pos(ph, AG_PH_X, 0);
+    lv_obj_set_size(ph, AG_PH_W, AG_PH_H);
+    lv_obj_set_style_radius(ph, 16, 0);
+    lv_obj_set_style_border_width(ph, 2, 0);
+    lv_obj_set_style_border_color(ph, WT_MUT, 0);
+    lv_obj_t *spk = lv_obj_create(ph);
+    lv_obj_remove_style_all(spk);
+    lv_obj_set_size(spk, 22, 3);
+    lv_obj_set_style_radius(spk, 2, 0);
+    lv_obj_set_style_bg_color(spk, WT_DIM, 0);
+    lv_obj_set_style_bg_opa(spk, LV_OPA_COVER, 0);
+    lv_obj_align(spk, LV_ALIGN_TOP_MID, 0, 9);
+    ag_qr(ph, (AG_PH_W - 52) / 2, (AG_PH_H - 52) / 2 + 4, 52, WT_INK);
+
+    // This signer: landscape like the panel it is, and the one element the
+    // accent claims -- the same "this box" cue KISS OFFLINE's chip carries.
+    const int sx = AG_PH_X + AG_PH_W + AG_GAP;
+    const int sy = (AG_PH_H - AG_SG_H) / 2;
+    lv_obj_t *sg = lv_obj_create(fig);
+    lv_obj_remove_style_all(sg);
+    lv_obj_set_pos(sg, sx, sy);
+    lv_obj_set_size(sg, AG_SG_W, AG_SG_H);
+    lv_obj_set_style_radius(sg, 10, 0);
+    lv_obj_set_style_border_width(sg, 2, 0);
+    lv_obj_set_style_border_color(sg, wt_primary(), 0);
+    // Viewfinder corners around what the camera is framing: the same QR the
+    // phone shows, dimmer, because this side is a camera's view of it.
+    static const struct { int cx, cy; lv_border_side_t side; } C[4] = {
+        { 0, 0, LV_BORDER_SIDE_TOP    | LV_BORDER_SIDE_LEFT  },
+        { 1, 0, LV_BORDER_SIDE_TOP    | LV_BORDER_SIDE_RIGHT },
+        { 0, 1, LV_BORDER_SIDE_BOTTOM | LV_BORDER_SIDE_LEFT  },
+        { 1, 1, LV_BORDER_SIDE_BOTTOM | LV_BORDER_SIDE_RIGHT },
+    };
+    for (int i = 0; i < 4; i++) {
+        lv_obj_t *cn = lv_obj_create(sg);
+        lv_obj_remove_style_all(cn);
+        lv_obj_set_size(cn, 14, 14);
+        lv_obj_set_pos(cn, C[i].cx ? AG_SG_W - 14 - 14 : 14,
+                       C[i].cy ? AG_SG_H - 14 - 14 : 14);
+        lv_obj_set_style_border_width(cn, 2, 0);
+        lv_obj_set_style_border_color(cn, wt_primary(), 0);
+        lv_obj_set_style_border_side(cn, C[i].side, 0);
+    }
+    ag_qr(sg, (AG_SG_W - 40) / 2, (AG_SG_H - 40) / 2, 40, WT_MUT);
+
+    // The gap: a dashed line with QR punched through the middle of it. The
+    // dash renders because the segment is exactly horizontal -- the renderer
+    // dashes h/v lines only (the bundle graph note).
+    const int ly = AG_PH_H / 2;
+    static lv_point_precise_t pts[2];
+    pts[0].x = 0; pts[0].y = 0;
+    pts[1].x = AG_GAP - 32; pts[1].y = 0;
+    lv_obj_t *ln = lv_line_create(fig);
+    lv_line_set_points(ln, pts, 2);
+    lv_obj_set_pos(ln, AG_PH_X + AG_PH_W + 16, ly);
+    lv_obj_set_style_line_width(ln, 2, 0);
+    lv_obj_set_style_line_color(ln, WT_DIM, 0);
+    lv_obj_set_style_line_dash_width(ln, 6, 0);
+    lv_obj_set_style_line_dash_gap(ln, 6, 0);
+    lv_obj_t *qr = lv_label_create(fig);
+    lv_label_set_text(qr, "QR");
+    lv_obj_set_style_text_font(qr, wt_font_mono18(), 0);
+    lv_obj_set_style_text_color(qr, WT_MUT, 0);
+    lv_obj_set_style_bg_color(qr, WT_BG, 0);
+    lv_obj_set_style_bg_opa(qr, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_hor(qr, 6, 0);
+    lv_obj_update_layout(qr);
+    lv_obj_set_pos(qr, AG_PH_X + AG_PH_W + AG_GAP / 2 - lv_obj_get_width(qr) / 2,
+                   ly - lv_obj_get_height(qr) / 2);
+
+    // The names, under the machines rather than boxed around words.
+    lv_obj_t *cl = lv_label_create(fig);
+    lv_label_set_text(cl, tr(STR_D_ONLINE_APP));
+    lv_obj_set_style_text_font(cl, chrome18(tr(STR_D_ONLINE_APP)), 0);
+    lv_obj_set_style_text_color(cl, WT_MUT, 0);
+    lv_obj_update_layout(cl);
+    lv_obj_set_pos(cl, AG_PH_X + AG_PH_W / 2 - lv_obj_get_width(cl) / 2,
+                   AG_LBL_Y);
+    lv_obj_t *sl = lv_label_create(fig);
+    lv_label_set_text(sl, tr(STR_D_KISS_OFFLINE));
+    lv_obj_set_style_text_font(sl, chrome18(tr(STR_D_KISS_OFFLINE)), 0);
+    lv_obj_set_style_text_color(sl, WT_INK, 0);
+    lv_obj_update_layout(sl);
+    lv_obj_set_pos(sl, sx + AG_SG_W / 2 - lv_obj_get_width(sl) / 2, AG_LBL_Y);
+    return fig;
 }
 
 // ---- the bundle graph ----------------------------------------------------

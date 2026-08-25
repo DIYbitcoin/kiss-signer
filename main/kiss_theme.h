@@ -408,7 +408,7 @@ void wt_card_intro(lv_obj_t *card);
 // tall that came out in the locale being rendered. Parents of a diagram are
 // flex columns.
 lv_obj_t *wt_diagram_row(lv_obj_t *parent);
-lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // rounded token
+lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent); // underlined term
 lv_obj_t *wt_diagram_op(lv_obj_t *row, const char *txt);     // "+", arrow, etc.
 // the deniability equation: WORDS + PASSPHRASE -> FINGERPRINT (accent result).
 void wt_diagram_fp(lv_obj_t *parent);
@@ -417,8 +417,13 @@ void wt_diagram_fp(lv_obj_t *parent);
 void wt_diagram_fpid(lv_obj_t *parent, const char *code);
 // the backup check's claim: RECOVERY WORDS -> THIS WALLET (accent = the match).
 void wt_diagram_verify(lv_obj_t *parent);
-// the airgap: ONLINE APP <- QR -> KISS OFFLINE (accent = the signer).
+// the airgap in words, stacked: ONLINE APP, down/up QR, KISS OFFLINE (accent =
+// the signer). Column shaped, so it fits the PAIR card's 344px aside.
 void wt_diagram_pair(lv_obj_t *parent);
+// the airgap DRAWN: a phone showing a QR, this signer's camera framing it,
+// a dashed break between. Fixed size; returns the figure for the caller to
+// place. The SIGN page's hero.
+lv_obj_t *wt_diagram_airgap(lv_obj_t *parent);
 
 // ---- the sign screen's bundle graph ----
 // Coins on the left, a junction, where the money goes on the right, and every

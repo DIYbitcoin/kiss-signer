@@ -1236,11 +1236,15 @@ static void kef_warn_screen(lv_event_t *e)
     // passphrase and only one of those two is going in the envelope.
     lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 64);
     lv_obj_t *row = wt_diagram_row(card);
-    wt_chip(row, tr_sym(WT_ICON_KEY, pp ? STR_D_WORDS : STR_D_KEYS), true);
+    // One mark, on the password. Three marked terms at the chips' new size
+    // outgrow the 704 card (measured off the frame: clipped both ends), and
+    // of the three icons the lock is the one doing work -- WORDS and LOCKED
+    // QR say themselves.
+    wt_chip(row, tr(pp ? STR_D_WORDS : STR_D_KEYS), true);
     wt_diagram_op(row, "+");
     wt_chip(row, tr_sym(WT_ICON_LOCK, STR_L_KEF_PASS_OPEN), true);
     wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, tr_sym(WT_ICON_QR, STR_I_KEF_CHIP_QR), false);
+    wt_chip(row, tr(STR_I_KEF_CHIP_QR), false);
     lv_obj_center(row);
 
     // Two claims, split. Without a passphrase this is the kit's usual pairing:

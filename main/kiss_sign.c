@@ -590,7 +590,7 @@ static lv_obj_t *sig_code_chip(lv_obj_t *row, const char *code)
 {
     lv_obj_t *c = wt_chip(row, code, false);
     lv_obj_t *l = lv_obj_get_child(c, 0);
-    lv_obj_set_style_text_font(l, wt_font_mono14(), 0);
+    lv_obj_set_style_text_font(l, wt_font_mono21(), 0);
     lv_obj_set_style_text_color(l, INK_COL, 0);
     return c;
 }
@@ -3849,11 +3849,9 @@ static void choose_help_cb(lv_event_t *e);
 // now the picture and the one line the camera actually needs.
 static void scanteach_build(lv_obj_t *p)
 {
-    lv_obj_t *row = lv_obj_create(p);
-    lv_obj_remove_style_all(row);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    wt_diagram_pair(row);
+    // The airgap drawn, not the chip row: the machines themselves, with the
+    // dashed break between them, are the picture this page opens on.
+    lv_obj_t *row = wt_diagram_airgap(p);
     // Centered in the band with the instruction hanging under it: the pair
     // sits a little above the middle so diagram + line read as one figure.
     lv_obj_update_layout(row);
