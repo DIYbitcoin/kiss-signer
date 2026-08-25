@@ -321,6 +321,27 @@ static bool s_cover_pending;
 // stray touch must not be able to postpone a door the owner already opened.
 static bool s_real_pending;
 static uint32_t s_real_at;
+static uint32_t s_cover_at;        // ...and the spare's, on the same clock
+// Deriving the spare's keys INSIDE the 500ms window instead of after it.
+//
+// The window is not dead time that can be deleted: it is how long a modifier
+// stroke has to begin, and it is what makes both doors open on the same beat.
+// It was, though, 500ms of nothing followed by 485ms of PBKDF2, so the panel
+// sat dead for a second and a half after the stroke ended.
+//
+// The derivation cannot just move to the front of the window on this task.
+// game_tick is what polls the touch controller, so 485ms of blocking here is
+// 485ms of a modifier stroke going unsampled -- a mark started 100ms after the
+// lift would arrive as its own last fragment, classify as something else, and
+// silently open the wrong door. It runs on CPU1 instead, and LVGL keeps CPU0.
+//
+// One writer: the task owns the prepared session and only while s_prep is
+// PREP_RUN. The UI reads s_prep, and touches key material only at PREP_DONE,
+// by which point the task has already exited.
+enum { PREP_IDLE, PREP_RUN, PREP_DONE };
+static volatile int s_prep;
+static volatile int s_prep_rc;
+static bool s_prep_drop;           // asked for while it ran; done when it lands
 static uint32_t s_home_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
@@ -1966,7 +1987,19 @@ static void gesture_swallow(void) {
 }
 
 static void kiss_open_decoy(void) {
-  if (kiss_session_open(NULL) != 0) {   // no seed, or derivation failed
+  // Already derived, on the other core, during the window that had to be
+  // waited out anyway -- so this is a memcpy and a re-blind. The inline derive
+  // is still here for the ways in that have no window: the two tap shortcut,
+  // and a device whose prepare task would not start.
+  int rc;
+  if (s_prep == PREP_DONE) {
+    rc = s_prep_rc ? s_prep_rc : kiss_session_activate_prepared();
+    s_prep = PREP_IDLE;
+    s_prep_drop = false;
+  } else {
+    rc = kiss_session_open(NULL);
+  }
+  if (rc != 0) {                        // no seed, or derivation failed
     kiss_login_open(kiss_start);      // fall back to the ordinary way in
     return;
   }
@@ -2168,6 +2201,53 @@ static int unlock_kind(void) {
 // stroke, and so both doors open on the same beat and cannot be told apart by
 // timing. A shortcut with one door has neither problem: nothing can follow a
 // tap, and there is no second door to compare it to.
+#ifndef SIMULATOR
+static void prep_task(void *arg) {
+  (void)arg;
+  s_prep_rc = kiss_session_prepare(NULL);
+  s_prep = PREP_DONE;
+  vTaskDelete(NULL);
+}
+#endif
+
+// Let go of a prepared session that is not going to be opened. While the task
+// still runs there is nothing safe to free, so the ask is recorded and the
+// sweep at the top of game_tick lands it the moment the task is done.
+static void prep_drop(void) {
+  if (s_prep == PREP_RUN) { s_prep_drop = true; return; }
+  if (s_prep == PREP_DONE) kiss_session_discard_prepared();
+  s_prep = PREP_IDLE;
+  s_prep_drop = false;
+}
+
+// The word landed: start the clock, and start deriving what it opens. Nine
+// places used to assign s_cover_pending by hand and every one of them would
+// now have had a key to free as well, so they go through these two instead.
+static void cover_pending_set(void) {
+  s_cover_pending = true;
+  s_cover_at = lv_tick_get();
+  if (s_prep != PREP_IDLE) return;         // already deriving the same thing
+  s_prep_drop = false;
+  s_prep = PREP_RUN;
+#ifdef SIMULATOR
+  s_prep_rc = kiss_session_prepare(NULL);  // the stub costs nothing to wait for
+  s_prep = PREP_DONE;
+#else
+  // CPU1: the main task is pinned to CPU0 (CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0),
+  // so this is real overlap rather than time sliced against the display. Its
+  // priority is read off the caller rather than named -- the caller IS the
+  // display loop, and CONFIG_ESP_MAIN_TASK_PRIORITY does not exist on IDF 6.
+  if (xTaskCreatePinnedToCore(prep_task, "kissprep", 8192, NULL,
+                              uxTaskPriorityGet(NULL), NULL, 1) != pdPASS)
+    s_prep = PREP_IDLE;                    // no task: the open derives inline
+#endif
+}
+
+static void cover_pending_clear(void) {
+  s_cover_pending = false;
+  prep_drop();
+}
+
 static void open_door(int kind, bool immediate) {
   int seed_mode = kiss_seed_mode();
   if (seed_mode == WSEED_MODE_SD) {
@@ -2178,7 +2258,7 @@ static void open_door(int kind, bool immediate) {
     if (sd_rc != WSEED_OK) {
       kiss_setup_open_sd_missing(lv_screen_active(), sd_rc, stored_seed_ready);
       gesture_swallow();
-      s_cover_pending = false;
+      cover_pending_clear();
       s_gn = 0; s_strokes = 0;
       return;                        // the retry screen owns the hand-off now
     }
@@ -2188,12 +2268,12 @@ static void open_door(int kind, bool immediate) {
       kiss_setup_open_load(lv_screen_active(), stored_seed_ready);
     else kiss_setup_open(lv_screen_active(), setup_done_login);
     gesture_swallow();               // the finger is still on the panel
-    s_cover_pending = false;
+    cover_pending_clear();
     s_gn = 0; s_strokes = 0;
     return;
   }
   if (kind == WDR_REAL) {            // a modifier stroke: ask for the passphrase
-    s_cover_pending = false;
+    cover_pending_clear();           // the spare's keys are not the ones wanted
     s_real_pending = true;           // same beat as the decoy: see COVER_OPEN_DELAY_MS
     s_real_at = lv_tick_get();
     gesture_swallow();
@@ -2201,7 +2281,7 @@ static void open_door(int kind, bool immediate) {
     return;
   }
   if (immediate) {
-    s_cover_pending = false;
+    cover_pending_clear();
     kiss_open_decoy();
     s_gn = 0; s_strokes = 0;
     return;
@@ -2210,8 +2290,9 @@ static void open_door(int kind, bool immediate) {
   // yet -- the modifier may still be coming. game_tick's idle branch opens the
   // decoy once the panel has been quiet for COVER_OPEN_DELAY_MS, and the points
   // are kept meanwhile so the next stroke can still be classified against the
-  // word.
-  s_cover_pending = true;
+  // word. The derivation the open needs starts here too, on its own core, so
+  // the wait is spent rather than added to.
+  cover_pending_set();
 }
 
 // ---- idle auto-lock: an unlocked signer must not sit open forever ----
@@ -2381,6 +2462,11 @@ static void game_tick(lv_timer_t *t) {
   bool pressed = read_touch(&tx, &ty);
   if (pressed) rng_seed(tx, ty);   // consumes no randomness; ahead of every branch
 
+  // A prepared session nobody is going to open, freed the moment its task is
+  // done writing it. Above every early return below: the ask can outlive the
+  // menu (the login is already up by then), and the key must not outlive it.
+  if (s_prep_drop && s_prep != PREP_RUN) prep_drop();
+
   // Swallow the rest of the touch that opened a screen. Above every early
   // return below, because the screens this protects -- the setup wizard, the
   // login -- are exactly the ones that make game_tick bail out immediately.
@@ -2478,7 +2564,10 @@ static void game_tick(lv_timer_t *t) {
   // it opens: the points are gone, so a tap landing in here would otherwise
   // reach the menu's "tap to play" branch and start a game under the login.
   if (s_real_pending) {
-    if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS) {
+    // ...and waits for the spare's derivation to finish too, even though it
+    // wants none of it. Opening while that task still runs would make this
+    // door the fast one on exactly the devices where a modifier was drawn.
+    if (lv_tick_elaps(s_real_at) >= COVER_OPEN_DELAY_MS && s_prep != PREP_RUN) {
       s_real_pending = false;
       s_gest_idle = 0;
       kiss_login_open(kiss_start);
@@ -2709,7 +2798,7 @@ static void game_tick(lv_timer_t *t) {
 
   if (s_state != ST_PLAY) {
     if (pressed) {
-      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; s_cover_pending = false; }  // wake saver
+      if (s_saver_on) { saver_hide(); s_gest_swallow = true; s_gn = 0; s_strokes = 0; cover_pending_clear(); }  // wake saver
       else if (!s_gest_swallow) {
         if (!s_prev_press) {                            // a new stroke begins
           // ...but NOT while the word is already matched and waiting for a
@@ -2751,7 +2840,7 @@ static void game_tick(lv_timer_t *t) {
     } else {
       if (s_prev_press) {                                    // a touch just lifted
         if (s_gest_swallow) { s_gest_swallow = false; s_gn = 0; s_strokes = 0;
-                                s_cover_pending = false; s_real_pending = false; }
+                                cover_pending_clear(); s_real_pending = false; }
         else {
           int x0 = 9999, x1 = -9999, y0 = 9999, y1 = -9999;  // bbox of THIS stroke
           for (int i = s_stroke_n0; i < s_gn; i++) {
@@ -2786,12 +2875,18 @@ static void game_tick(lv_timer_t *t) {
         s_gest_idle = 0;
       } else if (s_gn > 0) {                                 // mid-draw, finger up
         s_gest_idle += TICK_MS;
-        if (s_cover_pending && s_gest_idle >= COVER_OPEN_DELAY_MS) {
+        // lv_tick, not the tick COUNT s_gest_idle keeps. The two doors are
+        // meant to open on the same beat and the passphrase one has always
+        // used lv_tick_elaps, so a stalled UI task already pushed this one
+        // later than that one -- 540ms against 500ms with nothing else
+        // running. It also has to survive the derivation now overlapping it.
+        if (s_cover_pending && lv_tick_elaps(s_cover_at) >= COVER_OPEN_DELAY_MS &&
+            s_prep != PREP_RUN) {
           s_cover_pending = false;                            // no modifier came: the spare
-          kiss_open_decoy();
+          kiss_open_decoy();                                  // ...whose keys are ready
           s_gn = 0; s_strokes = 0; s_gest_idle = 0;
         } else if (s_gest_idle >= 3000) {
-          s_gn = 0; s_strokes = 0; s_cover_pending = false;   // gave up -> clear (never starts game)
+          s_gn = 0; s_strokes = 0; cover_pending_clear();     // gave up -> clear (never starts game)
         }
       } else {
         s_idle_ms += TICK_MS;
