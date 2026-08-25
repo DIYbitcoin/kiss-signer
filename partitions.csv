@@ -1,16 +1,22 @@
 # Two app slots, so firmware can be replaced from an SD card without a cable.
 #
 # The old table was a single 0xC00000 factory partition, which is 12 MB for an
-# image that is 7.4 MiB: room the device could not use, because you cannot
-# rewrite the partition you are executing from. Split into two 0x7F0000 slots
-# it can, and the half that is not running holds the old firmware until the new
-# one has proved it boots (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE).
+# image that was 7.4 MiB at the time: room the device could not use, because you
+# cannot rewrite the partition you are executing from. Split into two 0x7F0000
+# slots it can, and the half that is not running holds the old firmware until
+# the new one has proved it boots (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE).
 #
 # The arithmetic is exact and there is no slack to give away: 0x20000 of header
-# plus two 0x7F0000 slots is 0x1000000, the whole 16 MB. A slot holds the
-# current image with about 560 KB spare, so a large new asset is a build
-# failure rather than a surprise on the bench. The reserve, if one is ever
-# needed, is the game art in menu_img.c/gameover_img.c/sprites.c.
+# plus two 0x7F0000 slots is 0x1000000, the whole 16 MB. So a large new asset is
+# a build failure rather than a surprise on the bench.
+#
+# A slot is 0x7F0000 = 8323072 bytes. This comment used to say the image filled
+# all but 560 KB of one, and named the game art as the reserve if a slot ever
+# ran short. Both went stale the following day: 8a31175 took menu_img.c,
+# gameover_img.c and sprites.c from 9.8 MB of C source down to 2.1 MB. Measured
+# 2026-08-25, the app image is 4664352 bytes (4796416 signed for release), so a
+# slot is 56% full with about 3.4 MiB free. That is what the art paid for, and
+# there is no second reserve of that size to spend.
 #
 # ---- why everything below ota_0 sits where it does ----
 #
@@ -28,7 +34,10 @@
 # So this table now matches that one exactly, minus the nvs_key partition that
 # only NVS encryption needs. One layout, and the bootloader gets 0x2000..0x10000
 # -- 57344 bytes, room for flash encryption with the secure boot pass still to
-# come.
+# come. Both measured since, on IDF 6.0.1: flash encryption alone builds a 35008
+# byte bootloader (61%), and with secure boot v2 on RSA-3072 it is 49152 (86%),
+# which leaves 8 KB. Tight, but it fits, and under the old 0x8000 table neither
+# of them would have.
 #
 # It costs nothing in app space. The 0x1a000..0x20000 that is left over is the
 # same alignment padding that used to sit at 0x12000..0x20000; ota_0 and ota_1
