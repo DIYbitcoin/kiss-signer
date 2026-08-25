@@ -308,7 +308,24 @@ static uint32_t s_idle_ms;
 static void saver_hide(void);      // defined below; start_game (above it) needs it
 
 // portable xorshift RNG (was esp_random) so the game compiles for device + simulator
+//
+// Was a fixed literal, which made every boot the same game down to the
+// bomb timing. Seeded from the first touch instead: the tick it lands on
+// and where it lands. Cosmetic entropy for a cosmetic generator -- nothing
+// reached from here is security relevant (the game, the screensaver, and
+// the fingerprint chip's scramble flourish at :1348), and the backup quiz
+// uses its own generator elsewhere. Do not promote this to anything.
 static uint32_t s_rng = 0x9e3779b9u;
+static bool s_rng_seeded;
+static void rng_seed(int x, int y) {
+  if (s_rng_seeded) return;
+  s_rng_seeded = true;
+  uint32_t s = (uint32_t)lv_tick_get() * 2654435761u;
+  s ^= ((uint32_t)x << 16) ^ (uint32_t)y;
+  s ^= s << 13; s ^= s >> 17;
+  if (s == 0) s = 0x9e3779b9u;   // xorshift is dead at zero
+  s_rng = s;
+}
 static uint32_t rnd(uint32_t n) {
   s_rng ^= s_rng << 13;
   s_rng ^= s_rng >> 17;
@@ -2112,6 +2129,7 @@ static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
   bool pressed = read_touch(&tx, &ty);
+  if (pressed) rng_seed(tx, ty);   // consumes no randomness; ahead of every branch
 
   // Swallow the rest of the touch that opened a screen. Above every early
   // return below, because the screens this protects -- the setup wizard, the
