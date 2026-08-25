@@ -879,6 +879,21 @@ static float diff_progress(void) {
   return lvl / 10.0f;
 }
 
+// Both halves of "it gets harder" that a player actually SEES: how fast a
+// fruit is thrown, and how hard it is pulled back down. The first fruit of a
+// run floats up in a slow readable arc at 15..18 px a tick against 0.35
+// gravity; by the end it is 20..27 against the full 0.5, which is where the
+// game has always been. Only the top of the launch range used to move, so a
+// fresh run opened at full speed and the ramp was invisible -- the owner read
+// that off the bench as "shouldn't it start kinda slow".
+//
+// Apex is deliberately roughly constant across the ramp. What changes is the
+// TIME the fruit spends in the air, which is the part that reads as difficulty.
+static int launch_speed(float p) {
+  return rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9));
+}
+static float fruit_gravity(float p) { return GRAVITY * (0.70f + 0.30f * p); }
+
 // Uniform rnd() produces visible runs (e.g. three oranges in a row). Pick a
 // fruit that differs from the last two -> feels varied without being rigged.
 static int pick_fruit(void) {
@@ -938,7 +953,7 @@ static void spawn_fruit_idx(int idx) {
   float p = diff_progress();  // arcs get a little faster/wider as the game goes on (gentle, smooth)
   const def_t *d = &DEFS[idx];
   float vx = (rnd_range(0, 100 + (int)(p * 50)) - (50 + (int)(p * 25))) / 26.0f;  // tighter spread -> fruit stay on screen
-  float vy = -(float)(rnd_range(20, 23 + (int)(p * 4)) + d->lift);
+  float vy = -(float)(launch_speed(p) + d->lift);
   spawn_fruit_at(idx, false, pick_spawn_x(), vx, vy);
 }
 
@@ -2748,10 +2763,11 @@ static void game_tick(lv_timer_t *t) {
   update_blade(tx, ty, pressed);
   check_slices(pressed);
 
+  float fg = fruit_gravity(diff_progress());   // one read, not one per entity
   for (int i = 0; i < MAX_ENT; i++) {
     ent_t *e = &s_ent[i];
     if (!e->active) continue;
-    e->vy += (e->kind == K_FRUIT) ? GRAVITY : GRAVITY * 1.7f;  // debris falls faster -> clears the play area sooner
+    e->vy += (e->kind == K_FRUIT) ? fg : GRAVITY * 1.7f;  // debris falls faster -> clears the play area sooner
     if (e->av != 0.0f) {
       e->rot += e->av;
       if (e->rot >= 360.0f) e->rot -= 360.0f;
@@ -2805,7 +2821,7 @@ static void spawn_tick(lv_timer_t *t) {
 
   s_wave_xn = 0;                               // fresh set of separated lanes
   int w = pick_wave(p);
-  float vy0 = -(float)rnd_range(20, 23 + (int)(p * 4));
+  float vy0 = -(float)launch_speed(p);
   int n;                                       // fruit this wave throws
 
   switch (w) {
