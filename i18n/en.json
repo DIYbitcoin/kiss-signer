@@ -177,7 +177,7 @@
   "W_VERIFY_S": "type your paper words. the signer only confirms.",
   "W_WORD_N_FMT": "%d/%d  %s_",
   "W_CHECK_T": "CHECK YOUR WORDS",
-  "W_CHECK_S": "that is not a valid BIP39 recovery phrase",
+  "W_CHECK_S": "that is not a valid set of BIP39 recovery words",
   "W_CHECK_B": "a word is wrong or out of order.\ncheck your paper and try again.",
   "W_START_OVER": "START OVER",
   "W_VOK_T": "SEED WORDS VERIFIED",
