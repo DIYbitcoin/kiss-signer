@@ -1124,7 +1124,7 @@ static void screen_shake(void) {
   lv_anim_start(&a);
 }
 
-static void slice(ent_t *e) {
+static void slice(ent_t *e, float bdx, float bdy) {
   if (e->bomb) {
     explosion(e->x, e->y);
     screen_flash(0xFF5A00);
@@ -1159,10 +1159,23 @@ static void slice(ent_t *e) {
   if (d->burst) {
     spawn_juice(e->x, e->y, d->juice, 3);  // cherries/grapes: burst, no halves
   } else {
-    spawn_half(d->hl, d->hsize, e->x - 8, e->y, -8.0f, -5.0f,   // halves fly apart fast so they clear quickly
-               0.0f, -(float)rnd_range(2, 5));
-    spawn_half(d->hr, d->hsize, e->x + 8, e->y, 8.0f, -4.5f,
-               0.0f,  (float)rnd_range(2, 5));
+    // The cut face lines up with the stroke and the halves separate across
+    // it, carrying the parent's momentum: a fruit cut at the top of its arc
+    // now drops apart instead of relaunching itself sideways.
+    // Blade angle, less the quarter turn the art already carries: hl and hr
+    // are the LEFT and RIGHT of an upright fruit, so an unrotated pair is
+    // itself a vertical cut. Rotating by the raw blade angle -- which is what
+    // this was -- puts the seam across the stroke instead of along it, and a
+    // vertical swipe came apart with a horizontal seam.
+    float ang = atan2f(bdy, bdx) * 57.29578f - 90.0f;
+    float nx = -bdy, ny = bdx;                  // unit normal to the cut
+    const float SEP = 7.0f;
+    spawn_half(d->hl, d->hsize, e->x - nx*6, e->y - ny*6,
+               e->vx - nx*SEP, e->vy*0.6f - ny*SEP,
+               ang, -(float)rnd_range(2, 5));
+    spawn_half(d->hr, d->hsize, e->x + nx*6, e->y + ny*6,
+               e->vx + nx*SEP, e->vy*0.6f + ny*SEP,
+               ang,  (float)rnd_range(2, 5));
     spawn_juice(e->x, e->y, d->juice, 2);
   }
   if (e->obj) lv_obj_delete(e->obj);
@@ -1178,13 +1191,81 @@ static float seg_dist(float ax, float ay, float bx, float by, float px, float py
   return sqrtf(ex * ex + ey * ey);
 }
 
-static void check_slices(void) {
-  if (s_trail_count < 2) return;
-  lv_point_precise_t *a = &s_trail[s_trail_count - 2], *b = &s_trail[s_trail_count - 1];
+static bool seg_cross(float ax, float ay, float bx, float by,
+                      float cx, float cy, float dx, float dy) {
+  float d1 = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
+  float d2 = (bx-ax)*(dy-ay) - (by-ay)*(dx-ax);
+  float d3 = (dx-cx)*(ay-cy) - (dy-cy)*(ax-cx);
+  float d4 = (dx-cx)*(by-cy) - (dy-cy)*(bx-cx);
+  return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));
+}
+
+// Distance between two segments. Crossing is the case that matters and the
+// endpoint minimum gets it badly wrong (it can report half a fruit width
+// for two segments that plainly intersect), so it is tested separately.
+static float seg_seg_dist(float ax, float ay, float bx, float by,
+                          float cx, float cy, float dx, float dy) {
+  if (seg_cross(ax, ay, bx, by, cx, cy, dx, dy)) return 0.0f;
+  float m = seg_dist(ax, ay, bx, by, cx, cy), t;
+  t = seg_dist(ax, ay, bx, by, dx, dy); if (t < m) m = t;
+  t = seg_dist(cx, cy, dx, dy, ax, ay); if (t < m) m = t;
+  t = seg_dist(cx, cy, dx, dy, bx, by); if (t < m) m = t;
+  return m;
+}
+
+// Below this much ink over the live trail the blade is not moving and must
+// not cut. Without it a resting finger is an armed blade and fruit die on
+// it -- which is most of why slicing felt like nothing. Measured over the
+// WHOLE trail, not one segment: one segment is a single frame and rounds
+// to noise at 60Hz.
+#define SLICE_MIN_TRAVEL 22.0f
+
+// Takes `pressed` because the blade outlives the finger: on release
+// update_blade drains ONE trail point per frame, so for the next two or
+// three frames the survivors are still a real, full-length edge and the
+// travel gate cannot suppress them -- that ink is genuine. Measured at one
+// cut per four hundred strokes on the walk's own stroke, in this code and
+// in the code before it. A blade with no finger on it is the same defect as
+// a blade under a still one.
+static void check_slices(bool pressed) {
+  if (!pressed) return;
+  int n = s_trail_count;
+  if (n < 2) return;
+
+  float travel = 0;
+  for (int i = 1; i < n; i++) {
+    float dx = (float)(s_trail[i].x - s_trail[i-1].x);
+    float dy = (float)(s_trail[i].y - s_trail[i-1].y);
+    travel += sqrtf(dx*dx + dy*dy);
+  }
+  if (travel < SLICE_MIN_TRAVEL) return;
+
+  // Cut angle: the newest segment, normalized. Everything downstream --
+  // which way the halves separate, which way the cut face points -- comes
+  // from this, and it is the thing the old code threw away.
+  float bdx = (float)(s_trail[n-1].x - s_trail[n-2].x);
+  float bdy = (float)(s_trail[n-1].y - s_trail[n-2].y);
+  float bl = sqrtf(bdx*bdx + bdy*bdy);
+  if (bl < 0.001f) { bdx = 1.0f; bdy = 0.0f; } else { bdx /= bl; bdy /= bl; }
+
   for (int i = 0; i < MAX_ENT; i++) {
     ent_t *e = &s_ent[i];
     if (!e->active || e->kind != K_FRUIT) continue;
-    if (seg_dist(a->x, a->y, b->x, b->y, e->x, e->y) < e->size / 2 + 4) slice(e);
+    float r = e->size / 2.0f + 4.0f;
+    // Sweep BOTH bodies. Trail entries are consecutive frames (update_blade
+    // drops from the front, so the survivors stay adjacent), so trail index
+    // k was sampled n-1-k frames ago and the fruit was that many frames of
+    // its own velocity back up its arc.
+    bool hit = false;
+    for (int s = 1; s < n && !hit; s++) {
+      float a0 = (float)(n - s), a1 = (float)(n - 1 - s);
+      float fx0 = e->x - e->vx * a0, fy0 = e->y - e->vy * a0;
+      float fx1 = e->x - e->vx * a1, fy1 = e->y - e->vy * a1;
+      if (seg_seg_dist((float)s_trail[s-1].x, (float)s_trail[s-1].y,
+                       (float)s_trail[s].x,   (float)s_trail[s].y,
+                       fx0, fy0, fx1, fy1) < r) hit = true;
+    }
+    if (hit) slice(e, bdx, bdy);
   }
 }
 
@@ -2594,7 +2675,7 @@ static void game_tick(lv_timer_t *t) {
   if (!pressed) s_swipe_n = 0;   // finger lifted -> combo chain ends
 
   update_blade(tx, ty, pressed);
-  check_slices();
+  check_slices(pressed);
 
   for (int i = 0; i < MAX_ENT; i++) {
     ent_t *e = &s_ent[i];
