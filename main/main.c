@@ -2805,9 +2805,8 @@ static void spawn_tick(lv_timer_t *t) {
 
   s_wave_xn = 0;                               // fresh set of separated lanes
   int w = pick_wave(p);
-  int base = (int)rnd(NUM_DEFS - 1);
   float vy0 = -(float)rnd_range(20, 23 + (int)(p * 4));
-  int period = (int)(880 - 220 * p);
+  int n;                                       // fruit this wave throws
 
   switch (w) {
     case WV_ARC: {                             // thrown left to right
@@ -2815,39 +2814,60 @@ static void spawn_tick(lv_timer_t *t) {
         spawn_fruit_at(pick_fruit(), false,
                        140.0f + i * ((SCREEN_W - 280.0f) / 2.0f),
                        (i - 1) * 1.4f, vy0 - i * 0.8f);
-      period += 260;
+      n = 3;
     } break;
     case WV_FOUNTAIN: {                        // one point, fanning out
       float x = rnd_range(180, SCREEN_W - 180);
       for (int i = 0; i < 3; i++)
         spawn_fruit_at(pick_fruit(), false, x, (i - 1) * 3.2f, vy0 - i * 1.2f);
-      period += 260;
+      n = 3;
     } break;
     case WV_PINCER: {                          // opposite sides, crossing
       spawn_fruit_at(pick_fruit(), false, 110, 2.6f, vy0);
       spawn_fruit_at(pick_fruit(), false, SCREEN_W - 110, -2.6f, vy0 - 0.6f);
-      period += 160;
+      n = 2;
     } break;
     case WV_BIG: {
       for (int i = 0; i < 5; i++)
         spawn_fruit_at(pick_fruit(), false,
                        90.0f + i * ((SCREEN_W - 180.0f) / 4.0f),
                        (i - 2) * 1.1f, vy0 - (i % 2) * 1.6f);
-      period += 500;
+      n = 5;
       s_wave_rest = 1;
     } break;
     default:
-      spawn_fruit_idx(base == BOMB_IDX ? pick_fruit() : base);
+      spawn_fruit_idx(pick_fruit());
+      n = 1;
       break;
   }
 
-  // Bombs ramp 6 -> 30% and never join a big wave: five fruit and a bomb is
-  // not a harder wave, it is an unreadable one.
-  if (w != WV_BIG && (int)rnd(100) < (int)(6 + 24 * p))
-    spawn_fruit_idx(BOMB_IDX);
+  // A wave that throws n fruit waits n times as long, on the SAME 820 -> 620ms
+  // curve the game used before it had patterns at all.
+  //
+  // Shipped per wave, the patterns were not a new shape of throw, they were a
+  // density rise nobody asked for: 1.9 fruit/s at the start against 1.2 before
+  // (+57%), and 2.8 against 1.7 by mid game (+67%). Two things go wrong at
+  // once. It is unreadable -- three fruit arrive as a clump and the bomb that
+  // matters arrives inside it -- and it is past what the panel will push,
+  // because a rotating sprite invalidates its rotated bounding box and those
+  // merge: on the bench every flush was a full 800x48 band, 58 of them a
+  // second, where the same scene without rotation flushed 240 sprite-sized
+  // rects. Same pixels per second either way. Far fewer frames.
+  int period = (int)((820 - 200 * p) * n);
+  if (w == WV_BIG) period -= 520;              // s_wave_rest already pays that
 
-  // Gold, rare, and never in the same wave as a bomb-heavy big throw.
-  if (s_score > 20 && w != WV_BIG && (int)rnd(100) < 4)
+  // Bombs per second, not per wave, and on the old 6 -> 34% ramp. A three
+  // fruit wave that waits three times as long rolls a third as often, so the
+  // per-wave form quietly halved the one thing making this game hard.
+  if (w != WV_BIG && (int)rnd(100) < (int)((6 + 28 * p) * n))
+    spawn_fruit_idx(BOMB_IDX);                 // never on a big wave: five
+                                               // fruit and a bomb is not a
+                                               // harder wave, it is an
+                                               // unreadable one
+
+  // Gold, rare, and never in the same wave as a big throw. Scaled by n for the
+  // same reason the bomb is.
+  if (s_score > 20 && w != WV_BIG && (int)rnd(100) < 4 * n)
     spawn_fruit_at(3, true, pick_spawn_x(), 0.0f, vy0 - 1.0f);
 
   lv_timer_set_period(t, period);
