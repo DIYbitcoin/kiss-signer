@@ -178,7 +178,13 @@ MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 # 18 and 21 are the screen-system pass's two additions: 18 carries captions,
 # subs, prose, tab labels, the trail and the band; 21 is a closed row's value.
 # Together about 4KB. 14 stays for screens outside that pass.
-for SZ in 14 18 21 23 28; do
+#
+# 34 arrived when the WHOLE UI took the mono face: the body composites now put
+# IoskeleyMono first and fall back to the Montserrat chain, and 34 is the one
+# rung that had no mono face to sit in front of (pre-chrome titles and primary
+# pills). Same ASCII-only range as the rest; accents and icons resolve through
+# the fallback.
+for SZ in 14 18 21 23 28 34; do
   echo "== font_kiss_mono$SZ"
   conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
     -o "$OUT/font_kiss_mono$SZ.c"

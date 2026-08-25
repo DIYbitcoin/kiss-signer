@@ -683,7 +683,7 @@ static void score_popup(int x, int y, const char *txt, uint32_t color) {
   lv_obj_t *l = lv_label_create(lv_screen_active());
   lv_label_set_text(l, txt);
   lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
-  lv_obj_set_style_text_font(l, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(l, wt_font_mono28(), 0);
   if (x < 6) x = 6;
   if (x > SCREEN_W - 120) x = SCREEN_W - 120;
   if (y < 28) y = 28;
@@ -1374,7 +1374,7 @@ static void fp_fly_start(void) {
   s_fp_fly = lv_label_create(s_home);
   lv_label_set_text(s_fp_fly, s_fp_hex);      // real code first: size the label off it
   lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
-  lv_obj_set_style_text_font(s_fp_fly, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(s_fp_fly, wt_font_num48(), 0);
   lv_obj_set_style_text_letter_space(s_fp_fly, 4, 0);
   lv_obj_update_layout(s_fp_fly);
   // start where the reveal card showed the code (box center 400,163 in kiss_ui.c)
@@ -2648,7 +2648,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_score_lbl = lv_label_create(scr);
   lv_label_set_text(s_score_lbl, "0");
   lv_obj_set_style_text_color(s_score_lbl, lv_color_hex(0xF6D157), LV_PART_MAIN);  // gold
-  lv_obj_set_style_text_font(s_score_lbl, &lv_font_montserrat_40, LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_score_lbl, wt_font_num48(), LV_PART_MAIN);
   lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, 22, 40);  // below top overscan, level with hearts
   lv_obj_add_flag(s_score_lbl, LV_OBJ_FLAG_HIDDEN);
 
@@ -2698,13 +2698,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_over_lbl = lv_label_create(s_over_panel);  // big score number (on the card)
   lv_label_set_text(s_over_lbl, "0");
   lv_obj_set_style_text_color(s_over_lbl, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_font(s_over_lbl, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(s_over_lbl, wt_font_num48(), 0);
   lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);
 
   s_best_lbl = lv_label_create(s_over_panel);  // BEST n
   lv_label_set_text(s_best_lbl, "BEST  0");
   lv_obj_set_style_text_color(s_best_lbl, lv_color_hex(0xECC878), 0);
-  lv_obj_set_style_text_font(s_best_lbl, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(s_best_lbl, wt_font_mono28(), 0);
   lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
 
   s_newbest = lv_image_create(s_over_panel);  // NEW BEST! ribbon (shown when beaten)
@@ -2801,7 +2801,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
   lv_obj_set_pos(s_theme_cap, 704, 408);
   s_theme_lbl = lv_label_create(s_home);
-  lv_obj_set_style_text_font(s_theme_lbl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_theme_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_theme_lbl, 1, 0);
   lv_obj_set_pos(s_theme_lbl, 704, 428);
 
@@ -2811,7 +2811,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_fp_chip = lv_label_create(s_home);
   lv_label_set_text(s_fp_chip, s_fp_hex);
   lv_obj_set_style_text_color(s_fp_chip, wt_accent(), 0);
-  lv_obj_set_style_text_font(s_fp_chip, &lv_font_montserrat_28, 0);   // fills the chip frame
+  lv_obj_set_style_text_font(s_fp_chip, wt_font_mono28(), 0);   // fills the chip frame
   lv_obj_set_style_text_letter_space(s_fp_chip, 2, 0);
 
   s_fp_cap = lv_label_create(s_home);
@@ -2823,7 +2823,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_cam_lbl = lv_label_create(s_home);         // bottom-center status/error slot: blank
   lv_label_set_text(s_cam_lbl, "");              // until something (camera/error) fills it.
   lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // baked art leaves this
-  lv_obj_set_style_text_font(s_cam_lbl, &lv_font_montserrat_14, 0);   // bottom gap free
+  lv_obj_set_style_text_font(s_cam_lbl, wt_font14(), 0);   // bottom gap free
   lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -14);
 
   // Persistent storage badge, on the SAME LINE as the build identity and to the
@@ -2855,7 +2855,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_net_lbl = lv_label_create(s_home);
   lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
   lv_obj_set_style_text_color(s_net_lbl, lv_color_hex(0xF2B84B), 0);
-  lv_obj_set_style_text_font(s_net_lbl, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(s_net_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_net_lbl, 3, 0);
   lv_obj_set_style_bg_color(s_net_lbl, lv_color_hex(0x2A2113), 0);    // dark amber, reads on grid
   lv_obj_set_style_bg_opa(s_net_lbl, LV_OPA_COVER, 0);
@@ -2941,7 +2941,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_saver_hint = lv_label_create(scr);   // direct child of the screen (shown/hidden with the saver)
   lv_label_set_text(s_saver_hint, "tap to play");
   lv_obj_set_style_text_color(s_saver_hint, lv_color_hex(0xFFF2CD), 0);
-  lv_obj_set_style_text_font(s_saver_hint, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(s_saver_hint, wt_font_mono28(), 0);
   lv_obj_set_style_bg_color(s_saver_hint, lv_color_hex(0x10131C), 0);
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark pill so it reads on any backdrop
   lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);

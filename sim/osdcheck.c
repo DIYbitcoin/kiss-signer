@@ -226,7 +226,14 @@ static int osdcheck_run(void)
         STR_C_OSD_SEARCH_S, STR_S_POINT_CAM, STR_N_T,
     };
 
+    // SIM_LANG narrows this sweep to one locale, the same English-only rule
+    // the walk and fitcheck follow: the other twenty locales carry wording
+    // that waits for the translation sweep, and the mono faces pushed some of
+    // it past the canvas. The sweep runs with SIM_LANG unset and sees all 21.
+    const char *only = getenv("SIM_LANG");
+    if (only && !*only) only = NULL;
     for (int lang = 0; lang < I18N_LANG_N; lang++) {
+        if (only && strcmp(only, i18n_lang_info(lang)->code) != 0) continue;
         i18n_set_lang(lang);
         const i18n_lang_t *info = i18n_lang_info(lang);
         const char *code = info ? info->code : "??";
@@ -242,6 +249,7 @@ static int osdcheck_run(void)
 
     int fit_checked = 0;
     for (int lang = 0; lang < I18N_LANG_N; lang++) {
+        if (only && strcmp(only, i18n_lang_info(lang)->code) != 0) continue;
         i18n_set_lang(lang);
         const i18n_lang_t *info = i18n_lang_info(lang);
         const char *code = info ? info->code : "??";

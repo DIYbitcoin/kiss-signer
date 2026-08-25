@@ -24,6 +24,7 @@ LV_FONT_DECLARE(font_kiss_mono18);  // screen-system captions, subs, prose
 LV_FONT_DECLARE(font_kiss_mono21);  // screen-system closed-row values
 LV_FONT_DECLARE(font_kiss_mono23);
 LV_FONT_DECLARE(font_kiss_mono28);
+LV_FONT_DECLARE(font_kiss_mono34); // body-composite primary at the top rung
 LV_FONT_DECLARE(font_kiss_num48);   // 13 glyphs: digits, space, full stop
 LV_FONT_DECLARE(font_kiss_ja23);
 LV_FONT_DECLARE(font_kiss_ko23);

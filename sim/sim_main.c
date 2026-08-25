@@ -2514,19 +2514,35 @@ int main(void) {
   save("/tmp/sim_recv_tabmid.ppm");
   pump(40);
   tap_str(STR_R_ALL_ADDR, 3, 40);                   // back to the list
-  // Actually DRAG it. This is the one scrolling surface in the whole signer --
-  // every other container turns scrolling off -- so the walk flicks it for
-  // real rather than trusting that a scrollable flag implies a list that moves.
-  touch(400, 320); pump(3);
-  touch(400, 270); pump(3);
-  touch(400, 225); pump(3);                         // finger up: later indices
-  release(); pump(120);   // the throw, THEN the settle that rounds it to a line
-  save("/tmp/sim_recv_scrolled.ppm");
-  // The page arrows live IN the content at the count line's right edge: back
-  // at 672, forward at 734, both on y=370. Forward is the live one on page 1.
-  touch(734, 370); pump(3); release(); pump(40);
-  save("/tmp/sim_recv_page2.ppm");
-  touch(672, 370); pump(3); release(); pump(40);    // and back to page 1
+  // The deck. The scroll window, its settle correction and the arrow chips
+  // all went with the swipe pass: a stroke turns the page of three, so the
+  // walk strokes it for real -- left is later addresses, and the count line
+  // is the only position indicator (34 pages is too many dots).
+  char anb[32];
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(30);
+  snprintf(anb, sizeof anb, tr(STR_R_ADDR_N_FMT), 3);
+  must_show("recv/swipe page2", anb);               // #3 leads the second page
+  save("/tmp/sim_recv_scrolled.ppm");               // reused name: now page 2
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(30);
+  snprintf(anb, sizeof anb, tr(STR_R_ADDR_N_FMT), 6);
+  must_show("recv/swipe page3", anb);
+  save("/tmp/sim_recv_page2.ppm");                  // reused name: now page 3
+  // Two strokes back to page 1...
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(30);
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(30);
+  snprintf(anb, sizeof anb, tr(STR_R_ADDR_N_FMT), 0);
+  must_show("recv/swipe back to page1", anb);
+  // ...and one more RIGHT: page 1 is the deck's left edge inside this tab,
+  // so the stroke crosses the tab boundary onto THIS ADDRESS.
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(40);
+  must_show("recv/deck crossed to tab 0", tr(STR_S_CMP_8));
+  save("/tmp/sim_recv_deck_home.ppm");
+  tap_str(STR_R_ALL_ADDR, 3, 40);       // back in by the strip: remembered page
   // A line HELD, so one frame shows the accent rail and the pressed wash --
   // the entire affordance of a row with no border. The release is the tap that
   // opens it, so this is the same gesture the next frame is the result of:
@@ -2766,6 +2782,13 @@ int main(void) {
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(30);                              // swipe right -> page 1
   must_show("file list page 1", "payment-01.psbt");
+  // Page 1 is the deck's left edge inside this tab: one more stroke right
+  // crosses the tab boundary onto SCAN QR, and the tab strip follows.
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(40);
+  must_show("sign/deck crossed to scan tab", tr(STR_N_CAN));
+  tap_str(STR_S_FROM_SD, 3, 30);      // back in by the strip, page 1 fresh
+  must_show("sign/deck return to list", "payment-01.psbt");
   // Row press feedback (wt_line_press). The device has no haptics, so a
   // press is answered optically or not at all, and "not at all" is the kind
   // of thing a refactor takes away in silence. This is the walk's ordinary
@@ -3576,6 +3599,16 @@ int main(void) {
   // screen nobody opens, but a THIRD of a screen nobody opens.
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   save("/tmp/sim_settings.ppm");                    // SIGNER: network, type, denomination
+  // The deck: on a page whose tabs hold no pages, a stroke IS a tab step.
+  // Left onto SECURITY and right back, so both directions are exercised on
+  // the page with the most tabs.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("settings/swipe to security", tr(STR_I_ROW_WAYSIN));
+  save("/tmp/sim_settings_swipe.ppm");
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("settings/swipe back to signer", tr(STR_I_DENOM_SUB));
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_security.ppm");           // duress unset: amber row + dot
   set_tab(SET_BACKUP);

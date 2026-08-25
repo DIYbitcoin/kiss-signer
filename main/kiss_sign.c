@@ -3455,65 +3455,10 @@ static int sf_pages(int n) { return n > 0 ? (n + SF_PAGE - 1) / SF_PAGE : 1; }
 // The count line and the page dots at the lane's foot. `warn` swaps the
 // count for the more-files-than-the-list warning, which matters more. The
 // dots are display only: the page moves under a finger, not a 36px chip.
-static void pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
-                       int npages)
-{
-    const lv_font_t *nf = wt_chrome18(txt);
-    lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, 358, nf,
-                            warn ? WARN_COL : MUT_COL);
-    // The dots' lane comes off the note only when dots exist: the sort hint
-    // on a sparse list is 4px longer than the shared lane, and DOT ate its
-    // last clause without a word from any gate.
-    lv_obj_set_width(note, npages < 2 ? WT_LANE_W : WT_LANE_W - 150);
-    // Pinned to ONE line: a label allowed to grow is a budget given away.
-    lv_obj_set_height(note, lv_font_get_line_height(nf));
-    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
-    // Scenery, all of it: the pager is chrome, and chrome does not ride the
-    // slide it drives.
-    wt_pane_scenery(note);
-    if (npages < 2) return;
-    const int pitch = 18;
-    const int x0 = WT_LANE_X + WT_LANE_W - (npages * pitch - 10);
-    for (int i = 0; i < npages; i++) {
-        lv_obj_t *d = lv_obj_create(p);
-        lv_obj_remove_style_all(d);
-        lv_obj_set_size(d, 8, 8);
-        lv_obj_set_pos(d, x0 + i * pitch, 364);
-        lv_obj_set_style_radius(d, 5, 0);
-        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(d, i == page ? wt_accent() : WT_DIM, 0);
-        if (i == page) lv_obj_add_flag(d, WT_FLAG_ACCENT);
-        wt_pane_scenery(d);
-    }
-}
-
-// Rebuild a context's pane and slide it in from the side the flip came from.
-// NOT wt_pane_go: that refuses a same-tab call by design, because a tab
-// change carries a direction along a strip and a page change has none of its
-// own -- the swipe is the direction.
-static void list_flip(wt_pane_t *ctx, void (*build)(void), int dir)
-{
-    wt_pane_stop(ctx);
-    if (ctx->pane) { lv_obj_delete(ctx->pane); ctx->pane = NULL; }
-    ctx->pane = wt_pane_new(ctx);
-    build();
-    wt_accent_restyle(ctx->pane);
-    wt_pane_enter(ctx, dir, false);
-}
-
-// A finished horizontal stroke, anywhere on the page that owns the list.
-// LV_EVENT_GESTURE fires mid-press the moment the stroke crosses the indev's
-// 50px limit; wait_release then swallows the rest of the press, so the same
-// stroke can never also CLICK the row it started on.
-static int swipe_step(lv_event_t *e)
-{
-    lv_indev_t *ind = lv_event_get_indev(e);
-    if (!ind) return 0;
-    lv_dir_t d = lv_indev_get_gesture_dir(ind);
-    int step = d == LV_DIR_LEFT ? 1 : d == LV_DIR_RIGHT ? -1 : 0;
-    if (step) lv_indev_wait_release(ind);
-    return step;
-}
+// The pager foot, the same-tab page flip and the stroke reader all live in
+// the kit now (wt_pager_line / wt_page_flip / wt_swipe_step): the owner asked
+// for the SD list's swipe everywhere, so the plumbing moved to kiss_theme.c
+// and this file keeps only the SIGN deck's own rules.
 
 // ---- REMOVE SIGNED --------------------------------------------------------
 // The card accumulates one -signed.psbt per hold and the list window is 24, so
@@ -3575,11 +3520,11 @@ static void rm_all(void *ud)
 
 static void rm_gesture_cb(lv_event_t *e)
 {
-    const int step = swipe_step(e);
+    const int step = wt_swipe_step(e);
     const int to = s_rm_page + step;
     if (!step || to < 0 || to >= sf_pages(s_rmn)) return;
     s_rm_page = to;
-    list_flip(&s_fctx, rm_build, step);
+    wt_page_flip(&s_fctx, rm_build, step);
 }
 
 static void rm_build(void)
@@ -3624,14 +3569,14 @@ static void rm_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn,
                  s_rm_total);
-        pager_line(p, more, true, s_rm_page, npages);
+        wt_pager_line(p, more, true, s_rm_page, npages);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_rmn);
-        pager_line(p, count, false, s_rm_page, npages);
+        wt_pager_line(p, count, false, s_rm_page, npages);
     } else {
-        pager_line(p, tr(STR_S_RM_C_B), false, 0, 1);
+        wt_pager_line(p, tr(STR_S_RM_C_B), false, 0, 1);
     }
 }
 
@@ -3651,8 +3596,7 @@ static void rm_screen(void)
 
     mk_chrome(s_parent, tr(STR_S_RM_SIGNED));
     sd_trail();
-    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_GESTURE_BUBBLE);   // see kiss_sign_open
-    lv_obj_add_event_cb(s_scr, rm_gesture_cb, LV_EVENT_GESTURE, NULL);
+    wt_swipe_watch(s_scr, rm_gesture_cb);
     memset(&s_fctx, 0, sizeof s_fctx);
     s_fctx.scr = s_scr;
     s_fctx.pane = wt_pane_new(&s_fctx);
@@ -3696,18 +3640,28 @@ static void sf_cap_col(lv_obj_t *row, const char *cap, lv_color_t col)
 }
 
 static void files_build(void);
+static void sign_tab_go(int tab);
 
-// The swipe, on the SIGN page: live only while the SD CARD tab's list is on
-// the lane. The stroke can start anywhere -- a row, the glass under the
-// rows, the count line -- because the gesture bubbles to the page.
+// The swipe, on the SIGN page: the whole page is one horizontal deck --
+// [SCAN QR] [SD CARD p1..pN] -- so a stroke moves through the SD list's
+// pages first and crosses the tab boundary at either end of them. The
+// stroke can start anywhere -- a row, the glass under the rows, the count
+// line -- because the gesture bubbles to the page. Not while [ ? ] is open:
+// the explainer is a toggle, not a position on the deck.
 static void files_gesture_cb(lv_event_t *e)
 {
-    if (s_cctx.tab != 1 || s_choose_help || s_nfiles <= 0) return;
-    const int step = swipe_step(e);
-    const int to = s_file_page + step;
-    if (!step || to < 0 || to >= sf_pages(s_nfiles)) return;
-    s_file_page = to;
-    list_flip(&s_cctx, files_build, step);
+    if (s_choose_help) return;
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    if (s_cctx.tab == 1 && s_nfiles > 0) {
+        const int to = s_file_page + step;
+        if (to >= 0 && to < sf_pages(s_nfiles)) {
+            s_file_page = to;
+            wt_page_flip(&s_cctx, files_build, step);
+            return;
+        }
+    }
+    sign_tab_go(s_cctx.tab + step);
 }
 
 // One page of files, three line rows on the lane. The state is the caption
@@ -3757,14 +3711,14 @@ static void files_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_nfiles,
                  s_ftotal);
-        pager_line(p, more, true, s_file_page, npages);
+        wt_pager_line(p, more, true, s_file_page, npages);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_nfiles);
-        pager_line(p, count, false, s_file_page, npages);
+        wt_pager_line(p, count, false, s_file_page, npages);
     } else {
-        pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1);
+        wt_pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1);
     }
 }
 
@@ -3920,7 +3874,7 @@ static void scanteach_build(lv_obj_t *p)
         wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + 65, WT_LANE_W),
                           42 * i + 110, 320);
     }
-    pager_line(p, tr(STR_S_POINT_CAM), false, 0, 1);
+    wt_pager_line(p, tr(STR_S_POINT_CAM), false, 0, 1);
 }
 
 // The lane, per tab -- or the [ ? ] explainer over either: the numbered flow
@@ -3975,9 +3929,9 @@ static void sign_go_build(void)
     sign_band_update();
 }
 
-static void sign_tab_cb(lv_event_t *e)
+static void sign_tab_go(int tab)
 {
-    int tab = (int)(intptr_t)lv_event_get_user_data(e);
+    if (tab < 0 || tab > 1) return;      // the deck ends where the strip does
     // A real tab is also the way back from [ ? ]: tapping the one already
     // selected re-lands on its lane, which wt_pane_go's same-tab refusal
     // would otherwise swallow.
@@ -3989,10 +3943,15 @@ static void sign_tab_cb(lv_event_t *e)
     // three without three swipes.
     if (tab == 1 && tab == s_cctx.tab && s_file_page > 0) {
         s_file_page = 0;
-        list_flip(&s_cctx, files_build, -1);
+        wt_page_flip(&s_cctx, files_build, -1);
         return;
     }
     wt_pane_go(&s_cctx, tab, false, sign_go_build);
+}
+
+static void sign_tab_cb(lv_event_t *e)
+{
+    sign_tab_go((int)(intptr_t)lv_event_get_user_data(e));
 }
 
 static void choose_help_cb(lv_event_t *e)
@@ -4043,11 +4002,7 @@ void kiss_sign_open(lv_obj_t *parent)
     // No band hint: the left lane belongs to the tab's action, so the mark's
     // breathing is the whole first-run invitation, as on RECEIVE.
     wt_help_tab(s_scr, NULL, choose_help_cb, NULL);
-    // The indev delivers LV_EVENT_GESTURE to the first ancestor WITHOUT
-    // GESTURE_BUBBLE -- with the whole chain bubbling it walks off the root
-    // and the event goes nowhere. The page is the stroke's terminus.
-    lv_obj_remove_flag(s_scr, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(s_scr, files_gesture_cb, LV_EVENT_GESTURE, NULL);
+    wt_swipe_watch(s_scr, files_gesture_cb);
     s_cctx.pane = wt_pane_new(&s_cctx);
     sign_tab_build();
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,

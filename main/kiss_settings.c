@@ -1526,6 +1526,19 @@ static void tab_cb(lv_event_t *e)
     go_tab((int)(intptr_t)lv_event_get_user_data(e));
 }
 
+// The stroke, on the SETTINGS page: five tabs, one horizontal deck. No pages
+// inside any of them, so a swipe is a tab step and nothing else. Not under an
+// overlay: [ ? ] and a row's help box are toggles, not positions on the deck.
+static void settings_gesture_cb(lv_event_t *e)
+{
+    if (s_what_open || s_help) return;
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = s_tab + step;
+    if (to < 0 || to >= TAB_N) return;   // the deck ends where the strip does
+    go_tab(to);
+}
+
 static void tab_signer(void)
 {
     int sc = kiss_script(), tn = kiss_testnet();
@@ -1991,6 +2004,7 @@ void kiss_settings_open(lv_obj_t *parent)
     s_pane_ctx.select = wt_tabs_flex_select;
     s_tabs = wt_tabs_flex(s_scr, tabs, TAB_N, s_tab, tab_cb);
     wt_pane_tabs_watch(&s_pane_ctx);
+    wt_swipe_watch(s_scr, settings_gesture_cb);
 
     // The band's left lane by rank: the attention chip outranks everything,
     // the first-run hint speaks until [ ? ] has been opened once, and this

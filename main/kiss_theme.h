@@ -74,6 +74,7 @@ const lv_font_t *wt_chrome28(const char *s);
 const lv_font_t *wt_font_mono21(void);
 const lv_font_t *wt_font_mono23(void);
 const lv_font_t *wt_font_mono28(void);
+const lv_font_t *wt_font_mono34(void);
 const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // Largest body font that fits `txt` into w x max_h, measured for the ACTIVE
 // locale's font. Explainers should read at arm's length (and on a 3.5" port),
@@ -833,6 +834,23 @@ void wt_pane_stop(wt_pane_t *p);
 // The two halves of wt_pane_go, for a page that needs them apart.
 void wt_pane_enter(wt_pane_t *p, int dir, bool rise);
 void wt_pane_exit(wt_pane_t *p, int dir);
+
+// ---- swipe: the page as a horizontal deck -------------------------------
+// A tabbed page is a deck of panes; a paged list inside a tab extends the
+// deck with its pages. wt_swipe_step reads a finished horizontal stroke
+// (+1 left, -1 right, 0 neither) and swallows the rest of the press so a
+// swipe never clicks the row it started on; wt_swipe_watch makes the page
+// screen the gesture's terminus; wt_page_flip rebuilds a pane and slides it
+// in from the side the flip came from (same-tab, unlike wt_pane_go);
+// wt_pager_line is the deck's foot -- count/hint left, page dots right, dots
+// only up to WT_PAGER_DOTS_MAX pages (beyond that the count line carries the
+// position alone, full width).
+#define WT_PAGER_DOTS_MAX 8
+int wt_swipe_step(lv_event_t *e);
+void wt_swipe_watch(lv_obj_t *scr, lv_event_cb_t cb);
+void wt_page_flip(wt_pane_t *ctx, void (*build)(void), int dir);
+lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
+                        int npages);
 
 // ---- KEYS / RECEIVE: the borderless idioms ------------------------------
 // Three shapes that exist so those two screens can drop the card entirely: a

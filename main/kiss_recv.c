@@ -19,13 +19,12 @@
 
 #define VFY_SCAN_DEPTH 100   // bounded, honest ownership search per chain
 
-// How many addresses the list offers at once. Twenty is two chains' worth of
-// ordinary use and costs 40 child derivations at open — well inside what this
-// screen already does elsewhere, since VERIFY's ownership search runs up to
-// VFY_SCAN_DEPTH on BOTH chains (200) in one go and has always been fine.
-// It is only affordable at all because the account key is cached now; without
-// that, each row would pay for three hardened derivations of its own.
-#define RECV_LIST_N 20
+// How many addresses a page shows. Three whole line rows fill the lane, and a
+// swipe turns the page -- the deck idiom the SIGN file list shipped. A page
+// costs three child derivations at open, well inside what this screen already
+// does elsewhere: VERIFY's ownership search runs up to VFY_SCAN_DEPTH on BOTH
+// chains (200) in one go and has always been fine.
+#define RECV_PAGE 3
 // Hard ceiling on how far the list will go. A signer with no chain view cannot
 // know which addresses were ever used, so an endless list is an endless
 // invitation to derive addresses nothing will ever pay to. A hundred is more
@@ -46,7 +45,6 @@
 #define ROW_H 48
 #define ROW_GAP 6
 #define ROW_PITCH (ROW_H + ROW_GAP)
-#define RECV_LIST_H (6 * ROW_PITCH)
 
 // The detail screen's right column: the address in a card, because that is what
 // the rest of the device does with a value worth reading off the glass.
@@ -719,8 +717,8 @@ static void recv_help_cb(lv_event_t *e) {
   wt_pane_exit(&s_rctx, dir);
 }
 
-static void recv_tab_cb(lv_event_t *e) {
-  int tab = (int)(intptr_t)lv_event_get_user_data(e);
+static void recv_tab_go(int tab) {
+  if (tab < 0 || tab > 2) return;      // the deck ends where the strip does
   pop_close();
   // A real tab is also the way back from [ ? ]: tapping the one already
   // selected re-lands on its rows, which wt_pane_go's same-tab refusal
@@ -728,6 +726,10 @@ static void recv_tab_cb(lv_event_t *e) {
   if (s_help_open && tab == s_rctx.tab) { recv_help_cb(NULL); return; }
   s_help_open = false;
   wt_pane_go(&s_rctx, tab, false, recv_tab_build);
+}
+
+static void recv_tab_cb(lv_event_t *e) {
+  recv_tab_go((int)(intptr_t)lv_event_get_user_data(e));
 }
 
 // ---- tab 1: the lamp ----
@@ -1047,46 +1049,30 @@ static void row_tap_cb(lv_event_t *e) {
   wt_pane_go(&s_rctx, 0, false, recv_tab_build);
 }
 
-static void page_cb(lv_event_t *e) {
-  int step = (int)(intptr_t)lv_event_get_user_data(e);
-  int base = (int)s_list_base + step * RECV_LIST_N;
-  if (base < 0 || base >= RECV_LIST_CAP) return;     // ends of the range: no wrap
-  s_list_base = (uint32_t)base;
-  // NOT wt_pane_go: it refuses a same-tab call by design, because a tab change
-  // carries a direction along the strip and a page change has none. The lines
-  // are rebuilt in place and rise the way they do on any other entry, which is
-  // what says the content under the strip changed while the strip did not.
-  wt_pane_stop(&s_rctx);
-  if (s_rctx.pane) { lv_obj_delete(s_rctx.pane); s_rctx.pane = NULL; }
-  s_rctx.pane = wt_pane_new(&s_rctx);
-  recv_tab_build();
-  wt_accent_restyle(s_rctx.pane);
-  wt_pane_enter(&s_rctx, 1, false);
+// The stroke, on the RECEIVE page: one horizontal deck across the strip --
+// [THIS ADDRESS] [ALL ADDRESSES p1..p34] [SILENT] -- so inside tab 1 a swipe
+// turns the address pages and crosses to the neighbouring tab at either end
+// of them. Entering the list by swipe lands on its remembered page, the same
+// place a tap on the tab lands.
+static void recv_gesture_cb(lv_event_t *e) {
+  if (s_help_open) return;    // [ ? ] is a toggle, not a position on the deck
+  const int step = wt_swipe_step(e);
+  if (!step) return;
+  if (s_rctx.tab == 1) {
+    const int base = (int)s_list_base + step * RECV_PAGE;
+    if (base >= 0 && base < RECV_LIST_CAP) {
+      s_list_base = (uint32_t)base;
+      wt_page_flip(&s_rctx, recv_tab_build, step);
+      return;
+    }
+  }
+  recv_tab_go(s_rctx.tab + step);
 }
 
 // ---- tab 3: SILENT PAYMENT ----
 // The SCAN KEY export used to be launched from here as well as from KEYS, and
 // the return path that served it lived in kiss_info.c. Both are gone; the tab
 // names the export and does not open it. See recv_tab_build().
-
-// A throw comes to rest on a whole line. LVGL rounds nothing by itself and its
-// own snap overshoots the content at the end of a list, so this rounds the
-// final offset to the pitch and clamps it to what actually exists.
-static void list_settle_cb(lv_event_t *e) {
-  lv_obj_t *list = lv_event_get_target(e);
-  const int pitch = (int)(intptr_t)lv_obj_get_user_data(list);
-  if (pitch <= 0) return;
-  const int y = lv_obj_get_scroll_y(list);
-  const int max = lv_obj_get_scroll_bottom(list) + y;   // total minus viewport
-  int want = ((y + pitch / 2) / pitch) * pitch;
-  if (want > max) want = (max / pitch) * pitch;
-  if (want < 0) want = 0;
-  // ANIM_OFF. This is a CORRECTION, not a gesture -- the finger has already
-  // let go and the throw has already stopped, so animating it reads as the
-  // list twitching, and the walk photographed the twitch mid flight with the
-  // top line still cut.
-  if (want != y) lv_obj_scroll_to_y(list, want, LV_ANIM_OFF);
-}
 
 // ---- the three groups ----
 static void recv_tab_build(void) {
@@ -1203,54 +1189,25 @@ static void recv_tab_build(void) {
   }
 
   if (s_rctx.tab == 1) {
-    // Four lines at 56, not the 60 the handoff draws. 60 puts the last rule on
-    // 360 and leaves the count line 26px, which is one font14 line -- and the
-    // second half of that string is the sentence explaining what the list IS.
-    // Four pixels a row buys it 42 and the readable rung.
-    //
-    // And the four SCROLL, over a page of twenty. Four lines with arrows that
-    // step four is twenty five pages across the hundred this list reaches, so
-    // getting to #90 was twenty two taps where the old list took five. The
-    // window shows the handoff's four; a flick crosses the page; the arrows
-    // still page, by twenty, exactly as they did before this redesign.
-    // 76, because the caption is a WORD at font23 now and a row has to hold it
-    // over a mono23 value. Three whole lines fit the lane instead of four; the
-    // page of twenty is unchanged and one flick still crosses it.
+    // Three whole lines on the lane, a page at a time -- the SIGN list's
+    // shape, here because the owner asked for its swipe on every list. The
+    // scroll window, its settle correction and the two arrow chips all went
+    // with it: a stroke turns the page, and the page IS the window, so
+    // nothing can come to rest cut through its own caption any more.
+    // 76, because the caption is a WORD at font23 and a row holds it over a
+    // mono23 value.
     const int H = 76;
-    const int VIEW = 3 * H;             // 120..348, three whole lines, never half
     char addr[91];
     uint32_t shown = 0;
 
-    lv_obj_t *list = lv_obj_create(p);
-    lv_obj_remove_style_all(list);
-    lv_obj_set_pos(list, X, 120);
-    lv_obj_set_size(list, W, VIEW);
-    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    // Rounded to a whole line when the throw stops, NOT LV_SCROLL_SNAP_START.
-    // LVGL's snap aligns the nearest CHILD's top to the viewport top and will
-    // scroll PAST the content to do it: at the end of the list it pulled the
-    // last row up to the top and left three empty lanes under it. Rounding the
-    // final offset to a multiple of the pitch and clamping it to the content
-    // does the job the snap was wanted for -- the window can only come to rest
-    // showing four whole lines -- without inventing space below the last one.
-    //
-    // It has to be one or the other. Left plain, a throw rests wherever it
-    // dies and the bottom line is cut through its own caption, which is what
-    // overlapcheck reported as 17px of ADDRESS #14 unreadable.
-    lv_obj_set_scroll_dir(list, LV_DIR_VER);
-    lv_obj_set_user_data(list, (void *)(intptr_t)H);
-    lv_obj_add_event_cb(list, list_settle_cb, LV_EVENT_SCROLL_END, NULL);
-    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
-    wt_list_scrollbar(list);
-
-    for (int i = 0; i < RECV_LIST_N; i++) {
+    for (int i = 0; i < RECV_PAGE; i++) {
       const uint32_t idx = s_list_base + (uint32_t)i;
       if (idx >= RECV_LIST_CAP) break;
-      const int y = i * H;
       char cap[24];
       snprintf(cap, sizeof cap, tr(STR_R_ADDR_N_FMT), (unsigned)idx);
       const bool u = recv_used(idx);
-      lv_obj_t *row = wt_line_row(list, 0, y, W, H, cap, NULL, NULL, WT_INK,
+      lv_obj_t *row = wt_line_row(p, X, 120 + i * H, W, H, cap, NULL, NULL,
+                                  WT_INK,
                                   tr(u ? STR_R_HANDED_ALREADY
                                        : STR_R_NEVER_HANDED),
                                   wt_font23(), row_tap_cb,
@@ -1263,61 +1220,18 @@ static void recv_tab_build(void) {
         snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
       lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono23());
       lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
-      // The rule belongs to the ROW here, not to the container. Snap aligns
-      // the nearest CHILD's top to the viewport, and a 1px rule sitting a
-      // pixel below each row is a child too -- so the window snapped to a rule
-      // and came to rest with the top line cut through its own caption. With
-      // the pitch equal to the height, the row's last pixel row and "one below
-      // the row" are the same line anyway.
-      // Only the lines you can SEE draw themselves in. A width animation
-      // relayouts its container every frame, and twenty of them staggered
-      // across a scroll container took the whole walk twenty times longer --
-      // seventeen of those rules being below the fold the entire time. The
-      // three in the window are the whole of the effect anyway.
-      lv_obj_t *rl = wt_line_rule(row, 0, H - 1, W);
-      if (i < 3) wt_line_rule_draw(rl, 42 * i + 110, 320);
+      wt_line_rule_draw(wt_line_rule(row, 0, H - 1, W), 42 * i + 110, 320);
       shown++;
     }
 
-    lv_obj_t *note = wt_lbl(p, "", X, 358, wt_font23(), WT_MUT);
-    lv_obj_set_width(note, W - 110);
-    // Pinned to ONE line. Unpinned it wrapped to two and the second ran under
-    // the action bar -- and a label allowed to grow is how a budget gets given
-    // away without anything saying so.
-    lv_obj_set_height(note, lv_font_get_line_height(wt_font23()));
-    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
-    lv_label_set_text_fmt(note, tr(STR_R_LIST_COUNT),
-                          (unsigned)(s_list_base + 1),
-                          (unsigned)(s_list_base + shown),
-                          (unsigned)RECV_LIST_CAP);
-    // Paging lives IN the content, at the count line's right edge. The action
-    // bar is full, and these two move the list rather than leaving the screen,
-    // which is not what a bar is for.
-    for (int i = 0; i < 2; i++) {
-      const bool fwd = i == 1;
-      const int step = fwd ? 1 : -1;
-      const int base = (int)s_list_base + step * RECV_LIST_N;
-      lv_obj_t *pa = lv_obj_create(p);
-      lv_obj_remove_style_all(pa);
-      lv_obj_set_size(pa, 36, 36);
-      lv_obj_set_pos(pa, fwd ? 752 - 36 : 752 - 36 - 44, 354);
-      lv_obj_remove_flag(pa, LV_OBJ_FLAG_SCROLLABLE);
-      lv_obj_t *g = wt_lbl(pa, fwd ? WT_ICON_ARR_R : WT_ICON_ARR_L, 0, 0,
-                           wt_font23(), wt_accent());
-      lv_obj_add_flag(g, WT_FLAG_ACCENT);
-      lv_obj_center(g);
-      if (base < 0 || base >= RECV_LIST_CAP) {
-        // Spent, not missing: half opacity, no click flag, no feedback, so it
-        // neither lights up nor answers.
-        lv_obj_set_style_opa(pa, LV_OPA_40, 0);
-      } else {
-        lv_obj_add_flag(pa, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_translate_x(pa, 0, 0);
-        lv_obj_set_style_translate_x(pa, fwd ? 5 : -5, LV_STATE_PRESSED);
-        lv_obj_add_event_cb(pa, page_cb, LV_EVENT_CLICKED,
-                            (void *)(intptr_t)step);
-      }
-    }
+    // 34 pages is a ruler, not an indicator, so wt_pager_line draws no dots
+    // here and the count line keeps the whole lane. The line is the position.
+    char count[160];
+    snprintf(count, sizeof count, tr(STR_R_LIST_COUNT),
+             (unsigned)(s_list_base + 1), (unsigned)(s_list_base + shown),
+             (unsigned)RECV_LIST_CAP);
+    wt_pager_line(p, count, false, (int)(s_list_base / RECV_PAGE),
+                  (RECV_LIST_CAP + RECV_PAGE - 1) / RECV_PAGE);
     return;
   }
 
@@ -1375,6 +1289,7 @@ static void recv_detail_open(void) {
   s_rctx.select = wt_tabs_flex_select;
   s_rctx.tabs   = wt_tabs_flex(s_scr, t, 3, s_rctx.tab, recv_tab_cb);
   wt_pane_tabs_watch(&s_rctx);
+  wt_swipe_watch(s_scr, recv_gesture_cb);
   // No band hint: this band's left lane belongs to VERIFY, so the mark's
   // breathing is the whole first-run invitation here.
   wt_help_tab(s_scr, NULL, recv_help_cb, NULL);
@@ -1416,9 +1331,9 @@ void kiss_recv_open(lv_obj_t *parent) {
 
   // Open on the page that holds the fresh address, aligned to a page boundary
   // so the ALL ADDRESSES list still lands on the right page if the user asks
-  // for it from the detail screen ("21 - 40 OF 100" reads round).
+  // for it from the detail screen ("4 to 6 of 100" reads round).
   uint32_t fresh = s_idx < RECV_LIST_CAP ? s_idx : RECV_LIST_CAP - 1;
-  s_list_base = (fresh / RECV_LIST_N) * RECV_LIST_N;
+  s_list_base = (fresh / RECV_PAGE) * RECV_PAGE;
 
   // Per HANDOFF-03: RECEIVE lands on one address, not on a hundred. The list
   // is one tap away behind ALL ADDRESSES; the default is the freshest.

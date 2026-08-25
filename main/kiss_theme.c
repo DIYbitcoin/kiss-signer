@@ -68,10 +68,19 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
     return NULL;
 }
 
-// Each composite starts with Montserrat for ASCII, symbols, and Latin text,
-// then falls back directly to the active locale's regional CJK font. A single
-// ja -> ko -> zh chain would render shared Han codepoints with whichever font
-// appeared first, mixing Japanese glyph forms into Simplified Chinese.
+// The nat ("native") composites start with Montserrat for ASCII, symbols, and
+// Latin text, then fall back directly to the active locale's regional CJK
+// font. A single ja -> ko -> zh chain would render shared Han codepoints with
+// whichever font appeared first, mixing Japanese glyph forms into Simplified
+// Chinese.
+static lv_font_t s_nat14[I18N_FC_ZH + 1];
+static lv_font_t s_nat23[I18N_FC_ZH + 1];
+static lv_font_t s_nat28[I18N_FC_ZH + 1];
+// The body composites the accessors hand out: IoskeleyMono first, the nat
+// chain behind it. English renders pure mono; an accent resolves in
+// Montserrat and CJK in the regional face, per glyph. These are COPIES of the
+// mono faces -- wt_font_monoNN() keeps returning the raw chainless ones, so a
+// localised string pointed at a data face still fails loudly.
 static lv_font_t s_font14[I18N_FC_ZH + 1];
 static lv_font_t s_font23[I18N_FC_ZH + 1];
 static lv_font_t s_font28[I18N_FC_ZH + 1];
@@ -79,6 +88,7 @@ static lv_font_t s_font28[I18N_FC_ZH + 1];
 // ~4.5MB to an app already using 8.9MB of a 12MB partition, and CJK glyphs read
 // considerably larger than Latin at the same pixel size anyway. Hence a single
 // face, not an array: there is deliberately no per-class variant to pick.
+static lv_font_t s_nat34;
 static lv_font_t s_font34;
 static bool s_fonts_ready;
 
@@ -86,26 +96,36 @@ static void fonts_init(void)
 {
     if (s_fonts_ready) return;
     for (int i = 0; i <= I18N_FC_ZH; i++) {
-        s_font14[i] = font_kiss_lat14;
-        s_font23[i] = font_kiss_lat23;
-        s_font28[i] = font_kiss_lat28;
+        s_nat14[i] = font_kiss_lat14;
+        s_nat23[i] = font_kiss_lat23;
+        s_nat28[i] = font_kiss_lat28;
     }
-    s_font14[I18N_FC_JA].fallback = &font_kiss_ja14;
-    s_font14[I18N_FC_KO].fallback = &font_kiss_ko14;
-    s_font14[I18N_FC_ZH].fallback = &font_kiss_zh14;
-    s_font23[I18N_FC_JA].fallback = &font_kiss_ja23;
-    s_font23[I18N_FC_KO].fallback = &font_kiss_ko23;
-    s_font23[I18N_FC_ZH].fallback = &font_kiss_zh23;
-    s_font28[I18N_FC_JA].fallback = &font_kiss_ja28;
-    s_font28[I18N_FC_KO].fallback = &font_kiss_ko28;
-    s_font28[I18N_FC_ZH].fallback = &font_kiss_zh28;
+    s_nat14[I18N_FC_JA].fallback = &font_kiss_ja14;
+    s_nat14[I18N_FC_KO].fallback = &font_kiss_ko14;
+    s_nat14[I18N_FC_ZH].fallback = &font_kiss_zh14;
+    s_nat23[I18N_FC_JA].fallback = &font_kiss_ja23;
+    s_nat23[I18N_FC_KO].fallback = &font_kiss_ko23;
+    s_nat23[I18N_FC_ZH].fallback = &font_kiss_zh23;
+    s_nat28[I18N_FC_JA].fallback = &font_kiss_ja28;
+    s_nat28[I18N_FC_KO].fallback = &font_kiss_ko28;
+    s_nat28[I18N_FC_ZH].fallback = &font_kiss_zh28;
     // Chains to the 28px Japanese face, the largest CJK size that exists. A
     // glyph missing from an LVGL font is an infinite loop in the renderer, not
     // a tofu box, so this must never dead-end -- even though wt_font34() is
     // supposed to keep CJK locales away from this face entirely. Belt and
     // braces, because the failure mode is a hung device.
-    s_font34 = font_kiss_lat34;
-    s_font34.fallback = &font_kiss_ja28;
+    s_nat34 = font_kiss_lat34;
+    s_nat34.fallback = &font_kiss_ja28;
+    for (int i = 0; i <= I18N_FC_ZH; i++) {
+        s_font14[i] = font_kiss_mono14;
+        s_font14[i].fallback = &s_nat14[i];
+        s_font23[i] = font_kiss_mono23;
+        s_font23[i].fallback = &s_nat23[i];
+        s_font28[i] = font_kiss_mono28;
+        s_font28[i].fallback = &s_nat28[i];
+    }
+    s_font34 = font_kiss_mono34;
+    s_font34.fallback = &s_nat34;
     s_fonts_ready = true;
 }
 
@@ -115,13 +135,37 @@ static int font_class_for_lang(int lang)
     return (fc >= I18N_FC_LAT && fc <= I18N_FC_ZH) ? fc : I18N_FC_LAT;
 }
 
+// The nat faces, by current locale. The chrome guards and the language picker
+// want the Montserrat-primary composites: a native name like "Español" set on
+// the mono-primary face would mix two typefaces inside one word.
+static const lv_font_t *nat14(void)
+{
+    fonts_init();
+    return &s_nat14[font_class_for_lang(i18n_get_lang())];
+}
+static const lv_font_t *nat23(void)
+{
+    fonts_init();
+    return &s_nat23[font_class_for_lang(i18n_get_lang())];
+}
+static const lv_font_t *nat28(void)
+{
+    fonts_init();
+    return &s_nat28[font_class_for_lang(i18n_get_lang())];
+}
+
 const lv_font_t *wt_font14_for_lang(int lang)
 {
     fonts_init();
-    return &s_font14[font_class_for_lang(lang)];
+    return &s_nat14[font_class_for_lang(lang)];
 }
 
-const lv_font_t *wt_font14(void) { return wt_font14_for_lang(i18n_get_lang()); }
+// NOT wt_font14_for_lang: that one is the picker's and returns the nat face.
+const lv_font_t *wt_font14(void)
+{
+    fonts_init();
+    return &s_font14[font_class_for_lang(i18n_get_lang())];
+}
 const lv_font_t *wt_font23(void)
 {
     fonts_init();
@@ -169,6 +213,7 @@ const lv_font_t *wt_font_mono18(void) { return &font_kiss_mono18; }
 const lv_font_t *wt_font_mono21(void) { return &font_kiss_mono21; }
 const lv_font_t *wt_font_mono23(void) { return &font_kiss_mono23; }
 const lv_font_t *wt_font_mono28(void) { return &font_kiss_mono28; }
+const lv_font_t *wt_font_mono34(void) { return &font_kiss_mono34; }
 
 // The Sign hero, and nothing else. Thirteen glyphs, digits and space and full
 // stop, so it cannot represent a letter even if handed one.
@@ -2934,22 +2979,25 @@ static bool mono_can(const char *s)
 
 // The contract's faces, each with its locale fallback. 18 and 21 fall to the
 // 14 and 23 sans rungs -- one size DOWN, not up, so a translated string can
-// never grow into the hairline under it.
+// never grow into the hairline under it. The fallbacks are the NAT faces, not
+// the body composites: a string that failed mono_can is mostly non-ASCII, and
+// the sans-primary face keeps it in one typeface instead of setting its
+// stray ASCII in mono.
 static const lv_font_t *chrome18(const char *s)
 {
-    return mono_can(s) ? wt_font_mono18() : wt_font14();
+    return mono_can(s) ? wt_font_mono18() : nat14();
 }
 static const lv_font_t *chrome21(const char *s)
 {
-    return mono_can(s) ? wt_font_mono21() : wt_font23();
+    return mono_can(s) ? wt_font_mono21() : nat23();
 }
 static const lv_font_t *chrome23(const char *s)
 {
-    return mono_can(s) ? wt_font_mono23() : wt_font23();
+    return mono_can(s) ? wt_font_mono23() : nat23();
 }
 static const lv_font_t *chrome28(const char *s)
 {
-    return mono_can(s) ? wt_font_mono28() : wt_font28();
+    return mono_can(s) ? wt_font_mono28() : nat28();
 }
 
 void wt_chrome_head(lv_obj_t *scr)
@@ -4602,6 +4650,90 @@ void wt_pane_go(wt_pane_t *p, int tab, bool stop, void (*build)(void))
     else           wt_tabs_select(p->tabs, from, tab, stop);
     wt_pane_enter(p, dir, stop);
     wt_pane_exit(p, dir);
+}
+
+// ---- swipe: the page as a horizontal deck ---------------------------------
+// One gesture, one meaning: move sideways. A tabbed page is a deck of panes;
+// a paged list inside a tab extends the deck with its pages. The SIGN file
+// list shipped this shape and the owner asked for it everywhere, so the
+// plumbing lives here now.
+
+// A finished horizontal stroke, anywhere on the page that owns it.
+// LV_EVENT_GESTURE fires mid-press the moment the stroke crosses the indev's
+// 50px limit; wait_release then swallows the rest of the press, so the same
+// stroke can never also CLICK the row it started on.
+int wt_swipe_step(lv_event_t *e)
+{
+    lv_indev_t *ind = lv_event_get_indev(e);
+    if (!ind) return 0;
+    lv_dir_t d = lv_indev_get_gesture_dir(ind);
+    int step = d == LV_DIR_LEFT ? 1 : d == LV_DIR_RIGHT ? -1 : 0;
+    if (step) lv_indev_wait_release(ind);
+    return step;
+}
+
+// The indev delivers LV_EVENT_GESTURE to the first ancestor WITHOUT
+// GESTURE_BUBBLE -- with the whole chain bubbling it walks off the root and
+// the event is dropped -- so the page screen clears the flag on itself and
+// becomes the terminus.
+void wt_swipe_watch(lv_obj_t *scr, lv_event_cb_t cb)
+{
+    if (!scr) return;
+    lv_obj_remove_flag(scr, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(scr, cb, LV_EVENT_GESTURE, NULL);
+}
+
+// The deck's foot: a one-line count/hint at the lane's left, page dots at its
+// right. Dots only when they say something a glance can use -- past
+// WT_PAGER_DOTS_MAX the row would be a ruler, so the count line keeps the
+// whole lane and carries the position alone (the address list runs to 34
+// pages).
+lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
+                        int npages)
+{
+    const bool dots = npages >= 2 && npages <= WT_PAGER_DOTS_MAX;
+    const lv_font_t *nf = wt_chrome18(txt);
+    lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, 358, nf,
+                            warn ? WT_WARN : WT_MUT);
+    // The dots' lane comes off the note only when dots exist: the sort hint
+    // on a sparse list is 4px longer than the shared lane, and DOT ate its
+    // last clause without a word from any gate.
+    lv_obj_set_width(note, dots ? WT_LANE_W - 150 : WT_LANE_W);
+    // Pinned to ONE line: a label allowed to grow is a budget given away.
+    lv_obj_set_height(note, lv_font_get_line_height(nf));
+    lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
+    // Scenery, all of it: the pager is chrome, and chrome does not ride the
+    // slide it drives.
+    wt_pane_scenery(note);
+    if (!dots) return note;
+    const int pitch = 18;
+    const int x0 = WT_LANE_X + WT_LANE_W - (npages * pitch - 10);
+    for (int i = 0; i < npages; i++) {
+        lv_obj_t *d = lv_obj_create(p);
+        lv_obj_remove_style_all(d);
+        lv_obj_set_size(d, 8, 8);
+        lv_obj_set_pos(d, x0 + i * pitch, 364);
+        lv_obj_set_style_radius(d, 5, 0);
+        lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(d, i == page ? wt_accent() : WT_DIM, 0);
+        if (i == page) lv_obj_add_flag(d, WT_FLAG_ACCENT);
+        wt_pane_scenery(d);
+    }
+    return note;
+}
+
+// Rebuild a context's pane and slide it in from the side the flip came from.
+// NOT wt_pane_go: that refuses a same-tab call by design, because a tab
+// change carries a direction along a strip and a page change has none of its
+// own -- the swipe is the direction.
+void wt_page_flip(wt_pane_t *ctx, void (*build)(void), int dir)
+{
+    wt_pane_stop(ctx);
+    if (ctx->pane) { lv_obj_delete(ctx->pane); ctx->pane = NULL; }
+    ctx->pane = wt_pane_new(ctx);
+    build();
+    wt_accent_restyle(ctx->pane);
+    wt_pane_enter(ctx, dir, false);
 }
 
 // The bar on a scrolling list. Four lists wrote this by hand and a fifth wrote

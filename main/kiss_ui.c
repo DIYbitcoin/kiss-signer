@@ -1659,7 +1659,9 @@ static void pop_show(const char *ch, uint32_t id) {
     lv_obj_set_style_shadow_opa(s_pop, LV_OPA_60, 0);
     s_pop_lbl = lv_label_create(s_pop);
     lv_obj_set_style_text_color(s_pop_lbl, wt_accent(), 0);
-    lv_obj_set_style_text_font(s_pop_lbl, &lv_font_montserrat_48, 0);
+    // mono34, the largest word-capable mono face: the bubble shows whatever
+    // key was pressed, so the digits-only 48 face cannot serve it.
+    lv_obj_set_style_text_font(s_pop_lbl, wt_font_mono34(), 0);
     lv_obj_center(s_pop_lbl);
   }
   int kx, ky, kw, kh;

@@ -402,11 +402,30 @@ static void verify_finish(void)
         const bool fp_known = kiss_fp_known(fp);
 
         // Body height follows: 58 is two lines of font23 and leaves the block
-        // below its room; with no fingerprint to show, the old 190 is free
-        // again. (A real fingerprint of 00000000 exists with probability 2^-32
-        // and costs that owner this one block, which is the safe way to be
-        // wrong: never print a fingerprint that might be a zeroed buffer.)
-        mk_body(tr(STR_W_VOK_B), 48, 196, 704, fp_known ? 58 : 190, MUT_COL);
+        // below its room. (A real fingerprint of 00000000 exists with
+        // probability 2^-32 and costs that owner this one block, which is the
+        // safe way to be wrong: never print a fingerprint that might be a
+        // zeroed buffer.)
+        //
+        // With no fingerprint to frame, the freed band takes the relationship
+        // this screen just proved instead -- the intro's WORDS -> KEYS
+        // diagram, on the intro's own card skeleton -- so the page still has
+        // its framed figure and the body is not the only thing on the glass.
+        if (!fp_known) {
+            lv_obj_t *vcard = wt_card(s_scr, 48, 208, 704, 64);
+            lv_obj_t *vcol = lv_obj_create(vcard);
+            lv_obj_remove_style_all(vcol);
+            lv_obj_set_pos(vcol, 0, 0);
+            lv_obj_set_size(vcol, 704, 84);
+            lv_obj_set_flex_flow(vcol, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_flex_align(vcol, LV_FLEX_ALIGN_CENTER,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_remove_flag(vcol, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
+            wt_diagram_verify(vcol);
+        }
+        mk_body(tr(STR_W_VOK_B), 48, fp_known ? 196 : 296, 704,
+                fp_known ? 58 : WT_CONTENT_BOTTOM - 296, MUT_COL);
 
         if (fp_known) {
             char fpbuf[16];

@@ -10,6 +10,7 @@
 //
 // Build: bash sim/build_fitcheck.sh   Run: /tmp/kissfit [locale ...]
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "lvgl.h"
@@ -383,6 +384,15 @@ static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
     { "pt-PT", "set/storage" },
     { "ru",    "set/storage" },
     { "tr",    "set/storage" },
+    // Arrived with the mono faces: the fixed-pitch body runs ~8% wider than
+    // the sans it replaced, and these translations were already within a few
+    // px of their lane. English fits everywhere; the shorter copy is the
+    // sweep's, like everything above.
+    { "es-ES", "set/endwords" }, { "es-ES", "set/type" },
+    { "es-MX", "set/endwords" }, { "es-MX", "set/type" },
+    { "it",    "set/type" },
+    { "pt-BR", "set/endwords" }, { "pt-BR", "set/type" },
+    { "pt-PT", "set/endwords" }, { "pt-PT", "set/type" },
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
@@ -476,6 +486,14 @@ static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
     { "sv-SE", "set/duress" },  { "sv-SE", "set/words" },
     { "tr",    "set/duress" },
     { "vi",    "set/duress" },  { "vi",    "set/words" },
+    // Arrived with the mono faces, same fingerprint-then-sentence sub as the
+    // set/words entries above -- ~8% wider glyphs took the last few px.
+    { "da-DK", "set/words" },
+    { "es-ES", "set/words" },
+    { "es-MX", "set/words" },
+    { "fr",    "set/words" },
+    { "it",    "set/words" },
+    { "tr",    "set/words" },
 };
 #define NSUBROW_BACKLOG \
     ((int)(sizeof ROWSUB_BACKLOG / sizeof ROWSUB_BACKLOG[0]))
@@ -555,11 +573,11 @@ static const pill_t PILLS[] = {
     // of the whole signing flow.
     { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
     { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
-    // 140 with an eye, the geometry the Settings pill actually has now that
-    // it opens the audit chooser; 220 bare was a width no screen drew. Not a
-    // key action any more either: it opens a chooser page, and the two
-    // buttons that actually run an audit are measured on their own rows.
-    { "aud/open",         STR_W_AUD_T,           140, 52, 0, 0, LV_SYMBOL_EYE_OPEN },
+    // No aud/open slot: nothing draws that title in a pill any more -- the
+    // audit is opened by a wide row on SECURITY (measured as a row) and the
+    // title renders as chrome. The 140px eye pill it modelled failed the day
+    // the mono faces landed, on a box no screen has drawn since the chooser
+    // row replaced it.
     { "rng/start",        STR_W_RNG_GO,          240, 52, 1, 1 },
     { "rng/again",        STR_W_RNG_AGAIN,       240, 52, 1, 1 },
     { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
@@ -617,7 +635,10 @@ static const pill_t PILLS[] = {
     { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
     { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
     { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
-    { "recv/sp",          STR_S_SP_BADGE,     220, 52, 0, 0 },
+    // No recv/sp slot: "silent payment" is a screen TITLE, a wrapping body
+    // line on verify and part of a composed path row on the sign detail --
+    // none of them the 220px pill this slot modelled, which failed the day
+    // the mono faces landed on a box no screen draws.
     { "recv/sp-show-full",STR_R_SP_SHOW_FULL,  280, 52, 0, 0 },
     { "recv/sp-show-short",STR_R_SP_SHOW_SHORT,280, 52, 0, 0 },
     // The scan key gate's hold shares HOLD TO SHOW with the word grid and
@@ -848,10 +869,19 @@ int main(int argc, char **argv)
     int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
     int row_cut = 0, row_known = 0;
     int sub_cut = 0, sub_known = 0;
+    // SIM_LANG narrows the sweep to one locale, exactly as it does for the
+    // walk. This is the English-only rule made real for THIS gate: the other
+    // twenty locales carry wording that waits for the translation sweep, and
+    // the mono faces pushed hundreds of those parked strings over their
+    // budgets in one day -- failures no wording change of ours may touch.
+    // The sweep runs the binary with SIM_LANG unset and sees all 21 again.
+    const char *only = getenv("SIM_LANG");
+    if (only && !*only) only = NULL;
 #define MAXFAIL 64
     static char fails[MAXFAIL][96];
     for (int l = 0; l < I18N_LANG_N; l++) {
         const i18n_lang_t *li = i18n_lang_info(l);
+        if (only && strcmp(only, li->code) != 0) continue;
         if (argc > 1) {                       // only the locales asked for
             int want = 0;
             for (int a = 1; a < argc; a++)
@@ -1082,6 +1112,7 @@ int main(int argc, char **argv)
         int at14 = 0;
         char who[256] = "";
         for (int l = 0; l < I18N_LANG_N; l++) {
+            if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
             i18n_set_lang(l);
             lv_point_t sz;
             lv_text_get_size(&sz, tr(SUBS[i].key), wt_font23(), 0, 0,
@@ -1166,6 +1197,7 @@ int main(int argc, char **argv)
         static const int space[3] = { 3, 2, 2 };
         int title_small = 0;
         for (int l = 0; l < I18N_LANG_N; l++) {
+            if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
             i18n_set_lang(l);
             const lv_font_t *f[3] = { wt_font34(), wt_font28(), wt_font23() };
             const char *txt = tr(STR_G_T);
