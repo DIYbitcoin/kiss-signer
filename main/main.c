@@ -154,17 +154,25 @@ typedef struct {
   bool bomb, burst;
   uint32_t juice;
   int points;
+  int8_t lift;     // added to launch speed. Negative = heavy, low arc.
+  int8_t spin;     // max |deg/frame|
 } def_t;
 
+// A watermelon is a heavy slow three points and a cherry is a fast tumbling
+// one. Sizes are untouched: make_sprite takes the pre-sized fast path on
+// purpose, so real size variety means re-baking art. Character comes out of
+// launch speed, spin rate and point value instead, which is free. The bomb
+// gets a NEGATIVE lift deliberately -- a slower arc is a readable arc, which
+// is the fix for bombs at high spawn rates being noise rather than threat.
 static const def_t DEFS[] = {
-    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C, 3},
-    {&img_apple, &img_apple_half, &img_apple_halfr, 94, 94, false, false, 0xF3E8C6, 1},
-    {&img_orange, &img_orange_half, &img_orange_halfr, 94, 94, false, false, 0xFF9E1B, 1},
-    {&img_pineapple, &img_pineapple_half, &img_pineapple_halfr, 112, 112, false, false, 0xFFD23A, 2},
-    {&img_strawberry, NULL, NULL, 100, 0, false, true, 0xFF466E, 1},
-    {&img_cherries, NULL, NULL, 90, 0, false, true, 0xE01F2A, 1},
-    {&img_grapes, NULL, NULL, 94, 0, false, true, 0x9C4DCC, 1},
-    {&img_bomb, NULL, NULL, 92, 0, true, false, 0, 0},
+    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C, 3, -3, 3},
+    {&img_apple,      &img_apple_half,      &img_apple_halfr,       94,  94, false, false, 0xF3E8C6, 1,  0, 5},
+    {&img_orange,     &img_orange_half,     &img_orange_halfr,      94,  94, false, false, 0xFF9E1B, 1,  0, 5},
+    {&img_pineapple,  &img_pineapple_half,  &img_pineapple_halfr,  112, 112, false, false, 0xFFD23A, 2, -2, 4},
+    {&img_strawberry, NULL, NULL, 100, 0, false, true,  0xFF466E, 1,  1, 7},
+    {&img_cherries,   NULL, NULL,  90, 0, false, true,  0xE01F2A, 1,  2, 8},
+    {&img_grapes,     NULL, NULL,  94, 0, false, true,  0x9C4DCC, 1,  1, 6},
+    {&img_bomb,       NULL, NULL,  92, 0, true,  false, 0,        0, -2, 2},
 };
 #define NUM_DEFS (sizeof(DEFS) / sizeof(DEFS[0]))
 #define BOMB_IDX (NUM_DEFS - 1)
@@ -210,6 +218,10 @@ static const int COMBO_BONUS[] = {0, 0, 1, 3, 6, 10, 15, 21};
 // raise to the game's ceiling for the least code, and it needs no new art.
 #define FRENZY_MS 3200
 static uint32_t s_frenzy_ms;
+// Waves of deliberate quiet still owed after a big throw. Declared up here
+// rather than beside the spawner that uses it, because start_game clears it
+// and start_game is a thousand lines above.
+static int s_wave_rest;
 static int s_life_milestone; // highest 50-pt mark a bonus life was granted for
 enum { ST_MENU, ST_PLAY, ST_OVER };
 static int s_state = ST_MENU;
@@ -894,23 +906,40 @@ static float pick_spawn_x(void) {
   return x;
 }
 
-static void spawn_fruit_idx(int idx) {
+// Split out so a wave pattern can place its own throw instead of taking the
+// one random lane spawn_fruit_idx picks.
+static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
   ent_t *e = alloc_ent();
   if (!e) return;
   const def_t *d = &DEFS[idx];
-  float p = diff_progress();  // arcs get a little faster/wider as the game goes on (gentle, smooth)
   e->active = true;
   e->kind = K_FRUIT;
   e->bomb = d->bomb;
-  e->gold = false;
+  e->gold = gold;
   e->defi = idx;
   e->size = d->size;
-  e->x = pick_spawn_x();
+  e->x = x;
   e->y = SCREEN_H + d->size;
-  e->vx = (rnd_range(0, 100 + (int)(p * 50)) - (50 + (int)(p * 25))) / 26.0f;  // tighter spread -> fruit stay on screen
-  e->vy = -(float)rnd_range(20, 23 + (int)(p * 4));
+  e->vx = vx;
+  e->vy = vy;
+  e->rot = (float)rnd(360);
+  e->av = (float)rnd_range(-d->spin, d->spin);
+  if (e->av == 0.0f) e->av = 1.0f;
+  e->rot_q = INT16_MIN;
   e->obj = make_sprite(d->whole);
+  if (gold) {
+    lv_obj_set_style_image_recolor(e->obj, lv_color_hex(0xFFD23A), 0);
+    lv_obj_set_style_image_recolor_opa(e->obj, 150, 0);
+  }
   place(e);
+}
+
+static void spawn_fruit_idx(int idx) {
+  float p = diff_progress();  // arcs get a little faster/wider as the game goes on (gentle, smooth)
+  const def_t *d = &DEFS[idx];
+  float vx = (rnd_range(0, 100 + (int)(p * 50)) - (50 + (int)(p * 25))) / 26.0f;  // tighter spread -> fruit stay on screen
+  float vy = -(float)(rnd_range(20, 23 + (int)(p * 4)) + d->lift);
+  spawn_fruit_at(idx, false, pick_spawn_x(), vx, vy);
 }
 
 static void spawn_half(const lv_image_dsc_t *dsc, int size, float x, float y,
@@ -988,6 +1017,7 @@ static void start_game(void) {
   s_lives = 3;
   s_combo_n = 0;      // an open window at game over would pay out on the next
   s_frenzy_ms = 0;
+  s_wave_rest = 0;
   s_life_milestone = 0;
   s_state = ST_PLAY;
   if (s_spawn_timer) lv_timer_set_period(s_spawn_timer, 800);  // back to easy for a fresh run
@@ -2738,21 +2768,84 @@ static void game_tick(lv_timer_t *t) {
   }
 }
 
+// A fixed period throwing one or two random fruit is a drizzle. The real game
+// AUTHORS its throws: mostly small waves, an occasional big one, and quiet
+// AFTER the big one so there is release as well as tension.
+enum { WV_SINGLE, WV_ARC, WV_FOUNTAIN, WV_PINCER, WV_BIG };
+
+static int pick_wave(float p) {
+  int r = (int)rnd(100);
+  if (r < 34) return WV_SINGLE;
+  if (r < 56) return WV_ARC;
+  if (r < 74) return WV_FOUNTAIN;
+  if (r < 90) return WV_PINCER;
+  return (p > 0.25f) ? WV_BIG : WV_SINGLE;   // big waves only once warmed up
+}
+
 static void spawn_tick(lv_timer_t *t) {
   if (s_state != ST_PLAY) return;
-  s_wave_xn = 0;                                           // fresh set of separated lanes for this wave
-  float p = diff_progress();                               // 0 -> 1 smoothly over ~3.5 min
+  float p = diff_progress();                   // 0 -> 1 smoothly over ~3.5 min
 
-  lv_timer_set_period(t, (int)(820 - 200 * p));            // waves tighten gradually 820 -> 620ms
-
-  // Always one fruit to slice; the chance of a 2nd ramps in smoothly (0 -> ~28%) -> never a sudden swarm.
-  spawn_fruit_idx(pick_fruit());
-  if ((int)rnd(100) < (int)(p * 28))
+  if (s_frenzy_ms > 0) {                       // dense, no bombs, no patterns
+    lv_timer_set_period(t, 130);
+    s_wave_xn = 0;
     spawn_fruit_idx(pick_fruit());
+    return;
+  }
+  if (s_wave_rest > 0) {                       // the breather after a big one
+    s_wave_rest--;
+    lv_timer_set_period(t, 520);
+    return;
+  }
 
-  // Bombs are THE escalating difficulty lever, ramping smoothly 6% -> 34%.
-  if ((int)rnd(100) < (int)(6 + 28 * p))
+  s_wave_xn = 0;                               // fresh set of separated lanes
+  int w = pick_wave(p);
+  int base = (int)rnd(NUM_DEFS - 1);
+  float vy0 = -(float)rnd_range(20, 23 + (int)(p * 4));
+  int period = (int)(880 - 220 * p);
+
+  switch (w) {
+    case WV_ARC: {                             // thrown left to right
+      for (int i = 0; i < 3; i++)
+        spawn_fruit_at(pick_fruit(), false,
+                       140.0f + i * ((SCREEN_W - 280.0f) / 2.0f),
+                       (i - 1) * 1.4f, vy0 - i * 0.8f);
+      period += 260;
+    } break;
+    case WV_FOUNTAIN: {                        // one point, fanning out
+      float x = rnd_range(180, SCREEN_W - 180);
+      for (int i = 0; i < 3; i++)
+        spawn_fruit_at(pick_fruit(), false, x, (i - 1) * 3.2f, vy0 - i * 1.2f);
+      period += 260;
+    } break;
+    case WV_PINCER: {                          // opposite sides, crossing
+      spawn_fruit_at(pick_fruit(), false, 110, 2.6f, vy0);
+      spawn_fruit_at(pick_fruit(), false, SCREEN_W - 110, -2.6f, vy0 - 0.6f);
+      period += 160;
+    } break;
+    case WV_BIG: {
+      for (int i = 0; i < 5; i++)
+        spawn_fruit_at(pick_fruit(), false,
+                       90.0f + i * ((SCREEN_W - 180.0f) / 4.0f),
+                       (i - 2) * 1.1f, vy0 - (i % 2) * 1.6f);
+      period += 500;
+      s_wave_rest = 1;
+    } break;
+    default:
+      spawn_fruit_idx(base == BOMB_IDX ? pick_fruit() : base);
+      break;
+  }
+
+  // Bombs ramp 6 -> 30% and never join a big wave: five fruit and a bomb is
+  // not a harder wave, it is an unreadable one.
+  if (w != WV_BIG && (int)rnd(100) < (int)(6 + 24 * p))
     spawn_fruit_idx(BOMB_IDX);
+
+  // Gold, rare, and never in the same wave as a bomb-heavy big throw.
+  if (s_score > 20 && w != WV_BIG && (int)rnd(100) < 4)
+    spawn_fruit_at(3, true, pick_spawn_x(), 0.0f, vy0 - 1.0f);
+
+  lv_timer_set_period(t, period);
 }
 
 static void storage_locked_screen(lv_obj_t *root,
