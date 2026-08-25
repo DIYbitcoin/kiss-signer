@@ -5109,7 +5109,15 @@ int main(void) {
   touch(420, 140); pump(1); touch(360, 152); pump(1); touch(345, 188); pump(1); touch(400, 212); pump(1);
   touch(422, 250); pump(1); touch(362, 286); pump(1); touch(342, 272); pump(1); release(); pump(2);
   touch(540, 140); pump(1); touch(480, 152); pump(1); touch(465, 188); pump(1); touch(520, 212); pump(1);
-  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(140);
+  touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(14);
+  // The home is on the glass before its keys are. It opens on the modifier
+  // window alone now -- the derivation runs beside it on the other core -- so
+  // for a few hundred milliseconds this is a signer with no session behind it:
+  // fingerprint still scrambling because there is genuinely nothing to resolve
+  // to, and every tile refusing touch. Nothing but this stop can see it; the
+  // device path is a real PBKDF2 and no gate compiles one.
+  save("/tmp/sim_decoy_opening.ppm");               // home up, keys still landing
+  pump(140);
   save("/tmp/sim_decoy_home.ppm");                  // decoy home, reached with no login
 
   // Settings in a DECOY session shows exactly the page every other session

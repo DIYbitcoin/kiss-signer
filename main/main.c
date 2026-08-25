@@ -350,6 +350,10 @@ static volatile int s_prep;
 static volatile int s_prep_rc;
 static bool s_prep_drop;           // asked for while it ran; done when it lands
 static bool s_open_pending;        // home is up, its keys are still landing
+#ifdef SIMULATOR
+#define SIM_PREP_TICKS 26          // ~440ms at TICK_MS: what the device takes
+static int s_sim_prep_ticks;
+#endif
 static uint32_t s_home_swallow_t;  // last tick that gesture was still touching
 
 // ---- idle attract-mode screensaver ----
@@ -2294,8 +2298,13 @@ static void cover_pending_set(void) {
   s_prep_drop = false;
   s_prep = PREP_RUN;
 #ifdef SIMULATOR
-  s_prep_rc = kiss_session_prepare(NULL);  // the stub costs nothing to wait for
-  s_prep = PREP_DONE;
+  // The stub costs nothing, and that is the problem: derived instantly, the
+  // provisional home never exists here, and it is the state an owner spends
+  // ~440ms looking at on every single unlock. Hold it for a comparable number
+  // of ticks so the walk opens it, photographs it, and the 21-locale gate has
+  // an opinion about it. The device's own timing comes from a real PBKDF2.
+  s_prep_rc = kiss_session_prepare(NULL);
+  s_sim_prep_ticks = SIM_PREP_TICKS;
 #else
   // CPU1: the main task is pinned to CPU0 (CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0),
   // so this is real overlap rather than time sliced against the display. Its
@@ -2529,6 +2538,9 @@ static void game_tick(lv_timer_t *t) {
   // A prepared session nobody is going to open, freed the moment its task is
   // done writing it. Above every early return below: the ask can outlive the
   // menu (the login is already up by then), and the key must not outlive it.
+#ifdef SIMULATOR
+  if (s_sim_prep_ticks && --s_sim_prep_ticks == 0) s_prep = PREP_DONE;
+#endif
   if (s_prep_drop && s_prep != PREP_RUN) prep_drop();
   // ...and the opposite: a home already up, waiting for the same task.
   if (s_open_pending && s_prep == PREP_DONE) session_land();
