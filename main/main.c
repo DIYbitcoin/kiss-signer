@@ -858,9 +858,11 @@ static ent_t *alloc_ent(void) {
 // The earlier flush-throughput number said rotation was free -- it was measuring
 // bandwidth, which was saturated either way, and could not see the frames.
 //
-// HALVES still carry their angle. That one is not decoration: it is the
-// direction of the cut the player just made, and it is two short lived sprites
-// per slice rather than everything in the air at once.
+// Halves came off it too, on the next measurement. Keeping the cut direction
+// cost 3 ticks/s on average and, worse, 9 off the FLOOR: 42.0 mean and 24 worst
+// second with them flat against 39.0 and 15 with them angled, under a finger
+// that never stops cutting. A seam that always runs vertical is a smaller loss
+// than a blade that stalls for a tenth of a second.
 #ifndef KISS_GAME_SPIN
 #define KISS_GAME_SPIN 0
 #endif
@@ -869,7 +871,7 @@ static ent_t *alloc_ent(void) {
 static void place(ent_t *e) {
   if (!e->obj) return;
   lv_obj_set_pos(e->obj, (int)e->x - e->size / 2, (int)e->y - e->size / 2);
-  if (!KISS_GAME_SPIN && e->kind != K_HALF) return;
+  if (!KISS_GAME_SPIN) return;   // nothing is on LVGL's transform path
   if (e->av == 0.0f) return;
   int16_t q = (int16_t)(((int)e->rot / SPIN_STEP) * SPIN_STEP);
   if (q == e->rot_q) return;               // same step: nothing to redraw
@@ -950,11 +952,24 @@ static float pick_spawn_x(void) {
 //   18           19           54ms
 //   28 (pool)    10           100ms          unplayable
 //
-// Five is a cliff, not a slope. Past it the blade stops tracking the finger,
-// which is what "it lags" has meant every time it came off the bench. There is
-// no tuning of waves or speeds that survives a frenzy throw landing on top of
-// a big wave, so the cap goes here, where every fruit in the game is born.
-#define MAX_LIVE_FRUIT 5
+// That sweep had nobody CUTTING, which was the flaw in it. Repeated with a
+// synthetic finger sweeping the play area, so halves and juice are on screen
+// where they belong, the same curve turns out to be about TOTAL entities and
+// not fruit:
+//
+//   1..4 entities   43..51 ticks/s
+//   5..7            29..32
+//   8..10           23..31
+//
+// A slice adds two halves and a juice drop to whatever fruit are already up,
+// so a cap of five fruit is a screen of eight or nine things and half the tick
+// rate. Four fruit, and one juice drop instead of two on a fruit that already
+// throws two halves, keeps the usual case inside the fast band.
+//
+// Sprites are alpha blended in scalar C on this build (LV_DRAW_SW_ASM_NONE),
+// so every entity costs real CPU per frame and there is no tuning of waves or
+// speeds that gets it back. The cap goes here, where every fruit is born.
+#define MAX_LIVE_FRUIT 4
 
 static int live_fruit(void) {
   int n = 0;
@@ -1290,7 +1305,7 @@ static void slice(ent_t *e, float bdx, float bdy) {
     spawn_half(d->hr, d->hsize, e->x + nx*6, e->y + ny*6,
                e->vx + nx*SEP, e->vy*0.6f + ny*SEP,
                ang,  (float)rnd_range(2, 5));
-    spawn_juice(e->x, e->y, d->juice, 2);
+    spawn_juice(e->x, e->y, d->juice, 1);   // it already threw two halves
   }
   if (e->obj) lv_obj_delete(e->obj);
   e->obj = NULL;
