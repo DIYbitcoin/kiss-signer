@@ -1057,6 +1057,17 @@ static void wtab_cb(lv_event_t *e)
                wtab_build);
 }
 
+// The stroke, on the RECOVERY WORDS page: two tabs, one deck, no pages and
+// no overlay to guard.
+static void words_gesture_cb(lv_event_t *e)
+{
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = w_tab + step;
+    if (to < 0 || to >= WTAB_N) return;   // the deck ends where the strip does
+    wt_pane_go(&s_wctx, to, false, wtab_build);
+}
+
 static void words_page(void)
 {
     swap_screen();
@@ -1074,10 +1085,10 @@ static void words_page(void)
           !kiss_ui_backup_checked(), false },
         { WT_ICON_LOCK,   tr(STR_I_WTAB_ENC),   false, false },
     };
-    // Brackets on the contract's own row, like the page one tap above it.
-    s_wctx.select = wt_brackets_select;
-    s_wctx.tabs = wt_chrome_tabs(s_scr, tabs, WTAB_N, w_tab, wtab_cb);
+    s_wctx.select = wt_tabs_flex_select;
+    s_wctx.tabs = wt_tabs_flex(s_scr, tabs, WTAB_N, w_tab, wtab_cb);
     wt_pane_tabs_watch(&s_wctx);
+    wt_swipe_watch(s_scr, words_gesture_cb);
 
     s_wctx.pane = wt_pane_new(&s_wctx);
     wtab_build();
@@ -1314,6 +1325,18 @@ static void info_tab_cb(lv_event_t *e)
     wt_pane_go(&s_ictx, tab, false, info_tab_build);
 }
 
+// The stroke, on the KEYS page: two tabs, one deck. Not under [ ? ] -- the
+// explainer is a toggle, not a position on the deck.
+static void info_gesture_cb(lv_event_t *e)
+{
+    if (s_help_open) return;
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = s_ictx.tab + step;
+    if (to < 0 || to > 1) return;   // the deck ends where the strip does
+    wt_pane_go(&s_ictx, to, false, info_tab_build);
+}
+
 // The address fold this lane can hold. wt_addr_short's own fold is 28 mono
 // cells and 28 at mono23 is 387px against the ~330 a line row's value lane
 // leaves, so the air around the ellipsis goes and nothing else does: same
@@ -1400,27 +1423,11 @@ static void info_tab_build(void)
     }
 
     if (s_ictx.tab == 0) {
-        uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-
-        // The identity given the top third (frame 6a): the fact an owner is
-        // asked to DO something with is the headline, at a size that makes
-        // the check possible across a desk, in two blocks of four, which is
-        // how a person reads eight characters aloud. Mono because this is a
-        // code compared digit by digit, and the proportional face is the one
-        // that makes 0 and O and 8 and B argue. The rest are lines under it,
-        // and each opens its plain-sentence definition where it stands.
-        // Guarded like every fingerprint on the device: all zeros is the
-        // absence of an id, and a hero printing "0000 0000" at num48 is a
-        // code that looks real and gets copied onto paper. LOCKED is not
-        // hex, so hero48's own guard drops it to the sentence face.
-        char fpb[16];
-        bool fpk = kiss_fp_known(fp);
-        if (fpk)
-            snprintf(fpb, sizeof fpb, "%02X%02X %02X%02X",
-                     fp[0], fp[1], fp[2], fp[3]);
-        else
-            snprintf(fpb, sizeof fpb, "%s", tr(STR_C_SESSION_LOCKED));
+        // No fingerprint hero. It was the top half of this page and a
+        // straight duplicate of the home page's own headline -- the owner
+        // asked for it gone from the bench. What is left is the three facts
+        // a coordinator conversation actually needs, each a third of the
+        // lane, each opening its plain-sentence definition where it stands.
 
         // h, not an apostrophe, and this is correctness rather than style: at
         // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
@@ -1460,31 +1467,28 @@ static void info_tab_build(void)
         }
 
         bool tn = kiss_testnet();
-        wt_def_t defs[4] = {
-            { .cap = tr(STR_K_FP_HERO_CAP), .val = fpb,
-              // The sub is a promise about the code above it, so it goes
-              // with the code: "your wallet app shows these same eight
-              // characters" over LOCKED is a false sentence.
-              .sub = fpk ? tr(STR_K_FP_HERO_SUB) : NULL,
-              .hero = true, .closed_h = 140 },
+        wt_def_t defs[3] = {
             { .cap = tr(STR_I_SEC_NET), .val = kiss_net_name(),
               .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
               .plain = tr(tn ? STR_K_NET_PLAIN_TEST : STR_K_NET_PLAIN_MAIN),
               .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK,
-              .lamp_pulse = tn, .closed_h = 48 },
+              .lamp_pulse = tn },
             { .cap = tr(STR_I_SEC_TYPE),
               .val = tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
                         : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
                                                : STR_S_TY_NATIVE),
               .sub = buf, .plain = tr(STR_K_TYPE_PLAIN),
-              .term = called_type, .closed_h = 48 },
+              .term = called_type },
+            // No sub beside the address: at the closed value's 28 the lane
+            // left over cannot hold a sentence, and the lit tail already IS
+            // the "check these" cue -- the opened definition says the rest.
             { .cap = tr(STR_I_SEC_FIRST),
               .val = locked ? tr(STR_C_SESSION_LOCKED) : ahead,
               .val_tail = locked ? NULL : atail,
-              .sub = tr(STR_K_ADDR_SUB), .plain = tr(STR_K_ADDR_PLAIN),
-              .term = called_addr, .closed_h = 48 },
+              .plain = tr(STR_K_ADDR_PLAIN),
+              .term = called_addr },
         };
-        wt_def_list(p, defs, 4);
+        wt_def_list(p, defs, 3);
         return;
     }
 
@@ -1507,7 +1511,7 @@ static void info_tab_build(void)
             lv_obj_set_width(hl, W);
             lv_label_set_long_mode(hl, LV_LABEL_LONG_DOT);
             lv_obj_t *b = wt_lbl(p, tr(STR_K_COORD_NONE_B), X, 172,
-                                 wt_chrome18(tr(STR_K_COORD_NONE_B)), WT_MUT);
+                                 wt_chrome23(tr(STR_K_COORD_NONE_B)), WT_MUT);
             lv_obj_set_width(b, 690);
             lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
             wt_line_rule_draw(wt_line_rule(p, X, 244, W), 80, 320);
@@ -1576,20 +1580,16 @@ static void info_screen(void)
     s_help_open = false;
     s_scr = wt_chrome(s_parent, tr(STR_I_T));
 
-    static const wt_tab_t tabs[2] = {
-        { .icon = WT_ICON_KEY,        .label = "THIS SIGNER" },
-        { .icon = WT_ICON_LINK,       .label = "COORDINATOR" },
+    wt_tab_t t[2] = {
+        { .icon = WT_ICON_KEY,  .label = tr(STR_I_SEC_THIS_WALLET) },
+        { .icon = WT_ICON_LINK, .label = tr(STR_D_ONLINE_APP) },
     };
-    // The label strings are per-locale, so the array's two are placeholders
-    // that never reach the glass: the strip is handed the translated pair.
-    wt_tab_t t[2] = { tabs[0], tabs[1] };
-    t[0].label = tr(STR_I_SEC_THIS_WALLET);
-    t[1].label = tr(STR_D_ONLINE_APP);
 
     s_ictx.scr    = s_scr;
-    s_ictx.select = wt_brackets_select;
-    s_ictx.tabs   = wt_chrome_tabs(s_scr, t, 2, s_ictx.tab, info_tab_cb);
+    s_ictx.select = wt_tabs_flex_select;
+    s_ictx.tabs   = wt_tabs_flex(s_scr, t, 2, s_ictx.tab, info_tab_cb);
     wt_pane_tabs_watch(&s_ictx);
+    wt_swipe_watch(s_scr, info_gesture_cb);
 
     // The band's left lane holds ONE line, by rank: the test network caution
     // beats everything, the first-run hint speaks until [ ? ] has been opened

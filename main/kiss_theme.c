@@ -19,7 +19,6 @@ static const char WT_SCREEN_TAG[] = "wt_screen";
 static const char WT_BAR_TAG[]    = "wt_action_bar";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
-static const char WT_BR_RULE_TAG[] = "wt_br_rule";   // the strip's own floor
 
 // The screen system's glyph guard and its guarded faces (defined with the
 // chrome block below, used by every control that takes the mono scale).
@@ -32,6 +31,7 @@ static const lv_font_t *chrome28(const char *s);
 // chrome content.
 const lv_font_t *wt_chrome18(const char *s) { return chrome18(s); }
 const lv_font_t *wt_chrome21(const char *s) { return chrome21(s); }
+const lv_font_t *wt_chrome23(const char *s) { return chrome23(s); }
 const lv_font_t *wt_chrome28(const char *s) { return chrome28(s); }
 static const char WT_DECOR_TAG[]  = "wt_decor";
 static const char WT_ROW_ICON_TAG[] = "wt_row_icon";
@@ -2648,210 +2648,6 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     return row;
 }
 
-// ---- the bracket tab strip ----
-// The tracking a tab label wears. 1, not 2, since the label moved off the mono
-// face: Montserrat's caps are wider than Ioskeley's at the same pixel size, and
-// at 2 the product's own English "SILENT PAYMENT" lost its last three letters
-// to the ellipsis. The tab cannot widen -- 196 on a 200 pitch is what puts
-// three groups in the 704 lane -- so the tracking is what gives the letters
-// back.
-#define WT_BR_SPACE 1
-#define WT_BR_GAP   7    // icon to label, and bracket to either
-
-// Every tab is built with both brackets and they are never created or
-// destroyed -- only their opacity moves. Building them on selection instead
-// would reflow the strip on every tap, because a bracket appearing changes the
-// width of the group the tab centres.
-typedef struct { lv_obj_t *l, *r, *ic, *lbl; } br_tab_t;
-
-static void br_paint(lv_obj_t *tab, bool sel)
-{
-    // Found, not indexed. This walked children by position until the unread
-    // dot was added and shifted every one of them -- and the symptom of that
-    // is a strip that paints the wrong object, silently, on the one tab that
-    // has something to say.
-    const bool stop = lv_obj_get_user_data(tab) != NULL;
-    lv_obj_t *lb = NULL, *rb = NULL, *lbl = NULL, *ic = NULL;
-    const uint32_t n = lv_obj_get_child_count(tab);
-    for (uint32_t i = 0; i < n; i++) {
-        lv_obj_t *c = lv_obj_get_child(tab, i);
-        if (!lv_obj_check_type(c, &lv_label_class)) continue;   // the dot
-        const char *t = lv_label_get_text(c);
-        if (t && !strcmp(t, "["))      lb = c;
-        else if (t && !strcmp(t, "]")) rb = c;
-        else if (!ic && lb && !lbl)    ic = c;   // the mark, between [ and the word
-        else                           lbl = c;
-    }
-    if (!lbl && ic) { lbl = ic; ic = NULL; }     // a tab with no mark
-    if (lb) lv_obj_set_style_text_opa(lb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    if (rb) lv_obj_set_style_text_opa(rb, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    // The destructive group keeps its own ink whether or not it is the one you
-    // are on: NO UNDO is a warning before it is a location.
-    if (lbl) lv_obj_set_style_text_color(lbl, stop ? WT_STOP_INK
-                                                   : (sel ? WT_INK : WT_MUT), 0);
-    if (ic) {
-        lv_obj_set_style_text_color(ic, stop ? WT_STOP
-                                             : (sel ? wt_accent() : WT_DIM), 0);
-        // Only the SELECTED icon is accent-painted, so only it may carry the
-        // flag: a restyle that repainted every icon would put the accent on
-        // every tab at once and the marker would stop marking anything.
-        if (sel && !stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
-        else              lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
-    }
-}
-
-lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
-                      int x, int y, int w, lv_event_cb_t cb)
-{
-    // One face across the strip. The MARK already comes off the Latin face --
-    // the mono one carries no FontAwesome and drew a blank box for every tab
-    // icon until that was fixed -- so a mono label meant every tab was set in
-    // two typefaces at once.
-    const lv_font_t *f = wt_font14();
-
-    lv_obj_t *strip = lv_obj_create(scr);
-    lv_obj_remove_style_all(strip);
-    lv_obj_set_pos(strip, x, y);
-    lv_obj_set_size(strip, w, WT_BR_STRIP_H);
-    lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
-
-    // The drawing's 196-on-200 wherever it FITS, and only then the lane
-    // divided by the count. Dividing unconditionally looked harmless and
-    // silently re-laid KEYS: two tabs in 704 became 352 apart, so every tap
-    // the walk aimed at the second one landed on the first.
-    const int pitch = (n > 0 && n * WT_BR_PITCH <= w) ? WT_BR_PITCH
-                    : (n > 0 ? w / n : w);
-    const int tw = pitch - (pitch > WT_BR_W ? pitch - WT_BR_W : 0);
-
-    for (int i = 0; i < n; i++) {
-        const wt_tab_t *t = &tabs[i];
-        lv_obj_t *b = lv_obj_create(strip);
-        lv_obj_remove_style_all(b);
-        lv_obj_set_pos(b, i * pitch, 0);
-        lv_obj_set_size(b, tw, WT_BR_H);
-        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        // No pressed fill. A wash here would be a box appearing on the one
-        // strip built to have none; the sink from wt_tap_feedback is the whole
-        // press answer.
-        wt_tap_feedback(b);
-        if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-
-        // Measured as a group, brackets included, or the label sits off centre
-        // by the width of a bracket on every unselected tab.
-        // The MARK comes off the Latin face, not the mono one. IoskeleyMono is
-        // built from 0x20-0x7E plus three punctuation marks and carries no
-        // FontAwesome at all, so a WT_ICON_* asked of it draws LVGL's
-        // missing-glyph box -- at the right size, in the right place, on every
-        // tab, which is exactly the failure the wt_tabs comment warns about
-        // and exactly as invisible to every gate.
-        const lv_font_t *icf = wt_font14();
-        lv_point_t is = { 0, 0 }, ls, bs;
-        if (t->icon && *t->icon)
-            lv_text_get_size(&is, t->icon, icf, 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
-        lv_text_get_size(&ls, t->label, f, WT_BR_SPACE, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        lv_text_get_size(&bs, "[", f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        int iw = is.x ? is.x + WT_BR_GAP : 0;
-        int bw = bs.x + WT_BR_GAP;
-        int dw = t->dot ? WT_BR_GAP + 7 : 0;
-        // A locale whose word does not fit LOSES LETTERS. The tab does not
-        // widen: 196 on a 200 pitch is what puts three groups in the 704 lane.
-        int room = tw - 8 - iw - 2 * bw - dw;
-        int lw = ls.x > room ? room : ls.x;
-        int px = (tw - (2 * bw + iw + lw + dw)) / 2;
-        if (px < 2) px = 2;
-
-        lv_obj_t *lb = wt_lbl(b, "[", 0, 0, f, wt_accent());
-        lv_obj_add_flag(lb, WT_FLAG_ACCENT);
-        lv_obj_align(lb, LV_ALIGN_LEFT_MID, px, 0);
-        if (iw) {
-            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, icf, WT_DIM);
-            lv_obj_align(ic, LV_ALIGN_LEFT_MID, px + bw, 0);
-        }
-        lv_obj_t *l = wt_lbl(b, t->label, 0, 0, f, WT_MUT);
-        lv_obj_set_style_text_letter_space(l, WT_BR_SPACE, 0);
-        lv_obj_set_width(l, lw);
-        lv_obj_set_height(l, lv_font_get_line_height(f));
-        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-        lv_obj_align(l, LV_ALIGN_LEFT_MID, px + bw + iw, 0);
-        lv_obj_t *rb = wt_lbl(b, "]", 0, 0, f, wt_accent());
-        lv_obj_add_flag(rb, WT_FLAG_ACCENT);
-        lv_obj_align(rb, LV_ALIGN_LEFT_MID, px + bw + iw + lw + dw + WT_BR_GAP, 0);
-
-        // The unread mark, and the destructive group's ink. wt_tabs carries
-        // both and this strip dropped them on the floor -- SETTINGS' SECURITY
-        // and BACKUP tabs say something wants reading, and NO UNDO says what
-        // it is, and neither survived the move to brackets.
-        if (t->dot) {
-            lv_obj_t *d = lv_obj_create(b);
-            lv_obj_remove_style_all(d);
-            lv_obj_set_size(d, 7, 7);
-            lv_obj_set_style_radius(d, 4, 0);
-            lv_obj_set_style_bg_color(d, WT_WARN, 0);
-            lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
-            lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_align(d, LV_ALIGN_LEFT_MID, px + bw + iw + lw + WT_BR_GAP, 0);
-        }
-        lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
-        br_paint(b, i == sel);
-    }
-
-    // The rule under the strip: full lane, static, and NOT a line row's rule.
-    // It does not move with the selection and it does not draw on a tab change
-    // -- it is the floor the strip stands on, and a floor that redrew itself
-    // every tap would be the loudest thing on the page. Tagged so wt_chrome_tabs
-    // can drop it: under the chrome contract the header hairline at y=99 is the
-    // floor, and a second rule 6px under it would be a smudge.
-    lv_obj_set_user_data(wt_line_rule(strip, 0, WT_BR_STRIP_H - 1, w),
-                         (void *)WT_BR_RULE_TAG);
-    return strip;
-}
-
-void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop)
-{
-    (void)stop;
-    if (!strip) return;
-    uint32_t n = lv_obj_get_child_count(strip);
-    // The floor rule is the last child WHEN it exists -- under the chrome
-    // contract wt_chrome_tabs deletes it, because the hairline at 99 owns
-    // the floor. Counting by "last child is the rule" therefore refused the
-    // LAST TAB of every chrome strip in silence: selecting COORDINATOR
-    // painted nothing and both tabs sat unbracketed. Ask the tag, never the
-    // arithmetic.
-    if (n && lv_obj_get_user_data(lv_obj_get_child(strip, n - 1)) ==
-                 (void *)WT_BR_RULE_TAG)
-        n--;
-    if (from >= 0 && (uint32_t)from < n)
-        br_paint(lv_obj_get_child(strip, from), false);
-    if (to < 0 || (uint32_t)to >= n) return;
-    lv_obj_t *tab = lv_obj_get_child(strip, to);
-    br_paint(tab, true);
-
-    // Both brackets arrive from OUTSIDE the label, which is what makes the
-    // marker read as a pair closing on the word rather than as two glyphs
-    // fading up. One lv_anim per property, per the kit's rule.
-    lv_obj_t *lb = lv_obj_get_child(tab, 0);
-    lv_obj_t *rb = lv_obj_get_child(tab, lv_obj_get_child_count(tab) - 1);
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *o = i ? rb : lb;
-        lv_anim_del(o, NULL);
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, o);
-        lv_anim_set_duration(&a, 220);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_set_values(&a, i ? -7 : 7, 0);
-        lv_anim_set_exec_cb(&a, an_tx);
-        lv_anim_start(&a);
-        lv_anim_set_values(&a, 0, 255);
-        lv_anim_set_exec_cb(&a, an_opa);
-        lv_anim_start(&a);
-    }
-}
-
 // ---- the arrow action ----
 void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt)
 {
@@ -3029,22 +2825,6 @@ lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title)
     return scr;
 }
 
-lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
-                         lv_event_cb_t cb)
-{
-    // 620, not the full lane: the [ ? ] tab's divider stands at 668 on every
-    // page, so the real tabs stop short of it whether or not this page has
-    // grown its mark yet. Two tabs still take the 200 pitch; five divide the
-    // 620 and their labels ellipsize before the lane widens.
-    lv_obj_t *strip = wt_brackets(scr, tabs, n, sel, WT_LANE_X,
-                                  WT_CHROME_STRIP_Y, 620, cb);
-    // The contract's hairline at 99 is the strip's floor; the strip's own
-    // rule would draw a second one 6px under it.
-    lv_obj_t *rule = wt_tagged(strip, WT_BR_RULE_TAG);
-    if (rule) lv_obj_delete(rule);
-    return strip;
-}
-
 // One flex tab's dress. The brackets go TRANSPARENT rather than away when
 // unselected -- the space stays reserved, so nothing shifts as selection
 // moves -- and the destructive tab's label keeps its full WT_STOP in every
@@ -3052,13 +2832,36 @@ lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 static void tabs_flex_paint(lv_obj_t *b, bool selected)
 {
     const bool stop = lv_obj_get_user_data(b) == (void *)(intptr_t)1;
-    lv_obj_t *lb = lv_obj_get_child(b, 0);
-    lv_obj_t *l  = lv_obj_get_child(b, 1);
-    lv_obj_t *rb = lv_obj_get_child(b, 2);
-    lv_obj_set_style_text_color(l, stop ? WT_STOP
-                                        : (selected ? WT_INK : WT_DIM), 0);
+    // Found, not indexed: a tab may or may not carry its mark (the strip
+    // draws icons only when the whole row has room), so the label's slot
+    // moves. The mark, when present, sits between [ and the word.
+    lv_obj_t *lb = NULL, *rb = NULL, *l = NULL, *ic = NULL;
+    const uint32_t n = lv_obj_get_child_count(b);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(b, i);
+        if (!lv_obj_check_type(c, &lv_label_class)) continue;   // the dot
+        const char *t = lv_label_get_text(c);
+        if (t && !strcmp(t, "["))      lb = c;
+        else if (t && !strcmp(t, "]")) rb = c;
+        else if (!ic && lb && !l)      ic = c;   // tentatively the mark
+        else                           l  = c;
+    }
+    if (!l && ic) { l = ic; ic = NULL; }         // a tab with no mark
+    if (l) lv_obj_set_style_text_color(l, stop ? WT_STOP
+                                              : (selected ? WT_INK : WT_DIM),
+                                       0);
+    if (ic) {
+        lv_obj_set_style_text_color(ic, stop ? WT_STOP
+                                             : (selected ? wt_accent()
+                                                         : WT_DIM), 0);
+        // Only the SELECTED icon is accent-painted, so only it may carry
+        // the flag, or a restyle would light every tab's mark at once.
+        if (selected && !stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        else                   lv_obj_remove_flag(ic, WT_FLAG_ACCENT);
+    }
     lv_obj_t *br[2] = { lb, rb };
     for (int i = 0; i < 2; i++) {
+        if (!br[i]) continue;
         lv_obj_set_style_opa(br[i], selected ? LV_OPA_COVER : LV_OPA_TRANSP,
                              0);
         lv_obj_set_style_text_color(br[i], wt_accent(), 0);
@@ -3081,24 +2884,44 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     const lv_font_t *bf = wt_font_mono18();
+    // The labels are chrome23 now -- a tab TITLE the owner reported reading
+    // as fine print at 18 -- and mono at 23 wants no letter spacing, so the
+    // measure below uses none either. The brackets stay a rung down: they
+    // are punctuation, and at 23 their keep alone would push the five-up
+    // settings strip past the lane.
+    //
     // The overflow cap, from load rather than by fiat. This was a flat 140
     // ("a fifth of the lane less the brackets' keep"), sized for the five-up
     // settings strip -- and the moment a THREE tab page borrowed the strip,
     // 140 ellipsised two of its three labels in a lane with 120px to spare.
     // So measure first: if every label plus the bracket keep fits the 620,
     // nothing is capped; only when the strip genuinely overflows does each
-    // oversized label fall back to its fair share. 34 is two brackets and
+    // oversized label fall back to its fair share. 30 is two brackets and
     // their pads. No minimum air between tabs: the brackets ARE the
-    // separation, and the shipped five-up strip already runs at 30px of
-    // total slack -- an air term here is what capped it.
-    int need = 34 * n;
+    // separation.
+    //
+    // The MARK, when the strip has room for it. This strip dropped every
+    // icon it was handed for as long as it existed; now it measures them
+    // first and draws them only when labels + keep + icons all fit -- the
+    // five-up settings strip has no room and stays words-only, the two and
+    // three tab pages get their marks. Icons come off the Latin face via
+    // wt_font23's fallback: IoskeleyMono carries no FontAwesome.
+    const int keep = 30 * n;
+    int need = keep, ineed = 0;
     for (int i = 0; i < n; i++) {
         lv_point_t ls;
-        lv_text_get_size(&ls, tabs[i].label, chrome18(tabs[i].label), 2, 0,
+        lv_text_get_size(&ls, tabs[i].label, chrome23(tabs[i].label), 0, 0,
                          LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         need += ls.x;
+        if (tabs[i].icon && *tabs[i].icon) {
+            lv_point_t is;
+            lv_text_get_size(&is, tabs[i].icon, wt_font23(), 0, 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            ineed += is.x + 4;
+        }
     }
-    const int fair = (620 - 34 * n) / n;
+    const bool icons = ineed > 0 && need + ineed <= 620;
+    const int fair = (620 - keep) / n;
     const bool over = need > 620;
     for (int i = 0; i < n; i++) {
         const wt_tab_t *t = &tabs[i];
@@ -3113,19 +2936,20 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(b, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(b, 6, 0);
+        lv_obj_set_style_pad_column(b, 4, 0);
         lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
 
         wt_lbl(b, "[", 0, 0, bf, wt_accent());
-        const lv_font_t *lf = chrome18(t->label);
+        if (icons && t->icon && *t->icon)
+            wt_lbl(b, t->icon, 0, 0, wt_font23(), WT_DIM);
+        const lv_font_t *lf = chrome23(t->label);
         lv_obj_t *l = wt_lbl(b, t->label, 0, 0, lf, WT_DIM);
-        lv_obj_set_style_text_letter_space(l, 2, 0);
         // A translation too wide for its share loses letters; the lane never
         // widens and the strip never wraps. But only when the strip as a
         // whole overflows: a label under the fair share never pays for one
         // over it, and a strip that fits is never cut at all.
         lv_point_t ls;
-        lv_text_get_size(&ls, t->label, lf, 2, 0, LV_COORD_MAX,
+        lv_text_get_size(&ls, t->label, lf, 0, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         if (over && ls.x > fair) {
             lv_obj_set_width(l, fair);
@@ -3167,7 +2991,7 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
         // FontAwesome, same as the tab strip's marks. On the erase gate it
         // is full WT_STOP -- the red reaches the breadcrumb before the
         // sentence -- and a danger never wears the accent's flag.
-        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font14(),
+        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font23(),
                               stop ? WT_STOP : wt_accent());
         if (!stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         lv_obj_update_layout(ic);
@@ -3175,7 +2999,7 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
                          (WT_BR_H - lv_obj_get_height(ic)) / 2);
         x += lv_obj_get_width(ic) + 10;
     }
-    const lv_font_t *f = chrome18(path);
+    const lv_font_t *f = chrome23(path);
     lv_obj_t *l = wt_lbl(scr, path, x, 0, f, WT_DIM);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_y(l, WT_CHROME_STRIP_Y +
@@ -3394,8 +3218,9 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
 // ---- the in-place definition ----
 
 #define WT_DEF_MAX    6
-#define DEF_CAP_W   168    // the caption lane, fixed
-#define DEF_VAL_X   196    // WT_LINE_PAD + 168 + 14
+#define DEF_CAP_W   210    // the caption lane, fixed -- "FIRST ADDRESS" at
+                           // chrome23 ls2 measures 205
+#define DEF_VAL_X   238    // WT_LINE_PAD + 210 + 14
 #define DEF_ARR_W    26    // the arrow's lane, fixed
 #define DEF_HEAD_PAD 18    // the open row's head, down from the top
 
@@ -3406,8 +3231,6 @@ typedef struct {
     lv_obj_t  *row, *cap, *lamp, *val, *sub, *arrow, *rail, *plain, *term;
     lv_obj_t  *rule;
     int        val_x;      // DEF_VAL_X, plus the lamp's lane when it has one
-    int        ghost_vx;   // a hero's ghost: the value clears the measured
-                           // caption instead of the 168 lane it never used
     // The value's face per state, decided at build. The caller's strings are
     // free to live on its stack -- labels copy them, and nothing here reads
     // a def's pointer after wt_def_list returns.
@@ -3424,28 +3247,12 @@ typedef struct {
 
 static void defs_free_cb(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
 
-// The across-the-room face, when the value can wear it: num48 carries digits,
-// A-F, space and full stop -- a hex fingerprint and nothing else -- so the
-// check is the whole character set, and anything outside it falls to 28.
-static const lv_font_t *hero48(const char *s)
-{
-    for (const char *p = s ? s : ""; *p; p++) {
-        if ((*p >= '0' && *p <= '9') || (*p >= 'A' && *p <= 'F') ||
-            *p == ' ' || *p == '.')
-            continue;
-        return chrome28(s);
-    }
-    return wt_font_num48();
-}
-
 // One row's dress for one state. Fonts, colours and visibility only --
 // heights and y belong to the animation, and the font swap happens HERE, on
 // the animation's ready, never mid-flight (motion 22).
 static void def_apply(wt_defs_t *d, int k, int mode)
 {
     wt_defrow_t *r = &d->r[k];
-    const wt_def_t *def = &r->def;
-    const bool hero = def->hero && mode == DEF_CLOSED;
 
     const lv_font_t *vf = mode == DEF_OPEN  ? r->vf_open
                         : mode == DEF_GHOST ? r->vf_ghost
@@ -3481,7 +3288,7 @@ static void def_apply(wt_defs_t *d, int k, int mode)
 
     // The arrow: the accent everywhere except ghost, where it is furniture --
     // and the FLAG moves with the colour, or the next accent change would
-    // repaint a ghost's arrow back to life. A hero has none: it opens nothing.
+    // repaint a ghost's arrow back to life.
     if (r->arrow) {
         if (mode == DEF_GHOST) {
             lv_obj_remove_flag(r->arrow, WT_FLAG_ACCENT);
@@ -3493,17 +3300,8 @@ static void def_apply(wt_defs_t *d, int k, int mode)
     }
 
     // Vertical: a closed or ghost row CENTRES its head; only an open row
-    // top-pads. Top-padding a ghost crops it -- the spec's own warning. The
-    // hero is the second exception: its closed state is a STACK, caption over
-    // the across-the-room value over the line that says who to check against.
-    if (hero) {
-        lv_obj_set_width(r->cap, 646);
-        lv_obj_align(r->cap, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, 10);
-        lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, 36);
-        if (r->sub)
-            lv_obj_align(r->sub, LV_ALIGN_TOP_LEFT, WT_LINE_PAD,
-                         36 + lv_font_get_line_height(vf) + 6);
-    } else if (mode == DEF_OPEN) {
+    // top-pads. Top-padding a ghost crops it -- the spec's own warning.
+    if (mode == DEF_OPEN) {
         lv_obj_update_layout(r->val);
         int vh = lv_font_get_line_height(vf);
         int cy = DEF_HEAD_PAD +
@@ -3518,16 +3316,9 @@ static void def_apply(wt_defs_t *d, int k, int mode)
             lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
                          DEF_HEAD_PAD);
     } else {
-        int vx = (def->hero && r->ghost_vx) ? r->ghost_vx : r->val_x;
-        // A ghosted hero also gives back its caption's BOX: the closed stack
-        // gave it the sentence lane, and the overlap gate reads boxes, so a
-        // 646px caption under a value at 200 is a finding even when the ink
-        // never touches.
-        if (def->hero && r->ghost_vx)
-            lv_obj_set_width(r->cap, r->ghost_vx - WT_LINE_PAD - 14);
         lv_obj_align(r->cap, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
         if (r->lamp) lv_obj_align(r->lamp, LV_ALIGN_LEFT_MID, DEF_VAL_X, 0);
-        lv_obj_align(r->val, LV_ALIGN_LEFT_MID, vx, 0);
+        lv_obj_align(r->val, LV_ALIGN_LEFT_MID, r->val_x, 0);
         if (r->sub && mode == DEF_CLOSED)
             lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
                          -(WT_LINE_PAD + DEF_ARR_W + 8), 0);
@@ -3665,7 +3456,6 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
     for (int k = 0; k < n; k++) {
         wt_defrow_t *r = &d->r[k];
         r->def = defs[k];
-        const bool hero = defs[k].hero;
         const int ch = defs[k].closed_h ? defs[k].closed_h
                                         : wt_def_h_closed(n);
 
@@ -3677,40 +3467,26 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         // The open wash: the accent at seven percent. The colour is kept
         // fresh by the FILL flag; the opacity is this row's own and stays
-        // zero until def_apply raises it. A hero takes no taps at all: it
-        // has nothing to open, and a press answer on it would promise one.
+        // zero until def_apply raises it.
         lv_obj_set_style_bg_color(row, wt_accent(), 0);
         lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
         lv_obj_add_flag(row, WT_FLAG_ACCENT_FILL);
-        if (!hero) {
-            lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-            wt_line_press(row);
-            lv_obj_add_event_cb(row, def_tap_cb, LV_EVENT_CLICKED, NULL);
-        } else {
-            lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
-        }
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        wt_line_press(row);
+        lv_obj_add_event_cb(row, def_tap_cb, LV_EVENT_CLICKED, NULL);
         r->row = row;
 
-        // The head, on the four fixed lanes: caption 168, value never
+        // The head, on the four fixed lanes: caption 210, value never
         // yielding, sub taking what is left and yielding first, arrow 26.
         // Every pinned label gets ONE line of height as well as its lane --
         // LONG_DOT only elides once the box stops growing, so a lane without
         // a height is a lane that wraps into the row below it.
-        const lv_font_t *cf = chrome18(defs[k].cap);
+        const lv_font_t *cf = chrome23(defs[k].cap);
         r->cap = wt_lbl(row, defs[k].cap, 0, 0, cf, WT_MUT);
         lv_obj_set_style_text_letter_space(r->cap, 2, 0);
-        lv_obj_set_width(r->cap, hero ? 646 : DEF_CAP_W);
+        lv_obj_set_width(r->cap, DEF_CAP_W);
         lv_obj_set_height(r->cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(r->cap, LV_LABEL_LONG_DOT);
-        if (hero) {
-            // The ghost line is the caption and the value as ONE phrase, so
-            // the value clears the caption's measured width, not the 168
-            // lane the hero never used.
-            lv_point_t cs;
-            lv_text_get_size(&cs, defs[k].cap, cf, 2, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
-            r->ghost_vx = WT_LINE_PAD + cs.x + 14;
-        }
 
         r->val_x = DEF_VAL_X;
         if (defs[k].lamp) {
@@ -3724,7 +3500,7 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
             r->val_x += 8 + 12;
         }
 
-        r->vf_closed = hero ? hero48(defs[k].val) : chrome21(defs[k].val);
+        r->vf_closed = chrome28(defs[k].val);
         r->vf_open   = chrome28(defs[k].val);
         r->vf_ghost  = chrome18(defs[k].val);
         const lv_font_t *vf = r->vf_closed;
@@ -3754,32 +3530,26 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
                              LV_TEXT_FLAG_NONE);
         }
 
-        if (!hero) {
-            r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
-                              wt_accent());
-            lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
-            lv_obj_update_layout(r->arrow);
-            lv_obj_set_style_transform_pivot_x(
-                r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
-            lv_obj_set_style_transform_pivot_y(
-                r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
-        }
+        r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
+                          wt_accent());
+        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+        lv_obj_update_layout(r->arrow);
+        lv_obj_set_style_transform_pivot_x(
+            r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
+        lv_obj_set_style_transform_pivot_y(
+            r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
 
         if (defs[k].sub && *defs[k].sub) {
-            // A hero's sub is the line under the across-the-room value and
-            // takes the sentence lane; a row's sub is measured against the
-            // CLOSED value, the widest layout it shares a line with.
-            int lane = hero ? 646
-                            : WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
-                              - (r->val_x + vs.x + 16);
+            // A row's sub is measured against the CLOSED value, the widest
+            // layout it shares a line with.
+            int lane = WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
+                       - (r->val_x + vs.x + 16);
             if (lane > 40) {
-                const lv_font_t *sf = chrome18(defs[k].sub);
+                const lv_font_t *sf = chrome23(defs[k].sub);
                 r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, WT_DIM);
                 lv_obj_set_width(r->sub, lane);
                 lv_obj_set_height(r->sub, lv_font_get_line_height(sf));
-                if (!hero)
-                    lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT,
-                                                0);
+                lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
                 lv_label_set_long_mode(r->sub, LV_LABEL_LONG_DOT);
             }
         }
@@ -3796,11 +3566,11 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         lv_obj_add_flag(r->rail, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(r->rail, LV_OBJ_FLAG_CLICKABLE);
 
-        if (!hero && defs[k].plain && *defs[k].plain) {
+        if (defs[k].plain && *defs[k].plain) {
             // The definition: plain sentence first, the real term
             // underneath, never the term alone. Geometry computed against
             // the OPEN height, where it will be seen.
-            const lv_font_t *pf = chrome18(defs[k].plain);
+            const lv_font_t *pf = chrome23(defs[k].plain);
             int hy = DEF_HEAD_PAD +
                      lv_font_get_line_height(chrome28(defs[k].val)) + 14;
             r->plain = wt_lbl(row, defs[k].plain, WT_LINE_PAD, hy, pf,
@@ -3814,7 +3584,7 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
                              LV_TEXT_FLAG_NONE);
             if (defs[k].term && *defs[k].term) {
                 r->term = wt_lbl(row, defs[k].term, WT_LINE_PAD,
-                                 hy + ps.y + 14, chrome18(defs[k].term),
+                                 hy + ps.y + 14, chrome23(defs[k].term),
                                  wt_accent());
                 lv_obj_add_flag(r->term, WT_FLAG_ACCENT);
                 lv_obj_set_style_text_letter_space(r->term, 2, 0);
@@ -4257,9 +4027,11 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
 // says what the group is for, and the group itself says the rest.
 void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
 {
-    // Prose rides the pass's mono18 rung with the locale guard, so the one
-    // sentence under a group is set in the same face as the subs above it.
-    const lv_font_t *f = chrome18(txt);
+    // Prose rides the pass's mono23 rung with the locale guard: the one
+    // sentence under a group is a sentence the owner READS, so it sits at
+    // the same size as the subs above it. The lane holds 54 mono cells;
+    // longer copy gets cut, not shrunk.
+    const lv_font_t *f = chrome23(txt);
     lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows), f,
                          WT_MUT);
     lv_obj_set_width(l, WT_WIDE_W);
@@ -4676,9 +4448,18 @@ int wt_swipe_step(lv_event_t *e)
 // GESTURE_BUBBLE -- with the whole chain bubbling it walks off the root and
 // the event is dropped -- so the page screen clears the flag on itself and
 // becomes the terminus.
+//
+// The screen also takes CLICKABLE back. wt_screen removes it, and the indev
+// emits no gesture at all when a press lands on nothing (indev_gesture:
+// act_obj NULL, return) -- so on a deck page every patch of empty glass was
+// a dead zone for the stroke. NO UNDO is mostly empty glass, which is how
+// "can swipe in but not out" came off the bench. Children are hit-tested
+// first, so rows and tabs are untouched, and the screen has no click
+// handler, so a stray tap on the glass still does nothing.
 void wt_swipe_watch(lv_obj_t *scr, lv_event_cb_t cb)
 {
     if (!scr) return;
+    lv_obj_add_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(scr, cb, LV_EVENT_GESTURE, NULL);
 }
@@ -4692,7 +4473,7 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
                         int npages)
 {
     const bool dots = npages >= 2 && npages <= WT_PAGER_DOTS_MAX;
-    const lv_font_t *nf = wt_chrome18(txt);
+    const lv_font_t *nf = chrome23(txt);
     lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, 358, nf,
                             warn ? WT_WARN : WT_MUT);
     // The dots' lane comes off the note only when dots exist: the sort hint
@@ -4712,7 +4493,7 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
         lv_obj_t *d = lv_obj_create(p);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 8, 8);
-        lv_obj_set_pos(d, x0 + i * pitch, 364);
+        lv_obj_set_pos(d, x0 + i * pitch, 366);   // centred on the 25px line
         lv_obj_set_style_radius(d, 5, 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, i == page ? wt_accent() : WT_DIM, 0);

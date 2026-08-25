@@ -70,6 +70,7 @@ const lv_font_t *wt_font_mono18(void);
 // internally.
 const lv_font_t *wt_chrome18(const char *s);
 const lv_font_t *wt_chrome21(const char *s);
+const lv_font_t *wt_chrome23(const char *s);
 const lv_font_t *wt_chrome28(const char *s);
 const lv_font_t *wt_font_mono21(void);
 const lv_font_t *wt_font_mono23(void);
@@ -802,13 +803,13 @@ typedef struct {
     lv_obj_t *pane;       // the group on screen
     lv_obj_t *pane_out;   // the group leaving, alive for its own 200ms
     lv_obj_t *tabs;       // the strip's handle: wt_tabs' highlight, or the
-                          // whole strip from wt_brackets
+                          // whole strip from wt_tabs_flex
     int       tab;        // which group is open. Survives a page rebuild.
     bool      entering;   // the arriving group has not settled yet
     // How this page's strip moves its marker. NULL means wt_tabs_select, which
-    // is every page that came before the bracket strip; KEYS and RECEIVE set
-    // wt_brackets_select. A hook rather than a kind enum because the two take
-    // the same four arguments and wt_pane_go's only interest is calling one.
+    // is every page that came before the bracket strip; the tabbed chrome
+    // pages set wt_tabs_flex_select. A hook rather than a kind enum because
+    // the two take the same four arguments and wt_pane_go calls one.
     void (*select)(lv_obj_t *tabs, int from, int to, bool stop);
 } wt_pane_t;
 
@@ -928,23 +929,10 @@ lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y);
 // dead code that reads like a safety net.
 lv_obj_t *wt_title_cursor(lv_obj_t *scr);
 
-// The bracket tab strip. Same wt_tab_t as wt_tabs (`dot` and `stop` are
-// ignored -- neither screen has a destructive group or an unread one), and the
-// same event contract: `cb` is called with the tab's index as its user data.
-//
-// Returns the STRIP, a 704x36 container holding the buttons and the static
-// rule under them. wt_tabs returns its highlight because the highlight is the
-// only part that moves; nothing moves here, so the handle is the strip itself
-// and wt_brackets_select reaches the tabs through it.
+// The bracketed tab row's shared geometry (wt_tabs_flex draws it now; the
+// fixed-pitch wt_brackets strip it replaced is gone).
 #define WT_BR_H      30   // a tab
-#define WT_BR_W     196
-#define WT_BR_PITCH 200
 #define WT_BR_STRIP_H 36  // the tabs, the gap, and the rule at the bottom of it
-lv_obj_t *wt_brackets(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
-                      int x, int y, int w, lv_event_cb_t cb);
-// Move the marker. Signature-compatible with wt_tabs_select so wt_pane_t can
-// hold either; `stop` is ignored for the reason above.
-void wt_brackets_select(lv_obj_t *strip, int from, int to, bool stop);
 
 // The arrow action. The action bar's control with no box at all: a label, and
 // an arrow pointing WHERE THE TAP TAKES YOU -- leading the label when it
@@ -1001,28 +989,22 @@ lv_obj_t *wt_chrome(lv_obj_t *parent, const char *title);
 // lands; the middle does not move by a pixel.
 void wt_chrome_head(lv_obj_t *scr);
 
-// wt_brackets on the strip row, minus the strip's own floor rule: under the
-// contract the header hairline at y=99 is the floor, drawn once by wt_chrome,
-// and the strip's rule 6px under it would double the line. Pages with sibling
-// views call this instead of placing wt_brackets by hand.
-lv_obj_t *wt_chrome_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
-                         lv_event_cb_t cb);
-
-// The five-up strip (frame 7a): content-sized bracketed labels SPREAD across
-// the 620 lane, no icons and no boxes -- five of wt_brackets' 196px tabs need
-// 980px that a 620 lane does not have, and the drawing's answer is to let the
-// words size themselves. Unselected tabs keep TRANSPARENT brackets, so the
-// space is reserved and nothing shifts as selection moves; the destructive
-// tab's label is the only WT_STOP text in any header. Same wt_tab_t and the
-// same select-hook signature as the others, so wt_pane_t can hold it.
+// THE tab strip (frame 7a, grown into the only one): content-sized bracketed
+// labels at chrome23 SPREAD across the 620 lane the [ ? ] divider leaves.
+// Each tab's MARK is drawn when the whole row has room for the icons --
+// the five-up settings strip has none and stays words-only, the two and
+// three tab pages get theirs. Unselected tabs keep TRANSPARENT brackets, so
+// the space is reserved and nothing shifts as selection moves; the
+// destructive tab's label is the only WT_STOP text in any header. `cb` is
+// called with the tab's index as its user data.
 lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                        lv_event_cb_t cb);
 void wt_tabs_flex_select(lv_obj_t *strip, int from, int to, bool stop);
 
 // The trail: where the owner is, said as how they got there. An icon in the
-// accent, then "PARENT / CHILD" at mono18 ls2 WT_DIM, on the strip row.
+// accent, then "PARENT / CHILD" at chrome23 ls2 WT_DIM, on the strip row.
 // Replaces the subtitle idiom on every page that was opened FROM somewhere;
-// a page with sibling views puts wt_brackets on that row instead, never both.
+// a page with sibling views puts wt_tabs_flex on that row instead, never both.
 // `stop` paints the icon full WT_STOP: the erase gate's one deliberate
 // exception, so the red is in the breadcrumb before it is in the sentence.
 lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
@@ -1090,17 +1072,10 @@ typedef struct {
     bool        lamp;    // lead the value with an 8px state lamp
     lv_color_t  lamp_col;
     bool        lamp_pulse;
-    // The WALLET page's weighting (frame 6a): the identity is the headline,
-    // so its row takes the top third closed and the others take 48px lines.
     // `closed_h` overrides this row's share of the closed lane (0 = LANE/n;
-    // the overrides must still sum to the lane). `hero` renders the closed
-    // row as a stack -- caption, the value at num48, the sub under it -- and
-    // makes the row inert: it has no definition to open, it only collapses
-    // to a one-line ghost when a row below it opens. The OPEN arithmetic is
-    // untouched: a hero ghosts to the same 34px as everything else, which is
-    // exactly what lets the open row keep its 182.
+    // the overrides must still sum to the lane). The fingerprint hero that
+    // once used it is gone -- the home page already headlines the same code.
     int         closed_h;
-    bool        hero;
 } wt_def_t;
 // Builds the rows across the whole content lane, closed. Entry runs the
 // KEYS/RECEIVE stagger (rise, fade, rule draws itself in). Returns the list
@@ -1109,9 +1084,8 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n);
 // Open row `idx` (-1 closes everything), animating every row's height in the
 // same tick -- the walk uses it to photograph settled open states.
 void wt_def_list_open(lv_obj_t *list, int idx);
-// Told after every open/close with the new open index (-1 for none). The
-// WALLET page collapses its fingerprint hero to a line when any row opens,
-// and this is how it hears about it without owning the rows.
+// Told after every open/close with the new open index (-1 for none), for a
+// page that keeps something outside the list in step with it.
 void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int open_idx, void *ud),
                            void *ud);
 

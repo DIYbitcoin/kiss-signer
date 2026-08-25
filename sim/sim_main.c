@@ -1260,8 +1260,12 @@ static void set_chip(int i) { touch(SET_CHIP_X, SET_ROW_Y(i)); pump(3); release(
 // the status chip beside it left. It is a group of its own now and the strip
 // opens it.
 enum { WORDS_PAPER = 0, WORDS_ENC };
-#define WORDS_TAB_X(i)  (146 + 200 * (i))   // two tabs, 200 pitch, from x=48
-static void words_tab(int i) { touch(WORDS_TAB_X(i), SET_TAB_Y); pump(3); release(); pump(50); }
+// By the word, not by a pitch: the flex strip spreads its two tabs across
+// the 620 lane, so there is no fixed x to aim at any more.
+static void words_tab(int i)
+{
+  tap_str(i == WORDS_ENC ? STR_I_WTAB_ENC : STR_I_WTAB_PAPER, 3, 50);
+}
 static void words_row(int i) { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 
 static void set_cycle(int row, int n)
@@ -2669,10 +2673,12 @@ int main(void) {
   save("/tmp/sim_winfo.ppm");
   // The in-place definition, the pass's central interaction and the reason
   // the fp/type help cards left this page: NETWORK opens where it stands, the
-  // fingerprint hero collapses to a one-line ghost, the other rows drop to
-  // 34px, and the plain sentence lands inside the grown row. 30 pumps: the
-  // height animation is 240ms and the body rides in 90ms behind it.
-  touch(400, 278); pump(3); release(); pump(8);     // NETWORK row -> opening
+  // other rows drop to 34px ghosts, and the plain sentence lands inside the
+  // grown row. Three rows now -- the fingerprint hero is gone, the home page
+  // already headlines the same code -- so NETWORK is the top third at
+  // 114..208. 30 pumps: the height animation is 240ms and the body rides in
+  // 90ms behind it.
+  touch(400, 160); pump(3); release(); pump(8);     // NETWORK row -> opening
   // Heights in transit: the open row growing and the ghosts collapsing in
   // the same tick. Raw, not saved -- a mid-flight frame must never become a
   // stop the settled-state gates compare against.
@@ -2687,10 +2693,12 @@ int main(void) {
   save("/tmp/sim_winfo_what.ppm");
   must_show("keys/help head", tr(STR_K_HELP_HEAD));
   touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the rows
-  // KEYS is two tabs on one lane now. Tab 1 is four lines at 120/182/244/306;
-  // tab 2 is at x=248..444 on the bracket strip and holds PAIRING at 120 and
-  // SILENT PAYMENT at 186.
-  touch(340, 85); pump(3); release(); pump(40);     // COORDINATOR tab
+  // KEYS is two tabs on one flex strip now, spread across the 620 lane, and
+  // a deck like every other tabbed page: the crossing is made by STROKE here,
+  // both directions, because no other stop swipes this page. The COORDINATOR
+  // WALLET tab holds PAIRING at 120 and SILENT PAYMENT at 196.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(40);                              // swipe -> COORDINATOR WALLET
   // No coordinator has ever spoken at this point -- the recv test wiped its
   // usage record on the way out -- so the tab shows the 5c empty state: the
   // absence named, what pairing gives, and the row that fills it.
@@ -2703,8 +2711,10 @@ int main(void) {
     kiss_ui_last_fp(cfp);
     kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
   }
-  touch(145, 85); pump(3); release(); pump(40);     // THIS SIGNER
-  touch(340, 85); pump(3); release(); pump(40);     // COORDINATOR, populated
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(40);                              // swipe back -> THIS SIGNER
+  must_show("keys/swipe back to this signer", tr(STR_I_SEC_FIRST));
+  tap_str(STR_D_ONLINE_APP, 3, 40);                 // COORDINATOR WALLET, populated
   save("/tmp/sim_winfo_coord.ppm");
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
@@ -3618,6 +3628,18 @@ int main(void) {
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
 
+  // The bench failure, gated: NO UNDO is mostly empty glass, and a press on
+  // empty glass used to find no object and emit no gesture -- so the deck
+  // could be swiped INTO this tab and never out. Both strokes start at
+  // (.,250), on the card's dead middle, which is exactly the surface that
+  // was dead.
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("settings/swipe out of no undo", tr(STR_I_ROW_DEVICE_SUB));
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("settings/swipe back into no undo", tr(STR_I_ERASE_BTN));
+
   // The [ ? ] on SETTINGS -- the second page carrying one, which is what
   // proves the idiom is an idiom and not a KEYS feature. Toggling back lands
   // on the tab it left, NO UNDO, because [ ? ] is not a section.
@@ -3918,9 +3940,15 @@ int main(void) {
   // page has no fingerprint to frame -- so the stop would photograph a state
   // no owner reaches, with the band under the rows empty for a reason that is
   // an artefact of the walk.
-  words_tab(WORDS_ENC);
+  // The two-tab deck, crossed by stroke in both directions: the words page
+  // joined the swipe idiom with the others and no other stop swipes it.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);                             // swipe -> ENCRYPTED
+  must_show("words/swipe to encrypted", tr(STR_I_KEF_W2_H));
   save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
-  words_tab(WORDS_PAPER);
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);                             // swipe back -> PAPER
+  must_show("words/swipe back to paper", tr(STR_I_WROW_SHOW_SUB));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   words_row(1);                         // Check my copy -> intro
