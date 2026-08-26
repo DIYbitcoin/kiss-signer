@@ -725,8 +725,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->outs[0].sats = 3000; s->outs[1].sats = 200; s->in_sats = 4000;
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
+    s->outs[1].index = 99999;            // change parked past the scan window
     s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
-                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS;
+                       WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS |
+                       WPSBT_C_GAP_CHANGE;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
   s_sim_n_in = s->n_in;
