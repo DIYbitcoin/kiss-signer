@@ -1020,6 +1020,11 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
 // (WT_DIM for a background fact, WT_WARN on the word grid), saying something
 // permanently true about the page. It never changes while the page is open.
 // `pulse` breathes the dot -- the grid's caution earns it, nothing else does.
+// The breathe every attention dot shares: opacity and size in phase, forever.
+// base is the dot's resting side, grow how far it swells (re-centred with
+// translate styles, no transforms). anchor_right says the dot is pinned by
+// ALIGN_TOP_RIGHT rather than set_pos, so the recentring leans the other way.
+void wt_dot_breathe(lv_obj_t *dot, int base, int grow, bool anchor_right);
 lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
                       bool pulse);
 
@@ -1048,13 +1053,17 @@ void wt_help_seen_set(bool seen);
 void wt_help_seen_hook(void (*persist)(void));
 
 // What the tab shows: the content lane, replaced -- not a card, not an
-// overlay. One headline sentence at mono28, one paragraph at mono18 (two
-// lines max at 690), then 2-4 labelled facts on a 200px caption lane that
-// never wraps and never widens: a caption that would wrap gets shorter copy.
-// Nothing on it is interactive; BACK is how the owner leaves, same as ever.
+// overlay. One headline sentence at mono28, one paragraph at mono23, then
+// 2-4 labelled facts on a 200px caption lane that never wraps and never
+// widens: a caption that would wrap gets shorter copy. Each fact may carry a
+// MARK -- drawn as its own font23 label in the accent, never composed into
+// the caption string, because an icon in a chrome string falls out of the
+// mono face and drags the whole label down a rung. Nothing on the tab is
+// interactive; BACK is how the owner leaves, same as ever.
 typedef struct {
-    const char *cap;   // upper case, mono18 ls2, the accent
-    const char *val;   // mono18, WT_MUT
+    const char *cap;   // upper case, mono21 ls2, the accent
+    const char *val;   // mono23, WT_MUT
+    const char *icon;  // optional SYMS glyph; NULL for no mark
 } wt_fact_t;
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                 const wt_fact_t *facts, int n);

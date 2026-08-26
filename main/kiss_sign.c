@@ -3882,9 +3882,9 @@ static void sign_tab_build(void)
     lv_obj_t *p = s_cctx.pane;
     if (s_choose_help) {
         wt_fact_t facts[3] = {
-            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V) },
-            { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V) },
-            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V) },
+            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V), LV_SYMBOL_EDIT },
+            { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V), WT_ICON_SIGN },
+            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V), LV_SYMBOL_UPLOAD },
         };
         wt_explain(p, tr(STR_S_HELP_HEAD), tr(STR_S_HELP_BODY), facts, 3);
         return;

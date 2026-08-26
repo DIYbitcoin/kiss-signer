@@ -2988,6 +2988,10 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_flag(d, LV_OBJ_FLAG_FLOATING);
             lv_obj_align(d, LV_ALIGN_TOP_RIGHT, 0, 0);
+            // The mark breathes. A static dot was filed from the bench as
+            // "not pulsing"; the ring flare answers a TAP, this answers a
+            // glance.
+            wt_dot_breathe(d, 7, 3, true);
         }
         tabs_flex_paint(b, i == sel);
     }
@@ -3037,6 +3041,51 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
 // The dot both band idioms share: 8px, `col`, optionally breathing. The
 // breath is ease_in_out opacity -- the device's "alive" language -- and it
 // dies with the object, so no screen has to remember it on the way out.
+// SIZE, never transform_scale: a transform puts LVGL on the layer path, which
+// allocates a buffer the size of the object every frame and spins in
+// LV_ASSERT_MALLOC when that fails -- the walk once hung on the single frame
+// that flipped a lamp. Size plus a translate is the same picture and
+// allocates nothing.
+static void an_dot_size(void *v, int32_t d)
+{
+    lv_obj_set_size(v, d, d);
+    lv_obj_set_style_radius(v, d / 2 + 1, 0);
+}
+
+// The breathe: opacity and size together, in phase, forever. An opacity-only
+// breath on a 7px dot came off the bench as "not pulsing"; the size is what
+// makes it visible across the room. The growth is re-centred with translate
+// styles (layout-free), and the anchor says which corner the object's own
+// geometry pins: a set_pos dot grows down-right, an ALIGN_TOP_RIGHT dot grows
+// down-left, and the translate leans against that so the dot swells about its
+// middle.
+void wt_dot_breathe(lv_obj_t *d, int base, int grow, bool anchor_right)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, d);
+    lv_anim_set_duration(&a, 1200);
+    lv_anim_set_playback_duration(&a, 1200);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+
+    lv_anim_set_exec_cb(&a, an_opa);
+    lv_anim_set_values(&a, 100, 255);
+    lv_anim_start(&a);
+
+    lv_anim_set_exec_cb(&a, an_dot_size);
+    lv_anim_set_values(&a, base, base + grow);
+    lv_anim_start(&a);
+
+    lv_anim_set_exec_cb(&a, an_tx);
+    lv_anim_set_values(&a, 0, anchor_right ? grow / 2 : -grow / 2);
+    lv_anim_start(&a);
+
+    lv_anim_set_exec_cb(&a, an_ty);
+    lv_anim_set_values(&a, 0, -grow / 2);
+    lv_anim_start(&a);
+}
+
 static lv_obj_t *band_dot(lv_obj_t *scr, int x, int y, lv_color_t col,
                           bool pulse)
 {
@@ -3049,18 +3098,7 @@ static lv_obj_t *band_dot(lv_obj_t *scr, int x, int y, lv_color_t col,
     lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
-    if (pulse) {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, d);
-        lv_anim_set_exec_cb(&a, an_opa);
-        lv_anim_set_values(&a, 100, 255);
-        lv_anim_set_duration(&a, 1200);
-        lv_anim_set_playback_duration(&a, 1200);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
-        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-        lv_anim_start(&a);
-    }
+    if (pulse) wt_dot_breathe(d, 8, 3, false);
     return d;
 }
 
@@ -3204,12 +3242,21 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
     lv_obj_set_width(h, WT_LANE_W);
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
 
-    const lv_font_t *pf = chrome18(para);
+    // mono23, the reading rung. This was chrome18, which put every [ ? ]
+    // page's body two rungs under the def rows it sits beside.
+    const lv_font_t *pf = chrome23(para);
     lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, 152, pf, WT_MUT);
     lv_obj_set_width(p, 690);
     lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
     lv_point_t ps;
     lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+
+    // A fact with a mark indents every caption, so the column stays a column
+    // whether one row carries an icon or all of them do.
+    bool marks = false;
+    for (int i = 0; i < n && facts; i++)
+        if (facts[i].icon) marks = true;
+    const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
 
     // The facts start where the paragraph ends, never above 200: the drawing
     // gives the paragraph two lines of air and the caption lane holds still
@@ -3217,24 +3264,32 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
     int y = 152 + ps.y + 14;
     if (y < 200) y = 200;
     for (int i = 0; i < n && facts; i++) {
-        const lv_font_t *cf = chrome18(facts[i].cap);
-        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf,
+        const lv_font_t *cf = chrome21(facts[i].cap);
+        if (facts[i].icon) {
+            // Its own label, never composed into the caption: an icon in a
+            // chrome string falls out of the mono face and drags the whole
+            // label down a rung.
+            lv_obj_t *ic = wt_lbl(scr, facts[i].icon, WT_LANE_X, y - 1,
+                                  wt_font23(), wt_accent());
+            lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+        }
+        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, cap_x, y, cf,
                                wt_accent());
         lv_obj_add_flag(cap, WT_FLAG_ACCENT);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
-        // 200 wide, ONE line, no wrapping: a caption that would wrap gets
+        // 214 wide, ONE line, no wrapping: a caption that would wrap gets
         // shorter copy for that locale. The lane never widens, and the
         // height is what makes LONG_DOT elide instead of stacking.
-        lv_obj_set_width(cap, 200);
+        lv_obj_set_width(cap, 214);
         lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-        const lv_font_t *vf = chrome18(facts[i].val);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 214, y, vf,
+        const lv_font_t *vf = chrome23(facts[i].val);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, cap_x + 214, y, vf,
                                WT_MUT);
-        lv_obj_set_width(val, 752 - (WT_LANE_X + 214));
+        lv_obj_set_width(val, 752 - (cap_x + 214));
         lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
-        y += lv_font_get_line_height(cf) + 14;
+        y += lv_font_get_line_height(wt_font23()) + 14;
     }
 }
 
@@ -3617,9 +3672,14 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         }
 
         // The rule under the row, aligned to its bottom so the height
-        // animation carries it; drawn in on the entry beat below.
-        r->rule = wt_line_rule(row, 0, 0, WT_LANE_W);
-        lv_obj_align(r->rule, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        // animation carries it; drawn in on the entry beat below. The LAST
+        // row draws none: a separator separates, and under the final row it
+        // read from the bench as a stray underline beneath the value.
+        r->rule = NULL;
+        if (k < n - 1) {
+            r->rule = wt_line_rule(row, 0, 0, WT_LANE_W);
+            lv_obj_align(r->rule, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        }
 
         def_apply(d, k, DEF_CLOSED);
 
@@ -3639,7 +3699,7 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         lv_anim_set_path_cb(&a, lv_anim_path_linear);
         lv_anim_set_exec_cb(&a, an_opa);
         lv_anim_start(&a);
-        wt_line_rule_draw(r->rule, 42 * k + 110, 320);
+        if (r->rule) wt_line_rule_draw(r->rule, 42 * k + 110, 320);
     }
     return list;
 }
@@ -3833,7 +3893,12 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
 #define WT_WIDE_LX      18    // the label's lane, row local
 #define WT_WIDE_LW     250    // ...and its cap. See the header: the gate
                               // compares boxes, not ink.
-#define WT_WIDE_CHIP_W 190    // the chip's MINIMUM; a long value widens it
+#define WT_WIDE_CHIP_W 150    // the chip's MINIMUM; a long value widens it.
+                              // 190 predates the mono23/28 bump: the value is
+                              // left-aligned INSIDE the chip, so the unused
+                              // minimum was dead space billed to the sub's
+                              // lane -- at 150 the short-value column still
+                              // lines up and the sub gets its 40px back.
 #define WT_WIDE_CHIP_H  40
 #define WT_WIDE_SWATCH  16
 #define WT_HELP_CHIP_W  30    // wt_help_chip's own size
@@ -3841,17 +3906,18 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
 lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
 {
     const bool inert = r->kind == WT_WIDE_INERT;
-    // The screen system's scale, with the locale guard every chrome string
-    // carries: caption and sub at mono18 (the size the pass added for exactly
-    // these), the value at mono21, and the marks at the font23 the def rows'
-    // arrows already wear. The sub is still the page's TEACHING copy -- "not
-    // real bitcoin", "opens your real keys" -- and 18 in the mono face is a
-    // reading size, not the font14 that once came off the bench as text
-    // nobody could read. A translation the mono faces cannot draw falls one
-    // rung DOWN in the sans family, never up into the hairline.
-    const lv_font_t *lf = chrome18(r->label);
-    const lv_font_t *sf = chrome18(r->sub);
-    const lv_font_t *vf = r->vf ? r->vf : chrome21(r->val);
+    // The def rows' scale, with the locale guard every chrome string carries:
+    // caption and sub at mono23, the value at mono28, marks at font23. This
+    // was 18/18/21 -- one to two rungs under the KEYS page in the same lane --
+    // and the bench read the gap as SETTINGS being fine print. The sub is the
+    // page's TEACHING copy ("not real bitcoin", "opens your real keys") and
+    // now sits on the same rung the def rows teach at. A translation the mono
+    // faces cannot draw falls to the sans family at the same size, never up
+    // into the hairline. Copy that no longer fits its lane at this size gets
+    // CUT, not shrunk -- the CUT check reports the ellipsis.
+    const lv_font_t *lf = chrome23(r->label);
+    const lv_font_t *sf = chrome23(r->sub);
+    const lv_font_t *vf = r->vf ? r->vf : chrome28(r->val);
     const lv_font_t *cf = wt_font23();       // marks: the def rows' own size
 
     lv_obj_t *row = lv_obj_create(scr);
@@ -4023,8 +4089,10 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     // Measure the TEXT, never the label. wt_row_wide caps the box at 250 so a
     // long translation ellipsises, so asking the object how wide it is answers
     // 250 for every row in every locale and puts the chip on top of the words.
+    // chrome23: the font the row actually set. Measuring at a smaller rung
+    // shrank the box under the words and elided the label itself.
     lv_point_t sz;
-    lv_text_get_size(&sz, txt, chrome18(txt), 2, 0, LV_COORD_MAX,
+    lv_text_get_size(&sz, txt, chrome23(txt), 2, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     int lw = sz.x;
     int cap = WT_WIDE_LW - WT_HELP_CHIP_W - 10;

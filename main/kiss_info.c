@@ -263,8 +263,25 @@ lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
     else
         snprintf(title, sizeof title, "%s", tr(STR_D_FINGERPRINT));
 
-    return help_open_on(parent, title, tr(STR_I_H_FP_B), DIAG_FP,
-                        exit_hint, NULL, NULL, 0);
+    // Three claims, three lines, each led by its mark: the card once ran six
+    // rendered lines and the bench asked for three. The icons are composed
+    // here, not in the translated strings -- translators never handle glyph
+    // bytes -- and the body font (wt_font28/23) resolves them through the nat
+    // chain at full size. No blank lines: one costs a whole line of type.
+    const char *b  = tr(STR_I_H_FP_B);
+    const char *nl = strchr(b, '\n');
+    char body[512];
+    if (nl && exit_hint)
+        snprintf(body, sizeof body, "%s %.*s\n%s %s\n%s %s",
+                 WT_ICON_LINK, (int)(nl - b), b, LV_SYMBOL_OK, nl + 1,
+                 LV_SYMBOL_PLAY, tr(STR_H_EXIT_HINT));
+    else if (nl)
+        snprintf(body, sizeof body, "%s %.*s\n%s %s",
+                 WT_ICON_LINK, (int)(nl - b), b, LV_SYMBOL_OK, nl + 1);
+    else
+        snprintf(body, sizeof body, "%s", b);
+
+    return help_open_on(parent, title, body, DIAG_FP, false, NULL, NULL, 0);
 }
 
 lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
@@ -1418,9 +1435,9 @@ static void info_tab_build(void)
         // The [ ? ] content: the lane replaced, not a card and not an
         // overlay. Nothing on it is interactive; the strip is the way back.
         wt_fact_t facts[3] = {
-            { tr(STR_K_HELP_F1C), tr(STR_K_HELP_F1V) },
-            { tr(STR_K_HELP_F2C), tr(STR_K_HELP_F2V) },
-            { tr(STR_K_HELP_F3C), tr(STR_K_HELP_F3V) },
+            { tr(STR_K_HELP_F1C), tr(STR_K_HELP_F1V), WT_ICON_KEY },
+            { tr(STR_K_HELP_F2C), tr(STR_K_HELP_F2V), WT_ICON_QR },
+            { tr(STR_K_HELP_F3C), tr(STR_K_HELP_F3V), LV_SYMBOL_EYE_OPEN },
         };
         wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
         return;
@@ -1601,13 +1618,11 @@ static void info_screen(void)
     // page -- is what the lane says for the rest of the device's life.
     const char *hint = NULL;
     if (kiss_testnet()) {
-        lv_obj_t *w = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_ACT_X,
-                             WT_ACTION_Y + 18, wt_font14(), WT_WARN);
-        lv_obj_update_layout(w);
-        lv_obj_t *l = wt_lbl(s_scr, tr(STR_G_TEST_CHIP),
-                             WT_ACT_X + lv_obj_get_width(w) + 10,
-                             WT_ACTION_Y + 16, wt_font14(), WT_WARN);
-        lv_obj_set_style_text_letter_space(l, 2, 0);
+        // Through the kit like its two siblings, not the hand-built font14
+        // pair this once was -- the smallest type on the device, on the one
+        // line whose whole job is to be seen. The dot breathes: the caution
+        // earns it.
+        wt_standing(s_scr, tr(STR_G_TEST_CHIP), WT_WARN, true);
     } else if (!wt_help_seen()) {
         hint = tr(STR_C_HELP_HINT);
     } else {

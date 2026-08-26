@@ -1876,28 +1876,11 @@ static void tab_noundo(void)
     lv_obj_t *head = wt_lbl(card, tr(STR_I_ROW_ENDWORDS), 24, 22, wt_font28(),
                             WT_STOP_INK);
 
-    // WHICH keys, named, on the tab rather than only on the confirmation
-    // behind it. Every route into Settings has an open session under it, so
-    // this is THIS signer's fingerprint and an owner can hold it against the
-    // card in their hand before they ever reach the hold -- the one check the
-    // confirmation cannot make on their behalf.
-    //
-    // A badge and not a value card: it sits BESIDE the heading rather than
-    // taking a row of its own, which is what the drawn card has room for.
-    {
-        uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        char id[16];
-        snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-        lv_point_t hs;
-        lv_text_get_size(&hs, tr(STR_I_ROW_ENDWORDS), wt_font28(), 0, 0,
-                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        lv_obj_t *chip = wt_state_chip(card, id, WT_STOP);
-        lv_obj_update_layout(chip);
-        lv_obj_set_pos(chip, 24 + hs.x + 16,
-                       22 + (lv_font_get_line_height(wt_font28())
-                             - lv_obj_get_height(chip)) / 2);
-    }
+    // No fingerprint badge beside the heading any more. It was font14 in a
+    // bubble -- the two shapes this look removes -- and it confused more than
+    // it checked; the confirmation behind the button still names the
+    // fingerprint at full size, which is where the against-the-paper check
+    // actually happens.
     (void)head;
 
     // TWO CLAIMS, side by side, not one paragraph stacking three. It was a
@@ -1914,41 +1897,39 @@ static void tab_noundo(void)
     const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
     const int bh = 270 - by - 20 - WT_ACTION_H - 14;
     const int cw = (WT_WIDE_W - 24 - 24 - 24) / 2;
+    // Each head leads with its mark -- what goes (the bin) and what stays
+    // (the paper). Composed here, sized here: the heads are measured with
+    // their icons in, or the shared body rung would be picked against
+    // narrower heads than the ones drawn.
+    char h1[WT_ICON_TEXT_MAX], h2[WT_ICON_TEXT_MAX];
+    wt_icon_text(h1, sizeof h1, WT_ICON_ERASE, tr(STR_I_ERASE_H1));
+    wt_icon_text(h2, sizeof h2, LV_SYMBOL_FILE, tr(STR_I_ERASE_H2));
     const lv_font_t *bf = wt_body_font2_head(
-        tr(STR_I_ERASE_H1), tr(STR_I_ERASE_B1),
-        tr(STR_I_ERASE_H2), tr(STR_I_ERASE_B2), cw, bh);
-    wt_why_block(card, tr(STR_I_ERASE_H1), tr(STR_I_ERASE_B1),
+        h1, tr(STR_I_ERASE_B1),
+        h2, tr(STR_I_ERASE_B2), cw, bh);
+    wt_why_block(card, h1, tr(STR_I_ERASE_B1),
                  24, by, cw, bh, bf, wt_accent());
-    wt_why_block(card, tr(STR_I_ERASE_H2), tr(STR_I_ERASE_B2),
+    wt_why_block(card, h2, tr(STR_I_ERASE_B2),
                  24 + cw + 24, by, cw, bh, bf, WT_WARN);
 
-    // The button, and NO HOLD on it. The hold stays where it already is, on
+    // The action, and NO HOLD on it. The hold stays where it already is, on
     // the confirmation behind it: two gates in a row teaches an owner to grind
     // through both, and the screen that names the fingerprint is the one worth
-    // holding on.
-    char blab[WT_ICON_TEXT_MAX];
-    wt_icon_text(blab, sizeof blab, LV_SYMBOL_TRASH, tr(STR_I_ERASE_BTN));
-    lv_point_t bs;
-    lv_text_get_size(&bs, blab, wt_font23(), 1, 0, LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
-    const int bw = bs.x + 48;
+    // holding on. A red ARROW ACTION, not a drawn button: the boxed red pill
+    // was the page's last box, and the arrow says a tap here goes somewhere
+    // (the confirmation) rather than doing the thing.
+    // No bin on the label: the left why-head already wears it, and the icon's
+    // width is what pushed the caption beside this row into its ellipsis.
     const int byy = 270 - 20 - WT_ACTION_H;
-    lv_obj_t *btn = lv_obj_create(card);
-    lv_obj_remove_style_all(btn);
-    lv_obj_set_pos(btn, 24, byy);
-    lv_obj_set_size(btn, bw, WT_ACTION_H);
-    lv_obj_set_style_radius(btn, 10, 0);
-    lv_obj_set_style_bg_color(btn, WT_STOP, 0);
-    lv_obj_set_style_bg_opa(btn, 26, 0);
-    lv_obj_set_style_border_width(btn, 1, 0);
-    lv_obj_set_style_border_color(btn, WT_STOP, 0);
-    lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-    wt_tap_feedback(btn);
-    lv_obj_add_event_cb(btn, endwords_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *bl = wt_lbl(btn, blab, 0, 0, wt_font23(), WT_STOP_INK);
-    lv_obj_set_style_text_letter_space(bl, 1, 0);
-    lv_obj_center(bl);
+    lv_obj_t *btn = wt_arrow_action(card, tr(STR_I_ERASE_BTN), false, false,
+                                    24, byy, 0, false, endwords_cb, NULL);
+    for (uint32_t i = 0; i < lv_obj_get_child_count(btn); i++) {
+        lv_obj_t *ch = lv_obj_get_child(btn, i);
+        lv_obj_set_style_text_color(ch, WT_STOP_INK, 0);
+        lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
+    }
+    lv_obj_update_layout(btn);
+    const int bw = lv_obj_get_width(btn);
 
     // BOUNDED. It sat beside the button with no width and ran off the card's
     // right edge the moment the claim pair took the room the old paragraph had.
@@ -1965,9 +1946,9 @@ static void build_tab(void)
 {
     if (s_what_open) {
         wt_fact_t facts[3] = {
-            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V) },
-            { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V) },
-            { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V) },
+            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V), WT_ICON_KEY },
+            { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V), LV_SYMBOL_BELL },
+            { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V), LV_SYMBOL_TRASH },
         };
         wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY), facts,
                    3);

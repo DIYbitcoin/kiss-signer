@@ -2488,10 +2488,10 @@ int main(void) {
   // the mark. help_seen is put back afterwards so every later frame keeps
   // its meaning -- the KEYS stop further down is the walk's canonical
   // first-run hint and its band must still read as a first run.
-  touch(720, 85); pump(3); release(); pump(30);
+  touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_recv_what.ppm");
   must_show("recv/help head", tr(STR_R_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(30);
+  touch(720, 85); pump(3); release(); pump(45);   // 45 outlasts the exit stagger
   must_show("recv/help closed", tr(STR_R_NEXT_ADDR));
   wt_help_seen_set(false);
   // The flex strip sizes its brackets to the words, so the tabs are tapped
@@ -2697,10 +2697,10 @@ int main(void) {
   touch(400, 240); pump(3); release(); pump(30);    // the open row -> all closed
   // The [ ? ] tab: the content lane replaced by the page's explainer, and
   // the first-run hint stopped for good (this is the walk's first open).
-  touch(720, 85); pump(3); release(); pump(30);
+  touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_winfo_what.ppm");
   must_show("keys/help head", tr(STR_K_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the rows
+  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the rows; 45 outlasts the exit stagger
   // KEYS is two tabs on one flex strip now, spread across the 620 lane, and
   // a deck like every other tabbed page: the crossing is made by STROKE here,
   // both directions, because no other stop swipes this page. The COORDINATOR
@@ -2775,10 +2775,10 @@ int main(void) {
   must_show("sign page, scan tab", tr(STR_S_POINT_CAM));
   // The [ ? ] tab. The explainer swaps the lane, so the way back is the mark
   // itself -- or the selected tab, both walked here.
-  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] -> signing explainer
+  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] -> signing explainer; 45 lands the stagger
   save("/tmp/sim_sign_help.ppm");
   must_show("sign [ ? ]", tr(STR_S_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(30);     // [ ? ] again -> the tab
+  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the tab; 45 outlasts the exit stagger
   must_show("sign [ ? ] closed", tr(STR_S_POINT_CAM));
   // The page's open flipped the first-run flag for the whole device; put it
   // back so the downstream KEYS stop stays the canonical first-run frame.
@@ -3651,10 +3651,10 @@ int main(void) {
   // The [ ? ] on SETTINGS -- the second page carrying one, which is what
   // proves the idiom is an idiom and not a KEYS feature. Toggling back lands
   // on the tab it left, NO UNDO, because [ ? ] is not a section.
-  touch(720, 85); pump(3); release(); pump(30);
+  touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_settings_what.ppm");
   must_show("settings/help head", tr(STR_G_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(30);
+  touch(720, 85); pump(3); release(); pump(45);   // 45 outlasts the exit stagger
 
   // The attention chip, which nothing had ever tapped. It is the one thing
   // paying for a collapsed group -- a caution two tabs away is invisible

@@ -2369,7 +2369,22 @@ bool kiss_fp_card(lv_obj_t *parent, int y)
   if (!kiss_fp_known(fp)) return false;
   char id[16];
   snprintf(id, sizeof id, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
-  wt_value_card(parent, tr(STR_L_FP_CAP), id, 231, y, 340, true);
+  // Boxless. The value card drew a panel and an edge around a caption in
+  // font14 -- a box around fine print, the two shapes this look removes.
+  // The same two facts now sit open on the glass: caption at the chrome
+  // rung, code at the def rows' own mono28.
+  const char *cap = tr(STR_L_FP_CAP);
+  lv_obj_t *c = wt_lbl(parent, cap, 231, y, wt_chrome21(cap), wt_accent());
+  lv_obj_add_flag(c, WT_FLAG_ACCENT);
+  lv_obj_set_style_text_letter_space(c, 2, 0);
+  lv_obj_set_width(c, 340);
+  lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_t *v = wt_lbl(parent, id, 231,
+                       y + lv_font_get_line_height(wt_chrome21(cap)) + 6,
+                       wt_font_mono28(), WT_INK);
+  lv_obj_set_style_text_letter_space(v, 2, 0);
+  lv_obj_set_width(v, 340);
+  lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_CENTER, 0);
   return true;
 }
 

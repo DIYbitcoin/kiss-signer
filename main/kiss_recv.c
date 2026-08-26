@@ -744,6 +744,13 @@ static void recv_tab_cb(lv_event_t *e) {
 // Motion 11. The dot swells and settles when the state CHANGES -- not on every
 // refresh, or the lamp would throb each time the screen redrew for a reason
 // that has nothing to do with it.
+// UNUSED breathes for as long as it is true: the green lamp is the page's one
+// live claim ("safe to hand out"), and a static dot was filed from the bench
+// as not pulsing. USED sits still -- a warning at rest, not an invitation.
+static int s_lamp_was = -1;
+static void lamp_breathe_maybe(lv_anim_t *a) {
+  if (s_lamp_was == 0) wt_dot_breathe(a->var, 10, 4, false);
+}
 static void lamp_pulse_done(lv_anim_t *a) {
   lv_anim_t b;
   lv_anim_init(&b);
@@ -752,14 +759,22 @@ static void lamp_pulse_done(lv_anim_t *a) {
   lv_anim_set_values(&b, 21, 10);
   lv_anim_set_duration(&b, 200);
   lv_anim_set_path_cb(&b, lv_anim_path_ease_in_out);
+  lv_anim_set_completed_cb(&b, lamp_breathe_maybe);
   lv_anim_start(&b);
 }
 
 static void lamp_set(bool used) {
   if (!s_lamp_dot || !s_lamp_lbl) return;
-  static int s_lamp_was = -1;
   const bool changed = s_lamp_was >= 0 && s_lamp_was != (int)used;
   s_lamp_was = (int)used;
+  // Whatever was breathing or swelling stops here, and the styles it drives
+  // come back to rest before the state below decides what moves next.
+  lv_anim_del(s_lamp_dot, NULL);
+  lv_obj_set_style_opa(s_lamp_dot, LV_OPA_COVER, 0);
+  lv_obj_set_style_translate_x(s_lamp_dot, 0, 0);
+  lv_obj_set_style_translate_y(s_lamp_dot, 0, 0);
+  lv_obj_set_size(s_lamp_dot, 10, 10);
+  lv_obj_set_style_radius(s_lamp_dot, 5, 0);
   // GREEN's accent is byte identical to WT_OK and ORANGE is a near match for
   // WT_WARN, so on those two themes the lamp's colour says nothing the rest of
   // the page is not already saying, and a readout that cannot be told from
@@ -788,7 +803,6 @@ static void lamp_set(bool used) {
   lv_obj_set_pos(s_lamp_lbl, 752 - lv_obj_get_width(s_lamp_lbl), 120);
   lv_obj_set_pos(s_lamp_dot, 752 - lv_obj_get_width(s_lamp_lbl) - 8 - 14, 131);
   if (changed) {
-    lv_anim_del(s_lamp_dot, NULL);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_lamp_dot);
@@ -798,6 +812,8 @@ static void lamp_set(bool used) {
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_completed_cb(&a, lamp_pulse_done);
     lv_anim_start(&a);
+  } else if (!used) {
+    wt_dot_breathe(s_lamp_dot, 10, 4, false);
   }
 }
 
@@ -1088,9 +1104,9 @@ static void recv_tab_build(void) {
     // The [ ? ] content: the lane replaced, not a card and not an overlay.
     // Nothing on it is interactive; the strip is the way back.
     wt_fact_t facts[3] = {
-        { tr(STR_R_HELP_F1C), tr(STR_R_HELP_F1V) },
-        { tr(STR_R_HELP_F2C), tr(STR_R_HELP_F2V) },
-        { tr(STR_R_HELP_F3C), tr(STR_R_HELP_F3V) },
+        { tr(STR_R_HELP_F1C), tr(STR_R_HELP_F1V), LV_SYMBOL_PLUS },
+        { tr(STR_R_HELP_F2C), tr(STR_R_HELP_F2V), LV_SYMBOL_EYE_OPEN },
+        { tr(STR_R_HELP_F3C), tr(STR_R_HELP_F3V), WT_ICON_SECRET },
     };
     wt_explain(p, tr(STR_R_HELP_HEAD), tr(STR_R_HELP_BODY), facts, 3);
     return;
