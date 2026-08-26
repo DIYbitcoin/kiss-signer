@@ -1401,9 +1401,15 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     // from the append-only enum whose index is the stored NVS value.
     for (int i = 0; i < I18N_LANG_N; i++) {
         int id = i18n_pick_order[i];
-        lv_obj_t *p = wt_pillh(ovl, i18n_lang_info(id)->native,
-                               16 + (i % 3) * 260, 76 + (i / 3) * 52, 248, 44,
-                               lang_pick_cb, (void *)(intptr_t)id);
+        const bool on = id == i18n_get_lang();
+        // Flag, name, and a trailing tick on the current one. The tick is a
+        // resolve, so it follows the word; a tap closes the overlay, so the
+        // shift a tick would cause on a re-pick is never seen.
+        lv_obj_t *p = wt_word_action(ovl, on ? LV_SYMBOL_OK : NULL,
+                                     i18n_lang_info(id)->native, false,
+                                     on ? wt_accent() : WT_INK, on,
+                                     lang_pick_cb, (void *)(intptr_t)id);
+        lv_obj_set_pos(p, 16 + (i % 3) * 260, 76 + (i / 3) * 52);
         // Every row is in its own script. Select its regional font explicitly;
         // the current UI language must not control another locale's glyph form.
         lv_obj_t *name = lv_obj_get_child(p, 0);
@@ -1412,11 +1418,9 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
         if (img_lang_flags[id]) {             // en deliberately has no flag
             lv_obj_t *fl = lv_image_create(p);
             lv_image_set_src(fl, img_lang_flags[id]);
-            lv_obj_align(fl, LV_ALIGN_LEFT_MID, 12, 0);
-            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);  // the pill takes the tap
-            lv_obj_align(name, LV_ALIGN_CENTER, 16, 0);
+            lv_obj_remove_flag(fl, LV_OBJ_FLAG_CLICKABLE);  // the row takes the tap
+            lv_obj_move_to_index(fl, 0);      // the flag leads the name
         }
-        if (id == i18n_get_lang()) wt_pill_select(p, true);
     }
 }
 

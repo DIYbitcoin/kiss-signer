@@ -347,10 +347,9 @@ static void pair_refresh(void)
                 360, 190);
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
-        wt_pill_select(s_pair_pill[i], on);
         // The flag rides with the paint, or the selected app name keeps the
         // OLD accent after a theme change -- this runs on every pick, so the
-        // stale colour survives until the pill is tapped again.
+        // stale colour survives until the control is tapped again.
         lv_obj_set_style_text_color(s_pair_app[i],   // app name above the category
                                     on ? wt_accent() : lv_color_hex(0x525C6E), 0);
         if (on) lv_obj_add_flag(s_pair_app[i], WT_FLAG_ACCENT);
@@ -462,11 +461,22 @@ static void pair_screen(void)
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {
         // The app is the decision, so it owns the readable 23px line; the
-        // desktop/mobile category is the small eyebrow underneath.
-        lv_obj_t *p = wt_pillh(s_scr, APP[i], 400 + i * 185, 120, 175, 60,
-                               pair_fmt_cb, (void *)(intptr_t)i);
-        wt_pill_two_line(p, CAT[i]);
-        s_pair_app[i] = lv_obj_get_child(p, 0);   // pair_refresh() recolors it
+        // desktop/mobile category is the small eyebrow underneath. No box:
+        // the selected app's accent name is the state, the same way a tab
+        // strip says which tab is open.
+        lv_obj_t *p = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(p);
+        lv_obj_set_pos(p, 400 + i * 185, 120);
+        lv_obj_set_size(p, 175, 60);
+        lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(p, 8);
+        lv_obj_add_event_cb(p, pair_fmt_cb, LV_EVENT_CLICKED,
+                            (void *)(intptr_t)i);
+        lv_obj_t *name = wt_lbl(p, APP[i], 0, 6, wt_chrome23(APP[i]), WT_INK);
+        lv_obj_set_style_text_letter_space(name, 2, 0);
+        wt_lbl(p, CAT[i], 0, 36, wt_font14(), WT_MUT);
+        s_pair_app[i] = name;                     // pair_refresh() recolors it
         s_pair_pill[i] = p;
     }
 
@@ -1219,8 +1229,9 @@ static void kef_show_screen(void)
     int below = 96 + lv_obj_get_height(card) + 12;
     wt_note(s_scr, tr(STR_I_KEF_SHOW_NOTE), 400, below, 352, 332 - below);
 
-    wt_pill_icon(s_scr, WT_ICON_SD, tr(STR_I_KEF_SD_BTN), WT_ACT_X,
-                 WT_ACTION_Y, 330, WT_ACTION_H, kef_sd_cb, NULL);
+    lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_I_KEF_SD_BTN),
+                                  true, WT_INK, false, kef_sd_cb, NULL);
+    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + 6);
     wt_arrow_action(s_scr, tr(STR_C_DONE), true, true, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
 }
 

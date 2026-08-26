@@ -4256,7 +4256,9 @@ int main(void) {
   save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = kiss_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
-    touch(16 + (li % 3) * 260 + 124, 76 + (li / 3) * 52 + 22);
+    // The cells are flag + word now, left aligned and content sized, so the
+    // tap aims just inside the cell's head rather than a 248px box centre.
+    touch(16 + (li % 3) * 260 + 20, 76 + (li / 3) * 52 + 20);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
 
