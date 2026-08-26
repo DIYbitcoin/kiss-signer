@@ -722,12 +722,12 @@ static void show_weak_confirm(void) {
   lv_obj_set_style_text_color(b, MUT_COL, 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
 
-  // One pill, centred on the card's own 704 rather than left where it sat
-  // beside the one that is gone. 314 keeps the width the translations were
-  // measured at (fitcheck: login/weak-back).
-  lv_obj_t *back = wt_pillh(card, tr(STR_C_BACK), 195, 284, 314, 56,
-                            weak_back_cb, NULL);
-  wt_pill_select(back, true);
+  // One exit, centred on the card's own 704 rather than left where it sat
+  // beside the one that is gone. The arrow action sizes to its word, so the
+  // centring is an align rather than a measured x.
+  lv_obj_t *back = wt_arrow_action(card, tr(STR_C_BACK), true, false,
+                                   195, 288, 314, false, weak_back_cb, NULL);
+  lv_obj_align(back, LV_ALIGN_TOP_MID, 0, 288);
 }
 
 // ---- fingerprint reveal ----
@@ -901,10 +901,13 @@ static void recover_screen(void)
     }
     wt_why_body(s_recovscr, tr(STR_L_RECOVER_B), 190, WT_WARN, true);
 
-    wt_pill(s_recovscr, tr(STR_I_SHOW_WORDS), 48, WT_ACTION_Y, 300,
-            recover_words_cb, NULL);
-    wt_pill_primary(wt_pill(s_recovscr, tr(STR_C_TRY_AGAIN), 452, WT_ACTION_Y,
-                            300, recover_retry_cb, NULL));
+    // SHOW WORDS opens the reveal; TRY AGAIN returns to the login above, so
+    // it is the escape and takes the corner, wearing the accent as the way
+    // the product steers.
+    wt_arrow_action(s_recovscr, tr(STR_I_SHOW_WORDS), false, false, WT_ACT_X,
+                    WT_ACTION_Y, 300, false, recover_words_cb, NULL);
+    wt_arrow_action(s_recovscr, tr(STR_C_TRY_AGAIN), true, true, WT_EXIT_X,
+                    WT_ACTION_Y, 140, true, recover_retry_cb, NULL);
 }
 static void setup_warn_screen(void);
 
@@ -1350,18 +1353,24 @@ static void setup_warn_screen(void) {
     lv_obj_set_pos(state, 110, 300);
   }
 
-  lv_obj_t *verify = wt_pillh(s_warnscr, tr(STR_L_VERIFY_FULL_BACKUP),
-                              48, WT_ACTION_Y_TALL, 300, WT_ACTION_H_TALL, setup_warn_verify_cb, NULL);
-  if (!s_backup_verified)
-    lv_obj_set_style_border_color(verify, WT_WARN, 0);
+  // The status colour that used to be a ring around each pill goes on the
+  // words themselves now: VERIFY wears the caution until the check has been
+  // run, and I UNDERSTAND's tick answers in green or red for whether skipping
+  // is walking past a verified backup or an unchecked one.
+  lv_obj_t *verify = wt_word_action(s_warnscr, WT_ICON_ARR_R,
+                                    tr(STR_L_VERIFY_FULL_BACKUP), false,
+                                    s_backup_verified ? WT_INK : WT_WARN,
+                                    false, setup_warn_verify_cb, NULL);
+  lv_obj_set_pos(verify, 48, WT_ACTION_Y_TALL + 13);
 
-  // Skipping is allowed, but it must look like a conscious decision. The red
-  // ring disappears only after every word and the exact passphrase have both
-  // recreated the fingerprint above.
-  lv_obj_t *ok = wt_pillh(s_warnscr, tr(STR_C_I_UNDERSTAND),
-                          430, WT_ACTION_Y_TALL, 320, WT_ACTION_H_TALL, setup_warn_ok_cb, NULL);
-  lv_obj_set_style_border_width(ok, 2, 0);
-  lv_obj_set_style_border_color(ok, s_backup_verified ? WT_OK : WT_STOP, 0);
+  // Skipping is allowed, but it must look like a conscious decision.
+  lv_obj_t *ok = wt_word_action(s_warnscr, LV_SYMBOL_OK,
+                                tr(STR_C_I_UNDERSTAND), true,
+                                s_backup_verified ? WT_OK : WT_STOP,
+                                false, setup_warn_ok_cb, NULL);
+  // The tick alone carries the verdict; the word is a word.
+  lv_obj_set_style_text_color(lv_obj_get_child(ok, 1), WT_INK, 0);
+  lv_obj_align(ok, LV_ALIGN_TOP_RIGHT, -48, WT_ACTION_Y_TALL + 13);
 }
 
 #ifdef SIMULATOR
@@ -1548,9 +1557,10 @@ static void show_fingerprint(void) {
   // corner, and TAP TO OPEN takes the left. TAP TO OPEN commits the staged
   // seed on a PLAIN TAP, with no hold and no confirm in front of it, so the
   // corner is exactly where it must not be.
-  wt_pill(s_fpscr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, fp_back_cb, NULL);
-  wt_pill_primary(wt_pill(s_fpscr, tr(STR_L_TAP_TO_OPEN), WT_ACT_X, WT_ACTION_Y,
-                          260, fp_tap_cb, NULL));
+  wt_arrow_action(s_fpscr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                  WT_ACTION_Y, 140, true, fp_back_cb, NULL);
+  wt_arrow_action(s_fpscr, tr(STR_L_TAP_TO_OPEN), false, true, WT_ACT_X,
+                  WT_ACTION_Y, 260, false, fp_tap_cb, NULL);
 
   lv_obj_add_flag(s_login, LV_OBJ_FLAG_HIDDEN);
 }
@@ -1961,9 +1971,10 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   lv_obj_move_foreground(scr);
   wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
-  lv_obj_t *go = wt_pill(scr, tr(STR_L_SCAN_GO), WT_ACT_X, WT_ACTION_Y, 300, pp_scan_go_cb, scr);
-  wt_pill_primary(go);
-  wt_pill(scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, pp_scan_back_cb, scr);
+  wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
+                  300, false, pp_scan_go_cb, scr);
+  wt_arrow_action(scr, tr(STR_C_BACK), true, false, WT_BACK_X, WT_ACTION_Y,
+                  140, true, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {
@@ -2125,23 +2136,19 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
   }
 
   // Both ways forward, in the row's usual arrangement: the plainer choice
-  // leftmost, the one the product steers toward primary on the right. 330 wide
-  // each, the two pill geometry the dice refusal screen already proves in 21
-  // locales -- and this row needs it, because KEINE PASSPHRASE and БЕЗ КОДОВОЙ
-  // ФРАЗЫ are both a good deal longer than the English.
-  lv_obj_t *p[2];
-  p[0] = wt_pill(scr, tr(STR_L_NO_PASSPHRASE), 48, WT_ACTION_Y, 330,
-                 pp_intro_nopass_cb, NULL);
+  // leftmost, the one the product steers toward primary in the corner. The
+  // arrow actions size to their words, so KEINE PASSPHRASE and БЕЗ КОДОВОЙ
+  // ФРАЗЫ cost nothing but width they actually use.
+  wt_arrow_action(scr, tr(STR_L_NO_PASSPHRASE), false, false, 48, WT_ACTION_Y,
+                  330, false, pp_intro_nopass_cb, NULL);
   // CREATE PASSPHRASE is an instruction to invent one, which is wrong for words
   // being restored: theirs already exists and inventing a second opens a
   // different wallet. PASSPHRASE / NO PASSPHRASE is the parallel pair, and both
   // halves already ship.
-  p[1] = wt_pill(scr, tr(s_restore_mode ? STR_L_PASSPHRASE_CAP
-                                        : STR_L_CREATE_PASS_BTN),
-                 422, WT_ACTION_Y, 330,
-                 pp_intro_go_cb, NULL);
-  wt_pill_row(p, 2);
-  wt_pill_primary(p[1]);
+  wt_arrow_action(scr, tr(s_restore_mode ? STR_L_PASSPHRASE_CAP
+                                         : STR_L_CREATE_PASS_BTN),
+                  false, true, 422, WT_ACTION_Y, 330, true,
+                  pp_intro_go_cb, NULL);
 }
 
 // A label whose text swaps at runtime (SHOW <-> HIDE) has to be sized for BOTH
