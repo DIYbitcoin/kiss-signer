@@ -3376,7 +3376,9 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         lv_spangroup_refresh(r->val);
     } else {
         lv_obj_set_style_text_color(r->val,
-                                    mode == DEF_GHOST ? WT_DIM : WT_INK, 0);
+                                    mode == DEF_GHOST
+                                        ? WT_DIM
+                                        : col_or(r->def.val_col, WT_INK), 0);
     }
     lv_obj_set_style_text_color(r->cap, mode == DEF_GHOST ? WT_DIM : WT_MUT,
                                 0);
@@ -3537,7 +3539,8 @@ void wt_def_list_open(lv_obj_t *list, int idx)
     if (d->on_change) d->on_change(idx, d->ud);
 }
 
-lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
+static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
+                                bool still)
 {
     if (n > WT_DEF_MAX) n = WT_DEF_MAX;
 
@@ -3634,8 +3637,8 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
                              LV_TEXT_FLAG_NONE);
         }
 
-        r->arrow = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font23(),
-                          wt_accent());
+        r->arrow = wt_lbl(row, defs[k].mark ? defs[k].mark : LV_SYMBOL_RIGHT,
+                          0, 0, wt_font23(), wt_accent());
         lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
         lv_obj_update_layout(r->arrow);
         lv_obj_set_style_transform_pivot_x(
@@ -3650,7 +3653,8 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
                        - (r->val_x + vs.x + 16);
             if (lane > 40) {
                 const lv_font_t *sf = chrome23(defs[k].sub);
-                r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, WT_DIM);
+                r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf,
+                                col_or(defs[k].sub_col, WT_DIM));
                 lv_obj_set_width(r->sub, lane);
                 lv_obj_set_height(r->sub, lv_font_get_line_height(sf));
                 lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
@@ -3710,24 +3714,38 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
         def_apply(d, k, DEF_CLOSED);
 
         // The entry: rise and fade on the row's beat, the rule drawing in
-        // behind it -- KEYS/RECEIVE's own welcome, motions 1 to 3.
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, row);
-        lv_anim_set_duration(&a, 260);
-        lv_anim_set_delay(&a, 42 * k);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_set_values(&a, 9, 0);
-        lv_anim_set_exec_cb(&a, an_ty);
-        lv_anim_start(&a);
-        lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
-        lv_anim_set_values(&a, 0, 255);
-        lv_anim_set_path_cb(&a, lv_anim_path_linear);
-        lv_anim_set_exec_cb(&a, an_opa);
-        lv_anim_start(&a);
-        if (r->rule) wt_line_rule_draw(r->rule, 42 * k + 110, 320);
+        // behind it -- KEYS/RECEIVE's own welcome, motions 1 to 3. A settled
+        // build skips all of it; the rule is born full width, so skipping
+        // the draw-in IS the settled state.
+        if (!still) {
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, row);
+            lv_anim_set_duration(&a, 260);
+            lv_anim_set_delay(&a, 42 * k);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_set_values(&a, 9, 0);
+            lv_anim_set_exec_cb(&a, an_ty);
+            lv_anim_start(&a);
+            lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
+            lv_anim_set_values(&a, 0, 255);
+            lv_anim_set_path_cb(&a, lv_anim_path_linear);
+            lv_anim_set_exec_cb(&a, an_opa);
+            lv_anim_start(&a);
+            if (r->rule) wt_line_rule_draw(r->rule, 42 * k + 110, 320);
+        }
     }
     return list;
+}
+
+lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
+{
+    return def_list_build(scr, defs, n, false);
+}
+
+lv_obj_t *wt_def_list_still(lv_obj_t *scr, const wt_def_t *defs, int n)
+{
+    return def_list_build(scr, defs, n, true);
 }
 
 void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)
@@ -3736,6 +3754,30 @@ void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)
     if (!d) return;
     d->on_change = cb;
     d->ud = ud;
+}
+
+lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
+{
+    wt_defs_t *d = lv_obj_get_user_data(list);
+    if (!d || k < 0 || k >= d->n) return NULL;
+    wt_defrow_t *r = &d->r[k];
+    // After the VALUE, not the caption: the caption lane is fixed at 210 and
+    // the captions that earn a "?" already fill it, so a chip there costs the
+    // words it explains. The value is short by contract.
+    lv_point_t vs;
+    lv_text_get_size(&vs, r->def.val, r->vf_closed, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    // The sub's lane starts 16 past the value, so the chip's 30px sits inside
+    // the sub's BOX even when their pixels never touch -- the same by-box
+    // overlap wt_row_wide_help documents. The sub is right aligned, so it
+    // gives the chip room from its left edge and nothing moves.
+    if (r->sub) {
+        int w = lv_obj_get_width(r->sub) - (14 + 30 + 10 - 16);
+        if (w > 40) lv_obj_set_width(r->sub, w);
+    }
+    lv_obj_t *chip = wt_help_chip(r->row, 0, 0, wt_accent(), cb, ud);
+    lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + 14, 0);
+    return chip;
 }
 
 // ---- shape 6: the outcome (see kiss_theme.h) ----
