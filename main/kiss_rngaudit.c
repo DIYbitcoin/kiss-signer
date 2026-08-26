@@ -122,16 +122,15 @@ static void intro_screen(void)
     wt_why_block(s_scr, h2, b2, 408, 204, 344, WT_CONTENT_BOTTOM - 204,
                  f, WT_WARN);
 
-    lv_obj_t *back = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y,
-                             140, exit_cb, NULL);
+    lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
+                                     WT_BACK_X, WT_ACTION_Y, 140, true,
+                                     exit_cb, NULL);
     lv_obj_set_ext_click_area(back, 10);
     // No START without a source. Absent, not greyed: a disabled control is a
     // shape this product does not draw.
-    if (live) {
-        lv_obj_t *go = wt_pill(s_scr, tr(STR_W_RNG_GO), WT_ACT_X, WT_ACTION_Y,
-                               240, go_cb, NULL);
-        wt_pill_primary(go);
-    }
+    if (live)
+        wt_arrow_action(s_scr, tr(STR_W_RNG_GO), false, true, WT_ACT_X,
+                        WT_ACTION_Y, 240, false, go_cb, NULL);
 }
 
 // ---- the run ----
@@ -191,14 +190,10 @@ static void finish(void)
                                            : tr(STR_W_RNG_RETRY), 704, 34);
 
     if (s_exit) lv_obj_delete(s_exit);
-    lv_obj_t *row[2];
-    row[0] = wt_pill(s_scr, tr(STR_C_DONE), WT_BACK_X, WT_ACTION_Y, 140,
-                     exit_cb, NULL);
-    row[1] = wt_pill(s_scr, tr(STR_W_RNG_AGAIN), WT_ACT_X, WT_ACTION_Y, 240,
-                     go_cb, NULL);
-    wt_pill_primary(row[1]);
-    wt_pill_row(row, 2);
-    s_exit = row[0];
+    s_exit = wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_BACK_X,
+                             WT_ACTION_Y, 140, true, exit_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_RNG_AGAIN), false, true, WT_ACT_X,
+                    WT_ACTION_Y, 240, false, go_cb, NULL);
 }
 
 static void tick_cb(lv_timer_t *t)
@@ -256,8 +251,8 @@ static void run_screen(void)
 
     s_cnt = wt_lbl(s_scr, "0 / 5000", HIST_X, 316, wt_font_mono28(), MUT_COL);
 
-    s_exit = wt_pill(s_scr, tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140,
-                     run_back_cb, NULL);
+    s_exit = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                             WT_ACTION_Y, 140, true, run_back_cb, NULL);
     lv_obj_set_ext_click_area(s_exit, 10);
 
     kiss_rngq_reset(&s_q, 100);

@@ -310,17 +310,18 @@ static void write_screen(bool again)
     // DONE, because a written word has no other end. One mark ends when the
     // finger lifts; a word of several letters does not, and guessing at it with
     // a timer would either cut people off mid-word or make them wait.
-    // CANCEL leftmost with every other way out on the device, DONE in the
-    // corner because it is what this screen is for. BACK TO KISS is optional,
-    // so DONE right aligns to 752 either way rather than sliding when the third
-    // pill is absent: a control that moves under the finger between visits is
-    // the thing this whole pass is removing.
+    // CANCEL takes the corner with every other way out, DONE the action slot
+    // at 48. BACK TO KISS is optional and keeps its own middle slot, so
+    // nothing slides when it is absent: a control that moves under the finger
+    // between visits is the thing this whole pass is removing.
     const bool back_to_cover = (!again && gw_stored_any());
-    wt_pill(s_scr, tr(STR_C_CANCEL), WT_BACK_X, WT_ACTION_Y, 140, cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
+                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
     if (back_to_cover)
-        wt_pill(s_scr, tr(STR_GD_WORD_BACK_T), 330, WT_ACTION_Y, 260,
-                back_to_cover_cb, NULL);
-    wt_pill(s_scr, tr(STR_GD_WORD_DONE), WT_ACT_X, WT_ACTION_Y, 260, done_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_WORD_BACK_T), true, false, 330,
+                        WT_ACTION_Y, 260, false, back_to_cover_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_GD_WORD_DONE), false, true, WT_ACT_X,
+                    WT_ACTION_Y, 260, false, done_cb, NULL);
     draw_reset();
 }
 
@@ -390,7 +391,8 @@ static void confirm_screen(void)
         wt_why_block(s_scr, tr(STR_GD_WORD_C_W2_H), b2, 408, BY, BW, BH, f,
                      WT_WARN);
     }
-    wt_pill(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_EXIT_X,
+                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
     // The slide bar, in the danger colours: replacing the unlock word is
     // the confirm this screen exists for.
     wt_slide_rule_c(s_scr, tr(STR_GD_WORD_HOLD), tr(STR_G_FW_KEEP_HOLDING),
@@ -416,7 +418,8 @@ static void fail_screen(void)
     s_scr = wt_screen(s_parent, tr(STR_C_TRY_AGAIN), NULL);
     wt_chrome_head(s_scr);
     wt_why_body(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150, WT_WARN, true);
-    wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+                    true, cancel_cb, NULL);
 }
 
 // The two ways in, redrawn with the owner's own letters where KISS used to be.
@@ -467,7 +470,8 @@ static void done_screen(void)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
         wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
-        wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+                    true, cancel_cb, NULL);
         return;
     }
 
@@ -505,7 +509,8 @@ static void done_screen(void)
 
     wt_wraph(s_scr, tr(STR_GD_WORD_OK_B), 48, 228, 704, WT_CONTENT_BOTTOM - 228);
     // The corner, not centred at 300: one pill, and it is the way out.
-    wt_pill(s_scr, tr(STR_C_OK), 552, WT_ACTION_Y, 200, cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+                    true, cancel_cb, NULL);
 }
 
 static void stage_build(int stage)

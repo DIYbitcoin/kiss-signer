@@ -320,30 +320,16 @@ static void stage_build(int stage)
         wt_chrome_head(s_scr);
         diagram_two_ways();
         wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
-        // The only TALL action row in this flow, and the only one that needs to
-        // be. It carries THREE pills, and "SET UP A SPARE" is 232 to 317px at
-        // font23 in twelve locales against a 212px budget, so on a 52px row
-        // wt_pill_fit ran out of rungs and drew the screen's primary action in
-        // the smallest type on it. At 66 the same label takes a SECOND LINE at
-        // 23 instead -- which is exactly what WT_ACTION_Y_TALL is for, and the
-        // reason it already exists is the same one: HOLD TO SIGN.
+        // Three controls on the standard row. The TALL row and the group fit
+        // existed for pill boxes whose labels had to wrap inside fixed widths;
+        // the arrow actions are content-sized single lines at chrome23, so
+        // the row is the 52px one every other screen uses.
         //
-        // Widening was not available. At the widths font23 needs on one line
-        // (345 + 260 + 190, plus gaps) the row wants 819px of the 702 between
-        // 48 and 750. Wrapping buys the height instead of the width.
-        //
-        // The three x positions are also a fix. SET UP A SPARE ran to 288 and
-        // TURN THIS OFF started at 280, so the two overlapped by 8px whenever a
-        // configured wallet arrived here from Settings -- the one path no walk
-        // stop visits, which is why it survived. 48..288, 300..520, 560..750.
-        lv_obj_t *row[3];
-        int nrow = 0;
         // "SET UP A SPARE", not OK: on a screen explaining a decoy wallet, an
         // OK button tells the owner nothing about which of the two things is
         // about to happen. This one commits to the second wallet with words.
-        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SET_UP_SPARE), 48,
-                               WT_ACTION_Y_TALL, 240, WT_ACTION_H_TALL,
-                               next_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SET_UP_SPARE), false, true, 48,
+                        WT_ACTION_Y, 240, false, next_cb, NULL);
         // The way back to plain behaviour, and it is the ESCAPE HATCH the
         // enforced stroke rests on: forgetting your stroke costs two taps
         // inside the spare, never your keys.
@@ -353,17 +339,12 @@ static void stage_build(int stage)
         // and now that kiss_duress_route forks on kiss_duress_real() again,
         // that is a coerced owner's confession sitting in an action row. The
         // Settings row above it learned this exact lesson first
-        // (kiss_settings.c, "the row's absence was the confession"); a pill
+        // (kiss_settings.c, "the row's absence was the confession"); a control
         // that clears nothing is the cheapest possible way to say nothing.
-        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_TURN_OFF), 300,
-                               WT_ACTION_Y_TALL, 220, WT_ACTION_H_TALL,
-                               turn_off_cb, NULL);
-        row[nrow++] = wt_pillh(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y_TALL,
-                               190, WT_ACTION_H_TALL, skip_cb, NULL);
-        // One rung for the row. Without this the three fit independently and
-        // the screen can draw a 23 beside a 14, which reads as one button
-        // mattering more than the one that leaves.
-        wt_pill_row(row, nrow);
+        wt_arrow_action(s_scr, tr(STR_GD_TURN_OFF), false, false, 330,
+                        WT_ACTION_Y, 220, false, turn_off_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
     }
     case ST_FUND: {
@@ -389,16 +370,10 @@ static void stage_build(int stage)
         // SPARE for both, which put the word SPARE on the door to the real
         // wallet's only setting, and readers concluded the stroke belonged to
         // the decoy. The two CTAs name different wallets on purpose.
-        // 420, not the 240 the other CTAs take. This screen's action row holds
-        // only this pill and NOT NOW at 610, so there is nothing to crowd, and
-        // 240 was not enough: "NOW THE REAL ONE" needs 261px at font23 and cs,
-        // pl and ru need up to 289, so every one of them dropped to font14 --
-        // the rung wt_pill_fit reaches only after tracking and a second line
-        // have both failed. A routing button rendered in the smallest type on
-        // the screen is the one that gets skimmed, which is how the stroke ends
-        // up on the wrong wallet.
-        wt_pill(s_scr, tr(STR_GD_SET_UP_REAL), 48, WT_ACTION_Y, 420, next_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_SKIP), 560, WT_ACTION_Y, 190, skip_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SET_UP_REAL), false, true, 48,
+                        WT_ACTION_Y, 420, false, next_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
     }
     // The model, confirmed once, before anything is configured. Every string
@@ -426,12 +401,14 @@ static void stage_build(int stage)
         wt_why_block(s_scr, tr(STR_D_SPARE), b1,  48, BY, BW, BH, f, WT_WARN);
         wt_why_block(s_scr, tr(STR_D_REAL),  b2, 408, BY, BW, BH, f, wt_accent());
 
-        lv_obj_t *p[2];
-        p[0] = wt_pill(s_scr, tr(STR_GD_SKIP), 48, WT_ACTION_Y, 190,
-                       skip_cb, NULL);
-        p[1] = wt_pill(s_scr, tr(STR_C_I_UNDERSTAND), 402, WT_ACTION_Y, 350,
-                       next_cb, NULL);
-        wt_pill_row(p, 2);
+        // The same resolve the sign flow's cautions wear: a tick and the
+        // words, nothing drawn around them. SKIP leaves, so it points back.
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, 48, WT_ACTION_Y,
+                        190, false, skip_cb, NULL);
+        lv_obj_t *ack = wt_word_action(s_scr, LV_SYMBOL_OK,
+                                       tr(STR_C_I_UNDERSTAND), true,
+                                       wt_accent(), true, next_cb, NULL);
+        lv_obj_align(ack, LV_ALIGN_TOP_RIGHT, -48, WT_ACTION_Y + 6);
         break;
     }
     // Six shapes, two rows of three, at the geometry the deleted screen used.
@@ -442,19 +419,23 @@ static void stage_build(int stage)
         s_scr = wt_screen(s_parent, tr(STR_GD_PICK_REAL_T),
                           tr(STR_GD_PICK_REAL_S));
         wt_chrome_head(s_scr);
+        // Each choice is a destination, so it wears the chevron the settings
+        // rows already taught: word and arrow, nothing drawn around them.
         for (int g = WDG_UNDERLINE, i = 0; g < WDG_N; g++, i++) {
             const int key = kiss_duress_label_key(g);
             if (key < 0) continue;
-            wt_pill(s_scr, tr((uint16_t)key), 48 + (i % 3) * 240,
-                    128 + (i / 3) * 72, 224, pick_cb, (void *)(intptr_t)g);
+            lv_obj_t *c = wt_word_action(s_scr, WT_ICON_ARR_R,
+                                         tr((uint16_t)key), false, WT_INK,
+                                         false, pick_cb, (void *)(intptr_t)g);
+            lv_obj_set_pos(c, 48 + (i % 3) * 240, 134 + (i / 3) * 72);
         }
         // No body here, and no new key for one. What forgetting costs is said
         // where it is actually earned -- on the rehearsal, by GD_DRAW_AGAIN_S,
         // which is the sentence "so a slip now does not lock you out later" and
         // already ships. A paragraph on this screen would be a third telling of
         // a rule the subtitle and the next screen both make.
-        wt_pill(s_scr, tr(STR_GD_SKIP), WT_EXIT_X, WT_ACTION_Y, 190,
-                skip_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
     }
     case ST_DRAW: {
@@ -505,8 +486,8 @@ static void stage_build(int stage)
         s_rhint = wt_lbl(s_scr, "", 48, 286, wt_font23(), WT_MUT);
         lv_obj_set_width(s_rhint, 704);
         rehearse_reset();
-        wt_pill(s_scr, tr(STR_GD_SKIP), WT_EXIT_X, WT_ACTION_Y, 190,
-                skip_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
     }
     case ST_NOPASS: {
@@ -533,10 +514,12 @@ static void stage_build(int stage)
         // prober that one is -- and the row that opens this screen was
         // un-hidden for precisely that reason. A layout that changes shape is
         // the same confession as a pill that comes and goes.
-        wt_pill(s_scr, tr(STR_L_CREATE_PASS_BTN), 48, WT_ACTION_Y, 340,
-                add_pass_cb, NULL);
-        wt_pill(s_scr, tr(STR_GD_TURN_OFF), 396, WT_ACTION_Y, 208, turn_off_cb, NULL);
-        wt_pill(s_scr, tr(STR_C_OK), WT_BACK_X, WT_ACTION_Y, 140, skip_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_L_CREATE_PASS_BTN), false, true, 48,
+                        WT_ACTION_Y, 340, false, add_pass_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_TURN_OFF), false, false, 396,
+                        WT_ACTION_Y, 208, false, turn_off_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_OK), true, false, WT_BACK_X,
+                        WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
     }
     default: {
@@ -554,13 +537,10 @@ static void stage_build(int stage)
         // letters in the diagram they are looking at can be replaced. Reported
         // from the bench as the drawing being missing; it was reachable, and
         // never offered anywhere the decision was being made.
-        lv_obj_t *row[2];
-        row[0] = wt_pill(s_scr, tr(STR_GD_WORD_PILL), 48, WT_ACTION_Y, 380,
-                         word_cb, NULL);
-        // 552..752: 200 wide, so it cannot use WT_BACK_X and still sit flush.
-        row[1] = wt_pill(s_scr, tr(STR_C_DONE), 552, WT_ACTION_Y, 200,
-                         save_cb, NULL);
-        wt_pill_row(row, 2);
+        wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, 48,
+                        WT_ACTION_Y, 380, false, word_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 552, WT_ACTION_Y,
+                        200, true, save_cb, NULL);
         break;
     }
     }
