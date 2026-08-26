@@ -1860,7 +1860,7 @@ static void type_restore_prefix(const char *prefix)
 static void restore_word(const char *prefix)
 {
   type_restore_prefix(prefix);
-  touch(163, 182); pump(3); release(); pump(3);    // first suggestion
+  touch(55, 182); pump(3); release(); pump(3);    // first suggestion (a bare word at 48,162 now)
 }
 
 // The wallet's passphrase, nine of one letter. pass_bits() wants 40 to get past
@@ -4089,7 +4089,7 @@ int main(void) {
   for (int i = 0; i < 12; i++) {                    // all 'abandon' -> word 12 wrong
     touch(44, 314); pump(3); release(); pump(3);    // a
     touch(450, 374); pump(3); release(); pump(3);   // b -> "ab"
-    touch(163, 182); pump(3); release(); pump(3);   // accept "abandon"
+    touch(55, 182); pump(3); release(); pump(3);   // accept "abandon"
   }
   pump(4);
   save("/tmp/sim_verify_mismatch.ppm");             // "word #12 does not match"
@@ -4097,12 +4097,12 @@ int main(void) {
   for (int i = 0; i < 11; i++) {                    // 11x abandon
     touch(44, 314); pump(3); release(); pump(3);
     touch(450, 374); pump(3); release(); pump(3);
-    touch(163, 182); pump(3); release(); pump(3);
+    touch(55, 182); pump(3); release(); pump(3);
   }
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
-  touch(163, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
+  touch(55, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
   save("/tmp/sim_verify_ok.ppm");
   // The same screen with NO fingerprint to show -- the twin of the guard that
   // let 00000000 onto the warning screen, and the branch this one has always
@@ -4119,12 +4119,12 @@ int main(void) {
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
     touch(44, 314); pump(3); release(); pump(3);
     touch(450, 374); pump(3); release(); pump(3);
-    touch(163, 182); pump(3); release(); pump(3);
+    touch(55, 182); pump(3); release(); pump(3);
   }
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o
-  touch(163, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
+  touch(55, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
   save("/tmp/sim_verify_ok_nofp.ppm");              // tall body, no code below
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   // The backup group with NO FINGERPRINT, which is what kiss_ui_forget_fp
@@ -4485,7 +4485,7 @@ int main(void) {
   save("/tmp/sim_setup_restore.ppm");
   type_restore_prefix(SIM_12_PREFIXES[0]);
   save("/tmp/sim_setup_sug.ppm");                   // suggestions visible
-  touch(163, 182); pump(3); release(); pump(3);     // accept "gravity" -> word 2
+  touch(55, 182); pump(3); release(); pump(3);     // accept "gravity" -> word 2
   for (size_t i = 1; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
     restore_word(SIM_12_PREFIXES[i]);
   pump(30);                                         // words -> passphrase intro
@@ -4797,9 +4797,11 @@ int main(void) {
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
   tap_str(STR_W_WROTE, 3, 4);     // I WROTE THEM DOWN
   save("/tmp/sim_setup_quiz.ppm");
-  touch(218, 226); pump(3); release(); pump(4);     // round 1: pill 0 correct
-  touch(598, 226); pump(3); release(); pump(4);     // round 2: pill 1
-  touch(218, 306); pump(3); release(); pump(6);     // round 3: pill 2 -> stored
+  // The choices are bare words now, left aligned at 48/428 on the same two
+  // row grid, so the taps aim at the words' heads rather than box centres.
+  touch(60, 234); pump(3); release(); pump(4);      // round 1: choice 0 correct
+  touch(435, 234); pump(3); release(); pump(4);     // round 2: choice 1
+  touch(60, 314); pump(3); release(); pump(6);      // round 3: choice 2 -> stored
   save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER, now a two pill row
   // The NO PASSPHRASE branch, taken as an excursion rather than a commit: it
   // renders the fingerprint screen wearing its no-passphrase notes, which no
@@ -4807,7 +4809,6 @@ int main(void) {
   // heading for anyway. That BACK is the claim being tested -- the pill hands
   // the owner a wallet with no passphrase, and one tap has to be enough to
   // change their mind before anything is committed.
-  // Pills are 330 wide from 48 and 422, so centres are 213 and 587.
   tap_str(STR_L_NO_PASSPHRASE, 3, 8);     // NO PASSPHRASE -> fingerprint
   save("/tmp/sim_setup_fp_nopass.ppm");             // no passphrase: your words alone open it
   tap_str(STR_C_BACK, 3, 6);     // BACK (48..188) -> the keyboard
