@@ -107,12 +107,15 @@ void kiss_settings_sim_set_load_result(kiss_settings_load_status_t status,
 
 // example address prefix per type, following the current network so it never
 // lies (bc1 on mainnet, tb1 on testnet).
+// One ellipsis GLYPH, not three dots: two glyphs of mono28 the value does
+// not spend are two the type sub keeps, and "Native SegWit · BIP84" fits
+// its lane by exactly that margin. KEYS' folded address uses the same glyph.
 static const char *type_prefix(int sc, int tn)
 {
     switch (sc) {
-    case WSCRIPT_LEGACY: return tn ? "m/n..." : "1...";
-    case WSCRIPT_NESTED: return tn ? "2..."   : "3...";
-    default:             return tn ? "tb1..." : "bc1...";
+    case WSCRIPT_LEGACY: return tn ? "m/n\xE2\x80\xA6" : "1\xE2\x80\xA6";
+    case WSCRIPT_NESTED: return tn ? "2\xE2\x80\xA6"   : "3\xE2\x80\xA6";
+    default:             return tn ? "tb1\xE2\x80\xA6" : "bc1\xE2\x80\xA6";
     }
 }
 
@@ -1605,7 +1608,10 @@ static void tab_signer(void)
     // in every font this device ships.
     static const char *const BIPNO[3] = { "84", "49", "44" };   // by WSCRIPT_*
     char tsub[64];
-    snprintf(tsub, sizeof tsub, "%s \xC2\xB7 BIP%s", type_name(sc),
+    // No spaces around the middle dot: the mono face gives the dot a full
+    // cell either way, and the two cells the spaces spent are exactly what
+    // "Native SegWit" needs to keep its BIP number out of the ellipsis.
+    snprintf(tsub, sizeof tsub, "%s\xC2\xB7" "BIP%s", type_name(sc),
              BIPNO[sc >= 0 && sc < 3 ? sc : 0]);
 
     char unit[16];
@@ -1671,9 +1677,12 @@ static void tab_security(void)
           .lamp = true, .lamp_col = set ? WT_OK : WT_WARN, .lamp_pulse = !set,
           .go = duress_cb },
         amnesic
+            // "nothing saved" is the OFF state's own sub, reused: it is as
+            // true of AMNESIC as of OFF, and "storage is AMNESIC" was wider
+            // than the lane UNAVAILABLE leaves. The definition says the rest.
             ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
                   .val = tr(STR_I_PERSIST_DEAD_VAL),
-                  .sub = tr(STR_I_PERSIST_DEAD_SUB),
+                  .sub = tr(STR_I_POP_NOTHING),
                   .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
             // The sub follows the STATE rather than naming the feature: ON
             // says what is kept, OFF says that nothing is. It is the only

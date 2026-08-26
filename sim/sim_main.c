@@ -3664,7 +3664,9 @@ int main(void) {
   // why all five get a frame here before anything else is tapped. This is the
   // same blind spot check_screen_coverage.py exists for, one level down: not a
   // screen nobody opens, but a THIRD of a screen nobody opens.
-  touch(670, 240); pump(3); release(); pump(6);     // Settings tile
+  // 50, not 6: the def list runs the KEYS entry stagger on a fresh open, and
+  // six frames photographs rows part faded and a sub mid travel.
+  touch(670, 240); pump(3); release(); pump(50);    // Settings tile
   save("/tmp/sim_settings.ppm");                    // SIGNER: network, type, denomination
   // The deck: on a page whose tabs hold no pages, a stroke IS a tab step.
   // Left onto SECURITY and right back, so both directions are exercised on
@@ -4223,13 +4225,13 @@ int main(void) {
   // The "?" after the address type VALUE, and the card behind it: what the
   // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
   // outside dismisses; both ways out get walked. The chip sits 14 past the
-  // whole prefix string (wt_def_row_help) -- "tb1...", dots included, since
-  // this leg of the walk is still on the sim's testnet default. Aiming at a
-  // bare 3-glyph prefix lands on the value and CYCLES the row instead.
+  // whole prefix string (wt_def_row_help) -- "tb1…", ellipsis included,
+  // since this leg of the walk is still on the sim's testnet default. Aiming
+  // at a bare 3-glyph prefix lands on the value and CYCLES the row instead.
   {
     lv_point_t vs;
-    lv_text_get_size(&vs, "tb1...", wt_chrome28("tb1..."), 0, 0, LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&vs, "tb1\xE2\x80\xA6", wt_chrome28("tb1\xE2\x80\xA6"),
+                     0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     touch(48 + 238 + vs.x + 14 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
