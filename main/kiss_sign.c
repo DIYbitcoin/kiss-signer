@@ -1758,40 +1758,8 @@ static void sg_rule(int x, int y, int w, int h)
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
 }
 
-// An unboxed word action: mark + word, tappable, and nothing drawn around
-// them -- the same form the band's arrow actions wear, for controls that
-// live inside a row. `lead` puts the mark before the word (a resolve, the
-// tick); after it, it is a direction (REVIEW's way into the rows page).
-static lv_obj_t *sg_word_action(lv_obj_t *par, const char *mark,
-                                const char *txt, bool lead, lv_color_t col,
-                                bool accent, lv_event_cb_t cb, void *ud)
-{
-    lv_obj_t *c = lv_obj_create(par);
-    lv_obj_remove_style_all(c);
-    lv_obj_set_size(c, LV_SIZE_CONTENT, 40);
-    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(c, 10, 0);
-    if (cb) {
-        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(c, 8);
-        lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
-    }
-    for (int pass = 0; pass < 2; pass++) {
-        const bool mark_turn = (pass == 0) == lead;
-        if (!(mark_turn ? mark : txt)) continue;
-        lv_obj_t *l = lv_label_create(c);
-        lv_label_set_text(l, mark_turn ? mark : txt);
-        lv_obj_set_style_text_font(l, mark_turn ? wt_font23()
-                                                : wt_chrome23(txt), 0);
-        if (!mark_turn) lv_obj_set_style_text_letter_space(l, 2, 0);
-        lv_obj_set_style_text_color(l, col, 0);
-        if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
-    }
-    return c;
-}
+// The unboxed word action lives in the kit now: wt_word_action, the same
+// form the band's arrow actions wear, for controls that live inside a row.
 
 // ---- the caution rows, on a page of their own ------------------------------
 // They used to be drawn on the verify screen INSTEAD of the output panels, and
@@ -1840,10 +1808,10 @@ static void cautions_screen(void)
 
         lv_obj_t *ctl;
         if (done)
-            ctl = sg_word_action(row, LV_SYMBOL_OK, NULL, true, OK_COL,
+            ctl = wt_word_action(row, LV_SYMBOL_OK, NULL, true, OK_COL,
                                  false, NULL, NULL);
         else
-            ctl = sg_word_action(row, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
+            ctl = wt_word_action(row, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
                                  true, wt_accent(), true, row_ack_cb,
                                  (void *)(uintptr_t)bits[i]);
         lv_obj_align(ctl, LV_ALIGN_RIGHT_MID, -SG_PAD, 0);
@@ -2186,19 +2154,19 @@ static void verify_screen(lv_obj_t *parent)
 
         lv_obj_t *ctl;
         if (np == 1 && !all_done) {
-            ctl = sg_word_action(bar, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
+            ctl = wt_word_action(bar, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
                                  true, wt_accent(), true, row_ack_cb,
                                  (void *)(uintptr_t)bits[0]);
         } else if (np == 1) {
             // One caution, already acknowledged: the spent tick, in place.
             // REVIEW here opened a page whose only content was this same
             // sentence with this same tick.
-            ctl = sg_word_action(bar, LV_SYMBOL_OK, NULL, true, OK_COL,
+            ctl = wt_word_action(bar, LV_SYMBOL_OK, NULL, true, OK_COL,
                                  false, NULL, NULL);
         } else {
             // A direction, so the arrow trails the word: the rows live on a
             // page of their own.
-            ctl = sg_word_action(bar, LV_SYMBOL_RIGHT, tr(STR_S_C_REVIEW),
+            ctl = wt_word_action(bar, LV_SYMBOL_RIGHT, tr(STR_S_C_REVIEW),
                                  false, wt_accent(), true,
                                  cautions_open_cb, NULL);
         }
@@ -3350,12 +3318,31 @@ static int qr_enc_start(void)
     return 0;
 }
 
+// The toggle's state is the MARK: the tick sits in the layout at all times
+// (opa 0 when off) so the word never shifts under the finger -- a control
+// that moves between visits is the thing the duress screens already banned.
+static void ez_sync(void)
+{
+    if (!s_ez_pill) return;
+    lv_obj_t *mark = lv_obj_get_child(s_ez_pill, 0);
+    lv_obj_t *word = lv_obj_get_child(s_ez_pill, 1);
+    lv_obj_set_style_opa(mark, s_qr_ez ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(word, s_qr_ez ? wt_accent() : INK_COL, 0);
+    if (s_qr_ez) {
+        lv_obj_add_flag(mark, WT_FLAG_ACCENT);
+        lv_obj_add_flag(word, WT_FLAG_ACCENT);
+    } else {
+        lv_obj_remove_flag(mark, WT_FLAG_ACCENT);
+        lv_obj_remove_flag(word, WT_FLAG_ACCENT);
+    }
+}
+
 static void qr_ez_cb(lv_event_t *e)
 {
     (void)e;
     s_qr_ez = !s_qr_ez;
     if (qr_enc_start() != 0) { s_qr_ez = !s_qr_ez; return; }  // old QR keeps playing
-    wt_pill_select(s_ez_pill, s_qr_ez);
+    ez_sync();
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     int n = qrt_encoder_parts(s_qenc);
     if (n > 1)
@@ -3409,13 +3396,16 @@ static void qr_out_screen(size_t sw)
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
     // part counter. The right column is 322 wide and nothing but the EASY SCAN
-    // pill sits between here and DONE, so each of these gets its own line.
+    // control sits between here and DONE, so each of these gets its own line.
     if (n > 1) {
         wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 168, 322, 29);
         s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
     }
     wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
-    s_ez_pill = wt_pill(s_scr, tr(STR_S_EASY_SCAN), 430, 244, 200, qr_ez_cb, NULL);
+    s_ez_pill = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
+                               INK_COL, false, qr_ez_cb, NULL);
+    lv_obj_set_pos(s_ez_pill, 430, 244);
+    ez_sync();
     wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
                     true, close_cb, NULL);

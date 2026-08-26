@@ -2733,6 +2733,38 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     return p;
 }
 
+// ---- the word action (see kiss_theme.h) ----
+lv_obj_t *wt_word_action(lv_obj_t *par, const char *mark, const char *txt,
+                         bool lead, lv_color_t col, bool accent,
+                         lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *c = lv_obj_create(par);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, LV_SIZE_CONTENT, 40);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(c, 10, 0);
+    if (cb) {
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(c, 8);
+        lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
+    }
+    for (int pass = 0; pass < 2; pass++) {
+        const bool mark_turn = (pass == 0) == lead;
+        if (!(mark_turn ? mark : txt)) continue;
+        lv_obj_t *l = lv_label_create(c);
+        lv_label_set_text(l, mark_turn ? mark : txt);
+        lv_obj_set_style_text_font(l, mark_turn ? wt_font23()
+                                                : chrome23(txt), 0);
+        if (!mark_turn) lv_obj_set_style_text_letter_space(l, 2, 0);
+        lv_obj_set_style_text_color(l, col, 0);
+        if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    }
+    return c;
+}
+
 // ---- the SCREEN SYSTEM: chrome, [ ? ], definition rows (see kiss_theme.h) --
 
 static void an_ty(void *v, int32_t y);

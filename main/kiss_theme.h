@@ -962,6 +962,16 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
                           bool primary, int x, int y, int w, bool right,
                           lv_event_cb_t cb, void *ud);
 
+// The word action: mark + word, tappable, and nothing drawn around them --
+// the arrow action's form for controls that live inside a row or a lane
+// rather than on the band. `lead` puts the mark before the word (a resolve:
+// the tick on I UNDERSTAND); after it, it is a direction (REVIEW's way into
+// the rows page). Either string may be NULL for a bare mark or a bare word.
+// Content-sized flex row, 40 tall; the caller positions or aligns it.
+lv_obj_t *wt_word_action(lv_obj_t *par, const char *mark, const char *txt,
+                         bool lead, lv_color_t col, bool accent,
+                         lv_event_cb_t cb, void *ud);
+
 // ---- the SCREEN SYSTEM: chrome contract, [ ? ] tab, definition rows -----
 // design_handoff_system/ Parts 1-3. Five fixed parts of chrome that no
 // content shape may move, and the two idioms every page in that pass shares.
