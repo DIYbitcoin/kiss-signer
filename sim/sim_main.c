@@ -714,11 +714,14 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->reason, sizeof s->reason,
              "many coins spent at once - they are linked forever");
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
-    // Every caution at once: proves the summary + WHY card stack up. FOUR rows
+    // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the row page can ever draw, so this is the fixture that says
-    // whether a full stack still clears WT_CONTENT_BOTTOM. It was five until
-    // unproven amounts became a STOP -- a fifth row cannot coexist with the
-    // other four now, because it ends the screen instead of joining it.
+    // whether a full stack still clears WT_CONTENT_BOTTOM: 88 + 5*56 + 4*4 is
+    // 384 against 398, and the 4px gap exists for exactly this row. It was
+    // four for a while -- unproven amounts became a STOP and took the fifth
+    // row with them, since a STOP ends the screen instead of joining it. The
+    // gap-limit caution is what put the row back, and this comment said FOUR
+    // for a whole commit after the fixture below started setting five.
     s->n_in = WPSBT_MERGE_INS;
     s->n_in_addr = WPSBT_MERGE_INS;      // five coins, five addresses: at the bar
     s->send_sats = 3000; s->fee_sats = 800; s->change_sats = 200;
