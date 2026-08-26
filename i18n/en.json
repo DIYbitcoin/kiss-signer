@@ -541,7 +541,7 @@
   "S_FILES_MORE_FMT": "%d of %d files. remove some to see the rest",
   "S_FILE_UNSIGNED": "UNSIGNED",
   "S_GLOSSARY_T": "SIMPLE EXPLAINERS",
-  "S_GLOSSARY_B": "INPUTS: the bitcoin this transaction spends.\nOUTPUTS: every place it sends bitcoin.\nCHANGE: the part returned to your own address.\nTXID: the tracking ID used after broadcast.\nFEE RATE: fee per unit of transaction size.\nLOCKTIME: the earliest block it may confirm in.\nDERIVATION PATH: the path from seed to addresses.\nDESCRIPTOR: lets a coordinator watch, not spend.",
+  "S_GLOSSARY_B": "INPUTS: the bitcoin this transaction spends.\nOUTPUTS: every place it sends bitcoin.\nCHANGE: the part returned to your own address.\nTXID: the tracking ID used after broadcast.\nFEE RATE: fee per unit of transaction size.\nLOCKTIME: the earliest block it may confirm in.\nDERIVATION PATH: the path from seed words to addresses.\nDESCRIPTOR: lets a coordinator watch, not spend.",
   "R_NOT_FOUND_FMT": "NOT FOUND IN FIRST %u ADDRESSES",
   "R_NOT_FOUND_B": "valid for this network, but outside the first 100 receiving/change addresses searched. this is not definitive.",
   "R_WRONG_NET": "WRONG NETWORK",
