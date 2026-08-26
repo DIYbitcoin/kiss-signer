@@ -1088,6 +1088,16 @@ typedef struct {
     const char *plain;   // the definition: a plain sentence, 2 lines max
     const char *term;    // the real term, shown as "CALLED: <term>" -- never
                          // alone and never first
+    // The right-edge mark. NULL is the chevron; a go row that resolves IN
+    // PLACE (SETTINGS' value cycles) passes LV_SYMBOL_LOOP, keeping the
+    // page promise wt_row_wide wrote down: loop advances here, chevron
+    // leaves. Only a definition row's chevron ever rotates.
+    const char *mark;
+    // The head's colours where a STATE is the value: zero stays WT_INK /
+    // WT_DIM, amber goes here. A ghost still dims both -- a ghost is a
+    // name, not a report.
+    lv_color_t  val_col;
+    lv_color_t  sub_col;
     bool        lamp;    // lead the value with an 8px state lamp
     lv_color_t  lamp_col;
     bool        lamp_pulse;
@@ -1107,6 +1117,13 @@ typedef struct {
 // KEYS/RECEIVE stagger (rise, fade, rule draws itself in). Returns the list
 // handle; rows open and close themselves on tap.
 lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n);
+// The same list, built SETTLED: no rise, no fade, rules already drawn. For a
+// rebuild the finger caused (a value cycle re-paints the pane it is on) --
+// replaying the welcome on every tap turns a control into a slideshow.
+lv_obj_t *wt_def_list_still(lv_obj_t *scr, const wt_def_t *defs, int n);
+// A "?" chip after row k's value, on the round-mark idiom wt_row_wide_help
+// uses, for the one cycle whose three names need a card (ADDRESS TYPE).
+lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud);
 // Open row `idx` (-1 closes everything), animating every row's height in the
 // same tick -- the walk uses it to photograph settled open states.
 void wt_def_list_open(lv_obj_t *list, int idx);
