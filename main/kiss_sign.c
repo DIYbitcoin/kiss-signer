@@ -125,9 +125,11 @@ static int s_coins_chip_x = 24;   // measured off the caption; see verify_screen
 // so a caption too long would have come back from an abandoned hold cut mid
 // codepoint. The desktop build never said a word.
 static char s_graph_cap_rest[160];
-// The sweep under HOLD TO SIGN's label, filled left to right on the same
+// The trail behind SLIDE TO SIGN's thumb, filled left to right on the same
 // fraction as the ring.
 static lv_obj_t *s_sweep;
+// The thumb itself: the accent knob the finger drags along the track.
+static lv_obj_t *s_thumb;
 // DETAILS and BACK, NULL terminated, so the signing state can stand them down
 // without knowing what else is on the row.
 static lv_obj_t *s_inert[3];
@@ -259,7 +261,7 @@ static void widgets_drop(void)
     hold_stop();
     s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
@@ -570,7 +572,11 @@ static const char *stop_body(const char *r)
 #define SG_BACK_X140 636   // 636..776, the standard 140px exit
 #define SG_DETAILS_X 366   // 366..516
 #define SG_HOLD_X     48   // 48..358, off the corner: it signs the transaction
-#define SG_HOLD_W    310   // named because the sweep across it is measured in it
+#define SG_HOLD_W    310   // the track; the knob's travel is measured in it
+// The knob, and the travel that arms the slide: a little square starting at
+// the track's left end, so full travel is the track minus the knob.
+#define SG_THUMB      20
+#define SG_TRAVEL    (SG_HOLD_W - SG_THUMB)
 
 
 // The ? explainer: what the SIGNATURE code is for. Same pattern as the entropy
@@ -602,7 +608,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big: the signed screens no
@@ -654,7 +660,8 @@ static void sig_fp_help_cb(lv_event_t *e)
     // locales. Started below the rows, so the body takes whatever rung fits
     // the room the diagram left it.
     wt_why_body(s_scr, tr(STR_S_SIG_FP_HELP_B), 216, wt_accent(), true);
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, sig_help_back_cb);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, sig_help_back_cb, NULL);
 }
 
 
@@ -755,7 +762,7 @@ static void done_screen(const char *outname)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
     // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
     // of the screen and does not fit one line at a readable size. Nothing is
@@ -843,7 +850,7 @@ static void fail_screen(const char *why)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     mk_chrome(parent, tr(STR_S_FAIL_T));
     char trail[96];
     snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
@@ -1047,6 +1054,8 @@ static void sign_lock_outputs(void)
     }
 }
 
+static void thumb_x_exec(void *v, int32_t x) { lv_obj_set_x(v, x); }
+
 // Let go early and all of it retracts. This is the only place the flow says out
 // loud that a hold can be abandoned, so it puts back everything the press
 // moved rather than merely stopping the motion.
@@ -1060,6 +1069,20 @@ static void hold_abandon(void)
 {
     hold_stop();
     if (s_sweep) lv_obj_set_width(s_sweep, 0);
+    // The thumb RUNS back rather than teleporting: the same 200ms ease-out
+    // every slide bar's fill retracts with, because a knob that jumps home
+    // says the control broke rather than that the slide was abandoned.
+    if (s_thumb) {
+        lv_anim_delete(s_thumb, thumb_x_exec);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, s_thumb);
+        lv_anim_set_values(&a, lv_obj_get_x(s_thumb), 0);
+        lv_anim_set_duration(&a, 200);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&a, thumb_x_exec);
+        lv_anim_start(&a);
+    }
     if (s_graph) {
         wt_bundle_hold(s_graph, 0);
         wt_bundle_state(s_graph, WT_BUNDLE_LIVE);
@@ -1094,13 +1117,16 @@ static int s_slide_at;
 static void slide_drive(int px)
 {
     if (px < 0) px = 0;
-    if (px > SG_HOLD_W) px = SG_HOLD_W;
+    if (px > SG_TRAVEL) px = SG_TRAVEL;
     s_slide_at = px;
-    // The graph and the sweep run on the same fraction, because there is
-    // only one thing being measured: how far this finger has travelled.
-    // Two readings of one number, not two numbers.
-    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(px * 255 / SG_HOLD_W));
-    if (s_sweep) lv_obj_set_width(s_sweep, px);
+    // The graph, the knob and the trail run on the same fraction, because
+    // there is only one thing being measured: how far this finger has
+    // travelled. Three readings of one number, not three numbers.
+    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(px * 255 / SG_TRAVEL));
+    if (s_thumb) lv_obj_set_x(s_thumb, px);
+    // The trail ends under the knob's middle, not at its leading edge: a bar
+    // ending short of the knob would read as the knob outrunning its fill.
+    if (s_sweep) lv_obj_set_width(s_sweep, px + SG_THUMB / 2);
 }
 
 static void slide_complete(void)
@@ -1130,7 +1156,14 @@ static void slide_complete(void)
         lv_anim_set_completed_cb(&a, sweep_settle_done);
         lv_anim_start(&a);
     }
-    if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
+    if (s_sign_lbl) {
+        lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
+        // The arrow promised travel and the travel is spent: SIGNING is a
+        // state, not a direction, so the word stands alone.
+        lv_obj_t *par = lv_obj_get_parent(s_sign_lbl);
+        lv_obj_t *arr = par ? lv_obj_get_child(par, 1) : NULL;
+        if (arr) lv_obj_add_flag(arr, LV_OBJ_FLAG_HIDDEN);
+    }
     // Now the caption may say it. The strands are landed, the button is
     // spent, and the next thing that happens on this thread is the call.
     // The accent they are wearing is the commitment; the amounts beside
@@ -1152,9 +1185,15 @@ static void slide_complete(void)
     // blocks, both are answered normally, and standing them down for 1.2s
     // to bring them back would be two controls flickering about nothing.
     for (int i = 0; s_inert[i]; i++) {
-        lv_obj_set_style_border_color(s_inert[i], WT_EDGE, 0);
-        lv_obj_set_style_text_color(lv_obj_get_child(s_inert[i], 0),
-                                    WT_DIM, 0);
+        // Arrow actions now: dim every label (the word AND its arrow) and
+        // drop the arrow's accent flag so a theme repaint cannot relight a
+        // control that stopped answering.
+        const uint32_t nc = lv_obj_get_child_count(s_inert[i]);
+        for (uint32_t j = 0; j < nc; j++) {
+            lv_obj_t *c = lv_obj_get_child(s_inert[i], j);
+            lv_obj_set_style_text_color(c, WT_DIM, 0);
+            lv_obj_remove_flag(c, WT_FLAG_ACCENT);
+        }
         lv_obj_remove_flag(s_inert[i], LV_OBJ_FLAG_CLICKABLE);
     }
     lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
@@ -1172,6 +1211,9 @@ static void sign_press_cb(lv_event_t *e)
         if (in) lv_indev_get_point(in, &pt);
         s_slide_x0 = pt.x;
         s_slide_on = true;
+        // A press mid-runback owns the thumb again; the retreat animation
+        // must not keep writing x underneath the new drag.
+        if (s_thumb) lv_anim_delete(s_thumb, thumb_x_exec);
         sign_lock_outputs();
     } else if (c == LV_EVENT_PRESSING) {
         if (!s_slide_on) return;
@@ -1187,7 +1229,7 @@ static void sign_press_cb(lv_event_t *e)
         // holds the loop, and retracting the graph there would erase a signed
         // transaction's reveal.
         if (c == LV_EVENT_RELEASED && s_slide_on &&
-            s_slide_at >= SG_HOLD_W - 10) {
+            s_slide_at >= SG_TRAVEL - 10) {
             slide_complete();
         } else if (s_slide_on) {
             hold_abandon();
@@ -1487,7 +1529,7 @@ static void repaint_verify(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     verify_screen(s_parent);
 }
 
@@ -1657,7 +1699,7 @@ static void repaint_cautions(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     cautions_screen();
 }
 
@@ -1679,7 +1721,7 @@ static void cautions_open_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     s_on_cautions = true;
     cautions_screen();
 }
@@ -1691,22 +1733,10 @@ static void cautions_back_cb(lv_event_t *e)
     repaint_verify();
 }
 
-// A raised block: WT_PANEL on a 1px border, radius 12. Used for both output
-// panels and every caution row, so they read as the same kind of object.
-static lv_obj_t *sg_panel(int x, int y, int w, int h, lv_color_t border)
-{
-    lv_obj_t *p = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(p);
-    lv_obj_set_pos(p, x, y);
-    lv_obj_set_size(p, w, h);
-    lv_obj_set_style_bg_color(p, WT_PANEL, 0);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(p, border, 0);
-    lv_obj_set_style_border_width(p, 1, 0);
-    lv_obj_set_style_radius(p, 12, 0);
-    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
-    return p;
-}
+// sg_panel is gone: the bordered blocks it drew -- caution rows, the caution
+// bar, the header badge, the STOP verdict -- all read as boxes on a page the
+// bench asked cleared of them. Rows are ruled now, controls are words with
+// marks, and the verdict wears the left rule every claim block wears.
 
 static lv_obj_t *sg_lbl(lv_obj_t *par, const char *txt, int x, int y,
                         const lv_font_t *f, lv_color_t col)
@@ -1730,6 +1760,41 @@ static void sg_rule(int x, int y, int w, int h)
     lv_obj_set_size(r, w, h);
     lv_obj_set_style_bg_color(r, WT_DIV, 0);
     lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
+}
+
+// An unboxed word action: mark + word, tappable, and nothing drawn around
+// them -- the same form the band's arrow actions wear, for controls that
+// live inside a row. `lead` puts the mark before the word (a resolve, the
+// tick); after it, it is a direction (REVIEW's way into the rows page).
+static lv_obj_t *sg_word_action(lv_obj_t *par, const char *mark,
+                                const char *txt, bool lead, lv_color_t col,
+                                bool accent, lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *c = lv_obj_create(par);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, LV_SIZE_CONTENT, 40);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(c, 10, 0);
+    if (cb) {
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(c, 8);
+        lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
+    }
+    for (int pass = 0; pass < 2; pass++) {
+        const bool mark_turn = (pass == 0) == lead;
+        if (!(mark_turn ? mark : txt)) continue;
+        lv_obj_t *l = lv_label_create(c);
+        lv_label_set_text(l, mark_turn ? mark : txt);
+        lv_obj_set_style_text_font(l, mark_turn ? wt_font23()
+                                                : wt_chrome23(txt), 0);
+        if (!mark_turn) lv_obj_set_style_text_letter_space(l, 2, 0);
+        lv_obj_set_style_text_color(l, col, 0);
+        if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    }
+    return c;
 }
 
 // ---- the caution rows, on a page of their own ------------------------------
@@ -1758,10 +1823,18 @@ static void cautions_screen(void)
     // rather than the verify screen's 8 is what buys that: it was put here for
     // a fifth row that then did not exist, and the gap-limit reason is it.
     // Four rows is 324 and unchanged, so the common stacks did not move down.
+    // RULED rows now, not bordered panels: the same lane the def lists use --
+    // mark, sentence, the control at the right, a hairline between rows and
+    // nothing drawn around any of it. The bench asked the warning boxes gone
+    // with the rest of the page's.
     int y = 88;
     for (int i = 0; i < np; i++) {
         bool done = (s_ack_flags & bits[i]) != 0;
-        lv_obj_t *row = sg_panel(24, y, 752, SG_ROW_H, done ? OK_COL : WARN_COL);
+        lv_obj_t *row = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, 24, y);
+        lv_obj_set_size(row, 752, SG_ROW_H);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
                wt_font23(), done ? OK_COL : WARN_COL);
         lv_obj_t *t = lv_label_create(row);
@@ -1769,28 +1842,21 @@ static void cautions_screen(void)
         lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
         wt_note_fit(t, parts[i], 491 - 16, 24);
 
-        if (done) {
-            lv_obj_t *p = sg_panel(543, 8, SG_ROW_PILL_W, 40, OK_COL);
-            lv_obj_set_style_radius(p, 10, 0);
-            lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
-            lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
-                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_parent(p, row);
-            lv_obj_set_pos(p, 543, 8);
-            lv_obj_t *l = lv_label_create(p);
-            lv_label_set_text(l, LV_SYMBOL_OK);
-            lv_obj_set_style_text_font(l, wt_font23(), 0);
-            lv_obj_set_style_text_color(l, OK_COL, 0);
-        } else {
-            wt_pillh(row, tr(STR_C_I_UNDERSTAND), 543, 8, SG_ROW_PILL_W, 40,
-                     row_ack_cb, (void *)(uintptr_t)bits[i]);
-        }
+        lv_obj_t *ctl;
+        if (done)
+            ctl = sg_word_action(row, LV_SYMBOL_OK, NULL, true, OK_COL,
+                                 false, NULL, NULL);
+        else
+            ctl = sg_word_action(row, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
+                                 true, wt_accent(), true, row_ack_cb,
+                                 (void *)(uintptr_t)bits[i]);
+        lv_obj_align(ctl, LV_ALIGN_RIGHT_MID, -SG_PAD, 0);
+        if (i) sg_rule(24, y - 2, 752, 1);
         y += SG_ROW_H + 4;
     }
 
-    wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X140, WT_ACTION_Y, 140, WT_ACTION_H,
-             cautions_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SG_BACK_X140,
+                    WT_ACTION_Y, 140, true, cautions_back_cb, NULL);
 }
 
 static void verify_screen(lv_obj_t *parent)
@@ -1867,14 +1933,17 @@ static void verify_screen(lv_obj_t *parent)
     // ever appear here and collide with the title or the filename. That is
     // defect 01 from the review, closed by deletion rather than by relocation.
     {
-        lv_obj_t *chip = sg_panel(540, 14, 236, 36, np ? WARN_COL : wt_accent());
-        // Only when it is the SIGNING AS badge. With cautions it is a count in
-        // WT_WARN, and that is a status: the accent does not go near it.
-        if (!np) lv_obj_add_flag(chip, WT_FLAG_ACCENT_BORDER);
-        lv_obj_set_style_radius(chip, 10, 0);   // was 18: half of 36, a lozenge
-        lv_obj_set_style_bg_opa(chip, LV_OPA_TRANSP, 0);
+        // Bare labels in the corner now, not a bordered badge: the box drew a
+        // button where nothing is tappable, and the bench asked the page's
+        // boxes gone. Same slot, same two states, right-aligned to the 776
+        // lane the exits use.
+        lv_obj_t *chip = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(chip);
+        lv_obj_set_pos(chip, 540, 14);
+        lv_obj_set_size(chip, 236, 36);
+        lv_obj_remove_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_CENTER,
+        lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_END,
                               LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(chip, 10, 0);
         if (np) {
@@ -1944,16 +2013,28 @@ static void verify_screen(lv_obj_t *parent)
         // under it, and a short verdict floating over 230px of glass reads as a
         // screen that lost something.
         const char *body = stop_body(s_sum.reason);
-        int ph = body ? 64 : SG_PANEL_H + 52;
-        lv_obj_t *p = sg_panel(24, 84, 752, ph, STOP_COL);
-        lv_obj_t *r = sg_lbl(p, tr_reason(s_sum.reason), SG_PAD, SG_PAD,
+        // The verdict as a RULED block, not a red box: the left-rule shape
+        // every claim on this device wears, in the STOP colour. The red
+        // panel was the last bordered box on this flow and it went with the
+        // others.
+        lv_obj_t *r = sg_lbl(s_scr, tr_reason(s_sum.reason), 48, 96,
                              wt_font23(), STOP_COL);
-        lv_obj_set_width(r, 752 - 2 * SG_PAD);
+        lv_obj_set_width(r, 728);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
-        if (body) wt_why_body(s_scr, body, 84 + ph + 20, STOP_COL, true);
-        // Same 776 lane as the panel it just drew, so the same exit as verify.
-        wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X140, WT_ACTION_Y, 140, WT_ACTION_H,
-                 s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
+        lv_obj_update_layout(r);
+        int rh = lv_obj_get_height(r);
+        lv_obj_t *vr = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(vr);
+        lv_obj_set_pos(vr, 24, 96);
+        lv_obj_set_size(vr, 4, rh < 40 ? 40 : rh);
+        lv_obj_set_style_bg_color(vr, STOP_COL, 0);
+        lv_obj_set_style_bg_opa(vr, LV_OPA_COVER, 0);
+        if (body) wt_why_body(s_scr, body, 96 + (rh < 40 ? 40 : rh) + 24,
+                              STOP_COL, true);
+        // Same 776 lane, so the same exit as verify.
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SG_BACK_X140,
+                        WT_ACTION_Y, 140, true,
+                        s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
         return;
     }
 
@@ -2083,10 +2164,18 @@ static void verify_screen(lv_obj_t *parent)
         bool all_done = (s_ack_flags & caution_all_bits(s_sum.caution_flags))
                         == caution_all_bits(s_sum.caution_flags);
         // The graph owns 172..282, so the bar sits in the band the facts strip
-        // used to hold. Same bar, same height, same 475px text box -- which is
-        // what keeps the string from running under the pill at 543.
-        lv_obj_t *bar = sg_panel(24, SG_BAR_Y_G, 752, SG_BAR_H,
-                                 all_done ? OK_COL : WARN_COL);
+        // used to hold. A RULED row now, not a bordered panel -- hairlines
+        // above and below, the mark and the sentence between them, and the
+        // control at the right unboxed like the band's own actions. Same
+        // 475px text box, which is what keeps the string clear of the
+        // control's lane.
+        lv_obj_t *bar = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(bar);
+        lv_obj_set_pos(bar, 24, SG_BAR_Y_G);
+        lv_obj_set_size(bar, 752, SG_BAR_H);
+        lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+        sg_rule(24, SG_BAR_Y_G - 1, 752, 1);
+        sg_rule(24, SG_BAR_Y_G + SG_BAR_H, 752, 1);
         sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
                wt_font23(), all_done ? OK_COL : WARN_COL);
         // "+N" carries the rest of the list without a string to translate: the
@@ -2099,34 +2188,25 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(t, all_done ? MUT_COL : INK_COL, 0);
         wt_note_fit(t, buf, 491 - 16, 24);
 
+        lv_obj_t *ctl;
         if (np == 1 && !all_done) {
-            wt_pillh(bar, tr(STR_C_I_UNDERSTAND), 543, 2, SG_ROW_PILL_W, 40,
-                     row_ack_cb, (void *)(uintptr_t)bits[0]);
+            ctl = sg_word_action(bar, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
+                                 true, wt_accent(), true, row_ack_cb,
+                                 (void *)(uintptr_t)bits[0]);
         } else if (np == 1) {
-            // One caution, already acknowledged: the spent tick, not a
-            // REVIEW pill. REVIEW here opened a page whose only content was
-            // this same sentence with this same tick -- a whole screen to
-            // re-read one thing the owner had just read. The tick is the
-            // cautions page's own spent-state mark, drawn in place.
-            lv_obj_t *p = lv_obj_create(bar);
-            lv_obj_remove_style_all(p);
-            lv_obj_set_size(p, SG_ROW_PILL_W, 40);
-            lv_obj_set_style_border_width(p, 2, 0);
-            lv_obj_set_style_border_color(p, OK_COL, 0);
-            lv_obj_set_style_radius(p, 10, 0);
-            lv_obj_set_style_bg_opa(p, LV_OPA_TRANSP, 0);
-            lv_obj_set_flex_flow(p, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER,
-                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_pos(p, 543, 2);
-            lv_obj_t *l = lv_label_create(p);
-            lv_label_set_text(l, LV_SYMBOL_OK);
-            lv_obj_set_style_text_font(l, wt_font23(), 0);
-            lv_obj_set_style_text_color(l, OK_COL, 0);
+            // One caution, already acknowledged: the spent tick, in place.
+            // REVIEW here opened a page whose only content was this same
+            // sentence with this same tick.
+            ctl = sg_word_action(bar, LV_SYMBOL_OK, NULL, true, OK_COL,
+                                 false, NULL, NULL);
         } else {
-            wt_pillh(bar, tr(STR_S_C_REVIEW), 543, 2, SG_ROW_PILL_W, 40,
-                     cautions_open_cb, NULL);
+            // A direction, so the arrow trails the word: the rows live on a
+            // page of their own.
+            ctl = sg_word_action(bar, LV_SYMBOL_RIGHT, tr(STR_S_C_REVIEW),
+                                 false, wt_accent(), true,
+                                 cautions_open_cb, NULL);
         }
+        lv_obj_align(ctl, LV_ALIGN_RIGHT_MID, -SG_PAD, 0);
     }
 
     // ---- the outputs ------------------------------------------------------
@@ -2690,27 +2770,29 @@ static void verify_screen(lv_obj_t *parent)
     // Acknowledgement lives in the caution rows now, so there is no second
     // button competing for this position and no way for two taps in the same
     // place to become a signature nobody read.
-    s_inert[0] = wt_pillh(s_scr, tr(STR_C_BACK), SG_BACK_X, WT_ACTION_Y, 104,
-                          WT_ACTION_H,
-                          s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
-    s_inert[1] = wt_pillh(s_scr, tr(STR_S_DETAILS), SG_DETAILS_X, WT_ACTION_Y,
-                          150, WT_ACTION_H, details_cb, NULL);
+    // DETAILS and BACK wear the band's word-and-arrow form, the same one
+    // every other page's exits wear now; the pill boxes went with the
+    // slider's. Both still stand down through s_inert while libwally works.
+    s_inert[0] = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 636,
+                                 WT_ACTION_Y, 140, true,
+                                 s_src == SRC_SD ? files_back_cb
+                                                 : choose_back_cb, NULL);
+    s_inert[1] = wt_arrow_action(s_scr, tr(STR_S_DETAILS), false, false,
+                                 SG_DETAILS_X, WT_ACTION_Y, 150, false,
+                                 details_cb, NULL);
     s_inert[2] = NULL;
 
-    // There used to be a 40x40 ring here, built a few lines before the pill and
-    // placed at (56, 410) -- inside a pill at (48, 404) 310x52 whose background
-    // is LV_OPA_COVER. Same parent, created first, so the pill painted over the
-    // whole of it. It never drew a pixel, in any theme, from the day it was
-    // added, and a pixel scan of its own rect returns nothing but the sweep and
-    // one letter of the label.
-    //
-    // Not restored to the foreground: it would land on the label's first
-    // character, and it would be a second reading of the number the sweep
-    // already draws across the whole button. One control, one reading.
-    lv_obj_t *p = wt_pillh(s_scr, tr(STR_S_HOLD_TO_SIGN), SG_HOLD_X, WT_ACTION_Y,
-                           SG_HOLD_W, WT_ACTION_H, NULL, NULL);
-    wt_pill_label_max(p);          // the most consequential button in the app
-    s_sign_lbl = lv_obj_get_child(p, 0);
+    // The slide itself: the kit's rule shape -- the word, its arrow, a thin
+    // track under them -- with a square KNOB riding the track. The accent
+    // filled pill and then a boxed groove both came off the bench as "still
+    // a box": what says drag is a bar and a thing to grab, so that is all
+    // there is. sign_press_cb still measures distance from wherever the
+    // press lands, and the lift at full travel is still what signs.
+    lv_obj_t *p = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(p);
+    lv_obj_set_size(p, SG_HOLD_W, WT_ACTION_H);
+    lv_obj_set_pos(p, SG_HOLD_X, WT_ACTION_Y);
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
     // One expression, read twice. Writing the condition out again for the test
     // seam let the seam keep reporting "inert" after the gate itself had been
     // deleted -- the self test passed against a build with no gate in it.
@@ -2718,47 +2800,65 @@ static void verify_screen(lv_obj_t *parent)
 #ifndef ESP_PLATFORM
     s_armed = armed;
 #endif
-    if (!armed) {
-        // Present, in place, and visibly inert. Disabled ink rather than a
-        // hidden or moved button, so the owner can see what acknowledging the
-        // rows above is going to unlock. No accent here on purpose: the accent
-        // is this app's "press this one" marker, so wearing it while inert
-        // would be a lie.
-        lv_obj_set_style_border_color(p, WT_EDGE, 0);
-        lv_obj_set_style_text_color(s_sign_lbl, WT_DIM, 0);
-    } else {
+    // Inert is the same shape with the ink taken out, not a hidden control:
+    // the owner can see what acknowledging the rows above is going to
+    // unlock. No accent while inert -- the accent is this app's "press this
+    // one" marker, and wearing it dead would be a lie.
+    const lv_font_t *sf = wt_chrome23(tr(STR_S_HOLD_TO_SIGN));
+    lv_obj_t *sl = wt_lbl(p, tr(STR_S_HOLD_TO_SIGN), 0, 0, sf,
+                          armed ? wt_accent() : WT_DIM);
+    lv_obj_set_style_text_letter_space(sl, 2, 0);
+    if (armed) lv_obj_add_flag(sl, WT_FLAG_ACCENT);
+    s_sign_lbl = sl;
+    lv_obj_update_layout(sl);
+    lv_obj_t *sa = wt_lbl(p, LV_SYMBOL_RIGHT, lv_obj_get_width(sl) + 12, 2,
+                          wt_font23(), armed ? wt_accent() : WT_DIM);
+    if (armed) lv_obj_add_flag(sa, WT_FLAG_ACCENT);
+
+    const int ty = lv_obj_get_height(sl) + 8;
+    lv_obj_t *track = lv_obj_create(p);
+    lv_obj_remove_style_all(track);
+    lv_obj_set_size(track, SG_HOLD_W, 2);
+    lv_obj_set_pos(track, 0, ty);
+    lv_obj_set_style_bg_color(track, WT_DIV, 0);
+    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
+
+    // The knob exists in both states -- inert it stands at the start of the
+    // track in the disabled ink, saying a slide will happen here.
+    lv_obj_t *knob = lv_obj_create(p);
+    lv_obj_remove_style_all(knob);
+    lv_obj_set_size(knob, SG_THUMB, SG_THUMB);
+    lv_obj_set_pos(knob, 0, ty + 1 - SG_THUMB / 2);
+    lv_obj_set_style_radius(knob, 4, 0);
+    lv_obj_set_style_bg_color(knob, armed ? wt_accent() : WT_EDGE, 0);
+    lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(knob, LV_OBJ_FLAG_CLICKABLE);
+
+    if (armed) {
+        lv_obj_add_flag(knob, WT_FLAG_ACCENT_FILL);
+        s_thumb = knob;
+
+        // The trail, the slide's second reading -- the track filling in the
+        // ACCENT up to the knob, and not in WT_STOP. On this device a red
+        // fill under a confirm means a destructive one, wipe or reset, and
+        // signing is neither.
+        lv_obj_t *f = lv_obj_create(p);
+        lv_obj_remove_style_all(f);
+        lv_obj_set_size(f, 0, 2);
+        lv_obj_set_pos(f, 0, ty);
+        lv_obj_set_style_bg_color(f, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
+        lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
+        s_sweep = f;
+        lv_obj_move_foreground(knob);   // the knob rides ON the fill
+
+        lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
         // The slide must not bubble a gesture out to any screen watcher --
         // dragging the confirm is not a page turn.
         lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
-        // The same primary marker every other screen's suggested action wears,
-        // rather than a bare 1px accent border invented here: 2px, an accent
-        // tinted fill, a pressed fill the hold can be felt against, and the top
-        // label rung. ADDENDUM-02 asks for this, and the reason is that a
-        // hand rolled variant of the app's loudest affordance is exactly the
-        // kind of near miss the redraw is meant to remove.
-        wt_pill_primary(p);
-
-        // The sweep, the slide's second reading -- a background child grown
-        // from zero under the label LVGL has already made, in the ACCENT and
-        // not WT_STOP. On this device a red fill under a confirm means a
-        // destructive one, wipe or reset, and signing is neither. Red here
-        // would code the safest slide in the app as the most dangerous one.
-        // At 90 of 255 over the pill's own accent tinted fill it reads as the
-        // press deepening across the button. The pill KEEPS its box: this
-        // band is a pill band (DETAILS and BACK beside it), and a bare rule
-        // floating between two pills would read as a missing control.
-        lv_obj_t *f = lv_obj_create(p);
-        lv_obj_remove_style_all(f);
-        lv_obj_set_size(f, 0, WT_ACTION_H);
-        lv_obj_set_pos(f, 0, 0);
-        lv_obj_set_style_radius(f, 10, 0);          // matches the pill it crosses
-        lv_obj_set_style_bg_color(f, wt_accent(), 0);
-        lv_obj_set_style_bg_opa(f, 90, 0);
-        lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
-        lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_move_background(f);
-        s_sweep = f;
     }
 }
 
@@ -2788,7 +2888,7 @@ static void glossary_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
 
     wt_card(s_scr, 24, 88, 752, 290);
@@ -2825,7 +2925,8 @@ static void glossary_cb(lv_event_t *e)
 
         p = nl ? nl + 1 : NULL;
     }
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, gloss_back_cb);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, gloss_back_cb, NULL);
 }
 
 // Measured height of a label that was just built, so the next thing can go
@@ -2960,7 +3061,7 @@ static void details_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
     // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
     // starts at x=560 with a label that takes two lines in the longer locales.
@@ -3409,7 +3510,7 @@ static void qr_out_screen(size_t sw)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
 
     s_qr_ez = false;
     s_out_len = sw;
@@ -3598,7 +3699,7 @@ static void rm_repaint(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     rm_screen();
 }
 
@@ -3724,7 +3825,7 @@ static void rm_open_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     rm_screen();
 }
 
@@ -3920,7 +4021,8 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
         SIGN_LOG("REJECTED: not a parseable PSBT (rc %d)", lrc);
         mk_screen(s_parent, tr(STR_S_T), s_cur);
         wt_note_col(s_scr, tr(STR_S_SCAN_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
-        mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, choose_back_cb);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
+                        160, true, choose_back_cb, NULL);
         return;
     }
     log_summary("QR");

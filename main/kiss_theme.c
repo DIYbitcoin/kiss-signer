@@ -5695,8 +5695,10 @@ void wt_diagram_pair(lv_obj_t *parent)
 // bearing -- COORDINATOR WALLET at mono18 is ~194px, wider than the phone
 // it is centred under, and the spill has to land inside the figure.
 
-// The coordinator is a LAPTOP now, not a phone: Sparrow is a desktop app,
-// and the phone silhouette came off the bench as the wrong machine.
+// The coordinator is EITHER machine: the laptop carries the block (Sparrow
+// is a desktop app) and a phone stands against its edge (Nunchuk is not),
+// because a laptop alone came off the bench as claiming the coordinator is
+// only ever a computer.
 #define AG_CO_X   40    // coordinator block's left edge
 #define AG_CO_W  200    // its base bar, the block's full width
 #define AG_CO_SW 168    // the screen, centred over the base
@@ -5774,6 +5776,33 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_set_style_radius(base, 4, 0);
     lv_obj_set_style_border_width(base, 2, 0);
     lv_obj_set_style_border_color(base, WT_MUT, 0);
+    // The phone, standing against the laptop's right edge on the same floor.
+    // Drawn after both so it fronts them, with an opaque ground fill doing
+    // the occluding -- the overlap is what says "beside", not "as well as
+    // this other block". Blank screen on purpose: the QR stays on the laptop,
+    // because two QRs would read as two sources. The home dot is what makes
+    // 34x58 read as a phone rather than a stray card edge.
+    {
+        const int pw = 34, phh = 58;
+        const int px = AG_CO_X + AG_CO_W + 10 - pw;
+        const int py = co_y + AG_CO_SH + 2 + AG_CO_BH - phh;
+        lv_obj_t *pho = lv_obj_create(fig);
+        lv_obj_remove_style_all(pho);
+        lv_obj_set_pos(pho, px, py);
+        lv_obj_set_size(pho, pw, phh);
+        lv_obj_set_style_radius(pho, 8, 0);
+        lv_obj_set_style_bg_color(pho, WT_BG, 0);
+        lv_obj_set_style_bg_opa(pho, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(pho, 2, 0);
+        lv_obj_set_style_border_color(pho, WT_MUT, 0);
+        lv_obj_t *hd = lv_obj_create(pho);
+        lv_obj_remove_style_all(hd);
+        lv_obj_set_size(hd, 4, 4);
+        lv_obj_set_style_radius(hd, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(hd, WT_MUT, 0);
+        lv_obj_set_style_bg_opa(hd, LV_OPA_COVER, 0);
+        lv_obj_align(hd, LV_ALIGN_BOTTOM_MID, 0, -5);
+    }
 
     // This signer: landscape like the panel it is, and the one element the
     // accent claims -- the same "this box" cue KISS OFFLINE's chip carries.

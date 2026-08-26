@@ -3066,20 +3066,32 @@ int main(void) {
         printf("FAIL: no accent-flagged sweep under HOLD TO SIGN\n");
         return 1;
       }
+      // The rim went with the box: the slide is a bar and a knob now, so the
+      // accent-following surfaces are the WORD (WT_FLAG_ACCENT) and the
+      // knob/fill (WT_FLAG_ACCENT_FILL). Same three channels, new carriers.
+      lv_obj_t *wd = NULL;
+      for (uint32_t ci = 0; ci < lv_obj_get_child_count(hp); ci++) {
+        lv_obj_t *c = lv_obj_get_child(hp, ci);
+        if (lv_obj_has_flag(c, WT_FLAG_ACCENT)) { wd = c; break; }
+      }
+      if (!wd) {
+        printf("FAIL: no accent-flagged word on the slide to sign\n");
+        return 1;
+      }
       const int was = wt_accent_get();
-      lv_color_t b0 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      lv_color_t b0 = lv_obj_get_style_text_color(wd, LV_PART_MAIN);
       lv_color_t l0 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);
       lv_color_t f0 = lv_obj_get_style_bg_color(sw, LV_PART_MAIN);
       wt_accent_set(was == WT_ACC_GREEN ? WT_ACC_ORANGE : WT_ACC_GREEN);
       wt_accent_restyle(lv_screen_active());
       pump(2);
-      lv_color_t b1 = lv_obj_get_style_border_color(hp, LV_PART_MAIN);
+      lv_color_t b1 = lv_obj_get_style_text_color(wd, LV_PART_MAIN);
       if (lv_color_eq(b0, b1)) {
-        printf("FAIL: HOLD TO SIGN kept its old rim through an accent change\n");
+        printf("FAIL: SLIDE TO SIGN kept its old ink through an accent change\n");
         return 1;
       }
       if (!lv_color_eq(b1, wt_accent())) {
-        printf("FAIL: HOLD TO SIGN's rim is not the accent after a restyle\n");
+        printf("FAIL: SLIDE TO SIGN's word is not the accent after a restyle\n");
         return 1;
       }
       lv_color_t l1 = lv_obj_get_style_line_color(ln, LV_PART_MAIN);

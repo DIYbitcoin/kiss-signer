@@ -1992,34 +1992,41 @@ void kiss_settings_open(lv_obj_t *parent)
                         true, lang_open_cb, NULL);
     }
 
-    // Beside it the theme: a breathing accent dot, wordless, because the
-    // page IS the preview -- tap it and every mark on every tab is the new
-    // colour before the finger lifts. The bench asked for exactly this
-    // shape: "a tappable color dot pulsating would indicate to users they
-    // can change theme there". The hit box is the band's full 52px.
+    // Beside it the theme: a solid colour SWATCH with the cycle mark trailing
+    // it, wordless, because the page IS the preview -- tap it and every mark
+    // on every tab is the new colour before the finger lifts. The breathing
+    // dot came back from the bench as too quiet a promise; the loop glyph is
+    // the one the value rows above already use for "tapping cycles this in
+    // place", so the pair says colour + cycles without a word. The hit box is
+    // the band's full 52px.
     {
+        lv_point_t ms;
+        lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        // Right edge at 586: 6 clear of BACK's declared lane at 592, and the
+        // content-sized width keeps 10+ clear of the language control's 512.
+        const int sw = 28, cw = sw + 10 + ms.x;
         lv_obj_t *td = lv_obj_create(s_scr);
         lv_obj_remove_style_all(td);
-        lv_obj_set_pos(td, 528, WT_ACTION_Y);
-        lv_obj_set_size(td, 52, WT_ACTION_H);
+        lv_obj_set_pos(td, 586 - cw, WT_ACTION_Y);
+        lv_obj_set_size(td, cw, WT_ACTION_H);
         lv_obj_add_flag(td, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(td, LV_OBJ_FLAG_SCROLLABLE);
         wt_tap_feedback(td);
         lv_obj_add_event_cb(td, theme_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *dot = lv_obj_create(td);
-        lv_obj_remove_style_all(dot);
-        lv_obj_set_size(dot, 14, 14);
-        lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(dot, wt_accent(), 0);
-        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-        // RECEIVE's glow: the same colour, wider than the dot, read as light.
-        lv_obj_set_style_shadow_color(dot, wt_accent(), 0);
-        lv_obj_set_style_shadow_width(dot, 14, 0);
-        lv_obj_set_style_shadow_opa(dot, 140, 0);
-        lv_obj_add_flag(dot, WT_FLAG_ACCENT_FILL);
-        lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_center(dot);
-        wt_dot_breathe(dot, 14, 5, false);
+        lv_obj_t *sq = lv_obj_create(td);
+        lv_obj_remove_style_all(sq);
+        lv_obj_set_size(sq, sw, 20);
+        lv_obj_set_style_radius(sq, 6, 0);
+        lv_obj_set_style_bg_color(sq, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
+        lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_align(sq, LV_ALIGN_LEFT_MID, 0, 0);
+        lv_obj_t *lp = wt_lbl(td, LV_SYMBOL_LOOP, 0, 0, wt_font23(),
+                              wt_accent());
+        lv_obj_add_flag(lp, WT_FLAG_ACCENT);
+        lv_obj_align(lp, LV_ALIGN_LEFT_MID, sw + 10, 0);
     }
 
     restyle();
