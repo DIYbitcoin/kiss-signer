@@ -307,6 +307,12 @@ static void restyle(void)
     wt_accent_restyle(s_scr);
 }
 
+// The next build is a rebuild the FINGER caused -- a value cycle repainting
+// the pane it stands on -- so the def list arrives settled instead of
+// replaying its welcome. Set around kiss_settings_open by settings_reopen
+// only; a walk in from home stays a real entry.
+static bool s_still;
+
 static void settings_reopen(void)
 {
     lv_obj_t *parent = s_parent;
@@ -316,7 +322,9 @@ static void settings_reopen(void)
     wt_pane_stop(&s_pane_ctx);
     if (s_pane) { lv_obj_delete(s_pane); s_pane = NULL; }
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_still = true;
     kiss_settings_open(parent);      // s_tab survives, deliberately
+    s_still = false;
 }
 
 // The firmware screens own the display while they are up and hand it back the
@@ -1097,15 +1105,12 @@ static void duress_cb(lv_event_t *e)
 }
 
 // ---- theme ----
-// It spent a version as a wordless chip in the header, beside LANGUAGE and
-// FIRMWARE, because those three belong to the DEVICE rather than to the keys
-// in it. That grouping was right and it survives: all three are rows on the
-// DEVICE tab now, where each one can state its value in words instead of
-// standing for it with a swatch in 44px.
-// It is also the row that makes the case for tapping in place loudest: the
-// result of the pick is the PAGE, so a list floating over the page was hiding
-// the only preview there is. Tap, and every mark on every tab is the new
-// colour before the finger lifts.
+// It spent a version as a wordless chip in the header, then one as a row on
+// the DEVICE tab stating its value in words. It is the breathing dot on the
+// action band now, wordless again but on the band every tab shares -- because
+// it is the control that makes the case for tapping in place loudest: the
+// result of the pick is the PAGE, so the page is the only honest preview.
+// Tap, and every mark on every tab is the new colour before the finger lifts.
 static void theme_cb(lv_event_t *e)
 {
     (void)e;
@@ -1560,34 +1565,39 @@ static void tab_cb(lv_event_t *e)
 }
 
 // The stroke, on the SETTINGS page: five tabs, one horizontal deck. No pages
-// inside any of them, so a swipe is a tab step and nothing else. Not under an
-// overlay: [ ? ] and a row's help box are toggles, not positions on the deck.
+// inside any of them, so a swipe is a tab step and nothing else. [ ? ] stays
+// a toggle rather than a position on the deck, but the stroke reaches it:
+// past NO UNDO opens it, and from it a right swipe is the way back -- the
+// bench asked for exactly this, in the words "i cant swipe to the question
+// mark".
 static void settings_gesture_cb(lv_event_t *e)
 {
-    if (s_what_open || s_help) return;
+    if (s_help) return;
     const int step = wt_swipe_step(e);
     if (!step) return;
+    if (s_what_open) {
+        if (step < 0) settings_what_cb(NULL);
+        return;
+    }
     const int to = s_tab + step;
-    if (to < 0 || to >= TAB_N) return;   // the deck ends where the strip does
+    if (to >= TAB_N) { settings_what_cb(NULL); return; }
+    if (to < 0) return;                  // the deck still ends on the left
     go_tab(to);
+}
+
+// Every tab is the KEYS page's own list now: the whole content lane, big
+// line rows, rules between. The one difference SETTINGS adds is the mark --
+// a loop on a row whose tap resolves IN PLACE, the chevron on one that
+// leaves -- the same promise the old wide rows made.
+static lv_obj_t *def_list(const wt_def_t *defs, int n)
+{
+    return s_still ? wt_def_list_still(s_pane, defs, n)
+                   : wt_def_list(s_pane, defs, n);
 }
 
 static void tab_signer(void)
 {
     int sc = kiss_script(), tn = kiss_testnet();
-
-    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label   = tr(STR_I_ROW_NETWORK),
-        .sub     = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
-        // Amber on both test networks, in the sub AND in the value: the colour
-        // says "these coins are not real" and the words say it again, so the
-        // state never rests on colour alone.
-        .sub_col = tn ? WT_WARN : WT_MUT,
-        .kind    = WT_WIDE_CYCLE,
-        .val     = kiss_net_name(),
-        .vcol    = tn ? WT_WARN : WT_INK,
-        .cb      = net_cb,
-    });
 
     // "Native SegWit · BIP84": the name a reader met in their coordinator, and
     // the number the rest of the world calls it by. Composed rather than
@@ -1597,18 +1607,6 @@ static void tab_signer(void)
     char tsub[64];
     snprintf(tsub, sizeof tsub, "%s \xC2\xB7 BIP%s", type_name(sc),
              BIPNO[sc >= 0 && sc < 3 ? sc : 0]);
-    lv_obj_t *trow = wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
-        .label = tr(STR_I_ROW_TYPE),
-        .sub   = tsub,
-        .kind  = WT_WIDE_CYCLE,
-        // The address PREFIX is the value, monospaced. That is the way round
-        // it has to be, not a preference: bc1 is what an owner sees in their
-        // coordinator, and "Native SegWit" is the name for it.
-        .val   = type_prefix(sc, tn),
-        .vf    = wt_font_mono23(),
-        .cb    = type_cb,
-    });
-    wt_row_wide_help(trow, help_open_cb, NULL);
 
     char unit[16];
     const char *u = wt_denom_unit();
@@ -1616,15 +1614,28 @@ static void tab_signer(void)
     for (; u[ui] && ui + 1 < sizeof unit; ui++)
         unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
     unit[ui] = 0;
-    // No sub: "amount in sats or BTC" restated the SATS chip beside it, and
-    // no group note: the keys lesson lives in the [ ? ] now. The first look
-    // at every tab is rows, not a lecture -- the bench asked in those words.
-    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
-        .label = tr(STR_I_ROW_DENOM),
-        .kind  = WT_WIDE_CYCLE,
-        .val   = unit,
-        .cb    = denom_cb,
-    });
+
+    wt_def_t defs[3] = {
+        // Amber on both test networks, in the value AND the sub: the colour
+        // says "these coins are not real" and the words say it again, so the
+        // state never rests on colour alone. The lamp is KEYS' own.
+        { .cap = tr(STR_I_ROW_NETWORK), .val = kiss_net_name(),
+          .val_col = tn ? WT_WARN : (lv_color_t){0},
+          .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
+          .sub_col = tn ? WT_WARN : (lv_color_t){0},
+          .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK, .lamp_pulse = tn,
+          .mark = LV_SYMBOL_LOOP, .go = net_cb },
+        // The address PREFIX is the value. That is the way round it has to
+        // be, not a preference: bc1 is what an owner sees in their
+        // coordinator, and "Native SegWit" is the name for it.
+        { .cap = tr(STR_I_ROW_TYPE), .val = type_prefix(sc, tn), .sub = tsub,
+          .mark = LV_SYMBOL_LOOP, .go = type_cb },
+        // No sub: "amount in sats or BTC" restated the SATS value beside it.
+        { .cap = tr(STR_I_ROW_DENOM), .val = unit,
+          .mark = LV_SYMBOL_LOOP, .go = denom_cb },
+    };
+    lv_obj_t *list = def_list(defs, 3);
+    wt_def_row_help(list, 1, help_open_cb, NULL);
 }
 
 static void tab_security(void)
@@ -1642,199 +1653,98 @@ static void tab_security(void)
     // exactly how a test device ended up stuck with a stroke it could not
     // clear.
     bool set = !duress_unset();
-    char dval[64];
-    if (set) snprintf(dval, sizeof dval, "%s", tr(STR_GD_ON));
-    else     snprintf(dval, sizeof dval, "%s  %s", LV_SYMBOL_WARNING,
-                      tr(STR_GD_OFF));
-    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = tr(STR_I_ROW_WAYSIN),
-        .sub   = tr(STR_I_WAYSIN_SHORT),
-        .kind  = WT_WIDE_OPEN,
-        .val   = dval,
-        .vcol  = set ? WT_INK : WT_WARN,
-        .sev   = set ? WT_SEV_PLAIN : WT_SEV_WARN,
-        .cb    = duress_cb,
-    });
-
     // Persist depends on storage. AMNESIC keeps nothing by contract, so the
-    // switch has nothing to switch -- and it is drawn INERT with the reason
-    // stated rather than hidden. A control that vanishes sends the owner
-    // hunting for it; this is the one place on the page that deliberately
-    // shows a dead one.
+    // cycle has nothing to cycle -- and instead of a dead control the row
+    // becomes the page's one in-place definition, saying WHY in the same
+    // spot the switch would be. A control that vanishes sends the owner
+    // hunting for it; one that explains itself does not.
     bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
-    wt_row_wide(s_pane, WT_WIDE_Y(1), amnesic
-        ? &(wt_wide_t){
-            .label = tr(STR_I_ROW_HISTORY),
-            .sub   = tr(STR_I_PERSIST_DEAD_SUB),
-            .kind  = WT_WIDE_INERT,
-            .val   = tr(STR_I_PERSIST_DEAD_VAL),
-          }
-        : &(wt_wide_t){
-            .label = tr(STR_I_ROW_HISTORY),
+    bool on = kiss_persist_enabled();
+
+    wt_def_t defs[3] = {
+        // Amber NOT SET beside "opens real keys" is the whole lesson; the
+        // lamp breathes until the mark exists, the same beat as the tab dot.
+        { .cap = tr(STR_I_ROW_WAYSIN),
+          .val = tr(set ? STR_GD_ON : STR_GD_OFF),
+          .val_col = set ? (lv_color_t){0} : WT_WARN,
+          .sub = tr(STR_I_WAYSIN_SHORT),
+          .lamp = true, .lamp_col = set ? WT_OK : WT_WARN, .lamp_pulse = !set,
+          .go = duress_cb },
+        amnesic
+            ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(STR_I_PERSIST_DEAD_VAL),
+                  .sub = tr(STR_I_PERSIST_DEAD_SUB),
+                  .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
             // The sub follows the STATE rather than naming the feature: ON
             // says what is kept, OFF says that nothing is. It is the only
             // warning the flip gets, and it is on screen before the tap.
-            .sub   = tr(kiss_persist_enabled() ? STR_I_HIST_SHORT
-                                               : STR_I_POP_NOTHING),
-            .kind  = WT_WIDE_CYCLE,
-            .val   = tr(kiss_persist_enabled() ? STR_G_HIST_ON_BTN
-                                               : STR_G_HIST_OFF_BTN),
-            .cb    = persist_cb,
-          });
-
-    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
-        // Its own word, sentence case. STR_W_AUD_T is the audit SCREEN's
-        // title and every title on this device is uppercase, which between
-        // "Duress" and "Persist" reads as a row shouting.
-        .label = tr(STR_I_ROW_AUDIT),
-        .sub   = tr(STR_I_AUDIT_SUB),
-        .kind  = WT_WIDE_OPEN,
-        .cb    = audit_open_cb,
-    });
-    // No group note: the DURESS row already carries the lesson -- "opens
-    // your real keys" beside an amber NOT SET says what the sentence said.
+            : (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+                  .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
+                  .mark = LV_SYMBOL_LOOP, .go = persist_cb },
+        // What the audit screen is FOR as the value, not a restated title.
+        { .cap = tr(STR_I_ROW_AUDIT), .val = tr(STR_I_AUDIT_SUB),
+          .go = audit_open_cb },
+    };
+    def_list(defs, 3);
 }
 
 static void tab_backup(void)
 {
     bool ok = kiss_ui_backup_checked();
-    char wsub[160], wval[16];
-    if (ok) {
-        uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        char idstr[16];
-        snprintf(idstr, sizeof idstr, "%02X%02X%02X%02X",
-                 fp[0], fp[1], fp[2], fp[3]);
-        snprintf(wsub, sizeof wsub, tr(STR_I_WORDS_VERIFIED_FMT), idstr);
-        snprintf(wval, sizeof wval, "%s", LV_SYMBOL_OK);
-    } else {
-        snprintf(wsub, sizeof wsub, "%s", tr(STR_I_WORDS_UNVERIFIED));
-        snprintf(wval, sizeof wval, "%s", LV_SYMBOL_WARNING);
-    }
-    // A colour cue AND a glyph: in the GREEN theme the accent is byte
-    // identical to WT_OK, so colour alone stops carrying meaning.
-    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label   = tr(STR_I_ROW_WORDS),
-        .sub     = wsub,
-        .sub_col = ok ? WT_OK : WT_WARN,
-        .kind    = WT_WIDE_OPEN,
-        .val     = wval,
-        .vcol    = ok ? WT_OK : WT_WARN,
-        .sev     = ok ? WT_SEV_OK : WT_SEV_WARN,
-        .cb      = words_cb,
-    });
-
     int mode = kiss_seed_mode();
     int ssub = mode == WSEED_MODE_SD      ? STR_I_STORE_SD_SUB
              : mode == WSEED_MODE_AMNESIC ? STR_I_STORE_AMN_SUB
              : kiss_seed_flash_encrypted() ? STR_I_STORE_FLASH_ENC_SUB
                                            : STR_I_STORE_FLASH_SUB;
-    // Amber CARD, not just an amber note. Words in a flash this build does not
-    // encrypt is the one fact on the page a holder should catch without
-    // reading anything.
+    // Amber across the row, not just an amber note. Words in a flash this
+    // build does not encrypt is the one fact on the page a holder should
+    // catch without reading anything.
     bool warn = words_unencrypted();
-    wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
-        .label   = tr(STR_I_ROW_STORAGE),
-        .sub     = tr(ssub),
-        .sub_col = warn ? WT_WARN : WT_MUT,
-        .kind    = WT_WIDE_CHIP,   // a chevron: this is the pick that LEAVES
-        .val     = storage_mode_name(mode),
-        .sev     = warn ? WT_SEV_WARN : WT_SEV_PLAIN,
-        .cb      = store_open_cb,
-    });
 
-    // No group note (the amber unverified row is the lesson), and WHICH
-    // keys. This group has two rows where the others have three or four,
-    // so it ended at y=290 with 108px of glass doing nothing under it -- the
-    // one tab that looked unfinished. What earns that band is not a third
-    // setting invented to fill it: it is the subject the page was missing.
-    // Every row here is about moving or checking a set of keys and none of
-    // them said WHOSE, and the fingerprint is the only thing an owner can hold
-    // against the paper already in their hand. The NO UNDO card makes exactly
-    // this argument for its own badge.
-    //
-    // Framed and centred, on the value-card idiom every figure worth reading
-    // off the glass already uses, so the same eight characters sit where they
-    // sit on the fingerprint reveal and the pairing screen. STR_L_FP_CAP is
-    // the caption those screens use and it already ships in 21 locales.
-    kiss_fp_card(s_pane, 302);
+    wt_def_t defs[3] = {
+        // A word AND a lamp: in the GREEN theme the accent is byte identical
+        // to WT_OK, so colour alone stops carrying meaning. No fingerprint in
+        // the sub any more -- the bench said it does not help here, and the
+        // check screen behind the row names it at full size where the
+        // against-the-paper comparison actually happens.
+        { .cap = tr(STR_I_ROW_WORDS),
+          .val = tr(ok ? STR_I_WORDS_OK_VAL : STR_I_WORDS_NO_VAL),
+          .val_col = ok ? (lv_color_t){0} : WT_WARN,
+          .lamp = true, .lamp_col = ok ? WT_OK : WT_WARN, .lamp_pulse = !ok,
+          .go = words_cb },
+        { .cap = tr(STR_I_ROW_STORAGE), .val = storage_mode_name(mode),
+          .val_col = warn ? WT_WARN : (lv_color_t){0},
+          .sub = tr(ssub), .sub_col = warn ? WT_WARN : (lv_color_t){0},
+          .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
+          .go = store_open_cb },
+        // The third row is the one backup fact that matters, as a definition
+        // that opens where it stands: this signer can die and the paper
+        // rebuilds the keys. It replaces the fingerprint card -- the bench:
+        // "no need to show fingerprint there, it doesnt help".
+        { .cap = tr(STR_I_RESTORE_CAP), .val = tr(STR_I_RESTORE_VAL),
+          .plain = tr(STR_I_RESTORE_PLAIN) },
+    };
+    def_list(defs, 3);
 }
 
 static void tab_device(void)
 {
-    // The pill is narrow, so strip the regional qualifier ("ESPAÑOL (ESPAÑA)"
-    // -> "ESPAÑOL") and let the picker's flag carry the variant instead.
-    int li = i18n_get_lang();
-    const char *nat = i18n_lang_info(li)->native;
-    if (li == I18N_NB) nat = "BOKMÅL";       // the flag already identifies Norway
-    const char *par = strstr(nat, " (");
-    char shortname[24];
-    size_t n = par ? (size_t)(par - nat) : strlen(nat);
-    if (n >= sizeof shortname) n = sizeof shortname - 1;
-    memcpy(shortname, nat, n);
-    shortname[n] = 0;
-    // Twenty one items do not fit a popover, so this row keeps the full screen
-    // picker: every name in its own language, with a flag, because somebody
-    // stuck in a language they cannot read must still find the way back.
-    wt_row_wide(s_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = tr(STR_I_ROW_LANG),
-        .sub   = tr(STR_I_LANG_SUB),
-        .kind  = WT_WIDE_CHIP,   // a chevron: 21 of them need the screen
-        // No per-language font here, unlike the picker's rows. This row names
-        // the ACTIVE language, so the active locale's own face is already the
-        // right script -- and wt_font14_for_lang would have pinned the SIZE
-        // too, leaving this the one chip value at font14 in a column of 23s.
-        .val   = shortname,
-        .cb    = lang_open_cb,
-    });
-
-    // The sub used to append the accent's name to it -- "accent colour · MONO"
-    // beside a chip already reading MONO, which is the copy rule's own example
-    // of a string restating the value sitting next to it.
-    wt_row_wide(s_pane, WT_WIDE_Y(1), &(wt_wide_t){
-        .label  = tr(STR_I_ROW_THEME),
-        .sub    = tr(STR_I_THEME_SUB),
-        .kind   = WT_WIDE_CYCLE,
-        .val    = wt_accent_name(),
-        .swatch = true,
-        .cb     = theme_cb,
-    });
-
-    // The version is a FACT, in the page's own ink. It was amber, with no
-    // predicate behind it, so a device with nothing wrong wore a caution
-    // colour on the one row that states what it is -- and amber on this page
-    // means a dot and a count, both of which this row has never had.
-    wt_row_wide(s_pane, WT_WIDE_Y(2), &(wt_wide_t){
-        .label = tr(STR_I_ROW_FW),
-        .sub   = tr(STR_I_FW_SUB),
-        .kind  = WT_WIDE_OPEN,
-        .val   = KISS_VERSION_STR,
-        .vf    = wt_font_mono23(),
-        .cb    = fw_open_cb,
-    });
-
-    // The sub says what the row OPENS. It carried the encryption state and the
-    // C6 radio pad instead, two diagnostics in untranslated ASCII, and both are
-    // already printed by kiss_build_id_make on the screen this row leads to --
-    // so the row spent its whole lane restating the page behind it and never
-    // once said that the card is back there. It was reported from the bench in
-    // exactly those terms: nothing in the button hints anything about the card.
-    //
-    // The amber went with them. It hung off !kiss_seed_flash_encrypted() while
-    // the attention chip counts words_unencrypted(), which additionally wants
-    // WSEED_MODE_KEEP -- so on SD or AMNESIC storage this row went amber with
-    // no dot on the strip and nothing in the count, which is the same fault as
-    // a chip disagreeing with its dots. The BACKUP tab owns that fact, marks it
-    // and counts it. One place.
-    wt_row_wide(s_pane, WT_WIDE_Y(3), &(wt_wide_t){
-        .label   = tr(STR_I_ROW_DEVICE),
-        .sub     = tr(STR_I_ROW_DEVICE_SUB),
-        .kind    = WT_WIDE_OPEN,
-        .cb      = device_open_cb,
-    });
-
-    // No explainer: the fourth row already reaches 384 and the line would land
-    // in the action bar.
+    // Two rows, not four: LANGUAGE and THEME live on the action band now --
+    // one is its own label, the other is its own preview, and neither earned
+    // a 142px row. What is left is the two that lead somewhere.
+    wt_def_t defs[2] = {
+        // The version is a FACT, in the page's own ink. It was amber once,
+        // with no predicate behind it -- amber on this page means a dot and
+        // a count, both of which this row has never had.
+        { .cap = tr(STR_I_ROW_FW), .val = KISS_VERSION_STR,
+          .sub = tr(STR_I_FW_SUB), .go = fw_open_cb },
+        // What the row OPENS as the value. The diagnostics it once carried
+        // are already printed by kiss_build_id_make on the screen behind it.
+        { .cap = tr(STR_I_ROW_DEVICE), .val = tr(STR_I_ROW_DEVICE_SUB),
+          .go = device_open_cb },
+    };
+    def_list(defs, 2);
 }
 
 static void tab_noundo(void)
@@ -1945,7 +1855,9 @@ static void build_tab(void)
 {
     if (s_what_open) {
         wt_fact_t facts[3] = {
-            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V), WT_ICON_KEY },
+            // The loop, not the key: SAFE TO TRY is the page's own loop mark
+            // making its promise in words -- every pick can be picked back.
+            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V), LV_SYMBOL_LOOP },
             { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V), LV_SYMBOL_BELL },
             { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V), LV_SYMBOL_TRASH },
         };
@@ -2019,13 +1931,11 @@ void kiss_settings_open(lv_obj_t *parent)
     wt_pane_tabs_watch(&s_pane_ctx);
     wt_swipe_watch(s_scr, settings_gesture_cb);
 
-    // The band's left lane by rank: the attention chip outranks everything,
-    // the first-run hint speaks until [ ? ] has been opened once, and this
-    // page keeps no standing statement -- what is permanently true of it
-    // depends on the PERSIST switch, which is the opposite of standing.
-    const char *hint = (attention_count() == 0 && !wt_help_seen())
-                           ? tr(STR_C_HELP_HINT) : NULL;
-    wt_help_tab(s_scr, hint, settings_what_cb, NULL);
+    // No first-run hint on this band any more: its centre holds the language
+    // and theme controls now, and the hint's one-line lane ran to 580 -- the
+    // mark's own breathe (motion 19) is what teaches [ ? ] here, plus the
+    // stroke past NO UNDO that now lands on it.
+    wt_help_tab(s_scr, NULL, settings_what_cb, NULL);
 
     // The group lives in a pane of its own so that a tab change can hold TWO
     // of them for the 200ms the outgoing one takes to leave. Built here and
@@ -2047,6 +1957,57 @@ void kiss_settings_open(lv_obj_t *parent)
         if (n == 1) snprintf(lab, sizeof lab, "%s", tr(STR_I_ATTN_1));
         else        snprintf(lab, sizeof lab, tr(STR_I_ATTN_N_FMT), n);
         wt_alert_chip(s_scr, lab, attn_cb, NULL);
+    }
+
+    // The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The
+    // language control needs no caption -- its label IS the active language's
+    // own name, stripped of the regional qualifier ("ESPAÑOL (ESPAÑA)" ->
+    // "ESPAÑOL") because the picker's flag carries the variant. An arrow
+    // action, not a pill: it goes somewhere (the full screen picker -- 21
+    // items need the screen, and somebody stuck in a language they cannot
+    // read must still find the way back).
+    {
+        int li = i18n_get_lang();
+        const char *nat = i18n_lang_info(li)->native;
+        if (li == I18N_NB) nat = "BOKMÅL";   // the flag already says Norway
+        const char *par = strstr(nat, " (");
+        char shortname[24];
+        size_t sn = par ? (size_t)(par - nat) : strlen(nat);
+        if (sn >= sizeof shortname) sn = sizeof shortname - 1;
+        memcpy(shortname, nat, sn);
+        shortname[sn] = 0;
+        wt_arrow_action(s_scr, shortname, false, false, 252, WT_ACTION_Y, 260,
+                        true, lang_open_cb, NULL);
+    }
+
+    // Beside it the theme: a breathing accent dot, wordless, because the
+    // page IS the preview -- tap it and every mark on every tab is the new
+    // colour before the finger lifts. The bench asked for exactly this
+    // shape: "a tappable color dot pulsating would indicate to users they
+    // can change theme there". The hit box is the band's full 52px.
+    {
+        lv_obj_t *td = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(td);
+        lv_obj_set_pos(td, 528, WT_ACTION_Y);
+        lv_obj_set_size(td, 52, WT_ACTION_H);
+        lv_obj_add_flag(td, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(td, LV_OBJ_FLAG_SCROLLABLE);
+        wt_tap_feedback(td);
+        lv_obj_add_event_cb(td, theme_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *dot = lv_obj_create(td);
+        lv_obj_remove_style_all(dot);
+        lv_obj_set_size(dot, 14, 14);
+        lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(dot, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+        // RECEIVE's glow: the same colour, wider than the dot, read as light.
+        lv_obj_set_style_shadow_color(dot, wt_accent(), 0);
+        lv_obj_set_style_shadow_width(dot, 14, 0);
+        lv_obj_set_style_shadow_opa(dot, 140, 0);
+        lv_obj_add_flag(dot, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_center(dot);
+        wt_dot_breathe(dot, 14, 5, false);
     }
 
     restyle();

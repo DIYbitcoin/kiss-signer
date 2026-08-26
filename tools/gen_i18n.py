@@ -342,6 +342,13 @@ UNTRANSLATED_OK = {
     # The gap-limit caution and its explainer. Born under the English-only
     # rule; English in the other twenty until the sweep.
     "S_C_GAPCH", "S_WHY_GAPCH",
+    # SETTINGS rebuilt on the KEYS page's definition list: the words row's
+    # state as a word instead of a glyph, the amnesic persist row's in-place
+    # reason, and the restore lesson that replaced the fingerprint card on
+    # BACKUP. Born under the English-only rule; English in the other twenty
+    # until the sweep.
+    "I_PERSIST_DEAD_PLAIN", "I_WORDS_OK_VAL", "I_WORDS_NO_VAL",
+    "I_RESTORE_CAP", "I_RESTORE_VAL", "I_RESTORE_PLAIN",
 }
 
 
