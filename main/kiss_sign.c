@@ -85,7 +85,6 @@ static void log_psbt_hex(const uint8_t *b, size_t n)
 #define log_psbt_hex(b, n) ((void)0)
 #endif
 
-#define HOLD_MS   1200
 // HOLD TO SIGN ignores presses for this long after I UNDERSTAND was tapped.
 // The redraw moved I UNDERSTAND into the caution row, so the two no longer
 // overlap in x and this is no longer the only thing standing between a double
@@ -132,8 +131,10 @@ static lv_obj_t *s_sweep;
 // DETAILS and BACK, NULL terminated, so the signing state can stand them down
 // without knowing what else is on the row.
 static lv_obj_t *s_inert[3];
-static lv_timer_t *s_hold_tmr;
-static uint32_t s_hold_t0;
+// The slide's live state: a drag in progress, and where it started. The
+// finger is the clock now -- there is no timer.
+static bool s_slide_on;
+static int  s_slide_x0;
 static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
@@ -238,7 +239,7 @@ static const char *signed_name(const char *src)
 
 static void hold_stop(void)
 {
-    if (s_hold_tmr) { lv_timer_delete(s_hold_tmr); s_hold_tmr = NULL; }
+    s_slide_on = false;
 }
 
 // Every pointer into the screen about to go, and the timers that would call
@@ -1084,71 +1085,79 @@ static void sweep_settle_done(lv_anim_t *a)
     lv_obj_set_style_bg_color((lv_obj_t *)a->var, WT_STOP, 0);   // ready to sweep again
 }
 
-static void hold_tick(lv_timer_t *t)
+// How far the current drag has come, for the release test: full travel
+// ARMS the slide, and the LIFT is what signs -- completing under a still
+// down finger would rebuild the screen beneath it and let the drag's tail
+// press whatever lands there.
+static int s_slide_at;
+
+static void slide_drive(int px)
 {
-    (void)t;
-    uint32_t el = lv_tick_elaps(s_hold_t0);
-    if (el > HOLD_MS) el = HOLD_MS;
-    // The graph and the sweep run on the same fraction as the ring, because
-    // there is only one thing being measured: how long this finger has been
-    // down. Three readings of one number, not three numbers.
-    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(el * 255 / HOLD_MS));
-    if (s_sweep) lv_obj_set_width(s_sweep, (int32_t)(el * SG_HOLD_W / HOLD_MS));
-    if (el >= HOLD_MS) {
-        hold_stop();
-        // The sweep SETTLES rather than snapping to zero. It measured a finger
-        // and there is no longer a finger to measure, and a bar sitting full
-        // while libwally works would be read as a progress bar for the signing,
-        // which is a thing nothing here can time -- so it does not sit. It holds
-        // its full width for SWEEP_SETTLE_MS while its fill crosses from the
-        // stop red to the accent the pill is already wearing, and then it is
-        // gone into that fill rather than deleted out from under the finger.
-        //
-        // Taking it away in the frame it filled was the complaint from the
-        // bench: the reward for holding the button for 1200ms was the bar
-        // disappearing. The fill still means "a finger was down this long"; the
-        // crossing is what says the measurement is finished and accepted.
-        if (s_sweep) {
-            lv_obj_set_style_bg_color(s_sweep, WT_STOP, 0);
-            lv_anim_t a;
-            lv_anim_init(&a);
-            lv_anim_set_var(&a, s_sweep);
-            lv_anim_set_values(&a, 0, 255);
-            lv_anim_set_duration(&a, SWEEP_SETTLE_MS);
-            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-            lv_anim_set_exec_cb(&a, sweep_settle_exec);
-            lv_anim_set_completed_cb(&a, sweep_settle_done);
-            lv_anim_start(&a);
-        }
-        if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
-        // Now the caption may say it. The strands are landed, the button is
-        // spent, and the next thing that happens on this thread is the call.
-        // The accent they are wearing is the commitment; the amounts beside
-        // them stay muted until there is a signature over them.
-        //
-        // The inputs come up to full strength underneath that accent, which is
-        // the difference between HOLDING and SIGNING and is invisible while the
-        // overlay covers them. It is what the strand falls back to if the
-        // signature fails: WT_INK, a coin that was committed, not an accent
-        // claiming one that was signed.
-        sign_lock_outputs();
-        if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNING);
-        if (s_graph_cap)
-            lv_label_set_text(s_graph_cap, tr(STR_S_SIGNING));
-        // DETAILS and BACK go inert HERE and not on the press -- kiss_psbt_sign
-        // blocks the LVGL loop, so a tap landing on either is a tap answered
-        // after the signature exists, and a control that looks live while it
-        // cannot respond is a control that lies. During the hold nothing
-        // blocks, both are answered normally, and standing them down for 1.2s
-        // to bring them back would be two controls flickering about nothing.
-        for (int i = 0; s_inert[i]; i++) {
-            lv_obj_set_style_border_color(s_inert[i], WT_EDGE, 0);
-            lv_obj_set_style_text_color(lv_obj_get_child(s_inert[i], 0),
-                                        WT_DIM, 0);
-            lv_obj_remove_flag(s_inert[i], LV_OBJ_FLAG_CLICKABLE);
-        }
-        lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
+    if (px < 0) px = 0;
+    if (px > SG_HOLD_W) px = SG_HOLD_W;
+    s_slide_at = px;
+    // The graph and the sweep run on the same fraction, because there is
+    // only one thing being measured: how far this finger has travelled.
+    // Two readings of one number, not two numbers.
+    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(px * 255 / SG_HOLD_W));
+    if (s_sweep) lv_obj_set_width(s_sweep, px);
+}
+
+static void slide_complete(void)
+{
+    hold_stop();
+    // The sweep SETTLES rather than snapping to zero. It measured a finger
+    // and there is no longer a finger to measure, and a bar sitting full
+    // while libwally works would be read as a progress bar for the signing,
+    // which is a thing nothing here can time -- so it does not sit. It holds
+    // its full width for SWEEP_SETTLE_MS while its fill crosses from the
+    // stop red to the accent the pill is already wearing, and then it is
+    // gone into that fill rather than deleted out from under the finger.
+    //
+    // Taking it away in the frame it filled was the complaint from the
+    // bench: the reward for holding the button for 1200ms was the bar
+    // disappearing. The fill still means "a finger was down this long"; the
+    // crossing is what says the measurement is finished and accepted.
+    if (s_sweep) {
+        lv_obj_set_style_bg_color(s_sweep, WT_STOP, 0);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, s_sweep);
+        lv_anim_set_values(&a, 0, 255);
+        lv_anim_set_duration(&a, SWEEP_SETTLE_MS);
+        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&a, sweep_settle_exec);
+        lv_anim_set_completed_cb(&a, sweep_settle_done);
+        lv_anim_start(&a);
     }
+    if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
+    // Now the caption may say it. The strands are landed, the button is
+    // spent, and the next thing that happens on this thread is the call.
+    // The accent they are wearing is the commitment; the amounts beside
+    // them stay muted until there is a signature over them.
+    //
+    // The inputs come up to full strength underneath that accent, which is
+    // the difference between HOLDING and SIGNING and is invisible while the
+    // overlay covers them. It is what the strand falls back to if the
+    // signature fails: WT_INK, a coin that was committed, not an accent
+    // claiming one that was signed.
+    sign_lock_outputs();
+    if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNING);
+    if (s_graph_cap)
+        lv_label_set_text(s_graph_cap, tr(STR_S_SIGNING));
+    // DETAILS and BACK go inert HERE and not on the press -- kiss_psbt_sign
+    // blocks the LVGL loop, so a tap landing on either is a tap answered
+    // after the signature exists, and a control that looks live while it
+    // cannot respond is a control that lies. During the hold nothing
+    // blocks, both are answered normally, and standing them down for 1.2s
+    // to bring them back would be two controls flickering about nothing.
+    for (int i = 0; s_inert[i]; i++) {
+        lv_obj_set_style_border_color(s_inert[i], WT_EDGE, 0);
+        lv_obj_set_style_text_color(lv_obj_get_child(s_inert[i], 0),
+                                    WT_DIM, 0);
+        lv_obj_remove_flag(s_inert[i], LV_OBJ_FLAG_CLICKABLE);
+    }
+    lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
 }
 
 static void sign_press_cb(lv_event_t *e)
@@ -1158,17 +1167,34 @@ static void sign_press_cb(lv_event_t *e)
         // Not yet armed: this press is the tail of the one that acknowledged
         // the caution, landing on the button that replaced it. Swallow it.
         if (s_ack_t0 && lv_tick_elaps(s_ack_t0) < SIGN_ARM_MS) return;
-        s_hold_t0 = lv_tick_get();
-        if (!s_hold_tmr) s_hold_tmr = lv_timer_create(hold_tick, 30, NULL);
+        lv_indev_t *in = lv_indev_active();
+        lv_point_t pt = { 0, 0 };
+        if (in) lv_indev_get_point(in, &pt);
+        s_slide_x0 = pt.x;
+        s_slide_on = true;
         sign_lock_outputs();
+    } else if (c == LV_EVENT_PRESSING) {
+        if (!s_slide_on) return;
+        lv_indev_t *in = lv_indev_active();
+        if (!in) return;
+        lv_point_t pt;
+        lv_indev_get_point(in, &pt);
+        slide_drive(pt.x - s_slide_x0);
     } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
-        // Only a hold still running can be abandoned. The finger also comes up
-        // AFTER a completed hold -- kiss_psbt_sign holds the loop, so that
-        // release is delivered on the far side of the signature -- and
-        // retracting the graph there would erase a signed transaction's reveal.
-        // The timer is what tells the two apart: completion deleted it.
-        if (s_hold_tmr) hold_abandon();
-        else            hold_stop();
+        // The LIFT at full travel is the signature; a lift short of it (or a
+        // press the system took away) abandons. hold_stop alone covers the
+        // release delivered on the far side of a signature -- kiss_psbt_sign
+        // holds the loop, and retracting the graph there would erase a signed
+        // transaction's reveal.
+        if (c == LV_EVENT_RELEASED && s_slide_on &&
+            s_slide_at >= SG_HOLD_W - 10) {
+            slide_complete();
+        } else if (s_slide_on) {
+            hold_abandon();
+        } else {
+            hold_stop();
+        }
+        s_slide_at = 0;
     }
 }
 
@@ -2635,6 +2661,9 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(s_sign_lbl, WT_DIM, 0);
     } else {
         lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
+        // The slide must not bubble a gesture out to any screen watcher --
+        // dragging the confirm is not a page turn.
+        lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
         // The same primary marker every other screen's suggested action wears,
         // rather than a bare 1px accent border invented here: 2px, an accent
         // tinted fill, a pressed fill the hold can be felt against, and the top
@@ -2643,13 +2672,15 @@ static void verify_screen(lv_obj_t *parent)
         // kind of near miss the redraw is meant to remove.
         wt_pill_primary(p);
 
-        // The sweep, the third reading of the hold. Built the way wt_hold_pill
-        // builds its own -- a background child grown from zero, under the label
-        // LVGL has already made -- but in the ACCENT and not WT_STOP. On this
-        // device a red sweep under a pill means a destructive hold, wipe or
-        // reset, and signing is neither. Red here would code the safest hold in
-        // the app as the most dangerous one. At 90 of 255 over the pill's own
-        // accent tinted fill it reads as the press deepening across the button.
+        // The sweep, the slide's second reading -- a background child grown
+        // from zero under the label LVGL has already made, in the ACCENT and
+        // not WT_STOP. On this device a red fill under a confirm means a
+        // destructive one, wipe or reset, and signing is neither. Red here
+        // would code the safest slide in the app as the most dangerous one.
+        // At 90 of 255 over the pill's own accent tinted fill it reads as the
+        // press deepening across the button. The pill KEEPS its box: this
+        // band is a pill band (DETAILS and BACK beside it), and a bare rule
+        // floating between two pills would read as a missing control.
         lv_obj_t *f = lv_obj_create(p);
         lv_obj_remove_style_all(f);
         lv_obj_set_size(f, 0, WT_ACTION_H);
@@ -3553,12 +3584,16 @@ static void rm_build(void)
         lv_obj_set_height(nm, lv_font_get_line_height(wt_font_mono23()));
         lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
         lv_obj_align(nm, LV_ALIGN_LEFT_MID, 52, 0);
-        // The mark alone, no label: this pill is one of up to sixteen and a
-        // translated phrase on each would not fit. wt_hold_pill sweeps WT_STOP
-        // across it while held, which is the affordance doing the explaining.
-        wt_hold_pill(row, LV_SYMBOL_TRASH, WT_LANE_W - WT_LINE_PAD - 170,
-                     (SF_ROW_H - 40) / 2, 170, 40, 1200, rm_one,
-                     (void *)(intptr_t)idx);
+        // The mark alone, no label: this bar is one of up to sixteen and a
+        // translated phrase on each would not fit. The WT_STOP fill runs
+        // under the finger, which is the affordance doing the explaining;
+        // 170 of travel is the smallest slide on the device and still a
+        // deliberate gesture, not a brush.
+        wt_slide_rule_c(row, LV_SYMBOL_TRASH, NULL,
+                        WT_LANE_W - WT_LINE_PAD - 170,
+                        (SF_ROW_H - WT_ACTION_H) / 2, 170,
+                        WT_STOP_INK, WT_STOP, rm_one,
+                        (void *)(intptr_t)idx);
         wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_ROW_H - 1,
                                        WT_LANE_W), 42 * i + 110, 320);
     }
@@ -3605,8 +3640,9 @@ static void rm_screen(void)
     // Sweeping the card is what this screen is for, so it takes the left lane
     // and keeps its hold: the band invariant is that a TAP is never
     // irreversible, and both controls here are holds or exits.
-    wt_hold_pill(s_scr, tr(STR_S_RM_ALL), WT_ACT_X, WT_ACTION_Y, 300,
-                 WT_ACTION_H, 1500, rm_all, NULL);
+    wt_slide_rule_c(s_scr, tr(STR_S_RM_ALL), tr(STR_G_FW_KEEP_HOLDING),
+                    WT_ACT_X, WT_ACTION_Y, 300, WT_STOP_INK, WT_STOP,
+                    rm_all, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                     true, rm_back_cb, NULL);
 }

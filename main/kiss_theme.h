@@ -1136,15 +1136,15 @@ typedef struct {
 } wt_gate_t;
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g);
 
-// wt_hold_rule in a stated colour instead of the accent: the gate's hold
+// wt_slide_rule in a stated colour instead of the accent: the gate's slide
 // fills its track in the danger colour, and a danger never restyles with the
 // theme, so these carry no accent flags. `ink` is the label and the arrow,
 // `fill` the track's fill -- WT_STOP_INK over WT_STOP on the erase gate,
 // WT_WARN over WT_WARN everywhere retryable.
-lv_obj_t *wt_hold_rule_c(lv_obj_t *scr, const char *txt, const char *held,
-                         int x, int y, int w, int ms,
-                         lv_color_t ink, lv_color_t fill,
-                         void (*done)(void *), void *ud);
+lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
+                          int x, int y, int w,
+                          lv_color_t ink, lv_color_t fill,
+                          void (*done)(void *), void *ud);
 
 // ---- shape 6: the outcome (frame 7f) ------------------------------------
 // A lamp, a headline that names the NEXT MOVE rather than the fact, one
@@ -1403,33 +1403,26 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e);
 // Trailing space before the colon is trimmed, which is what French needs.
 const char *wt_split_colon(const char *line, char *head, size_t head_len);
 
-// Hold-to-confirm pill: the action fires only after the finger has been held
-// down for ms, and a fill sweeps across the pill while it does. Letting go
-// early cancels and resets. Use this for anything a stray double tap must not
-// be able to trigger — the sign screen's hold-to-sign is the same idea, and
-// erasing a wallet is the other one.
-lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
-                       int ms, void (*done)(void *), void *ud);
-
-// The same hold, drawn as a label over a rule instead of a fill inside a pill.
-// A SIBLING of wt_hold_pill and not a flag on it: every other hold on the
-// device -- the storage move, erasing the recovery words -- keeps its pill,
-// and a shared function would mean a branch in every measurement.
+// Slide-to-confirm: the device's ONE confirm gesture, at the bench's own
+// request, replacing every hold. Press the bar and DRAG right; the fill
+// follows the finger's TRAVEL (not its position -- the press can land
+// anywhere and the distance to fire is always the bar's width, so a stray
+// brush against the far end completes nothing), and reaching the end fires.
+// `held` replaces the label once the drag commits, and swaps back if the
+// finger retreats -- the words track the gesture.
 //
 // The label sits at (x, y) with an arrow after it, and a `w` wide, 2px track
-// runs 8px under it with the progress filling left to right. `held` replaces
-// the label while the finger is down, so the screen answers the press with a
-// word as well as a bar.
+// runs 8px under it with the fill running left to right under the finger.
 //
-// Letting go returns the fill to 0 over 180ms rather than clearing it: a fill
-// that VANISHES on release reads as an action that completed. A fill that runs
-// back reads as one that did not.
+// Letting go early returns the fill to 0 over 200ms rather than clearing it:
+// a fill that VANISHES on release reads as an action that completed. A fill
+// that runs back reads as one that did not.
 //
 // This belongs on WT_ACTION_Y, not WT_ACTION_Y_TALL. The tall row exists to
 // give a fat pill room, and the label plus its 2px rule fits the standard 52.
-lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
-                       int x, int y, int w, int ms,
-                       void (*done)(void *), void *ud);
+lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
+                        int x, int y, int w,
+                        void (*done)(void *), void *ud);
 
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4

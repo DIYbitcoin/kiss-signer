@@ -391,8 +391,11 @@ static void confirm_screen(void)
                      WT_WARN);
     }
     wt_pill(s_scr, tr(STR_C_CANCEL), WT_EXIT_X, WT_ACTION_Y, 140, cancel_cb, NULL);
-    wt_hold_pill(s_scr, tr(STR_GD_WORD_HOLD), WT_ACT_X, WT_ACTION_Y, 330,
-                 WT_ACTION_H, 2000, save_cb, NULL);
+    // The slide bar, in the danger colours: replacing the unlock word is
+    // the confirm this screen exists for.
+    wt_slide_rule_c(s_scr, tr(STR_GD_WORD_HOLD), tr(STR_G_FW_KEEP_HOLDING),
+                    WT_ACT_X, WT_ACTION_Y, 330, WT_STOP_INK, WT_STOP,
+                    save_cb, NULL);
 }
 
 // The write did not take.

@@ -464,12 +464,12 @@ static void storage_confirm_screen(int target)
     };
     wt_gate(s_scr, &g);
 
-    wt_hold_rule_c(s_scr,
-                   tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
-                          : STR_G_STORAGE_HOLD_MOVE),
-                   tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y, 330,
-                   1500, WT_WARN, WT_WARN, storage_apply,
-                   (void *)(intptr_t)target);
+    wt_slide_rule_c(s_scr,
+                    tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
+                           : STR_G_STORAGE_HOLD_MOVE),
+                    tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y, 330,
+                    WT_WARN, WT_WARN, storage_apply,
+                    (void *)(intptr_t)target);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, storage_confirm_cancel_cb, NULL);
 }
@@ -1185,10 +1185,9 @@ static void wipe_fail_ok_cb(lv_event_t *e)   // dismiss back to settings, retrya
     lv_obj_delete_async(ovl);
 }
 
-// The erase itself. Reached only from the confirm screen's hold, never from a
-// tap on the Settings pill: two taps in one spot is a gesture a pocket or a
+// The erase itself. Reached only from the confirm screen's slide, never from
+// a tap on the Settings pill: two taps in one spot is a gesture a pocket or a
 // double tap can produce by accident, and this one is not undoable from here.
-#define WIPE_HOLD_MS 2000    // longer than hold-to-sign: this one has no undo
 
 static void do_wipe(void *ud)
 {
@@ -1322,9 +1321,9 @@ static void erase_screen(void)
     // brush cannot cross, and the one erase on the device stays above it for
     // the reason the old comment gave -- this one has no undo. The track
     // fills in full WT_STOP; the label reads in the tint.
-    wt_hold_rule_c(s_scr, tr(STR_G_HOLD_WIPE), tr(STR_G_FW_KEEP_HOLDING),
-                   WT_ACT_X, WT_ACTION_Y, 330, WIPE_HOLD_MS,
-                   WT_STOP_INK, WT_STOP, do_wipe, NULL);
+    wt_slide_rule_c(s_scr, tr(STR_G_HOLD_WIPE), tr(STR_G_FW_KEEP_HOLDING),
+                    WT_ACT_X, WT_ACTION_Y, 330,
+                    WT_STOP_INK, WT_STOP, do_wipe, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, erase_back_cb, NULL);
 }

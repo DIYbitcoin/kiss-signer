@@ -670,8 +670,8 @@ static void confirm_screen(void)
     // runs along a rule under the label instead, which is why this sits on
     // WT_ACTION_Y rather than the tall bar: the tall bar existed to give a fat
     // pill room.
-    wt_hold_rule(s_scr, tr(STR_G_FW_HOLD), tr(STR_G_FW_KEEP_HOLDING),
-                 WT_ACT_X, WT_ACTION_Y, 330, 1500, writing_apply, NULL);
+    wt_slide_rule(s_scr, tr(STR_G_FW_HOLD), tr(STR_G_FW_KEEP_HOLDING),
+                  WT_ACT_X, WT_ACTION_Y, 330, writing_apply, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y, 160,
                     true, confirm_cancel_cb, NULL);
 }

@@ -1620,12 +1620,37 @@ static void tap_chip_top(void)
 }
 
 // The two-part form, for a hold the walk photographs partway through.
-static void press_str(int key)
+// The slide-to-confirm bars fire by TRAVEL, not time: grip one by its words
+// (the press lands mid-label; the bar measures from wherever the press
+// starts) and drag right in indev-cadence steps. slide_go keeps the finger
+// down so a stop can photograph a partial fill and keep dragging;
+// slide_fire drags far enough to complete any bar on the device (the widest
+// track is 330) and lets go.
+static int s_slide_x, s_slide_y;
+static void slide_grip(int key)
 {
-    lv_obj_t *p = pill_for(key, "press");
+    lv_obj_t *p = pill_for(key, "slide");
     if (!p) return;
     lv_area_t a; lv_obj_get_coords(p, &a);
-    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    s_slide_x = (a.x1 + a.x2) / 2;
+    s_slide_y = (a.y1 + a.y2) / 2;
+    touch(s_slide_x, s_slide_y); pump(3);
+}
+static void slide_go(int px)          // absolute travel from the grip point
+{
+    for (int i = 1; i <= 6; i++) { touch(s_slide_x + px * i / 6, s_slide_y); pump(3); }
+}
+static void slide_at(int x, int y, int px)   // grip by coordinate, drag, stay down
+{
+    s_slide_x = x; s_slide_y = y;
+    touch(x, y); pump(3);
+    slide_go(px);
+}
+static void slide_fire(int key)
+{
+    slide_grip(key);
+    slide_go(340);
+    release(); pump(8);
 }
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
@@ -2438,7 +2463,7 @@ int main(void) {
       tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
       draw_thirteen_strokes();
       tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
-      tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE -> saved
+      slide_fire(STR_GD_WORD_HOLD);      // SLIDE TO CHANGE -> saved
       save("/tmp/sim_gword_manystroke.ppm");          // YOUR LETTERS ARE SET
       tap_str(STR_C_OK, 3, 8);   // OK -> back to the home
       if (!gw_stored_any()) {
@@ -2749,21 +2774,21 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 6);     // BACK -> KEYS, still on COORDINATOR
   touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent warning
   save("/tmp/sim_sp_warn.ppm");
-  tap_str(STR_W_HOLD_SHOW, 25, 6);    // early release: key stays hidden
+  tap_str(STR_W_HOLD_SHOW, 25, 6);    // a press with no travel: key stays hidden
   save("/tmp/sim_sp_warn_early.ppm");
   // The failure branch first, because it is one hold away and nothing else in
   // the walk can reach it: kiss_info.c only draws the QR when the export
   // succeeds, so a derivation that fails renders a different screen that had
   // never been photographed in any locale.
   s_sim_sp_export_fail = 1;
-  tap_str(STR_W_HOLD_SHOW, 90, 8);  // full hold (1200ms gate) -> export refuses
+  slide_fire(STR_W_HOLD_SHOW);      // the full slide -> export refuses
   save("/tmp/sim_sp_key_fail.ppm");                 // no QR: the refusal render
   s_sim_sp_export_fail = 0;
   // DONE, not BACK: the refusal render carries the same exit the success one
   // does. Then take the row again for the working export below.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET
   touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent
-  tap_str(STR_W_HOLD_SHOW, 90, 8);  // full hold (1200ms gate) -> export
+  slide_fire(STR_W_HOLD_SHOW);      // the full slide -> export
   save("/tmp/sim_sp_key.ppm");
   touch(198, 228); pump(3); release(); pump(6);     // private scan-key QR -> zoom
   save("/tmp/sim_sp_key_zoom.ppm");
@@ -3034,17 +3059,16 @@ int main(void) {
     }
   }
 
-  // The hold, sampled three times on the way up. One frame cannot show a fill:
-  // it looks exactly like a strand that is simply that long. Three at 25, 50
-  // and 75 percent of HOLD_MS are what make the length a function of the
-  // finger, and a fill wired to anything else -- a coin index, a signing
-  // estimate -- lands the same in all three.
-  // A pump is 16ms and HOLD_MS is 1200, so the whole hold is 75 of them.
-  press_str(STR_S_HOLD_TO_SIGN); pump(19);
+  // The slide, sampled three times across the track. One frame cannot show
+  // a fill: it looks exactly like a strand that is simply that long. Three
+  // at 25, 50 and 75 percent of the 310 travel are what make the length a
+  // function of the finger, and a fill wired to anything else -- a coin
+  // index, a signing estimate -- lands the same in all three.
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(78);
   save("/tmp/sim_sign_hold_q.ppm");
-  pump(21);                                         // sweep ~half across
+  slide_go(155);                                    // sweep ~half across
   save("/tmp/sim_sign_hold.ppm");
-  pump(16);
+  slide_go(232);
   save("/tmp/sim_sign_hold_3q.ppm");
   if (!kiss_sign_test_locked()) {
     printf("FAIL: the output side never stood down for the hold\n");
@@ -3061,7 +3085,7 @@ int main(void) {
     return 1;
   }
 
-  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);    // past the track: signs
   release(); pump(40);                              // past REVEAL_TRAVEL_MS
   // The reveal, and the reason the walk stops here rather than landing straight
   // on the exit screen. The graph has spent the whole flow claiming a strand in
@@ -3148,7 +3172,7 @@ int main(void) {
   // (520,18) 170x40, so 568..738 x 132..172. A tap is NOT enough.
   touch(652, 164); pump(2); release(); pump(4);
   save("/tmp/sim_sign_rm_noop.ppm");                // still the list, nothing gone
-  touch(652, 164); pump(40);                        // hold: partial red sweep
+  slide_at(652, 164, 85);                           // half the 170: partial red fill
   lv_refr_now(NULL);
   save("/tmp/sim_sign_rm_holding.ppm");
   release(); pump(6);                               // let go early -> nothing happened
@@ -3364,7 +3388,7 @@ int main(void) {
   // dashed line on the device. The accent drawn over it has to be dashed too --
   // sixteen coins committing must not become one coin committing halfway
   // through a hold.
-  press_str(STR_S_HOLD_TO_SIGN); pump(40);
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(155);
   save("/tmp/sim_sign_merge_hold.ppm");
   release(); pump(8);
   if (kiss_sign_test_locked()) {
@@ -3389,7 +3413,7 @@ int main(void) {
   // signature, because none was made. Nothing else in the walk opens this
   // screen -- it was built, translated 21 times and never rendered.
   s_sim_sign_fails = 1;
-  press_str(STR_S_HOLD_TO_SIGN); pump(85);          // past 1.2s: signs, or does not
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);    // past the track: signs, or does not
   release(); pump(10);
   save("/tmp/sim_sign_failed.ppm");
   must_show("sign failed", tr(STR_S_FAIL_SIGN));
@@ -3416,7 +3440,7 @@ int main(void) {
       for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
       release(); pump(10);
     }
-    press_str(STR_S_HOLD_TO_SIGN); pump(85);
+    slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
     release(); pump(150);                           // past the reveal, writes SD
     save("/tmp/sim_sign_done_many.ppm");
     // What the card must say, and what it must not. The count comes from the
@@ -3577,7 +3601,7 @@ int main(void) {
   }
   pump(8);
   save("/tmp/sim_qr_verify.ppm");                   // verify screen, source = scan
-  press_str(STR_S_HOLD_TO_SIGN); pump(40);          // hold to sign
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);    // slide to sign
   // ...then past the reveal as well: the QR path takes a different exit but
   // shares the signing state, so it waits the same beat before leaving.
   // 45 + 120: the hold completes inside the first, and the second has to clear
@@ -3827,9 +3851,9 @@ int main(void) {
   set_chip(1);                                       // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // <1500ms: no migration
+  tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
   save("/tmp/sim_storage_hold_noop.ppm");
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);   // deliberate hold -> success
+  slide_fire(STR_G_STORAGE_HOLD_MOVE);        // deliberate slide -> success
   save("/tmp/sim_storage_sd_ok.ppm");
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, on the tab it was picked from
   save("/tmp/sim_settings_sd.ppm");                 // the chip reads SD CARD
@@ -3849,7 +3873,7 @@ int main(void) {
   set_tab(SET_BACKUP);
   set_chip(1);
   set_row(0);                                        // FLASH
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
 
   // The two verdicts that are not success. Both were built, translated 21
@@ -3863,7 +3887,7 @@ int main(void) {
   s_sim_move_rc = WSEED_ERR_SD_IO;
   set_chip(1);
   set_row(1);                                        // SD CARD -> confirmation
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_fail.ppm");
   // The title, not the body: wt_why_body splits a two paragraph string across
   // labels, and it is the verdict in the heading that must be the right one.
@@ -3877,14 +3901,14 @@ int main(void) {
   s_sim_move_rc = WSEED_ERR_CLEANUP;
   set_chip(1);
   set_row(1);                                        // SD CARD
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
   set_chip(1);
   set_row(0);                                        // FLASH
-  tap_str(STR_G_STORAGE_HOLD_MOVE, 105, 8);
+  slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);
   must_show("storage restored", tr(STR_W_KEEP_BTN));
 
@@ -4029,7 +4053,7 @@ int main(void) {
   // a tap is NOT enough here either
   tap_str(STR_W_HOLD_SHOW, 2, 4);
   save("/tmp/sim_words_gate_noop.ppm");             // still the gate
-  touch(208, 430); pump(90); release(); pump(10);   // 1200ms hold -> the grid
+  slide_at(208, 430, 340); release(); pump(10);     // the full slide -> the grid
   save("/tmp/sim_words.ppm");                       // 3x4, dim numbers, WARN band
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
 
@@ -4048,7 +4072,7 @@ int main(void) {
     set_tab(SET_BACKUP);
     set_row(0);                                     // Recovery words -> warning
     words_row(0);                      // Show the words -> the gate
-    touch(208, 430); pump(90); release(); pump(10); // hold through
+    slide_at(208, 430, 340); release(); pump(10);   // slide through
     save("/tmp/sim_words24_p1.ppm");                // 1-12, one lit sheet dot
     tap_str(STR_R_NEXT, 3, 6);   // NEXT
     save("/tmp/sim_words24_p2.ppm");                // 13-24, DONE appears
@@ -4090,7 +4114,7 @@ int main(void) {
   words_tab(WORDS_ENC);
   words_row(0);
 
-  tap_str(STR_I_KEF_MAKE_BTN, 65, 8);               // hold CHOOSE A PASSWORD
+  slide_fire(STR_I_KEF_MAKE_BTN);                   // slide CHOOSE A PASSWORD
   save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD
   touch(664, 278); pump(3); release(); pump(3);     // k
   touch(201, 202); pump(3); release(); pump(3);     // e
@@ -5280,7 +5304,7 @@ int main(void) {
   draw_own_letters();
   tap_str(STR_GD_WORD_DONE, 3, 8);     // DONE -> the stop screen
   save("/tmp/sim_gword_confirm.ppm");               // KISS WILL STOP WORKING
-  tap_str(STR_GD_WORD_HOLD, 140, 8);   // HOLD TO CHANGE (422..752)
+  slide_fire(STR_GD_WORD_HOLD);        // SLIDE TO CHANGE (422..752)
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
   tap_str(STR_C_OK, 3, 8);     // OK (552..752) -> Settings
   set_tab(SET_SECURITY);
@@ -5320,7 +5344,7 @@ int main(void) {
   // amber lamp and keeps "do not sell or give it away" whole, and BACK
   // returns to the gate for the retry the headline names.
   s_sim_wipe_fail = 1;
-  touch(208, 430); pump(160); release(); pump(10);  // full hold -> refusal
+  slide_at(208, 430, 340); release(); pump(10);     // the full slide -> refusal
   save("/tmp/sim_wipe_fail.ppm");
   must_show("erase/fail headline", tr(STR_G_NOERASE_NEXT));
   tap_str(STR_C_BACK, 3, 10);                       // -> the gate again
@@ -5328,10 +5352,10 @@ int main(void) {
   // on the action row now (48..368 x WT_ACTION_Y), not on an overlay at 372:
   // the confirmation IS the screen, so it uses the same row every other screen
   // puts its actions on.
-  touch(208, 430); pump(60);                        // ~half way: the fill sweeps
+  slide_at(208, 430, 165);                          // ~half way: the fill sweeps
   lv_refr_now(NULL);
   save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
-  pump(100); release(); pump(6);                    // hold through -> erased
+  slide_go(340); release(); pump(6);                // slide through -> erased
   save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
   must_show("erased", tr(STR_G_ERASED_T));
   // NEW SEED WORDS sits beside OK: erasing in order to make new ones is one
@@ -5518,7 +5542,7 @@ int main(void) {
     tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
     tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
-    tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD TO CHANGE
+    slide_fire(STR_GD_WORD_HOLD);      // SLIDE TO CHANGE
     save("/tmp/sim_gword_done_nopass.ppm");         // PASSPHRASE -> NOT SET, no SPARE
     tap_str(STR_C_OK, 3, 8);   // OK
     // Put KISS back and drop the session, for the reason the walk restores it
@@ -5544,7 +5568,7 @@ int main(void) {
     tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> once more
     draw_own_letters();
     tap_str(STR_GD_WORD_DONE, 3, 8);   // DONE -> the stop screen
-    tap_str(STR_GD_WORD_HOLD, 140, 8); // HOLD -> the write fails
+    slide_fire(STR_GD_WORD_HOLD);      // SLIDE -> the write fails
     save("/tmp/sim_gword_failed.ppm");              // THAT WAS NOT IT, nothing saved
     tap_str(STR_C_OK, 3, 8);   // OK
     if (gw_stored_any()) {
@@ -5638,12 +5662,11 @@ int main(void) {
   // plain rule either way. 45 frames is 720ms of a 1500ms hold, so the fill is
   // about half across and the label reads KEEP HOLDING.
   {
-    lv_obj_t *hp = pill_for(STR_G_FW_HOLD, "mid-hold");
+    lv_obj_t *hp = pill_for(STR_G_FW_HOLD, "mid-slide");
     if (hp) {
       lv_area_t a; lv_obj_get_coords(hp, &a);
-      touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
-      pump(45);
-      save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP HOLDING
+      slide_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
+      save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP SLIDING
       must_show("fw/holding", tr(STR_G_FW_KEEP_HOLDING));
       release();
       pump(30);                                     // the fill runs back to 0
@@ -5660,7 +5683,7 @@ int main(void) {
   // FIRMWARE REPLACED. The window this needs to land in is not tight: WRITING
   // stays up FW_LIT_MS (1200ms, 75 frames) before the result replaces it, and
   // the write itself is deferred 30ms behind it.
-  tap_str(STR_G_FW_HOLD, 110, 4);
+  slide_fire(STR_G_FW_HOLD);
   // 55 frames into the 1200ms screen, which is where the light band is near
   // the top of its breath. Saved on frame 0 it is at the BOTTOM: bg_opa 64
   // against stop opacities of 26 and 5 quantises a 704px ramp into a single
@@ -5693,7 +5716,7 @@ int main(void) {
   // at one indev phase, and any walk insertion upstream shifts the phase —
   // at the wrong one the hold never completed, nothing installed, and this
   // save quietly photographed the confirm screen instead.
-  tap_str(STR_G_FW_HOLD, 110, 1);      // hold completes, WRITING announces
+  slide_fire(STR_G_FW_HOLD);           // the slide completes, WRITING announces
   pump(100);                           // deferred refusal lands, as above
   save("/tmp/sim_fw_rejected.ppm");    // NOT INSTALLED, in WT_STOP
   must_show("fw/rejected", tr(STR_G_FW_FAIL_T));
@@ -5710,7 +5733,7 @@ int main(void) {
   kiss_fw_ui_open(lv_screen_active(), NULL);
   pump(FW_SETTLE);
   tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);
-  tap_str(STR_G_FW_HOLD, 110, 1);
+  slide_fire(STR_G_FW_HOLD);
   pump(100);
   save("/tmp/sim_fw_pq_rejected.ppm");
   must_show("fw/pq_rejected", tr(STR_G_FW_FAIL_T));

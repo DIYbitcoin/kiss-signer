@@ -913,18 +913,22 @@ lv_obj_t *wt_pill_icon(lv_obj_t *scr, const char *icon, const char *txt,
     return wt_pillh(scr, buf, x, y, w, h, cb, ud);
 }
 
-// ---- hold to confirm (see kiss_theme.h) ----
-// One press cannot fire it and neither can two: the finger has to stay down.
-// State hangs off the pill so several could coexist, and the timer is deleted
-// on release AND on delete, so a screen torn down mid-hold leaves nothing.
+// ---- slide to confirm (see kiss_theme.h) ----
+// The successor to hold-to-confirm, at the bench's own request: press the
+// bar and DRAG right, the fill following the finger's travel; reaching the
+// far end fires, letting go earlier runs the fill back. Distance, not
+// position -- the press can land anywhere on the bar, and the travel it
+// takes to fire is always the bar's own width, so a stray brush against the
+// right edge cannot complete anything. No timer: the finger is the clock.
+// State hangs off the bar so several could coexist, freed on DELETE, so a
+// screen torn down mid-slide leaves nothing.
 typedef struct {
     lv_obj_t *pill, *fill;
-    lv_timer_t *tmr;
-    uint32_t t0;
-    int ms, w;
-    // wt_hold_rule only: the label to swap, the two words to swap between, and
-    // how long the fill takes to run back. Zero release_ms is wt_hold_pill,
-    // which clears its sweep in a frame because a pill already looks pressed.
+    int w;
+    int x0;               // the press's screen x; travel measures from here
+    int at;               // the drag's current travel, for the release test
+    bool fired;           // done() ran -- ignore every later event
+    bool saying_held;     // the KEEP SLIDING swap, made once, not per event
     lv_obj_t *lbl, *arrow;
     const char *txt, *held;
     int release_ms;
@@ -953,7 +957,7 @@ static void hold_rule_say(wt_hold_t *h, const char *txt)
 // to avoid, and neither would ever be seen.
 static void hold_reset(wt_hold_t *h, bool animate)
 {
-    if (h->tmr) { lv_timer_delete(h->tmr); h->tmr = NULL; }
+    h->saying_held = false;
     if (h->lbl && h->txt) hold_rule_say(h, h->txt);
     if (!h->fill) return;
     lv_anim_delete(h->fill, an_w);
@@ -972,85 +976,69 @@ static void hold_reset(wt_hold_t *h, bool animate)
     lv_anim_start(&a);
 }
 
-static void hold_tick_cb(lv_timer_t *t)
-{
-    wt_hold_t *h = lv_timer_get_user_data(t);
-    uint32_t el = lv_tick_elaps(h->t0);
-    if (el >= (uint32_t)h->ms) {
-        void (*done)(void *) = h->done;
-        void *ud = h->ud;
-        hold_reset(h, false);
-        if (done) done(ud);            // may delete the pill: touch nothing after
-        return;
-    }
-    lv_obj_set_width(h->fill, (int32_t)(el * (uint32_t)h->w / (uint32_t)h->ms));
-}
-
 static void hold_press_cb(lv_event_t *e)
 {
     wt_hold_t *h = lv_event_get_user_data(e);
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
-        h->t0 = lv_tick_get();
-        if (h->lbl && h->held) hold_rule_say(h, h->held);
-        if (!h->tmr) h->tmr = lv_timer_create(hold_tick_cb, 30, h);
+        lv_indev_t *in = lv_indev_active();
+        lv_point_t pt = { 0, 0 };
+        if (in) lv_indev_get_point(in, &pt);
+        h->x0 = pt.x;
+        h->at = 0;
+        h->fired = false;
+        lv_anim_delete(h->fill, an_w);
+    } else if (c == LV_EVENT_PRESSING) {
+        if (h->fired) return;
+        lv_indev_t *in = lv_indev_active();
+        if (!in) return;
+        lv_point_t pt;
+        lv_indev_get_point(in, &pt);
+        int px = pt.x - h->x0;
+        if (px < 0) px = 0;
+        if (px > h->w) px = h->w;
+        h->at = px;
+        lv_obj_set_width(h->fill, px);
+        // The swap happens once the slide is clearly a slide, and swaps back
+        // if the finger retreats -- the words track the gesture, not the tap.
+        const bool committed = px > h->w / 6;
+        if (h->lbl && h->held && committed != h->saying_held) {
+            h->saying_held = committed;
+            hold_rule_say(h, committed ? h->held : h->txt);
+        }
     } else {                           // RELEASED, PRESS_LOST, or DELETE
-        hold_reset(h, c != LV_EVENT_DELETE);
+        // Full travel ARMS; the LIFT fires. Firing mid-drag replaced the
+        // screen under a finger still down, and the indev re-targets a live
+        // press -- so the drag's tail pressed whatever the new screen put
+        // there, on the glass exactly as in the walk. PRESS_LOST never
+        // fires: a press the system took away is not a decision.
+        if (c == LV_EVENT_RELEASED && !h->fired && h->at >= h->w - 12) {
+            h->fired = true;
+            void (*done)(void *) = h->done;
+            void *ud = h->ud;
+            hold_reset(h, false);
+            if (done) done(ud);        // may delete the bar: touch nothing after
+            return;
+        }
+        if (!h->fired) hold_reset(h, c != LV_EVENT_DELETE);
         if (c == LV_EVENT_DELETE) lv_free(h);
     }
 }
 
-lv_obj_t *wt_hold_pill(lv_obj_t *scr, const char *txt, int x, int y, int w, int h_,
-                       int ms, void (*done)(void *), void *ud)
-{
-    wt_hold_t *h = lv_malloc(sizeof *h);
-    if (!h) return NULL;
-    lv_memzero(h, sizeof *h);
-    h->ms = ms > 0 ? ms : 1200;
-    h->w = w;
-    h->done = done;
-    h->ud = ud;
-
-    lv_obj_t *p = wt_pillh(scr, txt, x, y, w, h_, NULL, NULL);
-    lv_obj_set_style_border_color(p, WT_STOP, 0);
-    lv_obj_clear_flag(p, LV_OBJ_FLAG_SCROLLABLE);
-    h->pill = p;
-
-    // the sweep sits UNDER the label (added first would be behind the text
-    // LVGL already made, so move it back explicitly)
-    lv_obj_t *f = lv_obj_create(p);
-    lv_obj_remove_style_all(f);
-    lv_obj_set_size(f, 0, h_);
-    lv_obj_set_pos(f, 0, 0);
-    lv_obj_set_style_radius(f, 10, 0);   // matches the pill it sweeps across
-    lv_obj_set_style_bg_color(f, WT_STOP, 0);
-    lv_obj_set_style_bg_opa(f, 90, 0);
-    lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_move_background(f);
-    h->fill = f;
-
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
-    return p;
-}
-
-// One builder for both faces of the rule hold: `ink`/`fill` NULL means the
+// One builder for both faces of the slide bar: `ink`/`fill` NULL means the
 // accent, flagged so the theme repaints it; a stated colour means a DANGER,
 // which never restyles, so the flags stay off.
-static lv_obj_t *hold_rule_build(lv_obj_t *scr, const char *txt,
-                                 const char *held, int x, int y, int w,
-                                 int ms, const lv_color_t *ink,
-                                 const lv_color_t *fill,
-                                 void (*done)(void *), void *ud)
+static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
+                                  const char *held, int x, int y, int w,
+                                  const lv_color_t *ink,
+                                  const lv_color_t *fill,
+                                  void (*done)(void *), void *ud)
 {
     if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
 
     wt_hold_t *h = lv_malloc(sizeof *h);
     if (!h) return NULL;
     lv_memzero(h, sizeof *h);
-    h->ms = ms > 0 ? ms : 1200;
     h->w = w;
     h->txt = txt;
     h->held = held;
@@ -1073,9 +1061,14 @@ static lv_obj_t *hold_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_set_pos(p, x, y);
     lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    // A slide IS a horizontal stroke, and some of these bars live on deck
+    // pages whose screen watches for exactly that. The gesture must not
+    // bubble out of the bar, or dragging the confirm would turn the page
+    // under it.
+    lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
     h->pill = p;
 
-    // The label swaps between its word and KEEP HOLDING mid-press, so the
+    // The label swaps between its word and KEEP SLIDING mid-drag, so the
     // mono rung is taken only when BOTH fit the face -- a font swap on a
     // held control would make the track jump under the finger.
     const lv_font_t *lf2 = (mono_can(txt) && mono_can(held))
@@ -1111,26 +1104,26 @@ static lv_obj_t *hold_rule_build(lv_obj_t *scr, const char *txt,
     h->fill = f;
 
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
+    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSING, h);
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
     return p;
 }
 
-lv_obj_t *wt_hold_rule(lv_obj_t *scr, const char *txt, const char *held,
-                       int x, int y, int w, int ms,
-                       void (*done)(void *), void *ud)
+lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
+                        int x, int y, int w,
+                        void (*done)(void *), void *ud)
 {
-    return hold_rule_build(scr, txt, held, x, y, w, ms, NULL, NULL, done, ud);
+    return slide_rule_build(scr, txt, held, x, y, w, NULL, NULL, done, ud);
 }
 
-lv_obj_t *wt_hold_rule_c(lv_obj_t *scr, const char *txt, const char *held,
-                         int x, int y, int w, int ms,
-                         lv_color_t ink, lv_color_t fill,
-                         void (*done)(void *), void *ud)
+lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
+                          int x, int y, int w,
+                          lv_color_t ink, lv_color_t fill,
+                          void (*done)(void *), void *ud)
 {
-    return hold_rule_build(scr, txt, held, x, y, w, ms, &ink, &fill, done,
-                           ud);
+    return slide_rule_build(scr, txt, held, x, y, w, &ink, &fill, done, ud);
 }
 
 void wt_pill_select(lv_obj_t *pill, bool on)

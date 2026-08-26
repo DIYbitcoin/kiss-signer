@@ -666,11 +666,11 @@ static void sp_key_warn_cb(lv_event_t *e)
     wt_gate(s_scr, &g);
 
     // Revealing a reusable private scan key should not be one stray tap
-    // away. 1200 is the gate floor an accidental brush cannot cross; the
-    // old 900 sat under it for no reason a comment could give.
-    wt_hold_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                   WT_ACT_X, WT_ACTION_Y, 330, 1200, WT_WARN, WT_WARN,
-                   sp_key_show, NULL);
+    // away: the slide's full-width travel is the gate no accidental brush
+    // can cross.
+    wt_slide_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
+                    WT_ACT_X, WT_ACTION_Y, 330, WT_WARN, WT_WARN,
+                    sp_key_show, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, sp_key_back_cb, NULL);
 }
@@ -831,9 +831,9 @@ static void words_gate_screen(void)
         .stop     = false,
     };
     wt_gate(s_scr, &g);
-    wt_hold_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                   WT_ACT_X, WT_ACTION_Y, 330, 1200, WT_WARN, WT_WARN,
-                   words_reveal, NULL);
+    wt_slide_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
+                    WT_ACT_X, WT_ACTION_Y, 330, WT_WARN, WT_WARN,
+                    words_reveal, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, words_gate_cancel_cb, NULL);
 }
@@ -1298,9 +1298,9 @@ static void kef_warn_screen(lv_event_t *e)
     }
 
     // Making the envelope puts the keys on the glass as a QR one screen
-    // later, so the entry is a deliberate hold, the scan-key precedent.
-    wt_hold_pill(s_scr, tr(STR_I_KEF_MAKE_BTN), WT_ACT_X, WT_ACTION_Y, 330,
-                 WT_ACTION_H, 900, kef_make, NULL);
+    // later, so the entry is a deliberate slide, the scan-key precedent.
+    wt_slide_rule(s_scr, tr(STR_I_KEF_MAKE_BTN), tr(STR_G_FW_KEEP_HOLDING),
+                  WT_ACT_X, WT_ACTION_Y, 330, kef_make, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
 }
 
