@@ -659,12 +659,11 @@ static bool oc_is_frame(const oc_node_t *n)
     int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
     if (n->is_label) return false;
     if (area_is_backdrop(&n->vis)) return false;      // the screen's own base
-    // A PILL IS NOT CHROME. wt_pill draws a bordered, filled box well over the
-    // size floor below, so counting buttons made every screen in the product
-    // look furnished and the first run of this check found nothing at all. The
-    // question is what the screen puts ABOVE the action row to carry its
-    // content, so the action row itself is not an answer to it, and neither is
-    // anything else the reader can press.
+    // A CONTROL IS NOT CHROME. Counting buttons made every screen in the
+    // product look furnished and the first run of this check found nothing at
+    // all. The question is what the screen puts ABOVE the action row to carry
+    // its content, so the action row itself is not an answer to it, and
+    // neither is anything else the reader can press.
     if (n->clickable) return false;
     if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
     // a why-block's coloured rule: 3px wide, as tall as the claim beside it
@@ -749,10 +748,10 @@ static void oc_check_bare(const char *tag)
 
 // ---- 8. FIT: a fit helper that gave up ------------------------------------
 //
-// wt_pill_fit and wt_note_fit pick the biggest font that FITS, so a string too
-// long for its box comes back at font14 and reports nothing. The source looks
-// correct, the gate sees no overlap, and the screen ships with a button or an
-// instruction in the smallest type the device owns. That is not a translation
+// wt_note_fit picks the biggest font that FITS, so a string too long for its
+// box comes back at font14 and reports nothing. The source looks correct, the
+// gate sees no overlap, and the screen ships with an instruction in the
+// smallest type the device owns. That is not a translation
 // being long -- it is copy too long for the space, or a layout budget thrown
 // away in code, and the house rules say to cut words or move the blocks rather
 // than accept the size.
@@ -771,8 +770,8 @@ static int  s_fit_n;
 // Only where font14 is a fault. The house rules keep it for chip labels and
 // unit suffixes -- MARKS -- and a fit helper handed a chip-sized box is doing
 // exactly its job: "dust attack" in a 110px caution chip is not the bug. A
-// BODY that fell to font14 is, and so is a pill: a button in the smallest type
-// the device owns is the shape the pill comment rejects outright.
+// BODY that fell to font14 is. (The pill kind is gone with the pills: the
+// arrow and word actions never re-font, so only notes can reach this sink.)
 //
 // Row sub-lines used to be on the exempt list here and in the house rules, and
 // they were the wrong thing to exempt: every teaching line on the settings page
@@ -780,22 +779,18 @@ static int  s_fit_n;
 // They are font23 now, and what goes wrong at that size is an ellipsis rather
 // than a rung -- which is check 9, CUT.
 //
-// 300 and 240 are read off the kit, not guessed: wt_why_block bodies are 344
-// wide and the narrowest real body column is 330, while the action row's own
-// pills start at 240 and everything below that is a chip or a badge.
+// 300 is read off the kit, not guessed: wt_why_block bodies are 344 wide and
+// the narrowest real body column is 330; below that is a chip or a badge.
 // The HEIGHT matters as much. A caution row gives its subline about 24px, and
 // one line of font23 is 31 -- so font14 there is the box deciding, not the copy,
 // and "high fee" is not a screen anybody needs to fix. 36 is one font23 line
 // with its leading, which is the least a box can offer and still be a choice.
 #define OC_FIT_BODY_W 300
 #define OC_FIT_BODY_H  36
-#define OC_FIT_PILL_W 240
 
 static void oc_fit_sink(const char *kind, const char *txt, int w, int h)
 {
-    bool pill = strcmp(kind, "pill") == 0;
-    if (w < (pill ? OC_FIT_PILL_W : OC_FIT_BODY_W)) return;
-    if (!pill && h < OC_FIT_BODY_H) return;
+    if (w < OC_FIT_BODY_W || h < OC_FIT_BODY_H) return;
     if (s_fit_n >= OC_FIT_MAX) return;
     snprintf(s_fit_kind[s_fit_n], sizeof s_fit_kind[0], "%s", kind ? kind : "?");
     snprintf(s_fit_txt[s_fit_n], sizeof s_fit_txt[0], "%s", txt ? txt : "");
@@ -1137,7 +1132,8 @@ static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
         lv_obj_set_pos(row, 48, 60);
         wt_chip(row, "SOMETHING", false);
     }
-    wt_pill(scr, "OK", 300, WT_ACTION_Y, 200, NULL, NULL);
+    wt_arrow_action(scr, "OK", true, false, 300, WT_ACTION_Y, 200, false,
+                    NULL, NULL);
     lv_refr_now(NULL);
 
     s_n = 0;

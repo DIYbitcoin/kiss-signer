@@ -1100,11 +1100,10 @@ static void duress_cb(lv_event_t *e)
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, waysin_back_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_GD_SET_BTN), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, waysin_stroke_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, 330, WT_ACTION_Y, 0, false, waysin_word_cb, NULL);
-    // One size across the row. pill_label_fit is per pill, so the longest label
-    // drops only its own pill a rung -- USE YOUR OWN DRAWING sat at font14
-    // between two pills at 28 and read as a rendering mistake rather than as
-    // three choices. That is the exact case wt_pill_row was written for and
-    // this row was not calling it.
+    // Arrow actions never re-font, so the row shares one size by
+    // construction -- the fault this comment used to guard against (one label
+    // dropping a rung between two at 28) is a shape the kit can no longer
+    // draw.
 }
 
 // ---- theme ----

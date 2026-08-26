@@ -38,12 +38,12 @@ inventing.
 | two claims, not one paragraph | `wt_why_block(scr, head, body, x, y, w, max_h, f, col)` |
 | a list of settings or facts | `wt_row` / `wt_row_x` / `wt_row_head` |
 | the camera | `wt_viewfinder` |
-| actions | `wt_pill`, `wt_pill_primary` on `WT_ACTION_Y` |
+| actions | `wt_arrow_action` on the band, `wt_word_action` in a row |
 
 Rules:
 
 1. **Something framed, above the action row.** A bare paragraph is never the
-   only content. A pill does not count — it is the action, not the subject.
+   only content. An action does not count — it is the action, not the subject.
 2. **Split claims, do not stack them.** Two `wt_why_block`s side by side at
    `x = 48` and `x = 408`, `w = 344`, `y = 232`, `max_h = WT_CONTENT_BOTTOM - 232`.
    Accent rule on how it works, `WT_WARN` on where it goes wrong. This geometry
@@ -64,8 +64,8 @@ Rules:
    important sentence on that screen, set through `wt_note` in a 48px box it
    could not fit at any larger size.
 
-   `wt_note_fit` and `wt_pill_fit` pick the biggest font that FITS. That makes
-   them silent: hand them a long string in a small box and they drop to font14
+   `wt_note_fit` picks the biggest font that FITS. That makes
+   it silent: hand it a long string in a small box and it drops to font14
    and report nothing, so the string never looks like a bug in the source. **A
    fit helper landing on font14 means the copy is too long for the space, not
    that the space is too small — cut words first.** The SIGNED line named the
@@ -328,12 +328,13 @@ rule 1 above, enforced; the last two are the font14 rule and what replaced it:
   *around* it. A `wt_card` full of `wt_wraph` passes BARE and is still a wall of
   text; this is the check that says so. A chip, a badge, a row, a value card or
   a why-block rule anywhere else on the screen clears it.
-- **FIT** — `wt_pill_fit` or `wt_note_fit` gave up and set font14. They pick the
-  biggest font that FITS, so they are silent by construction: the string never
-  looks like a bug in the source, and this has come off the bench three separate
-  times. They report it now. Only where the size is a CHOICE — a body at least
-  300 wide and 36 tall, or a pill at least 240 — because font14 in a caution
-  row's 24px subline is the box deciding, not the copy.
+- **FIT** — `wt_note_fit` gave up and set font14. It picks the biggest font
+  that FITS, so it is silent by construction: the string never looks like a bug
+  in the source, and this has come off the bench three separate times. It
+  reports now. Only where the size is a CHOICE — a body at least 300 wide and
+  36 tall — because font14 in a caution row's 24px subline is the box deciding,
+  not the copy. (The pill kind went with the pills: arrow and word actions
+  never re-font, so only notes can reach the sink.)
 
 - **CUT** — a row subline that has been ELLIPSISED. Sublines are pinned to one
   line, so copy too long for its lane loses its second half silently, and LVGL
@@ -345,9 +346,7 @@ rule 1 above, enforced; the last two are the font14 rule and what replaced it:
 
 Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
 `OC_FIT_BACKLOG` in `sim/overlapcheck.c`) and the run prints how many are left.
-The first two are empty. FIT carries the two it found on the day it landed: the
-camera-proof screen's one instruction, and a settings pill — which the comment
-above `wt_pill_fit` says outright should never happen.
+All three are empty: FIT's two launch entries were cut rather than excused.
 
 **WALL and CUT both fire on shapes the product no longer contains**, so
 `OVERLAPCHECK_SELFTEST=1` builds each of those shapes and proves the gate still

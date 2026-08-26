@@ -326,134 +326,6 @@ static void wt_sub_measure(const char *txt, const lv_font_t *f, int lane)
 #define wt_sub_measure(txt_, f_, lane_) ((void)0)
 #endif
 
-#define SUB_ROW_H 22        // font14 line + breathing room, for two-line pills
-#define SUB_ROW_H23 35      // the same row when the second line is a readable 23
-
-// ---- pill labels ----
-// A control's label is never smaller than the prose that explains it. Notes cap
-// at 23, so pills start there: at font14 a button sat below its own caption and
-// read as an afterthought, which was worst exactly where it mattered most (HOLD
-// TO SIGN under a 40px amount). The screen's ONE primary action goes to 28.
-//
-// Letter spacing shrinks as the font grows: 2px of tracking is a third of a
-// word's width at 14 and just noise at 28, and it is width the label needs.
-// Does txt fit the box at font f with this tracking, on one line or wrapped?
-// max_w = LV_COORD_MAX measures the text unwrapped; passing bw measures it
-// wrapped, in which case sz.x comes back as the WIDEST LINE -- so a single word
-// too long for the box still reports a miss instead of silently overhanging.
-static bool pill_fits(const char *txt, const lv_font_t *f, int space,
-                      int bw, int bh, bool wrap)
-{
-    lv_point_t sz;
-    lv_text_get_size(&sz, txt, f, space, 0, wrap ? bw : LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
-    return sz.x <= bw && sz.y <= bh;
-}
-
-// The rungs a pill label descends, cheapest concession first:
-//
-//   1. the size, with its normal tracking
-//   2. the same size with tracking closed to 0. "CREATE NEW WALLET" is 20
-//      characters, so 1px of tracking is 20px of width -- and nobody has ever
-//      noticed a missing pixel between letters, while everybody notices a
-//      button rendered in the smallest type on the screen.
-//   3. a SECOND LINE at the same size. "MAINTENIR POUR SIGNER" has no one-line
-//      size above 14 on any pill this layout can afford.
-//   4. only then, a smaller font.
-//
-// Wrapping is never tried before both single-line attempts, so a label that
-// already fits on one line will not start breaking in two.
-wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary)
-{
-    int bw = w - 28, bh = h - 8;   // rounded ends eat the corners
-    wt_pill_fit_t r = { wt_font14(), 2, false };
-
-    if (primary) {
-        if (pill_fits(txt, wt_font28(), 1, bw, bh, false))
-            return (wt_pill_fit_t){ wt_font28(), 1, false };
-        if (pill_fits(txt, wt_font28(), 0, bw, bh, false))
-            return (wt_pill_fit_t){ wt_font28(), 0, false };
-    }
-    if (pill_fits(txt, wt_font23(), 1, bw, bh, false))
-        return (wt_pill_fit_t){ wt_font23(), 1, false };
-    if (pill_fits(txt, wt_font23(), 0, bw, bh, false))
-        return (wt_pill_fit_t){ wt_font23(), 0, false };
-    if (pill_fits(txt, wt_font23(), 0, bw, bh, true))
-        return (wt_pill_fit_t){ wt_font23(), 0, true };
-    // Past here the label is going on a button in the smallest type the device
-    // owns, which is the thing the comment at the top of this function says
-    // nobody should ever see. Say so.
-    WT_FIT_GAVE_UP("pill", txt, bw, bh);
-    if (pill_fits(txt, wt_font14(), 2, bw, bh, false))
-        return r;
-    if (pill_fits(txt, wt_font14(), 1, bw, bh, false))
-        return (wt_pill_fit_t){ wt_font14(), 1, false };
-    return (wt_pill_fit_t){ wt_font14(), 1, true };   // out of rungs: wrap
-}
-
-// One rung for a whole group of pills: the SMALLEST that every label needs.
-//
-// wt_pill_fit sizes one label in isolation, and `primary` lets that one label
-// reach 28 while its neighbours start at 23. On the SIGN chooser that put
-// "SCAN QR" at 28 directly above "FROM SD CARD" at 23 -- two buttons doing the
-// same job, one visibly shouting. Per-label fitting is right for a lone pill
-// and wrong for a set, because a set reads as a set.
-//
-// Callers pass every label that shares a visual row or column. The result is
-// applied to all of them via wt_pill_apply_fit, so they land on one size.
-wt_pill_fit_t wt_pill_group_fit(const char *const *txts, int n, int w, int h,
-                                bool primary)
-{
-    wt_pill_fit_t worst = wt_pill_fit(txts && n > 0 ? txts[0] : "", w, h, primary);
-    for (int i = 1; i < n; i++) {
-        wt_pill_fit_t f = wt_pill_fit(txts[i], w, h, primary);
-        // Rank by glyph height first, then by whether the label had to wrap:
-        // a wrapped 23 is a worse fit than a one-line 23 and must win, or the
-        // group settles on a size one of its members cannot actually use.
-        int rank_f = (f.font == wt_font14() ? 0 : f.font == wt_font23() ? 1 : 2) * 2
-                     + (f.wrap ? 0 : 1);
-        int rank_w = (worst.font == wt_font14() ? 0 : worst.font == wt_font23() ? 1 : 2) * 2
-                     + (worst.wrap ? 0 : 1);
-        if (rank_f < rank_w)
-            worst = f;
-    }
-    return worst;
-}
-
-void wt_pill_apply_fit(lv_obj_t *pill, wt_pill_fit_t f, int w)
-{
-    if (!pill) return;
-    lv_obj_t *l = lv_obj_get_child(pill, 0);
-    if (!l) return;
-    lv_obj_set_style_text_font(l, f.font, 0);
-    lv_obj_set_style_text_letter_space(l, f.space, 0);
-    if (f.wrap) {
-        lv_obj_set_width(l, w - 28);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    } else {
-        lv_obj_set_width(l, LV_SIZE_CONTENT);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
-    }
-    lv_obj_center(l);
-}
-
-static void pill_label_fit(lv_obj_t *l, const char *txt, int w, int h, bool primary)
-{
-    wt_pill_fit_t f = wt_pill_fit(txt, w, h, primary);
-    lv_obj_set_style_text_font(l, f.font, 0);
-    lv_obj_set_style_text_letter_space(l, f.space, 0);
-    if (f.wrap) {
-        lv_obj_set_width(l, w - 28);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    } else {
-        // a re-fit can turn wrapping back off (wt_pill_row drops a rung)
-        lv_obj_set_width(l, LV_SIZE_CONTENT);
-        lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
-    }
-}
-
 // The card every wallet screen sits inside. Purely decorative: it is the FIRST
 // child, so it draws behind everything, and every screen's absolute coordinates
 // are untouched by its arrival. Inset 8 with radius 16 and a WT_EDGE hairline,
@@ -691,7 +563,8 @@ void wt_sub_fit(lv_obj_t *scr, int w)
 }
 
 // ---- the action bar (see kiss_theme.h) ----
-// Built on demand by wt_pillh, so it exists exactly on the screens that have an
+// Built on demand by the first control placed on the action row (the arrow
+// actions and the slide rule call it), so it exists exactly on the screens that have an
 // action row and never has to be remembered.
 //
 // Created ONCE and never re-raised. LVGL paints in tree order, so the bar lands
@@ -851,66 +724,11 @@ lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
     return round_chip(parent, "?", x, y, color, cb, ud);
 }
 
-lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
-                   lv_event_cb_t cb, void *ud)
-{
-    // A pill at the action line means this screen has an action row, so it
-    // gets the floor to stand on. No-op for a pill that is content (a chooser
-    // row, a keyboard key) and for one built inside a card rather than on a
-    // screen, which is why the test is the y AND the tag, not either alone.
-    if (y >= WT_CONTENT_BOTTOM) action_bar_ensure(scr);
-
-    lv_obj_t *p = lv_obj_create(scr);
-    lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, w, h);
-    lv_obj_set_pos(p, x, y);
-    // 10, the same radius wt_card and wt_row_x use. It was 26 -- a lozenge --
-    // for as long as buttons were the only boxes on the page. They are not: the
-    // device is a list of rounded rectangles now, and a lozenge sitting under a
-    // column of them reads as a different family of object rather than as the
-    // same family doing a different job.
-    //
-    // What stays round is anything that is a MARK rather than a control: the "?"
-    // chip, the explainer's icon badge, the glossary's grid badges, the diagram
-    // tokens in wt_chip. A rectangle is the shape of "this does something"; a
-    // circle is the shape of "this is a thing". The word "pill" survives in
-    // every name here because renaming forty call sites would say nothing.
-    lv_obj_set_style_radius(p, 10, 0);
-    lv_obj_set_style_bg_color(p, WT_KEY, 0);
-    lv_obj_set_style_bg_color(p, wt_accent_pressed(), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    wt_tap_feedback(p);
-    lv_obj_set_style_border_width(p, 1, 0);
-    lv_obj_set_style_border_color(p, WT_MUT, 0);
-    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, ud);
-    lv_obj_t *l = lv_label_create(p);
-    lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, WT_INK, 0);
-    pill_label_fit(l, txt, w, h, false);
-    lv_obj_center(l);
-    return p;
-}
-
-lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
-                  lv_event_cb_t cb, void *ud)
-{
-    return wt_pillh(scr, txt, x, y, w, 52, cb, ud);
-}
-
 // Two spaces, not one: at a pill's tracking a single space let the icon crowd
 // the first letter and the pair read as one damaged glyph.
 void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
 {
     snprintf(out, out_len, "%s  %s", icon, txt);
-}
-
-lv_obj_t *wt_pill_icon(lv_obj_t *scr, const char *icon, const char *txt,
-                       int x, int y, int w, int h, lv_event_cb_t cb, void *ud)
-{
-    char buf[WT_ICON_TEXT_MAX];
-    wt_icon_text(buf, sizeof buf, icon, txt);
-    return wt_pillh(scr, buf, x, y, w, h, cb, ud);
 }
 
 // ---- slide to confirm (see kiss_theme.h) ----
@@ -940,7 +758,7 @@ static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
 
 // The label and its arrow are two objects, not one formatted string. The walk
 // finds a control by the WORDS on it -- exactly, or as the "icon  LABEL" form
-// wt_pill_icon builds -- so a trailing arrow baked into the text makes the
+// wt_icon_text composes -- so a trailing arrow baked into the text makes the
 // control unfindable, and every hold on this screen would silently do nothing.
 // wt_arrow_action splits them for the same reason.
 static void hold_rule_say(wt_hold_t *h, const char *txt)
@@ -1124,110 +942,6 @@ lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
                           void (*done)(void *), void *ud)
 {
     return slide_rule_build(scr, txt, held, x, y, w, &ink, &fill, done, ud);
-}
-
-void wt_pill_select(lv_obj_t *pill, bool on)
-{
-    // active chooser = filled glass + 2px accent ring + bright text; inactive
-    // recedes. The fill is what makes MONO's selection readable (a white ring
-    // alone disappears next to white text).
-    lv_obj_set_style_bg_color(pill, on ? wt_accent_bg() : WT_KEY, 0);
-    lv_obj_set_style_border_color(pill, on ? wt_primary() : WT_MUT, 0);
-    lv_obj_set_style_border_width(pill, on ? 2 : 1, 0);
-    lv_obj_set_style_text_color(lv_obj_get_child(pill, 0), on ? WT_INK : WT_MUT, 0);
-}
-
-void wt_pill_primary(lv_obj_t *pill)
-{
-    lv_obj_set_style_bg_color(pill, wt_accent_bg(), 0);
-    lv_obj_set_style_bg_color(pill, wt_accent_pressed(), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(pill, wt_primary(), 0);
-    lv_obj_set_style_border_width(pill, 2, 0);
-    // The rim and the fill are the accent, so they are flagged as the accent.
-    // wt_pill's ORDINARY border stays WT_MUT and is not flagged: the accent
-    // marks the suggested action, and if every pill wore it it would mark
-    // nothing -- ADDENDUM-02 rule 3, and docs/device-ux-test.md task 6 is the
-    // acceptance test for exactly that.
-    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BORDER);
-    lv_obj_add_flag(pill, WT_FLAG_ACCENT_BG);
-    // this marker is already "the one action this screen wants" everywhere it
-    // is used, so it is also where the label earns the top rung
-    wt_pill_label_max(pill);
-}
-
-// Pills that sit in one row share a label size. The fit is per pill, so one
-// long word drops only that pill a rung: BACK came out at 23 next to "silent
-// payment" at 14 and the row read as a rendering mistake rather than a choice.
-// Smallest wins, which is also the only size guaranteed to fit all of them.
-void wt_pill_row(lv_obj_t **pills, int n)
-{
-    const lv_font_t *lo = wt_font28();
-    for (int i = 0; i < n; i++) {
-        lv_obj_t *l = pills[i] ? lv_obj_get_child(pills[i], 0) : NULL;
-        if (!l || !lv_obj_check_type(l, &lv_label_class)) continue;
-        const lv_font_t *f = lv_obj_get_style_text_font(l, LV_PART_MAIN);
-        if (f == wt_font14()) lo = f;
-        else if (f == wt_font23() && lo == wt_font28()) lo = f;
-    }
-    for (int i = 0; i < n; i++) {
-        lv_obj_t *l = pills[i] ? lv_obj_get_child(pills[i], 0) : NULL;
-        if (!l || !lv_obj_check_type(l, &lv_label_class)) continue;
-        lv_obj_set_style_text_font(l, lo, 0);
-        lv_obj_set_style_text_letter_space(l, lo == wt_font14() ? 2 : 1, 0);
-    }
-}
-
-void wt_pill_label_max(lv_obj_t *pill)
-{
-    lv_obj_t *l = lv_obj_get_child(pill, 0);
-    if (!l || !lv_obj_check_type(l, &lv_label_class)) return;
-    lv_obj_update_layout(pill);
-    pill_label_fit(l, lv_label_get_text(l),
-                   lv_obj_get_width(pill), lv_obj_get_height(pill), true);
-}
-
-// A pill that carries a second line: a category over the app that fits it, a
-// type over its example prefix. The main label owns the top of the box and the
-// sub-label the bottom, so the fit has to exclude the sub's row. Centralised
-// because three screens had hand-tuned offsets that no longer agreed once the
-// main label could change size.
-static void pill_sub_line(lv_obj_t *pill, const char *sub,
-                          const lv_font_t *f, int row_h)
-{
-    lv_obj_t *main_l = lv_obj_get_child(pill, 0);
-    if (!main_l) return;
-    lv_obj_update_layout(pill);
-    int w = lv_obj_get_width(pill), h = lv_obj_get_height(pill);
-    pill_label_fit(main_l, lv_label_get_text(main_l), w, h - row_h, false);
-    lv_obj_align(main_l, LV_ALIGN_TOP_MID, 0, 6);
-
-    lv_obj_t *s = lv_label_create(pill);
-    lv_label_set_text(s, sub);
-    // The sub-line is centred and never wraps, so a font too wide for the pill
-    // does not clip -- it hangs out past both edges, over whatever is beside
-    // the button. Drop it a rung instead. Only the locale that cannot make the
-    // requested size pays, rather than every locale being held to the longest.
-    if (f != wt_font14() && !pill_fits(sub, f, 0, w - 28, row_h, false))
-        f = wt_font14();
-    lv_obj_set_style_text_font(s, f, 0);
-    lv_obj_set_style_text_color(s, WT_MUT, 0);
-    lv_obj_align(s, LV_ALIGN_BOTTOM_MID, 0, -6);
-    lv_obj_remove_flag(s, LV_OBJ_FLAG_CLICKABLE);
-}
-
-void wt_pill_two_line(lv_obj_t *pill, const char *sub)
-{
-    pill_sub_line(pill, sub, wt_font14(), SUB_ROW_H);
-}
-
-// Same pill, but the second line is a VALUE and not an eyebrow: the example
-// address under ADDRESS TYPE is what actually tells you what your addresses
-// look like ("bc1..." vs "1..."), and at 14 under a 23px name it read as a
-// footnote on its own button. Needs 43px of pill above the main label's line,
-// so the caller has to give the pill ~72px of height for the name to stay 23.
-void wt_pill_two_line_val(lv_obj_t *pill, const char *sub)
-{
-    pill_sub_line(pill, sub, wt_font23(), SUB_ROW_H23);
 }
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
@@ -5452,8 +5166,9 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // 552..752: the corner, like every other way off a screen. It was centred
     // at 300, which matched neither the old rule nor the new one -- and this is
     // the most opened bar in the app, behind all ten explainers and every "?".
-    lv_obj_t *ok = wt_pill(ovl, e->ok_txt, 552, WT_ACTION_Y, 200,
-                           explain_close_cb, ovl);
+    lv_obj_t *ok = wt_arrow_action(ovl, e->ok_txt, true, false, 552,
+                                   WT_ACTION_Y, 200, true,
+                                   explain_close_cb, ovl);
     lv_obj_remove_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
     wt_card_intro(ovl);
     return ovl;

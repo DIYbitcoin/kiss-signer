@@ -543,143 +543,10 @@ static int row_label_budget(const row_t *r)
     return right - vw - 14;
 }
 
-// Pill labels. A button must never be smaller than the note beside it, and
-// notes cap at 23, so font14 here is a FAILURE: it means the box is too narrow
-// for that translation and the pill needs widening (or the word shortening).
-// `key_action` marks a button whose label the user has to READ to act, and act
-// correctly: the one that spends, the one that erases, the one that proves an
-// address. Those may never render at font14 in any locale -- if one does, this
-// program exits nonzero and CI stops. The rest are navigation ("BACK", "NEXT"):
-// shorter words, and the user already knows what they do, so 14 is survivable.
-// `icon` is the WT_ICON_* a pill prefixes to its label, or NULL. It has to be
-// here rather than assumed away: the icon is part of the string the screen
-// draws, so a table that measured the bare translation would be checking text
-// no one ever sees, and would keep reporting a comfortable fit while the real
-// label overflowed.
-typedef struct {
-    const char *surface;
-    int key, w, h, primary, key_action;
-    const char *icon;
-} pill_t;
-static const pill_t PILLS[] = {
-    { "sign/hold",        STR_S_HOLD_TO_SIGN, 272, 66, 1, 1 },
-    { "sign/ack",         STR_C_I_UNDERSTAND, 252, 66, 1, 1 },
-    { "sign/details",     STR_S_DETAILS,      170, 66, 0, 0 },
-    { "sign/back",        STR_C_BACK,         140, 66, 0, 0 },
-    { "wallet/pair",      STR_I_PAIR_T,       340, 66, 0, 1, WT_ICON_KEY },
-    // The two ways a transaction gets in. Never measured before, and now they
-    // carry icons, so they are worth a row each: SCAN QR is the primary action
-    // of the whole signing flow.
-    { "sign/scanqr",      STR_S_SCAN_QR,      340, 52, 1, 1, WT_ICON_QR },
-    { "sign/fromsd",      STR_S_FROM_SD,      340, 52, 1, 1, WT_ICON_SD },
-    // No aud/open slot: nothing draws that title in a pill any more -- the
-    // audit is opened by a wide row on SECURITY (measured as a row) and the
-    // title renders as chrome. The 140px eye pill it modelled failed the day
-    // the mono faces landed, on a box no screen has drawn since the chooser
-    // row replaced it.
-    { "rng/start",        STR_W_RNG_GO,          240, 52, 1, 1 },
-    { "rng/again",        STR_W_RNG_AGAIN,       240, 52, 1, 1 },
-    { "storage/flash",    STR_W_KEEP_BTN,      252, 52, 0, 1 },
-    { "storage/sd",       STR_W_SD_BTN,        252, 52, 0, 1 },
-    { "storage/amnesic",  STR_W_AMNESIC_BTN,   252, 52, 0, 1 },
-    { "storage/main",     STR_G_STORAGE_SEC,   340, 72 - 35, 0, 1 },
-    { "storage/hold-move",STR_G_STORAGE_HOLD_MOVE,330, 66, 0, 1 },
-    { "storage/hold-amn", STR_G_STORAGE_HOLD_AMNESIC,330,66,0,1 },
-    { "set/words",        STR_I_WORDS_BTN,    340, 52, 0, 1 },
-    // 270, not 340: the endwords action row draws both pills at 270
-    // (kiss_settings.c endwords_screen), and measuring the wrong width let a
-    // fitting label pass while the real pill ellipsised.
-    //
-    // NOT here yet, deliberately: slots for STR_G_REPLACEC_GO and the two
-    // why-block bodies at their real 330px geometry. The English copy now
-    // fits font23 there, but the other 20 locales still carry the pre-rewrite
-    // translations (frozen by the owner), and a slot measures every locale --
-    // it would hold stale text to a box it was never written for. Add both
-    // the moment the locales thaw.
-    { "set/wipe",         STR_G_HOLD_WIPE,    400, 52, 0, 1 },
-    // The settings header row. FIRMWARE is 150x44 and carries no flag, sitting
-    // 12px left of the 170px LANGUAGE pill; between them they take 332 of the
-    // title's lane, so both are worth measuring rather than assuming. It is the
-    // only way into the SD firmware update, and a locale that has to shrink it
-    // to font14 is a locale where the most consequential control on the device
-    // is also the quietest, so key_action.
-    { "set/firmware",     STR_G_FW_PILL,      232, 44, 1, 1 },
-    // kiss_duress_ui.c ST_INTRO and ST_FUND, both 240px on WT_ACTION_Y.
-    // key_action, and not arguably: these two pills are the flow's only
-    // statement of WHICH wallet the next screen configures, and reading them
-    // as the same button is the exact mistake that sent the owner looking for
-    // a bug. A locale that has to drop to font14 to fit one of them has lost
-    // the distinction, so it fails the build rather than shipping quietly.
-    // h is 52, not 66: these go through wt_pill, which hands wt_pillh a fixed
-    // 52. Registered at 66 the budget bh becomes 58, which is two font23 lines,
-    // and the model reports a comfortable wrapped fit for a label the device
-    // actually draws at font14. The height is part of the measurement.
-    // ST_FUND's pill is 420 and key_action: it is the only thing on that screen
-    // that says which wallet the next screen configures, so font14 fails here.
-    { "duress/real",      STR_GD_SET_UP_REAL,  420, 52, 0, 1 },
-    // NOT NOW, on all four duress screens. It was 140 and wanted 122-162px of a
-    // 112px budget in THIRTEEN locales, so the way out of this flow was drawn
-    // in the smallest type on the screen nearly everywhere. 560+190 keeps its
-    // right edge on 750 where it was.
-    { "duress/skip",      STR_GD_SKIP,         190, 52, 0, 1 },
-    // ST_NOPASS still draws this one through wt_pill, so 52 is its tightest box.
-    { "duress/turnoff",   STR_GD_TURN_OFF,     260, 52, 0, 1 },
-    // ST_INTRO's row is TALL: three pills at WT_ACTION_Y_TALL, h 66. The extra
-    // 14px is the whole point -- bh becomes 58, which is two font23 lines, so
-    // SET UP A SPARE wraps at 23 rather than falling to font14 in twelve
-    // locales. Registered at the height the screen actually passes wt_pillh: at
-    // 52 this entry would fail, and at 66 on a screen that really used 52 it
-    // would pass while the device drew font14.
-    { "duress/spare",     STR_GD_SET_UP_SPARE, 240, 66, 0, 1 },
-    { "duress/turnoff-i", STR_GD_TURN_OFF,     220, 66, 0, 1 },
-    { "duress/skip-i",    STR_GD_SKIP,         190, 66, 0, 1 },
-    { "recv/verify",      STR_R_VERIFY,       222, 52, 0, 1 },
-    // No recv/sp slot: "silent payment" is a screen TITLE, a wrapping body
-    // line on verify and part of a composed path row on the sign detail --
-    // none of them the 220px pill this slot modelled, which failed the day
-    // the mono faces landed on a box no screen draws.
-    { "recv/sp-show-full",STR_R_SP_SHOW_FULL,  280, 52, 0, 0 },
-    { "recv/sp-show-short",STR_R_SP_SHOW_SHORT,280, 52, 0, 0 },
-    // The scan key gate's hold shares HOLD TO SHOW with the word grid and
-    // renders on a rule at the standard 52 row -- the tall pill went with
-    // the label that restated the title.
-    { "wallet/sp-hold",   STR_W_HOLD_SHOW,     330, 52, 0, 1 },
-    // Settings ADDRESS TYPE: one pill carrying the type NAME over the example
-    // address. The example is a readable 23 now, so it reserves 35px of the
-    // 72px pill and the name is fitted against what is left -- the same 29px
-    // the name had when the pill was 60 tall with a 14px example under it.
-    { "set/tyname-native",STR_S_TY_NATIVE,    340, 72 - 35, 0, 0 },
-    { "set/tyname-nested",STR_S_TY_NESTED,    340, 72 - 35, 0, 0 },
-    { "set/tyname-legacy",STR_S_TY_LEGACY,    340, 72 - 35, 0, 0 },
-    // 340, not the 190 this row carried for a while: that width was written
-    // when SCAN KEY was a small button on the pairing screen, and it stayed
-    // behind when the export was promoted to its own 340px pill on the wallet
-    // page. The table was quietly measuring a button that no longer existed.
-    { "pair/scankey",     STR_R_SP_SCAN_BTN,  340, 72 - 35, 0, 0, WT_ICON_SECRET },
-    { "pair/desktop",     STR_I_DESKTOP,      175, 60 - 22, 0, 0 },
-    { "pair/mobile",      STR_I_MOBILE,       175, 60 - 22, 0, 0 },
-    { "common/back",      STR_C_BACK,         140, 44, 0, 0 },
-    { "common/done",      STR_C_DONE,         140, 52, 0, 0 },
-    { "common/ok",        STR_C_OK,           200, 52, 0, 0 },
-    { "common/cancel",    STR_C_CANCEL,       165, 52, 0, 0 },
-    { "setup/full-verify",STR_L_VERIFY_FULL_BACKUP, 300, 66, 0, 1 },
-    { "setup/understand", STR_C_I_UNDERSTAND, 320, 66, 0, 1 },
-    // Naming the weak-passphrase outcome IS the safety of that card: a user who
-    // cannot read this button has no idea which of the two presses keeps the
-    // short passphrase. key_action, same tier as the one that spends.
-    { "login/weak-back",  STR_C_BACK,          314, 56, 1, 1 },
-    // The dice verdict row: all three are key_action, because a holder who
-    // cannot read them cannot tell which press keeps the flagged rolls.
-    { "setup/dice-more",  STR_W_DICE_MORE,    330, 66, 0, 1 },
-    // cards mode: the two primary pills that advance the flow. TYPE MY WORDS
-    // also serves the backup-check intro at the same 300 width.
-    { "setup/cards-type", STR_W_TYPE_MY_WORDS, 300, 66, 1, 1 },
-    { "setup/cksum-go",   STR_W_CKSUM_GO,      300, 66, 1, 1 },
-    { "setup/dice-over",  STR_W_START_OVER,   330, 66, 0, 1 },
-    { "setup/cards-cxl",  STR_C_CANCEL,       330, 66, 0, 1 },
-    { "setup/dice-undo",  STR_W_DICE_UNDO,    200, 52, 0, 0 },
-};
-#define NPILL ((int)(sizeof PILLS / sizeof PILLS[0]))
+// The pill lane is gone with the pills. Every action is an arrow or word
+// action now: a content-sized single line at chrome23 that never re-fonts,
+// so there is no rung to fall off -- a long locale gets wider, and the
+// overlap walk is the gate that sees a collision.
 
 // sign/why is built at runtime from up to three reasons plus the footer; the
 // worst case (all three flagged) is what has to fit.
@@ -929,43 +796,8 @@ int main(int argc, char **argv)
                 strncat(lines[i], n, sizeof lines[i] - strlen(lines[i]) - 1);
             }
         }
-        int pbad = 0;
-        char plines[NPILL][160];
         char rlines[NROW][160];
         char slines[NSUBROW][160];
-        for (int i = 0; i < NPILL; i++) {
-            const char *txt = tr(PILLS[i].key);
-            char ibuf[WT_ICON_TEXT_MAX];
-            if (PILLS[i].icon) {          // measure the string the screen draws
-                wt_icon_text(ibuf, sizeof ibuf, PILLS[i].icon, txt);
-                txt = ibuf;
-            }
-            wt_pill_fit_t fit = wt_pill_fit(txt, PILLS[i].w, PILLS[i].h,
-                                            PILLS[i].primary);
-            const lv_font_t *f = fit.font;
-            bool wrap = fit.wrap;
-            int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
-            lv_point_t sz;
-            lv_text_get_size(&sz, txt, wt_font23(), 1, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
-            if (rung == 14) {
-                pbad++;
-                if (PILLS[i].key_action) {
-                    key_small++;
-                    snprintf(fails[nfail < MAXFAIL ? nfail : MAXFAIL - 1],
-                             sizeof fails[0], "%s  %s (%dpx of %dpx at 23)",
-                             li->code, PILLS[i].surface, (int)sz.x,
-                             PILLS[i].w - 28);
-                    if (nfail < MAXFAIL) nfail++;
-                }
-            }
-            snprintf(plines[i], sizeof plines[i],
-                     "  pill %-15s font%-2d%s  %3dpx / %3dpx%s", PILLS[i].surface,
-                     rung, wrap ? " wrap" : "     ", (int)sz.x, PILLS[i].w - 28,
-                     rung == 14 ? (PILLS[i].key_action ? "  FAIL" : "  widen") : "");
-        }
-        // Row labels: fixed font23, one line, ellipsis on overflow. Measured
-        // unwrapped so the answer is the width the words actually need.
         int rbad = 0;
         for (int i = 0; i < NROW; i++) {
             const char *txt = tr(ROWS[i].key);
@@ -1024,9 +856,8 @@ int main(int argc, char **argv)
             }
         }
 
-        printf("%-6s %-22s %2d/%d at font14, %d/%d pills, %d/%d rows, "
-               "%d/%d subs\n",
-               li->code, li->native, small, NSLOT, pbad, NPILL, rbad, NROW,
+        printf("%-6s %-22s %2d/%d at font14, %d/%d rows, %d/%d subs\n",
+               li->code, li->native, small, NSLOT, rbad, NROW,
                sbad, NSUBROW);
         for (int i = 0; i < NROW; i++)
             if (rlines[i][0]) puts(rlines[i]);
@@ -1034,10 +865,7 @@ int main(int argc, char **argv)
             if (slines[i][0]) puts(slines[i]);
         for (int i = 0; i < NSLOT; i++)
             if (strstr(lines[i], "cut ")) puts(lines[i]);
-        for (int i = 0; i < NPILL; i++)
-            if (strstr(plines[i], "widen") || strstr(plines[i], "FAIL"))
-                puts(plines[i]);
-        total_small += small + pbad;
+        total_small += small;
     }
     printf("\ntotal at font14: %d\n", total_small);
     printf("row labels ellipsised: %d backlogged, %d new\n", row_known, row_cut);

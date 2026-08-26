@@ -117,7 +117,7 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // screen. Use TALL for any row whose label may wrap, standard everywhere else.
 // A row shares one height across all its pills or they stop lining up.
 #define WT_ACTION_Y       404   // standard row: 404..456, 24px above the edge
-#define WT_ACTION_H        52   // == wt_pill's height
+#define WT_ACTION_H        52   // the standard control height on the row
 #define WT_ACTION_Y_TALL  398   // wrapping row: 398..464
 #define WT_ACTION_H_TALL   66
 // Nothing above the row may extend past this. It is WT_ACTION_Y_TALL exactly,
@@ -188,10 +188,10 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 #define WT_ACT_X            48   // and the screen's action takes the left.
 
 // The action bar is the floor the row stands on: full width, WT_BAR fill, one
-// WT_HAIR line along its top. It is not a call you make. wt_pillh builds it the
-// first time a pill lands at or below WT_CONTENT_BOTTOM on a wt_screen, so a
-// screen cannot acquire an action row and forget the bar, and a screen with no
-// action row never grows one.
+// WT_HAIR line along its top. It is not a call you make. The first control
+// placed at or below WT_CONTENT_BOTTOM on a wt_screen builds it (the arrow
+// actions and the slide rule both do), so a screen cannot acquire an action
+// row and forget the bar, and a screen with no action row never grows one.
 //
 // It exists because a button floating over text is read as a rendering fault,
 // while text meeting a bar is read as text continuing underneath. That is a
@@ -242,21 +242,19 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // from the font hard-hangs the renderer rather than drawing a tofu box.
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 
-// Compose "<icon>  <label>" into out. The icon rides INSIDE the pill's label
-// rather than sitting beside it as a second object, so wt_pill_fit keeps
-// measuring the whole thing and a long translation still degrades honestly.
-// Use this everywhere, including when measuring: the fit report and the screen
-// must size the identical string or the ratchet is checking the wrong text.
+// Compose "<icon>  <label>" into out, for a label that carries its mark in
+// the string itself (a diagram chip, a composed heading). The walk finds
+// controls by this exact form, so compose it here rather than by hand.
 // Buffers are WT_ICON_TEXT_MAX: the longest label today is Russian "СВЯЗАТЬ
 // КООРДИНАТОР" at 78 bytes composed, and Cyrillic costs two bytes a letter, so
 // the margin is smaller than the character count suggests.
 #define WT_ICON_TEXT_MAX 128
 void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
 
-// Give any clickable object the pill's press answer: it sinks 2px while held
-// and a ring travels out of its edge as it fades on release. wt_pillh already
-// does this; call it directly for tappable things that are not pills, such as
-// the rows of the address list. Never scales anything — see the comment on the
+// Give any clickable object the kit's press answer: it sinks 2px while held
+// and a ring travels out of its edge as it fades on release. Call it for
+// tappable things without their own feedback, such as the rows of the
+// address list. Never scales anything — see the comment on the
 // implementation for why that matters.
 void wt_tap_feedback(lv_obj_t *obj);
 
@@ -284,47 +282,6 @@ const char *wt_sim_title_key(int id);
 lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
                        lv_event_cb_t cb, void *ud);
 
-// pills (buttons). wt_pill = the standard 52px height.
-lv_obj_t *wt_pillh(lv_obj_t *scr, const char *txt, int x, int y, int w, int h,
-                   lv_event_cb_t cb, void *ud);
-// wt_pillh with an icon before the label (see wt_icon_text).
-lv_obj_t *wt_pill_icon(lv_obj_t *scr, const char *icon, const char *txt,
-                       int x, int y, int w, int h, lv_event_cb_t cb, void *ud);
-lv_obj_t *wt_pill(lv_obj_t *scr, const char *txt, int x, int y, int w,
-                  lv_event_cb_t cb, void *ud);
-// Accent border = the suggested action. ALSO promotes the label to the top
-// rung: pill labels auto-fit 23 -> 14 by default, and 28 -> 23 -> 14 once
-// marked primary, so the button is never smaller than the note beside it.
-void      wt_pill_primary(lv_obj_t *pill);
-// Just the label promotion, no colour change: the sign pill is deliberately
-// green rather than accent, but it is still the screen's main action.
-void      wt_pill_label_max(lv_obj_t *pill);
-// Add the second line to a pill ("DESKTOP" over "Sparrow") and re-fit the main
-// label to the room left above it. Replaces three hand-tuned copies.
-void      wt_pill_two_line(lv_obj_t *pill, const char *sub);
-void      wt_pill_two_line_val(lv_obj_t *pill, const char *sub);
-// Pills sharing a row share a label size (smallest wins). Without it one long
-// word drops a single pill a rung and the row looks broken.
-void      wt_pill_row(lv_obj_t **pills, int n);
-// How a pill label renders in the ACTIVE locale: the font, its tracking, and
-// whether it takes a second line. Closing the tracking, then wrapping, both
-// come BEFORE dropping a font size, so a wide-enough or tall-enough pill keeps
-// its rung. Exposed so the fit report measures buttons the way the kit draws
-// them; sim/fitcheck.c fails the build when a key action lands on font14.
-typedef struct {
-    const lv_font_t *font;
-    int  space;     // letter tracking to apply with it
-    bool wrap;      // needs LV_LABEL_LONG_WRAP at (w - 28)
-} wt_pill_fit_t;
-wt_pill_fit_t wt_pill_fit(const char *txt, int w, int h, bool primary);
-// One rung for a whole GROUP of pills: the smallest any member needs, so a
-// row of buttons reads as a set instead of one shouting neighbour. Pass every
-// label that shares a row/column, then wt_pill_apply_fit each pill.
-wt_pill_fit_t wt_pill_group_fit(const char *const *txts, int n, int w, int h,
-                                bool primary);
-void wt_pill_apply_fit(lv_obj_t *pill, wt_pill_fit_t f, int w);
-void      wt_pill_select(lv_obj_t *pill, bool on);  // chooser pills: filled when active
-
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col);
 // Muted wrapping body text, at the largest size that fits max_h. The text is a
@@ -344,8 +301,8 @@ void      wt_note_fit(lv_obj_t *l, const char *txt, int w, int h);
 
 // ---- the fit helpers, when they give up -----------------------------------
 //
-// wt_pill_fit and wt_note_fit pick the biggest font that FITS, which makes them
-// silent: hand either one a long string in a small box and it lands on font14
+// wt_note_fit and the body sizers pick the biggest font that FITS, which makes
+// them silent: hand one a long string in a small box and it lands on font14
 // and says nothing, so the string never looks like a bug in the source. That
 // has now come off the bench three separate times -- loudest as "WHY IS THE
 // TEXT SO SMALL, LITERALLY, I KEEP ASKING" -- and every time the fix was to cut
@@ -859,11 +816,11 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
                         int npages);
 
 // ---- KEYS / RECEIVE: the borderless idioms ------------------------------
-// Three shapes that exist so those two screens can drop the card entirely: a
+// Three shapes born so those two screens could drop the card entirely: a
 // row is a line with a rule under it, a tab is marked with brackets, and a
-// button is an arrow with no box. Everything here is additive -- wt_row_x,
-// wt_tabs and wt_pill are untouched, because the rest of the device still
-// reads in that language and a half-converted device reads in neither.
+// button is an arrow with no box. The rest of the device has since moved
+// onto them -- the pill family is gone, and the arrow and word actions are
+// the only buttons the kit draws.
 //
 // Three sizes the handoff asks for are not on this device's ladder, which is
 // 14/23/28/34 and mono 14/23/28. Substituted once, here, rather than per call

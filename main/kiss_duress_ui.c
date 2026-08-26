@@ -341,8 +341,13 @@ static void stage_build(int stage)
         // Settings row above it learned this exact lesson first
         // (kiss_settings.c, "the row's absence was the confession"); a control
         // that clears nothing is the cheapest possible way to say nothing.
-        wt_arrow_action(s_scr, tr(STR_GD_TURN_OFF), false, false, 330,
-                        WT_ACTION_Y, 220, false, turn_off_cb, NULL);
+        // A resolve, not a destination: forgetting the swipe clears a fact
+        // in place, so it wears the cross rather than a third arrow crowding
+        // NOT NOW's on the same band.
+        lv_obj_t *off = wt_word_action(s_scr, LV_SYMBOL_CLOSE,
+                                       tr(STR_GD_TURN_OFF), true, WT_INK,
+                                       false, turn_off_cb, NULL);
+        lv_obj_set_pos(off, 330, WT_ACTION_Y + 6);
         wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
                         WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;
@@ -516,8 +521,10 @@ static void stage_build(int stage)
         // the same confession as a pill that comes and goes.
         wt_arrow_action(s_scr, tr(STR_L_CREATE_PASS_BTN), false, true, 48,
                         WT_ACTION_Y, 340, false, add_pass_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_GD_TURN_OFF), false, false, 396,
-                        WT_ACTION_Y, 208, false, turn_off_cb, NULL);
+        lv_obj_t *off = wt_word_action(s_scr, LV_SYMBOL_CLOSE,
+                                       tr(STR_GD_TURN_OFF), true, WT_INK,
+                                       false, turn_off_cb, NULL);
+        lv_obj_set_pos(off, 396, WT_ACTION_Y + 6);
         wt_arrow_action(s_scr, tr(STR_C_OK), true, false, WT_BACK_X,
                         WT_ACTION_Y, 140, true, skip_cb, NULL);
         break;

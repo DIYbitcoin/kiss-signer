@@ -1340,7 +1340,7 @@ static void find_pill(lv_obj_t *o, const char *txt)
     if (lv_obj_check_type(o, &lv_label_class)) {
         const char *t = lv_label_get_text(o);
         size_t lt = t ? strlen(t) : 0, ln = strlen(txt);
-        // Exact, or the icon form wt_pill_icon builds: "<icon>  LABEL".
+        // Exact, or the icon form wt_icon_text composes: "<icon>  LABEL".
         // The two spaces are load bearing. A bare suffix test matched CAMERA
         // AUDIT when the walk asked for AUDIT, which reads as an ambiguity
         // between two real pills and is really one wrong match.
