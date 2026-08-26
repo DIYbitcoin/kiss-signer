@@ -26,6 +26,7 @@ typedef enum {
 // PROVE. It is a STOP now ("input amounts not proven"), not a caution — see
 // the fee-lie note in kiss_psbt.c. The bit stays retired rather than reused:
 // the flag rode on the SD fixtures and the settings a device already has.
+#define WPSBT_C_GAP_CHANGE   (1u << 6)   // change parked past any scanner's reach
 
 // Privacy threshold: coins/change under this are flagged (soft). Not a dust
 // limit — that is a per-type standardness floor (see kiss_psbt.c).
@@ -43,6 +44,27 @@ typedef enum {
 // Distinct input ADDRESSES, not inputs: see n_in_addr.
 #define WPSBT_MERGE_INS      5
 
+// Gap bar: the address index a change output has to reach before the signer
+// says anything. An attacker holding only the account xpub can compute the
+// address at m/../1/99999, hand it back as change, and the device will confirm
+// it is genuinely ours -- because it is. The coins are not stolen and the seed
+// still reaches them. What is lost is that every coordinator scans a WINDOW,
+// twenty unused addresses past the last one it has seen, so change parked
+// beyond that window does not appear in the balance and the owner is told
+// their money is gone until somebody thinks to rescan deeply.
+//
+// A signer cannot know the real window: that is last_used + gap, and last_used
+// lives in the coordinator. So the bar is a blunt one, set where it can only
+// ever mean "nothing chose this". A coordinator burns roughly one change index
+// per transaction, so a thousand is a decade of daily spends -- a real wallet
+// does not arrive here, and a hidden one has to pass through.
+//
+// It is deliberately a CAUTION and not a STOP. Every STOP in this file is a
+// coin that leaves and does not come back; this one comes back the moment
+// anyone looks in the right place, and refusing it outright would hard-block
+// the one owner who genuinely has spent that many times.
+#define WPSBT_GAP_INDEX      1000
+
 // High-fee-rate backstop (sat/vB * 10). Krux warns only on the fee-as-share-of
 // -send (>=10%, which we match) and deliberately never thresholds sat/vB, since
 // a signer can't know the going rate and a low bar just fatigues users in
@@ -57,6 +79,11 @@ typedef struct {
     bool     is_change;  // carries OUR keypath AND the re-derived script matches
     bool     is_sp;      // BIP375 silent payment output: addr shows the sp1/tsp1
                          // re-encoding of its scan+spend keys, script derived here
+    // Address index of a change output, m/../<change>/<index>. Only meaningful
+    // when is_change; zero otherwise. Nothing carried it until WPSBT_GAP_INDEX
+    // needed it, which is exactly why no screen could show WHERE change went --
+    // the amount was on the glass and the address it landed on was not.
+    uint32_t index;
 } wpsbt_out_t;
 
 typedef struct {

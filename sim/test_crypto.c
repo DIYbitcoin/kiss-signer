@@ -250,11 +250,14 @@ static void build_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *l
     }
 }
 
-// A 1-in (ours) 2-out (external 60k + change 39k) PSBT for the given script type.
-static size_t mk_typed_psbt(int script, uint32_t purpose, uint8_t *out, size_t cap) {
+// A 1-in (ours) 2-out (external 60k + change 39k) PSBT for the given script
+// type. chg_index is the change output's address index -- 0 for every ordinary
+// case; the gap-limit tests are the only callers that pass anything else.
+static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
+                            uint8_t *out, size_t cap) {
     struct ext_key kin, kchg;
     derive5(purpose, 0, 0, &kin);
-    derive5(purpose, 1, 0, &kchg);
+    derive5(purpose, 1, chg_index, &kchg);
     uint8_t in_spk[25], chg_spk[25];
     size_t in_len = 0, chg_len = 0;
     build_spk(script, kin.pub_key, in_spk, &in_len);
@@ -300,7 +303,8 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint8_t *out, size_t c
         }
     }
 
-    const uint32_t pin[5] = {H + purpose, H, H, 0, 0}, pchg[5] = {H + purpose, H, H, 1, 0};
+    const uint32_t pin[5] = {H + purpose, H, H, 0, 0},
+                   pchg[5] = {H + purpose, H, H, 1, chg_index};
     struct wally_map *m = NULL;
     wally_map_keypath_public_key_init_alloc(1, &m);
     wally_map_keypath_add(m, kin.pub_key, 33, t_fp, 4, pin, 5);
@@ -600,7 +604,7 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
     {
         uint8_t pb[4096], sb[4096]; size_t sw = 0;
         wpsbt_summary_t sum;
-        size_t pl = mk_typed_psbt(script, purpose, pb, sizeof pb);
+        size_t pl = mk_typed_psbt(script, purpose, 0, pb, sizeof pb);
         snprintf(nm, sizeof nm, "%s psbt load rc", label);
         chki(nm, kiss_psbt_load(pb, pl, &sum), 0);
         snprintf(nm, sizeof nm, "%s psbt READY", label);
@@ -1175,6 +1179,71 @@ int main(int argc, char **argv) {
     chki("moderate-rate no cautions", sum.caution_flags, 0);
     kiss_psbt_free();
 
+    // ---- change parked past every scanner's window ----
+    // The attack needs only the account xpub: compute the address at a far-out
+    // index, hand it back as change, and the signer confirms it is genuinely
+    // ours -- because it is. Nothing takes the coins, but no coordinator scans
+    // that far, so the owner is told their money is gone.
+    //
+    // Both sides of the bar, on purpose. A check that fired on everything would
+    // pass the second of these exactly as a dead one fails the first, and the
+    // dead direction is the one that ships quietly.
+    pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, WPSBT_GAP_INDEX - 1, pb, sizeof pb);
+    chki("gap: under the bar loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap: under the bar is READY", sum.status, WPSBT_READY);
+    chki("gap: under the bar raises nothing", sum.caution_flags, 0);
+    chkb("gap: index reported", sum.outs[1].is_change &&
+                                sum.outs[1].index == WPSBT_GAP_INDEX - 1);
+    kiss_psbt_free();
+
+    pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, WPSBT_GAP_INDEX, pb, sizeof pb);
+    chki("gap: at the bar loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap: at the bar CAUTIONs", sum.status, WPSBT_CAUTION);
+    chkb("gap: at the bar flags gap-change",
+         (sum.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
+    kiss_psbt_free();
+
+    // The shape psbt_faker's TX-17 actually sends.
+    pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, 99999, pb, sizeof pb);
+    chki("gap: 99999 loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap: 99999 CAUTIONs", sum.status, WPSBT_CAUTION);
+    chkb("gap: 99999 flags gap-change",
+         (sum.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
+    // Still change, still ours, still signable once acked -- that is the whole
+    // reason this is a caution and not a refusal.
+    chkb("gap: 99999 is still change", sum.outs[1].is_change);
+    chkb("gap: 99999 index reported", sum.outs[1].index == 99999);
+    kiss_psbt_free();
+
+    // ---- BIP370: a signed PSBTv2 must stop saying it is modifiable ----
+    // wally clears these bits inside wally_psbt_add_input_signature, which is
+    // the hand-rolled API. This signer goes through wally_psbt_sign_bip32,
+    // which never touches them -- so before the fix a signed v2 went back to
+    // the coordinator still reading TX_MODIFIABLE=0x03: permission to add
+    // inputs and outputs, over a SIGHASH_ALL signature any such edit destroys.
+    {
+        struct wally_psbt *v2 = NULL;
+        uint8_t vb[4096];
+        size_t vl = 0, mf = 0xFF;
+        pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, 0, pb, sizeof pb);
+        chkb("v2 modifiable: fixture built",
+             wally_psbt_from_bytes(pb, pl, 0, &v2) == WALLY_OK &&
+             wally_psbt_set_version(v2, 0, WALLY_PSBT_VERSION_2) == WALLY_OK &&
+             wally_psbt_set_tx_modifiable_flags(v2, 3) == WALLY_OK &&
+             wally_psbt_to_bytes(v2, 0, vb, sizeof vb, &vl) == WALLY_OK && vl);
+        wally_psbt_free(v2); v2 = NULL;
+
+        chki("v2 modifiable: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("v2 modifiable: READY", sum.status, WPSBT_READY);
+        chki("v2 modifiable: sign rc", kiss_psbt_sign(sb, sizeof sb, &sw), 0);
+        chkb("v2 modifiable: signed output re-parses",
+             wally_psbt_from_bytes(sb, sw, 0, &v2) == WALLY_OK &&
+             wally_psbt_get_tx_modifiable_flags(v2, &mf) == WALLY_OK);
+        chki("v2 modifiable: flags cleared by signing", (int)mf, 0);
+        wally_psbt_free(v2);
+        kiss_psbt_free();
+    }
+
     // combo: tiny input + tiny change + high fee -> all three flags coexist
     pl = mk_val_psbt(4000, 3000, 200, 1, pb, sizeof pb);
     chki("combo load rc", kiss_psbt_load(pb, pl, &sum), 0);
@@ -1628,7 +1697,7 @@ int main(int argc, char **argv) {
         kiss_set_network(0);
         for (int a = 0; a < 3; a++)          // a = the PSBT's actual input type
           for (int b = 0; b < 3; b++) {      // b = the (possibly different) selected type
-            size_t pl2 = mk_typed_psbt(cs[a].script, cs[a].purpose, pb2, sizeof pb2);
+            size_t pl2 = mk_typed_psbt(cs[a].script, cs[a].purpose, 0, pb2, sizeof pb2);
             kiss_set_script(cs[b].script);
             snprintf(nm, sizeof nm, "%s psbt signs while %s selected", cs[a].name, cs[b].name);
             chki(nm, kiss_psbt_load(pb2, pl2, &sm), 0);
@@ -1638,7 +1707,7 @@ int main(int argc, char **argv) {
             kiss_psbt_free();
         }
         // network guard still holds: a mainnet-coin PSBT is refused on testnet
-        size_t pl3 = mk_typed_psbt(WSCRIPT_NATIVE, 84, pb2, sizeof pb2);  // coin 0h
+        size_t pl3 = mk_typed_psbt(WSCRIPT_NATIVE, 84, 0, pb2, sizeof pb2);  // coin 0h
         kiss_set_network(1);
         chki("mainnet psbt loads on testnet", kiss_psbt_load(pb2, pl3, &sm), 0);
         chki("mainnet psbt STOPs on testnet (wrong network)", sm.status, WPSBT_STOP);

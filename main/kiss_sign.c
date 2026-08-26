@@ -1212,7 +1212,15 @@ static void verify_screen(lv_obj_t *parent);
 //
 // The footer is the thing to DO about all of this, so it belongs to the card
 // rather than to any one reason. It rides in the subtitle, where it reads once
-// under the title instead of pretending to be a fifth entry with no mark.
+// under the title instead of pretending to be an entry with no mark.
+
+// How many reasons can be on screen at once: fee + dust in + merge + gap + one
+// of the two change rows, which are mutually exclusive. It is a count of
+// REASONS, not a piece of layout, which is why it lives here beside them rather
+// than with the SG_ geometry -- and why this card can size its icon array off
+// it. The rows page is measured against the same number.
+#define SG_ROW_MAX 5
+
 static void caution_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -1220,7 +1228,7 @@ static void caution_help_cb(lv_event_t *e)
     // every append clamps o because snprintf returns the WOULD-BE length
     char body[1792];
     size_t o = 0;
-    const char *icons[4];
+    const char *icons[SG_ROW_MAX];   // one per reason this card can explain
     int ni = 0;
     uint16_t f = s_sum.caution_flags;
     #define BODY_ADD(icon_, ...) do { \
@@ -1248,6 +1256,11 @@ static void caution_help_cb(lv_event_t *e)
                  (unsigned)s_sum.n_in_addr);
         BODY_ADD(LV_SYMBOL_LIST, "%s%s", o ? "\n" : "", m);
     }
+    // The glossary's DERIVATION PATH mark, because that is what this row is
+    // about: not the amount and not the address, the number at the end of the
+    // path it was sent to. GLOSS_ICONS[6].
+    if (f & WPSBT_C_GAP_CHANGE)
+        BODY_ADD(LV_SYMBOL_DIRECTORY, "%s%s", o ? "\n" : "", tr(STR_S_WHY_GAPCH));
     if (f & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
         BODY_ADD(LV_SYMBOL_MINUS, "%s%s", o ? "\n" : "", tr(STR_S_WHY_TINYCH));
     #undef BODY_ADD
@@ -1505,7 +1518,8 @@ static void recip_scroll_cb(lv_event_t *e)
 #define SG_FOOT_Y    300
 #define SG_ROW_H      56   // a caution row, on the page the rows now live on
 #define SG_ROW_PILL_W 170
-#define SG_ROW_MAX      4  // fee + dust in + merge + one change row
+// SG_ROW_MAX is not geometry and is defined with the reasons it counts, above
+// caution_help_cb, which needs it before this block is reached.
 
 // The caution bar: one row, always, however many reasons there are. 44 is the
 // ack pill (40) plus 2px above and below, the least that still reads as a bar.
@@ -1596,10 +1610,28 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
     // input-side, so it sits with the dust row rather than with the change ones.
-    // Four rows is the ceiling this can reach (fee + dust in + merge + one of the
-    // two change rows), which is exactly the cap the row stack draws for.
+    // Five rows is the ceiling this can reach (fee + dust in + merge + gap + one
+    // of the two change rows), which is exactly the cap the row stack draws for.
     if (n < cap && (f & WPSBT_C_MERGE_INS))
         { bits[n] = WPSBT_C_MERGE_INS;   parts[n++] = tr(STR_S_C_MERGE); }
+    // The gap row carries its NUMBER, which none of the others do. "change out
+    // of reach" is a claim about a specific address and the index is the whole
+    // evidence -- an owner who has genuinely spent a thousand times needs to
+    // see it is 1024 and not 99999 to know which of the two this is.
+    //
+    // Function-static, like the merge line in caution_help_cb: this returns
+    // POINTERS and every caller reads them before it calls again -- the rows
+    // page builds its whole stack in the loop below, the verify bar takes
+    // parts[0] on the next line. One UI task, so there is no second writer.
+    if (n < cap && (f & WPSBT_C_GAP_CHANGE)) {
+        static char g[64];
+        uint32_t idx = 0;
+        for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+            if (s_sum.outs[i].is_change && s_sum.outs[i].index >= WPSBT_GAP_INDEX)
+                { idx = s_sum.outs[i].index; break; }
+        snprintf(g, sizeof g, tr(STR_S_C_GAPCH), (unsigned)idx);
+        bits[n] = WPSBT_C_GAP_CHANGE;    parts[n++] = g;
+    }
     if (n < cap && (f & WPSBT_C_DUST_CHANGE))
         { bits[n] = WPSBT_C_DUST_CHANGE; parts[n++] = tr(STR_S_C_DUSTCH); }
     else if (n < cap && (f & WPSBT_C_SMALL_CHANGE))
@@ -1722,10 +1754,10 @@ static void cautions_screen(void)
     mk_screen(s_parent, tr(STR_S_WHY_T), NULL);
     wt_help_chip(s_scr, 738, 34, WARN_COL, caution_help_cb, NULL);
 
-    // 88 + 4*56 + 3*4 = 324, well clear of WT_CONTENT_BOTTOM. The gap is 4
-    // rather than the verify screen's 8, from when a fifth row had to keep
-    // SG_ROW_H; the tight metric existed only because the rows were sharing a
-    // screen, and they no longer are.
+    // 88 + 5*56 + 4*4 = 384, against WT_CONTENT_BOTTOM at 398. The 4px gap
+    // rather than the verify screen's 8 is what buys that: it was put here for
+    // a fifth row that then did not exist, and the gap-limit reason is it.
+    // Four rows is 324 and unchanged, so the common stacks did not move down.
     int y = 88;
     for (int i = 0; i < np; i++) {
         bool done = (s_ack_flags & bits[i]) != 0;
@@ -2209,7 +2241,22 @@ static void verify_screen(lv_obj_t *parent)
         snprintf(sbuf, sizeof sbuf, "%s  %s", GLOSS_ICONS[1],
                  tr(STR_S_SENDING_CAP));
         snprintf(fbuf, sizeof fbuf, "%s  %s", GLOSS_ICONS[4], tr(STR_S_FEE));
-        snprintf(cbuf, sizeof cbuf, "%s  %s", GLOSS_ICONS[2], gloss_term(2));
+        // The change strand names its INDEX when there is one change output,
+        // which is every ordinary transaction. The amount coming back was on
+        // this screen and where it landed was not, so an owner could read the
+        // whole graph and still not know their change had been parked at
+        // #99999 where no coordinator scans -- the whole of TX-17. One buffer
+        // serves every change strand, so with more than one the bare word
+        // stays rather than have them all claim the first one's number.
+        if (change_n == 1) {
+            uint32_t ci = 0;
+            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
+                if (s_sum.outs[i].is_change) { ci = s_sum.outs[i].index; break; }
+            snprintf(cbuf, sizeof cbuf, "%s  %s  #%u", GLOSS_ICONS[2],
+                     gloss_term(2), (unsigned)ci);
+        } else {
+            snprintf(cbuf, sizeof cbuf, "%s  %s", GLOSS_ICONS[2], gloss_term(2));
+        }
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (s_sum.outs[i].is_change) continue;
@@ -2594,7 +2641,23 @@ static void verify_screen(lv_obj_t *parent)
                                                        : tr(STR_I_NET_TEST);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
-        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
+        // A locktime joins the pair when it is set, and only then. It says the
+        // transaction cannot confirm before that height, so a coordinator hands
+        // it back as "broadcast failed" and the owner has no way to tell that
+        // from a device fault -- the number was on the DETAILS page and nowhere
+        // else. It is a FACT about the transaction, not a decision to weigh,
+        // which is exactly what this row already carries for RBF, so it goes
+        // here rather than becoming a sixth caution the page has no room for.
+        //
+        // Same mark the glossary gives LOCKTIME (GLOSS_ICONS[5]).
+        char lt[64] = "";
+        if (s_sum.locktime) {
+            char n[40];
+            snprintf(n, sizeof n, tr(STR_S_LOCKTIME_FMT),
+                     (unsigned)s_sum.locktime);
+            snprintf(lt, sizeof lt, "  ·  %s  %s", WT_ICON_LOCK, n);
+        }
+        snprintf(buf, sizeof buf, "%s  ·  %s%s", net, rbf, lt);
         // Amber on testnet: the network is a status, not chrome, and it is the
         // one fact on this row that changes what a signature is worth.
         //
@@ -3093,8 +3156,11 @@ static void details_cb(lv_event_t *e)
         // The glossary's CHANGE mark, not a bare tick: on a list of outputs the
         // question is WHICH of them comes back, and a tick answered "this one
         // is fine". Green still says verified ours.
-        if (ours) snprintf(buf, sizeof buf, "%s %s %s", GLOSS_ICONS[2], a,
-                           wt_denom_unit());
+        // And its index, which the graph only shows when there is ONE change
+        // output. This page is per-output by construction, so here every change
+        // row can carry its own -- which is the point of the page.
+        if (ours) snprintf(buf, sizeof buf, "%s %s %s  #%u", GLOSS_ICONS[2], a,
+                           wt_denom_unit(), (unsigned)s_sum.outs[i].index);
         else      snprintf(buf, sizeof buf, "%s %s", a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);

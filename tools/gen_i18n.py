@@ -339,6 +339,10 @@ UNTRANSLATED_OK = {
     "G_STOGATE_SURV", "G_STOGATE_GOES", "G_STOGATE_GOES_AMN",
     "G_STORAGE_OK_NEXT", "G_STORAGE_OK_NEXT_AMN",
     "G_STORAGE_CLEANUP_NEXT", "G_STORAGE_FAIL_NEXT",
+    # The gap-limit caution and its explainer, and the locktime the verify
+    # screen's meta row now names. Born under the English-only rule; English
+    # in the other twenty until the sweep.
+    "S_C_GAPCH", "S_WHY_GAPCH", "S_LOCKTIME_FMT",
 }
 
 

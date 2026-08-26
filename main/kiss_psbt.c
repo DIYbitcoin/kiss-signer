@@ -145,11 +145,17 @@ static uint32_t path_purpose_for_coin(const uint32_t *path, size_t len, uint32_t
         // and unrecoverable from the backup this device tells them to keep.
         // A coordinator has no legitimate reason to ask for one.
         //
-        // The index is NOT bounded above beyond that. A gap-limit caution was
-        // considered and left out: the row stack is full at five (see
-        // SG_ROW_MAX in kiss_sign.c) and a sixth reason does not fit the
-        // page, and a large index still re-derives to a key the seed owns.
-        // Worth revisiting if a row ever frees up.
+        // The index is NOT bounded above HERE, and deliberately so: a path is
+        // ours or it is not, and m/../1/99999 re-derives to a key this seed
+        // owns however far out it sits. Refusing it in this function would
+        // refuse the INPUT too, and an old coin at a high index is a coin.
+        //
+        // What a high index does cost is that no coordinator scans far enough
+        // to find change left there. That is a property of the OUTPUT and it
+        // is raised as WPSBT_C_GAP_CHANGE where the output is checked, so the
+        // owner is told and can still sign. This paragraph used to say the
+        // caution was left out because the row stack was full at five; the
+        // rows have their own page now and a fifth one fits.
         path[4] >= BIP32_INITIAL_HARDENED_CHILD)
         return 0;
     return purpose;
@@ -1017,7 +1023,13 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                 stop(s, "change address does not re-derive");  // active attack marker
             } else {
                 so->is_change = true;
+                so->index = path[4];   // our_purpose proved the path is 5 long
                 s->change_sats += o->satoshi;
+                // Change parked past every scanner's window. Its own `if`, not
+                // folded into the pair below: an output can be both dust AND
+                // out of reach, and those are different sentences.
+                if (path[4] >= WPSBT_GAP_INDEX)
+                    caution(s, WPSBT_C_GAP_CHANGE, "change past the scan window");
                 // a tiny change output fragments your coins (privacy); below the
                 // standardness dust floor it is also likely a coordinator slip
                 if (o->satoshi > 0 && o->satoshi < dust_floor(our_purpose(path, path_len)))
@@ -1247,6 +1259,21 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
         return -5;
     if (!psbt_has_signature(s_psbt))
         return -7;
+    // BIP370 signer rule: once a non-ANYONECANPAY signature exists the inputs
+    // are closed, and once a non-NONE one does the outputs are. The load gate
+    // above accepts nothing but sighash 0 or ALL, so both bits are always due
+    // to be cleared here and zero is the whole answer.
+    //
+    // Ours to do, not wally's: it clears these inside
+    // wally_psbt_add_input_signature, which is the hand-rolled API, and never
+    // on the wally_psbt_sign_bip32 path this signer takes. So a signed PSBTv2
+    // left here still saying TX_MODIFIABLE=0x03 -- telling the next coordinator
+    // it may still add inputs and outputs, over a signature that any such edit
+    // would silently invalidate. sp_fill already made this call for silent
+    // payments; every v2 gets it now.
+    if (s_psbt->version == 2 &&
+        wally_psbt_set_tx_modifiable_flags(s_psbt, 0) != WALLY_OK)
+        return -8;
     size_t need = 0;
     if (wally_psbt_get_length(s_psbt, 0, &need) != WALLY_OK || need > out_len)
         return -3;
