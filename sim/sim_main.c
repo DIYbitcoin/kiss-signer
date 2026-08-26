@@ -2546,6 +2546,16 @@ int main(void) {
   // by their labels rather than by a pitch that no longer exists.
   tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab
   save("/tmp/sim_recv_sptab.ppm");                  // two lines and the sentence
+  // The stroke reaches [ ? ] here too: past SILENT opens the explainer, a
+  // right stroke on it comes back to the tab it left. help_seen is dropped
+  // again afterwards, for the reason the toggle stop above gives.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("recv/swipe past silent opens help", tr(STR_R_HELP_HEAD));
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("recv/swipe closes help", tr(STR_R_SP_ADDR_CAP));
+  wt_help_seen_set(false);
   // The SCAN KEY line is a DOOR again -- to the one consent flow, which lives
   // in kiss_info beside the KEYS launcher. The gate must open, and CANCEL
   // must land back on this tab, not on the landing tab.
@@ -2766,6 +2776,14 @@ int main(void) {
   // absence named, what pairing gives, and the row that fills it.
   save("/tmp/sim_winfo_coord_empty.ppm");
   must_show("coord empty", tr(STR_K_COORD_NONE));
+  // And past the deck's end: the stroke opens [ ? ] on this page too, and a
+  // right stroke on it lands back on the tab it left.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("keys/swipe past coord opens help", tr(STR_K_HELP_HEAD));
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("keys/swipe closes help", tr(STR_K_COORD_NONE));
   {
     // Give this signer a coordinator's word -- the same store RECEIVE's lamp
     // reads -- and bounce the tab so the populated page renders.

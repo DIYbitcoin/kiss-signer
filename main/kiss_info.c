@@ -1352,15 +1352,21 @@ static void info_tab_cb(lv_event_t *e)
     wt_pane_go(&s_ictx, tab, false, info_tab_build);
 }
 
-// The stroke, on the KEYS page: two tabs, one deck. Not under [ ? ] -- the
-// explainer is a toggle, not a position on the deck.
+// The stroke, on the KEYS page: two tabs, one deck. [ ? ] stays a toggle
+// rather than a position on the deck, but the stroke reaches it -- past the
+// last tab opens it, and a right swipe on it is the way back. SETTINGS
+// shipped this first, from the bench's "i cant swipe to the question mark".
 static void info_gesture_cb(lv_event_t *e)
 {
-    if (s_help_open) return;
     const int step = wt_swipe_step(e);
     if (!step) return;
+    if (s_help_open) {
+        if (step < 0) info_help_cb(NULL);
+        return;
+    }
     const int to = s_ictx.tab + step;
-    if (to < 0 || to > 1) return;   // the deck ends where the strip does
+    if (to > 1) { info_help_cb(NULL); return; }
+    if (to < 0) return;             // the deck still ends on the left
     wt_pane_go(&s_ictx, to, false, info_tab_build);
 }
 

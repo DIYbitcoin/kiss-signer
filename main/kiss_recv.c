@@ -1163,9 +1163,16 @@ static void row_tap_cb(lv_event_t *e) {
 // of them. Entering the list by swipe lands on its remembered page, the same
 // place a tap on the tab lands.
 static void recv_gesture_cb(lv_event_t *e) {
-  if (s_help_open) return;    // [ ? ] is a toggle, not a position on the deck
   const int step = wt_swipe_step(e);
   if (!step) return;
+  // [ ? ] stays a toggle, not a position on the deck, but the stroke reaches
+  // it: past SILENT opens it, a right swipe on it comes back. SETTINGS and
+  // KEYS make the same move, from the bench's "i cant swipe to the question
+  // mark".
+  if (s_help_open) {
+    if (step < 0) recv_help_cb(NULL);
+    return;
+  }
   if (s_rctx.tab == 1) {
     const int base = (int)s_list_base + step * RECV_PAGE;
     if (base >= 0 && base < RECV_LIST_CAP) {
@@ -1174,6 +1181,7 @@ static void recv_gesture_cb(lv_event_t *e) {
       return;
     }
   }
+  if (s_rctx.tab + step > 2) { recv_help_cb(NULL); return; }
   recv_tab_go(s_rctx.tab + step);
 }
 
