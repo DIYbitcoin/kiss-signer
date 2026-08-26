@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "dudas? vuelve ATRÁS y arréglalo en tu app.",
   "S_RBF_T_ON": "REEMPLAZABLE (RBF)",
   "S_RBF_T_OFF": "NO MARCADA (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "QUIÉN LO PONE: tu coordinador, al construir la transacción. ningún signer puede.\nSI SE ATASCA: reenvíala desde tu coordinador con una comisión mayor.\nEN CUALQUIER CASO: el destino no cambia, y hoy los nodos aceptan un reemplazo.",
   "S_SIGNED_T": "FIRMADA",
   "S_DONE_SD_SUB": "devuelve la tarjeta a Sparrow, carga -signed.psbt y transmite",

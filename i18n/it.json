@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "dubbi? torna INDIETRO e sistemalo nell'app.",
   "S_RBF_T_ON": "SOSTITUIBILE (RBF)",
   "S_RBF_T_OFF": "NON SEGNATA (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "CHI LO DECIDE: il tuo coordinatore, quando costruisce la transazione. nessun signer.\nSE SI BLOCCA: rimandala dal coordinatore con una commissione più alta.\nIN OGNI CASO: la destinazione non cambia, e i nodi accettano una sostituzione.",
   "S_SIGNED_T": "FIRMATA",
   "S_DONE_SD_SUB": "rimetti la scheda in Sparrow, carica -signed.psbt e trasmetti",

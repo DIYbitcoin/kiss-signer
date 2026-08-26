@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "emin değil misin? GERİ dön, uygulamada düzelt.",
   "S_RBF_T_ON": "DEĞİŞTİRİLEBİLİR (RBF)",
   "S_RBF_T_OFF": "İŞARETSİZ (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "KİM BELİRLER: işlemi kuran koordinatörünüz. hiçbir signer belirleyemez.\nTAKILIRSA: koordinatörden daha yüksek ücretle yeniden gönderin.\nHER HALÜKARDA: hedef değişmez, ve düğümler artık bir değiştirmeyi kabul eder.",
   "S_SIGNED_T": "İMZALANDI",
   "S_DONE_SD_SUB": "kartı Sparrow'a takın, -signed.psbt dosyasını açıp yayınlayın",

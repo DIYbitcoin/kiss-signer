@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "không chắc? QUAY LẠI và sửa trong ứng dụng.",
   "S_RBF_T_ON": "THAY ĐƯỢC (RBF)",
   "S_RBF_T_OFF": "KHÔNG ĐÁNH DẤU (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "AI ĐẶT: bộ điều phối của bạn, khi dựng giao dịch. không máy ký nào đặt được.\nNẾU TẮC: gửi lại từ bộ điều phối với phí cao hơn.\nDÙ SAO: nơi nhận không đổi, và các nút bây giờ chấp nhận bản thay thế.",
   "S_SIGNED_T": "ĐÃ KÝ",
   "S_DONE_SD_SUB": "đưa thẻ lại Sparrow, nạp -signed.psbt rồi phát lên mạng",

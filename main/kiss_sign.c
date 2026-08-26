@@ -2641,23 +2641,27 @@ static void verify_screen(lv_obj_t *parent)
                                                        : tr(STR_I_NET_TEST);
         const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
                                     : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
-        // A locktime joins the pair when it is set, and only then. It says the
-        // transaction cannot confirm before that height, so a coordinator hands
-        // it back as "broadcast failed" and the owner has no way to tell that
-        // from a device fault -- the number was on the DETAILS page and nowhere
-        // else. It is a FACT about the transaction, not a decision to weigh,
-        // which is exactly what this row already carries for RBF, so it goes
-        // here rather than becoming a sixth caution the page has no room for.
+        // The LOCKTIME does not join this pair, and the attempt is worth
+        // recording so nobody spends the afternoon again. Two things killed it.
         //
-        // Same mark the glossary gives LOCKTIME (GLOSS_ICONS[5]).
-        char lt[64] = "";
-        if (s_sum.locktime) {
-            char n[40];
-            snprintf(n, sizeof n, tr(STR_S_LOCKTIME_FMT),
-                     (unsigned)s_sum.locktime);
-            snprintf(lt, sizeof lt, "  ·  %s  %s", WT_ICON_LOCK, n);
-        }
-        snprintf(buf, sizeof buf, "%s  ·  %s%s", net, rbf, lt);
+        // The row has no room. At HEAD, in ENGLISH, with nothing added, a
+        // replaceable testnet transaction already renders as "REPLACEABL..." --
+        // the 360px lane is spent and LONG_DOT is doing the work the comment
+        // below calls the backstop. A third segment does not get shown, it gets
+        // eaten, and the segment that vanishes is the new one.
+        //
+        // And there is nothing to say. Core sets nLockTime to the current
+        // height on every transaction it builds (anti fee sniping), and
+        // Sparrow and Electrum follow it, so a NON-ZERO locktime is what an
+        // ordinary spend looks like. A mark on every one of them is noise on
+        // the screen that can least afford it.
+        //
+        // The case that IS worth saying -- psbt_faker's locktime 2000000000,
+        // which is a year 2033 TIMESTAMP and not a height at all -- needs a
+        // test for "far past any plausible tip", and this signer has no clock
+        // and no chain. That means a build time floor that only moves forward
+        // with releases, which is its own change and not a string on this row.
+        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
         // Amber on testnet: the network is a status, not chrome, and it is the
         // one fact on this row that changes what a signature is worth.
         //

@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "unsicher? ZURÜCK, dann in der App klären.",
   "S_RBF_T_ON": "ERSETZBAR (RBF)",
   "S_RBF_T_OFF": "NICHT MARKIERT (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "WER SETZT ES: dein Koordinator, beim Bauen der Transaktion. kein Signer kann das.\nWENN SIE HÄNGT: schick sie vom Koordinator erneut, mit höherer Gebühr.\nSO ODER SO: das Ziel ändert sich nicht, und Nodes nehmen heute einen Ersatz an.",
   "S_SIGNED_T": "SIGNIERT",
   "S_DONE_SD_SUB": "Karte zu Sparrow bringen, die Datei -signed.psbt laden und senden",

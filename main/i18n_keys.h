@@ -446,7 +446,6 @@ enum {
     STR_S_WHY_FOOT,
     STR_S_RBF_T_ON,
     STR_S_RBF_T_OFF,
-    STR_S_LOCKTIME_FMT,
     STR_S_RBF_HELP_B,
     STR_S_SIGNED_T,
     STR_S_DONE_SD_SUB,

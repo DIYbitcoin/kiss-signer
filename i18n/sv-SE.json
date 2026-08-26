@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "osäker? gå TILLBAKA och fixa det i appen.",
   "S_RBF_T_ON": "KAN ERSÄTTAS (RBF)",
   "S_RBF_T_OFF": "INTE MÄRKT (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "VEM SÄTTER DEN: din koordinator, när den bygger transaktionen. ingen signer.\nOM DEN FASTNAR: skicka den igen från koordinatorn med högre avgift.\nHUR SOM HELST: mottagaren ändras inte, och noder tar nu emot en ersättning.",
   "S_SIGNED_T": "SIGNERAD",
   "S_DONE_SD_SUB": "sätt kortet i Sparrow, ladda -signed.psbt och sänd",

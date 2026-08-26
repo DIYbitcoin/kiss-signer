@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "nejistota? ZPĚT a oprav to v aplikaci.",
   "S_RBF_T_ON": "NAHRADITELNÁ (RBF)",
   "S_RBF_T_OFF": "BEZ OZNAČENÍ (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "KDO JI NASTAVUJE: tvůj koordinátor, když staví transakci. signer to neumí.\nKDYŽ UVÁZNE: pošli ji z koordinátoru znovu s vyšším poplatkem.\nTAK ČI TAK: cíl se nemění a uzly dnes náhradu přijmou.",
   "S_SIGNED_T": "PODEPSÁNO",
   "S_DONE_SD_SUB": "vložte kartu do Sparrow, načtěte -signed.psbt a odešlete",

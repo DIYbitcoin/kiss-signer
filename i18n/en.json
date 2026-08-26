@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "unsure? go BACK and fix it in your coordinator wallet.",
   "S_RBF_T_ON": "REPLACEABLE (RBF)",
   "S_RBF_T_OFF": "NOT MARKED (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "WHO SETS IT: your coordinator, when it builds the transaction. no signer can.\nIF IT STICKS: send it again from your coordinator with a higher fee.\nEITHER WAY: the destination cannot change, and nodes now accept a replacement.",
   "S_SIGNED_T": "SIGNED",
   "S_DONE_SD_SUB": "put the card back in Sparrow, then broadcast",

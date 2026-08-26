@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "na dúvida? VOLTAR e resolver na sua app.",
   "S_RBF_T_ON": "SUBSTITUÍVEL (RBF)",
   "S_RBF_T_OFF": "NÃO MARCADA (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "QUEM DEFINE: o seu coordenador, ao montar a transação. nenhum signer define.\nSE ENCRAVAR: envie de novo pelo coordenador com uma taxa maior.\nDE QUALQUER FORMA: o destino não muda, e os nodes hoje aceitam uma substituição.",
   "S_SIGNED_T": "ASSINADA",
   "S_DONE_SD_SUB": "devolva o cartão ao Sparrow, carregue -signed.psbt e transmita",

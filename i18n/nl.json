@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "twijfel? ga TERUG en los het op in je app.",
   "S_RBF_T_ON": "VERVANGBAAR (RBF)",
   "S_RBF_T_OFF": "NIET GEMARKEERD (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "WIE ZET HET: je coordinator, bij het bouwen van de transactie. geen enkele signer.\nALS HIJ VASTZIT: stuur hem opnieuw vanaf je coordinator met hogere kosten.\nHOE DAN OOK: de bestemming verandert niet, en nodes accepteren nu een vervanging.",
   "S_SIGNED_T": "ONDERTEKEND",
   "S_DONE_SD_SUB": "plaats de kaart in Sparrow, laad -signed.psbt en zend uit",

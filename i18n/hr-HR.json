@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "nisi siguran? NATRAG i popravi u aplikaciji.",
   "S_RBF_T_ON": "ZAMJENJIVA (RBF)",
   "S_RBF_T_OFF": "BEZ OZNAKE (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "TKO JE POSTAVLJA: tvoj koordinator, dok gradi transakciju. signer ne može.\nAKO ZAPNE: pošalji je ponovno iz koordinatora s višom naknadom.\nU SVAKOM SLUČAJU: odredište se ne mijenja, a čvorovi danas primaju zamjenu.",
   "S_SIGNED_T": "POTPISANO",
   "S_DONE_SD_SUB": "umetnite karticu u Sparrow, učitajte -signed.psbt i objavite",

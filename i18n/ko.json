@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "잘 모르겠으면 뒤로, 앱에서 처리하세요.",
   "S_RBF_T_ON": "교체 가능 (RBF)",
   "S_RBF_T_OFF": "표시 없음 (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "누가 정하나: 거래를 만드는 코디네이터입니다. 서명 기기는 정할 수 없습니다.\n막히면: 코디네이터에서 수수료를 올려 다시 보내세요.\n어느 쪽이든: 받는 곳은 그대로입니다. 지금 네트워크는 교체를 받습니다.",
   "S_SIGNED_T": "서명 완료",
   "S_DONE_SD_SUB": "카드를 Sparrow에 넣고 -signed.psbt를 불러와 전파하세요",

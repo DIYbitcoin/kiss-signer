@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "不确定？返回，在应用里处理。",
   "S_RBF_T_ON": "可替换 (RBF)",
   "S_RBF_T_OFF": "未标记 (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "谁决定：做出这笔交易的协调器。签名器决定不了。\n卡住了：从协调器用更高的手续费再发一次。\n无论哪种：收款地址不会变，现在的节点也会接受替换。",
   "S_SIGNED_T": "已签名",
   "S_DONE_SD_SUB": "把卡放回Sparrow，载入-signed.psbt后广播",

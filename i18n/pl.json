@@ -443,7 +443,6 @@
   "S_WHY_FOOT": "nie masz pewności? WSTECZ i popraw w aplikacji.",
   "S_RBF_T_ON": "ZASTĘPOWALNA (RBF)",
   "S_RBF_T_OFF": "NIEOZNACZONA (RBF)",
-  "S_LOCKTIME_FMT": "locktime %u",
   "S_RBF_HELP_B": "KTO TO USTAWIA: twój koordynator, budując transakcję. żaden signer nie może.\nJEŚLI UTKNIE: wyślij ją ponownie z koordynatora z wyższą opłatą.\nTAK CZY TAK: cel się nie zmienia, a węzły przyjmują dziś zamiennik.",
   "S_SIGNED_T": "PODPISANA",
   "S_DONE_SD_SUB": "włóż kartę do Sparrow, wczytaj -signed.psbt i rozgłoś",
