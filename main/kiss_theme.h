@@ -1067,6 +1067,11 @@ typedef struct {
 } wt_fact_t;
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                 const wt_fact_t *facts, int n);
+// The same page with ONE term of the paragraph emphasized -- rendered in INK
+// against the MUT sentence (the mono face has no bold; contrast is the
+// emphasis). `hi` must appear verbatim in `para`; absent, this is wt_explain.
+void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
+                   const char *hi, const wt_fact_t *facts, int n);
 
 // The in-place definition (Part 3). Tap a row and its explanation opens where
 // the row already is; the others collapse to 34px ghosts to make the room.

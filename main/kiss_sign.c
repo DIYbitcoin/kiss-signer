@@ -3850,8 +3850,14 @@ static void choose_help_cb(lv_event_t *e);
 static void scanteach_build(lv_obj_t *p)
 {
     // The airgap drawn, not the chip row: the machines themselves, with the
-    // dashed break between them, are the picture this page opens on.
+    // dashed break between them, are the picture this page opens on. The
+    // whole figure is a tap target for the camera too -- the picture shows
+    // the act, so the picture may start it.
     lv_obj_t *row = wt_diagram_airgap(p);
+    lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_translate_x(row, 0, 0);
+    lv_obj_set_style_translate_x(row, 4, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(row, scan_pick_cb, LV_EVENT_CLICKED, NULL);
     // Centered in the band with the instruction hanging under it: the pair
     // sits a little above the middle so diagram + line read as one figure.
     lv_obj_update_layout(row);
@@ -3886,7 +3892,10 @@ static void sign_tab_build(void)
             { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V), WT_ICON_SIGN },
             { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V), LV_SYMBOL_UPLOAD },
         };
-        wt_explain(p, tr(STR_S_HELP_HEAD), tr(STR_S_HELP_BODY), facts, 3);
+        // "PSBT" carries the emphasis: it is the one word this page exists
+        // to teach, and the bench asked for it to stand out of the sentence.
+        wt_explain_hi(p, tr(STR_S_HELP_HEAD), tr(STR_S_HELP_BODY), "PSBT",
+                      facts, 3);
         return;
     }
     if (s_cctx.tab == 0) scanteach_build(p);
@@ -3903,7 +3912,11 @@ static void sign_band_update(void)
     if (s_band_act) { lv_obj_delete(s_band_act); s_band_act = NULL; }
     if (s_choose_help) return;
     if (s_cctx.tab == 0) {
-        s_band_act = wt_arrow_action(s_scr, tr(STR_S_OPEN_CAM), false, true,
+        // The camera's own mark on the label: the bench read the bare words
+        // as easy to miss under a picture that says nothing about tapping.
+        char cam[WT_ICON_TEXT_MAX];
+        wt_icon_text(cam, sizeof cam, WT_ICON_CAMERA, tr(STR_S_OPEN_CAM));
+        s_band_act = wt_arrow_action(s_scr, cam, false, true,
                                      WT_ACT_X, WT_ACTION_Y, 0, false,
                                      scan_pick_cb, NULL);
     } else if (s_nfiles > 0) {

@@ -3234,8 +3234,8 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
     return b;
 }
 
-void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
-                const wt_fact_t *facts, int n)
+void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
+                   const char *hi, const wt_fact_t *facts, int n)
 {
     lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, chrome28(headline),
                          WT_INK);
@@ -3245,9 +3245,34 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
     // mono23, the reading rung. This was chrome18, which put every [ ? ]
     // page's body two rungs under the def rows it sits beside.
     const lv_font_t *pf = chrome23(para);
-    lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, 152, pf, WT_MUT);
-    lv_obj_set_width(p, 690);
-    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+    const char *at = hi && *hi ? strstr(para, hi) : NULL;
+    if (at) {
+        // The term the page exists to teach, in INK against the MUT sentence
+        // -- the mono face has no bold, so contrast is the emphasis. Same
+        // metrics either way: the spans wrap exactly as the label would.
+        char head[256];
+        snprintf(head, sizeof head, "%.*s", (int)(at - para), para);
+        lv_obj_t *sg = lv_spangroup_create(scr);
+        lv_obj_set_pos(sg, WT_LANE_X, 152);
+        lv_obj_set_width(sg, 690);
+        lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+        lv_obj_set_style_text_font(sg, pf, 0);
+        lv_span_t *s1 = lv_spangroup_new_span(sg);
+        lv_span_set_text(s1, head);
+        lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
+        lv_span_t *s2 = lv_spangroup_new_span(sg);
+        char term[32];
+        snprintf(term, sizeof term, "%s", hi);
+        lv_span_set_text(s2, term);
+        lv_style_set_text_color(lv_span_get_style(s2), WT_INK);
+        lv_span_t *s3 = lv_spangroup_new_span(sg);
+        lv_span_set_text(s3, at + strlen(hi));
+        lv_style_set_text_color(lv_span_get_style(s3), WT_MUT);
+    } else {
+        lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, 152, pf, WT_MUT);
+        lv_obj_set_width(p, 690);
+        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+    }
     lv_point_t ps;
     lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
 
@@ -3291,6 +3316,12 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
         y += lv_font_get_line_height(wt_font23()) + 14;
     }
+}
+
+void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
+                const wt_fact_t *facts, int n)
+{
+    wt_explain_hi(scr, headline, para, NULL, facts, n);
 }
 
 // ---- the in-place definition ----
@@ -5629,14 +5660,19 @@ void wt_diagram_pair(lv_obj_t *parent)
 // bearing -- COORDINATOR WALLET at mono18 is ~194px, wider than the phone
 // it is centred under, and the spill has to land inside the figure.
 
-#define AG_PH_X   60    // phone left
-#define AG_PH_W   96
-#define AG_PH_H  150
+// The coordinator is a LAPTOP now, not a phone: Sparrow is a desktop app,
+// and the phone silhouette came off the bench as the wrong machine.
+#define AG_CO_X   40    // coordinator block's left edge
+#define AG_CO_W  200    // its base bar, the block's full width
+#define AG_CO_SW 168    // the screen, centred over the base
+#define AG_CO_SH 100
+#define AG_CO_BH   8    // the base bar's height
 #define AG_GAP   130    // the airgap itself
 #define AG_SG_W  200    // this signer, landscape like the real panel
 #define AG_SG_H  120
-#define AG_LBL_Y (AG_PH_H + 12)
-#define AG_W     (AG_PH_X + AG_PH_W + AG_GAP + AG_SG_W + 60)
+#define AG_BAND  120    // the machines' shared vertical band (the signer's)
+#define AG_LBL_Y (AG_BAND + 12)
+#define AG_W     (AG_CO_X + AG_CO_W + AG_GAP + AG_SG_W + 40)
 #define AG_H     (AG_LBL_Y + 24)
 
 // A QR mark drawn rather than typed: three finder squares and a scatter of
@@ -5685,27 +5721,29 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_set_size(fig, AG_W, AG_H);
     lv_obj_remove_flag(fig, LV_OBJ_FLAG_SCROLLABLE);
 
-    // The phone: portrait, muted stroke -- somebody else's machine.
+    // The laptop: a screen over a base bar, muted stroke -- somebody else's
+    // machine, showing the QR.
+    const int co_y = (AG_BAND - AG_CO_SH - AG_CO_BH - 2) / 2;
     lv_obj_t *ph = lv_obj_create(fig);
     lv_obj_remove_style_all(ph);
-    lv_obj_set_pos(ph, AG_PH_X, 0);
-    lv_obj_set_size(ph, AG_PH_W, AG_PH_H);
-    lv_obj_set_style_radius(ph, 16, 0);
+    lv_obj_set_pos(ph, AG_CO_X + (AG_CO_W - AG_CO_SW) / 2, co_y);
+    lv_obj_set_size(ph, AG_CO_SW, AG_CO_SH);
+    lv_obj_set_style_radius(ph, 8, 0);
     lv_obj_set_style_border_width(ph, 2, 0);
     lv_obj_set_style_border_color(ph, WT_MUT, 0);
-    lv_obj_t *spk = lv_obj_create(ph);
-    lv_obj_remove_style_all(spk);
-    lv_obj_set_size(spk, 22, 3);
-    lv_obj_set_style_radius(spk, 2, 0);
-    lv_obj_set_style_bg_color(spk, WT_DIM, 0);
-    lv_obj_set_style_bg_opa(spk, LV_OPA_COVER, 0);
-    lv_obj_align(spk, LV_ALIGN_TOP_MID, 0, 9);
-    ag_qr(ph, (AG_PH_W - 52) / 2, (AG_PH_H - 52) / 2 + 4, 52, WT_INK);
+    ag_qr(ph, (AG_CO_SW - 56) / 2, (AG_CO_SH - 56) / 2, 56, WT_INK);
+    lv_obj_t *base = lv_obj_create(fig);
+    lv_obj_remove_style_all(base);
+    lv_obj_set_pos(base, AG_CO_X, co_y + AG_CO_SH + 2);
+    lv_obj_set_size(base, AG_CO_W, AG_CO_BH);
+    lv_obj_set_style_radius(base, 4, 0);
+    lv_obj_set_style_border_width(base, 2, 0);
+    lv_obj_set_style_border_color(base, WT_MUT, 0);
 
     // This signer: landscape like the panel it is, and the one element the
     // accent claims -- the same "this box" cue KISS OFFLINE's chip carries.
-    const int sx = AG_PH_X + AG_PH_W + AG_GAP;
-    const int sy = (AG_PH_H - AG_SG_H) / 2;
+    const int sx = AG_CO_X + AG_CO_W + AG_GAP;
+    const int sy = (AG_BAND - AG_SG_H) / 2;
     lv_obj_t *sg = lv_obj_create(fig);
     lv_obj_remove_style_all(sg);
     lv_obj_set_pos(sg, sx, sy);
@@ -5733,29 +5771,33 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     }
     ag_qr(sg, (AG_SG_W - 40) / 2, (AG_SG_H - 40) / 2, 40, WT_MUT);
 
-    // The gap: a dashed line with QR punched through the middle of it. The
-    // dash renders because the segment is exactly horizontal -- the renderer
-    // dashes h/v lines only (the bundle graph note).
-    const int ly = AG_PH_H / 2;
+    // The gap: a dashed line with the QR mark punched through the middle of
+    // it, a chevron either side -- the file goes over and comes back, and
+    // nothing but light crosses. The dash renders because the segment is
+    // exactly horizontal -- the renderer dashes h/v lines only (the bundle
+    // graph note).
+    const int ly = AG_BAND / 2;
     static lv_point_precise_t pts[2];
     pts[0].x = 0; pts[0].y = 0;
     pts[1].x = AG_GAP - 32; pts[1].y = 0;
     lv_obj_t *ln = lv_line_create(fig);
     lv_line_set_points(ln, pts, 2);
-    lv_obj_set_pos(ln, AG_PH_X + AG_PH_W + 16, ly);
+    lv_obj_set_pos(ln, AG_CO_X + AG_CO_W + 16, ly);
     lv_obj_set_style_line_width(ln, 2, 0);
     lv_obj_set_style_line_color(ln, WT_DIM, 0);
     lv_obj_set_style_line_dash_width(ln, 6, 0);
     lv_obj_set_style_line_dash_gap(ln, 6, 0);
     lv_obj_t *qr = lv_label_create(fig);
-    lv_label_set_text(qr, "QR");
-    lv_obj_set_style_text_font(qr, wt_font_mono18(), 0);
+    // font14, not mono18: the chevrons only exist in the sans fallback, and a
+    // mono face handed an icon draws the placeholder box.
+    lv_label_set_text(qr, LV_SYMBOL_LEFT " QR " LV_SYMBOL_RIGHT);
+    lv_obj_set_style_text_font(qr, wt_font14(), 0);
     lv_obj_set_style_text_color(qr, WT_MUT, 0);
     lv_obj_set_style_bg_color(qr, WT_BG, 0);
     lv_obj_set_style_bg_opa(qr, LV_OPA_COVER, 0);
     lv_obj_set_style_pad_hor(qr, 6, 0);
     lv_obj_update_layout(qr);
-    lv_obj_set_pos(qr, AG_PH_X + AG_PH_W + AG_GAP / 2 - lv_obj_get_width(qr) / 2,
+    lv_obj_set_pos(qr, AG_CO_X + AG_CO_W + AG_GAP / 2 - lv_obj_get_width(qr) / 2,
                    ly - lv_obj_get_height(qr) / 2);
 
     // The names, under the machines rather than boxed around words.
@@ -5764,7 +5806,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_set_style_text_font(cl, chrome18(tr(STR_D_ONLINE_APP)), 0);
     lv_obj_set_style_text_color(cl, WT_MUT, 0);
     lv_obj_update_layout(cl);
-    lv_obj_set_pos(cl, AG_PH_X + AG_PH_W / 2 - lv_obj_get_width(cl) / 2,
+    lv_obj_set_pos(cl, AG_CO_X + AG_CO_W / 2 - lv_obj_get_width(cl) / 2,
                    AG_LBL_Y);
     lv_obj_t *sl = lv_label_create(fig);
     lv_label_set_text(sl, tr(STR_D_KISS_OFFLINE));
