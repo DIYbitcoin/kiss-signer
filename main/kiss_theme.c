@@ -3451,6 +3451,8 @@ static void def_tap_cb(lv_event_t *e)
     wt_defs_t *d = lv_obj_get_user_data(list);
     if (!d) return;
     int k = (int)lv_obj_get_index(row);
+    // A GO row leaves the page rather than opening in place.
+    if (d->r[k].def.go) { d->r[k].def.go(e); return; }
     wt_def_list_open(list, d->open == k ? -1 : k);
 }
 

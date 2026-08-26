@@ -5,6 +5,11 @@
 
 bool kiss_recv_active(void);              // true while either screen is up (owns touch)
 void kiss_recv_open(lv_obj_t *parent);    // derive + show address, static QR, index nav
+// KEYS' FIRST ADDRESS rows jump here: THIS ADDRESS tab, index 0 -- the one
+// place on the device a full receive address renders as text.
+void kiss_recv_open_first(lv_obj_t *parent);
+// The scan key gate's way home: lands on the SILENT tab.
+void kiss_recv_open_sp(lv_obj_t *parent);
 void kiss_recv_close(void);               // idle auto-lock: drop whichever is up
 #ifdef SIMULATOR
 // The derivation path's "?" sits after its caption, so its x moves with the

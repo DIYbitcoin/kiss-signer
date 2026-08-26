@@ -2498,14 +2498,14 @@ int main(void) {
   // by their labels rather than by a pitch that no longer exists.
   tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab
   save("/tmp/sim_recv_sptab.ppm");                  // two lines and the sentence
-  // The SCAN KEY line on this tab is a POINTER, not a door: the export of the
-  // private scan key has one launcher and it is in KEYS. A row with no cb also
-  // has no arrow and no pressed style, so a callback added back here would look
-  // identical in every frame the walk saves -- which is why this is a tap and
-  // an assertion rather than a picture. Nothing may open.
-  touch(400, 229); pump(3); release(); pump(8);     // SCAN KEY row: opens nothing
-  must_not_show("recv/sp-scan-has-no-door", tr(STR_R_SP_WARN_S));
-  must_show("recv/sp-tab-still-up", tr(STR_R_SP_ADDR_CAP));
+  // The SCAN KEY line is a DOOR again -- to the one consent flow, which lives
+  // in kiss_info beside the KEYS launcher. The gate must open, and CANCEL
+  // must land back on this tab, not on the landing tab.
+  touch(400, 229); pump(3); release(); pump(15);    // SCAN KEY row -> the gate
+  save("/tmp/sim_recv_spgate.ppm");
+  must_show("recv/sp-scan-door", tr(STR_K_SPGATE_SENT));
+  tap_str(STR_C_CANCEL, 3, 45);                     // CANCEL -> back to SILENT
+  must_show("recv/sp-tab-back", tr(STR_R_SP_ADDR_CAP));
   touch(400, 153); pump(3); release(); pump(6);     // SILENT ADDRESS -> SP view
   save("/tmp/sim_recv_sp.ppm");                     // folded text + largest receive QR
   touch(196, 248); pump(3); release(); pump(6);     // QR -> full-screen scan view
@@ -2563,6 +2563,12 @@ int main(void) {
   save("/tmp/sim_recv_held.ppm");
   release(); pump(40);                              // -> that address on tab 1
   save("/tmp/sim_recv_detail.ppm");                 // QR + address + lamp + path
+  // The address itself folds: one tap shows the whole thing in grouped fours
+  // with the lit tail, one tap folds it back. The only full-address text
+  // render on the device.
+  touch(500, 170); pump(3); release(); pump(20);    // fold -> whole
+  save("/tmp/sim_recv_addr_full.ppm");
+  touch(500, 190); pump(3); release(); pump(20);    // whole -> fold
   touch(156, 228); pump(3); release(); pump(6);     // QR card -> zoom
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
@@ -2572,7 +2578,7 @@ int main(void) {
   touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
   save("/tmp/sim_recv_pop.ppm");
   touch(446, 170); pump(3); release(); pump(20);    // pick the first offered index
-  touch(500, 272); pump(3); release(); pump(30);    // the path row -> its explainer
+  touch(500, 370); pump(3); release(); pump(30);    // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index
@@ -3597,10 +3603,9 @@ int main(void) {
   // knows whether this particular address received a payment.
   touch(310, 240); pump(3); release(); pump(6);     // Receive tile -> detail landing
   save("/tmp/sim_recv_fresh.ppm");                  // freshest address, one screen
-  // The whole address is on the QR beside it and one tap away on the list, so
-  // this tab does not fold: the line shows the eight it asks you to compare
-  // and stays one line. What gets a frame instead is the popover, which is the
-  // only way to go BACK an index without leaving the tab.
+  // The popover: page-aligned fives now, with pager rows -- the way to go
+  // BACK an index without leaving the tab, and the window holds still under
+  // the finger instead of re-centring on every pick.
   touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> index popover
   save("/tmp/sim_recv_full.ppm");
   touch(446, 170); pump(3); release(); pump(20);    // pick the first offered

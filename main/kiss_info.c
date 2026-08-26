@@ -24,6 +24,7 @@
 #include "kiss_theme.h"
 #include "kiss_usage.h"   // has a coordinator ever spoken: the 5c empty state
 #include "kiss_wipe.h"
+#include "kiss_recv.h"   // kiss_recv_open_first: FIRST ADDRESS rows land there
 #include "kiss_rehearse.h"
 #include "kiss_ui.h"   // kiss_ui_last_fp; the borrowed KEF password keyboard
 #include "platform_sd.h"
@@ -31,6 +32,10 @@
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static void (*s_words_done)(void);
+// Where the scan key reveal goes home to. NULL is KEYS, its own page; RECEIVE's
+// SILENT tab sets it, the same shape s_words_done gives the backup grid. ONE
+// flow either way -- the second door opens the same gate, never a copy of it.
+static void (*s_scan_key_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
 static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
@@ -73,6 +78,17 @@ static void swap_screen(void)           // replace the current section screen
 }
 
 enum { DIAG_NONE = 0, DIAG_FP, DIAG_PAIR, DIAG_SCAN };
+
+// FIRST ADDRESS goes to the address itself: RECEIVE's THIS ADDRESS at index
+// 0, the one place a full address renders as text. Both tabs' address rows
+// share this door; neither explains in place any more.
+static void first_addr_go_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *par = s_parent;
+    close_cb(NULL);
+    kiss_recv_open_first(par);
+}
 
 static void sp_permission_fact(lv_obj_t *parent, const char *icon,
                                int key, lv_color_t icon_color)
@@ -245,13 +261,6 @@ static lv_obj_t *help_open_d(const char *title, const char *body, int diagram,
                         icons_count);
 }
 
-static void help_open(const char *title, const char *body, const char *icon,
-                      const char *const *icons, size_t icons_count)
-{
-    help_open_on(s_scr, title, body, DIAG_NONE, false, icon, icons,
-                 icons_count);
-}
-
 lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
                                    bool exit_hint)
 {
@@ -306,15 +315,10 @@ static void help_cb(lv_event_t *e)
     if (!strcmp(key, "pair"))
         help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR,
                     PAIR_ICONS, sizeof PAIR_ICONS / sizeof PAIR_ICONS[0]);
-    // "scan" is gone with the card that carried its "?". It opened
-    // STR_R_SP_WARN_B, which is the SAME string the warn screen one tap away
-    // prints in full above the permission rows -- so the lesson was reachable
-    // as a sub-line, as a card and as a warn screen, and only the first of the
-    // three cost a tap. The warn screen is the one that also asks for consent,
-    // so it is the one that stays.
-    else
-        help_open(tr(STR_I_SEC_FIRST), tr(STR_I_H_ADDR_B), LV_SYMBOL_DOWNLOAD,
-                  NULL, 0);
+    // "scan" is gone with the card that carried its "?", and "addr" went with
+    // the explainer the FIRST ADDRESS rows used to open -- those rows GO to
+    // RECEIVE now, where the address itself is the explanation.
+    (void)key;
 }
 
 static lv_obj_t *mk_help_chip(int x, int y, const char *key)
@@ -532,7 +536,10 @@ static void sp_key_back_cb(lv_event_t *e)
     (void)e;
     sp_key_wipe();
     swap_screen();
-    info_screen();
+    void (*done)(void) = s_scan_key_done;
+    s_scan_key_done = NULL;
+    if (done) done();
+    else info_screen();
 }
 
 static void sp_key_show(void *ud)
@@ -1302,7 +1309,6 @@ static void pair_open_cb(lv_event_t *e)  { (void)e; pair_screen(); }
 
 // The four fact rows and the two coordinator rows all open something, and a row
 // carries its key the way a help chip used to.
-static void row_help_cb(lv_event_t *e) { help_cb(e); }
 
 // RECOVERY WORDS is a different page with a different tab count, and a context
 // remembers WHICH tab is open -- one shared with s_wctx would land an owner
@@ -1462,11 +1468,9 @@ static void info_tab_build(void)
         char term_type[64];
         snprintf(term_type, sizeof term_type, tr(STR_K_TYPE_TERM_FMT),
                  purpose);
-        char called_type[96], called_addr[96];
+        char called_type[96];
         snprintf(called_type, sizeof called_type, tr(STR_C_CALLED_FMT),
                  term_type);
-        snprintf(called_addr, sizeof called_addr, tr(STR_C_CALLED_FMT),
-                 tr(STR_K_ADDR_TERM));
 
         // The first address, folded to the device's own idiom: prefix, the
         // gap, the last eight in two blocks -- or the session-locked state,
@@ -1502,12 +1506,14 @@ static void info_tab_build(void)
               .term = called_type },
             // No sub beside the address: at the closed value's 28 the lane
             // left over cannot hold a sentence, and the lit tail already IS
-            // the "check these" cue -- the opened definition says the rest.
+            // the "check these" cue. A GO row, not a definition: the tap
+            // lands on RECEIVE's THIS ADDRESS at index 0, the one place the
+            // full address shows -- the owner asked that folded addresses
+            // lead there instead of explaining themselves in place.
             { .cap = tr(STR_I_SEC_FIRST),
               .val = locked ? tr(STR_C_SESSION_LOCKED) : ahead,
               .val_tail = locked ? NULL : atail,
-              .plain = tr(STR_K_ADDR_PLAIN),
-              .term = called_addr },
+              .go = first_addr_go_cb },
         };
         wt_def_list(p, defs, 3);
         return;
@@ -1567,7 +1573,7 @@ static void info_tab_build(void)
 
     lv_obj_t *ar = wt_line_row(p, X, 272, W, H, tr(STR_I_SEC_FIRST), NULL,
                    NULL, WT_INK, tr(STR_S_CMP_8), NULL,
-                   row_help_cb, (void *)"addr");
+                   first_addr_go_cb, NULL);
     info_addr_value(ar);
     wt_line_rule_draw(wt_line_rule(p, X, 272 + H, W), 194, 320);
     // 368, thirty clear of the floor. No explainer on this tab: four lines
@@ -1642,6 +1648,7 @@ void kiss_info_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     s_words_done = NULL;
+    s_scan_key_done = NULL;
     s_pair_fmt = 0;
     // A fresh entry lands on tab 1. The context keeps its tab across a screen
     // rebuild on purpose -- that is what returns an owner to the tab they left
@@ -1656,4 +1663,12 @@ void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
     s_parent = parent;
     s_words_done = done_cb;
     words_warn_screen(NULL);
+}
+
+void kiss_info_open_scan_key(lv_obj_t *parent, void (*done_cb)(void))
+{
+    if (s_scr) return;
+    s_parent = parent;
+    s_scan_key_done = done_cb;
+    sp_key_warn_cb(NULL);
 }

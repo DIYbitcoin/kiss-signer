@@ -1090,6 +1090,13 @@ typedef struct {
     // the overrides must still sum to the lane). The fingerprint hero that
     // once used it is gone -- the home page already headlines the same code.
     int         closed_h;
+    // A row that GOES somewhere instead of opening in place: non-NULL replaces
+    // the tap's definition with this callback (handed the row's own click
+    // event, whose user data is the LIST's -- a go row that needs context
+    // should read its module's statics, as every caller of this kit does).
+    // KEYS' FIRST ADDRESS uses it to land on RECEIVE, where the full address
+    // lives.
+    lv_event_cb_t go;
 } wt_def_t;
 // Builds the rows across the whole content lane, closed. Entry runs the
 // KEYS/RECEIVE stagger (rise, fade, rule draws itself in). Returns the list

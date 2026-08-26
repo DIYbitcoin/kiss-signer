@@ -144,6 +144,9 @@ UNTRANSLATED_OK = {
     # under the English-only rule; English in the other twenty until the sweep.
     "W_METHOD_DICE_S", "W_METHOD_DICE_T", "W_COIN", "W_COIN_NOTE",
     "W_COIN_T", "W_COIN_S", "W_COIN_HEADS", "W_COIN_TAILS",
+    # The SILENT tab's fact lines. Born under the English-only rule; English
+    # in the other twenty until the sweep.
+    "R_SP_FRESH", "R_SP_PRIV",
     "W_COIN_VERIFY_NOTE",
     # KEF backup strings: born under the English-only rule (translation is one
     # sweep AFTER the UI stops moving), so the other twenty carry the English

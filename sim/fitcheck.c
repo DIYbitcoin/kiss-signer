@@ -35,7 +35,6 @@ static const slot_t SLOTS[] = {
     { "wallet/?fp",       STR_I_H_FP_B,     720, 155 },
     { "wallet/?type",     STR_I_H_TYPE_B,   720, 225 },
     { "wallet/?pair",     STR_I_H_PAIR_B,   720, 155 },
-    { "wallet/?addr",     STR_I_H_ADDR_B,   720, 225 },
     // kiss_info.c:263,326 — full-screen warnings
     { "wallet/sp-warn",   STR_R_SP_WARN_B,  700, 145 },
     { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
