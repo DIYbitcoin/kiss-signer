@@ -793,7 +793,7 @@
   "I_ROW_FW": "FIRMWARE",
   "I_FW_SUB": "install from SD card",
   "I_ROW_DEVICE": "THIS DEVICE",
-  "I_ROW_DEVICE_SUB": "build id, encryption, SD card",
+  "I_ROW_DEVICE_SUB": "build id, radio, SD card",
   "I_DEVICE_T": "THIS DEVICE",
   "I_ERASE_B": "This signer forgets its keys. Paper words and passphrase are the only way back. The next screen asks again.",
   "I_ERASE_H1": "this signer forgets",

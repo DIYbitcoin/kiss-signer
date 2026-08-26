@@ -1682,9 +1682,11 @@ static void tab_security(void)
                   .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
                   .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
                   .mark = LV_SYMBOL_LOOP, .go = persist_cb },
-        // What the audit screen is FOR as the value, not a restated title.
-        { .cap = tr(STR_I_ROW_AUDIT), .val = tr(STR_I_AUDIT_SUB),
-          .go = audit_open_cb },
+        // No value: AUDIT has no state to report, so what it is FOR rides
+        // the sub lane. A phrase in the value lane wraps into the chevron --
+        // the value never yields, so it has to be short or absent.
+        { .cap = tr(STR_I_ROW_AUDIT), .val = "",
+          .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
     };
     def_list(defs, 3);
 }
@@ -1739,10 +1741,11 @@ static void tab_device(void)
         // a count, both of which this row has never had.
         { .cap = tr(STR_I_ROW_FW), .val = KISS_VERSION_STR,
           .sub = tr(STR_I_FW_SUB), .go = fw_open_cb },
-        // What the row OPENS as the value. The diagnostics it once carried
-        // are already printed by kiss_build_id_make on the screen behind it.
-        { .cap = tr(STR_I_ROW_DEVICE), .val = tr(STR_I_ROW_DEVICE_SUB),
-          .go = device_open_cb },
+        // What the row OPENS rides the sub lane -- a phrase in the value
+        // lane wraps into the chevron. The diagnostics it once carried are
+        // already printed by kiss_build_id_make on the screen behind it.
+        { .cap = tr(STR_I_ROW_DEVICE), .val = "",
+          .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
     };
     def_list(defs, 2);
 }
