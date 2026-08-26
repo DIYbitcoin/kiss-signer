@@ -1458,7 +1458,10 @@ static void det_chip_scan(lv_obj_t *o, lv_obj_t **found, int *n)
         // builds, which leaves these labels three deep. It found nothing on any
         // screen, in any locale, for either reason on its own.
         lv_area_t la; lv_obj_get_coords(o, &la);
-        if (t && strcmp(t, "?") == 0 && la.x1 >= 700) found[(*n)++] = o;
+        // y > 104: below the tab strip, so the deck's corner [ ? ] mark --
+        // itself a "?" label past x=700 -- never counts as a term chip.
+        if (t && strcmp(t, "?") == 0 && la.x1 >= 700 && la.y1 > 104)
+            found[(*n)++] = o;
         return;
     }
     uint32_t c = lv_obj_get_child_count(o);
@@ -2962,19 +2965,30 @@ int main(void) {
   // fold), so its absence is what says this is a different card.
   must_not_show("rbf card/not the address card", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
-  tap_str(STR_S_DETAILS, 3, 6);     // DETAILS -> raw facts page
+  tap_str(STR_S_DETAILS, 3, 30);    // DETAILS -> the deck, INPUTS tab
   save("/tmp/sim_sign_details.ppm");
-  touch(656, 50); pump(3); release(); pump(30);     // SIMPLE EXPLAINERS
+  // The stroke crosses the deck STARTING OVER THE LIST: the inputs list is a
+  // vertical scroller, and a scroller that ate horizontal strokes would kill
+  // the swipe exactly where a finger actually lands on this page.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  if (!find_click_addr(lv_screen_active(), "bc1q")) {
+    printf("FAIL: details/swipe over the inputs list did not reach OUTPUTS\n");
+    g_walk_fails++;
+  }
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);                              // and back to INPUTS
+  // The corner [ ? ] opens SIMPLE EXPLAINERS -- the pill box is gone. A page,
+  // so it leaves by BACK and lands back on the deck, on the tab it left.
+  touch(720, 85); pump(3); release(); pump(30);
   save("/tmp/sim_sign_glossary.ppm");
-  // A page now, so it leaves by BACK and lands on DETAILS -- the page it was
-  // opened from -- rather than dismissing an overlay onto whatever was under
-  // it. Two BACKs to get from here to verify, where there used to be one.
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> DETAILS
-  // An OUTPUT ROW opens the whole address. The fold on this page drops the
-  // middle of a destination somebody else chose, and the characters it drops
-  // have to stay reachable from where they were dropped -- two taps from the
-  // graph to every character of any output, change included, which the verify
-  // screen cannot show at all.
+  tap_str(STR_C_BACK, 3, 30);    // BACK -> DETAILS, INPUTS again
+  // OUTPUTS: an output ROW opens the whole address. The fold drops the middle
+  // of a destination somebody else chose, and the characters it drops have to
+  // stay reachable from where they were dropped -- two taps from the graph to
+  // every character of any output, change included.
+  tap_str(STR_S_D_TAB_OUTS, 3, 50);
+  save("/tmp/sim_sign_details_outs.ppm");
   {
     lv_obj_t *ao = find_click_addr(lv_screen_active(), "bc1q");
     if (!ao) {
@@ -2988,20 +3002,18 @@ int main(void) {
   }
   save("/tmp/sim_sign_details_addr.ppm");
   // The WHOLE grouped address, not the "bc1q zyg3" prefix the fold shares with
-  // it: that prefix is on the DETAILS page too, so it passed for fourteen
-  // locales in which this card never opened at all. Same needle the RBF card
-  // uses forty lines up, for the same reason.
+  // it: that prefix is on the OUTPUTS tab too, so it would pass with the card
+  // never opened at all.
   must_show("details row/full addr",
             "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
   must_show("details row/cmp", tr(STR_S_CMP_8));
-  tap_str(STR_C_OK, 3, 8);            // OK closes the card
-  // Each term answers for itself now. The sighash chip is the one worth
-  // opening: it is the term a reader is least likely to know and the one whose
-  // card used to be reachable only by tapping the question mark about the FEE.
-  // Found by mark and order, not by coordinate: the flag rows lost their
-  // explainer notes and the column's chips moved up with it.
+  tap_str(STR_C_OK, 3, 8);            // OK closes the card, OUTPUTS stays up
+  // TRANSACTION: the facts strip, each with its own "?". The chips are found
+  // by mark and order below the strip -- txid, fee, locktime, sighash, rbf.
+  tap_str(STR_S_D_TAB_TX, 3, 50);
+  save("/tmp/sim_sign_details_tx.ppm");
   {
-    lv_obj_t *chip = det_chip(2);              // fee, locktime, SIGHASH, rbf
+    lv_obj_t *chip = det_chip(3);              // SIGHASH, the least-known term
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
       touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
@@ -3010,26 +3022,32 @@ int main(void) {
   }
   save("/tmp/sim_sign_term_sighash.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
-  // The TXID card, which nothing had ever photographed. It used to say only
-  // whether the id survives signing; it now says what an owner actually wants
-  // an id FOR, so it needs a stop or no gate sees the copy at all.
+  // The TXID card: it says what an owner actually wants an id FOR, so it
+  // needs a stop or no gate sees the copy at all.
   {
-    lv_obj_t *chip = det_chip(0);            // TXID heads the right column
+    lv_obj_t *chip = det_chip(0);            // TXID heads the strip
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
       touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
       pump(3); release(); pump(30);
     } else {
-      printf("FAIL: details/txid: no fifth term chip on the page\n");
+      printf("FAIL: details/txid: no term chip heading the strip\n");
       g_walk_fails++;
     }
   }
   save("/tmp/sim_sign_term_txid.ppm");
   // NOT the heading: S_D_TXID is printed on the page underneath too, so that
-  // needle passes whichever card is open -- it did, with the RBF card up. The
-  // body exists only on the card.
+  // needle passes whichever card is open. The body exists only on the card.
   must_show("details/txid", tr(STR_S_D_TXID_SAME));
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
+  // And the stroke: past TRANSACTION opens the explainers, a right stroke on
+  // them lands back on the tab it left -- the deck promise, kept here too.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("details/swipe past tx opens explainers", tr(STR_S_GLOSSARY_T));
+  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+  release(); pump(50);
+  must_show("details/swipe back to transaction", tr(STR_S_D_TXID));
   tap_str(STR_C_BACK, 3, 6);     // BACK -> verify again
   // The accent changed while this screen was UP, which is the case the flags
   // exist for and the one no rebuild can cover: every other check in this walk

@@ -349,6 +349,9 @@ UNTRANSLATED_OK = {
     # until the sweep.
     "I_PERSIST_DEAD_PLAIN", "I_WORDS_OK_VAL", "I_WORDS_NO_VAL",
     "I_RESTORE_CAP", "I_RESTORE_VAL", "I_RESTORE_PLAIN",
+    # DETAILS rebuilt as a deck, one subject per tab. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_D_TAB_INS", "S_D_TAB_OUTS", "S_D_TAB_TX",
 }
 
 

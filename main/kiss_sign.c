@@ -394,11 +394,6 @@ static void mk_chrome(lv_obj_t *parent, const char *title)
     s_scr = wt_chrome(parent, title);
 }
 
-static lv_obj_t *mk_pill(const char *txt, int x, int y, int w, lv_event_cb_t cb)
-{
-    return wt_pill(s_scr, txt, x, y, w, cb, NULL);
-}
-
 // wt_note in a colour other than MUT: the STOP-red refusals and the amber
 // prompts on the SD screens are notes like any other, they just are not grey.
 static lv_obj_t *wt_note_col(lv_obj_t *par, const char *txt, int x, int y,
@@ -1241,6 +1236,7 @@ static void sign_press_cb(lv_event_t *e)
 }
 
 static void details_cb(lv_event_t *e);
+static void details_open_cb(lv_event_t *e);   // fresh entry: lands on INPUTS
 static void verify_screen(lv_obj_t *parent);
 
 // The full "why". Four reasons can fire at once, and stacked as prose they
@@ -2779,7 +2775,7 @@ static void verify_screen(lv_obj_t *parent)
                                                  : choose_back_cb, NULL);
     s_inert[1] = wt_arrow_action(s_scr, tr(STR_S_DETAILS), false, false,
                                  SG_DETAILS_X, WT_ACTION_Y, 150, false,
-                                 details_cb, NULL);
+                                 details_open_cb, NULL);
     s_inert[2] = NULL;
 
     // The slide itself: the kit's rule shape -- the word, its arrow, a thin
@@ -2872,6 +2868,11 @@ static void details_back_cb(lv_event_t *e)
 
 static void gloss_back_cb(lv_event_t *e) { details_cb(e); }
 
+static void gloss_gesture_cb(lv_event_t *e)
+{
+    if (wt_swipe_step(e) < 0) gloss_back_cb(NULL);
+}
+
 static void glossary_cb(lv_event_t *e)
 {
     (void)e;
@@ -2925,6 +2926,9 @@ static void glossary_cb(lv_event_t *e)
 
         p = nl ? nl + 1 : NULL;
     }
+    // The stroke that opened this page closes it: a right swipe lands back
+    // on the DETAILS tab it left, the same promise every deck's [ ? ] keeps.
+    wt_swipe_watch(s_scr, gloss_gesture_cb);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                     true, gloss_back_cb, NULL);
 }
@@ -2938,28 +2942,7 @@ static int det_h(lv_obj_t *o)
     return lv_obj_get_height(o);
 }
 
-// One flag row: an icon, the value beside it in ink. Advances *y past whatever
-// it used. `tail` used to be the explainer sentence under the value; every row
-// carries a "?" whose card is that sentence, so no row draws it twice anymore
-// and the parameter survives for the day one locale genuinely needs the text
-// on the page.
-//
-// `floor_y` is the last y this row may touch, and it is what keeps the strip
-// safe in twenty locales rather than in the one it was measured in. A clipped
-// sentence is bad. A sentence drawn over the BACK pill, on the page whose job
-// is telling you what you are about to sign, is worse.
-//
-// The fee row used to carry a single chip whose card answered fee rate,
-// version, locktime and sighash together -- four questions behind one mark, so
-// a reader who did not know what sighash meant had to open a card about the fee
-// and find it in there. Each row answers for itself now, and a reader taps the
-// word they do not know.
-//
-// The bodies are the SAME strings the rows are built from, split at the colon
-// every locale already writes: the row shows the term and its short form, the
-// card shows the term and the whole of it. Nothing new to translate. The fee
-// rate has no `TERM: definition` string of its own, so it borrows the
-// glossary's, which is where a reader would have gone looking anyway.
+
 enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF, DT_TXID };
 
 static void det_term_cb(lv_event_t *e)
@@ -3009,238 +2992,157 @@ static void det_term_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
-static void det_flag_row(int x, int *y, const char *icon, const char *head,
-                         const char *tail, int w, int floor_y)
+
+// ---- DETAILS: a deck now, one subject per tab ------------------------------
+// The one-page form put two crammed columns and seven font14 facts on one
+// screen and the bench called it overwhelming. The device's own deck carries
+// it instead -- INPUTS, OUTPUTS, TRANSACTION -- each tab the full lane at
+// the sizes the rest of the device reads at, the round [ ? ] in the corner
+// opening SIMPLE EXPLAINERS where the pill box used to, and the stroke
+// reaching it past the last tab exactly as on SETTINGS, KEYS and RECEIVE.
+static wt_pane_t s_dctx;
+static wpsbt_details_t s_det;     // fetched on entry; the tabs read from it
+
+static void details_tab_build(void);
+
+static void details_tab_cb(lv_event_t *e)
 {
-    const int IW = 26;              // icon column, generous enough for the widest
-    if (*y + 18 > floor_y) return;
-    // Accent, not MUT: these four icons are the only marks on the page that
-    // are pure decoration (the input-row OK/eye-slash are STATUS and keep
-    // their verdict colours per ADDENDUM-02), and grey-on-grey hid them.
-    wt_lbl(s_scr, icon, x, *y + 2, wt_font14(), wt_accent());
-
-    lv_obj_t *h = wt_lbl(s_scr, head, x + IW, *y, wt_font14(), INK_COL);
-    lv_obj_set_style_text_letter_space(h, 1, 0);
-    lv_obj_set_width(h, w - IW);
-    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
-    *y += det_h(h) + 2;
-
-    if (!tail || !*tail) { *y += 6; return; }
-
-    char flat[256];
-    snprintf(flat, sizeof flat, "%s", tail);
-    for (char *p = flat; *p; p++) if (*p == '\n') *p = ' ';
-
-    // The note hangs back to the icon's own left edge rather than lining up
-    // under the value. It buys the 26px the icon column costs, which is the
-    // difference between one line and two for the sighash note, and a hanging
-    // indent is how a list of marked items is normally set anyway.
-    lv_obj_t *t = wt_lbl(s_scr, flat, x, *y, wt_font14(), MUT_COL);
-    lv_obj_set_width(t, w);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
-    int th = det_h(t);
-    if (*y + th > floor_y) {
-        // Pin to the whole lines that fit and let LONG_DOT end it honestly.
-        int lh = lv_font_get_line_height(wt_font14());
-        int lines = (floor_y - *y) / lh;
-        if (lines < 1) lines = 1;
-        lv_obj_set_height(t, lines * lh);
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-        th = lines * lh;
-    }
-    *y += th + 6;
+    wt_pane_go(&s_dctx, (int)(intptr_t)lv_event_get_user_data(e), false,
+               details_tab_build);
 }
 
-static void details_cb(lv_event_t *e)
+static void details_gesture_cb(lv_event_t *e)
 {
-    (void)e;
-    wt_denom_on_tap(denom_tap_details);   // a figure tapped here rebuilds here
-    wpsbt_details_t det;
-    if (kiss_psbt_details(&det) != 0)
-        return;
-    hold_stop();
-    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
-    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
-    mk_screen(s_parent, tr(STR_S_DETAILS), s_cur);
-    // The subtitle here is the file name, and the SIMPLE EXPLANATIONS pill
-    // starts at x=560 with a label that takes two lines in the longer locales.
-    // The lane stops at 548 so the two cannot meet.
-    wt_sub_fit(s_scr, 500);
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = s_dctx.tab + step;
+    if (to > 2) { glossary_cb(NULL); return; }  // past the end: the explainers
+    if (to < 0) return;
+    wt_pane_go(&s_dctx, to, false, details_tab_build);
+}
 
-    lv_obj_t *learn = wt_pillh(s_scr, tr(STR_S_GLOSSARY_T),
-                               560, 28, 192, 44, glossary_cb, NULL);
-    lv_obj_set_style_border_color(learn, MUT_COL, 0);
+// A marked metadata line: the mark in its own label because the mono faces
+// carry no icon plane -- one label in mono18 would draw the glyph as the
+// missing-fallback box.
+static void dtab_meta(lv_obj_t *row, const char *icon, const char *txt,
+                      lv_color_t col)
+{
+    lv_obj_t *ln = lv_obj_create(row);
+    lv_obj_remove_style_all(ln);
+    lv_obj_set_size(ln, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ln, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(ln, 10, 0);
+    lv_obj_t *ic = lv_label_create(ln);
+    lv_label_set_text(ic, icon);
+    lv_obj_set_style_text_font(ic, wt_font14(), 0);
+    lv_obj_set_style_text_color(ic, col, 0);
+    lv_obj_t *l = lv_label_create(ln);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
+    lv_obj_set_style_text_color(l, col, 0);
+}
 
-    char buf[256], a[32];   // ja details header ~140 bytes; 3 bytes/char worst
-    if (det.n_total > det.n_in)          // more inputs than the page can hold
-        snprintf(buf, sizeof buf,
-                 tr(STR_S_D_MANYIN_FMT),
-                 (unsigned)det.n_total, (unsigned)det.n_in);
+// INPUTS: what this transaction spends. The amount leads at 28 with its
+// proven/claimed mark, the coin it came from and the key that owns it under
+// it at mono18 -- all up from the font14 the two-column page forced.
+static void dtab_inputs(lv_obj_t *p)
+{
+    char buf[256], a[32];
+    if (s_det.n_total > s_det.n_in)          // more than the struct can hold
+        snprintf(buf, sizeof buf, tr(STR_S_D_MANYIN_FMT),
+                 (unsigned)s_det.n_total, (unsigned)s_det.n_in);
     else
-        snprintf(buf, sizeof buf, tr(STR_S_D_INPUTS_FMT), (unsigned)det.n_in);
-    // wt_section, not a muted font14 line. Every single label on this screen
-    // used to be font14, which is not "dense", it is no hierarchy at all: the
-    // count of inputs, the amount of each one, and the sighash flag all
-    // shouted at the same volume, so nothing led and the eye had to read all
-    // of it to find any of it. The eyebrow style is what WALLET and RECEIVE
-    // put above a value, and this is the same relationship.
-    // The two columns get a card each, and the cards go in BEHIND the content
-    // rather than around it: every y on this page is hand measured against a 372
-    // and a 330 wide lane, and a txid is exactly 64 hex characters, so shaving
-    // padding off either lane turns two lines of it into three and walks the
-    // whole column down into the next label. Created first, so they are behind
-    // everything that follows in z-order, and nothing below moves by a pixel.
-    //
-    // 88..396 for both, which is the header row's floor to just above the action
-    // bar. The right column ends higher than the left one and keeps the
-    // difference as air, because two cards of different heights beside each other
-    // read as a layout accident rather than as two columns.
-    // The divide moved: 384/334 became 288/424. The left column is a LIST of
-    // amounts and truncated txids, and the widest thing in it is "100 000 sats"
-    // at font23, so it never needed 384. The right one carries every fact about
-    // the transaction itself and could not hold them with any hierarchy at 334:
-    // giving it 90 more is what turns the sighash note from two lines into one,
-    // which is exactly the room the value-over-note rows cost. Both columns
-    // still land on the page's 28 and 752 margins.
-    // Two thirds to the left. What this transaction spends and where it goes
-    // is the reason anyone opens this page; the right column is reference --
-    // an id you compare, and four flags that each fit on a line. The split ran
-    // the other way (288/424) and the important column was the narrow one, so
-    // every address in it was folded to eight characters for want of room the
-    // reference column was not using.
-    wt_card(s_scr, 28, 100, 428, 296);
-    wt_card(s_scr, 468, 100, 284, 296);
+        snprintf(buf, sizeof buf, tr(STR_S_D_INPUTS_FMT),
+                 (unsigned)s_det.n_in);
+    lv_obj_t *h = wt_section(p, buf, 24, 118);
+    lv_obj_set_width(h, 728);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    const int ly = 118 + det_h(h) + 10;
 
-    lv_obj_t *ihdr = wt_section(s_scr, buf, 40, 108);
-    // Bounded to the left column. STR_S_D_MANYIN_FMT is a sentence, not a
-    // word, and in Spanish it ran straight across into the TXID caption in the
-    // right column. It was font14 and unbounded before, which only hid the
-    // fault behind a smaller face.
-    lv_obj_set_width(ihdr, 360);       // 40px kept clear for the chip beside it
-    lv_label_set_long_mode(ihdr, LV_LABEL_LONG_WRAP);
-    // The right column gives every one of its four facts a "?". The left one
-    // gave its two lists none, and the lists are the harder half: an amount,
-    // then two lines of hex and a path under it, with nothing on screen saying
-    // what either is. Both chips open the page that names them, and every mark
-    // used in the rows below is defined on it.
-    wt_help_chip(s_scr, 416, 106, MUT_COL, glossary_cb, NULL);
-
-    lv_obj_t *il = lv_obj_create(s_scr);
+    lv_obj_t *il = lv_obj_create(p);
     lv_obj_remove_style_all(il);
-    // Start the list under whatever the header actually became. This used to be
-    // a two-way guess (130, or 158 when the header wrapped), which was already
-    // wrong for a locale that took three lines and is certainly wrong now the
-    // lane is 288 rather than 372. Measure it instead.
-    int ly = 108 + det_h(ihdr) + 8;
-    lv_obj_set_pos(il, 40, ly);
-    // Half the card, not all of it: the outputs list takes the other half. It
-    // is here rather than in the right card because the right card ends at 388
-    // already, and because a list of amounts belongs beside the other list of
-    // amounts -- the page then reads in one direction, what this spends and
-    // where it goes, exactly as the graph does.
-    // The divide is measured from where the header actually ended, not fixed:
-    // this header is one line for most transactions and three for one with more
-    // inputs than the page can list, and a constant split cut an input row in
-    // half through the middle of its txid. One whole row is the floor, and the
-    // outputs list keeps what is left. Both scroll and both say so, so a short
-    // list is a short list rather than a hidden one.
-    const int split = ly + 84 < 232 ? 232 : (ly + 84 > 272 ? 272 : ly + 84);
-    lv_obj_set_size(il, 404, split - 6 - ly);
-    lv_obj_set_style_pad_all(il, 8, 0);
+    lv_obj_set_pos(il, 24, ly);
+    lv_obj_set_size(il, 752, WT_CONTENT_BOTTOM - 6 - ly);
     lv_obj_set_style_pad_row(il, 4, 0);
     lv_obj_set_flex_flow(il, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(il, LV_DIR_VER);
-    // MODE_ON past two inputs, same rule and same 5px bar as the verify
-    // screen's output list: a list with more below the fold must not look
-    // identical to one that ends there. AUTO hid the bar until the owner had
-    // already scrolled, so a five input transaction read as a two input one --
-    // on the page whose whole job is saying what the transaction spends.
-    lv_obj_set_scrollbar_mode(il, det.n_in > 2 ? LV_SCROLLBAR_MODE_ON
-                                               : LV_SCROLLBAR_MODE_AUTO);
+    // MODE_ON once anything is below the fold: a list with more must not
+    // look identical to one that ends here.
+    lv_obj_set_scrollbar_mode(il, s_det.n_in > 3 ? LV_SCROLLBAR_MODE_ON
+                                                 : LV_SCROLLBAR_MODE_AUTO);
     wt_list_scrollbar(il);
     lv_obj_set_style_bg_opa(il, LV_OPA_TRANSP, 0);
-    for (uint32_t i = 0; i < det.n_in; i++) {
+    for (uint32_t i = 0; i < s_det.n_in; i++) {
         lv_obj_t *row = lv_obj_create(il);
         lv_obj_remove_style_all(row);
         lv_obj_set_width(row, lv_pct(100));
         lv_obj_set_height(row, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_bottom(row, 10, 0);
+        lv_obj_set_style_pad_bottom(row, 14, 0);
 
-        wt_fmt_amount(det.ins[i].sats, a, sizeof a);
-        // The verify screen can only say "one of these amounts is not proven".
-        // This is the page that says WHICH, so the mark leads the number and the
-        // number wears the doubt: a tick when a previous transaction hashing to
-        // this outpoint vouched for it, an eye-slash in WARN when the amount is
-        // only what the coordinator claimed. Both glyphs are already in SYMS.
-        bool ok = det.ins[i].proven;
+        wt_fmt_amount(s_det.ins[i].sats, a, sizeof a);
+        // The verify screen can only say "one of these amounts is not
+        // proven". This is the page that says WHICH: a tick when a previous
+        // transaction hashing to this outpoint vouched for the amount, an
+        // eye-slash in WARN when it is only what the coordinator claimed.
+        bool ok = s_det.ins[i].proven;
         snprintf(buf, sizeof buf, "%s %s %s",
                  ok ? LV_SYMBOL_OK : WT_ICON_HIDDEN, a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ok ? INK_COL : WARN_COL, 0);
-        // The amount leads the row at 23 and the txid trails it at 14. That is
-        // the whole fix for this list: what is being spent is the fact, and the
-        // coin it came from is the reference you check it against.
-        lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        lv_obj_set_style_text_font(amt, wt_font28(), 0);
         wt_denom_bind(amt);
 
-        // coin being spent: first 8 + last 8 of its txid, and the output index.
-        // The mark is the glossary's own TXID icon, so the line says what it is
-        // without a word of label, and the card one tap above names the mark.
-        snprintf(buf, sizeof buf, "%s %.8s...%s : %u", GLOSS_ICONS[3],
-                 det.ins[i].txid, det.ins[i].txid + 56, (unsigned)det.ins[i].vout);
-        lv_obj_t *tid = lv_label_create(row);
-        lv_label_set_text(tid, buf);
-        lv_obj_set_style_text_color(tid, MUT_COL, 0);
-        lv_obj_set_style_text_font(tid, wt_font14(), 0);
+        // The coin being spent -- first 8 + last 8 of its txid and the
+        // output index -- and the key that owns it, each behind the
+        // glossary's own mark so the line says what it is without a label.
+        snprintf(buf, sizeof buf, "%.8s...%s : %u",
+                 s_det.ins[i].txid, s_det.ins[i].txid + 56,
+                 (unsigned)s_det.ins[i].vout);
+        dtab_meta(row, GLOSS_ICONS[3], buf, MUT_COL);
 
-        // BIP376 received-SP input: its key is spend+tweak, not a BIP84 child,
-        // so show the silent-payment badge instead of a misleading BIP32 path.
-        // The folder is the glossary's DERIVATION PATH mark. It used to be a
-        // second tick, one line under the tick on the amount, which said
-        // "verified" twice and what the line was not at all. The colour still
-        // carries ours.
-        if (det.ins[i].is_sp)
-            snprintf(buf, sizeof buf, "%s m/352'/%d'/0'   %s", GLOSS_ICONS[6],
+        // BIP376 received-SP input: its key is spend+tweak, not a BIP84
+        // child, so the silent-payment badge stands in for a misleading
+        // BIP32 path.
+        if (s_det.ins[i].is_sp)
+            snprintf(buf, sizeof buf, "m/352'/%d'/0'   %s",
                      s_sum.testnet ? 1 : 0, tr(STR_S_SP_BADGE));
         else
-            snprintf(buf, sizeof buf, "%s m/%u'/%d'/0'/%u/%u", GLOSS_ICONS[6],
-                     (unsigned)det.ins[i].purpose, s_sum.testnet ? 1 : 0,
-                     (unsigned)det.ins[i].change, (unsigned)det.ins[i].index);
-        lv_obj_t *pl = lv_label_create(row);
-        lv_label_set_text(pl, buf);
-        lv_obj_set_style_text_color(pl, OK_COL, 0);
-        lv_obj_set_style_text_font(pl, wt_font14(), 0);
+            snprintf(buf, sizeof buf, "m/%u'/%d'/0'/%u/%u",
+                     (unsigned)s_det.ins[i].purpose, s_sum.testnet ? 1 : 0,
+                     (unsigned)s_det.ins[i].change,
+                     (unsigned)s_det.ins[i].index);
+        dtab_meta(row, GLOSS_ICONS[6], buf, OK_COL);
     }
+}
 
-    // ---- the outputs, under the inputs ----
-    // Every destination readable somewhere that does not scroll under a gate.
-    // The verify screen's column can hold a recipient below its fold, and
-    // HOLD TO SIGN stays inert until it has been read -- but that is a gate on
-    // signing, not a place to look things up. This is the place.
-    sg_rule(40, split, 404, 1);
+// OUTPUTS: where it goes. Every destination readable without a gate: the
+// amount at 28 with the change mark and index, the fold at mono28 -- the
+// same face every other address on the device compares in -- and the row
+// still OPENS the whole address, so the fold stays a summary with the full
+// form behind it rather than a truncation with nothing behind it.
+static void dtab_outputs(lv_obj_t *p)
+{
+    char buf[256], a[32];
     uint32_t n_ours = 0;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         if (s_sum.outs[i].is_change) n_ours++;
     snprintf(buf, sizeof buf, tr(STR_S_D_OUTPUTS_FMT),
              (unsigned)s_sum.n_out, (unsigned)n_ours);
-    lv_obj_t *ohdr = wt_section(s_scr, buf, 40, split + 10);
-    lv_obj_set_width(ohdr, 360);
-    lv_label_set_long_mode(ohdr, LV_LABEL_LONG_WRAP);
-    wt_help_chip(s_scr, 416, split + 8, MUT_COL, glossary_cb, NULL);
+    lv_obj_t *h = wt_section(p, buf, 24, 118);
+    lv_obj_set_width(h, 728);
+    lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    const int oy = 118 + det_h(h) + 10;
 
-    lv_obj_t *ol = lv_obj_create(s_scr);
+    lv_obj_t *ol = lv_obj_create(p);
     lv_obj_remove_style_all(ol);
-    int oy = split + 10 + det_h(ohdr) + 6;
-    lv_obj_set_pos(ol, 40, oy);
-    lv_obj_set_size(ol, 404, 392 - oy);
-    lv_obj_set_style_pad_all(ol, 8, 0);
+    lv_obj_set_pos(ol, 24, oy);
+    lv_obj_set_size(ol, 752, WT_CONTENT_BOTTOM - 6 - oy);
     lv_obj_set_style_pad_row(ol, 4, 0);
     lv_obj_set_flex_flow(ol, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(ol, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(ol, s_sum.n_out > 1 ? LV_SCROLLBAR_MODE_ON
+    lv_obj_set_scrollbar_mode(ol, s_sum.n_out > 2 ? LV_SCROLLBAR_MODE_ON
                                                   : LV_SCROLLBAR_MODE_AUTO);
     wt_list_scrollbar(ol);
     lv_obj_set_style_bg_opa(ol, LV_OPA_TRANSP, 0);
@@ -3250,211 +3152,170 @@ static void details_cb(lv_event_t *e)
         lv_obj_set_width(row, lv_pct(100));
         lv_obj_set_height(row, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_bottom(row, 10, 0);
+        lv_obj_set_style_pad_bottom(row, 14, 0);
 
         wt_fmt_amount(s_sum.outs[i].sats, a, sizeof a);
-        // The tick is the change output's own claim -- re-derived and verified
-        // on this device -- and it is WT_OK because that is a status, not the
-        // accent. A recipient gets no tick: the signer has nothing to vouch for
-        // about someone else's address, and a mark there would say it did.
+        // The change mark is the output's own claim -- re-derived and
+        // verified on this device -- and green because that is a status. A
+        // recipient gets no mark: the signer has nothing to vouch for about
+        // someone else's address.
         const bool ours = s_sum.outs[i].is_change;
-        // The glossary's CHANGE mark, not a bare tick: on a list of outputs the
-        // question is WHICH of them comes back, and a tick answered "this one
-        // is fine". Green still says verified ours.
-        // And its index, which the graph only shows when there is ONE change
-        // output. This page is per-output by construction, so here every change
-        // row can carry its own -- which is the point of the page.
-        if (ours) snprintf(buf, sizeof buf, "%s %s %s  #%u", GLOSS_ICONS[2], a,
-                           wt_denom_unit(), (unsigned)s_sum.outs[i].index);
+        if (ours) snprintf(buf, sizeof buf, "%s %s %s  #%u", GLOSS_ICONS[2],
+                           a, wt_denom_unit(), (unsigned)s_sum.outs[i].index);
         else      snprintf(buf, sizeof buf, "%s %s", a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
         lv_obj_set_style_text_color(amt, ours ? OK_COL : INK_COL, 0);
-        lv_obj_set_style_text_font(amt, wt_font23(), 0);
+        lv_obj_set_style_text_font(amt, wt_font28(), 0);
         wt_denom_bind(amt);
-        // The fold, not the whole address: this list's job is "one line of
-        // facts per output", and the full form is a 248px wall of mono14 that
-        // pushed the eighth output off the fold. The last eight still light,
-        // the same rule every other screen here teaches.
-        //
-        // And the row OPENS the whole thing, so the fold is a summary with the
-        // full form behind it rather than a truncation with nothing behind it.
-        // That distinction is the one the EthClipper work is about: a fixed
-        // prefix and suffix is what a lookalike gets ground against, so the
-        // characters it drops have to stay reachable from the place they were
-        // dropped. Two taps from the graph to every character of any output,
-        // change included -- which the verify screen cannot show at all.
-        // mono23, like every other address on the device. This was the one
-        // place an address was set in a PROPORTIONAL face, which is the
-        // opposite of what the fold is for: the digits have to line up to be
-        // compared. The fold is ~28 characters and mono23 measures 387 against
-        // the row's 388 lane.
-        lv_obj_t *ao = wt_addr_short(row, s_sum.outs[i].addr, wt_font_mono23());
+
+        lv_obj_t *ao = wt_addr_short(row, s_sum.outs[i].addr,
+                                     wt_font_mono28());
         lv_obj_add_flag(ao, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(ao, 8);
         lv_obj_add_event_cb(ao, addr_tap_cb, LV_EVENT_CLICKED,
                             (void *)s_sum.outs[i].addr);
         // A silent payment output's on-chain address is not the one handed
-        // over: the graph used to carry this claim and lost it because a
-        // paragraph costs the column a row. Here it is beside the very address
-        // it is about, on the page a reader comes to for the raw facts.
+        // over -- said beside the very address it is about.
         if (s_sum.outs[i].is_sp) {
             lv_obj_t *spn = lv_label_create(row);
             lv_label_set_text(spn, sp_onchain_note());
             lv_obj_set_style_text_color(spn, MUT_COL, 0);
-            // The row's own lane is 388; the 248 was arbitrary and cost this
-            // note two extra lines before the font was even chosen. It is the
-            // sentence explaining why the address on screen is not the one the
-            // owner was handed, which is the most confusing fact on the page.
-            // The list scrolls, so there is no height to run out of.
-            lv_obj_set_width(spn, 388);
+            lv_obj_set_width(spn, 728);
             lv_obj_set_style_text_font(spn,
-                wt_body_font(sp_onchain_note(), 388, 200), 0);
+                wt_body_font(sp_onchain_note(), 728, 200), 0);
             lv_label_set_long_mode(spn, LV_LABEL_LONG_WRAP);
         }
     }
+}
 
-    // ---- the right column ----
-    // Every element here used to sit on a hand measured y, and the seven of them
-    // were all font14 and all MUT_COL: no hierarchy, so a reader had to read the
-    // whole column to find any one fact in it. They are now placed by a CURSOR,
-    // each one measured after it is built and the next one put under it. That is
-    // what makes the hierarchy affordable — a heading line costs 17px, and seven
-    // fixed y values had no 17px anywhere to give.
-    const int RX = 480, RW = 252;    // inside the 468..752 card, 12 of padding
-    const int RFLOOR = 388;          // the card's own floor, 8 above its edge
-    int ry = 108;
+// One TRANSACTION flag row: the accent mark, the fact beside it in ink at
+// 23, its own "?" at the lane's edge. Advances *y.
+static void dtab_flag_row(lv_obj_t *p, int *y, const char *icon,
+                          const char *head, int term)
+{
+    lv_obj_t *ic = wt_lbl(p, icon, 24, *y + 3, wt_font23(), wt_accent());
+    lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+    lv_obj_t *h = wt_lbl(p, head, 64, *y, wt_font23(), INK_COL);
+    lv_obj_set_width(h, 728 - 40 - 40);
+    lv_obj_set_height(h, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+    wt_help_chip(p, 24 + 728 - 26, *y - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)term);
+    *y += lv_font_get_line_height(wt_font23()) + 8;
+}
 
-    // the id to find it by, once broadcast — final only for segwit-only spends
-    wt_section(s_scr, tr(STR_S_D_TXID), RX, ry);
-    wt_help_chip(s_scr, RX + RW - 26, ry - 2, MUT_COL, det_term_cb,
+// TRANSACTION: the id to find it by, the total in the other unit, and the
+// four normalcy facts, each with its own "?" -- a whole lane each, where
+// the old right column gave all seven of them 252px of font14.
+static void dtab_tx(lv_obj_t *p)
+{
+    char buf[256], gt[96];
+    int ry = 118;
+    wt_section(p, tr(STR_S_D_TXID), 24, ry);
+    wt_help_chip(p, 24 + 728 - 26, ry - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)DT_TXID);
-    ry += 20;
-    char gt[80];
-    group4(det.txid, gt, sizeof gt);
-    lv_obj_t *tx = mk_lbl(gt, RX, ry, wt_font14(), INK_COL);
-    // 34 clear on the right, the same as every flag row below: the heading's
-    // chip hangs into this block's first line otherwise, which the overlap
-    // gate caught at 8x3 px in all 21 locales.
-    lv_obj_set_width(tx, RW - 34);
+    ry += 24;
+    group4(s_det.txid, gt, sizeof gt);
+    lv_obj_t *tx = wt_lbl(p, gt, 24, ry, wt_font_mono18(), INK_COL);
+    lv_obj_set_width(tx, 728 - 34);
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
-    ry += det_h(tx) + 4;
-    // The fee rate, arrived from the verify screen's right column, which had to
-    // give up 66px so three simultaneous cautions could each have a row. A txid
-    // is always 64 hex characters, so the block above is always two lines and
-    // the gap under it was always 55px of nothing.
-    //
-    // S_FEERATE_PCT_FMT rather than S_FEERATE_FMT: it was already written and
-    // already translated into all 21 locales and used nowhere, and it says the
-    // useful thing. "57.0 sat/vB" alone is a number for people who already know
-    // what a good one looks like; "57.0 sat/vB, 21.0% of what you send" is the
-    // sentence that makes somebody stop.
-    // Percent of the SEND amount, one decimal, integers only: there are no
-    // floats on this device. A sweep with nothing left over would divide by
-    // zero, so that case prints the rate on its own.
-    uint64_t pct10 = s_sum.send_sats
-                   ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
-    if (s_sum.send_sats)
-        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10),
-                 (unsigned)(s_sum.fee_rate_x10 % 10),
-                 (unsigned long long)(pct10 / 10), (unsigned long long)(pct10 % 10));
-    else
-        snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10),
-                 (unsigned)(s_sum.fee_rate_x10 % 10));
-    char fee_line[sizeof buf];
-    snprintf(fee_line, sizeof fee_line, "%s", buf);   // kept for the strip below
+    ry += det_h(tx) + 8;
 
-    // The note about whether this id survives signing is behind the chip on
-    // the heading now. It was two wrapped lines of grey under a block of hex
-    // that is already three, and it pushed the fourth flag row off the card's
-    // floor when this column narrowed to give the lists the room they needed.
-    ry += 6;
-    // The same total in BTC, directly under the line about comparing against
-    // the coordinator, because comparing is the only reason to want it: a
-    // coordinator that displays BTC needs this row to check the sats form.
-    //
-    // Just the BTC form now, not "N sats   =   N BTC". The sats form used to
-    // repeat here and pushed the composite line to about x=791 at font23, past
-    // the 750 lane every other line on this page respects, and past the 776
-    // Sign lane too. Bounding it to 330 with wrap collided with the version
-    // and locktime line beneath at y=258 in every locale the overlap gate ran,
-    // because at font23 the composite is ~360px wide and every 330 wrap took
-    // its second line into that row. Copy: cut the value that is beside it, at
-    // arm's length the sats total is a scan away on the verify screen the tap
-    // to DETAILS came from.
-    wt_fmt_amount_alt(hero_sats(), gt, sizeof gt);   // the hero, in the other unit
+    // The same total in the other unit, at 28 and in ink: it is the number a
+    // holder reads off the glass and compares against the coordinator, which
+    // is the entire reason it is here.
+    wt_fmt_amount_alt(hero_sats(), gt, sizeof gt);
     snprintf(buf, sizeof buf, "= %s %s", gt, wt_denom_unit_alt());
-    // 23, and INK. This is the number a holder reads off the glass and compares
-    // against the coordinator, which is the entire reason the BTC form is here
-    // at all. It was the same size and the same grey as the locktime note.
-    lv_obj_t *bt = mk_lbl(buf, RX, ry, wt_font23(), INK_COL);
+    lv_obj_t *bt = wt_lbl(p, buf, 24, ry, wt_font28(), INK_COL);
     wt_denom_bind(bt);
     ry += det_h(bt) + 10;
 
-    // ---- the flag rows ----
-    // "is this transaction normal" has exactly three answers on this device, and
-    // they were three more grey sentences in the same stack as everything else.
-    // Each is written `head: tail` in all 21 locales, so the head becomes the
-    // VALUE, in ink beside an icon, and the tail becomes the note under it. No
-    // new string anywhere: wt_split_colon reads the shape the translators
-    // already wrote, wide colon and French spacing included.
-    //
-    // The tail stayed ON the row for a long time, and it is gone now. Every row
-    // keeps a "?" at its right edge whose card answers for itself -- the same
-    // head:tail string, in full -- and a note that duplicates its own card is a
-    // note that costs the column a line in twenty locales for text the reader
-    // must already have opened to learn anything from. The row shows the fact;
-    // the "?" shows why it matters.
-    //
-    // The version and locktime numbers ride on the locktime row's head instead
-    // of a line of their own, and the head the locale wrote for that row is
-    // dropped: "locktime 0" beside "version 2, locktime 0" is the same value
-    // printed twice.
+    // The flag rows: each head is the whole fact (wt_split_colon reads the
+    // head:tail shape the locales already write; the tail lives on the "?"
+    // card), and the version and locktime numbers ride one head.
     char sh_head[64], rbf_head[64];
     snprintf(buf, sizeof buf, tr(STR_S_D_VER_LT_FMT),
-             (unsigned)det.version, (unsigned)det.locktime);
+             (unsigned)s_det.version, (unsigned)s_det.locktime);
     wt_split_colon(tr(STR_S_D_SIGHASH), sh_head, sizeof sh_head);
     wt_split_colon(s_sum.rbf ? tr(STR_S_D_RBF_ON) : tr(STR_S_D_RBF_OFF),
                    rbf_head, sizeof rbf_head);
+    uint64_t pct10 = s_sum.send_sats
+                   ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
+    char fee_line[256];
+    if (s_sum.send_sats)
+        snprintf(fee_line, sizeof fee_line, tr(STR_S_FEERATE_PCT_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10),
+                 (unsigned long long)(pct10 / 10),
+                 (unsigned long long)(pct10 % 10));
+    else
+        snprintf(fee_line, sizeof fee_line, tr(STR_S_FEERATE_FMT),
+                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned)(s_sum.fee_rate_x10 % 10));
 
-    // The fee rate joins the strip rather than floating above it as a loose
-    // muted line. It is a property of the transaction exactly like the three
-    // below it, and STR_S_FEERATE_PCT_FMT is already a whole sentence, so it
-    // takes the head slot with no note under it.
-    // The strip's own "?": version, locktime and sighash never made it into
-    // the glossary card, and their inline notes are font14 -- the smallest
-    // type on the page for the three terms a reader is least likely to know.
-    // One card, composed at runtime from the same head:tail strings the rows
-    // draw, so it costs no new key in 21 locales. The chip shares the FEE
-    // row's line and that row's label lane is narrowed to match -- floated
-    // over the strip it collided with the version row's head in all 21
-    // locales, which the overlap gate caught before any bench did.
-    // Every row keeps 34px clear on its right for its own chip, and each chip is
-    // captured against the y the row STARTED at, since det_flag_row advances
-    // past whatever the translation needed.
-    int chip_y = ry;
-    det_flag_row(RX, &ry, LV_SYMBOL_CUT, fee_line, NULL, RW - 34, RFLOOR);
-    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
-                 (void *)(uintptr_t)DT_FEE);
-    chip_y = ry;
-    det_flag_row(RX, &ry, WT_ICON_LOCK, buf, NULL, RW - 34, RFLOOR);
-    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
-                 (void *)(uintptr_t)DT_LOCKTIME);
-    chip_y = ry;
-    det_flag_row(RX, &ry, LV_SYMBOL_OK, sh_head, NULL, RW - 34, RFLOOR);
-    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
-                 (void *)(uintptr_t)DT_SIGHASH);
-    chip_y = ry;
+    dtab_flag_row(p, &ry, LV_SYMBOL_CUT, fee_line, DT_FEE);
+    dtab_flag_row(p, &ry, WT_ICON_LOCK, buf, DT_LOCKTIME);
+    dtab_flag_row(p, &ry, LV_SYMBOL_OK, sh_head, DT_SIGHASH);
     // The same mark the RBF explainer wears, so the row and the card that
     // explains it are recognisably about one thing.
-    det_flag_row(RX, &ry, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
-                 rbf_head, NULL, RW - 34, RFLOOR);
-    wt_help_chip(s_scr, RX + RW - 26, chip_y - 2, MUT_COL, det_term_cb,
-                 (void *)(uintptr_t)DT_RBF);
+    dtab_flag_row(p, &ry, s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
+                  rbf_head, DT_RBF);
+}
 
-    mk_pill(tr(STR_C_BACK), WT_BACK_X, WT_ACTION_Y, 140, details_back_cb);
+static void details_tab_build(void)
+{
+    lv_obj_t *p = s_dctx.pane;
+    switch (s_dctx.tab) {
+    case 0:  dtab_inputs(p);  break;
+    case 1:  dtab_outputs(p); break;
+    default: dtab_tx(p);      break;
+    }
+}
+
+static void details_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_denom_on_tap(denom_tap_details);   // a figure tapped here rebuilds here
+    if (kiss_psbt_details(&s_det) != 0)
+        return;
+    hold_stop();
+    lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    // No subtitle: the tab strip owns that band now, and the file name is on
+    // the verify screen this deck was opened from and returns to.
+    mk_screen(s_parent, tr(STR_S_DETAILS), NULL);
+
+    wt_tab_t t[3] = {
+        { .icon = LV_SYMBOL_DOWNLOAD, .label = tr(STR_S_D_TAB_INS)  },
+        { .icon = LV_SYMBOL_UPLOAD,   .label = tr(STR_S_D_TAB_OUTS) },
+        { .icon = LV_SYMBOL_LIST,     .label = tr(STR_S_D_TAB_TX)   },
+    };
+    s_dctx.scr    = s_scr;
+    s_dctx.select = wt_tabs_flex_select;
+    s_dctx.tabs   = wt_tabs_flex(s_scr, t, 3, s_dctx.tab, details_tab_cb);
+    wt_pane_tabs_watch(&s_dctx);
+    wt_swipe_watch(s_scr, details_gesture_cb);
+    // The corner [ ? ] is the way into SIMPLE EXPLAINERS now -- the pill box
+    // it replaces was the last box on the page. The stroke past TRANSACTION
+    // lands there too, and the glossary's own right stroke comes back.
+    wt_help_tab(s_scr, NULL, glossary_cb, NULL);
+
+    s_dctx.pane = wt_pane_new(&s_dctx);
+    details_tab_build();
+
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, details_back_cb, NULL);
+}
+
+// Fresh entry from the verify band lands on INPUTS; the context keeps its
+// tab across the rebuild a figure tap or a glossary BACK causes, which is
+// what returns a reader to the tab they left.
+static void details_open_cb(lv_event_t *e)
+{
+    s_dctx.tab = 0;
+    details_cb(e);
 }
 
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came
