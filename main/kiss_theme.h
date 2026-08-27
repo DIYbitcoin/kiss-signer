@@ -1,5 +1,5 @@
-// Shared wallet UI kit: the one house style every wallet screen builds from
-// (screen frame, pills, labels, QR card, text grouping) plus the switchable
+// Shared UI kit: the one house style every screen builds from
+// (screen frame, actions, labels, QR card, text grouping) plus the switchable
 // accent the home art's theme dots promised. Compiled in both device and sim
 // builds; global state is limited to the accent id, while QR zoom state is
 // owned and freed by each card.
@@ -29,7 +29,7 @@
 #define WT_PANEL lv_color_hex(0x0A0E15)  // explainer cards, any raised block
 #define WT_DIV   lv_color_hex(0x1A2130)  // divider between rows inside one panel
 #define WT_DIM   lv_color_hex(0x4C5666)  // ink for something present but inert
-#define WT_EDGE  lv_color_hex(0x2A3346)  // border of a control that is not a pill
+#define WT_EDGE  lv_color_hex(0x2A3346)  // border of a recessed or inert control
 
 // accent themes = the dots on the baked home art. MONO keeps the shipped look.
 enum { WT_ACC_MONO = 0, WT_ACC_GREEN, WT_ACC_PINK, WT_ACC_ORANGE, WT_ACC_N };
@@ -110,15 +110,15 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // one number to test against instead of grepping for 404, and so the row can be
 // moved once rather than in ninety places.
 //
-// Two heights, and the tall one is not an accident. A pill label auto-fits
-// 23 -> 14, and at 66 it can take a SECOND LINE at 23 instead of dropping a
-// rung: "HOLD TO SIGN" has no one-line size above 14 in French, Italian or
-// Swedish, and the button that moves money should not be the smallest type on
-// screen. Use TALL for any row whose label may wrap, standard everywhere else.
-// A row shares one height across all its pills or they stop lining up.
+// Two heights. The tall one earned its 66px when boxed labels auto-fitted
+// 23 -> 14 and could take a SECOND LINE at 23 instead of dropping a rung; the
+// controls that wrapped are gone, and arrow and word actions are one line at a
+// fixed 23 that never re-fonts. What remains of TALL is geometry: it defines
+// WT_CONTENT_BOTTOM below, and the warn screen centres its word actions in
+// the 66px band. New rows take the standard height.
 #define WT_ACTION_Y       404   // standard row: 404..456, 24px above the edge
 #define WT_ACTION_H        52   // the standard control height on the row
-#define WT_ACTION_Y_TALL  398   // wrapping row: 398..464
+#define WT_ACTION_Y_TALL  398   // legacy tall band: 398..464
 #define WT_ACTION_H_TALL   66
 // Nothing above the row may extend past this. It is WT_ACTION_Y_TALL exactly,
 // not a rounder number with a gutter invented on top: the tall row is the
@@ -173,13 +173,14 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // exact harm the reversal exists to remove, so they keep their old left slot and
 // the corner on those two screens stays empty. Give one of them a confirm and it
 // can move like everything else.
-#define WT_BACK_X          612   // the exit's left edge, for the standard 140px
-                                 // pill: 612+140 = 752, the lane edge. It was
-                                 // 610 while the corner held the ACTION and the
-                                 // 2px sat on whichever pill happened to be
-                                 // there; now one pill is in that corner on
-                                 // every screen and the gap would be the most
-                                 // looked at 2px on the device.
+#define WT_BACK_X          612   // the exit's left edge, for the standard
+                                 // 140px lane: 612+140 = 752, the lane edge.
+                                 // It was 610 while the corner held the ACTION
+                                 // and the 2px sat on whichever control
+                                 // happened to be there; now the way out is in
+                                 // that corner on every screen and the gap
+                                 // would be the most looked at 2px on the
+                                 // device.
 #define WT_EXIT_X          612   // the exit's left edge when the bar ALSO holds
                                  // the screen's action. Same corner: the way out
                                  // does not move when a screen gains an action.
@@ -199,10 +200,11 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // that crosses WT_CONTENT_BOTTOM, because content hidden behind the bar is
 // content the owner cannot read.
 
-// Pill icons. FontAwesome PUA codepoints baked into every generated Latin size
-// by the SYMS list in tools/fonts/gen_fonts.sh — keep the two in lockstep, an
-// icon that is not in the font hard-hangs the renderer rather than drawing a
-// tofu box. These three have no LV_SYMBOL_* macro; the sd card does, so it is
+// Kit icons. FontAwesome PUA codepoints baked into every generated Latin size
+// by the SYMS list in tools/fonts/gen_fonts.sh — keep the two in lockstep: an
+// icon that is not in the font draws as an empty placeholder box, on a screen
+// nobody can file a bug from (sim/fitcheck.c measures every one for real ink).
+// These three have no LV_SYMBOL_* macro; the sd card does, so it is
 // spelled with LVGL's own name.
 #define WT_ICON_QR     "\xEF\x80\xA9"   // U+F029 qrcode
 #define WT_ICON_KEY    "\xEF\x82\x84"   // U+F084 key
@@ -558,7 +560,7 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
 void wt_addr_fold(const char *addr, char *out, size_t len);
 // A status badge: `col` border, 5 percent `col` fill, radius 100, label at
 // font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
-// state reads as in the design review, and it is not a pill: no press states,
+// state reads as in the design review, and it is not a control: no press states,
 // no click flag, nothing to tap. Use wt_state_chip_set to change the text and
 // colour later, which re-measures the box for the new string and locale.
 lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col);
@@ -575,7 +577,7 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // The accent is not always TEXT. A flag that only ever meant "repaint the text
 // colour" silently did nothing on the two objects that carry the accent without
 // any text in them -- a strand, which paints with LV_STYLE_LINE_COLOR, and a
-// pill's rim, which paints with LV_STYLE_BORDER_COLOR. Both went stale the
+// hold's rim, which paints with LV_STYLE_BORDER_COLOR. Both went stale the
 // moment the accent changed with the screen up, and neither could be seen to,
 // because a flagged object with an unhandled property fails silently by
 // construction.
@@ -591,7 +593,7 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 //                          the mark -- the junction dot, where a stale colour
 //                          would read as a seam in the drawing rather than as a
 //                          control in the wrong theme.
-// They compose: the hold pill wears BORDER and BG together.
+// They compose: the hold wears BORDER and BG together.
 #define WT_FLAG_ACCENT_BORDER LV_OBJ_FLAG_USER_2
 #define WT_FLAG_ACCENT_BG     LV_OBJ_FLAG_USER_3
 #define WT_FLAG_ACCENT_FILL   LV_OBJ_FLAG_USER_4
@@ -904,7 +906,7 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr);
 // filled primary on these screens; a fill would be a box, which is the thing
 // being removed.
 //
-// Positions are the pill bar's: WT_ACT_X for the screen's own action, and
+// Positions are the action row's: WT_ACT_X for the screen's own action, and
 // WT_BACK_X for the exit. Pass `right` to right-align inside x..x+w instead of
 // left-aligning at x, which is what keeps BACK's arrow against the margin
 // when a translation changes the label's width.
@@ -1369,7 +1371,7 @@ typedef struct {
     const char *cap;      // caption over the value
     const char *val;      // NULL to omit the value card
     const char *body;
-    const char *ok_txt;   // the dismiss pill's label, already translated
+    const char *ok_txt;   // the dismiss action's label, already translated
     int sev;              // WT_SEV_*: colours the title and the first rule
     int mode;             // WT_BODY_PROSE / WT_GRID_ICONS
     const char *const *icons;   // WT_GRID_ICONS only, in body-line order
@@ -1402,8 +1404,8 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len);
 // a fill that VANISHES on release reads as an action that completed. A fill
 // that runs back reads as one that did not.
 //
-// This belongs on WT_ACTION_Y, not WT_ACTION_Y_TALL. The tall row exists to
-// give a fat pill room, and the label plus its 2px rule fits the standard 52.
+// This belongs on WT_ACTION_Y, not WT_ACTION_Y_TALL. The tall row is legacy
+// geometry, and the label plus its 2px rule fits the standard 52.
 lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
                         int x, int y, int w,
                         void (*done)(void *), void *ud);

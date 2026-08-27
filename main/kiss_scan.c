@@ -108,7 +108,7 @@ static void cancel_now(void)
 void kiss_scan_cancel(void) { cancel_now(); }
 
 // The visible control. Its own callback, so it does not repeat the corner
-// hit-test below: the pill IS the corner.
+// hit-test below.
 static void cancel_btn_cb(lv_event_t *e) { (void)e; cancel_now(); }
 
 static void cancel_cb(lv_event_t *e)
@@ -117,7 +117,7 @@ static void cancel_cb(lv_event_t *e)
     // Tap-anywhere cancelled the scan every time the user's grip grazed the
     // glass — device testing found that out the hard way.
     //
-    // The visible CANCEL pill lives on the bottom action row now; this corner
+    // The visible CANCEL lives on the bottom action row now; this corner
     // region stays live anyway because it costs nothing and it keeps working
     // for anyone who learned the camera close convention while the pill still
     // sat up here.

@@ -2409,7 +2409,7 @@ uint32_t sim_autolock_ms(void) { return autolock_ms(); }
 // that makes a tile open on RELEASE rather than on touch, so a finger that
 // lands on the wrong tile can slide off it and let go without opening it.
 // Home and KEYS use the same fingerprint explainer. The delete event clears
-// this input gate whether the card closes by its OK pill or by tapping outside.
+// this input gate whether the card closes by its OK action or by tapping outside.
 static void fp_card_deleted_cb(lv_event_t *e) {
   (void)e;
   s_fp_card = NULL;
@@ -2739,7 +2739,7 @@ static void game_tick(lv_timer_t *t) {
     // by a direct-to-panel video path; on a real board that button did nothing
     // and the only way out was pulling the power. This handler reads the same
     // touch the unlock gesture reads, so it is on a path known to work here.
-    // Same top-left corner as the pill, so nothing new has to be learned.
+    // Same top-left corner CANCEL once occupied, so nothing new has to be learned.
     if (kiss_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
       kiss_scan_cancel();
       s_prev_press = pressed;
@@ -2753,8 +2753,8 @@ static void game_tick(lv_timer_t *t) {
     // lands in the GAME is a way to lose your place by brushing the glass.
     //
     // The two corners that survive both earn it. Above: the scan screen, where
-    // the CANCEL pill is LVGL and the live camera paints over LVGL, so on a real
-    // board that pill can be dead and this is the only escape. Below: the home,
+    // the CANCEL control is LVGL and the live camera paints over LVGL, so on a real
+    // board that control can be dead and this is the only escape. Below: the home,
     // which has no BACK to reach for.
     // Same table, the other question it answers. The firmware screen was absent
     // here as well as from the lock, so the game's own sampler read the finger
@@ -2938,7 +2938,7 @@ static void game_tick(lv_timer_t *t) {
           bool tap = (s_stroke_n0 == 0 && x1 - x0 < 22 && y1 - y0 < 22);
           if (tap && s_state == ST_OVER) {
             // baked buttons (coords from gameover_mock.py, padded): PLAY AGAIN
-            // restarts; the MENU pill -- and any stray tap -- returns to the menu
+            // restarts; the MENU button -- and any stray tap -- returns to the menu
             if (x1 >= 220 && x1 <= 580 && y1 >= 356 && y1 <= 458) start_game();
             else go_menu();
             s_gn = 0; s_strokes = 0;
@@ -3418,7 +3418,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
 
   // TESTNET badge — top-center, between the baked "KISS" logo (left) and the
-  // fingerprint chip (right). Amber pill, shown ONLY on testnet so mainnet stays
+  // fingerprint chip (right). Amber badge, shown ONLY on testnet so mainnet stays
   // clean; kept in sync by kiss_home_refresh() (unlock + return from Settings).
   s_net_lbl = lv_label_create(s_home);
   lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
@@ -3511,7 +3511,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_color(s_saver_hint, lv_color_hex(0xFFF2CD), 0);
   lv_obj_set_style_text_font(s_saver_hint, &lv_font_montserrat_28, 0);
   lv_obj_set_style_bg_color(s_saver_hint, lv_color_hex(0x10131C), 0);
-  lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark pill so it reads on any backdrop
+  lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark backing so it reads on any backdrop
   lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
   lv_obj_set_style_pad_ver(s_saver_hint, 11, 0);
   lv_obj_set_style_radius(s_saver_hint, 20, 0);

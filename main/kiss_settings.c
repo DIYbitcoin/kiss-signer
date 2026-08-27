@@ -10,7 +10,7 @@
 #include "i18n.h"
 #include "kiss_crypto.h"
 #include "kiss_info.h"
-#include "kiss_fw_ui.h"   // the firmware pill opens it
+#include "kiss_fw_ui.h"   // the firmware row opens it
 #include "kiss_seed.h"
 #include "kiss_seed_sd.h"   // SDSEED_FILENAME: the sealed row on CARD INFO
 #include "kiss_setup.h"
@@ -525,7 +525,7 @@ static void sdinfo_screen(void)
 
     // The CID product name is the card introducing itself; it rides the trail
     // as the path's last element -- the same shape the word grid gives the
-    // fingerprint -- so the title stays the word the chooser's pill promised.
+    // fingerprint -- so the title stays the word the chooser promised.
     s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
     wt_chrome_head(s_scr);
     {
@@ -1166,7 +1166,7 @@ static void words_cb(lv_event_t *e)
     kiss_info_open_words(parent, settings_after_words);
 }
 
-// Wipe: erase the seed and go back to being just a game. One tap on the pill
+// Wipe: erase the seed and go back to being just a game. One tap on the row
 // opens a confirm screen; the erase happens on a HOLD there and takes effect
 // immediately (a power pull right after must still find the seed gone), then a
 // full-screen confirmation says so.
@@ -1193,7 +1193,7 @@ static void wipe_fail_ok_cb(lv_event_t *e)   // dismiss back to settings, retrya
 }
 
 // The erase itself. Reached only from the confirm screen's slide, never from
-// a tap on the Settings pill: two taps in one spot is a gesture a pocket or a
+// a tap on the Settings row: two taps in one spot is a gesture a pocket or a
 // double tap can produce by accident, and this one is not undoable from here.
 
 static void do_wipe(void *ud)

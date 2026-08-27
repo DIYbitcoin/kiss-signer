@@ -883,11 +883,11 @@ static bool oc_is_chrome(const oc_node_t *n)
     if (n->is_label) return false;
     if (area_is_backdrop(&n->vis)) return false;
     if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
-    // A PILL IS NOT CHROME, same as BARE -- but a wt_chip IS, and LVGL marks
+    // AN ACTION IS NOT CHROME, same as BARE -- but a wt_chip IS, and LVGL marks
     // both clickable: lv_obj_create sets the flag and wt_chip's
     // lv_obj_remove_style_all does not clear it. Height separates them without
-    // this gate having to know about event handlers. Every pill in the product
-    // is WT_ACTION_H tall or taller; a chip is about 33 and a grid badge 34.
+    // this gate having to know about event handlers. Action-row hit targets are
+    // WT_ACTION_H tall or taller; a chip is about 33 and a grid badge 34.
     if (n->clickable && h >= WT_ACTION_H) return false;
     if (w <= 4 && h >= 30) return true;               // a why-block's rule bar
     if (w < 20 || h < 16) return false;
@@ -1112,7 +1112,7 @@ static int oc_selftest_case(const char *name, int accent,
 // walk proves nothing about it. Same problem the ROLE check has, same answer:
 // build the shape here and check the gate still says so.
 //
-// The pill is what gives the synthetic screen an action row, which is the
+// The arrow action gives the synthetic screen an action row, which is the
 // exemption both BARE and WALL share.
 static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
 {
@@ -1293,7 +1293,7 @@ int oc_selftest(void)
 // is written as a shape rather than as a stop name on purpose: the toast is
 // driven by a clock, so the stop it lands on can move, and the thing that makes
 // it legitimate is precisely that it is a deliberate dimmer covering the whole
-// glass. Nothing stranded is ever 800x480 -- a leftover label, card, pill or
+// glass. Nothing stranded is ever 800x480 -- a leftover label, card, action or
 // chip is a fragment of a screen and reports.
 static void oc_layer_walk(lv_obj_t *o, const char *tag, const char *layer,
                           int depth)

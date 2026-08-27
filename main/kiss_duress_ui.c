@@ -63,7 +63,7 @@ static void stage_build(int stage);
 // A stage change must NOT build its screen inside the event callback that
 // triggered it. LVGL keeps dispatching the in-flight press to whatever is now
 // under the finger, so a screen created mid-event immediately receives the
-// same release -- and because every screen here has a pill in the same corner,
+// same release -- and because every screen here has an action in the same corner,
 // one tap walked the entire chooser end to end. Deferring the build to
 // lv_async_call ends the event pass first, which is the only reliable fix.
 static int s_pending = -1;
@@ -369,12 +369,12 @@ static void stage_build(int stage)
         // Two claims, two columns: it really works, and an empty one is a tell.
         wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
-        // point of the pair. ST_INTRO's pill opens THIS screen, which is about
-        // the spare, so it says SPARE. This pill opens ST_DONE, which
+        // point of the pair. ST_INTRO's action opens THIS screen, which is about
+        // the spare, so it says SPARE. This action opens ST_DONE, which
         // states the real signer's rule. It said SET UP A
         // SPARE for both, which put the word SPARE on the door to the real
         // wallet's only setting, and readers concluded the stroke belonged to
-        // the decoy. The two CTAs name different wallets on purpose.
+        // the decoy. The two actions name different wallets on purpose.
         wt_arrow_action(s_scr, tr(STR_GD_SET_UP_REAL), false, true, 48,
                         WT_ACTION_Y, 420, false, next_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
@@ -513,12 +513,12 @@ static void stage_build(int stage)
         // falls out through setup_warn_ok_cb the same way the wizard does,
         // so the stroke chooser is the very next screen -- setting a stroke
         // is exactly why most owners will be doing this.
-        // Both widths and both pills are now FIXED, where they used to fork on
-        // kiss_duress_real(). This screen is the one a spare session reaches,
-        // so a pill that appears only when a stroke is configured tells a
-        // prober that one is -- and the row that opens this screen was
+        // Both widths and both controls are now FIXED, where they used to fork
+        // on kiss_duress_real(). This screen is the one a spare session
+        // reaches, so a control that appears only when a stroke is configured
+        // tells a prober that one is -- and the row that opens this screen was
         // un-hidden for precisely that reason. A layout that changes shape is
-        // the same confession as a pill that comes and goes.
+        // the same confession as a control that comes and goes.
         wt_arrow_action(s_scr, tr(STR_L_CREATE_PASS_BTN), false, true, 48,
                         WT_ACTION_Y, 340, false, add_pass_cb, NULL);
         lv_obj_t *off = wt_word_action(s_scr, LV_SYMBOL_CLOSE,

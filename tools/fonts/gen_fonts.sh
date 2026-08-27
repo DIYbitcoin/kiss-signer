@@ -31,7 +31,7 @@ LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490
 # LVGL has no symbol macro for. They are named in kiss_theme.h as WT_ICON_*
 # and must stay in lockstep with it: a codepoint referenced by a label but
 # missing from the font draws a blank box the width of half a line, which on
-# an icon pill means a button with nothing on it.
+# an icon-bearing action means a control with nothing on it.
 #   61481 F029 qrcode    61572 F084 key    61979 F21B user-secret
 #   61633 F0C1 link      61498 F03A list   61541 F065 expand
 #   61536 F060 arrow-left           61537 F061 arrow-right
@@ -92,7 +92,7 @@ done
 # It also carries the FontAwesome plane. That used to be skipped here with the
 # note "23 never shows icons", which stopped being true the moment PILL LABELS
 # started auto-fitting to 23: RECEIVE's chevrons went straight to tofu boxes.
-# Any size a pill label can take needs the symbols.
+# Any size that renders an icon-bearing label needs the symbols.
 echo "== font_kiss_lat23"
 conv --size 23 \
   --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \

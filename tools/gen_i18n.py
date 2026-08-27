@@ -268,7 +268,7 @@ UNTRANSLATED_OK = {
     "I_ROW_HISTORY", "I_ROW_HISTORY_SUB", "I_SEC_HISTORY",
     "G_HIST_ON_BTN", "G_HIST_OFF_BTN",
     "G_HIST_ON_NOTE", "G_HIST_ON_NOTE_PLAIN", "G_HIST_OFF_NOTE",
-    # CARD INFO behind the storage chooser: the pill, the fact rows, and the
+    # CARD INFO behind the storage chooser: the action, the fact rows, and the
     # no-card pair's right block. Same rule as the block above.
     "G_SD_INFO_PILL", "G_SD_ROW_FREE", "G_SD_ROW_PSBT", "G_SD_ROW_SIGNED_FMT",
     "G_SD_ROW_FW", "G_SD_ROW_KEF", "G_SD_ROW_WORDS_MISSING",

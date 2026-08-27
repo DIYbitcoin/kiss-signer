@@ -40,6 +40,9 @@ static const slot_t SLOTS[] = {
     { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
     { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, 482, 29 },
     { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  482, 29 },
+    // kiss_recv.c: the fitted full-width kind line on a verified silent-payment
+    // address. This replaced the stale two-line SCAN KEY sub-line lane below.
+    { "recv/sp-badge",    STR_S_SP_BADGE,          700, 29 },
     // kiss_sign.c:355,394,966
     { "sign/why",         -1,               720, 300 },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
@@ -203,8 +206,8 @@ static const slot_t SLOTS[] = {
     { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
     // cards mode (BLIND DRAW): subtitles, the method-row note, both why
-    // pairs and the checksum page's one number line. The candidate pills are
-    // dynamic English BIP39 words and are deliberately not rows here.
+    // pairs and the checksum page's one number line. The candidate word
+    // actions are dynamic English BIP39 words and are deliberately not rows here.
     { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
     { "sub/cksum",        STR_W_CKSUM_S,      704, 30, 0 },
     { "sub/cards-pick",   STR_W_CARDS_PICK_S, 704, 30, 0 },
@@ -262,7 +265,7 @@ static const slot_t SLOTS[] = {
     { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
     { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
     { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
-    // kiss_info.c — the note under each action pill
+    // kiss_info.c — the note under each action
     // Raised out of a hardcoded font14 in the readability sweep. Listed here
     // so the boxes they were given are checked against every translation, not
     // just the English they were measured with.
@@ -293,7 +296,7 @@ static const slot_t SLOTS[] = {
     // let this render at 14 next to a PAIR COORDINATOR note at 23.
     { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  90 },
     { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340,  62 },
-    // The two word-count notes sit in the 80px gaps of a three-pill stack (12
+    // The two word-count notes sit in the 80px gaps of a three-action stack (12
     // WORDS at y=150, 24 WORDS at 230, SCAN LOCKED QR at 310) in a 340px column.
     // Both run to three or four lines at 23 -- 87px and 116px -- so neither can
     // reach it without restacking the page or cutting the copy. Same situation
@@ -305,7 +308,7 @@ static const slot_t SLOTS[] = {
 
 // wt_row LABELS, which nothing measured until a rename made one of them fail.
 //
-// These are not pills and not bodies: wt_row_x draws the label at a FIXED
+// These are not fitted bodies: wt_row_x draws the label at a FIXED
 // font23, pinned to one line, with LV_LABEL_LONG_DOT. There is no font ladder
 // to fall down, so an over-long translation does not shrink and does not wrap
 // -- it silently ellipsises, and it looks completely deliberate. No gate saw
@@ -871,7 +874,7 @@ int main(int argc, char **argv)
     printf("row labels ellipsised: %d backlogged, %d new\n", row_known, row_cut);
     printf("row subs ellipsised:   %d backlogged, %d new\n", sub_known, sub_cut);
 
-    // Every icon a pill draws must exist, at every size, with real ink in it.
+    // Every icon the kit draws must exist, at every size, with real ink in it.
     //
     // This check used to justify itself by saying a missing codepoint spins
     // LVGL's renderer. It does not. CONFIG_LV_USE_FONT_PLACEHOLDER is y in
@@ -922,38 +925,14 @@ int main(int argc, char **argv)
              "file a bug from.");
         return 1;
     }
-    printf("pill icons: %d present and inked at 14/23/28/34\n",
+    printf("kit icons: %d present and inked at 14/23/28/34\n",
            (int)(sizeof ICONS / sizeof *ICONS));
 
-    // Two-line pills: the second line is a fixed size and never wraps, so
-    // pill_sub_line() drops it to 14 when the asked-for size will not fit.
-    // That is the right thing to do on the device and the wrong thing to find
-    // out there, so name the locales it happens in. Same measurement
-    // pill_sub_line makes, against the same box.
-    static const struct { const char *surface; int key, w, row_h; } SUBS[] = {
-        // kiss_info.c: the badge under SCAN KEY, the only thing on that
-        // screen naming which kind of address the key belongs to.
-        { "wallet/sp-badge", STR_S_SP_BADGE, 340, 35 },
-    };
-    for (size_t i = 0; i < sizeof SUBS / sizeof *SUBS; i++) {
-        int at14 = 0;
-        char who[256] = "";
-        for (int l = 0; l < I18N_LANG_N; l++) {
-            if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
-            i18n_set_lang(l);
-            lv_point_t sz;
-            lv_text_get_size(&sz, tr(SUBS[i].key), wt_font23(), 0, 0,
-                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-            if (sz.x > SUBS[i].w - 28 || sz.y > SUBS[i].row_h) {
-                at14++;
-                strncat(who, i18n_lang_info(l)->code,
-                        sizeof who - strlen(who) - 2);
-                strncat(who, " ", sizeof who - strlen(who) - 1);
-            }
-        }
-        printf("pill sub %-16s %s\n", SUBS[i].surface,
-               at14 ? who : "23 in every locale");
-    }
+    // A lane used to sit here measuring the sub-line of the two-line SCAN KEY
+    // control against its 340px box. The helper that drew that sub-line is
+    // gone and so is the box. S_SP_BADGE is a fitted full-width note in
+    // SLOTS above and a narrowed screen title in TITLE_SLOTS below, so the
+    // old lane was measuring a surface no screen draws.
 
     if (key_small || en_small) {
         printf("\nFAIL: %d key-action button(s) and %d English slot(s) "
@@ -962,7 +941,7 @@ int main(int argc, char **argv)
             printf("  %s\n", fails[i]);
         puts("\nA button that spends, erases or verifies must not be the\n"
              "smallest type on its screen. Fix by shortening that locale's\n"
-             "label, widening the pill, or making it tall enough to wrap.\n"
+             "label, widening the box, or making it tall enough to wrap.\n"
              "\nAn ENGLISH slot at font14 is a layout bug, not a long\n"
              "translation: the box was measured against this very text. Give\n"
              "it the height 23 needs, or mark it may_be_small WITH a comment\n"
@@ -977,7 +956,7 @@ int main(int argc, char **argv)
     // cheapest way to keep it is to refuse to build with it above zero.
     //
     // Deliberately counts what the English gate above does not: a slot that is
-    // only too small in Polish, and a pill that drops to 14 without being a
+    // only too small in Polish, and a box that drops to 14 without being a
     // key action. Neither is a translation problem. Both mean a box measured
     // against English that the device will render in something else.
     if (row_cut) {
@@ -1002,12 +981,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // ---- screen titles against the lane they actually get ----
-    // wt_title_fit walks 34 -> 28 -> 23 and takes the first that fits UNWRAPPED,
-    // silently, with no floor. Nothing measured that until now: anything put
-    // beside a title takes width away from it, and the only symptom is a title
-    // two sizes smaller in the locales with the longest word for it. The
-    // overlap gate cannot see it either -- a smaller title overlaps nothing.
+    // ---- screen titles against the lanes they actually get ----
+    // Exercise the real widgets and wt_title_fit rather than duplicating its
+    // measurement. Chrome titles walk mono 28 -> 23 -> 18 when their glyphs
+    // allow it; ordinary wt_screen titles walk sans 34 -> 28 -> 23. Anything
+    // put beside a title takes width away from it, and the only symptom is a
+    // title two sizes smaller. The overlap gate cannot see that -- a smaller
+    // title overlaps nothing.
     //
     // Settings is the screen this was written for. It USED to hand
     // wt_title_fit a narrowed lane, because three header pills shared the
@@ -1015,39 +995,59 @@ int main(int argc, char **argv)
     // -- and this check is what sized that chip down to 44, because de's title
     // needs 269px to hold font28.
     //
-    // Direction 1b moved all three into rows on the DEVICE tab, so the header
-    // holds nothing but the title and the lane is the full 704 between the page
-    // margins again. Pinned rather than deleted: the day something goes back up
-    // there, this is what says which locale's title it cost.
+    // Direction 1b moved all three into rows on the DEVICE tab, so Settings
+    // gets the full lane again. The rest of this table covers every explicit
+    // narrowed-title call plus RECEIVE's silent-payment help chip, whose lane
+    // is now narrowed to match the identical fingerprint arrangement.
     {
-        const int lane = 704;
-        static const int space[3] = { 3, 2, 2 };
+        static const struct {
+            const char *surface;
+            int key, lane;
+            bool chrome;
+        } TITLE_SLOTS[] = {
+            { "set/main",    STR_G_T,          704, true  },
+            { "recv/sp",     STR_S_SP_BADGE,   640, true  },
+            { "setup/prove", STR_W_PROVE_T,    436, true  },
+            { "setup/taps",  STR_W_ENT_TAP_T,  436, true  },
+            { "setup/rand",  STR_W_RAND_T,     436, true  },
+            { "setup/words", STR_W_WRITE_T,    594, true  },
+            { "setup/coin",  STR_W_COIN_T,     436, true  },
+            { "setup/dice",  STR_W_DICE_T,     436, true  },
+            { "setup/start", STR_W_SETUP_T,    496, true  },
+            { "wallet/fp",   STR_D_FINGERPRINT,640, false },
+        };
         int title_small = 0;
-        for (int l = 0; l < I18N_LANG_N; l++) {
-            if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
-            i18n_set_lang(l);
-            const lv_font_t *f[3] = { wt_font34(), wt_font28(), wt_font23() };
-            const char *txt = tr(STR_G_T);
-            int pick = 2, px = 0;
-            for (int i = 0; i < 3; i++) {
-                lv_point_t sz;
-                lv_text_get_size(&sz, txt, f[i], space[i], 0, LV_COORD_MAX,
-                                 LV_TEXT_FLAG_NONE);
-                if (i == 0) px = sz.x;
-                if (sz.x <= lane) { pick = i; break; }
-            }
-            if (pick == 2) {
-                printf("  title set/main   %-6s font23  %dpx / %dpx  FAIL\n",
-                       i18n_lang_info(l)->code, px, lane);
-                title_small++;
+        for (size_t t = 0; t < sizeof TITLE_SLOTS / sizeof *TITLE_SLOTS; t++) {
+            for (int l = 0; l < I18N_LANG_N; l++) {
+                if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
+                i18n_set_lang(l);
+                const char *txt = tr(TITLE_SLOTS[t].key);
+                lv_obj_t *scr = wt_screen(lv_screen_active(), txt, NULL);
+                if (TITLE_SLOTS[t].chrome) wt_chrome_head(scr);
+                wt_title_fit(scr, TITLE_SLOTS[t].lane);
+                lv_obj_t *cap = wt_screen_title(scr);
+                const lv_font_t *picked = lv_obj_get_style_text_font(cap, 0);
+                const bool smallest = picked == wt_font_mono18() ||
+                                      picked == wt_font23();
+                if (smallest) {
+                    lv_point_t sz;
+                    const int ls = lv_obj_get_style_text_letter_space(cap, 0);
+                    lv_text_get_size(&sz, txt, picked, ls, 0, LV_COORD_MAX,
+                                     LV_TEXT_FLAG_NONE);
+                    printf("  title %-11s %-6s smallest  %dpx / %dpx  FAIL\n",
+                           TITLE_SLOTS[t].surface, i18n_lang_info(l)->code,
+                           sz.x, TITLE_SLOTS[t].lane);
+                    title_small++;
+                }
+                lv_obj_delete(scr);
             }
         }
-        printf("screen titles: settings lane %dpx, %d locale(s) at font23\n",
-               lane, title_small);
+        printf("screen titles: %d lane(s), %d title-locale pair(s) at smallest rung\n",
+               (int)(sizeof TITLE_SLOTS / sizeof *TITLE_SLOTS), title_small);
         if (title_small) {
-            puts("\nFAIL: something in the settings header has squeezed the\n"
+            puts("\nFAIL: something beside a screen title has squeezed the\n"
                  "title to its smallest size. Narrow it, move it into a row, or\n"
-                 "shorten that locale's title. A title that reads at font23 is a\n"
+                 "shorten that locale's title. A title on its smallest rung is a\n"
                  "title the owner no longer uses to know which screen they are on.");
             return 1;
         }

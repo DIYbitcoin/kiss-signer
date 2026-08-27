@@ -1305,10 +1305,10 @@ static void words_tab(int i)
 static void words_row(int i) { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release(); pump(8); }
 
 
-// ---- tapping a pill by WHAT IT SAYS, not where it is -------------------------
+// ---- tapping an action by WHAT IT SAYS, not where it is ----------------------
 //
 // The walk used to aim 179 hardcoded coordinates at the action row, and that
-// made every layout change a harness change: move a pill and the tap aimed at
+// made every layout change a harness change: move a control and the tap aimed at
 // it lands on background, the frame still saves, and the walk carries on
 // photographing whatever happens to be on screen. Moving the exit to the other
 // corner broke 69 taps in one commit, and each one had to be found by running
@@ -1317,7 +1317,7 @@ static void words_row(int i) { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); releas
 // So a tap names its target. The string ID rather than the English text,
 // because the same walk runs in ja and ru and the label is translated in both.
 //
-// Deliberately loud, and deliberately strict about AMBIGUITY: two visible pills
+// Deliberately loud, and deliberately strict about AMBIGUITY: two visible actions
 // reading DONE mean the walk cannot say which one it meant, and quietly picking
 // one would be the same blind guess this exists to remove.
 static lv_obj_t *s_hit;
@@ -1334,7 +1334,7 @@ static int       s_bar_hits;
 // WIRED to it -- which the key does, the "?" chip does, and a card never does.
 static bool      s_wired_only;
 
-static void find_pill(lv_obj_t *o, const char *txt)
+static void find_act(lv_obj_t *o, const char *txt)
 {
     if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
     if (lv_obj_check_type(o, &lv_label_class)) {
@@ -1343,7 +1343,7 @@ static void find_pill(lv_obj_t *o, const char *txt)
         // Exact, or the icon form wt_icon_text composes: "<icon>  LABEL".
         // The two spaces are load bearing. A bare suffix test matched CAMERA
         // AUDIT when the walk asked for AUDIT, which reads as an ambiguity
-        // between two real pills and is really one wrong match.
+        // between two real controls and is really one wrong match.
         const bool hit = t && lt >= ln && strcmp(t + (lt - ln), txt) == 0 &&
                          (lt == ln || (lt >= ln + 2 &&
                                        t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
@@ -1353,7 +1353,7 @@ static void find_pill(lv_obj_t *o, const char *txt)
                     (!s_wired_only || lv_obj_get_event_count(p) > 0)) {
                     if (p != s_hit) { s_hit = p; s_hits++; }
                     // A label often appears twice: once on a content row that
-                    // opens the thing, once on the pill in the action bar that
+                    // opens the thing, once on the action in the bar that
                     // does it. Every converted tap aimed at the bar, so the bar
                     // wins -- and only when it is unambiguous down there too.
                     lv_area_t a; lv_obj_get_coords(p, &a);
@@ -1361,7 +1361,7 @@ static void find_pill(lv_obj_t *o, const char *txt)
                         // LAST wins: LVGL paints in tree order, so the last
                         // match is the topmost, and the topmost is what a
                         // finger would land on. An explainer overlay can carry
-                        // the same pill as the screen underneath it -- both are
+                        // the same action as the screen underneath it -- both are
                         // real, and the one on top is the one being tapped.
                         s_bar_hit = p; s_bar_hits++;
                     }
@@ -1370,7 +1370,7 @@ static void find_pill(lv_obj_t *o, const char *txt)
         }
     }
     for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
-        find_pill(lv_obj_get_child(o, i), txt);
+        find_act(lv_obj_get_child(o, i), txt);
 }
 
 // The first accent-flagged lv_line under `o`. The change strand is the one
@@ -1400,38 +1400,38 @@ static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
     s_wired_only = true;
-    find_pill(lv_screen_active(), txt);
+    find_act(lv_screen_active(), txt);
     if (s_bar_hits >= 1) {
         if (s_bar_hits > 1)
-            printf("note: %d pills say \"%s\"; taking the topmost\n", s_bar_hits, txt);
+            printf("note: %d actions say \"%s\"; taking the topmost\n", s_bar_hits, txt);
         s_hit = s_bar_hit; s_hits = 1;
     }
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
-               !s_hit ? "no visible pill says that" : "more than one does");
+               !s_hit ? "no visible action says that" : "more than one does");
         g_walk_fails++;
         return NULL;
     }
     return s_hit;
 }
 
-// Pills keep the looser rule they have always had: their labels are words, the
-// ambiguity check already covers them, and narrowing it now would be a change
-// to two hundred existing taps for no fault anyone has seen.
-static lv_obj_t *pill_for(int key, const char *how)
+// Key-named actions keep the looser rule they have always had: their labels are
+// words, the ambiguity check already covers them, and narrowing it now would be
+// a change to two hundred existing taps for no fault anyone has seen.
+static lv_obj_t *act_for(int key, const char *how)
 {
     const char *txt = tr(key);
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
     s_wired_only = false;
-    find_pill(lv_screen_active(), txt);
+    find_act(lv_screen_active(), txt);
     if (s_bar_hits >= 1) {
         if (s_bar_hits > 1)
-            printf("note: %d pills say \"%s\"; taking the topmost\n", s_bar_hits, txt);
+            printf("note: %d actions say \"%s\"; taking the topmost\n", s_bar_hits, txt);
         s_hit = s_bar_hit; s_hits = 1;
     }
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
-               !s_hit ? "no visible pill says that" : "more than one does");
+               !s_hit ? "no visible action says that" : "more than one does");
         g_walk_fails++;
         return NULL;
     }
@@ -1494,7 +1494,7 @@ static lv_obj_t *det_chip(int idx)
     return found[idx];
 }
 
-// Press the pill saying tr(key), hold for `hold` frames, release, settle for
+// Press the action saying tr(key), hold for `hold` frames, release, settle for
 // `settle`. hold = 3 is an ordinary tap; a hold-to-confirm wants its duration.
 // A label whose text starts with `pre`, and the clickable row it sits in. The
 // file list is a scrollable column of rows labelled with the filename itself,
@@ -1598,7 +1598,7 @@ static void tap_lbl(const char *txt, int hold, int settle)
 
 static void tap_str(int key, int hold, int settle)
 {
-    tap_obj(pill_for(key, "tap"), hold, settle);
+    tap_obj(act_for(key, "tap"), hold, settle);
 }
 
 // Tap the "?" chip that sits immediately after a caption. The chip's x is
@@ -1655,7 +1655,7 @@ static void tap_chip_top(void)
 static int s_slide_x, s_slide_y;
 static void slide_grip(int key)
 {
-    lv_obj_t *p = pill_for(key, "slide");
+    lv_obj_t *p = act_for(key, "slide");
     if (!p) return;
     lv_area_t a; lv_obj_get_coords(p, &a);
     s_slide_x = (a.x1 + a.x2) / 2;
@@ -2086,11 +2086,11 @@ int main(void) {
   for (int i = 0; i < 260 && /* until over */ 1; i++) pump(1);
   save("/tmp/sim_over.ppm");
 
-  // baked game-over buttons: PLAY AGAIN restarts, MENU pill -> main menu
+  // baked game-over buttons: PLAY AGAIN restarts, MENU -> main menu
   touch(400, 410); pump(3); release(); pump(4);     // PLAY AGAIN -> fresh run
   save("/tmp/sim_playagain.ppm");                   // HUD back: score 0, hearts
   for (int i = 0; i < 700; i++) pump(1);            // fruit fall unsliced -> game over again
-  touch(682, 57); pump(3); release(); pump(120);    // MENU pill -> menu (full re-intro settles)
+  touch(682, 57); pump(3); release(); pump(120);    // MENU -> menu (full re-intro settles)
   save("/tmp/sim_menu_back.ppm");
 
   // draw the word "KISS" -> the SPARE signer appears (K spine+arms, I, S, S)
@@ -2350,7 +2350,7 @@ int main(void) {
       kiss_set_network(KISS_NET_TESTNET);
 
       // The first tap started a game, so come back the way the walk already
-      // does: let the fruit fall unsliced, then the MENU pill.
+      // does: let the fruit fall unsliced, then the MENU button.
       for (int i = 0; i < 700; i++) pump(1);
       touch(682, 57); pump(3); release(); pump(120);
 
@@ -2481,7 +2481,7 @@ int main(void) {
     // is the last point in the walk where the home is genuinely open, and
     // lock_to_menu is a no-op anywhere after it.
     {
-      gw_stored_set(NULL);                            // no BACK TO KISS pill
+      gw_stored_set(NULL);                            // no BACK TO KISS action
       pump(20);
       kiss_word_ui_open(lv_screen_active(), NULL);
       pump(20);
@@ -2634,7 +2634,7 @@ int main(void) {
   save("/tmp/sim_recv_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(156, 353); pump(3); release(); pump(6);     // TAP TO ENLARGE -> the same zoom
-  save("/tmp/sim_recv_zoom_line.ppm");
+    save("/tmp/sim_recv_zoom_line.ppm"); // same zoom by design; must be identical
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
   save("/tmp/sim_recv_pop.ppm");
@@ -2645,7 +2645,7 @@ int main(void) {
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index
   save("/tmp/sim_recv1.ppm");
   {  // VERIFY: own, valid-but-not-found, wrong-network, invalid, then own SP.
-    tap_str(STR_R_VERIFY, 3, 6);   // VERIFY pill -> raw scan screen
+    tap_str(STR_R_VERIFY, 3, 6);   // VERIFY action -> raw scan screen
     // TESTNET, because the walk is on testnet here. This was the mainnet form
     // of the same key, so the frame named "yes" rendered WRONG NETWORK -- the
     // same red screen sim_vfy_wrong_net.ppm already photographs, published
@@ -2819,7 +2819,7 @@ int main(void) {
   touch(400, 215); pump(3); release(); pump(6);     // SILENT PAYMENT -> consent warning
   save("/tmp/sim_sp_warn.ppm");
   tap_str(STR_W_HOLD_SHOW, 25, 6);    // a press with no travel: key stays hidden
-  save("/tmp/sim_sp_warn_early.ppm");
+    save("/tmp/sim_sp_warn_early.ppm"); // key stays hidden; warning unchanged
   // The failure branch first, because it is one hold away and nothing else in
   // the walk can reach it: kiss_info.c only draws the QR when the export
   // succeeds, so a derivation that fails renders a different screen that had
@@ -2890,9 +2890,9 @@ int main(void) {
   // frames become identical and check_sim_taps.py fails.
   // 19 pumps held is ~304ms, deliberately under LVGL's 400ms long-press.
   touch(328, 150); pump(5);                        // first file, held
-  save("/tmp/sim_pill_ring.ppm");                  // press answered
+  save("/tmp/sim_sign_row_pressed.ppm");           // press answered
   pump(14);
-  save("/tmp/sim_pill_held.ppm");                  // still held, settled
+  save("/tmp/sim_sign_row_held.ppm");              // still held, settled
   release(); pump(8);                              // -> verify (READY)
   save("/tmp/sim_sign_verify.ppm");                 // FOLDED address + SHOW FULL
   // The fold, opened and closed. Both states are a screen an owner signs from,
@@ -3065,7 +3065,7 @@ int main(void) {
   // sweep is on the glass, so this is the first time the comment's third
   // channel and the code's third channel are the same object.
   {
-    lv_obj_t *hp = pill_for(STR_S_HOLD_TO_SIGN, "accent restyle");
+    lv_obj_t *hp = act_for(STR_S_HOLD_TO_SIGN, "accent restyle");
     lv_obj_t *ln = find_accent_line(lv_screen_active());
     if (!ln) {
       printf("FAIL: no accent-flagged strand on the verify screen\n");
@@ -3171,7 +3171,7 @@ int main(void) {
   save("/tmp/sim_sign_reveal.ppm");
   // 110, not 50: REVEAL_MS went 700 -> 1600 so the answer is on the glass long
   // enough to read. 1600ms is 100 frames. Landing short here does not fail
-  // here -- it fails four screens later on a DONE pill that is not up yet, and
+  // here -- it fails four screens later on a DONE action that is not up yet, and
   // then cascades through every BACK after it.
   pump(110);                                        // past REVEAL_MS: writes SD
   save("/tmp/sim_sign_done.ppm");
@@ -3239,7 +3239,7 @@ int main(void) {
   // REMOVE SIGNED is at 48..388 x 404..456; this is its centre.
   tap_str(STR_S_RM_SIGNED, 3, 8);
   save("/tmp/sim_sign_rm_list.ppm");                // one row per signed file
-  // Row 0's own hold pill: rows start at y=114, 76 tall, pill at local
+  // Row 0's own slide rule: rows start at y=114, 76 tall, control at local
   // (520,18) 170x40, so 568..738 x 132..172. A tap is NOT enough.
   touch(652, 164); pump(2); release(); pump(4);
   save("/tmp/sim_sign_rm_noop.ppm");                // still the list, nothing gone
@@ -3254,18 +3254,18 @@ int main(void) {
   save("/tmp/sim_sign_fee.ppm");                    // summary + "I UNDERSTAND" gate
   // I UNDERSTAND moved out of the action row and into the caution row itself,
   // which is the point of the redraw: the answer sits beside the thing being
-  // read, and HOLD TO SIGN keeps its coordinates in both states. The pill is
+  // read, and HOLD TO SIGN keeps its coordinates in both states. The action is
   // local (543,8) 170x40 inside a row pinned at (24, SG_PANEL_Y), so row 0's is
   // 567..737 x 158..198. This is its centre. It was still tapping the old
   // action-row position at (364,430), which the redraw deleted.
-  // The bar dropped to y=344 under the bundle graph, and its pill went with it:
+  // The bar dropped to y=344 under the bundle graph, and its action went with it:
   // bar-relative (543,2) 170x40 is now 567..737 x 346..386. This is its centre.
   touch(652, 366); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
   // BACK out of a screen an acknowledgement repainted. The tap above is what
   // makes the orphaned-screen check at the end of this walk mean anything: the
   // repaint is the only thing in the app that ever replaced a live screen
-  // without deleting it, so if the ack pill is not actually hit, nothing counts
+  // without deleting it, so if the ack action is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
   // warn-COMBO leads page two now: nine files, three a page.
@@ -3309,11 +3309,11 @@ int main(void) {
   // Five cautions and the recipient address on the SAME screen. This frame is
   // the regression: the address panel used to be replaced by the row stack, so
   // the transaction the device trusted least was the one whose destination it
-  // never showed. The bar's pill keeps the row pill's x, so the FEE ack tap above
+  // never showed. The bar action keeps the row action's x, so the FEE ack tap above
   // and this REVIEW tap land in the same place.
   touch(652, 366); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
   save("/tmp/sim_sign_cautions.ppm");
-  // Row 0's I UNDERSTAND: rows start at y=88 with the pill at local (543,8),
+  // Row 0's I UNDERSTAND: rows start at y=88 with the action at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
   touch(652, 116); pump(3); release(); pump(8);     // -> row goes green, page repaints
   save("/tmp/sim_sign_cautions_ack.ppm");
@@ -4492,7 +4492,7 @@ int main(void) {
     restore_word(SIM_12_PREFIXES[i]);
   pump(30);                                         // words -> passphrase intro
   must_show("setup/restore-ppintro", tr(STR_L_PPINTRO_T));
-  if (!pill_for(STR_L_PASSPHRASE_CAP, "setup restore offers")) { /* counted */ }
+  if (!act_for(STR_L_PASSPHRASE_CAP, "setup restore offers")) { /* counted */ }
   must_not_show("setup/restore-no-create-verb", tr(STR_L_CREATE_PASS_BTN));
   tap_str(STR_L_PASSPHRASE_CAP, 3, 8);              // existing passphrase -> keyboard
 
@@ -4639,7 +4639,7 @@ int main(void) {
   for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
   save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
   tap_str(STR_W_CKSUM_GO, 3, 4);     // SHOW THE WORDS
-  save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 pills, NEXT
+  save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 word actions, NEXT
   tap_str(STR_R_NEXT, 3, 4);     // NEXT -> page 2
   save("/tmp/sim_setup_cards_pick2.ppm");           // BACK owns the left slot now
   tap_str(STR_C_BACK, 3, 4);     // BACK -> page 1
@@ -4658,13 +4658,13 @@ int main(void) {
   // The refused draw. The judge links REAL here, so typing one word eleven
   // times IS the block, rendered rather than described -- the same argument the
   // dice ramp below makes, and the only way any gate ever sees this screen.
-  // Two pill row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
+  // Two-action row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
   touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
   touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
   touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
   tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
-  save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 pills
+  save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 actions
   tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
   save("/tmp/sim_setup_cards_retype.ppm");          // "1/11 _": the draw really is gone
   for (int i = 0; i < 11; i++) restore_word("g");   // back to the block
@@ -4749,7 +4749,7 @@ int main(void) {
     tap_str((i & 1) ? STR_W_COIN_TAILS : STR_W_COIN_HEADS, 4, 4);
   save("/tmp/sim_setup_coin_flag.ppm");             // PATTERN chip, level columns
   tap_str(STR_C_DONE, 3, 6);          // DONE -> refused
-  save("/tmp/sim_setup_coin_warn.ppm");             // two centred columns, 2 pills
+  save("/tmp/sim_setup_coin_warn.ppm");             // two centred columns, 2 actions
   tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad, 128 banked
   tap_str(STR_C_BACK, 3, 6);          // BACK -> the method rows
   tap_str(STR_W_METHOD_DICE_T, 3, 4);   // DICE row -> the keypad, back at base 6
@@ -4767,7 +4767,7 @@ int main(void) {
   save("/tmp/sim_setup_dice_why.ppm");              // WHAT THIS CHECKS, icon grid
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
   tap_str(STR_C_DONE, 3, 6);     // DONE -> the verdict screen
-  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 pills, no way past
+  save("/tmp/sim_setup_dice_warn.ppm");             // CHECK YOUR ROLLS, 2 actions, no way past
   // KEEP GOING is the way through a refusal, and it keeps every banked roll --
   // the whole argument for DICE_MAX, which no gate rendered until now.
   tap_str(STR_W_DICE_MORE, 3, 4);     // KEEP GOING -> the keypad
@@ -4804,11 +4804,11 @@ int main(void) {
   touch(60, 234); pump(3); release(); pump(4);      // round 1: choice 0 correct
   touch(435, 234); pump(3); release(); pump(4);     // round 2: choice 1
   touch(60, 314); pump(3); release(); pump(6);      // round 3: choice 2 -> stored
-  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER, now a two pill row
+  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER, now a two-action row
   // The NO PASSPHRASE branch, taken as an excursion rather than a commit: it
   // renders the fingerprint screen wearing its no-passphrase notes, which no
   // stop had ever shown, and then BACK returns to the keyboard the walk was
-  // heading for anyway. That BACK is the claim being tested -- the pill hands
+  // heading for anyway. That BACK is the claim being tested -- the action hands
   // the owner a wallet with no passphrase, and one tap has to be enough to
   // change their mind before anything is committed.
   tap_str(STR_L_NO_PASSPHRASE, 3, 8);     // NO PASSPHRASE -> fingerprint
@@ -4873,7 +4873,7 @@ int main(void) {
   touch(264, 323); pump(3); release(); pump(4);     // KEEP GOING -> back to keyboard
   touch(46, 278); pump(3); release(); pump(3);      // 'a' (deliberately weak)
   touch(725, 430); pump(3); release(); pump(4);     // OK -> weak refusal
-  save("/tmp/sim_setup_weak.ppm");                  // modal: one pill, BACK
+  save("/tmp/sim_setup_weak.ppm");                  // modal: one action, BACK
   must_not_show("weak card offers no way past", tr(STR_L_USE_ANYWAY));
   // BACK is the only way off it, and the entry has to survive so the owner
   // lengthens what they typed instead of retyping it.
@@ -5370,7 +5370,7 @@ int main(void) {
   set_tab(SET_SECURITY);
   def_row(3, 2);                      // Audit -> the chooser
   tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
-  save("/tmp/sim_rng_nosource.ppm");                // refusal: no START pill
+  save("/tmp/sim_rng_nosource.ppm");                // refusal: no START action
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
   tap_str(STR_C_BACK, 3, 8);          // BACK -> Settings (done cb)
   s_sim_trng = true;
@@ -5382,7 +5382,7 @@ int main(void) {
   // "YOUR STROKE" here long after the picker was deleted, which is exactly
   // what an owner reads as "a swipe I must have set somewhere".
   must_show("waysin/rule", tr(STR_GD_PICK_REAL_T));
-  // The path no walk stop had ever taken: this pill is the only route from
+  // The path no walk stop had ever taken: this action is the only route from
   // Settings into the duress wizard, and on a session with no passphrase it is
   // the only route to CREATE PASSPHRASE. It survived being mislabelled for
   // exactly that reason.
@@ -5392,7 +5392,7 @@ int main(void) {
   tap_str(STR_GD_SKIP, 3, 20);         // NOT NOW -> Settings
   set_tab(SET_SECURITY);
   def_row(3, 0);                                    // Duress -> the two ways in
-  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN DRAWING (482..752)
+  tap_str(STR_GD_WORD_PILL, 3, 8);     // open custom letters
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
   // The ink itself, mid-enrolment and before DONE clears it. The strokes now
@@ -5416,7 +5416,7 @@ int main(void) {
   // is what BACK TO KISS calls, and leaving the owner's letters in place here
   // would make every later gesture in the walk stop working -- silently, on a
   // screen that still looks right.
-  tap_str(STR_GD_WORD_PILL, 3, 8);     // USE YOUR OWN LETTERS
+  tap_str(STR_GD_WORD_PILL, 3, 8);     // open custom letters
   tap_str(STR_GD_WORD_BACK_T, 3, 8);     // BACK TO KISS (210..470)
   // The NO UNDO tab: one card, its reason at length, and one button. This tap
   // was a coordinate in the old right column and it has been wrong twice --
@@ -5450,7 +5450,7 @@ int main(void) {
   save("/tmp/sim_wipe_fail.ppm");
   must_show("erase/fail headline", tr(STR_G_NOERASE_NEXT));
   tap_str(STR_C_BACK, 3, 10);                       // -> the gate again
-  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin. The pill sits
+  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin. The slide rule sits
   // on the action row now (48..368 x WT_ACTION_Y), not on an overlay at 372:
   // the confirmation IS the screen, so it uses the same row every other screen
   // puts its actions on.
@@ -5462,10 +5462,10 @@ int main(void) {
   must_show("erased", tr(STR_G_ERASED_T));
   // NEW SEED WORDS sits beside OK: erasing in order to make new ones is one
   // tap now, which is the half the deleted chooser used to carry.
-  // A pill, so ask for the pill. "NEW SEED WORDS" is the English value of
+  // An action, so find it by label. "NEW SEED WORDS" is the English value of
   // three keys (W_CREATE_NEW, W_NEW_T, W_CHOOSE_NEW) and matches any label
   // carrying those words on any screen.
-  if (!pill_for(STR_W_CHOOSE_NEW, "erased offers")) { /* counted */ }
+  if (!act_for(STR_W_CHOOSE_NEW, "erased offers")) { /* counted */ }
   tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
@@ -5487,7 +5487,7 @@ int main(void) {
   // A bare seed square, which this door used to swallow whole. Twelve words in
   // plain text is exactly what a SeedQR decodes to, so this is the removal
   // itself under test: the scan must land on NOT A BACKUP and stage nothing.
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR (pill at 264)
+  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR (action at y=264)
   {
     static const char *SQ =
         "apple bridge candle dragon eagle forest "
@@ -5519,7 +5519,7 @@ int main(void) {
   // continues into the same passphrase screen a scanned seed reaches. This
   // section is the one place the walk can drive the KEF keyboard: no login
   // has ever opened here, so kiss_ui_active() is genuinely false (the step
-  // 14 tail cannot say that, which is why it stops at the intro pill).
+  // 14 tail cannot say that, which is why it stops at the intro action).
   {
     uint8_t fx[64];
     size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"73C5DA0A", 8,
@@ -5683,20 +5683,20 @@ int main(void) {
 
   // ST_INTRO again, and NOT the one the setup walk photographed. Reached from
   // Settings on a wallet that already has a stroke, this screen grows a THIRD
-  // pill -- TURN THIS OFF, the only way back to plain behaviour -- and the
+  // action -- TURN THIS OFF, the only way back to plain behaviour -- and the
   // setup walk can never show it, because during setup there is nothing to
   // turn off yet. That is the whole reason the row overlapped by 8px for as
-  // long as it did: no stop had ever contained all three pills at once.
+  // long as it did: no stop had ever contained all three actions at once.
   //
   // A leaf, like the nopass stop above it: opened directly, nothing after it.
   (void)kiss_duress_set(WDG_UNDERLINE);
   kiss_duress_ui_open(lv_screen_active(), NULL);
   pump(40);
-  save("/tmp/sim_duress_intro_set.ppm");            // three pills, one TALL row
+  save("/tmp/sim_duress_intro_set.ppm");            // three actions, one TALL row
 
   // ---- firmware from the SD card -------------------------------------------
   // Leaves, opened directly, for the reason the duress stops above are: the
-  // route in is a pill in the Settings action bar and every screen past the
+  // route in is a row on Settings' DEVICE tab and every screen past the
   // first needs state a desktop build does not have.
   //
   // Without kiss_fw_test_* the sim can only ever reach "cannot be checked":
@@ -5764,7 +5764,7 @@ int main(void) {
   // plain rule either way. 45 frames is 720ms of a 1500ms hold, so the fill is
   // about half across and the label reads KEEP HOLDING.
   {
-    lv_obj_t *hp = pill_for(STR_G_FW_HOLD, "mid-slide");
+    lv_obj_t *hp = act_for(STR_G_FW_HOLD, "mid-slide");
     if (hp) {
       lv_area_t a; lv_obj_get_coords(hp, &a);
       slide_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
@@ -6100,13 +6100,13 @@ int main(void) {
   // The button must not tell someone with a passphrase to invent one. PASSPHRASE
   // pairs with the NO PASSPHRASE beside it; CREATE PASSPHRASE is the new-seed
   // wording and on this path is an instruction into a different wallet.
-  // Also a pill, and "PASSPHRASE" is shared with D_PASSPHRASE, the diagram
+  // Also an action, and "PASSPHRASE" is shared with D_PASSPHRASE, the diagram
   // chip sitting on this very screen -- so the needle passed off the chip and
-  // proved nothing about the button.
-  if (!pill_for(STR_L_PASSPHRASE_CAP, "restore offers")) { /* counted */ }
+  // proved nothing about the action.
+  if (!act_for(STR_L_PASSPHRASE_CAP, "restore offers")) { /* counted */ }
   must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
 
-  // This TAIL entry stops here deliberately. The keyboard past this pill needs
+  // This TAIL entry stops here deliberately. The keyboard past this action needs
   // a login teardown the tail of the walk cannot give -- kiss_login_open
   // returns early while kiss_ui_active(), so it builds nothing and the screen
   // goes blank. The full keyboard and commit path is covered at step 7, where
@@ -6137,7 +6137,7 @@ int main(void) {
   // check can still fire, which is the argument oc_selftest already makes for
   // WALL and ROLE. On request, build a screen and deliberately never save it;
   // the report below must then name it. C_OK is the title on purpose: it is a
-  // pill label everywhere else on the device, so no real stop can ever have
+  // action label everywhere else on the device, so no real stop can ever have
   // captured it and the self test cannot be satisfied by accident.
   if (getenv("SCREENCOVER_SELFTEST")) {
     wt_screen(lv_screen_active(), tr(STR_C_OK), NULL);

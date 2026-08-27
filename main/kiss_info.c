@@ -37,7 +37,7 @@ static void (*s_words_done)(void);
 // flow either way -- the second door opens the same gate, never a copy of it.
 static void (*s_scan_key_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
-static lv_obj_t *s_pair_pill[2], *s_pair_app[2], *s_pair_note, *s_pair_qr;
+static lv_obj_t *s_pair_app[2], *s_pair_note, *s_pair_qr;
 
 static void info_screen(void);
 static void kef_warn_screen(lv_event_t *e);
@@ -108,12 +108,12 @@ static void sp_permission_fact(lv_obj_t *parent, const char *icon,
     // not two absolute positions. Left aligned, the three rows had their icons
     // pinned at x=16 and their text at x=58 while the words themselves ran to
     // wildly different lengths, so the block read as a ragged list inside three
-    // centred pills. The group centres; the pill centres; they agree.
+    // centred boxes. The group centres; the box centres; they agree.
     //
     // The text is content sized with a 482 ceiling rather than a fixed 482 box.
     // Content sized is what lets a short row centre tightly around its own
     // words; the ceiling is what keeps a long translation wrapping inside the
-    // pill instead of running out of it. Every locale fits one line today, so
+    // box instead of running out of it. Every locale fits one line today, so
     // the ceiling has never yet had to do anything.
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
@@ -477,7 +477,6 @@ static void pair_screen(void)
         lv_obj_set_style_text_letter_space(name, 2, 0);
         wt_lbl(p, CAT[i], 0, 36, wt_font14(), WT_MUT);
         s_pair_app[i] = name;                     // pair_refresh() recolors it
-        s_pair_pill[i] = p;
     }
 
     // The QR is primary on page one; the selected app's import directions are
@@ -499,7 +498,7 @@ static void pair_screen(void)
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
-    // It is a top-level pill on the WALLET screen now; see info_screen().
+    // It is a top-level action on the KEYS screen now; see info_screen().
     pair_refresh();
 }
 

@@ -173,7 +173,7 @@ for l in "${langs[@]}"; do
     # Each locale starts on a fresh card. The walk WRITES to /tmp/simsd -- it
     # signs files, and it exercises REMOVE ALL -- so 21 runs in a row hand each
     # other a card the next one did not expect. It only started mattering when
-    # the walk began tapping pills by label: the coordinate taps had been
+    # the walk began tapping actions by label: the coordinate taps had been
     # missing REMOVE ALL in some locales and silently doing nothing, which read
     # as "stable" and was really "not pressing the button".
     rm -rf "$KISS_SIM_TMP/simsd"
@@ -228,7 +228,7 @@ echo
 roletotal=0
 for a in GREEN CYPHERPINK ORANGE; do
     # A fresh card here too. The locale loop above has done this since the walk
-    # started tapping pills by label, and this loop never did -- so each accent
+    # started tapping actions by label, and this loop never did -- so each accent
     # run inherited whatever the run before it left on /tmp/simsd: a signature
     # it wrote, a file REMOVE ALL took away. That is a walk derailing on a row
     # that moved, and a derailed walk prints "clean" for every stop it never

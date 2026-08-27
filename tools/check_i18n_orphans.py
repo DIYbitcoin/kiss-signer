@@ -59,6 +59,10 @@ BACKLOG = frozenset({
     "STR_G_HIST_ON_NOTE",
     "STR_G_HIST_ON_NOTE_PLAIN",
     "STR_G_SD_INFO_PILL",
+    # The DEVICE-tab rewrite retired the old firmware launcher label. Its
+    # translated key stays parked until the translation sweep removes it from
+    # all 21 locale files together.
+    "STR_G_FW_PILL",
     "STR_I_NET_MAIN_NOTE",
     "STR_I_NET_SIGNET_NOTE",
     "STR_I_NET_TEST_NOTE",

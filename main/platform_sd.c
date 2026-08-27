@@ -265,7 +265,7 @@ int platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
     // Deleting: take ONE victim per pass and close the directory before
     // unlinking it. FATFS makes no promise about f_readdir after f_unlink in the
     // same directory, and a delete-in-place loop can silently skip files --
-    // which would leave the REMOVE pill up after a hold that looked like it
+    // which would leave the REMOVE control up after a hold that looked like it
     // worked. Cards hold tens of files and this runs once per hold, so the
     // extra opendir per file costs nothing anyone can feel.
     int removed = 0;
@@ -279,7 +279,7 @@ int platform_sd_signed_scan(char names[][SD_NAME_LEN], uint8_t *mark,
             return removed;                 // nothing left to take
         if (platform_sd_delete(victim) != 0)
             return removed;                 // stop on the first refusal; the
-        removed++;                          // pill stays up with what survived
+        removed++;                          // control stays up with what survived
     }
 }
 

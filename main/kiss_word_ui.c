@@ -508,7 +508,7 @@ static void done_screen(void)
     wt_chip(r2, buf, true);
 
     wt_wraph(s_scr, tr(STR_GD_WORD_OK_B), 48, 228, 704, WT_CONTENT_BOTTOM - 228);
-    // The corner, not centred at 300: one pill, and it is the way out.
+    // The corner, not centred at 300: one action, and it is the way out.
     wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
                     true, cancel_cb, NULL);
 }

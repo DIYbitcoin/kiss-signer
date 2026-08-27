@@ -117,7 +117,7 @@ static lv_obj_t *s_state_chip, *s_chain_lbl;
 // caption, which is a child of the card too.
 static lv_obj_t *s_addr_card, *s_cmp_lbl;
 static lv_obj_t *s_addr_more;   // "FULL ADDRESS" / "SHORT", the fold's own label
-static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_back_pill, *s_sp_toggle_pill;
+static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_toggle_act;
 // The card behind the silent-payment address and its path. Sized by
 // sp_addr_render, because the folded and full views are wildly different
 // heights and the box has to be the shape of whichever one is up.
@@ -163,7 +163,7 @@ static void close_cb(lv_event_t *e) {
   s_qr = s_idx_lbl = s_path_lbl = s_path_tn_lbl = s_lock_note = NULL;
   s_addr_sg = NULL;
   s_sp_path_lbl = s_sp_path_sec = NULL;
-  s_sp_back_pill = s_sp_toggle_pill = s_sp_addr_hit = NULL;
+  s_sp_toggle_act = s_sp_addr_hit = NULL;
   s_sp_card = NULL;
   s_state_chip = s_chain_lbl = NULL;
   s_addr_card = s_cmp_lbl = s_addr_more = NULL;
@@ -582,7 +582,7 @@ static void sp_addr_render(void) {
 
   // Through the kit's own setter. Reaching for child 0 relabelled the ARROW
   // on a forward action and drew the word twice, one on top of the other.
-  wt_arrow_action_set_text(s_sp_toggle_pill,
+  wt_arrow_action_set_text(s_sp_toggle_act,
                            tr(s_sp_full ? STR_R_SP_SHOW_SHORT
                                         : STR_R_SP_SHOW_FULL));
 }
@@ -598,6 +598,9 @@ static void sp_addr_open(lv_obj_t *parent) {
   s_addr_sg = NULL;
   s_scr = wt_screen(parent, tr(STR_S_SP_BADGE), tr(STR_R_S));
   wt_chrome_head(s_scr);
+  // Keep the title out of the help target at the right edge. This mirrors the
+  // fingerprint header: both put the same 54px target at x=715.
+  wt_title_fit(s_scr, 640);
   // The longer tsp1 full view can make LVGL auto-scroll a default container
   // to its newest child, shifting the fixed 800x480 composition off-screen.
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -643,8 +646,8 @@ static void sp_addr_open(lv_obj_t *parent) {
                         kiss_testnet() ? 1 : 0,
                         on_net_line());
 
-  s_sp_back_pill = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sp_back_cb, NULL);
-  s_sp_toggle_pill = wt_arrow_action(s_scr, tr(STR_R_SP_SHOW_FULL), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, sp_toggle_cb, NULL);
+  wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sp_back_cb, NULL);
+  s_sp_toggle_act = wt_arrow_action(s_scr, tr(STR_R_SP_SHOW_FULL), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, sp_toggle_cb, NULL);
   s_sp_addr_hit = lv_obj_create(s_scr);
   lv_obj_remove_style_all(s_sp_addr_hit);
   lv_obj_set_style_radius(s_sp_addr_hit, 8, 0);
@@ -1454,7 +1457,7 @@ static void recv_detail_open(void) {
   s_rctx.pane = wt_pane_new(&s_rctx);
   recv_tab_build();
 
-  // Three arrows, the pill bar's three positions. VERIFY is the primary and
+  // Three arrows, the action row's three positions. VERIFY is the primary and
   // takes the accent on its LABEL as well: there is no filled primary left to
   // give it, and none is wanted -- a fill is a box.
   wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X, WT_ACTION_Y,

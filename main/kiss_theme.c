@@ -525,7 +525,8 @@ void wt_title_fit(lv_obj_t *scr, int w)
     // whichever locale happened to be long. The sans ladder is 34 -> 28 ->
     // 23, as it has always been.
     //
-    // The tracking shrinks with the size for the same reason pill labels do:
+    // The tracking shrinks with the size for the same reason it always has
+    // on fitted labels:
     // 3px between letters is presence at the top rung and lost width below.
     static const int space[3] = { 3, 2, 2 };
     const lv_font_t *cur = lv_obj_get_style_text_font(cap, 0);
@@ -568,9 +569,9 @@ void wt_sub_fit(lv_obj_t *scr, int w)
 // action row and never has to be remembered.
 //
 // Created ONCE and never re-raised. LVGL paints in tree order, so the bar lands
-// above everything built before the first action pill and below every pill
+// above everything built before the row's first control and below every control
 // built after it, which is the stacking this wants. Raising it again on the
-// second pill would put it over the first one. It also means anything a screen
+// second control would put it over the first one. It also means anything a screen
 // deliberately draws INSIDE the band after its buttons, such as the build
 // identity line along the bottom edge of Settings, still draws on top of the
 // bar rather than being swallowed by it.
@@ -633,8 +634,8 @@ static void action_bar_ensure(lv_obj_t *scr)
 // The device has no haptics, so a press can only be answered optically, and
 // until now the whole answer was the background changing colour instantly.
 //
-// Two more style properties carry the rest. The pill translates 2px down while
-// held, so it reads as pushed in; and an outline ring travels between the pill
+// Two more style properties carry the rest. The control translates 2px down
+// while held, so it reads as pushed in; and an outline ring travels between its
 // edge and 10px outside it, opaque at the pressed end and invisible at the
 // resting end. Pressing pulls the ring in as it appears, releasing pushes it
 // back out as it fades -- an optical tick at each end of the tap.
@@ -724,8 +725,8 @@ lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
     return round_chip(parent, "?", x, y, color, cb, ud);
 }
 
-// Two spaces, not one: at a pill's tracking a single space let the icon crowd
-// the first letter and the pair read as one damaged glyph.
+// Two spaces, not one: at the labels' tracking a single space let the icon
+// crowd the first letter and the pair read as one damaged glyph.
 void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
 {
     snprintf(out, out_len, "%s  %s", icon, txt);
@@ -741,7 +742,7 @@ void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
 // State hangs off the bar so several could coexist, freed on DELETE, so a
 // screen torn down mid-slide leaves nothing.
 typedef struct {
-    lv_obj_t *pill, *fill;
+    lv_obj_t *fill;
     int w;
     int x0;               // the press's screen x; travel measures from here
     int at;               // the drag's current travel, for the release test
@@ -884,8 +885,6 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     // bubble out of the bar, or dragging the confirm would turn the page
     // under it.
     lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    h->pill = p;
-
     // The label swaps between its word and KEEP SLIDING mid-drag, so the
     // mono rung is taken only when BOTH fit the face -- a font swap on a
     // held control would make the track jump under the finger.
@@ -2413,7 +2412,7 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, ud);
 
     // The whole control shifts 5px the way its arrow points. Not a sink: the
-    // pill's 2px drop reads as a button being pushed into the page, and this
+    // tap feedback's 2px drop reads as a button being pushed into the page, and this
     // is not a button -- it is a direction, so the feedback is movement along
     // it. A style transition so a released press reverses rather than snaps.
     {
@@ -2548,6 +2547,10 @@ void wt_chrome_head(lv_obj_t *scr)
         lv_obj_set_style_text_letter_space(t, 3, 0);
         lv_obj_set_style_text_color(t, WT_INK, 0);
         lv_obj_set_pos(t, WT_LANE_X, WT_CHROME_TITLE_Y);
+        // wt_screen fitted the sans face it created. Re-fit after changing to
+        // chrome so the full-width case gets the same 28 -> 23 -> 18 ladder as
+        // callers that later narrow the lane around a header control.
+        wt_title_fit(scr, WT_LANE_W);
     }
     wt_title_cursor(scr);
 }
@@ -4787,7 +4790,7 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len)
 #define EXP_COL_W    344
 // Measure against the TEXT lane, not the block. wt_why_block spends 14 on the
 // coloured rule and its gutter, so a measurement taken at the block's own width
-// comes back short and the last line lands under the OK pill. That is not
+// comes back short and the last line lands under the OK action. That is not
 // hypothetical: measuring the full lane at 704 instead of 690 put the silent
 // payment card 19px past WT_CONTENT_BOTTOM in five locales.
 #define EXP_RULE_W   14
@@ -5151,7 +5154,7 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
 
     // Band two: the body. WT_CONTENT_BOTTOM is the floor and everything is
     // measured against what is left above it, so a long translation drops a font
-    // size instead of running under the OK pill.
+    // size instead of running under the OK action.
     if (e->body && *e->body) {
         int room = WT_CONTENT_BOTTOM - y;
         if (room < 40) room = 40;

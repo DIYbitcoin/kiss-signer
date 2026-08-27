@@ -75,7 +75,7 @@ static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 
 static int s_quiz_round;
 static int s_quiz_pos;          // word index being asked this round
-static int s_quiz_correct;     // which of the 4 pills is right
+static int s_quiz_correct;     // which of the 4 answers is right
 #ifndef KISS_SIM_WALK
 // Which third each round samples, shuffled. Absent only from the scripted walk,
 // which pins the positions so its taps land; every build a person drives -- the
@@ -308,7 +308,7 @@ static void store_and_finish(void)
         unsigned n = 0;
         for (int i = 0; i < s_nw && n < 24; i++) {
             int k = kiss_lastword_index(s_w[i]);
-            if (k < 0) { n = 0; break; }   // unreachable: every word came off a pill
+            if (k < 0) { n = 0; break; }   // unreachable: every word came off the grid
             s_cidx[n++] = (uint16_t)k;
         }
         // Every index is filled so the bars draw the whole phrase, but the last
@@ -538,7 +538,7 @@ static void quiz_screen(void)
     char buf[96];   // translated prompt, 3 bytes/char worst
 #ifdef KISS_SIM_WALK
     s_quiz_pos = (s_quiz_round * 5) % s_count;   // fixed for scripted taps
-    s_quiz_correct = s_quiz_round;               // round 0 -> pill 0, etc.
+    s_quiz_correct = s_quiz_round;               // round 0 -> answer 0, etc.
 #else
     // One word from each THIRD of the list, not three uniform draws. Uniform
     // with only a no-repeat guard let #6, #7 and #8 come up together, and a
@@ -601,7 +601,7 @@ static void quiz_screen(void)
     }
     // The bottom 180px was empty, per SWEEP-01. A wrong answer already means
     // the paper is wrong, but there was no way back to the words without
-    // leaving setup. This pill takes s_wpage back to 0 and reopens the words
+    // leaving setup. This action takes s_wpage back to 0 and reopens the words
     // screen, same as the wrong-answer path but reached deliberately.
     wt_arrow_action(s_scr, tr(STR_W_QUIZ_SHOW_AGAIN), true, false, 48,
                     WT_ACTION_Y, 300, false, words_go_again_cb, NULL);
@@ -1353,7 +1353,7 @@ static const char *const ENT_MIX_ICONS[] = {
 // rows at hardcoded y, a takeaway label placed by eye -- and it looked like a
 // different device to every other "?" on this one. wt_explain_open IS the
 // explainer: title and badge where wt_screen puts them, a body font measured
-// against the active locale rather than assumed, a dismiss pill, close on a tap
+// against the active locale rather than assumed, a dismiss action, close on a tap
 // anywhere. WT_GRID_ICONS takes the body as one `term: definition` per line and
 // deals it into a badge grid, which is exactly the shape three named sources
 // want and needs no string this file would otherwise have invented.
@@ -1582,7 +1582,7 @@ static void ent_ui_sync(int pct, int reason)
         ent_chip_lit(s_ent_c3, false);
         ent_chip_lit(s_ent_cr, false);
 
-        // The action pill is the discoverable form of "tap anywhere", which
+        // The CAPTURE action is the discoverable form of "tap anywhere", which
         // still works. Disabled until source one is full, because a capture
         // below the gate is refused by camera_spike anyway and a button that
         // silently does nothing reads as a missed touch.
@@ -2057,7 +2057,7 @@ static void dice_commit(void)
 
 static void dice_screen_build(void);
 static void dice_mode_cb(lv_event_t *e);
-// KEEP GOING: back to the keypad WITH the rolls banked. This pill is the whole
+// KEEP GOING: back to the keypad WITH the rolls banked. This action is the whole
 // point of the warning — the old samey screen's only way back went through
 // dice_screen(), which reset the module and silently threw away fifty rolls.
 static void dice_keep_cb(lv_event_t *e) { (void)e; dice_screen_build(); }
@@ -2157,7 +2157,7 @@ static void dice_screen_build(void)
     // The source chooser, on the title's row. It is here and not on the method
     // screen because a fourth choice row does not exist: WT_CHOICE_Y(3) is 402
     // and WT_CONTENT_BOTTOM is 398. The geometry is the first boot language
-    // pill's, moved up to 22 so its 44px clears the subtitle band at 66.
+    // control's, moved up to 22 so its 44px clears the subtitle band at 66.
     wt_title_fit(s_scr, 436);
     for (int i = 0; i < 2; i++) {
         unsigned b = i ? 2u : 6u;
@@ -2405,7 +2405,7 @@ static void entropy_screen(void)
                                     WT_ACT_X, WT_ACTION_Y, 300, false,
                                     sim_entropy_cb, NULL);
     // The sim has no camera and no meter, so the walk would see a permanently
-    // disabled action pill. Show the ready state: it is the one the scripted
+    // disabled CAPTURE. Show the ready state: it is the one the scripted
     // tap exercises, and the frame the docs publish.
     ent_ui_sync(100, ENT_R_OK);
 #else
@@ -2489,8 +2489,8 @@ static void restore_refresh(void)
 
 static void restore_accept_cb(lv_event_t *e)
 {
-    lv_obj_t *pill = lv_event_get_current_target(e);
-    const char *w = lv_label_get_text(lv_obj_get_child(pill, 0));
+    lv_obj_t *act = lv_event_get_current_target(e);
+    const char *w = lv_label_get_text(lv_obj_get_child(act, 0));
     snprintf(s_w[s_nw], sizeof s_w[s_nw], "%s", w);
     s_nw++;
     s_prefix[0] = 0;
@@ -2933,8 +2933,8 @@ static void cards_cksum_open(void)
     kiss_wipe(partial, sizeof partial);
     s_cpage = 0;
     if (s_ncand <= 0) {
-        // Unreachable by construction: every typed word came off the suggest
-        // pills, so the prefix is wordlist words and the count is 128 or 8.
+        // Unreachable by construction: every typed word came off the
+        // suggestions, so the prefix is wordlist words and the count is 128 or 8.
         // Still never a dead branch on a seed path.
         check_screen(false);
         return;
@@ -2953,7 +2953,7 @@ static void cards_cksum_open(void)
         unsigned n = 0;
         for (int i = 0; i < s_nw && n < 24; i++) {
             int k = kiss_lastword_index(s_w[i]);
-            if (k < 0) { n = 0; break; }   // unreachable: every word came off a pill
+            if (k < 0) { n = 0; break; }   // unreachable: every word came off the grid
             s_cidx[n++] = (uint16_t)k;
         }
         kiss_cards_judge(s_cidx, n, &s_cq);
@@ -2970,7 +2970,7 @@ static void cards_cksum_open(void)
 }
 
 // ---- cards: pick the last word ----
-// 4 x 4 pill pages: the 24 word draw fits its 8 candidates on one page, the
+// 4 x 4 word pages: the 24 word draw fits its 8 candidates on one page, the
 // 12 word draw pages its 128 in 8. Every candidate is a real English BIP39
 // word, untranslated on purpose, exactly as the reveal grid shows them.
 #define CARDS_PER_PAGE 16
@@ -3294,14 +3294,14 @@ static void whatseed_count_cb(lv_event_t *e) { (void)e; whatseed_open(count_scre
 static void choose_screen(void)
 {
     mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
-    // The language pill starts at x=560 on the title's row, so the title gets
-    // 496. French, Italian and Portuguese titles reached into it at font34.
+    // The language control sits on the title's row, so the title gets 496.
+    // French, Italian and Portuguese titles reached into it at font34.
     wt_title_fit(s_scr, 496);
-    // A whole sentence on each pill, not the bare word "seed": nobody arrives
+    // A whole sentence on each row, not the bare word "seed": nobody arrives
     // knowing what a seed is, and this is the first screen a new owner ever
     // reaches. STR_W_CREATE_NEW and STR_W_RESTORE_FROM_WORDS keep their short
-    // labels for the Settings-side pills at 190 and 280 wide that also reuse
-    // them; they never lead a new owner in cold, so the shorthand still reads.
+    // labels for the Settings-side actions that also reuse them; they never
+    // lead a new owner in cold, so the shorthand still reads.
     // A ROW per choice. This is the first screen a new owner ever sees, and it
     // was two buttons with two paragraphs floating beside them; which paragraph
     // belonged to which button was left to the reader's eye. A row settles that

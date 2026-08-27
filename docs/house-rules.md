@@ -383,7 +383,7 @@ there.
 ## Motion
 
 **Every tappable thing on this device already moves.** `wt_tap_feedback` sinks
-a pill, a row, a tile and a tab 2px under the finger and rings it in the
+a control, a row, a tile and a tab 2px under the finger and rings it in the
 accent, so the whole UI answers a touch. On top of that the SIGN screen fades
 its lock in, settles its sweep and reveals the signature across the strands;
 the login pops the fingerprint card up and flashes each key as it lands; and

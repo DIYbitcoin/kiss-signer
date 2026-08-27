@@ -675,7 +675,7 @@ static void weak_back_cb(lv_event_t *e) {
 // that passphrase already exist.
 //
 // It is not the warning for an EMPTY passphrase either. That is a legitimate
-// choice with its own screens, and it has its own pill (pp_intro_nopass_cb).
+// choice with its own screens, and it has its own action (pp_intro_nopass_cb).
 static void show_weak_confirm(void) {
   if (s_weak_ovl) return;
   s_weak_ack = true;
@@ -1841,7 +1841,7 @@ static void kb_cb(lv_event_t *e) {
       kiss_wipe(s_first, sizeof s_first);
       show_fingerprint();
     }
-    // Empty, in setup: the same place the NO PASSPHRASE pill goes, and for its
+    // Empty, in setup: the same place the NO PASSPHRASE action goes, and for its
     // reason. There is no secret here to call weak, and the card now refuses
     // rather than asking -- so leaving empty on this arm would have made OK a
     // dead key on a screen where a dead key reads as a missed touch. BACK from
@@ -2049,7 +2049,7 @@ static void pp_intro_go_cb(lv_event_t *e) {
 // passphrase that does not exist and frames a legitimate choice as a mistake.
 //
 // CREATE PASSPHRASE keeps the primary slot, so the default still steers the way
-// it always did. This pill only stops the device lying about the alternative.
+// it always did. This action only stops the device lying about the alternative.
 static void pp_intro_nopass_cb(lv_event_t *e) {
   (void)e;
   lv_obj_delete_async(s_pp_intro);
@@ -2127,7 +2127,7 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
     // wt_why_block adds above the body at font14. Budgeting for two heading
     // lines costs a rung in the locales whose heading fits on one, and that is
     // the safe direction: the alternative is a heading that wraps in Norwegian
-    // and pushes the body through WT_CONTENT_BOTTOM into the pill.
+    // and pushes the body through WT_CONTENT_BOTTOM into the action row.
     const lv_font_t *f = wt_body_font2_head(tr(STR_L_PPINTRO_W1_H), b1,
                                            tr(STR_L_PPINTRO_W2_H), b2,
                                            BW - 14, BH);

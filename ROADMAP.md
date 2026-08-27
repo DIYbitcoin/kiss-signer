@@ -86,8 +86,8 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 |---|---|---|
 | 21 locales, 19 languages | done | Latin, Cyrillic, ja, ko, zh. Spanish and Portuguese have regional variants |
 | Screenshots generated from firmware | done | `tools/gen_docs_shots.sh`, CI fails on drift |
-| Button fit report gates the build | done | `sim/fitcheck.c`, plus the overlap gate's FIT question: `wt_pill_fit` and `wt_note_fit` now say when they gave up and set font14 |
-| Text overlap gate | done | `sim/overlapcheck.c`, eight questions per stop, three shrink-only backlogs, run by `sim/run_overlapcheck.sh` |
+| Text fit report gates the build | done | `sim/fitcheck.c` covers body, title, row and sub-line budgets; overlapcheck's FIT question reports when `wt_note_fit` gives up and sets font14 |
+| Text overlap gate | done | `sim/overlapcheck.c`, nine questions per stop, three shrink-only backlogs, run by `sim/run_overlapcheck.sh` |
 | Accent themes | done | MONO, GREEN, CYPHERPINK, ORANGE. Status colours are never themed |
 | Browser installer | gated | Built and vendored, switched off while a release is staged |
 

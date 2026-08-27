@@ -173,7 +173,7 @@ static lv_obj_t *s_qr_img, *s_part_lbl;
 static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
 static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
-static lv_obj_t *s_ez_pill;
+static lv_obj_t *s_ez_act;
 static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8 hex)
 static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
@@ -264,7 +264,7 @@ static void widgets_drop(void)
     s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
-    s_qr_img = NULL; s_part_lbl = NULL; s_ez_pill = NULL;
+    s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
     // The unsigned and the signed transaction, 13 KB of BSS, live here until
     // the next PSBT happens to overwrite them. kiss_scan wipes the identical
     // bytes on every exit path it has; this file had no wipe of any kind.
@@ -1023,7 +1023,7 @@ static void sign_lock_outputs(void)
     if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_HOLDING);
     if (!s_locked && s_scr) {
         // The mark alone. "LOCKED" has no key, and the word it would borrow is
-        // SIGNED -- which the caption on the left and the pill below already
+        // SIGNED -- which the caption on the left and the control below already
         // say, so spelling it here would put the same word on one screen three
         // times. A padlock over the output column says the destinations are
         // settled, in the same glyph the RBF cell uses for a transaction that
@@ -1087,9 +1087,9 @@ static void hold_abandon(void)
         lv_label_set_text(s_graph_cap, s_graph_cap_rest);
 }
 
-// The fill crossing from the hold's red into the pill's accent, then leaving.
+// The fill crossing from the hold's red into the track's accent, then leaving.
 // It is width 0 at the end either way, so an abandoned hold and a completed one
-// both finish with the pill in its plain fill -- hold_abandon just gets there
+// both finish with the track in its plain fill -- hold_abandon just gets there
 // without the crossing, because nothing was accepted.
 static void sweep_settle_exec(void *var, int32_t v)
 {
@@ -1132,7 +1132,7 @@ static void slide_complete(void)
     // while libwally works would be read as a progress bar for the signing,
     // which is a thing nothing here can time -- so it does not sit. It holds
     // its full width for SWEEP_SETTLE_MS while its fill crosses from the
-    // stop red to the accent the pill is already wearing, and then it is
+    // stop red to the accent the track is already wearing, and then it is
     // gone into that fill rather than deleted out from under the finger.
     //
     // Taking it away in the frame it filled was the complaint from the
@@ -1555,12 +1555,11 @@ static void recip_scroll_cb(lv_event_t *e)
 #define SG_FOOT_RULE 288
 #define SG_FOOT_Y    300
 #define SG_ROW_H      56   // a caution row, on the page the rows now live on
-#define SG_ROW_PILL_W 170
 // SG_ROW_MAX is not geometry and is defined with the reasons it counts, above
 // caution_help_cb, which needs it before this block is reached.
 
 // The caution bar: one row, always, however many reasons there are. 44 is the
-// ack pill (40) plus 2px above and below, the least that still reads as a bar.
+// ack control (40) plus 2px above and below, the least that still reads as a bar.
 //
 // Everything below it moves down, and the 52px has to come from somewhere. It
 // does NOT come from the recipient panel's existence -- that was the defect --
@@ -1628,7 +1627,7 @@ static void recip_scroll_cb(lv_event_t *e)
 // The safety property that mattered is unchanged and is the reason HOLD keeps
 // hard coordinates: it never moves, never changes width and never changes label
 // between the normal and caution screens, so a tap learned on one lands on the
-// same pill on the other.
+// same control on the other.
 
 // A caution row carries its own acknowledgement now, so the answer to "I read
 // it" lives next to the thing being read instead of in the action row. That is
@@ -2122,7 +2121,7 @@ static void verify_screen(lv_obj_t *parent)
     // now differ by 52px of bar -- not by whether the owner is shown where the
     // coins are going.
     //
-    // The single-caution case still acks in place: one reason, one pill, no
+    // The single-caution case still acks in place: one reason, one ack, no
     // navigation, which is the shape most flagged transactions actually have.
     if (np) {
         bool all_done = (s_ack_flags & caution_all_bits(s_sum.caution_flags))
@@ -3323,9 +3322,9 @@ static int qr_enc_start(void)
 // that moves between visits is the thing the duress screens already banned.
 static void ez_sync(void)
 {
-    if (!s_ez_pill) return;
-    lv_obj_t *mark = lv_obj_get_child(s_ez_pill, 0);
-    lv_obj_t *word = lv_obj_get_child(s_ez_pill, 1);
+    if (!s_ez_act) return;
+    lv_obj_t *mark = lv_obj_get_child(s_ez_act, 0);
+    lv_obj_t *word = lv_obj_get_child(s_ez_act, 1);
     lv_obj_set_style_opa(mark, s_qr_ez ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     lv_obj_set_style_text_color(word, s_qr_ez ? wt_accent() : INK_COL, 0);
     if (s_qr_ez) {
@@ -3402,9 +3401,9 @@ static void qr_out_screen(size_t sw)
         s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
     }
     wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
-    s_ez_pill = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
+    s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
                                INK_COL, false, qr_ez_cb, NULL);
-    lv_obj_set_pos(s_ez_pill, 430, 244);
+    lv_obj_set_pos(s_ez_act, 430, 244);
     ez_sync();
     wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,

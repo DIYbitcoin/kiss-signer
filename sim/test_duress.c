@@ -317,7 +317,7 @@ int test_duress(void) {
         stroke_start(); stroke_to(120, 260); stroke_to(700, 250);
         dchk("free: a fruit slice reads as a line", freeclassify() == WDF_LINE);
 
-        // Every shape has a name to put on a pill, and no shape shares one.
+        // Every shape has a name to put on an action, and no shape shares one.
         int named = 1, distinct = 1;
         for (int m = WDF_NONE + 1; m < WDF_N; m++) {
             if (kiss_duress_free_label_key(m) < 0) named = 0;

@@ -878,7 +878,7 @@ void kiss_fw_ui_open(lv_obj_t *parent, void (*done_cb)(void))
     // the walk opens this screen ten times in a row without closing it, and
     // every one of those used to stay parented, invisible, under the next.
     // Two symptoms, both real: the LVGL heap ran down about 10 KB per open,
-    // and pill_for started reporting two controls saying INSTALL, which is a
+    // and act_for started reporting two controls saying INSTALL, which is a
     // walk one tap away from pressing the wrong screen's button.
     if (s_scr) lv_obj_delete(s_scr);
     s_scr = NULL;
