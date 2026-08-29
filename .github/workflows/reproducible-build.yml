@@ -29,6 +29,11 @@
 # The unsigned app is NOT installable: a device checks the signature before it
 # writes an SD update, so it refuses these images. build-*/UNSIGNED is written
 # beside them to say so, and it is uploaded with the artifact deliberately.
+#
+# Both lanes name the toolchain by digest, from tools/idf_image.sh, not by the
+# espressif/idf:v6.0.1 tag. A tag can be repushed, and a rebuild that silently
+# used a different compiler than the one that made the published hashes is the
+# exact failure this job exists to rule out.
 name: reproducible release build
 
 on:

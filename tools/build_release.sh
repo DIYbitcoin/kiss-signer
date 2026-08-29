@@ -20,6 +20,7 @@
 # version string present.
 set -e
 cd "$(dirname "$0")/.."
+. tools/idf_image.sh
 
 # Build state starts clean, every run. A stale UNSIGNED marker from an earlier
 # reproducibility run would abort the publish gate on a freshly signed build --
@@ -114,7 +115,7 @@ docker run --rm \
   -e GIT_CONFIG_COUNT=1 \
   -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project \
-  -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
+  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
   idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 \
   -DKISS_COMMIT="$GIT_REV" build
 

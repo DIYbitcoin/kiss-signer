@@ -46,6 +46,7 @@
 #     never read the seed out of flash
 set -e
 cd "$(dirname "$0")/.."
+. tools/idf_image.sh
 
 if [ -n "$KISS_ENC_REHEARSAL" ]; then
     RECIPE=rehearsal; BUILD_DIR=build-encrypted-rehearsal
@@ -185,7 +186,7 @@ docker run --rm \
   -e GIT_CONFIG_COUNT=1 \
   -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project \
-  -v "$PWD":/project -w /project espressif/idf:v6.0.1 \
+  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
   idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
   -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
 
