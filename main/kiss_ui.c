@@ -303,7 +303,11 @@ void kiss_ui_drop_indev_for_test(void) {
 // nothing.
 static void entry_apply(const char *txt, int chars) {
   (void)chars;
-  lv_obj_set_style_text_font(s_entry, wt_body_font(txt ? txt : "", 704, 40), 0);
+  // _typed: this is the OWNER'S secret, not the product's copy, so the FIT
+  // gate is not told when a 90 character passphrase lands on font14. There is
+  // nothing here anybody can shorten.
+  lv_obj_set_style_text_font(s_entry,
+                             wt_body_font_typed(txt ? txt : "", 704, 40), 0);
   // SHOW means the user has already decided nobody is looking, so showing only
   // the tail buys nothing and hides the half they are trying to check (and the
   // half they are about to backspace through). Wrap instead: 128 chars of

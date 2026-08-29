@@ -82,6 +82,10 @@ const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // so short copy gets the big font; a long translation degrades to the small one
 // instead of overflowing its card. Shorten the copy to get the big size.
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
+// The same ladder with the FIT gate NOT told when it lands on font14. Exactly
+// one caller: the login screen's passphrase echo, where the text is the
+// owner's and not the product's, so "cut the copy" is advice to nobody.
+const lv_font_t *wt_body_font_typed(const char *txt, int w, int max_h);
 
 // screen frame: 800x480 bg + title (accent) + muted subtitle. Returns the screen.
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub);
@@ -327,7 +331,11 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 // It has to be measured HERE, as the label is built. LVGL rewrites the label's
 // own text to insert the dots, so by the time a gate walks the tree the
 // original string is gone and what is left measures exactly one lane wide.
-typedef void (*wt_cut_sink_t)(const char *txt, int want, int lane);
+// `kind` is "sub" or "label": a sub-line and a row label are pinned the same
+// way and cut for the same reason, but they are cut by DIFFERENT lanes, and a
+// finding that does not say which one sends the reader to the wrong string.
+typedef void (*wt_cut_sink_t)(const char *kind, const char *txt,
+                              int want, int lane);
 void wt_cut_set_sink(wt_cut_sink_t fn);
 #endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption

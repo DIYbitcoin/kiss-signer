@@ -51,7 +51,8 @@ bash sim/build_overlapcheck.sh || {
 echo
 st=$(OVERLAPCHECK_SELFTEST=1 "$KISS_SIM_TMP/kissoverlap" 2>&1)
 if [ $? -ne 0 ] ||
-    ! printf '%s\n' "$st" | grep -q 'CUT self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'CUT self test: 4 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'FIT self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected'; then

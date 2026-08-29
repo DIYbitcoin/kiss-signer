@@ -831,9 +831,11 @@ static void oc_check_fit(const char *tag)
         char sig[192], detail[320];
         snprintf(sig, sizeof sig, "FIT|%s|%s", s_fit_kind[i], s_fit_txt[i]);
         snprintf(detail, sizeof detail,
-                 "FIT      wt_%s_fit gave up and set font14 for \"%s\" -- cut the "
+                 "FIT      %s gave up and set font14 for \"%s\" -- cut the "
                  "copy or give the block its budget back, do not accept the size",
-                 s_fit_kind[i], s_fit_txt[i]);
+                 strcmp(s_fit_kind[i], "note") == 0 ? "wt_note_fit"
+                                                    : "wt_body_font",
+                 s_fit_txt[i]);
         oc_report_one(tag, sig, detail);
     }
     s_fit_n = 0;
@@ -964,14 +966,16 @@ static void oc_check_wall(const char *tag)
 // label's 250px cap and the value chip leave behind, and both of those are load
 // bearing. Shrinking the type back is the move this check exists to stop.
 #define OC_CUT_MAX 24
+static char s_cut_kind[OC_CUT_MAX][8];
 static char s_cut_txt[OC_CUT_MAX][96];
 static int  s_cut_want[OC_CUT_MAX];
 static int  s_cut_lane[OC_CUT_MAX];
 static int  s_cut_n;
 
-static void oc_cut_sink(const char *txt, int want, int lane)
+static void oc_cut_sink(const char *kind, const char *txt, int want, int lane)
 {
     if (s_cut_n >= OC_CUT_MAX) return;
+    snprintf(s_cut_kind[s_cut_n], sizeof s_cut_kind[0], "%s", kind ? kind : "?");
     snprintf(s_cut_txt[s_cut_n], sizeof s_cut_txt[0], "%s", txt ? txt : "");
     s_cut_want[s_cut_n] = want;
     s_cut_lane[s_cut_n] = lane;
@@ -985,10 +989,12 @@ static void oc_check_cut(const char *tag)
 {
     char sig[192], detail[320];
     for (int i = 0; i < s_cut_n; i++) {
-        snprintf(sig, sizeof sig, "CUT|%s", s_cut_txt[i]);
+        const bool lab = strcmp(s_cut_kind[i], "label") == 0;
+        snprintf(sig, sizeof sig, "CUT|%s|%s", s_cut_kind[i], s_cut_txt[i]);
         snprintf(detail, sizeof detail,
-                 "CUT      sub-line \"%s\" wants %dpx of a %dpx lane, so it "
+                 "CUT      %s \"%s\" wants %dpx of a %dpx lane, so it "
                  "ships ellipsised -- cut the copy, the lane cannot grow",
+                 lab ? "row label" : "sub-line",
                  s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
         oc_report_one(tag, sig, detail);
     }
@@ -1156,12 +1162,13 @@ static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
 // without proof the check still fires, so this builds a wide row whose sub is
 // far too long for its lane and asserts the sink saw it -- and a second with a
 // short one, so a check that fired on everything would fail too.
-static int oc_selftest_cut(const char *name, const char *sub, bool want_finding)
+static int oc_selftest_cut(const char *name, const char *label,
+                           const char *sub, bool want_finding)
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     s_cut_n = 0;
     wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = "Label",
+        .label = label,
         .sub   = sub,
         .kind  = WT_WIDE_CYCLE,
         .val   = "VALUE",
@@ -1176,18 +1183,61 @@ static int oc_selftest_cut(const char *name, const char *sub, bool want_finding)
     return got == want_finding ? 0 : 1;
 }
 
+// FIT hears wt_body_font now, which is where every tall row's sub-line and
+// every wt_wraph body is sized. Built at the gate's own floor -- 340 wide by
+// 40 tall, just over OC_FIT_BODY_W/H -- so the case proves the report AND the
+// size filter in one shape.
+static int oc_selftest_fit(const char *name, const char *body,
+                           bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    s_fit_n = 0;
+    wt_wraph(scr, body, 48, 118, 340, 40);
+    lv_refr_now(NULL);
+
+    bool got = s_fit_n > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_fit_n,
+           s_fit_n == 1 ? "" : "s");
+    s_fit_n = 0;
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
     int bad = 0;
 
     printf("CUT check self test\n");
-    bad += oc_selftest_cut("a sub far longer than its lane, fires",
+    bad += oc_selftest_cut("a sub far longer than its lane, fires", "Label",
                            "a sub-line so long that no lane on this page could "
                            "ever hold it at font23", true);
-    bad += oc_selftest_cut("a sub that fits, clear", "not encrypted", false);
+    bad += oc_selftest_cut("a sub that fits, clear", "Label",
+                           "not encrypted", false);
+    // The LABEL lane, added the day "Encrypted backup" was found shipping as
+    // "Encrypted ba..." with every gate green: CUT measured the sub-line and
+    // not the 250px label cap beside it, so half this check was missing.
+    bad += oc_selftest_cut("a label far longer than its 250px cap, fires",
+                           "A row label with far too many words in it to fit",
+                           NULL, true);
+    bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
-    else     printf("CUT self test: 2 cases, all as expected\n");
+    else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    printf("FIT check self test\n");
+    // Same standing as CUT and WALL: the FIT sink now hears wt_body_font as
+    // well as wt_note_fit, and a sweep that reports nothing proves nothing
+    // until the new half is shown to fire. A body too long for its box must
+    // report; the same box with short copy must not.
+    bad += oc_selftest_fit("a body too long for its box, fires",
+                           "a body sentence long enough that neither font28 "
+                           "nor font23 can fit it into the box below, which "
+                           "is what drops it to font14 and says nothing",
+                           true);
+    bad += oc_selftest_fit("a body that fits, clear", "short enough", false);
+    if (bad) printf("FIT self test: %d case(s) wrong\n", bad);
+    else     printf("FIT self test: 2 cases, all as expected\n");
     printf("\n");
 
     printf("WALL check self test\n");

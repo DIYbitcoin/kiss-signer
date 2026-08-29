@@ -219,7 +219,41 @@ const lv_font_t *wt_font_mono34(void) { return &font_kiss_mono34; }
 // stop, so it cannot represent a letter even if handed one.
 const lv_font_t *wt_font_num48(void) { return &font_kiss_num48; }
 
-const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
+// The sink from kiss_theme.h. NULL on device and in any host build that has not
+// asked, so this costs a null check on a path that already measured text.
+#ifndef ESP_PLATFORM
+static wt_fit_sink_t s_fit_sink;
+void wt_fit_set_sink(wt_fit_sink_t fn) { s_fit_sink = fn; }
+#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) \
+    do { if (s_fit_sink) s_fit_sink((kind_), (txt_), (w_), (h_)); } while (0)
+
+static wt_cut_sink_t s_cut_sink;
+void wt_cut_set_sink(wt_cut_sink_t fn) { s_cut_sink = fn; }
+// Measured before the label is handed the string, because LVGL replaces the
+// text with the dotted form and the original is unrecoverable afterwards.
+// `ls` is the label's letter spacing, and it is not optional: a row LABEL is
+// drawn at ls 2 and a sub-line at 0, so measuring both at 0 under-reports every
+// label by two pixels a character -- which is most of a word on a 250px lane.
+static void wt_sub_measure(const char *kind, const char *txt,
+                           const lv_font_t *f, int ls, int lane)
+{
+    if (!s_cut_sink || !txt || !*txt) return;
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, ls, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (sz.x > lane) s_cut_sink(kind, txt, (int)sz.x, lane);
+}
+#else
+#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
+#define wt_sub_measure(kind_, txt_, f_, ls_, lane_) ((void)0)
+#endif
+
+// The ladder, without the report. For text that is the OWNER'S and not the
+// product's -- the passphrase echo is the only one -- where landing on font14
+// is the honest answer to a 90 character secret and there is no copy for
+// anybody to cut. A backlog entry cannot cover this: it would have to match the
+// walk's own test passphrase, and real input is whatever somebody types.
+static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
+                                         bool report)
 {
     if (!txt || !*txt)
         return wt_font28();
@@ -235,7 +269,25 @@ const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
     lv_text_get_size(&sz, txt, wt_font23(), 0, 0, w, LV_TEXT_FLAG_NONE);
     if (sz.y <= max_h)
         return wt_font23();
+    // It gave up, so it says so -- the same sink wt_note_fit feeds. This was
+    // the hole: EVERY tall row's sub-line and every wt_wraph body comes
+    // through here, and only the note path was ever reported, so THIS DEVICE,
+    // the audit chooser and the noise-source row all shipped at font14 with
+    // the FIT gate green. The size filter lives in the gate, not here: this
+    // function has no idea whether 24px is a caution row's lane or a thrown
+    // away budget, and the gate does.
+    if (report) WT_FIT_GAVE_UP("body", txt, w, max_h);
     return wt_font14();
+}
+
+const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
+{
+    return body_font_ladder(txt, w, max_h, true);
+}
+
+const lv_font_t *wt_body_font_typed(const char *txt, int w, int max_h)
+{
+    return body_font_ladder(txt, w, max_h, false);
 }
 
 static int s_accent = WT_ACC_MONO;
@@ -301,30 +353,6 @@ void wt_lock_565(int *r5, int *g6, int *b5)
 
 // largest of {23, 14} that fits (defined with wt_note); used by the subtitle too
 static const lv_font_t *note_font(const char *txt, int w, int max_h);
-
-// The sink from kiss_theme.h. NULL on device and in any host build that has not
-// asked, so this costs a null check on a path that already measured text.
-#ifndef ESP_PLATFORM
-static wt_fit_sink_t s_fit_sink;
-void wt_fit_set_sink(wt_fit_sink_t fn) { s_fit_sink = fn; }
-#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) \
-    do { if (s_fit_sink) s_fit_sink((kind_), (txt_), (w_), (h_)); } while (0)
-
-static wt_cut_sink_t s_cut_sink;
-void wt_cut_set_sink(wt_cut_sink_t fn) { s_cut_sink = fn; }
-// Measured before the label is handed the string, because LVGL replaces the
-// text with the dotted form and the original is unrecoverable afterwards.
-static void wt_sub_measure(const char *txt, const lv_font_t *f, int lane)
-{
-    if (!s_cut_sink || !txt || !*txt) return;
-    lv_point_t sz;
-    lv_text_get_size(&sz, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    if (sz.x > lane) s_cut_sink(txt, (int)sz.x, lane);
-}
-#else
-#define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
-#define wt_sub_measure(txt_, f_, lane_) ((void)0)
-#endif
 
 // The card every wallet screen sits inside. Purely decorative: it is the FIRST
 // child, so it draws behind everything, and every screen's absolute coordinates
@@ -2344,7 +2372,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
 
     if (subw) {
         lv_obj_t *sl = wt_lbl(row, sub, 0, 0, sf, WT_DIM);
-        wt_sub_measure(sub, sf, lane);
+        wt_sub_measure("sub", sub, sf, 0, lane);
         lv_obj_set_width(sl, subw);
         lv_obj_set_height(sl, lv_font_get_line_height(sf));
         lv_label_set_long_mode(sl, LV_LABEL_LONG_DOT);
@@ -3338,6 +3366,7 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
         // LONG_DOT only elides once the box stops growing, so a lane without
         // a height is a lane that wraps into the row below it.
         const lv_font_t *cf = chrome23(defs[k].cap);
+        wt_sub_measure("label", defs[k].cap, cf, 2, DEF_CAP_W);
         r->cap = wt_lbl(row, defs[k].cap, 0, 0, cf, WT_MUT);
         lv_obj_set_style_text_letter_space(r->cap, 2, 0);
         lv_obj_set_width(r->cap, DEF_CAP_W);
@@ -3868,6 +3897,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // The label, capped and pinned to one line. Both matter: the cap keeps the
     // label's BOX off the value's, and the pin stops a long translation
     // growing a second line into the sub-line beside it.
+    wt_sub_measure("label", r->label, lf, 2, WT_WIDE_LW);
     lv_obj_t *l = wt_lbl(row, r->label, WT_WIDE_LX, 0, lf, ink);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_width(l, WT_WIDE_LW);
@@ -3880,7 +3910,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         int sx = WT_WIDE_LX + WT_WIDE_LW;    // 268: where the label's box ends
         int sw = lane_end - sx;
         if (sw < 40) sw = 40;
-        wt_sub_measure(r->sub, sf, sw);
+        wt_sub_measure("sub", r->sub, sf, 0, sw);
         lv_obj_t *s = wt_lbl(row, r->sub, sx, 0, sf, subc);
         lv_obj_set_width(s, sw);
         lv_obj_set_height(s, lv_font_get_line_height(sf));
