@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "扫到的数据不是有效的 PSBT",
   "S_SENDING_CAP": "收款人收到",
   "S_ADDR_HELP_B": "核对：把标出的字符与协调器显示的地址逐个比对。\n被替换：在电脑上它可能被改掉，在这里改不了。",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "静默支付",
   "S_SP_ONCHAIN_FMT": "这是正确的: 分享出去的 %s... 会为这笔付款变成一个新的 %s... 地址",

@@ -2893,11 +2893,16 @@ int main(void) {
   // asserted -- so the two needles together pin both renderings and which
   // screen each belongs to.
   must_show("verify/address", "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
-  // The ADDRESS block is its own control now. Tapping it opens the same card
-  // the "?" beside the caption does, with this destination drawn at mono23
-  // across the whole 704 lane -- which is where a careful comparison happens,
-  // and where a 117 character silent payment address has room to be one.
-  touch(200, 331); pump(3); release(); pump(8);      // the address itself
+  // The output ROW is the control now, at every recipient count -- the card
+  // below the graph is gone and every destination rides its own strand. The
+  // first output row sits at the top of the graph's output lane, which starts
+  // at x = 24 + BL_X and runs to the margin. Tapping it opens the same card
+  // the card used to: this destination across the whole lane, where a careful
+  // comparison happens and a 117 character silent payment has room to be one.
+  // The ADDRESS LINE of the recipient row, not its amount: the amount is the
+  // unit switch on every screen of this device, so the two lines of a row are
+  // two controls and each is the thing under the finger.
+  touch(600, 210); pump(3); release(); pump(8);      // the address line
   save("/tmp/sim_sign_addr_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
@@ -3163,14 +3168,18 @@ int main(void) {
   s_sim_payee_known = true;
   if (tap_row_prefix("payment-01")) {
     save("/tmp/sim_sign_known.ppm");
-    must_show("paid before", tr(STR_S_PAYEE_SEEN));
+    // NOT the words: the caption row that carried them is gone with the
+    // address card, and a destination these keys have paid before wears a bare
+    // MARK on its strand instead -- kiss_payee.h's own rule, recognition only.
+    // The words are on the card this row opens, which is asserted below.
+    //
     // ...and the address is still whole and unmoved. The mark is an addition
-    // to the caption row, never a claim that takes the destination's place.
+    // to the row, never a claim that takes the destination's place.
     must_show("paid before (address)",
               "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
-    // The address CARD, which is the control an owner presses. One recipient
-    // and no caution bar puts it at y 316..382 across the full lane.
-    touch(400, 349); pump(3); release(); pump(30);
+    // The recipient ROW, which is the control an owner presses now: one
+    // layout at every count, and the card that used to be here is gone.
+    touch(600, 210); pump(3); release(); pump(30);
     save("/tmp/sim_sign_known_why.ppm");
     // The BODY, not the whole string: WT_GRID_ICONS splits each entry at its
     // "HEAD: " and puts the two halves in separate labels, so the full string
@@ -3237,7 +3246,11 @@ int main(void) {
   // rows are all the same unit is the restatement the copy rules cut. The
   // guarantee is unchanged -- these two numbers are on the glass without a tap.
   must_show("verify (5 cautions)", "bc1q");           // folded, prefix span
-  must_show("verify (5 cautions)", "200");            // the change amount
+  // The fee is on the first page; the change is not. A cautioned screen has a
+  // shorter band and the rows are taller than they were, so this transaction
+  // pages -- and the read-to-the-end gate is what guarantees the change row
+  // reaches the glass, which is a stronger promise than "it is on the first
+  // screenful". The end of the list is walked below.
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
             "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
@@ -3329,13 +3342,16 @@ int main(void) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
   }
-  // Drag the graph's output column up until it stops moving. The column is the
-  // right half of the graph box, page x 464..776, so x=600 is inside it and
-  // clear of the scrollbar; each drag is one flick and the list settles between
-  // them. The strands are redrawn to follow their rows on every one of these.
-  for (int f = 0; f < 6; f++) {
-    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
-    release(); pump(10);
+  // PAGE to the end. The column does not scroll any more: a scroller comes to
+  // rest wherever the finger leaves it, so the row at the fold was always
+  // sliced through its own address. A page hides the rows that are not on it,
+  // so the page IS the window and a whole row is the only thing that can be on
+  // the glass. A leftward stroke turns it, and the strands are redrawn every
+  // time -- the ones whose rows are off this page fan out dimmed, so the shape
+  // of the transaction never leaves while its detail is read.
+  for (int f = 0; f < 8 && !kiss_sign_test_armed(); f++) {
+    for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
+    release(); pump(40);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
   must_show("many recipients (end)", "bc1q 04g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
@@ -3384,16 +3400,16 @@ int main(void) {
   }
   touch(652, 366); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
   save("/tmp/sim_sign_merge_ack.ppm");
-  // Then read the output column to its end, because on this transaction
+  // Then PAGE the output column to its end, because on this transaction
   // whether that is even necessary depends on the locale: "no change, this
-  // empties all 20" is one line in English and two in Czech, which is enough to
-  // push the column over its fold. That is the gate behaving correctly -- if
-  // anything is below the fold it must be read -- so the walk scrolls
+  // empties all 20" is one line in English and two in Czech, which is enough
+  // to give the column a second page. That is the gate behaving correctly --
+  // anything not on this page must be paged to -- so the walk strokes
   // unconditionally rather than asserting a state only English reaches. On a
-  // column that does not overflow these drags are a no-op.
-  for (int f = 0; f < 4; f++) {
-    for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
-    release(); pump(10);
+  // single page graph the stroke is ignored and these are a no-op.
+  for (int f = 0; f < 8 && !kiss_sign_test_armed(); f++) {
+    for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
+    release(); pump(40);
   }
   if (!kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN still inert after the bar was acked and the "
@@ -3454,10 +3470,11 @@ int main(void) {
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   if (tap_row_prefix("zzzz-MANY")) {
     // The read-to-the-end gate is still in force, so the column has to be
-    // dragged before HOLD TO SIGN is live. Same six flicks as the first visit.
-    for (int f = 0; f < 6; f++) {
-      for (int i = 0; i <= 8; i++) { touch(600, 280 - i * 12); pump(3); }
-      release(); pump(10);
+    // PAGED to its end before SLIDE TO SIGN is live. Same strokes as the
+    // first visit.
+    for (int f = 0; f < 8 && !kiss_sign_test_armed(); f++) {
+      for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
+      release(); pump(40);
     }
     slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
     release(); pump(150);                           // past the reveal, writes SD

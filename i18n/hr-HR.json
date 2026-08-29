@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "skenirani podaci nisu valjani PSBT",
   "S_SENDING_CAP": "PRIMATELJ DOBIVA",
   "S_ADDR_HELP_B": "USPOREDI: osvijetljene znakove s adresom koju pokazuje tvoj koordinator.\nZAMIJENJENA: zlonamjeran kod mijenja je na računalu. ovdje ne može.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "tiha uplata",
   "S_SP_ONCHAIN_FMT": "točno: dijeljena %s... postaje nova adresa %s... za ovu uplatu",

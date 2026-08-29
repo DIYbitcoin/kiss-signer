@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "taranan veri geçerli bir PSBT değil",
   "S_SENDING_CAP": "ALICIYA GİDEN",
   "S_ADDR_HELP_B": "KARŞILAŞTIRIN: parlak karakterleri, koordinatörünüzün gösterdiği adresle.\nDEĞİŞTİRİLDİ: kötü yazılım onu bilgisayarda değiştirir. burada değiştiremez.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "sessiz ödeme",
   "S_SP_ONCHAIN_FMT": "doğru: paylaşılan %s... bu ödeme için yeni bir %s... adresine dönüşür",

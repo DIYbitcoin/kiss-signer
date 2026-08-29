@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "dữ liệu quét được không phải PSBT hợp lệ",
   "S_SENDING_CAP": "NGƯỜI NHẬN NHẬN",
   "S_ADDR_HELP_B": "ĐỐI CHIẾU: các ký tự sáng, với địa chỉ bộ điều phối của bạn hiện ra.\nBỊ TRÁO: mã độc đổi được nó trên máy tính. ở đây thì không.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "thanh toán ẩn",
   "S_SP_ONCHAIN_FMT": "đúng rồi: %s... đã chia sẻ trở thành địa chỉ %s... mới cho khoản này",

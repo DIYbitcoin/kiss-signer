@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "отсканированные данные не являются корректным PSBT",
   "S_SENDING_CAP": "ПОЛУЧАТЕЛЬ ПОЛУЧИТ",
   "S_ADDR_HELP_B": "СРАВНИТЕ: подсвеченные знаки с адресом, который показывает координатор.\nПОДМЕНА: вредонос меняет адрес на компьютере. здесь он его не тронет.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "тихий платёж",
   "S_SP_ONCHAIN_FMT": "все верно: общий %s... становится новым адресом %s... для этого платежа",

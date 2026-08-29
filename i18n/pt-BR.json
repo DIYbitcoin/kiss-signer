@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "os dados escaneados não são um PSBT válido",
   "S_SENDING_CAP": "O DESTINATÁRIO RECEBE",
   "S_ADDR_HELP_B": "COMPARE: os caracteres acesos, com o endereço que seu coordenador mostra.\nTROCADO: malware pode mudá-lo no seu computador. aqui não consegue.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "silent payment",
   "S_SP_ONCHAIN_FMT": "correto: o %s... compartilhado vira um novo endereço %s... para este pagamento",

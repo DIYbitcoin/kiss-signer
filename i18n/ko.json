@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "스캔한 데이터는 유효한 PSBT가 아닙니다",
   "S_SENDING_CAP": "받는 사람이 받을 금액",
   "S_ADDR_HELP_B": "대조: 코디네이터가 보이는 주소와 하나씩 맞춰 보세요.\n주소 교체: 컴퓨터에서는 다른 주소가 될 수 있습니다. 여기서는 아닙니다.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "사일런트 페이먼트",
   "S_SP_ONCHAIN_FMT": "정상입니다: 공유한 %s... 가 이 결제용 새 %s... 주소가 됩니다",

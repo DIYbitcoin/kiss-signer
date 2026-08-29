@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "the scanned data is not a valid PSBT",
   "S_SENDING_CAP": "RECIPIENT GETS",
   "S_ADDR_HELP_B": "COMPARE: the lit characters, against the address your coordinator shows.\nSWAPPED: malware can change it on your computer. it cannot change it here.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "silent payment",
   "S_SP_ONCHAIN_FMT": "you were given a %s... address. each payment to it gets its own %s... address, so this one will not match it.",

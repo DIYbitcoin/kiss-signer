@@ -147,6 +147,14 @@ static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
 // list actually has something below the fold; set true immediately when it
 // does not, so the common single-recipient transaction gates on nothing.
 static bool s_recip_seen;
+// Which output page the graph is on. It has to survive repaint_verify(), which
+// rebuilds the graph from scratch on every acknowledgement and on the gate
+// itself -- without this a swipe to page 3 would show page 1 again the moment
+// the slider armed.
+static uint8_t s_out_page;
+// The page counter on the graph's caption line, kept so a page turn can update
+// it without rebuilding the screen under the finger that turned it.
+static lv_obj_t *s_page_lbl;
 // Is the single recipient's address shown whole? Folded by default; the
 // toggle under it opens the rest. Per PSBT, not per session -- it resets
 // wherever s_recip_seen resets, so a new file is always met folded.
@@ -261,7 +269,7 @@ static void widgets_drop(void)
     hold_stop();
     s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
@@ -603,7 +611,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big: the signed screens no
@@ -757,7 +765,7 @@ static void done_screen(const char *outname)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
     // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
     // of the screen and does not fit one line at a readable size. Nothing is
@@ -845,7 +853,7 @@ static void fail_screen(const char *why)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     mk_chrome(parent, tr(STR_S_FAIL_T));
     char trail[96];
     snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
@@ -1444,20 +1452,44 @@ static void repaint_verify(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     verify_screen(s_parent);
 }
 
 // The recipient list reached its end. Once only: scroll events arrive on every
 // frame of the drag, and the repaint that lights HOLD TO SIGN rebuilds the very
 // object this is attached to.
-static void recip_scroll_cb(lv_event_t *e)
+static void recip_page_seen(void)
 {
     if (s_recip_seen) return;
-    if (lv_obj_get_scroll_bottom(lv_event_get_target(e)) > 0)
-        return;                             // still more under the fold
     s_recip_seen = true;
     repaint_verify();
+}
+
+// The stroke that turns the output page. The slider on the same glass takes
+// horizontal strokes too and keeps them: slide_rule_build removes
+// GESTURE_BUBBLE from its own box for exactly this reason, so a drag that
+// starts on the slider never reaches here.
+static void verify_gesture_cb(lv_event_t *e)
+{
+    const int step = wt_swipe_step(e);
+    if (!step || !s_graph) return;
+    const int pages = wt_bundle_pages(s_graph);
+    if (pages <= 1) return;
+    int to = wt_bundle_page(s_graph) + step;
+    if (to < 0 || to >= pages) return;      // the deck ends at both ends
+    s_out_page = (uint8_t)to;
+    wt_bundle_page_set(s_graph, to);
+    // The COUNTER updates in place; the screen is NOT rebuilt for a page turn.
+    // Rebuilding it deletes the object the gesture is still being delivered to,
+    // and the walk hung on the first stroke that did. Only the gate rebuilds,
+    // and only once, because arming the slider is a change to the screen.
+    if (s_page_lbl) {
+        char pc[16];
+        snprintf(pc, sizeof pc, tr(STR_N_PARTS_FMT), to + 1, pages);
+        lv_label_set_text(s_page_lbl, pc);
+    }
+    if (to == pages - 1) recip_page_seen();
 }
 
 
@@ -1613,7 +1645,7 @@ static void repaint_cautions(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     cautions_screen();
 }
 
@@ -1635,7 +1667,7 @@ static void cautions_open_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     s_on_cautions = true;
     cautions_screen();
 }
@@ -2272,12 +2304,15 @@ static void verify_screen(lv_obj_t *parent)
             // the two. With more than one, the graph is the ONLY place an
             // address can appear -- a single line below it could name the first
             // and no other -- so every row carries its own.
+            // EVERY recipient carries its words and its address, at any count.
+            // The single case used to go bare here because the hero above was
+            // its amount and a card below was its address -- and that card is
+            // what made this screen two layouts.
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
-                                          .label = one_recip ? NULL : sbuf,
+                                          .label = sbuf,
                                           .role  = WT_STRAND_SEND,
                                           .known = kiss_payee_seen(s_sum.outs[i].addr),
-                                          .addr  = recipient_n > 1
-                                                   ? s_sum.outs[i].addr : NULL };
+                                          .addr  = s_sum.outs[i].addr };
             // A silent payment used to claim its on-chain address here, in a
             // paragraph under its own row. That row cost the column its last
             // line: amount + paragraph + fee + change is 4 rows in a band that
@@ -2409,11 +2444,54 @@ static void verify_screen(lv_obj_t *parent)
         // instead -- so the graph takes that band back and shows more of them,
         // which is the difference between a column an owner scrolls once and
         // one they scroll four times to clear the read-to-the-end gate.
-        const int gh = np ? SG_GRAPH_H_C
-                     : (recipient_n > 1 ? SG_GRAPH_H_MANY : SG_GRAPH_H);
+        // TWO heights, not three: with a caution bar under it and without.
+        // The third existed only to leave room for the address card below the
+        // graph, and the card is gone -- every destination rides its strand.
+        const int gh = np ? SG_GRAPH_H_C : SG_GRAPH_H;
         lv_obj_t *bg = wt_bundle(s_scr, 24, SG_GRAPH_Y, 752, gh,
                                  in, n_in, out, n_out, max_sats);
         s_graph = bg;
+
+        // The page the owner was on, restored before anything reads the graph:
+        // repaint_verify rebuilds this widget on every acknowledgement and on
+        // the gate itself, and a reader sent back to page 1 by the act of
+        // acknowledging a caution would have to walk the list twice.
+        if (s_out_page) wt_bundle_page_set(bg, s_out_page);
+
+        // The read-to-the-end gate, unchanged in every respect that matters:
+        // the same question, measured the same way, with the same answer. Only
+        // what it is asked OF moved, from a scroll offset to a page number.
+        //
+        // It is why outputs are never elided. A destination folded into a group
+        // strand would be a recipient hidden where no page lists it, which is
+        // the exact failure this gate was built to stop -- one honest
+        // destination on top and a second one under it, signed on a glance.
+        if (wt_bundle_pages(bg) <= 1)
+            s_recip_seen = true;            // nothing hidden: nothing to demand
+
+        // Every output row is the tap target for its own full address. With
+        // several recipients that was reachable from nowhere on this screen.
+        wt_bundle_addr_tap(bg, addr_tap_cb);
+
+        // The page counter, on the caption line the graph already has. "2/3" --
+        // N_PARTS_FMT, digits and a slash, deliberately locale neutral and
+        // already the QR part counter. Declared font14: it is a COUNTER, which
+        // is what that size is for.
+        if (wt_bundle_pages(bg) > 1) {
+            char pc[16];
+            snprintf(pc, sizeof pc, tr(STR_N_PARTS_FMT),
+                     wt_bundle_page(bg) + 1, wt_bundle_pages(bg));
+            lv_obj_t *pl = s_page_lbl = sg_lbl(s_scr, pc, 0, 150,
+                                               wt_font14(), MUT_COL);
+            lv_obj_set_style_text_letter_space(pl, 2, 0);
+            lv_obj_update_layout(pl);
+            // Right-aligned at 738, not 776: the LOCK that marks a signed
+            // graph sits at 748 on this same row, and it is built in a state
+            // this one is not, so a counter measured against the margin lands
+            // on it the moment both appear. 10 clear of it, always.
+            lv_obj_set_x(pl, 738 - lv_obj_get_width(pl));
+            wt_tiny_ok(pl);
+        }
 
         // AFTER the graph, deliberately. The chip's box runs 144..174 and the
         // graph starts at 172, so a chip built before it is two pixels under a
@@ -2440,220 +2518,17 @@ static void verify_screen(lv_obj_t *parent)
             wt_denom_bind(tot);
         }
 
-        // The read-to-the-end gate, unchanged in every respect that matters:
-        // the same question, measured the same way, with the same answer. Only
-        // the object it is asked of moved, from a panel of addresses to the
-        // graph's output column.
+        // NO ADDRESS CARD, at any recipient count. This screen had TWO
+        // geometries: with one recipient the send strand was left deliberately
+        // unlabelled and its address went into an 82px card below the graph;
+        // with several there was no card and every address rode its strand.
+        // Two answers to "where does the money go", and the single case spent
+        // a quarter of the screen on a box holding one line.
         //
-        // It is why outputs are never elided. A destination folded into a group
-        // strand would be a recipient hidden where no scroll can reveal it and
-        // no page lists it, which is the exact failure this gate was built to
-        // stop -- one honest destination on top and a second one under it,
-        // signed on a glance.
-        lv_obj_t *ocol = wt_bundle_outputs(bg);
-        if (!ocol || lv_obj_get_scroll_bottom(ocol) <= 0)
-            s_recip_seen = true;            // nothing hidden: nothing to demand
-        else if (!s_recip_seen)
-            lv_obj_add_event_cb(ocol, recip_scroll_cb, LV_EVENT_SCROLL, NULL);
-
-        // The address, under the graph rather than inside a panel: the strand
-        // above it is where the money goes, and this is the name of the place.
-        // With several recipients the graph runs to 366, so the pair and its
-        // chip sit under it rather than through it. One recipient and the graph
-        // stops at 290, leaving the caption line and the card below it.
-        const int ay = np ? 292 : (recipient_n > 1 ? 372 : 300);
-        // Caption and its "?" on the left, the network and RBF pair right
-        // aligned on the same line, and the address on the whole lane beneath.
-        //
-        // Each "?" sits against the thing it answers, which is the rule this
-        // screen has broken twice: the chip parked at 738 answered RBF while
-        // touching a FULL ADDRESS control, then answered the address while
-        // touching the meta row. The address chip is 8px from the word
-        // "recipient address" now, and the RBF chip is past the end of the pair.
-        // With more than one recipient every address is in its own row above,
-        // so the caption names nothing and goes -- and the address chip goes
-        // with it, because each row is its own control.
-        // The one destination, settled BEFORE the caption row is built. The
-        // chip below reads it and the card behind the "?" reads it again, and
-        // the loop that draws the address itself is further down -- setting it
-        // there left the chip a screen behind, showing the previous
-        // transaction's answer about this one's address.
-        s_addr_known = false;
-        s_addr_help[0] = 0;
-        for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
-                        && i < WPSBT_MAX_OUTS; i++)
-            if (!s_sum.outs[i].is_change) {
-                snprintf(s_addr_help, sizeof s_addr_help, "%s",
-                         s_sum.outs[i].addr);
-                s_addr_known = kiss_payee_seen(s_sum.outs[i].addr);
-                break;
-            }
-
-        if (recipient_n == 1) {
-            lv_obj_t *arow = lv_obj_create(s_scr);
-            lv_obj_remove_style_all(arow);
-            lv_obj_set_pos(arow, 24, ay - 6);
-            lv_obj_set_size(arow, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_remove_flag(arow, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_flex_flow(arow, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_START,
-                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_style_pad_column(arow, 8, 0);
-            // NO CAPTION WORD. "recipient address" labelled the only address
-            // on the screen, in font14, directly above it -- the copy rule's
-            // first cut. What stays on this row is what it is FOR: the
-            // recognition chip when these keys have paid here before, and the
-            // "?" that explains what to compare.
-            // The recognition chip, between the caption and its "?", so the
-            // mark and the thing that explains it are one reach apart. Only
-            // when the destination is known: see kiss_payee.h on why a first
-            // payment is silent.
-            if (s_addr_known) {
-                char kbuf[64];
-                snprintf(kbuf, sizeof kbuf, LV_SYMBOL_REFRESH "  %s",
-                         tr(STR_S_PAYEE_SEEN));
-                wt_chip(arow, kbuf, false);
-            }
-            // NOT the "?" -- that moved onto the card below, where the thing
-            // it explains actually is. With the caption word gone this row is
-            // the recognition chip or nothing, and a lone "?" floating over an
-            // empty line was the first thing the frame showed.
-            //
-            // The row is LV_SIZE_CONTENT, so a chip in it makes it TALLER than
-            // the caption alone -- and it sits directly above the address card.
-            // Parked at a fixed ay - 6 it grew down THROUGH the card's top
-            // edge: 294 plus a 31px chip row is 325 against a card starting at
-            // 316. Measure it and hang it off the card instead, so the row's
-            // BOTTOM is what stays put and the chip rises when it arrives
-            // rather than the card being covered.
-            lv_obj_update_layout(arow);
-            lv_obj_set_y(arow, ay + 16 - lv_obj_get_height(arow) - 6);
-            if (!s_addr_known) lv_obj_add_flag(arow, LV_OBJ_FLAG_HIDDEN);
-        }
-        // RBF's own chip is built AFTER the address, at the end of this block.
-        // The address is a control now and its box is the whole 752 lane; a chip
-        // built before it is an earlier sibling under a later one that covers
-        // the band, so it draws in the right place and every press goes to the
-        // address. That is the third time this file has made exactly this
-        // mistake -- the coins chip under the graph, the caution chip under the
-        // bar, and now this -- and no frame can show any of them, because the
-        // chip is right there and simply does nothing.
-
-        for (int i = 0; recipient_n == 1 && i < (int)s_sum.n_out
-                        && i < WPSBT_MAX_OUTS; i++) {
-            if (s_sum.outs[i].is_change) continue;
-            // THE WHOLE ADDRESS, never a fold, and ONE form for every length.
-            // It used to arrive folded to eight characters with the rest behind
-            // a control labelled FULL ADDRESS -- which reads as a heading and
-            // not as a button, and left the screen whose one job is catching a
-            // swapped destination showing a fifth of the destination.
-            //
-            // Blocked in fours at mono14 with the tail lifted to mono23. The
-            // two measurements that decide this are already recorded on
-            // wt_addr_spans_lift and are the reason it can be one branch
-            // instead of two: grouped at mono14 a 42 character bech32 is 438px
-            // and a 117 character silent payment is 722px, so BOTH are one line
-            // in this 752 lane. The mono23 form they replace was 739px for the
-            // bech32 alone and had no answer at all for the long one except a
-            // second rendering, which meant an owner compared against whichever
-            // of two shapes the transaction happened to produce.
-            //
-            // It also gives the band back. This line, the caption above it and
-            // the meta row below shared the 84px between the graph and the
-            // action bar, and the mono23 line was taking most of it -- which is
-            // what "the address takes the whole bottom" means from the bench.
-            //
-            // Groups of four is what Coldcard and Sparrow both moved to, and
-            // the lift is what keeps the compared run readable at this size.
-            // The whole lane in BOTH layouts: only the CAPTION row has to stop
-            // short of the meta text beside it.
-            // A CARD, and the card is the control -- the same object RECEIVE
-            // draws its address in, at the same font, with the same fold and
-            // the same caption under it. Owner's call, and the point of it is
-            // that the two address screens are one habit rather than two.
-            //
-            // Stated once and left here, because it is the reason this was not
-            // the default: a RECEIVE address is derived on this device and
-            // nobody else picks it, while a destination is chosen by whoever
-            // built the transaction. A fixed prefix and suffix is the pattern
-            // an attacker grinds a lookalike against -- EthClipper, DSN 2022,
-            // arXiv:2108.14004, which measured roughly even odds from matching
-            // about a quarter of the characters. Every character is one tap
-            // away on the card this opens, and the "?" beside the caption says
-            // to compare the lit run.
-            //
-            // Cautioned, the card frame goes and the fold stays. The band
-            // between the graph and the caution bar is 62px and the card is 66:
-            // what a flagged transaction spends its frame budget on is the
-            // flag. Same fold, same font, same target, no box around it.
-            snprintf(s_addr_help, sizeof s_addr_help, "%s", s_sum.outs[i].addr);
-            lv_obj_t *box = s_scr;
-            if (!np) {
-                box = wt_card(s_scr, 24, ay + 16, 752, ADDR_CARD_H);
-                lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
-                wt_tap_feedback(box);
-                lv_obj_add_event_cb(box, addr_tap_cb, LV_EVENT_CLICKED,
-                                    (void *)s_sum.outs[i].addr);
-            }
-            // mono28 on the card, mono23 without one. The destination is the
-            // second thing this screen is about -- the first is how much, and
-            // nothing else here competes -- so it takes the rung under the
-            // hero rather than sharing the graph's. Cautioned there is no card:
-            // that band is 62px and belongs to the flag, and the fold stays at
-            // mono23 in it. The fold is the same in both, so the run being
-            // compared is the same run at either size.
-            // mono34 on the card, mono23 without one. The destination is what
-            // an attacker substitutes and what the owner reads character by
-            // character, so it takes the room the caption under it gave back.
-            // Cautioned there is no card: that band is 62px and belongs to the
-            // flag, and the fold stays at mono23 in it. The fold is the same
-            // shape at either size, so the run being compared is the same run.
-            lv_obj_t *ad = wt_addr_short(box, s_sum.outs[i].addr,
-                                         np ? wt_font_mono23()
-                                            : wt_font_mono34());
-            if (np) {
-                lv_obj_set_pos(ad, 24, ay + 18);
-                lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
-                lv_obj_set_ext_click_area(ad, 8);
-                lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
-                                    (void *)s_sum.outs[i].addr);
-                break;
-            }
-            // The "?" ON THE CARD, at its top right corner: it explains what
-            // to compare, and the thing to compare is inside this box. It sat
-            // on the caption line above until the caption's word was cut, and
-            // then it was a mark floating over nothing.
-            // The "?" at the card's top right, and NO caption under the fold.
-            // "compare lit characters" sat directly beneath a chip that opens
-            // a page saying the same thing at length: two teachers, one
-            // lesson, on the screen with the least room. The line stays at the
-            // three sites where it is the ONLY teacher -- the card this chip
-            // opens, RECEIVE's own address, and the KEYS first-address row --
-            // and none of those has a chip beside it.
-            if (!np) wt_help_chip(box, 752 - 30 - 12, 8, MUT_COL,
-                                  addr_help_cb, NULL);
-            // Centred in the fixed height card, the same arithmetic
-            // recv_refresh uses -- one element now instead of two, and the
-            // room the caption gave up goes into the fold itself.
-            lv_obj_update_layout(ad);
-            int ah = lv_obj_get_height(ad);
-            int top = (ADDR_CARD_H - ah) / 2;
-            if (top < 8) top = 8;
-            lv_obj_set_pos(ad, 14, top);
-            break;
-        }
-
-        // NO RBF CHIP AND NO META ROW. The pair below the graph read
-        // "TESTNET, practice coins  ·  <REPLACEABL...>" -- ellipsised in
-        // ENGLISH, at HEAD, with nothing added -- plus a third "?" of its own.
-        // Both halves are already stated where a reader who wants them looks:
-        // RBF is a flag row on DETAILS > TRANSACTION with the same "?" card
-        // behind it, and the network is a badge in this screen's header now,
-        // the idiom KEYS and RECEIVE already use.
-        //
-        // The band it held goes to the address card, which is the one thing on
-        // this screen an attacker has to change and the one an owner has to
-        // read character by character.
+        // One layout now: every recipient rides its own strand, the graph takes
+        // the band the card held, and a row is the tap target for its own full
+        // address -- which with several recipients was reachable from nowhere
+        // on this screen before.
     }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
@@ -2674,6 +2549,10 @@ static void verify_screen(lv_obj_t *parent)
                                  SG_DETAILS_X, WT_ACTION_Y, 150, false,
                                  details_open_cb, NULL);
     s_inert[2] = NULL;
+
+    // The stroke that turns the output page, watched on the screen. A graph
+    // with one page ignores it, so an ordinary transaction gains no gesture.
+    wt_swipe_watch(s_scr, verify_gesture_cb);
 
     // The slide itself: the kit's rule shape -- the word, its arrow, a thin
     // track under them -- with a square KNOB riding the track. The accent
@@ -2786,7 +2665,7 @@ static void glossary_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
 
     wt_card(s_scr, 24, 88, 752, 290);
@@ -3203,7 +3082,7 @@ static void details_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     // No subtitle: the tab strip owns that band now, and the file name is on
     // the verify screen this deck was opened from and returns to.
     mk_screen(s_parent, tr(STR_S_DETAILS), NULL);
@@ -3311,7 +3190,7 @@ static void qr_out_screen(size_t sw)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
 
     s_qr_ez = false;
     s_out_len = sw;
@@ -3400,6 +3279,7 @@ static void file_tap_cb(lv_event_t *e)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
+    s_out_page   = 0;                      // ...from the first page of them
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = opened_signed;
@@ -3503,7 +3383,7 @@ static void rm_repaint(void)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     rm_screen();
 }
 
@@ -3629,7 +3509,7 @@ static void rm_open_cb(lv_event_t *e)
     hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL;
+    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
     rm_screen();
 }
 
@@ -3818,6 +3698,7 @@ static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
     s_ack = false;                         // fresh PSBT: re-acknowledge any caution
     s_ack_flags = 0;
     s_recip_seen = false;                  // ...and read its destinations again
+    s_out_page   = 0;                      // ...from the first page of them
     s_on_cautions = false;
     s_ack_t0 = 0;
     s_cur_signed = false;

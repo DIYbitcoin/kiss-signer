@@ -522,6 +522,26 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
 // The graph owns the strands; the caller owns what the answer means.
 lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 
+// The output column PAGES rather than scrolls. A free scroller comes to rest
+// wherever the finger leaves it, so the row at the fold is sliced through its
+// own address -- the defect RECEIVE's ALL ADDRESSES fixed by paging, and the
+// graph never got the same treatment. Boundaries are measured, not counted:
+// a page ends where the next row would not fit whole, which is the only answer
+// that survives a content-sized row and a silent payment's paragraph.
+//
+// One page is the ordinary case: wt_bundle_pages returns 1, there is no foot to
+// draw and nothing is hidden, so a caller's read-to-the-end gate is satisfied
+// on sight.
+int  wt_bundle_pages(lv_obj_t *bundle);
+int  wt_bundle_page(lv_obj_t *bundle);
+void wt_bundle_page_set(lv_obj_t *bundle, int page);   // clamps, then relinks
+
+// Make every output row carrying an address the tap target for its own full
+// form. `cb` receives that row's address as its user data. With several
+// recipients there was no way to reach a full address from the verify screen
+// at all: the card that was the target only ever existed for one.
+void wt_bundle_addr_tap(lv_obj_t *bundle, lv_event_cb_t cb);
+
 // What the graph is doing.
 //
 //   LIVE     the transaction as verified, waiting for a decision.

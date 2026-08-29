@@ -5947,9 +5947,17 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 // strand one pixel off the junction is a group strand drawn solid, which reads
 // as one coin -- the exact thing the dash exists to deny.
 #define BMARG   12
-#define BJ_X   330
-#define BO_X   430
-#define BL_X   440
+// The junction, and where the output lane starts. Moved LEFT by 40 the day
+// every destination started carrying its address: an output row is an amount,
+// a label and a folded address, an input row is an amount, and the split
+// should say so. 312px could not hold the fold at mono18 and cut it a
+// character short of the lit run -- which is the run being compared.
+//
+// The inputs keep more than they use: their lane is clamped to BLANE_MAX 206
+// and the junction is at 290, so there is 84px of slack on that side.
+#define BJ_X   290
+#define BO_X   390
+#define BL_X   400
 #define BJ_R     5
 // The lane the input amounts are right aligned in, measured from the widest of
 // them and clamped. 104 is frame 2c's lane, 206 is frame 3a's, where the group
@@ -5986,12 +5994,28 @@ typedef struct {
     uint16_t            n_in;
     lv_obj_t           *dot;      // the junction, which grows with the hold
     // The output side, and what it takes to redraw its strands when it moves.
-    lv_obj_t           *col;      // the scrolling output column, NULL if fixed
+    lv_obj_t           *col;      // the PAGED output column, NULL if fixed
     lv_obj_t           *sbox;     // clips the output strands to the graph band
     lv_obj_t           *row[WT_BUNDLE_MAX];   // one per output, in column order
     uint16_t            n_out;
     uint16_t            out0;     // index in line[] where the outputs start
     int16_t             jy;       // the junction, in box coordinates
+    // PAGES, not a scroll. A free scroller comes to rest wherever the finger
+    // leaves it, so the row at the fold is sliced through its own address --
+    // which is the defect RECEIVE's ALL ADDRESSES fixed by paging, in the words
+    // "the page IS the window, so nothing can come to rest cut through its own
+    // caption any more". Boundaries are MEASURED rather than counted: rows are
+    // content sized and a silent payment row is a paragraph, so a page ends
+    // where the next row would not fit whole.
+    int16_t             ptop[WT_BUNDLE_MAX];  // scroll offset of each page
+    uint8_t             prow[WT_BUNDLE_MAX];  // first row index on each page
+    uint8_t             npage, page;
+    int16_t             bh;       // the graph band's height, for the fan below
+    // Each output's destination, kept so a caller can make the ROW the tap
+    // target for its own full address. The pointers are the caller's and
+    // outlive the build, exactly as wt_strand_t.addr already promises.
+    const char         *addr[WT_BUNDLE_MAX];
+    lv_obj_t           *fold[WT_BUNDLE_MAX];  // the address line, the control
 } wt_bundle_t;
 
 // lv_line_set_points stores the POINTER, not a copy (see kiss_word_ui.c:82 for
@@ -6124,6 +6148,21 @@ static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
 // to the edge would be worse than either -- the strand would appear to arrive
 // somewhere its row is not, which is the one thing a line between two facts may
 // never do. So it is drawn to the true position and cut where it leaves.
+// THE FAN STAYS WHOLE. A strand aimed at a row that is not on this page used to
+// be clipped at the graph's edge and simply vanish, so seven outputs drew four
+// strands and the reader could not tell that was not all of them. The picture
+// is the thing this device has that Coldcard, Passport, Jade and Trezor do not
+// -- they step one output per screen and never draw the flow -- so losing it
+// mid-read gives away the only advantage.
+//
+// Every output gets a strand on every page now. An ON-PAGE strand ends at its
+// row, in full ink. An OFF-PAGE one ends at an evenly spaced point on the
+// band's right edge, the same BMARG..h-BMARG distribution the INPUT side
+// already uses, drawn at the resting mute.
+//
+// Thickness never changes between the two, and that is what makes this legal:
+// wt_bundle is handed max_sats for the WHOLE transaction precisely so a strand
+// means the same thing whatever is on screen.
 static void bundle_relink(wt_bundle_t *b)
 {
     if (!b->col) return;
@@ -6131,11 +6170,25 @@ static void bundle_relink(wt_bundle_t *b)
     // Row positions are box coordinates; the strands live in sbox, which is the
     // graph BAND with no padding, so everything crossing over loses BPAD.
     const int cy = lv_obj_get_y(b->col) - BPAD;
+    const int band = b->bh > 0 ? b->bh : 1;
     for (uint16_t i = 0; i < b->n_out; i++) {
         lv_obj_t *ln = b->line[b->out0 + i];
         lv_obj_t *rw = b->row[i];
         if (!ln || !rw) continue;
-        const int ry = cy - sy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
+        // On this page means DRAWN. A page hides the rows that are not on it
+        // rather than scrolling past them, because a scrolled column still
+        // shows the top of the next row -- which is the slice this whole change
+        // exists to remove. Asking the row is exact where asking its geometry
+        // was a guess.
+        const bool on = !lv_obj_has_flag(rw, LV_OBJ_FLAG_HIDDEN);
+        int ry;
+        if (on) {
+            ry = cy - sy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
+        } else {
+            ry = b->n_out < 2 ? band / 2
+               : BMARG + (int)i * (band - 2 * BMARG) / (int)(b->n_out - 1);
+        }
+        lv_obj_set_style_line_opa(ln, on ? LV_OPA_COVER : 90, 0);
         lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
         int npts = BSEG;
         if (ry == b->jy) {
@@ -6149,9 +6202,69 @@ static void bundle_relink(wt_bundle_t *b)
     }
 }
 
-static void bundle_scroll_cb(lv_event_t *e)
+static wt_bundle_t *bundle_state(lv_obj_t *bundle);
+
+// The page API. wt_bundle_page_set is the only way the column moves now: the
+// column is not scrollable, so there is no free offset for anything else to
+// leave it at.
+int wt_bundle_pages(lv_obj_t *bundle)
 {
-    bundle_relink(lv_event_get_user_data(e));
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    return b && b->npage ? b->npage : 1;
+}
+
+int wt_bundle_page(lv_obj_t *bundle)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    return b ? b->page : 0;
+}
+
+// Make every output row that carries an address the tap target for it. With
+// several recipients there was no way to reach a full address from the verify
+// screen at all -- the card that was the target only ever existed for one.
+void wt_bundle_addr_tap(lv_obj_t *bundle, lv_event_cb_t cb)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b || !cb) return;
+    // On the ADDRESS LINE, not the whole row. The row's other line is the
+    // amount, and every amount on this device is already a control: tapping
+    // one flips sats and BTC across the whole device. A handler on the row
+    // would have been shadowed by that on the half of it a finger is most
+    // likely to land on, which is exactly what happened -- the press flipped
+    // the unit and the card never opened.
+    //
+    // Two lines, two controls, and each one is the thing under the finger.
+    for (uint16_t i = 0; i < b->n_out; i++) {
+        if (!b->fold[i] || !b->addr[i]) continue;
+        lv_obj_add_flag(b->fold[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(b->fold[i], 8);
+        lv_obj_set_style_translate_x(b->fold[i], 0, 0);
+        lv_obj_set_style_translate_x(b->fold[i], 4, LV_STATE_PRESSED);
+        lv_obj_add_event_cb(b->fold[i], cb, LV_EVENT_CLICKED,
+                            (void *)b->addr[i]);
+    }
+}
+
+// A page HIDES the rows that are not on it. Scrolling to a boundary was the
+// first attempt and it does not work: a scrolled column still draws the top of
+// the next row, which is the slice this change exists to remove. Hidden rows
+// leave the flex column laying out only what is on the page, from the top, so
+// the page genuinely IS the window.
+void wt_bundle_page_set(lv_obj_t *bundle, int page)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b || !b->col || !b->npage) return;
+    if (page < 0) page = 0;
+    if (page >= b->npage) page = b->npage - 1;
+    b->page = (uint8_t)page;
+    const uint16_t first = b->prow[b->page], last = (uint16_t)b->ptop[b->page];
+    for (uint16_t i = 0; i < b->n_out; i++) {
+        if (!b->row[i]) continue;
+        if (i >= first && i <= last) lv_obj_remove_flag(b->row[i], LV_OBJ_FLAG_HIDDEN);
+        else                         lv_obj_add_flag(b->row[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_update_layout(b->col);
+    bundle_relink(b);
 }
 
 lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
@@ -6281,9 +6394,14 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     // says a second thing about itself. Their real positions are read back
     // after layout, which is also what makes the strands correct while
     // scrolling.
+    // The pitch is set in TWO PASSES, because a row's height is not knowable
+    // until it is built: a row is an amount, and now also a label and a folded
+    // address, and a silent payment row is a paragraph on top of that. Pass one
+    // builds with no gap; pass two measures what was built and distributes the
+    // slack. Assuming one mono23 line here -- which is what this did -- spread
+    // two-line rows across a band they then overflowed, and the last
+    // destination fell onto a second page of a three-output transaction.
     const int row_h = out_lh;
-    int pitch = (n_out < 2) ? row_h : (h - 2 * BMARG) / (int)(n_out - 1);
-    if (pitch < row_h + 4) pitch = row_h + 4;      // uniform, and it will scroll
     b->out0 = b->n_line;
     b->n_out = (uint16_t)n_out;
     b->jy    = (int16_t)(jy - BPAD);      // sbox coordinates
@@ -6320,7 +6438,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     lv_obj_set_pos(col, BL_X, BPAD + BMARG - row_h / 2);
     lv_obj_set_size(col, w - BL_X, h + row_h - 2 * BMARG);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(col, pitch - row_h, 0);
+    lv_obj_set_style_pad_row(col, 0, 0);           // pass two sets the real gap
     lv_obj_set_scroll_dir(col, LV_DIR_VER);
     lv_obj_set_style_width(col, 5, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_color(col, WT_MUT, LV_PART_SCROLLBAR);
@@ -6407,8 +6525,13 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         //
         // Same habit on every screen that shows a destination, which is the
         // whole reason the single-recipient card folds too.
-        if (out[i].addr)
-            wt_addr_short(row, out[i].addr, wt_font_mono14());
+        // mono18, up a rung from 14. The band grew by the height of the
+        // address card it replaced, so a row can afford the size the thing it
+        // carries is read at -- character by character, against a coordinator.
+        if (out[i].addr) {
+            b->fold[i] = wt_addr_short(row, out[i].addr, wt_font_mono18());
+            b->addr[i] = out[i].addr;
+        }
         b->n_line++;
     }
 
@@ -6417,12 +6540,62 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     // answer. MODE_ON rather than AUTO for the same reason the panel used it --
     // a list with more below the fold must not look identical to one that ends
     // there.
+    // PASS TWO: the rows exist, so their real height is knowable, and both the
+    // gap and the page boundaries come off it. A row is an amount, a label and
+    // a folded address, and a silent payment row is a paragraph on top of that
+    // -- assuming one mono23 line here, which is what this did, spread two-line
+    // rows across a band they then overflowed.
     lv_obj_update_layout(col);
-    const bool overflows = lv_obj_get_scroll_bottom(col) > 0;
-    lv_obj_set_scrollbar_mode(col, overflows ? LV_SCROLLBAR_MODE_ON
-                                             : LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_event_cb(col, bundle_scroll_cb, LV_EVENT_SCROLL, b);
-    bundle_relink(b);
+    b->bh    = (int16_t)h;
+    b->page  = 0;
+    b->npage = 0;
+    {
+        const int colh = lv_obj_get_height(col);
+        const int gap  = 10;
+        int content = 0;
+        for (uint16_t i = 0; i < b->n_out; i++)
+            if (b->row[i]) content += lv_obj_get_height(b->row[i]) + gap;
+        content -= content ? gap : 0;
+
+        // Cut a page where the next row would not fit WHOLE. At least one row
+        // per page whatever its height: a paragraph taller than the band still
+        // has to be reachable, and a page holding nothing would never advance.
+        // prow is the first row on each page, ptop the last.
+        uint16_t i = 0;
+        while (i < b->n_out && b->npage < WT_BUNDLE_MAX) {
+            const uint16_t first = i;
+            int used = 0;
+            b->prow[b->npage] = (uint8_t)i;
+            while (i < b->n_out) {
+                const int rh  = b->row[i] ? lv_obj_get_height(b->row[i]) : 0;
+                const int add = used ? gap + rh : rh;
+                if (i > first && used + add > colh) break;
+                used += add;
+                i++;
+            }
+            b->ptop[b->npage] = (int16_t)(i - 1);
+            b->npage++;
+        }
+        if (!b->npage) b->npage = 1;
+
+        // Everything fits: distribute the slack so three destinations read as a
+        // list down the band rather than bunched at its top.
+        if (b->npage == 1 && n_out > 1) {
+            int g = (colh - content) / (int)(n_out - 1) + gap;
+            if (g > 28) g = 28;             // a list, not a scatter
+            if (g < 6)  g = 6;
+            lv_obj_set_style_pad_row(col, g, 0);
+        } else {
+            lv_obj_set_style_pad_row(col, gap, 0);
+        }
+    }
+
+    // NOT SCROLLABLE. The point of paging is that a finger cannot leave the
+    // column resting between two rows, and leaving the flag on is exactly how
+    // it would.
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(col, LV_SCROLLBAR_MODE_OFF);
+    wt_bundle_page_set(box, 0);
 
     // The junction, last, so it sits over every strand that reaches it. A dot
     // rather than a joint: the strands genuinely meet here, and a gap where

@@ -413,7 +413,6 @@
   "S_SCAN_NOT_PSBT": "de scannede data er ikke en gyldig PSBT",
   "S_SENDING_CAP": "MODTAGEREN FÅR",
   "S_ADDR_HELP_B": "SAMMENLIGN: de oplyste tegn, med adressen din koordinator viser.\nBYTTET: skadelig kode kan ændre den på computeren. her kan den ikke.",
-  "S_PAYEE_SEEN": "paid before",
   "S_PAYEE_HELP": "PAID BEFORE: these keys have signed to this exact address already. a first payment shows nothing here.",
   "S_SP_BADGE": "stille betaling",
   "S_SP_ONCHAIN_FMT": "korrekt: den delte %s... bliver til en ny %s... adresse for denne betaling",
