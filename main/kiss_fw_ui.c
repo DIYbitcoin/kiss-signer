@@ -347,10 +347,27 @@ static void where_help_cb(lv_event_t *e)
     wt_explain_open(s_scr, &x);
 }
 
+// The row's tap, without the arrow wt_line_row draws for a cb. Same press
+// rail, same handler; only the second mark goes.
+static void fw_row_tap(lv_obj_t *row, lv_event_cb_t cb)
+{
+    lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(row, cb, LV_EVENT_CLICKED, NULL);
+    wt_line_press(row);
+}
+
 // The "?" that says the row under it is a question with an answer. Placed off
 // the CAPTION's measured width, so it stays beside the words in every locale
 // instead of at a hand-picked x that only English lands on.
-static void fw_mark_after_cap(lv_obj_t *row)
+//
+// A REAL CHIP, and the row's arrow is gone. It was a 19px wt_help_mark -- a
+// sign, by its own contract, that takes no taps and leaves them to the row --
+// beside a full-size arrow that opened the same explainer. Two controls, one
+// action, and the bench read it exactly that way: "there is a tiny as question
+// mark to tap but when seemingly tapped it just goes to the same place the
+// arrow goes too". So there is one mark now, it is the 30px chip the rest of
+// the device uses for "this is a question", and the whole row still opens it.
+static void fw_mark_after_cap(lv_obj_t *row, lv_event_cb_t cb)
 {
     lv_obj_t *cap = NULL;
     lv_obj_update_layout(row);
@@ -362,12 +379,13 @@ static void fw_mark_after_cap(lv_obj_t *row)
     }
     if (!cap) return;
     lv_obj_update_layout(row);
-    // Centred on the caption, measured rather than nudged. The mark is 19px
+    // Centred on the caption, measured rather than nudged. The chip is 30px
     // and the caption is whatever rung the kit is on this week -- it was
     // font14 when this was written and is font23 now, and a hand offset that
     // looked right against the first sat 8px high against the second.
-    wt_help_mark(row, WT_LINE_PAD + lv_obj_get_width(cap) + 10,
-                 WT_LINE_CAP_Y + (lv_obj_get_height(cap) - 19) / 2);
+    lv_obj_t *chip = wt_help_chip(row, 0, 0, wt_accent(), cb, NULL);
+    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + 10,
+                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - 30) / 2);
 }
 
 // ---- 5. the verdict --------------------------------------------------------
@@ -735,11 +753,16 @@ static void nothing_to_install(int rc)
     // screen this replaces printed the whole "where the file goes" explainer
     // beside the refusal, which is the wall of text its own comment said it
     // was trying to avoid.
+    // No cb to wt_line_row: the arrow it would draw says the same thing the
+    // "?" beside the caption already says, and one action never gets two
+    // marks. The row still takes the tap -- wt_line_press and the handler are
+    // added by hand below the chip.
     lv_obj_t *row = wt_line_row(s_scr, FW_X, 282, FW_W, FW_ROW_H,
                                 tr(STR_G_FW_WHERE_CAP),
                                 tr(STR_G_FW_WHERE_SHORT), wt_font23(), WT_INK,
-                                NULL, NULL, where_help_cb, NULL);
-    fw_mark_after_cap(row);
+                                NULL, NULL, NULL, NULL);
+    fw_row_tap(row, where_help_cb);
+    fw_mark_after_cap(row, where_help_cb);
     fw_enter(row, 260, 190);
     fw_rule_in(282 + FW_ROW_H, 300);
 }
@@ -854,9 +877,9 @@ static void fw_screen(void)
     // already translated on the confirm screen.
     lv_obj_t *r2 = wt_line_row(s_scr, FW_X, FW_ROW2_Y, FW_W, FW_ROW_H,
                                tr(STR_G_FW_ROW_SIG), tr(STR_G_FW_SIG_PROMISE),
-                               wt_font28(), WT_INK, NULL, NULL,
-                               sig_row_help_cb, NULL);
-    fw_mark_after_cap(r2);
+                               wt_font28(), WT_INK, NULL, NULL, NULL, NULL);
+    fw_row_tap(r2, sig_row_help_cb);
+    fw_mark_after_cap(r2, sig_row_help_cb);
     fw_enter(r2, 260, 232);
     fw_rule_in(FW_ROW2_Y + FW_ROW_H, 342);
 

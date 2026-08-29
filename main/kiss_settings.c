@@ -728,17 +728,32 @@ static void help_open_cb(lv_event_t *e)
     const int rh = lv_font_get_line_height(pf);
     const int h  = 16 + hh + 12 + 3 * rh + 2 * 10 + 16;
 
-    // Sized to its content and then floated so its FEET land clear of the
-    // action row, rather than pinned to the drawing's y. The kit's type is
-    // bigger than the prototype's, so the same three rows need a taller box,
-    // and a box measured downward from a fixed top would cross 398.
-    lv_obj_t *box = wt_overlay_box(s_scr, &s_help, 250, WT_CONTENT_BOTTOM - 6 - h,
-                                   480, h, 12, help_close_cb);
+    // CENTRED, both ways, and WIDER. It was 480 wide starting at x=250, which
+    // put it 250..730 on an 800px screen -- off centre by 90px -- and left the
+    // note beside each type a 268px lane, so "older apps accept it" shipped as
+    // "older apps accep...". Both came back from the bench in one breath: "it
+    // is not centered and not all text can be read its cutoff".
+    //
+    // 640 wide at x=80 is centred by construction, and the extra 160px all
+    // goes to the note lane, which is the half of the card that answers WHICH
+    // ONE. Vertically it sits in the middle of the content area rather than
+    // hanging by its feet off the action row.
+    const int W = 640, X = (800 - W) / 2;
+    const int Y = WT_LANE_Y + (WT_CONTENT_BOTTOM - WT_LANE_Y - h) / 2;
+    lv_obj_t *box = wt_overlay_box(s_scr, &s_help, X, Y, W, h, 12,
+                                   help_close_cb);
 
     wt_lbl(box, tr(STR_I_BIP_T), 20, 16, hf, WT_INK);
-    lv_obj_t *cl = wt_lbl(box, tr(STR_I_BIP_CLOSE), 0, 0, nf, WT_MUT);
-    lv_obj_set_style_text_letter_space(cl, 1, 0);
-    lv_obj_align(cl, LV_ALIGN_TOP_RIGHT, -20, 16 + (hh - lv_font_get_line_height(nf)) / 2);
+    // CLOSE IS A CONTROL. It was a bare label with no handler at all, so the
+    // one word on the card that says how to leave did nothing when pressed --
+    // "CLOSE does not actually work and one has to tap away from popup". A
+    // word action, mark trailing, on the same callback the scrim carries.
+    lv_obj_t *cl = wt_word_action(box, NULL, tr(STR_I_BIP_CLOSE), false,
+                                  WT_MUT, false, help_close_cb, NULL);
+    lv_obj_update_layout(cl);
+    lv_obj_align(cl, LV_ALIGN_TOP_RIGHT, -20,
+                 16 + (hh - lv_obj_get_height(cl)) / 2);
+    lv_obj_set_ext_click_area(cl, 10);
 
     int y = 16 + hh + 12;
     for (int i = 0; i < 3; i++) {
@@ -754,7 +769,7 @@ static void help_open_cb(lv_event_t *e)
         wt_lbl(box, type_prefix(SC[i], kiss_testnet()), 20 + 76, y, pf,
                best ? WT_INK : WT_MUT);
         lv_obj_t *nt = wt_lbl(box, tr(NOTE[i]), 20 + 76 + 96, y, nf, c);
-        lv_obj_set_width(nt, 480 - (20 + 76 + 96) - 20);
+        lv_obj_set_width(nt, W - (20 + 76 + 96) - 20);
         lv_obj_set_height(nt, lv_font_get_line_height(nf));
         lv_label_set_long_mode(nt, LV_LABEL_LONG_DOT);
         y += rh + 10;
@@ -1605,17 +1620,12 @@ static void tab_signer(void)
 {
     int sc = kiss_script(), tn = kiss_testnet();
 
-    // "Native SegWit · BIP84": the name a reader met in their coordinator, and
-    // the number the rest of the world calls it by. Composed rather than
-    // translated -- a BIP number is not a word, and the middle dot is already
-    // in every font this device ships.
-    static const char *const BIPNO[3] = { "84", "49", "44" };   // by WSCRIPT_*
-    char tsub[64];
-    // No spaces around the middle dot: the mono face gives the dot a full
-    // cell either way, and the two cells the spaces spent are exactly what
-    // "Native SegWit" needs to keep its BIP number out of the ellipsis.
-    snprintf(tsub, sizeof tsub, "%s\xC2\xB7" "BIP%s", type_name(sc),
-             BIPNO[sc >= 0 && sc < 3 ? sc : 0]);
+    // NO BIP NUMBER on the row. It was composed here as "Native SegWit·BIP84",
+    // and the card behind the "?" beside it already names all three by number
+    // -- so the row was carrying the card's content in a lane that had to
+    // ellipsise to hold it. The bench worked this out in the middle of the
+    // sentence: "the BIP84 beside Native Segwit can be moved to the question
+    // mark popup... wait it already is so just remove that text".
 
     char unit[16];
     const char *u = wt_denom_unit();
@@ -1637,8 +1647,8 @@ static void tab_signer(void)
         // The address PREFIX is the value. That is the way round it has to
         // be, not a preference: bc1 is what an owner sees in their
         // coordinator, and "Native SegWit" is the name for it.
-        { .cap = tr(STR_I_ROW_TYPE), .val = type_prefix(sc, tn), .sub = tsub,
-          .mark = LV_SYMBOL_LOOP, .go = type_cb },
+        { .cap = tr(STR_I_ROW_TYPE), .val = type_prefix(sc, tn),
+          .sub = type_name(sc), .mark = LV_SYMBOL_LOOP, .go = type_cb },
         // No sub: "amount in sats or BTC" restated the SATS value beside it.
         { .cap = tr(STR_I_ROW_DENOM), .val = unit,
           .mark = LV_SYMBOL_LOOP, .go = denom_cb },
@@ -1852,17 +1862,10 @@ static void tab_noundo(void)
         lv_obj_set_style_text_color(ch, WT_STOP_INK, 0);
         lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
     }
-    lv_obj_update_layout(btn);
-    const int bw = lv_obj_get_width(btn);
-
-    // BOUNDED. It sat beside the button with no width and ran off the card's
-    // right edge the moment the claim pair took the room the old paragraph had.
-    lv_obj_t *cap = wt_lbl(card, tr(STR_I_ERASE_CAP), 24 + bw + 14, 0,
-                           wt_font23(), WT_MUT);
-    lv_obj_set_width(cap, WT_WIDE_W - (24 + bw + 14) - 24);
-    lv_obj_set_height(cap, lv_font_get_line_height(wt_font23()));
-    lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-    lv_obj_set_y(cap, byy + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2);
+    // No caption beside the button. It read "nothing else here erases", which
+    // explains the page's OTHER FOUR TABS from inside the fifth -- and the
+    // bench asked what it was even saying. The two claim blocks above say what
+    // this tab does; nothing on it needs to speak for the rest of the page.
 }
 
 // The group the strip is pointing at, drawn into whatever pane is current.

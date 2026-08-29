@@ -1139,14 +1139,16 @@ static void pop_toggle_cb(lv_event_t *e) { (void)e; pop_open(); }
 
 static void path_help_cb(lv_event_t *e) {
   (void)e;
-  // The explainer already exists and already says "m/...: the branch your
-  // coordinator wallet follows to find your keys." KEYS' ADDRESS TYPE line
-  // opens the same one. A second explainer for the same value would be the
-  // device teaching one lesson twice.
+  // The PATH's own explainer. This opened the ADDRESS TYPE card, on the
+  // reasoning that the card's second line mentions "m/...". It does, in
+  // passing, under a heading about something else -- so a reader who tapped
+  // the "?" beside a derivation path got a page titled ADDRESS TYPE, and the
+  // bench asked exactly why: "there is no bitcoin simple explainer, it
+  // explains fucking ADDRESS TYPE". Two values, two questions, two cards.
   wt_explain_t x = {
-      .title  = tr(STR_I_SEC_TYPE),
+      .title  = tr(STR_R_PATH_H),
       .icon   = LV_SYMBOL_DIRECTORY,
-      .body   = tr(STR_I_H_TYPE_B),
+      .body   = tr(STR_R_PATH_B),
       .ok_txt = tr(STR_C_OK),
   };
   wt_explain_open(s_scr, &x);
@@ -1335,7 +1337,12 @@ static void recv_tab_build(void) {
     lv_obj_add_event_cb(ph, path_help_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_set_style_translate_x(ph, 0, 0);
     lv_obj_set_style_translate_x(ph, 4, LV_STATE_PRESSED);
-    wt_help_mark(ph, RECV_COL_W - 19 - 2, 7);
+    // A 30px CHIP, not the 19px sign. wt_help_mark is a mark on a target you
+    // cannot miss; this one sits at the bottom of a column beside an address,
+    // and it came back from the bench as "tiny ass question mark (make it
+    // bigger)". The whole line still takes the tap -- the chip is the sign
+    // that says so, at the size the rest of the device signs a question.
+    wt_help_chip(ph, RECV_COL_W - 30 - 2, 2, wt_accent(), path_help_cb, NULL);
     s_path_lbl = wt_lbl(ph, "", 0, 0, wt_font_mono18(), WT_DIM);
 
     recv_refresh();

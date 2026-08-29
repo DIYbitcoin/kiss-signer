@@ -993,7 +993,12 @@ static void wtab_paper(void)
         rows = 3;
     }
 
-    wt_group_note(w_pane, rows, tr(STR_I_EXPL_BACKUP));
+    // No group note. It read "Only a check here proves your paper is right",
+    // and it is not true in the way it sounds: the check compares WORDS, and
+    // the fingerprint the page was framing underneath proves nothing about a
+    // page of them. The bench said so directly -- "no one is checking
+    // fingerprint to prove paper is right, they are checking seed words".
+    (void)rows;
 
     // WHICH keys, in the band the two rows leave under them. Every row in this
     // group is about a set of keys and none of them says whose; the

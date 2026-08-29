@@ -3481,6 +3481,12 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                        - (r->val_x + vs.x + 16);
             if (lane > 40) {
                 const lv_font_t *sf = chrome23(defs[k].sub);
+                // Measured, like every other pinned one-liner. This lane was
+                // the LAST unmeasured one, and it found "forgets every s..."
+                // the same hour it was added: the def sub's lane is what the
+                // value and its mark leave behind, so a longer VALUE (ENABLED
+                // to DISABLED) shortens it under copy that fitted a moment ago.
+                wt_sub_measure("sub", defs[k].sub, sf, 0, lane);
                 r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf,
                                 col_or(defs[k].sub_col, WT_DIM));
                 lv_obj_set_width(r->sub, lane);

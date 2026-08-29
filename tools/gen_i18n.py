@@ -147,6 +147,10 @@ UNTRANSLATED_OK = {
     # The SILENT tab's fact lines. Born under the English-only rule; English
     # in the other twenty until the sweep.
     "R_SP_FRESH", "R_SP_PRIV",
+    # The derivation path explainer. The "?" beside the path on RECEIVE opened
+    # the ADDRESS TYPE card, which answers a different question and left the
+    # bench asking why. Born under the English-only rule.
+    "R_PATH_H", "R_PATH_B",
     "W_COIN_VERIFY_NOTE",
     # KEF backup strings: born under the English-only rule (translation is one
     # sweep AFTER the UI stops moving), so the other twenty carry the English

@@ -4269,10 +4269,13 @@ int main(void) {
   set_tab(SET_SIGNER);
   def_cycle(3, 1, 1);                               // NATIVE -> LEGACY
   save("/tmp/sim_settings_legacy.ppm");             // the row reads 1... / Legacy
-  must_show("type legacy", "BIP44");
+  // The NAME, not the BIP number. The number left the row's sub for the card
+  // behind the "?" beside it, which already named all three -- so the row was
+  // holding the card's content in a lane that had to ellipsise to fit it.
+  must_show("type legacy", tr(STR_S_TY_LEGACY));
   def_cycle(3, 1, 1);                               // -> NESTED
   save("/tmp/sim_settings_nested.ppm");             // 3..., the middle rung
-  must_show("type nested", "BIP49");
+  must_show("type nested", tr(STR_S_TY_NESTED));
   def_cycle(3, 1, 1);                               // -> back to NATIVE
 
   // The "?" after the address type VALUE, and the card behind it: what the
@@ -4298,6 +4301,26 @@ int main(void) {
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
   must_show("bip card", tr(STR_I_BIP_T));
+  // Both notes in full: the card was 480 wide and off centre, and its note
+  // lane ellipsised the middle option to "older apps accep...". This is the
+  // assertion that says the widened card actually fixed it.
+  must_show("bip note 49", tr(STR_I_BIP_49_NOTE));
+  must_show("bip note 84", tr(STR_I_BIP_84_NOTE));
+  // CLOSE, which was a bare label with no handler -- "CLOSE does not actually
+  // work and one has to tap away from popup". Tapping the word must dismiss
+  // the card on its own now, so the walk leaves this way and comes back to
+  // leave by the scrim.
+  tap_str(STR_I_BIP_CLOSE, 3, 8);
+  must_not_show("bip card closed by CLOSE", tr(STR_I_BIP_T));
+  {
+    lv_point_t vs, ms;
+    lv_text_get_size(&vs, "tb1\xE2\x80\xA6", wt_chrome28("tb1\xE2\x80\xA6"),
+                     0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
+    pump(3); release(); pump(8);
+  }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
 
   // THEME is the breathing dot on the action band now: what a theme pick
