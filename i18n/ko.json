@@ -783,6 +783,7 @@
   "S_BUNDLE_NOCHANGE_FMT": "잔돈 없음, %u개 전부 씁니다",
   "S_ALL_SIGNED_FMT": "%u개 전부 서명 완료",
   "I_ROW_DENOM": "Denomination",
+  "I_DENOM_SUB": "or tap an amount",
   "I_WAYSIN_SHORT": "what opens your real keys",
   "I_HIST_SHORT": "settings and what it has seen",
   "I_AUDIT_SUB": "what this signer can prove",

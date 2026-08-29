@@ -783,6 +783,7 @@
   "S_BUNDLE_NOCHANGE_FMT": "kein Wechselgeld, das leert alle %u",
   "S_ALL_SIGNED_FMT": "ALLE %u MÜNZEN SIGNIERT",
   "I_ROW_DENOM": "Denomination",
+  "I_DENOM_SUB": "or tap an amount",
   "I_WAYSIN_SHORT": "what opens your real keys",
   "I_HIST_SHORT": "settings and what it has seen",
   "I_AUDIT_SUB": "what this signer can prove",

@@ -3788,16 +3788,28 @@ lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
     // the sub's BOX even when their pixels never touch -- the same by-box
     // overlap wt_row_wide_help documents. The sub is right aligned, so it
     // gives the chip room from its left edge and nothing moves.
-    if (r->sub) {
-        int w = lv_obj_get_width(r->sub) - (14 + 30 + 10 - 16);
-        if (w > 40) lv_obj_set_width(r->sub, w);
-    }
     // Past the CYCLE MARK, when there is one. The mark moved out of the pinned
     // right lane and into the space immediately after the value, which is
     // where this chip already stood -- so on the one row that has both (address
     // type) the loop was drawn underneath the "?" and vanished. The mark comes
     // first because it belongs to the VALUE; the chip explains the idea.
     const int mx = r->cyc ? r->mark_w + 10 : 0;
+    // ...and the sub yields the mark's width as well. The shrink below was
+    // written for a chip sitting straight after the value and was never told
+    // the chip had moved right past the loop, so on the ONE row that has both
+    // the sub's box still reached back under it -- reported as "Native SegWit"
+    // and "?" sharing 8px the moment the SIGNER tab lost a row and the lane
+    // grew enough for the text to reach that far.
+    if (r->sub) {
+        // LAID OUT FIRST. lv_obj_get_width on a label whose width was set a
+        // moment ago and never laid out returns 0, so `w > 40` was false and
+        // this whole shrink has been a no-op since it was written -- which is
+        // why the "?" sat inside the sub's box on the one row that has both,
+        // reported as "Native SegWit" and "?" sharing 8x18.
+        lv_obj_update_layout(r->sub);
+        int w = lv_obj_get_width(r->sub) - (14 + 30 + 10 - 16) - mx;
+        if (w > 40) lv_obj_set_width(r->sub, w);
+    }
     lv_obj_t *chip = wt_help_chip(r->row, 0, 0, wt_accent(), cb, ud);
     lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + 14 + mx, 0);
     return chip;
@@ -4916,6 +4928,37 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 // picked its font from whichever body had more BYTES, and a longer string that
 // happens to wrap short chose a size the shorter one could not survive. Italian
 // went 7px past WT_CONTENT_BOTTOM the moment a translation changed length.
+// The caution mark a warn why-block's heading wears, in ONE place: the block
+// that draws it and the sizer that has to allow for it must agree to the
+// pixel, and they are 100 lines apart. Returns false when the marked string
+// would not fit the buffer, in which case the heading goes unmarked and both
+// callers agree on that too.
+static bool why_head_marked(const char *head, char *buf, size_t len)
+{
+    // A heading that ALREADY leads with a glyph keeps it. Several do -- the
+    // erase card's pair is a bin and a sheet of paper, written into the
+    // strings -- and a caution mark stacked in front of one is two marks
+    // saying different things about the same claim. The house rule is a mark
+    // before the words, not marks.
+    //
+    // The SYMS glyphs are private-use codepoints, so every one of them starts
+    // with a byte above 0x7F and no translated heading does.
+    if ((unsigned char)*head > 0x7F) return false;
+    return snprintf(buf, len, "#F2B84B " LV_SYMBOL_WARNING "# %s", head)
+           < (int)len;
+}
+
+// The same string as it is DRAWN: glyph, space, heading, no markup. Measuring
+// the marked-up one instead is measuring nine characters of "#F2B84B " and a
+// closing "#" that never reach the glass -- 126px of them at font23, which
+// wrapped every heading it was asked about and silently took the mark back off
+// the screen it had just been added to.
+static bool why_head_plain(const char *head, char *buf, size_t len)
+{
+    if ((unsigned char)*head > 0x7F) return false;
+    return snprintf(buf, len, LV_SYMBOL_WARNING " %s", head) < (int)len;
+}
+
 const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
 {
     const lv_font_t *fa = wt_body_font(a, w, max_h);
@@ -4992,11 +5035,53 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
     // The heading is optional. A block split out of an existing explainer
     // paragraph has no heading to give it, and inventing one would mean a new
     // string in twenty one locales for decoration.
+    // A CAUTION block wears the mark. The amber rule down its left edge says
+    // "caution" only to somebody who already knows the palette, and the house
+    // rule is that amber is a MARK colour -- the words take the ink or the
+    // accent, and the warning glyph is what carries the colour. CHECK YOUR
+    // BACKUP had the rule and no mark, and the bench read the block as
+    // ordinary prose: "there should be a caution icon there then no??".
+    //
+    // Here, so no screen has to remember. Every warn block on the device gets
+    // one from this line, and an accent block gets nothing -- it is not a
+    // caution and a mark would say it was.
+    //
+    // Wrapped in a recolour run rather than drawn as a second object, which is
+    // the same answer wt_state_chip reached and for the same reasons: a
+    // separate label has to be measured and positioned into a wrapping
+    // heading, and a spangroup is not an lv_label, so everything that finds a
+    // control by its text stops finding it. The raw text still CONTAINS the
+    // heading, so walk assertions are unaffected.
     int by = 0;
     if (head && *head) {
-        lv_obj_t *h = wt_lbl(box, head, 14, 0,
-                             wt_why_head_font(f ? f : wt_body_font(body, w - 14, max_h)),
-                             WT_INK);
+        char marked[256];
+        const char *ht = head;
+        const lv_font_t *hfont =
+            wt_why_head_font(f ? f : wt_body_font(body, w - 14, max_h));
+        if (lv_color_eq(col, WT_WARN) && why_head_marked(head, marked, sizeof marked)) {
+            // ONLY IF IT IS FREE. The block's font was already chosen against
+            // the UNMARKED heading -- by wt_body_font2_head, one screen over,
+            // which cannot know which of a pair is the caution because it is
+            // not always the second (the duress screen puts WT_WARN on the
+            // left). So the mark is not allowed to change the answer: if it
+            // pushes the heading onto another line, it goes.
+            //
+            // Measured, both ways, at the font actually being used. Telling
+            // the sizer to allow for a mark everywhere was tried first and
+            // cost three separate blocks a rung -- it traded one 12px overflow
+            // for three font14 bodies, which is the worse half of the same
+            // trade this file spends most of its length arguing about.
+            char plain[256];
+            lv_point_t bare, mk;
+            lv_text_get_size(&bare, head, hfont, 0, 0, w - 14, LV_TEXT_FLAG_NONE);
+            if (why_head_plain(head, plain, sizeof plain)) {
+                lv_text_get_size(&mk, plain, hfont, 0, 0, w - 14,
+                                 LV_TEXT_FLAG_NONE);
+                if (mk.y <= bare.y) ht = marked;
+            }
+        }
+        lv_obj_t *h = wt_lbl(box, ht, 14, 0, hfont, WT_INK);
+        if (ht == marked) lv_label_set_recolor(h, true);
         lv_obj_set_width(h, w - 14);
         lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
         lv_obj_update_layout(h);

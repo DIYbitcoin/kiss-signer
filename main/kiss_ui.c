@@ -2447,8 +2447,22 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // a longer version string or a dirty commit suffix extends row one and leaves
   // the status facts below exactly where they were. On one row that argument
   // does not apply, since there is nothing under them to push.
-  lv_label_set_text_fmt(w, "encryption: %s", enc ? "ON" : "OFF");
-  lv_obj_set_style_text_color(w, enc ? MUT_COL : wt_ink_for(WT_WARN), 0);
+  // The STATE carries the amber, and it brings a mark with it. The whole line
+  // used to turn the accent when encryption was off, which is the amber rule
+  // applied too literally: that rule moves amber off SENTENCES, and "OFF" is
+  // not a sentence, it is a one word status exactly like the network badge
+  // above it. Painting the caption as well made the fact louder than the
+  // version beside it while saying nothing a reader could act on.
+  //
+  // So: caption in the corner's own mut, glyph and state in amber, and nothing
+  // at all when it is ON -- a satisfied condition is not news. Recoloured
+  // rather than split into three labels, the same answer wt_state_chip reached,
+  // so the line stays ONE object with the words still in its raw text.
+  lv_label_set_recolor(w, true);
+  if (enc) lv_label_set_text(w, "encryption: ON");
+  else     lv_label_set_text(w, "#F2B84B " LV_SYMBOL_WARNING "# encryption: "
+                                "#F2B84B OFF#");
+  lv_obj_set_style_text_color(w, MUT_COL, 0);
   if (stacked) {
     // Row two, and the version keeps row one to ITSELF. Encryption was tried up
     // there beside it and the gate caught what the arithmetic missed: a DEV

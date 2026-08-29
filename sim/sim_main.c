@@ -3687,7 +3687,7 @@ int main(void) {
   // 50, not 6: the def list runs the KEYS entry stagger on a fresh open, and
   // six frames photographs rows part faded and a sub mid travel.
   touch(670, 240); pump(3); release(); pump(50);    // Settings tile
-  save("/tmp/sim_settings.ppm");                    // SIGNER: network, type, denomination
+  save("/tmp/sim_settings.ppm");                    // SIGNER: network and address type
   // The deck: on a page whose tabs hold no pages, a stroke IS a tab step.
   // Left onto SECURITY and right back, so both directions are exercised on
   // the page with the most tabs.
@@ -3697,7 +3697,7 @@ int main(void) {
   save("/tmp/sim_settings_swipe.ppm");
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("settings/swipe back to signer", tr(STR_I_ROW_DENOM));
+  must_show("settings/swipe back to signer", tr(STR_G_MAINNET_NOTE));
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_security.ppm");           // duress unset: amber row + dot
   set_tab(SET_BACKUP);
@@ -3902,7 +3902,7 @@ int main(void) {
   // which is gone; capacity and what is on the card belong with the build id
   // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  def_row(2, 1);                                     // This device -> the facts
+  def_row(3, 2);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -3940,7 +3940,7 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(2, 1);
+  def_row(3, 2);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
@@ -4238,7 +4238,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(2, 0);                                    // Firmware -> the update screen
+  def_row(3, 1);                                    // Firmware -> the update screen
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
@@ -4260,16 +4260,16 @@ int main(void) {
   // "?" below is where all three are named at once, which is the job the list
   // was really doing.
   set_tab(SET_SIGNER);
-  def_cycle(3, 1, 1);                               // NATIVE -> LEGACY
+  def_cycle(2, 1, 1);                               // NATIVE -> LEGACY
   save("/tmp/sim_settings_legacy.ppm");             // the row reads 1... / Legacy
   // The NAME, not the BIP number. The number left the row's sub for the card
   // behind the "?" beside it, which already named all three -- so the row was
   // holding the card's content in a lane that had to ellipsise to fit it.
   must_show("type legacy", tr(STR_S_TY_LEGACY));
-  def_cycle(3, 1, 1);                               // -> NESTED
+  def_cycle(2, 1, 1);                               // -> NESTED
   save("/tmp/sim_settings_nested.ppm");             // 3..., the middle rung
   must_show("type nested", tr(STR_S_TY_NESTED));
-  def_cycle(3, 1, 1);                               // -> back to NATIVE
+  def_cycle(2, 1, 1);                               // -> back to NATIVE
 
   // The "?" after the address type VALUE, and the card behind it: what the
   // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
@@ -4289,7 +4289,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
     pump(3); release(); pump(8);
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
@@ -4311,7 +4311,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
     pump(3); release(); pump(8);
   }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
@@ -4340,27 +4340,32 @@ int main(void) {
   // catch for you -- so the chip's own name is the only thing that separates
   // them, and the walk photographs each one.
   set_tab(SET_SIGNER);
-  def_cycle(3, 0, 1);                               // -> TESTNET
+  def_cycle(2, 0, 1);                               // -> TESTNET
   save("/tmp/sim_settings_tn_first.ppm");           // amber row, amber value
   must_show("net testnet", tr(STR_G_TESTNET_NOTE));
   // SIGNET next, because it is the option that had never existed: the chip,
   // the sub line and the home badge are the only three places on the device
   // that can tell it from TESTNET at all.
-  def_cycle(3, 0, 1);                               // -> SIGNET
+  def_cycle(2, 0, 1);                               // -> SIGNET
   save("/tmp/sim_settings_signet.ppm");             // the value reads SIGNET
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  def_cycle(3, 0, 2);                               // SIGNET -> MAINNET -> TESTNET
+  def_cycle(2, 0, 2);                               // SIGNET -> MAINNET -> TESTNET
   save("/tmp/sim_settings_tn.ppm");
 
-  // DENOMINATION: two values, and the row every other pick on this page was
-  // eventually rebuilt to match. Flipped and flipped back, because the
-  // sats/BTC choice reaches every amount the sign screen draws.
-  def_go(3, 2);
+  // DENOMINATION: two values, flipped and flipped back, because the sats/BTC
+  // choice reaches every amount the sign screen draws.
+  //
+  // On the DEVICE tab, row 0. It moved off SIGNER, where it was ranked equal
+  // to which chain the coins are on -- and back to SIGNER afterwards, because
+  // everything below this point drives that tab.
+  set_tab(SET_DEVICE);
+  def_go(3, 0);
   save("/tmp/sim_settings_btc.ppm");                // the value reads BTC
   must_show("denomination", "BTC");
-  def_go(3, 2);                                     // back to SATS
+  def_go(3, 0);                                     // back to SATS
+  set_tab(SET_SIGNER);
 
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
@@ -4404,7 +4409,7 @@ int main(void) {
   // been photographing a test network in silence -- caught only when the
   // KEYS hint stop below became the first CHECK on this leg. Tap until the
   // device itself says mainnet, and say so loudly if it never does.
-  for (int i = 0; i < 4 && kiss_testnet(); i++) def_go(3, 0);
+  for (int i = 0; i < 4 && kiss_testnet(); i++) def_go(2, 0);
   if (kiss_testnet()) { fprintf(stderr, "FAIL: network never reached mainnet\n"); exit(1); }
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
@@ -5173,7 +5178,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(2, 0);                                    // Firmware
+  def_row(3, 1);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");

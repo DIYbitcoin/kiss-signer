@@ -1670,14 +1670,7 @@ static void tab_signer(void)
     // sentence: "the BIP84 beside Native Segwit can be moved to the question
     // mark popup... wait it already is so just remove that text".
 
-    char unit[16];
-    const char *u = wt_denom_unit();
-    size_t ui = 0;
-    for (; u[ui] && ui + 1 < sizeof unit; ui++)
-        unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
-    unit[ui] = 0;
-
-    wt_def_t defs[3] = {
+    wt_def_t defs[2] = {
         // Amber on both test networks, in the value AND the sub: the colour
         // says "these coins are not real" and the words say it again, so the
         // state never rests on colour alone. The lamp is KEYS' own.
@@ -1692,11 +1685,22 @@ static void tab_signer(void)
         // coordinator, and "Native SegWit" is the name for it.
         { .cap = tr(STR_I_ROW_TYPE), .val = type_prefix(sc, tn),
           .sub = type_name(sc), .mark = LV_SYMBOL_LOOP, .go = type_cb },
-        // No sub: "amount in sats or BTC" restated the SATS value beside it.
-        { .cap = tr(STR_I_ROW_DENOM), .val = unit,
-          .mark = LV_SYMBOL_LOOP, .go = denom_cb },
     };
-    lv_obj_t *list = def_list(defs, 3);
+    // DENOMINATION is on DEVICE now. It is a PRESENTATION preference -- how a
+    // number is drawn -- and it sat here ranked equal to which chain the coins
+    // are on and which keys the addresses come from, which are the two facts on
+    // this device that can lose money. It also had no sub, because the only one
+    // it ever had restated the SATS beside it, so the tab read as two finished
+    // rows and a stub with 400px of nothing to their right. That is what the
+    // bench saw: "the SIGNER tab looks off compared to other which looks
+    // clean".
+    //
+    // DEVICE is where the other two presentation preferences already went --
+    // theme and language, both on the action band because neither "earned a
+    // 142px row". Same argument, same tab. And the SIGN screen keeps the
+    // control that matters: tapping an amount switches units where the amount
+    // is actually being read, which is the bench's own point.
+    lv_obj_t *list = def_list(defs, 2);
     wt_def_row_help(list, 1, help_open_cb, NULL);
 }
 
@@ -1828,7 +1832,20 @@ static void tab_device(void)
     // Two rows, not four: LANGUAGE and THEME live on the action band now --
     // one is its own label, the other is its own preview, and neither earned
     // a 142px row. What is left is the two that lead somewhere.
-    wt_def_t defs[2] = {
+    char unit[16];
+    const char *u = wt_denom_unit();
+    size_t ui = 0;
+    for (; u[ui] && ui + 1 < sizeof unit; ui++)
+        unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
+    unit[ui] = 0;
+
+    wt_def_t defs[3] = {
+        // From SIGNER, where it outranked itself. The sub TEACHES the faster
+        // control instead of restating the value: an owner who learns to tap
+        // the amount never comes back to this row, which is the point.
+        { .cap = tr(STR_I_ROW_DENOM), .val = unit,
+          .sub = tr(STR_I_DENOM_SUB),
+          .mark = LV_SYMBOL_LOOP, .go = denom_cb },
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -1840,7 +1857,7 @@ static void tab_device(void)
         { .cap = tr(STR_I_ROW_DEVICE), .val = "",
           .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
     };
-    def_list(defs, 2);
+    def_list(defs, 3);
 }
 
 static void tab_noundo(void)

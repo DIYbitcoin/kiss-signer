@@ -154,6 +154,9 @@ UNTRANSLATED_OK = {
     # THIS DEVICE's four fact rows. Born under the English-only rule.
     "I_DEV_BUILD", "I_DEV_RADIO", "I_DEV_RANDOM", "I_DEV_ENC",
     "I_DEV_RADIO_ON", "I_DEV_RADIO_OFF",
+    # DENOMINATION's sub, arriving on the DEVICE tab. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "I_DENOM_SUB",
     "W_COIN_VERIFY_NOTE",
     # KEF backup strings: born under the English-only rule (translation is one
     # sweep AFTER the UI stops moving), so the other twenty carry the English

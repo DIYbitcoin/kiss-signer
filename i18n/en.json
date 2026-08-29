@@ -778,6 +778,7 @@
   "G_FW_FAIL_CARD_B": "the card stopped responding partway through.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_WRITE_B": "the write did not finish.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "I_ROW_DENOM": "DENOMINATION",
+  "I_DENOM_SUB": "or tap an amount",
   "I_WAYSIN_SHORT": "opens real keys",
   "I_HIST_SHORT": "settings, addresses",
   "I_AUDIT_SUB": "how your keys were made",

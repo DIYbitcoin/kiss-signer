@@ -1737,6 +1737,19 @@ void kiss_begin_setup(void) {
 // Settings when it closes, so flipping the network updates the home immediately.
 static void kiss_home_restyle(void) {
   if (!s_home) return;
+  // THE WALK FIRST, then the exceptions. Everything under the home wearing
+  // WT_FLAG_ACCENT is repainted by its flag, which is the mechanism the rest
+  // of the device uses and the one accent_walk's own comment argues for:
+  // "keeping a static list of them in every screen that has some is how they
+  // get missed".
+  //
+  // The home was the last screen still keeping that list, and it had already
+  // missed one. The TESTNET badge is built with the flag and was not in the
+  // list, so changing the theme from Settings left the word on the home
+  // screen in the PREVIOUS accent -- reported from the bench as picking
+  // orange and finding TESTNET still pink. Nothing about the badge was
+  // wrong; nothing was calling it.
+  wt_accent_restyle(s_home);
   lv_color_t ac = wt_accent();
   if (s_fp_chip) lv_obj_set_style_text_color(s_fp_chip, ac, 0);
   kiss_build_id_restyle(s_home_build_id);
