@@ -247,6 +247,12 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // things. Added to SYMS in the same edit that named it here -- an icon missing
 // from the font hard-hangs the renderer rather than drawing a tofu box.
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
+// The settings band's language control. It wore a bare forward arrow, which
+// is the glyph the SCREEN'S OWN action wears -- so the one control on the
+// band that picks between 21 languages was marked exactly like a "go on".
+// A globe says what it is before a word of it is read, which was the ask.
+// Added to SYMS in the same edit that named it here.
+#define WT_ICON_LANG    "\xEF\x82\xAC"   // U+F0AC globe
 
 // Compose "<icon>  <label>" into out, for a label that carries its mark in
 // the string itself (a diagram chip, a composed heading). The walk finds
@@ -982,6 +988,14 @@ void wt_chrome_head(lv_obj_t *scr);
 lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                        lv_event_cb_t cb);
 void wt_tabs_flex_select(lv_obj_t *strip, int from, int to, bool stop);
+// The strip while [ ? ] is open. It DOES move, and four decks said in a
+// comment that it does not: a page that keeps DEVICE bracketed under the
+// settings explainer is telling the owner they are still on DEVICE, which is
+// how this came back from the bench -- "I go to the page yet DEVICE tab is
+// still selected and has brackets". Open releases every tab, so the only
+// bracketed thing left on the row is the mark they just pressed; close
+// re-selects `cur`.
+void wt_tabs_flex_help(lv_obj_t *strip, int cur, bool open);
 
 // The trail: where the owner is, said as how they got there. An icon in the
 // accent, then "PARENT / CHILD" at chrome23 ls2 WT_DIM, on the strip row.

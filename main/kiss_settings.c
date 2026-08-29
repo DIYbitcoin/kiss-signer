@@ -1896,6 +1896,10 @@ static void settings_what_cb(lv_event_t *e)
 {
     (void)e;
     s_what_open = !s_what_open;
+    // The strip releases its tab while the explainer is up, and takes it back
+    // on the way out. [ ? ] is still not a section -- it never highlights --
+    // but the tab BEHIND it must not keep claiming to be where the owner is.
+    wt_tabs_flex_help(s_tabs, s_tab, s_what_open);
     const bool was_moving = s_pane_ctx.entering;
     wt_pane_stop(&s_pane_ctx);
     if (was_moving && s_pane) {
@@ -1961,8 +1965,8 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
     // it is still what builds the action bar the attention chip stands on.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, close_cb, NULL);
+    lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592,
+                                     WT_ACTION_Y, 160, true, close_cb, NULL);
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.
@@ -1976,42 +1980,70 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The
     // language control needs no caption -- its label IS the active language's
-    // own name, stripped of the regional qualifier ("ESPAÑOL (ESPAÑA)" ->
-    // "ESPAÑOL") because the picker's flag carries the variant. An arrow
-    // action, not a pill: it goes somewhere (the full screen picker -- 21
-    // items need the screen, and somebody stuck in a language they cannot
-    // read must still find the way back).
+    // own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" ->
+    // "ESPANOL") because the picker's flag carries the variant.
+    //
+    // A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow,
+    // which is the mark the SCREEN'S OWN action wears -- so the one control on
+    // the band that picks between 21 languages was signed exactly like a "go
+    // on", and came back from the bench as "should have some icon better than
+    // an arrow, no?". A globe says what the control is before its word is read,
+    // in every one of those 21 languages at once.
+    lv_obj_t *lang = NULL;
     {
         int li = i18n_get_lang();
         const char *nat = i18n_lang_info(li)->native;
-        if (li == I18N_NB) nat = "BOKMÅL";   // the flag already says Norway
+        if (li == I18N_NB) nat = "BOKM\xC3\x85L";   // the flag already says Norway
         const char *par = strstr(nat, " (");
         char shortname[24];
         size_t sn = par ? (size_t)(par - nat) : strlen(nat);
         if (sn >= sizeof shortname) sn = sizeof shortname - 1;
         memcpy(shortname, nat, sn);
         shortname[sn] = 0;
-        wt_arrow_action(s_scr, shortname, false, false, 252, WT_ACTION_Y, 260,
-                        true, lang_open_cb, NULL);
+        lang = wt_word_action(s_scr, WT_ICON_LANG, shortname, true, WT_INK,
+                              true, lang_open_cb, NULL);
+        lv_obj_update_layout(lang);
+        // Pinned by its RIGHT edge at 512, exactly where the arrow action put
+        // it: the word is a language name and its width moves with the pick,
+        // and a left edge that moved would slide the whole band about.
+        lv_obj_set_pos(lang, 512 - lv_obj_get_width(lang),
+                       WT_ACTION_Y + (WT_ACTION_H - 40) / 2);
+        lv_obj_set_ext_click_area(lang, 8);
     }
 
     // Beside it the theme: a solid colour SWATCH with the cycle mark trailing
     // it, wordless, because the page IS the preview -- tap it and every mark
-    // on every tab is the new colour before the finger lifts. The breathing
-    // dot came back from the bench as too quiet a promise; the loop glyph is
-    // the one the value rows above already use for "tapping cycles this in
-    // place", so the pair says colour + cycles without a word. The hit box is
+    // on every tab is the new colour before the finger lifts. The hit box is
     // the band's full 52px.
+    //
+    // CENTRED between the two controls it sits between, and measured rather
+    // than placed: its right edge was pinned at 586, which put it hard against
+    // the language control with 70px of empty band before BACK, and the bench
+    // filed exactly that -- "needs to be centred between the language picker
+    // and BACK, too close to language picker currently". BACK is right-aligned
+    // in its own lane, so where it actually STARTS depends on how long the word
+    // is in this locale; asking the object is the only way to land between them
+    // in all 21.
     {
         lv_point_t ms;
         lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0,
                          LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        // Right edge at 586: 6 clear of BACK's declared lane at 592, and the
-        // content-sized width keeps 10+ clear of the language control's 512.
         const int sw = 28, cw = sw + 10 + ms.x;
+        lv_obj_update_layout(back);
+        const int gap_l = 512 + 16;                    // clear of the language
+        // BACK's MEASURED left edge, not its declared 592 lane. The lane is
+        // where a right-aligned control is allowed to start; the word inside
+        // it is 70px further right in English, and clamping to the lane is
+        // what pinned this control against the language picker in the first
+        // place. 20 of air is the clearance.
+        const int gap_r = lv_obj_get_x(back) - 20;
+        int tx = (gap_l + gap_r - cw) / 2;
+        if (tx < gap_l) tx = gap_l;
+        if (tx + cw > gap_r) tx = gap_r - cw;
+
         lv_obj_t *td = lv_obj_create(s_scr);
         lv_obj_remove_style_all(td);
-        lv_obj_set_pos(td, 586 - cw, WT_ACTION_Y);
+        lv_obj_set_pos(td, tx, WT_ACTION_Y);
         lv_obj_set_size(td, cw, WT_ACTION_H);
         lv_obj_add_flag(td, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(td, LV_OBJ_FLAG_SCROLLABLE);

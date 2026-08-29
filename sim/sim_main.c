@@ -4281,11 +4281,19 @@ int main(void) {
   // whole prefix string (wt_def_row_help) -- "tb1…", ellipsis included,
   // since this leg of the walk is still on the sim's testnet default. Aiming
   // at a bare 3-glyph prefix lands on the value and CYCLES the row instead.
+  //
+  // ...and 14 past the CYCLE MARK after that. The loop left the pinned right
+  // lane so a settings row that changes in place stops looking like the KEYS
+  // row that opens a screen, and this is the one row carrying both -- so the
+  // chip moved right by the mark's width and this tap has to follow it. Aiming
+  // at where it used to be now lands on the loop and cycles the address type.
   {
-    lv_point_t vs;
+    lv_point_t vs, ms;
     lv_text_get_size(&vs, "tb1\xE2\x80\xA6", wt_chrome28("tb1\xE2\x80\xA6"),
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + 15, SET_DEF_Y(3, 1));
+    lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim

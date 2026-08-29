@@ -897,6 +897,9 @@ int main(int argc, char **argv)
         { "WT_ICON_SD",     WT_ICON_SD     },
         { "WT_ICON_LOCK",   WT_ICON_LOCK   },
         { "WT_ICON_REPLACE", WT_ICON_REPLACE },
+        { "WT_ICON_LANG",   WT_ICON_LANG   },
+        { "WT_ICON_SHIELD", WT_ICON_SHIELD },
+        { "WT_ICON_WHAT",   WT_ICON_WHAT   },
     };
     const struct { const char *name; const lv_font_t *f; } FACES[] = {
         { "font14", wt_font14() }, { "font23", wt_font23() },

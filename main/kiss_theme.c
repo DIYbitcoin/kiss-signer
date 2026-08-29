@@ -2779,6 +2779,11 @@ void wt_tabs_flex_select(lv_obj_t *strip, int from, int to, bool stop)
         tabs_flex_paint(lv_obj_get_child(strip, to), true);
 }
 
+void wt_tabs_flex_help(lv_obj_t *strip, int cur, bool open)
+{
+    wt_tabs_flex_select(strip, open ? cur : -1, open ? -1 : cur, false);
+}
+
 lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
                    bool stop)
 {
@@ -3110,6 +3115,17 @@ typedef struct {
     lv_obj_t  *row, *cap, *lamp, *val, *sub, *arrow, *rail, *plain, *term;
     lv_obj_t  *rule;
     int        val_x;      // DEF_VAL_X, plus the lamp's lane when it has one
+    // A CYCLE row's mark does not live in the pinned right lane. It sits
+    // immediately after the value it changes, because that lane is where the
+    // chevron lives and a chevron means "this opens a screen": the bench read
+    // the settings ADDRESS TYPE row as the KEYS one and could not tell that
+    // one of them changes the setting. So the promise travels with the thing
+    // it promises about, and the sub-line gets the whole right end back --
+    // which is the same finding, filed as "text too close to the icons".
+    bool       cyc;        // the mark is a LOOP, not the pinned chevron
+    int        vw_big;     // the value's width at the closed/open font
+    int        vw_ghost;   // ...and at the ghost font
+    int        mark_w;     // the LOOP's own width, so a "?" chip can clear it
     // The value's face per state, decided at build. The caller's strings are
     // free to live on its stack -- labels copy them, and nothing here reads
     // a def's pointer after wt_def_list returns.
@@ -3193,18 +3209,31 @@ static void def_apply(wt_defs_t *d, int k, int mode)
             lv_obj_align(r->lamp, LV_ALIGN_TOP_LEFT, DEF_VAL_X,
                          DEF_HEAD_PAD + (vh - 8) / 2);
         lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, r->val_x, DEF_HEAD_PAD);
-        if (r->arrow)
-            lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
-                         DEF_HEAD_PAD);
+        if (r->arrow) {
+            if (r->cyc)
+                lv_obj_align(r->arrow, LV_ALIGN_TOP_LEFT,
+                             r->val_x + r->vw_big + 14, DEF_HEAD_PAD);
+            else
+                lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
+                             DEF_HEAD_PAD);
+        }
     } else {
         lv_obj_align(r->cap, LV_ALIGN_LEFT_MID, WT_LINE_PAD, 0);
         if (r->lamp) lv_obj_align(r->lamp, LV_ALIGN_LEFT_MID, DEF_VAL_X, 0);
         lv_obj_align(r->val, LV_ALIGN_LEFT_MID, r->val_x, 0);
         if (r->sub && mode == DEF_CLOSED)
             lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
-                         -(WT_LINE_PAD + DEF_ARR_W + 8), 0);
-        if (r->arrow)
-            lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
+                         r->cyc ? -WT_LINE_PAD
+                                : -(WT_LINE_PAD + DEF_ARR_W + 20), 0);
+        if (r->arrow) {
+            if (r->cyc) {
+                const int vw = mode == DEF_GHOST ? r->vw_ghost : r->vw_big;
+                lv_obj_align(r->arrow, LV_ALIGN_LEFT_MID,
+                             r->val_x + vw + 14, 0);
+            } else {
+                lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
+            }
+        }
     }
 
     // The open dressing: the pressed-accent wash, the 2px rail, the body.
@@ -3415,10 +3444,19 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                              LV_TEXT_FLAG_NONE);
         }
 
+        r->cyc    = defs[k].mark != NULL;
+        r->vw_big = vs.x;
+        {
+            lv_point_t gs;
+            lv_text_get_size(&gs, defs[k].val ? defs[k].val : "", r->vf_ghost,
+                             0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            r->vw_ghost = gs.x;
+        }
         r->arrow = wt_lbl(row, defs[k].mark ? defs[k].mark : LV_SYMBOL_RIGHT,
                           0, 0, wt_font23(), wt_accent());
         lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
         lv_obj_update_layout(r->arrow);
+        r->mark_w = lv_obj_get_width(r->arrow);
         lv_obj_set_style_transform_pivot_x(
             r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
         lv_obj_set_style_transform_pivot_y(
@@ -3426,8 +3464,20 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
 
         if (defs[k].sub && *defs[k].sub) {
             // A row's sub is measured against the CLOSED value, the widest
-            // layout it shares a line with.
-            int lane = WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 8
+            // layout it shares a line with. A CYCLE row's mark has already
+            // left the right lane and taken its place beside the value, so
+            // the sub starts after the MARK and runs to the row's own margin;
+            // a chevron row still stops short of the pinned lane.
+            //
+            // 20 of air, not 8. Eight was measured against LV_SYMBOL_RIGHT --
+            // a narrow chevron whose glyph leaves most of its 26px lane empty
+            // -- and LV_SYMBOL_LOOP fills the lane, so the same number that
+            // looked generous beside a chevron rendered "not real bitcoin"
+            // hard against the loop.
+            int lane = r->cyc
+                     ? WT_LANE_W - WT_LINE_PAD
+                       - (r->val_x + vs.x + 14 + r->mark_w + 20)
+                     : WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 20
                        - (r->val_x + vs.x + 16);
             if (lane > 40) {
                 const lv_font_t *sf = chrome23(defs[k].sub);
@@ -3553,8 +3603,14 @@ lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
         int w = lv_obj_get_width(r->sub) - (14 + 30 + 10 - 16);
         if (w > 40) lv_obj_set_width(r->sub, w);
     }
+    // Past the CYCLE MARK, when there is one. The mark moved out of the pinned
+    // right lane and into the space immediately after the value, which is
+    // where this chip already stood -- so on the one row that has both (address
+    // type) the loop was drawn underneath the "?" and vanished. The mark comes
+    // first because it belongs to the VALUE; the chip explains the idea.
+    const int mx = r->cyc ? r->mark_w + 10 : 0;
     lv_obj_t *chip = wt_help_chip(r->row, 0, 0, wt_accent(), cb, ud);
-    lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + 14, 0);
+    lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + 14 + mx, 0);
     return chip;
 }
 

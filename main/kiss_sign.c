@@ -4027,8 +4027,9 @@ static void choose_help_cb(lv_event_t *e)
     (void)e;
     s_choose_help = !s_choose_help;
     // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
-    // same hand swap KEYS and RECEIVE do. The strip does not move: [ ? ] is
-    // not a section and never highlights.
+    // same hand swap KEYS and RECEIVE do. [ ? ] never highlights, and the
+    // strip releases the tab behind it for as long as the explainer is up.
+    wt_tabs_flex_help(s_cctx.tabs, s_cctx.tab, s_choose_help);
     const bool was_moving = s_cctx.entering;
     wt_pane_stop(&s_cctx);
     if (was_moving && s_cctx.pane) {

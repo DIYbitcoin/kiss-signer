@@ -730,8 +730,10 @@ static void recv_help_cb(lv_event_t *e) {
   pop_close();
   s_help_open = !s_help_open;
   // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
-  // same hand swap the KEYS page does. The strip does not move: [ ? ] is
-  // not a section and never highlights.
+  // same hand swap the KEYS page does. [ ? ] still never highlights, but the
+  // strip DOES release its tab: a bracketed THIS ADDRESS under the receive
+  // explainer says the owner is still on it.
+  wt_tabs_flex_help(s_rctx.tabs, s_rctx.tab, s_help_open);
   const bool was_moving = s_rctx.entering;
   wt_pane_stop(&s_rctx);
   if (was_moving && s_rctx.pane) {

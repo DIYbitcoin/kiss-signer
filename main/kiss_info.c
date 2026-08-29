@@ -1335,7 +1335,8 @@ static void info_help_cb(lv_event_t *e)
     s_help_open = !s_help_open;
     // wt_pane_go refuses a same-tab call, so this is its swap by hand: stop
     // whatever is mid-flight, send the old group out, build the new one in.
-    // The strip does not move -- [ ? ] is not a section and never highlights.
+    // [ ? ] never highlights, but the strip releases the tab behind it.
+    wt_tabs_flex_help(s_ictx.tabs, s_ictx.tab, s_help_open);
     const bool was_moving = s_ictx.entering;
     wt_pane_stop(&s_ictx);
     if (was_moving && s_ictx.pane) {
