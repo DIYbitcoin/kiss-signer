@@ -3427,12 +3427,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // clean; kept in sync by kiss_home_refresh() (unlock + return from Settings).
   s_net_lbl = lv_label_create(s_home);
   lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
-  lv_obj_set_style_text_color(s_net_lbl, lv_color_hex(0xF2B84B), 0);
+  lv_obj_set_style_text_color(s_net_lbl, wt_ink_for(WT_WARN), 0);
   lv_obj_set_style_text_font(s_net_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_net_lbl, 3, 0);
   lv_obj_set_style_bg_color(s_net_lbl, lv_color_hex(0x2A2113), 0);    // dark amber, reads on grid
   lv_obj_set_style_bg_opa(s_net_lbl, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_color(s_net_lbl, lv_color_hex(0xF2B84B), 0);
+  lv_obj_set_style_border_color(s_net_lbl, wt_ink_for(WT_WARN), 0);
   lv_obj_set_style_border_width(s_net_lbl, 1, 0);
   lv_obj_set_style_radius(s_net_lbl, 14, 0);
   lv_obj_set_style_pad_hor(s_net_lbl, 16, 0);

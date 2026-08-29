@@ -1106,6 +1106,63 @@ static void oc_check_tiny(const char *tag)
     }
 }
 
+
+// ---- 11. AMBER: WT_WARN carrying WORDS -------------------------------------
+//
+// Amber is a MARK colour on this device, not an ink. The bench looked at a
+// finished sweep and said so: "all the yellow text... i wanna see more theme
+// color... the only yellow thing i wanna see is caution symbols and yellow
+// floating/pulsing dots".
+//
+// That is a rule a gate can hold. A caution GLYPH stays amber, a breathing dot
+// stays amber, and everything an owner READS takes the accent -- which is the
+// colour they chose, and the one that makes a page look like their device.
+//
+// Same word test TINY uses, and for the same reason: a lone LV_SYMBOL_WARNING
+// is a mark and must not report, while "not real bitcoin" is a sentence and
+// must. A label with no ASCII letter at all is a glyph.
+static bool oc_is_warn(lv_color_t c)
+{
+    lv_color32_t p = lv_color_to_32(c, LV_OPA_COVER);
+    return p.red == 0xF2 && p.green == 0xB8 && p.blue == 0x4B;
+}
+
+static const char *OC_AMBER_BACKLOG[] = {
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_amber_hit[sizeof OC_AMBER_BACKLOG / sizeof OC_AMBER_BACKLOG[0]];
+
+static bool oc_amber_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_AMBER_BACKLOG / sizeof OC_AMBER_BACKLOG[0]; i++)
+        if (OC_AMBER_BACKLOG[i] && strstr(txt, OC_AMBER_BACKLOG[i]))
+            { s_amber_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_amber(const char *tag)
+{
+    char t[96], sig[192], detail[320];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        const char *txt = lv_label_get_text(n->obj);
+        if (!txt || !*txt) continue;
+        if (!oc_is_warn(lv_obj_get_style_text_color(n->obj, LV_PART_MAIN)))
+            continue;
+        if (oc_word_count(txt) < 1) continue;      // a bare glyph is a MARK
+        if (oc_amber_excused(txt)) continue;
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "AMBER|%s", t);
+        snprintf(detail, sizeof detail,
+                 "AMBER    \"%s\" is WORDS in WT_WARN -- amber is a mark colour "
+                 "here: the caution GLYPH and the breathing dot keep it, and "
+                 "anything read takes wt_accent()",
+                 t);
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_colour_roles(const char *tag)
 {
     char t[64], sig[192], detail[320];
@@ -1338,6 +1395,31 @@ static int oc_selftest_tiny(const char *name, const char *txt, bool declare,
     return got == want_finding ? 0 : 1;
 }
 
+// AMBER fires on a shape the product no longer contains. Two cases: a word in
+// WT_WARN must report, and a lone caution GLYPH in WT_WARN must not -- the
+// glyph is exactly what the rule keeps amber, so a check that reported both
+// would be one nobody could act on.
+static int oc_selftest_amber(const char *name, const char *txt,
+                             bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    wt_lbl(scr, txt, 48, 118, wt_font23(), WT_WARN);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_amber("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
@@ -1358,6 +1440,15 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    printf("AMBER check self test\n");
+    bad += oc_selftest_amber("words in WT_WARN, fires", "not real bitcoin",
+                             true);
+    bad += oc_selftest_amber("a lone caution glyph in WT_WARN, clear",
+                             LV_SYMBOL_WARNING, false);
+    if (bad) printf("AMBER self test: %d case(s) wrong\n", bad);
+    else     printf("AMBER self test: 2 cases, all as expected\n");
     printf("\n");
 
     printf("TINY check self test\n");
@@ -1576,6 +1667,7 @@ void oc_check(const char *tag)
     oc_check_fit(tag);
     oc_check_cut(tag);
     oc_check_tiny(tag);
+    oc_check_amber(tag);
     oc_check_layer(tag);
 }
 

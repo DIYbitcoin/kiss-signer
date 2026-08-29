@@ -282,7 +282,9 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
         lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, x, -10);
 
-        lv_obj_t *w = wt_lbl(box, t->lamp, 0, 0, wt_font14(), t->lampc);
+        // The DOT above keeps the lamp colour; its word takes the accent.
+        lv_obj_t *w = wt_lbl(box, t->lamp, 0, 0, wt_font14(),
+                             wt_ink_for(t->lampc));
         lv_obj_set_style_text_letter_space(w, 2, 0);
         lv_obj_align(w, LV_ALIGN_BOTTOM_LEFT, x + 16, -4);
     }
@@ -305,7 +307,7 @@ static void fw_claims(int y, const char *lh, const char *lb, lv_color_t lcol)
     const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, FW_BLK_W - 14, h);
     lv_obj_t *a = wt_why_block(s_scr, lh, lb, FW_BLK_L_X, y, FW_BLK_W, h, f, lcol);
     lv_obj_t *b = wt_why_block(s_scr, rh, rb, FW_BLK_R_X, y, FW_BLK_W, h, f,
-                               WT_WARN);
+                               wt_ink_for(WT_WARN));
     // 160 and 220, which is what the drawing stages them at. The 190/232 they
     // ran at is the LINE ladder -- right for a column of rows, 30ms late for a
     // pair that has no rows above it to follow.
@@ -429,7 +431,7 @@ static void result_screen(int rc)
     // a firmware screen asserted something that had not happened yet.
     fw_head_running(tr(ok ? STR_G_FW_OK_T : STR_G_FW_FAIL_T));
     lv_obj_set_style_text_color(wt_screen_title(s_scr),
-                                ok ? wt_accent() : WT_WARN, 0);
+                                ok ? wt_accent() : wt_ink_for(WT_WARN), 0);
 
     // The picture carries the verdict before the sentence does. On a failure
     // the version still in charge comes back to full ink and the one that did
@@ -441,7 +443,7 @@ static void result_screen(int rc)
         .fc     = ok ? WT_DIM : WT_INK,
         .strike = ok,
         .joiner = ok ? LV_SYMBOL_RIGHT : LV_SYMBOL_CLOSE,
-        .jc     = ok ? wt_accent() : WT_WARN,
+        .jc     = ok ? wt_accent() : wt_ink_for(WT_WARN),
         .to     = s_img.version,
         .tf     = wt_font_mono28(),
         .tc     = ok ? wt_accent() : WT_DIM,
@@ -667,10 +669,10 @@ static void confirm_screen(void)
         .ff     = wt_font_mono23(),
         .fc     = WT_DIM,
         .joiner = LV_SYMBOL_RIGHT,
-        .jc     = down ? WT_WARN : wt_accent(),
+        .jc     = wt_accent(),
         .to     = s_img.version,
         .tf     = wt_font_mono28(),
-        .tc     = down ? WT_WARN : wt_accent(),
+        .tc     = wt_accent(),
         .accent = !down,
     };
     fw_trade(FW_PANE_Y, &t);
@@ -734,12 +736,14 @@ static void nothing_to_install(int rc)
         col   = WT_WARN;
     }
 
+    // The GLYPH keeps the warning colour and the HEADLINE takes the accent:
+    // amber is a mark colour, and these six screens are read.
     lv_obj_t *g = wt_lbl(s_scr, glyph, FW_TXT_X, 124, wt_font23(), col);
     if (rc == WFW_ERR_SAME) lv_obj_add_flag(g, WT_FLAG_ACCENT);
     lv_obj_update_layout(g);
     lv_obj_t *hd = wt_lbl(s_scr, h, FW_TXT_X + lv_obj_get_width(g) + 14, 118,
-                          wt_font28(), col);
-    if (rc == WFW_ERR_SAME) lv_obj_add_flag(hd, WT_FLAG_ACCENT);
+                          wt_font28(), wt_ink_for(col));
+    lv_obj_add_flag(hd, WT_FLAG_ACCENT);
     fw_enter(g, 280, 40);
     fw_enter(hd, 280, 40);
 
@@ -801,10 +805,10 @@ static void fw_screen(void)
         .ff     = wt_font_mono28(),
         .fc     = WT_DIM,
         .joiner = LV_SYMBOL_RIGHT,
-        .jc     = down ? WT_WARN : wt_accent(),
+        .jc     = wt_accent(),
         .to     = s_img.version,
         .tf     = wt_font_mono28(),
-        .tc     = down ? WT_WARN : wt_accent(),
+        .tc     = wt_accent(),
         .accent = !down,
         .lamp   = tr(down ? STR_G_FW_OLDER_LAMP : STR_G_FW_NEWER_LAMP),
         .lampc  = down ? WT_WARN : WT_OK,
@@ -836,7 +840,8 @@ static void fw_screen(void)
                  s_img.examined, s_img.on_card);
     if (narrowed || down) {
         lv_obj_t *n = wt_lbl(s_scr, narrowed ? more : tr(STR_G_FW_DOWN_SHORT),
-                             FW_TXT_X, FW_CAUTION_Y, wt_font23(), WT_WARN);
+                             FW_TXT_X, FW_CAUTION_Y, wt_font23(),
+                             wt_ink_for(WT_WARN));
         lv_obj_set_width(n, FW_W - WT_LINE_PAD * 2);
         lv_obj_set_height(n, lv_font_get_line_height(wt_font23()));
         lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);

@@ -280,6 +280,15 @@ static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
     return wt_font14();
 }
 
+// Amber is a MARK colour (see the note on WT_WARN): a caution's WORDS take the
+// accent, its GLYPH and its lamp keep WT_WARN. Every text site that may be
+// handed a status colour runs it through here, so the rule lives in one place
+// and a caller that means "this is a caution" still says so.
+lv_color_t wt_ink_for(lv_color_t col)
+{
+    return lv_color_eq(col, WT_WARN) ? wt_accent() : col;
+}
+
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
 {
     return body_font_ladder(txt, w, max_h, true);
@@ -1782,7 +1791,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     lv_obj_t *v = NULL;
     int vw = 0;
     if (val && *val) {
-        v = wt_lbl(row, val, 0, 0, vf, vcol);
+        v = wt_lbl(row, val, 0, 0, vf, wt_ink_for(vcol));
         lv_obj_update_layout(v);
         vw = lv_obj_get_width(v);
     }
@@ -1882,6 +1891,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // value and the chevron it happened to be given.
 void wt_row_sub_color(lv_obj_t *row, lv_color_t c)
 {
+    c = wt_ink_for(c);
     lv_obj_t *s = wt_tagged(row, WT_SUB_TAG);
     if (s) lv_obj_set_style_text_color(s, c, 0);
 }
@@ -2419,7 +2429,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         // overruns has to lose letters rather than run under the sub.
         const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
-                             vf ? vf : wt_font23(), vcol);
+                             vf ? vf : wt_font23(), wt_ink_for(vcol));
         lv_obj_set_user_data(v, (void *)WT_LINE_VAL_TAG);
         lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
@@ -2941,7 +2951,12 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
     int lh = lv_font_get_line_height(f);
     int y  = WT_ACTION_Y + (WT_ACTION_H - lh) / 2;
     band_dot(scr, WT_ACT_X, y + (lh - 8) / 2, col, pulse);
-    lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + 8 + 10, y, f, col);
+    // The DOT carries the colour; the sentence takes the accent whenever that
+    // colour was the caution. A standing line is read, and amber is a mark.
+    const bool warn = lv_color_eq(col, WT_WARN);
+    lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + 8 + 10, y, f,
+                         warn ? wt_accent() : col);
+    if (warn) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     // One line, in HEIGHT as well as width: the statement shares the band
     // with the exit, and LONG_DOT only elides once the box stops growing.
@@ -3230,10 +3245,11 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         else                   lv_obj_add_flag(r->val, WT_FLAG_ACCENT);
         lv_spangroup_refresh(r->val);
     } else {
-        lv_obj_set_style_text_color(r->val,
-                                    mode == DEF_GHOST
-                                        ? WT_DIM
-                                        : col_or(r->def.val_col, WT_INK), 0);
+        // A caution VALUE takes the accent: its lamp is the amber, and the
+        // lamp is what the eye lands on first anyway.
+        lv_color_t vc = col_or(r->def.val_col, WT_INK);
+        if (lv_color_eq(vc, WT_WARN)) vc = wt_accent();
+        lv_obj_set_style_text_color(r->val, mode == DEF_GHOST ? WT_DIM : vc, 0);
     }
     lv_obj_set_style_text_color(r->cap, mode == DEF_GHOST ? WT_DIM : WT_MUT,
                                 0);
@@ -3562,8 +3578,9 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                 // value and its mark leave behind, so a longer VALUE (ENABLED
                 // to DISABLED) shortens it under copy that fitted a moment ago.
                 wt_sub_measure("sub", defs[k].sub, sf, 0, lane);
-                r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf,
-                                col_or(defs[k].sub_col, WT_DIM));
+                lv_color_t sc = col_or(defs[k].sub_col, WT_DIM);
+                if (lv_color_eq(sc, WT_WARN)) sc = wt_accent();
+                r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, sc);
                 lv_obj_set_width(r->sub, lane);
                 lv_obj_set_height(r->sub, lv_font_get_line_height(sf));
                 lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
@@ -3851,17 +3868,30 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
         // the red it might spare them.
         lv_point_t ps;
         lv_text_get_size(&ps, g->para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+        // The GLYPH is its own label so it can stay amber while the sentence
+        // takes the accent. Composed into one string they could only ever be
+        // one colour, and the colour the bench wants on the words is not the
+        // colour it wants on the mark.
+        const lv_font_t *mkf = wt_font23();
+        lv_obj_t *wm = wt_lbl(scr, LV_SYMBOL_WARNING, WT_LANE_X,
+                              176 + ps.y + 12, mkf, WT_WARN);
+        lv_obj_update_layout(wm);
+        const int wmx = lv_obj_get_width(wm) + 12;
         char wtxt[128];
-        snprintf(wtxt, sizeof wtxt, "%s  %s", LV_SYMBOL_WARNING, g->warn);
+        snprintf(wtxt, sizeof wtxt, "%s", g->warn);
         // font23, not font14. This is the ONE sentence the gate exists to
         // make somebody read, and it was set two rungs under the paragraph
         // above it -- the smallest text on a screen about a caution. "THAT
         // TEXT SHOULD BE BIGGER ITS FUCKING TINY". No fit helper was involved
         // and none could have caught it: the size was written in.
         const lv_font_t *wf = chrome23(wtxt);
-        lv_obj_t *w = wt_lbl(scr, wtxt, WT_LANE_X, 176 + ps.y + 12,
-                             wf, WT_WARN);
-        lv_obj_set_width(w, 690);
+        lv_obj_t *w = wt_lbl(scr, wtxt, WT_LANE_X + wmx, 176 + ps.y + 12,
+                             wf, g->stop ? WT_STOP_INK : wt_accent());
+        if (!g->stop) lv_obj_add_flag(w, WT_FLAG_ACCENT);
+        lv_obj_set_y(wm, 176 + ps.y + 12 +
+                         (lv_font_get_line_height(wf) -
+                          lv_obj_get_height(wm)) / 2);
+        lv_obj_set_width(w, 690 - wmx);
         lv_label_set_long_mode(w, LV_LABEL_LONG_WRAP);
     }
 
@@ -3951,8 +3981,8 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // thing in ink. A stated sub_col (the amber network note, the green
     // verified line) still outranks the default -- a state keeps its colour.
     lv_color_t ink  = inert ? WT_DIM : WT_MUT;
-    lv_color_t subc = inert ? WT_DIM : col_or(r->sub_col, WT_DIM);
-    lv_color_t vcol = inert ? WT_DIM : col_or(r->vcol, WT_INK);
+    lv_color_t subc = inert ? WT_DIM : wt_ink_for(col_or(r->sub_col, WT_DIM));
+    lv_color_t vcol = inert ? WT_DIM : wt_ink_for(col_or(r->vcol, WT_INK));
 
     // THE CONTROL FIRST, so the sub-line's lane can be measured against what
     // is actually there. Sizing the sub to the row and hoping is how a
@@ -4703,10 +4733,13 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
     // inset went with the box and the three parts have to close up behind it,
     // or the chevron sits on top of the last letter of the label.
     lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_obj_t *l = wt_lbl(c, txt, 0, 0, lf, WT_WARN);
+    // The MARK is the amber; the words and the chevron are the accent.
+    lv_obj_t *l = wt_lbl(c, txt, 0, 0, lf, wt_accent());
+    lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(l, 1, 0);
     lv_obj_align(l, LV_ALIGN_LEFT_MID, is.x + 12, 0);
-    lv_obj_t *ch = wt_lbl(c, LV_SYMBOL_RIGHT, 0, 0, mf, WT_WARN);
+    lv_obj_t *ch = wt_lbl(c, LV_SYMBOL_RIGHT, 0, 0, mf, wt_accent());
+    lv_obj_add_flag(ch, WT_FLAG_ACCENT);
     lv_obj_set_style_text_opa(ch, 180, 0);
     lv_obj_align(ch, LV_ALIGN_RIGHT_MID, 0, 0);
     return c;
@@ -5300,7 +5333,10 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // accent: the colour is what says which of the eleven cards you are on
     // before a word of it is read.
     lv_color_t sev = e->sev == WT_SEV_OK   ? WT_OK
-                   : e->sev == WT_SEV_WARN ? WT_WARN
+                   // wt_ink_for: a caution TITLE takes the accent. The badge
+                   // beside it still carries the warning glyph in WT_WARN,
+                   // which is where the amber belongs.
+                   : e->sev == WT_SEV_WARN ? wt_ink_for(WT_WARN)
                    : e->sev == WT_SEV_STOP ? WT_STOP : wt_accent();
 
     // The subject badge, right of the title row. An icon is worth more than the
@@ -5392,9 +5428,23 @@ void wt_tiny_ok(lv_obj_t *l)
     if (l) lv_obj_add_flag(l, WT_FLAG_TINY_OK);
 }
 
+// ONE label still, with LVGL's inline RECOLOR doing what two objects would
+// have. The comment above is not decoration: a container plus a child label
+// needs two layout passes and segfaulted the first time this chip was tried,
+// and a spangroup -- the other obvious answer -- is not an lv_label, so
+// everything that finds a control by its text stops finding it. Six walk
+// assertions failed within a minute of trying that.
+//
+// So the MARK is wrapped in a #RRGGBB..# run and the words are left plain.
+// The glyph keeps its status colour, the label's own colour carries the
+// words, and the rim follows the words -- no single object wears the accent
+// and a status at once, which is what the ROLE gate exists to catch. The raw
+// text still CONTAINS the words, so substring assertions are unaffected, and a
+// chip with no glyph gets no markup at all, so exact ones are too.
 lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
 {
     lv_obj_t *c = lv_label_create(par);
+    lv_label_set_recolor(c, true);
     lv_obj_set_style_text_font(c, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(c, 1, 0);
     lv_obj_set_style_radius(c, 100, 0);
@@ -5411,10 +5461,22 @@ lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
 void wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col)
 {
     if (!chip) return;
-    lv_label_set_text(chip, txt ? txt : "");
-    lv_obj_set_style_text_color(chip, col, 0);
-    lv_obj_set_style_border_color(chip, col, 0);
-    lv_obj_set_style_bg_color(chip, col, 0);
+    const char *t = txt ? txt : "";
+    const lv_color_t ink = wt_ink_for(col);
+    // The split is the two spaces wt_icon_text composes, the same form the
+    // walk finds controls by.
+    const char *split = strstr(t, "  ");
+    if (lv_color_eq(ink, col) || !split || split == t) {
+        lv_label_set_text(chip, t);
+    } else {
+        char buf[160];
+        snprintf(buf, sizeof buf, "#%02X%02X%02X %.*s#%s",
+                 col.red, col.green, col.blue, (int)(split - t), t, split);
+        lv_label_set_text(chip, buf);
+    }
+    lv_obj_set_style_text_color(chip, ink, 0);
+    lv_obj_set_style_border_color(chip, ink, 0);
+    lv_obj_set_style_bg_color(chip, ink, 0);
     lv_obj_update_layout(chip);
 }
 

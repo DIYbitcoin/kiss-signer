@@ -16,6 +16,21 @@
 #define WT_MUT  lv_color_hex(0x7A869C)
 #define WT_KEY  lv_color_hex(0x10141D)
 #define WT_OK   lv_color_hex(0x35D07F)   // status semantics: never themed
+// AMBER IS A MARK COLOUR. The caution GLYPH keeps it and so does a breathing
+// dot; everything an owner READS takes wt_accent(), which is the colour they
+// picked and the one that makes a page look like their device. Straight off
+// the bench, looking at a finished sweep: "all the yellow text... i wanna see
+// more theme color... the only yellow thing i wanna see is caution symbols and
+// yellow floating/pulsing dots".
+//
+// So a value, a title, a slide label, a standing line and a row's sub-line all
+// take the accent even when the STATE they report is a caution -- the lamp
+// beside the value is the amber, and it is the part the eye catches first
+// anyway. sim/overlapcheck.c's AMBER check holds the line: WT_WARN on anything
+// containing a letter is a finding.
+//
+// WT_STOP is untouched. Red is the irreversible, it appears on one gate, and
+// it is not what the note above is about.
 #define WT_WARN lv_color_hex(0xF2B84B)
 #define WT_STOP lv_color_hex(0xFF4D5E)
 #define WT_CARD lv_color_hex(0xF2F5FA)   // QR cards: scanners want dark-on-light
@@ -81,6 +96,9 @@ const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // locale's font. Explainers should read at arm's length (and on a 3.5" port),
 // so short copy gets the big font; a long translation degrades to the small one
 // instead of overflowing its card. Shorten the copy to get the big size.
+// A caution's WORDS in the accent, everything else unchanged. See the note on
+// WT_WARN above: the glyph and the lamp keep the amber, the sentence does not.
+lv_color_t wt_ink_for(lv_color_t col);
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 // The same ladder with the FIT gate NOT told when it lands on font14. Exactly
 // one caller: the login screen's passphrase echo, where the text is the

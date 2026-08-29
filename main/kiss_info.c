@@ -437,10 +437,11 @@ static void pair_screen(void)
         wt_trail(s_scr, WT_ICON_QR, trail, false);
     }
     if (kiss_testnet()) {
-        lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(), WT_WARN);
+        lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(),
+                               wt_ink_for(WT_WARN));
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_color(net, WT_WARN, 0);
+        lv_obj_set_style_border_color(net, wt_ink_for(WT_WARN), 0);
         lv_obj_set_style_border_width(net, 1, 0);
         lv_obj_set_style_radius(net, 10, 0);
         lv_obj_set_style_pad_hor(net, 8, 0);
@@ -843,7 +844,10 @@ static void words_gate_screen(void)
     };
     wt_gate(s_scr, &g);
     wt_slide_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y, 330, WT_WARN, WT_WARN,
+                    // The ACCENT. Amber is a mark colour, and a slide label
+                    // is a word the owner reads. WT_STOP still carries the one
+                    // gate that cannot be undone.
+                    WT_ACT_X, WT_ACTION_Y, 330, wt_accent(), wt_accent(),
                     words_reveal, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, words_gate_cancel_cb, NULL);

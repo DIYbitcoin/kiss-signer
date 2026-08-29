@@ -646,7 +646,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     sig_code_chip(r2, "8A41 77E2");
     lv_obj_t *warn = wt_diagram_op(r2, LV_SYMBOL_WARNING);
     lv_obj_remove_flag(warn, WT_FLAG_ACCENT);          // a verdict, as above
-    lv_obj_set_style_text_color(warn, WARN_COL, 0);
+    lv_obj_set_style_text_color(warn, wt_ink_for(WARN_COL), 0);
     lv_obj_set_style_text_font(warn, wt_font23(), 0);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 162);
 
@@ -1803,7 +1803,7 @@ static void cautions_screen(void)
         lv_obj_set_size(row, 752, SG_ROW_H);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
-               wt_font23(), done ? OK_COL : WARN_COL);
+               wt_font23(), done ? OK_COL : wt_ink_for(WARN_COL));
         lv_obj_t *t = lv_label_create(row);
         lv_obj_set_pos(t, 52, 19);
         lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
@@ -1885,7 +1885,8 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *w = sg_lbl(s_scr,
                                  is_out ? tr_sym(LV_SYMBOL_OK, STR_S_ROW_SIGNATURE)
                                         : tr_sym(LV_SYMBOL_WARNING, STR_S_SIGNED_ALREADY),
-                                 0, 33, wt_font14(), is_out ? OK_COL : WARN_COL);
+                                 0, 33, wt_font14(),
+                                 is_out ? OK_COL : wt_ink_for(WARN_COL));
             lv_obj_update_layout(w);
             int ww = lv_obj_get_width(w);
             lv_obj_set_pos(w, fr - ww, 33);
@@ -1933,7 +1934,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *t = lv_label_create(chip);
             lv_label_set_text(t, buf);
             lv_obj_set_style_text_font(t, wt_font_mono23(), 0);
-            lv_obj_set_style_text_color(t, WARN_COL, 0);
+            lv_obj_set_style_text_color(t, wt_ink_for(WARN_COL), 0);
         } else {
             uint8_t fp[4];
             kiss_ui_last_fp(fp);
@@ -2155,7 +2156,7 @@ static void verify_screen(lv_obj_t *parent)
         sg_rule(24, SG_BAR_Y_G - 1, 752, 1);
         sg_rule(24, SG_BAR_Y_G + SG_BAR_H, 752, 1);
         sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
-               wt_font23(), all_done ? OK_COL : WARN_COL);
+               wt_font23(), all_done ? OK_COL : wt_ink_for(WARN_COL));
         // "+N" carries the rest of the list without a string to translate: the
         // header chip already states the total, so this only has to say that
         // the one line shown is not all of it.
@@ -2734,7 +2735,7 @@ static void verify_screen(lv_obj_t *parent)
         // lowest. Pinned, the ellipsis is what happens instead.
         const bool wide = !np && recipient_n > 1;
         lv_obj_t *m = sg_lbl(s_scr, buf, wide ? 24 : 364, ay, wt_font14(),
-                             s_sum.testnet ? WARN_COL : MUT_COL);
+                             s_sum.testnet ? wt_ink_for(WARN_COL) : MUT_COL);
         lv_obj_set_width(m, wide ? 700 : 360);
         lv_obj_set_height(m, lv_font_get_line_height(wt_font14()));
         lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
@@ -3101,7 +3102,7 @@ static void dtab_inputs(lv_obj_t *p)
                  ok ? LV_SYMBOL_OK : WT_ICON_HIDDEN, a, wt_denom_unit());
         lv_obj_t *amt = lv_label_create(row);
         lv_label_set_text(amt, buf);
-        lv_obj_set_style_text_color(amt, ok ? INK_COL : WARN_COL, 0);
+        lv_obj_set_style_text_color(amt, ok ? INK_COL : wt_ink_for(WARN_COL), 0);
         lv_obj_set_style_text_font(amt, wt_font28(), 0);
         wt_denom_bind(amt);
 
@@ -3800,7 +3801,7 @@ static void files_build(void)
                                     INK_COL, NULL, NULL, file_tap_cb,
                                     (void *)(intptr_t)idx);
         if (is_out || s_sig[idx])
-            sf_cap_col(row, tag, is_out ? OK_COL : WARN_COL);
+            sf_cap_col(row, tag, is_out ? OK_COL : wt_ink_for(WARN_COL));
         wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_ROW_H - 1,
                                        WT_LANE_W), 42 * i + 110, 320);
     }
@@ -4040,7 +4041,7 @@ static void sign_band_update(void)
                                      rm_open_cb, NULL);
         for (uint32_t i = 0; i < lv_obj_get_child_count(s_band_act); i++) {
             lv_obj_t *ch = lv_obj_get_child(s_band_act, i);
-            lv_obj_set_style_text_color(ch, WARN_COL, 0);
+            lv_obj_set_style_text_color(ch, wt_ink_for(WARN_COL), 0);
             lv_obj_remove_flag(ch, WT_FLAG_ACCENT);
         }
     }

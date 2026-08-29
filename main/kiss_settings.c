@@ -479,7 +479,7 @@ static void storage_confirm_screen(int target)
                     tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
                            : STR_G_STORAGE_HOLD_MOVE),
                     tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y, 330,
-                    WT_WARN, WT_WARN, storage_apply,
+                    wt_accent(), wt_accent(), storage_apply,
                     (void *)(intptr_t)target);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, storage_confirm_cancel_cb, NULL);

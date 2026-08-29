@@ -843,7 +843,8 @@ static void words_screen(void)
     // the one rule that matters while they are copying: loud, under the grid,
     // not buried at the end of the subtitle
     lv_obj_t *po = mk_lbl(tr(STR_W_PAPER_ONLY), 48, 352,
-                          wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40), WARN_COL);
+                          wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40),
+                          wt_ink_for(WARN_COL));
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
 

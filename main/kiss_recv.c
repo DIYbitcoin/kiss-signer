@@ -333,7 +333,8 @@ static void vfy_result(const char *txt, size_t len) {
   } else if (validity == WADDR_CURRENT_NETWORK) {
     snprintf(buf, sizeof buf, tr(STR_R_NOT_FOUND_FMT), VFY_SCAN_DEPTH);
     lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
-                                wt_body_font(buf, 700, 44), WT_WARN);
+                                wt_body_font(buf, 700, 44),
+                                wt_ink_for(WT_WARN));
     lv_label_set_text_fmt(headline, LV_SYMBOL_WARNING " %s", buf);
     // The HEADLINE carries the amber and the explanation does not, which is
     // what the other two verdicts on this screen already do: wrong network and
@@ -817,6 +818,8 @@ static void lamp_set(bool used) {
   // stands aside here is the accent-painted caption sitting beside the lamp:
   // ADDRESS #N drops to WT_MUT whenever the accent would collide with the
   // state it sits next to, and the lamp keeps WT_OK and WT_WARN in all four.
+  // The LAMP keeps the state colour; the word beside it takes the accent when
+  // that colour is the caution. Amber is a mark colour here.
   lv_color_t col = used ? WT_WARN : WT_OK;
   if (s_idx_lbl) {
     const bool clash = lv_color_eq(wt_accent(), col);
@@ -828,7 +831,9 @@ static void lamp_set(bool used) {
   lv_obj_set_style_shadow_color(s_lamp_dot, col, 0);
   lv_label_set_text(s_lamp_lbl, tr(used ? STR_R_HANDED_ALREADY
                                         : STR_R_NEVER_HANDED));
-  lv_obj_set_style_text_color(s_lamp_lbl, col, 0);
+  // The dot above keeps the state colour; the two words beside it take the
+  // accent when that colour is the caution.
+  lv_obj_set_style_text_color(s_lamp_lbl, wt_ink_for(col), 0);
   lv_obj_update_layout(s_lamp_lbl);
   // Right aligned to 752 and recomputed every refresh: the two words are
   // different lengths, and more so per locale.
@@ -883,7 +888,7 @@ static void recv_refresh(void) {
     // A state must read as a state. Never through the fold: an ellipsis and a
     // lit tail would turn LOCKED into an address-shaped fragment.
     s_addr_sg = wt_lbl(par, tr(STR_C_SESSION_LOCKED), RECV_COL_X, 160,
-                       wt_font23(), WT_WARN);
+                       wt_font23(), wt_ink_for(WT_WARN));
     if (!s_lock_note)
       s_lock_note = wt_note(par, tr(STR_C_LOCKED_B), 48, 130, 216, 200);
   } else {

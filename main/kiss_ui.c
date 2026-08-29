@@ -140,7 +140,7 @@ static void meter_refresh(void) {
     lv_obj_set_style_text_color(s_meter, lv_color_hex(0xFF4D5E), 0);
   } else if (bits < 70) {
     lv_label_set_text(s_meter, tr(STR_L_FAIR));
-    lv_obj_set_style_text_color(s_meter, lv_color_hex(0xF2B84B), 0);
+    lv_obj_set_style_text_color(s_meter, wt_ink_for(WT_WARN), 0);
   } else {
     lv_label_set_text(s_meter, tr(STR_L_STRONG));
     lv_obj_set_style_text_color(s_meter, WT_OK, 0);
@@ -463,12 +463,12 @@ static void setup_cap_reset(void) {
   s_weak_ack = false;
   if (s_kef_mode) {
     if (s_kef_first_done)
-      cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+      cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
     else
       cap_set(tr(STR_L_KEF_PASS_NEW), MUT_COL, false);
     return;
   }
-  if (s_first_done) cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  if (s_first_done) cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
   else              cap_set(tr(STR_L_CREATE_YOUR_PASS), MUT_COL, false);
 }
 
@@ -640,7 +640,7 @@ static void setup_accept_first(void) {
   s_caret = 0;
   s_show = false;
   if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
-  cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
   entry_refresh();
 }
 
@@ -655,7 +655,7 @@ static void kef_accept_first(void) {
   s_caret = 0;
   s_show = false;
   if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
-  cap_set(tr(STR_L_TYPE_AGAIN), lv_color_hex(0xF2B84B), true);
+  cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
   entry_refresh();
 }
 
@@ -1096,7 +1096,7 @@ void kiss_ui_idle_wipe(void) {
     const int cap = s_backup_verify_pass ? STR_L_VERIFY_PASS
                   : s_restore_mode       ? STR_L_PASSPHRASE_CAP
                                          : STR_L_CREATE_YOUR_PASS;
-    cap_set(tr(cap), s_backup_verify_pass ? lv_color_hex(0xF2B84B) : MUT_COL,
+    cap_set(tr(cap), s_backup_verify_pass ? wt_ink_for(WT_WARN) : MUT_COL,
             s_backup_verify_pass);
   }
   if (s_login && s_entry) { entry_refresh_text(); caret_refresh(); }
@@ -1229,7 +1229,7 @@ static void setup_warn_words_done(void)
     lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_login);
   }
-  cap_set(tr(STR_L_VERIFY_PASS), lv_color_hex(0xF2B84B), true);
+  cap_set(tr(STR_L_VERIFY_PASS), wt_ink_for(WT_WARN), true);
   entry_refresh();
 }
 
@@ -1266,7 +1266,7 @@ static void setup_warn_screen(void) {
 
   lv_obj_t *t = lv_label_create(s_warnscr);
   lv_label_set_text(t, tr(warn_t));
-  lv_obj_set_style_text_color(t, lv_color_hex(0xF2B84B), 0);
+  lv_obj_set_style_text_color(t, wt_ink_for(WT_WARN), 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
   lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
 
@@ -1361,14 +1361,15 @@ static void setup_warn_screen(void) {
     lv_obj_set_pos(state, 110, 300);
   }
 
-  // The status colour that used to be a ring around each pill goes on the
-  // words themselves now: VERIFY wears the caution until the check has been
-  // run, and I UNDERSTAND's tick answers in green or red for whether skipping
-  // is walking past a verified backup or an unchecked one.
+  // I UNDERSTAND's tick answers in green or red for whether skipping is
+  // walking past a verified backup or an unchecked one. VERIFY is an ACTION,
+  // so it wears the accent: amber is a mark colour, and the state chip beside
+  // these two is where the unverified backup is already reported.
   lv_obj_t *verify = wt_word_action(s_warnscr, WT_ICON_ARR_R,
                                     tr(STR_L_VERIFY_FULL_BACKUP), false,
-                                    s_backup_verified ? WT_INK : WT_WARN,
-                                    false, setup_warn_verify_cb, NULL);
+                                    s_backup_verified ? WT_INK : wt_accent(),
+                                    !s_backup_verified,
+                                    setup_warn_verify_cb, NULL);
   lv_obj_set_pos(verify, 48, WT_ACTION_Y_TALL + 13);
 
   // Skipping is allowed, but it must look like a conscious decision.
@@ -2356,7 +2357,7 @@ void kiss_build_id_restyle(lv_obj_t *version_label)
 #endif
   lv_obj_set_style_text_color(version_label, enc ? MUT_COL : wt_accent(), 0);
 #else
-  lv_obj_set_style_text_color(version_label, WT_WARN, 0);
+  lv_obj_set_style_text_color(version_label, wt_ink_for(WT_WARN), 0);
 #endif
 }
 
@@ -2447,7 +2448,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // the status facts below exactly where they were. On one row that argument
   // does not apply, since there is nothing under them to push.
   lv_label_set_text_fmt(w, "encryption: %s", enc ? "ON" : "OFF");
-  lv_obj_set_style_text_color(w, enc ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+  lv_obj_set_style_text_color(w, enc ? MUT_COL : wt_ink_for(WT_WARN), 0);
   if (stacked) {
     // Row two, and the version keeps row one to ITSELF. Encryption was tried up
     // there beside it and the gate caught what the arithmetic missed: a DEV
@@ -2472,7 +2473,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     lv_obj_t *r = lv_label_create(parent);
     lv_obj_set_style_text_font(r, wt_font14(), 0);
     lv_label_set_text_fmt(r, "radio: %s", radio_held ? "HELD" : "NOT HELD");
-    lv_obj_set_style_text_color(r, radio_held ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    lv_obj_set_style_text_color(r, radio_held ? MUT_COL : wt_ink_for(WT_WARN), 0);
     // Shares its row with encryption, and follows its MEASURED width: the word
     // is ON or OFF and the translation of neither is fixed, so the gap is added
     // to what encryption actually rendered rather than to a guess about it.
@@ -2508,7 +2509,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     bool noise = kiss_trng_live();
     lv_label_set_text_fmt(n, "randomness: %s",
                           noise ? "NOISE + TIMING" : "NO SOURCE");
-    lv_obj_set_style_text_color(n, noise ? MUT_COL : lv_color_hex(0xF2B84B), 0);
+    lv_obj_set_style_text_color(n, noise ? MUT_COL : wt_ink_for(WT_WARN), 0);
     // Beside radio, on row two, stacked or not. It used to take a third row of
     // its own on the grounds that three facts end to end reach x=443 and read
     // as a caption under the colour picker rather than a line of this block.
