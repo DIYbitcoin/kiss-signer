@@ -677,9 +677,11 @@ static void sp_key_warn_cb(lv_event_t *e)
     // Revealing a reusable private scan key should not be one stray tap
     // away: the slide's full-width travel is the gate no accidental brush
     // can cross.
-    wt_slide_rule_c(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y, 330, WT_WARN, WT_WARN,
-                    sp_key_show, NULL);
+    // The ACCENT, not amber. Showing the key is what the screen is FOR, and
+    // the gate's amber belongs to the caution line, not to the way forward --
+    // the third of the three yellow runs the bench counted on this screen.
+    wt_slide_rule(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
+                  WT_ACT_X, WT_ACTION_Y, 330, sp_key_show, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, sp_key_back_cb, NULL);
 }
@@ -1008,9 +1010,12 @@ static void wtab_paper(void)
     // they sit on the fingerprint reveal and the pairing screen, and on
     // STR_L_FP_CAP, which those screens already ship in 21 locales.
     //
-    // Only when the group left room. A third row pushes the note to 336 and
-    // there is no band to earn.
-    if (rows == 2) kiss_fp_card(w_pane, 302);
+    // NO FINGERPRINT CARD. It framed eight characters under a page whose
+    // whole subject is a list of words, and it answered a question nobody
+    // asks here: the check on this page compares WORDS against paper, and the
+    // fingerprint proves nothing about a page of them. It stays where it
+    // does work -- the reveal, the pairing screen and the restore verdict.
+    (void)rows;
 }
 
 static void wtab_enc(void)
@@ -1074,11 +1079,10 @@ static void wtab_enc(void)
 
     wt_group_note(w_pane, 2, tr(STR_I_KEF_W2_H));
 
-    // The same fingerprint the PAPER group frames, for the same reason and in
-    // the same place: this is a backup OF a set of keys, the owner is entitled
-    // to know which, and the sealed file is named by it. Two rows leave the
-    // band; the subject earns it.
-    kiss_fp_card(w_pane, 302);
+    // No fingerprint card here either. The row above already names the file
+    // by its fingerprint ("one QR, or 9A2C33E3.kef"), so the card was the
+    // same eight characters twice on one screen -- and the bench asked
+    // outright whether it was needed. It is not.
 }
 
 static void wtab_build(void)

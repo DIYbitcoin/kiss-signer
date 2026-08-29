@@ -96,8 +96,11 @@ static void intro_screen(void)
     // The provenance row leads, because it answers the one question the bars
     // cannot. POWER, not a bolt: the fact stated is that the noise circuit is
     // switched on. Value in a status colour -- this is a state, not a theme.
+    // font23 on the sub, stated rather than fitted. The ladder had one line
+    // of a 96px row to work with and the copy was three, so it landed on
+    // font14 -- "noise source text is very tiny". The copy is one line now.
     wt_row_x(s_scr, LV_SYMBOL_POWER, tr(STR_W_RNG_SRC), tr(STR_W_RNG_SRC_SUB),
-             NULL, live ? tr(STR_W_RNG_ON) : tr(STR_W_RNG_OFF),
+             wt_font23(), live ? tr(STR_W_RNG_ON) : tr(STR_W_RNG_OFF),
              // ON and OFF are words, not a reading. The mono face on this page
              // belongs to the counter under the bars.
              wt_font23(), live ? OK_COL : WARN_COL, false,

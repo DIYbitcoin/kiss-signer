@@ -2539,6 +2539,34 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
 // after building, before anything else lays out beside it.
 int kiss_build_id_right(void) { return s_build_id_right; }
 
+const char *kiss_build_commit(void)
+{
+#ifdef KISS_RELEASE
+  return KISS_COMMIT_STR;
+#else
+  return KISS_COMMIT_STR " dev";
+#endif
+}
+
+void kiss_build_id_facts(const char **ver, bool *enc, bool *radio, bool *noise)
+{
+  static char v[64];
+#ifdef KISS_RELEASE
+  snprintf(v, sizeof v, "%s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
+#else
+  snprintf(v, sizeof v, "%s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
+#endif
+  if (ver) *ver = v;
+#ifdef SIMULATOR
+  if (enc)   *enc = false;
+  if (radio) *radio = true;          // sim: no radio hardware exists
+#else
+  if (enc)   *enc = esp_efuse_is_flash_encryption_enabled();
+  if (radio) *radio = radio_is_held();
+#endif
+  if (noise) *noise = kiss_trng_live();
+}
+
 #ifndef ESP_PLATFORM
 void kiss_ui_test_recover_screen(void) { recover_screen(); }
 void kiss_ui_test_recover_close(void)

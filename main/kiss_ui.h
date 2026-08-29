@@ -94,6 +94,17 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
 // Right edge of the row the call above drew. The version string grows between
 // build profiles, so anything placed beside it measures rather than guesses.
 int kiss_build_id_right(void);
+// The same four facts the block above prints, as VALUES, so a page can render
+// them at a size somebody reads. THIS DEVICE was a 96px card holding two
+// font14 lines with 180px of empty glass under it -- "the text is quite
+// fucking tiny when there is a lot of space to be filled". The corner
+// diagnostic stays a corner diagnostic; the page gets rows.
+// `ver` is a pointer to static storage and is never NULL.
+void kiss_build_id_facts(const char **ver, bool *enc, bool *radio,
+                         bool *noise);
+// The commit alone, for a row whose VALUE is already the version: a sub
+// repeating the value beside it is the copy rule's first cut.
+const char *kiss_build_commit(void);
 
 // The eight characters the open keys are CALLED, framed on the value-card
 // idiom at (231, y) x 340, or NOTHING. Two pages want it in the band their

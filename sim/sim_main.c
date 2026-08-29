@@ -1242,7 +1242,10 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 #define SET_CHIP_X        670
 // THIS DEVICE is not on the row grid: the facts card owns 104..200 and the
 // card slot's own row sits at 232, 60 tall.
-#define SET_DEV_CARD_Y     262
+// THIS DEVICE is a five row def list now, not a card over one wide row: the
+// page was a 96px block of font14 with 180px of empty glass under it. The
+// card is the LAST row, and def rows are LANE/n tall from WT_LANE_Y.
+#define SET_DEV_CARD_Y     (114 + (284 / 5) * 4 + (284 / 5) / 2)
 
 // 50 frames, which is 800ms, and it is the only tap on this page that needs
 // them: a tab change is the one thing SETTINGS animates. The last row of a
@@ -3916,8 +3919,14 @@ int main(void) {
   // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
   def_row(2, 1);                                     // This device -> the facts
-  save("/tmp/sim_device.ppm");                       // build id, encryption, radio, card
-  must_show("device/build id", "KISS");
+  // The five rows enter on a 42ms stagger, so the frame has to wait for the
+  // last one: saving straight after the tap photographed two rows and three
+  // ghosts, which is a picture of the animation rather than of the page.
+  pump(30);
+  save("/tmp/sim_device.ppm");                       // build, enc, radio, noise, card
+  must_show("device/build", tr(STR_I_DEV_BUILD));
+  must_show("device/radio", tr(STR_I_DEV_RADIO));
+  must_show("device/randomness", tr(STR_I_DEV_RANDOM));
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);   // the card
   save("/tmp/sim_sdinfo.ppm");
   must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));

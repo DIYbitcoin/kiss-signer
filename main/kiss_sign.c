@@ -3946,9 +3946,20 @@ static void sign_tab_build(void)
     lv_obj_t *p = s_cctx.pane;
     if (s_choose_help) {
         wt_fact_t facts[3] = {
-            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V), LV_SYMBOL_EDIT },
+            // BUILD, SIGN, SEND. It was a pencil for "builds it", the
+            // signature glyph for "signs it" and an upload arrow for
+            // "broadcasts" -- and a pencil is what you SIGN with, so the
+            // first two marks were the wrong way round. The bench: "instead
+            // of a pencil icon for builds it, use a build icon".
+            //
+            // A wrench and a satellite dish would be better still and neither
+            // is in SYMS; one font rebuild in this branch is enough, and
+            // these three are already there. The gear is a machine
+            // assembling, the signature glyph is the signature, and WIFI is
+            // the only mark in the set that means "out to the network".
+            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V), LV_SYMBOL_SETTINGS },
             { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V), WT_ICON_SIGN },
-            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V), LV_SYMBOL_UPLOAD },
+            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V), LV_SYMBOL_WIFI },
         };
         // "PSBT" carries the emphasis: it is the one word this page exists
         // to teach, and the bench asked for it to stand out of the sentence.

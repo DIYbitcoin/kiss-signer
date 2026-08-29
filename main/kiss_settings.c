@@ -1037,18 +1037,39 @@ static void audit_open_cb(lv_event_t *e)
                  tr(STR_I_TAB_SECURITY));
         wt_trail(s_scr, WT_ICON_SHIELD, trail, false);
     }
-    wt_standing(s_scr, tr(STR_W_AUD_STAND), WT_DIM, false);
+    // The standing claim in the ACCENT, not WT_DIM. It is the one thing this
+    // page exists to promise -- nothing an audit touches leaves the device --
+    // and at WT_DIM the bench could not see the dot at all: "shouldn't the
+    // fucking dot next to NOTHING LEAVES THIS DEVICE have the theme color
+    // because it's barely noticeable". A claim is not furniture.
+    wt_standing(s_scr, tr(STR_W_AUD_STAND), wt_accent(), false);
     {
+        // THE SAME SHAPE AS THE ROW BELOW IT. These two had opposite
+        // hierarchies: this one put its SUBJECT in the small caption and the
+        // ANSWER ("DICE", "CAMERA AND TAPS") in the big value, while the one
+        // under it did the reverse -- so the bench read the answer as the more
+        // important of the two and asked why. "why the fuck is the CAMERA AND
+        // TAPS text larger than the HOW YOUR KEYS WERE MADE text??!!"
+        //
+        // Subject in the label at font23, answer in the VALUE lane on the
+        // right, sub-line at font23 under it. Both rows read the same way
+        // down the page now.
         int src = kiss_seed_source();
         const char *label = NULL, *note = NULL;
         made_labels(src, &label, &note);
-        wt_row_x(s_scr, WT_ICON_KEY, tr(STR_W_MADE_T), label,
-                 NULL, NULL, NULL, WT_INK, false,
+        (void)note;
+        wt_row_x(s_scr, WT_ICON_KEY, tr(STR_W_MADE_T), NULL, NULL,
+                 label, wt_font23(), WT_INK, false,
                  WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
                  made_open_cb, NULL);
     }
+    // font23 on the sub, stated. NULL takes the fit ladder, and a 96px row
+    // affords one line under its label -- which is how this shipped at font14
+    // and came back as "text below RANDOMNESS AUDIT is fucking tiny and
+    // should be!!! Who the fuck can read that???". The copy is one line now,
+    // so the rung is a choice rather than a surrender.
     wt_row_x(s_scr, LV_SYMBOL_SHUFFLE, tr(STR_W_RNG_T), tr(STR_W_RNG_S),
-             NULL, NULL, NULL, WT_INK, false,
+             wt_font23(), NULL, NULL, WT_INK, false,
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              audit_rng_cb, NULL);
     lv_obj_set_ext_click_area(
@@ -1476,18 +1497,40 @@ static void device_screen(void)
         wt_trail(s_scr, LV_SYMBOL_SETTINGS, trail, false);
     }
 
-    // Framed, not floating. kiss_build_id_make draws three sibling labels at
-    // font14 and nothing else; on an open page that is a bare paragraph, and
-    // on a card it is a block of facts.
-    wt_card(s_scr, 48, 104, 704, 96);
-    kiss_build_id_make(s_scr, 72, 128, true, true);
+    // FOUR ROWS ON THE LANE, not a 96px card of font14 with 180px of empty
+    // glass under it. kiss_build_id_make is a CORNER DIAGNOSTIC -- font14 is
+    // right for it in the band of the settings page, where it lives -- and
+    // this page put the same block at the top of a 704px lane and left the
+    // rest blank. The bench: "the text is quite fucking tiny when there is a
+    // lot of space to be filled and used on the screen don't you think??"
+    //
+    // Same four facts, as the page's own def rows, at the size the rest of
+    // SETTINGS reads at. The lamps carry the two that have a bad state; the
+    // fifth row is the card, which is the only one that opens anything.
+    bool enc = false, radio = true, noise = true;
+    kiss_build_id_facts(NULL, &enc, &radio, &noise);
 
-    wt_row_wide(s_scr, 232, &(wt_wide_t){
-        .label = tr(STR_W_SD_BTN),
-        .sub   = tr(STR_I_CARD_SUB),
-        .kind  = WT_WIDE_OPEN,
-        .cb    = sdinfo_open_cb,
-    });
+    wt_def_t defs[5] = {
+        { .cap = tr(STR_I_DEV_BUILD), .val = KISS_VERSION_STR,
+          .sub = kiss_build_commit() },
+        { .cap = tr(STR_I_DEV_ENC),
+          .val = tr(enc ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+          .val_col = enc ? (lv_color_t){0} : WT_WARN,
+          .lamp = true, .lamp_col = enc ? WT_OK : WT_WARN },
+        // HELD is the SAFE state: the C6 is kept in reset, so the radio is
+        // not merely off, it cannot come up. NOT HELD is the one worth a lamp.
+        { .cap = tr(STR_I_DEV_RADIO),
+          .val = tr(radio ? STR_I_DEV_RADIO_OFF : STR_I_DEV_RADIO_ON),
+          .val_col = radio ? (lv_color_t){0} : WT_WARN,
+          .lamp = true, .lamp_col = radio ? WT_OK : WT_WARN },
+        { .cap = tr(STR_I_DEV_RANDOM),
+          .val = tr(noise ? STR_W_RNG_ON : STR_W_RNG_OFF),
+          .val_col = noise ? (lv_color_t){0} : WT_WARN,
+          .lamp = true, .lamp_col = noise ? WT_OK : WT_WARN },
+        { .cap = tr(STR_W_SD_BTN), .val = "",
+          .sub = tr(STR_I_CARD_SUB), .go = sdinfo_open_cb },
+    };
+    wt_def_list(s_scr, defs, 5);
 
     lv_obj_set_ext_click_area(
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, device_back_cb, NULL), 10);

@@ -3012,9 +3012,15 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
                    const char *hi, const wt_fact_t *facts, int n)
 {
-    lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, chrome28(headline),
-                         WT_INK);
+    const lv_font_t *hf = chrome28(headline);
+    lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, hf, WT_INK);
     lv_obj_set_width(h, WT_LANE_W);
+    // HEIGHT TOO. LONG_DOT only elides once the box stops growing, so a
+    // headline with a width and no height does not ellipsise -- it wraps, and
+    // the paragraph pinned at 152 is then printed straight through its second
+    // line. Which is exactly what a longer SIGN headline did the hour it was
+    // written. Same lesson as every other pinned one-liner in this file.
+    lv_obj_set_height(h, lv_font_get_line_height(hf));
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
 
     // mono23, the reading rung. This was chrome18, which put every [ ? ]
@@ -3223,8 +3229,9 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         lv_obj_align(r->val, LV_ALIGN_LEFT_MID, r->val_x, 0);
         if (r->sub && mode == DEF_CLOSED)
             lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
-                         r->cyc ? -WT_LINE_PAD
-                                : -(WT_LINE_PAD + DEF_ARR_W + 20), 0);
+                         (r->cyc || !r->arrow)
+                             ? -WT_LINE_PAD
+                             : -(WT_LINE_PAD + DEF_ARR_W + 20), 0);
         if (r->arrow) {
             if (r->cyc) {
                 const int vw = mode == DEF_GHOST ? r->vw_ghost : r->vw_big;
@@ -3444,6 +3451,12 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                              LV_TEXT_FLAG_NONE);
         }
 
+        // ABSENT, not dimmed, on a row that opens nothing. The chevron is a
+        // promise -- "this takes you somewhere" -- and a row of pure readout
+        // (the build, the radio, the noise source) has nowhere to take
+        // anybody. It was drawn unconditionally, so THIS DEVICE's four fact
+        // rows each wore an arrow to nothing.
+        const bool leads = defs[k].go || defs[k].plain || defs[k].mark;
         r->cyc    = defs[k].mark != NULL;
         r->vw_big = vs.x;
         {
@@ -3452,15 +3465,19 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                              0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
             r->vw_ghost = gs.x;
         }
-        r->arrow = wt_lbl(row, defs[k].mark ? defs[k].mark : LV_SYMBOL_RIGHT,
-                          0, 0, wt_font23(), wt_accent());
-        lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
-        lv_obj_update_layout(r->arrow);
-        r->mark_w = lv_obj_get_width(r->arrow);
-        lv_obj_set_style_transform_pivot_x(
-            r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
-        lv_obj_set_style_transform_pivot_y(
-            r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
+        r->arrow = NULL;
+        if (leads) {
+            r->arrow = wt_lbl(row,
+                              defs[k].mark ? defs[k].mark : LV_SYMBOL_RIGHT,
+                              0, 0, wt_font23(), wt_accent());
+            lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
+            lv_obj_update_layout(r->arrow);
+            r->mark_w = lv_obj_get_width(r->arrow);
+            lv_obj_set_style_transform_pivot_x(
+                r->arrow, lv_obj_get_width(r->arrow) / 2, 0);
+            lv_obj_set_style_transform_pivot_y(
+                r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
+        }
 
         if (defs[k].sub && *defs[k].sub) {
             // A row's sub is measured against the CLOSED value, the widest
@@ -3474,7 +3491,9 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             // -- and LV_SYMBOL_LOOP fills the lane, so the same number that
             // looked generous beside a chevron rendered "not real bitcoin"
             // hard against the loop.
-            int lane = r->cyc
+            int lane = !leads
+                     ? WT_LANE_W - WT_LINE_PAD - (r->val_x + vs.x + 16)
+                     : r->cyc
                      ? WT_LANE_W - WT_LINE_PAD
                        - (r->val_x + vs.x + 14 + r->mark_w + 20)
                      : WT_LANE_W - WT_LINE_PAD - DEF_ARR_W - 20
@@ -3737,7 +3756,16 @@ void wt_sheet_dots(lv_obj_t *scr, int n, int cur)
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
 {
     const lv_color_t mark = g->stop ? WT_STOP : WT_WARN;
-    const lv_color_t ink  = g->stop ? WT_STOP_INK : WT_WARN;
+    // ONE amber thing on a walk-back gate, and it is the caution -- not the
+    // headline, which is a statement of what the screen is for. The scan key
+    // gate had three amber runs (the sentence, the warn line and the slide
+    // label) and the bench counted them: "out of the three yellow text
+    // phrases only the caution one should be yellow". The MARK keeps the
+    // severity colour, so the amber still arrives before the words.
+    //
+    // A STOP gate is untouched. There the sentence IS the danger, and
+    // WT_STOP_INK on it is the whole point of the shape.
+    const lv_color_t ink  = g->stop ? WT_STOP_INK : wt_accent();
 
     // The mark and the sentence share a baseline at the top of the lane. The
     // mark takes the FULL danger colour; the sentence the readable tint --
@@ -3751,6 +3779,7 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     lv_obj_t *s = wt_lbl(scr, g->sentence,
                          WT_LANE_X + lv_obj_get_width(ic) + 14, 124, sf,
                          ink);
+    if (!g->stop) lv_obj_add_flag(s, WT_FLAG_ACCENT);
     lv_obj_set_width(s, WT_LANE_W - lv_obj_get_width(ic) - 14);
     lv_obj_set_height(s, lv_font_get_line_height(sf));
     lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
@@ -3768,9 +3797,16 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
         lv_text_get_size(&ps, g->para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
         char wtxt[128];
         snprintf(wtxt, sizeof wtxt, "%s  %s", LV_SYMBOL_WARNING, g->warn);
+        // font23, not font14. This is the ONE sentence the gate exists to
+        // make somebody read, and it was set two rungs under the paragraph
+        // above it -- the smallest text on a screen about a caution. "THAT
+        // TEXT SHOULD BE BIGGER ITS FUCKING TINY". No fit helper was involved
+        // and none could have caught it: the size was written in.
+        const lv_font_t *wf = chrome23(wtxt);
         lv_obj_t *w = wt_lbl(scr, wtxt, WT_LANE_X, 176 + ps.y + 12,
-                             wt_font14(), WT_WARN);
-        lv_obj_set_style_text_letter_space(w, 2, 0);
+                             wf, WT_WARN);
+        lv_obj_set_width(w, 690);
+        lv_label_set_long_mode(w, LV_LABEL_LONG_WRAP);
     }
 
     wt_line_rule(scr, WT_LANE_X, 260, WT_LANE_W);
