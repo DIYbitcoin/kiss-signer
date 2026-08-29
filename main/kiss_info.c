@@ -1216,7 +1216,6 @@ static void kef_sd_cb(lv_event_t *e)
                       tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
                              ok ? STR_S_SAVED_NOTE : STR_S_FAIL_SD_WRITE),
                       ok ? WT_OK : WT_STOP);
-    wt_tiny_ok(s_kef_sd_chip);
 }
 
 static void kef_show_screen(void)

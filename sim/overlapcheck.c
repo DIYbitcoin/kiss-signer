@@ -1171,7 +1171,12 @@ static void oc_check_colour_roles(const char *tag)
     uint32_t ahex = ((uint32_t)ac.red << 16) | ((uint32_t)ac.green << 8) | ac.blue;
     lv_color_t ink = WT_INK;
     uint32_t inkhex = ((uint32_t)ink.red << 16) | ((uint32_t)ink.green << 8) | ink.blue;
-    if (cde_same(ahex, inkhex)) return;                 // MONO, see above
+    // GREEN only. This used to skip MONO as well, whose accent was WT_INK to
+    // the byte -- so the one theme with no accent was also the one theme with
+    // no colour supervision. MONO has a real accent now and is checked like
+    // the other three; the guard stays for the case it was really about, which
+    // is an accent a reader cannot tell from the ink beside it.
+    if (cde_same(ahex, inkhex)) return;
 
     for (int i = 0; i < s_n; i++) {
         oc_node_t *n = &s_node[i];

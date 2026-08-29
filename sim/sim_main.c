@@ -1604,49 +1604,7 @@ static void tap_str(int key, int hold, int settle)
     tap_obj(act_for(key, "tap"), hold, settle);
 }
 
-// Tap the "?" chip that sits immediately after a caption. The chip's x is
-// computed from the caption's rendered width, so a fixed coordinate here would
-// only prove the English layout: find the caption, then press just past its
-// right edge, which is the chip in whatever locale this run is in.
-static void chip_scan_any(lv_obj_t *o, lv_obj_t **found, int *n)
-{
-    if (*n >= 8) return;
-    if (lv_obj_check_type(o, &lv_label_class)) {
-        const char *t = lv_label_get_text(o);
-        if (t && strcmp(t, "?") == 0) found[(*n)++] = o;
-        return;
-    }
-    uint32_t c = lv_obj_get_child_count(o);
-    for (uint32_t i = 0; i < c && *n < 8; i++)
-        chip_scan_any(lv_obj_get_child(o, i), found, n);
-}
 
-// Tap the topmost "?" chip on the screen. On the verify screen that is the one
-// beside the coins caption, whose x is computed from the caption's rendered
-// width -- so a fixed coordinate here would only ever prove the English
-// layout, while finding the chip proves it landed somewhere tappable in
-// whatever locale this run is in.
-static void tap_chip_top(void)
-{
-    lv_obj_t *found[8];
-    int n = 0;
-    chip_scan_any(lv_screen_active(), found, &n);
-    lv_obj_t *top = NULL;
-    lv_area_t ta = {0};
-    for (int i = 0; i < n; i++) {
-        lv_area_t a; lv_obj_get_coords(found[i], &a);
-        if (!top || a.y1 < ta.y1) { top = found[i]; ta = a; }
-    }
-    if (!top) {
-        printf("FAIL: no \"?\" chip on screen to tap\n");
-        g_walk_fails++;
-        return;
-    }
-    touch((ta.x1 + ta.x2) / 2, (ta.y1 + ta.y2) / 2);
-    pump(3);
-    release();
-    pump(30);       // the explain card animates in; 8 photographs it mid-slide
-}
 
 // The two-part form, for a hold the walk photographs partway through.
 // The slide-to-confirm bars fire by TRAVEL, not time: grip one by its words
@@ -2917,14 +2875,10 @@ int main(void) {
   touch(505, 185); pump(3); release(); pump(10);
   must_show("sats unit", "60 000");
 
-  // The coins caption's own "?": the first word on this screen a newcomer has
-  // to be taught, and until now the only one with nothing to tap. The chip is
-  // placed off the caption's measured width, so this tap also proves the
-  // placement lands somewhere tappable in whatever locale the walk is running.
-  tap_chip_top();
-  save("/tmp/sim_sign_coins_help.ppm");     // INPUTS (UTXO), three marks
-  must_show("coins help", "UTXO");
-  tap_str(STR_C_OK, 3, 8);     // OK closes the card
+  // NO COINS "?" any more. It defined "input" -- a glossary term, and the
+  // glossary is one tap behind DETAILS with the other seven. Three "?" in the
+  // content of the screen that matters most is what the bench was reading as
+  // overwhelming.
 
   // No tap and no second frame: the whole address is on the glass from the
   // moment the screen builds. It used to arrive folded to eight characters
@@ -2952,22 +2906,13 @@ int main(void) {
   must_show("address card/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
 
-  // RBF's own chip, at 738 past the right end of the pair it explains. The pair
-  // is on the address caption's line in BOTH layouts now: it used to have a
-  // band of its own that the cautioned screen had no room for, so RBF vanished
-  // from every transaction interesting enough to be flagged.
-  touch(753, 309); pump(3); release(); pump(8);     // RBF "?" -> explainer (mid-intro)
-  save("/tmp/sim_sign_rbf_mid.ppm");
-  pump(30);                                          // let the stagger settle
-  save("/tmp/sim_sign_rbf.ppm");
-  // NOT must_show(RBF label): the verify screen underneath prints the same
-  // words in its meta row, so that needle passes whether or not the card ever
-  // opened -- and it did pass, for a build where this chip was buried under the
-  // address lane and could not be pressed at all. The FULL grouped address
-  // exists only on the address card (the verify screen behind both shows the
-  // fold), so its absence is what says this is a different card.
-  must_not_show("rbf card/not the address card", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
-  tap_str(STR_C_OK, 3, 8);     // OK closes the card
+  // NO RBF CHIP AND NO META ROW on this screen. The pair below the graph read
+  // "TESTNET, practice coins  ·  REPLACEABL..." -- ellipsised in English at
+  // HEAD -- and carried a third "?" of its own. RBF is a flag row on
+  // DETAILS > TRANSACTION with the same card behind it, which the deck leg
+  // below already walks; the network is a badge on the hero row now, beside
+  // the amount whose meaning it changes.
+
   tap_str(STR_S_DETAILS, 3, 30);    // DETAILS -> the deck, INPUTS tab
   save("/tmp/sim_sign_details.ppm");
   // The stroke crosses the deck STARTING OVER THE LIST: the inputs list is a

@@ -1343,52 +1343,6 @@ static void denom_tap_details(void)
     details_cb(NULL);          // this page rebuilds itself from s_parent
 }
 
-// ---- "?" beside the coins caption: what a coin is ----
-// The word on the glass stays "coins", which is what a coordinator's own coin
-// control calls them; the card names the term the rest of Bitcoin writes down
-// and corrects what the word implies.
-//
-// It said "a coin is spent whole, never a piece of one", which is true of the
-// output and wrong about everything around it: a signer does not hold coins.
-// The output is a record on the bitcoin network; what this box holds is the
-// key that can unlock it, and that key is the whole of what it holds. Getting
-// that backwards on the one screen where somebody is about to sign teaches
-// them the device is a wallet full of money -- which is also exactly the
-// belief that makes a lost passphrase feel survivable.
-//
-// The consumed-entirely part stays, because it is real and it is why the
-// graph has a change strand at all: unlocking an output uses all of it, and
-// the remainder comes back as a new one.
-static void coins_help_cb(lv_event_t *e)
-{
-    (void)e;
-    static const char *const ICONS[] = {
-        LV_SYMBOL_GPS,           // where it actually is: out there, not in here
-        WT_ICON_KEY,             // what this box holds, and the whole of it
-        LV_SYMBOL_LOOP,          // used up, and the remainder coming back
-    };
-    // 64 for the term plus the parenthesis, because head is 64: the device
-    // compiler refuses a snprintf that could cut a translated word in half,
-    // and it is right -- this is the second buffer on this screen to be caught
-    // that way and neither could have been seen from a frame.
-    static char title[80];
-    char head[64];
-    gloss_line(0, head, sizeof head);          // INPUTS, already in 21 locales
-    // UTXO is not translated by wallets anywhere: it goes on as it stands, so
-    // the owner can carry the word to any other tool and be understood.
-    snprintf(title, sizeof title, "%s  (UTXO)", head);
-    wt_explain_t x = {
-        .title  = title,
-        .icon   = LV_SYMBOL_DOWNLOAD,
-        .body   = tr(STR_S_COINS_HELP_B),
-        .ok_txt = tr(STR_C_OK),
-        .sev    = WT_SEV_PLAIN,
-        .mode   = WT_GRID_ICONS,
-        .icons  = ICONS,
-        .icons_count = sizeof ICONS / sizeof ICONS[0],
-    };
-    wt_explain_open(s_scr, &x);
-}
 
 // ---- "?" beside the address: the address, big, and what to do with it ----
 //
@@ -1479,45 +1433,6 @@ static void addr_tap_cb(lv_event_t *e)
     addr_help_cb(NULL);
 }
 
-// ---- "?" beside the network/RBF pair ----
-//
-// The question from the bench was "where is the option to RBF", and the honest
-// answer is that there is not one and cannot be. RBF is the nSequence value on
-// every input; it is inside the sighash preimage, so it is covered by the
-// signature, and a signer that changed it would be signing a transaction its
-// coordinator does not have. Sparrow, the coordinator this device names on its
-// own screens, has no pre-send toggle either: it is a right click on an
-// unconfirmed transaction afterwards.
-//
-// One body for both states, because two of its three lines are the same either
-// way and the third is now true either way as well: Bitcoin Core v28 turned
-// full RBF on by default and v29 removed the setting, so the flag no longer
-// decides whether a replacement is accepted. That is also why the OFF label
-// stopped saying FINAL -- see S_RBF_T_OFF.
-//
-// The TITLE carries the state, so the card names this transaction rather than
-// explaining a general fact and leaving the owner to work out which half is
-// theirs.
-static void rbf_help_cb(lv_event_t *e)
-{
-    (void)e;
-    static const char *const ICONS[] = {
-        WT_ICON_REPLACE,         // who sets it, and it is not this box
-        LV_SYMBOL_CUT,           // the fee, if it sticks
-        LV_SYMBOL_OK,            // what cannot change either way
-    };
-    wt_explain_t x = {
-        .title  = tr(s_sum.rbf ? STR_S_RBF_T_ON : STR_S_RBF_T_OFF),
-        .icon   = s_sum.rbf ? WT_ICON_REPLACE : WT_ICON_LOCK,
-        .body   = tr(STR_S_RBF_HELP_B),
-        .ok_txt = tr(STR_C_OK),
-        .sev    = WT_SEV_PLAIN,
-        .mode   = WT_GRID_ICONS,
-        .icons  = ICONS,
-        .icons_count = sizeof ICONS / sizeof ICONS[0],
-    };
-    wt_explain_open(s_scr, &x);
-}
 
 // The verify screen has no partial redraw: every state change rebuilds it. The
 // rebuild has to drop the screen-scoped state first, because the hold timer
@@ -1892,12 +1807,55 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_pos(w, fr - ww, 33);
             fr -= ww + 12;
         }
+        // THE NETWORK, and only when it is not mainnet. It was half of an
+        // ellipsised strip below the graph -- "TESTNET, practice coins  ·
+        // REPLACEABL..." -- which is where a fact goes to be unread. Here it is
+        // a badge on the title line, beside the amount's own screen furniture
+        // rather than buried under the graph, and absent entirely on mainnet so
+        // an ordinary spend reads with nothing extra in the header.
+        //
+        // IN THE fr CHAIN, not floating on top of it. The comment below this
+        // block says nothing new may appear on this line and collide with the
+        // filename -- and it is right: the filename's box deliberately spans
+        // the whole middle band so it can ellipsise, so anything parked over it
+        // overlaps by box whatever the frame looks like. Two attempts did
+        // exactly that. Reserving the width out of fr first is the mechanism
+        // this line already has, and the filename shrinks for it like it does
+        // for the signed badge above.
+        if (s_sum.testnet) {
+            lv_obj_t *nb = wt_state_chip(s_scr,
+                                         tr_sym(LV_SYMBOL_WARNING,
+                                                s_sum.net == KISS_NET_SIGNET
+                                                    ? STR_I_NET_SIGNET
+                                                    : STR_I_NET_TEST),
+                                         WT_WARN);
+            lv_obj_update_layout(nb);
+            int nw = lv_obj_get_width(nb);
+            // Only if the line can hold it. On a file that already carries a
+            // SIGNED ALREADY badge the chain runs out of lane, and a badge
+            // placed anyway lands on the TITLE -- which the gate caught on
+            // sim_sign_known. The network is on the DETAILS deck as well, so
+            // dropping it here costs the reader a tap, not the fact.
+            if (fr - nw - 12 - fx >= 60) {
+                lv_obj_set_pos(nb, fr - nw, 26);
+                fr -= nw + 12;
+            } else {
+                lv_obj_delete(nb);
+            }
+        }
         // Below about 60px a filename is ellipsis and one character, which tells
         // nobody anything. It is already on the row that was tapped and in the
         // DETAILS page title, so drop it rather than let it collide.
         if (fr - fx >= 60) {
             lv_obj_t *f = sg_lbl(s_scr, s_cur, fx, 34, wt_font_mono14(), MUT_COL);
             lv_obj_set_width(f, fr - fx);
+            // HEIGHT TOO, and this was latent for as long as the line existed:
+            // LONG_DOT only elides once the box stops growing, so a filename
+            // with a width and no height WRAPS first. Nothing had ever narrowed
+            // this lane enough to show it -- the network badge did, and a
+            // 60 character coordinator export dropped a second line straight
+            // through the hero.
+            lv_obj_set_height(f, lv_font_get_line_height(wt_font_mono14()));
             lv_label_set_long_mode(f, LV_LABEL_LONG_DOT);
         }
     }
@@ -2091,42 +2049,24 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(btc, MUT_COL, 0);
         wt_denom_bind(btc);
 
-        // ---- the fee rate, on the row that is already about the money ----
+        // The network badge is NOT on this row. It was, for one build, and the
+        // gate caught what the single-recipient frame could not show: with a
+        // 4 200 000 hero and twenty inputs this row is 720px of content in a
+        // 760px lane, so the badge ran straight into the caution chip at 738.
+        // It lives on the title line now, in the empty middle both layouts
+        // leave between the filename and the corner.
+
+        // NO FEE RATE HERE. "7.0 sat/vB, 1.6% of what you send" was promoted
+        // onto this row to answer "is that a lot", and it answered it in
+        // font14 against a font48 figure, on the busiest line of the busiest
+        // screen. Two things make it a duplicate: dtab_tx builds the identical
+        // string on DETAILS, one tap away on this same band; and the
+        // percentage that MATTERS already raises the HIGH FEE caution row, so
+        // the bar says "is that a lot" in a place the eye cannot miss and the
+        // owner has to acknowledge.
         //
-        // The graph draws the fee as a strand with a thickness, which answers
-        // "how much" and cannot answer "is that a lot". S_FEERATE_PCT_FMT
-        // answers the second one and was already written and translated:
-        // "7.0 sat/vB, 1.6% of what you send". It lived on DETAILS alone, two
-        // taps from the decision, and the percentage is the number Coldcard
-        // warns on at 5% and refuses at 10% -- the one a newcomer can reason
-        // about without knowing what a good rate looks like this week.
-        //
-        // Here rather than in the band under the address, because the address
-        // card took that band back, and because these are facts about the same
-        // amount. The scissors, not a bolt: a bolt reads as Lightning.
-        if (s_sum.fee_rate_x10) {
-            uint64_t p10 = s_sum.send_sats
-                         ? (uint64_t)s_sum.fee_sats * 1000ull / s_sum.send_sats : 0;
-            if (s_sum.send_sats)
-                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_PCT_FMT),
-                         (unsigned)(s_sum.fee_rate_x10 / 10),
-                         (unsigned)(s_sum.fee_rate_x10 % 10),
-                         (unsigned long long)(p10 / 10),
-                         (unsigned long long)(p10 % 10));
-            else
-                snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
-                         (unsigned)(s_sum.fee_rate_x10 / 10),
-                         (unsigned)(s_sum.fee_rate_x10 % 10));
-            // Declared font14: this is a UNIT SUFFIX on the hero row, beside
-            // a font48 figure and a BTC amount that are both already the
-            // answer. "7.0 sat/vB, 1.6% of what you send" is the arithmetic
-            // under the number, and the number is what the owner reads.
-            lv_obj_t *fr = lv_label_create(row);
-            lv_label_set_text_fmt(fr, "%s  %s", LV_SYMBOL_CUT, buf);
-            lv_obj_set_style_text_font(fr, wt_font14(), 0);
-            lv_obj_set_style_text_color(fr, MUT_COL, 0);
-            wt_tiny_ok(fr);
-        }
+        // What is left on this row is the amount, its unit, and the same amount
+        // in the other unit. Three facts about one number.
     }
 
     // ---- the caution bar -------------------------------------------------
@@ -2472,7 +2412,12 @@ static void verify_screen(lv_obj_t *parent)
         // later sibling that covers the whole width -- it drew correctly, and
         // every press went to the graph. The frame cannot show this: the chip
         // is right there, in the right place, and simply does nothing.
-        wt_help_chip(s_scr, s_coins_chip_x, 144, MUT_COL, coins_help_cb, NULL);
+        // NO CHIP HERE. It defined "input" -- a glossary term, and the
+        // glossary is one tap away behind DETAILS with the other seven. Three
+        // "?" scattered through the content of the screen that matters most is
+        // the shape being removed; what a reader needs at this moment is the
+        // graph, not a definition of the word above it.
+        (void)s_coins_chip_x;
 
         // The input total, here for the same reason and measured above for it:
         // the graph's box begins at SG_GRAPH_Y - BPAD = 156 and this figure's
@@ -2546,10 +2491,11 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_set_flex_align(arow, LV_FLEX_ALIGN_START,
                                   LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
             lv_obj_set_style_pad_column(arow, 8, 0);
-            lv_obj_t *acap = lv_label_create(arow);
-            lv_label_set_text(acap, tr(STR_S_SENDING_OUT));
-            lv_obj_set_style_text_font(acap, wt_font14(), 0);
-            lv_obj_set_style_text_color(acap, MUT_COL, 0);
+            // NO CAPTION WORD. "recipient address" labelled the only address
+            // on the screen, in font14, directly above it -- the copy rule's
+            // first cut. What stays on this row is what it is FOR: the
+            // recognition chip when these keys have paid here before, and the
+            // "?" that explains what to compare.
             // The recognition chip, between the caption and its "?", so the
             // mark and the thing that explains it are one reach apart. Only
             // when the destination is known: see kiss_payee.h on why a first
@@ -2560,16 +2506,21 @@ static void verify_screen(lv_obj_t *parent)
                          tr(STR_S_PAYEE_SEEN));
                 wt_chip(arow, kbuf, false);
             }
-            wt_help_chip(arow, 0, 0, MUT_COL, addr_help_cb, NULL);
+            // NOT the "?" -- that moved onto the card below, where the thing
+            // it explains actually is. With the caption word gone this row is
+            // the recognition chip or nothing, and a lone "?" floating over an
+            // empty line was the first thing the frame showed.
+            //
             // The row is LV_SIZE_CONTENT, so a chip in it makes it TALLER than
             // the caption alone -- and it sits directly above the address card.
             // Parked at a fixed ay - 6 it grew down THROUGH the card's top
             // edge: 294 plus a 31px chip row is 325 against a card starting at
             // 316. Measure it and hang it off the card instead, so the row's
-            // BOTTOM is what stays put and the caption rises when a chip
-            // arrives rather than the card being covered.
+            // BOTTOM is what stays put and the chip rises when it arrives
+            // rather than the card being covered.
             lv_obj_update_layout(arow);
             lv_obj_set_y(arow, ay + 16 - lv_obj_get_height(arow) - 6);
+            if (!s_addr_known) lv_obj_add_flag(arow, LV_OBJ_FLAG_HIDDEN);
         }
         // RBF's own chip is built AFTER the address, at the end of this block.
         // The address is a control now and its box is the whole 752 lane; a chip
@@ -2654,6 +2605,12 @@ static void verify_screen(lv_obj_t *parent)
                                     (void *)s_sum.outs[i].addr);
                 break;
             }
+            // The "?" ON THE CARD, at its top right corner: it explains what
+            // to compare, and the thing to compare is inside this box. It sat
+            // on the caption line above until the caption's word was cut, and
+            // then it was a mark floating over nothing.
+            if (!np) wt_help_chip(box, 752 - 30 - 12, 8, MUT_COL,
+                                  addr_help_cb, NULL);
             lv_obj_t *cmp = wt_lbl(box, tr(STR_S_CMP_8), 14, 0,
                                    wt_font23(), MUT_COL);
             // Block centred in a fixed height card, the same arithmetic
@@ -2669,82 +2626,17 @@ static void verify_screen(lv_obj_t *parent)
             break;
         }
 
-        // RBF's own chip, past the right end of the pair it explains, and built
-        // LAST so it sits above the address lane. This is the answer to "where
-        // is the RBF option": there is no option, and the card behind this chip
-        // is where that gets said.
-        wt_help_chip(s_scr, 738, ay - 6, MUT_COL, rbf_help_cb, NULL);
-    }
-
-    {
-        // ---- the meta row ------------------------------------------------
-        // Which network these coins are real on, and what the coordinator asked
-        // for about replacing the transaction. The fee is a strand now, with its
-        // own thickness, so the cell that used to print it is the one thing the
-        // row does not carry.
+        // NO RBF CHIP AND NO META ROW. The pair below the graph read
+        // "TESTNET, practice coins  ·  <REPLACEABL...>" -- ellipsised in
+        // ENGLISH, at HEAD, with nothing added -- plus a third "?" of its own.
+        // Both halves are already stated where a reader who wants them looks:
+        // RBF is a flag row on DETAILS > TRANSACTION with the same "?" card
+        // behind it, and the network is a badge in this screen's header now,
+        // the idiom KEYS and RECEIVE already use.
         //
-        // ON THE ADDRESS CAPTION'S LINE, right aligned, in BOTH layouts. It used
-        // to have a band of its own at y=366, which the cautioned screen has no
-        // room for -- so on a cautioned transaction the whole RBF half was
-        // simply dropped, and the fact went missing at exactly the moment the
-        // transaction became interesting enough to ask about. That is the bug
-        // behind "where is RBF". Sharing the caption's line costs nothing: the
-        // caption is one short phrase on the left and the address has the whole
-        // lane below it either way.
-        // With several recipients the graph runs to 366, so the pair and its
-        // chip sit under it rather than through it. One recipient and the graph
-        // stops at 290, leaving the caption line and the card below it.
-        const int ay = np ? 292 : (recipient_n > 1 ? 372 : 300);
-        const char *net = !s_sum.testnet             ? tr(STR_I_NET_MAIN)
-                        : s_sum.net == KISS_NET_SIGNET ? tr(STR_I_NET_SIGNET)
-                                                       : tr(STR_I_NET_TEST);
-        const char *rbf = s_sum.rbf ? tr_sym(WT_ICON_REPLACE, STR_S_RBF_T_ON)
-                                    : tr_sym(WT_ICON_LOCK, STR_S_RBF_T_OFF);
-        // The LOCKTIME does not join this pair, and the attempt is worth
-        // recording so nobody spends the afternoon again. Two things killed it.
-        //
-        // The row has no room. At HEAD, in ENGLISH, with nothing added, a
-        // replaceable testnet transaction already renders as "REPLACEABL..." --
-        // the 360px lane is spent and LONG_DOT is doing the work the comment
-        // below calls the backstop. A third segment does not get shown, it gets
-        // eaten, and the segment that vanishes is the new one.
-        //
-        // And there is nothing to say. Core sets nLockTime to the current
-        // height on every transaction it builds (anti fee sniping), and
-        // Sparrow and Electrum follow it, so a NON-ZERO locktime is what an
-        // ordinary spend looks like. A mark on every one of them is noise on
-        // the screen that can least afford it.
-        //
-        // The case that IS worth saying -- psbt_faker's locktime 2000000000,
-        // which is a year 2033 TIMESTAMP and not a height at all -- needs a
-        // test for "far past any plausible tip", and this signer has no clock
-        // and no chain. That means a build time floor that only moves forward
-        // with releases, which is its own change and not a string on this row.
-        snprintf(buf, sizeof buf, "%s  ·  %s", net, rbf);
-        // Amber on testnet: the network is a status, not chrome, and it is the
-        // one fact on this row that changes what a signature is worth.
-        //
-        // 364..724 right aligned, against a caption that starts at 24 and is one
-        // phrase long. 360px is more than the pair measures in any locale and
-        // the ellipsis is the backstop rather than the plan.
-        // With several recipients nothing shares this line, so it gets the lane
-        // from 24 rather than the 360 it leaves the caption. And the HEIGHT is
-        // pinned to one line in every case: LONG_DOT on a sized label wraps
-        // FIRST and ellipsises second, so eleven locales put a second line at
-        // y=409 -- 12px past WT_CONTENT_BOTTOM, on the layout where this row is
-        // lowest. Pinned, the ellipsis is what happens instead.
-        const bool wide = !np && recipient_n > 1;
-        lv_obj_t *m = sg_lbl(s_scr, buf, wide ? 24 : 364, ay, wt_font14(),
-                             s_sum.testnet ? wt_ink_for(WARN_COL) : MUT_COL);
-        lv_obj_set_width(m, wide ? 700 : 360);
-        lv_obj_set_height(m, lv_font_get_line_height(wt_font14()));
-        lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_label_set_long_mode(m, LV_LABEL_LONG_DOT);
-        // Declared font14: a STATUS STRIP, pinned to one line in a 360px lane
-        // it shares with the caution bar. It reports two states the colour and
-        // the "?" beside it already carry, and the lane cannot grow -- the
-        // amber IS the message here, not the letters.
-        wt_tiny_ok(m);
+        // The band it held goes to the address card, which is the one thing on
+        // this screen an attacker has to change and the one an owner has to
+        // read character by character.
     }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);

@@ -302,7 +302,21 @@ const lv_font_t *wt_body_font_typed(const char *txt, int w, int max_h)
 static int s_accent = WT_ACC_MONO;
 
 static const uint32_t ACC_HEX[WT_ACC_N] = {
-    0xE8EEF7,   // MONO: same as WT_INK, the shipped look
+    // MONO: a cool pale STEEL, not WT_INK. It was 0xE8EEF7 -- the ink, to the
+    // byte -- which was survivable only while amber carried the emphasis on
+    // every screen. The moment amber became a mark colour, MONO had no
+    // emphasis channel at all: every value, title, action and chevron rendered
+    // as the same white as the body text, and the SIGN screen came back from
+    // the bench as flat.
+    //
+    // The gate knew first. oc_check_colour_roles opens by returning early when
+    // the accent equals the ink, so MONO was the one theme with no colour
+    // supervision anywhere in the app -- not a carve-out anybody chose, just
+    // what an accent that is not a colour forces.
+    //
+    // 0x9FB6D4 stays monochrome to look at (a desaturated blue grey, no hue a
+    // reader would name) and is far enough off the ink to do the accent's job.
+    0x9FB6D4,   // MONO
     0x35D07F,   // GREEN (matches the home art dot)
     // CYPHERPINK started at 0xFF3EA5 and went to 0xC45CE8, and that overshot:
     // the only real complaint about the original was that at R=255 it sat about
@@ -329,6 +343,9 @@ static const uint32_t ACC_BG_HEX[WT_ACC_N] = {
 // has always used, so a new accent gets a fill and a pressed fill that sit at
 // the same depth below it rather than being picked by eye.
 static const uint32_t ACC_PRESS_HEX[WT_ACC_N] = {
+    // MONO's pressed fill was already a steel blue, chosen against an accent
+    // that was pure ink; against the steel accent it is the same relative
+    // darkening the other three use, so it does not move.
     0x33405A,
     0x173823,
     0x342135,
@@ -349,12 +366,12 @@ lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]
 
 void wt_lock_565(int *r5, int *g6, int *b5)
 {
-    // MONO's accent IS the ink, so a white lock would say nothing the brackets
-    // going solid and closing on the code does not already say. That theme keeps
-    // the green, which is the only place on the device a status colour and an
-    // accent trade places -- and it is the honest way round, because in MONO
-    // there is no accent to match.
-    uint32_t hex = s_accent == WT_ACC_MONO ? 0x35D07F : ACC_HEX[s_accent];
+    // The accent, in every theme. MONO used to be special-cased to WT_OK here
+    // because its accent WAS the ink and a white lock would have said nothing
+    // -- the comment called it "the only place on the device a status colour
+    // and an accent trade places", which was true and was a symptom. MONO has
+    // a real accent now, so the exception goes with the reason for it.
+    uint32_t hex = ACC_HEX[s_accent];
     if (r5) *r5 = (int)((hex >> 19) & 0x1F);
     if (g6) *g6 = (int)((hex >> 10) & 0x3F);
     if (b5) *b5 = (int)((hex >>  3) & 0x1F);
@@ -5454,6 +5471,12 @@ lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
     lv_obj_set_style_bg_opa(c, 13, 0);        // ~5 percent
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    // Declared font14 for the whole widget: a state chip is a BADGE, which is
+    // what font14 is for, and a rim plus a tint plus a mark is how it is read
+    // rather than by reading it. A call site that deliberately lifts one -- the
+    // touch-dead banner is the only one -- sets font23 afterwards, and the gate
+    // reads the rendered size, so this declaration cannot silence that.
+    wt_tiny_ok(c);
     wt_state_chip_set(c, txt, col);
     return c;
 }
