@@ -2038,16 +2038,24 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_style_text_color(unit, INK_COL, 0);
         wt_denom_bind(unit);
 
-        // The other unit, small, under the big one: a coordinator that counts
-        // the other way is checked against this line without a trip to
-        // Settings, which is the whole reason both are here.
-        wt_fmt_amount_alt(total, b, sizeof b);
-        snprintf(buf, sizeof buf, "%s %s", b, wt_denom_unit_alt());
-        lv_obj_t *btc = lv_label_create(row);
-        lv_label_set_text(btc, buf);
-        lv_obj_set_style_text_font(btc, wt_font_mono14(), 0);
-        lv_obj_set_style_text_color(btc, MUT_COL, 0);
-        wt_denom_bind(btc);
+        // ONE UNIT, and it is the one the owner picked. This row printed the
+        // amount twice -- "4 200 000 sats" beside "0.04200000 BTC" -- on a
+        // device whose SETTINGS page has a DENOMINATION row that was already
+        // answered. The defence was that a coordinator counting the other way
+        // has to be checked against this line, and that is true one tap away:
+        // dtab_tx prints "= 0.04200000 BTC" at font28 in ink on DETAILS >
+        // TRANSACTION and says in its own comment that this is what it is for.
+        //
+        // The LOOP is what the second number was really buying. Every amount on
+        // this screen is bound to wt_denom_bind, so a tap flips the unit across
+        // the device and writes the choice -- and nothing said so, which made
+        // the duplicate an accidental hint rather than a fact. This is the mark
+        // NETWORK, ADDRESS TYPE and DENOMINATION already wear for "tapping
+        // changes this in place", now beside the value it changes there too.
+        lv_obj_t *lp = wt_lbl(row, LV_SYMBOL_LOOP, 0, 0, wt_font23(),
+                              wt_accent());
+        lv_obj_add_flag(lp, WT_FLAG_ACCENT);
+        (void)b;
 
         // The network badge is NOT on this row. It was, for one build, and the
         // gate caught what the single-recipient frame could not show: with a
@@ -2594,9 +2602,15 @@ static void verify_screen(lv_obj_t *parent)
             // that band is 62px and belongs to the flag, and the fold stays at
             // mono23 in it. The fold is the same in both, so the run being
             // compared is the same run at either size.
+            // mono34 on the card, mono23 without one. The destination is what
+            // an attacker substitutes and what the owner reads character by
+            // character, so it takes the room the caption under it gave back.
+            // Cautioned there is no card: that band is 62px and belongs to the
+            // flag, and the fold stays at mono23 in it. The fold is the same
+            // shape at either size, so the run being compared is the same run.
             lv_obj_t *ad = wt_addr_short(box, s_sum.outs[i].addr,
                                          np ? wt_font_mono23()
-                                            : wt_font_mono28());
+                                            : wt_font_mono34());
             if (np) {
                 lv_obj_set_pos(ad, 24, ay + 18);
                 lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
@@ -2609,20 +2623,23 @@ static void verify_screen(lv_obj_t *parent)
             // to compare, and the thing to compare is inside this box. It sat
             // on the caption line above until the caption's word was cut, and
             // then it was a mark floating over nothing.
+            // The "?" at the card's top right, and NO caption under the fold.
+            // "compare lit characters" sat directly beneath a chip that opens
+            // a page saying the same thing at length: two teachers, one
+            // lesson, on the screen with the least room. The line stays at the
+            // three sites where it is the ONLY teacher -- the card this chip
+            // opens, RECEIVE's own address, and the KEYS first-address row --
+            // and none of those has a chip beside it.
             if (!np) wt_help_chip(box, 752 - 30 - 12, 8, MUT_COL,
                                   addr_help_cb, NULL);
-            lv_obj_t *cmp = wt_lbl(box, tr(STR_S_CMP_8), 14, 0,
-                                   wt_font23(), MUT_COL);
-            // Block centred in a fixed height card, the same arithmetic
-            // recv_refresh uses: top aligning would leave one line floating in
-            // a box sized for the taller state.
+            // Centred in the fixed height card, the same arithmetic
+            // recv_refresh uses -- one element now instead of two, and the
+            // room the caption gave up goes into the fold itself.
             lv_obj_update_layout(ad);
-            lv_obj_update_layout(cmp);
-            int ah = lv_obj_get_height(ad), ch = lv_obj_get_height(cmp);
-            int top = (ADDR_CARD_H - (ah + 6 + ch)) / 2;
+            int ah = lv_obj_get_height(ad);
+            int top = (ADDR_CARD_H - ah) / 2;
             if (top < 8) top = 8;
-            lv_obj_set_pos(ad,  14, top);
-            lv_obj_set_pos(cmp, 14, top + ah + 6);
+            lv_obj_set_pos(ad, 14, top);
             break;
         }
 
