@@ -2409,6 +2409,26 @@ bool kiss_fp_card(lv_obj_t *parent, int y)
   return true;
 }
 
+// One fact in the build-identity block: "caption: STATE". When the state is
+// the BAD one it wears the mark and the amber and the caption stays in the
+// corner's own mut -- amber is a MARK colour, and a one word status is exactly
+// what a mark is for. When the condition is satisfied there is no colour at
+// all, because that is not news.
+//
+// All three facts through one helper. Encryption was split this way on its own
+// and radio and randomness were left painting the WHOLE label the accent, so a
+// single line in the corner of Settings carried two grammars for three facts
+// of the same kind.
+static void build_id_fact(lv_obj_t *l, const char *cap, const char *state,
+                          bool ok)
+{
+  lv_label_set_recolor(l, true);
+  if (ok) lv_label_set_text_fmt(l, "%s: %s", cap, state);
+  else    lv_label_set_text_fmt(l, "#F2B84B " LV_SYMBOL_WARNING "# %s: "
+                                   "#F2B84B %s#", cap, state);
+  lv_obj_set_style_text_color(l, MUT_COL, 0);
+}
+
 lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
                                bool stacked)
 {
@@ -2458,11 +2478,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // at all when it is ON -- a satisfied condition is not news. Recoloured
   // rather than split into three labels, the same answer wt_state_chip reached,
   // so the line stays ONE object with the words still in its raw text.
-  lv_label_set_recolor(w, true);
-  if (enc) lv_label_set_text(w, "encryption: ON");
-  else     lv_label_set_text(w, "#F2B84B " LV_SYMBOL_WARNING "# encryption: "
-                                "#F2B84B OFF#");
-  lv_obj_set_style_text_color(w, MUT_COL, 0);
+  build_id_fact(w, "encryption", enc ? "ON" : "OFF", enc);
   if (stacked) {
     // Row two, and the version keeps row one to ITSELF. Encryption was tried up
     // there beside it and the gate caught what the arithmetic missed: a DEV
@@ -2486,8 +2502,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   if (with_radio) {
     lv_obj_t *r = lv_label_create(parent);
     lv_obj_set_style_text_font(r, wt_font14(), 0);
-    lv_label_set_text_fmt(r, "radio: %s", radio_held ? "HELD" : "NOT HELD");
-    lv_obj_set_style_text_color(r, radio_held ? MUT_COL : wt_ink_for(WT_WARN), 0);
+    build_id_fact(r, "radio", radio_held ? "HELD" : "NOT HELD", radio_held);
     // Shares its row with encryption, and follows its MEASURED width: the word
     // is ON or OFF and the translation of neither is fixed, so the gap is added
     // to what encryption actually rendered rather than to a guess about it.
@@ -2521,9 +2536,8 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     // circuit from the chip's noise, which is the whole reason it is folded.
     // It needs no switch and cannot be off, so it has no bad state to report.
     bool noise = kiss_trng_live();
-    lv_label_set_text_fmt(n, "randomness: %s",
-                          noise ? "NOISE + TIMING" : "NO SOURCE");
-    lv_obj_set_style_text_color(n, noise ? MUT_COL : wt_ink_for(WT_WARN), 0);
+    build_id_fact(n, "randomness", noise ? "NOISE + TIMING" : "NO SOURCE",
+                  noise);
     // Beside radio, on row two, stacked or not. It used to take a third row of
     // its own on the grounds that three facts end to end reach x=443 and read
     // as a caption under the colour picker rather than a line of this block.

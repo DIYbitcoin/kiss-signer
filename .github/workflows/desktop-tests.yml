@@ -159,6 +159,15 @@ jobs:
           SCREENCOVER_STRICT: "1"
         run: timeout 300 python3 tools/check_screen_coverage.py
 
+      # A geometry read before the layout that produces it returns 0, and a
+      # zero that falls through an `if` is indistinguishable from a case that
+      # needed no handling -- which is how wt_def_row_help's whole body was a
+      # no-op for its entire life with every rendering gate green.
+      - name: no measurement before its layout
+        run: |
+          python3 tools/check_layout_reads.py --selftest
+          python3 tools/check_layout_reads.py
+
       # The walkthrough's screenshots are simulator frames, so a renamed or
       # deleted save() in sim_main.c silently orphans a picture in the docs.
       # This checks the manifest still resolves; it deliberately does not

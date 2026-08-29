@@ -1358,16 +1358,25 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
 // built from: the option is the row, its explanation is the row's sub-line, and
 // the row says with a chevron or a tick which of the two kinds it is.
 //
-// The grid does NOT move: 96 is the content line every screen builds against,
-// the pitch of 102 lands the third row's bottom edge on 396, and a 96px row is
-// what gives the note three lines at font23 -- which is what Turkish,
-// Portuguese and Russian actually need for a storage mode. Only the object
-// changed. A row of this height wraps its sub-line instead of pinning it,
-// which is the whole reason wt_row_x takes a height at all.
+// 96 is the content line every screen builds against and it does not move. The
+// pitch and the height do, by six pixels between them, and only to get the
+// THIRD row's bottom edge off the page rule.
+//
+// It used to land on 396 with the rule at 398, and two pixels is not a gap: on
+// glass the card's bottom border and the rule above the action band read as one
+// confused line, so the last option on the storage and word-count screens
+// looked cut off when nothing was clipped at all. 94 and a pitch of 100 land it
+// on 390 -- eight clear -- and keep the 6px between cards exactly as it was, so
+// the only thing that changes is the one edge that was wrong.
+//
+// The four pixels come off the note's box, which had 45 and now has 43. That
+// costs nothing: 45 was already one line at font23, so the "three lines at
+// font23" this comment used to claim has not been true for as long as the row
+// has been 96 tall.
 #define WT_CHOICE_X      42   // (800 - WT_CHOICE_W) / 2: rows centered, equal margins
 #define WT_CHOICE_W     716
-#define WT_CHOICE_H      96
-#define WT_CHOICE_Y(i)  (96 + (i) * 102)
+#define WT_CHOICE_H      94
+#define WT_CHOICE_Y(i)  (96 + (i) * 100)
 
 // A value in a box: small muted caption, then the value large and monospaced
 // inside a bordered WT_PANEL card. The review draws every figure worth reading
