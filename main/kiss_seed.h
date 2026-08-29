@@ -3,6 +3,7 @@
 // file for desktop tests. The passphrase is NEVER stored anywhere (that is
 // the whole deniability model).
 #pragma once
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -117,6 +118,15 @@ int kiss_seed_validate(const char *mnemonic);
 // device already holds and lock the owner out of a wallet at unlock. Refusing
 // to TAKE a seed and refusing to OPEN one are not the same act.
 int kiss_seed_degenerate(const char *mnemonic);
+
+// THE TEST SEED: "abandon" x11 + about, allowed in every build.
+//
+// The degenerate gate refuses seeds carrying no secret, and it is right to --
+// but it also made the device untestable against its own PSBT fixtures, which
+// are all derived from that seed. One string is let through; not a relaxed
+// judge, not a lower threshold. Every other degenerate set is refused exactly
+// as before. See kiss_seed.c for the full reasoning.
+bool kiss_seed_is_test_vector(const char *mnemonic);
 
 // Entropy -> mnemonic words. len must be 16 (12 words) or 32 (24 words).
 // 0 on success; out is NUL-terminated.

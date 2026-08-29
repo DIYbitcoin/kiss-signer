@@ -134,6 +134,10 @@ int kiss_seed_wipe(void) {
   return 0;
 }
 int kiss_seed_validate(const char *m) { (void)m; return 0; }
+// The device compares against the real BIP39 test vector; the walk never types
+// it, so the stub can answer no and the degenerate paths stay under test.
+bool kiss_seed_is_test_vector(const char *m) { (void)m; return false; }
+
 int kiss_seed_stage(const char *m) {
   snprintf(s_sim_pending, sizeof s_sim_pending, "%s", m);
   s_sim_has_pending = 1;

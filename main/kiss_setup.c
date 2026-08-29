@@ -316,7 +316,14 @@ static void store_and_finish(void)
         // choices, which is the same cut the blind draw makes before its own
         // last word joins.
         kiss_cards_judge(s_cidx, n ? n - 1 : 0, &s_cq);
-        if (s_cq.flags & WC_F_DEGEN) { check_screen(true); return; }
+        // The typed door consults the same test-build carve-out the QR and KEF
+        // doors do, or a build meant for testing would still refuse the one
+        // seed it was built to accept -- on the path an owner actually types.
+        char tv[WSEED_MAX_MNEMONIC];
+        join_words(tv, sizeof tv);
+        const bool tvok = kiss_seed_is_test_vector(tv);
+        kiss_wipe(tv, sizeof tv);
+        if ((s_cq.flags & WC_F_DEGEN) && !tvok) { check_screen(true); return; }
     }
     char words[WSEED_MAX_MNEMONIC];
     join_words(words, sizeof words);

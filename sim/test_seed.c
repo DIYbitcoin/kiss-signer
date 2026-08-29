@@ -186,12 +186,14 @@ int test_seed_layer(void) {
                  "abandon abandon abandon abandon abandon abandon "
                  "abandon abandon abandon abandon abandon abandon", 71,
                  got, sizeof got) != 0);
-        // Valid BIP39 and still nothing: the canonical zero-entropy vector is
-        // printed on every BIP39 explainer there is, so a backup of it is a
-        // wallet the whole world can spend from. The checksum has no opinion.
-        schk("plaintext: the abandon vector refused as text",
-             kiss_seed_from_plaintext(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) != 0);
-        schk("plaintext: the abandon vector leaves nothing behind", got[0] == 0);
+        // The canonical zero-entropy vector is ACCEPTED now, in every build:
+        // every PSBT fixture this repo emits is derived from it, so a signer
+        // that cannot hold it cannot verify one of them on hardware, and the
+        // sign flow is the one flow no simulator can prove. It is still a
+        // wallet the whole world can spend from, which is exactly what a test
+        // wallet on testnet is for. kiss_seed.c carries the reasoning.
+        schk("plaintext: the abandon vector is taken",
+             kiss_seed_from_plaintext(DEV_WORDS, strlen(DEV_WORDS), got, sizeof got) == 0);
         schk("plaintext: the 0x80 vector refused as text",
              kiss_seed_from_plaintext(ALT_WORDS, strlen(ALT_WORDS), got, sizeof got) != 0);
 
@@ -246,8 +248,12 @@ int test_seed_layer(void) {
         // bytes into the dev mnemonic -- so the check lives here and these
         // prove it.
         memset(ent, 0x00, sizeof ent);
-        schk("plaintext: all-zero 16 refused",
-             kiss_seed_from_plaintext((const char *)ent, 16, got, sizeof got) != 0);
+        // 16 zero BYTES encode to the abandon vector exactly -- they are one
+        // seed, not two -- so this follows it through the carve-out. 32 zero
+        // bytes are a different mnemonic and stay refused, which is what keeps
+        // the hole one seed wide rather than "zeros are fine".
+        schk("plaintext: all-zero 16 is the abandon vector, taken",
+             kiss_seed_from_plaintext((const char *)ent, 16, got, sizeof got) == 0);
         schk("plaintext: all-zero 32 refused",
              kiss_seed_from_plaintext((const char *)ent, 32, got, sizeof got) != 0);
         memset(ent, 0xFF, sizeof ent);
@@ -274,7 +280,8 @@ int test_seed_layer(void) {
         // judge blocks. The abandon vector is the one that needs both -- its
         // entropy is all-zero, and its INDICES are ten zeros and a three, which
         // is what the word arm sees once the checksum word is excluded.
-        schk("degen: the abandon vector", kiss_seed_degenerate(DEV_WORDS) == 1);
+        schk("degen: the abandon vector is allowed through",
+             kiss_seed_degenerate(DEV_WORDS) == 0);
         schk("degen: the 0x80 vector", kiss_seed_degenerate(ALT_WORDS) == 1);
         schk("degen: real entropy passes", kiss_seed_degenerate(good12) == 0);
         schk("degen: real 24 word entropy passes", kiss_seed_degenerate(good24) == 0);

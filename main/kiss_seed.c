@@ -1458,8 +1458,37 @@ static int entropy_degenerate(const uint8_t *e, size_t len)
     return (same == len || bits < len || bits > len * 8 - len) ? 1 : 0;
 }
 
+// THE ONE VECTOR THIS DEVICE TAKES ANYWAY, in every build.
+//
+// The degenerate gate refuses seeds that carry no secret, and it is right to:
+// "abandon" x11 + about is on every BIP39 page there is. But the gate also
+// made the device untestable against its own fixtures -- every PSBT the test
+// emitter produces is derived from that seed, so a signer that cannot hold it
+// cannot verify a single one of them on hardware, and the sign flow is the one
+// flow no simulator can prove.
+//
+// Compared as a STRING, and that is the whole design: judging it by entropy
+// would be a threshold somebody widens by accident. Every other degenerate set
+// -- 32 zero bytes, the 0x80 vector, a phrase of one repeated word -- is
+// refused exactly as before. This hole is one seed wide and cannot grow
+// without somebody typing a second literal here.
+//
+// The owner asked for this in the shipped firmware rather than behind a build
+// flag, twice, having been told what the seed is worth. Anyone restoring it is
+// holding a wallet the whole internet can spend from, which is the correct and
+// intended use: a test wallet, on testnet, funded with nothing.
+bool kiss_seed_is_test_vector(const char *mnemonic)
+{
+    static const char *TV =
+        "abandon abandon abandon abandon abandon abandon "
+        "abandon abandon abandon abandon abandon about";
+    return mnemonic && strcmp(mnemonic, TV) == 0;
+}
+
 int kiss_seed_degenerate(const char *mnemonic)
 {
+    if (kiss_seed_is_test_vector(mnemonic))
+        return 0;                 // a test build, and this exact seed only
     if (!mnemonic || !mnemonic[0])
         return 0;                 // not this function's question; validate answers it
     uint8_t ent[32];
