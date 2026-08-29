@@ -256,6 +256,9 @@ static lv_obj_t *s_card_frame[4];        // live accent chrome over the baked sk
 static lv_obj_t *s_corner[4];            // the theme recolors these instantly, no re-bake
 static lv_obj_t *s_underline, *s_chip_frame;
 static lv_obj_t *s_theme_dot, *s_theme_lbl, *s_theme_cap;
+// The test-network mark: a breathing amber dot beside a themed word,
+// the same shape the theme readout in the opposite corner already wears.
+static lv_obj_t *s_net_dot;
 static lv_obj_t *s_fp_cap;               // "fingerprint" caption under the chip frame
 static lv_obj_t *s_fp_card;              // tap the chip -> what-this-number-means card
 static lv_obj_t *s_fp_fly;               // transient: the code flying from the reveal card
@@ -1819,8 +1822,20 @@ void kiss_home_refresh(void) {
   if (kiss_testnet()) {
     lv_label_set_text(s_net_lbl, kiss_net_name());   // TESTNET or SIGNET
     lv_obj_clear_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+    // CENTRED AS A PAIR, measured after the word is set: SIGNET and TESTNET are
+    // different widths and so is every locale, so the dot's x comes off the
+    // rendered label rather than a number written here.
+    lv_obj_update_layout(s_net_lbl);
+    const int lw = lv_obj_get_width(s_net_lbl), gap = 10;
+    const int x0 = (800 - (8 + gap + lw)) / 2;
+    if (s_net_dot) {
+      lv_obj_set_pos(s_net_dot, x0, 56);
+      lv_obj_clear_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_set_pos(s_net_lbl, x0 + 8 + gap, 52);
   } else {
     lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
+    if (s_net_dot) lv_obj_add_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
@@ -3422,22 +3437,36 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
 
-  // TESTNET badge — top-center, between the baked "KISS" logo (left) and the
-  // fingerprint chip (right). Amber badge, shown ONLY on testnet so mainnet stays
-  // clean; kept in sync by kiss_home_refresh() (unlock + return from Settings).
+  // The test network, top centre between the baked "KISS" logo and the
+  // fingerprint. A DOT AND A WORD, not a pill: the lozenge was the only
+  // rounded box on a screen whose other status -- "theme (dot) MONO", bottom
+  // right -- is already exactly this shape, and the fingerprint beside it
+  // wears square brackets. One screen, three shapes for three facts, and the
+  // odd one out was the one that mattered most.
+  //
+  // The DOT keeps the amber and BREATHES; the word takes the theme. Same rule
+  // as every status on the device now: the mark carries the caution, the words
+  // carry the accent. Shown only off mainnet, so an ordinary signer's home is
+  // clean, and kept in sync by kiss_home_refresh().
+  s_net_dot = lv_obj_create(s_home);
+  lv_obj_remove_style_all(s_net_dot);
+  lv_obj_set_size(s_net_dot, 8, 8);
+  lv_obj_set_style_radius(s_net_dot, 4, 0);
+  lv_obj_set_style_bg_color(s_net_dot, WT_WARN, 0);
+  lv_obj_set_style_bg_opa(s_net_dot, LV_OPA_COVER, 0);
+  lv_obj_set_style_shadow_color(s_net_dot, WT_WARN, 0);
+  lv_obj_set_style_shadow_width(s_net_dot, 10, 0);
+  lv_obj_set_style_shadow_opa(s_net_dot, 140, 0);
+  lv_obj_remove_flag(s_net_dot, LV_OBJ_FLAG_CLICKABLE);
+  wt_dot_breathe(s_net_dot, 8, 3, false);
+  lv_obj_add_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
+
   s_net_lbl = lv_label_create(s_home);
   lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
-  lv_obj_set_style_text_color(s_net_lbl, wt_ink_for(WT_WARN), 0);
+  lv_obj_set_style_text_color(s_net_lbl, wt_accent(), 0);
+  lv_obj_add_flag(s_net_lbl, WT_FLAG_ACCENT);
   lv_obj_set_style_text_font(s_net_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_net_lbl, 3, 0);
-  lv_obj_set_style_bg_color(s_net_lbl, lv_color_hex(0x2A2113), 0);    // dark amber, reads on grid
-  lv_obj_set_style_bg_opa(s_net_lbl, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_color(s_net_lbl, wt_ink_for(WT_WARN), 0);
-  lv_obj_set_style_border_width(s_net_lbl, 1, 0);
-  lv_obj_set_style_radius(s_net_lbl, 14, 0);
-  lv_obj_set_style_pad_hor(s_net_lbl, 16, 0);
-  lv_obj_set_style_pad_ver(s_net_lbl, 6, 0);
-  lv_obj_align(s_net_lbl, LV_ALIGN_TOP_MID, 0, 48);
   lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
 
   // Build identity, bottom-left — the baked art used to carry a permanent
