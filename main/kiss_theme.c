@@ -771,6 +771,15 @@ void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
 // screen torn down mid-slide leaves nothing.
 typedef struct {
     lv_obj_t *fill;
+    // The THUMB: a square on the track, at the fill's leading edge. Without
+    // one the control is a word, an arrow and a hairline, and nothing on it
+    // says where to put the finger -- which is the last and loudest note of
+    // the bench pass: "SLIDE TO SHOW FUNCTIONALITY HAS AN ARROW BESIDE IT BUT
+    // THERE SHOULD BE A SQUARE DOT AT BEGINNING OF LINE UNDERNEATH TO SLIDE
+    // THAT ALL THE WAY OVER". One edit, and every slide on the device gets it:
+    // the two SHOW gates, SIGN, MOVE, the erase gate, the unlock drawing, the
+    // firmware write, the backup password and the two file removals.
+    lv_obj_t *thumb;
     int w;
     int x0;               // the press's screen x; travel measures from here
     int at;               // the drag's current travel, for the release test
@@ -784,6 +793,22 @@ typedef struct {
 } wt_hold_t;
 
 static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
+
+// The fill AND the thumb, from one number, so the run-back animation carries
+// both. The animation's var is the CONTEXT rather than the fill, which means
+// LVGL's object destructor will not reap it -- hold_reset deletes it by hand
+// on the DELETE path, which it already did for the fill.
+#define WT_SLIDE_THUMB 16
+static void an_slide(void *v, int32_t w)
+{
+    wt_hold_t *h = v;
+    if (h->fill) lv_obj_set_width(h->fill, w);
+    if (!h->thumb) return;
+    int x = (int)w - WT_SLIDE_THUMB / 2;
+    if (x < 0) x = 0;
+    if (x > h->w - WT_SLIDE_THUMB) x = h->w - WT_SLIDE_THUMB;
+    lv_obj_set_x(h->thumb, x);
+}
 
 // The label and its arrow are two objects, not one formatted string. The walk
 // finds a control by the WORDS on it -- exactly, or as the "icon  LABEL" form
@@ -807,16 +832,16 @@ static void hold_reset(wt_hold_t *h, bool animate)
     h->saying_held = false;
     if (h->lbl && h->txt) hold_rule_say(h, h->txt);
     if (!h->fill) return;
-    lv_anim_delete(h->fill, an_w);
+    lv_anim_delete(h, an_slide);
     int32_t at = lv_obj_get_width(h->fill);
     if (!animate || h->release_ms <= 0 || at <= 0) {
-        lv_obj_set_width(h->fill, 0);
+        an_slide(h, 0);
         return;
     }
     lv_anim_t a;
     lv_anim_init(&a);
-    lv_anim_set_var(&a, h->fill);
-    lv_anim_set_exec_cb(&a, an_w);
+    lv_anim_set_var(&a, h);
+    lv_anim_set_exec_cb(&a, an_slide);
     lv_anim_set_values(&a, at, 0);
     lv_anim_set_duration(&a, h->release_ms);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
@@ -834,7 +859,7 @@ static void hold_press_cb(lv_event_t *e)
         h->x0 = pt.x;
         h->at = 0;
         h->fired = false;
-        lv_anim_delete(h->fill, an_w);
+        lv_anim_delete(h, an_slide);
     } else if (c == LV_EVENT_PRESSING) {
         if (h->fired) return;
         lv_indev_t *in = lv_indev_active();
@@ -845,7 +870,7 @@ static void hold_press_cb(lv_event_t *e)
         if (px < 0) px = 0;
         if (px > h->w) px = h->w;
         h->at = px;
-        lv_obj_set_width(h->fill, px);
+        an_slide(h, px);
         // The swap happens once the slide is clearly a slide, and swaps back
         // if the finger retreats -- the words track the gesture, not the tap.
         const bool committed = px > h->w / 6;
@@ -922,10 +947,11 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_set_style_text_letter_space(l, 2, 0);
     if (!ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     h->lbl = l;
-    lv_obj_t *ar = wt_lbl(p, LV_SYMBOL_RIGHT, 0, 2, wt_font23(),
-                          ink ? *ink : wt_accent());
-    if (!ink) lv_obj_add_flag(ar, WT_FLAG_ACCENT);
-    h->arrow = ar;
+    // NO TRAILING ARROW. The thumb below is the direction now, and it is on
+    // the thing the finger actually moves; an arrow beside the word as well
+    // would be the two-marks-for-one-action shape being removed everywhere
+    // else in this pass.
+    h->arrow = NULL;
     hold_rule_say(h, txt);
     lv_obj_update_layout(l);
 
@@ -947,6 +973,24 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     if (!fill) lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     h->fill = f;
+
+    // The thumb, at the START of the track and centred on it. Square with a
+    // 3px radius -- a circle would read as a lamp, and every other round
+    // filled thing on this device is one. It is a SIBLING of the fill, not a
+    // child: LVGL clips children to their parent, and a thumb inside a
+    // zero-width fill would be invisible at exactly the moment it has to say
+    // "start here".
+    lv_obj_t *th = lv_obj_create(p);
+    lv_obj_remove_style_all(th);
+    lv_obj_set_size(th, WT_SLIDE_THUMB, WT_SLIDE_THUMB);
+    lv_obj_set_pos(th, 0, ty + 1 - WT_SLIDE_THUMB / 2);
+    lv_obj_set_style_radius(th, 3, 0);
+    lv_obj_set_style_bg_color(th, fill ? *fill : wt_accent(), 0);
+    lv_obj_set_style_bg_opa(th, LV_OPA_COVER, 0);
+    if (!fill) lv_obj_add_flag(th, WT_FLAG_ACCENT_FILL);
+    lv_obj_remove_flag(th, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(th, LV_OBJ_FLAG_SCROLLABLE);
+    h->thumb = th;
 
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSING, h);

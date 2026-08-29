@@ -2774,10 +2774,10 @@ static void verify_screen(lv_obj_t *parent)
     if (armed) lv_obj_add_flag(sl, WT_FLAG_ACCENT);
     s_sign_lbl = sl;
     lv_obj_update_layout(sl);
-    lv_obj_t *sa = wt_lbl(p, LV_SYMBOL_RIGHT, lv_obj_get_width(sl) + 12, 2,
-                          wt_font23(), armed ? wt_accent() : WT_DIM);
-    if (armed) lv_obj_add_flag(sa, WT_FLAG_ACCENT);
-
+    // NO ARROW beside the word. The knob below is the direction, it is on the
+    // thing the finger moves, and the kit's own slide rule lost its arrow in
+    // the same edit -- two marks for one action is the shape this pass
+    // removed from the firmware rows and the SIGN explainer too.
     const int ty = lv_obj_get_height(sl) + 8;
     lv_obj_t *track = lv_obj_create(p);
     lv_obj_remove_style_all(track);
