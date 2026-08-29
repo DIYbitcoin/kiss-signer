@@ -303,6 +303,10 @@ void kiss_ui_drop_indev_for_test(void) {
 // nothing.
 static void entry_apply(const char *txt, int chars) {
   (void)chars;
+  // Declared: whatever size this lands on, the text is the OWNER'S secret and
+  // there is no copy for anybody to cut. wt_body_font_typed already keeps it
+  // out of the FIT gate for the same reason.
+  wt_tiny_ok(s_entry);
   // _typed: this is the OWNER'S secret, not the product's copy, so the FIT
   // gate is not told when a 90 character passphrase lands on font14. There is
   // nothing here anybody can shorten.
@@ -2281,6 +2285,11 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_style_text_font(s_pp_hint, wt_font14(), 0);
   lv_obj_set_style_text_color(s_pp_hint, MUT_COL, 0);
   lv_obj_align(s_pp_hint, LV_ALIGN_TOP_MID, 0, 132);   // centered between count and meter
+  // Declared font14, all three. This is one 132px line above a keyboard
+  // carrying a character COUNTER, a strength WORD and a length hint -- three
+  // readouts sharing a row, none of them a sentence, and the row cannot grow
+  // without taking a key row with it.
+  wt_tiny_ok(s_count); wt_tiny_ok(s_meter); wt_tiny_ok(s_pp_hint);
   entry_refresh();
 
   s_kb = lv_buttonmatrix_create(s_login);
@@ -2509,6 +2518,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     lv_obj_update_layout(r);
     lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + 24,
                    lv_obj_get_y(r));
+    wt_tiny_ok(r); wt_tiny_ok(n);
     lv_obj_update_layout(n);
     facts_right = lv_obj_get_x(n) + lv_obj_get_width(n);
   } else {
@@ -2523,6 +2533,12 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // prints the commit instead -- "KISS 0.1.0-beta7 (58ae53d-dirty)" -- which
   // is four characters wider, and the badge came down on the F of OFF. The
   // version is the field that grows; anything to its right has to ask.
+  // Declared font14. This block is a CORNER DIAGNOSTIC -- a build id, an
+  // eFuse state, a radio state -- read once by somebody who already knows
+  // what a C6 is, in the empty half of an action bar. It is the one place on
+  // the device where small print is the right answer, and THIS DEVICE now
+  // carries the same four facts as full size rows for everybody else.
+  wt_tiny_ok(v); wt_tiny_ok(w);
   lv_obj_update_layout(w);
   s_build_id_right = lv_obj_get_x(w) + lv_obj_get_width(w);
   if (stacked) {

@@ -1204,10 +1204,15 @@ static void kef_sd_cb(lv_event_t *e)
         s_kef_sd_chip = wt_state_chip(s_scr, "", WT_OK);
         lv_obj_set_pos(s_kef_sd_chip, 400, 344);
     }
+    // Declared font14: a state CHIP is a mark by kit definition, and this one
+    // reports a result the screen has already acted on. The one chip on the
+    // device that is lifted is the touch-dead banner, because there it is the
+    // only thing on screen and it is an instruction.
     wt_state_chip_set(s_kef_sd_chip,
                       tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
                              ok ? STR_S_SAVED_NOTE : STR_S_FAIL_SD_WRITE),
                       ok ? WT_OK : WT_STOP);
+    wt_tiny_ok(s_kef_sd_chip);
 }
 
 static void kef_show_screen(void)

@@ -260,6 +260,19 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // Buffers are WT_ICON_TEXT_MAX: the longest label today is Russian "СВЯЗАТЬ
 // КООРДИНАТОР" at 78 bytes composed, and Cyrillic costs two bytes a letter, so
 // the margin is smaller than the character count suggests.
+// Mark a label as DELIBERATELY font14. The TINY gate reads it and stays
+// quiet, so "this one is metadata" is a claim made at the call site, next to
+// the reason, instead of a string in a gate's backlog that nobody can trace
+// back to a screen. Use it for a unit suffix, a counter, a corner diagnostic
+// or a status strip -- never for a sentence somebody has to read.
+// A FLAG, not user_data: the sub-line of a row already stores WT_SUB_TAG
+// there, and the second writer silently wins. WIDGET_1 is LVGL's own "free to
+// use by widget" bit -- lv_msgbox is the only thing in the vendored tree that
+// claims it, and this device builds no message boxes -- while the four USER
+// bits are all spent on the accent channels.
+#define WT_FLAG_TINY_OK LV_OBJ_FLAG_WIDGET_1
+void wt_tiny_ok(lv_obj_t *label);
+
 #define WT_ICON_TEXT_MAX 128
 void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt);
 

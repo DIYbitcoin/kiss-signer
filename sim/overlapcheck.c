@@ -1001,6 +1001,111 @@ static void oc_check_cut(const char *tag)
     s_cut_n = 0;
 }
 
+
+// ---- 10. TINY: a hardcoded font14 carrying WORDS ---------------------------
+//
+// FIT catches a fit helper that GAVE UP. It cannot catch a font that was
+// simply written down, and font14 written down is how the SIGNED screen's
+// "what to do next" line -- the single most important sentence on it --
+// shipped as the smallest text on the page with every gate green.
+//
+// So this asks the finished tree instead: is anything rendering at font14 that
+// a person has to READ? font14 is metadata by house rule -- chip labels, unit
+// suffixes, chevrons, MARKS -- so the test is whether the string reads as
+// prose rather than as a mark, and the cheapest honest proxy for that is word
+// count. Three or more space separated tokens is a sentence; "1.6% of what you
+// send" and "0.00060000 BTC" are two, and stay metadata.
+//
+// It walks the same collected nodes every other check does, so anything the
+// walk photographs is covered, including screens no grep of the source would
+// group together.
+#define OC_TINY_MIN_WORDS 3
+#define OC_TINY_MIN_CHARS 14
+
+static bool oc_font_is_tiny(const lv_font_t *f)
+{
+    return f == wt_font14() || f == wt_font_mono14();
+}
+
+// Words, not a mark. Only a run containing an ASCII letter counts, so an icon
+// glyph, a "#0" and a bare number are all worth zero -- "<icon>  NETWORK FEE"
+// is a two word CAPTION and not a sentence, and counting the glyph made it
+// three.
+static int oc_word_count(const char *t)
+{
+    int n = 0;
+    bool in = false, letter = false;
+    for (const unsigned char *p = (const unsigned char *)t; ; p++) {
+        const bool sp = *p == ' ' || *p == '\n' || *p == '\t' || *p == '\0';
+        if (sp) {
+            if (in && letter) n++;
+            in = false; letter = false;
+            if (!*p) break;
+            continue;
+        }
+        in = true;
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')) letter = true;
+    }
+    return n;
+}
+
+// A CAPTION is upper case by house grammar -- "WHAT SURVIVES", "NETWORK FEE",
+// "INPUTS (1)" -- and prose is lower case. A caption at font14 is a different
+// and smaller problem from a SENTENCE at font14: the reader is scanning for it,
+// not reading it. This check is about the second, and a check that fired on
+// both would be one nobody reads.
+static bool oc_has_lowercase(const char *t)
+{
+    for (const unsigned char *p = (const unsigned char *)t; *p; p++)
+        if (*p >= 'a' && *p <= 'z') return true;
+    return false;
+}
+
+// Shrink only, like the others. An entry is a font14 string somebody decided
+// to leave at that size, and that decision needs saying so here.
+static const char *OC_TINY_BACKLOG[] = {
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_tiny_hit[sizeof OC_TINY_BACKLOG / sizeof OC_TINY_BACKLOG[0]];
+
+static bool oc_tiny_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_TINY_BACKLOG / sizeof OC_TINY_BACKLOG[0]; i++)
+        if (OC_TINY_BACKLOG[i] && strstr(txt, OC_TINY_BACKLOG[i]))
+            { s_tiny_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_tiny(const char *tag)
+{
+    char t[96], sig[192], detail[320];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        const char *txt = lv_label_get_text(n->obj);
+        if (!txt || !*txt) continue;
+        if (!oc_font_is_tiny(lv_obj_get_style_text_font(n->obj, LV_PART_MAIN)))
+            continue;
+        // Declared metadata: a unit suffix, a counter, a corner diagnostic.
+        // The claim is made at the call site beside its reason, which is where
+        // a reader can check it -- a backlog of strings here could not be
+        // traced back to a screen by anybody.
+        if (lv_obj_has_flag(n->obj, WT_FLAG_TINY_OK)) continue;
+        if (!oc_has_lowercase(txt)) continue;
+        if (oc_word_count(txt) < OC_TINY_MIN_WORDS) continue;
+        if ((int)strlen(txt) < OC_TINY_MIN_CHARS) continue;
+        if (oc_tiny_excused(txt)) continue;
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "TINY|%s", t);
+        snprintf(detail, sizeof detail,
+                 "TINY     \"%s\" is a sentence rendered at font14 -- the size "
+                 "was written in, so no fit helper could report it. font14 is "
+                 "for MARKS; anything an owner reads sits at 23 or better",
+                 t);
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_colour_roles(const char *tag)
 {
     char t[64], sig[192], detail[320];
@@ -1203,6 +1308,36 @@ static int oc_selftest_fit(const char *name, const char *body,
     return got == want_finding ? 0 : 1;
 }
 
+// TINY fires on a shape the product no longer contains, which is the standing
+// WALL and CUT have. Three cases, because this check has three ways to be
+// wrong: it must report a lower case sentence at font14, it must NOT report an
+// upper case CAPTION at font14 (a caption is scanned, not read, and a check
+// that fired on both would be one nobody reads), and it must NOT report a
+// sentence that has been DECLARED metadata at its call site.
+static int oc_selftest_tiny(const char *name, const char *txt, bool declare,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    // LOADED, then rendered: oc_collect reads the coordinates LVGL computed on
+    // the last refresh, and a screen that was never on the display has none.
+    lv_screen_load(scr);
+    lv_obj_t *l = wt_lbl(scr, txt, 48, 118, wt_font14(), WT_MUT);
+    if (declare) wt_tiny_ok(l);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_tiny("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
@@ -1223,6 +1358,18 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    printf("TINY check self test\n");
+    bad += oc_selftest_tiny("a lower case sentence at font14, fires",
+                            "the words on your paper are the only way back",
+                            false, true);
+    bad += oc_selftest_tiny("an upper case caption at font14, clear",
+                            "WHAT SURVIVES THIS", false, false);
+    bad += oc_selftest_tiny("a sentence declared as metadata, clear",
+                            "7.0 sat/vB, 1.6% of what you send", true, false);
+    if (bad) printf("TINY self test: %d case(s) wrong\n", bad);
+    else     printf("TINY self test: 3 cases, all as expected\n");
     printf("\n");
 
     printf("FIT check self test\n");
@@ -1428,6 +1575,7 @@ void oc_check(const char *tag)
     oc_check_wall(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
+    oc_check_tiny(tag);
     oc_check_layer(tag);
 }
 

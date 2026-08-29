@@ -1115,7 +1115,10 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_INK, 0);
-    lv_obj_set_style_text_font(l, wt_font14(), 0);
+    // mono18, the kit's own caption rung. A SECTION HEAD names the block under
+    // it and this was font14 -- the size reserved for marks -- so on the
+    // details deck the head sat smaller than every row it introduced.
+    lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;
@@ -1843,6 +1846,15 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
             lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
         } else {
             lv_obj_t *s = wt_lbl(row, sub, lx, liney, sf, WT_MUT);
+            // Declared font14, and it is the BOX deciding rather than the
+            // copy: a WT_ROW_H row is 64 tall, its label owns 7..35 at font23
+            // and 8px closes the card, so a font23 sub-line would need 36..65
+            // and there is nowhere for it to go. A page that wants a readable
+            // sub-line uses the def row (chrome23 by default) or passes a
+            // TALLER height here, which is the chooser branch above -- and
+            // that branch stays visible to the gate, because that is where
+            // every real font14 body on this device turned out to be.
+            if (rowh <= WT_ROW_H) wt_tiny_ok(s);
             lv_obj_set_width(s, sw);
             // ONE line, height pinned. The width left for the sub depends on how
             // wide the VALUE turned out, and a translated value ("DESACTIVADO"
@@ -5194,9 +5206,17 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
     int pitch = room / rows;
 
-    // ONE font for every definition, chosen against the tallest cell, so the
-    // eight cells read as one table. Sized per cell they would stagger, which is
-    // the fault the two-column prose blocks had.
+    // TERM AND DEFINITION ON ONE WRAPPED RUN, which is what buys font23. They
+    // were a font14 heading over a font14 definition, and a 300px column
+    // cannot hold that pair at 23: a heading line plus a three line body is
+    // 99px against a 92px budget, so every one of these pages -- WHY FLAGGED,
+    // WHY FOUR SOURCES, and a dozen more, all of them pure teaching -- fell to
+    // the size this device keeps for MARKS. No fit helper reported it because
+    // the ladder here is local, and no reader could report it either.
+    //
+    // Run them together and the term costs a few words of the first line
+    // instead of a line of its own, which is exactly the room needed. The
+    // glossary page solved it this way first.
     const lv_font_t *bf = wt_font23();
     for (int pass = 0; pass < 2; pass++) {
         int tallest = 0;
@@ -5207,10 +5227,11 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             line[l] = 0;
             const char *def = wt_split_colon(line, head, sizeof head);
             if (!def) continue;
+            char run[GRID_LINE_MAX + 72];
+            snprintf(run, sizeof run, "%s %s", head, def);
             lv_point_t sz;
-            lv_text_get_size(&sz, def, bf, 0, 0, tw, LV_TEXT_FLAG_NONE);
-            int h = lv_font_get_line_height(wt_font14()) + 2 + sz.y;
-            if (h > tallest) tallest = h;
+            lv_text_get_size(&sz, run, bf, 0, 0, tw, LV_TEXT_FLAG_NONE);
+            if (sz.y > tallest) tallest = sz.y;
         }
         if (tallest <= pitch - 6) break;
         bf = wt_font14();
@@ -5230,17 +5251,29 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             grid_badge(ovl, e->icons[i], cx, cy, sev);
 
         int tx = cx + GRID_BADGE + GRID_GUT;
-        lv_obj_t *t = wt_lbl(ovl, head, tx, cy + 2, wt_font14(), sev);
-        lv_obj_set_style_text_letter_space(t, 1, 0);
-        lv_obj_set_width(t, tw);
-        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-
         if (!def) continue;
-        lv_obj_t *d = wt_lbl(ovl, def, tx,
-                             cy + 2 + lv_font_get_line_height(wt_font14()) + 2,
-                             bf, WT_MUT);
-        lv_obj_set_width(d, tw);
-        lv_label_set_long_mode(d, LV_LABEL_LONG_WRAP);
+
+        // A spangroup, so the term and its explanation wrap as ONE paragraph
+        // in two colours -- the term in the page's own ink, the sentence in
+        // MUT. Two labels could not do it: the second would start on a fresh
+        // line whatever room the first left.
+        lv_obj_t *sg = lv_spangroup_create(ovl);
+        lv_obj_set_pos(sg, tx, cy + 2);
+        lv_obj_set_width(sg, tw);
+        lv_obj_set_height(sg, pitch - 6);
+        lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
+        lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+        lv_obj_set_style_text_font(sg, bf, 0);
+        char hbuf[72];
+        snprintf(hbuf, sizeof hbuf, "%s ", head);
+        lv_span_t *sp1 = lv_spangroup_new_span(sg);
+        lv_span_set_text(sp1, hbuf);
+        lv_style_set_text_color(lv_span_get_style(sp1), sev);
+        lv_span_t *sp2 = lv_spangroup_new_span(sg);
+        lv_span_set_text(sp2, def);
+        lv_style_set_text_color(lv_span_get_style(sp2), WT_MUT);
+        lv_spangroup_refresh(sg);
     }
 }
 
@@ -5354,6 +5387,11 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
 // gives a chip that measures itself against whatever the translation turns out
 // to be. A container with a child label needs two layout passes and was the
 // shape that segfaulted the first time this was tried.
+void wt_tiny_ok(lv_obj_t *l)
+{
+    if (l) lv_obj_add_flag(l, WT_FLAG_TINY_OK);
+}
+
 lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
 {
     lv_obj_t *c = lv_label_create(par);
@@ -5974,6 +6012,11 @@ static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
     return r;
 }
 
+// A STRAND NOTE on the sign graph -- "#0", "no change", "out of reach #99999"
+// -- hung off the lines of a drawing that already fills 64..390 and is device
+// tested. Declared font14 when the caller asks for it: these annotate a figure
+// rather than being read as prose, the figure has no pixels to give, and the
+// numbers the owner actually reads are mono23 and mono28 beside them.
 static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
                             lv_color_t col, bool accent)
 {
@@ -5982,6 +6025,7 @@ static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
     lv_obj_set_style_text_font(l, f, 0);
     lv_obj_set_style_text_color(l, col, 0);
     if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    if (f == wt_font14() || f == wt_font_mono14()) wt_tiny_ok(l);
     return l;
 }
 

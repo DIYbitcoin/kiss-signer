@@ -1471,7 +1471,11 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     // nothing here is draggable and a slider brings knob styling to suppress.
     lv_obj_t *track = lv_obj_create(card);
     lv_obj_remove_style_all(track);
-    lv_obj_set_pos(track, 14, 42);
+    // 34, not 42. Eight pixels off the gap above the bar is what lets the note
+    // below it hold TWO lines of font23 inside a 96px card -- it was font14,
+    // and font14 is for marks. The caption ends at 30, so the bar still clears
+    // it by four.
+    lv_obj_set_pos(track, 14, 34);
     lv_obj_set_size(track, ENT_COL_W - 28, 5);
     lv_obj_set_style_radius(track, 100, 0);
     lv_obj_set_style_bg_color(track, WT_DIV, 0);
@@ -1489,11 +1493,17 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     lv_obj_remove_flag(fill, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(fill, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 52, not 58: the bar ends at 47 and two font14 lines are 38, so 52 lands
-    // the second line on 90 inside a 96 tall card. At 58 the longest English
-    // note wrapped to exactly 96 and lost its last row of pixels.
-    lv_obj_t *n = wt_lbl(card, tr(note), 14, 52, wt_font14(), MUT_COL);
+    // 44: the bar ends at 39 and two font23 lines are 50, so the second line
+    // lands on 94 inside a 96 tall card. It was 52 with a font14 note, which
+    // fitted and could not be read -- and the right column of this screen is
+    // three boxes packed to WT_CONTENT_BOTTOM, so the eight pixels had to come
+    // from inside the card rather than from the page.
+    lv_obj_t *n = wt_lbl(card, tr(note), 14, 44, wt_font23(), MUT_COL);
     lv_obj_set_width(n, ENT_COL_W - 28);
+    // HEIGHT PINNED to the two lines the card has room for, so a third line is
+    // CLIPPED rather than drawn over the card below -- and clipped is what the
+    // overlap gate can see. Unpinned it grew silently past the card's edge.
+    lv_obj_set_height(n, 50);
     lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
     if (out_card) *out_card = card;
     return fill;
@@ -2902,7 +2912,7 @@ static void cards_cksum_screen(void)
     // The one concrete number: how many of the 2048 list words fit these.
     char fit[96];
     snprintf(fit, sizeof fit, tr(STR_W_CKSUM_FIT_FMT), s_ncand);
-    lv_obj_t *fl = mk_lbl(fit, 48, 210, wt_font14(), wt_accent());
+    lv_obj_t *fl = mk_lbl(fit, 48, 210, wt_font23(), wt_accent());
     lv_obj_set_width(fl, 704);
     lv_obj_set_style_text_align(fl, LV_TEXT_ALIGN_CENTER, 0);
 

@@ -1427,10 +1427,14 @@ static int aside_addr(lv_obj_t *par, int x, int y, int w)
     // The caption goes UNDER it, naming the run that is lit rather than the
     // block as a whole -- S_CMP_8 already ships in 21 locales and already says
     // it on the receive screen, so the two screens teach one habit.
+    // font23, the rung this exact string already takes on the receive screen
+    // and in the sign screen's own address box. It was font14 here alone --
+    // an INSTRUCTION about how to check an address, set at the size this
+    // device keeps for marks, on the screen where the check happens.
     lv_obj_t *cap = wt_lbl(par, tr(STR_S_CMP_8), x, y + lv_obj_get_height(ad) + 6,
-                           wt_font14(), MUT_COL);
+                           wt_font23(), MUT_COL);
     (void)cap;
-    return lv_obj_get_height(ad) + 6 + lv_font_get_line_height(wt_font14());
+    return lv_obj_get_height(ad) + 6 + lv_font_get_line_height(wt_font23());
 }
 
 static void addr_help_cb(lv_event_t *e)
@@ -1803,7 +1807,13 @@ static void cautions_screen(void)
         lv_obj_t *t = lv_label_create(row);
         lv_obj_set_pos(t, 52, 19);
         lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
+        // A caution row's 24px lane, which is the BOX deciding rather than the
+        // copy -- the same case the FIT gate carves out by height. The row
+        // carries a mark, a sentence and an I UNDERSTAND control on one line,
+        // and WHY FLAGGED behind the "?" is where the same caution is written
+        // out at font23.
         wt_note_fit(t, parts[i], 491 - 16, 24);
+        wt_tiny_ok(t);
 
         lv_obj_t *ctl;
         if (done)
@@ -2106,10 +2116,15 @@ static void verify_screen(lv_obj_t *parent)
                 snprintf(buf, sizeof buf, tr(STR_S_FEERATE_FMT),
                          (unsigned)(s_sum.fee_rate_x10 / 10),
                          (unsigned)(s_sum.fee_rate_x10 % 10));
+            // Declared font14: this is a UNIT SUFFIX on the hero row, beside
+            // a font48 figure and a BTC amount that are both already the
+            // answer. "7.0 sat/vB, 1.6% of what you send" is the arithmetic
+            // under the number, and the number is what the owner reads.
             lv_obj_t *fr = lv_label_create(row);
             lv_label_set_text_fmt(fr, "%s  %s", LV_SYMBOL_CUT, buf);
             lv_obj_set_style_text_font(fr, wt_font14(), 0);
             lv_obj_set_style_text_color(fr, MUT_COL, 0);
+            wt_tiny_ok(fr);
         }
     }
 
@@ -2724,6 +2739,11 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_height(m, lv_font_get_line_height(wt_font14()));
         lv_obj_set_style_text_align(m, LV_TEXT_ALIGN_RIGHT, 0);
         lv_label_set_long_mode(m, LV_LABEL_LONG_DOT);
+        // Declared font14: a STATUS STRIP, pinned to one line in a 360px lane
+        // it shares with the caution bar. It reports two states the colour and
+        // the "?" beside it already carry, and the lane cannot grow -- the
+        // amber IS the message here, not the letters.
+        wt_tiny_ok(m);
     }
 
     if (np) wt_help_chip(s_scr, 738, 108, WARN_COL, caution_help_cb, NULL);
@@ -2872,24 +2892,48 @@ static void glossary_cb(lv_event_t *e)
         line[n] = 0;
         const char *def = wt_split_colon(line, head, sizeof head);
 
+        // EQUAL columns. The right one was 328 to the left's 344, which is
+        // most of a word per line at font23 -- and a two column list whose
+        // halves wrap differently reads as two lists.
         const int col = i / 4;                  // four down the left, four right
-        const int x   = col ? 424 : 40;
-        const int w   = col ? 328 : 344;
+        const int x   = col ? 408 : 40;
+        const int w   = 344;
         const int y   = 104 + (i % 4) * 68;
 
         // The mark first, in the accent, and flagged so it survives a theme
         // change: these are the same eight glyphs the detail rows wear, which
         // is how a reader meets a concept's mark before its word.
-        lv_obj_t *ic = mk_lbl(GLOSS_ICONS[i], x, y, wt_font14(), wt_accent());
+        lv_obj_t *ic = mk_lbl(GLOSS_ICONS[i], x, y + 3, wt_font14(),
+                              wt_accent());
         lv_obj_add_flag(ic, WT_FLAG_ACCENT);
-        lv_obj_t *tm = mk_lbl(head, x + 26, y, wt_font14(), INK_COL);
-        lv_obj_set_style_text_letter_space(tm, 2, 0);
-        // 60 of the 68 pitch, so a long definition ellipsises inside its own
-        // cell instead of growing into the term under it.
-        lv_obj_t *dl = mk_lbl(def ? def : "", x, y + 20, wt_font14(), MUT_COL);
-        lv_obj_set_width(dl, w);
-        lv_label_set_long_mode(dl, LV_LABEL_LONG_DOT);
-        lv_obj_set_height(dl, 44);
+
+        // TERM AND DEFINITION ON ONE WRAPPED RUN, at font23. This was a
+        // font14 term over a font14 definition -- eight of them, a whole page
+        // of reading at the size this device keeps for MARKS, and no gate
+        // could see it because the size was written in rather than fitted.
+        //
+        // Stacking them is what forced the rung: a term line plus two
+        // definition lines does not fit a 68px pitch at 23. Running them
+        // together does, because the term costs a few words of the first line
+        // instead of a whole line of its own. A spangroup, so the two colours
+        // wrap as one paragraph -- the same shape the folded address uses.
+        lv_obj_t *sg = lv_spangroup_create(s_scr);
+        lv_obj_set_pos(sg, x + 26, y);
+        lv_obj_set_width(sg, w - 26);
+        lv_obj_set_height(sg, 62);
+        lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
+        lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+        lv_obj_set_style_text_font(sg, wt_font23(), 0);
+        char tbuf[72];
+        snprintf(tbuf, sizeof tbuf, "%s ", head);
+        lv_span_t *s1 = lv_spangroup_new_span(sg);
+        lv_span_set_text(s1, tbuf);
+        lv_style_set_text_color(lv_span_get_style(s1), INK_COL);
+        lv_span_t *s2 = lv_spangroup_new_span(sg);
+        lv_span_set_text(s2, def ? def : "");
+        lv_style_set_text_color(lv_span_get_style(s2), MUT_COL);
+        lv_spangroup_refresh(sg);
 
         p = nl ? nl + 1 : NULL;
     }

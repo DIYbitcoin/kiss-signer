@@ -2448,6 +2448,11 @@ lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent)
   // fill let a palm tree through the middle of the sentence.
   lv_obj_set_style_bg_color(chip, lv_color_hex(0x0B0D12), 0);
   lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+  // font23, overriding the chip default. A state chip is a MARK and font14 is
+  // right for one -- but this chip is the only thing on the screen when the
+  // touch panel is dead, and it is the instruction that gets the owner out of
+  // that state. The chip self sizes, so nothing else moves.
+  lv_obj_set_style_text_font(chip, wt_font23(), 0);
   lv_obj_update_layout(chip);
   // Bottom edge, not the top: the top is where the game's own title art is,
   // and the fault does not get to cover the cover story.

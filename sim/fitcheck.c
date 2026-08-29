@@ -153,10 +153,11 @@ static const slot_t SLOTS[] = {
     // Persist, whose sub follows the STATE: what is kept, or that nothing is.
     { "set/hist-on",      STR_I_HIST_SHORT,          270, 19, 1 },
     { "set/hist-off",     STR_I_POP_NOTHING,         270, 19, 1 },
-    // The NO UNDO tab's body, the one paragraph left on this page. 600 wide by
-    // the design, and 90 tall is what the card leaves between its heading and
-    // its button -- read off kiss_settings.c's tab_noundo, not guessed.
-    { "set/erase-body",   STR_I_ERASE_B,      600, 90 },
+    // The NO UNDO tab is a CLAIM PAIR now, not one paragraph: two heads and
+    // two bodies in two 340px columns, measured by wt_body_font2_head. Its old
+    // single-paragraph key went with the shape, along with the caption beside
+    // the button that explained the page's other four tabs from inside this
+    // one. The pair's own halves are measured two entries below.
     // set/separate and sub/addr-type used to sit here, both measuring
     // STR_G_SEPARATE, "each network + type is its own separate wallet". The
     // string is gone: it was the ADDRESS TYPE subtitle and, doing second duty,
