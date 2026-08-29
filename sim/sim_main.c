@@ -3901,6 +3901,24 @@ int main(void) {
   // so it keeps a screen naming all three destinations and, behind that, the
   // confirmation and the 1500ms hold it has always had.
   set_tab(SET_BACKUP);
+  // The "?" beside SEED WORDS: what a seed IS, on the row that names one.
+  // The chip sits 14 past the value, the same lane wt_def_row_help uses
+  // everywhere -- and the row's value here is a WORD, so measure it.
+  {
+    const char *v = tr(kiss_ui_backup_checked() ? STR_I_WORDS_OK_VAL
+                                                : STR_I_WORDS_NO_VAL);
+    lv_point_t vs;
+    lv_text_get_size(&vs, v, wt_chrome28(v), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X.
+    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(3, 0));
+    pump(3); release(); pump(8);
+  }
+  pump(25);                                          // the card animates in
+  save("/tmp/sim_settings_whatseed.ppm");
+  must_show("seed words help", tr(STR_W_WHATSEED_S));
+  tap_str(STR_C_OK, 3, 8);
+
   def_go(3, 1);                                      // storage row -> the chooser
   save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The

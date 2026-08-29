@@ -1756,6 +1756,28 @@ static void tab_security(void)
     def_list(defs, 3);
 }
 
+// What a seed IS, on the row that names one. STR_W_WHATSEED_* is the setup
+// flow's own answer -- "12 or 24 ordered words, called a BIP39 mnemonic" --
+// translated everywhere and locked to a path a settled owner never walks
+// again. This is the second door onto it.
+static void seedwords_help_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_explain_t x = {
+        .title  = tr(STR_I_ROW_WORDS),
+        .icon   = WT_ICON_KEY,
+        // .sub, not .cap: cap is half of a cap/val PAIR and renders nothing
+        // on its own. This line is the whole answer in one breath -- "12 or
+        // 24 ordered words, called a BIP39 mnemonic" -- and it belongs under
+        // the title where the reader's eye already is.
+        .sub    = tr(STR_W_WHATSEED_S),
+        .body   = tr(STR_W_WHATSEED_B),
+        .ok_txt = tr(STR_C_OK),
+        .mode   = WT_BODY_PROSE,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 static void tab_backup(void)
 {
     bool ok = kiss_ui_backup_checked();
@@ -1792,7 +1814,13 @@ static void tab_backup(void)
         { .cap = tr(STR_I_RESTORE_CAP), .val = tr(STR_I_RESTORE_VAL),
           .plain = tr(STR_I_RESTORE_PLAIN) },
     };
-    def_list(defs, 3);
+    lv_obj_t *list = def_list(defs, 3);
+    // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
+    // asked for exactly this: "there should be a ? mark next to seed words
+    // which when tapped explains bip39 mnemonic". The explainer is the one
+    // the setup flow already teaches from and it already ships in 21
+    // locales, so this costs no new key at all.
+    wt_def_row_help(list, 0, seedwords_help_cb, NULL);
 }
 
 static void tab_device(void)

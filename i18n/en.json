@@ -575,7 +575,7 @@
   "S_FLOW_2": "KISS CHECKS + SIGNS THE PSBT",
   "S_FLOW_3": "COORDINATOR BROADCASTS THE TRANSACTION",
   "W_WHATSEED_T": "YOUR SEED WORDS",
-  "W_WHATSEED_S": "12 or 24 ordered words, called a BIP39 mnemonic",
+  "W_WHATSEED_S": "12 or 24 ordered words: a BIP39 mnemonic",
   "W_WHATSEED_B": "your words plus your passphrase make your keys, not this device.\n\nwrite both down. any compatible BIP39 signer can rebuild them. words alone open different keys: the ones with no passphrase.",
   "GD_UNDERLINE": "UNDERLINE",
   "GD_OVERLINE": "LINE ABOVE",
