@@ -755,6 +755,22 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
 // "saved here unencrypted, your passphrase guards your real wallet and is never
 // saved here" is the reason somebody picks a different mode, and the half of it
 // that an ellipsis eats is the half that matters.
+// The ONE sub-line size a LIST of tall rows shares. Pass the result as every
+// row's `sf` and the group stops sizing itself per string.
+//
+// Without it the fit ladder makes type size a function of copy LENGTH, so
+// sibling cards on one screen land a rung apart -- which is what SET UP THIS
+// SIGNER, WHERE TO KEEP YOUR SEED WORDS and RESTORE all shipped. Smaller rung
+// wins, exactly as wt_body_font2 does for a pair of why-blocks.
+//
+// `w`, `h`, `icon` and `cb` are what the rows are built with; the lane is
+// worked out from them by the same helper wt_row_x uses, so the size returned
+// is the size the rows would each have picked had they all been the longest.
+bool wt_is_row_sub(const lv_obj_t *o);
+
+const lv_font_t *wt_row_sub_font(const char *const *subs, int n, int w, int h,
+                                 bool icon, bool cb);
+
 lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
                    const char *sub, const lv_font_t *sf,
                    const char *val, const lv_font_t *vf, lv_color_t vcol,

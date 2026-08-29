@@ -1638,6 +1638,79 @@ void wt_accent_restyle(lv_obj_t *scr)
     if (scr) accent_walk(scr);
 }
 
+// ---- a tall row's sub-line lane, and the ONE size a list of them shares ----
+//
+// wt_row_x sizes a tall row's sub with the fit ladder, which picks the biggest
+// rung that FITS. On a lone row that is right. On a LIST of rows it makes the
+// type size a function of how long each string happens to be, so siblings on
+// one screen land on different rungs: SET UP THIS SIGNER drew "12 new seed
+// words, made on this signer" at 23 and "keys from seed words you already
+// have" at 28, side by side in identical cards, and WHERE TO KEEP YOUR SEED
+// WORDS drew two options at 23 and AMNESIC at 28. It reads as a mistake
+// because it is one -- nothing about AMNESIC is more important, its sentence
+// is merely shorter.
+//
+// The kit already had the answer for the pair of why-blocks next door:
+// "a PAIR of blocks that must share one size", smaller rung wins. This is the
+// same rule for rows, and the reason it is a KIT call rather than a note is
+// that the caller cannot work out the lane -- it is what the icon, the chevron
+// and the value leave behind, inside the row.
+//
+// So the arithmetic lives here ONCE and wt_row_x uses these too. A private
+// copy in the sizer that drifted by a pixel would pick a rung the row it is
+// sizing does not, which is worse than not sharing at all.
+static int row_sub_lane_w(int w, bool icon, bool sel, bool cb, int vw)
+{
+    int right = w - 12;
+    if (sel || cb) {
+        lv_point_t cs;
+        lv_text_get_size(&cs, sel ? LV_SYMBOL_OK : LV_SYMBOL_RIGHT,
+                         sel ? wt_font23() : wt_font14(), 0, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        right = w - 10 - (int)cs.x - 10;
+    }
+    if (vw) right -= vw + 12;
+    const int lx = icon ? 52 : 14;
+    const int sw = right - lx;
+    return sw > 40 ? sw : 40;
+}
+
+// The label is PINNED to one line at font23, so this needs no measuring.
+static int row_sub_lane_h(int rowh)
+{
+    const int sh = rowh - (7 + lv_font_get_line_height(wt_font23()) + 3) - 12;
+    return sh < 20 ? 20 : sh;
+}
+
+const lv_font_t *wt_row_sub_font(const char *const *subs, int n, int w, int h,
+                                 bool icon, bool cb)
+{
+    const int sw = row_sub_lane_w(w, icon, false, cb, 0);
+    const int sh = row_sub_lane_h(h);
+    const lv_font_t *best = wt_font28();
+    const char *worst = NULL;
+    for (int i = 0; i < n; i++) {
+        if (!subs[i] || !*subs[i]) continue;
+        // The QUIET ladder in the loop, so a list of five does not file five
+        // findings for one lane. The report is made once, below, against the
+        // string that actually forced the rung down.
+        const lv_font_t *f = body_font_ladder(subs[i], sw, sh, false);
+        if (f == wt_font14()) { worst = subs[i]; best = wt_font14(); break; }
+        if (f == wt_font23() && best == wt_font28()) { worst = subs[i]; best = wt_font23(); }
+    }
+    if (best == wt_font14() && worst) WT_FIT_GAVE_UP("row", worst, sw, sh);
+    (void)worst;
+    return best;
+}
+
+// Is this label a ROW's sub-line? The tag is private and has to stay that way
+// -- it is compared by POINTER, so a copy of the string in another file would
+// never match. The RAGGED gate needs to ask, so it asks here.
+bool wt_is_row_sub(const lv_obj_t *o)
+{
+    return o && lv_obj_get_user_data((lv_obj_t *)o) == (void *)WT_SUB_TAG;
+}
+
 lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w)
 {
     lv_obj_t *h = wt_lbl(scr, txt, x, y, wt_font14(), wt_accent());
@@ -1861,8 +1934,9 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
             // out the second half, which is where the warning lives. Sized to
             // the box that is actually left so a three line translation drops a
             // font size rather than running out of the card.
-            int sh = rowh - liney - 12;
-            if (sh < 20) sh = 20;
+            // The SAME arithmetic wt_row_sub_font predicts, from the same
+            // helper: a private copy here is how the two drift apart.
+            const int sh = row_sub_lane_h(rowh);
             lv_obj_t *s = wt_lbl(row, sub, lx, liney,
                                  sf_auto ? wt_body_font(sub, sw, sh) : sf,
                                  WT_MUT);

@@ -1665,7 +1665,13 @@ static void method_screen(void)
     // "made on this signer" then read as the hardware inventing a seed on its
     // own, which is both frightening and untrue: an owner aims the camera and
     // taps, and the chip's noise is the third input, not the only one.
-    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), NULL,
+    // ONE size for the three sublines. Sized per row, the shortest sentence on
+    // the page renders a rung larger than the others and the list reads ragged.
+    const char *const MSUB[3] = { tr(STR_W_MIX_NOTE), tr(STR_W_METHOD_DICE_S),
+                                  tr(STR_W_CARDS_NOTE) };
+    const lv_font_t *msf = wt_row_sub_font(MSUB, 3, WT_CHOICE_W, WT_CHOICE_H,
+                                           true, true);
+    wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), msf,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
     // Its OWN title and subline, not W_CHOOSE_DICE and W_DICE_NOTE: both of
@@ -1679,14 +1685,14 @@ static void method_screen(void)
     // 2.6x the taps of 50 rolls, and nobody should meet that number for the
     // first time on tap 60.
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_METHOD_DICE_T), tr(STR_W_METHOD_DICE_S),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
+             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
     // KEYBOARD, not SHUFFLE. This row's whole subject is a word LIST the owner
     // cuts up and picks from, and a shuffle mark is the last thing on this
     // screen that reads as a deck of playing cards -- which is exactly how the
     // mode kept being misread. The glyph now says what the owner does here.
     wt_row_x(s_scr, LV_SYMBOL_KEYBOARD, tr(STR_W_CHOOSE_CARDS), tr(STR_W_CARDS_NOTE),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(2),
+             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(2),
              WT_CHOICE_W, WT_CHOICE_H, method_cards_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, goto_choose_cb, NULL);
@@ -3097,17 +3103,23 @@ static void count_screen(void)
     // LIST for a count of words, and WT_ICON_QR for the locked backup, which
     // carries its own. No tick on any of them: the paper decides how many words
     // there are, so the device has no current answer to mark.
-    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), NULL,
+    // One size across all three, the third included: it is on the page whenever
+    // restoring, and it is the row whose sentence is shortest.
+    const char *const CSUB[3] = { tr(STR_W_12_NOTE), tr(STR_W_24_NOTE),
+                                  tr(STR_W_LOAD_SCAN_NOTE) };
+    const lv_font_t *csf = wt_row_sub_font(CSUB, s_restore ? 3 : 2,
+                                           WT_CHOICE_W, WT_CHOICE_H, true, true);
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), csf,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)12);
-    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), NULL,
+    wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), csf,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
              WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
     // An encrypted backup carries its own length, so it sits beside the count
     // rather than after it.
     if (s_restore)
         wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_KEF_QR),
-                 tr(STR_W_LOAD_SCAN_NOTE), NULL, NULL, NULL, WT_INK, false,
+                 tr(STR_W_LOAD_SCAN_NOTE), csf, NULL, NULL, WT_INK, false,
                  WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
                  restore_scan_cb, NULL);
     else {
@@ -3201,8 +3213,11 @@ static void storage_screen(void)
         enc ? STR_W_FLASH_ENC_NOTE : STR_W_KEEP_NOTE,
         STR_W_SD_NOTE, STR_W_AMNESIC_NOTE
     };
+    const char *const SSUB[3] = { tr(NOTE[0]), tr(NOTE[1]), tr(NOTE[2]) };
+    const lv_font_t *ssf = wt_row_sub_font(SSUB, 3, WT_CHOICE_W, WT_CHOICE_H,
+                                           true, true);
     for (int i = 0; i < 3; i++) {
-        lv_obj_t *row = wt_row_x(s_scr, ICON[i], tr(BTN[i]), tr(NOTE[i]), NULL,
+        lv_obj_t *row = wt_row_x(s_scr, ICON[i], tr(BTN[i]), tr(NOTE[i]), ssf,
                                  NULL, NULL, WT_INK, false,
                                  WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
                                  WT_CHOICE_H, storage_pick_cb,
@@ -3334,11 +3349,14 @@ static void choose_screen(void)
     // PLUS for making one, LOOP for bringing one back. Both are in the baked
     // SYMS set, and this is the one screen where a reader may not have the
     // language yet -- the picker sits in the corner beside them.
+    const char *const NSUB[2] = { tr(STR_W_NEW_NOTE), tr(STR_W_RESTORE_NOTE) };
+    const lv_font_t *nsf = wt_row_sub_font(NSUB, 2, WT_CHOICE_W, WT_CHOICE_H,
+                                           true, true);
     wt_row_x(s_scr, LV_SYMBOL_PLUS, tr(STR_W_CHOOSE_NEW), tr(STR_W_NEW_NOTE),
-             NULL, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
+             nsf, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
              WT_CHOICE_W, WT_CHOICE_H, new_cb, NULL);
     wt_row_x(s_scr, LV_SYMBOL_LOOP, tr(STR_W_CHOOSE_RESTORE),
-             tr(STR_W_RESTORE_NOTE), NULL, NULL, NULL, WT_INK, false,
+             tr(STR_W_RESTORE_NOTE), nsf, NULL, NULL, WT_INK, false,
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              restore_cb, NULL);
     // "WHAT IS A SEED?" was a third pill, then a bare "?" chip parked at

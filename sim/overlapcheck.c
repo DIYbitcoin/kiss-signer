@@ -1244,6 +1244,72 @@ static void oc_check_colour_roles(const char *tag)
 //
 // Run: OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap
 int oc_selftest(void);
+
+// ---- 12. RAGGED: sibling rows whose sub-lines disagree about size ----------
+//
+// The tall row's sub is sized by the FIT ladder, which picks the biggest rung
+// that fits. Alone that is right. In a LIST it makes type size a function of
+// how long each string happens to be, so identical cards land a rung apart and
+// the shortest sentence on the page is drawn the largest -- which reads as
+// emphasis nobody meant.
+//
+// It shipped on three screens at once and the bench found all three by eye:
+// SET UP THIS SIGNER ("the latter is too big"), WHERE TO KEEP YOUR SEED WORDS
+// ("with AMNESIC its too big wtf") and RESTORE. No gate could see it, because
+// every one of those labels fits its box perfectly -- there is nothing wrong
+// with any row on its own. The defect only exists BETWEEN rows, which is why
+// this check compares them rather than measuring them.
+//
+// The group is "rows of the same size on the same screen": same width, same
+// height, taller than WT_ROW_H so the sub is a paragraph rather than a pinned
+// caption. Those are siblings by construction -- WT_CHOICE_W/H builds every
+// chooser on the device -- and siblings share one rung. wt_row_sub_font is
+// how a caller obeys.
+#define OC_RAGGED_MAX 24
+
+static void oc_check_ragged(const char *tag)
+{
+    struct { int w, h; const lv_font_t *f; char t[80]; } g[OC_RAGGED_MAX];
+    int ng = 0;
+    char t[80], sig[224], detail[420];
+
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        if (!wt_is_row_sub(n->obj)) continue;
+        lv_obj_t *row = lv_obj_get_parent(n->obj);
+        if (!row) continue;
+        const int rw = lv_obj_get_width(row), rh = lv_obj_get_height(row);
+        // A WT_ROW_H row pins its sub to one line at a declared font14 and
+        // says so; that is the BOX deciding and TINY covers it. Only the
+        // wrapping paragraph is sized by the ladder, so only it can be ragged.
+        if (rh <= WT_ROW_H) continue;
+        const lv_font_t *f = lv_obj_get_style_text_font(n->obj, LV_PART_MAIN);
+        oc_text(n->obj, t, sizeof t);
+
+        int seen = -1;
+        for (int k = 0; k < ng; k++)
+            if (g[k].w == rw && g[k].h == rh) { seen = k; break; }
+        if (seen < 0) {
+            if (ng >= OC_RAGGED_MAX) continue;
+            g[ng].w = rw; g[ng].h = rh; g[ng].f = f;
+            snprintf(g[ng].t, sizeof g[ng].t, "%s", t);
+            ng++;
+            continue;
+        }
+        if (g[seen].f == f) continue;
+        snprintf(sig, sizeof sig, "RAGGED|%s|%s", g[seen].t, t);
+        snprintf(detail, sizeof detail,
+                 "RAGGED   \"%s\" and \"%s\" are sub-lines of two %dx%d rows on "
+                 "one screen and render at DIFFERENT sizes -- the fit ladder "
+                 "sized each by its own length, so the shortest sentence is "
+                 "drawn the biggest. Size the group once with wt_row_sub_font "
+                 "and pass it as every row's sf",
+                 g[seen].t, t, rw, rh);
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_layer(const char *tag);   // defined with the entry points
 
 static int oc_selftest_case(const char *name, int accent,
@@ -1316,6 +1382,57 @@ static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
     oc_collect(scr, full, false);
     oc_mark_buried();
     oc_check_wall("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+
+// A row needs a callback to wear a chevron, and the chevron is what the lane
+// arithmetic subtracts. It is never fired.
+static void oc_noop_cb(lv_event_t *e) { (void)e; }
+
+// RAGGED fires on a shape the product no longer contains, so it carries the
+// same burden WALL, CUT and LAYER do: a clean sweep proves nothing until the
+// check is shown to still fire. Two chooser rows whose sublines are a rung
+// apart MUST report; the same two sized as a group MUST NOT -- a check that
+// fired on every list would fail the second exactly as a dead one fails the
+// first.
+//
+// The long string is one no rung above 23 can fit in a WT_CHOICE lane and the
+// short one fits at 28, which is precisely the pairing that shipped.
+static int oc_selftest_ragged(const char *name, bool share, bool want_finding)
+{
+    static const char *LONG_S =
+        "a sentence long enough that the fit ladder cannot draw it at the "
+        "largest rung inside a chooser row, so it settles a size lower";
+    static const char *SHORT_S = "short enough to sit big";
+    const char *const SUBS[2] = { LONG_S, SHORT_S };
+
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    const lv_font_t *f = share
+        ? wt_row_sub_font(SUBS, 2, WT_CHOICE_W, WT_CHOICE_H, true, true)
+        : NULL;
+    for (int i = 0; i < 2; i++)
+        wt_row_x(scr, LV_SYMBOL_LIST, "OPTION", SUBS[i], f, NULL, NULL,
+                 WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(i),
+                 WT_CHOICE_W, WT_CHOICE_H, oc_noop_cb, NULL);
+    lv_refr_now(NULL);
+
+    // s_n FIRST. Without it oc_collect appends to the previous case's nodes and
+    // oc_mark_buried hides these rows under them, so the check reports nothing
+    // and the self test passes itself by accident.
+    s_n = 0;
+    s_findings = 0;
+    s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_ragged("selftest");
 
     bool got = s_findings > 0;
     printf("  %-46s %s (%d finding%s)\n", name,
@@ -1466,6 +1583,13 @@ int oc_selftest(void)
                             "7.0 sat/vB, 1.6% of what you send", true, false);
     if (bad) printf("TINY self test: %d case(s) wrong\n", bad);
     else     printf("TINY self test: 3 cases, all as expected\n");
+    printf("\n");
+
+    printf("RAGGED check self test\n");
+    bad += oc_selftest_ragged("two chooser rows sized apart, fires", false, true);
+    bad += oc_selftest_ragged("the same two sized as a group, clear", true, false);
+    if (bad) printf("RAGGED self test: %d case(s) wrong\n", bad);
+    else     printf("RAGGED self test: 2 cases, all as expected\n");
     printf("\n");
 
     printf("FIT check self test\n");
@@ -1673,6 +1797,7 @@ void oc_check(const char *tag)
     oc_check_cut(tag);
     oc_check_tiny(tag);
     oc_check_amber(tag);
+    oc_check_ragged(tag);
     oc_check_layer(tag);
 }
 
