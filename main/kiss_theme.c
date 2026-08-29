@@ -6166,9 +6166,10 @@ static lv_obj_t *bundle_txt(lv_obj_t *row, const char *s, const lv_font_t *f,
 static void bundle_relink(wt_bundle_t *b)
 {
     if (!b->col) return;
-    const int sy = lv_obj_get_scroll_y(b->col);
     // Row positions are box coordinates; the strands live in sbox, which is the
-    // graph BAND with no padding, so everything crossing over loses BPAD.
+    // graph BAND with no padding, so everything crossing over loses BPAD. No
+    // scroll offset enters this: the column pages by HIDING the rows that are
+    // not on the page, so its scroll is zero for the whole of its life.
     const int cy = lv_obj_get_y(b->col) - BPAD;
     const int band = b->bh > 0 ? b->bh : 1;
     for (uint16_t i = 0; i < b->n_out; i++) {
@@ -6183,7 +6184,7 @@ static void bundle_relink(wt_bundle_t *b)
         const bool on = !lv_obj_has_flag(rw, LV_OBJ_FLAG_HIDDEN);
         int ry;
         if (on) {
-            ry = cy - sy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
+            ry = cy + lv_obj_get_y(rw) + lv_obj_get_height(rw) / 2;
         } else {
             ry = b->n_out < 2 ? band / 2
                : BMARG + (int)i * (band - 2 * BMARG) / (int)(b->n_out - 1);
@@ -6824,11 +6825,6 @@ void wt_bundle_signed_reveal(lv_obj_t *bundle, uint32_t ms)
     lv_anim_start(&a);
 }
 
-lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle)
-{
-    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
-    return b ? b->col : NULL;
-}
 
 // Reserve exactly what this iteration writes, which is a character and, only
 // on a group boundary, a space before it.

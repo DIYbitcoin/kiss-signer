@@ -516,11 +516,6 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                     const wt_strand_t *out, size_t n_out,
                     uint64_t max_sats);
 
-// The graph's output column, which scrolls when its rows do not fit. Returned
-// so the sign screen can keep asking it the question it has always asked a
-// panel of destinations: is anything below the fold, and has it been read.
-// The graph owns the strands; the caller owns what the answer means.
-lv_obj_t *wt_bundle_outputs(lv_obj_t *bundle);
 
 // The output column PAGES rather than scrolls. A free scroller comes to rest
 // wherever the finger leaves it, so the row at the fold is sliced through its
