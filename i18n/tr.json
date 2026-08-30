@@ -253,7 +253,7 @@
   "I_KEF_EXP_B_NP": "İçinde seed kelimeleriniz var. Parolayı kaybederseniz gider, sıfırlama yok.",
   "I_KEF_F1_C": "İÇİNDE NE VAR",
   "I_KEF_F1_C_NP": "ONU NE AÇAR",
-  "I_KEF_F1_V": "KELİMELER, PASSPHRASE DEĞİL",
+  "I_KEF_F1_V": "KELİMELER, PASS DEĞİL",
   "I_KEF_F1_V_NP": "SADECE PAROLANIZ",
   "I_KEF_HEAD": "Yalnızca parolanızın açtığı bir QR.",
   "I_KEF_MAKE_BTN": "BİR PAROLA SEÇİN",

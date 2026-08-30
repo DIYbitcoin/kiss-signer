@@ -5814,6 +5814,9 @@ int main(void) {
   lv_refr_now(NULL);
   save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
   slide_go(340); release(); pump(8);                // leg one arrives
+  // Between the legs, because the two of them are the whole safety mechanism
+  // and a frame that only shows the end cannot say which one fired.
+  save("/tmp/sim_wipe_leg1.ppm");                   // ONCE MORE, nothing erased
   slide_back(348, 430, 340); release(); pump(6);     // leg two -> erased
   save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
   must_show("erased", tr(STR_G_ERASED_T));

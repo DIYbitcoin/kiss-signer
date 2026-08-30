@@ -861,7 +861,7 @@
   "W_SETUP_S": "pas encore de clés sur ce signataire",
   "W_SETUP_T": "CONFIGURE CE SIGNATAIRE",
   "W_SHOW_GOES": "le secret, tant qu ils sont à l écran",
-  "W_SHOW_SENT": "Vos mots de récupération apparaissent sur cet écran.",
+  "W_SHOW_SENT": "Les mots apparaissent sur cet écran.",
   "W_SHOW_SURV": "tout · les montrer ne change rien",
   "W_START_OVER": "RECOMMENCER",
   "W_STORE_S": "modifiable plus tard dans les réglages",

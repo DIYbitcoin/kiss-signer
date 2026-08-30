@@ -1265,10 +1265,18 @@ static void wiped_ok_cb(lv_event_t *e)
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
     kiss_wiped_lock();
 }
+static void erase_screen(void);
 static void wipe_fail_ok_cb(lv_event_t *e)   // dismiss back to settings, retryable
 {
     lv_obj_t *ovl = lv_event_get_user_data(e);
     lv_obj_delete_async(ovl);
+    // AND REBUILD THE GATE. The refusal is an overlay on the confirm screen,
+    // so dismissing it uncovers the same slide -- and that slide has already
+    // spent its first leg. One stroke then finished the second and erased the
+    // seed, on the one action in the product that cannot be undone. The two
+    // legs are the whole safety mechanism and they only mean anything if a
+    // refused attempt costs both of them again.
+    erase_screen();
 }
 
 // The erase itself. Reached only from the confirm screen's slide, never from
