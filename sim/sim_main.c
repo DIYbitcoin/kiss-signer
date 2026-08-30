@@ -2948,10 +2948,18 @@ int main(void) {
   }
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);                              // and back to INPUTS
-  // The corner [ ? ] opens SIMPLE EXPLAINERS -- the pill box is gone. A page,
-  // so it leaves by BACK and lands back on the deck, on the tab it left.
+  // The corner [ ? ] opens TERMS -- three definition rows, not eight cells of
+  // reference. A page, so it leaves by BACK and lands back on the deck, on
+  // the tab it left.
   touch(720, 85); pump(3); release(); pump(30);
   save("/tmp/sim_sign_glossary.ppm");
+  must_show("sign/terms", tr(STR_T_PSBT_CAP));
+  // Row 1 OPEN. n=3 is a 94px closed row from WT_LANE_Y, so THE FEE centres
+  // on 255 -- and the open state is the only one that shows a definition and
+  // its TECHNICAL line at all.
+  touch(400, 255); pump(3); release(); pump(30);
+  save("/tmp/sim_sign_terms_open.ppm");
+  must_show("sign/terms open", tr(STR_T_FEE_TERM));
   tap_str(STR_C_BACK, 3, 30);    // BACK -> DETAILS, INPUTS again
   // OUTPUTS: an output ROW opens the whole address. The fold drops the middle
   // of a destination somebody else chose, and the characters it drops have to
@@ -3014,7 +3022,10 @@ int main(void) {
   // them lands back on the tab it left -- the deck promise, kept here too.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("details/swipe past tx opens explainers", tr(STR_S_GLOSSARY_T));
+  // By a TERM and not by the title: the page is called TERMS now and so is
+  // the trail segment every [ ? ] lane wears, so the title alone would pass
+  // on any of them.
+  must_show("details/swipe past tx opens explainers", tr(STR_T_PSBT_CAP));
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
   must_show("details/swipe back to transaction", tr(STR_S_D_TXID));
@@ -4208,7 +4219,7 @@ int main(void) {
   words_tab(WORDS_ENC);                            // the group, not a wedged row
   words_row(0);                                    // Encrypted backup -> consent
   save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
-  must_show("kef/with passphrase", tr(STR_I_KEF_PP_H));
+  must_show("kef/with passphrase", tr(STR_I_KEF_F1_V));
 
   // The same screen for an owner with no passphrase, where the words alone
   // ARE the keys: the chip, the subtitle and the first claim all say so, and
@@ -4225,10 +4236,10 @@ int main(void) {
   words_tab(WORDS_ENC);
   words_row(0);                                    // Encrypted backup again
   save("/tmp/sim_kef_warn_nopass.ppm");             // YOUR KEYS, and no caveat
-  // The BODY, not the heading: "what opens it" is also the unlock drawing's
-  // own heading, and a needle two keys share passes on whichever screen shows
-  // either one.
-  must_show("kef/no passphrase", tr(STR_I_KEF_W1_B));
+  // The fact VALUE, not its caption: "WHAT OPENS IT" is the caption on more
+  // than one screen, and the value is what differs between the two variants
+  // of this one.
+  must_show("kef/no passphrase", tr(STR_I_KEF_F1_V_NP));
   must_not_show("kef/no passphrase says nothing about one",
                 tr(STR_I_KEF_PP_H));
   kiss_session_open("x");                           // back to the truth

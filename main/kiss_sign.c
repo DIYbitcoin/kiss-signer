@@ -2493,80 +2493,43 @@ static void gloss_gesture_cb(lv_event_t *e)
 static void glossary_cb(lv_event_t *e)
 {
     (void)e;
-    // A PAGE now, not an overlay card. Eight terms is a reference, and a
-    // reference read through a dimmed backdrop over the page you were on is a
-    // thing you dismiss rather than a thing you read: the card had to squeeze
-    // all eight into the room left under a floating title, which is what put
-    // the definitions on the smallest rung the device has.
+    // THREE terms, not eight, and each one opens where it stands.
     //
-    // Still no new string. One `term: definition` per line is how every locale
-    // already writes S_GLOSSARY_B, wt_split_colon reads it, and GLOSS_ICONS is
-    // still one glyph per line in the same order. Only where the cells land
-    // changed.
+    // The eight were a two column reference: every definition on the glass at
+    // once, at the one size that let them all fit, read start to finish to
+    // find the one that mattered. Six of them were not about this screen --
+    // TXID and LOCKTIME belong to the DETAILS page that already explains them
+    // in place. What SIGN owes a reader is the three words on the graph in
+    // front of them, and a definition list gives each one the whole lane
+    // instead of an eighth of it.
+    //
+    // The caption is the REAL TERM. PSBT, not "the file"; the plain words are
+    // the sentence underneath, and the technical name is the line under that,
+    // so a reader meets the word their coordinator uses and leaves knowing
+    // what it means rather than what this device decided to call it.
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
+    // The trail names the PAGE THIS CAME FROM and nothing else. TERMS is the
+    // title now, and a trail repeating it is the restatement the copy rule
+    // exists to cut.
+    wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_T), false);
 
-    wt_card(s_scr, 24, 88, 752, 290);
-    sg_rule(400, 104, 1, 258);
+    const wt_def_t defs[3] = {
+        { .cap = tr(STR_T_PSBT_CAP),   .val = tr(STR_T_PSBT_VAL),
+          .plain = tr(STR_T_PSBT_PLAIN), .term = tr(STR_T_PSBT_TERM),
+          .term_label = tr(STR_G_TECHNICAL) },
+        { .cap = tr(STR_T_FEE_CAP),    .val = tr(STR_T_FEE_VAL),
+          .plain = tr(STR_T_FEE_PLAIN),  .term = tr(STR_T_FEE_TERM),
+          .term_label = tr(STR_G_TECHNICAL) },
+        { .cap = tr(STR_T_CHANGE_CAP), .val = tr(STR_T_CHANGE_VAL),
+          .plain = tr(STR_T_CHANGE_PLAIN), .term = tr(STR_T_CHANGE_TERM),
+          .term_label = tr(STR_G_TECHNICAL) },
+    };
+    wt_def_list(s_scr, defs, 3);
 
-    const char *p = tr(STR_S_GLOSSARY_B);
-    for (int i = 0; i < 8 && p && *p; i++) {
-        char head[64], line[200];
-        const char *nl = strchr(p, '\n');
-        size_t n = nl ? (size_t)(nl - p) : strlen(p);
-        if (n >= sizeof line) n = sizeof line - 1;
-        memcpy(line, p, n);
-        line[n] = 0;
-        const char *def = wt_split_colon(line, head, sizeof head);
-
-        // EQUAL columns. The right one was 328 to the left's 344, which is
-        // most of a word per line at font23 -- and a two column list whose
-        // halves wrap differently reads as two lists.
-        const int col = i / 4;                  // four down the left, four right
-        const int x   = col ? 408 : 40;
-        const int w   = 344;
-        const int y   = 104 + (i % 4) * 68;
-
-        // The mark first, in the accent, and flagged so it survives a theme
-        // change: these are the same eight glyphs the detail rows wear, which
-        // is how a reader meets a concept's mark before its word.
-        lv_obj_t *ic = mk_lbl(GLOSS_ICONS[i], x, y + 3, wt_font14(),
-                              wt_accent());
-        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
-
-        // TERM AND DEFINITION ON ONE WRAPPED RUN, at font23. This was a
-        // font14 term over a font14 definition -- eight of them, a whole page
-        // of reading at the size this device keeps for MARKS, and no gate
-        // could see it because the size was written in rather than fitted.
-        //
-        // Stacking them is what forced the rung: a term line plus two
-        // definition lines does not fit a 68px pitch at 23. Running them
-        // together does, because the term costs a few words of the first line
-        // instead of a whole line of its own. A spangroup, so the two colours
-        // wrap as one paragraph -- the same shape the folded address uses.
-        lv_obj_t *sg = lv_spangroup_create(s_scr);
-        lv_obj_set_pos(sg, x + 26, y);
-        lv_obj_set_width(sg, w - 26);
-        lv_obj_set_height(sg, 62);
-        lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
-        lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
-        lv_obj_set_style_text_font(sg, wt_font23(), 0);
-        char tbuf[72];
-        snprintf(tbuf, sizeof tbuf, "%s ", head);
-        lv_span_t *s1 = lv_spangroup_new_span(sg);
-        lv_span_set_text(s1, tbuf);
-        lv_style_set_text_color(lv_span_get_style(s1), INK_COL);
-        lv_span_t *s2 = lv_spangroup_new_span(sg);
-        lv_span_set_text(s2, def ? def : "");
-        lv_style_set_text_color(lv_span_get_style(s2), MUT_COL);
-        lv_spangroup_refresh(sg);
-
-        p = nl ? nl + 1 : NULL;
-    }
     // The stroke that opened this page closes it: a right swipe lands back
     // on the DETAILS tab it left, the same promise every deck's [ ? ] keeps.
     wt_swipe_watch(s_scr, gloss_gesture_cb);

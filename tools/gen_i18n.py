@@ -132,6 +132,15 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # The locked backup screen, moved onto the explainer shape. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",
+    "I_KEF_F1_V", "I_KEF_F1_C_NP", "I_KEF_F1_V_NP", "I_KEF_TERM",
+    # The SIGN term cards. Born under the English-only rule; English in the
+    # other twenty until the sweep.
+    "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
+    "T_FEE_CAP", "T_FEE_VAL", "T_FEE_PLAIN", "T_FEE_TERM",
+    "T_CHANGE_CAP", "T_CHANGE_VAL", "T_CHANGE_PLAIN", "T_CHANGE_TERM",
     "I_APP_DESKTOP",   # Sparrow, a product name
     "I_APP_MOBILE",    # BlueWallet, a product name
     "S_TY_LEGACY",     # Legacy / Nested SegWit / Native SegWit: the address type

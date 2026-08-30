@@ -1281,51 +1281,32 @@ static void kef_warn_screen(lv_event_t *e)
         wt_trail(s_scr, WT_ICON_LOCK, trail, false);
     }
 
-    // The mechanism, drawn before it is explained: what goes in, plus one
-    // password, becomes a QR that only the password opens. With a passphrase
-    // the left chip is the WORDS, because the keys are the words plus the
-    // passphrase and only one of those two is going in the envelope.
-    lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 64);
-    lv_obj_t *row = wt_diagram_row(card);
-    // One mark, on the password. Three marked terms at the chips' new size
-    // outgrow the 704 card (measured off the frame: clipped both ends), and
-    // of the three icons the lock is the one doing work -- WORDS and LOCKED
-    // QR say themselves.
-    wt_chip(row, tr(pp ? STR_D_WORDS : STR_D_KEYS), true);
-    wt_diagram_op(row, "+");
-    wt_chip(row, tr_sym(WT_ICON_LOCK, STR_L_KEF_PASS_OPEN), true);
-    wt_diagram_op(row, LV_SYMBOL_RIGHT);
-    wt_chip(row, tr(STR_I_KEF_CHIP_QR), false);
-    lv_obj_center(row);
-
-    // Two claims, split. Without a passphrase this is the kit's usual pairing:
-    // the accent rule on how it works, WT_WARN on where it goes wrong.
+    // THE EXPLAINER SHAPE, the same one every other teaching screen on this
+    // device wears since the pass that rebuilt them: a headline that makes
+    // the claim, a paragraph under it, and labelled facts on a caption lane.
+    // This screen was the last one still built out of a diagram card and a
+    // two column claim pair, and beside SEED WORDS or PASSPHRASE it read as
+    // a different product.
     //
-    // WITH a passphrase there is no "how it works" claim left to make, because
-    // the shipped one is FALSE for that owner: "type the password, and your
-    // keys are back" is true only when the words alone are the keys. The
-    // passphrase is wiped at login by design (kiss_crypto.h), so it is not in
-    // the envelope and no future version can quietly put it there.
+    // The diagram went with it. It drew "words plus a password becomes a
+    // locked QR", which is what the headline now says in words -- and a
+    // drawing of a sentence already on the screen is decoration.
     //
-    // That sentence used to lead in the ACCENT colour -- the colour this kit
-    // uses for how a thing works -- beside a WT_WARN block about a lesser
-    // risk, so the page said "here is a feature, and by the way" about the one
-    // fact standing between a passphrase owner and a backup that restores an
-    // empty wallet. For that owner BOTH claims are where it goes wrong, and
-    // both wear WT_WARN. The diagram above already carries the mechanism.
-    {
-        const char *h1 = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_W1_H);
-        const char *b1 = tr(pp ? STR_I_KEF_PP_B : STR_I_KEF_W1_B);
-        const char *h2 = tr(STR_I_KEF_W2_H), *b2 = tr(STR_I_KEF_W2_B);
-        // WT_SLIDE_BOTTOM, not WT_CONTENT_BOTTOM: the slide below grew the
-        // band to 344, and a pair measured against 398 runs its last line
-        // under the bar.
-        const int BW = 344, BY = 176, BH = WT_SLIDE_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, BW - 14, BH);
-        wt_why_block(s_scr, h1, b1,  48, BY, BW, BH, f,
-                     pp ? WT_WARN : wt_accent());
-        wt_why_block(s_scr, h2, b2, 408, BY, BW, BH, f, WT_WARN);
-    }
+    // TWO facts, not three. The band is 344 here because of the slide, so the
+    // lane ends at 336: a third row lands at 338.
+    const wt_fact_t facts[2] = {
+        { tr(pp ? STR_I_KEF_F1_C : STR_I_KEF_F1_C_NP),
+          tr(pp ? STR_I_KEF_F1_V : STR_I_KEF_F1_V_NP),
+          pp ? WT_ICON_SECRET : WT_ICON_LOCK },
+        { tr(STR_G_TECHNICAL), tr(STR_I_KEF_TERM), LV_SYMBOL_LIST },
+    };
+    // With a passphrase the paragraph has one more thing to say and it is the
+    // one that matters: the envelope holds the WORDS, and the words alone are
+    // not these keys. The passphrase is wiped at login by design
+    // (kiss_crypto.h), so it is not in there and no future version can
+    // quietly put it there.
+    wt_explain(s_scr, tr(STR_I_KEF_HEAD),
+               tr(pp ? STR_I_KEF_EXP_B : STR_I_KEF_EXP_B_NP), facts, 2);
 
     // Making the envelope puts the keys on the glass as a QR one screen
     // later, so the entry is a deliberate slide, the scan-key precedent.
