@@ -319,7 +319,8 @@ static bool oc_has_action_row(void)
         oc_node_t *n = &s_node[i];
         if (n->buried || !n->clickable) continue;
         if (area_is_backdrop(&n->vis)) continue;      // tap-to-dismiss backdrops
-        if (n->vis.y1 >= WT_CONTENT_BOTTOM && n->vis.y2 < LV_VER_RES) return true;
+        if (n->vis.y1 >= wt_action_top(lv_screen_active()) &&
+            n->vis.y2 < LV_VER_RES) return true;
     }
     return false;
 }
@@ -386,11 +387,22 @@ static void oc_check_text_overlap(const char *tag)
     }
 }
 
+// The line THIS screen's content may not cross. Almost always
+// WT_CONTENT_BOTTOM; WT_ACTION_Y_SLIDE on a screen whose slide grew the band
+// upward to hold a 44px knob. Asking the screen rather than assuming the
+// constant is the whole point: the band moved, and a check measuring against
+// the number it used to be would pass a paragraph running under the bar.
+static int oc_bottom(void)
+{
+    return wt_action_top(lv_screen_active());
+}
+
 static void oc_check_content_bottom(const char *tag)
 {
     char t[64], sig[192], detail[320];
 
     if (!oc_has_action_row()) return;
+    const int bottom = oc_bottom();
 
     for (int i = 0; i < s_n; i++) {
         oc_node_t *n = &s_node[i];
@@ -409,15 +421,15 @@ static void oc_check_content_bottom(const char *tag)
         // Starts above the line and finishes at or below it: the definition of
         // reaching into the action row. Something that starts below the line is
         // already in the action row, which is where buttons belong.
-        if (n->vis.y1 >= WT_CONTENT_BOTTOM) continue;
-        if (n->vis.y2 < WT_CONTENT_BOTTOM) continue;
+        if (n->vis.y1 >= bottom) continue;
+        if (n->vis.y2 < bottom) continue;
 
         oc_text(n->obj, t, sizeof t);
         snprintf(sig, sizeof sig, "CONTENT|%s|%d", t, (int)n->vis.y2);
         snprintf(detail, sizeof detail,
-                 "CONTENT  \"%s\" runs y %d..%d, past WT_CONTENT_BOTTOM %d by %d px",
-                 t, (int)n->vis.y1, (int)n->vis.y2, WT_CONTENT_BOTTOM,
-                 (int)n->vis.y2 - WT_CONTENT_BOTTOM + 1);
+                 "CONTENT  \"%s\" runs y %d..%d, past the band's top %d by %d px",
+                 t, (int)n->vis.y1, (int)n->vis.y2, bottom,
+                 (int)n->vis.y2 - bottom + 1);
         oc_report_one(tag, sig, detail);
     }
 }
@@ -811,7 +823,8 @@ static const char *OC_FIT_BACKLOG[] = {
     // were cut rather than excused: the camera-proof warning lost a clause that
     // its own warning triangle was already saying, and the settings pill took
     // the shorter wording the other twenty locales had all along. A new entry
-    // is a string somebody chose to leave at font14, and needs saying so.
+    // is a string somebody chose to leave OVERFLOWING its block at the 21px
+    // floor, and needs saying so.
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
 static bool s_fit_hit[sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]];
@@ -831,8 +844,9 @@ static void oc_check_fit(const char *tag)
         char sig[192], detail[320];
         snprintf(sig, sizeof sig, "FIT|%s|%s", s_fit_kind[i], s_fit_txt[i]);
         snprintf(detail, sizeof detail,
-                 "FIT      %s gave up and set font14 for \"%s\" -- cut the "
-                 "copy or give the block its budget back, do not accept the size",
+                 "FIT      %s ran out of ladder on \"%s\" -- the floor is 21 "
+                 "and it still overflows: cut the copy or give the block its "
+                 "budget back, never the size",
                  strcmp(s_fit_kind[i], "note") == 0 ? "wt_note_fit"
                                                     : "wt_body_font",
                  s_fit_txt[i]);

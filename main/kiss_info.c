@@ -682,7 +682,7 @@ static void sp_key_warn_cb(lv_event_t *e)
     // the gate's amber belongs to the caution line, not to the way forward --
     // the third of the three yellow runs the bench counted on this screen.
     wt_slide_rule(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y, 330, sp_key_show, NULL);
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, sp_key_show, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, sp_key_back_cb, NULL);
 }
@@ -847,7 +847,7 @@ static void words_gate_screen(void)
                     // The ACCENT. Amber is a mark colour, and a slide label
                     // is a word the owner reads. WT_STOP still carries the one
                     // gate that cannot be undone.
-                    WT_ACT_X, WT_ACTION_Y, 330, wt_accent(), wt_accent(),
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330, wt_accent(), wt_accent(),
                     words_reveal, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, words_gate_cancel_cb, NULL);
@@ -1317,7 +1317,10 @@ static void kef_warn_screen(lv_event_t *e)
         const char *h1 = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_W1_H);
         const char *b1 = tr(pp ? STR_I_KEF_PP_B : STR_I_KEF_W1_B);
         const char *h2 = tr(STR_I_KEF_W2_H), *b2 = tr(STR_I_KEF_W2_B);
-        const int BW = 344, BY = 176, BH = WT_CONTENT_BOTTOM - BY;
+        // WT_SLIDE_BOTTOM, not WT_CONTENT_BOTTOM: the slide below grew the
+        // band to 344, and a pair measured against 398 runs its last line
+        // under the bar.
+        const int BW = 344, BY = 176, BH = WT_SLIDE_BOTTOM - BY;
         const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, BW - 14, BH);
         wt_why_block(s_scr, h1, b1,  48, BY, BW, BH, f,
                      pp ? WT_WARN : wt_accent());
@@ -1327,7 +1330,7 @@ static void kef_warn_screen(lv_event_t *e)
     // Making the envelope puts the keys on the glass as a QR one screen
     // later, so the entry is a deliberate slide, the scan-key precedent.
     wt_slide_rule(s_scr, tr(STR_I_KEF_MAKE_BTN), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y, 330, kef_make, NULL);
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, kef_make, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
 }
 

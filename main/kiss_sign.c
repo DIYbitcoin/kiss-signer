@@ -3330,6 +3330,13 @@ static void sd_trail(void)
 // replaces were 36px targets wedged between BACK and the row chevrons, and
 // the bench said so.
 #define SF_ROW_H 76                       // caption over a mono23 value
+// The REMOVE list's own row height. Its band carries a slide, so its lane is
+// 222 and not 284, and its pager line sits 40 above the band at 304 instead of
+// 358 -- three 76px rows would run straight through it. 60 still holds a mark,
+// a filename and a 52px slide with 4px either side, and keeping THREE rows
+// matters more than the 16px: a two row page turns a nine file card into five
+// page flips.
+#define SF_RM_ROW_H 60
 #define SF_PAGE   3                       // 3 * 76 = 228 in the 284 lane,
                                           // count line and dots at its foot
 static int s_file_page, s_rm_page;
@@ -3423,11 +3430,11 @@ static void rm_build(void)
     int shown = 0;
     for (int i = 0; i < SF_PAGE && base + i < s_rmn; i++, shown++) {
         const int idx = base + i;
-        const int y = WT_LANE_Y + i * SF_ROW_H;
+        const int y = WT_LANE_Y + i * SF_RM_ROW_H;
         lv_obj_t *row = lv_obj_create(p);
         lv_obj_remove_style_all(row);
         lv_obj_set_pos(row, WT_LANE_X, y);
-        lv_obj_set_size(row, WT_LANE_W, SF_ROW_H);
+        lv_obj_set_size(row, WT_LANE_W, SF_RM_ROW_H);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         const bool sgn = is_signed_name(s_rmf[idx]);
         lv_obj_t *ic = wt_lbl(row, sgn ? LV_SYMBOL_OK : LV_SYMBOL_FILE, 0, 0,
@@ -3446,10 +3453,10 @@ static void rm_build(void)
         // deliberate gesture, not a brush.
         wt_slide_rule_c(row, LV_SYMBOL_TRASH, NULL,
                         WT_LANE_W - WT_LINE_PAD - 170,
-                        (SF_ROW_H - WT_ACTION_H) / 2, 170,
+                        (SF_RM_ROW_H - WT_ACTION_H) / 2, 170,
                         WT_STOP_INK, WT_STOP, rm_one,
                         (void *)(intptr_t)idx);
-        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_ROW_H - 1,
+        wt_line_rule_draw(wt_line_rule(p, WT_LANE_X, y + SF_RM_ROW_H - 1,
                                        WT_LANE_W), 42 * i + 110, 320);
     }
     // The lane's foot: the warning that the card holds more than the list
@@ -3459,14 +3466,14 @@ static void rm_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_rmn,
                  s_rm_total);
-        wt_pager_line(p, more, true, s_rm_page, npages);
+        wt_pager_line(p, more, true, s_rm_page, npages, WT_SLIDE_BOTTOM);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_rmn);
-        wt_pager_line(p, count, false, s_rm_page, npages);
+        wt_pager_line(p, count, false, s_rm_page, npages, WT_SLIDE_BOTTOM);
     } else {
-        wt_pager_line(p, tr(STR_S_RM_C_B), false, 0, 1);
+        wt_pager_line(p, tr(STR_S_RM_C_B), false, 0, 1, WT_SLIDE_BOTTOM);
     }
 }
 
@@ -3490,16 +3497,21 @@ static void rm_screen(void)
     memset(&s_fctx, 0, sizeof s_fctx);
     s_fctx.scr = s_scr;
     s_fctx.pane = wt_pane_new(&s_fctx);
-    rm_build();
 
     // Sweeping the card is what this screen is for, so it takes the left lane
     // and keeps its hold: the band invariant is that a TAP is never
     // irreversible, and both controls here are holds or exits.
+    //
+    // BEFORE rm_build, and that order is load bearing now: the slide grows the
+    // band to 344, and the pager line the list draws at its foot asks the
+    // screen where the band starts. Built after, it would ask a screen whose
+    // band had not moved yet and print itself under the label.
     wt_slide_rule_c(s_scr, tr(STR_S_RM_ALL), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y, 300, WT_STOP_INK, WT_STOP,
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, 300, WT_STOP_INK, WT_STOP,
                     rm_all, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                     true, rm_back_cb, NULL);
+    rm_build();
 }
 
 static void rm_open_cb(lv_event_t *e)
@@ -3602,14 +3614,14 @@ static void files_build(void)
         char more[96];
         snprintf(more, sizeof more, tr(STR_S_FILES_MORE_FMT), s_nfiles,
                  s_ftotal);
-        wt_pager_line(p, more, true, s_file_page, npages);
+        wt_pager_line(p, more, true, s_file_page, npages, WT_CONTENT_BOTTOM);
     } else if (npages > 1) {
         char count[96];
         snprintf(count, sizeof count, tr(STR_S_FILES_COUNT), base + 1,
                  base + shown, s_nfiles);
-        wt_pager_line(p, count, false, s_file_page, npages);
+        wt_pager_line(p, count, false, s_file_page, npages, WT_CONTENT_BOTTOM);
     } else {
-        wt_pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1);
+        wt_pager_line(p, tr(STR_S_FILES_HINT), false, 0, 1, WT_CONTENT_BOTTOM);
     }
 }
 

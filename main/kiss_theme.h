@@ -147,6 +147,23 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
 
+// A THIRD band, for the one control that cannot live in 52px: the slide.
+//
+// The bench's complaint about the confirm gesture was that the knob was too
+// small to find and too small to grab -- 16px of it, on a 2px hairline, in a
+// row it shared with two other controls. The answer is a 44px knob, and 44px
+// of knob plus the word above it plus the line that says a lift is safe do not
+// fit the standard row. So the band GROWS UPWARD on this shape only, and the
+// content lane above it is 222px instead of 284.
+//
+// It is a third constant and not a change to the other two on purpose: every
+// screen on the device is laid out against WT_CONTENT_BOTTOM, and moving that
+// number would move ninety screens to fix one control.
+#define WT_ACTION_Y_SLIDE 344   // the slide band: 344..471
+// Nothing on a screen carrying a band slide may cross this. 114 + 222 = 336,
+// with the same 8px of air over the band that 398 leaves over 404.
+#define WT_SLIDE_BOTTOM   336
+
 // THE BOTTOM RIGHT CORNER IS ALWAYS THE WAY OUT. Every screen, whether or not
 // its bar holds anything else. The exit ends at 752; the screen's action starts
 // at 48. There is no question to ask about a given screen, which is the point.
@@ -891,7 +908,7 @@ int wt_swipe_step(lv_event_t *e);
 void wt_swipe_watch(lv_obj_t *scr, lv_event_cb_t cb);
 void wt_page_flip(wt_pane_t *ctx, void (*build)(void), int dir);
 lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
-                        int npages);
+                        int npages, int bottom);
 
 // ---- KEYS / RECEIVE: the borderless idioms ------------------------------
 // Three shapes born so those two screens could drop the card entirely: a
@@ -1527,11 +1544,41 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len);
 // a fill that VANISHES on release reads as an action that completed. A fill
 // that runs back reads as one that did not.
 //
-// This belongs on WT_ACTION_Y, not WT_ACTION_Y_TALL. The tall row is legacy
-// geometry, and the label plus its 2px rule fits the standard 52.
+// A band slide belongs on WT_ACTION_Y_SLIDE. Pass it: the builder takes the
+// tall band whenever `y` lands in the action row, so a call site still saying
+// WT_ACTION_Y gets the right geometry and the wrong-looking source.
+//
+// Four things the gesture now does that a hold never could, all of them the
+// bench's own notes:
+//
+//   - a 44px knob on a 4px track. 16px on a hairline was findable only if you
+//     already knew it was there.
+//   - an 8px DEADBAND. Under it the knob does not move at all, so a brush
+//     along the band starts nothing and no fill appears to be retracted.
+//   - a lift short of the end PAUSES for 800ms instead of abandoning. The
+//     travel is banked, the fill stays lit, the label says so, and a finger
+//     back down anywhere on the track carries on from there. An unsteady hand
+//     re-grips; it does not start again.
+//   - past 85% the knob SNAPS the rest of the way over 120ms and takes a lock
+//     mark. The last 15% of a gesture is where a finger runs out of glass.
+//
+// Full travel still only ARMS. The LIFT is what fires -- completing under a
+// finger still down replaces the screen beneath it and lets the drag's tail
+// press whatever lands there.
 lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
                         int x, int y, int w,
                         void (*done)(void *), void *ud);
+
+// The top of THIS screen's action band, and so the line its content may not
+// cross: WT_ACTION_Y_SLIDE where a band slide grew the band, WT_CONTENT_BOTTOM
+// everywhere else. The gate asks the screen rather than assuming the constant.
+//
+// For a SETTLED tree only. A page being built has not placed its slide yet,
+// and a page reached by BACK is built while the page it came from is still
+// waiting on lv_obj_delete_async -- so a builder asking this question gets
+// either the constant or the OLD screen's answer. A builder that needs the
+// line names it: WT_SLIDE_BOTTOM or WT_CONTENT_BOTTOM, in the call.
+int wt_action_top(lv_obj_t *scr);
 
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4

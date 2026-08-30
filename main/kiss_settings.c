@@ -478,7 +478,7 @@ static void storage_confirm_screen(int target)
     wt_slide_rule_c(s_scr,
                     tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
                            : STR_G_STORAGE_HOLD_MOVE),
-                    tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y, 330,
+                    tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y_SLIDE, 330,
                     wt_accent(), wt_accent(), storage_apply,
                     (void *)(intptr_t)target);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
@@ -1365,7 +1365,7 @@ static void erase_screen(void)
     // the reason the old comment gave -- this one has no undo. The track
     // fills in full WT_STOP; the label reads in the tint.
     wt_slide_rule_c(s_scr, tr(STR_G_HOLD_WIPE), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y, 330,
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330,
                     WT_STOP_INK, WT_STOP, do_wipe, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, erase_back_cb, NULL);

@@ -1405,7 +1405,8 @@ static void recv_tab_build(void) {
              (unsigned)(s_list_base + 1), (unsigned)(s_list_base + shown),
              (unsigned)RECV_LIST_CAP);
     wt_pager_line(p, count, false, (int)(s_list_base / RECV_PAGE),
-                  (RECV_LIST_CAP + RECV_PAGE - 1) / RECV_PAGE);
+                  (RECV_LIST_CAP + RECV_PAGE - 1) / RECV_PAGE,
+                  WT_CONTENT_BOTTOM);
     return;
   }
 

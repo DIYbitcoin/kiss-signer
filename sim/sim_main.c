@@ -5808,7 +5808,21 @@ int main(void) {
       save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP SLIDING
       must_show("fw/holding", tr(STR_G_FW_KEEP_HOLDING));
       release();
-      pump(30);                                     // the fill runs back to 0
+      // THE PAUSE WINDOW. A lift short of the end banks the travel for 800ms
+      // instead of throwing it away, and the label stops instructing and
+      // starts offering. 6 frames is 96ms in, well inside it.
+      pump(6);
+      save("/tmp/sim_fw_slide_paused.ppm");         // fill held, KEEP GOING
+      // Pinned by two negatives, because KEEP GOING is the passphrase
+      // keyboard's word too and a shared needle passes on either screen. The
+      // pause is the state where the label is NEITHER the instruction it gave
+      // mid-drag nor the word it rests at, and nothing else on the device is.
+      must_not_show("fw/slide paused mid-drag", tr(STR_G_FW_KEEP_HOLDING));
+      must_not_show("fw/slide paused at rest", tr(STR_G_FW_HOLD));
+      // ...and 62 more is 992ms, past the window, so the fill runs back and
+      // the label is the screen's own word again before anything looks for it.
+      pump(62);
+      must_show("fw/slide let go", tr(STR_G_FW_HOLD));
     }
   }
 

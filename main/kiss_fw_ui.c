@@ -299,11 +299,15 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
 // wt_body_font2_head against the REAL budget: the headings are measured, and
 // nothing is subtracted by hand. Every hand-subtracted budget in this file's
 // history threw away a third of the room and landed the body at font14.
-static void fw_claims(int y, const char *lh, const char *lb, lv_color_t lcol)
+// `bottom` because the two screens that call this do not share one. The
+// confirm carries a slide, so its band starts at 344; the going-dark screen
+// carries nothing at all and keeps the full 398.
+static void fw_claims(int y, int bottom, const char *lh, const char *lb,
+                      lv_color_t lcol)
 {
     const char *rh = tr(STR_G_FW_RISK_H);
     const char *rb = tr(STR_G_FW_RISK_B);
-    const int h = WT_CONTENT_BOTTOM - y;
+    const int h = bottom - y;
     const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, FW_BLK_W - 14, h);
     lv_obj_t *a = wt_why_block(s_scr, lh, lb, FW_BLK_L_X, y, FW_BLK_W, h, f, lcol);
     lv_obj_t *b = wt_why_block(s_scr, rh, rb, FW_BLK_R_X, y, FW_BLK_W, h, f,
@@ -450,7 +454,11 @@ static void result_screen(int rc)
         .accent = ok,
     };
     fw_trade(FW_PANE_Y + 4, &t);
-    fw_rule_in(192, 150);
+    // 172, not 192. The claims below lost 62px to the slide's band, and the
+    // 56px of dead glass between the trade row and the rule is where it comes
+    // back from -- the pair is what this screen is for, and the air above it
+    // was never carrying anything.
+    fw_rule_in(164, 150);
 
     // The strings already carry a blank line between the verdict and what
     // becomes of the old firmware, so the split costs no key. A body with no
@@ -638,7 +646,8 @@ static void writing_apply(void *ud)
     // erased, and the honest options are finish or lose power, neither of
     // which is a button.
     fw_light_band(156);
-    fw_claims(230, tr(STR_G_FW_DARK_H), tr(STR_G_FW_DARK_B), wt_accent());
+    fw_claims(230, WT_CONTENT_BOTTOM, tr(STR_G_FW_DARK_H),
+              tr(STR_G_FW_DARK_B), wt_accent());
 
     // Lit long enough to be read, then dark. This was 30 ms, which is two
     // frames: the screen that tells an owner the panel is about to go dark was
@@ -681,7 +690,7 @@ static void confirm_screen(void)
     // Two claims, not one paragraph. A downgrade swaps the left block for the
     // one that says so and turns its rule amber: on that path the interesting
     // claim is not how the check works but that this goes backwards.
-    fw_claims(216,
+    fw_claims(186, WT_SLIDE_BOTTOM,
               tr(down ? STR_G_FW_DOWN_H : STR_G_FW_WHY_H),
               tr(down ? STR_G_FW_DOWN_B : STR_G_FW_WHY_B),
               down ? WT_WARN : wt_accent());
@@ -691,7 +700,7 @@ static void confirm_screen(void)
     // WT_ACTION_Y rather than the tall bar: the tall bar existed to give a fat
     // pill room.
     wt_slide_rule(s_scr, tr(STR_G_FW_HOLD), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y, 330, writing_apply, NULL);
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, writing_apply, NULL);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y, 160,
                     true, confirm_cancel_cb, NULL);
 }

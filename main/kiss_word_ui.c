@@ -375,8 +375,9 @@ static void confirm_screen(void)
     {
         const char *b1 = tr(STR_GD_WORD_C_W1_B), *b2 = tr(STR_GD_WORD_C_W2_B);
         // 208, not 232: the card above ends at 192 and nothing else wants this
-        // band, so the pair gets 190px instead of 166.
-        const int BW = 344, BY = 208, BH = WT_CONTENT_BOTTOM - BY;
+        // band. WT_SLIDE_BOTTOM, because the slide below grew the band to 344
+        // -- a pair measured against 398 puts its last line under the bar.
+        const int BW = 344, BY = 208, BH = WT_SLIDE_BOTTOM - BY;
         // wt_body_font2_HEAD, which measures the two headings. The plain
         // wt_body_font2 that was here took a flat 46 for a heading that MIGHT
         // wrap, plus 8, and handed back 54px of a 166px budget in all 21
@@ -396,7 +397,7 @@ static void confirm_screen(void)
     // The slide bar, in the danger colours: replacing the unlock word is
     // the confirm this screen exists for.
     wt_slide_rule_c(s_scr, tr(STR_GD_WORD_HOLD), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y, 330, WT_STOP_INK, WT_STOP,
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330, WT_STOP_INK, WT_STOP,
                     save_cb, NULL);
 }
 
