@@ -332,7 +332,21 @@ jobs:
       # gate. Put the sweep back here the day the wording settles; the fit of a
       # long translation is exactly what this check is for and giving it up is
       # not free.
+
+      # ALWAYS, from here down. These six build their own binary and prove one
+      # thing each, so nothing below depends on the one above it -- and the job
+      # stopping at the first red step is what let three faults hide behind one
+      # another on 2026-08-30. The overlap gate was failing on translations, so
+      # the SD fixture checker never ran; when that was fixed the checker turned
+      # out not to LINK, and fixing that uncovered the interactive simulator not
+      # linking either. Each was a one line source list, each had been broken for
+      # as long as the call it was missing had existed, and each cost a push and
+      # a six minute run to find because the job reported one fault at a time.
+      #
+      # The job still fails on any of them. What changes is that it reports all
+      # of them at once.
       - name: button + explainer fit report (en)
+        if: always()
         run: |
           bash sim/build_fitcheck.sh
           SIM_LANG=en /tmp/kissfit
@@ -360,6 +374,7 @@ jobs:
       # in English and not in German -- and it comes back in one line the day
       # the wording settles.
       - name: text overlap gate (en)
+        if: always()
         run: OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh
         env:
           OVERLAPCHECK_STRICT: "1"
@@ -374,6 +389,7 @@ jobs:
       # which sim/osdcheck.c names beside its own SIM_LANG filter as a
       # translation waiting for the sweep. Nothing about the product.
       - name: overlay text gate (en)
+        if: always()
         run: |
           bash sim/build_osdcheck.sh
           SIM_LANG=en /tmp/kissosd
@@ -386,6 +402,7 @@ jobs:
       # reason it is safe -- and on any declaration that has stopped being
       # true, so the exemptions cannot rot.
       - name: theme safety gate
+        if: always()
         run: |
           bash sim/build_themecheck.sh
           /tmp/kisstheme
@@ -419,6 +436,7 @@ jobs:
       #
       # So: nothing below this line may drive /tmp/fruitsim or /tmp/kissoverlap.
       - name: SD PSBT fixtures still reach their verdicts
+        if: always()
         run: |
           rm -rf /tmp/ci_sd_psbts && mkdir -p /tmp/ci_sd_psbts
           bash sim/mk_sd_psbts.sh /tmp/ci_sd_psbts
@@ -438,6 +456,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
 
       - name: interactive simulator builds and boots
+        if: always()
         run: |
           bash sim/build_simapp.sh
           rm -rf /tmp/simsd
