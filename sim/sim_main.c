@@ -1305,6 +1305,28 @@ static void def_cycle(int n, int row, int taps)
 {
   for (int i = 0; i < taps; i++) def_go(n, row);
 }
+// The network row, driven BY STATE. Counting taps was wrong twice in this
+// file: once when SIGNET joined the rotation and shifted every relative +2,
+// and once because the excursion below assumed it started on MAINNET when the
+// walk arrives on TESTNET -- so its "TESTNET" frame was signet, its "SIGNET"
+// frame was mainnet, and TESTNET, the network every earlier stop runs on, was
+// never photographed here at all. Three captions describing three chains, and
+// the frames underneath them holding two.
+//
+// Nothing said so because both test networks answer to the same needle: the
+// row's note is "not real bitcoin" on either one, which is the exact trap this
+// excursion exists to photograph. So it asks the DEVICE which chain it is on
+// and taps until the answer is the one wanted, or fails loudly. Same shape as
+// the mainnet leg further down, which learned this first.
+static void net_to(int want)
+{
+  for (int i = 0; i < 4 && kiss_network() != want; i++) def_go(2, 0);
+  if (kiss_network() != want) {
+    fprintf(stderr, "FAIL: network never reached %d (stuck on %d)\n",
+            want, kiss_network());
+    exit(1);
+  }
+}
 // The two band controls LANGUAGE and THEME moved down to: the language
 // action's box is right-aligned to 512 so a tap near its right edge holds
 // for any locale's name, and the theme dot's hit box is 528..580.
@@ -4276,6 +4298,21 @@ int main(void) {
   // this is a layout no gate has ever measured. kiss_ui_forget_fp is the same
   // call locking performs, so the state is a real one and not a test fiction.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
+  // HELD, and put back below. kiss_ui_forget_fp() is a real state and the two
+  // frames under it are worth having -- but it was never undone, so every
+  // screen the walk opened after this one ran with NO KEYS OPEN, for the life
+  // of this file. That is roughly 120 stops, in 21 locales, and none of the
+  // gates could say a word: a screen whose identity is absent still renders,
+  // still fits and still does not overlap. What it does not do is BRANCH the
+  // way it would on a device somebody had unlocked.
+  //
+  // It was already visible in this file's own captions. sim_wallet_signet is
+  // annotated "badge reads SIGNET, not TESTNET" and there is no badge in the
+  // frame, because kiss_home_refresh() reads a session that is not open. The
+  // caption described the intent and the frame recorded the bug, and the two
+  // sat next to each other.
+  uint8_t held_fp[4];
+  kiss_ui_last_fp(held_fp);
   kiss_ui_forget_fp();
   set_tab(SET_BACKUP);
   def_row(3, 0);                                    // Recovery words
@@ -4303,6 +4340,10 @@ int main(void) {
   // looks real and gets copied onto paper. The band is empty here now.
   set_tab(SET_BACKUP);
   save("/tmp/sim_settings_checked.ppm");            // amber row, and no id card
+
+  // ...and the keys are open again. The two frames above are the whole reason
+  // the id was dropped; everything after this is a signer somebody is holding.
+  kiss_ui_set_last_fp(held_fp);
 
   set_tab(SET_BACKUP);
   def_row(3, 0);                                    // Recovery words -> warning again
@@ -4515,18 +4556,26 @@ int main(void) {
   // catch for you -- so the chip's own name is the only thing that separates
   // them, and the walk photographs each one.
   set_tab(SET_SIGNER);
-  def_cycle(2, 0, 1);                               // -> TESTNET
+  // Park on MAINNET first: the amber the frame below is FOR is the row
+  // reacting to leaving real bitcoin, and it only appears on the tap that
+  // does. The walk arrives here on testnet, so without this the "first flip"
+  // frame was one the row had no reason to colour.
+  net_to(KISS_NET_MAIN);
+  net_to(KISS_NET_TESTNET);                         // the tap off mainnet
   save("/tmp/sim_settings_tn_first.ppm");           // amber row, amber value
   must_show("net testnet", tr(STR_G_TESTNET_NOTE));
+  must_show("net testnet names itself", kiss_net_name());
   // SIGNET next, because it is the option that had never existed: the chip,
   // the sub line and the home badge are the only three places on the device
   // that can tell it from TESTNET at all.
-  def_cycle(2, 0, 1);                               // -> SIGNET
+  net_to(KISS_NET_SIGNET);
   save("/tmp/sim_settings_signet.ppm");             // the value reads SIGNET
+  must_show("net signet names itself", kiss_net_name());
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
+  must_show("home badge signet", kiss_net_name());
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
-  def_cycle(2, 0, 2);                               // SIGNET -> MAINNET -> TESTNET
+  net_to(KISS_NET_TESTNET);
   save("/tmp/sim_settings_tn.ppm");
 
   // DENOMINATION: two values, flipped and flipped back, because the sats/BTC
@@ -4582,10 +4631,9 @@ int main(void) {
   // By STATE, not by count. The relative "+2 lands on MAINNET" drifted the
   // day SIGNET joined the rotation, and every "mainnet" frame after it had
   // been photographing a test network in silence -- caught only when the
-  // KEYS hint stop below became the first CHECK on this leg. Tap until the
-  // device itself says mainnet, and say so loudly if it never does.
-  for (int i = 0; i < 4 && kiss_testnet(); i++) def_go(2, 0);
-  if (kiss_testnet()) { fprintf(stderr, "FAIL: network never reached mainnet\n"); exit(1); }
+  // KEYS hint stop below became the first CHECK on this leg. This is the
+  // shape net_to() was lifted out of; the three flips above now share it.
+  net_to(KISS_NET_MAIN);
   tap_str(STR_C_BACK, 3, 4);      // BACK, right corner -> home
 
   // MAINNET, and this is the whole point of the excursion. 120 stops run after
