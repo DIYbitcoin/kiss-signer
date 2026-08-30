@@ -405,6 +405,13 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 //   "long"  a word over three syllables in the same place, outside a
 //           TECHNICAL line, where the real terms are allowed to be as long as
 //           the standard made them. `want` is the syllable count.
+//   "widow" a body that wraps to TWO lines and leaves a stub on the second.
+//           `want` is that line's width, `lane` the body's. Nothing in the
+//           source says a paragraph is two words too long -- the string looks
+//           fine and every fit helper is happy -- and the settings explainer
+//           shipped "Keys come from your seed words and / passphrase." that
+//           way. English only, like the two above: the wrap is simulated the
+//           way LVGL breaks Latin text.
 typedef void (*wt_cut_sink_t)(const char *kind, const char *txt,
                               int want, int lane);
 void wt_cut_set_sink(wt_cut_sink_t fn);

@@ -281,6 +281,61 @@ static int wt_syllables(const char *w, int n)
 static void wt_read_measure(const char *txt);
 static void wt_term_report(const char *body, int want, int floor_y);
 
+// ---- the widow: a two line body whose second line is a stub ---------------
+// A paragraph that wraps to two lines and leaves three words on the second is
+// a paragraph two words too long, and nothing in the source says so: the
+// string looks fine, every fit helper is happy, and the screen has a ragged
+// hole in it. G_HELP_BODY shipped that way -- "Keys come from your seed words
+// and / passphrase." -- and came off the bench as "it is two lines!!! you can
+// make it ONE".
+//
+// ENGLISH ONLY, like READ and for the same reason: the wrap is simulated the
+// way LVGL breaks Latin text, and a script that breaks per character has no
+// widows to find. overlapcheck filters it to en.
+#define WT_WIDOW_PCT 35    // a last line under this much of the lane is a stub
+
+// The break LVGL would pick: the last space at which the head still fits.
+// Returns the width of what is left after it, or -1 when there is no break.
+static int widow_tail_w(const char *txt, const lv_font_t *f, int lane)
+{
+    char buf[256];
+    const size_t n = strlen(txt);
+    if (n == 0 || n >= sizeof buf) return -1;
+    size_t brk = 0;
+    for (size_t p = 0; p < n; p++) {
+        if (txt[p] != ' ') continue;
+        lv_memcpy(buf, txt, p);
+        buf[p] = 0;
+        lv_point_t s;
+        lv_text_get_size(&s, buf, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (s.x > lane) break;
+        brk = p;
+    }
+    if (brk == 0) return -1;
+    lv_point_t s;
+    lv_text_get_size(&s, txt + brk + 1, f, 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return (int)s.x;
+}
+
+static void wt_widow_measure(const char *txt, const lv_font_t *f, int lane)
+{
+    if (!s_cut_sink || !txt || !*txt || lane <= 0) return;
+    // A hard break is the author's own line and never a widow.
+    if (strchr(txt, '\n')) return;
+    const int lh = lv_font_get_line_height(f);
+    if (lh <= 0) return;
+    lv_point_t all;
+    lv_text_get_size(&all, txt, f, 0, 0, lane, LV_TEXT_FLAG_NONE);
+    // TWO lines exactly. One is already right, and three or more is a body
+    // rather than a sentence that nearly fits.
+    if (all.y <= lh || all.y > lh * 2) return;
+    const int tail = widow_tail_w(txt, f, lane);
+    if (tail <= 0) return;
+    if (tail * 100 < lane * WT_WIDOW_PCT)
+        s_cut_sink("widow", txt, tail, lane);
+}
+
 static void wt_sub_measure(const char *kind, const char *txt,
                            const lv_font_t *f, int ls, int lane)
 {
@@ -347,6 +402,7 @@ static void wt_read_measure(const char *txt)
 #else
 #define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
 #define wt_sub_measure(kind_, txt_, f_, ls_, lane_) ((void)0)
+#define wt_widow_measure(txt_, f_, lane_) ((void)0)
 // The reading level and the term line measure the same way and report through
 // the same sink, so they compile out with it. This block is the OUTER else --
 // nesting a second ESP guard inside the host-only half is how the two of them
@@ -3775,6 +3831,7 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     }
     lv_point_t ps;
     lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+    wt_widow_measure(para, pf, 690);
 
     // The facts start where the paragraph ends, and never above the line TWO
     // paragraph lines would reach: the caption lane holds still whether this
@@ -4329,6 +4386,7 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, 646,
                              LV_TEXT_FLAG_NONE);
             wt_read_measure(defs[k].plain);
+            wt_widow_measure(defs[k].plain, pf, 646);
             if (defs[k].term && *defs[k].term) {
                 const int ty2 = hy + ps.y + 14;
                 r->term = wt_term_line(row, defs[k].term_label, defs[k].term,

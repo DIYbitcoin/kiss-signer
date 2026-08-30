@@ -1073,7 +1073,8 @@ static void oc_check_cut(const char *tag)
         // written.
         if (!oc_lang_is_en() &&
             (strcmp(s_cut_kind[i], "words") == 0 ||
-             strcmp(s_cut_kind[i], "long") == 0))
+             strcmp(s_cut_kind[i], "long") == 0 ||
+             strcmp(s_cut_kind[i], "widow") == 0))
             continue;
         if (strcmp(s_cut_kind[i], "words") == 0) {
             snprintf(sig, sizeof sig, "READ|words|%s", s_cut_txt[i]);
@@ -1082,6 +1083,16 @@ static void oc_check_cut(const char *tag)
                      "%d, and a sentence somebody has to re-read is one that "
                      "failed",
                      s_cut_want[i], s_cut_txt[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (strcmp(s_cut_kind[i], "widow") == 0) {
+            snprintf(sig, sizeof sig, "WIDOW|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "WIDOW    \"%s\" wraps to two lines and leaves %dpx of "
+                     "a %dpx lane on the second -- it is two words too long, "
+                     "and nothing in the source says so",
+                     s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
             oc_report_one(tag, sig, detail);
             continue;
         }
@@ -1680,6 +1691,29 @@ static int oc_selftest_fit(const char *name, const char *body,
     return got == want_finding ? 0 : 1;
 }
 
+// WIDOW goes through the kit, not the sink: the whole check is the wrap
+// simulation in kiss_theme.c, and calling the sink directly would prove only
+// that a printf works. So it builds the real explainer paragraph -- one body
+// that leaves a stub on its second line, one that fills both -- and asks
+// whether the measurement saw the difference.
+static int oc_selftest_widow(const char *name, const char *para,
+                             bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    s_cut_n = 0;
+    wt_explain(scr, "HEADLINE", para, NULL, 0);
+    lv_refr_now(NULL);
+
+    int widows = 0;
+    for (int i = 0; i < s_cut_n; i++)
+        if (strcmp(s_cut_kind[i], "widow") == 0) widows++;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           (widows > 0) == want_finding ? "ok" : "FAILED", widows,
+           widows == 1 ? "" : "s");
+    s_cut_n = 0;
+    return (widows > 0) == want_finding ? 0 : 1;
+}
+
 // TINY fires on a shape the product no longer contains, which is the standing
 // WALL and CUT have. Three cases, because this check has three ways to be
 // wrong: it must report a lower case sentence at font14, it must NOT report an
@@ -1832,6 +1866,21 @@ int oc_selftest(void)
                             "coordinator", 4, false);
     if (bad != was) printf("READ self test: %d case(s) wrong\n", bad - was);
     else            printf("READ self test: 3 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("WIDOW check self test\n");
+    // Two lines with three words on the second, which is the shape that came
+    // off the bench, and two lines that both fill their lane.
+    // The exact string that came off the bench, in the exact lane it was in.
+    bad += oc_selftest_widow("a two line body with a stub second, fires",
+                             "Keys come from your seed words and passphrase.",
+                             true);
+    bad += oc_selftest_widow("a two line body that fills both, clear",
+                             "You type the words off your paper. The signer "
+                             "checks them against these keys.", false);
+    if (bad != was) printf("WIDOW self test: %d case(s) wrong\n", bad - was);
+    else            printf("WIDOW self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;

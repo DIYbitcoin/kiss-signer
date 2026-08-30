@@ -61,6 +61,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'WIDOW self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'TERM self test: 1 case, all as expected'; then
     echo
     echo "FAILED: the self test no longer reports its expected markers, so a"
