@@ -1651,6 +1651,61 @@ static void tap_str(int key, int hold, int settle)
     tap_obj(act_for(key, "tap"), hold, settle);
 }
 
+// The nth action carrying this label, top to bottom. A page of caution rows
+// gives every row the same I UNDERSTAND, so act_for is right to refuse it --
+// but the walk still has to press ROW ZERO, and a hard coded x cannot do it
+// either: the action's left edge comes off the rendered width of its own
+// word, which is a different number in every locale. This asks for the word
+// and then for which one.
+static lv_obj_t *s_nth[16];
+static int s_nth_n;
+static void find_nth(lv_obj_t *o, const char *txt)
+{
+    if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        size_t lt = t ? strlen(t) : 0, ln = strlen(txt);
+        const bool hit = t && lt >= ln && strcmp(t + (lt - ln), txt) == 0 &&
+                         (lt == ln || (lt >= ln + 2 &&
+                                       t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
+        if (hit)
+            for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
+                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) {
+                    bool seen = false;
+                    for (int i = 0; i < s_nth_n; i++) if (s_nth[i] == p) seen = true;
+                    if (!seen && s_nth_n < (int)(sizeof s_nth / sizeof *s_nth))
+                        s_nth[s_nth_n++] = p;
+                    break;
+                }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        find_nth(lv_obj_get_child(o, i), txt);
+}
+static void tap_str_nth(int key, int nth, int hold, int settle)
+{
+    const char *txt = tr(key);
+    s_nth_n = 0;
+    find_nth(lv_screen_active(), txt);
+    // Top to bottom, because that is the order the owner reads them in.
+    for (int i = 1; i < s_nth_n; i++) {
+        lv_obj_t *v = s_nth[i]; lv_area_t a; lv_obj_get_coords(v, &a);
+        int j = i - 1;
+        for (; j >= 0; j--) {
+            lv_area_t b; lv_obj_get_coords(s_nth[j], &b);
+            if (b.y1 <= a.y1) break;
+            s_nth[j + 1] = s_nth[j];
+        }
+        s_nth[j + 1] = v;
+    }
+    if (nth >= s_nth_n) {
+        printf("FAIL: tap #%d \"%s\": only %d action(s) say that\n",
+               nth, txt, s_nth_n);
+        g_walk_fails++;
+        return;
+    }
+    tap_obj(s_nth[nth], hold, settle);
+}
+
 
 
 // The two-part form, for a hold the walk photographs partway through.
@@ -3347,7 +3402,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 30);                       // BACK -> the verify screen
   // 312, not 366: the caution bar moved up to 290..334 when the slide grew
   // the action band to 344. All three taps on it are this same centre.
-  touch(652, 312); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 6);         // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
   // BACK out of a screen an acknowledgement repainted. The tap above is what
   // makes the orphaned-screen check at the end of this walk mean anything: the
@@ -3412,7 +3467,7 @@ int main(void) {
   save("/tmp/sim_sign_cautions.ppm");
   // Row 0's I UNDERSTAND: rows start at y=88 with the action at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
-  touch(652, 116); pump(3); release(); pump(8);     // -> row goes green, page repaints
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 8);         // row 0 -> green, page repaints
   save("/tmp/sim_sign_cautions_ack.ppm");
   tap_str(STR_C_BACK, 3, 8);     // BACK -> verify, address still there
   save("/tmp/sim_sign_combo_back.ppm");
@@ -3534,7 +3589,7 @@ int main(void) {
     printf("FAIL: HOLD TO SIGN was live with the coins-linked bar unacknowledged\n");
     return 1;
   }
-  touch(652, 312); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 8);         // I UNDERSTAND -> bar goes green
   save("/tmp/sim_sign_merge_ack.ppm");
   // Then PAGE the output column to its end, because on this transaction
   // whether that is even necessary depends on the locale: "no change, this

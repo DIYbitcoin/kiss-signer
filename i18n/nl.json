@@ -839,7 +839,7 @@
   "W_RNG_ON": "RUIS",
   "W_RNG_PASS_NOTE": "zo ziet eerlijke ruis eruit.",
   "W_RNG_RANGE_CAP": "EERLIJK BEREIK",
-  "W_RNG_RETRY": "honest noise misses once in 500 runs. run it again.",
+  "W_RNG_RETRY": "eerlijke ruis faalt 1 op 500 keer. draai opnieuw.",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",
   "W_RNG_SRC": "ruisbron",
   "W_RNG_SRC_SUB": "the chip's noise circuit is off by default. this firmware switches it on at boot and reports it here.",

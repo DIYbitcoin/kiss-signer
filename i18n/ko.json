@@ -839,7 +839,7 @@
   "W_RNG_ON": "노이즈",
   "W_RNG_PASS_NOTE": "정직한 노이즈는 이렇게 보입니다.",
   "W_RNG_RANGE_CAP": "정상 범위",
-  "W_RNG_RETRY": "honest noise misses once in 500 runs. run it again.",
+  "W_RNG_RETRY": "정직한 잡음도 500번에 1번 실패합니다. 다시.",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",
   "W_RNG_SRC": "노이즈 원",
   "W_RNG_SRC_SUB": "the chip's noise circuit is off by default. this firmware switches it on at boot and reports it here.",

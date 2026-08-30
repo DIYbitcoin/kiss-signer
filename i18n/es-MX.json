@@ -839,7 +839,7 @@
   "W_RNG_ON": "RUIDO",
   "W_RNG_PASS_NOTE": "así es el ruido honesto.",
   "W_RNG_RANGE_CAP": "RANGO JUSTO",
-  "W_RNG_RETRY": "honest noise misses once in 500 runs. run it again.",
+  "W_RNG_RETRY": "el ruido honesto falla 1 de cada 500. repítelo.",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",
   "W_RNG_SRC": "fuente de ruido",
   "W_RNG_SRC_SUB": "the chip's noise circuit is off by default. this firmware switches it on at boot and reports it here.",

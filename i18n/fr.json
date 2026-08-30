@@ -839,7 +839,7 @@
   "W_RNG_ON": "BRUIT",
   "W_RNG_PASS_NOTE": "voilà à quoi ressemble un bruit honnête.",
   "W_RNG_RANGE_CAP": "PLAGE ACCEPTABLE",
-  "W_RNG_RETRY": "honest noise misses once in 500 runs. run it again.",
+  "W_RNG_RETRY": "un bruit honnête rate 1 fois sur 500. relance.",
   "W_RNG_S": "does the chip spread its numbers the way real noise does.",
   "W_RNG_SRC": "source de bruit",
   "W_RNG_SRC_SUB": "the chip's noise circuit is off by default. this firmware switches it on at boot and reports it here.",
