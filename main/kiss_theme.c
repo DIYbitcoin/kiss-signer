@@ -3692,6 +3692,7 @@ typedef struct {
     // it promises about, and the sub-line gets the whole right end back --
     // which is the same finding, filed as "text too close to the icons".
     bool       cyc;        // the mark is a LOOP, not the pinned chevron
+    bool       grows;      // a DEFINITION row: its mark is + / -, not a chevron
     int        vw_big;     // the value's width at the closed/open font
     int        vw_ghost;   // ...and at the ghost font
     int        mark_w;     // the LOOP's own width, so a "?" chip can clear it
@@ -3880,11 +3881,19 @@ void wt_def_list_open(lv_obj_t *list, int idx)
         def_anim(r->row, an_h, lv_obj_get_height(r->row), h, def_h_done);
         def_anim(r->row, an_y, lv_obj_get_y(r->row), y, NULL);
 
-        // The arrow turns as the row opens (motion 23), on the same curve.
-        if (r->arrow)
+        // Motion 23. A chevron TURNS as the row opens; a plus does not turn,
+        // it becomes a minus -- rotating a plus 90 degrees produces a plus,
+        // and rotating it any other amount produces a mistake. The glyph
+        // swaps and fades back in on the same beat.
+        if (r->arrow && r->grows) {
+            lv_label_set_text(r->arrow, mode == DEF_OPEN ? LV_SYMBOL_MINUS
+                                                         : LV_SYMBOL_PLUS);
+            def_anim(r->arrow, an_opa, 0, 255, NULL);
+        } else if (r->arrow) {
             def_anim(r->arrow, an_rot,
                      lv_obj_get_style_transform_rotation(r->arrow, 0),
                      mode == DEF_OPEN ? 900 : 0, NULL);
+        }
 
         // The definition body rides in behind the growing row (motion 21):
         // unhidden now, clipped by the still-short row, drawn in on a 90ms
@@ -4030,10 +4039,16 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             r->vw_ghost = gs.x;
         }
         r->arrow = NULL;
+        r->grows = defs[k].plain && *defs[k].plain && !defs[k].mark;
         if (leads) {
-            r->arrow = wt_lbl(row,
-                              defs[k].mark ? defs[k].mark : LV_SYMBOL_RIGHT,
-                              0, 0, wt_font23(), wt_accent());
+            // A row that GROWS takes PLUS. The chevron promises a screen --
+            // it is why SETTINGS resolves its in-place cycles with LOOP --
+            // and a definition row wearing one was read from the bench as a
+            // door to somewhere.
+            const char *mk = defs[k].mark ? defs[k].mark
+                           : r->grows     ? LV_SYMBOL_PLUS
+                                          : LV_SYMBOL_RIGHT;
+            r->arrow = wt_lbl(row, mk, 0, 0, wt_font23(), wt_accent());
             lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
             lv_obj_update_layout(r->arrow);
             r->mark_w = lv_obj_get_width(r->arrow);
@@ -4109,12 +4124,10 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, 646,
                              LV_TEXT_FLAG_NONE);
             if (defs[k].term && *defs[k].term) {
-                r->term = wt_lbl(row, defs[k].term, WT_LINE_PAD,
-                                 hy + ps.y + 14, chrome23(defs[k].term),
-                                 wt_accent());
-                lv_obj_add_flag(r->term, WT_FLAG_ACCENT);
-                lv_obj_set_style_text_letter_space(r->term, 2, 0);
-                lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+                r->term = wt_term_line(row, defs[k].term_label, defs[k].term,
+                                       WT_LINE_PAD, hy + ps.y + 14,
+                                       646);
+                if (r->term) lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
             }
             (void)oh;
         }

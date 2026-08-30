@@ -1156,12 +1156,19 @@ typedef struct {
                          // accent_walk repaints it like every other tail
     const char *sub;     // lower-case fragment; the element that YIELDS
     const char *plain;   // the definition: a plain sentence, 2 lines max
-    const char *term;    // the real term, shown as "CALLED: <term>" -- never
-                         // alone and never first
-    // The right-edge mark. NULL is the chevron; a go row that resolves IN
-    // PLACE (SETTINGS' value cycles) passes LV_SYMBOL_LOOP, keeping the
-    // page promise wt_row_wide wrote down: loop advances here, chevron
-    // leaves. Only a definition row's chevron ever rotates.
+    // The real term, on its own line under the definition: TECHNICAL on a
+    // 150px lane and the term beside it, through wt_term_line -- the same
+    // shape the [ ? ] overlays use, so the word an owner meets in their
+    // coordinator looks the same wherever this device names it. Never alone
+    // and never first. It read "CALLED: PSBT" before, which put a verb in
+    // front of the term on the one line that exists to be the term.
+    const char *term;
+    const char *term_label;   // the word TECHNICAL, translated
+    // The right-edge mark. NULL takes the row's default, which is the third
+    // promise this idiom needs: a chevron means "this opens a screen", LOOP
+    // means "this advances in place" (SETTINGS' value cycles), and a row that
+    // GROWS takes PLUS -- swapping to MINUS while it is open. A definition
+    // row that wore a chevron was read from the bench as a door.
     const char *mark;
     // The head's colours where a STATE is the value: zero stays WT_INK /
     // WT_DIM, amber goes here. A ghost still dims both -- a ghost is a

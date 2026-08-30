@@ -1505,9 +1505,6 @@ static void info_tab_build(void)
         char term_type[64];
         snprintf(term_type, sizeof term_type, tr(STR_K_TYPE_TERM_FMT),
                  purpose);
-        char called_type[96];
-        snprintf(called_type, sizeof called_type, tr(STR_C_CALLED_FMT),
-                 term_type);
 
         // The first address, folded to the device's own idiom: prefix, the
         // gap, the last eight in two blocks -- or the session-locked state,
@@ -1540,7 +1537,7 @@ static void info_tab_build(void)
                         : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
                                                : STR_S_TY_NATIVE),
               .sub = buf, .plain = tr(STR_K_TYPE_PLAIN),
-              .term = called_type },
+              .term = term_type, .term_label = tr(STR_G_TECHNICAL) },
             // No sub beside the address: at the closed value's 28 the lane
             // left over cannot hold a sentence, and the lit tail already IS
             // the "check these" cue. A GO row, not a definition: the tap
