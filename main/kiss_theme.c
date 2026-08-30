@@ -2828,7 +2828,24 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
 {
     lv_obj_t *t = wt_screen_title(scr);
     if (!t) return NULL;
-    lv_obj_update_layout(t);
+    // MEASURED, not laid out. lv_obj_update_layout on the title runs a full
+    // screen layout pass, and that pass does not always settle: LVGL loops
+    // until nothing changes, and a label whose content width lands exactly on
+    // a wrap boundary flips between one line and two forever. Korean found it
+    // -- the sign page's TERMS tab hung the device at 95% CPU, inside this
+    // call, with the walk stopped dead and no output to say why.
+    //
+    // Nothing here needed the layout anyway. The title is a plain label at a
+    // position this file sets itself (48, 18), so its origin is known, and
+    // lv_text_get_size answers the rest without touching the tree. It is also
+    // what check_layout_reads.py asks for: measure the text, do not ask the
+    // tree what it did with it.
+    lv_point_t ts;
+    const char *ttxt = lv_label_get_text(t);
+    lv_text_get_size(&ts, ttxt ? ttxt : "",
+                     lv_obj_get_style_text_font(t, LV_PART_MAIN),
+                     lv_obj_get_style_text_letter_space(t, LV_PART_MAIN), 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_obj_t *cur = lv_obj_create(scr);
     lv_obj_remove_style_all(cur);
     lv_obj_set_size(cur, 10, 22);
@@ -2836,8 +2853,8 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
     // carries descender room no capital reaches into, so centring on the box
     // sits the block visibly low against KEYS and RECEIVE, which have no
     // descenders at all.
-    lv_obj_set_pos(cur, lv_obj_get_x(t) + lv_obj_get_width(t) + 12,
-                   lv_obj_get_y(t) + (lv_obj_get_height(t) - 22) / 2 - 2);
+    lv_obj_set_pos(cur, lv_obj_get_x(t) + ts.x + 12,
+                   lv_obj_get_y(t) + (ts.y - 22) / 2 - 2);
     lv_obj_set_style_bg_color(cur, wt_accent(), 0);
     lv_obj_set_style_bg_opa(cur, LV_OPA_COVER, 0);
     lv_obj_add_flag(cur, WT_FLAG_ACCENT_FILL);
