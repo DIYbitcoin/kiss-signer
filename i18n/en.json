@@ -583,7 +583,7 @@
   "W_WHATSEED_F2_C": "WORDS ALONE",
   "W_WHATSEED_F2_V": "OPEN THE DECOY",
   "T_SEED_TERM": "BIP39 MNEMONIC",
-  "W_WHATSEED_B": "Any BIP39 signer opens them. Write them on paper.",
+  "W_WHATSEED_B": "Any BIP39 compatible signer or wallet opens them. Write them on paper.",
   "GD_UNDERLINE": "UNDERLINE",
   "GD_OVERLINE": "LINE ABOVE",
   "GD_STRIKE": "LINE THROUGH",
