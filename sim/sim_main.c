@@ -4225,7 +4225,10 @@ int main(void) {
   words_tab(WORDS_ENC);
   words_row(0);                                    // Encrypted backup again
   save("/tmp/sim_kef_warn_nopass.ppm");             // YOUR KEYS, and no caveat
-  must_show("kef/no passphrase", tr(STR_I_KEF_W1_H));
+  // The BODY, not the heading: "what opens it" is also the unlock drawing's
+  // own heading, and a needle two keys share passes on whichever screen shows
+  // either one.
+  must_show("kef/no passphrase", tr(STR_I_KEF_W1_B));
   must_not_show("kef/no passphrase says nothing about one",
                 tr(STR_I_KEF_PP_H));
   kiss_session_open("x");                           // back to the truth

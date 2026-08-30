@@ -5392,41 +5392,64 @@ const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
 // A why-block heading is HALF THE CLAIM, not a unit suffix. It was pinned at
 // font14 whatever the body did, so a pair set at font28 wore labels less than
 // half the size of the sentence under them -- reported from the bench as small
-// text more than once, on screens whose bodies were already correct. The rung
-// now follows the body: only a font14 body keeps a font14 heading.
+// text more than once, on screens whose bodies were already correct.
+//
+// Then it was pinned at 23, which fixed that and left a subtler version of it:
+// with the body's floor at 21 the two rungs are one step apart and the pair
+// reads as one grey block, and with a body at 28 the HEADING IS SMALLER THAN
+// THE SENTENCE UNDER IT. The rung is one above the body now, which is what a
+// heading is.
 const lv_font_t *wt_why_head_font(const lv_font_t *body)
 {
-    return body == wt_font14() ? wt_font14() : wt_font23();
+    if (body == wt_font14()) return wt_font14();      // legacy: typed text only
+    if (body == wt_font_mono21()) return wt_font23();
+    if (body == wt_font23()) return wt_font28();
+    return wt_font34();
 }
 
-// Two passes, because the sizes depend on each other: a bigger heading eats the
-// room the body is measured against, and the heading's size is decided BY that
-// body. Assume the taller heading first; if the body still lands on font14,
-// remeasure with the font14 heading it will actually get, which can only give
-// room back. It terminates -- there are two heading rungs and the second is
-// strictly smaller.
+// The two sizes decide each other -- a bigger heading eats the room the body
+// is measured against, and the heading's rung is chosen BY that body -- so
+// this does not iterate towards them. It walks the BODY rungs from the top
+// down and, for each, measures the heading that rung would actually get. The
+// first pair whose real total fits is the answer.
+//
+// Iterating was tried and it lies in both directions. Starting tall it keeps a
+// pessimistic first pass and hands back a rung it had already beaten; starting
+// short it oscillates, because a heading that shrinks gives the body room to
+// grow and ask for the tall heading again. Worse, every trial measurement ran
+// through the REPORTING ladder, so screens whose final answer was fine still
+// printed FIT findings for sizes they never used.
 const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
                                     const char *h2, const char *b2,
                                     int w, int max_h)
 {
-    const lv_font_t *hf = wt_font23();
-    const lv_font_t *f  = NULL;
-    for (int pass = 0; pass < 2; pass++) {
+    const bool mono = mono_can(b1) && mono_can(b2);
+    const lv_font_t *rung[3];
+    rung[0] = wt_font28();
+    rung[1] = wt_font23();
+    rung[2] = mono ? wt_font_mono21() : wt_font23();
+
+    for (int i = 0; i < 3; i++) {
+        const lv_font_t *f  = rung[i];
+        const lv_font_t *hf = wt_why_head_font(f);
         lv_point_t s1 = {0, 0}, s2 = {0, 0};
-        if (h1 && *h1)
-            lv_text_get_size(&s1, h1, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
-        if (h2 && *h2)
-            lv_text_get_size(&s2, h2, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
+        if (h1 && *h1) lv_text_get_size(&s1, h1, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
+        if (h2 && *h2) lv_text_get_size(&s2, h2, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
         int head = s1.y > s2.y ? s1.y : s2.y;
         if (head) head += 6;              // wt_why_block's own heading gap
-        int room = max_h - head;
-        if (room < 40) room = 40;
-        f = wt_body_font2(b1, b2, w, room);
-        const lv_font_t *want = wt_why_head_font(f);
-        if (want == hf) break;
-        hf = want;
+        lv_point_t p1 = {0, 0}, p2 = {0, 0};
+        if (b1 && *b1) lv_text_get_size(&p1, b1, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+        if (b2 && *b2) lv_text_get_size(&p2, b2, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+        const int body = p1.y > p2.y ? p1.y : p2.y;
+        if (head + body <= max_h || i == 2) {
+            // The floor overflowed, so it says so -- once, on the size that
+            // was actually used, and naming the longer of the two.
+            if (head + body > max_h)
+                WT_FIT_GAVE_UP("body", p1.y > p2.y ? b1 : b2, w, max_h);
+            return f;
+        }
     }
-    return f;
+    return rung[2];
 }
 
 lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
