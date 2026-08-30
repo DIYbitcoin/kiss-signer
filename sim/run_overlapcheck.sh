@@ -101,6 +101,11 @@ echo
 
 worst=0
 died=""
+# The per-locale ceiling file, and the list of locales that broke it. Unset
+# OVERLAPCHECK_CEILINGS to run without one (which is what a bisect wants).
+ceilfile="${OVERLAPCHECK_CEILINGS:-sim/overlap_ceilings.txt}"
+over=""
+unceiled=""
 total=0
 summary=""
 # The LVGL heap watermark, out of runs this script already makes. Every one
@@ -218,6 +223,32 @@ for l in "${langs[@]}"; do
         | grep -E 'backlog entry .* never matched|: [1-9][0-9]* (screens|strings) still on the' \
         | sed 's/^\[overlap\] /  /'
     summary="${summary}${l}=${n} "
+    # THE CEILING, and why this is a ceiling rather than a pass/fail. English
+    # is 0 and stays 0; the twenty translations are not, and the reason is not
+    # a bug list. A German row label is a compound word against a lane sized
+    # for an English one -- VERSCHLUESSELUNG wants 268px of the 210px ENCRYPTION
+    # fits in -- so closing this sweep is a copy project measured in days, not
+    # a fix. Left as pass/fail it would be red for all of them on day one, and
+    # a gate that is red for a reason nobody is acting on is a gate nobody
+    # reads. That sentence is already in CLAUDE.md about kissosd.
+    #
+    # So it ratchets instead, the same shape OC_BARE_BACKLOG and its two
+    # siblings already use inside the binary: the number recorded here may
+    # only go DOWN. A locale that gets worse fails; a locale that gets better
+    # says so and asks for the file to be lowered.
+    ceil=$(awk -v L="$l" '$1==L {print $2}' "$ceilfile" 2>/dev/null)
+    if [ -n "$ceil" ]; then
+        if [ "${n:-0}" -gt "$ceil" ]; then
+            over="$over $l(${n}>${ceil})"
+        elif [ "${n:-0}" -lt "$ceil" ]; then
+            printf '  %s is down to %d from a ceiling of %d -- lower it in %s\n' \
+                   "$l" "${n:-0}" "$ceil" "$ceilfile"
+        fi
+    elif [ "${n:-0}" -gt 0 ]; then
+        # No ceiling means no allowance. English is the only locale that ships
+        # without an entry, and English is the source copy: it has no excuse.
+        unceiled="$unceiled $l(${n})"
+    fi
 done
 
 echo
@@ -308,9 +339,20 @@ if [ -n "$died" ]; then
     echo "interleaved run is no longer the explanation it used to be."
     exit 1
 fi
-if [ "$worst" -ne 0 ]; then
+if [ -n "$over" ]; then
     echo
-    echo "FAILED: OVERLAPCHECK_STRICT is set and the gate found something."
+    echo "FAILED: a locale is over its ceiling:$over"
+    echo "The ceiling in $ceilfile may only go DOWN. Cut the copy the findings"
+    echo "above name, or if the screen genuinely grew, say so in the commit and"
+    echo "raise it deliberately -- never as a side effect."
+    exit 1
+fi
+# STRICT is the contract for any locale WITHOUT a ceiling, which is English
+# and only English. The translations answer to the ceiling above instead.
+if [ -n "$unceiled" ]; then
+    echo
+    echo "FAILED: OVERLAPCHECK_STRICT is set and a locale with no ceiling"
+    echo "found something:$unceiled"
     exit 1
 fi
 # A ceiling, not a ratchet. max_used is deterministic, but it moves with every

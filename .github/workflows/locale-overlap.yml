@@ -1,0 +1,42 @@
+# The overlap gate in every locale, on a clock and against a ceiling.
+#
+# WHY A CEILING AND NOT A PASS. English is 0 and the push lane keeps it there.
+# The twenty translations are not 0, and the reason is not a list of bugs: a
+# German row label is a compound word against a lane sized for an English one
+# -- VERSCHLUESSELUNG wants 268px of the 210px ENCRYPTION fits in -- so closing
+# this sweep is a copy project measured in days. Left as pass/fail it would be
+# red for every locale on day one, and a gate that is red for a reason nobody
+# is acting on is a gate nobody reads.
+#
+# So sim/overlap_ceilings.txt records what each locale has today and the
+# runner refuses any number that goes UP. The debt is visible, it cannot grow,
+# and every commit that cuts copy gets asked to lower the file.
+name: locale overlap
+
+on:
+  schedule:
+    # An hour after the locale walk, so a red morning has both answers in it.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  overlap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generated tables match the JSONs
+        run: |
+          python3 tools/gen_i18n.py
+          git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c
+
+      # STRICT is still set: it is what fails a locale with no ceiling, which
+      # is English and only English.
+      - name: overlap gate, twenty one locales
+        env:
+          OVERLAPCHECK_STRICT: '1'
+          OVERLAPCHECK_LANGS: >-
+            en cs-CZ da-DK de es-ES es-MX fr hr-HR it ja ko nb-NO nl pl
+            pt-BR pt-PT ru sv-SE tr vi zh-CN
+        run: bash sim/run_overlapcheck.sh
